@@ -1778,7 +1778,6 @@ export default function ConfiguracoesClientWrapper() {
                     </label>
                     <input
                       type="text"
-                      required
                       value={companyForm.cnpj}
                       onChange={(e) => setCompanyForm({ ...companyForm, cnpj: e.target.value })}
                       placeholder="12.345.678/0001-99"

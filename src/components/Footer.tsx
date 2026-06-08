@@ -113,8 +113,13 @@ export default function Footer() {
               {companySettings.address}
             </p>
             <p className="text-[10px] text-brand-text/40 mt-1">
-              {companySettings.name}<br />
-              CNPJ: {companySettings.cnpj}
+              {companySettings.name}
+              {companySettings.cnpj && (
+                <>
+                  <br />
+                  CNPJ: {companySettings.cnpj}
+                </>
+              )}
             </p>
           </div>
 
