@@ -647,12 +647,12 @@ export default function HeroSection() {
                   }`}
                 >
                   {/* Clickable cover image + gradient background */}
-                  <Link href={pdpUrl} className="absolute inset-0 block z-0 group/slide-img cursor-pointer overflow-hidden">
+                  <Link prefetch={false} href={pdpUrl} className="absolute inset-0 block z-0 group/slide-img cursor-pointer overflow-hidden">
                     <Image
                       src={car.web_full_images[0] || car.whatsapp_images[0]}
                       alt={`${car.marca} ${car.modelo}`}
                       fill
-                      priority
+                      priority={index === 0}
                       className="object-cover transition-transform duration-[8000ms] ease-out group-hover/slide-img:scale-105"
                       sizes="100vw"
                     />
@@ -1232,7 +1232,7 @@ export default function HeroSection() {
                       className="group bg-brand-card border border-brand-card-border hover:border-brand-primary/40 rounded-3xl flex flex-col justify-between shadow-[0_8px_30px_var(--brand-shadow)] hover:shadow-xl transition-all duration-300 relative overflow-hidden animate-fadeIn"
                     >
                       {/* Image block container - Perfect Full-Bleed (no borders/padding surrounding) */}
-                      <Link href={pdpUrl} className="relative w-full aspect-video overflow-hidden bg-brand-bg flex-shrink-0 block cursor-pointer">
+                      <Link prefetch={false} href={pdpUrl} className="relative w-full aspect-video overflow-hidden bg-brand-bg flex-shrink-0 block cursor-pointer">
                         <Image
                           src={veiculo.whatsapp_images[0] || "/logo.png"}
                           alt={`${veiculo.marca} ${veiculo.modelo}`}
@@ -1263,7 +1263,7 @@ export default function HeroSection() {
                       {/* Info details block */}
                       <div className="p-4 max-sm:p-2 flex flex-col flex-grow justify-between gap-3 max-sm:gap-1.5">
                         {/* Brand, Model, Version Link */}
-                        <Link href={pdpUrl} className="flex flex-col gap-1 group/link cursor-pointer">
+                        <Link prefetch={false} href={pdpUrl} className="flex flex-col gap-1 group/link cursor-pointer">
                           <span className="text-[9px] font-medium text-brand-gold uppercase tracking-widest leading-none">
                             {veiculo.marca}
                           </span>
@@ -1276,7 +1276,7 @@ export default function HeroSection() {
                         </Link>
 
                         {/* Specs Grid Link */}
-                        <Link href={pdpUrl} className="block cursor-pointer">
+                        <Link prefetch={false} href={pdpUrl} className="block cursor-pointer">
                           <div className="grid grid-cols-3 gap-1 max-sm:gap-0.5 py-1 max-sm:py-0.5 border-t border-b border-brand-border/40 my-1 text-center font-thin uppercase tracking-wider text-[9px] max-sm:text-[8px] max-sm:h-auto text-brand-text/50 hover:border-brand-primary/30 transition-all duration-300">
                             <div className="flex flex-col gap-0.5 border-r border-brand-border/40 last:border-r-0 py-0.5">
                               <span className="text-[7px] text-brand-text/30 font-semibold">ANO</span>
@@ -1296,7 +1296,7 @@ export default function HeroSection() {
                         {/* Price & Green WhatsApp trigger button */}
                         <div className="flex items-end justify-between gap-2 mt-1.5">
                           {/* Price Link */}
-                          <Link href={pdpUrl} className="flex flex-col cursor-pointer flex-grow">
+                          <Link prefetch={false} href={pdpUrl} className="flex flex-col cursor-pointer flex-grow">
                             {hasDiscount ? (
                               <>
                                 <span className="text-[9px] text-brand-text/40 line-through leading-none mb-0.5">
@@ -1363,7 +1363,7 @@ export default function HeroSection() {
                       className="group bg-brand-card border border-brand-card-border hover:border-brand-primary/40 rounded-3xl p-0 flex flex-col md:flex-row gap-6 max-sm:gap-4.5 shadow-[0_8px_30px_var(--brand-shadow)] hover:shadow-xl transition-all duration-300 relative overflow-hidden animate-fadeIn"
                     >
                     {/* Big Image on Left - Full-Bleed marginless top/left/bottom */}
-                    <Link href={pdpUrl} className="w-full md:w-2/5 aspect-video md:aspect-[4/3] overflow-hidden bg-brand-bg flex-shrink-0 relative block cursor-pointer">
+                    <Link prefetch={false} href={pdpUrl} className="w-full md:w-2/5 aspect-video md:aspect-[4/3] overflow-hidden bg-brand-bg flex-shrink-0 relative block cursor-pointer">
                       <Image
                         src={veiculo.whatsapp_images[0] || "/logo.png"}
                         alt={`${veiculo.marca} ${veiculo.modelo}`}
@@ -1393,7 +1393,7 @@ export default function HeroSection() {
 
                     {/* Mid Block Column: Title & Specs matrix */}
                     <div className="flex flex-col justify-between flex-grow gap-4 py-4 pr-5 max-sm:p-2 max-sm:pt-0 max-sm:pr-2 max-sm:m-0">
-                      <Link href={pdpUrl} className="flex flex-col gap-1.5 group/link cursor-pointer">
+                      <Link prefetch={false} href={pdpUrl} className="flex flex-col gap-1.5 group/link cursor-pointer">
                         <span className="text-[10px] font-medium text-brand-gold uppercase tracking-widest leading-none">
                           {veiculo.marca}
                         </span>
@@ -1407,7 +1407,7 @@ export default function HeroSection() {
                       </Link>
 
                       {/* Technical specifications bar - Horizontal Row with Dynamic Brand SVGs */}
-                      <Link href={pdpUrl} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-brand-border/40 pt-3 text-xs text-brand-text/70 hover:border-brand-primary/30 transition-all duration-300 cursor-pointer">
+                      <Link prefetch={false} href={pdpUrl} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-brand-border/40 pt-3 text-xs text-brand-text/70 hover:border-brand-primary/30 transition-all duration-300 cursor-pointer">
                         {/* 1. ANO */}
                         <div className="flex items-center gap-1.5 pr-4 border-r border-brand-border/40 last:border-0 last:pr-0">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3.5 w-3.5 flex-shrink-0 text-brand-primary">
@@ -1460,7 +1460,7 @@ export default function HeroSection() {
                       
                       {/* Price tag display */}
                       <div className="flex flex-col md:items-end">
-                        <Link href={pdpUrl} className="flex flex-col md:items-end cursor-pointer group/price mb-2 w-full">
+                        <Link prefetch={false} href={pdpUrl} className="flex flex-col md:items-end cursor-pointer group/price mb-2 w-full">
                           <span className="text-[10px] text-brand-text/40 group-hover/price:text-brand-primary uppercase font-semibold tracking-wider mb-1">Preço Especial</span>
                           {hasDiscount ? (
                             <div className="flex flex-col md:items-end">
