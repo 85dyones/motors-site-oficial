@@ -34,9 +34,9 @@ export default function ContatoClientWrapper() {
       telefone: phone,
       mensagem: message,
       utm: {
-        utm_source: utmParams.utm_source,
-        utm_medium: utmParams.utm_medium,
-        utm_campaign: utmParams.utm_campaign,
+        utm_source: utmParams.utm_source || "contato",
+        utm_medium: utmParams.utm_medium || "organico",
+        utm_campaign: utmParams.utm_campaign || "site-direct",
         utm_content: utmParams.utm_content
       },
       intencao_busca: {}
@@ -46,7 +46,7 @@ export default function ContatoClientWrapper() {
     console.log("📈 [Antigravity Telemetry] Novo Lead de Contato Enviado:", payload);
 
     try {
-      let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://n8n.v2o5.com.br/webhook/handoff-motors";
+      let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
       if (typeof window !== "undefined") {
         const customUrl = localStorage.getItem("ag_webhook_url");
         if (customUrl && customUrl.trim()) {

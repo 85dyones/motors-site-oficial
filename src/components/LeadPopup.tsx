@@ -264,7 +264,7 @@ export default function LeadPopup() {
       const leadMessage = resolvePlaceholders(activeCampaign.actionTarget);
 
       // Dispatch to webhook
-      let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://n8n.v2o5.com.br/webhook/handoff-motors";
+      let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
       try {
         const customUrl = localStorage.getItem("ag_webhook_url");
         if (customUrl) webhookUrl = customUrl.trim();
@@ -292,9 +292,9 @@ export default function LeadPopup() {
             },
           } : null,
           utm: {
-            utm_source: utmParams.utm_source,
-            utm_medium: utmParams.utm_medium,
-            utm_campaign: utmParams.utm_campaign,
+            utm_source: utmParams.utm_source || "lead-popup",
+            utm_medium: utmParams.utm_medium || "organico",
+            utm_campaign: utmParams.utm_campaign || activeCampaign.name,
             utm_content: utmParams.utm_content,
           },
           intencao_busca: { popup_campaign: activeCampaign.name },

@@ -228,7 +228,7 @@ export default function ConfiguracoesClientWrapper() {
 
         // Load webhook URL
         const customWebhook = localStorage.getItem("ag_webhook_url");
-        const defaultWebhook = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://n8n.v2o5.com.br/webhook/handoff-motors";
+        const defaultWebhook = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
         setWebhookUrl(customWebhook || defaultWebhook);
 
         // Load evaluation webhook URL
@@ -869,7 +869,7 @@ export default function ConfiguracoesClientWrapper() {
                   <button
                     type="button"
                     onClick={() => {
-                      const fallbackUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://n8n.v2o5.com.br/webhook/handoff-motors";
+                      const fallbackUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
                       setWebhookUrl(fallbackUrl);
                       localStorage.setItem("ag_webhook_url", fallbackUrl);
                       alert("Webhook redefinido para o padrão com sucesso!");
