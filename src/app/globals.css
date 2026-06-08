@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  --brand-background: #fafafc;
+  --brand-foreground: #1a1a23;
+  --brand-primary: #C83F00;
+  --brand-primary-hover: #9E3100;
+  --brand-gold: #9E3100;
+  --brand-card: #ffffff;
+  --brand-card-border: #f3f4f6;
+  --brand-border: #f1f3f5;
+  --brand-shadow: rgba(0, 0, 0, 0.03);
+  --brand-glass-bg: rgba(255, 255, 255, 0.8);
+  --brand-footer-bg: #f1f3f5;
+  
+  --background: var(--brand-background);
+  --foreground: var(--brand-foreground);
+}
+
+@theme {
+  --color-brand-bg: var(--brand-background);
+  --color-brand-text: var(--brand-foreground);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-hover: var(--brand-primary-hover);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-card: var(--brand-card);
+  --color-brand-card-border: var(--brand-card-border);
+  --color-brand-border: var(--brand-border);
+  --color-brand-shadow: var(--brand-shadow);
+  --color-brand-glass: var(--brand-glass-bg);
+  --color-brand-footer: var(--brand-footer-bg);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Global 60% Border Radius Reduction (Sutler styling) */
+  --radius-3xl: 10px;
+  --radius-2xl: 8px;
+  --radius-xl: 6px;
+  --radius-lg: 4px;
+  --radius-md: 3px;
+  --radius-sm: 2px;
+}
+
+body {
+  background: var(--brand-background);
+  color: var(--brand-foreground);
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ── Lead Pop-up Animations ── */
+@keyframes slideUpPopup {
+  0% { opacity: 0; transform: translateY(40px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fadeInBackdrop {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideDownPopup {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(40px) scale(0.97); }
+}
+
+@keyframes pulseRing {
+  0% { box-shadow: 0 0 0 0 rgba(200, 63, 0, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(200, 63, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 63, 0, 0); }
+}
+
+@keyframes countdownShrink {
+  0% { width: 100%; }
+  100% { width: 0%; }
+}
+
+.animate-slideUpPopup {
+  animation: slideUpPopup 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideDownPopup {
+  animation: slideDownPopup 0.35s cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+
+.animate-fadeInBackdrop {
+  animation: fadeInBackdrop 0.4s ease-out forwards;
+}
+
+.animate-pulseRing {
+  animation: pulseRing 2s ease-out infinite;
+}
+
