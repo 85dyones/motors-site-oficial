@@ -61,6 +61,30 @@ export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
   },
 };
 
+export interface CompanySettings {
+  name: string;
+  phone: string;
+  whatsapp: string;
+  whatsappRaw: string;
+  address: string;
+  hours: string;
+  instagram: string;
+  facebook: string;
+  cnpj: string;
+}
+
+export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
+  name: "Motors Store",
+  phone: "(11) 4003-0000",
+  whatsapp: "(11) 99999-9999",
+  whatsappRaw: "5511999999999",
+  address: "Av. Europa, 1000 - Jardim Europa, São Paulo - SP, CEP 01449-000",
+  hours: "Seg a Sex das 9h às 19h\nSáb das 9h às 14h",
+  instagram: "https://instagram.com/motorsstore",
+  facebook: "https://facebook.com/motorsstore",
+  cnpj: "12.345.678/0001-99",
+};
+
 interface ThemeContextProps {
   theme: ThemeType;
   setTheme: (type: ThemeType) => void;
@@ -70,6 +94,8 @@ interface ThemeContextProps {
   removeFromCompare: (id: string) => void;
   clearCompare: () => void;
   isInCompare: (id: string) => boolean;
+  companySettings: CompanySettings;
+  updateCompanySettings: (settings: CompanySettings) => void;
 }
 
 const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
@@ -77,6 +103,7 @@ const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeType>("luxury-light");
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("ag_theme") as ThemeType;
@@ -93,7 +120,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to parse compare IDs from localStorage", e);
       }
     }
+
+    const savedCompany = localStorage.getItem("ag_company_settings");
+    if (savedCompany) {
+      try {
+        setCompanySettings({
+          ...DEFAULT_COMPANY_SETTINGS,
+          ...JSON.parse(savedCompany)
+        });
+      } catch (e) {
+        console.error("Failed to parse company settings from localStorage", e);
+      }
+    }
   }, []);
+
+  const updateCompanySettings = (settings: CompanySettings) => {
+    setCompanySettings(settings);
+    localStorage.setItem("ag_company_settings", JSON.stringify(settings));
+  };
 
   const applyThemeProperties = (type: ThemeType) => {
     if (typeof window === "undefined") return;
@@ -167,6 +211,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         removeFromCompare,
         clearCompare,
         isInCompare,
+        companySettings,
+        updateCompanySettings,
       }}
     >
       {children}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { logFlowInitiated, getActiveAgUid, getUtmParameters } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
+import { useTheme } from "../app/ThemeContext";
 
 // ─── FIPE API Types ───
 interface FipeBrand { codigo: string; nome: string; }
@@ -223,6 +224,7 @@ function SearchableCombobox({
 
 
 export default function AutoAvaliacao() {
+  const { companySettings } = useTheme();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
   const [loading, setLoading] = useState(false);
@@ -649,7 +651,7 @@ export default function AutoAvaliacao() {
       console.warn("[Telemetry] Failed to save lead payload to history:", e);
     }
 
-    const whatsappUrl = `https://wa.me/554198089550?text=${encodeURIComponent(activeMessage)}`;
+    const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

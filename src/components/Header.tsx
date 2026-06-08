@@ -9,7 +9,7 @@ import VehicleCompare from "./VehicleCompare";
 
 export default function Header() {
   const [activeTap, setActiveTap] = useState(false);
-  const { compareIds, theme } = useTheme();
+  const { compareIds, theme, companySettings } = useTheme();
   const [compareOpen, setCompareOpen] = useState(false);
 
   // Logo mapping corresponding to active theme presets - Next.js maps public folder to root
@@ -50,7 +50,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-brand-border bg-brand-glass backdrop-blur-md transition-all duration-300">
-      <div className="mx-auto flex h-16 lg:h-[75px] max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
+      <div className="mx-auto flex h-16 lg:h-[75px] max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
         
         {/* Clickable Logo */}
         <Link href="/" className="flex items-center group transition-transform active:scale-95 duration-200 flex-shrink-0">
@@ -188,7 +188,7 @@ export default function Header() {
             onClick={() => {
               setActiveTap(true);
               setTimeout(() => setActiveTap(false), 200);
-              window.location.href = "tel:+5511999999999";
+              window.location.href = "tel:" + companySettings.phone.replace(/\D/g, "");
             }}
             className={`flex items-center justify-center h-9 w-9 rounded-full border transition-all duration-300 active:scale-90 ${
               activeTap 

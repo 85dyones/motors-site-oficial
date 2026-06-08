@@ -373,7 +373,7 @@ export default function TestPage() {
     // Step 2: Simulate perfect percent-encoding
     updateStepStatus("scenario-3", 1, "running");
     const encodedText = encodeURIComponent(messageTemplate);
-    const waUrl = `https://wa.me/554198089550?text=${encodedText}`;
+    const waUrl = `https://wa.me/5511999999999?text=${encodedText}`;
     addLog(`🔗 Generated perfectly encoded WhatsApp URL: "${waUrl}"`);
     updateStepStatus("scenario-3", 1, "passed", "Message successfully encoded");
     await new Promise((resolve) => setTimeout(resolve, 400));

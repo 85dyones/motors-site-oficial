@@ -218,7 +218,7 @@ function applyCustomDisplaySorting(vehicles: Veiculo[]): Veiculo[] {
 }
 
 export default function HeroSection() {
-  const { addToCompare, removeFromCompare, isInCompare, compareIds } = useTheme();
+  const { addToCompare, removeFromCompare, isInCompare, compareIds, companySettings } = useTheme();
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
   const [filteredEstoque, setFilteredEstoque] = useState<Veiculo[]>([]);
   const [featuredCars, setFeaturedCars] = useState<Veiculo[]>([]);
@@ -619,7 +619,7 @@ export default function HeroSection() {
     }
 
     // Redirect to WhatsApp
-    const whatsappUrl = `https://wa.me/554198089550?text=${encodeURIComponent(activeMessage)}`;
+    const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getEstoque, Veiculo, getVeiculoPdpUrl } from "../lib/supabase";
 import { logFlowInitiated, getActiveAgUid, getUtmParameters } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
+import { useTheme } from "../app/ThemeContext";
 
 interface AnswerState {
   budgetMin: number;
@@ -15,6 +16,7 @@ interface AnswerState {
 }
 
 export default function CarMatch() {
+  const { companySettings } = useTheme();
   const [gameState, setGameState] = useState<"intro" | "q1" | "q2" | "q3" | "loading" | "results">("intro");
   const [answers, setAnswers] = useState<AnswerState>({ budgetMin: 0, budgetMax: 0, use: "", category: "" });
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
@@ -256,7 +258,7 @@ export default function CarMatch() {
     }
 
     // Redirect to WhatsApp
-    const whatsappUrl = `https://wa.me/554198089550?text=${encodeURIComponent(activeMessage)}`;
+    const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -976,7 +978,7 @@ export default function CarMatch() {
                   veiculo.preco_promocional < veiculo.preco_original;
 
                 // Create lead msg with reference
-                const whatsappNumber = "554198089550";
+                const whatsappNumber = companySettings.whatsappRaw;
                 const isUpsell = answers.budgetMax > 0 && (hasDiscount ? veiculo.preco_promocional : veiculo.preco_original) > answers.budgetMax;
                 const matchMsg = isUpsell
                   ? `Olá! Realizei o Match de Garagem no site e fiquei muito interessado na recomendação de upgrade do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} (${formatPrice(hasDiscount ? veiculo.preco_promocional : veiculo.preco_original)}), que tem ${veiculo.score}% de afinidade comigo. Gostaria de receber mais informações! (Ref: ${agUid})`

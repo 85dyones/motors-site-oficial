@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getActiveAgUid, getUtmParameters } from "../lib/telemetry";
+import { useTheme } from "../app/ThemeContext";
 
 // ─── Default Configurations ───
 const COOLDOWN_HOURS = 4;                  
-const WHATSAPP_NUMBER = "554198089550";
+const WHATSAPP_NUMBER = "5511999999999";
 
 interface Campaign {
   id: string;
@@ -32,7 +33,7 @@ interface PopupSettings {
 const DEFAULT_SETTINGS: PopupSettings = {
   enabled: true,
   cooldownHours: 4,
-  whatsappNumber: "554198089550",
+  whatsappNumber: "5511999999999",
 };
 
 // ─── Anti-Spam Storage Keys ───
@@ -177,6 +178,7 @@ function markAsShown(): void {
 
 // ─── Main Component ───
 export default function LeadPopup() {
+  const { companySettings } = useTheme();
   const [settings, setSettings] = useState<PopupSettings | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
@@ -303,7 +305,10 @@ export default function LeadPopup() {
       }).catch((err) => console.warn("[Webhook] Lead Popup campaign dispatch failed:", err));
 
       // Open WhatsApp
-      const whatsappUrl = `https://wa.me/${settings.whatsappNumber}?text=${encodeURIComponent(leadMessage)}`;
+      const targetNumber = (settings?.whatsappNumber && settings.whatsappNumber !== "554198089550" && settings.whatsappNumber !== "5511999999999")
+        ? settings.whatsappNumber
+        : companySettings.whatsappRaw;
+      const whatsappUrl = `https://wa.me/${targetNumber}?text=${encodeURIComponent(leadMessage)}`;
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
 
     } else if (activeCampaign.actionType === "link") {

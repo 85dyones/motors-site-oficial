@@ -136,9 +136,18 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
 ];
 
 export default function ConfiguracoesClientWrapper() {
-  const { theme, setTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<"estoque" | "integracao" | "popups" | "destaques">("estoque");
+  const { theme, setTheme, companySettings, updateCompanySettings } = useTheme();
+  const [activeTab, setActiveTab] = useState<"estoque" | "integracao" | "popups" | "destaques" | "empresa">("estoque");
   const [loading, setLoading] = useState(true);
+
+  // Company settings states
+  const [companyForm, setCompanyForm] = useState(companySettings);
+  const [companyStatus, setCompanyStatus] = useState<"idle" | "saved">("idle");
+
+  // Sync company settings form when settings change
+  useEffect(() => {
+    setCompanyForm(companySettings);
+  }, [companySettings]);
 
   // Carousel selection state
   const [carouselVehicleIds, setCarouselVehicleIds] = useState<string[]>([]);
@@ -431,6 +440,39 @@ export default function ConfiguracoesClientWrapper() {
     }
   };
 
+  // Save company settings
+  const handleSaveCompanySettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      updateCompanySettings(companyForm);
+      setCompanyStatus("saved");
+      console.log("[Telemetry] Dados da Concessionária atualizados.");
+      setTimeout(() => setCompanyStatus("idle"), 2500);
+    } catch (e) {
+      console.error("Failed to save company settings:", e);
+    }
+  };
+
+  // Reset company settings to default
+  const handleResetCompanySettings = () => {
+    if (confirm("Deseja realmente redefinir todos os dados da concessionária para os padrões de fábrica?")) {
+      const defaultSettings = {
+        name: "Motors Store",
+        phone: "(11) 4003-0000",
+        whatsapp: "(11) 99999-9999",
+        whatsappRaw: "5511999999999",
+        address: "Av. Europa, 1000 - Jardim Europa, São Paulo - SP, CEP 01449-000",
+        hours: "Seg a Sex das 9h às 19h\nSáb das 9h às 14h",
+        instagram: "https://instagram.com/motorsstore",
+        facebook: "https://facebook.com/motorsstore",
+        cnpj: "12.345.678/0001-99",
+      };
+      setCompanyForm(defaultSettings);
+      updateCompanySettings(defaultSettings);
+      alert("Dados da concessionária redefinidos com sucesso!");
+    }
+  };
+
   // Save campaign edit / create
   const handleSaveCampaign = (campaign: Campaign) => {
     setCampaigns((prev) => {
@@ -626,6 +668,16 @@ export default function ConfiguracoesClientWrapper() {
             }`}
           >
             Pop-ups de Lead
+          </button>
+          <button
+            onClick={() => setActiveTab("empresa")}
+            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+              activeTab === "empresa"
+                ? "border-brand-primary text-brand-primary"
+                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
+            }`}
+          >
+            Dados da Concessionária
           </button>
         </div>
 
@@ -1293,7 +1345,7 @@ export default function ConfiguracoesClientWrapper() {
               )}
             </div>
           </div>
-        ) : (
+        ) : activeTab === "popups" ? (
           // POPUPS CAMPAIGNS CONFIGURATION
           <div className="flex flex-col gap-6 animate-fadeIn">
             {/* Global parameters card */}
@@ -1673,7 +1725,176 @@ export default function ConfiguracoesClientWrapper() {
               </div>
             </div>
           </div>
-        )}
+        ) : activeTab === "empresa" ? (
+          <div className="flex flex-col gap-6 animate-fadeIn">
+            {/* Company Settings Section */}
+            <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm">
+              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
+                Identidade & Atendimento
+              </span>
+              <h2 className="text-lg font-bold text-brand-text mb-2 uppercase">
+                DADOS DA CONCESSIONÁRIA
+              </h2>
+              <p className="text-xs text-brand-text/50 mb-6 font-light leading-relaxed">
+                Configure as informações básicas da sua empresa. Esses dados serão exibidos de forma dinâmica em todo o portal (rodapé, cabeçalho, formulários, botões de WhatsApp e PDPs).
+              </p>
+
+              <form onSubmit={handleSaveCompanySettings} className="flex flex-col gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Company Name */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Nome Comercial da Concessionária
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={companyForm.name}
+                      onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
+                      placeholder="Motors Store"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                    />
+                  </div>
+
+                  {/* Phone */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Telefone Comercial / Fixo
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={companyForm.phone}
+                      onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
+                      placeholder="(11) 4003-0000"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                    />
+                  </div>
+
+                  {/* CNPJ */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      CNPJ
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={companyForm.cnpj}
+                      onChange={(e) => setCompanyForm({ ...companyForm, cnpj: e.target.value })}
+                      placeholder="12.345.678/0001-99"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+
+                  {/* WhatsApp Formatted */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      WhatsApp (Exibição Formatada)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={companyForm.whatsapp}
+                      onChange={(e) => setCompanyForm({ ...companyForm, whatsapp: e.target.value })}
+                      placeholder="(11) 99999-9999"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                    />
+                  </div>
+
+                  {/* WhatsApp Raw */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      WhatsApp Link (Apenas números com DDI: ex: 5511999999999)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={companyForm.whatsappRaw}
+                      onChange={(e) => setCompanyForm({ ...companyForm, whatsappRaw: e.target.value.replace(/\D/g, "") })}
+                      placeholder="5511999999999"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+
+                  {/* Address */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Endereço da Loja Física
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={companyForm.address}
+                      onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
+                      placeholder="Av. Europa, 1000 - Jardim Europa, São Paulo - SP, CEP 01449-000"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                    />
+                  </div>
+
+                  {/* Business Hours */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Horário de Funcionamento
+                    </label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={companyForm.hours}
+                      onChange={(e) => setCompanyForm({ ...companyForm, hours: e.target.value })}
+                      placeholder="Seg a Sex das 9h às 19h&#10;Sáb das 9h às 14h"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all resize-none"
+                    />
+                  </div>
+
+                  {/* Instagram */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Instagram (Link Completo)
+                    </label>
+                    <input
+                      type="url"
+                      value={companyForm.instagram}
+                      onChange={(e) => setCompanyForm({ ...companyForm, instagram: e.target.value })}
+                      placeholder="https://instagram.com/usuario"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+
+                  {/* Facebook */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Facebook (Link Completo)
+                    </label>
+                    <input
+                      type="url"
+                      value={companyForm.facebook}
+                      onChange={(e) => setCompanyForm({ ...companyForm, facebook: e.target.value })}
+                      placeholder="https://facebook.com/pagina"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit buttons */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="submit"
+                    className="h-10 bg-brand-primary hover:bg-brand-primary-hover text-white text-[10px] font-bold uppercase tracking-widest px-5 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {companyStatus === "saved" ? "DADOS SALVOS ✓" : "SALVAR INFORMAÇÕES"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetCompanySettings}
+                    className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    Restaurar Padrões
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
 
       </div>
     </div>
