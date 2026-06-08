@@ -5,7 +5,7 @@ import AutoAvaliacao from "../components/AutoAvaliacao";
 export default function Home() {
   return (
     <div className="flex flex-col flex-grow items-center justify-start bg-brand-bg text-brand-text transition-colors duration-300">
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 flex flex-col gap-10 pb-16">
+      <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 lg:px-8 flex flex-col gap-10 pb-16">
         {/* Active stock search & standard categories catalog */}
         <HeroSection />
 

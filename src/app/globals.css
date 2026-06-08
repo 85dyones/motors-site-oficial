@@ -42,10 +42,11 @@
   --radius-sm: 2px;
 }
 
-body {
+html, body {
   background: var(--brand-background);
   color: var(--brand-foreground);
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  overflow-x: hidden;
 }
 
 .scrollbar-none::-webkit-scrollbar {

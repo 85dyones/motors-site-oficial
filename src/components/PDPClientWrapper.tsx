@@ -394,7 +394,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     <div id="pdp-vehicle-root" data-vehicle-id={veiculo.id} data-price={finalPrice} className="w-full pb-24 bg-brand-bg text-brand-text transition-colors duration-300 flex flex-col">
       
       {/* 2. GALLERY PREMIUM (Slider de fotos Swipe nativo + thumbnails) - Full-Bleed order-1 on mobile, order-2 below header on desktop */}
-      <div className="w-full order-1 md:order-2 mx-auto max-w-7xl px-0 md:px-8 mt-0 md:mt-4">
+      <div className="w-full order-1 md:order-2 mx-auto max-w-[1440px] px-0 md:px-8 mt-0 md:mt-4">
         <section className="flex flex-col gap-3 max-sm:gap-1.5">
           {/* Images container fitted to generous, gorgeous full-bleed responsive heights and styled with bg-zinc-950 */}
           <div className="relative w-full h-[300px] xs:h-[360px] sm:h-[440px] md:h-[500px] lg:h-[540px] bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
@@ -510,7 +510,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
       {/* 1. TITLE BANNER HEADER (Clean Auto Club Banner Look) - order-2 below gallery on mobile, order-1 on desktop */}
       <header className="w-full border-b border-brand-border/60 bg-brand-card/30 backdrop-blur-sm py-5 max-sm:py-3 px-4 sm:px-6 lg:px-8 order-2 md:order-1">
-        <div className="mx-auto max-w-7xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 max-sm:gap-3 flex-wrap">
+        <div className="mx-auto max-w-[1440px] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 max-sm:gap-3 flex-wrap">
           <div className="flex flex-col gap-1 max-sm:gap-0.5">
             <span className="text-xs md:text-sm font-semibold uppercase tracking-widest text-brand-gold">
               {veiculo.marca}
@@ -622,7 +622,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       </header>
 
       {/* Rest of page details - order-3 */}
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-10 max-sm:gap-5 order-3 w-full">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-10 max-sm:gap-5 order-3 w-full">
         
         {/* ESTRUTURA DA PDP (Seção de Descrição) - Imposing clean typography located exactly below the gallery/thumbnails */}
         <section className="bg-brand-card border border-brand-border/40 p-6 md:p-8 max-sm:p-4 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)]">
@@ -875,7 +875,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       {isLightboxOpen && (
         <div className="fixed inset-0 bg-black/95 z-[9999] backdrop-blur-md flex flex-col justify-between p-4 transition-all duration-300 select-none">
           {/* Header section of Lightbox */}
-          <div className="flex justify-between items-center w-full max-w-7xl mx-auto py-2 px-4">
+          <div className="flex justify-between items-center w-full max-w-[1440px] mx-auto py-2 px-4">
             <div className="text-white text-xs font-black uppercase tracking-widest">
               {veiculo.marca} {veiculo.modelo}
             </div>
@@ -891,7 +891,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           </div>
 
           {/* Main image container */}
-          <div className="relative flex-grow flex items-center justify-center w-full max-w-7xl mx-auto my-4 h-[70vh]">
+          <div className="relative flex-grow flex items-center justify-center w-full max-w-[1440px] mx-auto my-4 h-[70vh]">
             {/* Left navigation arrow */}
             {veiculo.web_full_images.length > 1 && (
               <button

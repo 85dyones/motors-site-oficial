@@ -50,7 +50,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-brand-border bg-brand-glass backdrop-blur-md transition-all duration-300">
-      <div className="mx-auto flex h-16 lg:h-[75px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
+      <div className="mx-auto flex h-16 lg:h-[75px] max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
         
         {/* Clickable Logo */}
         <Link href="/" className="flex items-center group transition-transform active:scale-95 duration-200 flex-shrink-0">
