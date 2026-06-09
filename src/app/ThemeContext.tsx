@@ -115,7 +115,7 @@ export const DEFAULT_ABOUT_SETTINGS: AboutSettings = {
   value1: "Laudo Cautelar 100% Livre: Histórico estrutural intocado e verificado.",
   value2: "Garantia de Showroom: Revisão profunda de 120 itens em mecânica e elétrica.",
   value3: "Valoração Fipe de Precisão: Atualização contínua com indicadores oficiais de mercado.",
-  techTitle: "O MOTOR TECNOLÓGICO DA MOTORS STORE",
+  techTitle: "NOSSOS PILARES DE EXCELÊNCIA",
   techSubtitle: "Nossa plataforma web 2.0 não é apenas um catálogo digital. Criamos sistemas inteligentes locais para guiar seu investimento com máxima precisão.",
   card1Title: "PREVISÃO FIPE EXPRESS",
   card1Desc: "Algoritmo de cálculo instantâneo que traduz dados técnicos e quilometragem em uma cotação justa de mercado para seu veículo de entrada em segundos.",

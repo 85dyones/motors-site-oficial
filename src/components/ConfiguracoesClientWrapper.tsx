@@ -2145,7 +2145,7 @@ export default function ConfiguracoesClientWrapper() {
                           required
                           value={aboutForm.techTitle}
                           onChange={(e) => setAboutForm({ ...aboutForm, techTitle: e.target.value })}
-                          placeholder="O MOTOR TECNOLÓGICO DA MOTORS STORE"
+                          placeholder="NOSSOS PILARES DE EXCELÊNCIA"
                           className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
                         />
                       </div>
