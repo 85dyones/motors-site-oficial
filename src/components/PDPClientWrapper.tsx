@@ -393,10 +393,60 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   ];
 
   return (
-    <div id="pdp-vehicle-root" data-vehicle-id={veiculo.id} data-price={finalPrice} className="w-full pb-24 bg-brand-bg text-brand-text transition-colors duration-300 flex flex-col">
+    <div id="pdp-vehicle-root" data-vehicle-id={veiculo.id} data-price={finalPrice} className="w-full pb-24 bg-brand-bg text-brand-text transition-colors duration-300 flex flex-col print:pb-0">
       
+      {/* PRINT ONLY HEADER */}
+      <div className="hidden print:flex flex-col gap-4 border-b-2 border-black pb-4 mb-6">
+        {/* Dealership header row */}
+        <div className="flex flex-row justify-between items-center">
+          <div>
+            <span className="text-xl font-black tracking-widest text-black uppercase">{companySettings.name}</span>
+            <span className="text-[9px] text-zinc-500 block uppercase font-bold tracking-wider">Ficha Técnica de Showroom</span>
+          </div>
+          <div className="text-right">
+            <span className="text-[9px] font-mono text-zinc-500 block">ID: {getShortVehicleId(veiculo.id)}</span>
+            <span className="text-[9px] text-zinc-500 block">Gerado em: {new Date().toLocaleDateString('pt-BR')}</span>
+          </div>
+        </div>
+
+        {/* Vehicle details row */}
+        <div className="flex flex-row justify-between items-end mt-2">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{veiculo.marca}</span>
+            <h1 className="text-2xl font-bold text-black leading-tight mt-0.5">{veiculo.modelo}</h1>
+            <p className="text-[10px] text-zinc-600 uppercase tracking-wide mt-1">
+              {veiculo.versao} • Ano {veiculo.ano} • {veiculo.cor}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest block leading-none mb-1">Preço de Venda</span>
+            {hasDiscount ? (
+              <div className="flex flex-col items-end">
+                <span className="text-[9px] text-zinc-400 line-through leading-none">De {formatPrice(veiculo.preco_original)}</span>
+                <span className="text-lg font-black text-black tracking-tight mt-1">Por {formatPrice(veiculo.preco_promocional)}</span>
+              </div>
+            ) : (
+              <span className="text-lg font-black text-black tracking-tight">{formatPrice(veiculo.preco_original)}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* PRINT ONLY FEATURED IMAGE */}
+      <div className="hidden print:block w-full mb-6">
+        {veiculo.web_full_images[0] && (
+          <div className="relative w-full h-[320px] bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200">
+            <img
+              src={veiculo.web_full_images[0]}
+              alt={`${veiculo.marca} ${veiculo.modelo}`}
+              className="w-full h-full object-cover print-main-image"
+            />
+          </div>
+        )}
+      </div>
+
       {/* 2. GALLERY PREMIUM (Slider de fotos Swipe nativo + thumbnails) - Full-Bleed order-1 on mobile, order-2 below header on desktop */}
-      <div className="w-full order-1 md:order-2 mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4">
+      <div className="w-full order-1 md:order-2 mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4 print:hidden">
         <section className="flex flex-col gap-3 max-sm:gap-1.5">
           {/* Images container fitted to generous, gorgeous full-bleed responsive heights and styled with bg-zinc-950 */}
           <div className="relative w-full h-[300px] xs:h-[360px] sm:h-[440px] md:h-[500px] lg:h-[540px] bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
@@ -625,11 +675,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         </div>
       </header>
 
-      {/* Rest of page details - order-3 */}
-      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-10 max-sm:gap-5 order-3 w-full">
-        
-        {/* ESTRUTURA DA PDP (Seção de Descrição) - Imposing clean typography located exactly below the gallery/thumbnails */}
-        <section className="bg-brand-card border border-brand-border/40 p-6 md:p-8 max-sm:p-4 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)]">
+    {/* Rest of page details - order-3 */}
+    <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-10 max-sm:gap-5 order-3 w-full print:px-0 print:py-0 print:gap-6">
+      
+      {/* ESTRUTURA DA PDP (Seção de Descrição) - Imposing clean typography located exactly below the gallery/thumbnails */}
+      <section className="bg-brand-card border border-brand-border/40 p-6 md:p-8 max-sm:p-4 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)] print-avoid-break">
           <h3 className="text-xs font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-3 mb-4 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H3.75A1.125 1.125 0 0 0 2.625 3.375v17.25c0 .621.504 1.125 1.125 1.125h16.5a1.125 1.125 0 0 0 1.125-1.125V14.25z" />
@@ -642,12 +692,12 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           </p>
         </section>
 
-        {/* 3. QUICK SPECS GRID (8 compact rectangular cells of specifications) */}
-        <section className="flex flex-col gap-2 max-sm:gap-1.5">
-          <h3 className="text-xs font-extrabold uppercase tracking-widest text-brand-gold">
-            ESPECIFICAÇÕES RÁPIDAS
-          </h3>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2.5 max-sm:gap-1.5">
+      {/* 3. QUICK SPECS GRID (8 compact rectangular cells of specifications) */}
+      <section className="flex flex-col gap-2 max-sm:gap-1.5 print-avoid-break">
+        <h3 className="text-xs font-extrabold uppercase tracking-widest text-brand-gold">
+          ESPECIFICAÇÕES RÁPIDAS
+        </h3>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2.5 max-sm:gap-1.5 print:grid-cols-4 print:gap-3">
             {quickSpecs.map((spec, index) => (
               <div
                 key={index}
@@ -670,38 +720,38 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           </div>
         </section>
 
-        {/* 4. DETAIL DESCRIPTIONS & INTERACTIVE MATRIX GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-sm:gap-4 items-start">
+      {/* 4. DETAIL DESCRIPTIONS & INTERACTIVE MATRIX GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-sm:gap-4 items-start print:grid-cols-1 print:gap-6">
+        
+        {/* Left block (Opcionais & Cautelar Accordions) - spans 7 cols */}
+        <div className="lg:col-span-7 flex flex-col gap-6 max-sm:gap-4 print:col-span-12">
           
-          {/* Left block (Opcionais & Cautelar Accordions) - spans 7 cols */}
-          <div className="lg:col-span-7 flex flex-col gap-6 max-sm:gap-4">
-            
-            {/* Accordion: Opcionais e Acessórios */}
-            <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300">
-              <button
-                onClick={() => setOpcionaisOpen(!opcionaisOpen)}
-                className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
-              >
-                <span className="uppercase tracking-widest text-sm max-sm:text-xs">OPCIONAIS E ACESSÓRIOS DE SÉRIE</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2.5"
-                  stroke="currentColor"
-                  className={`w-4 h-4 text-brand-primary transition-transform duration-300 ${
-                    opcionaisOpen ? "rotate-180" : ""
-                  }`}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
-              </button>
-              
-              <div
-                className={`transition-all duration-300 overflow-hidden ${
-                  opcionaisOpen ? "max-h-[1000px] border-t border-brand-border p-6 max-sm:p-4" : "max-h-0"
+          {/* Accordion: Opcionais e Acessórios */}
+          <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300 print-avoid-break">
+            <button
+              onClick={() => setOpcionaisOpen(!opcionaisOpen)}
+              className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
+            >
+              <span className="uppercase tracking-widest text-sm max-sm:text-xs">OPCIONAIS E ACESSÓRIOS DE SÉRIE</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth="2.5"
+                stroke="currentColor"
+                className={`w-4 h-4 text-brand-primary transition-transform duration-300 print:hidden ${
+                  opcionaisOpen ? "rotate-180" : ""
                 }`}
               >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            
+            <div
+              className={`transition-all duration-300 overflow-hidden print:max-h-none print:p-6 print:border-t print:block ${
+                opcionaisOpen ? "max-h-[1000px] border-t border-brand-border p-6 max-sm:p-4" : "max-h-0"
+              }`}
+            >
                 {featuresList.length > 0 ? (
                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-brand-text/70">
                     {featuresList.map((item, idx) => (
@@ -717,32 +767,32 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               </div>
             </div>
 
-            {/* Accordion: Perícia Cautelar */}
-            <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300">
-              <button
-                onClick={() => setPericiaOpen(!periciaOpen)}
-                className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
-              >
-                <span className="uppercase tracking-widest text-sm max-sm:text-xs">LAUDO DE PERÍCIA CAUTELAR CERTIFICADO</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2.5"
-                  stroke="currentColor"
-                  className={`w-4 h-4 text-brand-primary transition-transform duration-300 ${
-                    periciaOpen ? "rotate-180" : ""
-                  }`}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
-              </button>
-              
-              <div
-                className={`transition-all duration-300 overflow-hidden ${
-                  periciaOpen ? "max-h-[500px] border-t border-brand-border p-6 max-sm:p-4" : "max-h-0"
+          {/* Accordion: Perícia Cautelar */}
+          <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300 print-avoid-break">
+            <button
+              onClick={() => setPericiaOpen(!periciaOpen)}
+              className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
+            >
+              <span className="uppercase tracking-widest text-sm max-sm:text-xs">LAUDO DE PERÍCIA CAUTELAR CERTIFICADO</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth="2.5"
+                stroke="currentColor"
+                className={`w-4 h-4 text-brand-primary transition-transform duration-300 print:hidden ${
+                  periciaOpen ? "rotate-180" : ""
                 }`}
               >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            
+            <div
+              className={`transition-all duration-300 overflow-hidden print:max-h-none print:p-6 print:border-t print:block ${
+                periciaOpen ? "max-h-[500px] border-t border-brand-border p-6 max-sm:p-4" : "max-h-0"
+              }`}
+            >
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
                     <div className="bg-emerald-500/10 text-emerald-600 p-2.5 rounded-full">
@@ -765,7 +815,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           </div>
 
           {/* Right block (Specification Matrix Table) - spans 5 cols */}
-          <aside className="lg:col-span-5 bg-brand-card border border-brand-border/40 p-6 max-sm:p-4 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)] w-full">
+          <aside className="lg:col-span-5 bg-brand-card border border-brand-border/40 p-6 max-sm:p-4 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)] w-full print:col-span-12 print-avoid-break">
             <h3 className="text-sm font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-4 mb-4">
               MATRIZ DE ESPECIFICAÇÕES
             </h3>
@@ -831,7 +881,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             </div>
 
             {/* Direct contact CTA box in side desk bar */}
-            <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4">
+            <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4 print:hidden">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-brand-primary/10 border border-brand-primary flex items-center justify-center flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-4 h-4 text-brand-primary">
@@ -862,7 +912,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       </div>
 
       {/* 5. STICKY BOTTOM BAR (Mobile Thumb Zone CTA) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-brand-card/90 border-t border-brand-border backdrop-blur-md px-4 py-3.5 flex justify-center pb-safe shadow-lg md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-brand-card/90 border-t border-brand-border backdrop-blur-md px-4 py-3.5 flex justify-center pb-safe shadow-lg md:hidden print:hidden">
         <button
           onClick={handleWhatsappPDPClick}
           className="w-full max-w-md flex items-center justify-center gap-2.5 bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-widest py-4 px-6 rounded-2xl active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.25)] transition-all duration-300 cursor-pointer"
@@ -877,7 +927,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
       {/* 6. LIGHTBOX MODAL (Fullscreen View) */}
       {isLightboxOpen && (
-        <div className="fixed inset-0 bg-black/95 z-[9999] backdrop-blur-md flex flex-col justify-between p-4 transition-all duration-300 select-none">
+        <div className="fixed inset-0 bg-black/95 z-[9999] backdrop-blur-md flex flex-col justify-between p-4 transition-all duration-300 select-none print:hidden">
           {/* Header section of Lightbox */}
           <div className="flex justify-between items-center w-full max-w-[1600px] mx-auto py-2 px-4">
             <div className="text-white text-xs font-black uppercase tracking-widest">
@@ -953,6 +1003,21 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           ano: veiculo.ano
         }}
       />
+
+      {/* PRINT ONLY FOOTER */}
+      <div className="hidden print:flex flex-row justify-between items-center border-t border-zinc-200 pt-4 mt-8 print-avoid-break">
+        <div className="text-[9px] text-zinc-500 leading-normal">
+          <span className="font-bold text-zinc-700 block uppercase tracking-wider mb-0.5">{companySettings.name}</span>
+          <span>{companySettings.address}</span>
+          {companySettings.cnpj && <span className="block mt-0.5 font-mono">CNPJ: {companySettings.cnpj}</span>}
+        </div>
+        <div className="text-right text-[9px] text-zinc-500 leading-normal">
+          <span className="font-bold text-zinc-700 block uppercase tracking-wider mb-0.5">Contato & Atendimento</span>
+          <span>Tel: {companySettings.phone} • WhatsApp: {companySettings.whatsapp}</span>
+          <span className="block mt-0.5">{companySettings.hours.replace(/\n/g, " | ")}</span>
+        </div>
+      </div>
+
     </div>
   );
 }

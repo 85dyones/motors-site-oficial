@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
-import { useTheme, ThemeType } from "../app/ThemeContext";
+import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS } from "../app/ThemeContext";
 
 interface Campaign {
   id: string;
@@ -136,13 +136,22 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
 ];
 
 export default function ConfiguracoesClientWrapper() {
-  const { theme, setTheme, companySettings, updateCompanySettings } = useTheme();
-  const [activeTab, setActiveTab] = useState<"estoque" | "integracao" | "popups" | "destaques" | "empresa">("estoque");
+  const { theme, setTheme, companySettings, updateCompanySettings, aboutSettings, updateAboutSettings } = useTheme();
+  const [activeTab, setActiveTab] = useState<"estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre">("estoque");
   const [loading, setLoading] = useState(true);
 
   // Company settings states
   const [companyForm, setCompanyForm] = useState(companySettings);
   const [companyStatus, setCompanyStatus] = useState<"idle" | "saved">("idle");
+
+  // About page settings states
+  const [aboutForm, setAboutForm] = useState<AboutSettings>(aboutSettings);
+  const [aboutStatus, setAboutStatus] = useState<"idle" | "saved">("idle");
+
+  // Sync about settings form when settings change
+  useEffect(() => {
+    setAboutForm(aboutSettings);
+  }, [aboutSettings]);
 
   // Sync company settings form when settings change
   useEffect(() => {
@@ -475,6 +484,28 @@ export default function ConfiguracoesClientWrapper() {
     }
   };
 
+  // Save about page settings
+  const handleSaveAboutSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      updateAboutSettings(aboutForm);
+      setAboutStatus("saved");
+      console.log("[Telemetry] Dados da página Quem Somos atualizados.");
+      setTimeout(() => setAboutStatus("idle"), 2500);
+    } catch (e) {
+      console.error("Failed to save about settings:", e);
+    }
+  };
+
+  // Reset about settings to default
+  const handleResetAboutSettings = () => {
+    if (confirm("Deseja realmente redefinir todos os dados da página Quem Somos para os padrões de fábrica?")) {
+      setAboutForm(DEFAULT_ABOUT_SETTINGS);
+      updateAboutSettings(DEFAULT_ABOUT_SETTINGS);
+      alert("Dados da página Quem Somos redefinidos com sucesso!");
+    }
+  };
+
   // Reset company settings to default
   const handleResetCompanySettings = () => {
     if (confirm("Deseja realmente redefinir todos os dados da concessionária para os padrões de fábrica?")) {
@@ -700,6 +731,16 @@ export default function ConfiguracoesClientWrapper() {
             }`}
           >
             Dados da Concessionária
+          </button>
+          <button
+            onClick={() => setActiveTab("sobre")}
+            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+              activeTab === "sobre"
+                ? "border-brand-primary text-brand-primary"
+                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
+            }`}
+          >
+            Página Quem Somos
           </button>
         </div>
 
@@ -1921,6 +1962,304 @@ export default function ConfiguracoesClientWrapper() {
                   <button
                     type="button"
                     onClick={handleResetCompanySettings}
+                    className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    Restaurar Padrões
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : activeTab === "sobre" ? (
+          <div className="flex flex-col gap-6 animate-fadeIn">
+            {/* About Page Settings Section */}
+            <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm">
+              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
+                Conteúdo & Manifesto
+              </span>
+              <h2 className="text-lg font-bold text-brand-text mb-2 uppercase">
+                PÁGINA QUEM SOMOS
+              </h2>
+              <p className="text-xs text-brand-text/50 mb-6 font-light leading-relaxed">
+                Personalize o conteúdo da página "Quem Somos" (/sobre). Digite as informações em caixa alta nos títulos se desejar seguir a estética premium do site.
+              </p>
+
+              <form onSubmit={handleSaveAboutSettings} className="flex flex-col gap-8">
+                {/* Seção 1: Hero */}
+                <div className="flex flex-col gap-4 border-b border-brand-border/60 pb-6">
+                  <h3 className="text-xs font-bold text-brand-primary uppercase tracking-widest">
+                    Seção 1: Manifesto Principal (Hero)
+                  </h3>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Título Principal
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={aboutForm.heroTitle}
+                        onChange={(e) => setAboutForm({ ...aboutForm, heroTitle: e.target.value })}
+                        placeholder="MOLDANDO A CURADORIA PREMIUM"
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Texto do Manifesto
+                      </label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={aboutForm.heroSubtitle}
+                        onChange={(e) => setAboutForm({ ...aboutForm, heroSubtitle: e.target.value })}
+                        placeholder="De um tradicional showroom físico..."
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 2: Trajetória */}
+                <div className="flex flex-col gap-4 border-b border-brand-border/60 pb-6">
+                  <h3 className="text-xs font-bold text-brand-primary uppercase tracking-widest">
+                    Seção 2: Nossa Trajetória
+                  </h3>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Título da Seção
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={aboutForm.historyTitle}
+                        onChange={(e) => setAboutForm({ ...aboutForm, historyTitle: e.target.value })}
+                        placeholder="A Herança da Avenida Europa"
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Parágrafo 1 (História)
+                      </label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={aboutForm.historyP1}
+                        onChange={(e) => setAboutForm({ ...aboutForm, historyP1: e.target.value })}
+                        placeholder="Fundada há mais de uma década..."
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all resize-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Parágrafo 2 (História)
+                      </label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={aboutForm.historyP2}
+                        onChange={(e) => setAboutForm({ ...aboutForm, historyP2: e.target.value })}
+                        placeholder="Nosso compromisso inegociável..."
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 3: Diferenciais */}
+                <div className="flex flex-col gap-4 border-b border-brand-border/60 pb-6">
+                  <h3 className="text-xs font-bold text-brand-primary uppercase tracking-widest">
+                    Seção 3: Qualidade Absoluta (Diferenciais)
+                  </h3>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Título do Bloco Lateral
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={aboutForm.valuesTitle}
+                        onChange={(e) => setAboutForm({ ...aboutForm, valuesTitle: e.target.value })}
+                        placeholder="Perícia e Rigor Técnico"
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Diferencial 1 (Use dois pontos ":" para separar o título em negrito da descrição)
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={aboutForm.value1}
+                        onChange={(e) => setAboutForm({ ...aboutForm, value1: e.target.value })}
+                        placeholder="Laudo Cautelar 100% Livre: Histórico estrutural..."
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Diferencial 2 (Use dois pontos ":" para separar o título em negrito da descrição)
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={aboutForm.value2}
+                        onChange={(e) => setAboutForm({ ...aboutForm, value2: e.target.value })}
+                        placeholder="Garantia de Showroom: Revisão profunda..."
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Diferencial 3 (Use dois pontos ":" para separar o título em negrito da descrição)
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={aboutForm.value3}
+                        onChange={(e) => setAboutForm({ ...aboutForm, value3: e.target.value })}
+                        placeholder="Valoração Fipe de Precisão: Atualização contínua..."
+                        className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 4: Tecnologia */}
+                <div className="flex flex-col gap-4">
+                  <h3 className="text-xs font-bold text-brand-primary uppercase tracking-widest">
+                    Seção 4: Pilares Tecnológicos
+                  </h3>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                          Título Principal da Tecnologia
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={aboutForm.techTitle}
+                          onChange={(e) => setAboutForm({ ...aboutForm, techTitle: e.target.value })}
+                          placeholder="O MOTOR TECNOLÓGICO DA MOTORS STORE"
+                          className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                          Subtítulo da Tecnologia
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={aboutForm.techSubtitle}
+                          onChange={(e) => setAboutForm({ ...aboutForm, techSubtitle: e.target.value })}
+                          placeholder="Nossa plataforma web 2.0 não é apenas..."
+                          className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+                      {/* Card 1 */}
+                      <div className="flex flex-col gap-3 p-4 bg-brand-bg border border-brand-card-border rounded-2xl animate-none">
+                        <span className="text-[9px] font-black text-brand-gold">CARD 1</span>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[8px] font-bold text-brand-text/40">Título</label>
+                          <input
+                            type="text"
+                            required
+                            value={aboutForm.card1Title}
+                            onChange={(e) => setAboutForm({ ...aboutForm, card1Title: e.target.value })}
+                            placeholder="PRECISÃO FIPE EXPRESS"
+                            className="w-full p-2 bg-brand-card border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[8px] font-bold text-brand-text/40">Descrição</label>
+                          <textarea
+                            required
+                            rows={3}
+                            value={aboutForm.card1Desc}
+                            onChange={(e) => setAboutForm({ ...aboutForm, card1Desc: e.target.value })}
+                            placeholder="Algoritmo de cálculo..."
+                            className="w-full p-2 bg-brand-card border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Card 2 */}
+                      <div className="flex flex-col gap-3 p-4 bg-brand-bg border border-brand-card-border rounded-2xl animate-none">
+                        <span className="text-[9px] font-black text-brand-gold">CARD 2</span>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[8px] font-bold text-brand-text/40">Título</label>
+                          <input
+                            type="text"
+                            required
+                            value={aboutForm.card2Title}
+                            onChange={(e) => setAboutForm({ ...aboutForm, card2Title: e.target.value })}
+                            placeholder="ALGORITMO DE DISTÂNCIA"
+                            className="w-full p-2 bg-brand-card border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[8px] font-bold text-brand-text/40">Descrição</label>
+                          <textarea
+                            required
+                            rows={3}
+                            value={aboutForm.card2Desc}
+                            onChange={(e) => setAboutForm({ ...aboutForm, card2Desc: e.target.value })}
+                            placeholder="Sistema dinâmico..."
+                            className="w-full p-2 bg-brand-card border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Card 3 */}
+                      <div className="flex flex-col gap-3 p-4 bg-brand-bg border border-brand-card-border rounded-2xl animate-none">
+                        <span className="text-[9px] font-black text-brand-gold">CARD 3</span>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[8px] font-bold text-brand-text/40">Título</label>
+                          <input
+                            type="text"
+                            required
+                            value={aboutForm.card3Title}
+                            onChange={(e) => setAboutForm({ ...aboutForm, card3Title: e.target.value })}
+                            placeholder="ASSISTENTE SEMÂNTICO LOCAL"
+                            className="w-full p-2 bg-brand-card border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[8px] font-bold text-brand-text/40">Descrição</label>
+                          <textarea
+                            required
+                            rows={3}
+                            value={aboutForm.card3Desc}
+                            onChange={(e) => setAboutForm({ ...aboutForm, card3Desc: e.target.value })}
+                            placeholder="Analisador natural..."
+                            className="w-full p-2 bg-brand-card border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary resize-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit buttons */}
+                <div className="flex items-center gap-3 mt-4 border-t border-brand-border/60 pt-6">
+                  <button
+                    type="submit"
+                    className="h-10 bg-brand-primary hover:bg-brand-primary-hover text-white text-[10px] font-bold uppercase tracking-widest px-5 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {aboutStatus === "saved" ? "CONTEÚDO SALVO ✓" : "SALVAR CONTEÚDO"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetAboutSettings}
                     className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
                   >
                     Restaurar Padrões

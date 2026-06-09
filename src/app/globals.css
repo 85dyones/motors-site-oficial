@@ -101,3 +101,90 @@ html, body {
   animation: pulseRing 2s ease-out infinite;
 }
 
+/* ── Ficha Técnica de Impressão (Showroom Print Sheet) ── */
+@media print {
+  /* Force page settings for perfect margins and color rendering */
+  @page {
+    margin: 1.5cm;
+    size: A4 portrait;
+  }
+
+  /* Hide interactive/extraneous web UI elements */
+  header,
+  footer,
+  button,
+  .no-print,
+  .print-hidden,
+  [role="dialog"],
+  [aria-modal="true"],
+  .sticky,
+  iframe,
+  a[href^="https://wa.me"],
+  a[href^="https://api.whatsapp"],
+  a[href^="tel:"] {
+    display: none !important;
+  }
+
+  /* White background and crisp black text on all prints */
+  html, body, #pdp-vehicle-root, main, div, section, p, span, h1, h2, h3, strong, label, li {
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* Adjust core page wrapper for standard page width */
+  #pdp-vehicle-root {
+    padding-bottom: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Layout grids adapted to print pages */
+  .print-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+  }
+
+  .print-grid-3 {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .print-full-width {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+  }
+
+  /* Center and scale main featured image cleanly */
+  .print-main-image {
+    max-height: 320px !important;
+    object-fit: contain !important;
+    margin: 0 auto !important;
+    display: block !important;
+    page-break-inside: avoid !important;
+    border-radius: 8px !important;
+  }
+
+  /* Page break rules for specifications, description and optionals */
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+  }
+
+  .print-show {
+    display: block !important;
+  }
+
+  .print-flex-row {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+}
+
+
