@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
-import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS } from "../app/ThemeContext";
+import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS } from "../app/ThemeContext";
 
 interface Campaign {
   id: string;
@@ -472,12 +472,20 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Save company settings
-  const handleSaveCompanySettings = (e: React.FormEvent) => {
+  const handleSaveCompanySettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       updateCompanySettings(companyForm);
       setCompanyStatus("saved");
       console.log("[Telemetry] Dados da Concessionária atualizados.");
+      
+      // Sync to server
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companySettings: companyForm })
+      });
+      
       setTimeout(() => setCompanyStatus("idle"), 2500);
     } catch (e) {
       console.error("Failed to save company settings:", e);
@@ -485,12 +493,20 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Save about page settings
-  const handleSaveAboutSettings = (e: React.FormEvent) => {
+  const handleSaveAboutSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       updateAboutSettings(aboutForm);
       setAboutStatus("saved");
       console.log("[Telemetry] Dados da página Quem Somos atualizados.");
+      
+      // Sync to server
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aboutSettings: aboutForm })
+      });
+      
       setTimeout(() => setAboutStatus("idle"), 2500);
     } catch (e) {
       console.error("Failed to save about settings:", e);
@@ -498,31 +514,45 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Reset about settings to default
-  const handleResetAboutSettings = () => {
+  const handleResetAboutSettings = async () => {
     if (confirm("Deseja realmente redefinir todos os dados da página Quem Somos para os padrões de fábrica?")) {
-      setAboutForm(DEFAULT_ABOUT_SETTINGS);
-      updateAboutSettings(DEFAULT_ABOUT_SETTINGS);
-      alert("Dados da página Quem Somos redefinidos com sucesso!");
+      try {
+        setAboutForm(DEFAULT_ABOUT_SETTINGS);
+        updateAboutSettings(DEFAULT_ABOUT_SETTINGS);
+        
+        // Sync to server
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aboutSettings: DEFAULT_ABOUT_SETTINGS })
+        });
+        
+        alert("Dados da página Quem Somos redefinidos com sucesso!");
+      } catch (e) {
+        console.error("Failed to reset about settings:", e);
+      }
     }
   };
 
   // Reset company settings to default
-  const handleResetCompanySettings = () => {
+  const handleResetCompanySettings = async () => {
     if (confirm("Deseja realmente redefinir todos os dados da concessionária para os padrões de fábrica?")) {
-      const defaultSettings = {
-        name: "Motors Store",
-        phone: "(11) 4003-0000",
-        whatsapp: "(11) 99999-9999",
-        whatsappRaw: "5511999999999",
-        address: "Av. Europa, 1000 - Jardim Europa, São Paulo - SP, CEP 01449-000",
-        hours: "Seg a Sex das 9h às 19h\nSáb das 9h às 14h",
-        instagram: "https://instagram.com/motorsstore",
-        facebook: "https://facebook.com/motorsstore",
-        cnpj: "12.345.678/0001-99",
-      };
-      setCompanyForm(defaultSettings);
-      updateCompanySettings(defaultSettings);
-      alert("Dados da concessionária redefinidos com sucesso!");
+      try {
+        const defaultSettings = DEFAULT_COMPANY_SETTINGS;
+        setCompanyForm(defaultSettings);
+        updateCompanySettings(defaultSettings);
+        
+        // Sync to server
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companySettings: defaultSettings })
+        });
+        
+        alert("Dados da concessionária redefinidos com sucesso!");
+      } catch (e) {
+        console.error("Failed to reset company settings:", e);
+      }
     }
   };
 

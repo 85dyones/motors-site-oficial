@@ -93,37 +93,11 @@ export interface AboutSettings {
   card3Desc: string;
 }
 
-export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
-  name: "Motors Store",
-  phone: "(11) 4003-0000",
-  whatsapp: "(11) 99999-9999",
-  whatsappRaw: "5511999999999",
-  address: "Av. Europa, 1000 - Jardim Europa, São Paulo - SP, CEP 01449-000",
-  hours: "Seg a Sex das 9h às 19h\nSáb das 9h às 14h",
-  instagram: "https://instagram.com/motorsstore",
-  facebook: "https://facebook.com/motorsstore",
-  cnpj: "12.345.678/0001-99",
-};
+import DEFAULT_COMPANY_SETTINGS_JSON from "../lib/companySettings.json";
+import DEFAULT_ABOUT_SETTINGS_JSON from "../lib/aboutSettings.json";
 
-export const DEFAULT_ABOUT_SETTINGS: AboutSettings = {
-  heroTitle: "MOLDANDO A CURADORIA PREMIUM",
-  heroSubtitle: "De um tradicional showroom físico na icônica Avenida Europa à vanguarda da inteligência artificial automotiva. A Motors Store é a fusão exata de legado, engenharia de procedência e tecnologia de ponta.",
-  historyTitle: "A Herança da Avenida Europa",
-  historyP1: "Fundada há mais de uma década no coração financeiro e automotivo de alto padrão de São Paulo, a Motors Store nasceu com a missão de transformar o mercado de veículos seminovos selecionados. Desde os primeiros supercarros clássicos até os modernos hyper-EVs, cada veículo em nosso acervo passa por uma avaliação cirúrgica.",
-  historyP2: "Nosso compromisso inegociável é com a transparência total. Fomos a primeira revenda a disponibilizar laudos de perícia cautelar 100% integrados em tempo real na listagem web, garantindo ao comprador a segurança de fábrica em cada compra.",
-  valuesTitle: "Perícia e Rigor Técnico",
-  value1: "Laudo Cautelar 100% Livre: Histórico estrutural intocado e verificado.",
-  value2: "Garantia de Showroom: Revisão profunda de 120 itens em mecânica e elétrica.",
-  value3: "Valoração Fipe de Precisão: Atualização contínua com indicadores oficiais de mercado.",
-  techTitle: "NOSSOS PILARES DE EXCELÊNCIA",
-  techSubtitle: "Nossa plataforma web 2.0 não é apenas um catálogo digital. Criamos sistemas inteligentes locais para guiar seu investimento com máxima precisão.",
-  card1Title: "PREVISÃO FIPE EXPRESS",
-  card1Desc: "Algoritmo de cálculo instantâneo que traduz dados técnicos e quilometragem em uma cotação justa de mercado para seu veículo de entrada em segundos.",
-  card2Title: "ALGORITMO DE DISTÂNCIA",
-  card2Desc: "Sistema dinâmico que cruza faixa de investimento, buffers de tolerância de 15% para upgrades recomendados e preferências de carroceria do usuário.",
-  card3Title: "ASSISTENTE SEMÂNTICO LOCAL",
-  card3Desc: "Analisador natural de texto livre de alta velocidade. Extrai limites numéricos de orçamento de expressões livres e mapeia estilos de uso."
-};
+export const DEFAULT_COMPANY_SETTINGS: CompanySettings = DEFAULT_COMPANY_SETTINGS_JSON;
+export const DEFAULT_ABOUT_SETTINGS: AboutSettings = DEFAULT_ABOUT_SETTINGS_JSON;
 
 interface ThemeContextProps {
   theme: ThemeType;
@@ -187,6 +161,28 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to parse about settings from localStorage", e);
       }
     }
+
+    // Fetch and sync settings from server for cross-device support (desktop/mobile sync)
+    const syncWithServer = async () => {
+      try {
+        const response = await fetch("/api/settings");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.companySettings) {
+            setCompanySettings(data.companySettings);
+            localStorage.setItem("ag_company_settings", JSON.stringify(data.companySettings));
+          }
+          if (data.aboutSettings) {
+            setAboutSettings(data.aboutSettings);
+            localStorage.setItem("ag_about_settings", JSON.stringify(data.aboutSettings));
+          }
+        }
+      } catch (err) {
+        console.warn("[ThemeContext] Failed to sync settings with server:", err);
+      }
+    };
+    
+    syncWithServer();
   }, []);
 
   const updateCompanySettings = (settings: CompanySettings) => {
