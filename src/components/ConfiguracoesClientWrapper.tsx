@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getEstoque, Veiculo } from "../lib/supabase";
+import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, ThemeType } from "../app/ThemeContext";
 
 interface Campaign {
@@ -176,8 +176,8 @@ export default function ConfiguracoesClientWrapper() {
   const [vehicles, setVehicles] = useState<Veiculo[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Local overrides states: mapping of vehicle.id -> { tipo?: string, perfil_uso?: string, status_tag?: string, status_tag_color?: string, vendido?: boolean }
-  const [overrides, setOverrides] = useState<Record<string, { tipo?: string; perfil_uso?: string; status_tag?: string; status_tag_color?: string; vendido?: boolean }>>({});
+  // Local overrides states: mapping of vehicle.id -> { tipo?: string, perfil_uso?: string, status_tag?: string, status_tag_color?: string, vendido?: boolean, descricao?: string }
+  const [overrides, setOverrides] = useState<Record<string, { tipo?: string; perfil_uso?: string; status_tag?: string; status_tag_color?: string; vendido?: boolean; descricao?: string }>>({});
   
   // Single vehicle save notifications: mapping of vehicle.id -> boolean
   const [savedNotifications, setSavedNotifications] = useState<Record<string, boolean>>({});
@@ -313,7 +313,7 @@ export default function ConfiguracoesClientWrapper() {
   });
 
   // Handle single vehicle override values change
-  const handleOverrideChange = (id: string, field: "tipo" | "perfil_uso" | "status_tag" | "status_tag_color" | "vendido", value: any) => {
+  const handleOverrideChange = (id: string, field: "tipo" | "perfil_uso" | "status_tag" | "status_tag_color" | "vendido" | "descricao", value: any) => {
     setOverrides((prev) => {
       const vehicleOverrides = prev[id] || {};
       return {
@@ -327,7 +327,7 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Save changes for a single vehicle override
-  const handleSaveVehicleOverride = (id: string) => {
+  const handleSaveVehicleOverride = async (id: string) => {
     const itemOverrides = overrides[id];
     if (!itemOverrides) return;
 
@@ -341,9 +341,31 @@ export default function ConfiguracoesClientWrapper() {
       };
 
       localStorage.setItem("ag_stock_overrides", JSON.stringify(parsedOverrides));
+
+      // Persist to live Supabase database directly if Supabase is active
+      if (supabase) {
+        const dbUpdates: any = {};
+        if (itemOverrides.tipo !== undefined) dbUpdates.tipo = itemOverrides.tipo;
+        if (itemOverrides.perfil_uso !== undefined) dbUpdates.perfil_uso = itemOverrides.perfil_uso;
+        if (itemOverrides.descricao !== undefined) dbUpdates.descricao = itemOverrides.descricao;
+
+        if (Object.keys(dbUpdates).length > 0) {
+          const targetId = /^\d+$/.test(id) ? parseInt(id, 10) : id;
+          const { error } = await supabase
+            .from("veiculos")
+            .update(dbUpdates)
+            .eq("id", targetId);
+
+          if (error) {
+            console.warn(`[Supabase] Failed to persist updates to db for ${id}:`, error.message);
+          } else {
+            console.log(`[Supabase] Successfully persisted updates to db for ${id}:`, dbUpdates);
+          }
+        }
+      }
       
       // Trigger Antigravity telemetry log
-      console.log(`[Telemetry] Veículo ${id} categorizado manualmente como: Carroceria: "${itemOverrides.tipo || "não alterada"}", Estilo: "${itemOverrides.perfil_uso || "não alterado"}"`);
+      console.log(`[Telemetry] Veículo ${id} atualizado. Carroceria: "${itemOverrides.tipo || "não alterada"}", Estilo: "${itemOverrides.perfil_uso || "não alterado"}"`);
 
       // Trigger temporary visual validation notification
       setSavedNotifications((prev) => ({ ...prev, [id]: true }));
@@ -870,6 +892,20 @@ export default function ConfiguracoesClientWrapper() {
                               <option value="true">VENDIDO</option>
                             </select>
                           </div>
+                        </div>
+                        
+                        {/* Descrição de SEO / Editorial */}
+                        <div className="flex flex-col gap-1.5 w-full">
+                          <label className="text-[8px] font-bold text-brand-text/40 uppercase tracking-widest pl-1">
+                            Descrição de SEO / Editorial (Salva diretamente no banco de dados)
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={overrides[vehicle.id]?.descricao ?? vehicle.descricao ?? ""}
+                            onChange={(e) => handleOverrideChange(vehicle.id, "descricao", e.target.value)}
+                            placeholder="Escreva uma descrição atraente, com quebras de linha e otimizada para o Google..."
+                            className="bg-brand-bg text-brand-text border border-brand-card-border rounded-xl px-3.5 py-2.5 text-[11px] font-medium outline-none focus:border-brand-primary placeholder-brand-text/30 w-full resize-y font-sans leading-relaxed"
+                          />
                         </div>
 
                       </div>

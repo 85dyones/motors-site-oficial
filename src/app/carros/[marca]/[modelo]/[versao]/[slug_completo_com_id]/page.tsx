@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getEstoque, getVeiculoById, getVeiculoPdpUrl } from "../../../../../../lib/supabase";
+import { getEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../../lib/supabase";
 import PDPClientWrapper from "../../../../../../components/PDPClientWrapper";
 
 // Incremental Static Regeneration (ISR) configuration
@@ -64,12 +64,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           maximumFractionDigits: 0
         });
 
+  const seoDescription = veiculo.descricao
+    ? truncateString(veiculo.descricao, 155)
+    : `Oferta Exclusiva: compre seu ${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} cor ${veiculo.cor} com laudo pericial cautelar aprovado e garantia. Preço: ${priceText}. Financie com facilidade!`;
+
   return {
     title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} - ${priceText} | Motors Store`,
-    description: `Oferta Exclusiva: compre seu ${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} cor ${veiculo.cor} com laudo pericial cautelar aprovado e garantia. Preço: ${priceText}. Financie com facilidade!`,
+    description: seoDescription,
     openGraph: {
       title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} por ${priceText}`,
-      description: `Confira fotos detalhadas e opcionais em nosso estoque oficial.`,
+      description: seoDescription,
       images: [
         {
           url: veiculo.whatsapp_images[0] || "",
