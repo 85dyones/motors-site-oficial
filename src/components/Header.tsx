@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import ThemeSettings from "./ThemeSettings";
 import { useTheme } from "../app/ThemeContext";
 import VehicleCompare from "./VehicleCompare";
@@ -12,6 +13,8 @@ export default function Header() {
   const { compareIds, theme, companySettings } = useTheme();
   const [compareOpen, setCompareOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const pathname = usePathname();
 
   // Logo mapping corresponding to active theme presets - Next.js maps public folder to root
   const logoSrcMap: Record<string, string> = {
@@ -43,11 +46,30 @@ export default function Header() {
     checkHash();
     window.addEventListener("hashchange", checkHash);
 
+    const handleScroll = () => {
+      if (window.scrollY > 400) {
+        setShowBackToTop(true);
+      } else {
+        setShowBackToTop(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+
     return () => {
       window.removeEventListener("ag-open-compare", handleOpenCompare);
       window.removeEventListener("hashchange", checkHash);
+      window.removeEventListener("scroll", handleScroll);
     };
   }, []);
+
+  const scrollToTop = () => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-brand-border bg-brand-glass backdrop-blur-md transition-all duration-300">
@@ -231,7 +253,9 @@ export default function Header() {
           <Link
             href="/"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+            className={`text-[11px] font-extrabold uppercase tracking-[0.2em] border-b border-brand-border/30 pb-3 transition-colors ${
+              pathname === "/" ? "text-brand-primary" : "text-brand-text/70 hover:text-brand-primary"
+            }`}
           >
             HOME
           </Link>
@@ -239,23 +263,27 @@ export default function Header() {
           <Link
             href="/#match-garagem"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/70 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors flex justify-between items-center"
           >
-            ENCONTRE O CARRO PERFEITO
+            <span>ENCONTRE O CARRO PERFEITO</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary font-bold">IA</span>
           </Link>
           
           <Link
             href="/#avaliacao-express"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/70 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors flex justify-between items-center"
           >
-            AVALIE SEU CARRO AGORA
+            <span>AVALIE SEU CARRO AGORA</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary font-bold">FIPE</span>
           </Link>
           
           <Link
             href="/sobre"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+            className={`text-[11px] font-extrabold uppercase tracking-[0.2em] border-b border-brand-border/30 pb-3 transition-colors ${
+              pathname === "/sobre" ? "text-brand-primary" : "text-brand-text/70 hover:text-brand-primary"
+            }`}
           >
             SOBRE A MOTORS
           </Link>
@@ -263,11 +291,27 @@ export default function Header() {
           <Link
             href="/contato"
             onClick={() => setMobileMenuOpen(false)}
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary pb-1 transition-colors"
+            className={`text-[11px] font-extrabold uppercase tracking-[0.2em] pb-1 transition-colors ${
+              pathname === "/contato" ? "text-brand-primary" : "text-brand-text/70 hover:text-brand-primary"
+            }`}
           >
             CONTATO
           </Link>
         </div>
+      )}
+
+      {/* Back to Top floating button (Mobile only) */}
+      {showBackToTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-[90px] right-4 z-[999] sm:hidden flex h-10 w-10 items-center justify-center rounded-full bg-brand-card/95 border border-brand-primary/30 text-brand-primary shadow-lg backdrop-blur-sm transition-all duration-300 hover:bg-brand-bg active:scale-90"
+          aria-label="Voltar ao topo"
+          title="Voltar ao topo"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="h-4 w-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+          </svg>
+        </button>
       )}
 
       {/* Comparison Drawer / Modal Overlay */}
