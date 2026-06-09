@@ -11,6 +11,7 @@ export default function Header() {
   const [activeTap, setActiveTap] = useState(false);
   const { compareIds, theme, companySettings } = useTheme();
   const [compareOpen, setCompareOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Logo mapping corresponding to active theme presets - Next.js maps public folder to root
   const logoSrcMap: Record<string, string> = {
@@ -202,9 +203,72 @@ export default function Header() {
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
           </button>
+
+          {/* Mobile Menu Hamburger Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="flex sm:hidden items-center justify-center h-9 w-9 rounded-full border border-brand-border/50 text-brand-text/35 hover:text-brand-text/60 hover:border-brand-border transition-all duration-300 active:scale-90"
+            aria-label="Menu principal"
+            title="Menu principal"
+          >
+            {mobileMenuOpen ? (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4.5 w-4.5 text-brand-primary animate-none">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4.5 w-4.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            )}
+          </button>
         </div>
 
       </div>
+
+      {/* Mobile Menu Panel */}
+      {mobileMenuOpen && (
+        <div className="sm:hidden absolute top-full left-0 right-0 bg-brand-glass backdrop-blur-lg border-b border-brand-border py-5 px-6 shadow-2xl flex flex-col gap-4.5 transition-all duration-300">
+          <Link
+            href="/"
+            onClick={() => setMobileMenuOpen(false)}
+            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+          >
+            HOME
+          </Link>
+          
+          <Link
+            href="/#match-garagem"
+            onClick={() => setMobileMenuOpen(false)}
+            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+          >
+            ENCONTRE O CARRO PERFEITO
+          </Link>
+          
+          <Link
+            href="/#avaliacao-express"
+            onClick={() => setMobileMenuOpen(false)}
+            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+          >
+            AVALIE SEU CARRO AGORA
+          </Link>
+          
+          <Link
+            href="/sobre"
+            onClick={() => setMobileMenuOpen(false)}
+            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors"
+          >
+            SOBRE A MOTORS
+          </Link>
+          
+          <Link
+            href="/contato"
+            onClick={() => setMobileMenuOpen(false)}
+            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/60 hover:text-brand-primary pb-1 transition-colors"
+          >
+            CONTATO
+          </Link>
+        </div>
+      )}
 
       {/* Comparison Drawer / Modal Overlay */}
       {compareOpen && (
