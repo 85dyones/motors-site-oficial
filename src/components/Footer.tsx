@@ -72,18 +72,6 @@ export default function Footer() {
               >
                 MATCH DE GARAGEM
               </Link>
-              <Link
-                href="/test"
-                className="text-xs text-brand-text/50 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
-              >
-                SANDBOX TESTES (QA)
-              </Link>
-              <Link
-                href="/configuracoes"
-                className="text-xs text-brand-text/50 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
-              >
-                CONFIGURAÇÕES DO SITE
-              </Link>
             </nav>
           </div>
 
