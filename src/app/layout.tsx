@@ -20,8 +20,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://motors-site-oficial.vercel.app"),
   title: "Motors Store | Encontre seu Veículo Premium dos Sonhos",
   description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados de São Paulo. Facilidade no financiamento sem entrada.",
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export default function RootLayout({

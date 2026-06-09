@@ -4,6 +4,9 @@ import ContatoClientWrapper from "../../components/ContatoClientWrapper";
 export const metadata: Metadata = {
   title: "Fale Conosco | Motors Store - Atendimento Showroom",
   description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe na Avenida Europa para agendamentos e propostas.",
+  alternates: {
+    canonical: "/contato",
+  },
 };
 
 export default function ContatoPage() {

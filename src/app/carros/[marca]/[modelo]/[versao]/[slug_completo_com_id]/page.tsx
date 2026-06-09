@@ -68,9 +68,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? truncateString(veiculo.descricao, 155)
     : `Oferta Exclusiva: compre seu ${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} cor ${veiculo.cor} com laudo pericial cautelar aprovado e garantia. Preço: ${priceText}. Financie com facilidade!`;
 
+  const pdpUrl = getVeiculoPdpUrl(veiculo);
+
   return {
     title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} - ${priceText} | Motors Store`,
     description: seoDescription,
+    alternates: {
+      canonical: pdpUrl,
+    },
     openGraph: {
       title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} por ${priceText}`,
       description: seoDescription,
@@ -101,8 +106,49 @@ export default async function CarDetailsPage({ params }: PageProps) {
     notFound();
   }
 
+  // Construct JSON-LD Structured Data for the vehicle (Car schema)
+  const hasDiscount = veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original;
+  const finalPrice = hasDiscount ? veiculo.preco_promocional : veiculo.preco_original;
+  const imageUrl = veiculo.web_full_images[0] || veiculo.whatsapp_images[0] || "";
+  const pdpUrl = getVeiculoPdpUrl(veiculo);
+
+  const carSchema = {
+    "@context": "https://schema.org",
+    "@type": "Car",
+    "name": `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`,
+    "image": imageUrl,
+    "description": veiculo.descricao || `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} em excelente estado.`,
+    "brand": {
+      "@type": "Brand",
+      "name": veiculo.marca
+    },
+    "model": veiculo.modelo,
+    "vehicleModelDate": veiculo.ano,
+    "mileageFromOdometer": {
+      "@type": "QuantitativeValue",
+      "value": veiculo.quilometragem,
+      "unitCode": "KMT"
+    },
+    "vehicleTransmission": veiculo.cambio,
+    "fuelType": veiculo.combustivel,
+    "color": veiculo.cor,
+    "offers": {
+      "@type": "Offer",
+      "price": finalPrice,
+      "priceCurrency": "BRL",
+      "availability": veiculo.vendido ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      "itemCondition": "https://schema.org/UsedCondition",
+      "url": `https://motors-site-oficial.vercel.app${pdpUrl}`
+    }
+  };
+
   return (
     <div className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
+      {/* Dynamic JSON-LD Structured Data Schema for search engines (Rich Results) */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(carSchema) }}
+      />
       <PDPClientWrapper veiculo={veiculo} />
     </div>
   );

@@ -519,7 +519,9 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             </span>
             
             <h1 className="text-2xl md:text-4xl max-sm:text-xl font-semibold tracking-tight text-brand-text leading-none">
+              <span className="sr-only">{veiculo.marca} </span>
               {veiculo.modelo}
+              <span className="sr-only"> {veiculo.versao}</span>
             </h1>
             
             {/* Dynamic dynamic subtitle extracted from database fields */}
