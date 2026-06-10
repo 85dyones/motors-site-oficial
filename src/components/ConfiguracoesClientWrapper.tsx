@@ -475,7 +475,8 @@ export default function ConfiguracoesClientWrapper() {
   const handleSaveCompanySettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      updateCompanySettings(companyForm);
+      const updatedForm = { ...companyForm, isCustom: true };
+      updateCompanySettings(updatedForm);
       setCompanyStatus("saved");
       console.log("[Telemetry] Dados da Concessionária atualizados.");
       
@@ -483,7 +484,7 @@ export default function ConfiguracoesClientWrapper() {
       await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companySettings: companyForm })
+        body: JSON.stringify({ companySettings: updatedForm })
       });
       
       setTimeout(() => setCompanyStatus("idle"), 2500);
@@ -496,7 +497,8 @@ export default function ConfiguracoesClientWrapper() {
   const handleSaveAboutSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      updateAboutSettings(aboutForm);
+      const updatedForm = { ...aboutForm, isCustom: true };
+      updateAboutSettings(updatedForm);
       setAboutStatus("saved");
       console.log("[Telemetry] Dados da página Quem Somos atualizados.");
       
@@ -504,7 +506,7 @@ export default function ConfiguracoesClientWrapper() {
       await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aboutSettings: aboutForm })
+        body: JSON.stringify({ aboutSettings: updatedForm })
       });
       
       setTimeout(() => setAboutStatus("idle"), 2500);
@@ -517,14 +519,15 @@ export default function ConfiguracoesClientWrapper() {
   const handleResetAboutSettings = async () => {
     if (confirm("Deseja realmente redefinir todos os dados da página Quem Somos para os padrões de fábrica?")) {
       try {
-        setAboutForm(DEFAULT_ABOUT_SETTINGS);
-        updateAboutSettings(DEFAULT_ABOUT_SETTINGS);
+        const resetForm = { ...DEFAULT_ABOUT_SETTINGS, isCustom: false };
+        setAboutForm(resetForm);
+        updateAboutSettings(resetForm);
         
         // Sync to server
         await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ aboutSettings: DEFAULT_ABOUT_SETTINGS })
+          body: JSON.stringify({ aboutSettings: resetForm })
         });
         
         alert("Dados da página Quem Somos redefinidos com sucesso!");
@@ -538,15 +541,15 @@ export default function ConfiguracoesClientWrapper() {
   const handleResetCompanySettings = async () => {
     if (confirm("Deseja realmente redefinir todos os dados da concessionária para os padrões de fábrica?")) {
       try {
-        const defaultSettings = DEFAULT_COMPANY_SETTINGS;
-        setCompanyForm(defaultSettings);
-        updateCompanySettings(defaultSettings);
+        const resetForm = { ...DEFAULT_COMPANY_SETTINGS, isCustom: false };
+        setCompanyForm(resetForm);
+        updateCompanySettings(resetForm);
         
         // Sync to server
         await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companySettings: defaultSettings })
+          body: JSON.stringify({ companySettings: resetForm })
         });
         
         alert("Dados da concessionária redefinidos com sucesso!");

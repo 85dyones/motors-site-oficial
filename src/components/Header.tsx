@@ -96,11 +96,9 @@ export default function Header() {
             <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
           
-          <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>
-
-          <Link
+          <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>          <Link
             href="/#match-garagem"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1 px-0.5 group flex flex-col items-center text-center"
+            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
           >
             {/* 1 line on tablets/mobile */}
             <span className="lg:hidden text-brand-text/50 group-hover:text-brand-primary transition-all">
@@ -109,15 +107,16 @@ export default function Header() {
             {/* 2 lines on desktop */}
             <span className="hidden lg:flex flex-col items-center">
               <span className="text-[8px] font-bold text-brand-text/40 group-hover:text-brand-primary/60 transition-all">ENCONTRE O</span>
-              <span className="text-[10px] font-extrabold text-brand-primary/80 group-hover:text-brand-primary border-b-[1.5px] border-brand-primary/50 group-hover:border-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">CARRO PERFEITO</span>
+              <span className="text-[10px] font-extrabold text-brand-text/50 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">CARRO PERFEITO</span>
             </span>
+            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
           
           <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>
           
           <Link
             href="/#avaliacao-express"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1 px-0.5 group flex flex-col items-center text-center"
+            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
           >
             {/* 1 line on tablets/mobile */}
             <span className="lg:hidden text-brand-text/50 group-hover:text-brand-primary transition-all">
@@ -126,15 +125,16 @@ export default function Header() {
             {/* 2 lines on desktop */}
             <span className="hidden lg:flex flex-col items-center">
               <span className="text-[8px] font-bold text-brand-text/40 group-hover:text-brand-primary/60 transition-all">SEU CARRO</span>
-              <span className="text-[10px] font-extrabold text-brand-primary/80 group-hover:text-brand-primary border-b-[1.5px] border-brand-primary/50 group-hover:border-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">AVALIE AGORA</span>
+              <span className="text-[10px] font-extrabold text-brand-text/50 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">AVALIE AGORA</span>
             </span>
+            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
-
+ 
           <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>
-
+ 
           <Link
             href="/sobre"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1 px-0.5 group flex flex-col items-center text-center"
+            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
           >
             {/* 1 line on tablets/mobile */}
             <span className="lg:hidden text-brand-text/50 group-hover:text-brand-primary transition-all">
@@ -143,8 +143,9 @@ export default function Header() {
             {/* 2 lines on desktop */}
             <span className="hidden lg:flex flex-col items-center">
               <span className="text-[8px] font-bold text-brand-text/40 group-hover:text-brand-primary/60 transition-all">SOBRE A</span>
-              <span className="text-[10px] font-extrabold text-brand-primary/80 group-hover:text-brand-primary border-b-[1.5px] border-brand-primary/50 group-hover:border-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">MOTORS</span>
+              <span className="text-[10px] font-extrabold text-brand-text/50 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">MOTORS</span>
             </span>
+            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
 
           <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>

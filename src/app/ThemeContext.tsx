@@ -71,6 +71,7 @@ export interface CompanySettings {
   instagram: string;
   facebook: string;
   cnpj: string;
+  isCustom?: boolean;
 }
 
 export interface AboutSettings {
@@ -91,6 +92,7 @@ export interface AboutSettings {
   card2Desc: string;
   card3Title: string;
   card3Desc: string;
+  isCustom?: boolean;
 }
 
 import DEFAULT_COMPANY_SETTINGS_JSON from "../lib/companySettings.json";
@@ -168,11 +170,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch("/api/settings");
         if (response.ok) {
           const data = await response.json();
-          if (data.companySettings) {
+          if (data.companySettings && data.companySettings.isCustom) {
             setCompanySettings(data.companySettings);
             localStorage.setItem("ag_company_settings", JSON.stringify(data.companySettings));
           }
-          if (data.aboutSettings) {
+          if (data.aboutSettings && data.aboutSettings.isCustom) {
             setAboutSettings(data.aboutSettings);
             localStorage.setItem("ag_about_settings", JSON.stringify(data.aboutSettings));
           }
