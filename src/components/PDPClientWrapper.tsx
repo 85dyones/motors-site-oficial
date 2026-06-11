@@ -449,7 +449,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       <div className="w-full order-1 md:order-2 mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4 print:hidden">
         <section className="flex flex-col gap-3 max-sm:gap-1.5">
           {/* Images container fitted to generous, gorgeous full-bleed responsive heights and styled with bg-zinc-950 */}
-          <div className="relative w-full h-[300px] xs:h-[360px] sm:h-[440px] md:h-[500px] lg:h-[540px] bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
+          <div className="relative w-full h-[300px] xs:h-[360px] sm:h-[440px] md:h-[500px] lg:h-[540px] xl:h-[640px] 2xl:h-[720px] bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
             {/* Horizontal scroll snap container */}
             <div
               ref={carouselRef}

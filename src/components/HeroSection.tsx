@@ -702,7 +702,7 @@ export default function HeroSection() {
                       {car.modelo}
                     </h2>
                     
-                    <p className="text-xs md:text-lg text-white/80 font-thin uppercase tracking-wide line-clamp-1">
+                    <p className="text-xs md:text-lg text-white/95 font-medium uppercase tracking-wide line-clamp-1">
                       {car.versao}
                     </p>
 
@@ -777,10 +777,10 @@ export default function HeroSection() {
                 <button
                   key={style.id}
                   onClick={() => setSelectedCategory(style.id)}
-                  className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-thin uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
+                  className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
                     isSelected
                       ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                      : "bg-transparent border-brand-border/40 text-brand-text/50 hover:border-brand-primary/45 hover:text-brand-primary"
+                      : "bg-brand-card border-brand-border text-brand-text/70 shadow-sm hover:border-brand-primary/45 hover:text-brand-primary"
                   }`}
                 >
                   {style.name.toUpperCase()}
@@ -808,10 +808,10 @@ export default function HeroSection() {
                 <button
                   key={opt.id}
                   onClick={() => setSelectedQuickTag(opt.id)}
-                  className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-thin uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
+                  className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
                     isSelected
                       ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                      : "bg-transparent border-brand-border/40 text-brand-text/50 hover:border-brand-primary/45 hover:text-brand-primary"
+                      : "bg-brand-card border-brand-border text-brand-text/70 shadow-sm hover:border-brand-primary/45 hover:text-brand-primary"
                   }`}
                 >
                   {opt.name.toUpperCase()}
