@@ -1,10 +1,44 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
+import { getEstoque } from "../lib/supabase";
+
+const DEFAULT_BRANDS = ["BMW", "BYD", "Land Rover", "Porsche", "Toyota"];
+const DEFAULT_MODELS = ["911 Carrera S", "Defender 110", "Dolphin", "Hilux", "X5"];
 
 export default function Footer() {
   const { companySettings } = useTheme();
+  const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
+  const [models, setModels] = useState<string[]>(DEFAULT_MODELS);
+
+  useEffect(() => {
+    let active = true;
+    async function loadBrandsAndModels() {
+      try {
+        const estoque = await getEstoque();
+        if (!active) return;
+
+        const uniqueBrands = Array.from(
+          new Set(estoque.map((car) => car.marca).filter(Boolean))
+        ).sort();
+
+        const uniqueModels = Array.from(
+          new Set(estoque.map((car) => car.modelo).filter(Boolean))
+        ).sort();
+
+        setBrands(uniqueBrands);
+        setModels(uniqueModels);
+      } catch (err) {
+        console.error("Error loading brands and models for footer:", err);
+      }
+    }
+    loadBrandsAndModels();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <footer className="w-full bg-brand-footer border-t border-brand-border text-brand-text/60 py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
@@ -111,6 +145,51 @@ export default function Footer() {
             </p>
           </div>
 
+        </div>
+
+        {/* Marcas & Modelos - SEO Internal Links Block */}
+        <div className="border-t border-brand-border/40 py-6 flex flex-col gap-6">
+          {brands.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest">
+                Marcas Disponíveis
+              </h4>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-brand-text/50">
+                {brands.map((brand, idx) => (
+                  <span key={brand} className="flex items-center gap-3">
+                    {idx > 0 && <span className="text-brand-text/20 select-none">•</span>}
+                    <Link
+                      href={`/?marca=${encodeURIComponent(brand)}`}
+                      className="hover:text-brand-primary hover:underline hover:underline-offset-4 uppercase tracking-wider font-medium transition-all duration-200"
+                    >
+                      {brand}
+                    </Link>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {models.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest">
+                Modelos em Destaque
+              </h4>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-brand-text/50">
+                {models.map((model, idx) => (
+                  <span key={model} className="flex items-center gap-3">
+                    {idx > 0 && <span className="text-brand-text/20 select-none">•</span>}
+                    <Link
+                      href={`/?modelo=${encodeURIComponent(model)}`}
+                      className="hover:text-brand-primary hover:underline hover:underline-offset-4 uppercase tracking-wider font-medium transition-all duration-200"
+                    >
+                      {model}
+                    </Link>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Copyright & Disclaimers */}

@@ -270,6 +270,38 @@ export default function HeroSection() {
     }
   }, []);
 
+  // Parse URL search parameters on mount (for SEO brand/model footer links)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const marcaParam = params.get("marca");
+    const modeloParam = params.get("modelo");
+    const buscaParam = params.get("busca");
+
+    let hasParam = false;
+    if (marcaParam) {
+      setFilterMarca(marcaParam);
+      hasParam = true;
+    }
+    if (modeloParam) {
+      setFilterModelo(modeloParam);
+      hasParam = true;
+    }
+    if (buscaParam) {
+      setSearchTerm(buscaParam);
+      hasParam = true;
+    }
+
+    if (hasParam) {
+      setTimeout(() => {
+        const catalogEl = document.getElementById("catalogo");
+        if (catalogEl) {
+          catalogEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 600);
+    }
+  }, []);
+
   const activeBodyTypes = ALL_BODY_TYPES.filter(type => {
     return estoque.some(car => {
       const carTipo = (car.tipo || "").toLowerCase();
@@ -731,7 +763,7 @@ export default function HeroSection() {
       )}
 
       {/* 2. TWO-LINE SIMPLIFIED FILTER CONSOLE (Abaixo do Slider) */}
-      <div className="flex flex-col gap-4 bg-brand-card border border-brand-card-border p-4 sm:p-6 rounded-2xl shadow-[0_4px_25px_var(--brand-shadow)] animate-fadeIn">
+      <div id="catalogo" className="flex flex-col gap-4 bg-brand-card border border-brand-card-border p-4 sm:p-6 rounded-2xl shadow-[0_4px_25px_var(--brand-shadow)] animate-fadeIn">
         
         {/* Row 1: CARROCERIA */}
         <div className="flex flex-col gap-2">

@@ -476,20 +476,30 @@ export default function ConfiguracoesClientWrapper() {
     e.preventDefault();
     try {
       const updatedForm = { ...companyForm, isCustom: true };
-      updateCompanySettings(updatedForm);
-      setCompanyStatus("saved");
-      console.log("[Telemetry] Dados da Concessionária atualizados.");
       
-      // Sync to server
-      await fetch("/api/settings", {
+      // 1. Save to Supabase via API (single source of truth)
+      const response = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companySettings: updatedForm })
       });
       
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log("[Settings] Company settings saved to Supabase:", result);
+      
+      // 2. Update React state to reflect immediately in UI
+      updateCompanySettings(updatedForm);
+      setCompanyStatus("saved");
+      
       setTimeout(() => setCompanyStatus("idle"), 2500);
     } catch (e) {
       console.error("Failed to save company settings:", e);
+      alert("Erro ao salvar as configurações no servidor. Verifique a conexão.");
+      setCompanyStatus("idle");
     }
   };
 
@@ -498,20 +508,30 @@ export default function ConfiguracoesClientWrapper() {
     e.preventDefault();
     try {
       const updatedForm = { ...aboutForm, isCustom: true };
-      updateAboutSettings(updatedForm);
-      setAboutStatus("saved");
-      console.log("[Telemetry] Dados da página Quem Somos atualizados.");
       
-      // Sync to server
-      await fetch("/api/settings", {
+      // 1. Save to Supabase via API (single source of truth)
+      const response = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aboutSettings: updatedForm })
       });
       
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log("[Settings] About settings saved to Supabase:", result);
+      
+      // 2. Update React state to reflect immediately in UI
+      updateAboutSettings(updatedForm);
+      setAboutStatus("saved");
+      
       setTimeout(() => setAboutStatus("idle"), 2500);
     } catch (e) {
       console.error("Failed to save about settings:", e);
+      alert("Erro ao salvar as configurações no servidor. Verifique a conexão.");
+      setAboutStatus("idle");
     }
   };
 
@@ -520,19 +540,24 @@ export default function ConfiguracoesClientWrapper() {
     if (confirm("Deseja realmente redefinir todos os dados da página Quem Somos para os padrões de fábrica?")) {
       try {
         const resetForm = { ...DEFAULT_ABOUT_SETTINGS, isCustom: false };
-        setAboutForm(resetForm);
-        updateAboutSettings(resetForm);
         
-        // Sync to server
-        await fetch("/api/settings", {
+        // 1. Save reset to Supabase first
+        const response = await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ aboutSettings: resetForm })
         });
         
+        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        
+        // 2. Update React state
+        setAboutForm(resetForm);
+        updateAboutSettings(resetForm);
+        
         alert("Dados da página Quem Somos redefinidos com sucesso!");
       } catch (e) {
         console.error("Failed to reset about settings:", e);
+        alert("Erro ao redefinir as configurações no servidor.");
       }
     }
   };
@@ -542,19 +567,24 @@ export default function ConfiguracoesClientWrapper() {
     if (confirm("Deseja realmente redefinir todos os dados da concessionária para os padrões de fábrica?")) {
       try {
         const resetForm = { ...DEFAULT_COMPANY_SETTINGS, isCustom: false };
-        setCompanyForm(resetForm);
-        updateCompanySettings(resetForm);
         
-        // Sync to server
-        await fetch("/api/settings", {
+        // 1. Save reset to Supabase first
+        const response = await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ companySettings: resetForm })
         });
         
+        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        
+        // 2. Update React state
+        setCompanyForm(resetForm);
+        updateCompanySettings(resetForm);
+        
         alert("Dados da concessionária redefinidos com sucesso!");
       } catch (e) {
         console.error("Failed to reset company settings:", e);
+        alert("Erro ao redefinir as configurações no servidor.");
       }
     }
   };

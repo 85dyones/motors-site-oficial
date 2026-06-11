@@ -113,20 +113,26 @@ function resolveMotorizacao(v: Veiculo): string {
 }
 
 export default function VehicleCompare({ onClose }: VehicleCompareProps) {
-  const { compareIds, removeFromCompare, clearCompare } = useTheme();
+  const { compareIds, addToCompare, removeFromCompare, clearCompare, setCompareList } = useTheme();
   const [vehicles, setVehicles] = useState<Veiculo[]>([]);
+  const [fullStock, setFullStock] = useState<Veiculo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Search input and focus states for empty slots
+  const [searchQueries, setSearchQueries] = useState<Record<number, string>>({});
+  const [focusedSlot, setFocusedSlot] = useState<number | null>(null);
 
   // Accordion open/close states
   const [basicasOpen, setBasicasOpen] = useState(true);
   const [mecanicaOpen, setMecanicaOpen] = useState(true);
   const [historicoOpen, setHistoricoOpen] = useState(true);
 
-  // Load selected vehicles on mount
+  // Load selected vehicles and full inventory on mount
   useEffect(() => {
     async function fetchCompareVehicles() {
       setIsLoading(true);
       const estoque = await getEstoque();
+      setFullStock(estoque);
       const filtered = estoque.filter((v) => compareIds.includes(v.id));
       setVehicles(filtered);
       setIsLoading(false);
@@ -136,6 +142,79 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
     }
     fetchCompareVehicles();
   }, [compareIds]);
+
+  const handleSearchChange = (slotIdx: number, val: string) => {
+    setSearchQueries(prev => ({ ...prev, [slotIdx]: val }));
+  };
+
+  const getFilteredOptions = (slotIdx: number) => {
+    const query = (searchQueries[slotIdx] || "").toLowerCase().trim();
+    // Exclude cars already selected in comparison
+    const available = fullStock.filter(car => !compareIds.includes(car.id) && !car.vendido);
+    
+    if (!query) return available;
+    
+    return available.filter(car => 
+      car.marca.toLowerCase().includes(query) ||
+      car.modelo.toLowerCase().includes(query) ||
+      car.versao.toLowerCase().includes(query)
+    );
+  };
+
+  // Dynamic Preset Generation
+  const getPresets = () => {
+    const presets: { id: string; name: string; icon: string; cars: Veiculo[] }[] = [];
+
+    // 1. SUVs de Luxo
+    const suvs = fullStock.filter(v => v.tipo === "SUV" && !v.vendido);
+    if (suvs.length >= 2) {
+      presets.push({
+        id: "suvs_luxo",
+        name: "SUVs Premium",
+        icon: "SUV",
+        cars: suvs.slice(0, 3)
+      });
+    }
+
+    // 2. Híbridos & EVs
+    const hibridosEvs = fullStock.filter(v => 
+      (v.combustivel === "Elétrico" || v.combustivel === "Híbrido") && !v.vendido
+    );
+    if (hibridosEvs.length >= 2) {
+      presets.push({
+        id: "hibridos_evs",
+        name: "Híbridos & EVs",
+        icon: "EV",
+        cars: hibridosEvs.slice(0, 3)
+      });
+    }
+
+    // 3. Linhagem Esportiva
+    const esportivos = fullStock.filter(v => 
+      (v.perfil_uso === "LINHAGEM ESPORTIVA" || v.marca.toLowerCase() === "porsche") && !v.vendido
+    );
+    if (esportivos.length >= 2) {
+      presets.push({
+        id: "esportivos",
+        name: "Performance & Pista",
+        icon: "Sport",
+        cars: esportivos.slice(0, 3)
+      });
+    }
+
+    // 4. Melhor Custo-Benefício
+    const custoBeneficio = fullStock.filter(v => v.preco_original < 200000 && !v.vendido);
+    if (custoBeneficio.length >= 2) {
+      presets.push({
+        id: "custo_beneficio",
+        name: "Melhor Custo-Benefício",
+        icon: "Fipe",
+        cars: custoBeneficio.slice(0, 3)
+      });
+    }
+
+    return presets;
+  };
 
   if (compareIds.length === 0) {
     return (
@@ -270,17 +349,59 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
                 );
               })}
 
-              {/* Fill remaining column slots to preserve alignment matrix */}
-              {Array.from({ length: 3 - vehicles.length }).map((_, index) => (
-                <div key={index} className="border-2 border-dashed border-brand-border/60 rounded-xl p-4 h-full flex flex-col items-center justify-center text-center gap-1.5 min-h-[140px]">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="h-6 w-6 text-brand-border">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                  <span className="text-[10px] text-brand-text/30 font-bold uppercase tracking-widest">
-                    Disponível
-                  </span>
-                </div>
-              ))}
+              {/* Fill remaining column slots with search search box */}
+              {Array.from({ length: 3 - vehicles.length }).map((_, index) => {
+                const slotIndex = vehicles.length + index;
+                return (
+                  <div key={slotIndex} className="relative border border-dashed border-brand-border/80 rounded-xl p-3 h-full flex flex-col justify-start gap-2 min-h-[160px] bg-brand-card/20 select-none animate-fadeIn">
+                    <div className="flex items-center gap-1.5 text-[10px] text-brand-text/40 font-bold uppercase tracking-widest">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="h-3.5 w-3.5 text-brand-primary">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      <span>Adicionar Carro</span>
+                    </div>
+                    
+                    <div className="relative w-full">
+                      <input
+                        type="text"
+                        placeholder="Buscar marca ou modelo..."
+                        value={searchQueries[slotIndex] || ""}
+                        onChange={(e) => handleSearchChange(slotIndex, e.target.value)}
+                        onFocus={() => setFocusedSlot(slotIndex)}
+                        onBlur={() => setTimeout(() => setFocusedSlot(null), 200)}
+                        className="w-full bg-brand-bg text-brand-text text-xs border border-brand-border rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-brand-primary transition-all placeholder:text-brand-text/30"
+                      />
+                      
+                      {/* Dropdown list */}
+                      {focusedSlot === slotIndex && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-brand-card border border-brand-border rounded-lg shadow-xl divide-y divide-brand-border/40 scrollbar-thin">
+                          {getFilteredOptions(slotIndex).length > 0 ? (
+                            getFilteredOptions(slotIndex).map((car) => (
+                              <button
+                                key={car.id}
+                                onClick={() => {
+                                  addToCompare(car.id);
+                                  handleSearchChange(slotIndex, "");
+                                  setFocusedSlot(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-[11px] hover:bg-brand-primary/10 hover:text-brand-primary transition-colors flex flex-col gap-0.5"
+                              >
+                                <span className="font-extrabold uppercase text-[9px] text-brand-text/40">{car.marca}</span>
+                                <span className="font-bold text-brand-text">{car.modelo}</span>
+                                <span className="text-[9px] text-brand-text/50 truncate">{car.versao} • {car.ano}</span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2.5 text-center text-[10px] text-brand-text/40">
+                              Nenhum veículo disponível
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* 2. SPECIFICATION ACCORDIONS & PERFECTLY ALIGNED ROWS */}
@@ -484,6 +605,53 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
 
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* 3. SUGGESTED COMPARISON PRESETS (Tudocelular look) */}
+      {!isLoading && getPresets().length > 0 && (
+        <div className="mt-8 border-t border-brand-border/60 pt-6 pb-4">
+          <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest mb-1 pl-1">
+            Comparativos Recomendados
+          </h4>
+          <p className="text-[10px] text-brand-text/40 pl-1 mb-4">
+            Selecione grupos pré-ajustados de veículos similares ativos no showroom.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {getPresets().map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => {
+                  const ids = preset.cars.map(c => c.id);
+                  setCompareList(ids);
+                }}
+                className="flex flex-col text-left p-4 bg-brand-card hover:bg-brand-primary/5 border border-brand-card-border hover:border-brand-primary/35 rounded-2xl transition-all duration-300 group cursor-pointer shadow-sm"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-brand-text group-hover:text-brand-primary transition-colors">
+                    {preset.name}
+                  </span>
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary">
+                    {preset.icon}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 text-[10px] text-brand-text/50">
+                  {preset.cars.map((car, idx) => (
+                    <div key={car.id} className="truncate">
+                      {idx + 1}. <span className="font-semibold text-brand-text/75">{car.marca}</span> {car.modelo}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 text-[9px] font-extrabold text-brand-primary uppercase tracking-wider flex items-center gap-1 group-hover:underline">
+                  Comparar Agora
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3 h-3">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       )}

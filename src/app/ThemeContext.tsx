@@ -110,6 +110,7 @@ interface ThemeContextProps {
   removeFromCompare: (id: string) => void;
   clearCompare: () => void;
   isInCompare: (id: string) => boolean;
+  setCompareList: (ids: string[]) => void;
   companySettings: CompanySettings;
   updateCompanySettings: (settings: CompanySettings) => void;
   aboutSettings: AboutSettings;
@@ -125,6 +126,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [aboutSettings, setAboutSettings] = useState<AboutSettings>(DEFAULT_ABOUT_SETTINGS);
 
   useEffect(() => {
+    // Theme and compare IDs are UI-only preferences — localStorage is fine for these
     const savedTheme = localStorage.getItem("ag_theme") as ThemeType;
     if (savedTheme && THEME_PRESETS[savedTheme]) {
       setThemeState(savedTheme);
@@ -140,61 +142,38 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const savedCompany = localStorage.getItem("ag_company_settings");
-    if (savedCompany) {
+    // Company and About settings come EXCLUSIVELY from Supabase via /api/settings
+    // No localStorage reads — the database is the single source of truth
+    const loadSettingsFromServer = async () => {
       try {
-        setCompanySettings({
-          ...DEFAULT_COMPANY_SETTINGS,
-          ...JSON.parse(savedCompany)
-        });
-      } catch (e) {
-        console.error("Failed to parse company settings from localStorage", e);
-      }
-    }
-
-    const savedAbout = localStorage.getItem("ag_about_settings");
-    if (savedAbout) {
-      try {
-        setAboutSettings({
-          ...DEFAULT_ABOUT_SETTINGS,
-          ...JSON.parse(savedAbout)
-        });
-      } catch (e) {
-        console.error("Failed to parse about settings from localStorage", e);
-      }
-    }
-
-    // Fetch and sync settings from server for cross-device support (desktop/mobile sync)
-    const syncWithServer = async () => {
-      try {
-        const response = await fetch("/api/settings");
+        const response = await fetch("/api/settings", { cache: "no-store" });
         if (response.ok) {
           const data = await response.json();
-          if (data.companySettings && data.companySettings.isCustom) {
+          if (data.companySettings) {
             setCompanySettings(data.companySettings);
-            localStorage.setItem("ag_company_settings", JSON.stringify(data.companySettings));
+            console.log("[ThemeContext] Company settings loaded from Supabase:", data.companySettings.phone);
           }
-          if (data.aboutSettings && data.aboutSettings.isCustom) {
+          if (data.aboutSettings) {
             setAboutSettings(data.aboutSettings);
-            localStorage.setItem("ag_about_settings", JSON.stringify(data.aboutSettings));
+            console.log("[ThemeContext] About settings loaded from Supabase");
           }
         }
       } catch (err) {
-        console.warn("[ThemeContext] Failed to sync settings with server:", err);
+        console.warn("[ThemeContext] Failed to load settings from server, using defaults:", err);
       }
     };
     
-    syncWithServer();
+    loadSettingsFromServer();
   }, []);
 
+  // Updates React state only — persistence to Supabase is handled
+  // by ConfiguracoesClientWrapper via POST /api/settings
   const updateCompanySettings = (settings: CompanySettings) => {
     setCompanySettings(settings);
-    localStorage.setItem("ag_company_settings", JSON.stringify(settings));
   };
 
   const updateAboutSettings = (settings: AboutSettings) => {
     setAboutSettings(settings);
-    localStorage.setItem("ag_about_settings", JSON.stringify(settings));
   };
 
   const applyThemeProperties = (type: ThemeType) => {
@@ -258,6 +237,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return compareIds.includes(id);
   };
 
+  const setCompareList = (ids: string[]) => {
+    const sliced = ids.slice(0, 3);
+    setCompareIds(sliced);
+    localStorage.setItem("ag_compare_ids", JSON.stringify(sliced));
+    console.log(`[Antigravity Click] Lista de comparação alterada para: ${JSON.stringify(sliced)}`);
+  };
+
   return (
     <ThemeContext.Provider
       value={{
@@ -269,6 +255,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         removeFromCompare,
         clearCompare,
         isInCompare,
+        setCompareList,
         companySettings,
         updateCompanySettings,
         aboutSettings,

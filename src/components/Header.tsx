@@ -29,6 +29,11 @@ export default function Header() {
     console.log(`[Antigravity Branding] Logo do Header alternada para a variação correspondente ao tema: ${theme}`);
   }, [theme]);
 
+  // Close comparison modal on page transitions to prevent blocking overlay persistence
+  useEffect(() => {
+    setCompareOpen(false);
+  }, [pathname]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
