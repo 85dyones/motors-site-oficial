@@ -176,10 +176,10 @@ export default function SobreClientWrapper() {
           <div className="absolute -left-12 -bottom-12 h-24 w-24 rounded-full bg-brand-primary/5 blur-xl pointer-events-none" />
           
           <h2 className="text-lg font-bold text-brand-text uppercase tracking-tight">
-            Pronto para encontrar seu próximo destino?
+            {aboutSettings.ctaTitle || "PRONTO PARA ENCONTRAR SEU PRÓXIMO DESTINO?"}
           </h2>
-          <p className="text-xs text-brand-text/50 max-w-xs leading-relaxed">
-            Experimente agora a nossa IA Curadora no Match de Garagem ou agende um test-drive em nossa concessionária.
+          <p className="text-xs text-brand-text/50 max-w-md leading-relaxed">
+            {aboutSettings.ctaDescription || "Experimente a segurança da nossa curadoria digital ou agende uma visita ao nosso showroom no Bacacheri, pertinho da Rua Canadá. Atendimento presencial de excelência e logística de entrega para todo o Brasil."}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -187,14 +187,14 @@ export default function SobreClientWrapper() {
               className="bg-brand-primary hover:bg-brand-primary-hover text-white text-[10px] font-thin uppercase tracking-widest px-5 py-3 rounded-xl transition-all duration-300 shadow-md active:scale-95 shrink-0"
               id="about-cta-match"
             >
-              INICIAR CURADORIA IA
+              {aboutSettings.ctaBtn1Text || "INICIAR CURADORIA IA"}
             </Link>
             <Link
               href="/contato"
               className="bg-brand-card hover:bg-brand-bg text-brand-text/80 text-[10px] font-thin uppercase tracking-widest px-5 py-3 rounded-xl border border-brand-card-border transition-all duration-300 active:scale-95 shrink-0"
               id="about-cta-contact"
             >
-              FALE CONOSCO
+              {aboutSettings.ctaBtn2Text || "FALE CONOSCO"}
             </Link>
           </div>
         </section>

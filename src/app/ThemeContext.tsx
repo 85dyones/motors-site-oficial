@@ -92,6 +92,10 @@ export interface AboutSettings {
   card2Desc: string;
   card3Title: string;
   card3Desc: string;
+  ctaTitle?: string;
+  ctaDescription?: string;
+  ctaBtn1Text?: string;
+  ctaBtn2Text?: string;
   isCustom?: boolean;
 }
 

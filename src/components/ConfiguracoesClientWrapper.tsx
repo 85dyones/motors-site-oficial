@@ -2195,7 +2195,7 @@ export default function ConfiguracoesClientWrapper() {
                 {/* Seção 4: Tecnologia */}
                 <div className="flex flex-col gap-4">
                   <h3 className="text-xs font-bold text-brand-primary uppercase tracking-widest">
-                    Seção 4: Pilares Tecnológicos
+                    Seção 4: Pilares de Excelência
                   </h3>
                   <div className="flex flex-col gap-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2307,6 +2307,71 @@ export default function ConfiguracoesClientWrapper() {
                             className="w-full p-2 bg-brand-card border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary resize-none"
                           />
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 5: Chamada para Ação Final (CTA) */}
+                <div className="flex flex-col gap-4 border-t border-brand-border/40 pt-6">
+                  <h3 className="text-xs font-bold text-brand-primary uppercase tracking-widest">
+                    Seção 5: Chamada para Ação Final (CTA)
+                  </h3>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                          Título Central (H2)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={aboutForm.ctaTitle || ""}
+                          onChange={(e) => setAboutForm({ ...aboutForm, ctaTitle: e.target.value })}
+                          placeholder="PRONTO PARA ENCONTRAR SEU PRÓXIMO DESTINO?"
+                          className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                          Texto de Apoio
+                        </label>
+                        <textarea
+                          required
+                          rows={3}
+                          value={aboutForm.ctaDescription || ""}
+                          onChange={(e) => setAboutForm({ ...aboutForm, ctaDescription: e.target.value })}
+                          placeholder="Experimente a segurança da nossa curadoria digital..."
+                          className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all resize-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                          Texto do Botão 1 (Destaque)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={aboutForm.ctaBtn1Text || ""}
+                          onChange={(e) => setAboutForm({ ...aboutForm, ctaBtn1Text: e.target.value })}
+                          placeholder="INICIAR CURADORIA IA"
+                          className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                          Texto do Botão 2 (Borda)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={aboutForm.ctaBtn2Text || ""}
+                          onChange={(e) => setAboutForm({ ...aboutForm, ctaBtn2Text: e.target.value })}
+                          placeholder="FALE CONOSCO"
+                          className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                        />
                       </div>
                     </div>
                   </div>
