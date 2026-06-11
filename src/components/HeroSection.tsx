@@ -660,7 +660,7 @@ export default function HeroSection() {
       
       {/* 1. HERO CAROUSEL / SLIDER (Auto Club Top Slider Look) */}
       {featuredCars.length > 0 && (
-        <div className="relative w-full h-[60vh] md:h-[75vh] max-h-[720px] rounded-2xl overflow-hidden shadow-2xl border border-brand-border/30 bg-black animate-fadeIn group">
+        <div className="relative w-full h-[60vh] md:h-[75vh] max-h-[720px] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 animate-fadeIn group">
           {/* Carousel Slide Wrapper */}
           <div className="relative w-full h-full">
             {featuredCars.map((car, index) => {
@@ -1264,7 +1264,7 @@ export default function HeroSection() {
                       className="group bg-brand-card border border-brand-card-border hover:border-brand-primary/40 rounded-3xl flex flex-col justify-between shadow-[0_8px_30px_var(--brand-shadow)] hover:shadow-xl transition-all duration-300 relative overflow-hidden animate-fadeIn"
                     >
                       {/* Image block container - Perfect Full-Bleed (no borders/padding surrounding) */}
-                      <Link prefetch={false} href={pdpUrl} className="relative w-full aspect-video overflow-hidden bg-brand-bg flex-shrink-0 block cursor-pointer">
+                      <Link prefetch={false} href={pdpUrl} className="relative w-full aspect-video md:aspect-[4/3] overflow-hidden bg-brand-bg flex-shrink-0 block cursor-pointer">
                         <Image
                           src={veiculo.whatsapp_images[0] || "/logo.png"}
                           alt={`${veiculo.marca} ${veiculo.modelo}`}

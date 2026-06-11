@@ -42,7 +42,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col flex-grow items-center justify-start bg-brand-bg text-brand-text transition-colors duration-300">
+    <div className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
       {/* Local Business (AutoDealer) Schema Markup */}
       <script
         type="application/ld+json"
