@@ -1,0 +1,191 @@
+{
+  "name": "Antigravity - Sincronizador de Estoque (veiculos)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "0d1e44f4-af02-4709-bd7a-04d950e2ecd6",
+      "name": "Executar Manualmente",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "e757d7c1-7813-4cb6-bb1b-10a44a3eb4c2",
+      "name": "Agendamento (A cada 6h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -272,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://app.revendamais.com.br/application/index.php/apiGeneratorXml/generator/sitedaloja/610b862928cc96c79febe14e98c50c4b9037.xml",
+        "options": {}
+      },
+      "id": "e0161484-7bb2-4636-9234-182784996b1b",
+      "name": "Buscar XML RevendaMais",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -48,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "5d9a7d97-b2ea-487f-81ea-9e76fedcdc52",
+      "name": "XML para JSON",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        176,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "ADS.AD",
+        "options": {}
+      },
+      "id": "344b29bb-1d18-43ab-929d-164d8baba2b0",
+      "name": "Separar Veículos",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        400,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const veiculos = $input.all();\nconst resultados = [];\n\nfunction generatePdpUrl(id, marca, modelo, versao) {\n  const brandLower = (marca || \"\").toLowerCase().trim();\n  const modelLower = (modelo || \"\").toLowerCase().trim();\n  const versionLower = (versao || \"\").toLowerCase().trim();\n\n  // 1. Clean model to remove duplicate brand prefix\n  let cleanModel = modelLower;\n  if (cleanModel.startsWith(brandLower)) {\n    cleanModel = cleanModel.slice(brandLower.length).trim();\n  }\n\n  // 2. Clean model to remove duplicate version suffix\n  if (cleanModel.endsWith(versionLower)) {\n    cleanModel = cleanModel.slice(0, cleanModel.length - versionLower.length).trim();\n  }\n\n  // 3. Clean version to remove duplicate brand or model prefix\n  let cleanVersion = versionLower;\n  if (cleanVersion.startsWith(brandLower)) {\n    cleanVersion = cleanVersion.slice(brandLower.length).trim();\n  }\n  if (cleanVersion.startsWith(cleanModel)) {\n    cleanVersion = cleanVersion.slice(cleanModel.length).trim();\n  }\n\n  // Fallback to defaults if stripped to empty\n  const finalBrand = brandLower || \"veiculo\";\n  const finalModel = cleanModel || modelLower || \"padrao\";\n  const finalVersion = cleanVersion || versionLower || \"padrao\";\n\n  // Helper to remove accents/diacritics and make clean slug (lowercase, single dashes)\n  function slugify(text) {\n    return text\n      .toString()\n      .normalize(\"NFD\")\n      .replace(/[\\u0300-\\u036f]/g, \"\")\n      .replace(/\\./g, \"\")\n      .replace(/[^a-zA-Z0-9\\s-]/g, \"\")\n      .trim()\n      .toLowerCase()\n      .replace(/[\\s-]+/g, \"-\");\n  }\n\n  const slugMarca = slugify(finalBrand);\n  const slugModelo = slugify(finalModel);\n  const slugVersao = slugify(finalVersion);\n\n  const slugCompletoComId = `${slugMarca}-${slugModelo}-${slugVersao}-${id}.html`;\n  \n  return `https://motors-site-oficial.vercel.app/carros/${slugMarca}/${slugModelo}/${slugVersao}/${slugCompletoComId}`;\n}\n\nfor (const item of veiculos) {\n    const carro = item.json;\n    const id = parseInt(carro.ID);\n    \n    const precoOriginal = parseFloat(carro.PRICE || 0);\n    let precoPromo = parseFloat(carro.PROMOTION_PRICE || 0);\n    const precoFinal = (precoPromo > 0 && precoPromo < precoOriginal) ? precoPromo : precoOriginal;\n\n    if (!(precoPromo > 0 && precoPromo < precoOriginal)) {\n        precoPromo = 0;\n    }\n\n    const baseModelRegex = new RegExp(`^${carro.BASE_MODEL}`, 'i');\n    const versaoLimpa = (carro.MODEL || '').replace(baseModelRegex, '').trim();\n    \n    // Generate identical optimized URL path matching Next.js frontend route\n    const linkSite = generatePdpUrl(id, carro.MAKE, carro.MODEL, versaoLimpa);\n\n    let urlImagem = \"\";\n    if (carro.IMAGES_LARGE?.IMAGE_URL_LARGE) {\n        urlImagem = Array.isArray(carro.IMAGES_LARGE.IMAGE_URL_LARGE) ? carro.IMAGES_LARGE.IMAGE_URL_LARGE[0] : carro.IMAGES_LARGE.IMAGE_URL_LARGE;\n    } else if (carro.IMAGES?.IMAGE_URL) {\n        urlImagem = Array.isArray(carro.IMAGES.IMAGE_URL) ? carro.IMAGES.IMAGE_URL[0] : carro.IMAGES.IMAGE_URL;\n    }\n\n    const modeloLower = (carro.MODEL || '').toLowerCase();\n    const makeLower = (carro.MAKE || '').toLowerCase();\n    const categoryLower = (carro.CATEGORY || '').toLowerCase();\n    const bodyTypeLower = (carro.BODY_TYPE || '').toLowerCase();\n\n    let tipo = \"Hatch\";\n    if (categoryLower === \"motocicleta\" || categoryLower === \"moto\" || modeloLower.match(/(cb|twister|harley|davidson|moto)/)) {\n        tipo = \"Motocicleta\";\n    } else if (bodyTypeLower === \"suv\" || modeloLower.match(/(renegade|ecosport|tiguan|taos|x1|x4|duster|tracker|toro)/)) {\n        tipo = \"SUV\";\n    } else if (bodyTypeLower === \"sedan\" || modeloLower.match(/(prisma|cruze|classic|c-180|c 180|seda)/)) {\n        tipo = \"Sedan\";\n    } else if (bodyTypeLower === \"picape\" || modeloLower.match(/(amarok|saveiro|hilux|s10|ranger)/)) {\n        tipo = \"Picape\";\n    } else if (bodyTypeLower === \"hatch\" || modeloLower.match(/(gol|c3|palio|fiesta|march|mobi|polo|argo|clio|fit|fox)/)) {\n        tipo = \"Hatch\";\n    }\n\n    let perfilUso = \"Uso Diário\";\n    if (tipo === \"Motocicleta\") {\n        perfilUso = \"Agilidade / Economia\";\n    } else if (makeLower.match(/(porsche|bmw|mercedes|audi|land-rover)/) || modeloLower.match(/(m sport|gts|turbo|r-line|amg)/)) {\n        perfilUso = \"Performance / Premium\";\n    } else if (tipo === \"SUV\" || tipo === \"Sedan\" || modeloLower.match(/(weekend|allspace|family|familia|fit)/)) {\n        perfilUso = \"Família / Conforto\";\n    } else if (tipo === \"Picape\" || (carro.FUEL || '').toLowerCase() === \"diesel\") {\n        perfilUso = \"Trabalho / Robustez\";\n    } else if (parseFloat(carro.MOTOR || 0) <= 1.0 || modeloLower.match(/(gol|mobi|march|clio|argo|uno|fox)/)) {\n        perfilUso = \"Econômico / Diário\";\n    }\n\n    resultados.push({\n        json: {\n            id: id,\n            marca: carro.MAKE || \"N/D\",\n            modelo: carro.MODEL || \"N/D\",\n            versao: versaoLimpa || \"Série\",\n            ano: parseInt(carro.YEAR || 0),\n            ano_fabricacao: parseInt(carro.FABRIC_YEAR || 0),\n            preco: precoFinal,\n            preco_original: precoOriginal,\n            preco_promocional: precoPromo,\n            quilometragem: parseInt(carro.MILEAGE || 0),\n            cambio: carro.GEAR || \"N/D\",\n            combustivel: carro.FUEL || \"N/D\",\n            cor: carro.COLOR || \"N/D\",\n            tipo: tipo,\n            perfil_uso: perfilUso,\n            url_imagem: urlImagem,\n            link_conversao: linkSite,\n            pericia: carro.PERICIA || \"Em análise\",\n            descricao: carro.DESCRIPTION || \"Sem descrição informada\",\n            whatsapp_images: Array.isArray(carro.IMAGES?.IMAGE_URL) ? carro.IMAGES.IMAGE_URL : [carro.IMAGES?.IMAGE_URL || ''],\n            web_full_images: Array.isArray(carro.IMAGES_LARGE?.IMAGE_URL_LARGE) ? carro.IMAGES_LARGE.IMAGE_URL_LARGE : [carro.IMAGES_LARGE?.IMAGE_URL_LARGE || '']\n        }\n    });\n}\n\nreturn resultados;"
+      },
+      "id": "7aeb732e-dc40-4c7c-99a6-8e031fb50393",
+      "name": "Classificação e Regras de Negócio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "veiculos",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        816,
+        -80
+      ],
+      "id": "63178d8d-5f57-4f65-bf74-cdad8cbf82df",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "sy8YUAdN0Ur3fHqB",
+          "name": "motors-leads-utm"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Executar Manualmente": {
+      "main": [
+        [
+          {
+            "node": "Buscar XML RevendaMais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agendamento (A cada 6h)": {
+      "main": [
+        [
+          {
+            "node": "Buscar XML RevendaMais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar XML RevendaMais": {
+      "main": [
+        [
+          {
+            "node": "XML para JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML para JSON": {
+      "main": [
+        [
+          {
+            "node": "Separar Veículos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Veículos": {
+      "main": [
+        [
+          {
+            "node": "Classificação e Regras de Negócio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificação e Regras de Negócio": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2bc5e260-af8d-4561-a199-5be9d7fcf8bb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0854a136cd60cfd768dabb9a965327cf232a008716742af850ad6cedb6ea4e78"
+  },
+  "id": "wfYIjBaxaFFnvAYa",
+  "tags": []
+}
