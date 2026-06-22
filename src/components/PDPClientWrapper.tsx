@@ -579,10 +579,16 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               <span className="bg-brand-primary/10 text-brand-gold px-2 py-0.5 rounded text-[10px]">
                 {veiculo.tipo || "Premium"}
               </span>
-              <span className="text-brand-primary font-bold">•</span>
-              <span className="text-green-600 font-medium">
-                {veiculo.pericia || "Laudo Cautelar Aprovado"}
-              </span>
+              {veiculo.pericia && 
+               !veiculo.pericia.toLowerCase().includes("análise") && 
+               !veiculo.pericia.toLowerCase().includes("analise") && (
+                <>
+                  <span className="text-brand-primary font-bold">•</span>
+                  <span className="text-green-600 font-medium">
+                    {veiculo.pericia}
+                  </span>
+                </>
+              )}
             </p>
           </div>
 

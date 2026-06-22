@@ -1433,7 +1433,10 @@ export default function HeroSection() {
                         </h4>
                         <p className="text-xs text-brand-text/50 font-thin uppercase leading-relaxed max-w-xl">
                           <span className="font-thin uppercase">{veiculo.versao}</span>
-                          {veiculo.pericia && ` • ${veiculo.pericia.toUpperCase()}`}
+                          {veiculo.pericia && 
+                           !veiculo.pericia.toLowerCase().includes("análise") && 
+                           !veiculo.pericia.toLowerCase().includes("analise") && 
+                           ` • ${veiculo.pericia.toUpperCase()}`}
                         </p>
                       </Link>
 
@@ -1476,13 +1479,17 @@ export default function HeroSection() {
                         </div>
 
                         {/* 5. STATUS DA PERÍCIA */}
-                        <div className="flex items-center gap-1.5 pr-4 last:border-0 last:pr-0">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3.5 w-3.5 flex-shrink-0 text-brand-primary">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
-                          </svg>
-                          <span className="font-thin uppercase text-[10px] tracking-wider text-brand-text/40">PERÍCIA:</span>
-                          <span className="font-semibold uppercase text-brand-text text-[11px]">{veiculo.pericia}</span>
-                        </div>
+                        {veiculo.pericia && 
+                         !veiculo.pericia.toLowerCase().includes("análise") && 
+                         !veiculo.pericia.toLowerCase().includes("analise") && (
+                          <div className="flex items-center gap-1.5 pr-4 last:border-0 last:pr-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3.5 w-3.5 flex-shrink-0 text-brand-primary">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
+                            </svg>
+                            <span className="font-thin uppercase text-[10px] tracking-wider text-brand-text/40">PERÍCIA:</span>
+                            <span className="font-semibold uppercase text-brand-text text-[11px]">{veiculo.pericia}</span>
+                          </div>
+                        )}
                       </Link>
                     </div>
 
