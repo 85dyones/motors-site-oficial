@@ -1263,7 +1263,7 @@ export default function HeroSection() {
                       className="group bg-brand-card border border-brand-card-border hover:border-brand-primary/40 rounded-3xl flex flex-col justify-between shadow-[0_8px_30px_var(--brand-shadow)] hover:shadow-xl transition-all duration-300 relative overflow-hidden animate-fadeIn"
                     >
                       {/* Image block container - Perfect Full-Bleed (no borders/padding surrounding) */}
-                      <Link prefetch={false} href={pdpUrl} className="relative w-full aspect-video md:aspect-[4/3] overflow-hidden bg-brand-bg flex-shrink-0 block cursor-pointer">
+                      <Link prefetch={false} href={pdpUrl} className="relative w-full aspect-video overflow-hidden bg-brand-bg flex-shrink-0 block cursor-pointer">
                         <Image
                           src={veiculo.whatsapp_images[0] || "/logo.png"}
                           alt={`${veiculo.marca} ${veiculo.modelo}`}
@@ -1394,7 +1394,7 @@ export default function HeroSection() {
                       className="group bg-brand-card border border-brand-card-border hover:border-brand-primary/40 rounded-3xl p-0 flex flex-col md:flex-row gap-6 max-sm:gap-4.5 shadow-[0_8px_30px_var(--brand-shadow)] hover:shadow-xl transition-all duration-300 relative overflow-hidden animate-fadeIn"
                     >
                     {/* Big Image on Left - Full-Bleed marginless top/left/bottom */}
-                    <Link prefetch={false} href={pdpUrl} className="w-full md:w-2/5 aspect-video md:aspect-[4/3] overflow-hidden bg-brand-bg flex-shrink-0 relative block cursor-pointer">
+                    <Link prefetch={false} href={pdpUrl} className="w-full md:w-2/5 aspect-video overflow-hidden bg-brand-bg flex-shrink-0 relative block cursor-pointer">
                       <Image
                         src={veiculo.whatsapp_images[0] || "/logo.png"}
                         alt={`${veiculo.marca} ${veiculo.modelo}`}
