@@ -204,6 +204,14 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     }
   };
 
+  const handleProposalClick = () => {
+    if (typeof window !== "undefined") {
+      const msg = `Olá! Gostaria de enviar uma proposta de negociação para o veículo ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
+      setActiveMessage(msg);
+      setIsLeadModalOpen(true);
+    }
+  };
+
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
     const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
@@ -441,9 +449,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         )}
       </div>
 
-      {/* 2. GALLERY PREMIUM (Slider de fotos Swipe nativo + thumbnails) - Full-Bleed order-1 on mobile, order-2 below header on desktop */}
-      <div className="w-full order-1 md:order-2 mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4 print:hidden">
-        <section className="flex flex-col gap-3 max-sm:gap-1.5">
+      {/* 2. GALLERY & SIDEBAR 2-COLUMN GRID (Slider de fotos Swipe nativo + Detalhes/Ações na lateral) */}
+      <div className="w-full mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4 print:hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Column: Gallery (spans 8 cols on lg) */}
+        <section className="w-full lg:col-span-7 xl:col-span-8 flex flex-col gap-3 max-sm:gap-1.5">
           {/* Images container fitted to generous, gorgeous full-bleed responsive heights and styled with bg-zinc-950 */}
           <div className="relative w-full aspect-video bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
             {/* Horizontal scroll snap container */}
@@ -464,7 +473,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                     fill
                     priority={index === 0}
                     className={`object-cover w-full h-full border-none p-0 m-0 ${veiculo.vendido ? "filter grayscale-[30%] opacity-75" : ""}`}
-                    sizes="100vw"
+                    sizes="(max-w-1024px) 100vw, 900px"
                   />
                 </div>
               ))}
@@ -515,6 +524,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0-5.25-5.25" />
               </svg>
             </button>
+
             {/* Sold overlay */}
             {veiculo.vendido && (
               <div className="absolute inset-0 bg-zinc-950/45 flex items-center justify-center z-20 backdrop-blur-[0.5px] pointer-events-none">
@@ -554,128 +564,147 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             </div>
           )}
         </section>
-      </div>
 
-      {/* 1. TITLE BANNER HEADER (Clean Auto Club Banner Look) - order-2 below gallery on mobile, order-1 on desktop */}
-      <header className="w-full border-b border-brand-border/60 bg-brand-card/30 backdrop-blur-sm py-5 max-sm:py-3 px-4 sm:px-6 lg:px-8 order-2 md:order-1">
-        <div className="mx-auto max-w-[1600px] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 max-sm:gap-3 flex-wrap">
-          <div className="flex flex-col gap-1 max-sm:gap-0.5">
+        {/* Right Column: Premium Sidebar Header (spans 5 cols on lg) */}
+        <aside className="w-full lg:col-span-5 xl:col-span-4 bg-transparent lg:bg-brand-card border-0 lg:border border-brand-border/40 p-4 sm:p-6 lg:p-8 rounded-none lg:rounded-3xl shadow-none lg:shadow-[0_8px_30px_var(--brand-shadow)] flex flex-col gap-6 max-sm:gap-4 max-sm:p-2">
+          
+          {/* Brand, Model, Version & Vistoria Badge */}
+          <div className="flex flex-col gap-1.5">
             <span className="text-xs md:text-sm font-semibold uppercase tracking-widest text-brand-gold">
               {veiculo.marca}
             </span>
             
-            <h1 className="text-2xl md:text-4xl max-sm:text-xl font-semibold tracking-tight text-brand-text leading-none">
-              <span className="sr-only">{veiculo.marca} </span>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-brand-text leading-tight uppercase">
               {veiculo.modelo}
-              <span className="sr-only"> {veiculo.versao}</span>
             </h1>
             
-            {/* Dynamic dynamic subtitle extracted from database fields */}
-            <p className="text-xs md:text-sm text-brand-text/80 font-normal uppercase tracking-wider flex flex-wrap gap-2 items-center mt-1">
-              <span className="font-normal uppercase">{truncateString(veiculo.versao, 35)}</span>
+            <p className="text-xs md:text-sm text-brand-text/80 font-normal uppercase tracking-wider mt-1 flex flex-wrap gap-2 items-center">
+              <span>{truncateString(veiculo.versao, 35)}</span>
               <span className="text-brand-primary font-bold">•</span>
               <span>Ano {veiculo.ano}</span>
-              <span className="text-brand-primary font-bold">•</span>
-              <span className="bg-brand-primary/10 text-brand-gold px-2 py-0.5 rounded text-[10px]">
-                {veiculo.tipo || "Premium"}
-              </span>
-              {veiculo.pericia && 
-               !veiculo.pericia.toLowerCase().includes("análise") && 
-               !veiculo.pericia.toLowerCase().includes("analise") && (
-                <>
-                  <span className="text-brand-primary font-bold">•</span>
-                  <span className="text-green-600 font-medium">
-                    {veiculo.pericia}
-                  </span>
-                </>
-              )}
             </p>
+            
+            {veiculo.pericia && 
+             !veiculo.pericia.toLowerCase().includes("análise") && 
+             !veiculo.pericia.toLowerCase().includes("analise") && (
+              <div className="flex items-center gap-1.5 mt-2 bg-emerald-500/10 text-emerald-600 px-3 py-1.5 rounded-lg text-[10px] font-bold w-fit uppercase tracking-wider border border-emerald-500/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {veiculo.pericia}
+              </div>
+            )}
           </div>
 
-          {/* Stack Pricing and Action Buttons */}
-          <div className="flex flex-col items-start md:items-end gap-3 max-sm:w-full">
-            {/* Pricing Highlight block on the right */}
-            <div className="flex flex-col items-start md:items-end justify-center bg-brand-card border border-brand-border py-3 px-4 max-sm:p-3 rounded-xl shadow-sm min-w-[200px] max-sm:min-w-0 max-sm:w-full">
-              <span className="text-[10px] font-bold text-brand-text/40 uppercase tracking-widest leading-none mb-1">
-                Preço de Venda
-              </span>
-              {hasDiscount ? (
-                <div className="flex flex-col md:items-end">
-                  <span className="text-[10px] text-brand-text/40 line-through leading-none">
-                    De {formatPrice(veiculo.preco_original)}
-                  </span>
-                  <span className="text-xl md:text-2xl max-sm:text-lg font-bold text-brand-primary tracking-tight mt-1">
-                    Por {formatPrice(veiculo.preco_promocional)}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-xl md:text-2xl max-sm:text-lg font-bold text-brand-primary tracking-tight">
-                  {formatPrice(veiculo.preco_original)}
+          {/* Pricing Box */}
+          <div className="flex flex-col border-t border-b border-brand-border/40 py-4">
+            <span className="text-[10px] font-bold text-brand-text/40 uppercase tracking-widest leading-none mb-1.5">
+              Preço de Venda
+            </span>
+            {hasDiscount ? (
+              <div className="flex flex-col">
+                <span className="text-xs text-brand-text/40 line-through leading-none">
+                  De {formatPrice(veiculo.preco_original)}
                 </span>
-              )}
+                <span className="text-2xl font-bold text-brand-primary tracking-tight mt-1.5">
+                  Por {formatPrice(veiculo.preco_promocional)}
+                </span>
+              </div>
+            ) : (
+              <span className="text-2xl font-bold text-brand-primary tracking-tight">
+                {formatPrice(veiculo.preco_original)}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Specs Compact Grid */}
+          <div className="flex flex-col gap-3">
+            <span className="text-[10px] font-bold text-brand-text/40 uppercase tracking-widest">
+              Especificações Rápidas
+            </span>
+            <div className="grid grid-cols-2 gap-2.5">
+              {quickSpecs.map((spec, index) => (
+                <div
+                  key={index}
+                  className="bg-brand-bg/40 border border-brand-border/40 p-2.5 rounded-xl flex items-center gap-2.5 shadow-sm hover:border-brand-primary/20 transition-all duration-300"
+                >
+                  <span className="flex items-center justify-center h-8 w-8 rounded-full bg-brand-primary/10 flex-shrink-0 text-brand-primary">
+                    {spec.icon}
+                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[7px] font-black uppercase text-brand-text/40 tracking-wider">
+                      {spec.label}
+                    </span>
+                    <span className="text-[10px] font-bold text-brand-text leading-tight truncate uppercase">
+                      {spec.value}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
 
-            {/* Action Buttons: Print + Share */}
-            <div className="flex items-center gap-2 w-full justify-start md:justify-end">
-              {/* Print Spec Sheet */}
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-brand-text/50 hover:text-brand-primary border border-brand-border/60 hover:border-brand-primary/30 rounded-lg px-3 py-2 transition-all duration-200 active:scale-95 bg-brand-card/40 backdrop-blur-sm"
-                title="Imprimir ficha do veículo"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18.75 9H5.25" />
-                </svg>
-                Imprimir
-              </button>
+          {/* Primary Call-to-Actions */}
+          <div className="flex flex-col gap-3 pt-2">
+            <button
+              onClick={handleWhatsappPDPClick}
+              className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(34,197,94,0.25)] hover:shadow-[0_4px_25px_rgba(34,197,94,0.35)] transition-all duration-300 cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
+                <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
+              </svg>
+              {veiculo.vendido ? "Consultar Similares (Vendido)" : "Fale com a Loja"}
+            </button>
+            <button
+              onClick={handleProposalClick}
+              className="w-full h-12 bg-black hover:bg-zinc-900 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 border border-zinc-800 transition-all duration-300 cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+              </svg>
+              Enviar Proposta
+            </button>
+          </div>
 
-              {/* Share WhatsApp */}
+          {/* Social Share & Print Row */}
+          <div className="flex items-center justify-between border-t border-brand-border/40 pt-4 mt-1">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-brand-text/50 hover:text-brand-primary"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-3.5 w-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18.75 9H5.25" />
+              </svg>
+              Imprimir Ficha
+            </button>
+            
+            <div className="flex gap-2">
+              {/* WHATSAPP */}
               <button
                 onClick={() => {
                   const text = `🚗 ${veiculo.marca} ${veiculo.modelo} - ${veiculo.ano}\n💰 ${formatPrice(hasDiscount ? veiculo.preco_promocional : veiculo.preco_original)}\n📋 ${veiculo.versao}\n\n🔗 ${typeof window !== 'undefined' ? window.location.href : ''}`;
                   window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
                 }}
-                className="flex items-center justify-center h-8 w-8 rounded-lg border border-brand-border/60 hover:border-emerald-500/40 text-brand-text/40 hover:text-emerald-600 hover:bg-emerald-50 transition-all duration-200 active:scale-95 bg-brand-card/40 backdrop-blur-sm"
-                title="Compartilhar no WhatsApp"
+                className="flex items-center justify-center h-7 w-7 rounded-full border border-brand-border/60 hover:border-emerald-500/40 text-brand-text/40 hover:text-emerald-600 hover:bg-emerald-50 transition-all duration-200"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="h-3.5 w-3.5">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="h-3 w-3">
                   <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
                 </svg>
               </button>
-
-              {/* Share Facebook */}
+              {/* FACEBOOK */}
               <button
                 onClick={() => {
                   const url = typeof window !== 'undefined' ? window.location.href : '';
                   window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
                 }}
-                className="flex items-center justify-center h-8 w-8 rounded-lg border border-brand-border/60 hover:border-blue-500/40 text-brand-text/40 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200 active:scale-95 bg-brand-card/40 backdrop-blur-sm"
-                title="Compartilhar no Facebook"
+                className="flex items-center justify-center h-7 w-7 rounded-full border border-brand-border/60 hover:border-blue-500/40 text-brand-text/40 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor" className="h-3.5 w-3.5">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor" className="h-3 w-3">
                   <path d="M80 299.3V512H196V299.3h86.5l18-97.8H196V166.9c0-51.7 20.3-71.5 72.7-71.5c16.8 0 29.4.2 47.6 2.5L324.8 2C297.1 .4 268 0 245.6 0 147.9 0 99.5 41.6 99.5 145.5v56H16v97.8H80z" />
-                </svg>
-              </button>
-
-              {/* Share Instagram (copy link) */}
-              <button
-                onClick={() => {
-                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                    navigator.clipboard.writeText(window.location.href);
-                    alert('Link copiado! Cole no seu Instagram Stories ou Feed.');
-                  }
-                }}
-                className="flex items-center justify-center h-8 w-8 rounded-lg border border-brand-border/60 hover:border-pink-500/40 text-brand-text/40 hover:text-pink-600 hover:bg-pink-50 transition-all duration-200 active:scale-95 bg-brand-card/40 backdrop-blur-sm"
-                title="Copiar link para Instagram"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="h-3.5 w-3.5">
-                  <path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z" />
                 </svg>
               </button>
             </div>
           </div>
-        </div>
-      </header>
+        </aside>
+      </div>
 
     {/* Rest of page details - order-3 */}
     <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-10 max-sm:gap-5 order-3 w-full print:px-0 print:py-0 print:gap-6">
@@ -694,33 +723,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           </p>
         </section>
 
-      {/* 3. QUICK SPECS GRID (8 compact rectangular cells of specifications) */}
-      <section className="flex flex-col gap-2 max-sm:gap-1.5 print-avoid-break">
-        <h3 className="text-xs font-extrabold uppercase tracking-widest text-brand-gold">
-          ESPECIFICAÇÕES RÁPIDAS
-        </h3>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2.5 max-sm:gap-1.5 print:grid-cols-4 print:gap-3">
-            {quickSpecs.map((spec, index) => (
-              <div
-                key={index}
-                className="bg-brand-card border border-brand-border/40 py-3.5 px-2 max-sm:py-2.5 max-sm:px-1 rounded-xl flex flex-col items-center text-center justify-center gap-1.5 max-sm:gap-0.5 shadow-[0_4px_20px_var(--brand-shadow)] hover:border-brand-primary/30 transition-all duration-300"
-              >
-                <span className="flex items-center justify-center h-7 w-7 max-sm:h-5.5 max-sm:w-5.5 rounded-full bg-brand-primary/10 flex-shrink-0">
-                  {spec.icon}
-                </span>
-                
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[8px] max-sm:text-[7px] font-black uppercase text-brand-text/40 tracking-wider">
-                    {spec.label}
-                  </span>
-                  <span className="text-[11px] max-sm:text-[9px] font-thin uppercase text-brand-text leading-tight line-clamp-2 tracking-wider font-medium">
-                    {truncateString(spec.value, 18)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+
 
       {/* 4. DETAIL DESCRIPTIONS & INTERACTIVE MATRIX GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-sm:gap-4 items-start print:grid-cols-1 print:gap-6">
