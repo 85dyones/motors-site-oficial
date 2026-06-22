@@ -15,12 +15,15 @@ ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 
 -- 3. Criar políticas para permitir leitura e gravação públicas
 -- IMPORTANTE: Garante acesso livre para que o site consiga sincronizar entre desktop e mobile
+DROP POLICY IF EXISTS "Allow public read access" ON public.site_settings;
 CREATE POLICY "Allow public read access" ON public.site_settings
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow public update access" ON public.site_settings;
 CREATE POLICY "Allow public update access" ON public.site_settings
     FOR UPDATE USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public insert access" ON public.site_settings;
 CREATE POLICY "Allow public insert access" ON public.site_settings
     FOR INSERT WITH CHECK (true);
 
@@ -146,4 +149,37 @@ INSERT INTO public.site_settings (id, data)
 VALUES 
 ('stock_overrides', '{"overrides": {}}')
 ON CONFLICT (id) DO NOTHING;
+
+
+-- ==========================================================
+-- 5. AJUSTES DA TABELA 'veiculos' (OPCIONAIS, LAUDO E RLS)
+-- Execute estas instruções para garantir que a tabela de veículos
+-- tenha as colunas customizadas do painel e as políticas RLS adequadas.
+-- ==========================================================
+
+-- Adicionar colunas customizadas do painel administrativo se não existirem
+ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS laudo_pericia text;
+ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS opcionais text;
+ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS tipo text;
+ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS perfil_uso text;
+ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS status_tag text;
+ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS status_tag_color text;
+ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS vendido boolean DEFAULT false;
+
+-- Habilitar o Row Level Security (RLS) na tabela 'veiculos'
+ALTER TABLE public.veiculos ENABLE ROW LEVEL SECURITY;
+
+-- Criar políticas para permitir leitura, inserção e atualização públicas na tabela 'veiculos'
+DROP POLICY IF EXISTS "Allow public read access" ON public.veiculos;
+CREATE POLICY "Allow public read access" ON public.veiculos
+    FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow public update access" ON public.veiculos;
+CREATE POLICY "Allow public update access" ON public.veiculos
+    FOR UPDATE USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public insert access" ON public.veiculos;
+CREATE POLICY "Allow public insert access" ON public.veiculos
+    FOR INSERT WITH CHECK (true);
+
 
