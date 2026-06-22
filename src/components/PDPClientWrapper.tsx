@@ -61,7 +61,7 @@ function resolveTagColorClass(color?: string): string {
 }
 
 export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientWrapperProps) {
-  const { companySettings } = useTheme();
+  const { companySettings, webhooks } = useTheme();
   const [veiculo, setVeiculo] = useState<Veiculo>(initialVeiculo);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -205,11 +205,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   };
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
-    let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-    const customUrl = localStorage.getItem("ag_webhook_url");
-    if (customUrl) {
-      webhookUrl = customUrl.trim();
-    }
+    const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
     const utmParams = getUtmParameters();
     const tipoBadge = veiculo.baixa_km ? "BAIXA KM" : (veiculo.unico_dono ? "ÚNICO DONO" : (veiculo.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));

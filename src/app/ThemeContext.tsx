@@ -99,11 +99,150 @@ export interface AboutSettings {
   isCustom?: boolean;
 }
 
+export interface Webhooks {
+  webhookUrl: string;
+  webhookAvaliacaoUrl: string;
+}
+
+export interface Campaign {
+  id: string;
+  name: string;
+  enabled: boolean;
+  targetPage: "home" | "pdp" | "any" | "specific";
+  triggerType: "time" | "exit";
+  delaySeconds: number;
+  actionType: "whatsapp" | "link" | "compare";
+  actionTarget: string;
+  icon: string;
+  title: string;
+  subtitle: string;
+  ctaText: string;
+  targetVehicleId?: string;
+}
+
+export interface QuickTag {
+  id: string;
+  name: string;
+  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel";
+  operator: "equals" | "less" | "greater" | "contains";
+  value: string;
+}
+
+export type StockOverrides = Record<string, {
+  status_tag?: string;
+  status_tag_color?: string;
+  vendido?: boolean;
+}>;
+
 import DEFAULT_COMPANY_SETTINGS_JSON from "../lib/companySettings.json";
 import DEFAULT_ABOUT_SETTINGS_JSON from "../lib/aboutSettings.json";
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = DEFAULT_COMPANY_SETTINGS_JSON;
 export const DEFAULT_ABOUT_SETTINGS: AboutSettings = DEFAULT_ABOUT_SETTINGS_JSON;
+
+export const DEFAULT_WEBHOOKS: Webhooks = {
+  webhookUrl: "https://n8n.v2o5.com.br/webhook/lead-entrada",
+  webhookAvaliacaoUrl: "https://n8n.v2o5.com.br/webhook/sdr-captura-lead"
+};
+
+export const DEFAULT_CAMPAIGNS: Campaign[] = [
+  {
+    id: "camp-home-wa",
+    name: "🔥 Ofertão Relâmpago (WhatsApp)",
+    enabled: true,
+    targetPage: "home",
+    triggerType: "time",
+    delaySeconds: 45,
+    actionType: "whatsapp",
+    actionTarget: "Olá! Vi a condição especial no site e gostaria de falar com um especialista agora! (Ref: {ref})",
+    icon: "🔥",
+    title: "CONDIÇÃO EXCLUSIVA PRA VOCÊ",
+    subtitle: "Fale agora com nosso especialista e garanta sua condição diferenciada. Oferta válida por tempo limitado.",
+    ctaText: "FALAR COM ESPECIALISTA AGORA"
+  },
+  {
+    id: "camp-pdp-wa",
+    name: "⚡ Oferta Ficha Técnico (WhatsApp)",
+    enabled: true,
+    targetPage: "pdp",
+    triggerType: "time",
+    delaySeconds: 20,
+    actionType: "whatsapp",
+    actionTarget: "Olá! Vi a oferta especial do {carro} no site e gostaria de aproveitar a condição exclusiva! (Ref: {ref})",
+    icon: "⚡",
+    title: "OPORTUNIDADE ÚNICA — {carro}",
+    subtitle: "Condição especial exclusiva para o {carro}{preco}. Fale com nosso especialista antes que expire.",
+    ctaText: "GARANTIR MINHA CONDIÇÃO"
+  },
+  {
+    id: "camp-carmatch",
+    name: "🤖 Assistente de Garagem IA (Link)",
+    enabled: true,
+    targetPage: "home",
+    triggerType: "time",
+    delaySeconds: 30,
+    actionType: "link",
+    actionTarget: "/#match-garagem",
+    icon: "🤖",
+    title: "BUSCANDO O CARRO PERFEITO?",
+    subtitle: "Experimente nosso Assistente de Garagem IA. Responda 3 perguntas e o algoritmo faz a curadoria ideal para você.",
+    ctaText: "FAZER MATCH DE GARAGEM"
+  },
+  {
+    id: "camp-avaliacao",
+    name: "🚗 Avaliação Express (Link)",
+    enabled: true,
+    targetPage: "home",
+    triggerType: "time",
+    delaySeconds: 60,
+    actionType: "link",
+    actionTarget: "/#avaliacao-express",
+    icon: "🚗",
+    title: "QUER VENDER SEU VEÍCULO?",
+    subtitle: "Simule a avaliação do seu carro usado agora mesmo na nossa ferramenta online. Simples, rápido e com preço de pátio.",
+    ctaText: "AVALIAR MEU USADO AGORA"
+  },
+  {
+    id: "camp-comparador",
+    name: "📊 Educacional Comparador (Ação Interna)",
+    enabled: true,
+    targetPage: "pdp",
+    triggerType: "time",
+    delaySeconds: 35,
+    actionType: "compare",
+    actionTarget: "",
+    icon: "📊",
+    title: "DÚVIDA ENTRE MODELOS?",
+    subtitle: "Sabia que você pode adicionar veículos do catálogo para comparar as especificações técnicas completas lado a lado?",
+    ctaText: "ABRIR MEU COMPARADOR"
+  },
+  {
+    id: "camp-exit-intent",
+    name: "👋 Intenção de Saída (WhatsApp)",
+    enabled: true,
+    targetPage: "any",
+    triggerType: "exit",
+    delaySeconds: 0,
+    actionType: "whatsapp",
+    actionTarget: "Olá! Gostaria de receber uma avaliação exclusiva sem compromisso antes de decidir. (Ref: {ref})",
+    icon: "👋",
+    title: "ANTES DE IR...",
+    subtitle: "Que tal uma avaliação sem compromisso? Nosso especialista está disponível agora para te atender com exclusividade.",
+    ctaText: "FALAR COM ESPECIALISTA"
+  }
+];
+
+export interface PopupSettings {
+  enabled: boolean;
+  cooldownHours: number;
+  whatsappNumber: string;
+}
+
+export const DEFAULT_POPUP_SETTINGS: PopupSettings = {
+  enabled: true,
+  cooldownHours: 4,
+  whatsappNumber: "554198089550",
+};
 
 interface ThemeContextProps {
   theme: ThemeType;
@@ -119,6 +258,18 @@ interface ThemeContextProps {
   updateCompanySettings: (settings: CompanySettings) => void;
   aboutSettings: AboutSettings;
   updateAboutSettings: (settings: AboutSettings) => void;
+  webhooks: Webhooks;
+  updateWebhooks: (settings: Webhooks) => Promise<void>;
+  popups: Campaign[];
+  popupSettings: PopupSettings;
+  updatePopups: (campaigns: Campaign[]) => Promise<void>;
+  updatePopupSettings: (settings: PopupSettings) => Promise<void>;
+  quickTags: QuickTag[];
+  updateQuickTags: (tags: QuickTag[]) => Promise<void>;
+  stockOverrides: StockOverrides;
+  updateStockOverrides: (overrides: StockOverrides) => Promise<void>;
+  carouselVehicleIds: string[];
+  updateCarouselVehicleIds: (ids: string[]) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
@@ -128,6 +279,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [companySettings, setCompanySettings] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS);
   const [aboutSettings, setAboutSettings] = useState<AboutSettings>(DEFAULT_ABOUT_SETTINGS);
+  const [webhooks, setWebhooks] = useState<Webhooks>(DEFAULT_WEBHOOKS);
+  const [popups, setPopups] = useState<Campaign[]>(DEFAULT_CAMPAIGNS);
+  const [popupSettings, setPopupSettings] = useState<PopupSettings>(DEFAULT_POPUP_SETTINGS);
+  const [quickTags, setQuickTags] = useState<QuickTag[]>(DEFAULT_QUICK_TAGS);
+  const [stockOverrides, setStockOverrides] = useState<StockOverrides>({});
+  const [carouselVehicleIds, setCarouselVehicleIds] = useState<string[]>([]);
 
   useEffect(() => {
     // Theme and compare IDs are UI-only preferences — localStorage is fine for these
@@ -146,7 +303,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Company and About settings come EXCLUSIVELY from Supabase via /api/settings
+    // Settings loaded EXCLUSIVELY from Supabase via /api/settings
     // No localStorage reads — the database is the single source of truth
     const loadSettingsFromServer = async () => {
       try {
@@ -161,6 +318,34 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             setAboutSettings(data.aboutSettings);
             console.log("[ThemeContext] About settings loaded from Supabase");
           }
+          if (data.webhooks) {
+            setWebhooks(data.webhooks);
+            console.log("[ThemeContext] Webhooks loaded from Supabase");
+          }
+          if (data.popups) {
+            if (Array.isArray(data.popups.campaigns)) {
+              setPopups(data.popups.campaigns);
+            }
+            if (data.popups.settings) {
+              setPopupSettings(data.popups.settings);
+            }
+            console.log("[ThemeContext] Popups loaded from Supabase");
+          }
+          if (data.quickTags && Array.isArray(data.quickTags.quickTags)) {
+            setQuickTags(data.quickTags.quickTags);
+            console.log("[ThemeContext] Quick tags loaded from Supabase");
+          }
+          if (data.stockOverrides && data.stockOverrides.overrides) {
+            setStockOverrides(data.stockOverrides.overrides);
+            if (typeof window !== "undefined") {
+              (window as any).ag_stock_overrides = data.stockOverrides.overrides;
+            }
+            console.log("[ThemeContext] Stock overrides loaded from Supabase");
+          }
+          if (data.carouselVehicleIds && Array.isArray(data.carouselVehicleIds)) {
+            setCarouselVehicleIds(data.carouselVehicleIds);
+            console.log("[ThemeContext] Carousel vehicle IDs loaded from Supabase");
+          }
         }
       } catch (err) {
         console.warn("[ThemeContext] Failed to load settings from server, using defaults:", err);
@@ -170,14 +355,103 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     loadSettingsFromServer();
   }, []);
 
-  // Updates React state only — persistence to Supabase is handled
-  // by ConfiguracoesClientWrapper via POST /api/settings
   const updateCompanySettings = (settings: CompanySettings) => {
     setCompanySettings(settings);
   };
 
   const updateAboutSettings = (settings: AboutSettings) => {
     setAboutSettings(settings);
+  };
+
+  const updateWebhooks = async (newWebhooks: Webhooks) => {
+    setWebhooks(newWebhooks);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhooks: newWebhooks })
+      });
+    } catch (err) {
+      console.error("Failed to save webhooks to server:", err);
+    }
+  };
+
+  const updatePopups = async (newPopups: Campaign[]) => {
+    setPopups(newPopups);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          popups: {
+            campaigns: newPopups,
+            settings: popupSettings
+          }
+        })
+      });
+    } catch (err) {
+      console.error("Failed to save popups to server:", err);
+    }
+  };
+
+  const updatePopupSettings = async (newSettings: PopupSettings) => {
+    setPopupSettings(newSettings);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          popups: {
+            campaigns: popups,
+            settings: newSettings
+          }
+        })
+      });
+    } catch (err) {
+      console.error("Failed to save popup settings to server:", err);
+    }
+  };
+
+  const updateCarouselVehicleIds = async (newIds: string[]) => {
+    setCarouselVehicleIds(newIds);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ carouselVehicleIds: newIds })
+      });
+    } catch (err) {
+      console.error("Failed to save carousel vehicles to server:", err);
+    }
+  };
+
+  const updateQuickTags = async (newQuickTags: QuickTag[]) => {
+    setQuickTags(newQuickTags);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quickTags: { quickTags: newQuickTags } })
+      });
+    } catch (err) {
+      console.error("Failed to save quickTags to server:", err);
+    }
+  };
+
+  const updateStockOverrides = async (newStockOverrides: StockOverrides) => {
+    setStockOverrides(newStockOverrides);
+    if (typeof window !== "undefined") {
+      (window as any).ag_stock_overrides = newStockOverrides;
+    }
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stockOverrides: { overrides: newStockOverrides } })
+      });
+    } catch (err) {
+      console.error("Failed to save stockOverrides to server:", err);
+    }
   };
 
   const applyThemeProperties = (type: ThemeType) => {
@@ -264,6 +538,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         updateCompanySettings,
         aboutSettings,
         updateAboutSettings,
+        webhooks,
+        updateWebhooks,
+        popups,
+        popupSettings,
+        updatePopups,
+        updatePopupSettings,
+        quickTags,
+        updateQuickTags,
+        stockOverrides,
+        updateStockOverrides,
+        carouselVehicleIds,
+        updateCarouselVehicleIds,
       }}
     >
       {children}

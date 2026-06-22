@@ -11,6 +11,11 @@ const aboutPath = path.join(process.cwd(), "src/lib/aboutSettings.json");
 export async function GET() {
   let companySettings = null;
   let aboutSettings = null;
+  let webhooks = null;
+  let popups = null;
+  let quickTags = null;
+  let stockOverrides = null;
+  let carouselVehicleIds = null;
   let fetchedFromSupabase = false;
 
   // 1. Try to read from Supabase 'site_settings'
@@ -23,9 +28,19 @@ export async function GET() {
       if (!error && data && data.length > 0) {
         const companyRow = data.find((row) => row.id === "company");
         const aboutRow = data.find((row) => row.id === "about");
+        const webhooksRow = data.find((row) => row.id === "webhooks");
+        const popupsRow = data.find((row) => row.id === "popups");
+        const quickTagsRow = data.find((row) => row.id === "quick_tags");
+        const stockOverridesRow = data.find((row) => row.id === "stock_overrides");
+        const carouselRow = data.find((row) => row.id === "carousel_vehicles");
 
         if (companyRow) companySettings = companyRow.data;
         if (aboutRow) aboutSettings = aboutRow.data;
+        if (webhooksRow) webhooks = webhooksRow.data;
+        if (popupsRow) popups = popupsRow.data;
+        if (quickTagsRow) quickTags = quickTagsRow.data;
+        if (stockOverridesRow) stockOverrides = stockOverridesRow.data;
+        if (carouselRow) carouselVehicleIds = carouselRow.data;
         fetchedFromSupabase = true;
         console.log("[Settings API] Loaded settings from Supabase successfully");
       } else if (error) {
@@ -54,6 +69,11 @@ export async function GET() {
     {
       companySettings,
       aboutSettings,
+      webhooks,
+      popups,
+      quickTags,
+      stockOverrides,
+      carouselVehicleIds
     },
     {
       headers: {
@@ -66,7 +86,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { companySettings, aboutSettings } = body;
+    const { companySettings, aboutSettings, webhooks, popups, quickTags, stockOverrides, carouselVehicleIds } = body;
 
     // 1. Write to Supabase (single source of truth — errors are NOT swallowed)
     if (!supabase) {
@@ -91,6 +111,56 @@ export async function POST(request: Request) {
       if (error) {
         console.error("[Settings API] Supabase write error for about:", error.message);
         return NextResponse.json({ error: `Failed to save about settings: ${error.message}` }, { status: 500 });
+      }
+    }
+
+    if (webhooks) {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ id: "webhooks", data: webhooks, updated_at: new Date().toISOString() });
+      if (error) {
+        console.error("[Settings API] Supabase write error for webhooks:", error.message);
+        return NextResponse.json({ error: `Failed to save webhooks: ${error.message}` }, { status: 500 });
+      }
+    }
+
+    if (popups) {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ id: "popups", data: popups, updated_at: new Date().toISOString() });
+      if (error) {
+        console.error("[Settings API] Supabase write error for popups:", error.message);
+        return NextResponse.json({ error: `Failed to save popups: ${error.message}` }, { status: 500 });
+      }
+    }
+
+    if (quickTags) {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ id: "quick_tags", data: quickTags, updated_at: new Date().toISOString() });
+      if (error) {
+        console.error("[Settings API] Supabase write error for quickTags:", error.message);
+        return NextResponse.json({ error: `Failed to save quickTags: ${error.message}` }, { status: 500 });
+      }
+    }
+
+    if (stockOverrides) {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ id: "stock_overrides", data: stockOverrides, updated_at: new Date().toISOString() });
+      if (error) {
+        console.error("[Settings API] Supabase write error for stockOverrides:", error.message);
+        return NextResponse.json({ error: `Failed to save stockOverrides: ${error.message}` }, { status: 500 });
+      }
+    }
+
+    if (carouselVehicleIds) {
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ id: "carousel_vehicles", data: carouselVehicleIds, updated_at: new Date().toISOString() });
+      if (error) {
+        console.error("[Settings API] Supabase write error for carouselVehicleIds:", error.message);
+        return NextResponse.json({ error: `Failed to save carousel vehicles: ${error.message}` }, { status: 500 });
       }
     }
 

@@ -224,7 +224,7 @@ function SearchableCombobox({
 
 
 export default function AutoAvaliacao() {
-  const { companySettings } = useTheme();
+  const { companySettings, webhooks } = useTheme();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
   const [loading, setLoading] = useState(false);
@@ -461,14 +461,7 @@ export default function AutoAvaliacao() {
     setLoading(true);
 
     const activeUid = getActiveAgUid();
-
-    let webhookUrl = "";
-    if (typeof window !== "undefined") {
-      const customUrl = localStorage.getItem("ag_webhook_avaliacao_url");
-      if (customUrl) {
-        webhookUrl = customUrl.trim();
-      }
-    }
+    const webhookUrl = webhooks?.webhookAvaliacaoUrl || "";
 
     // POST to backend API route for Lead capturing
     try {
@@ -572,11 +565,7 @@ export default function AutoAvaliacao() {
   };
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
-    let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-    const customUrl = localStorage.getItem("ag_webhook_avaliacao_url") || localStorage.getItem("ag_webhook_url");
-    if (customUrl) {
-      webhookUrl = customUrl.trim();
-    }
+    const webhookUrl = webhooks?.webhookAvaliacaoUrl || webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
     const utmParams = getUtmParameters();
     

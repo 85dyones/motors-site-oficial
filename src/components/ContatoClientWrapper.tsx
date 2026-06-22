@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { getActiveAgUid, getUtmParameters } from "../lib/telemetry";
+import { useTheme } from "../app/ThemeContext";
 
 export default function ContatoClientWrapper() {
+  const { webhooks } = useTheme();
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -46,13 +48,7 @@ export default function ContatoClientWrapper() {
     console.log("📈 [Antigravity Telemetry] Novo Lead de Contato Enviado:", payload);
 
     try {
-      let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-      if (typeof window !== "undefined") {
-        const customUrl = localStorage.getItem("ag_webhook_url");
-        if (customUrl && customUrl.trim()) {
-          webhookUrl = customUrl.trim();
-        }
-      }
+      const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
       
       const response = await fetch(webhookUrl, {
         method: "POST",

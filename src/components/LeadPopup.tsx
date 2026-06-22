@@ -146,23 +146,12 @@ function hasBeenShownThisSession(): boolean {
   return sessionStorage.getItem(SESSION_KEY) === "true";
 }
 
-function isInCooldownPeriod(): boolean {
+function isInCooldownPeriod(cooldownHours: number): boolean {
   if (typeof window === "undefined") return true;
   try {
     const ts = localStorage.getItem(COOLDOWN_KEY);
     if (!ts) return false;
     
-    let cooldownHours = COOLDOWN_HOURS;
-    const rawSettings = localStorage.getItem("ag_popup_settings");
-    if (rawSettings) {
-      try {
-        const parsed = JSON.parse(rawSettings);
-        if (typeof parsed.cooldownHours === "number") {
-          cooldownHours = parsed.cooldownHours;
-        }
-      } catch {}
-    }
-
     const cooldownEnd = parseInt(ts) + cooldownHours * 60 * 60 * 1000;
     return Date.now() < cooldownEnd;
   } catch {
@@ -178,9 +167,7 @@ function markAsShown(): void {
 
 // ─── Main Component ───
 export default function LeadPopup() {
-  const { companySettings } = useTheme();
-  const [settings, setSettings] = useState<PopupSettings | null>(null);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const { companySettings, popups: campaigns, popupSettings: settings, webhooks } = useTheme();
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   
   const [isVisible, setIsVisible] = useState(false);
@@ -193,27 +180,6 @@ export default function LeadPopup() {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const exitIntentRef = useRef<boolean>(false);
   const hasMountedRef = useRef(false);
-
-  // Load configuration and campaigns on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      let activeSettings = DEFAULT_SETTINGS;
-      const raw = localStorage.getItem("ag_popup_settings");
-      if (raw) {
-        try {
-          activeSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-        } catch {}
-      }
-      setSettings(activeSettings);
-
-      const rawCampaigns = localStorage.getItem("ag_popup_campaigns");
-      if (rawCampaigns) {
-        try {
-          setCampaigns(JSON.parse(rawCampaigns));
-        } catch {}
-      }
-    }
-  }, []);
 
   // ── Dismiss popup with exit animation ──
   const handleDismiss = useCallback(() => {
@@ -228,7 +194,7 @@ export default function LeadPopup() {
 
   // ── Show popup ──
   const triggerPopup = useCallback((campaign: Campaign, vehicleCtx: VehicleContext | null) => {
-    if (hasBeenShownThisSession() || isInCooldownPeriod()) {
+    if (hasBeenShownThisSession() || isInCooldownPeriod(settings?.cooldownHours ?? COOLDOWN_HOURS)) {
       console.log("[Lead Popup] Suppressed — anti-spam rule active.");
       return;
     }
@@ -266,11 +232,7 @@ export default function LeadPopup() {
       const leadMessage = resolvePlaceholders(activeCampaign.actionTarget);
 
       // Dispatch to webhook
-      let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-      try {
-        const customUrl = localStorage.getItem("ag_webhook_url");
-        if (customUrl) webhookUrl = customUrl.trim();
-      } catch {}
+      const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
       fetch(webhookUrl, {
         method: "POST",
@@ -354,7 +316,7 @@ export default function LeadPopup() {
     hasMountedRef.current = true;
 
     if (typeof window === "undefined") return;
-    if (hasBeenShownThisSession() || isInCooldownPeriod()) {
+    if (hasBeenShownThisSession() || isInCooldownPeriod(settings?.cooldownHours ?? COOLDOWN_HOURS)) {
       console.log("[Lead Popup] Suppressed on mount — anti-spam rule active.");
       return;
     }

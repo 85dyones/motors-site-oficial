@@ -16,7 +16,7 @@ interface AnswerState {
 }
 
 export default function CarMatch() {
-  const { companySettings } = useTheme();
+  const { companySettings, webhooks } = useTheme();
   const [gameState, setGameState] = useState<"intro" | "q1" | "q2" | "q3" | "loading" | "results">("intro");
   const [answers, setAnswers] = useState<AnswerState>({ budgetMin: 0, budgetMax: 0, use: "", category: "" });
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
@@ -175,11 +175,7 @@ export default function CarMatch() {
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
     if (!activeVehicle) return;
 
-    let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-    const customUrl = localStorage.getItem("ag_webhook_url");
-    if (customUrl) {
-      webhookUrl = customUrl.trim();
-    }
+    const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
     const utmParams = getUtmParameters();
     const tipoBadge = activeVehicle.baixa_km ? "BAIXA KM" : (activeVehicle.unico_dono ? "ÚNICO DONO" : (activeVehicle.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));

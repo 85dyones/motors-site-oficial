@@ -413,10 +413,20 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   };
 }
 
-// Helper to apply client-side LocalStorage overrides for category/lifestyle mapping
+// Helper to apply client-side LocalStorage/Supabase overrides for category/lifestyle mapping
 function applyLocalOverrides(veiculos: Veiculo[]): Veiculo[] {
   if (typeof window === "undefined") return veiculos;
   try {
+    const windowOverrides = (window as any).ag_stock_overrides;
+    if (windowOverrides) {
+      return veiculos.map((v) => {
+        if (windowOverrides[v.id]) {
+          return { ...v, ...windowOverrides[v.id] };
+        }
+        return v;
+      });
+    }
+
     const raw = localStorage.getItem("ag_stock_overrides");
     if (!raw) return veiculos;
     const overrides = JSON.parse(raw);
@@ -427,7 +437,7 @@ function applyLocalOverrides(veiculos: Veiculo[]): Veiculo[] {
       return v;
     });
   } catch (e) {
-    console.warn("[Overrides] Error reading from localStorage:", e);
+    console.warn("[Overrides] Error reading overrides:", e);
     return veiculos;
   }
 }
@@ -435,6 +445,11 @@ function applyLocalOverrides(veiculos: Veiculo[]): Veiculo[] {
 function applyLocalOverridesToSingle(v: Veiculo | null): Veiculo | null {
   if (!v || typeof window === "undefined") return v;
   try {
+    const windowOverrides = (window as any).ag_stock_overrides;
+    if (windowOverrides && windowOverrides[v.id]) {
+      return { ...v, ...windowOverrides[v.id] };
+    }
+
     const raw = localStorage.getItem("ag_stock_overrides");
     if (!raw) return v;
     const overrides = JSON.parse(raw);
@@ -442,7 +457,7 @@ function applyLocalOverridesToSingle(v: Veiculo | null): Veiculo | null {
       return { ...v, ...overrides[v.id] };
     }
   } catch (e) {
-    console.warn("[Overrides] Error reading from localStorage:", e);
+    console.warn("[Overrides] Error reading overrides:", e);
   }
   return v;
 }

@@ -136,7 +136,26 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
 ];
 
 export default function ConfiguracoesClientWrapper() {
-  const { theme, setTheme, companySettings, updateCompanySettings, aboutSettings, updateAboutSettings } = useTheme();
+  const {
+    theme,
+    setTheme,
+    companySettings,
+    updateCompanySettings,
+    aboutSettings,
+    updateAboutSettings,
+    webhooks: contextWebhooks,
+    updateWebhooks,
+    popups: contextPopups,
+    popupSettings: contextPopupSettings,
+    updatePopups,
+    updatePopupSettings,
+    quickTags: contextQuickTags,
+    updateQuickTags,
+    stockOverrides: contextStockOverrides,
+    updateStockOverrides,
+    carouselVehicleIds: contextCarouselVehicleIds,
+    updateCarouselVehicleIds,
+  } = useTheme();
   const [activeTab, setActiveTab] = useState<"estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre">("estoque");
   const [loading, setLoading] = useState(true);
 
@@ -229,7 +248,7 @@ export default function ConfiguracoesClientWrapper() {
     }
   };
 
-  // Load database catalog and localStorage configurations on mount
+  // Load database catalog on mount
   useEffect(() => {
     async function loadData() {
       try {
@@ -237,77 +256,52 @@ export default function ConfiguracoesClientWrapper() {
         // Load stock from database client wrapper
         const data = await getEstoque();
         setVehicles(data);
-
-        // Load overrides
-        const rawOverrides = localStorage.getItem("ag_stock_overrides");
-        if (rawOverrides) {
-          setOverrides(JSON.parse(rawOverrides));
-        }
-
-        // Load webhook URL
-        const customWebhook = localStorage.getItem("ag_webhook_url");
-        const defaultWebhook = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-        setWebhookUrl(customWebhook || defaultWebhook);
-
-        // Load evaluation webhook URL
-        const customWebhookAvaliacao = localStorage.getItem("ag_webhook_avaliacao_url");
-        const defaultWebhookAvaliacao = process.env.NEXT_PUBLIC_N8N_WEBHOOK_AVALIACAO_URL || "https://n8n.v2o5.com.br/webhook/sdr-captura-lead";
-        setWebhookAvaliacaoUrl(customWebhookAvaliacao || defaultWebhookAvaliacao);
-
-        // Load popup settings
-        const rawPopupSettings = localStorage.getItem("ag_popup_settings");
-        if (rawPopupSettings) {
-          try {
-            setPopupSettings({
-              ...DEFAULT_POPUP_SETTINGS,
-              ...JSON.parse(rawPopupSettings)
-            });
-          } catch (e) {
-            console.error("Error parsing ag_popup_settings:", e);
-          }
-        }
-
-        // Load campaigns
-        const rawCampaigns = localStorage.getItem("ag_popup_campaigns");
-        if (rawCampaigns) {
-          try {
-            setCampaigns(JSON.parse(rawCampaigns));
-          } catch (e) {
-            setCampaigns(DEFAULT_CAMPAIGNS);
-          }
-        } else {
-          setCampaigns(DEFAULT_CAMPAIGNS);
-          localStorage.setItem("ag_popup_campaigns", JSON.stringify(DEFAULT_CAMPAIGNS));
-        }
-
-        // Load carousel vehicle selections
-        const rawCarousel = localStorage.getItem("ag_carousel_vehicles");
-        if (rawCarousel) {
-          try {
-            setCarouselVehicleIds(JSON.parse(rawCarousel));
-          } catch (e) {}
-        }
-
-        // Load quick tags
-        const rawQuickTags = localStorage.getItem("ag_quick_tags");
-        if (rawQuickTags) {
-          try {
-            setQuickTags(JSON.parse(rawQuickTags));
-          } catch (e) {
-            setQuickTags(DEFAULT_QUICK_TAGS);
-          }
-        } else {
-          setQuickTags(DEFAULT_QUICK_TAGS);
-          localStorage.setItem("ag_quick_tags", JSON.stringify(DEFAULT_QUICK_TAGS));
-        }
       } catch (err) {
-        console.error("Error loading settings panel data:", err);
+        console.error("Error loading settings panel stock:", err);
       } finally {
         setLoading(false);
       }
     }
     loadData();
   }, []);
+
+  // Sync state values with Supabase context when they are loaded
+  useEffect(() => {
+    if (contextStockOverrides) {
+      setOverrides(contextStockOverrides);
+    }
+  }, [contextStockOverrides]);
+
+  useEffect(() => {
+    if (contextWebhooks) {
+      setWebhookUrl(contextWebhooks.webhookUrl || "");
+      setWebhookAvaliacaoUrl(contextWebhooks.webhookAvaliacaoUrl || "");
+    }
+  }, [contextWebhooks]);
+
+  useEffect(() => {
+    if (contextPopupSettings) {
+      setPopupSettings(contextPopupSettings);
+    }
+  }, [contextPopupSettings]);
+
+  useEffect(() => {
+    if (contextPopups) {
+      setCampaigns(contextPopups);
+    }
+  }, [contextPopups]);
+
+  useEffect(() => {
+    if (contextCarouselVehicleIds) {
+      setCarouselVehicleIds(contextCarouselVehicleIds);
+    }
+  }, [contextCarouselVehicleIds]);
+
+  useEffect(() => {
+    if (contextQuickTags) {
+      setQuickTags(contextQuickTags);
+    }
+  }, [contextQuickTags]);
 
   // Filter vehicles based on search bar text query
   const filteredVehicles = vehicles.filter((v) => {
@@ -341,15 +335,15 @@ export default function ConfiguracoesClientWrapper() {
     if (!itemOverrides) return;
 
     try {
-      const currentOverrides = localStorage.getItem("ag_stock_overrides");
-      const parsedOverrides = currentOverrides ? JSON.parse(currentOverrides) : {};
-      
-      parsedOverrides[id] = {
-        ...parsedOverrides[id],
-        ...itemOverrides,
+      const nextOverrides = {
+        ...overrides,
+        [id]: {
+          ...(overrides[id] || {}),
+          ...itemOverrides,
+        },
       };
 
-      localStorage.setItem("ag_stock_overrides", JSON.stringify(parsedOverrides));
+      await updateStockOverrides(nextOverrides);
 
       // Persist to live Supabase database directly if Supabase is active
       if (supabase) {
@@ -387,20 +381,12 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Reset override for a single vehicle back to original default schema
-  const handleResetVehicleOverride = (id: string) => {
+  const handleResetVehicleOverride = async (id: string) => {
     try {
-      const currentOverrides = localStorage.getItem("ag_stock_overrides");
-      if (currentOverrides) {
-        const parsedOverrides = JSON.parse(currentOverrides);
-        delete parsedOverrides[id];
-        localStorage.setItem("ag_stock_overrides", JSON.stringify(parsedOverrides));
-      }
-
-      setOverrides((prev) => {
-        const copy = { ...prev };
-        delete copy[id];
-        return copy;
-      });
+      const nextOverrides = { ...overrides };
+      delete nextOverrides[id];
+      await updateStockOverrides(nextOverrides);
+      setOverrides(nextOverrides);
 
       // Refetch / reset locally
       console.log(`[Telemetry] Veículo ${id} revertido para as categorias originais de fábrica.`);
@@ -415,10 +401,10 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Reset all stock overrides globally
-  const handlePurgeAllOverrides = () => {
+  const handlePurgeAllOverrides = async () => {
     if (confirm("Deseja realmente redefinir todos os veículos para a categorização original do banco de dados?")) {
       try {
-        localStorage.removeItem("ag_stock_overrides");
+        await updateStockOverrides({});
         setOverrides({});
         console.log("[Telemetry] Todas as categorizações manuais foram removidas. Reset global concluído.");
         alert("Todos os veículos foram restaurados aos valores originais com sucesso!");
@@ -432,10 +418,13 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Save general webhook URL
-  const handleSaveWebhook = (e: React.FormEvent) => {
+  const handleSaveWebhook = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      localStorage.setItem("ag_webhook_url", webhookUrl.trim());
+      await updateWebhooks({
+        webhookUrl: webhookUrl.trim(),
+        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim()
+      });
       setWebhookStatus("saved");
       console.log(`[Telemetry] Webhook de recebimento de leads atualizado para: ${webhookUrl}`);
       setTimeout(() => setWebhookStatus("idle"), 2500);
@@ -445,10 +434,13 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Save appraisal webhook URL
-  const handleSaveWebhookAvaliacao = (e: React.FormEvent) => {
+  const handleSaveWebhookAvaliacao = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      localStorage.setItem("ag_webhook_avaliacao_url", webhookAvaliacaoUrl.trim());
+      await updateWebhooks({
+        webhookUrl: webhookUrl.trim(),
+        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim()
+      });
       setWebhookAvaliacaoStatus("saved");
       console.log(`[Telemetry] Webhook de avaliação de veículos atualizado para: ${webhookAvaliacaoUrl}`);
       setTimeout(() => setWebhookAvaliacaoStatus("idle"), 2500);
@@ -458,11 +450,11 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Save popup settings
-  const handleSavePopupSettings = (e: React.FormEvent) => {
+  const handleSavePopupSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      localStorage.setItem("ag_popup_settings", JSON.stringify(popupSettings));
-      localStorage.setItem("ag_popup_campaigns", JSON.stringify(campaigns));
+      await updatePopupSettings(popupSettings);
+      await updatePopups(campaigns);
       setPopupStatus("saved");
       console.log(`[Telemetry] Configurações do Motor de Campanhas atualizadas.`);
       setTimeout(() => setPopupStatus("idle"), 2500);
@@ -590,49 +582,43 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   // Save campaign edit / create
-  const handleSaveCampaign = (campaign: Campaign) => {
-    setCampaigns((prev) => {
-      const exists = prev.some((c) => c.id === campaign.id);
-      let nextList: Campaign[];
-      if (exists) {
-        nextList = prev.map((c) => (c.id === campaign.id ? campaign : c));
-      } else {
-        nextList = [...prev, campaign];
-      }
-      localStorage.setItem("ag_popup_campaigns", JSON.stringify(nextList));
-      return nextList;
-    });
+  const handleSaveCampaign = async (campaign: Campaign) => {
+    const exists = campaigns.some((c) => c.id === campaign.id);
+    let nextList: Campaign[];
+    if (exists) {
+      nextList = campaigns.map((c) => (c.id === campaign.id ? campaign : c));
+    } else {
+      nextList = [...campaigns, campaign];
+    }
+    setCampaigns(nextList);
+    await updatePopups(nextList);
     setEditingCampaign(null);
     setIsCreating(false);
   };
 
   // Delete campaign
-  const handleDeleteCampaign = (id: string) => {
+  const handleDeleteCampaign = async (id: string) => {
     if (confirm("Deseja realmente excluir esta campanha de pop-up?")) {
-      setCampaigns((prev) => {
-        const nextList = prev.filter((c) => c.id !== id);
-        localStorage.setItem("ag_popup_campaigns", JSON.stringify(nextList));
-        return nextList;
-      });
+      const nextList = campaigns.filter((c) => c.id !== id);
+      setCampaigns(nextList);
+      await updatePopups(nextList);
     }
   };
 
   // Toggle single campaign active status
-  const handleToggleCampaign = (id: string) => {
-    setCampaigns((prev) => {
-      const nextList = prev.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c));
-      localStorage.setItem("ag_popup_campaigns", JSON.stringify(nextList));
-      return nextList;
-    });
+  const handleToggleCampaign = async (id: string) => {
+    const nextList = campaigns.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c));
+    setCampaigns(nextList);
+    await updatePopups(nextList);
   };
 
   // Reset popup settings and campaigns to defaults
-  const handleResetPopupSettings = () => {
+  const handleResetPopupSettings = async () => {
     if (confirm("Deseja realmente redefinir todos os pop-ups e campanhas para os padrões de fábrica?")) {
       setPopupSettings(DEFAULT_POPUP_SETTINGS);
       setCampaigns(DEFAULT_CAMPAIGNS);
-      localStorage.removeItem("ag_popup_settings");
-      localStorage.setItem("ag_popup_campaigns", JSON.stringify(DEFAULT_CAMPAIGNS));
+      await updatePopupSettings(DEFAULT_POPUP_SETTINGS);
+      await updatePopups(DEFAULT_CAMPAIGNS);
       alert("Configurações e campanhas redefinidas com sucesso!");
     }
   };
@@ -1060,10 +1046,13 @@ export default function ConfiguracoesClientWrapper() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const fallbackUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
                       setWebhookUrl(fallbackUrl);
-                      localStorage.setItem("ag_webhook_url", fallbackUrl);
+                      await updateWebhooks({
+                        webhookUrl: fallbackUrl,
+                        webhookAvaliacaoUrl: webhookAvaliacaoUrl
+                      });
                       alert("Webhook redefinido para o padrão com sucesso!");
                     }}
                     className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
@@ -1111,10 +1100,13 @@ export default function ConfiguracoesClientWrapper() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const fallbackUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_AVALIACAO_URL || "https://n8n.v2o5.com.br/webhook/sdr-captura-lead";
                       setWebhookAvaliacaoUrl(fallbackUrl);
-                      localStorage.setItem("ag_webhook_avaliacao_url", fallbackUrl);
+                      await updateWebhooks({
+                        webhookUrl: webhookUrl,
+                        webhookAvaliacaoUrl: fallbackUrl
+                      });
                       alert("Webhook de avaliação redefinido para o padrão com sucesso!");
                     }}
                     className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
@@ -1258,15 +1250,13 @@ export default function ConfiguracoesClientWrapper() {
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => {
-                            setCarouselVehicleIds(prev => {
-                              const next = prev.includes(vehicle.id)
-                                ? prev.filter(id => id !== vehicle.id)
-                                : [...prev, vehicle.id];
-                              localStorage.setItem("ag_carousel_vehicles", JSON.stringify(next));
-                              console.log(`[Carousel Configuration] Destaques atualizados:`, next);
-                              return next;
-                            });
+                          onChange={async () => {
+                            const next = carouselVehicleIds.includes(vehicle.id)
+                              ? carouselVehicleIds.filter(id => id !== vehicle.id)
+                              : [...carouselVehicleIds, vehicle.id];
+                            setCarouselVehicleIds(next);
+                            await updateCarouselVehicleIds(next);
+                            console.log(`[Carousel Configuration] Destaques atualizados:`, next);
                           }}
                           className="h-4 w-4 rounded border-brand-border text-brand-primary focus:ring-brand-primary"
                         />
@@ -1300,9 +1290,9 @@ export default function ConfiguracoesClientWrapper() {
                 </span>
                 {carouselVehicleIds.length > 0 && (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setCarouselVehicleIds([]);
-                      localStorage.removeItem("ag_carousel_vehicles");
+                      await updateCarouselVehicleIds([]);
                       alert("Destaques do carrossel redefinidos para o padrão.");
                     }}
                     className="h-8 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[9px] font-bold uppercase tracking-widest px-3 rounded-lg active:scale-95 transition-all cursor-pointer"
@@ -1400,20 +1390,18 @@ export default function ConfiguracoesClientWrapper() {
                       Cancelar
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!editingQuickTag?.name.trim() || !editingQuickTag?.value.trim()) {
                           alert("Preencha todos os campos corretamente.");
                           return;
                         }
                         
-                        setQuickTags(prev => {
-                          const exists = prev.some(t => t.id === editingQuickTag.id);
-                          const next = exists
-                            ? prev.map(t => t.id === editingQuickTag.id ? editingQuickTag : t)
-                            : [...prev, editingQuickTag];
-                          localStorage.setItem("ag_quick_tags", JSON.stringify(next));
-                          return next;
-                        });
+                        const exists = quickTags.some(t => t.id === editingQuickTag.id);
+                        const next = exists
+                          ? quickTags.map(t => t.id === editingQuickTag.id ? editingQuickTag : t)
+                          : [...quickTags, editingQuickTag];
+                        setQuickTags(next);
+                        await updateQuickTags(next);
                         
                         setEditingQuickTag(null);
                         setIsCreatingQuickTag(false);
@@ -1448,13 +1436,11 @@ export default function ConfiguracoesClientWrapper() {
                         Editar
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (confirm(`Deseja realmente remover o destaque rápido "${tag.name}"?`)) {
-                            setQuickTags(prev => {
-                              const next = prev.filter(t => t.id !== tag.id);
-                              localStorage.setItem("ag_quick_tags", JSON.stringify(next));
-                              return next;
-                            });
+                            const next = quickTags.filter(t => t.id !== tag.id);
+                            setQuickTags(next);
+                            await updateQuickTags(next);
                           }
                         }}
                         className="h-8 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-[9px] font-bold uppercase tracking-widest px-3 rounded-lg active:scale-95 transition-all cursor-pointer"

@@ -218,7 +218,16 @@ function applyCustomDisplaySorting(vehicles: Veiculo[]): Veiculo[] {
 }
 
 export default function HeroSection() {
-  const { addToCompare, removeFromCompare, isInCompare, compareIds, companySettings } = useTheme();
+  const {
+    addToCompare,
+    removeFromCompare,
+    isInCompare,
+    compareIds,
+    companySettings,
+    quickTags: contextQuickTags,
+    carouselVehicleIds,
+    webhooks
+  } = useTheme();
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
   const [filteredEstoque, setFilteredEstoque] = useState<Veiculo[]>([]);
   const [featuredCars, setFeaturedCars] = useState<Veiculo[]>([]);
@@ -258,17 +267,15 @@ export default function HeroSection() {
     if (typeof window !== "undefined") {
       const uid = localStorage.getItem("ag_uid") || "ag_ref_nao_localizado";
       setAgUid(uid);
-
-      const rawQuickTags = localStorage.getItem("ag_quick_tags");
-      if (rawQuickTags) {
-        try {
-          setQuickTags(JSON.parse(rawQuickTags));
-        } catch (e) {
-          console.error("Error parsing ag_quick_tags from localStorage:", e);
-        }
-      }
     }
   }, []);
+
+  // Sync quick tags from Supabase Context
+  useEffect(() => {
+    if (contextQuickTags && contextQuickTags.length > 0) {
+      setQuickTags(contextQuickTags);
+    }
+  }, [contextQuickTags]);
 
   // Parse URL search parameters on mount (for SEO brand/model footer links)
   useEffect(() => {
@@ -324,38 +331,34 @@ export default function HeroSection() {
       const sortedData = applyCustomDisplaySorting(data);
       setEstoque(sortedData);
       setFilteredEstoque(sortedData);
-      
-      // Load custom carousel vehicle list if defined by admin
-      let carouselIds: string[] = [];
-      try {
-        const rawCarousel = localStorage.getItem("ag_carousel_vehicles");
-        if (rawCarousel) {
-          carouselIds = JSON.parse(rawCarousel);
-        }
-      } catch (e) {}
-
-      if (carouselIds.length > 0) {
-        const matched = carouselIds
-          .map(id => sortedData.find(c => c.id === id))
-          .filter((c): c is Veiculo => !!c);
-        
-        if (matched.length > 0) {
-          setFeaturedCars(matched);
-        } else {
-          setFeaturedCars(sortedData.slice(0, 3));
-        }
-      } else {
-        setFeaturedCars(sortedData.slice(0, 3));
-      }
-      
       setIsLoading(false);
     }
     loadData();
   }, []);
 
+  // Sync featured cars when inventory or selected carousel IDs change
+  useEffect(() => {
+    if (estoque.length === 0) return;
+    const carouselIds = carouselVehicleIds || [];
+    if (carouselIds.length > 0) {
+      const matched = carouselIds
+        .map(id => estoque.find(c => c.id === id))
+        .filter((c): c is Veiculo => !!c);
+      
+      if (matched.length > 0) {
+        setFeaturedCars(matched);
+      } else {
+        setFeaturedCars(estoque.slice(0, 3));
+      }
+    } else {
+      setFeaturedCars(estoque.slice(0, 3));
+    }
+  }, [carouselVehicleIds, estoque]);
+
   // Auto-play timer logic for Hero Carousel
   useEffect(() => {
     if (featuredCars.length > 1) {
+      if (carouselTimerRef.current) clearInterval(carouselTimerRef.current);
       carouselTimerRef.current = setInterval(() => {
         setActiveSlide((prev) => (prev + 1) % featuredCars.length);
       }, 6000);
@@ -571,11 +574,7 @@ export default function HeroSection() {
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
     if (!activeVehicle) return;
 
-    let webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-    const customUrl = localStorage.getItem("ag_webhook_url");
-    if (customUrl) {
-      webhookUrl = customUrl.trim();
-    }
+    const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
     const utmParams = getUtmParameters();
     const tipoBadge = activeVehicle.baixa_km ? "BAIXA KM" : (activeVehicle.unico_dono ? "ÚNICO DONO" : (activeVehicle.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
