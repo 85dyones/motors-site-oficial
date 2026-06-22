@@ -38,12 +38,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const resolvedParams = await params;
   const slug = resolvedParams.slug_completo_com_id;
   
-  // Natively strip `.html` ending and capture ID at the end of the slug
+  // Natively strip `.html` ending and capture ID
   const cleanSlug = slug.replace(/\.html$/, "");
-  const parts = cleanSlug.split("-");
-  const id = parts[parts.length - 1];
+  
+  let veiculo = await getVeiculoById(cleanSlug);
+  if (!veiculo) {
+    const parts = cleanSlug.split("-");
+    const id = parts[parts.length - 1];
+    veiculo = await getVeiculoById(id);
+  }
 
-  const veiculo = await getVeiculoById(id);
   if (!veiculo) {
     return {
       title: "Veículo não encontrado | Motors Store",
@@ -97,10 +101,13 @@ export default async function CarDetailsPage({ params }: PageProps) {
 
   // Natively strip `.html` and parse the vehicle unique ID
   const cleanSlug = slug.replace(/\.html$/, "");
-  const parts = cleanSlug.split("-");
-  const id = parts[parts.length - 1];
-
-  const veiculo = await getVeiculoById(id);
+  
+  let veiculo = await getVeiculoById(cleanSlug);
+  if (!veiculo) {
+    const parts = cleanSlug.split("-");
+    const id = parts[parts.length - 1];
+    veiculo = await getVeiculoById(id);
+  }
   
   if (!veiculo) {
     notFound();
