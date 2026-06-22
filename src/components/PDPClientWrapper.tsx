@@ -430,21 +430,21 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         </div>
 
         {/* Pricing Box */}
-        <div className="flex flex-col border-t border-b border-brand-border/40 py-4">
-          <span className="text-[10px] font-bold text-brand-text/40 uppercase tracking-widest leading-none mb-1.5">
+        <div className="flex flex-col border-t border-b border-brand-border/40 py-3.5">
+          <span className="text-[9px] font-semibold text-brand-text/50 uppercase tracking-widest leading-none mb-2">
             Preço de Venda
           </span>
           {hasDiscount ? (
-            <div className="flex flex-col">
-              <span className="text-xs text-brand-text/40 line-through leading-none">
-                De {formatPrice(veiculo.preco_original)}
-              </span>
-              <span className="text-2xl font-bold text-brand-primary tracking-tight mt-1.5">
+            <div className="flex items-baseline gap-2.5 flex-wrap">
+              <span className="text-2xl font-black text-brand-primary tracking-tight">
                 Por {formatPrice(veiculo.preco_promocional)}
+              </span>
+              <span className="text-xs font-semibold text-brand-text/60 line-through">
+                De {formatPrice(veiculo.preco_original)}
               </span>
             </div>
           ) : (
-            <span className="text-2xl font-bold text-brand-primary tracking-tight">
+            <span className="text-2xl font-black text-brand-primary tracking-tight">
               {formatPrice(veiculo.preco_original)}
             </span>
           )}
