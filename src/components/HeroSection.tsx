@@ -80,6 +80,15 @@ const ALL_BODY_TYPES = [
   { id: "premium", name: "PREMIUM", matches: ["premium"] }
 ];
 
+function normalizeText(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export interface QuickTag {
   id: string;
   name: string;
@@ -411,14 +420,42 @@ export default function HeroSection() {
 
       // 1. Text Search Filter
       if (searchTerm.trim() !== "") {
-        const query = searchTerm.toLowerCase();
-        result = result.filter(
-          (car) =>
-            car.marca.toLowerCase().includes(query) ||
-            car.modelo.toLowerCase().includes(query) ||
-            car.versao.toLowerCase().includes(query) ||
-            car.cor.toLowerCase().includes(query)
-        );
+        const query = normalizeText(searchTerm);
+        result = result.filter((car) => {
+          const brand = normalizeText(car.marca);
+          const model = normalizeText(car.modelo);
+          const version = normalizeText(car.versao);
+          const color = normalizeText(car.cor);
+          const bodyType = normalizeText(car.tipo);
+
+          // Check direct matches
+          if (
+            brand.includes(query) ||
+            model.includes(query) ||
+            version.includes(query) ||
+            color.includes(query) ||
+            bodyType.includes(query)
+          ) {
+            return true;
+          }
+
+          // Check if search matches the body type config name or its matches list
+          const vehicleBodyTypeConfig = ALL_BODY_TYPES.find(t => 
+            t.id === car.tipo?.toLowerCase() || 
+            t.matches.includes(car.tipo?.toLowerCase() || "")
+          );
+          if (vehicleBodyTypeConfig) {
+            const bodyTypeName = normalizeText(vehicleBodyTypeConfig.name);
+            const matchesQuery = vehicleBodyTypeConfig.matches.some(m => 
+              normalizeText(m).includes(query) || query.includes(normalizeText(m))
+            );
+            if (bodyTypeName.includes(query) || matchesQuery) {
+              return true;
+            }
+          }
+
+          return false;
+        });
       }
 
       // 2. Select Type (Carroceria) Filter
