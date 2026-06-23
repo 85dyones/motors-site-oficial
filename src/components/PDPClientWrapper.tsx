@@ -730,9 +730,16 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 </svg>
                 DESCRIÇÃO DO VEÍCULO
               </h3>
-              <p className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl whitespace-pre-line">
-                {veiculo.descricao}
-              </p>
+              {veiculo.descricao && /<[a-z][\s\S]*>/i.test(veiculo.descricao) ? (
+                <div 
+                  className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl rich-text-content"
+                  dangerouslySetInnerHTML={{ __html: veiculo.descricao }}
+                />
+              ) : (
+                <p className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl whitespace-pre-line">
+                  {veiculo.descricao}
+                </p>
+              )}
             </section>
           </div>
 

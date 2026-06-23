@@ -187,4 +187,86 @@ html, body {
   }
 }
 
+/* ── Rich Text Editor & Content Styles ── */
+.rich-text-content {
+  font-family: inherit;
+  line-height: 1.75;
+}
+
+.rich-text-content h1 {
+  font-size: 1.5rem !important; /* 24px */
+  font-weight: 800 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--brand-foreground) !important;
+}
+
+.rich-text-content h2 {
+  font-size: 1.25rem !important; /* 20px */
+  font-weight: 700 !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--brand-foreground) !important;
+}
+
+.rich-text-content h3 {
+  font-size: 1.125rem !important; /* 18px */
+  font-weight: 700 !important;
+  margin-top: 0.875rem !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--brand-foreground) !important;
+}
+
+.rich-text-content h4 {
+  font-size: 1rem !important; /* 16px */
+  font-weight: 600 !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--brand-foreground) !important;
+}
+
+.rich-text-content p {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rich-text-content ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rich-text-content ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rich-text-content li {
+  margin-bottom: 0.25rem !important;
+}
+
+.rich-text-content blockquote {
+  border-left: 4px solid var(--brand-primary) !important;
+  padding-left: 1rem !important;
+  margin: 0.75rem 0 0.75rem 1.5rem !important;
+  color: var(--brand-foreground) !important;
+  opacity: 0.8;
+}
+
+.rich-text-content strong,
+.rich-text-content b {
+  font-weight: 700 !important;
+}
+
+/* Placeholder for empty contentEditable in config panel */
+.rich-text-editor-container [contenteditable="true"]:empty:before {
+  content: attr(data-placeholder);
+  color: rgba(26, 26, 35, 0.4);
+  pointer-events: none;
+  display: block; /* For Firefox */
+}
+
 

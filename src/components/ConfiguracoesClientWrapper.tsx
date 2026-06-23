@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS } from "../app/ThemeContext";
@@ -991,12 +991,10 @@ export default function ConfiguracoesClientWrapper() {
                           <label className="text-[8px] font-bold text-brand-text/40 uppercase tracking-widest pl-1">
                             Descrição de SEO / Editorial (Salva diretamente no banco de dados)
                           </label>
-                          <textarea
-                            rows={3}
+                          <RichTextEditor
                             value={overrides[vehicle.id]?.descricao ?? vehicle.descricao ?? ""}
-                            onChange={(e) => handleOverrideChange(vehicle.id, "descricao", e.target.value)}
-                            placeholder="Escreva uma descrição atraente, com quebras de linha e otimizada para o Google..."
-                            className="bg-brand-bg text-brand-text border border-brand-card-border rounded-xl px-3.5 py-2.5 text-[11px] font-medium outline-none focus:border-brand-primary placeholder-brand-text/30 w-full resize-y font-sans leading-relaxed"
+                            onChange={(value) => handleOverrideChange(vehicle.id, "descricao", value)}
+                            placeholder="Escreva uma descrição atraente, formatada com títulos H1-H4, listas de marcadores, negrito e tabulação..."
                           />
                         </div>
 
@@ -2420,3 +2418,122 @@ export default function ConfiguracoesClientWrapper() {
     </div>
   );
 }
+
+interface RichTextEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  
+  // Set initial content and handle external updates (like reset/revert)
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value;
+    }
+  }, [value]);
+
+  const handleInput = () => {
+    if (editorRef.current) {
+      onChange(editorRef.current.innerHTML);
+    }
+  };
+
+  const executeCommand = (command: string, value: string = "") => {
+    document.execCommand(command, false, value);
+    handleInput();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        executeCommand("outdent");
+      } else {
+        executeCommand("indent");
+      }
+    }
+  };
+
+  return (
+    <div className="rich-text-editor-container border border-brand-card-border rounded-xl bg-brand-bg overflow-hidden flex flex-col focus-within:border-brand-primary transition-colors w-full">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-1 p-2 bg-brand-card border-b border-brand-card-border text-brand-text">
+        {/* Headings */}
+        <select
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val) {
+              executeCommand("formatBlock", `<${val}>`);
+              e.target.value = ""; // reset selection
+            }
+          }}
+          defaultValue=""
+          className="bg-brand-bg text-brand-text border border-brand-card-border rounded px-2 py-1 text-[10px] font-semibold outline-none cursor-pointer"
+        >
+          <option value="" disabled>Título</option>
+          <option value="H1">Título 1</option>
+          <option value="H2">Título 2</option>
+          <option value="H3">Título 3</option>
+          <option value="H4">Título 4</option>
+          <option value="P">Texto Normal</option>
+        </select>
+
+        <span className="w-px h-4 bg-brand-card-border mx-1" />
+
+        {/* Formatting Buttons */}
+        <button
+          type="button"
+          onClick={() => executeCommand("bold")}
+          className="p-1 px-2 hover:bg-brand-bg rounded font-bold text-[10px] cursor-pointer"
+          title="Negrito"
+        >
+          B
+        </button>
+
+        <button
+          type="button"
+          onClick={() => executeCommand("insertUnorderedList")}
+          className="p-1 px-2 hover:bg-brand-bg rounded text-[10px] cursor-pointer"
+          title="Lista com Marcadores"
+        >
+          • Lista
+        </button>
+
+        <span className="w-px h-4 bg-brand-card-border mx-1" />
+
+        {/* Indent / Outdent Buttons */}
+        <button
+          type="button"
+          onClick={() => executeCommand("outdent")}
+          className="p-1 px-2 hover:bg-brand-bg rounded text-[10px] cursor-pointer"
+          title="Recuar (Shift+Tab)"
+        >
+          ← Recuar
+        </button>
+
+        <button
+          type="button"
+          onClick={() => executeCommand("indent")}
+          className="p-1 px-2 hover:bg-brand-bg rounded text-[10px] cursor-pointer"
+          title="Indentar (Tab)"
+        >
+          Indentar →
+        </button>
+      </div>
+
+      {/* Editable Area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        data-placeholder={placeholder}
+        className="rich-text-content p-3.5 outline-none min-h-[120px] text-[11px] text-brand-text leading-relaxed cursor-text bg-brand-bg"
+      />
+    </div>
+  );
+}
+
