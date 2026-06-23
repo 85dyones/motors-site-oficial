@@ -762,23 +762,40 @@ export default function HeroSection() {
       )}
 
       {/* 2. SEARCH BAR CONSOLE (Abaixo do Slider) */}
-      <div id="catalogo" className="w-full bg-black text-white px-6 py-4 md:px-8 md:py-5 rounded-2xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 animate-fadeIn select-none mb-4">
-        <h3 className="text-white text-base md:text-lg font-black tracking-wide uppercase select-none whitespace-nowrap">
-          Encontre seu veículo
-        </h3>
+      <div id="catalogo" className="w-full bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800/60 px-6 py-5 md:px-8 md:py-6 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 animate-fadeIn select-none mb-6 relative overflow-hidden group">
+        {/* Subtle decorative top border glow */}
+        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-brand-primary/45 to-transparent" />
+        
+        {/* Left Side: Modern refined typography */}
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <span className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" />
+          <h3 className="text-white text-xs md:text-sm font-bold tracking-[0.2em] uppercase text-zinc-100">
+            ENCONTRE SEU VEÍCULO
+          </h3>
+        </div>
+
+        {/* Right Side: Clean Dark Input Box with Command-K indicator */}
         <div className="relative flex-grow w-full max-w-2xl">
+          {/* Magnifying Glass Icon (Left) */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+          </div>
+
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Pesquise por modelo ou marca"
-            className="w-full bg-white text-zinc-900 placeholder-zinc-400 pl-4 pr-10 py-3 rounded-xl text-xs md:text-sm font-bold border border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all duration-300"
-            style={{ minHeight: "44px" }}
+            placeholder="Pesquise por modelo ou marca..."
+            className="w-full bg-zinc-900/60 hover:bg-zinc-900/90 text-white placeholder-zinc-500 pl-11 pr-16 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-semibold border border-zinc-800/80 focus:border-brand-primary focus:bg-zinc-950 focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all duration-300 shadow-inner"
+            style={{ minHeight: "48px" }}
+            aria-label="Pesquise por modelo ou marca"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-            </svg>
+
+          {/* Clean "Search" tag on the right (like Vercel UI) */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 bg-zinc-800/80 border border-zinc-700/50 text-[10px] text-zinc-400 font-extrabold px-2 py-1 rounded-md tracking-wider select-none pointer-events-none uppercase">
+            Buscar
           </div>
         </div>
       </div>
