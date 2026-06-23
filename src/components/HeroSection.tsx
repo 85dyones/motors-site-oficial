@@ -418,44 +418,52 @@ export default function HeroSection() {
     const delay = setTimeout(() => {
       let result = [...estoque];
 
-      // 1. Text Search Filter
+      // 1. Text Search Filter (Multi-word search over brand, model, version, body type, color, and year)
       if (searchTerm.trim() !== "") {
         const query = normalizeText(searchTerm);
-        result = result.filter((car) => {
-          const brand = normalizeText(car.marca);
-          const model = normalizeText(car.modelo);
-          const version = normalizeText(car.versao);
-          const color = normalizeText(car.cor);
-          const bodyType = normalizeText(car.tipo);
+        const queryWords = query.split(/\s+/).filter(Boolean);
+        
+        if (queryWords.length > 0) {
+          result = result.filter((car) => {
+            const brand = normalizeText(car.marca);
+            const model = normalizeText(car.modelo);
+            const version = normalizeText(car.versao);
+            const color = normalizeText(car.cor);
+            const bodyType = normalizeText(car.tipo);
+            const year = String(car.ano);
 
-          // Check direct matches
-          if (
-            brand.includes(query) ||
-            model.includes(query) ||
-            version.includes(query) ||
-            color.includes(query) ||
-            bodyType.includes(query)
-          ) {
-            return true;
-          }
+            // Every typed word must match at least one attribute of the vehicle
+            return queryWords.every((word) => {
+              if (
+                brand.includes(word) ||
+                model.includes(word) ||
+                version.includes(word) ||
+                color.includes(word) ||
+                bodyType.includes(word) ||
+                year.includes(word)
+              ) {
+                return true;
+              }
 
-          // Check if search matches the body type config name or its matches list
-          const vehicleBodyTypeConfig = ALL_BODY_TYPES.find(t => 
-            t.id === car.tipo?.toLowerCase() || 
-            t.matches.includes(car.tipo?.toLowerCase() || "")
-          );
-          if (vehicleBodyTypeConfig) {
-            const bodyTypeName = normalizeText(vehicleBodyTypeConfig.name);
-            const matchesQuery = vehicleBodyTypeConfig.matches.some(m => 
-              normalizeText(m).includes(query) || query.includes(normalizeText(m))
-            );
-            if (bodyTypeName.includes(query) || matchesQuery) {
-              return true;
-            }
-          }
+              // Also check alternative matches for body type (carroceria)
+              const vehicleBodyTypeConfig = ALL_BODY_TYPES.find(t => 
+                t.id === car.tipo?.toLowerCase() || 
+                t.matches.includes(car.tipo?.toLowerCase() || "")
+              );
+              if (vehicleBodyTypeConfig) {
+                const bodyTypeName = normalizeText(vehicleBodyTypeConfig.name);
+                const matchesWord = vehicleBodyTypeConfig.matches.some(m => 
+                  normalizeText(m).includes(word) || word.includes(normalizeText(m))
+                );
+                if (bodyTypeName.includes(word) || matchesWord) {
+                  return true;
+                }
+              }
 
-          return false;
-        });
+              return false;
+            });
+          });
+        }
       }
 
       // 2. Select Type (Carroceria) Filter
@@ -842,13 +850,16 @@ export default function HeroSection() {
       </div>
 
       {/* 3. TWO-LINE SIMPLIFIED FILTER CONSOLE (Abaixo do Slider) */}
-      <div className="flex flex-col gap-4 bg-brand-card border border-brand-card-border p-4 sm:p-6 rounded-2xl shadow-[0_4px_25px_var(--brand-shadow)] animate-fadeIn">
+      <div className="flex flex-col gap-3.5 bg-white border border-brand-primary p-4 sm:p-5 rounded-2xl shadow-[0_8px_30px_var(--brand-shadow)] animate-fadeIn select-none">
         
         {/* Row 1: CARROCERIA */}
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-bold text-brand-text/40 uppercase tracking-[0.16em] pl-1 select-none">
-            CARROCERIA
-          </span>
+          <div className="relative self-start py-0.5 group/carroceria cursor-default">
+            <span className="text-[10px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/carroceria:text-brand-primary">
+              CARROCERIA
+            </span>
+            <span className="absolute bottom-0 left-1 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/carroceria:w-[calc(100%-4px)]" />
+          </div>
           <div className="flex overflow-x-auto scrollbar-none gap-2 pb-1.5 w-full select-none -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
             {bodyTypes.map((style) => {
               const isSelected = selectedCategory === style.id;
@@ -859,7 +870,7 @@ export default function HeroSection() {
                   className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
                     isSelected
                       ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                      : "bg-brand-card border-brand-border text-brand-text/70 shadow-sm hover:border-brand-primary/45 hover:text-brand-primary"
+                      : "bg-zinc-50 border-zinc-200 text-zinc-700 shadow-sm hover:border-brand-primary hover:text-brand-primary hover:bg-white"
                   }`}
                 >
                   {style.name.toUpperCase()}
@@ -870,13 +881,16 @@ export default function HeroSection() {
         </div>
 
         {/* Divider line */}
-        <div className="h-px w-full bg-brand-border/40" />
+        <div className="h-px w-full bg-zinc-200/50" />
 
         {/* Row 2: DESTAQUES RÁPIDOS */}
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-bold text-brand-text/40 uppercase tracking-[0.16em] pl-1 select-none">
-            DESTAQUES RÁPIDOS
-          </span>
+          <div className="relative self-start py-0.5 group/destaques cursor-default">
+            <span className="text-[10px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/destaques:text-brand-primary">
+              DESTAQUES RÁPIDOS
+            </span>
+            <span className="absolute bottom-0 left-1 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/destaques:w-[calc(100%-4px)]" />
+          </div>
           <div className="flex overflow-x-auto scrollbar-none gap-2 pb-1.5 w-full select-none -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
             {[
               { id: "todos", name: "TODOS" },
@@ -890,7 +904,7 @@ export default function HeroSection() {
                   className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
                     isSelected
                       ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                      : "bg-brand-card border-brand-border text-brand-text/70 shadow-sm hover:border-brand-primary/45 hover:text-brand-primary"
+                      : "bg-zinc-50 border-zinc-200 text-zinc-700 shadow-sm hover:border-brand-primary hover:text-brand-primary hover:bg-white"
                   }`}
                 >
                   {opt.name.toUpperCase()}
@@ -904,11 +918,11 @@ export default function HeroSection() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4 lg:hidden">
           
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Câmbio</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Câmbio</label>
             <select
               value={filterCambio}
               onChange={(e) => setFilterCambio(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Câmbio</option>
@@ -921,11 +935,11 @@ export default function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Direção</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Direção</label>
             <select
               value={filterDirecao}
               onChange={(e) => setFilterDirecao(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Direção</option>
@@ -938,11 +952,11 @@ export default function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Combustível</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Combustível</label>
             <select
               value={filterCombustivel}
               onChange={(e) => setFilterCombustivel(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Combustível</option>
@@ -955,14 +969,14 @@ export default function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Marca</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Marca</label>
             <select
               value={filterMarca}
               onChange={(e) => {
                 setFilterMarca(e.target.value);
                 setFilterModelo("todos");
               }}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Todas Marcas</option>
@@ -975,11 +989,11 @@ export default function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Modelo</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Modelo</label>
             <select
               value={filterModelo}
               onChange={(e) => setFilterModelo(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Todos Modelos</option>
@@ -992,11 +1006,11 @@ export default function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Ano</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Ano</label>
             <select
               value={filterAno}
               onChange={(e) => setFilterAno(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Todos Anos</option>
@@ -1009,11 +1023,11 @@ export default function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Preço Mínimo</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Preço Mínimo</label>
             <select
               value={filterPrecoMin}
               onChange={(e) => setFilterPrecoMin(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Mínimo</option>
@@ -1025,11 +1039,11 @@ export default function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/40">Preço Máximo</label>
+            <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Preço Máximo</label>
             <select
               value={filterPrecoMax}
               onChange={(e) => setFilterPrecoMax(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-3 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
               style={{ minHeight: "48px" }}
             >
               <option value="todos">Máximo</option>
@@ -1045,7 +1059,7 @@ export default function HeroSection() {
         {(searchTerm || selectedCategory !== "todos" || selectedQuickTag !== "todos" || filterMarca !== "todos" || filterModelo !== "todos" || filterAno !== "todos" || filterPrecoMin !== "todos" || filterPrecoMax !== "todos" || filterCambio !== "todos" || filterDirecao !== "todos" || filterCombustivel !== "todos") && (
           <button
             onClick={handleClearFilters}
-            className="lg:hidden mt-2 w-full py-3 px-4 bg-brand-bg text-brand-gold font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-brand-card-border transition-colors duration-300"
+            className="lg:hidden mt-2 w-full py-3 px-4 bg-zinc-100 text-brand-primary font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-zinc-200 transition-colors duration-300"
             style={{ minHeight: "48px" }}
           >
             Limpar Filtros Selecionados
