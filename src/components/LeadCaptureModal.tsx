@@ -153,10 +153,11 @@ export default function LeadCaptureModal({
 
             {/* Name Input */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider">
+              <label htmlFor="lead-name-input" className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider">
                 Seu Nome Completo
               </label>
               <input
+                id="lead-name-input"
                 type="text"
                 required
                 autoFocus
