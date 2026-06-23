@@ -801,13 +801,13 @@ export default function HeroSection() {
       {/* 2. SEARCH BAR CONSOLE & 3. FILTER CONSOLE (Grouped for closer layout) */}
       <div className="flex flex-col gap-3.5">
         {/* 2. SEARCH BAR CONSOLE (Abaixo do Slider) */}
-        <div id="catalogo" className="w-full bg-white dark:bg-zinc-900 border border-brand-primary px-6 py-4 md:px-8 md:py-5 rounded-2xl shadow-[0_8px_30px_var(--brand-shadow)] flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 animate-fadeIn select-none relative group">
+        <div id="catalogo" className="w-full bg-white border border-brand-primary px-6 py-4 md:px-8 md:py-5 rounded-2xl shadow-[0_8px_30px_var(--brand-shadow)] flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 animate-fadeIn select-none relative group">
         
         {/* Left Side: Refined typography with hover animation */}
         <div className="flex items-center gap-2.5 self-start md:self-auto cursor-default">
           <span className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" />
           <div className="relative py-1 group/title">
-            <h3 className="text-zinc-800 dark:text-zinc-100 text-xs md:text-sm font-extrabold tracking-[0.2em] uppercase transition-colors duration-300 group-hover/title:text-brand-primary select-none whitespace-nowrap">
+            <h3 className="text-zinc-800 text-xs md:text-sm font-extrabold tracking-[0.2em] uppercase transition-colors duration-300 group-hover/title:text-brand-primary select-none whitespace-nowrap">
               ENCONTRE SEU VEÍCULO
             </h3>
             {/* Hover slide line animation */}
@@ -818,7 +818,7 @@ export default function HeroSection() {
         {/* Right Side: Clean Input Box */}
         <div className="relative flex-grow w-full max-w-2xl">
           {/* Magnifying Glass Icon (Left) */}
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
             </svg>
@@ -829,13 +829,13 @@ export default function HeroSection() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Pesquise por modelo ou marca..."
-            className="w-full bg-zinc-50 dark:bg-zinc-800/40 hover:bg-zinc-100/70 dark:hover:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 pl-11 pr-16 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-bold border border-zinc-200 dark:border-zinc-800 focus:border-brand-primary dark:focus:border-brand-primary focus:bg-white dark:focus:bg-zinc-950 focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all duration-300 shadow-sm"
+            className="w-full bg-zinc-50 hover:bg-zinc-100/70 text-zinc-900 placeholder-zinc-400 pl-11 pr-16 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-bold border border-zinc-200 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all duration-300 shadow-sm"
             style={{ minHeight: "48px" }}
             aria-label="Pesquise por modelo ou marca"
           />
 
           {/* Clean "Search" tag on the right */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 bg-zinc-200/50 dark:bg-zinc-800/80 border border-zinc-300/30 dark:border-zinc-700/50 text-[10px] text-zinc-500 dark:text-zinc-400 font-extrabold px-2 py-1 rounded-md tracking-wider select-none pointer-events-none uppercase">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 bg-zinc-200/50 border border-zinc-300/30 text-[10px] text-zinc-500 font-extrabold px-2 py-1 rounded-md tracking-wider select-none pointer-events-none uppercase">
             Buscar
           </div>
         </div>
