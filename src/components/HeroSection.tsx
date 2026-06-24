@@ -392,6 +392,23 @@ export default function HeroSection() {
     setFilterCombustivel("todos");
   };
 
+  // Helper to handle search term updates and reset conflicting filters to ensure results are found
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    if (value.trim() !== "") {
+      setSelectedCategory("todos");
+      setSelectedQuickTag("todos");
+      setFilterMarca("todos");
+      setFilterModelo("todos");
+      setFilterAno("todos");
+      setFilterPrecoMin("todos");
+      setFilterPrecoMax("todos");
+      setFilterCambio("todos");
+      setFilterDirecao("todos");
+      setFilterCombustivel("todos");
+    }
+  };
+
   // Generate dynamic options for selects based on the active inventory items
   const marcasDisponiveis = Array.from(new Set(estoque.map((c) => c.marca))).sort();
   
@@ -835,7 +852,7 @@ export default function HeroSection() {
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Pesquise por modelo ou marca..."
             className="w-full bg-zinc-50 hover:bg-zinc-100/70 text-zinc-900 placeholder-zinc-400 pl-11 pr-16 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-bold border border-zinc-200 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all duration-300 shadow-sm"
             style={{ minHeight: "48px" }}
@@ -1090,7 +1107,7 @@ export default function HeroSection() {
                 type="text"
                 placeholder="Ex: Porsche, 911, M Sport..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-12 w-full placeholder-brand-text/30 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
               />
