@@ -61,7 +61,7 @@ function resolveTagColorClass(color?: string): string {
 }
 
 export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientWrapperProps) {
-  const { companySettings, webhooks } = useTheme();
+  const { companySettings, webhooks, stockOverrides } = useTheme();
   const [veiculo, setVeiculo] = useState<Veiculo>(initialVeiculo);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -113,27 +113,19 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     };
   }, [isLightboxOpen, veiculo.web_full_images.length]);
 
-  // Load client-side overrides on mount / when initialVeiculo changes
+  // Load client-side overrides on mount / when initialVeiculo or stockOverrides changes
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("ag_stock_overrides");
-        if (raw) {
-          const overrides = JSON.parse(raw);
-          const itemOverrides = overrides[initialVeiculo.id];
-          if (itemOverrides) {
-            setVeiculo((prev) => ({
-              ...prev,
-              ...itemOverrides,
-            }));
-            console.log(`[Overrides] Applied local overrides for vehicle ${initialVeiculo.id} in PDP:`, itemOverrides);
-          }
-        }
-      } catch (e) {
-        console.warn("[Overrides] Failed to apply client overrides on mount:", e);
+    if (stockOverrides) {
+      const itemOverrides = stockOverrides[initialVeiculo.id];
+      if (itemOverrides) {
+        setVeiculo((prev) => ({
+          ...prev,
+          ...itemOverrides,
+        }));
+        console.log(`[Overrides] Applied local overrides for vehicle ${initialVeiculo.id} in PDP:`, itemOverrides);
       }
     }
-  }, [initialVeiculo]);
+  }, [initialVeiculo, stockOverrides]);
 
   // Fetch tracking ID from LocalStorage on mount
   useEffect(() => {

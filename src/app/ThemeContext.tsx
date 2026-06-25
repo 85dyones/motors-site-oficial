@@ -347,6 +347,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             setStockOverrides(data.stockOverrides.overrides);
             if (typeof window !== "undefined") {
               (window as any).ag_stock_overrides = data.stockOverrides.overrides;
+              try {
+                localStorage.setItem("ag_stock_overrides", JSON.stringify(data.stockOverrides.overrides));
+              } catch (e) {
+                console.warn("[ThemeContext] Failed to save stockOverrides to localStorage:", e);
+              }
             }
             console.log("[ThemeContext] Stock overrides loaded from Supabase");
           }
@@ -450,6 +455,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setStockOverrides(newStockOverrides);
     if (typeof window !== "undefined") {
       (window as any).ag_stock_overrides = newStockOverrides;
+      try {
+        localStorage.setItem("ag_stock_overrides", JSON.stringify(newStockOverrides));
+      } catch (e) {
+        console.warn("[ThemeContext] Failed to save stockOverrides to localStorage:", e);
+      }
     }
     try {
       await fetch("/api/settings", {
