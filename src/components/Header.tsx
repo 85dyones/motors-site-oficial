@@ -34,6 +34,28 @@ export default function Header() {
     setCompareOpen(false);
   }, [pathname]);
 
+  // Dynamic favicon update effect based on company settings
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const targetFavicon = companySettings.faviconUrl?.trim() || "/favicon.ico";
+    
+    let faviconLink: HTMLLinkElement | null = document.querySelector("link[rel='icon']");
+    let shortcutLink: HTMLLinkElement | null = document.querySelector("link[rel='shortcut icon']");
+    
+    if (faviconLink) {
+      faviconLink.href = targetFavicon;
+    } else {
+      faviconLink = document.createElement("link");
+      faviconLink.rel = "icon";
+      faviconLink.href = targetFavicon;
+      document.head.appendChild(faviconLink);
+    }
+    
+    if (shortcutLink) {
+      shortcutLink.href = targetFavicon;
+    }
+  }, [companySettings.faviconUrl]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 

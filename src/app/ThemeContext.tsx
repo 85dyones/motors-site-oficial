@@ -71,6 +71,7 @@ export interface CompanySettings {
   instagram: string;
   facebook: string;
   cnpj: string;
+  faviconUrl?: string;
   isCustom?: boolean;
 }
 
