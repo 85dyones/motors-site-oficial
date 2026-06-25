@@ -375,16 +375,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         </svg>
       ) 
     },
-    { 
-      label: "PLACA / REF", 
-      value: veiculo.placa, 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a2.25 2.25 0 0 0 3.181 0l4.318-4.318a2.25 2.25 0 0 0 0-3.181l-9.58-9.581A2.25 2.25 0 0 0 9.568 3Z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
-        </svg>
-      ) 
-    },
+
     { 
       label: "CATEGORIA", 
       value: veiculo.tipo || "Premium", 
@@ -778,7 +769,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 }`}
               >
                 {featuresList.length > 0 ? (
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-brand-text/70">
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-3 text-xs text-brand-text/70">
                     {featuresList.map((item, idx) => (
                       <li key={idx} className="flex items-center gap-2">
                         <span className="text-brand-primary font-black text-sm">✓</span>
@@ -858,59 +849,55 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             </h3>
 
             {/* Matrix detailed table */}
-            <div className="flex flex-col divide-y divide-brand-border/40">
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+            <div className="flex flex-col divide-y divide-brand-border/40 print:grid print:grid-cols-2 print:gap-x-8 print:gap-y-0 print:divide-y-0">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">MARCA</span>
                 <span className="text-brand-text font-extrabold">{veiculo.marca}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">MODELO</span>
                 <span className="text-brand-text font-extrabold">{veiculo.modelo}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">ANO / MODELO</span>
                 <span className="text-brand-text font-extrabold">{veiculo.ano}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">QUILOMETRAGEM</span>
                 <span className="text-brand-text font-extrabold">{formatKm(veiculo.quilometragem)}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">TRANSMISSÃO</span>
                 <span className="text-brand-text font-extrabold">{veiculo.cambio}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">COMBUSTÍVEL</span>
                 <span className="text-brand-text font-extrabold">{veiculo.combustivel}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">DIREÇÃO</span>
                 <span className="text-brand-text font-extrabold">{resolveDirecao(veiculo).toUpperCase()}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">COR EXTERNA</span>
                 <span className="text-brand-text font-extrabold">{veiculo.cor}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">ID DO VEÍCULO</span>
                 <span className="text-brand-text font-extrabold font-mono">{getShortVehicleId(veiculo.id)}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
-                <span className="text-brand-gold font-bold uppercase">PLACA / REF</span>
-                <span className="text-brand-text font-extrabold font-mono">{veiculo.placa}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                 <span className="text-brand-gold font-bold uppercase">FIPE REFERÊNCIA</span>
                 <span className="text-brand-text font-extrabold">{veiculo.fipe}</span>
               </div>
               {veiculo.tipo && (
-                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                   <span className="text-brand-gold font-bold uppercase">CARROCERIA</span>
                   <span className="text-brand-text font-extrabold">{veiculo.tipo}</span>
                 </div>
               )}
               {veiculo.perfil_uso && (
-                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5">
+                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                   <span className="text-brand-gold font-bold uppercase">PERFIL RECOMENDADO</span>
                   <span className="text-brand-text font-extrabold">{veiculo.perfil_uso}</span>
                 </div>
