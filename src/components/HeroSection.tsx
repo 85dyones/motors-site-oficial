@@ -758,17 +758,19 @@ export default function HeroSection() {
 
                   {/* Letters Garrafais Text Overlay details */}
                   <div className="relative z-20 flex flex-col gap-2 md:gap-4 max-w-2xl text-white transform translate-y-0 transition-transform duration-700">
-                    <span className="text-xs md:text-sm font-semibold uppercase tracking-widest text-brand-primary drop-shadow">
-                      {car.marca} • {car.ano}
-                    </span>
-                    
-                    <h2 className="text-3xl md:text-6xl font-bold tracking-tight leading-none drop-shadow-md">
-                      {car.modelo}
-                    </h2>
-                    
-                    <p className="text-xs md:text-lg text-white/95 font-medium uppercase tracking-wide line-clamp-1">
-                      {car.versao}
-                    </p>
+                    <Link prefetch={false} href={pdpUrl} className="group/slide-text block cursor-pointer">
+                      <span className="text-xs md:text-sm font-semibold uppercase tracking-widest text-brand-primary drop-shadow block mb-1">
+                        {car.marca} • {car.ano}
+                      </span>
+                      
+                      <h2 className="text-3xl md:text-6xl font-bold tracking-tight leading-none drop-shadow-md group-hover/slide-text:underline decoration-brand-primary decoration-2 underline-offset-4">
+                        {car.modelo}
+                      </h2>
+                      
+                      <p className="text-xs md:text-lg text-white/95 font-medium uppercase tracking-wide line-clamp-1 mt-1">
+                        {car.versao}
+                      </p>
+                    </Link>
 
                     <div className="flex flex-row items-center gap-3 mt-2">
                       {/* Gold Highlight Promo Price */}
