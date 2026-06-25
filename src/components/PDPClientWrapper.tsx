@@ -78,6 +78,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   
   const carouselRef = useRef<HTMLDivElement>(null);
 
+  const displayImages = veiculo.whatsapp_images && veiculo.whatsapp_images.length > 0
+    ? veiculo.whatsapp_images
+    : veiculo.web_full_images;
+
   // Sync prop changes
   useEffect(() => {
     setVeiculo(initialVeiculo);
@@ -571,10 +575,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
       {/* PRINT ONLY FEATURED IMAGE */}
       <div className="hidden print:block w-full mb-6">
-        {veiculo.web_full_images[0] && (
+        {displayImages[0] && (
           <div className="relative w-full h-[320px] bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200">
             <img
-              src={veiculo.web_full_images[0]}
+              src={displayImages[0]}
               alt={`${veiculo.marca} ${veiculo.modelo}`}
               className="w-full h-full object-cover print-main-image"
             />
@@ -599,7 +603,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0"
                 style={{ scrollBehavior: "smooth" }}
               >
-                {veiculo.web_full_images.map((imgUrl, index) => (
+                {displayImages.map((imgUrl, index) => (
                   <div
                     key={index}
                     className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0"
@@ -609,6 +613,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                       alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ${index + 1}`}
                       fill
                       priority={index === 0}
+                      fetchPriority={index === 0 ? "high" : "auto"}
                       className={`object-cover w-full h-full border-none p-0 m-0 ${veiculo.vendido ? "filter grayscale-[30%] opacity-75" : ""}`}
                       sizes="(max-w-1024px) 100vw, 900px"
                     />
@@ -617,10 +622,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               </div>
 
               {/* Left and Right navigation arrows */}
-              {veiculo.web_full_images.length > 1 && (
+              {displayImages.length > 1 && (
                 <>
                   <button
-                    onClick={() => scrollCarouselTo((activeImageIndex - 1 + veiculo.web_full_images.length) % veiculo.web_full_images.length)}
+                    onClick={() => scrollCarouselTo((activeImageIndex - 1 + displayImages.length) % displayImages.length)}
                     className="absolute left-4 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full bg-black/40 hover:bg-brand-primary/95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md active:scale-95 cursor-pointer"
                     aria-label="Imagem anterior"
                   >
@@ -629,7 +634,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                     </svg>
                   </button>
                   <button
-                    onClick={() => scrollCarouselTo((activeImageIndex + 1) % veiculo.web_full_images.length)}
+                    onClick={() => scrollCarouselTo((activeImageIndex + 1) % displayImages.length)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full bg-black/40 hover:bg-brand-primary/95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md active:scale-95 cursor-pointer"
                     aria-label="Próxima imagem"
                   >
@@ -677,9 +682,9 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             </div>
 
             {/* Interactive horizontal thumbnail strip below the active slide */}
-            {veiculo.web_full_images.length > 1 && (
+            {displayImages.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin max-w-full px-4 md:px-0">
-                {veiculo.web_full_images.map((imgUrl, index) => {
+                {displayImages.map((imgUrl, index) => {
                   const isActive = index === activeImageIndex;
                   return (
                     <button

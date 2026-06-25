@@ -745,10 +745,11 @@ export default function HeroSection() {
                   {/* Clickable cover image + gradient background */}
                   <Link prefetch={false} href={pdpUrl} className="absolute inset-0 block z-0 group/slide-img cursor-pointer overflow-hidden">
                     <Image
-                      src={car.web_full_images[0] || car.whatsapp_images[0]}
+                      src={car.whatsapp_images[0] || car.web_full_images[0]}
                       alt={`${car.marca} ${car.modelo}`}
                       fill
                       priority={index === 0}
+                      fetchPriority={index === 0 ? "high" : "auto"}
                       className="object-cover transition-transform duration-[8000ms] ease-out group-hover/slide-img:scale-105"
                       sizes="100vw"
                     />
