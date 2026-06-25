@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { getEstoque, Veiculo, getVeiculoPdpUrl } from "../lib/supabase";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackCarMatch } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 
@@ -482,6 +482,10 @@ export default function CarMatch() {
       const top3 = sorted.slice(0, 3);
 
       setRecommendations(top3);
+
+      // Dispara telemetria de quiz de recomendação (Search) no GA4/Pixel
+      const tags = [answers.profile, answers.category, answers.budget || ""].filter(Boolean);
+      trackCarMatch(tags, top3.length);
 
       // Trigger Telemetry logs for coordination
       if (typeof window !== "undefined") {

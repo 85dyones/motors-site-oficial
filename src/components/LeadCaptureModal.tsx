@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Turnstile from "./Turnstile";
 
 export interface LeadCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (leadData: { nome: string; email: string; whatsapp: string }) => Promise<void>;
+  onSubmit: (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => Promise<void>;
   initialNome?: string;
   initialWhatsapp?: string;
   vehicleInfo?: {
@@ -26,6 +27,7 @@ export default function LeadCaptureModal({
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -36,6 +38,7 @@ export default function LeadCaptureModal({
       setWhatsapp(initialWhatsapp);
       setEmail("");
       setErrorMsg("");
+      setTurnstileToken("");
       setLoading(false);
 
       // Load existing details from history in localStorage to enrich payload where possible
@@ -71,12 +74,18 @@ export default function LeadCaptureModal({
       return;
     }
 
+    if (!turnstileToken) {
+      setErrorMsg("Aguardando validação de segurança Turnstile...");
+      return;
+    }
+
     setLoading(true);
     try {
       await onSubmit({
         nome: nome.trim(),
         email: email.trim(),
-        whatsapp: whatsapp.trim()
+        whatsapp: whatsapp.trim(),
+        turnstileToken
       });
       onClose();
     } catch (err: any) {
@@ -155,7 +164,7 @@ export default function LeadCaptureModal({
                 <span>{errorMsg}</span>
               </div>
             )}
- 
+
             {/* Name Input */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="lead-name-input" className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider">
@@ -175,12 +184,15 @@ export default function LeadCaptureModal({
               />
             </div>
 
+            {/* Cloudflare Turnstile Verification */}
+            <Turnstile onSuccess={(token) => setTurnstileToken(token)} />
+
             {/* WhatsApp Green Action Button */}
             <button
               type="submit"
-              disabled={loading || !isNameValid}
+              disabled={loading || !isNameValid || !turnstileToken}
               className={`w-full h-12 rounded-xl text-white font-bold uppercase tracking-widest text-[11px] flex items-center justify-center gap-2 transition-all duration-300 mt-2 border border-transparent ${
-                !isNameValid
+                !isNameValid || !turnstileToken
                   ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
                   : loading
                   ? "bg-[#25D366]/80 text-white cursor-wait"

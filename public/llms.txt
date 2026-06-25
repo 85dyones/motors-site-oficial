@@ -20,3 +20,6 @@ O site oferece ferramentas declarativas WebMCP para que agentes virtuais interaj
    
 3. **solicitar_atendimento_whatsapp** (Disponível nas PDPs e modais de contato):
    Registra o nome, e-mail e telefone do cliente para enviar uma proposta sobre um veículo específico e abre canal de conversa direta no WhatsApp.
+
+## Catálogo de Estoque Completo para IAs
+- Inventário Completo em Markdown (Dump Estático): `/api/llms-full.txt` (Arquivo leve contendo o catálogo de veículos ativos, especificações e links de PDP)

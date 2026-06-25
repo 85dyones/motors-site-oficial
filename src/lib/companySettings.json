@@ -9,5 +9,8 @@
   "facebook": "https://facebook.com/motorsstore.oficial",
   "cnpj": "",
   "faviconUrl": "",
-  "isCustom": true
+  "isCustom": true,
+  "ga4Id": "",
+  "metaPixelId": "",
+  "instagramUsername": "motorsstore.oficial"
 }

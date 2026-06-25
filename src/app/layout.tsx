@@ -5,6 +5,8 @@ import AntigravityTracker from "../components/AntigravityTracker";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LeadPopup from "../components/LeadPopup";
+import CookieConsentBanner from "../components/CookieConsentBanner";
+import IntegrationsTracker from "../components/IntegrationsTracker";
 import { ThemeProvider } from "./ThemeContext";
 
 const geistSans = Geist({
@@ -91,6 +93,7 @@ export default function RootLayout({
           }}
         />
         <ThemeProvider>
+          <IntegrationsTracker />
           <AntigravityTracker />
           <Header />
           <main className="flex-grow flex flex-col">
@@ -98,6 +101,7 @@ export default function RootLayout({
           </main>
           <Footer />
           <LeadPopup />
+          <CookieConsentBanner />
         </ThemeProvider>
       </body>
     </html>

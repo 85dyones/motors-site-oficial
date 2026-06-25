@@ -150,4 +150,134 @@ export function getUtmParameters(): UtmParameters {
   return result;
 }
 
+export function trackLeadSubmission(vehicle: { id?: string; marca: string; modelo: string; preco: number }, message: string) {
+  if (typeof window === "undefined") return;
+  
+  try {
+    const consent = localStorage.getItem("ag_cookie_consent");
+    if (consent !== "accepted") return;
+
+    // Google Analytics 4 Event
+    if (window.gtag) {
+      window.gtag("event", "generate_lead", {
+        currency: "BRL",
+        value: vehicle.preco,
+        item_name: `${vehicle.marca} ${vehicle.modelo}`,
+        description: message
+      });
+    }
+
+    // Meta Pixel Event
+    if (window.fbq) {
+      window.fbq("track", "Lead", {
+        content_name: `${vehicle.marca} ${vehicle.modelo}`,
+        value: vehicle.preco,
+        currency: "BRL"
+      });
+    }
+
+    console.log(`[Telemetry Tracking] Event Logged: Lead - ${vehicle.marca} ${vehicle.modelo}`);
+  } catch (err) {
+    console.warn("[Telemetry Tracking] Failed to log lead event:", err);
+  }
+}
+
+export function trackVehicleView(vehicle: { id: string; marca: string; modelo: string; preco: number }) {
+  if (typeof window === "undefined") return;
+  
+  try {
+    const consent = localStorage.getItem("ag_cookie_consent");
+    if (consent !== "accepted") return;
+
+    // Google Analytics 4 Event
+    if (window.gtag) {
+      window.gtag("event", "view_item", {
+        currency: "BRL",
+        value: vehicle.preco,
+        items: [{
+          item_id: vehicle.id,
+          item_name: `${vehicle.marca} ${vehicle.modelo}`,
+          price: vehicle.preco
+        }]
+      });
+    }
+
+    // Meta Pixel Event
+    if (window.fbq) {
+      window.fbq("track", "ViewContent", {
+        content_ids: [vehicle.id],
+        content_name: `${vehicle.marca} ${vehicle.modelo}`,
+        value: vehicle.preco,
+        currency: "BRL"
+      });
+    }
+
+    console.log(`[Telemetry Tracking] Event Logged: ViewContent - ${vehicle.marca} ${vehicle.modelo}`);
+  } catch (err) {
+    console.warn("[Telemetry Tracking] Failed to log view item event:", err);
+  }
+}
+
+export function trackAppraisalSubmit(category: string, brand: string, model: string, year: string, fipe: number) {
+  if (typeof window === "undefined") return;
+  
+  try {
+    const consent = localStorage.getItem("ag_cookie_consent");
+    if (consent !== "accepted") return;
+
+    // Google Analytics 4 Event
+    if (window.gtag) {
+      window.gtag("event", "complete_registration", {
+        category: category,
+        brand: brand,
+        model: model,
+        value: fipe,
+        currency: "BRL"
+      });
+    }
+
+    // Meta Pixel Event
+    if (window.fbq) {
+      window.fbq("track", "CompleteRegistration", {
+        content_name: `Avaliacao ${category} - ${brand} ${model}`,
+        value: fipe,
+        currency: "BRL"
+      });
+    }
+
+    console.log(`[Telemetry Tracking] Event Logged: CompleteRegistration - Appraisal ${category}`);
+  } catch (err) {
+    console.warn("[Telemetry Tracking] Failed to log registration event:", err);
+  }
+}
+
+export function trackCarMatch(tags: string[], resultsCount: number) {
+  if (typeof window === "undefined") return;
+  
+  try {
+    const consent = localStorage.getItem("ag_cookie_consent");
+    if (consent !== "accepted") return;
+
+    // Google Analytics 4 Event
+    if (window.gtag) {
+      window.gtag("event", "search", {
+        search_term: tags.join(", "),
+        results_count: resultsCount
+      });
+    }
+
+    // Meta Pixel Event
+    if (window.fbq) {
+      window.fbq("track", "Search", {
+        search_string: tags.join(", "),
+        content_category: "CarMatch Recommendation"
+      });
+    }
+
+    console.log(`[Telemetry Tracking] Event Logged: Search - CarMatch`);
+  } catch (err) {
+    console.warn("[Telemetry Tracking] Failed to log search event:", err);
+  }
+}
+
 

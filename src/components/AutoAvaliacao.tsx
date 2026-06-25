@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackAppraisalSubmit } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
+import Turnstile from "./Turnstile";
 import { useTheme } from "../app/ThemeContext";
 
 // ─── FIPE API Types ───
@@ -234,6 +235,7 @@ export default function AutoAvaliacao() {
   const [loading, setLoading] = useState(false);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   // Type of vehicle
   const [vehicleType, setVehicleType] = useState<"carros" | "motos" | "caminhoes">("carros");
@@ -461,6 +463,10 @@ export default function AutoAvaliacao() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!step3.nome || step3.whatsapp.length < 14) return;
+    if (!turnstileToken) {
+      alert("Aguardando verificação de segurança (Anti-Spam)...");
+      return;
+    }
 
     setLoading(true);
 
@@ -469,7 +475,7 @@ export default function AutoAvaliacao() {
 
     // POST to backend API route for Lead capturing
     try {
-      await fetch("/api/avaliacao", {
+      const response = await fetch("/api/avaliacao", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -486,8 +492,17 @@ export default function AutoAvaliacao() {
           tipo_veiculo: vehicleType,
           fipe_valor: fipeValor,
           fipe_codigo: fipeCodigo,
+          turnstileToken
         }),
       });
+
+      if (response.ok) {
+        let numericValue = 0;
+        if (fipeValor) {
+          numericValue = Number(fipeValor.replace(/[^\d]/g, "")) / 100;
+        }
+        trackAppraisalSubmit(vehicleType, step1.marca, step1.modelo, String(step1.ano), numericValue);
+      }
     } catch (error) {
       console.error("[Auto-Avaliação] Failed to send lead to backend API:", error);
     }
@@ -555,6 +570,7 @@ export default function AutoAvaliacao() {
     setFipeModels([]);
     setFipeYears([]);
     setVehicleType("carros");
+    setTurnstileToken("");
     setStep(1);
   };
 
@@ -568,7 +584,7 @@ export default function AutoAvaliacao() {
     }
   };
 
-  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
+  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => {
     const webhookUrl = webhooks?.webhookAvaliacaoUrl || webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
     const utmParams = getUtmParameters();
@@ -610,12 +626,20 @@ export default function AutoAvaliacao() {
       agUid: agUid
     };
 
-    // Dispatch webhook
-    await fetch(webhookUrl, {
+    // Dispatch lead via secure server proxy api
+    const response = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        ...payload,
+        webhookUrl,
+        turnstileToken: leadData.turnstileToken
+      })
     });
+
+    if (!response.ok) {
+      throw new Error("Erro de validação ou segurança ao registrar o lead.");
+    }
 
     // Save lead to history
     try {
@@ -1026,9 +1050,9 @@ export default function AutoAvaliacao() {
             </button>
             <button
               type="submit"
-              disabled={!isStep3Valid || loading}
+              disabled={!isStep3Valid || loading || !turnstileToken}
               className={`col-span-3 h-12 rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 ${
-                isStep3Valid && !loading
+                isStep3Valid && !loading && turnstileToken
                   ? "bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white shadow-lg shadow-brand-primary/15 hover:opacity-95"
                   : "bg-brand-card-border text-brand-text/40 border border-brand-border cursor-not-allowed"
               }`}
@@ -1100,6 +1124,9 @@ export default function AutoAvaliacao() {
           </div>
         </div>
       )}
+      {/* Cloudflare Turnstile Verification */}
+      <Turnstile onSuccess={(token) => setTurnstileToken(token)} />
+
       {/* Positive Friction Lead Capture Modal */}
       <LeadCaptureModal
         isOpen={isLeadModalOpen}

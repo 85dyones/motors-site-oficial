@@ -135,6 +135,22 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
   }
 ];
 
+const PROMPT_INJECTION_REGEX = /(ignore\s+all\s+(?:previous\s+)?instructions|system\s+prompt|you\s+are\s+a\s+bot|act\s+as\s+a|new\s+instruction|jailbreak\b)/i;
+
+function hasPromptInjection(obj: any): boolean {
+  if (typeof obj === "string") {
+    return PROMPT_INJECTION_REGEX.test(obj);
+  }
+  if (typeof obj === "object" && obj !== null) {
+    for (const key in obj) {
+      if (hasPromptInjection(obj[key])) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export default function ConfiguracoesClientWrapper() {
   const {
     theme,
@@ -226,11 +242,46 @@ export default function ConfiguracoesClientWrapper() {
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const getAuthToken = async (): Promise<string | null> => {
+    if (supabase) {
+      try {
+        const sessionRes = await supabase.auth.getSession();
+        return sessionRes.data?.session?.access_token || null;
+      } catch (e) {
+        console.warn("[Auth] Failed to read session token:", e);
+      }
+    }
+    return null;
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError("");
+    
+    // 1. Tenta fazer login real via Supabase se configurado
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        if (error) {
+          console.warn("[Auth] Supabase authentication failed, trying local fallback:", error.message);
+        } else if (data?.user) {
+          setIsAuthenticated(true);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("ag_admin_logged_in", "true");
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn("[Auth] Supabase connection error, trying local fallback:", err);
+      }
+    }
+
+    // 2. Fallback local/mock
     if (email === "motors@motorsstoreoficial.com.br" && password === "test123456") {
       setIsAuthenticated(true);
-      setAuthError("");
       if (typeof window !== "undefined") {
         sessionStorage.setItem("ag_admin_logged_in", "true");
       }
@@ -239,12 +290,19 @@ export default function ConfiguracoesClientWrapper() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsAuthenticated(false);
     setEmail("");
     setPassword("");
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("ag_admin_logged_in");
+    }
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn("[Auth] Failed to sign out from Supabase:", err);
+      }
     }
   };
 
@@ -471,28 +529,42 @@ export default function ConfiguracoesClientWrapper() {
     try {
       const updatedForm = { ...companyForm, isCustom: true };
       
-      // 1. Save to Supabase via API (single source of truth)
+      // 1. Prompt Injection frontend filter
+      if (hasPromptInjection(updatedForm)) {
+        alert("Erro de segurança: O conteúdo contém termos não permitidos (potencial injeção de instruções). Por favor, remova comandos em inglês semelhantes a instruções de sistema.");
+        return;
+      }
+
+      // 2. Fetch Auth Token
+      const token = await getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      // 3. Save to Supabase via API
       const response = await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ companySettings: updatedForm })
       });
       
       if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server responded with ${response.status}`);
       }
       
       const result = await response.json();
       console.log("[Settings] Company settings saved to Supabase:", result);
       
-      // 2. Update React state to reflect immediately in UI
+      // 4. Update React state
       updateCompanySettings(updatedForm);
       setCompanyStatus("saved");
       
       setTimeout(() => setCompanyStatus("idle"), 2500);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save company settings:", e);
-      alert("Erro ao salvar as configurações no servidor. Verifique a conexão.");
+      alert(e.message || "Erro ao salvar as configurações no servidor. Verifique a conexão.");
       setCompanyStatus("idle");
     }
   };
@@ -503,28 +575,42 @@ export default function ConfiguracoesClientWrapper() {
     try {
       const updatedForm = { ...aboutForm, isCustom: true };
       
-      // 1. Save to Supabase via API (single source of truth)
+      // 1. Prompt Injection frontend filter
+      if (hasPromptInjection(updatedForm)) {
+        alert("Erro de segurança: O conteúdo contém termos não permitidos (potencial injeção de instruções). Por favor, remova comandos em inglês semelhantes a instruções de sistema.");
+        return;
+      }
+
+      // 2. Fetch Auth Token
+      const token = await getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      // 3. Save to Supabase via API
       const response = await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ aboutSettings: updatedForm })
       });
       
       if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server responded with ${response.status}`);
       }
       
       const result = await response.json();
       console.log("[Settings] About settings saved to Supabase:", result);
       
-      // 2. Update React state to reflect immediately in UI
+      // 4. Update React state
       updateAboutSettings(updatedForm);
       setAboutStatus("saved");
       
       setTimeout(() => setAboutStatus("idle"), 2500);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save about settings:", e);
-      alert("Erro ao salvar as configurações no servidor. Verifique a conexão.");
+      alert(e.message || "Erro ao salvar as configurações no servidor. Verifique a conexão.");
       setAboutStatus("idle");
     }
   };
@@ -535,23 +621,32 @@ export default function ConfiguracoesClientWrapper() {
       try {
         const resetForm = { ...DEFAULT_ABOUT_SETTINGS, isCustom: false };
         
+        const token = await getAuthToken();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
         // 1. Save reset to Supabase first
         const response = await fetch("/api/settings", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ aboutSettings: resetForm })
         });
         
-        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Server responded with ${response.status}`);
+        }
         
         // 2. Update React state
         setAboutForm(resetForm);
         updateAboutSettings(resetForm);
         
         alert("Dados da página Quem Somos redefinidos com sucesso!");
-      } catch (e) {
+      } catch (e: any) {
         console.error("Failed to reset about settings:", e);
-        alert("Erro ao redefinir as configurações no servidor.");
+        alert(e.message || "Erro ao redefinir as configurações no servidor.");
       }
     }
   };
@@ -562,23 +657,32 @@ export default function ConfiguracoesClientWrapper() {
       try {
         const resetForm = { ...DEFAULT_COMPANY_SETTINGS, isCustom: false };
         
+        const token = await getAuthToken();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
         // 1. Save reset to Supabase first
         const response = await fetch("/api/settings", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ companySettings: resetForm })
         });
         
-        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Server responded with ${response.status}`);
+        }
         
         // 2. Update React state
         setCompanyForm(resetForm);
         updateCompanySettings(resetForm);
         
         alert("Dados da concessionária redefinidos com sucesso!");
-      } catch (e) {
+      } catch (e: any) {
         console.error("Failed to reset company settings:", e);
-        alert("Erro ao redefinir as configurações no servidor.");
+        alert(e.message || "Erro ao redefinir as configurações no servidor.");
       }
     }
   };
@@ -2044,6 +2148,48 @@ export default function ConfiguracoesClientWrapper() {
                     <p className="text-[10px] text-brand-text/40 font-light leading-relaxed">
                       Insira a URL de uma imagem para ser usada como o ícone da aba do navegador (favicon). Deixe em branco para usar o padrão da Motors.
                     </p>
+                  </div>
+
+                  {/* GA4 ID */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      ID de Medição do Google Analytics 4 (GA4)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.ga4Id || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, ga4Id: e.target.value })}
+                      placeholder="G-XXXXXXXXXX"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+
+                  {/* Meta Pixel ID */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      ID do Meta Pixel
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.metaPixelId || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, metaPixelId: e.target.value })}
+                      placeholder="123456789012345"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+
+                  {/* Instagram Username */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Username do Instagram (Para o feed preview - sem o @)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.instagramUsername || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, instagramUsername: e.target.value })}
+                      placeholder="motorsstore.oficial"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
                   </div>
                 </div>
 

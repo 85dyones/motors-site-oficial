@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Veiculo, truncateString } from "../lib/supabase";
-import { getUtmParameters, getActiveAgUid } from "../lib/telemetry";
+import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 
@@ -139,6 +139,14 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     // Dynamic page view logger
     console.log(`[Antigravity Log] PageView iniciada para o veículo: ${veiculo.marca} ${veiculo.modelo} ID: ${veiculo.id}`);
 
+    // Dispara telemetria de visualização do item no GA4/Meta Pixel
+    trackVehicleView({
+      id: veiculo.id,
+      marca: veiculo.marca,
+      modelo: veiculo.modelo,
+      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original
+    });
+
     // Track seen vehicle history for homepage personalization
     if (typeof window !== "undefined") {
       try {
@@ -208,7 +216,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     }
   };
 
-  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
+  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
     const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
 
     const utmParams = getUtmParameters();
@@ -253,12 +261,28 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       agUid: agUid
     };
 
-    // Dispatch webhook
-    await fetch(webhookUrl, {
+    // Dispatch lead via secure server proxy api
+    const response = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        ...payload,
+        webhookUrl,
+        turnstileToken: leadData.turnstileToken
+      })
     });
+
+    if (!response.ok) {
+      throw new Error("Erro de validação ou segurança ao registrar o lead.");
+    }
+
+    // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel
+    trackLeadSubmission({
+      id: veiculo.id,
+      marca: veiculo.marca,
+      modelo: veiculo.modelo,
+      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original
+    }, activeMessage);
 
     // Save lead to history
     try {

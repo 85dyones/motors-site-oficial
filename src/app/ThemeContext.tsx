@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { logThemeChanged } from "../lib/telemetry";
+import { supabase } from "../lib/supabase";
 
 export type ThemeType = "luxury-light" | "stealth-dark" | "sport-nardo";
 
@@ -73,6 +74,9 @@ export interface CompanySettings {
   cnpj: string;
   faviconUrl?: string;
   isCustom?: boolean;
+  ga4Id?: string;
+  metaPixelId?: string;
+  instagramUsername?: string;
 }
 
 export interface AboutSettings {
@@ -376,79 +380,68 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setAboutSettings(settings);
   };
 
+  const postSettings = async (payload: any) => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      if (supabase) {
+        const sessionRes = await supabase.auth.getSession();
+        const token = sessionRes.data?.session?.access_token;
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+      }
+    } catch (e) {
+      console.warn("[ThemeContext] Failed to get Supabase session:", e);
+    }
+
+    try {
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        console.warn("[ThemeContext] POST settings failed:", response.status, errData.error);
+      }
+    } catch (err) {
+      console.error("[ThemeContext] Failed to save settings to server:", err);
+    }
+  };
+
   const updateWebhooks = async (newWebhooks: Webhooks) => {
     setWebhooks(newWebhooks);
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ webhooks: newWebhooks })
-      });
-    } catch (err) {
-      console.error("Failed to save webhooks to server:", err);
-    }
+    await postSettings({ webhooks: newWebhooks });
   };
 
   const updatePopups = async (newPopups: Campaign[]) => {
     setPopups(newPopups);
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          popups: {
-            campaigns: newPopups,
-            settings: popupSettings
-          }
-        })
-      });
-    } catch (err) {
-      console.error("Failed to save popups to server:", err);
-    }
+    await postSettings({
+      popups: {
+        campaigns: newPopups,
+        settings: popupSettings
+      }
+    });
   };
 
   const updatePopupSettings = async (newSettings: PopupSettings) => {
     setPopupSettings(newSettings);
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          popups: {
-            campaigns: popups,
-            settings: newSettings
-          }
-        })
-      });
-    } catch (err) {
-      console.error("Failed to save popup settings to server:", err);
-    }
+    await postSettings({
+      popups: {
+        campaigns: popups,
+        settings: newSettings
+      }
+    });
   };
 
   const updateCarouselVehicleIds = async (newIds: string[]) => {
     setCarouselVehicleIds(newIds);
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carouselVehicleIds: newIds })
-      });
-    } catch (err) {
-      console.error("Failed to save carousel vehicles to server:", err);
-    }
+    await postSettings({ carouselVehicleIds: newIds });
   };
 
   const updateQuickTags = async (newQuickTags: QuickTag[]) => {
     setQuickTags(newQuickTags);
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quickTags: { quickTags: newQuickTags } })
-      });
-    } catch (err) {
-      console.error("Failed to save quickTags to server:", err);
-    }
+    await postSettings({ quickTags: { quickTags: newQuickTags } });
   };
 
   const updateStockOverrides = async (newStockOverrides: StockOverrides) => {
@@ -461,15 +454,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         console.warn("[ThemeContext] Failed to save stockOverrides to localStorage:", e);
       }
     }
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stockOverrides: { overrides: newStockOverrides } })
-      });
-    } catch (err) {
-      console.error("Failed to save stockOverrides to server:", err);
-    }
+    await postSettings({ stockOverrides: { overrides: newStockOverrides } });
   };
 
   const applyThemeProperties = (type: ThemeType) => {

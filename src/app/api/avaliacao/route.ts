@@ -4,6 +4,37 @@ import { logLeadCaptured, logApiTelemetry } from "../../../lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
+// Verify Cloudflare Turnstile token
+async function verifyTurnstileToken(token: string): Promise<boolean> {
+  try {
+    const secret = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA"; // Cloudflare Turnstile Test Secret Key
+    
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`
+    });
+
+    const data = await response.json();
+    return !!data.success;
+  } catch (error) {
+    console.error("[Avaliacao API] Turnstile validation failed:", error);
+    return false;
+  }
+}
+
+// Validate that webhook URL is allowed (prevents SSRF)
+function isAllowedWebhookUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    return parsed.hostname === "n8n.v2o5.com.br";
+  } catch (e) {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   let requestBody: any = null;
@@ -15,20 +46,32 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    // 1. Safe JSON parsing of incoming evaluation payload
     requestBody = await request.json().catch(() => null);
     
     if (!requestBody) {
       return sendResponse(
-        NextResponse.json(
-          { error: "Corpo da requisição inválido ou ausente." },
-          { status: 400 }
-        ),
+        NextResponse.json({ error: "Corpo da requisição inválido ou ausente." }, { status: 400 }),
         "Corpo da requisição inválido ou ausente."
       );
     }
 
-    const { marca, modelo, ano, estado, nome, telefone, webhookUrl, tipo_veiculo } = requestBody;
+    const { marca, modelo, ano, estado, nome, telefone, webhookUrl, tipo_veiculo, turnstileToken } = requestBody;
+
+    // 1. Verify Turnstile Captcha
+    if (!turnstileToken) {
+      return sendResponse(
+        NextResponse.json({ error: "Token de segurança captcha ausente." }, { status: 400 }),
+        "Token de segurança captcha ausente."
+      );
+    }
+
+    const isHuman = await verifyTurnstileToken(turnstileToken);
+    if (!isHuman) {
+      return sendResponse(
+        NextResponse.json({ error: "Falha na verificação de segurança (Anti-Spam)." }, { status: 403 }),
+        "Falha na verificação de segurança (Anti-Spam)."
+      );
+    }
 
     // 2. Validate mandatory payload properties
     if (!marca || !modelo || !ano || !estado || !nome || !telefone) {
@@ -41,58 +84,93 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Extract tracking identifier from request body or cookies (Antigravity Tracker ID)
+    // 3. Schema validation (Vehicle Type)
+    const resolvedType = tipo_veiculo || "carros";
+    if (!["carros", "motos", "caminhoes"].includes(resolvedType)) {
+      return sendResponse(
+        NextResponse.json({ error: "Categoria de veículo inválida." }, { status: 400 }),
+        `Categoria de veículo inválida: ${resolvedType}`
+      );
+    }
+
+    // 4. Schema validation (Phone number format validation)
+    const phoneClean = telefone.replace(/\D/g, "");
+    if (phoneClean.length < 10) {
+      return sendResponse(
+        NextResponse.json({ error: "Número de telefone inválido (deve conter DDD)." }, { status: 400 }),
+        `Número de telefone muito curto: ${phoneClean}`
+      );
+    }
+
+    const formattedPhone = phoneClean.length === 10 || phoneClean.length === 11
+      ? (phoneClean.startsWith("55") ? phoneClean : `55${phoneClean}`)
+      : phoneClean;
+    const remoteJid = `${formattedPhone}@s.whatsapp.net`;
+
+    // 5. Extract tracking identifier
     const cookieStore = await cookies();
     const agUid = requestBody.ag_uid || requestBody.agUid || cookieStore.get("ag_uid")?.value || "ag_ref_nao_localizado";
 
-    // 4. Construct n8n webhook payload
+    // 6. Construct n8n webhook payload
     const n8nPayload = {
+      remoteJid,
+      telefone: formattedPhone,
       marca,
       modelo,
       ano: Number(ano),
       estado,
       nome,
-      telefone,
+      tipo_veiculo: resolvedType,
+      fipe_valor: requestBody.fipe_valor || "",
+      fipe_codigo: requestBody.fipe_codigo || "",
       ag_uid: agUid,
-      tipo_veiculo: tipo_veiculo || "carros",
       utm_source: request.nextUrl.searchParams.get("utm_source") || undefined,
       utm_medium: request.nextUrl.searchParams.get("utm_medium") || undefined,
       utm_campaign: request.nextUrl.searchParams.get("utm_campaign") || undefined,
-      created_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
     };
 
-    // 5. Send POST request to n8n Captura Lead Webhook
-    const n8nWebhookUrl = webhookUrl?.trim() || process.env.NEXT_PUBLIC_N8N_WEBHOOK_AVALIACAO_URL || process.env.N8N_WEBHOOK_AVALIACAO_URL || "https://n8n.v2o5.com.br/webhook/sdr-captura-lead";
-    
+    // 7. Resolve and validate Webhook URL
+    const n8nWebhookUrl = webhookUrl?.trim() 
+      || process.env.N8N_WEBHOOK_AVALIACAO_URL 
+      || "https://n8n.v2o5.com.br/webhook/sdr-captura-lead";
+
+    if (!isAllowedWebhookUrl(n8nWebhookUrl)) {
+      return sendResponse(
+        NextResponse.json({ error: "URL de webhook não autorizada." }, { status: 400 }),
+        `SSRF Blocked: URL de webhook não autorizada (${n8nWebhookUrl})`
+      );
+    }
+
+    // 8. Send POST request to n8n with secret token authentication
+    const secretToken = process.env.N8N_SECRET_TOKEN || "ag-secret-default-token-123";
     const response = await fetch(n8nWebhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${secretToken}`
       },
-      body: JSON.stringify(n8nPayload),
+      body: JSON.stringify(n8nPayload)
     });
 
-    // 6. Invoke Telemetry Hook
+    // 9. Invoke Telemetry Hook
     logLeadCaptured({
       marca,
       modelo,
       ano,
-      estado,
+      estado: `Auto-Avaliação (${resolvedType})`,
       nome,
       telefone,
       agUid,
-      status: response.status,
+      status: response.status
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      console.warn(`[Webhook n8n] Captura error response [${response.status}]: ${errorText}`);
+      console.warn(`[Webhook n8n Proxy] Evaluation error response [${response.status}]: ${errorText}`);
       
       return sendResponse(
-        NextResponse.json(
-          { error: "Falha na sincronização externa com o webhook do CRM." },
-          { status: 502 }
-        ),
+        NextResponse.json({ error: "Falha na sincronização externa com o webhook do CRM." }, { status: 502 }),
         `Falha no Webhook CRM com status ${response.status}: ${errorText}`
       );
     }
@@ -101,18 +179,14 @@ export async function POST(request: NextRequest) {
       NextResponse.json({
         success: true,
         message: "Lead de avaliação capturado e encaminhado com sucesso.",
-        ref: agUid,
+        ref: agUid
       })
     );
   } catch (error: any) {
     console.error("[API Avaliação] Unhandled error captured:", error);
     return sendResponse(
-      NextResponse.json(
-        { error: "Erro interno no servidor ao processar a avaliação." },
-        { status: 500 }
-      ),
+      NextResponse.json({ error: "Erro interno no servidor ao processar a avaliação." }, { status: 500 }),
       error?.message || error
     );
   }
 }
-

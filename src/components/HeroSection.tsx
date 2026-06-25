@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getEstoque, Veiculo, getVeiculoPdpUrl } from "../lib/supabase";
 import { useTheme } from "../app/ThemeContext";
-import { getUtmParameters } from "../lib/telemetry";
+import { getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
 import VehicleCompare from "./VehicleCompare";
 import LeadCaptureModal from "./LeadCaptureModal";
 
@@ -636,7 +636,7 @@ export default function HeroSection() {
     }
   };
 
-  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
+  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => {
     if (!activeVehicle) return;
 
     const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
@@ -683,12 +683,30 @@ export default function HeroSection() {
       agUid: agUid
     };
 
-    // Dispatch webhook
-    await fetch(webhookUrl, {
+    // Dispatch lead via secure server proxy api
+    const response = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        ...payload,
+        webhookUrl,
+        turnstileToken: leadData.turnstileToken
+      })
     });
+
+    if (!response.ok) {
+      throw new Error("Erro de validação ou segurança ao registrar o lead.");
+    }
+
+    if (activeVehicle) {
+      // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel
+      trackLeadSubmission({
+        id: activeVehicle.id,
+        marca: activeVehicle.marca,
+        modelo: activeVehicle.modelo,
+        preco: activeVehicle.preco_promocional > 0 ? activeVehicle.preco_promocional : activeVehicle.preco_original
+      }, activeMessage);
+    }
 
     // Save lead to history
     try {

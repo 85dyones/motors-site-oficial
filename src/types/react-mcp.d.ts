@@ -8,3 +8,14 @@ declare module 'react' {
     toolparamdescription?: string;
   }
 }
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: string | HTMLElement, options: any) => string;
+      remove: (widgetId: string) => void;
+      execute: (widgetId: string) => void;
+      reset: (widgetId: string) => void;
+    };
+  }
+}
