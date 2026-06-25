@@ -141,7 +141,12 @@ export default function LeadCaptureModal({
             Olá! Para iniciar sua conversa com nossos consultores no WhatsApp, por favor informe o seu nome:
           </p>
 
-          <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
+          <form
+            onSubmit={handleFormSubmit}
+            toolname="solicitar_atendimento_whatsapp"
+            tooldescription="Registra o nome do cliente interessado para iniciar o contato direto no WhatsApp com a equipe da Motors Store."
+            className="flex flex-col gap-4"
+          >
             {errorMsg && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-semibold px-3 py-2.5 rounded-xl flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 flex-shrink-0">
@@ -150,7 +155,7 @@ export default function LeadCaptureModal({
                 <span>{errorMsg}</span>
               </div>
             )}
-
+ 
             {/* Name Input */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="lead-name-input" className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider">
@@ -166,6 +171,7 @@ export default function LeadCaptureModal({
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Digite seu nome..."
                 className="w-full h-11 px-4 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-white placeholder-zinc-500 transition-all duration-300 outline-none focus:border-[#25D366] focus:bg-zinc-900/50"
+                toolparamdescription="Nome completo do cliente interessado para iniciar a negociação."
               />
             </div>
 

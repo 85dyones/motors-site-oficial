@@ -1114,15 +1114,17 @@ export default function HeroSection() {
             </h4>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <form
+            toolname="buscar_carros_estoque"
+            tooldescription="Filtra o inventário ativo de veículos seminovos por parâmetros técnicos e de preço."
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleApplySearch();
+            }}
+            className="flex flex-col gap-4"
+          >
             {/* Direct Text input inside sidebar */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleApplySearch();
-              }}
-              className="flex flex-col gap-1.5"
-            >
+            <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase text-brand-text/50">O que você procura?</label>
               <div className="relative">
                 <input
@@ -1132,6 +1134,7 @@ export default function HeroSection() {
                   onChange={(e) => setTempSearchTerm(e.target.value)}
                   className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text pl-4 pr-10 h-12 w-full placeholder-brand-text/30 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   style={{ minHeight: "48px" }}
+                  toolparamdescription="Termo de pesquisa por marca, modelo ou palavras-chave (ex: BMW, M Sport)."
                 />
                 <button
                   type="submit"
@@ -1143,7 +1146,7 @@ export default function HeroSection() {
                   </svg>
                 </button>
               </div>
-            </form>
+            </div>
 
             {/* Brand Select */}
             <div className="flex flex-col gap-1.5">
@@ -1156,6 +1159,7 @@ export default function HeroSection() {
                 }}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Marca do fabricante do veículo (ex: Fiat, Chevrolet, Ford)."
               >
                 <option value="todos">Todas Marcas</option>
                 {marcasDisponiveis.map((marca) => (
@@ -1174,6 +1178,7 @@ export default function HeroSection() {
                 onChange={(e) => setFilterModelo(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Nome do modelo de veículo (ex: Titano, Onix)."
               >
                 <option value="todos">Todos Modelos</option>
                 {modelosDisponiveis.map((modelo) => (
@@ -1192,6 +1197,7 @@ export default function HeroSection() {
                 onChange={(e) => setFilterAno(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Ano de fabricação ou ano modelo do veículo."
               >
                 <option value="todos">Todos Anos</option>
                 {anosDisponiveis.map((ano) => (
@@ -1210,6 +1216,7 @@ export default function HeroSection() {
                 onChange={(e) => setFilterCambio(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Tipo de transmissão ou câmbio (Automático ou Manual)."
               >
                 <option value="todos">Todos Câmbios</option>
                 {cambiosDisponiveis.map((cambio) => (
@@ -1228,6 +1235,7 @@ export default function HeroSection() {
                 onChange={(e) => setFilterDirecao(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Tipo de direção de assistência mecânica (Elétrica, Hidráulica, Mecânica)."
               >
                 <option value="todos">Todas Direções</option>
                 {direcoesDisponiveis.map((dir) => (
@@ -1246,6 +1254,7 @@ export default function HeroSection() {
                 onChange={(e) => setFilterCombustivel(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Tipo de combustível aceito (Flex, Diesel, Gasolina, Híbrido, Elétrico)."
               >
                 <option value="todos">Todos Combustíveis</option>
                 {combustiveisDisponiveis.map((comb) => (
@@ -1264,6 +1273,7 @@ export default function HeroSection() {
                 onChange={(e) => setFilterPrecoMin(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Preço mínimo aceito em reais para a busca."
               >
                 <option value="todos">Qualquer Valor</option>
                 <option value="100000">R$ 100 mil</option>
@@ -1282,6 +1292,7 @@ export default function HeroSection() {
                 onChange={(e) => setFilterPrecoMax(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 style={{ minHeight: "48px" }}
+                toolparamdescription="Preço máximo aceito em reais para a busca."
               >
                 <option value="todos">Qualquer Valor</option>
                 <option value="300000">R$ 300 mil</option>
@@ -1300,7 +1311,7 @@ export default function HeroSection() {
             >
               Limpar Filtros
             </button>
-          </div>
+          </form>
         </aside>
 
         {/* RIGHT COLUMN: MAIN CATALOG LISTING AREA (Spans 9 cols on lg) */}

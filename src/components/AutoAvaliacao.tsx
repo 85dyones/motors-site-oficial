@@ -42,6 +42,7 @@ function SearchableCombobox({
   loading,
   disabled,
   emptyMessage,
+  toolParamDescription,
 }: {
   id: string;
   label: string;
@@ -54,6 +55,7 @@ function SearchableCombobox({
   loading: boolean;
   disabled?: boolean;
   emptyMessage?: string;
+  toolParamDescription?: string;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -151,6 +153,7 @@ function SearchableCombobox({
               ? "border-brand-primary ring-2 ring-brand-primary/20 shadow-[0_0_12px_var(--brand-shadow)]"
               : "border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
           }`}
+          toolparamdescription={toolParamDescription}
         />
         {/* Clear button */}
         {search && !disabled && (
@@ -656,7 +659,15 @@ export default function AutoAvaliacao() {
   const yearItems = fipeYears.map((y) => ({ key: y.codigo, label: y.nome }));
 
   return (
-    <div className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative transition-all duration-300">
+    <form
+      toolname="auto_avaliacao_veiculo"
+      tooldescription="Inicia a avaliação comercial de um veículo para troca ou venda na Motors Store, retornando os preços oficiais da FIPE."
+      onSubmit={handleSubmit}
+      className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative transition-all duration-300"
+    >
+      <input type="hidden" name="tipo_veiculo" value={vehicleType} toolparamdescription="Categoria de automóvel (carros, motos ou caminhoes)." />
+      <input type="hidden" name="estado_mecanico" value={step2.estadoMecanico} toolparamdescription="Estado mecânico do veículo (excelente, bom, atencao, ruim)." />
+      <input type="hidden" name="estado_conservacao" value={step2.estadoConservacao} toolparamdescription="Estado de conservação da lataria/funilaria (impecavel, riscos, reparos, avariado)." />
       {/* Visual Gold glow element */}
       <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-brand-primary/5 blur-[60px] pointer-events-none" />
       <div className="absolute -left-20 -bottom-20 h-40 w-40 rounded-full bg-brand-primary/5 blur-[60px] pointer-events-none" />
@@ -783,6 +794,7 @@ export default function AutoAvaliacao() {
             onSelect={handleBrandSelect}
             onClear={handleBrandClear}
             loading={loadingBrands}
+            toolParamDescription="Marca do automóvel de acordo com a base oficial FIPE."
           />
 
           {/* ─── Model Combobox (FIPE) ─── */}
@@ -798,6 +810,7 @@ export default function AutoAvaliacao() {
             loading={loadingModels}
             disabled={!selectedBrandId}
             emptyMessage="Nenhum modelo encontrado"
+            toolParamDescription="Modelo correspondente à marca na base FIPE."
           />
 
           {/* ─── Year Combobox (FIPE) ─── */}
@@ -813,6 +826,7 @@ export default function AutoAvaliacao() {
             loading={loadingYears}
             disabled={!selectedModelId}
             emptyMessage="Nenhum ano encontrado"
+            toolParamDescription="Ano modelo e combustível do veículo na base FIPE."
           />
 
           {/* Next Button */}
@@ -906,6 +920,7 @@ export default function AutoAvaliacao() {
               onChange={(e) => setStep2((prev) => ({ ...prev, observacoes: e.target.value }))}
               rows={2}
               className="w-full bg-brand-card border border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary rounded-xl p-3 text-xs text-brand-text placeholder-brand-text/40 focus:outline-none transition-colors duration-200 resize-none shadow-sm"
+              toolparamdescription="Observações ou opcionais extras instalados no veículo."
             />
           </div>
 
@@ -939,7 +954,7 @@ export default function AutoAvaliacao() {
 
       {/* STEP 3: Contact Name/WhatsApp */}
       {step === 3 && (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 animate-fadeIn">
+        <div className="flex flex-col gap-4 animate-fadeIn">
           {/* Summary Box */}
           <div className="bg-brand-bg border border-brand-card-border p-3 rounded-2xl flex flex-col gap-1 text-[11px] text-brand-text/50">
             <span className="font-bold text-brand-gold uppercase text-[9px] tracking-wide">Resumo da Avaliação</span>
@@ -976,6 +991,7 @@ export default function AutoAvaliacao() {
               value={step3.nome}
               onChange={(e) => setStep3((prev) => ({ ...prev, nome: e.target.value }))}
               className="w-full h-12 bg-brand-card border border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary rounded-xl px-4 text-sm text-brand-text placeholder-brand-text/40 focus:outline-none transition-colors duration-200 shadow-sm"
+              toolparamdescription="Nome completo do responsável pela solicitação de avaliação."
             />
           </div>
 
@@ -992,6 +1008,7 @@ export default function AutoAvaliacao() {
               value={step3.whatsapp}
               onChange={(e) => handleWhatsappChange(e.target.value)}
               className="w-full h-12 bg-brand-card border border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary rounded-xl px-4 text-sm text-brand-text placeholder-brand-text/40 focus:outline-none transition-colors duration-200 shadow-sm"
+              toolparamdescription="Número de WhatsApp com DDD para contato."
             />
             <span className="text-[10px] text-brand-text/40 font-medium">
               Enviaremos a estimativa de preço comercial baseada no seu estado.
@@ -1034,7 +1051,7 @@ export default function AutoAvaliacao() {
               )}
             </button>
           </div>
-        </form>
+        </div>
       )}
 
       {/* STEP 4: SUCCESS PAGE */}
@@ -1096,6 +1113,6 @@ export default function AutoAvaliacao() {
           ano: step1.ano
         }}
       />
-    </div>
+    </form>
   );
 }

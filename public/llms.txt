@@ -1,0 +1,22 @@
+# Motors Store - Portal Oficial de Seminovos e Veículos
+
+> Portal premium de venda, compra, troca e avaliação de veículos seminovos e novos. Fichas técnicas completas com laudos de perícia cautelar aprovados 100%.
+
+## Páginas e Rotas Principais
+- Home / Catálogo: `/` (Apresenta carrossel principal, ofertas em destaque, marcas/modelos e console de filtros rápidos e avançados)
+- Sobre a Motors: `/sobre` (Nossa história, missão e diferenciais de pátio)
+- Contato: `/contato` (Canais de atendimento, endereço físico, horários de funcionamento e formulário direto)
+- Ficha de Detalhes do Veículo (PDP): `/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]` (Exemplo: `/carros/fiat/titano/volcano-22-16v-4x4-tb-die-aut/8171616.html`)
+- Configurações Administrativas: `/configuracoes` (Dashboard para personalização de tags, estoque e webhooks da loja)
+
+## Recursos para Agentes de IA (WebMCP Tools)
+O site oferece ferramentas declarativas WebMCP para que agentes virtuais interajam com as principais ações de negócio:
+
+1. **buscar_carros_estoque** (Disponível na Home `/`):
+   Filtra e busca carros ativos no estoque da loja por parâmetros de marca, modelo, tipo de câmbio, tipo de combustível, preço máximo e quilometragem.
+   
+2. **auto_avaliacao_veiculo** (Disponível na Home `/` - aba Auto-Avaliação):
+   Inicia a cotação de troca ou venda de um automóvel (Carro, Moto ou Caminhão) a partir da marca, modelo e ano modelo oficiais, fornecendo a precificação real de referência FIPE.
+   
+3. **solicitar_atendimento_whatsapp** (Disponível nas PDPs e modais de contato):
+   Registra o nome, e-mail e telefone do cliente para enviar uma proposta sobre um veículo específico e abre canal de conversa direta no WhatsApp.
