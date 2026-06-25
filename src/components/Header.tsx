@@ -42,17 +42,20 @@ export default function Header() {
     let faviconLink: HTMLLinkElement | null = document.querySelector("link[rel='icon']");
     let shortcutLink: HTMLLinkElement | null = document.querySelector("link[rel='shortcut icon']");
     
+    // Add version query parameter to default favicon path to bypass stale browser caches
+    const finalFaviconUrl = targetFavicon === "/favicon.ico" ? "/favicon.ico?v=2" : targetFavicon;
+    
     if (faviconLink) {
-      faviconLink.href = targetFavicon;
+      faviconLink.href = finalFaviconUrl;
     } else {
       faviconLink = document.createElement("link");
       faviconLink.rel = "icon";
-      faviconLink.href = targetFavicon;
+      faviconLink.href = finalFaviconUrl;
       document.head.appendChild(faviconLink);
     }
     
     if (shortcutLink) {
-      shortcutLink.href = targetFavicon;
+      shortcutLink.href = finalFaviconUrl;
     }
   }, [companySettings.faviconUrl]);
 

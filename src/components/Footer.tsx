@@ -154,17 +154,15 @@ export default function Footer() {
               <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest">
                 Marcas Disponíveis
               </h4>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-brand-text/50">
-                {brands.map((brand, idx) => (
-                  <span key={brand} className="flex items-center gap-3">
-                    {idx > 0 && <span className="text-brand-text/20 select-none">•</span>}
-                    <Link
-                      href={`/?marca=${encodeURIComponent(brand)}`}
-                      className="hover:text-brand-primary hover:underline hover:underline-offset-4 uppercase tracking-wider font-medium transition-all duration-200"
-                    >
-                      {brand}
-                    </Link>
-                  </span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 text-xs text-brand-text/50">
+                {brands.map((brand) => (
+                  <Link
+                    key={brand}
+                    href={`/?marca=${encodeURIComponent(brand)}`}
+                    className="hover:text-brand-primary hover:underline hover:underline-offset-4 uppercase tracking-wider font-medium transition-all duration-200"
+                  >
+                    {brand}
+                  </Link>
                 ))}
               </div>
             </div>
@@ -175,17 +173,15 @@ export default function Footer() {
               <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest">
                 Modelos em Destaque
               </h4>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-brand-text/50">
-                {models.map((model, idx) => (
-                  <span key={model} className="flex items-center gap-3">
-                    {idx > 0 && <span className="text-brand-text/20 select-none">•</span>}
-                    <Link
-                      href={`/?modelo=${encodeURIComponent(model)}`}
-                      className="hover:text-brand-primary hover:underline hover:underline-offset-4 uppercase tracking-wider font-medium transition-all duration-200"
-                    >
-                      {model}
-                    </Link>
-                  </span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 text-xs text-brand-text/50">
+                {models.map((model) => (
+                  <Link
+                    key={model}
+                    href={`/?modelo=${encodeURIComponent(model)}`}
+                    className="hover:text-brand-primary hover:underline hover:underline-offset-4 uppercase tracking-wider font-medium transition-all duration-200"
+                  >
+                    {model}
+                  </Link>
                 ))}
               </div>
             </div>

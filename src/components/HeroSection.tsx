@@ -763,11 +763,11 @@ export default function HeroSection() {
                         {car.marca} • {car.ano}
                       </span>
                       
-                      <h2 className="text-3xl md:text-6xl font-bold tracking-tight leading-none drop-shadow-md group-hover/slide-text:underline decoration-brand-primary decoration-2 underline-offset-4">
+                      <h2 className="text-3xl md:text-6xl font-bold tracking-tight leading-none drop-shadow-md group-hover/slide-text:text-brand-primary transition-colors duration-300">
                         {car.modelo}
                       </h2>
                       
-                      <p className="text-xs md:text-lg text-white/95 font-medium uppercase tracking-wide line-clamp-1 mt-1">
+                      <p className="text-xs md:text-lg text-white/95 font-medium uppercase tracking-wide line-clamp-1 mt-1 group-hover/slide-text:text-white/80 transition-colors duration-300">
                         {car.versao}
                       </p>
                     </Link>
