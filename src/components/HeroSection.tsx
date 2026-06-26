@@ -256,18 +256,92 @@ export default function HeroSection() {
   const carouselTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Search and Advanced filters
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [tempSearchTerm, setTempSearchTerm] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("todos");
-  const [selectedQuickTag, setSelectedQuickTag] = useState<string>("todos");
-  const [filterMarca, setFilterMarca] = useState<string>("todos");
-  const [filterModelo, setFilterModelo] = useState<string>("todos");
-  const [filterAno, setFilterAno] = useState<string>("todos");
-  const [filterPrecoMin, setFilterPrecoMin] = useState<string>("todos");
-  const [filterPrecoMax, setFilterPrecoMax] = useState<string>("todos");
-  const [filterCambio, setFilterCambio] = useState<string>("todos");
-  const [filterDirecao, setFilterDirecao] = useState<string>("todos");
-  const [filterCombustivel, setFilterCombustivel] = useState<string>("todos");
+  const [searchTerm, setSearchTerm] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("busca") || params.get("q") || "";
+    }
+    return "";
+  });
+  const [tempSearchTerm, setTempSearchTerm] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("busca") || params.get("q") || "";
+    }
+    return "";
+  });
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const val = params.get("tipo") || params.get("categoria") || params.get("carroceria");
+      return val ? val.toLowerCase() : "todos";
+    }
+    return "todos";
+  });
+  const [selectedQuickTag, setSelectedQuickTag] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const val = params.get("destaque") || params.get("tag");
+      return val ? val.toLowerCase() : "todos";
+    }
+    return "todos";
+  });
+  const [filterMarca, setFilterMarca] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("marca") || "todos";
+    }
+    return "todos";
+  });
+  const [filterModelo, setFilterModelo] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("modelo") || "todos";
+    }
+    return "todos";
+  });
+  const [filterAno, setFilterAno] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("ano") || "todos";
+    }
+    return "todos";
+  });
+  const [filterPrecoMin, setFilterPrecoMin] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("precoMin") || "todos";
+    }
+    return "todos";
+  });
+  const [filterPrecoMax, setFilterPrecoMax] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("precoMax") || "todos";
+    }
+    return "todos";
+  });
+  const [filterCambio, setFilterCambio] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("cambio") || "todos";
+    }
+    return "todos";
+  });
+  const [filterDirecao, setFilterDirecao] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("direcao") || "todos";
+    }
+    return "todos";
+  });
+  const [filterCombustivel, setFilterCombustivel] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("combustivel") || "todos";
+    }
+    return "todos";
+  });
 
   // Fetch telemetry ID from cookies or localstorage
   const [agUid, setAgUid] = useState<string>("ag_ref_nao_localizado");
@@ -378,6 +452,57 @@ export default function HeroSection() {
       if (carouselTimerRef.current) clearInterval(carouselTimerRef.current);
     };
   }, [featuredCars]);
+
+  // Synchronize active filters to the URL query parameters
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    try {
+      const params = new URLSearchParams(window.location.search);
+      
+      const setOrDelete = (key: string, value: string) => {
+        if (value && value !== "todos" && value.trim() !== "") {
+          params.set(key, value);
+        } else {
+          params.delete(key);
+        }
+      };
+
+      setOrDelete("busca", searchTerm);
+      setOrDelete("tipo", selectedCategory);
+      setOrDelete("destaque", selectedQuickTag);
+      setOrDelete("marca", filterMarca);
+      setOrDelete("modelo", filterModelo);
+      setOrDelete("ano", filterAno);
+      setOrDelete("precoMin", filterPrecoMin);
+      setOrDelete("precoMax", filterPrecoMax);
+      setOrDelete("cambio", filterCambio);
+      setOrDelete("direcao", filterDirecao);
+      setOrDelete("combustivel", filterCombustivel);
+      
+      const queryString = params.toString();
+      const newUrl = queryString 
+        ? `${window.location.pathname}?${queryString}`
+        : window.location.pathname;
+      
+      // Update browser URL without reloading
+      window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, "", newUrl);
+    } catch (e) {
+      console.warn("[HeroSection] Failed to synchronize filters to URL:", e);
+    }
+  }, [
+    searchTerm,
+    selectedCategory,
+    selectedQuickTag,
+    filterMarca,
+    filterModelo,
+    filterAno,
+    filterPrecoMin,
+    filterPrecoMax,
+    filterCambio,
+    filterDirecao,
+    filterCombustivel
+  ]);
 
   // Clean all filters action
   const handleClearFilters = () => {
