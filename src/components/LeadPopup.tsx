@@ -8,6 +8,11 @@ import { useTheme } from "../app/ThemeContext";
 const COOLDOWN_HOURS = 4;                  
 const WHATSAPP_NUMBER = "5511999999999";
 
+// Minimum time (ms) the user must be on the page before exit-intent can fire.
+// This prevents the false trigger that occurs when the browser fires mouseleave
+// immediately on page load (cursor starts outside viewport).
+const EXIT_INTENT_ENGAGEMENT_DELAY_MS = 5000;
+
 interface Campaign {
   id: string;
   name: string;
@@ -180,6 +185,7 @@ export default function LeadPopup() {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const exitIntentRef = useRef<boolean>(false);
   const hasMountedRef = useRef(false);
+  const mountTimestampRef = useRef<number>(0);
 
   // ── Dismiss popup with exit animation ──
   const handleDismiss = useCallback(() => {
@@ -315,6 +321,9 @@ export default function LeadPopup() {
     if (hasMountedRef.current) return;
     hasMountedRef.current = true;
 
+    // Record the mount timestamp so we can enforce engagement delay for exit-intent
+    mountTimestampRef.current = Date.now();
+
     if (typeof window === "undefined") return;
     if (hasBeenShownThisSession() || isInCooldownPeriod(settings?.cooldownHours ?? COOLDOWN_HOURS)) {
       console.log("[Lead Popup] Suppressed on mount — anti-spam rule active.");
@@ -356,24 +365,62 @@ export default function LeadPopup() {
       }, delay);
     }
 
-    // Exit-intent campaign trigger
+    // Exit-intent campaign trigger (DESKTOP ONLY — ≥1024px)
+    // FIX: Uses mouseout on documentElement instead of mouseleave on document.
+    // mouseleave on document fires falsely on page load when cursor starts outside viewport.
+    // We also enforce a minimum engagement delay so the user must interact with the page
+    // for at least EXIT_INTENT_ENGAGEMENT_DELAY_MS before exit-intent can fire.
     const exitCampaign = eligibleCampaigns.find(c => c.triggerType === "exit");
-    if (exitCampaign) {
-      const handleExitIntent = (e: MouseEvent) => {
-        if (e.clientY <= 5 && !exitIntentRef.current && window.innerWidth >= 1024) {
-          exitIntentRef.current = true;
-          if (timerRef.current) clearTimeout(timerRef.current);
-          triggerPopup(exitCampaign, detectedVehicle);
-        }
+    if (exitCampaign && !isMobileViewport()) {
+      let hasMouseEnteredPage = false;
+
+      // Track when the mouse first enters the document — exit intent only makes sense
+      // if the user's cursor was already inside the page and then moved to leave.
+      const handleMouseEnter = () => {
+        hasMouseEnteredPage = true;
       };
 
-      document.addEventListener("mouseleave", handleExitIntent);
+      const handleExitIntent = (e: MouseEvent) => {
+        // Guard 1: Only fire on desktop viewports
+        if (window.innerWidth < 1024) return;
+
+        // Guard 2: Must have already entered the page (prevents fire on initial load)
+        if (!hasMouseEnteredPage) return;
+
+        // Guard 3: Enforce minimum engagement time on the page
+        const elapsed = Date.now() - mountTimestampRef.current;
+        if (elapsed < EXIT_INTENT_ENGAGEMENT_DELAY_MS) return;
+
+        // Guard 4: Only fire once
+        if (exitIntentRef.current) return;
+
+        // Guard 5: Mouse must be leaving through the top of the viewport (towards browser chrome/tabs)
+        if (e.clientY > 10) return;
+
+        // Guard 6: Verify the mouse is actually leaving the document bounds via relatedTarget
+        const relatedTarget = e.relatedTarget as Node | null;
+        if (relatedTarget && document.documentElement.contains(relatedTarget)) return;
+
+        exitIntentRef.current = true;
+        if (timerRef.current) clearTimeout(timerRef.current);
+        triggerPopup(exitCampaign, detectedVehicle);
+        console.log("[Lead Popup] Exit-intent triggered after user engagement.");
+      };
+
+      // Use mouseenter/mouseout on documentElement for reliable detection
+      document.documentElement.addEventListener("mouseenter", handleMouseEnter);
+      document.documentElement.addEventListener("mouseout", handleExitIntent);
 
       return () => {
         if (timerRef.current) clearTimeout(timerRef.current);
-        document.removeEventListener("mouseleave", handleExitIntent);
+        document.documentElement.removeEventListener("mouseenter", handleMouseEnter);
+        document.documentElement.removeEventListener("mouseout", handleExitIntent);
       };
     }
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [triggerPopup, settings, campaigns]);
 
   // ── Don't render anything if not visible or settings not loaded ──
@@ -396,82 +443,91 @@ export default function LeadPopup() {
   const title = resolvePlaceholders(activeCampaign.title);
   const subtitle = resolvePlaceholders(activeCampaign.subtitle);
 
+  // Resolve the CTA text: for whatsapp campaigns, use "Garantir Proposta no WhatsApp"
+  const resolvedCtaText = activeCampaign.actionType === "whatsapp"
+    ? "GARANTIR PROPOSTA NO WHATSAPP"
+    : activeCampaign.ctaText;
+
   return (
     <>
       {/* Backdrop overlay */}
       <div
-        className={`fixed inset-0 z-[998] bg-black/30 backdrop-blur-[2px] ${isExiting ? "opacity-0 transition-opacity duration-300" : "animate-fadeInBackdrop"}`}
+        className={`fixed inset-0 z-[998] bg-black/40 backdrop-blur-sm ${isExiting ? "opacity-0 transition-opacity duration-300" : "animate-fadeInBackdrop"}`}
         onClick={handleDismiss}
         aria-hidden="true"
       />
 
-      {/* Pop-up card */}
+      {/* Pop-up card — centered on desktop, bottom-sheet on mobile */}
       <div
-        className={`fixed bottom-0 left-0 right-0 z-[999] flex justify-center px-4 pb-4 sm:pb-8 pointer-events-none ${isExiting ? "animate-slideDownPopup" : "animate-slideUpPopup"}`}
+        className={`fixed z-[999] flex justify-center pointer-events-none
+          bottom-0 left-0 right-0 px-4 pb-4
+          sm:inset-0 sm:items-center sm:px-6 sm:pb-0
+          ${isExiting ? "animate-slideDownPopup" : "animate-slideUpPopup"}`}
         role="dialog"
         aria-modal="true"
         aria-label="Oferta especial"
       >
-        <div className="pointer-events-auto w-full max-w-md bg-brand-card border border-brand-card-border rounded-2xl shadow-[0_-8px_40px_rgba(0,0,0,0.15)] overflow-hidden relative">
+        <div className="pointer-events-auto w-full max-w-[420px] bg-brand-card/95 backdrop-blur-xl border border-brand-card-border rounded-[20px] shadow-[0_12px_60px_rgba(0,0,0,0.25)] overflow-hidden relative">
           
-          {/* Countdown progress bar at top */}
-          {!isExpired && (
-            <div className="h-1 w-full bg-brand-border relative overflow-hidden">
+          {/* Brand accent bar at the very top */}
+          <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-brand-gold to-brand-primary relative overflow-hidden">
+            {!isExpired && (
               <div
-                className="h-full bg-gradient-to-r from-[#C83F00] to-[#e65100] transition-all duration-1000 ease-linear"
-                style={{ width: `${progressPercent}%` }}
+                className="absolute top-0 right-0 h-full bg-brand-card/60 transition-all duration-1000 ease-linear"
+                style={{ width: `${100 - progressPercent}%` }}
               />
-            </div>
-          )}
-          {isExpired && (
-            <div className="h-1 w-full bg-red-500/60" />
-          )}
+            )}
+          </div>
 
           {/* Close button */}
           <button
             onClick={handleDismiss}
-            className="absolute top-3 right-3 h-7 w-7 flex items-center justify-center rounded-full bg-brand-bg/80 hover:bg-brand-border text-brand-text/40 hover:text-brand-text/70 transition-all duration-200 text-xs z-10 cursor-pointer"
+            className="absolute top-3.5 right-3.5 h-8 w-8 flex items-center justify-center rounded-full bg-brand-bg/60 hover:bg-brand-border/80 text-brand-text/40 hover:text-brand-text/70 transition-all duration-200 text-xs z-10 cursor-pointer backdrop-blur-sm border border-brand-border/30"
             aria-label="Fechar"
           >
-            ✕
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
           </button>
 
-          <div className="px-5 pt-5 pb-4 flex flex-col items-center gap-3.5 text-center">
+          <div className="px-6 pt-6 pb-5 flex flex-col items-center gap-4 text-center">
 
             {/* Countdown timer display */}
             {!isExpired ? (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
-                  Condição expira em
+              <div className="flex flex-col items-center gap-1.5">
+                <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-[0.2em]">
+                  Condição exclusiva expira em
                 </span>
-                <div className="flex items-center gap-1">
-                  <div className="bg-brand-bg border border-brand-border rounded-lg px-2.5 py-1.5 min-w-[36px] text-center">
-                    <span className="text-lg font-black text-[#C83F00] tabular-nums">{minutes}</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="bg-brand-bg border border-brand-border rounded-xl px-3 py-2 min-w-[42px] text-center">
+                    <span className="text-xl font-black text-brand-primary tabular-nums">{minutes}</span>
                   </div>
-                  <span className="text-lg font-black text-brand-text/30 animate-pulse">:</span>
-                  <div className="bg-brand-bg border border-brand-border rounded-lg px-2.5 py-1.5 min-w-[36px] text-center">
-                    <span className="text-lg font-black text-[#C83F00] tabular-nums">{secs}</span>
+                  <span className="text-xl font-black text-brand-text/20 animate-pulse">:</span>
+                  <div className="bg-brand-bg border border-brand-border rounded-xl px-3 py-2 min-w-[42px] text-center">
+                    <span className="text-xl font-black text-brand-primary tabular-nums">{secs}</span>
                   </div>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[9px] font-bold text-red-500/80 uppercase tracking-widest">
-                  Oferta expirada
+                <span className="text-[9px] font-bold text-red-500/80 uppercase tracking-[0.2em]">
+                  Tempo esgotado
                 </span>
-                <span className="text-xs text-brand-text/40">
-                  Mas você ainda pode falar conosco
+                <span className="text-[11px] text-brand-text/40 font-light">
+                  Mas você ainda pode garantir sua proposta
                 </span>
               </div>
             )}
 
             {/* Icon + Headlines */}
-            <div className="flex flex-col items-center gap-1.5">
-              <span className="text-2xl">{activeCampaign.icon}</span>
-              <h3 className="text-sm font-extrabold text-brand-text uppercase tracking-wide leading-tight max-w-xs">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-12 w-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-2xl">
+                {activeCampaign.icon}
+              </div>
+              <h3 className="text-sm font-extrabold text-brand-text uppercase tracking-wide leading-tight max-w-[300px]">
                 {title}
               </h3>
-              <p className="text-[11px] text-brand-text/55 leading-relaxed max-w-xs">
+              <p className="text-[11px] text-brand-text/50 leading-relaxed max-w-[300px] font-light">
                 {subtitle}
               </p>
             </div>
@@ -479,10 +535,14 @@ export default function LeadPopup() {
             {/* CTA WhatsApp/Action button */}
             <button
               onClick={handleCtaClick}
-              className="w-full h-12 bg-green-600 hover:bg-green-500 active:scale-[0.97] rounded-xl text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-green-900/15 cursor-pointer animate-pulseRing"
+              className={`w-full h-[52px] rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 shadow-lg cursor-pointer active:scale-[0.97] ${
+                activeCampaign.actionType === "whatsapp"
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20"
+                  : "bg-brand-primary hover:bg-brand-primary-hover text-white shadow-brand-primary/20"
+              }`}
             >
               {activeCampaign.actionType === "whatsapp" && (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4.5 h-4.5">
                   <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
                 </svg>
               )}
@@ -496,15 +556,15 @@ export default function LeadPopup() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
                 </svg>
               )}
-              {activeCampaign.ctaText}
+              {resolvedCtaText}
             </button>
 
             {/* Dismiss link */}
             <button
               onClick={handleDismiss}
-              className="text-[10px] text-brand-text/30 hover:text-brand-text/50 transition-colors duration-200 font-medium cursor-pointer py-0.5"
+              className="text-[10px] text-brand-text/25 hover:text-brand-text/50 transition-colors duration-200 font-medium cursor-pointer py-0.5"
             >
-              Não, obrigado
+              Não, obrigado. Talvez depois.
             </button>
           </div>
         </div>
