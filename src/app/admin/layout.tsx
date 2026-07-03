@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import SidebarNav from "../../components/admin/SidebarNav";
 import LogoutButton from "../../components/admin/LogoutButton";
@@ -52,7 +53,9 @@ export default async function AdminLayout({
           </div>
 
           {/* Navigation Links */}
-          <SidebarNav role={role} />
+          <Suspense fallback={<div className="h-40 animate-pulse bg-brand-card/30 rounded-xl" />}>
+            <SidebarNav role={role} />
+          </Suspense>
         </div>
 
         {/* User Card info inside sidebar */}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS } from "../app/ThemeContext";
 
@@ -172,8 +173,27 @@ export default function ConfiguracoesClientWrapper() {
     carouselVehicleIds: contextCarouselVehicleIds,
     updateCarouselVehicleIds,
   } = useTheme();
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get("tab") as "estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre" | null;
+
   const [activeTab, setActiveTab] = useState<"estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre">("estoque");
   const [loading, setLoading] = useState(true);
+
+  // Synchronize state with URL search param changes
+  useEffect(() => {
+    if (tabParam && ["estoque", "integracao", "popups", "destaques", "empresa", "sobre"].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (newTab: "estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre") => {
+    setActiveTab(newTab);
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", newTab);
+    router.replace(`/admin/configuracoes?${params.toString()}`);
+  };
 
   // Company settings states
   const [companyForm, setCompanyForm] = useState(companySettings);
@@ -853,7 +873,7 @@ export default function ConfiguracoesClientWrapper() {
         {/* Tab Switcher - Standard caixa alta uppercase */}
         <div className="flex items-center justify-start border-b border-brand-border/60 gap-4 mb-4">
           <button
-            onClick={() => setActiveTab("estoque")}
+            onClick={() => handleTabChange("estoque")}
             className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
               activeTab === "estoque"
                 ? "border-brand-primary text-brand-primary"
@@ -863,7 +883,7 @@ export default function ConfiguracoesClientWrapper() {
             Categorização de Estoque
           </button>
           <button
-            onClick={() => setActiveTab("integracao")}
+            onClick={() => handleTabChange("integracao")}
             className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
               activeTab === "integracao"
                 ? "border-brand-primary text-brand-primary"
@@ -873,7 +893,7 @@ export default function ConfiguracoesClientWrapper() {
             Integração & Layout
           </button>
           <button
-            onClick={() => setActiveTab("destaques")}
+            onClick={() => handleTabChange("destaques")}
             className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
               activeTab === "destaques"
                 ? "border-brand-primary text-brand-primary"
@@ -883,7 +903,7 @@ export default function ConfiguracoesClientWrapper() {
             Destaques Rápidos
           </button>
           <button
-            onClick={() => setActiveTab("popups")}
+            onClick={() => handleTabChange("popups")}
             className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
               activeTab === "popups"
                 ? "border-brand-primary text-brand-primary"
@@ -893,7 +913,7 @@ export default function ConfiguracoesClientWrapper() {
             Pop-ups de Lead
           </button>
           <button
-            onClick={() => setActiveTab("empresa")}
+            onClick={() => handleTabChange("empresa")}
             className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
               activeTab === "empresa"
                 ? "border-brand-primary text-brand-primary"
@@ -903,7 +923,7 @@ export default function ConfiguracoesClientWrapper() {
             Dados da Concessionária
           </button>
           <button
-            onClick={() => setActiveTab("sobre")}
+            onClick={() => handleTabChange("sobre")}
             className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
               activeTab === "sobre"
                 ? "border-brand-primary text-brand-primary"
