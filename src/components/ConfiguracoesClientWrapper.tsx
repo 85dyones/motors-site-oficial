@@ -238,8 +238,23 @@ export default function ConfiguracoesClientWrapper() {
       const loggedIn = sessionStorage.getItem("ag_admin_logged_in") === "true";
       if (loggedIn) {
         setIsAuthenticated(true);
+        return;
       }
     }
+
+    const checkSupabaseSession = async () => {
+      if (supabase) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            setIsAuthenticated(true);
+          }
+        } catch (err) {
+          console.warn("[Configuracoes] Failed to restore Supabase session:", err);
+        }
+      }
+    };
+    checkSupabaseSession();
   }, []);
 
   const getAuthToken = async (): Promise<string | null> => {
