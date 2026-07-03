@@ -103,6 +103,20 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const authHeader = request.headers.get("Authorization");
+    const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+
+    const body = await request.json();
+    const {
+      companySettings,
+      aboutSettings,
+      webhooks,
+      popups,
+      quickTags,
+      stockOverrides,
+      carouselVehicleIds
+    } = body;
+
     const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
     if (isSupabaseConfigured) {
@@ -203,7 +217,7 @@ export async function POST(request: Request) {
     console.log("[Settings API] Settings saved to Supabase successfully. Invalidating cache...");
     
     // Invalidate the settings cache tag on Edge
-    revalidateTag("settings");
+    revalidateTag("settings", "max");
 
     // 4. Optional local JSON file backup write (errors here are non-critical)
     try {

@@ -484,7 +484,7 @@ export default function CarMatch() {
       setRecommendations(top3);
 
       // Dispara telemetria de quiz de recomendação (Search) no GA4/Pixel
-      const tags = [answers.profile, answers.category, answers.budget || ""].filter(Boolean);
+      const tags = [answers.use, answers.category].filter(Boolean);
       trackCarMatch(tags, top3.length);
 
       // Trigger Telemetry logs for coordination

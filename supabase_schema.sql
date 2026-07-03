@@ -183,3 +183,303 @@ CREATE POLICY "Allow public insert access" ON public.veiculos
     FOR INSERT WITH CHECK (true);
 
 
+-- ==========================================================
+-- 6. TABELA DE PERFIS DE USUÁRIOS E CONTROLE DE ACESSO (AUTH)
+-- ==========================================================
+
+-- Criar a tabela 'profiles' para estender auth.users
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'comercial' CHECK (role IN ('admin', 'comercial', 'financeiro')),
+  avatar_url TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS
+DROP POLICY IF EXISTS "Users read own profile" ON public.profiles;
+CREATE POLICY "Users read own profile" ON public.profiles
+  FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins read all profiles" ON public.profiles;
+CREATE POLICY "Admins read all profiles" ON public.profiles
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins manage all profiles" ON public.profiles;
+CREATE POLICY "Admins manage all profiles" ON public.profiles
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Trigger para criação automática de perfil no cadastro do usuário
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', 'Novo Usuário'),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'comercial')
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+-- ==========================================================
+-- 7. TABELAS DO MÓDULO FINANCEIRO E ADMINISTRATIVO
+-- ==========================================================
+
+-- 7.1. Tabela de Categorias Financeiras
+CREATE TABLE IF NOT EXISTS public.categorias_financeiras (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('receita', 'despesa')),
+  cor TEXT DEFAULT '#6B7280',
+  icone TEXT DEFAULT '📁',
+  ativa BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.categorias_financeiras ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para categorias_financeiras (Apenas admin e financeiro)
+DROP POLICY IF EXISTS "Finance categories access" ON public.categorias_financeiras;
+CREATE POLICY "Finance categories access" ON public.categorias_financeiras
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+      AND role IN ('admin', 'financeiro')
+      AND is_active = true
+    )
+  );
+
+-- Inserir Categorias Padrão
+INSERT INTO public.categorias_financeiras (nome, tipo, cor, icone) VALUES
+('Venda de Veículo', 'receita', '#10B981', '🚗'),
+('Financiamento / Consórcio', 'receita', '#3B82F6', '🏦'),
+('Serviços Mecânicos', 'receita', '#8B5CF6', '🔧'),
+('Venda de Acessórios', 'receita', '#F59E0B', '🎒'),
+('Outras Receitas', 'receita', '#6B7280', '💵'),
+('Aluguel da Loja', 'despesa', '#EF4444', '🏠'),
+('Energia Elétrica', 'despesa', '#F59E0B', '⚡'),
+('Água e Saneamento', 'despesa', '#3B82F6', '💧'),
+('Internet / Telefone', 'despesa', '#6366F1', '🌐'),
+('Combustível', 'despesa', '#EC4899', '⛽'),
+('Manutenção da Loja', 'despesa', '#14B8A6', '🛠️'),
+('Salários e Comissões', 'despesa', '#10B981', '👥'),
+('Impostos e Taxas', 'despesa', '#F43F5E', '📄'),
+('Marketing e Tráfego', 'despesa', '#8B5CF6', '📢'),
+('Compra de Veículo (Estoque)', 'despesa', '#EF4444', '🔑'),
+('Outras Despesas', 'despesa', '#6B7280', '💸')
+ON CONFLICT DO NOTHING;
+
+-- 7.2. Tabela de Contas (A Pagar e A Receber)
+CREATE TABLE IF NOT EXISTS public.contas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tipo TEXT NOT NULL CHECK (tipo IN ('pagar', 'receber')),
+  descricao TEXT NOT NULL,
+  valor DECIMAL(12,2) NOT NULL,
+  data_emissao DATE NOT NULL DEFAULT CURRENT_DATE,
+  data_vencimento DATE NOT NULL,
+  data_pagamento DATE,
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago', 'vencido', 'cancelado', 'parcial')),
+  categoria_id UUID REFERENCES public.categorias_financeiras(id),
+  veiculo_id TEXT, -- Referência ao veículo do inventário
+  fornecedor TEXT,
+  cliente TEXT,
+  forma_pagamento TEXT CHECK (forma_pagamento IN (
+    'dinheiro', 'pix', 'cartao_credito', 'cartao_debito',
+    'boleto', 'transferencia', 'cheque', 'financiamento'
+  )),
+  parcela_atual INTEGER DEFAULT 1,
+  total_parcelas INTEGER DEFAULT 1,
+  grupo_parcela UUID,
+  recorrencia_id UUID,
+  observacoes TEXT,
+  comprovante_url TEXT,
+  notificado BOOLEAN DEFAULT false,
+  created_by UUID REFERENCES public.profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Índices de Performance
+CREATE INDEX IF NOT EXISTS idx_contas_vencimento ON public.contas(data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_contas_status ON public.contas(status);
+CREATE INDEX IF NOT EXISTS idx_contas_tipo ON public.contas(tipo);
+CREATE INDEX IF NOT EXISTS idx_contas_categoria ON public.contas(categoria_id);
+
+-- Habilitar RLS
+ALTER TABLE public.contas ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para contas (Apenas admin e financeiro)
+DROP POLICY IF EXISTS "Finance accounts access" ON public.contas;
+CREATE POLICY "Finance accounts access" ON public.contas
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+      AND role IN ('admin', 'financeiro')
+      AND is_active = true
+    )
+  );
+
+-- 7.3. Tabela de Despesas Recorrentes
+CREATE TABLE IF NOT EXISTS public.despesas_recorrentes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  descricao TEXT NOT NULL,
+  valor DECIMAL(12,2) NOT NULL,
+  categoria_id UUID REFERENCES public.categorias_financeiras(id),
+  fornecedor TEXT,
+  frequencia TEXT NOT NULL CHECK (frequencia IN (
+    'semanal', 'quinzenal', 'mensal', 'bimestral',
+    'trimestral', 'semestral', 'anual'
+  )),
+  dia_vencimento INTEGER CHECK (dia_vencimento BETWEEN 1 AND 31),
+  forma_pagamento TEXT,
+  ativa BOOLEAN DEFAULT true,
+  proxima_geracao DATE,
+  observacoes TEXT,
+  created_by UUID REFERENCES public.profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.despesas_recorrentes ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para despesas_recorrentes
+DROP POLICY IF EXISTS "Finance recurring access" ON public.despesas_recorrentes;
+CREATE POLICY "Finance recurring access" ON public.despesas_recorrentes
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+      AND role IN ('admin', 'financeiro')
+      AND is_active = true
+    )
+  );
+
+-- 7.4. Tabela de Compras de Produtos
+CREATE TABLE IF NOT EXISTS public.compras_produtos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  descricao TEXT NOT NULL,
+  fornecedor TEXT NOT NULL,
+  valor_total DECIMAL(12,2) NOT NULL,
+  quantidade INTEGER DEFAULT 1,
+  valor_unitario DECIMAL(12,2),
+  data_compra DATE NOT NULL DEFAULT CURRENT_DATE,
+  categoria TEXT CHECK (categoria IN (
+    'peca_reposicao', 'acessorio', 'material_escritorio',
+    'material_limpeza', 'combustivel', 'ferramenta', 'outro'
+  )),
+  veiculo_id TEXT,
+  nota_fiscal TEXT,
+  status TEXT DEFAULT 'recebido' CHECK (status IN ('pendente', 'encomendado', 'recebido', 'cancelado')),
+  conta_id UUID REFERENCES public.contas(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES public.profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.compras_produtos ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para compras_produtos
+DROP POLICY IF EXISTS "Finance purchases access" ON public.compras_produtos;
+CREATE POLICY "Finance purchases access" ON public.compras_produtos
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+      AND role IN ('admin', 'financeiro')
+      AND is_active = true
+    )
+  );
+
+-- 7.5. Tabela de Movimentações (Audit Log / Extrato)
+CREATE TABLE IF NOT EXISTS public.movimentacoes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conta_id UUID REFERENCES public.contas(id) ON DELETE SET NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'saida')),
+  valor DECIMAL(12,2) NOT NULL,
+  descricao TEXT NOT NULL,
+  data_movimentacao DATE NOT NULL DEFAULT CURRENT_DATE,
+  forma_pagamento TEXT,
+  created_by UUID REFERENCES public.profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.movimentacoes ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para movimentacoes
+DROP POLICY IF EXISTS "Finance movements access" ON public.movimentacoes;
+CREATE POLICY "Finance movements access" ON public.movimentacoes
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+      AND role IN ('admin', 'financeiro')
+      AND is_active = true
+    )
+  );
+
+-- 7.6. Tabela de Notificações Financeiras
+CREATE TABLE IF NOT EXISTS public.notificacoes_financeiras (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conta_id UUID REFERENCES public.contas(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN (
+    'vencimento_proximo', 'vencido', 'pago', 'cancelado'
+  )),
+  mensagem TEXT NOT NULL,
+  enviada BOOLEAN DEFAULT false,
+  canal TEXT DEFAULT 'webhook',
+  enviada_em TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.notificacoes_financeiras ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para notificacoes_financeiras
+DROP POLICY IF EXISTS "Finance notifications access" ON public.notificacoes_financeiras;
+CREATE POLICY "Finance notifications access" ON public.notificacoes_financeiras
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+      AND role IN ('admin', 'financeiro')
+      AND is_active = true
+    )
+  );
+
+-- 7.7. Função Utilitária para Atualizar Contas Vencidas Diariamente
+CREATE OR REPLACE FUNCTION public.atualizar_contas_vencidas()
+RETURNS void AS $$
+BEGIN
+  UPDATE public.contas
+  SET status = 'vencido', updated_at = now()
+  WHERE status = 'pendente'
+    AND data_vencimento < CURRENT_DATE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+
+
