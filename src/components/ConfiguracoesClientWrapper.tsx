@@ -233,7 +233,7 @@ export default function ConfiguracoesClientWrapper() {
   // Authentication states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [authError, setAuthError] = useState("");
   
   // Stock data states
@@ -768,79 +768,7 @@ export default function ConfiguracoesClientWrapper() {
   const bodyTypes = ["SUV", "Sedan", "Picape", "Hatch", "Esportivo", "Conversível", "Coupe", "Wagon", "Premium"];
   const usageProfiles = ["URBANO & EFICIENTE", "FORÇA & OFF-ROAD", "LINHAGEM ESPORTIVA", "CURADORIA EXCLUSIVA"];
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col flex-grow items-center justify-center bg-brand-bg text-brand-text transition-colors duration-300 py-16 px-4 sm:px-6 lg:px-8 min-h-[75vh]">
-        <div className="max-w-md w-full bg-brand-card border border-brand-card-border p-8 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)] relative overflow-hidden backdrop-blur-md">
-          {/* Accent Glows */}
-          <div className="absolute -left-16 -top-16 h-36 w-36 rounded-full bg-brand-primary/5 blur-[50px] pointer-events-none" />
-          <div className="absolute -right-16 -bottom-16 h-36 w-36 rounded-full bg-brand-primary/5 blur-[50px] pointer-events-none" />
-          
-          <div className="flex flex-col items-center text-center gap-1.5 mb-8">
-            <span className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.2em]">
-              ÁREA RESTRITA
-            </span>
-            <h2 className="text-xl font-extrabold text-brand-text tracking-tight uppercase">
-              Acesso ao Painel
-            </h2>
-            <p className="text-xs text-brand-text/50">
-              Insira suas credenciais administrativas para gerenciar o site.
-            </p>
-          </div>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            {authError && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-[11px] px-3.5 py-2.5 rounded-xl flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
-                </svg>
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="auth-email" className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">E-mail</label>
-              <input
-                id="auth-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nome@dominio.com.br"
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-                style={{ minHeight: "48px" }}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="auth-password" className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Senha</label>
-              <input
-                id="auth-password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-                style={{ minHeight: "48px" }}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full h-12 bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white font-extrabold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:opacity-95 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 mt-2 cursor-pointer"
-              style={{ minHeight: "48px" }}
-            >
-              Acessar Painel
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.22 5.03a.75.75 0 1 1 1.06-1.06l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06l4.168-4.17H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   const getTabLabel = (tab: string) => {
     switch (tab) {
