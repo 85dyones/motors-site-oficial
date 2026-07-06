@@ -38,18 +38,23 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   const [totalParcelas, setTotalParcelas] = useState("1");
   const [observacoes, setObservacoes] = useState("");
 
+  const [partners, setPartners] = useState<{ id: string; nome: string; tipo: string }[]>([]);
+  const [customFornecedor, setCustomFornecedor] = useState(false);
+  const [customCliente, setCustomCliente] = useState(false);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Fetch categories and vehicles on mount
+    // Fetch categories, vehicles and partners on mount
     const loadFormData = async () => {
       try {
-        const [catRes, vehRes] = await Promise.all([
+        const [catRes, vehRes, partRes] = await Promise.all([
           fetch("/api/financeiro/categorias"),
           fetch("/api/estoque"),
+          fetch("/api/financeiro/parceiros"),
         ]);
         
         if (catRes.ok) {
@@ -60,6 +65,10 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           const vehData = await vehRes.json();
           setVehicles(vehData.veiculos || []);
         }
+        if (partRes.ok) {
+          const partData = await partRes.json();
+          setPartners(partData.partners || []);
+        }
       } catch (err) {
         console.error("Failed to load form fields options:", err);
       }
@@ -67,6 +76,18 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
 
     loadFormData();
   }, []);
+
+  useEffect(() => {
+    if (fornecedor && partners.length > 0 && !partners.some(p => (p.tipo === "fornecedor" || p.tipo === "ambos") && p.nome === fornecedor)) {
+      setCustomFornecedor(true);
+    }
+  }, [fornecedor, partners]);
+
+  useEffect(() => {
+    if (cliente && partners.length > 0 && !partners.some(p => (p.tipo === "cliente" || p.tipo === "ambos") && p.nome === cliente)) {
+      setCustomCliente(true);
+    }
+  }, [cliente, partners]);
 
   useEffect(() => {
     // If in EDIT mode, fetch existing account details
@@ -282,25 +303,101 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           {/* Fornecedor / Cliente (Conditional) */}
           {tipo === "pagar" ? (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Fornecedor</label>
-              <input
-                type="text"
-                value={fornecedor}
-                onChange={(e) => setFornecedor(e.target.value)}
-                placeholder="Nome do fornecedor"
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-              />
+              <div className="flex items-center justify-between pl-1">
+                <label className="text-[10px] font-bold uppercase text-brand-text/50">Fornecedor</label>
+                {partners.some(p => p.tipo === "fornecedor" || p.tipo === "ambos") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomFornecedor(!customFornecedor);
+                      setFornecedor("");
+                    }}
+                    className="text-[9px] font-extrabold text-brand-primary uppercase hover:underline cursor-pointer"
+                  >
+                    {customFornecedor ? "Selecionar Cadastrado" : "Digitar Manual"}
+                  </button>
+                )}
+              </div>
+              
+              {customFornecedor || !partners.some(p => p.tipo === "fornecedor" || p.tipo === "ambos") ? (
+                <input
+                  type="text"
+                  required
+                  value={fornecedor}
+                  onChange={(e) => setFornecedor(e.target.value)}
+                  placeholder="Nome do fornecedor"
+                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+                />
+              ) : (
+                <select
+                  value={fornecedor}
+                  required
+                  onChange={(e) => {
+                    if (e.target.value === "__manual__") {
+                      setCustomFornecedor(true);
+                      setFornecedor("");
+                    } else {
+                      setFornecedor(e.target.value);
+                    }
+                  }}
+                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                >
+                  <option value="">Selecione um fornecedor...</option>
+                  {partners.filter(p => p.tipo === "fornecedor" || p.tipo === "ambos").map(p => (
+                    <option key={p.id} value={p.nome}>{p.nome}</option>
+                  ))}
+                  <option value="__manual__">➕ Digitar Manualmente...</option>
+                </select>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Cliente</label>
-              <input
-                type="text"
-                value={cliente}
-                onChange={(e) => setCliente(e.target.value)}
-                placeholder="Nome do cliente"
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-              />
+              <div className="flex items-center justify-between pl-1">
+                <label className="text-[10px] font-bold uppercase text-brand-text/50">Cliente</label>
+                {partners.some(p => p.tipo === "cliente" || p.tipo === "ambos") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomCliente(!customCliente);
+                      setCliente("");
+                    }}
+                    className="text-[9px] font-extrabold text-brand-primary uppercase hover:underline cursor-pointer"
+                  >
+                    {customCliente ? "Selecionar Cadastrado" : "Digitar Manual"}
+                  </button>
+                )}
+              </div>
+
+              {customCliente || !partners.some(p => p.tipo === "cliente" || p.tipo === "ambos") ? (
+                <input
+                  type="text"
+                  required
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                  placeholder="Nome do cliente"
+                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+                />
+              ) : (
+                <select
+                  value={cliente}
+                  required
+                  onChange={(e) => {
+                    if (e.target.value === "__manual__") {
+                      setCustomCliente(true);
+                      setCliente("");
+                    } else {
+                      setCliente(e.target.value);
+                    }
+                  }}
+                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                >
+                  <option value="">Selecione um cliente...</option>
+                  {partners.filter(p => p.tipo === "cliente" || p.tipo === "ambos").map(p => (
+                    <option key={p.id} value={p.nome}>{p.nome}</option>
+                  ))}
+                  <option value="__manual__">➕ Digitar Manualmente...</option>
+                </select>
+              )}
             </div>
           )}
 

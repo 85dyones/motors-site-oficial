@@ -87,6 +87,24 @@ export default function SidebarNav({ role }: SidebarNavProps) {
             </svg>
           ),
         },
+        {
+          name: "Cadastros Auxiliares",
+          href: "/admin/financeiro/cadastros",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Zm3.75 3.25a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Zm0 3.5a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Zm0 3.5a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5h-5.5Z" />
+            </svg>
+          ),
+        },
+        {
+          name: "Margem por Veículo",
+          href: "/admin/financeiro/margens",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M1 4.75a2.75 2.75 0 0 1 2.75-2.75h12.5a2.75 2.75 0 0 1 2.75 2.75v10.5a2.75 2.75 0 0 1-2.75 2.75H3.75A2.75 2.75 0 0 1 1 15.25V4.75ZM3.75 3.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h12.5c.69 0 1.25-.56 1.25-1.25V4.75c0-.69-.56-1.25-1.25-1.25H3.75Z" />
+            </svg>
+          ),
+        },
       ],
     },
     {

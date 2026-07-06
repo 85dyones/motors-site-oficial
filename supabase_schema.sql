@@ -276,6 +276,26 @@ DROP POLICY IF EXISTS "Finance categories access" ON public.categorias_financeir
 CREATE POLICY "Finance categories access" ON public.categorias_financeiras
   FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
+-- 7.1.B. Tabela de Parceiros (Fornecedores e Clientes)
+CREATE TABLE IF NOT EXISTS public.parceiros (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('fornecedor', 'cliente', 'ambos')),
+  documento TEXT, -- CPF ou CNPJ
+  telefone TEXT,
+  email TEXT,
+  created_by UUID REFERENCES public.profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.parceiros ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para parceiros
+DROP POLICY IF EXISTS "Finance partners access" ON public.parceiros;
+CREATE POLICY "Finance partners access" ON public.parceiros
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
+
 -- Inserir Categorias Padrão
 INSERT INTO public.categorias_financeiras (nome, tipo, cor, icone) VALUES
 ('Venda de Veículo', 'receita', '#10B981', '🚗'),
