@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserSupabaseClient } from "../lib/supabase-browser";
+import { loginAction } from "../app/actions/auth";
 
 export default function LoginForm() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -17,22 +15,21 @@ export default function LoginForm() {
     setAuthError("");
 
     try {
-      const supabase = createBrowserSupabaseClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const formData = new FormData();
+      formData.append("email", email);
+      formData.append("password", password);
 
-      if (error) {
-        // Fallback warning for old hardcoded credentials
+      const result = await loginAction(formData);
+
+      if (result.error) {
         if (email === "motors@motorsstoreoficial.com.br" && password === "test123456") {
           setAuthError("O fallback local foi descontinuado. Cadastre este usuário no painel do Supabase Auth.");
         } else {
-          setAuthError(error.message || "Erro na autenticação. Tente novamente.");
+          setAuthError(result.error);
         }
-      } else if (data?.user) {
-        router.push("/admin/configuracoes");
-        router.refresh();
+      } else {
+        // Use full page load to ensure cookies are sent with the next request
+        window.location.href = "/admin/configuracoes";
       }
     } catch (err: any) {
       setAuthError(err.message || "Conexão com servidor falhou.");
