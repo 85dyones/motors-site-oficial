@@ -188,7 +188,7 @@ export default function RecorrentesList() {
       {/* Grid List layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Table representation */}
-        <div className="lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md">
+        <div className={`lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md ${isFormOpen ? "hidden lg:block" : "block"}`}>
           {isLoading ? (
             <div className="py-12 text-center text-xs text-brand-text/50">Carregando despesas recorrentes...</div>
           ) : recorrentes.length === 0 ? (
@@ -271,7 +271,7 @@ export default function RecorrentesList() {
         </div>
 
         {/* Right side form */}
-        <div className="lg:col-span-1">
+        <div className={`lg:col-span-1 ${isFormOpen ? "block" : "hidden lg:block"}`}>
           {isFormOpen ? (
             <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">
               <h3 className="text-sm font-extrabold uppercase text-brand-text select-none">

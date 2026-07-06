@@ -220,7 +220,7 @@ export default function ContasList({ tipo }: ContasListProps) {
       {/* Grid Layout: Table vs Action Form Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Side: Table & Filters */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className={`lg:col-span-2 flex flex-col gap-4 ${(isFormOpen || payingBill) ? "hidden lg:flex" : "flex"}`}>
           {/* Quick Date Filters row */}
           <div className="flex flex-wrap items-center gap-3 bg-brand-card/10 border border-brand-border/20 rounded-2xl p-4 select-none">
             <div className="flex items-center gap-2">
@@ -351,7 +351,7 @@ export default function ContasList({ tipo }: ContasListProps) {
         </div>
 
         {/* Right Side: Form Action Panel */}
-        <div className="lg:col-span-1">
+        <div className={`lg:col-span-1 ${(isFormOpen || payingBill) ? "block" : "hidden lg:block"}`}>
           {/* Launch / Edit Account Form */}
           {isFormOpen && (
             <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">

@@ -783,14 +783,12 @@ export default function ConfiguracoesClientWrapper() {
   };
 
   return (
-    <div className="flex flex-col flex-grow items-center justify-start bg-brand-bg text-brand-text transition-colors duration-300 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto w-full flex flex-col gap-6">
+    <div className="flex flex-col flex-grow w-full text-brand-text transition-colors duration-300">
+      <div className="w-full flex flex-col gap-6">
         
-
-
         {/* Title Header */}
         <section className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-2">
-          <div className="flex flex-col gap-1.5 text-center sm:text-left">
+          <div className="flex flex-col gap-1.5 text-left">
             <span className="text-[10px] font-bold text-brand-primary uppercase tracking-[0.2em]">
               Painel de Configuração
             </span>
@@ -801,13 +799,6 @@ export default function ConfiguracoesClientWrapper() {
               Gerencie as definições e parametrizações do seu site com segurança em tempo real.
             </p>
           </div>
-          
-          <button
-            onClick={handleLogout}
-            className="self-center sm:self-start h-9 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 border border-red-500/25 hover:border-red-500/40 text-[9px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-300 active:scale-95 cursor-pointer shrink-0"
-          >
-            Sair do Painel
-          </button>
         </section>
 
         {/* Tab Content */}
