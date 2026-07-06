@@ -202,6 +202,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Habilitar RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Funções auxiliares para evitar recursão infinita no RLS
+CREATE OR REPLACE FUNCTION public.is_admin(user_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = user_id AND role = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.has_finance_access(user_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = user_id AND role IN ('admin', 'financeiro') AND is_active = true
+  );
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+
 -- Políticas de RLS
 DROP POLICY IF EXISTS "Users read own profile" ON public.profiles;
 CREATE POLICY "Users read own profile" ON public.profiles
@@ -209,15 +226,11 @@ CREATE POLICY "Users read own profile" ON public.profiles
 
 DROP POLICY IF EXISTS "Admins read all profiles" ON public.profiles;
 CREATE POLICY "Admins read all profiles" ON public.profiles
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR SELECT USING ( public.is_admin(auth.uid()) );
 
 DROP POLICY IF EXISTS "Admins manage all profiles" ON public.profiles;
 CREATE POLICY "Admins manage all profiles" ON public.profiles
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR ALL USING ( public.is_admin(auth.uid()) );
 
 -- Trigger para criação automática de perfil no cadastro do usuário
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -261,14 +274,7 @@ ALTER TABLE public.categorias_financeiras ENABLE ROW LEVEL SECURITY;
 -- Políticas de RLS para categorias_financeiras (Apenas admin e financeiro)
 DROP POLICY IF EXISTS "Finance categories access" ON public.categorias_financeiras;
 CREATE POLICY "Finance categories access" ON public.categorias_financeiras
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('admin', 'financeiro')
-      AND is_active = true
-    )
-  );
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
 -- Inserir Categorias Padrão
 INSERT INTO public.categorias_financeiras (nome, tipo, cor, icone) VALUES
@@ -332,14 +338,7 @@ ALTER TABLE public.contas ENABLE ROW LEVEL SECURITY;
 -- Políticas de RLS para contas (Apenas admin e financeiro)
 DROP POLICY IF EXISTS "Finance accounts access" ON public.contas;
 CREATE POLICY "Finance accounts access" ON public.contas
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('admin', 'financeiro')
-      AND is_active = true
-    )
-  );
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
 -- 7.3. Tabela de Despesas Recorrentes
 CREATE TABLE IF NOT EXISTS public.despesas_recorrentes (
@@ -367,14 +366,7 @@ ALTER TABLE public.despesas_recorrentes ENABLE ROW LEVEL SECURITY;
 -- Políticas de RLS para despesas_recorrentes
 DROP POLICY IF EXISTS "Finance recurring access" ON public.despesas_recorrentes;
 CREATE POLICY "Finance recurring access" ON public.despesas_recorrentes
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('admin', 'financeiro')
-      AND is_active = true
-    )
-  );
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
 -- 7.4. Tabela de Compras de Produtos
 CREATE TABLE IF NOT EXISTS public.compras_produtos (
@@ -403,14 +395,7 @@ ALTER TABLE public.compras_produtos ENABLE ROW LEVEL SECURITY;
 -- Políticas de RLS para compras_produtos
 DROP POLICY IF EXISTS "Finance purchases access" ON public.compras_produtos;
 CREATE POLICY "Finance purchases access" ON public.compras_produtos
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('admin', 'financeiro')
-      AND is_active = true
-    )
-  );
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
 -- 7.5. Tabela de Movimentações (Audit Log / Extrato)
 CREATE TABLE IF NOT EXISTS public.movimentacoes (
@@ -431,14 +416,7 @@ ALTER TABLE public.movimentacoes ENABLE ROW LEVEL SECURITY;
 -- Políticas de RLS para movimentacoes
 DROP POLICY IF EXISTS "Finance movements access" ON public.movimentacoes;
 CREATE POLICY "Finance movements access" ON public.movimentacoes
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('admin', 'financeiro')
-      AND is_active = true
-    )
-  );
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
 -- 7.6. Tabela de Notificações Financeiras
 CREATE TABLE IF NOT EXISTS public.notificacoes_financeiras (
@@ -460,14 +438,7 @@ ALTER TABLE public.notificacoes_financeiras ENABLE ROW LEVEL SECURITY;
 -- Políticas de RLS para notificacoes_financeiras
 DROP POLICY IF EXISTS "Finance notifications access" ON public.notificacoes_financeiras;
 CREATE POLICY "Finance notifications access" ON public.notificacoes_financeiras
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid()
-      AND role IN ('admin', 'financeiro')
-      AND is_active = true
-    )
-  );
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
 -- 7.7. Função Utilitária para Atualizar Contas Vencidas Diariamente
 CREATE OR REPLACE FUNCTION public.atualizar_contas_vencidas()
