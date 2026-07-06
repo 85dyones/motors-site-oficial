@@ -28,7 +28,7 @@ if (redisUrl && redisToken) {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // 1. Apply rate limit to lead capture endpoints
