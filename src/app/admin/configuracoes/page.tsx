@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import ConfiguracoesClientWrapper from "../../../components/ConfiguracoesClientWrapper";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Configurações do Site — Motors Showcase",
   description: "Gerencie o estoque, temas, integrações e popups.",

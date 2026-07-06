@@ -4,6 +4,8 @@ import { createServerSupabaseClient } from "../../lib/supabase-server";
 import SidebarNav from "../../components/admin/SidebarNav";
 import LogoutButton from "../../components/admin/LogoutButton";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {
@@ -17,14 +19,22 @@ export default async function AdminLayout({
   }
 
   // Fetch profile
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role, full_name")
     .eq("id", user.id)
     .single();
 
-  // Fallback role: default to admin if email matches standard motors email, else comercial
-  const role = profile?.role ?? (user.email === "motors@motorsstoreoficial.com.br" ? "admin" : "comercial");
+  if (profileError) {
+    console.error("[AdminLayout] Profile fetch error:", profileError.message);
+  }
+
+  // Fallback role: default to admin if email matches standard motors email or dyones@gmail.com, else comercial
+  const role = profile?.role ?? (
+    (user.email === "motors@motorsstoreoficial.com.br" || user.email?.toLowerCase() === "dyones@gmail.com") 
+      ? "admin" 
+      : "comercial"
+  );
   const fullName = profile?.full_name ?? user.email?.split("@")[0] ?? "Usuário";
 
   const getRoleLabel = (r: string) => {

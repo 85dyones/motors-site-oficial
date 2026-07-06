@@ -109,7 +109,11 @@ export async function proxy(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      const role = profile?.role ?? (user.email === "motors@motorsstoreoficial.com.br" ? "admin" : "comercial");
+      const role = profile?.role ?? (
+        (user.email === "motors@motorsstoreoficial.com.br" || user.email?.toLowerCase() === "dyones@gmail.com") 
+          ? "admin" 
+          : "comercial"
+      );
 
       // Admins access everything. Check specific constraints:
       if (role !== "admin") {
