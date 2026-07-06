@@ -842,6 +842,18 @@ export default function ConfiguracoesClientWrapper() {
     );
   }
 
+  const getTabLabel = (tab: string) => {
+    switch (tab) {
+      case "estoque": return "Categorização de Estoque";
+      case "integracao": return "Integração & Layout";
+      case "destaques": return "Destaques Rápidos";
+      case "popups": return "Pop-ups de Lead";
+      case "empresa": return "Dados da Concessionária";
+      case "sobre": return "Página Quem Somos";
+      default: return "Controle Administrativo";
+    }
+  };
+
   return (
     <div className="flex flex-col flex-grow items-center justify-start bg-brand-bg text-brand-text transition-colors duration-300 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto w-full flex flex-col gap-6">
@@ -852,13 +864,13 @@ export default function ConfiguracoesClientWrapper() {
         <section className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-2">
           <div className="flex flex-col gap-1.5 text-center sm:text-left">
             <span className="text-[10px] font-bold text-brand-primary uppercase tracking-[0.2em]">
-              PAINEL DE CONFIGURAÇÃO DO SITE
+              Painel de Configuração
             </span>
             <h1 className="text-2xl font-extrabold text-brand-text tracking-tight uppercase">
-              🤖 CONTROLE ADMINISTRATIVO
+              🤖 {getTabLabel(activeTab)}
             </h1>
             <p className="text-xs text-brand-text/60 leading-relaxed font-light">
-              Gerencie categorizações de estoque, parametrização de canais de webhooks para o n8n e personalize a experiência de buscas e de IA de forma segura.
+              Gerencie as definições e parametrizações do seu site com segurança em tempo real.
             </p>
           </div>
           
@@ -869,70 +881,6 @@ export default function ConfiguracoesClientWrapper() {
             Sair do Painel
           </button>
         </section>
-
-        {/* Tab Switcher - Standard caixa alta uppercase */}
-        <div className="flex items-center justify-start border-b border-brand-border/60 gap-4 mb-4">
-          <button
-            onClick={() => handleTabChange("estoque")}
-            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
-              activeTab === "estoque"
-                ? "border-brand-primary text-brand-primary"
-                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
-            }`}
-          >
-            Categorização de Estoque
-          </button>
-          <button
-            onClick={() => handleTabChange("integracao")}
-            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
-              activeTab === "integracao"
-                ? "border-brand-primary text-brand-primary"
-                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
-            }`}
-          >
-            Integração & Layout
-          </button>
-          <button
-            onClick={() => handleTabChange("destaques")}
-            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
-              activeTab === "destaques"
-                ? "border-brand-primary text-brand-primary"
-                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
-            }`}
-          >
-            Destaques Rápidos
-          </button>
-          <button
-            onClick={() => handleTabChange("popups")}
-            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
-              activeTab === "popups"
-                ? "border-brand-primary text-brand-primary"
-                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
-            }`}
-          >
-            Pop-ups de Lead
-          </button>
-          <button
-            onClick={() => handleTabChange("empresa")}
-            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
-              activeTab === "empresa"
-                ? "border-brand-primary text-brand-primary"
-                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
-            }`}
-          >
-            Dados da Concessionária
-          </button>
-          <button
-            onClick={() => handleTabChange("sobre")}
-            className={`py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
-              activeTab === "sobre"
-                ? "border-brand-primary text-brand-primary"
-                : "border-transparent text-brand-text/40 hover:text-brand-text/70"
-            }`}
-          >
-            Página Quem Somos
-          </button>
-        </div>
 
         {/* Tab Content */}
         {loading ? (

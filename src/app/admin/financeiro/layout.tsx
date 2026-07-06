@@ -1,5 +1,3 @@
-import FinanceHeaderNav from "../../../components/financeiro/FinanceHeaderNav";
-
 export const metadata = {
   title: "Financeiro — Motors Showcase",
 };
@@ -20,9 +18,6 @@ export default function FinanceLayout({
           Controle de fluxo de caixa, contas a pagar, receber, despesas recorrentes e compras.
         </p>
       </div>
-
-      {/* Tabs Navigation */}
-      <FinanceHeaderNav />
 
       {/* Page Content */}
       <div className="w-full">
