@@ -21,7 +21,9 @@ export async function POST() {
       .eq("id", "webhooks")
       .single();
 
-    const webhookUrl = webhookSettings?.data?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL;
+    const webhookUrl = webhookSettings?.data?.webhookNotificacoesUrl 
+      || webhookSettings?.data?.webhookUrl 
+      || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL;
 
     if (!webhookUrl) {
       return NextResponse.json({ error: "Webhook URL de integrações não configurada" }, { status: 400 });

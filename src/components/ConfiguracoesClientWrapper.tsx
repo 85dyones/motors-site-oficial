@@ -252,6 +252,8 @@ export default function ConfiguracoesClientWrapper() {
   const [webhookStatus, setWebhookStatus] = useState<"idle" | "saved">("idle");
   const [webhookAvaliacaoUrl, setWebhookAvaliacaoUrl] = useState("");
   const [webhookAvaliacaoStatus, setWebhookAvaliacaoStatus] = useState<"idle" | "saved">("idle");
+  const [webhookNotificacoesUrl, setWebhookNotificacoesUrl] = useState("");
+  const [webhookNotificacoesStatus, setWebhookNotificacoesStatus] = useState<"idle" | "saved">("idle");
 
   // Check login state on session restore
   useEffect(() => {
@@ -390,6 +392,7 @@ export default function ConfiguracoesClientWrapper() {
     if (contextWebhooks) {
       setWebhookUrl(contextWebhooks.webhookUrl || "");
       setWebhookAvaliacaoUrl(contextWebhooks.webhookAvaliacaoUrl || "");
+      setWebhookNotificacoesUrl(contextWebhooks.webhookNotificacoesUrl || "");
     }
   }, [contextWebhooks]);
 
@@ -539,7 +542,8 @@ export default function ConfiguracoesClientWrapper() {
     try {
       await updateWebhooks({
         webhookUrl: webhookUrl.trim(),
-        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim()
+        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim()
       });
       setWebhookStatus("saved");
       console.log(`[Telemetry] Webhook de recebimento de leads atualizado para: ${webhookUrl}`);
@@ -555,13 +559,31 @@ export default function ConfiguracoesClientWrapper() {
     try {
       await updateWebhooks({
         webhookUrl: webhookUrl.trim(),
-        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim()
+        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim()
       });
       setWebhookAvaliacaoStatus("saved");
       console.log(`[Telemetry] Webhook de avaliação de veículos atualizado para: ${webhookAvaliacaoUrl}`);
       setTimeout(() => setWebhookAvaliacaoStatus("idle"), 2500);
     } catch (e) {
       console.error("Failed to save custom evaluation webhook:", e);
+    }
+  };
+
+  // Save notification webhook URL
+  const handleSaveWebhookNotificacoes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateWebhooks({
+        webhookUrl: webhookUrl.trim(),
+        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim()
+      });
+      setWebhookNotificacoesStatus("saved");
+      console.log(`[Telemetry] Webhook de notificações do sistema atualizado para: ${webhookNotificacoesUrl}`);
+      setTimeout(() => setWebhookNotificacoesStatus("idle"), 2500);
+    } catch (e) {
+      console.error("Failed to save notification webhook:", e);
     }
   };
 
@@ -1108,7 +1130,8 @@ export default function ConfiguracoesClientWrapper() {
                       setWebhookUrl(fallbackUrl);
                       await updateWebhooks({
                         webhookUrl: fallbackUrl,
-                        webhookAvaliacaoUrl: webhookAvaliacaoUrl
+                        webhookAvaliacaoUrl: webhookAvaliacaoUrl,
+                        webhookNotificacoesUrl: webhookNotificacoesUrl
                       });
                       alert("Webhook redefinido para o padrão com sucesso!");
                     }}
@@ -1162,13 +1185,68 @@ export default function ConfiguracoesClientWrapper() {
                       setWebhookAvaliacaoUrl(fallbackUrl);
                       await updateWebhooks({
                         webhookUrl: webhookUrl,
-                        webhookAvaliacaoUrl: fallbackUrl
+                        webhookAvaliacaoUrl: fallbackUrl,
+                        webhookNotificacoesUrl: webhookNotificacoesUrl
                       });
                       alert("Webhook de avaliação redefinido para o padrão com sucesso!");
                     }}
                     className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
                   >
                     Restaurar Padrão
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Webhook Notificações Settings Section */}
+            <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm">
+              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
+                NOTIFICAÇÕES DO SISTEMA
+              </span>
+              <h2 className="text-lg font-bold text-brand-text mb-2 uppercase">
+                WEBHOOK DE NOTIFICAÇÕES ADMINISTRATIVAS
+              </h2>
+              <p className="text-xs text-brand-text/50 mb-4 font-light leading-relaxed">
+                Configure a URL de webhook para onde serão enviadas as notificações geradas pelo sistema administrativo (como alertas de contas a pagar pendentes ou vencidas).
+              </p>
+
+              <form onSubmit={handleSaveWebhookNotificacoes} className="flex flex-col gap-3.5">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="webhook-notificacoes-input" className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                    URL do Webhook de Notificações (n8n / Make / Custom)
+                  </label>
+                  <input
+                    id="webhook-notificacoes-input"
+                    type="url"
+                    required
+                    placeholder="https://n8n.dominio.com/webhook/..."
+                    value={webhookNotificacoesUrl}
+                    onChange={(e) => setWebhookNotificacoesUrl(e.target.value)}
+                    className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary font-mono transition-all"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="submit"
+                    className="h-10 bg-brand-primary hover:bg-brand-primary-hover text-white text-[10px] font-bold uppercase tracking-widest px-5 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {webhookNotificacoesStatus === "saved" ? "WEBHOOK DE NOTIFICAÇÕES SALVO ✓" : "SALVAR WEBHOOK DE NOTIFICAÇÕES"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setWebhookNotificacoesUrl("");
+                      await updateWebhooks({
+                        webhookUrl: webhookUrl,
+                        webhookAvaliacaoUrl: webhookAvaliacaoUrl,
+                        webhookNotificacoesUrl: ""
+                      });
+                      alert("Webhook de notificações redefinido com sucesso!");
+                    }}
+                    className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    Limpar / Padrão
                   </button>
                 </div>
               </form>

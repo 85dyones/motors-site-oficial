@@ -108,6 +108,7 @@ export interface AboutSettings {
 export interface Webhooks {
   webhookUrl: string;
   webhookAvaliacaoUrl: string;
+  webhookNotificacoesUrl: string;
 }
 
 export interface Campaign {
@@ -155,7 +156,8 @@ export const DEFAULT_ABOUT_SETTINGS: AboutSettings = DEFAULT_ABOUT_SETTINGS_JSON
 
 export const DEFAULT_WEBHOOKS: Webhooks = {
   webhookUrl: "https://n8n.v2o5.com.br/webhook/lead-entrada",
-  webhookAvaliacaoUrl: "https://n8n.v2o5.com.br/webhook/sdr-captura-lead"
+  webhookAvaliacaoUrl: "https://n8n.v2o5.com.br/webhook/sdr-captura-lead",
+  webhookNotificacoesUrl: ""
 };
 
 export const DEFAULT_CAMPAIGNS: Campaign[] = [
