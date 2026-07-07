@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS } from "../app/ThemeContext";
+import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 
 interface Campaign {
   id: string;
@@ -263,6 +264,17 @@ export default function ConfiguracoesClientWrapper() {
     }
 
     const checkSupabaseSession = async () => {
+      try {
+        const browserClient = createBrowserSupabaseClient();
+        const { data: { session } } = await browserClient.auth.getSession();
+        if (session) {
+          setIsAuthenticated(true);
+          return;
+        }
+      } catch (err) {
+        console.warn("[Configuracoes] Failed to restore SSR session:", err);
+      }
+
       if (supabase) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -278,12 +290,21 @@ export default function ConfiguracoesClientWrapper() {
   }, []);
 
   const getAuthToken = async (): Promise<string | null> => {
+    try {
+      const browserClient = createBrowserSupabaseClient();
+      const sessionRes = await browserClient.auth.getSession();
+      const token = sessionRes.data?.session?.access_token;
+      if (token) return token;
+    } catch (e) {
+      console.warn("[Auth] Failed to read browser session token:", e);
+    }
+
     if (supabase) {
       try {
         const sessionRes = await supabase.auth.getSession();
         return sessionRes.data?.session?.access_token || null;
       } catch (e) {
-        console.warn("[Auth] Failed to read session token:", e);
+        console.warn("[Auth] Failed to read legacy session token:", e);
       }
     }
     return null;
