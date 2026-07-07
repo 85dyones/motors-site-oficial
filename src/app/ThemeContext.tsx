@@ -73,6 +73,7 @@ export interface CompanySettings {
   facebook: string;
   cnpj: string;
   faviconUrl?: string;
+  logoUrl?: string;
   isCustom?: boolean;
   ga4Id?: string;
   metaPixelId?: string;

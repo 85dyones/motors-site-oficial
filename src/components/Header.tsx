@@ -23,7 +23,7 @@ export default function Header() {
     "sport-nardo": "/Motors Store - logo 3 b.png",
   };
 
-  const activeLogo = logoSrcMap[theme] || "/Motors Store - logo 1.png";
+  const activeLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/Motors Store - logo 1.png";
 
   useEffect(() => {
     console.log(`[Antigravity Branding] Logo do Header alternada para a variação correspondente ao tema: ${theme}`);

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LogoutButton from "./LogoutButton";
+import { useTheme } from "../../app/ThemeContext";
 
 interface AdminLayoutClientWrapperProps {
   role: string;
@@ -19,6 +20,7 @@ export default function AdminLayoutClientWrapper({
   children,
 }: AdminLayoutClientWrapperProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { companySettings } = useTheme();
 
   return (
     <div className="min-h-screen bg-brand-bg text-brand-text flex relative overflow-hidden font-sans">
@@ -40,9 +42,17 @@ export default function AdminLayoutClientWrapper({
           {/* Logo / Header */}
           <div className="flex flex-col gap-1 select-none">
             <div className="flex items-center justify-between">
-              <span className="text-xl font-black tracking-widest text-brand-text uppercase">
-                MOTORS
-              </span>
+              {companySettings?.logoUrl ? (
+                <img
+                  src={companySettings.logoUrl}
+                  alt={companySettings.name || "Motors"}
+                  className="h-10 w-auto object-contain max-w-[170px]"
+                />
+              ) : (
+                <span className="text-xl font-black tracking-widest text-brand-text uppercase">
+                  {companySettings?.name || "MOTORS"}
+                </span>
+              )}
               {/* Mobile Close Button */}
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -53,10 +63,14 @@ export default function AdminLayoutClientWrapper({
                 </svg>
               </button>
             </div>
-            <span className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.15em] block">
-              Painel de Controle
-            </span>
-            <div className="h-[2px] w-8 bg-brand-primary rounded-full mt-1" />
+            {!companySettings?.logoUrl && (
+              <>
+                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.15em] block">
+                  Painel de Controle
+                </span>
+                <div className="h-[2px] w-8 bg-brand-primary rounded-full mt-1" />
+              </>
+            )}
           </div>
 
           {/* Navigation Links */}

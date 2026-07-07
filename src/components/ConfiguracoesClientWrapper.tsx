@@ -2073,6 +2073,23 @@ export default function ConfiguracoesClientWrapper() {
                     </p>
                   </div>
 
+                  {/* Logo URL */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Logo Personalizado (URL da imagem)
+                    </label>
+                    <input
+                      type="url"
+                      value={companyForm.logoUrl || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, logoUrl: e.target.value })}
+                      placeholder="https://sua-empresa.com.br/logo.png"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                    <p className="text-[10px] text-brand-text/40 font-light leading-relaxed">
+                      Insira a URL de uma imagem para ser usada como logotipo do site (exibido no topo da página e no menu lateral do painel). Deixe em branco para usar o padrão da Motors.
+                    </p>
+                  </div>
+
                   {/* GA4 ID */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
