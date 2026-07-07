@@ -1187,7 +1187,8 @@ export default function ConfiguracoesClientWrapper() {
                       await updateWebhooks({
                         webhookUrl: fallbackUrl,
                         webhookAvaliacaoUrl: webhookAvaliacaoUrl,
-                        webhookNotificacoesUrl: webhookNotificacoesUrl
+                        webhookNotificacoesUrl: webhookNotificacoesUrl,
+                        events: eventsConfig
                       });
                       alert("Webhook redefinido para o padrão com sucesso!");
                     }}
@@ -1242,7 +1243,8 @@ export default function ConfiguracoesClientWrapper() {
                       await updateWebhooks({
                         webhookUrl: webhookUrl,
                         webhookAvaliacaoUrl: fallbackUrl,
-                        webhookNotificacoesUrl: webhookNotificacoesUrl
+                        webhookNotificacoesUrl: webhookNotificacoesUrl,
+                        events: eventsConfig
                       });
                       alert("Webhook de avaliação redefinido para o padrão com sucesso!");
                     }}
@@ -1355,7 +1357,8 @@ export default function ConfiguracoesClientWrapper() {
                       await updateWebhooks({
                         webhookUrl: webhookUrl,
                         webhookAvaliacaoUrl: webhookAvaliacaoUrl,
-                        webhookNotificacoesUrl: ""
+                        webhookNotificacoesUrl: "",
+                        events: eventsConfig
                       });
                       alert("Webhook de notificações redefinido com sucesso!");
                     }}

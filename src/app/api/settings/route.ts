@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { unstable_cache, revalidateTag } from "next/cache";
+import { createServerSupabaseClient } from "../../../lib/supabase-server";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -120,24 +121,47 @@ export async function POST(request: Request) {
     const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
     if (isSupabaseConfigured) {
-      if (!token) {
-        console.warn("[Settings API] Write blocked: missing authorization token");
-        return NextResponse.json({ error: "Sessão inválida ou ausente. Faça login novamente." }, { status: 401 });
+      let requestSupabase: any = null;
+      let user = null;
+      let authError = null;
+
+      // 1. Try cookie-based session first
+      try {
+        const client = await createServerSupabaseClient();
+        const { data } = await client.auth.getUser();
+        if (data?.user) {
+          user = data.user;
+          requestSupabase = client;
+        }
+      } catch (err: any) {
+        console.warn("[Settings API] Cookie-based auth check failed:", err.message);
       }
 
-      const requestSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`
+      // 2. Fallback to header-based Bearer token
+      if (!user && token) {
+        try {
+          const client = createClient(supabaseUrl, supabaseAnonKey, {
+            global: {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            }
+          });
+          const { data, error } = await client.auth.getUser();
+          if (data?.user) {
+            user = data.user;
+            requestSupabase = client;
+          } else {
+            authError = error;
           }
+        } catch (err: any) {
+          console.warn("[Settings API] Token-based auth check failed:", err.message);
         }
-      });
+      }
 
-      // Check user authentication status on backend
-      const { data: { user }, error: authError } = await requestSupabase.auth.getUser();
-      if (authError || !user) {
-        console.warn("[Settings API] Write blocked: invalid user token", authError?.message);
-        return NextResponse.json({ error: "Sessão expirada ou não autorizada. Faça login novamente." }, { status: 401 });
+      if (!user) {
+        console.warn("[Settings API] Write blocked: unauthorized request", authError?.message);
+        return NextResponse.json({ error: "Sessão inválida ou ausente. Faça login novamente." }, { status: 401 });
       }
 
       // 3. Write to Supabase using the authenticated client
@@ -217,7 +241,7 @@ export async function POST(request: Request) {
     console.log("[Settings API] Settings saved to Supabase successfully. Invalidating cache...");
     
     // Invalidate the settings cache tag on Edge
-    revalidateTag("settings", "max");
+    revalidateTag("settings");
 
     // 4. Optional local JSON file backup write (errors here are non-critical)
     try {
