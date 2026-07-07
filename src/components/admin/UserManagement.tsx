@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useConfirm } from "./ConfirmDialog";
 
 interface UserProfile {
   id: string;
@@ -12,6 +13,7 @@ interface UserProfile {
 }
 
 export default function UserManagement() {
+  const { confirm } = useConfirm();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -115,7 +117,14 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir permanentemente este usuário?")) return;
+    const isConfirmed = await confirm({
+      title: "Excluir Usuário",
+      message: "Tem certeza que deseja excluir permanentemente este usuário?",
+      type: "danger",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar"
+    });
+    if (!isConfirmed) return;
     setError("");
     setSuccessMsg("");
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ContaForm from "./ContaForm";
+import { useConfirm } from "../admin/ConfirmDialog";
 
 interface Category {
   id: string;
@@ -36,6 +37,7 @@ interface ContasListProps {
 }
 
 export default function ContasList({ tipo }: ContasListProps) {
+  const { confirm } = useConfirm();
   const [contas, setContas] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -90,7 +92,14 @@ export default function ContasList({ tipo }: ContasListProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este lançamento financeiro?")) return;
+    const isConfirmed = await confirm({
+      title: "Excluir Lançamento",
+      message: "Tem certeza que deseja excluir este lançamento financeiro?",
+      type: "danger",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar"
+    });
+    if (!isConfirmed) return;
     setError("");
     setSuccessMsg("");
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useConfirm } from "./admin/ConfirmDialog";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
@@ -154,6 +155,7 @@ function hasPromptInjection(obj: any): boolean {
 }
 
 export default function ConfiguracoesClientWrapper() {
+  const { confirm } = useConfirm();
   const {
     theme,
     setTheme,
@@ -537,7 +539,14 @@ export default function ConfiguracoesClientWrapper() {
 
   // Reset all stock overrides globally
   const handlePurgeAllOverrides = async () => {
-    if (confirm("Deseja realmente redefinir todos os veículos para a categorização original do banco de dados?")) {
+    const isConfirmed = await confirm({
+      title: "Resetar Categorização de Estoque",
+      message: "Deseja realmente redefinir todos os veículos para a categorização original do banco de dados?",
+      type: "danger",
+      confirmLabel: "Resetar Tudo",
+      cancelLabel: "Cancelar"
+    });
+    if (isConfirmed) {
       try {
         await updateStockOverrides({});
         setOverrides({});
@@ -714,7 +723,14 @@ export default function ConfiguracoesClientWrapper() {
 
   // Reset about settings to default
   const handleResetAboutSettings = async () => {
-    if (confirm("Deseja realmente redefinir todos os dados da página Quem Somos para os padrões de fábrica?")) {
+    const isConfirmed = await confirm({
+      title: "Redefinir Quem Somos",
+      message: "Deseja realmente redefinir todos os dados da página Quem Somos para os padrões de fábrica?",
+      type: "danger",
+      confirmLabel: "Redefinir",
+      cancelLabel: "Cancelar"
+    });
+    if (isConfirmed) {
       try {
         const resetForm = { ...DEFAULT_ABOUT_SETTINGS, isCustom: false };
         
@@ -750,7 +766,14 @@ export default function ConfiguracoesClientWrapper() {
 
   // Reset company settings to default
   const handleResetCompanySettings = async () => {
-    if (confirm("Deseja realmente redefinir todos os dados da concessionária para os padrões de fábrica?")) {
+    const isConfirmed = await confirm({
+      title: "Redefinir Dados da Concessionária",
+      message: "Deseja realmente redefinir todos os dados da concessionária para os padrões de fábrica?",
+      type: "danger",
+      confirmLabel: "Redefinir",
+      cancelLabel: "Cancelar"
+    });
+    if (isConfirmed) {
       try {
         const resetForm = { ...DEFAULT_COMPANY_SETTINGS, isCustom: false };
         
@@ -801,7 +824,14 @@ export default function ConfiguracoesClientWrapper() {
 
   // Delete campaign
   const handleDeleteCampaign = async (id: string) => {
-    if (confirm("Deseja realmente excluir esta campanha de pop-up?")) {
+    const isConfirmed = await confirm({
+      title: "Excluir Campanha",
+      message: "Deseja realmente excluir esta campanha de pop-up?",
+      type: "danger",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar"
+    });
+    if (isConfirmed) {
       const nextList = campaigns.filter((c) => c.id !== id);
       setCampaigns(nextList);
       await updatePopups(nextList);
@@ -817,7 +847,14 @@ export default function ConfiguracoesClientWrapper() {
 
   // Reset popup settings and campaigns to defaults
   const handleResetPopupSettings = async () => {
-    if (confirm("Deseja realmente redefinir todos os pop-ups e campanhas para os padrões de fábrica?")) {
+    const isConfirmed = await confirm({
+      title: "Redefinir Pop-ups e Campanhas",
+      message: "Deseja realmente redefinir todos os pop-ups e campanhas para os padrões de fábrica?",
+      type: "danger",
+      confirmLabel: "Redefinir",
+      cancelLabel: "Cancelar"
+    });
+    if (isConfirmed) {
       setPopupSettings(DEFAULT_POPUP_SETTINGS);
       setCampaigns(DEFAULT_CAMPAIGNS);
       await updatePopupSettings(DEFAULT_POPUP_SETTINGS);
@@ -1650,7 +1687,14 @@ export default function ConfiguracoesClientWrapper() {
                       </button>
                       <button
                         onClick={async () => {
-                          if (confirm(`Deseja realmente remover o destaque rápido "${tag.name}"?`)) {
+                          const isConfirmed = await confirm({
+                            title: "Remover Destaque Rápido",
+                            message: `Deseja realmente remover o destaque rápido "${tag.name}"?`,
+                            type: "danger",
+                            confirmLabel: "Remover",
+                            cancelLabel: "Cancelar"
+                          });
+                          if (isConfirmed) {
                             const next = quickTags.filter(t => t.id !== tag.id);
                             setQuickTags(next);
                             await updateQuickTags(next);

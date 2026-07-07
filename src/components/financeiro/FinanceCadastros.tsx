@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useConfirm } from "../admin/ConfirmDialog";
 
 interface Categoria {
   id: string;
@@ -21,6 +22,7 @@ interface Parceiro {
 }
 
 export default function FinanceCadastros() {
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<"categorias" | "parceiros">("categorias");
   
   // Categorias states
@@ -161,7 +163,14 @@ export default function FinanceCadastros() {
   };
 
   const handleDeactivateCat = async (id: string) => {
-    if (!confirm("Deseja realmente inativar esta categoria?")) return;
+    const isConfirmed = await confirm({
+      title: "Inativar Categoria",
+      message: "Deseja realmente inativar esta categoria?",
+      type: "warning",
+      confirmLabel: "Inativar",
+      cancelLabel: "Cancelar"
+    });
+    if (!isConfirmed) return;
     setError("");
     setSuccess("");
 
@@ -213,7 +222,14 @@ export default function FinanceCadastros() {
   };
 
   const handleDeleteParceiro = async (id: string) => {
-    if (!confirm("Tem certeza de que deseja excluir este parceiro?")) return;
+    const isConfirmed = await confirm({
+      title: "Excluir Parceiro",
+      message: "Tem certeza de que deseja excluir este parceiro?",
+      type: "danger",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar"
+    });
+    if (!isConfirmed) return;
     setError("");
     setSuccess("");
 

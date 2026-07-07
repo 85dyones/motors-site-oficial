@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CompraForm from "./CompraForm";
+import { useConfirm } from "../admin/ConfirmDialog";
 
 interface CompraItem {
   id: string;
@@ -19,6 +20,7 @@ interface CompraItem {
 }
 
 export default function ComprasList() {
+  const { confirm } = useConfirm();
   const [compras, setCompras] = useState<CompraItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,7 +51,14 @@ export default function ComprasList() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Excluir esta compra não apagará automaticamente a conta a pagar correspondente. Confirmar?")) return;
+    const isConfirmed = await confirm({
+      title: "Excluir Compra",
+      message: "Excluir esta compra não apagará automaticamente a conta a pagar correspondente. Confirmar?",
+      type: "danger",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar"
+    });
+    if (!isConfirmed) return;
     setError("");
     setSuccessMsg("");
 

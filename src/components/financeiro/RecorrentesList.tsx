@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import RecorrenteForm from "./RecorrenteForm";
+import { useConfirm } from "../admin/ConfirmDialog";
 
 interface RecorrenteItem {
   id: string;
@@ -20,6 +21,7 @@ interface RecorrenteItem {
 }
 
 export default function RecorrentesList() {
+  const { confirm } = useConfirm();
   const [recorrentes, setRecorrentes] = useState<RecorrenteItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,7 +74,14 @@ export default function RecorrentesList() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Excluir esta despesa recorrente impedirá novas cobranças automáticas. Confirmar?")) return;
+    const isConfirmed = await confirm({
+      title: "Excluir Recorrência",
+      message: "Excluir esta despesa recorrente impedirá novas cobranças automáticas. Confirmar?",
+      type: "danger",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar"
+    });
+    if (!isConfirmed) return;
     setError("");
     setSuccessMsg("");
 
