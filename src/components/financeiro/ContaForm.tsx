@@ -122,6 +122,32 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
     }
   }, [contaId]);
 
+  useEffect(() => {
+    const filtered = categories.filter((c) => c.tipo === tipo);
+    if (filtered.length > 0) {
+      const isCurrentValid = filtered.some((c) => c.id === categoriaId);
+      if (!isCurrentValid) {
+        setCategoriaId(filtered[0].id);
+      }
+    }
+  }, [tipo, categories, categoriaId]);
+
+  useEffect(() => {
+    if (veiculoId) {
+      if (tipo === "pagar") {
+        const compCat = categories.find((c) => c.nome === "Compra de Veículo (Estoque)" && c.tipo === "despesa");
+        if (compCat) {
+          setCategoriaId(compCat.id);
+        }
+      } else {
+        const vendCat = categories.find((c) => c.nome === "Venda de Veículo" && c.tipo === "receita");
+        if (vendCat) {
+          setCategoriaId(vendCat.id);
+        }
+      }
+    }
+  }, [veiculoId, tipo, categories]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);

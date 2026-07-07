@@ -92,6 +92,15 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
     }
   }, [recorrenteId]);
 
+  useEffect(() => {
+    if (categories.length > 0) {
+      const isCurrentValid = categories.some((c) => c.id === categoriaId);
+      if (!isCurrentValid) {
+        setCategoriaId(categories[0].id);
+      }
+    }
+  }, [categories, categoriaId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
