@@ -28,30 +28,50 @@ export async function PUT(
     const body = await request.json();
     const { full_name, role, is_active } = body;
 
-    const supabaseAdmin = createAdminSupabaseClient();
+    const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // 1. Update auth.users metadata
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
-      user_metadata: { full_name, role }
-    });
+    if (hasAdminKey) {
+      const supabaseAdmin = createAdminSupabaseClient();
 
-    if (authError) {
-      return NextResponse.json({ error: authError.message }, { status: 500 });
-    }
+      // 1. Update auth.users metadata
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        user_metadata: { full_name, role }
+      });
 
-    // 2. Update public.profiles table
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .update({
-        full_name,
-        role,
-        is_active,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", id);
+      if (authError) {
+        return NextResponse.json({ error: authError.message }, { status: 500 });
+      }
 
-    if (profileError) {
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
+      // 2. Update public.profiles table
+      const { error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .update({
+          full_name,
+          role,
+          is_active,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
+
+      if (profileError) {
+        return NextResponse.json({ error: profileError.message }, { status: 500 });
+      }
+    } else {
+      // Fallback: If SUPABASE_SERVICE_ROLE_KEY is not defined, update only public.profiles
+      // using the logged-in admin user's client (which has access due to RLS).
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          full_name,
+          role,
+          is_active,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
+
+      if (profileError) {
+        return NextResponse.json({ error: profileError.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true });
@@ -88,6 +108,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Você não pode excluir seu próprio usuário" }, { status: 400 });
     }
 
+    const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!hasAdminKey) {
+      return NextResponse.json({ 
+        error: "Para excluir usuários do sistema, configure a variável de ambiente SUPABASE_SERVICE_ROLE_KEY no Vercel/Painel." 
+      }, { status: 400 });
+    }
+
     const supabaseAdmin = createAdminSupabaseClient();
     const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
 
@@ -95,7 +122,6 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // public.profiles will be cascade deleted automatically by Postgres FK
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

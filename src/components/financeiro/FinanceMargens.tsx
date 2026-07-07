@@ -125,6 +125,16 @@ export default function FinanceMargens() {
     }
   }, [selectedVehicleId]);
 
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setShowDropdown(false);
+    };
+    document.addEventListener("click", handleOutsideClick);
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, []);
+
   const formatPrice = (value: number) => {
     return value.toLocaleString("pt-BR", {
       style: "currency",
@@ -184,7 +194,7 @@ export default function FinanceMargens() {
         </div>
 
         {/* Search Autocomplete dropdown */}
-        <div className="relative w-full sm:max-w-xs">
+        <div className="relative w-full sm:max-w-xs" onClick={(e) => e.stopPropagation()}>
           <input
             type="text"
             placeholder="BUSCAR VEÍCULO DO ESTOQUE..."
@@ -203,7 +213,7 @@ export default function FinanceMargens() {
           </button>
 
           {showDropdown && searchQuery && (
-            <div className="absolute right-0 top-11 bg-zinc-950 border border-brand-border/60 rounded-2xl w-full max-h-60 overflow-y-auto z-40 shadow-xl backdrop-blur-md">
+            <div className="absolute right-0 top-11 bg-brand-card/95 backdrop-blur-xl border border-brand-border rounded-2xl w-full max-h-60 overflow-y-auto z-40 shadow-xl">
               {filteredInventory.length === 0 ? (
                 <div className="p-3 text-[10px] text-brand-text/40 text-center">Nenhum veículo encontrado</div>
               ) : (
@@ -215,7 +225,7 @@ export default function FinanceMargens() {
                       setSearchQuery("");
                       setShowDropdown(false);
                     }}
-                    className="w-full p-2.5 text-left text-[10px] font-bold text-brand-text hover:bg-brand-primary hover:text-white border-b border-brand-border/20 last:border-b-0 transition-colors block cursor-pointer"
+                    className="w-full p-2.5 text-left text-[10px] font-bold text-brand-text hover:bg-brand-primary hover:text-white border-b border-brand-border/10 last:border-b-0 transition-colors block cursor-pointer"
                   >
                     <span>{v.marca} {v.modelo} - {v.ano}</span>
                     <span className="text-[9px] block opacity-60 font-normal truncate">{v.versao}</span>
@@ -225,8 +235,8 @@ export default function FinanceMargens() {
             </div>
           )}
           {showDropdown && !searchQuery && (
-            <div className="absolute right-0 top-11 bg-zinc-950 border border-brand-border/60 rounded-2xl w-full max-h-60 overflow-y-auto z-40 shadow-xl backdrop-blur-md">
-              <div className="p-2.5 text-[9px] text-brand-text/40 font-bold uppercase tracking-wider text-center border-b border-brand-border/10 select-none">
+            <div className="absolute right-0 top-11 bg-brand-card/95 backdrop-blur-xl border border-brand-border rounded-2xl w-full max-h-60 overflow-y-auto z-40 shadow-xl">
+              <div className="p-2.5 text-[9px] text-brand-text/40 font-bold uppercase tracking-wider text-center border-b border-brand-border/20 select-none">
                 Veículos em Estoque
               </div>
               {inventoryList.slice(0, 10).map(v => (
@@ -237,7 +247,7 @@ export default function FinanceMargens() {
                     setSearchQuery("");
                     setShowDropdown(false);
                   }}
-                  className="w-full p-2.5 text-left text-[10px] font-bold text-brand-text hover:bg-brand-primary hover:text-white border-b border-brand-border/20 last:border-b-0 transition-colors block cursor-pointer"
+                  className="w-full p-2.5 text-left text-[10px] font-bold text-brand-text hover:bg-brand-primary hover:text-white border-b border-brand-border/10 last:border-b-0 transition-colors block cursor-pointer"
                 >
                   <span>{v.marca} {v.modelo} - {v.ano}</span>
                   <span className="text-[9px] block opacity-60 font-normal truncate">{v.versao}</span>

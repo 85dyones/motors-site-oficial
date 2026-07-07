@@ -62,6 +62,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
+    const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!hasAdminKey) {
+      return NextResponse.json({ 
+        error: "Para cadastrar novos usuários do sistema, configure a variável de ambiente SUPABASE_SERVICE_ROLE_KEY no Vercel/Painel." 
+      }, { status: 400 });
+    }
+
     const supabaseAdmin = createAdminSupabaseClient();
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
