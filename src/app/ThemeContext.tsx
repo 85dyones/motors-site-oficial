@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { logThemeChanged } from "../lib/telemetry";
 import { supabase } from "../lib/supabase";
+import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 
 export type ThemeType = "luxury-light" | "stealth-dark" | "sport-nardo";
 
@@ -394,15 +395,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const postSettings = async (payload: any) => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     try {
-      if (supabase) {
-        const sessionRes = await supabase.auth.getSession();
-        const token = sessionRes.data?.session?.access_token;
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
+      const browserSupabase = createBrowserSupabaseClient();
+      const sessionRes = await browserSupabase.auth.getSession();
+      const token = sessionRes.data?.session?.access_token;
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
       }
     } catch (e) {
-      console.warn("[ThemeContext] Failed to get Supabase session:", e);
+      console.warn("[ThemeContext] Failed to get browser Supabase session, attempting legacy fallback:", e);
+      try {
+        if (supabase) {
+          const sessionRes = await supabase.auth.getSession();
+          const token = sessionRes.data?.session?.access_token;
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        }
+      } catch (err) {
+        console.warn("[ThemeContext] Legacy session fetch failed:", err);
+      }
     }
 
     try {
