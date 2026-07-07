@@ -296,6 +296,16 @@ DROP POLICY IF EXISTS "Finance partners access" ON public.parceiros;
 CREATE POLICY "Finance partners access" ON public.parceiros
   FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
+-- Limpar categorias duplicadas e criar constraint única para evitar duplicação em execuções subsequentes
+DELETE FROM public.categorias_financeiras a
+USING public.categorias_financeiras b
+WHERE a.id > b.id
+  AND a.nome = b.nome
+  AND a.tipo = b.tipo;
+
+ALTER TABLE public.categorias_financeiras DROP CONSTRAINT IF EXISTS unique_nome_tipo;
+ALTER TABLE public.categorias_financeiras ADD CONSTRAINT unique_nome_tipo UNIQUE (nome, tipo);
+
 -- Inserir Categorias Padrão
 INSERT INTO public.categorias_financeiras (nome, tipo, cor, icone) VALUES
 ('Venda de Veículo', 'receita', '#10B981', '🚗'),
