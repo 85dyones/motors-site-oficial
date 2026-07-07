@@ -109,6 +109,7 @@ export interface Webhooks {
   webhookUrl: string;
   webhookAvaliacaoUrl: string;
   webhookNotificacoesUrl: string;
+  events?: Record<string, boolean>;
 }
 
 export interface Campaign {
@@ -157,7 +158,14 @@ export const DEFAULT_ABOUT_SETTINGS: AboutSettings = DEFAULT_ABOUT_SETTINGS_JSON
 export const DEFAULT_WEBHOOKS: Webhooks = {
   webhookUrl: "https://n8n.v2o5.com.br/webhook/lead-entrada",
   webhookAvaliacaoUrl: "https://n8n.v2o5.com.br/webhook/sdr-captura-lead",
-  webhookNotificacoesUrl: ""
+  webhookNotificacoesUrl: "",
+  events: {
+    conta_vencida: true,
+    conta_criada: true,
+    fornecedor_criado: true,
+    usuario_criado: true,
+    compra_registrada: true
+  }
 };
 
 export const DEFAULT_CAMPAIGNS: Campaign[] = [

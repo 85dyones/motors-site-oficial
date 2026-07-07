@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { dispatchAdminWebhook } from "../../../../lib/webhook-dispatcher";
 
 export async function GET() {
   try {
@@ -101,6 +102,13 @@ export async function POST(request: NextRequest) {
 
     if (compraError) {
       return NextResponse.json({ error: compraError.message }, { status: 500 });
+    }
+
+    // Trigger admin webhook for new purchase (non-blocking)
+    if (compra) {
+      dispatchAdminWebhook("compra_registrada", compra).catch((err) =>
+        console.error("[WebhookDispatch] Failed to dispatch purchase registered event:", err.message)
+      );
     }
 
     return NextResponse.json({ compra });

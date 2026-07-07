@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
+import { dispatchAdminWebhook } from "../../../lib/webhook-dispatcher";
 
 export async function GET() {
   try {
@@ -80,6 +81,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      // Trigger admin webhook for new user (non-blocking)
+      if (data.user) {
+        dispatchAdminWebhook("usuario_criado", {
+          id: data.user.id,
+          email: data.user.email,
+          full_name: full_name,
+          role: role
+        }).catch((err) =>
+          console.error("[WebhookDispatch] Failed to dispatch user created event:", err.message)
+        );
+      }
+
       return NextResponse.json({ user: data.user });
     } else {
       // Fallback: If SUPABASE_SERVICE_ROLE_KEY is not defined, register the user using signUp
@@ -99,6 +112,18 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // Trigger admin webhook for new user (non-blocking)
+      if (data.user) {
+        dispatchAdminWebhook("usuario_criado", {
+          id: data.user.id,
+          email: data.user.email,
+          full_name: full_name,
+          role: role
+        }).catch((err) =>
+          console.error("[WebhookDispatch] Failed to dispatch user created event (fallback):", err.message)
+        );
       }
 
       return NextResponse.json({ user: data.user });

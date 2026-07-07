@@ -29,6 +29,15 @@ export async function POST() {
       return NextResponse.json({ error: "Webhook URL de integrações não configurada" }, { status: 400 });
     }
 
+    // Check if notifications for overdue accounts (conta_vencida) are enabled
+    const eventsConfig = webhookSettings?.data?.events || {};
+    const isContaVencidaEnabled = eventsConfig.conta_vencida !== false; // default to true if not defined
+
+    if (!isContaVencidaEnabled) {
+      console.log("[WebhookDispatch] Notification for overdue accounts (conta_vencida) is disabled in configurations.");
+      return NextResponse.json({ success: true, message: "Notificação de contas vencidas desativada nas configurações." });
+    }
+
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
 

@@ -254,6 +254,13 @@ export default function ConfiguracoesClientWrapper() {
   const [webhookAvaliacaoStatus, setWebhookAvaliacaoStatus] = useState<"idle" | "saved">("idle");
   const [webhookNotificacoesUrl, setWebhookNotificacoesUrl] = useState("");
   const [webhookNotificacoesStatus, setWebhookNotificacoesStatus] = useState<"idle" | "saved">("idle");
+  const [eventsConfig, setEventsConfig] = useState<Record<string, boolean>>({
+    conta_vencida: true,
+    conta_criada: true,
+    fornecedor_criado: true,
+    usuario_criado: true,
+    compra_registrada: true
+  });
 
   // Check login state on session restore
   useEffect(() => {
@@ -393,6 +400,15 @@ export default function ConfiguracoesClientWrapper() {
       setWebhookUrl(contextWebhooks.webhookUrl || "");
       setWebhookAvaliacaoUrl(contextWebhooks.webhookAvaliacaoUrl || "");
       setWebhookNotificacoesUrl(contextWebhooks.webhookNotificacoesUrl || "");
+      if (contextWebhooks.events) {
+        setEventsConfig({
+          conta_vencida: contextWebhooks.events.conta_vencida !== false,
+          conta_criada: contextWebhooks.events.conta_criada !== false,
+          fornecedor_criado: contextWebhooks.events.fornecedor_criado !== false,
+          usuario_criado: contextWebhooks.events.usuario_criado !== false,
+          compra_registrada: contextWebhooks.events.compra_registrada !== false
+        });
+      }
     }
   }, [contextWebhooks]);
 
@@ -543,7 +559,8 @@ export default function ConfiguracoesClientWrapper() {
       await updateWebhooks({
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
-        webhookNotificacoesUrl: webhookNotificacoesUrl.trim()
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        events: eventsConfig
       });
       setWebhookStatus("saved");
       console.log(`[Telemetry] Webhook de recebimento de leads atualizado para: ${webhookUrl}`);
@@ -560,7 +577,8 @@ export default function ConfiguracoesClientWrapper() {
       await updateWebhooks({
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
-        webhookNotificacoesUrl: webhookNotificacoesUrl.trim()
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        events: eventsConfig
       });
       setWebhookAvaliacaoStatus("saved");
       console.log(`[Telemetry] Webhook de avaliação de veículos atualizado para: ${webhookAvaliacaoUrl}`);
@@ -577,7 +595,8 @@ export default function ConfiguracoesClientWrapper() {
       await updateWebhooks({
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
-        webhookNotificacoesUrl: webhookNotificacoesUrl.trim()
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        events: eventsConfig
       });
       setWebhookNotificacoesStatus("saved");
       console.log(`[Telemetry] Webhook de notificações do sistema atualizado para: ${webhookNotificacoesUrl}`);
@@ -1224,6 +1243,65 @@ export default function ConfiguracoesClientWrapper() {
                     onChange={(e) => setWebhookNotificacoesUrl(e.target.value)}
                     className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary font-mono transition-all"
                   />
+                </div>
+
+                {/* Event checklist */}
+                <div className="flex flex-col gap-2.5 mt-2 border-t border-brand-border/20 pt-4">
+                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest block">
+                    Eventos a enviar para o Webhook Administrativo
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1.5">
+                    {/* Event item 1 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.conta_vencida}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, conta_vencida: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Contas Vencidas / Alertas de Vencimento</span>
+                    </label>
+                    {/* Event item 2 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.conta_criada}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, conta_criada: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Novo Lançamento Financeiro (Conta)</span>
+                    </label>
+                    {/* Event item 3 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.fornecedor_criado}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, fornecedor_criado: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Novo Parceiro/Fornecedor Cadastrado</span>
+                    </label>
+                    {/* Event item 4 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.usuario_criado}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, usuario_criado: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Novo Usuário Criado no Painel</span>
+                    </label>
+                    {/* Event item 5 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.compra_registrada}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, compra_registrada: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Nova Compra de Insumo Registrada</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3">
