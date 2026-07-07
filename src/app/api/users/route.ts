@@ -63,29 +63,46 @@ export async function POST(request: NextRequest) {
     }
 
     const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!hasAdminKey) {
-      return NextResponse.json({ 
-        error: "Para cadastrar novos usuários do sistema, configure a variável de ambiente SUPABASE_SERVICE_ROLE_KEY no Vercel/Painel." 
-      }, { status: 400 });
+
+    if (hasAdminKey) {
+      const supabaseAdmin = createAdminSupabaseClient();
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name,
+          role,
+        },
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ user: data.user });
+    } else {
+      // Fallback: If SUPABASE_SERVICE_ROLE_KEY is not defined, register the user using signUp
+      // through the user client. Since this is run inside the API handler by an Admin,
+      // it won't affect the administrator's front-end session.
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${request.nextUrl.origin}/auth/callback`,
+          data: {
+            full_name,
+            role,
+          }
+        }
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ user: data.user });
     }
-
-    const supabaseAdmin = createAdminSupabaseClient();
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name,
-        role,
-      },
-    });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Profile table is populated automatically via trigger. We return the user
-    return NextResponse.json({ user: data.user });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

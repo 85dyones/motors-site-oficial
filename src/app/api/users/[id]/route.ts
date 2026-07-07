@@ -109,17 +109,25 @@ export async function DELETE(
     }
 
     const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!hasAdminKey) {
-      return NextResponse.json({ 
-        error: "Para excluir usuários do sistema, configure a variável de ambiente SUPABASE_SERVICE_ROLE_KEY no Vercel/Painel." 
-      }, { status: 400 });
-    }
 
-    const supabaseAdmin = createAdminSupabaseClient();
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (hasAdminKey) {
+      const supabaseAdmin = createAdminSupabaseClient();
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    } else {
+      // Fallback: If SUPABASE_SERVICE_ROLE_KEY is not defined, delete only from public.profiles
+      // using the logged-in admin user's client (which has access due to RLS).
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true });
