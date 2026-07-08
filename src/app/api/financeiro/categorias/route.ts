@@ -15,7 +15,6 @@ export async function GET() {
     const { data: categories, error } = await supabase
       .from("categorias_financeiras")
       .select("*")
-      .eq("ativa", true)
       .order("nome", { ascending: true });
 
     if (error) {

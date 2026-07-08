@@ -70,9 +70,14 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           fetch("/api/financeiro/parceiros"),
         ]);
         
+        console.log("[ContaForm] catRes status:", catRes.status);
         if (catRes.ok) {
           const catData = await catRes.json();
+          console.log("[ContaForm] catData categories length:", catData.categories?.length, catData.categories);
           setCategories(catData.categories || []);
+        } else {
+          const catError = await catRes.json().catch(() => ({}));
+          console.error("[ContaForm] catRes error:", catError);
         }
         if (vehRes.ok) {
           const vehData = await vehRes.json();
@@ -443,27 +448,9 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
               </select>
             </div>
           )}
-
-          {/* Fornecedor / Cliente (Conditional) */}
           {tipo === "pagar" ? (
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between pl-1">
-                <label className="text-[10px] font-bold uppercase text-brand-text/50">Fornecedor</label>
-                {!showNewPartnerForm && (partners.length > 0 || customFornecedor) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCustomFornecedor(!customFornecedor);
-                      setFornecedor("");
-                      setShowNewPartnerForm(false);
-                    }}
-                    className="text-[9px] font-extrabold text-brand-primary uppercase hover:underline cursor-pointer"
-                  >
-                    {customFornecedor ? "Selecionar Cadastrado" : "Digitar Manual"}
-                  </button>
-                )}
-              </div>
-              
+              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Fornecedor</label>
               {showNewPartnerForm ? (
                 <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
                   <span>Cadastrando Novo Fornecedor...</span>
@@ -478,32 +465,6 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                     Voltar
                   </button>
                 </div>
-              ) : customFornecedor || partners.length === 0 ? (
-                <div className="flex flex-col gap-1.5">
-                  <input
-                    type="text"
-                    required
-                    value={fornecedor}
-                    onChange={(e) => {
-                      setFornecedor(e.target.value);
-                      setNewPartnerName(e.target.value);
-                    }}
-                    placeholder="Nome do fornecedor"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                  />
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none mt-1 pl-1">
-                    <input
-                      type="checkbox"
-                      checked={showNewPartnerForm}
-                      onChange={(e) => {
-                        setShowNewPartnerForm(e.target.checked);
-                        if (e.target.checked) setNewPartnerName(fornecedor);
-                      }}
-                      className="rounded border-brand-border text-brand-primary h-3.5 w-3.5 bg-brand-bg focus:ring-0"
-                    />
-                    <span className="text-[9px] font-bold text-brand-text/40 uppercase">Salvar este fornecedor no banco</span>
-                  </label>
-                </div>
               ) : (
                 <select
                   value={fornecedor}
@@ -512,9 +473,6 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                     if (e.target.value === "__new_partner__") {
                       setShowNewPartnerForm(true);
                       setNewPartnerName("");
-                      setFornecedor("");
-                    } else if (e.target.value === "__manual__") {
-                      setCustomFornecedor(true);
                       setFornecedor("");
                     } else {
                       setFornecedor(e.target.value);
@@ -526,30 +484,13 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                   {partners.filter(p => p.tipo === "fornecedor" || p.tipo === "ambos").map(p => (
                     <option key={p.id} value={p.nome}>{p.nome}</option>
                   ))}
-                  <option value="__manual__">✍️ Digitar Manualmente...</option>
                   <option value="__new_partner__">➕ Cadastrar Novo Fornecedor...</option>
                 </select>
               )}
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between pl-1">
-                <label className="text-[10px] font-bold uppercase text-brand-text/50">Cliente</label>
-                {!showNewPartnerForm && (partners.length > 0 || customCliente) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCustomCliente(!customCliente);
-                      setCliente("");
-                      setShowNewPartnerForm(false);
-                    }}
-                    className="text-[9px] font-extrabold text-brand-primary uppercase hover:underline cursor-pointer"
-                  >
-                    {customCliente ? "Selecionar Cadastrado" : "Digitar Manual"}
-                  </button>
-                )}
-              </div>
-
+              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Cliente</label>
               {showNewPartnerForm ? (
                 <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
                   <span>Cadastrando Novo Cliente...</span>
@@ -564,32 +505,6 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                     Voltar
                   </button>
                 </div>
-              ) : customCliente || partners.length === 0 ? (
-                <div className="flex flex-col gap-1.5">
-                  <input
-                    type="text"
-                    required
-                    value={cliente}
-                    onChange={(e) => {
-                      setCliente(e.target.value);
-                      setNewPartnerName(e.target.value);
-                    }}
-                    placeholder="Nome do cliente"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                  />
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none mt-1 pl-1">
-                    <input
-                      type="checkbox"
-                      checked={showNewPartnerForm}
-                      onChange={(e) => {
-                        setShowNewPartnerForm(e.target.checked);
-                        if (e.target.checked) setNewPartnerName(cliente);
-                      }}
-                      className="rounded border-brand-border text-brand-primary h-3.5 w-3.5 bg-brand-bg focus:ring-0"
-                    />
-                    <span className="text-[9px] font-bold text-brand-text/40 uppercase">Salvar este cliente no banco</span>
-                  </label>
-                </div>
               ) : (
                 <select
                   value={cliente}
@@ -598,9 +513,6 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                     if (e.target.value === "__new_partner__") {
                       setShowNewPartnerForm(true);
                       setNewPartnerName("");
-                      setCliente("");
-                    } else if (e.target.value === "__manual__") {
-                      setCustomCliente(true);
                       setCliente("");
                     } else {
                       setCliente(e.target.value);
@@ -612,7 +524,6 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                   {partners.filter(p => p.tipo === "cliente" || p.tipo === "ambos").map(p => (
                     <option key={p.id} value={p.nome}>{p.nome}</option>
                   ))}
-                  <option value="__manual__">✍️ Digitar Manualmente...</option>
                   <option value="__new_partner__">➕ Cadastrar Novo Cliente...</option>
                 </select>
               )}
