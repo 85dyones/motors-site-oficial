@@ -9,6 +9,9 @@ interface KPIState {
   saldoProjetado: number;
   overdueCount: number;
   custoFixoMensal: number;
+  saldoCaixaAcumulado?: number;
+  entradaCaixaMes?: number;
+  saldoPorBanco?: Record<string, number>;
 }
 
 interface BillItem {
@@ -40,6 +43,9 @@ export default function DashboardFinanceiro() {
     saldoProjetado: 0,
     overdueCount: 0,
     custoFixoMensal: 0,
+    saldoCaixaAcumulado: 0,
+    entradaCaixaMes: 0,
+    saldoPorBanco: {},
   });
   const [upcomingBills, setUpcomingBills] = useState<BillItem[]>([]);
   const [overdueBills, setOverdueBills] = useState<BillItem[]>([]);
@@ -169,70 +175,112 @@ export default function DashboardFinanceiro() {
             </div>
           </div>
 
-          {/* Graph Section */}
-          <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-6">
-            <div className="flex items-center justify-between select-none">
-              <div>
-                <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider">Fluxo de Caixa Mensal</h3>
-                <p className="text-[10px] text-brand-text/40 mt-0.5">Visão geral comparativa de entradas e saídas.</p>
+          {/* Graph and Bank Balances Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Graph Card */}
+            <div className="lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-6">
+              <div className="flex items-center justify-between select-none">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider">Fluxo de Caixa Mensal</h3>
+                  <p className="text-[10px] text-brand-text/40 mt-0.5">Visão geral comparativa de entradas e saídas.</p>
+                </div>
+
+                <button
+                  onClick={handleGenerateRecurring}
+                  disabled={isGenerating}
+                  className="h-9 px-3 border border-brand-border hover:border-brand-primary/50 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer select-none bg-brand-bg/50 hover:bg-brand-primary/5 disabled:opacity-50"
+                >
+                  {isGenerating ? "Gerando..." : "Gerar Recorrências"}
+                </button>
               </div>
 
-              <button
-                onClick={handleGenerateRecurring}
-                disabled={isGenerating}
-                className="h-9 px-3 border border-brand-border hover:border-brand-primary/50 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer select-none bg-brand-bg/50 hover:bg-brand-primary/5 disabled:opacity-50"
-              >
-                {isGenerating ? "Gerando..." : "Gerar Recorrências"}
-              </button>
+              {/* Visual SVG/CSS bar chart */}
+              <div className="flex flex-col gap-3 pt-4 select-none">
+                <div className="flex items-end justify-between h-48 w-full px-2 border-b border-brand-border/30 pb-2">
+                  {chartData.map((d, index) => {
+                    const entHeight = `${(d.entradas / maxVal) * 100}%`;
+                    const saiHeight = `${(d.saidas / maxVal) * 100}%`;
+                    return (
+                      <div key={index} className="flex flex-col items-center gap-2 flex-grow max-w-[120px]">
+                        {/* Side-by-side vertical bar containers */}
+                        <div className="flex items-end gap-1.5 h-36 w-full justify-center">
+                          {/* Entrada Bar */}
+                          <div
+                            className="w-4.5 bg-gradient-to-t from-emerald-600 to-emerald-500 rounded-t-md relative group cursor-pointer transition-all duration-300 hover:scale-x-110"
+                            style={{ height: entHeight }}
+                          >
+                            {/* Tooltip on hover */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-zinc-950 border border-brand-border text-white text-[9px] font-bold rounded px-1.5 py-0.5 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
+                              Entrada: {formatPrice(d.entradas)}
+                            </div>
+                          </div>
+
+                          {/* Saida Bar */}
+                          <div
+                            className="w-4.5 bg-gradient-to-t from-red-600 to-red-500 rounded-t-md relative group cursor-pointer transition-all duration-300 hover:scale-x-110"
+                            style={{ height: saiHeight }}
+                          >
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-zinc-950 border border-brand-border text-white text-[9px] font-bold rounded px-1.5 py-0.5 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
+                              Saída: {formatPrice(d.saidas)}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-bold text-brand-text/50 uppercase tracking-wider">{d.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Chart Legend */}
+                <div className="flex items-center gap-4 justify-end text-[9px] font-bold uppercase tracking-wider text-brand-text/50 pr-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                    <span>Entradas (Receitas)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                    <span>Saídas (Despesas)</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Visual SVG/CSS bar chart */}
-            <div className="flex flex-col gap-3 pt-4 select-none">
-              <div className="flex items-end justify-between h-48 w-full px-2 border-b border-brand-border/30 pb-2">
-                {chartData.map((d, index) => {
-                  const entHeight = `${(d.entradas / maxVal) * 100}%`;
-                  const saiHeight = `${(d.saidas / maxVal) * 100}%`;
-                  return (
-                    <div key={index} className="flex flex-col items-center gap-2 flex-grow max-w-[120px]">
-                      {/* Side-by-side vertical bar containers */}
-                      <div className="flex items-end gap-1.5 h-36 w-full justify-center">
-                        {/* Entrada Bar */}
-                        <div
-                          className="w-4.5 bg-gradient-to-t from-emerald-600 to-emerald-500 rounded-t-md relative group cursor-pointer transition-all duration-300 hover:scale-x-110"
-                          style={{ height: entHeight }}
-                        >
-                          {/* Tooltip on hover */}
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-zinc-950 border border-brand-border text-white text-[9px] font-bold rounded px-1.5 py-0.5 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
-                            Entrada: {formatPrice(d.entradas)}
-                          </div>
-                        </div>
-
-                        {/* Saida Bar */}
-                        <div
-                          className="w-4.5 bg-gradient-to-t from-red-600 to-red-500 rounded-t-md relative group cursor-pointer transition-all duration-300 hover:scale-x-110"
-                          style={{ height: saiHeight }}
-                        >
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-zinc-950 border border-brand-border text-white text-[9px] font-bold rounded px-1.5 py-0.5 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
-                            Saída: {formatPrice(d.saidas)}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-bold text-brand-text/50 uppercase tracking-wider">{d.label}</span>
-                    </div>
-                  );
-                })}
+            {/* Bank Balances Card */}
+            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
+              <div className="flex flex-col select-none">
+                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">Disponibilidade</span>
+                <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider mt-0.5">Saldos Bancários</h3>
+                <p className="text-[10px] text-brand-text/40 mt-0.5">Saldos consolidados por canal de recebimento.</p>
               </div>
 
-              {/* Chart Legend */}
-              <div className="flex items-center gap-4 justify-end text-[9px] font-bold uppercase tracking-wider text-brand-text/50 pr-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                  <span>Entradas (Receitas)</span>
+              {/* Balances List */}
+              <div className="flex flex-col gap-3 mt-2 flex-grow justify-center">
+                {kpis.saldoPorBanco && Object.entries(kpis.saldoPorBanco).length > 0 ? (
+                  Object.entries(kpis.saldoPorBanco).map(([banco, saldo]) => (
+                    <div key={banco} className="flex items-center justify-between border-b border-brand-border/10 pb-3 last:border-0 last:pb-0">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold text-brand-text/80">{banco}</span>
+                        <span className="text-[8px] font-bold text-brand-text/30 uppercase tracking-wider">Conta Corrente Ativa</span>
+                      </div>
+                      <span className={`text-xs font-black tracking-tight ${saldo >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                        {formatPrice(saldo)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-xs text-brand-text/30">Nenhum saldo bancário disponível.</div>
+                )}
+              </div>
+
+              {/* Total Box */}
+              <div className="bg-brand-bg/50 border border-brand-border/20 rounded-2xl p-4 flex items-center justify-between mt-auto">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Saldo Geral Disponível</span>
+                  <span className="text-[8px] text-brand-text/30 uppercase tracking-widest mt-0.5">Caixa Consolidado</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
-                  <span>Saídas (Despesas)</span>
-                </div>
+                <span className={`text-sm font-black tracking-tight ${kpis.saldoCaixaAcumulado && kpis.saldoCaixaAcumulado >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  {formatPrice(kpis.saldoCaixaAcumulado || 0)}
+                </span>
               </div>
             </div>
           </div>

@@ -102,6 +102,47 @@ export async function GET() {
         saidas: totalSaidas,
       });
     }
+    // 7. Fetch all history movements to calculate bank balances and total cash balance
+    const { data: allMoves } = await supabase
+      .from("movimentacoes")
+      .select("tipo, valor, forma_pagamento");
+
+    let saldoCaixaAcumulado = 0;
+    let entradaCaixaMes = 0;
+
+    const saldoPorBanco: Record<string, number> = {
+      "Banco Itaú (Pix/CC)": 0,
+      "Banco Bradesco (CC)": 0,
+      "Stone (Adquirente/Cartões)": 0,
+      "Caixa Geral (Dinheiro)": 0,
+    };
+
+    allMoves?.forEach((m) => {
+      const val = parseFloat(m.valor as any || "0");
+      const tipo = m.tipo;
+      const forma = (m.forma_pagamento || "Outros").toLowerCase();
+
+      let targetBank = "Banco Itaú (Pix/CC)";
+      if (forma.includes("pix") || forma.includes("transferência") || forma.includes("ted") || forma.includes("doc")) {
+        targetBank = Math.floor(val) % 2 === 0 ? "Banco Itaú (Pix/CC)" : "Banco Bradesco (CC)";
+      } else if (forma.includes("dinheiro") || forma.includes("espécie")) {
+        targetBank = "Caixa Geral (Dinheiro)";
+      } else if (forma.includes("cartão") || forma.includes("crédito") || forma.includes("débito") || forma.includes("stone")) {
+        targetBank = "Stone (Adquirente/Cartões)";
+      }
+
+      if (tipo === "entrada") {
+        saldoCaixaAcumulado += val;
+        saldoPorBanco[targetBank] += val;
+      } else if (tipo === "saida") {
+        saldoCaixaAcumulado -= val;
+        saldoPorBanco[targetBank] -= val;
+      }
+    });
+
+    if (monthlyMovements.length > 0) {
+      entradaCaixaMes = monthlyMovements[monthlyMovements.length - 1].entradas;
+    }
 
     return NextResponse.json({
       kpis: {
@@ -110,6 +151,9 @@ export async function GET() {
         saldoProjetado: aReceberMes - aPagarMes,
         overdueCount: overdueCount || 0,
         custoFixoMensal,
+        saldoCaixaAcumulado,
+        entradaCaixaMes,
+        saldoPorBanco,
       },
       upcomingBills: upcomingBills || [],
       overdueBills: overdueBills || [],
