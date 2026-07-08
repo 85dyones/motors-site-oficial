@@ -141,8 +141,11 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   }, [contaId]);
 
   useEffect(() => {
-    const targetTipo = tipo === "pagar" ? "despesa" : "receita";
-    const filtered = categories.filter((c) => c.tipo === targetTipo);
+    const targetTipo = (tipo === "pagar" ? "despesa" : "receita").toLowerCase();
+    const filtered = categories.filter((c) => {
+      const catTipo = (c.tipo || "").toLowerCase();
+      return catTipo === targetTipo || catTipo === tipo.toLowerCase();
+    });
     if (filtered.length > 0) {
       const isCurrentValid = filtered.some((c) => c.id === categoriaId);
       if (!isCurrentValid) {
@@ -268,8 +271,11 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
     }
   };
 
-  const targetTipo = tipo === "pagar" ? "despesa" : "receita";
-  const filteredCategories = categories.filter((c) => c.tipo === targetTipo);
+  const targetTipo = (tipo === "pagar" ? "despesa" : "receita").toLowerCase();
+  const filteredCategories = categories.filter((c) => {
+    const catTipo = (c.tipo || "").toLowerCase();
+    return catTipo === targetTipo || catTipo === tipo.toLowerCase();
+  });
 
   return (
     <div className="flex flex-col gap-4">
