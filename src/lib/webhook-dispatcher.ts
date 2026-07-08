@@ -27,10 +27,10 @@ export async function dispatchAdminWebhook(event: string, payload: any) {
     }
 
     const webhooks = row.data;
-    const notificationsUrl = webhooks.webhookNotificacoesUrl || webhooks.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL;
+    const notificationsUrl = webhooks.webhookNotificacoesUrl || process.env.N8N_ADMIN_WEBHOOK_URL;
     
     if (!notificationsUrl) {
-      console.info("[WebhookDispatcher] Notifications webhook URL is empty, skipping dispatch.");
+      console.info("[WebhookDispatcher] Notifications webhook URL is not configured, skipping dispatch.");
       return;
     }
 
@@ -50,7 +50,8 @@ export async function dispatchAdminWebhook(event: string, payload: any) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Admin-Event": event
+        "X-Admin-Event": event,
+        ...(process.env.N8N_SECRET_TOKEN ? { "Authorization": `Bearer ${process.env.N8N_SECRET_TOKEN}` } : {})
       },
       body: JSON.stringify({
         event,

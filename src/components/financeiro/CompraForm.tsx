@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 
+interface Category {
+  id: string;
+  nome: string;
+  tipo: string;
+  icone: string;
+}
+
 interface Vehicle {
   id: string;
   marca: string;
@@ -23,7 +30,7 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
   const [quantidade, setQuantidade] = useState("1");
   const [valorUnitario, setValorUnitario] = useState("");
   const [dataCompra, setDataCompra] = useState(new Date().toISOString().split("T")[0]);
-  const [categoria, setCategoria] = useState("peca_reposicao");
+  const [categoria, setCategoria] = useState(""); // This will store the category_id (UUID)
   const [veiculoId, setVeiculoId] = useState("");
   const [notaFiscal, setNotaFiscal] = useState("");
   const [status, setStatus] = useState("recebido");
@@ -32,6 +39,20 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
   const [partners, setPartners] = useState<{ id: string; nome: string; tipo: string }[]>([]);
   const [customFornecedor, setCustomFornecedor] = useState(false);
 
+  // Inline category creation states
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("📁");
+  const [newCategoryColor, setNewCategoryColor] = useState("#6B7280");
+
+  // Inline partner creation states
+  const [showNewPartnerForm, setShowNewPartnerForm] = useState(false);
+  const [newPartnerName, setNewPartnerName] = useState("");
+  const [newPartnerDoc, setNewPartnerDoc] = useState("");
+  const [newPartnerPhone, setNewPartnerPhone] = useState("");
+  const [newPartnerEmail, setNewPartnerEmail] = useState("");
+
+  const [categories, setCategories] = useState<Category[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,9 +60,10 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
   useEffect(() => {
     const loadFormData = async () => {
       try {
-        const [vehRes, partRes] = await Promise.all([
+        const [vehRes, partRes, catRes] = await Promise.all([
           fetch("/api/estoque"),
           fetch("/api/financeiro/parceiros"),
+          fetch("/api/financeiro/categorias"),
         ]);
         if (vehRes.ok) {
           const data = await vehRes.json();
@@ -51,8 +73,12 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
           const data = await partRes.json();
           setPartners(data.partners || []);
         }
+        if (catRes.ok) {
+          const data = await catRes.json();
+          setCategories(data.categories?.filter((c: any) => (c.tipo || "").toLowerCase() === "despesa") || []);
+        }
       } catch (err) {
-        console.error("Failed to load vehicles list:", err);
+        console.error("Failed to load form metadata options:", err);
       }
     };
     loadFormData();
@@ -63,6 +89,15 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
       setCustomFornecedor(true);
     }
   }, [fornecedor, partners]);
+
+  useEffect(() => {
+    if (categories.length > 0) {
+      const isCurrentValid = categories.some((c) => c.id === categoria);
+      if (!isCurrentValid) {
+        setCategoria(categories[0].id);
+      }
+    }
+  }, [categories, categoria]);
 
   useEffect(() => {
     if (compraId) {
@@ -101,21 +136,71 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
     setIsLoading(true);
     setError("");
 
-    const payload = {
-      descricao,
-      fornecedor,
-      valor_total: parseFloat(valorTotal),
-      quantidade: parseInt(quantidade),
-      valor_unitario: valorUnitario ? parseFloat(valorUnitario) : parseFloat(valorTotal) / parseInt(quantidade),
-      data_compra: dataCompra,
-      categoria,
-      veiculo_id: veiculoId || null,
-      nota_fiscal: notaFiscal || null,
-      status,
-      forma_pagamento: formaPagamento,
-    };
-
     try {
+      let finalCategoria = categoria;
+      let finalFornecedor = fornecedor;
+
+      // 1. Cadastra nova categoria inline
+      if (showNewCategoryForm) {
+        if (!newCategoryName.trim()) {
+          throw new Error("O nome da nova categoria é obrigatório.");
+        }
+        const catRes = await fetch("/api/financeiro/categorias", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: newCategoryName.trim(),
+            tipo: "despesa",
+            cor: newCategoryColor,
+            icone: newCategoryIcon
+          })
+        });
+        if (!catRes.ok) {
+          const errData = await catRes.json().catch(() => ({}));
+          throw new Error(`Falha ao cadastrar nova categoria: ${errData.error || "Erro desconhecido"}`);
+        }
+        const catData = await catRes.json();
+        finalCategoria = catData.category.id;
+      }
+
+      // 2. Cadastra novo fornecedor inline
+      if (showNewPartnerForm) {
+        if (!newPartnerName.trim()) {
+          throw new Error("O nome do novo fornecedor é obrigatório.");
+        }
+        const partnerRes = await fetch("/api/financeiro/parceiros", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: newPartnerName.trim(),
+            tipo: "fornecedor",
+            documento: newPartnerDoc.trim() || null,
+            telefone: newPartnerPhone.trim() || null,
+            email: newPartnerEmail.trim() || null
+          })
+        });
+        if (!partnerRes.ok) {
+          const errData = await partnerRes.json().catch(() => ({}));
+          throw new Error(`Falha ao cadastrar novo parceiro: ${errData.error || "Erro desconhecido"}`);
+        }
+        const partnerData = await partnerRes.json();
+        finalFornecedor = partnerData.partner.nome;
+      }
+
+      const payload = {
+        descricao,
+        fornecedor: finalFornecedor || null,
+        valor_total: parseFloat(valorTotal),
+        quantidade: parseInt(quantidade),
+        valor_unitario: valorUnitario ? parseFloat(valorUnitario) : parseFloat(valorTotal) / parseInt(quantidade),
+        data_compra: dataCompra,
+        categoria: finalCategoria || null,
+        veiculo_id: veiculoId || null,
+        nota_fiscal: notaFiscal || null,
+        status,
+        forma_pagamento: formaPagamento,
+      };
+
       const url = compraId ? `/api/financeiro/compras/${compraId}` : "/api/financeiro/compras";
       const method = compraId ? "PUT" : "POST";
 
@@ -162,39 +247,30 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between pl-1">
-              <label className="text-[10px] font-bold uppercase text-brand-text/50">Fornecedor</label>
-              {partners.some(p => p.tipo === "fornecedor" || p.tipo === "ambos") && (
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Fornecedor</label>
+            {showNewPartnerForm ? (
+              <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
+                <span>Cadastrando Novo Fornecedor...</span>
                 <button
                   type="button"
                   onClick={() => {
-                    setCustomFornecedor(!customFornecedor);
+                    setShowNewPartnerForm(false);
                     setFornecedor("");
                   }}
-                  className="text-[9px] font-extrabold text-brand-primary uppercase hover:underline cursor-pointer"
+                  className="text-[9px] font-bold text-brand-text/40 uppercase hover:text-brand-text cursor-pointer"
                 >
-                  {customFornecedor ? "Selecionar Cadastrado" : "Digitar Manual"}
+                  Voltar
                 </button>
-              )}
-            </div>
-            
-            {customFornecedor || !partners.some(p => p.tipo === "fornecedor" || p.tipo === "ambos") ? (
-              <input
-                type="text"
-                required
-                value={fornecedor}
-                onChange={(e) => setFornecedor(e.target.value)}
-                placeholder="Nome do Fornecedor"
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-              />
+              </div>
             ) : (
               <select
                 value={fornecedor}
                 required
                 onChange={(e) => {
-                  if (e.target.value === "__manual__") {
-                    setCustomFornecedor(true);
+                  if (e.target.value === "__new_partner__") {
+                    setShowNewPartnerForm(true);
+                    setNewPartnerName("");
                     setFornecedor("");
                   } else {
                     setFornecedor(e.target.value);
@@ -206,8 +282,62 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
                 {partners.filter(p => p.tipo === "fornecedor" || p.tipo === "ambos").map(p => (
                   <option key={p.id} value={p.nome}>{p.nome}</option>
                 ))}
-                <option value="__manual__">➕ Digitar Manualmente...</option>
+                <option value="__new_partner__">➕ Cadastrar Novo Fornecedor...</option>
               </select>
+            )}
+
+            {showNewPartnerForm && (
+              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
+                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+                  Novo Cadastro de Fornecedor
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome do Fornecedor</label>
+                    <input
+                      type="text"
+                      required
+                      value={newPartnerName}
+                      onChange={(e) => {
+                        setNewPartnerName(e.target.value);
+                        setFornecedor(e.target.value);
+                      }}
+                      placeholder="Ex: Auto Peças XYZ"
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Documento (CPF / CNPJ)</label>
+                    <input
+                      type="text"
+                      value={newPartnerDoc}
+                      onChange={(e) => setNewPartnerDoc(e.target.value)}
+                      placeholder="00.000.000/0001-00"
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Telefone</label>
+                    <input
+                      type="text"
+                      value={newPartnerPhone}
+                      onChange={(e) => setNewPartnerPhone(e.target.value)}
+                      placeholder="(11) 99999-9999"
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">E-mail</label>
+                    <input
+                      type="email"
+                      value={newPartnerEmail}
+                      onChange={(e) => setNewPartnerEmail(e.target.value)}
+                      placeholder="vendas@xyz.com.br"
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
@@ -259,21 +389,68 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 md:col-span-2">
             <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Categoria do Produto</label>
             <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
+              value={showNewCategoryForm ? "__new_category__" : categoria}
+              onChange={(e) => {
+                if (e.target.value === "__new_category__") {
+                  setShowNewCategoryForm(true);
+                  setCategoria("");
+                } else {
+                  setShowNewCategoryForm(false);
+                  setCategoria(e.target.value);
+                }
+              }}
+              required={!showNewCategoryForm}
               className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
             >
-              <option value="peca_reposicao">Peças de Reposição</option>
-              <option value="acessorio">Acessórios</option>
-              <option value="ferramenta">Ferramentas</option>
-              <option value="combustivel">Combustível</option>
-              <option value="material_escritorio">Escritório</option>
-              <option value="material_limpeza">Limpeza</option>
-              <option value="outro">Outros</option>
+              <option value="">Selecione...</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.icone} {c.nome}
+                </option>
+              ))}
+              <option value="__new_category__">➕ Cadastrar Nova Categoria...</option>
             </select>
+
+            {showNewCategoryForm && (
+              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
+                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+                  Nova Categoria de Despesa
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome da Categoria</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Ex: Peças, Pneus, Funilaria"
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Ícone (Emoji)</label>
+                    <select
+                      value={newCategoryIcon}
+                      onChange={(e) => setNewCategoryIcon(e.target.value)}
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                    >
+                      <option value="📁">📁 Pasta</option>
+                      <option value="💸">💸 Dinheiro</option>
+                      <option value="⚡">⚡ Utilidades</option>
+                      <option value="🏢">🏢 Escritório</option>
+                      <option value="🔧">🔧 Manutenção</option>
+                      <option value="📢">📢 Marketing</option>
+                      <option value="🚗">🚗 Veículo</option>
+                      <option value="💼">💼 Serviços</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
