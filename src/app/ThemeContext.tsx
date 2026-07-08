@@ -384,6 +384,30 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     loadSettingsFromServer();
   }, []);
 
+  // Global dynamic favicon update effect
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const targetFavicon = companySettings.faviconUrl?.trim() || "/favicon.ico";
+    
+    let faviconLink: HTMLLinkElement | null = document.querySelector("link[rel='icon']");
+    let shortcutLink: HTMLLinkElement | null = document.querySelector("link[rel='shortcut icon']");
+    
+    const finalFaviconUrl = targetFavicon === "/favicon.ico" ? "/favicon.ico?v=2" : targetFavicon;
+    
+    if (faviconLink) {
+      faviconLink.href = finalFaviconUrl;
+    } else {
+      faviconLink = document.createElement("link");
+      faviconLink.rel = "icon";
+      faviconLink.href = finalFaviconUrl;
+      document.head.appendChild(faviconLink);
+    }
+    
+    if (shortcutLink) {
+      shortcutLink.href = finalFaviconUrl;
+    }
+  }, [companySettings.faviconUrl]);
+
   const updateCompanySettings = (settings: CompanySettings) => {
     setCompanySettings(settings);
   };
