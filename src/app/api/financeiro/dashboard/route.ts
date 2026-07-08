@@ -144,6 +144,29 @@ export async function GET() {
       entradaCaixaMes = monthlyMovements[monthlyMovements.length - 1].entradas;
     }
 
+    // 8. Fetch manual bank balances if configured
+    const { data: bankBalancesRow } = await supabase
+      .from("site_settings")
+      .select("data")
+      .eq("id", "bank_balances")
+      .maybeSingle();
+
+    const manualBalances = bankBalancesRow?.data;
+    let finalSaldoCaixaAcumulado = saldoCaixaAcumulado;
+    let finalSaldoPorBanco = { ...saldoPorBanco };
+
+    if (manualBalances) {
+      if (typeof manualBalances.saldoCaixaManual === "number") {
+        finalSaldoCaixaAcumulado = manualBalances.saldoCaixaManual;
+      }
+      if (manualBalances.saldosBancos && typeof manualBalances.saldosBancos === "object") {
+        finalSaldoPorBanco = {
+          ...finalSaldoPorBanco,
+          ...manualBalances.saldosBancos
+        };
+      }
+    }
+
     return NextResponse.json({
       kpis: {
         aPagarMes,
@@ -151,9 +174,9 @@ export async function GET() {
         saldoProjetado: aReceberMes - aPagarMes,
         overdueCount: overdueCount || 0,
         custoFixoMensal,
-        saldoCaixaAcumulado,
+        saldoCaixaAcumulado: finalSaldoCaixaAcumulado,
         entradaCaixaMes,
-        saldoPorBanco,
+        saldoPorBanco: finalSaldoPorBanco,
       },
       upcomingBills: upcomingBills || [],
       overdueBills: overdueBills || [],

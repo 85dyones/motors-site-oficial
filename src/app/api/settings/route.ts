@@ -38,6 +38,7 @@ const getCachedSettings = unstable_cache(
     let quickTags = null;
     let stockOverrides = null;
     let carouselVehicleIds = null;
+    let bankBalances = null;
     let fetchedFromSupabase = false;
 
     if (supabaseUrl && supabaseAnonKey) {
@@ -55,6 +56,7 @@ const getCachedSettings = unstable_cache(
           const quickTagsRow = data.find((row) => row.id === "quick_tags");
           const stockOverridesRow = data.find((row) => row.id === "stock_overrides");
           const carouselRow = data.find((row) => row.id === "carousel_vehicles");
+          const bankBalancesRow = data.find((row) => row.id === "bank_balances");
 
           if (companyRow) companySettings = companyRow.data;
           if (aboutRow) aboutSettings = aboutRow.data;
@@ -63,6 +65,7 @@ const getCachedSettings = unstable_cache(
           if (quickTagsRow) quickTags = quickTagsRow.data;
           if (stockOverridesRow) stockOverrides = stockOverridesRow.data;
           if (carouselRow) carouselVehicleIds = carouselRow.data;
+          if (bankBalancesRow) bankBalances = bankBalancesRow.data;
           fetchedFromSupabase = true;
           console.log("[Settings API] Loaded settings from Supabase (Cached)");
         }
@@ -90,7 +93,8 @@ const getCachedSettings = unstable_cache(
       popups,
       quickTags,
       stockOverrides,
-      carouselVehicleIds
+      carouselVehicleIds,
+      bankBalances
     };
   },
   ["site-settings"],
@@ -115,7 +119,8 @@ export async function POST(request: Request) {
       popups,
       quickTags,
       stockOverrides,
-      carouselVehicleIds
+      carouselVehicleIds,
+      bankBalances
     } = body;
 
     const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
@@ -232,6 +237,16 @@ export async function POST(request: Request) {
         if (error) {
           console.error("[Settings API] Supabase write error for carouselVehicleIds:", error.message);
           return NextResponse.json({ error: `Falha ao salvar carrossel de veículos: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      if (bankBalances) {
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "bank_balances", data: bankBalances, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for bankBalances:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar saldos bancários: ${error.message}` }, { status: 500 });
         }
       }
     } else {

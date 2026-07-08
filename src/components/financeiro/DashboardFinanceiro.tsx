@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
 
 interface KPIState {
   aPagarMes: number;
@@ -53,6 +54,58 @@ export default function DashboardFinanceiro() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [notification, setNotification] = useState("");
+
+  // States for manual bank balances override
+  const [isEditingSaldos, setIsEditingSaldos] = useState(false);
+  const [editSaldoCaixa, setEditSaldoCaixa] = useState("");
+  const [editSaldosBancos, setEditSaldosBancos] = useState<Record<string, string>>({});
+
+  const handleSaveSaldos = async () => {
+    setIsLoading(true);
+    setNotification("");
+    try {
+      const browserClient = createBrowserSupabaseClient();
+      const sessionRes = await browserClient.auth.getSession();
+      const token = sessionRes.data?.session?.access_token;
+      
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const saldosBancosFormatted: Record<string, number> = {};
+      Object.entries(editSaldosBancos).forEach(([k, v]) => {
+        saldosBancosFormatted[k] = parseFloat(v) || 0;
+      });
+
+      const payload = {
+        bankBalances: {
+          saldoCaixaManual: parseFloat(editSaldoCaixa) || 0,
+          saldosBancos: saldosBancosFormatted
+        }
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setIsEditingSaldos(false);
+        setNotification("Saldos ajustados manualmente com sucesso!");
+        fetchDashboardData();
+        setTimeout(() => setNotification(""), 4000);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setNotification(`Erro ao salvar: ${errData.error || "Erro desconhecido"}`);
+      }
+    } catch (err: any) {
+      setNotification(`Erro de conexão: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
@@ -247,15 +300,68 @@ export default function DashboardFinanceiro() {
 
             {/* Bank Balances Card */}
             <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
-              <div className="flex flex-col select-none">
-                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">Disponibilidade</span>
-                <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider mt-0.5">Saldos Bancários</h3>
-                <p className="text-[10px] text-brand-text/40 mt-0.5">Saldos consolidados por canal de recebimento.</p>
-              </div>
+              {isEditingSaldos ? (
+                <div className="flex items-center justify-between border-b border-brand-border/20 pb-3">
+                  <div className="flex flex-col select-none">
+                    <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">Ajuste de Saldos</span>
+                    <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider mt-0.5">Modo de Edição</h3>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setIsEditingSaldos(false)}
+                      className="text-[9px] font-bold text-brand-text/50 uppercase hover:underline cursor-pointer select-none"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveSaldos}
+                      className="text-[9px] font-bold text-emerald-500 uppercase hover:underline cursor-pointer select-none"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between border-b border-brand-border/20 pb-3">
+                  <div className="flex flex-col select-none">
+                    <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">Disponibilidade</span>
+                    <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider mt-0.5">Saldos Bancários</h3>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsEditingSaldos(true);
+                      setEditSaldoCaixa((kpis.saldoCaixaAcumulado || 0).toString());
+                      const initialBancos: Record<string, string> = {};
+                      Object.entries(kpis.saldoPorBanco || {}).forEach(([k, v]) => {
+                        initialBancos[k] = v.toString();
+                      });
+                      setEditSaldosBancos(initialBancos);
+                    }}
+                    className="text-[9px] font-bold text-brand-primary uppercase hover:underline cursor-pointer select-none"
+                  >
+                    Editar Saldos
+                  </button>
+                </div>
+              )}
 
               {/* Balances List */}
               <div className="flex flex-col gap-3 mt-2 flex-grow justify-center">
-                {kpis.saldoPorBanco && Object.entries(kpis.saldoPorBanco).length > 0 ? (
+                {isEditingSaldos ? (
+                  <div className="flex flex-col gap-3.5">
+                    {Object.keys(editSaldosBancos).map((banco) => (
+                      <div key={banco} className="flex flex-col gap-1 border-b border-brand-border/10 pb-2.5 last:border-0 last:pb-0">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase pl-0.5">{banco}</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editSaldosBancos[banco] || ""}
+                          onChange={(e) => setEditSaldosBancos({ ...editSaldosBancos, [banco]: e.target.value })}
+                          className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 py-2 w-full focus:outline-none focus:border-brand-primary font-mono"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : kpis.saldoPorBanco && Object.entries(kpis.saldoPorBanco).length > 0 ? (
                   Object.entries(kpis.saldoPorBanco).map(([banco, saldo]) => (
                     <div key={banco} className="flex items-center justify-between border-b border-brand-border/10 pb-3 last:border-0 last:pb-0">
                       <div className="flex flex-col gap-0.5">
@@ -278,9 +384,19 @@ export default function DashboardFinanceiro() {
                   <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Saldo Geral Disponível</span>
                   <span className="text-[8px] text-brand-text/30 uppercase tracking-widest mt-0.5">Caixa Consolidado</span>
                 </div>
-                <span className={`text-sm font-black tracking-tight ${kpis.saldoCaixaAcumulado && kpis.saldoCaixaAcumulado >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                  {formatPrice(kpis.saldoCaixaAcumulado || 0)}
-                </span>
+                {isEditingSaldos ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editSaldoCaixa}
+                    onChange={(e) => setEditSaldoCaixa(e.target.value)}
+                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 py-2 w-32 focus:outline-none focus:border-brand-primary text-right font-black font-mono"
+                  />
+                ) : (
+                  <span className={`text-sm font-black tracking-tight ${kpis.saldoCaixaAcumulado && kpis.saldoCaixaAcumulado >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                    {formatPrice(kpis.saldoCaixaAcumulado || 0)}
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -42,6 +42,19 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   const [customFornecedor, setCustomFornecedor] = useState(false);
   const [customCliente, setCustomCliente] = useState(false);
 
+  // Inline category creation states
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("📁");
+  const [newCategoryColor, setNewCategoryColor] = useState("#6B7280");
+
+  // Inline partner creation states
+  const [showNewPartnerForm, setShowNewPartnerForm] = useState(false);
+  const [newPartnerName, setNewPartnerName] = useState("");
+  const [newPartnerDoc, setNewPartnerDoc] = useState("");
+  const [newPartnerPhone, setNewPartnerPhone] = useState("");
+  const [newPartnerEmail, setNewPartnerEmail] = useState("");
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -123,7 +136,8 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   }, [contaId]);
 
   useEffect(() => {
-    const filtered = categories.filter((c) => c.tipo === tipo);
+    const targetTipo = tipo === "pagar" ? "despesa" : "receita";
+    const filtered = categories.filter((c) => c.tipo === targetTipo);
     if (filtered.length > 0) {
       const isCurrentValid = filtered.some((c) => c.id === categoriaId);
       if (!isCurrentValid) {
@@ -153,22 +167,78 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
     setIsLoading(true);
     setError("");
 
-    const payload = {
-      tipo,
-      descricao,
-      valor: parseFloat(valor),
-      data_vencimento: dataVencimento,
-      status,
-      categoria_id: categoriaId || null,
-      veiculo_id: veiculoId || null,
-      fornecedor: tipo === "pagar" ? fornecedor : null,
-      cliente: tipo === "receber" ? cliente : null,
-      forma_pagamento: formaPagamento || null,
-      total_parcelas: parseInt(totalParcelas) || 1,
-      observacoes: observacoes || null,
-    };
-
     try {
+      let finalCategoriaId = categoriaId;
+      let finalFornecedor = fornecedor;
+      let finalCliente = cliente;
+
+      // 1. Cadastra nova categoria inline
+      if (showNewCategoryForm) {
+        if (!newCategoryName.trim()) {
+          throw new Error("O nome da nova categoria é obrigatório.");
+        }
+        const targetTipo = tipo === "pagar" ? "despesa" : "receita";
+        const catRes = await fetch("/api/financeiro/categorias", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: newCategoryName.trim(),
+            tipo: targetTipo,
+            cor: newCategoryColor,
+            icone: newCategoryIcon
+          })
+        });
+        if (!catRes.ok) {
+          const errData = await catRes.json().catch(() => ({}));
+          throw new Error(`Falha ao cadastrar nova categoria: ${errData.error || "Erro desconhecido"}`);
+        }
+        const catData = await catRes.json();
+        finalCategoriaId = catData.category.id;
+      }
+
+      // 2. Cadastra novo fornecedor/cliente inline
+      if (showNewPartnerForm) {
+        if (!newPartnerName.trim()) {
+          throw new Error("O nome do novo parceiro é obrigatório.");
+        }
+        const partnerRes = await fetch("/api/financeiro/parceiros", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: newPartnerName.trim(),
+            tipo: tipo === "pagar" ? "fornecedor" : "cliente",
+            documento: newPartnerDoc.trim() || null,
+            telefone: newPartnerPhone.trim() || null,
+            email: newPartnerEmail.trim() || null
+          })
+        });
+        if (!partnerRes.ok) {
+          const errData = await partnerRes.json().catch(() => ({}));
+          throw new Error(`Falha ao cadastrar novo parceiro: ${errData.error || "Erro desconhecido"}`);
+        }
+        const partnerData = await partnerRes.json();
+        if (tipo === "pagar") {
+          finalFornecedor = partnerData.partner.nome;
+        } else {
+          finalCliente = partnerData.partner.nome;
+        }
+      }
+
+      const payload = {
+        tipo,
+        descricao,
+        valor: parseFloat(valor),
+        data_vencimento: dataVencimento,
+        status,
+        categoria_id: finalCategoriaId || null,
+        veiculo_id: veiculoId || null,
+        fornecedor: tipo === "pagar" ? finalFornecedor : null,
+        cliente: tipo === "receber" ? finalCliente : null,
+        forma_pagamento: formaPagamento || null,
+        total_parcelas: totalParcelas ? parseInt(totalParcelas) : 1,
+        observacoes: observacoes || null,
+      };
+
       const url = contaId ? `/api/financeiro/contas/${contaId}` : "/api/financeiro/contas";
       const method = contaId ? "PUT" : "POST";
 
@@ -193,7 +263,8 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
     }
   };
 
-  const filteredCategories = categories.filter((c) => c.tipo === tipo);
+  const targetTipo = tipo === "pagar" ? "despesa" : "receita";
+  const filteredCategories = categories.filter((c) => c.tipo === targetTipo);
 
   return (
     <div className="flex flex-col gap-4">
@@ -273,12 +344,20 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           </div>
 
           {/* Categoria */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 md:col-span-2">
             <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Categoria</label>
             <select
-              value={categoriaId}
-              onChange={(e) => setCategoriaId(e.target.value)}
-              required
+              value={showNewCategoryForm ? "__new_category__" : categoriaId}
+              onChange={(e) => {
+                if (e.target.value === "__new_category__") {
+                  setShowNewCategoryForm(true);
+                  setCategoriaId("");
+                } else {
+                  setShowNewCategoryForm(false);
+                  setCategoriaId(e.target.value);
+                }
+              }}
+              required={!showNewCategoryForm}
               className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
             >
               <option value="">Selecione...</option>
@@ -287,7 +366,46 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                   {c.icone} {c.nome}
                 </option>
               ))}
+              <option value="__new_category__">➕ Cadastrar Nova Categoria...</option>
             </select>
+
+            {showNewCategoryForm && (
+              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
+                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+                  Nova Categoria de {tipo === "pagar" ? "Despesa" : "Receita"}
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome da Categoria</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Ex: Marketing, Manutenção"
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Ícone (Emoji)</label>
+                    <select
+                      value={newCategoryIcon}
+                      onChange={(e) => setNewCategoryIcon(e.target.value)}
+                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                    >
+                      <option value="📁">📁 Pasta</option>
+                      <option value="💸">💸 Dinheiro</option>
+                      <option value="⚡">⚡ Utilidades</option>
+                      <option value="🚗">🚗 Veículo</option>
+                      <option value="🔧">🔧 Manutenção</option>
+                      <option value="📢">📢 Marketing</option>
+                      <option value="🏢">🏢 Escritório</option>
+                      <option value="💼">💼 Serviços</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Parcelamento (Only when creating) */}
@@ -331,12 +449,13 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between pl-1">
                 <label className="text-[10px] font-bold uppercase text-brand-text/50">Fornecedor</label>
-                {partners.some(p => p.tipo === "fornecedor" || p.tipo === "ambos") && (
+                {!showNewPartnerForm && (partners.length > 0 || customFornecedor) && (
                   <button
                     type="button"
                     onClick={() => {
                       setCustomFornecedor(!customFornecedor);
                       setFornecedor("");
+                      setShowNewPartnerForm(false);
                     }}
                     className="text-[9px] font-extrabold text-brand-primary uppercase hover:underline cursor-pointer"
                   >
@@ -345,21 +464,56 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                 )}
               </div>
               
-              {customFornecedor || !partners.some(p => p.tipo === "fornecedor" || p.tipo === "ambos") ? (
-                <input
-                  type="text"
-                  required
-                  value={fornecedor}
-                  onChange={(e) => setFornecedor(e.target.value)}
-                  placeholder="Nome do fornecedor"
-                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                />
+              {showNewPartnerForm ? (
+                <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
+                  <span>Cadastrando Novo Fornecedor...</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewPartnerForm(false);
+                      setFornecedor("");
+                    }}
+                    className="text-[9px] font-bold text-brand-text/40 uppercase hover:text-brand-text cursor-pointer"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              ) : customFornecedor || partners.length === 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <input
+                    type="text"
+                    required
+                    value={fornecedor}
+                    onChange={(e) => {
+                      setFornecedor(e.target.value);
+                      setNewPartnerName(e.target.value);
+                    }}
+                    placeholder="Nome do fornecedor"
+                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+                  />
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none mt-1 pl-1">
+                    <input
+                      type="checkbox"
+                      checked={showNewPartnerForm}
+                      onChange={(e) => {
+                        setShowNewPartnerForm(e.target.checked);
+                        if (e.target.checked) setNewPartnerName(fornecedor);
+                      }}
+                      className="rounded border-brand-border text-brand-primary h-3.5 w-3.5 bg-brand-bg focus:ring-0"
+                    />
+                    <span className="text-[9px] font-bold text-brand-text/40 uppercase">Salvar este fornecedor no banco</span>
+                  </label>
+                </div>
               ) : (
                 <select
                   value={fornecedor}
                   required
                   onChange={(e) => {
-                    if (e.target.value === "__manual__") {
+                    if (e.target.value === "__new_partner__") {
+                      setShowNewPartnerForm(true);
+                      setNewPartnerName("");
+                      setFornecedor("");
+                    } else if (e.target.value === "__manual__") {
                       setCustomFornecedor(true);
                       setFornecedor("");
                     } else {
@@ -372,7 +526,8 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                   {partners.filter(p => p.tipo === "fornecedor" || p.tipo === "ambos").map(p => (
                     <option key={p.id} value={p.nome}>{p.nome}</option>
                   ))}
-                  <option value="__manual__">➕ Digitar Manualmente...</option>
+                  <option value="__manual__">✍️ Digitar Manualmente...</option>
+                  <option value="__new_partner__">➕ Cadastrar Novo Fornecedor...</option>
                 </select>
               )}
             </div>
@@ -380,12 +535,13 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between pl-1">
                 <label className="text-[10px] font-bold uppercase text-brand-text/50">Cliente</label>
-                {partners.some(p => p.tipo === "cliente" || p.tipo === "ambos") && (
+                {!showNewPartnerForm && (partners.length > 0 || customCliente) && (
                   <button
                     type="button"
                     onClick={() => {
                       setCustomCliente(!customCliente);
                       setCliente("");
+                      setShowNewPartnerForm(false);
                     }}
                     className="text-[9px] font-extrabold text-brand-primary uppercase hover:underline cursor-pointer"
                   >
@@ -394,21 +550,56 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                 )}
               </div>
 
-              {customCliente || !partners.some(p => p.tipo === "cliente" || p.tipo === "ambos") ? (
-                <input
-                  type="text"
-                  required
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  placeholder="Nome do cliente"
-                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                />
+              {showNewPartnerForm ? (
+                <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
+                  <span>Cadastrando Novo Cliente...</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewPartnerForm(false);
+                      setCliente("");
+                    }}
+                    className="text-[9px] font-bold text-brand-text/40 uppercase hover:text-brand-text cursor-pointer"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              ) : customCliente || partners.length === 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <input
+                    type="text"
+                    required
+                    value={cliente}
+                    onChange={(e) => {
+                      setCliente(e.target.value);
+                      setNewPartnerName(e.target.value);
+                    }}
+                    placeholder="Nome do cliente"
+                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+                  />
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none mt-1 pl-1">
+                    <input
+                      type="checkbox"
+                      checked={showNewPartnerForm}
+                      onChange={(e) => {
+                        setShowNewPartnerForm(e.target.checked);
+                        if (e.target.checked) setNewPartnerName(cliente);
+                      }}
+                      className="rounded border-brand-border text-brand-primary h-3.5 w-3.5 bg-brand-bg focus:ring-0"
+                    />
+                    <span className="text-[9px] font-bold text-brand-text/40 uppercase">Salvar este cliente no banco</span>
+                  </label>
+                </div>
               ) : (
                 <select
                   value={cliente}
                   required
                   onChange={(e) => {
-                    if (e.target.value === "__manual__") {
+                    if (e.target.value === "__new_partner__") {
+                      setShowNewPartnerForm(true);
+                      setNewPartnerName("");
+                      setCliente("");
+                    } else if (e.target.value === "__manual__") {
                       setCustomCliente(true);
                       setCliente("");
                     } else {
@@ -421,9 +612,66 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                   {partners.filter(p => p.tipo === "cliente" || p.tipo === "ambos").map(p => (
                     <option key={p.id} value={p.nome}>{p.nome}</option>
                   ))}
-                  <option value="__manual__">➕ Digitar Manualmente...</option>
+                  <option value="__manual__">✍️ Digitar Manualmente...</option>
+                  <option value="__new_partner__">➕ Cadastrar Novo Cliente...</option>
                 </select>
               )}
+            </div>
+          )}
+
+          {/* New Partner Inline Form */}
+          {showNewPartnerForm && (
+            <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl md:col-span-2 select-none animate-fadeIn">
+              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+                Novo Cadastro de Parceiro ({tipo === "pagar" ? "Fornecedor" : "Cliente"})
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome do Parceiro</label>
+                  <input
+                    type="text"
+                    required
+                    value={newPartnerName}
+                    onChange={(e) => {
+                      setNewPartnerName(e.target.value);
+                      if (tipo === "pagar") setFornecedor(e.target.value);
+                      else setCliente(e.target.value);
+                    }}
+                    placeholder="Ex: Auto Peças São Paulo, João Silva"
+                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Documento (CPF / CNPJ)</label>
+                  <input
+                    type="text"
+                    value={newPartnerDoc}
+                    onChange={(e) => setNewPartnerDoc(e.target.value)}
+                    placeholder="00.000.000/0001-00"
+                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Telefone</label>
+                  <input
+                    type="text"
+                    value={newPartnerPhone}
+                    onChange={(e) => setNewPartnerPhone(e.target.value)}
+                    placeholder="(11) 99999-9999"
+                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">E-mail</label>
+                  <input
+                    type="email"
+                    value={newPartnerEmail}
+                    onChange={(e) => setNewPartnerEmail(e.target.value)}
+                    placeholder="contato@empresa.com.br"
+                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
