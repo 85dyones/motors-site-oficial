@@ -59,26 +59,43 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
 
   useEffect(() => {
     const loadFormData = async () => {
+      // 1. Fetch categories
       try {
-        const [vehRes, partRes, catRes] = await Promise.all([
-          fetch("/api/estoque"),
-          fetch("/api/financeiro/parceiros"),
-          fetch("/api/financeiro/categorias"),
-        ]);
-        if (vehRes.ok) {
-          const data = await vehRes.json();
-          setVehicles(data.veiculos || []);
-        }
-        if (partRes.ok) {
-          const data = await partRes.json();
-          setPartners(data.partners || []);
-        }
+        const catRes = await fetch("/api/financeiro/categorias");
         if (catRes.ok) {
           const data = await catRes.json();
           setCategories(data.categories?.filter((c: any) => (c.tipo || "").toLowerCase() === "despesa") || []);
+        } else {
+          console.error("[CompraForm] Failed to fetch categories: status", catRes.status);
         }
       } catch (err) {
-        console.error("Failed to load form metadata options:", err);
+        console.error("[CompraForm] Error fetching categories:", err);
+      }
+
+      // 2. Fetch partners
+      try {
+        const partRes = await fetch("/api/financeiro/parceiros");
+        if (partRes.ok) {
+          const data = await partRes.json();
+          setPartners(data.partners || []);
+        } else {
+          console.error("[CompraForm] Failed to fetch partners: status", partRes.status);
+        }
+      } catch (err) {
+        console.error("[CompraForm] Error fetching partners:", err);
+      }
+
+      // 3. Fetch vehicles
+      try {
+        const vehRes = await fetch("/api/estoque");
+        if (vehRes.ok) {
+          const data = await vehRes.json();
+          setVehicles(data.veiculos || []);
+        } else {
+          console.error("[CompraForm] Failed to fetch vehicles: status", vehRes.status);
+        }
+      } catch (err) {
+        console.error("[CompraForm] Error fetching vehicles:", err);
       }
     };
     loadFormData();

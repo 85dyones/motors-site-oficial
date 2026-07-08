@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
+import { dispatchAdminWebhook } from "../../../../../lib/webhook-dispatcher";
 
 export async function PUT(
   request: NextRequest,
@@ -38,6 +39,10 @@ export async function PUT(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    dispatchAdminWebhook("recorrente_atualizada", updated).catch((err) =>
+      console.error("[WebhookDispatcher] Failed to dispatch recorrente_atualizada:", err.message)
+    );
+
     return NextResponse.json({ recurring: updated });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -64,6 +69,10 @@ export async function DELETE(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    dispatchAdminWebhook("recorrente_deletada", { id }).catch((err) =>
+      console.error("[WebhookDispatcher] Failed to dispatch recorrente_deletada:", err.message)
+    );
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

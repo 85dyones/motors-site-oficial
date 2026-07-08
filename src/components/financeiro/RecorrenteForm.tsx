@@ -48,21 +48,30 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
 
   useEffect(() => {
     const loadFormData = async () => {
+      // 1. Fetch categories
       try {
-        const [catRes, partRes] = await Promise.all([
-          fetch("/api/financeiro/categorias"),
-          fetch("/api/financeiro/parceiros"),
-        ]);
+        const catRes = await fetch("/api/financeiro/categorias");
         if (catRes.ok) {
           const catData = await catRes.json();
           setCategories(catData.categories?.filter((c: any) => (c.tipo || "").toLowerCase() === "despesa") || []);
+        } else {
+          console.error("[RecorrenteForm] Failed to fetch categories: status", catRes.status);
         }
+      } catch (err) {
+        console.error("[RecorrenteForm] Error fetching categories:", err);
+      }
+
+      // 2. Fetch partners
+      try {
+        const partRes = await fetch("/api/financeiro/parceiros");
         if (partRes.ok) {
           const partData = await partRes.json();
           setPartners(partData.partners || []);
+        } else {
+          console.error("[RecorrenteForm] Failed to fetch partners: status", partRes.status);
         }
       } catch (err) {
-        console.error("Failed to load categories and partners:", err);
+        console.error("[RecorrenteForm] Error fetching partners:", err);
       }
     };
     loadFormData();

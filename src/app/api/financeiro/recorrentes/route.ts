@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { dispatchAdminWebhook } from "../../../../lib/webhook-dispatcher";
 
 export async function GET() {
   try {
@@ -73,6 +74,11 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Dispatch webhook event in the background
+    dispatchAdminWebhook("recorrente_criada", inserted).catch((err) =>
+      console.error("[WebhookDispatcher] Failed to dispatch recorrente_criada:", err.message)
+    );
 
     return NextResponse.json({ recurring: inserted });
   } catch (err: any) {

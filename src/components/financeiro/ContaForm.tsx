@@ -61,34 +61,44 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Fetch categories, vehicles and partners on mount
     const loadFormData = async () => {
+      // 1. Fetch categories
       try {
-        const [catRes, vehRes, partRes] = await Promise.all([
-          fetch("/api/financeiro/categorias"),
-          fetch("/api/estoque"),
-          fetch("/api/financeiro/parceiros"),
-        ]);
-        
-        console.log("[ContaForm] catRes status:", catRes.status);
+        const catRes = await fetch("/api/financeiro/categorias");
         if (catRes.ok) {
           const catData = await catRes.json();
-          console.log("[ContaForm] catData categories length:", catData.categories?.length, catData.categories);
           setCategories(catData.categories || []);
         } else {
-          const catError = await catRes.json().catch(() => ({}));
-          console.error("[ContaForm] catRes error:", catError);
+          console.error("[ContaForm] Failed to fetch categories: status", catRes.status);
         }
-        if (vehRes.ok) {
-          const vehData = await vehRes.json();
-          setVehicles(vehData.veiculos || []);
-        }
+      } catch (err) {
+        console.error("[ContaForm] Error fetching categories:", err);
+      }
+
+      // 2. Fetch partners
+      try {
+        const partRes = await fetch("/api/financeiro/parceiros");
         if (partRes.ok) {
           const partData = await partRes.json();
           setPartners(partData.partners || []);
+        } else {
+          console.error("[ContaForm] Failed to fetch partners: status", partRes.status);
         }
       } catch (err) {
-        console.error("Failed to load form fields options:", err);
+        console.error("[ContaForm] Error fetching partners:", err);
+      }
+
+      // 3. Fetch vehicles
+      try {
+        const vehRes = await fetch("/api/estoque");
+        if (vehRes.ok) {
+          const vehData = await vehRes.json();
+          setVehicles(vehData.veiculos || []);
+        } else {
+          console.error("[ContaForm] Failed to fetch vehicles: status", vehRes.status);
+        }
+      } catch (err) {
+        console.error("[ContaForm] Error fetching vehicles:", err);
       }
     };
 
