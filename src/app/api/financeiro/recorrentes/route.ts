@@ -70,7 +70,10 @@ export async function POST(request: NextRequest) {
         observacoes: observacoes || null,
         created_by: user.id
       })
-      .select()
+      .select(`
+        *,
+        categoria:categorias_financeiras (nome, icone)
+      `)
       .single();
 
     if (error) {

@@ -34,7 +34,10 @@ export async function PUT(
       .from("despesas_recorrentes")
       .update(updateData)
       .eq("id", id)
-      .select()
+      .select(`
+        *,
+        categoria:categorias_financeiras (nome, icone)
+      `)
       .single();
 
     if (error) {

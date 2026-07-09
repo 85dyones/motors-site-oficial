@@ -10,7 +10,10 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
   if (!payload) return null;
 
   // Helper to fetch category name
-  const getCategoryName = async (categoryId: string | null) => {
+  const getCategoryName = async (categoryId: string | null, embeddedCategory?: any) => {
+    if (embeddedCategory) {
+      return `${embeddedCategory.icone || "📁"} ${embeddedCategory.nome}`;
+    }
     if (!categoryId) return "Outros";
     try {
       const { data } = await supabase
@@ -24,8 +27,26 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
     }
   };
 
+  // Helper to resolve purchases category text enum to friendly name
+  const getPurchaseCategoryFriendly = (cat: string | null) => {
+    if (!cat) return "Outros";
+    const map: Record<string, string> = {
+      peca_reposicao: "🔧 Peça de Reposição",
+      acessorio: "🎒 Acessório",
+      material_escritorio: "🏢 Material de Escritório",
+      material_limpeza: "🧼 Material de Limpeza",
+      combustivel: "⛽ Combustível",
+      ferramenta: "🛠️ Ferramenta",
+      outro: "📁 Outro"
+    };
+    return map[cat] || cat;
+  };
+
   // Helper to fetch vehicle info
-  const getVehicleInfo = async (vehicleId: string | null) => {
+  const getVehicleInfo = async (vehicleId: string | null, embeddedVehicle?: any) => {
+    if (embeddedVehicle) {
+      return `${embeddedVehicle.marca} ${embeddedVehicle.modelo} (${embeddedVehicle.ano})`;
+    }
     if (!vehicleId) return null;
     try {
       const { data } = await supabase
@@ -40,8 +61,8 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
   };
 
   if (event.startsWith("conta_")) {
-    const categoria = await getCategoryName(payload.categoria_id);
-    const veiculo = await getVehicleInfo(payload.veiculo_id);
+    const categoria = await getCategoryName(payload.categoria_id, payload.categoria);
+    const veiculo = await getVehicleInfo(payload.veiculo_id, payload.veiculo);
     return {
       id: payload.id,
       tipo: payload.tipo,
@@ -58,7 +79,7 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
   }
 
   if (event.startsWith("recorrente_")) {
-    const categoria = await getCategoryName(payload.categoria_id);
+    const categoria = await getCategoryName(payload.categoria_id, payload.categoria);
     return {
       id: payload.id,
       descricao: payload.descricao,
@@ -73,12 +94,12 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
   }
 
   if (event.startsWith("compra_")) {
-    const categoria = await getCategoryName(payload.categoria_id);
-    const veiculo = await getVehicleInfo(payload.veiculo_id);
+    const categoria = getPurchaseCategoryFriendly(payload.categoria);
+    const veiculo = await getVehicleInfo(payload.veiculo_id, payload.veiculo);
     return {
       id: payload.id,
       descricao: payload.descricao,
-      valor: Number(payload.valor),
+      valor: Number(payload.valor_total || payload.valor),
       data_compra: payload.data_compra,
       categoria,
       fornecedor: payload.fornecedor || null,
@@ -112,8 +133,9 @@ export async function dispatchAdminWebhook(event: string, payload: any) {
       return;
     }
     
-    // 1. Fetch webhook settings
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // 1. Fetch webhook settings (bypass RLS using service key if available)
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const { data: row } = await supabase
       .from("site_settings")
       .select("data")
