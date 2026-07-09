@@ -4,6 +4,105 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 /**
+ * Enriches and cleans the payload for better usability in n8n/webhooks
+ */
+async function enrichPayload(event: string, payload: any, supabase: any): Promise<any> {
+  if (!payload) return null;
+
+  // Helper to fetch category name
+  const getCategoryName = async (categoryId: string | null) => {
+    if (!categoryId) return "Outros";
+    try {
+      const { data } = await supabase
+        .from("categorias_financeiras")
+        .select("nome, icone")
+        .eq("id", categoryId)
+        .maybeSingle();
+      return data ? `${data.icone || "📁"} ${data.nome}` : "Outros";
+    } catch {
+      return "Outros";
+    }
+  };
+
+  // Helper to fetch vehicle info
+  const getVehicleInfo = async (vehicleId: string | null) => {
+    if (!vehicleId) return null;
+    try {
+      const { data } = await supabase
+        .from("veiculos")
+        .select("marca, modelo, ano")
+        .eq("id", vehicleId)
+        .maybeSingle();
+      return data ? `${data.marca} ${data.modelo} (${data.ano})` : null;
+    } catch {
+      return null;
+    }
+  };
+
+  if (event.startsWith("conta_")) {
+    const categoria = await getCategoryName(payload.categoria_id);
+    const veiculo = await getVehicleInfo(payload.veiculo_id);
+    return {
+      id: payload.id,
+      tipo: payload.tipo,
+      descricao: payload.descricao,
+      valor: Number(payload.valor),
+      vencimento: payload.data_vencimento,
+      pagamento: payload.data_pagamento || null,
+      status: payload.status,
+      categoria,
+      parceiro: payload.tipo === "pagar" ? payload.fornecedor : payload.cliente,
+      forma_pagamento: payload.forma_pagamento || null,
+      parcela: payload.total_parcelas > 1 ? `${payload.parcela_atual} de ${payload.total_parcelas}` : "1 de 1"
+    };
+  }
+
+  if (event.startsWith("recorrente_")) {
+    const categoria = await getCategoryName(payload.categoria_id);
+    return {
+      id: payload.id,
+      descricao: payload.descricao,
+      valor: Number(payload.valor),
+      frequencia: payload.frequencia,
+      dia_vencimento: payload.dia_vencimento,
+      categoria,
+      fornecedor: payload.fornecedor || null,
+      forma_pagamento: payload.forma_pagamento || null,
+      ativa: payload.ativa !== false
+    };
+  }
+
+  if (event.startsWith("compra_")) {
+    const categoria = await getCategoryName(payload.categoria_id);
+    const veiculo = await getVehicleInfo(payload.veiculo_id);
+    return {
+      id: payload.id,
+      descricao: payload.descricao,
+      valor: Number(payload.valor),
+      data_compra: payload.data_compra,
+      categoria,
+      fornecedor: payload.fornecedor || null,
+      veiculo,
+      nota_fiscal: payload.nota_fiscal || null,
+      status: payload.status
+    };
+  }
+
+  if (event.startsWith("fornecedor_")) {
+    return {
+      id: payload.id,
+      nome: payload.nome,
+      tipo: payload.tipo,
+      documento: payload.documento || null,
+      telefone: payload.telefone || null,
+      email: payload.email || null
+    };
+  }
+
+  return payload;
+}
+
+/**
  * Dispatches an administrative event webhook payload if configured and enabled.
  */
 export async function dispatchAdminWebhook(event: string, payload: any) {
@@ -35,7 +134,6 @@ export async function dispatchAdminWebhook(event: string, payload: any) {
     }
 
     // 2. Check if event is enabled in the checklist
-    // If events object is not set yet, default to true for backward compatibility
     const eventsConfig = webhooks.events || {};
     const isEnabled = eventsConfig[event] !== false; // default to true if not defined
 
@@ -43,6 +141,9 @@ export async function dispatchAdminWebhook(event: string, payload: any) {
       console.info(`[WebhookDispatcher] Event "${event}" is disabled by configuration.`);
       return;
     }
+
+    // Enrich and sanitize payload
+    const enrichedData = await enrichPayload(event, payload, supabase);
 
     // 3. Dispatch the payload
     console.log(`[WebhookDispatcher] Dispatching administrative event "${event}" to ${notificationsUrl}`);
@@ -56,7 +157,7 @@ export async function dispatchAdminWebhook(event: string, payload: any) {
       body: JSON.stringify({
         event,
         timestamp: new Date().toISOString(),
-        data: payload
+        data: enrichedData
       })
     });
 
