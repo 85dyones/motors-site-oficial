@@ -163,9 +163,15 @@ export const DEFAULT_WEBHOOKS: Webhooks = {
   events: {
     conta_vencida: true,
     conta_criada: true,
+    conta_atualizada: true,
+    conta_paga: true,
+    conta_deletada: true,
     fornecedor_criado: true,
     usuario_criado: true,
-    compra_registrada: true
+    compra_registrada: true,
+    recorrente_criada: true,
+    recorrente_atualizada: true,
+    recorrente_deletada: true
   }
 };
 

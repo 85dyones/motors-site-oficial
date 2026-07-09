@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../../../lib/supabase-server";
+import { dispatchAdminWebhook } from "../../../../../../lib/webhook-dispatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,10 @@ export async function POST(
       // We don't rollback payment here but we log the error
       console.error("[MoveLog] Failed to register transaction movement log:", moveError.message);
     }
+
+    await dispatchAdminWebhook("conta_paga", updatedConta).catch((err) =>
+      console.error("[WebhookDispatch] Failed to dispatch account paid event:", err.message)
+    );
 
     return NextResponse.json({ conta: updatedConta });
   } catch (err: any) {

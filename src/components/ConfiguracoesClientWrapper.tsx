@@ -1340,6 +1340,66 @@ export default function ConfiguracoesClientWrapper() {
                       />
                       <span>Nova Compra de Insumo Registrada</span>
                     </label>
+                    {/* Event item 6 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.conta_atualizada}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, conta_atualizada: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Lançamento Financeiro Alterado (Conta)</span>
+                    </label>
+                    {/* Event item 7 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.conta_paga}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, conta_paga: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Pagamento / Baixa Realizada (Conta)</span>
+                    </label>
+                    {/* Event item 8 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.conta_deletada}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, conta_deletada: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Lançamento Financeiro Excluído (Conta)</span>
+                    </label>
+                    {/* Event item 9 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.recorrente_criada}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, recorrente_criada: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Nova Despesa Recorrente Criada</span>
+                    </label>
+                    {/* Event item 10 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.recorrente_atualizada}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, recorrente_atualizada: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Despesa Recorrente Alterada</span>
+                    </label>
+                    {/* Event item 11 */}
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-brand-text/75 hover:text-brand-text select-none">
+                      <input
+                        type="checkbox"
+                        checked={eventsConfig.recorrente_deletada}
+                        onChange={(e) => setEventsConfig({ ...eventsConfig, recorrente_deletada: e.target.checked })}
+                        className="rounded border-brand-card-border text-brand-primary focus:ring-brand-primary h-4.5 w-4.5 bg-brand-bg transition-all"
+                      />
+                      <span>Despesa Recorrente Excluída</span>
+                    </label>
                   </div>
                 </div>
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
+import { dispatchAdminWebhook } from "../../../../../lib/webhook-dispatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,10 @@ export async function PUT(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    await dispatchAdminWebhook("conta_atualizada", updated).catch((err) =>
+      console.error("[WebhookDispatch] Failed to dispatch account updated event:", err.message)
+    );
+
     return NextResponse.json({ conta: updated });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -98,6 +103,10 @@ export async function DELETE(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    await dispatchAdminWebhook("conta_deletada", { id }).catch((err) =>
+      console.error("[WebhookDispatch] Failed to dispatch account deleted event:", err.message)
+    );
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
