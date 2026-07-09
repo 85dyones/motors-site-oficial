@@ -259,9 +259,15 @@ export default function ConfiguracoesClientWrapper() {
   const [eventsConfig, setEventsConfig] = useState<Record<string, boolean>>({
     conta_vencida: true,
     conta_criada: true,
+    conta_atualizada: true,
+    conta_paga: true,
+    conta_deletada: true,
     fornecedor_criado: true,
     usuario_criado: true,
-    compra_registrada: true
+    compra_registrada: true,
+    recorrente_criada: true,
+    recorrente_atualizada: true,
+    recorrente_deletada: true
   });
 
   // Check login state on session restore
@@ -406,9 +412,15 @@ export default function ConfiguracoesClientWrapper() {
         setEventsConfig({
           conta_vencida: contextWebhooks.events.conta_vencida !== false,
           conta_criada: contextWebhooks.events.conta_criada !== false,
+          conta_atualizada: contextWebhooks.events.conta_atualizada !== false,
+          conta_paga: contextWebhooks.events.conta_paga !== false,
+          conta_deletada: contextWebhooks.events.conta_deletada !== false,
           fornecedor_criado: contextWebhooks.events.fornecedor_criado !== false,
           usuario_criado: contextWebhooks.events.usuario_criado !== false,
-          compra_registrada: contextWebhooks.events.compra_registrada !== false
+          compra_registrada: contextWebhooks.events.compra_registrada !== false,
+          recorrente_criada: contextWebhooks.events.recorrente_criada !== false,
+          recorrente_atualizada: contextWebhooks.events.recorrente_atualizada !== false,
+          recorrente_deletada: contextWebhooks.events.recorrente_deletada !== false
         });
       }
     }
