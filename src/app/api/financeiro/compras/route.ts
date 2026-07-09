@@ -106,9 +106,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: compraError.message }, { status: 500 });
     }
 
-    // Trigger admin webhook for new purchase (non-blocking)
+    // Trigger admin webhook for new purchase
     if (compra) {
-      dispatchAdminWebhook("compra_registrada", compra).catch((err) =>
+      await dispatchAdminWebhook("compra_registrada", compra).catch((err) =>
         console.error("[WebhookDispatch] Failed to dispatch purchase registered event:", err.message)
       );
     }

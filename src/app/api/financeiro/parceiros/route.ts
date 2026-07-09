@@ -70,9 +70,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Trigger admin webhook for new supplier/partner (non-blocking)
+    // Trigger admin webhook for new supplier/partner
     if (partner && (partner.tipo === "fornecedor" || partner.tipo === "ambos")) {
-      dispatchAdminWebhook("fornecedor_criado", partner).catch((err) =>
+      await dispatchAdminWebhook("fornecedor_criado", partner).catch((err) =>
         console.error("[WebhookDispatch] Failed to dispatch supplier created event:", err.message)
       );
     }

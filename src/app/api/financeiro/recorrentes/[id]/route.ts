@@ -41,7 +41,7 @@ export async function PUT(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    dispatchAdminWebhook("recorrente_atualizada", updated).catch((err) =>
+    await dispatchAdminWebhook("recorrente_atualizada", updated).catch((err) =>
       console.error("[WebhookDispatcher] Failed to dispatch recorrente_atualizada:", err.message)
     );
 
@@ -72,7 +72,7 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    dispatchAdminWebhook("recorrente_deletada", { id }).catch((err) =>
+    await dispatchAdminWebhook("recorrente_deletada", { id }).catch((err) =>
       console.error("[WebhookDispatcher] Failed to dispatch recorrente_deletada:", err.message)
     );
 

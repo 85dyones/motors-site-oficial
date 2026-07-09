@@ -118,13 +118,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Dispatch admin webhook for newly created accounts (non-blocking)
+    // Dispatch admin webhook for newly created accounts
     if (inserted && inserted.length > 0) {
-      inserted.forEach((c) => {
-        dispatchAdminWebhook("conta_criada", c).catch((err) =>
-          console.error("[WebhookDispatch] Failed to dispatch account created event:", err.message)
-        );
-      });
+      await Promise.all(
+        inserted.map((c) =>
+          dispatchAdminWebhook("conta_criada", c).catch((err) =>
+            console.error("[WebhookDispatch] Failed to dispatch account created event:", err.message)
+          )
+        )
+      );
     }
 
     return NextResponse.json({ contas: inserted });

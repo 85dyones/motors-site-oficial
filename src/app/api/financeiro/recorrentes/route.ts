@@ -77,8 +77,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Dispatch webhook event in the background
-    dispatchAdminWebhook("recorrente_criada", inserted).catch((err) =>
+    // Dispatch webhook event
+    await dispatchAdminWebhook("recorrente_criada", inserted).catch((err) =>
       console.error("[WebhookDispatcher] Failed to dispatch recorrente_criada:", err.message)
     );
 
