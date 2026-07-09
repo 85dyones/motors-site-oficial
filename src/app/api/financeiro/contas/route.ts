@@ -112,7 +112,10 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error } = await supabase
       .from("contas")
       .insert(accountsToInsert)
-      .select();
+      .select(`
+        *,
+        categoria:categorias_financeiras (nome, icone)
+      `);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

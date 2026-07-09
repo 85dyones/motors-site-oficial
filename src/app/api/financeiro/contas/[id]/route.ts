@@ -66,7 +66,10 @@ export async function PUT(
       .from("contas")
       .update(updateData)
       .eq("id", id)
-      .select()
+      .select(`
+        *,
+        categoria:categorias_financeiras (nome, icone)
+      `)
       .single();
 
     if (error) {

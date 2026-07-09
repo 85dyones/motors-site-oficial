@@ -49,7 +49,10 @@ export async function POST(
         updated_at: new Date().toISOString()
       })
       .eq("id", id)
-      .select()
+      .select(`
+        *,
+        categoria:categorias_financeiras (nome, icone)
+      `)
       .single();
 
     if (updateError) {
