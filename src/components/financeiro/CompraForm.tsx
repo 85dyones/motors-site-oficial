@@ -61,7 +61,7 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
     const loadFormData = async () => {
       // 1. Fetch categories
       try {
-        const catRes = await fetch("/api/financeiro/categorias");
+        const catRes = await fetch("/api/financeiro/categorias", { cache: "no-store" });
         if (catRes.ok) {
           const data = await catRes.json();
           setCategories(data.categories?.filter((c: any) => (c.tipo || "").toLowerCase() === "despesa") || []);
@@ -74,7 +74,7 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
 
       // 2. Fetch partners
       try {
-        const partRes = await fetch("/api/financeiro/parceiros");
+        const partRes = await fetch("/api/financeiro/parceiros", { cache: "no-store" });
         if (partRes.ok) {
           const data = await partRes.json();
           setPartners(data.partners || []);
@@ -87,7 +87,7 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
 
       // 3. Fetch vehicles
       try {
-        const vehRes = await fetch("/api/estoque");
+        const vehRes = await fetch("/api/estoque", { cache: "no-store" });
         if (vehRes.ok) {
           const data = await vehRes.json();
           setVehicles(data.veiculos || []);

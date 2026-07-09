@@ -50,7 +50,7 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
     const loadFormData = async () => {
       // 1. Fetch categories
       try {
-        const catRes = await fetch("/api/financeiro/categorias");
+        const catRes = await fetch("/api/financeiro/categorias", { cache: "no-store" });
         if (catRes.ok) {
           const catData = await catRes.json();
           setCategories(catData.categories?.filter((c: any) => (c.tipo || "").toLowerCase() === "despesa") || []);
@@ -63,7 +63,7 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
 
       // 2. Fetch partners
       try {
-        const partRes = await fetch("/api/financeiro/parceiros");
+        const partRes = await fetch("/api/financeiro/parceiros", { cache: "no-store" });
         if (partRes.ok) {
           const partData = await partRes.json();
           setPartners(partData.partners || []);

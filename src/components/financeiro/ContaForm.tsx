@@ -59,25 +59,29 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [debugInfo, setDebugInfo] = useState("Carregando categorias...");
 
   useEffect(() => {
     const loadFormData = async () => {
-      // 1. Fetch categories
+      // 1. Fetch categories (with cache bypass)
       try {
-        const catRes = await fetch("/api/financeiro/categorias");
+        const catRes = await fetch("/api/financeiro/categorias", { cache: "no-store" });
         if (catRes.ok) {
           const catData = await catRes.json();
-          setCategories(catData.categories || []);
+          const cats = catData.categories || [];
+          setCategories(cats);
+          setDebugInfo(`✅ ${cats.length} categorias carregadas`);
         } else {
-          console.error("[ContaForm] Failed to fetch categories: status", catRes.status);
+          const errBody = await catRes.text().catch(() => "");
+          setDebugInfo(`❌ API retornou status ${catRes.status}: ${errBody.substring(0, 100)}`);
         }
-      } catch (err) {
-        console.error("[ContaForm] Error fetching categories:", err);
+      } catch (err: any) {
+        setDebugInfo(`❌ Erro de rede: ${err.message}`);
       }
 
       // 2. Fetch partners
       try {
-        const partRes = await fetch("/api/financeiro/parceiros");
+        const partRes = await fetch("/api/financeiro/parceiros", { cache: "no-store" });
         if (partRes.ok) {
           const partData = await partRes.json();
           setPartners(partData.partners || []);
@@ -88,17 +92,15 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
         console.error("[ContaForm] Error fetching partners:", err);
       }
 
-      // 3. Fetch vehicles
+      // 3. Fetch vehicles (optional, may 404)
       try {
-        const vehRes = await fetch("/api/estoque");
+        const vehRes = await fetch("/api/estoque", { cache: "no-store" });
         if (vehRes.ok) {
           const vehData = await vehRes.json();
           setVehicles(vehData.veiculos || []);
-        } else {
-          console.error("[ContaForm] Failed to fetch vehicles: status", vehRes.status);
         }
       } catch (err) {
-        console.error("[ContaForm] Error fetching vehicles:", err);
+        // Silently ignore - vehicles are optional
       }
     };
 
@@ -373,6 +375,10 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           {/* Categoria */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
             <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Categoria</label>
+            {/* Diagnóstico temporário - remover após resolver */}
+            <div className={`text-[9px] px-2 py-1 rounded-lg ${debugInfo.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-400' : debugInfo.startsWith('❌') ? 'bg-red-500/10 text-red-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+              {debugInfo} | filtradas: {filteredCategories.length} | total: {categories.length}
+            </div>
             <select
               value={showNewCategoryForm ? "__new_category__" : categoriaId}
               onChange={(e) => {
