@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { logLeadCaptured } from "../../../lib/telemetry";
+import { createServerSupabaseClient } from "../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ function isAllowedWebhookUrl(urlStr: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createServerSupabaseClient();
     const body = await request.json().catch(() => null);
     
     if (!body) {
@@ -96,12 +98,20 @@ export async function POST(request: NextRequest) {
     };
 
     // 5. Send POST request to n8n Webhook with secret token authentication
-    const secretToken = process.env.N8N_SECRET_TOKEN || "ag-secret-default-token-123";
+    const { data: webhooksRow } = await supabase
+      .from("site_settings")
+      .select("*")
+      .eq("id", "webhooks")
+      .maybeSingle();
+
+    const dbSecretToken = webhooksRow?.data?.apiSecretToken;
+    const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
+
     const response = await fetch(targetWebhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${secretToken}`
+        ...(secretToken && secretToken.trim() !== "" ? { "Authorization": `Bearer ${secretToken.trim()}` } : {})
       },
       body: JSON.stringify(n8nPayload)
     });
