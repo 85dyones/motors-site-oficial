@@ -48,9 +48,7 @@ export default function ContatoClientWrapper() {
     console.log("📈 [Antigravity Telemetry] Novo Lead de Contato Enviado:", payload);
 
     try {
-      const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-      
-      const response = await fetch(webhookUrl, {
+      const response = await fetch("/api/leads", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

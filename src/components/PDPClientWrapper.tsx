@@ -226,8 +226,6 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   };
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
-    const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-
     const utmParams = getUtmParameters();
     const tipoBadge = veiculo.baixa_km ? "BAIXA KM" : (veiculo.unico_dono ? "ÚNICO DONO" : (veiculo.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
     const perfilUso = veiculo.perfil_uso || "URBANO & EFICIENTE";
@@ -271,18 +269,23 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     };
 
     // Dispatch lead via secure server proxy api
-    const response = await fetch("/api/leads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...payload,
-        webhookUrl,
-        turnstileToken: leadData.turnstileToken
-      })
-    });
+    // Wrapped: API failures must NEVER block the client from reaching WhatsApp
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          turnstileToken: leadData.turnstileToken
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error("Erro de validação ou segurança ao registrar o lead.");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.warn("[Lead Submit PDP] API returned error (non-blocking):", errorData?.error || response.status);
+      }
+    } catch (fetchError: any) {
+      console.warn("[Lead Submit PDP] Network error (non-blocking):", fetchError.message);
     }
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel
@@ -317,7 +320,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       console.warn("[Telemetry] Failed to save lead payload to history:", e);
     }
 
-    // Redirect to WhatsApp
+    // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(activeMessage)}`;
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };

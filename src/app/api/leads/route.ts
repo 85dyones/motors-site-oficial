@@ -26,15 +26,7 @@ async function verifyTurnstileToken(token: string): Promise<boolean> {
   }
 }
 
-// Validate that webhook URL is allowed (prevents SSRF)
-function isAllowedWebhookUrl(urlStr: string): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    return parsed.hostname === "n8n.v2o5.com.br";
-  } catch (e) {
-    return false;
-  }
-}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,9 +49,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Falha na verificação de segurança (Anti-Spam)." }, { status: 403 });
     }
 
-    // 2. Validate mandatory payload properties
-    if (!cliente || !cliente.nome || !cliente.whatsapp) {
-      return NextResponse.json({ error: "Dados de contato do cliente ausentes." }, { status: 400 });
+    // 2. Validate mandatory payload properties (only nome is required; whatsapp is optional)
+    if (!cliente || !cliente.nome) {
+      return NextResponse.json({ error: "Dados de contato do cliente ausentes (nome obrigatório)." }, { status: 400 });
     }
 
     // 3. Load webhook settings from database to get the configured custom URL
@@ -104,14 +96,26 @@ export async function POST(request: NextRequest) {
     };
 
     // 5. Send POST request to n8n Webhook with secret token authentication
-    const response = await fetch(targetWebhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(secretToken && secretToken.trim() !== "" ? { "Authorization": `Bearer ${secretToken.trim()}` } : {})
-      },
-      body: JSON.stringify(n8nPayload)
-    });
+    // Wrapped in try/catch: webhook failures must NEVER block the client's WhatsApp redirect
+    let webhookStatus = 0;
+    try {
+      const response = await fetch(targetWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(secretToken && secretToken.trim() !== "" ? { "Authorization": `Bearer ${secretToken.trim()}` } : {})
+        },
+        body: JSON.stringify(n8nPayload)
+      });
+      webhookStatus = response.status;
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        console.warn(`[Webhook n8n Proxy] Error response [${response.status}]: ${errorText}`);
+      }
+    } catch (webhookError: any) {
+      console.warn(`[Webhook n8n Proxy] Network/fetch error (non-blocking): ${webhookError.message}`);
+    }
 
     // 6. Invoke Telemetry Hook
     logLeadCaptured({
@@ -120,15 +124,10 @@ export async function POST(request: NextRequest) {
       ano: veiculo?.ano || 0,
       estado: "Fricção Concluída (Site)",
       nome: cliente.nome,
-      telefone: cliente.whatsapp,
+      telefone: cliente.whatsapp || "",
       agUid: resolvedAgUid,
-      status: response.status
+      status: webhookStatus
     });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      console.warn(`[Webhook n8n Proxy] Error response [${response.status}]: ${errorText}`);
-    }
 
     return NextResponse.json({
       success: true,

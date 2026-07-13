@@ -26,15 +26,7 @@ async function verifyTurnstileToken(token: string): Promise<boolean> {
   }
 }
 
-// Validate that webhook URL is allowed (prevents SSRF)
-function isAllowedWebhookUrl(urlStr: string): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    return parsed.hostname === "n8n.v2o5.com.br";
-  } catch (e) {
-    return false;
-  }
-}
+
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -57,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { marca, modelo, ano, estado, nome, telefone, webhookUrl, tipo_veiculo, turnstileToken } = requestBody;
+    const { marca, modelo, ano, estado, nome, telefone, tipo_veiculo, turnstileToken } = requestBody;
 
     // 1. Verify Turnstile Captcha
     if (!turnstileToken) {

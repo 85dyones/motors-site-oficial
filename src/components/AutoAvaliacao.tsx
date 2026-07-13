@@ -471,7 +471,6 @@ export default function AutoAvaliacao() {
     setLoading(true);
 
     const activeUid = getActiveAgUid();
-    const webhookUrl = webhooks?.webhookAvaliacaoUrl || "";
 
     // POST to backend API route for Lead capturing
     try {
@@ -488,7 +487,6 @@ export default function AutoAvaliacao() {
           nome: step3.nome,
           telefone: step3.whatsapp,
           ag_uid: activeUid,
-          webhookUrl,
           tipo_veiculo: vehicleType,
           fipe_valor: fipeValor,
           fipe_codigo: fipeCodigo,
@@ -585,8 +583,6 @@ export default function AutoAvaliacao() {
   };
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => {
-    const webhookUrl = webhooks?.webhookAvaliacaoUrl || webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-
     const utmParams = getUtmParameters();
     
     const cleanPhone = leadData.whatsapp;
@@ -627,18 +623,23 @@ export default function AutoAvaliacao() {
     };
 
     // Dispatch lead via secure server proxy api
-    const response = await fetch("/api/leads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...payload,
-        webhookUrl,
-        turnstileToken: leadData.turnstileToken
-      })
-    });
+    // Wrapped: API failures must NEVER block the client from reaching WhatsApp
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          turnstileToken: leadData.turnstileToken
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error("Erro de validação ou segurança ao registrar o lead.");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.warn("[Lead Submit Avaliacao] API returned error (non-blocking):", errorData?.error || response.status);
+      }
+    } catch (fetchError: any) {
+      console.warn("[Lead Submit Avaliacao] Network error (non-blocking):", fetchError.message);
     }
 
     // Save lead to history
@@ -668,6 +669,7 @@ export default function AutoAvaliacao() {
       console.warn("[Telemetry] Failed to save lead payload to history:", e);
     }
 
+    // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };

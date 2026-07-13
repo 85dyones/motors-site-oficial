@@ -237,10 +237,8 @@ export default function LeadPopup() {
     if (activeCampaign.actionType === "whatsapp") {
       const leadMessage = resolvePlaceholders(activeCampaign.actionTarget);
 
-      // Dispatch to webhook
-      const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-
-      fetch(webhookUrl, {
+      // Dispatch to webhook via secure server proxy
+      fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -261,6 +259,7 @@ export default function LeadPopup() {
               tipo_badge: "OFERTA RELÂMPAGO",
             },
           } : null,
+          cliente: { nome: "Lead Popup" },
           utm: {
             utm_source: utmParams.utm_source || "lead-popup",
             utm_medium: utmParams.utm_medium || "organico",

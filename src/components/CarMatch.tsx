@@ -175,8 +175,6 @@ export default function CarMatch() {
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
     if (!activeVehicle) return;
 
-    const webhookUrl = webhooks?.webhookUrl || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-
     const utmParams = getUtmParameters();
     const tipoBadge = activeVehicle.baixa_km ? "BAIXA KM" : (activeVehicle.unico_dono ? "ÚNICO DONO" : (activeVehicle.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
     const perfilUso = activeVehicle.perfil_uso || "URBANO & EFICIENTE";
@@ -222,12 +220,17 @@ export default function CarMatch() {
       agUid: agUid
     };
 
-    // Dispatch webhook
-    await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    // Dispatch lead via secure server proxy api
+    // Wrapped: API failures must NEVER block the client from reaching WhatsApp
+    try {
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } catch (fetchError: any) {
+      console.warn("[Lead Submit CarMatch] Network error (non-blocking):", fetchError.message);
+    }
 
     // Save lead to history to persist/pre-populate
     try {
@@ -253,7 +256,7 @@ export default function CarMatch() {
       console.warn("[Telemetry] Failed to save lead payload to history:", e);
     }
 
-    // Redirect to WhatsApp
+    // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
