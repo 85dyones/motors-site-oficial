@@ -172,17 +172,12 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       console.warn(`[Webhook n8n Proxy] Evaluation error response [${response.status}]: ${errorText}`);
-      
-      return sendResponse(
-        NextResponse.json({ error: "Falha na sincronização externa com o webhook do CRM." }, { status: 502 }),
-        `Falha no Webhook CRM com status ${response.status}: ${errorText}`
-      );
     }
 
     return sendResponse(
       NextResponse.json({
         success: true,
-        message: "Lead de avaliação capturado e encaminhado com sucesso.",
+        message: "Lead de avaliação processado com sucesso.",
         ref: agUid
       })
     );
