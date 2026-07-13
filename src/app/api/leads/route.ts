@@ -62,14 +62,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Dados de contato do cliente ausentes." }, { status: 400 });
     }
 
-    // 3. Resolve and validate Webhook URL
-    const targetWebhookUrl = webhookUrl?.trim() 
+    // 3. Load webhook settings from database to get the configured custom URL
+    const { data: webhooksRow } = await supabase
+      .from("site_settings")
+      .select("*")
+      .eq("id", "webhooks")
+      .maybeSingle();
+
+    const webhooks = webhooksRow?.data || {};
+    const dbSecretToken = webhooks.apiSecretToken;
+    const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
+
+    const targetWebhookUrl = webhooks.webhookUrl?.trim() 
       || process.env.N8N_WEBHOOK_LEAD_URL 
       || "https://n8n.v2o5.com.br/webhook/lead-entrada";
-
-    if (!isAllowedWebhookUrl(targetWebhookUrl)) {
-      return NextResponse.json({ error: "URL de webhook não autorizada." }, { status: 400 });
-    }
 
     // 4. Construct payload for n8n
     const cookieStore = await cookies();
@@ -98,15 +104,6 @@ export async function POST(request: NextRequest) {
     };
 
     // 5. Send POST request to n8n Webhook with secret token authentication
-    const { data: webhooksRow } = await supabase
-      .from("site_settings")
-      .select("*")
-      .eq("id", "webhooks")
-      .maybeSingle();
-
-    const dbSecretToken = webhooksRow?.data?.apiSecretToken;
-    const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
-
     const response = await fetch(targetWebhookUrl, {
       method: "POST",
       headers: {

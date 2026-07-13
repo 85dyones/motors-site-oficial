@@ -132,28 +132,22 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString()
     };
 
-    // 7. Resolve and validate Webhook URL
-    const n8nWebhookUrl = webhookUrl?.trim() 
-      || process.env.N8N_WEBHOOK_AVALIACAO_URL 
-      || "https://n8n.v2o5.com.br/webhook/sdr-captura-lead";
-
-    if (!isAllowedWebhookUrl(n8nWebhookUrl)) {
-      return sendResponse(
-        NextResponse.json({ error: "URL de webhook não autorizada." }, { status: 400 }),
-        `SSRF Blocked: URL de webhook não autorizada (${n8nWebhookUrl})`
-      );
-    }
-
-    // 8. Send POST request to n8n with secret token authentication
+    // 7. Load webhook settings from database to get the configured custom URL
     const { data: webhooksRow } = await supabase
       .from("site_settings")
       .select("*")
       .eq("id", "webhooks")
       .maybeSingle();
 
-    const dbSecretToken = webhooksRow?.data?.apiSecretToken;
+    const webhooks = webhooksRow?.data || {};
+    const dbSecretToken = webhooks.apiSecretToken;
     const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
 
+    const n8nWebhookUrl = webhooks.webhookAvaliacaoUrl?.trim() 
+      || process.env.N8N_WEBHOOK_AVALIACAO_URL 
+      || "https://n8n.v2o5.com.br/webhook/sdr-captura-lead";
+
+    // 8. Send POST request to n8n with secret token authentication
     const response = await fetch(n8nWebhookUrl, {
       method: "POST",
       headers: {
