@@ -17,11 +17,22 @@ export async function GET(request: NextRequest) {
 
     if (veiculoId) {
       // Fetch specific vehicle details
-      const { data: veiculo } = await supabase
+      const { data: rawVeiculo } = await supabase
         .from("veiculos")
         .select("*")
         .eq("id", veiculoId)
         .single();
+
+      // Fetch overrides to support manual pricing input overrides
+      const { data: overridesRow } = await supabase
+        .from("site_settings")
+        .select("*")
+        .eq("id", "stock_overrides")
+        .maybeSingle();
+      const stockOverrides = overridesRow?.data?.overrides || {};
+      const veiculo = rawVeiculo 
+        ? { ...rawVeiculo, ...(stockOverrides[rawVeiculo.id] || {}) } 
+        : null;
 
       // Fetch all accounts linked to this vehicle
       const { data: contas, error: contasError } = await supabase
@@ -51,7 +62,15 @@ export async function GET(request: NextRequest) {
       // 1. Fetch all vehicles to map details
       const { data: veiculos } = await supabase
         .from("veiculos")
-        .select("id, marca, modelo, versao, ano, preco");
+        .select("id, marca, modelo, versao, ano, preco, preco_original, preco_promocional, vendido, preco_compra");
+
+      // 1b. Fetch overrides from site_settings to support manual pricing input overrides
+      const { data: overridesRow } = await supabase
+        .from("site_settings")
+        .select("*")
+        .eq("id", "stock_overrides")
+        .maybeSingle();
+      const stockOverrides = overridesRow?.data?.overrides || {};
 
       // 2. Fetch all accounts linked to any vehicle
       const { data: contas } = await supabase
@@ -69,7 +88,8 @@ export async function GET(request: NextRequest) {
 
       const mapVehicles = new Map<string, any>();
       (veiculos || []).forEach(v => {
-        mapVehicles.set(v.id, v);
+        const merged = { ...v, ...(stockOverrides[v.id] || {}) };
+        mapVehicles.set(v.id, merged);
       });
 
       // Group by vehicle_id
@@ -131,11 +151,56 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // Calculate lucro and margem
+      // Calculate lucro and margem (fall back to estimated selling price in stock if receitas is 0)
       const resultList = Object.values(vehicleSummaries).map(s => {
-        s.lucro = s.receitas - s.despesas;
-        s.margem = s.receitas > 0 ? (s.lucro / s.receitas) * 100 : 0;
-        return s;
+        const v = mapVehicles.get(s.veiculo_id);
+        const precoVendaEst = v?.preco_promocional > 0 
+          ? v.preco_promocional 
+          : (v?.preco_original || v?.preco || 0);
+
+        // Fetch vehicle accounts and purchases to isolate vehicle purchase transactions
+        const vehicleContas = (contas || []).filter(c => c.veiculo_id === s.veiculo_id);
+        const vehicleCompras = (compras || []).filter(cp => cp.veiculo_id === s.veiculo_id && (!cp.conta_id || !contasIds.has(cp.conta_id)));
+
+        // Identify transaction-based purchase price (Compra de Veículo)
+        const purchaseContas = vehicleContas.filter(c => 
+          c.tipo === "pagar" && 
+          (c.categoria?.nome === "Compra de Veículo (Estoque)" || c.categoria?.icone === "🔑")
+        );
+        const purchaseCompras = vehicleCompras.filter(cp => 
+          cp.categoria === "compra_veiculo" || 
+          cp.descricao?.toLowerCase().includes("compra de veiculo") ||
+          cp.descricao?.toLowerCase().includes("compra de veículo")
+        );
+
+        const sumPurchaseContas = purchaseContas.reduce((sum, c) => sum + parseFloat(c.valor), 0);
+        const sumPurchaseCompras = purchaseCompras.reduce((sum, cp) => sum + parseFloat(cp.valor_total), 0);
+        const transPurchasePrice = sumPurchaseContas + sumPurchaseCompras;
+
+        // Manual override price
+        const manualPurchasePrice = v?.preco_compra ? Number(v.preco_compra) : 0;
+
+        let finalDespesas = s.despesas;
+        if (manualPurchasePrice > 0) {
+          // If we have manual entry price, finalDespesas = manualPurchasePrice + prepDespesas
+          // prepDespesas = totalDespesas - transactionPurchasePrice
+          const prepDespesas = Math.max(0, s.despesas - transPurchasePrice);
+          finalDespesas = manualPurchasePrice + prepDespesas;
+        }
+
+        const isVendido = !!v?.vendido || s.receitas > 0;
+        const valorVenda = s.receitas > 0 ? s.receitas : precoVendaEst;
+        const hasPrecoCompra = manualPurchasePrice > 0 || transPurchasePrice > 0;
+        
+        return {
+          ...s,
+          despesas: finalDespesas,
+          lucro: valorVenda - finalDespesas,
+          margem: valorVenda > 0 ? ((valorVenda - finalDespesas) / valorVenda) * 100 : 0,
+          preco_venda_estimado: precoVendaEst,
+          is_vendido: isVendido,
+          margem_incompleta: !hasPrecoCompra
+        };
       });
 
       return NextResponse.json({ vehicles: resultList });

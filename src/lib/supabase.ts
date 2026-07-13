@@ -33,6 +33,7 @@ export interface Veiculo {
   status_tag?: string;
   status_tag_color?: string;
   vendido?: boolean;
+  preco_compra?: number;
 }
 
 // 1. Supabase credentials from .env.local
@@ -409,7 +410,8 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     oportunidade_patio: hasOportunidadePatio,
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
-    vendido: !!dbItem.vendido
+    vendido: !!dbItem.vendido,
+    preco_compra: dbItem.preco_compra ? Number(dbItem.preco_compra) : 0
   };
 }
 

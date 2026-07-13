@@ -13,6 +13,9 @@ interface VehicleSummary {
   lucro: number;
   margem: number;
   transacoesCount: number;
+  preco_venda_estimado?: number;
+  is_vendido?: boolean;
+  margem_incompleta?: boolean;
 }
 
 interface VeiculoDetails {
@@ -24,6 +27,7 @@ interface VeiculoDetails {
   preco: number;
   cor?: string;
   quilometragem?: number;
+  preco_compra?: number;
 }
 
 interface ContaItem {
@@ -159,10 +163,39 @@ export default function FinanceMargens() {
   const despesaContas = contas.filter(c => c.tipo === "pagar").reduce((acc, c) => acc + parseFloat(c.valor.toString()), 0);
   const despesaComprasSemConta = compras.filter(cp => !cp.conta_id || !contasIds.has(cp.conta_id)).reduce((acc, cp) => acc + parseFloat(cp.valor_total.toString()), 0);
   
-  const totalDespesas = despesaContas + despesaComprasSemConta;
+  // Isolate purchase transactions
+  const purchaseContas = contas.filter(c => 
+    c.tipo === "pagar" && 
+    (c.categoria?.nome === "Compra de Veículo (Estoque)" || c.categoria?.icone === "🔑")
+  );
+  const purchaseCompras = compras.filter(cp => 
+    !cp.conta_id || !contasIds.has(cp.conta_id)
+  ).filter(cp => 
+    cp.categoria === "compra_veiculo" || 
+    cp.descricao?.toLowerCase().includes("compra de veiculo") ||
+    cp.descricao?.toLowerCase().includes("compra de veículo")
+  );
+
+  const sumPurchaseContas = purchaseContas.reduce((sum, c) => sum + parseFloat(c.valor.toString()), 0);
+  const sumPurchaseCompras = purchaseCompras.reduce((sum, cp) => sum + parseFloat(cp.valor_total.toString()), 0);
+  const transPurchasePrice = sumPurchaseContas + sumPurchaseCompras;
+
+  // Manual override price
+  const manualPurchasePrice = veiculoDetails?.preco_compra ? Number(veiculoDetails.preco_compra) : 0;
+
+  const rawDespesas = despesaContas + despesaComprasSemConta;
+  
+  let totalDespesas = rawDespesas;
+  if (manualPurchasePrice > 0) {
+    const prepDespesas = Math.max(0, rawDespesas - transPurchasePrice);
+    totalDespesas = manualPurchasePrice + prepDespesas;
+  }
+
   const totalReceitas = saleRevenue + salePending;
-  const netProfit = totalReceitas - totalDespesas;
-  const profitMargin = totalReceitas > 0 ? (netProfit / totalReceitas) * 100 : 0;
+  const isVendido = totalReceitas > 0 || !!veiculoDetails?.preco; // treated as sold if we have transactions or list price
+  const precoVendaConsiderado = totalReceitas > 0 ? totalReceitas : (veiculoDetails?.preco || 0);
+  const netProfit = precoVendaConsiderado - totalDespesas;
+  const profitMargin = precoVendaConsiderado > 0 ? (netProfit / precoVendaConsiderado) * 100 : 0;
 
   // Filter inventory list for search dropdown
   const filteredInventory = inventoryList.filter(v => 
@@ -304,18 +337,49 @@ export default function FinanceMargens() {
                         </div>
                       </td>
                       <td className="py-4 font-bold text-red-500">{formatPrice(v.despesas)}</td>
-                      <td className="py-4 font-bold text-emerald-500">{formatPrice(v.receitas)}</td>
-                      <td className={`py-4 font-black ${v.lucro >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                        {v.lucro >= 0 ? "+" : ""} {formatPrice(v.lucro)}
+                      <td className="py-4 font-bold text-emerald-500">
+                        <div className="flex flex-col gap-0.5">
+                          <span>{formatPrice(v.is_vendido ? v.receitas : (v.preco_venda_estimado || 0))}</span>
+                          <span className="text-[8px] text-brand-text/30 font-bold uppercase select-none">
+                            {v.is_vendido ? "Realizado" : "Pátio"}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                          v.lucro >= 0
-                            ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500"
-                            : "bg-red-500/10 border border-red-500/20 text-red-500"
-                        }`}>
-                          {v.margem.toFixed(1)}%
-                        </span>
+                        {v.margem_incompleta ? (
+                          <span className="text-[10px] text-amber-500 font-semibold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-lg select-none">
+                            Ajustar Entrada
+                          </span>
+                        ) : (
+                          <span className={`font-black ${v.lucro >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                            {v.lucro >= 0 ? "+" : ""} {formatPrice(v.lucro)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4">
+                        {v.margem_incompleta ? (
+                          <div className="flex flex-col gap-1 items-start select-none">
+                            <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                              Pendente
+                            </span>
+                            <span className="text-[8px] text-brand-text/35 font-semibold uppercase tracking-wider pl-1">
+                              Sem Custo Compra
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                              v.lucro >= 0
+                                ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500"
+                                : "bg-red-500/10 border border-red-500/20 text-red-500"
+                            }`}>
+                              {v.margem.toFixed(1)}%
+                            </span>
+                            <span className="text-[8px] text-brand-text/35 font-semibold uppercase tracking-wider select-none pl-1">
+                              {v.is_vendido ? "Real" : "Estimada"}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-4 pr-2 text-right">
                         <button
@@ -361,31 +425,54 @@ export default function FinanceMargens() {
                 </div>
               </div>
 
+              {manualPurchasePrice === 0 && transPurchasePrice === 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 text-xs text-amber-500 flex items-center gap-3.5 animate-fadeIn select-none">
+                  <span className="text-xl">⚠️</span>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-bold uppercase tracking-wider text-[10px]">Margem Comercial Incompleta</span>
+                    <span className="text-[11px] opacity-75 font-normal leading-relaxed">
+                      Este veículo não possui preço de compra/entrada cadastrado. Acesse o menu <strong>Configurações</strong> para ajustar o valor de entrada e obter o cálculo correto de margem.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* KPI Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Custos */}
                 <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Custo de Preparação + Compra</span>
+                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Custo Total (Entrada + Prep.)</span>
                   <span className="text-base font-black text-red-500 tracking-tight">{formatPrice(totalDespesas)}</span>
+                  {manualPurchasePrice > 0 && (
+                    <span className="text-[9px] text-brand-text/40 font-normal">
+                      Compra: {formatPrice(manualPurchasePrice)} • Prep: {formatPrice(Math.max(0, totalDespesas - manualPurchasePrice))}
+                    </span>
+                  )}
                 </div>
 
                 {/* Valor de Venda */}
                 <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Receita de Venda</span>
-                  <span className="text-base font-black text-emerald-500 tracking-tight">{formatPrice(totalReceitas)}</span>
+                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">
+                    {totalReceitas > 0 ? "Receita de Venda (Realizada)" : "Preço de Venda (Pátio)"}
+                  </span>
+                  <span className="text-base font-black text-emerald-500 tracking-tight">{formatPrice(precoVendaConsiderado)}</span>
                 </div>
-
+ 
                 {/* Lucro Líquido */}
                 <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Retorno Líquido</span>
+                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">
+                    {totalReceitas > 0 ? "Retorno Líquido (Realizado)" : "Retorno Líquido (Projetado)"}
+                  </span>
                   <span className={`text-base font-black tracking-tight ${netProfit >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                     {netProfit >= 0 ? "+" : ""} {formatPrice(netProfit)}
                   </span>
                 </div>
-
+ 
                 {/* Margem */}
                 <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Margem de Lucro (%)</span>
+                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">
+                    {totalReceitas > 0 ? "Margem de Lucro Real (%)" : "Margem de Lucro Projetada (%)"}
+                  </span>
                   <div className="flex items-center justify-between">
                     <span className={`text-base font-black tracking-tight ${netProfit >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                       {profitMargin.toFixed(1)}%
