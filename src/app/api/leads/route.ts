@@ -39,14 +39,18 @@ export async function POST(request: NextRequest) {
 
     const { cliente, veiculo, utm, intencao_busca, agUid, webhookUrl, turnstileToken } = body;
 
-    // 1. Verify Turnstile Captcha
-    if (!turnstileToken) {
-      return NextResponse.json({ error: "Token de segurança captcha ausente." }, { status: 400 });
-    }
+    // 1. Verify Turnstile Captcha (only mandatory for user modals that render captcha)
+    const needsCaptcha = ["WhatsApp Card", "WhatsApp PDP", "CarMatch Recommendations", "Appraisal Chat"].includes(body.canal);
 
-    const isHuman = await verifyTurnstileToken(turnstileToken);
-    if (!isHuman) {
-      return NextResponse.json({ error: "Falha na verificação de segurança (Anti-Spam)." }, { status: 403 });
+    if (needsCaptcha) {
+      if (!turnstileToken) {
+        return NextResponse.json({ error: "Token de segurança captcha ausente." }, { status: 400 });
+      }
+
+      const isHuman = await verifyTurnstileToken(turnstileToken);
+      if (!isHuman) {
+        return NextResponse.json({ error: "Falha na verificação de segurança (Anti-Spam)." }, { status: 403 });
+      }
     }
 
     // 2. Validate mandatory payload properties (only nome is required; whatsapp is optional)

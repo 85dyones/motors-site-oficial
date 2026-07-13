@@ -172,7 +172,7 @@ export default function CarMatch() {
     setIsLeadModalOpen(true);
   };
 
-  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string }) => {
+  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
     if (!activeVehicle) return;
 
     const utmParams = getUtmParameters();
@@ -226,7 +226,10 @@ export default function CarMatch() {
       await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          ...payload,
+          turnstileToken: leadData.turnstileToken
+        })
       });
     } catch (fetchError: any) {
       console.warn("[Lead Submit CarMatch] Network error (non-blocking):", fetchError.message);
