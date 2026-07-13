@@ -111,6 +111,7 @@ export interface Webhooks {
   webhookAvaliacaoUrl: string;
   webhookNotificacoesUrl: string;
   events?: Record<string, boolean>;
+  apiSecretToken?: string;
 }
 
 export interface Campaign {

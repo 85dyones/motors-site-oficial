@@ -168,13 +168,15 @@ export async function dispatchAdminWebhook(event: string, payload: any) {
     const enrichedData = await enrichPayload(event, payload, supabase);
 
     // 3. Dispatch the payload
+    const secretToken = webhooks.apiSecretToken || process.env.N8N_SECRET_TOKEN;
+
     console.log(`[WebhookDispatcher] Dispatching administrative event "${event}" to ${notificationsUrl}`);
     const res = await fetch(notificationsUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Admin-Event": event,
-        ...(process.env.N8N_SECRET_TOKEN ? { "Authorization": `Bearer ${process.env.N8N_SECRET_TOKEN}` } : {})
+        ...(secretToken && secretToken.trim() !== "" ? { "Authorization": `Bearer ${secretToken.trim()}` } : {})
       },
       body: JSON.stringify({
         event,

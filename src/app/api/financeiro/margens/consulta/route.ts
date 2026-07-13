@@ -6,11 +6,25 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Optional security token verification
+    const supabase = await createServerSupabaseClient();
+
+    // 1. Load webhook settings from database to check for apiSecretToken
+    const { data: webhooksRow } = await supabase
+      .from("site_settings")
+      .select("*")
+      .eq("id", "webhooks")
+      .maybeSingle();
+
+    const dbSecretToken = webhooksRow?.data?.apiSecretToken;
+    const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
+
     const authHeader = request.headers.get("Authorization");
-    const secretToken = process.env.N8N_SECRET_TOKEN;
-    if (secretToken && authHeader !== `Bearer ${secretToken}`) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    // Only validate if a secret token is actually registered in database or process.env
+    if (secretToken && secretToken.trim() !== "") {
+      if (authHeader !== `Bearer ${secretToken.trim()}`) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+      }
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -19,8 +33,6 @@ export async function GET(request: NextRequest) {
     if (!query) {
       return NextResponse.json({ error: "O parâmetro 'query' é obrigatório." }, { status: 400 });
     }
-
-    const supabase = await createServerSupabaseClient();
 
     // 2. Search for the vehicle in the database
     // Search by plate first

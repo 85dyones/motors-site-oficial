@@ -256,6 +256,7 @@ export default function ConfiguracoesClientWrapper() {
   const [webhookAvaliacaoStatus, setWebhookAvaliacaoStatus] = useState<"idle" | "saved">("idle");
   const [webhookNotificacoesUrl, setWebhookNotificacoesUrl] = useState("");
   const [webhookNotificacoesStatus, setWebhookNotificacoesStatus] = useState<"idle" | "saved">("idle");
+  const [apiSecretToken, setApiSecretToken] = useState("");
   const [eventsConfig, setEventsConfig] = useState<Record<string, boolean>>({
     conta_vencida: true,
     conta_criada: true,
@@ -408,6 +409,7 @@ export default function ConfiguracoesClientWrapper() {
       setWebhookUrl(contextWebhooks.webhookUrl || "");
       setWebhookAvaliacaoUrl(contextWebhooks.webhookAvaliacaoUrl || "");
       setWebhookNotificacoesUrl(contextWebhooks.webhookNotificacoesUrl || "");
+      setApiSecretToken(contextWebhooks.apiSecretToken || "");
       if (contextWebhooks.events) {
         setEventsConfig({
           conta_vencida: contextWebhooks.events.conta_vencida !== false,
@@ -581,7 +583,8 @@ export default function ConfiguracoesClientWrapper() {
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
         webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
-        events: eventsConfig
+        events: eventsConfig,
+        apiSecretToken: apiSecretToken.trim()
       });
       setWebhookStatus("saved");
       console.log(`[Telemetry] Webhook de recebimento de leads atualizado para: ${webhookUrl}`);
@@ -599,7 +602,8 @@ export default function ConfiguracoesClientWrapper() {
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
         webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
-        events: eventsConfig
+        events: eventsConfig,
+        apiSecretToken: apiSecretToken.trim()
       });
       setWebhookAvaliacaoStatus("saved");
       console.log(`[Telemetry] Webhook de avaliação de veículos atualizado para: ${webhookAvaliacaoUrl}`);
@@ -617,7 +621,8 @@ export default function ConfiguracoesClientWrapper() {
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
         webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
-        events: eventsConfig
+        events: eventsConfig,
+        apiSecretToken: apiSecretToken.trim()
       });
       setWebhookNotificacoesStatus("saved");
       console.log(`[Telemetry] Webhook de notificações do sistema atualizado para: ${webhookNotificacoesUrl}`);
@@ -1454,6 +1459,78 @@ export default function ConfiguracoesClientWrapper() {
                   </button>
                 </div>
               </form>
+            </div>
+
+            {/* API Security Config Section (WhatsApp query token) */}
+            <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm">
+              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
+                SEGURANÇA DA API DE CONSULTA (WHATSAPP)
+              </span>
+              <h2 className="text-lg font-bold text-brand-text mb-2 uppercase">
+                TOKEN DE AUTENTICAÇÃO DA API (HEADERS)
+              </h2>
+              <p className="text-xs text-brand-text/50 mb-4 font-light leading-relaxed">
+                Configure um token de segurança para proteger o endpoint de consulta de margens por WhatsApp (<code>/api/financeiro/margens/consulta</code>). Se configurado, as consultas feitas a este link exigirão o cabeçalho <code>Authorization: Bearer [Token]</code>.
+              </p>
+
+              <div className="flex flex-col gap-3.5">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="api-secret-token-input" className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                    Token de Segurança (N8N_SECRET_TOKEN)
+                  </label>
+                  <input
+                    id="api-secret-token-input"
+                    type="text"
+                    placeholder="Insira um token seguro (ex: 32 caracteres)..."
+                    value={apiSecretToken}
+                    onChange={(e) => setApiSecretToken(e.target.value)}
+                    className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary font-mono transition-all"
+                  />
+                  <p className="text-[9px] text-brand-text/35 leading-relaxed font-normal">
+                    * Opcional. Se deixado em branco, a API de consulta aceitará requisições sem exigir cabeçalhos de segurança (não obrigatório, se não houver cadastro do token, não envia os headers).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateWebhooks({
+                          webhookUrl: webhookUrl.trim(),
+                          webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
+                          webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+                          events: eventsConfig,
+                          apiSecretToken: apiSecretToken.trim()
+                        });
+                        alert("Token de segurança da API atualizado com sucesso!");
+                      } catch (e) {
+                        console.error("Failed to save security token:", e);
+                      }
+                    }}
+                    className="h-10 bg-brand-primary hover:bg-brand-primary-hover text-white text-[10px] font-bold uppercase tracking-widest px-5 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    SALVAR CONFIGURAÇÃO DE SEGURANÇA
+                  </button>
+                  {apiSecretToken && (
+                    <button
+                      onClick={async () => {
+                        setApiSecretToken("");
+                        await updateWebhooks({
+                          webhookUrl: webhookUrl.trim(),
+                          webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
+                          webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+                          events: eventsConfig,
+                          apiSecretToken: ""
+                        });
+                        alert("Token de segurança removido (API agora é pública).");
+                      }}
+                      className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                    >
+                      Remover Token
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Layout Aesthetics & Dynamic Presets Selector */}
