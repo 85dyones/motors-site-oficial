@@ -515,7 +515,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             {veiculo.vendido ? "Consultar Similares (Vendido)" : "Garantir Proposta no WhatsApp"}
           </button>
           <button
-            onClick={handleProposalClick}
+            onClick={handleWhatsappPDPClick}
             className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(34,197,94,0.25)] hover:shadow-[0_4px_25px_rgba(34,197,94,0.35)] transition-all duration-300 cursor-pointer"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
