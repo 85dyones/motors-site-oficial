@@ -1,10 +1,13 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { useTheme } from "../app/ThemeContext";
 import Script from "next/script";
 
 export default function GoogleReviewsFeed() {
   const { companySettings } = useTheme();
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLElement>(null);
   
   const rawId = companySettings?.googleReviewsElfsightId?.trim() || "";
   let elfsightId = rawId;
@@ -13,16 +16,33 @@ export default function GoogleReviewsFeed() {
     elfsightId = match[1];
   }
 
-  // If no ID is provided, we can either hide the section entirely or show a placeholder in DEV mode.
-  // We'll hide it entirely so it doesn't break the user's public page layout if empty, 
-  // but if they are an admin testing, they might want to see the placeholder. Let's just return null if empty for cleaner frontend.
-  // Wait, for Instagram I showed a placeholder. Let's show a placeholder for consistency so the admin knows where it is.
-  
+  useEffect(() => {
+    if (!elfsightId) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" } // Load slightly before it comes into view
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [elfsightId]);
+
   return (
-    <section className="w-full bg-brand-card/30 border border-brand-card-border rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fadeIn">
+    <section ref={containerRef} aria-label="Avaliações do Google" className="w-full bg-brand-card/30 border border-brand-card-border rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fadeIn min-h-[200px]">
       {elfsightId ? (
         <>
-          <Script src="https://static.elfsight.com/platform/platform.js" strategy="lazyOnload" />
+          {isVisible && (
+            <Script src="https://static.elfsight.com/platform/platform.js" strategy="lazyOnload" />
+          )}
           <div className={`elfsight-app-${elfsightId}`} data-elfsight-app-lazy></div>
         </>
       ) : (

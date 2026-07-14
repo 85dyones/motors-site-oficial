@@ -554,7 +554,7 @@ export default function CarMatch() {
   };
 
   return (
-    <section id="match-garagem" className="flex flex-col gap-4 w-full">
+    <section id="match-garagem" aria-label="Match de Garagem" className="flex flex-col gap-4 w-full">
       <div className="text-center flex flex-col gap-1.5 px-4 sm:px-6">
         <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
           Curadoria Personalizada

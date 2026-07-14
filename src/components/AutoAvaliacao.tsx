@@ -685,7 +685,7 @@ export default function AutoAvaliacao() {
   const yearItems = fipeYears.map((y) => ({ key: y.codigo, label: y.nome }));
 
   return (
-    <section id="avaliacao-express" className="flex flex-col gap-4 w-full">
+    <section id="avaliacao-express" aria-label="Avaliação Express" className="flex flex-col gap-4 w-full">
       <div className="text-center flex flex-col gap-1.5 px-4 sm:px-6">
         <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
           Facilidade de Venda

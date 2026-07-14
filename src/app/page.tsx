@@ -44,7 +44,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
+    <main role="main" className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
       {/* Local Business (AutoDealer) Schema Markup */}
       <script
         type="application/ld+json"
@@ -86,6 +86,6 @@ export default function Home() {
         {/* Section 4: Google Reviews */}
         <GoogleReviewsFeed />
       </div>
-    </div>
+    </main>
   );
 }

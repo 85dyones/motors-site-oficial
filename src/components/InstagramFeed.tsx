@@ -1,10 +1,14 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { useTheme } from "../app/ThemeContext";
 import Script from "next/script";
 
 export default function InstagramFeed() {
   const { companySettings } = useTheme();
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLElement>(null);
+
   const rawId = companySettings?.instagramElfsightId?.trim() || "";
   let elfsightId = rawId;
   const match = rawId.match(/elfsight-app-([a-zA-Z0-9-]+)/);
@@ -12,11 +16,33 @@ export default function InstagramFeed() {
     elfsightId = match[1];
   }
 
+  useEffect(() => {
+    if (!elfsightId) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" } // Load slightly before it comes into view
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [elfsightId]);
+
   return (
-    <section className="w-full bg-brand-card/30 border border-brand-card-border rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fadeIn">
+    <section ref={containerRef} aria-label="Feed do Instagram" className="w-full bg-brand-card/30 border border-brand-card-border rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fadeIn min-h-[200px]">
       {elfsightId ? (
         <>
-          <Script src="https://static.elfsight.com/platform/platform.js" strategy="lazyOnload" />
+          {isVisible && (
+            <Script src="https://static.elfsight.com/platform/platform.js" strategy="lazyOnload" />
+          )}
           <div className={`elfsight-app-${elfsightId}`} data-elfsight-app-lazy></div>
         </>
       ) : (

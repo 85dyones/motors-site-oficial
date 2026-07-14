@@ -242,6 +242,16 @@ export default function HeroSection() {
   const [featuredCars, setFeaturedCars] = useState<Veiculo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [compareOpen, setCompareOpen] = useState<boolean>(false);
+  const [visibleCount, setVisibleCount] = useState<number>(12);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 300) {
+      if (visibleCount < filteredEstoque.length) {
+        setVisibleCount((prev) => prev + 12);
+      }
+    }
+  };
   
   // Lead modal states
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -866,7 +876,7 @@ export default function HeroSection() {
   };
 
   return (
-    <div className="w-full flex flex-col gap-10">
+    <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-10">
       
       {/* 1. HERO CAROUSEL / SLIDER (Auto Club Top Slider Look) */}
       {featuredCars.length > 0 && (
@@ -1547,11 +1557,14 @@ export default function HeroSection() {
             </div>
           ) : (
             // Responsive vehicles listings: Grid vs List Layouts
-            <div className="max-h-[850px] overflow-y-auto overflow-x-hidden custom-scrollbar pr-2 pb-4">
+            <div
+              className="max-h-[850px] overflow-y-auto overflow-x-hidden custom-scrollbar pr-2 pb-4"
+              onScroll={handleScroll}
+            >
               <div className={`grid gap-6 ${
                 layoutMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"
               }`}>
-              {filteredEstoque.map((veiculo) => {
+              {filteredEstoque.slice(0, visibleCount).map((veiculo) => {
                 const pdpUrl = getVeiculoPdpUrl(veiculo);
 
                 const hasDiscount = veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original;

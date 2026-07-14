@@ -27,6 +27,9 @@ export const metadata: Metadata = {
   description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados de São Paulo. Facilidade no financiamento sem entrada.",
   alternates: {
     canonical: "/",
+    types: {
+      "application/llms+txt": "/api/llms-full.txt"
+    }
   },
   icons: {
     icon: "/favicon.ico?v=2",
