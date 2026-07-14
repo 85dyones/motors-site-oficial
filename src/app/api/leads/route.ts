@@ -96,6 +96,9 @@ export async function POST(request: NextRequest) {
     const n8nPayload = {
       remoteJid,
       telefone: formattedPhone,
+      canal: body.canal || "N/A",
+      mensagem: body.mensagem || "",
+      tipo: body.tipo || "lead_whatsapp",
       cliente: {
         nome: cliente.nome,
         email: cliente.email || "",
