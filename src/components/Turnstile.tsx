@@ -24,7 +24,6 @@ export default function Turnstile({ onSuccess, onError, onExpire }: TurnstilePro
         try {
           widgetIdRef.current = window.turnstile.render(containerRef.current, {
             sitekey: siteKey,
-            size: "invisible",
             callback: (token: string) => {
               console.log("[Turnstile] Invisible challenge success, token generated");
               onSuccess(token);

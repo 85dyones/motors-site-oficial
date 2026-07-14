@@ -937,6 +937,7 @@ export default function HeroSection() {
 
                       <Link
                         href={pdpUrl}
+                        aria-label={`Ver Detalhes do ${car.marca} ${car.modelo}`}
                         className="bg-white/10 hover:bg-white hover:text-black transition-all duration-300 font-semibold text-[11px] uppercase tracking-widest px-5 h-12 rounded-xl border border-white/30 backdrop-blur-sm shadow-md inline-flex items-center justify-center"
                       >
                         Ver Detalhes
@@ -970,16 +971,18 @@ export default function HeroSection() {
           </button>
 
           {/* Bottom Dot indicators */}
-          <div className="absolute bottom-4 left-0 right-0 z-20 flex justify-center gap-2">
+          <div className="absolute bottom-2 left-0 right-0 z-20 flex justify-center items-center">
             {featuredCars.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setActiveSlide(idx)}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  idx === activeSlide ? "w-8 bg-brand-primary" : "w-2 bg-white/40 hover:bg-white"
-                }`}
+                className="w-10 h-10 flex items-center justify-center group/dot focus:outline-none"
                 aria-label={`Slide ${idx + 1}`}
-              />
+              >
+                <div className={`h-2 rounded-full transition-all duration-300 ${
+                  idx === activeSlide ? "w-8 bg-brand-primary shadow-sm" : "w-2 bg-white/40 group-hover/dot:bg-white"
+                }`} />
+              </button>
             ))}
           </div>
         </div>
@@ -1330,6 +1333,7 @@ export default function HeroSection() {
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase text-brand-text/50">Modelo</label>
               <select
+                aria-label="Modelo"
                 value={filterModelo}
                 onChange={(e) => setFilterModelo(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
@@ -1349,6 +1353,7 @@ export default function HeroSection() {
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase text-brand-text/50">Ano de Fabricação</label>
               <select
+                aria-label="Ano de Fabricação"
                 value={filterAno}
                 onChange={(e) => setFilterAno(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
@@ -1368,6 +1373,7 @@ export default function HeroSection() {
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase text-brand-text/50">Câmbio</label>
               <select
+                aria-label="Câmbio"
                 value={filterCambio}
                 onChange={(e) => setFilterCambio(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
@@ -1387,6 +1393,7 @@ export default function HeroSection() {
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase text-brand-text/50">Direção</label>
               <select
+                aria-label="Direção"
                 value={filterDirecao}
                 onChange={(e) => setFilterDirecao(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
@@ -1406,6 +1413,7 @@ export default function HeroSection() {
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase text-brand-text/50">Combustível</label>
               <select
+                aria-label="Combustível"
                 value={filterCombustivel}
                 onChange={(e) => setFilterCombustivel(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl text-xs font-bold text-brand-text px-4 h-12 w-full focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
