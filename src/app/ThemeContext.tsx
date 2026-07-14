@@ -79,6 +79,7 @@ export interface CompanySettings {
   ga4Id?: string;
   metaPixelId?: string;
   instagramUsername?: string;
+  instagramElfsightId?: string;
 }
 
 export interface AboutSettings {

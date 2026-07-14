@@ -1547,9 +1547,10 @@ export default function HeroSection() {
             </div>
           ) : (
             // Responsive vehicles listings: Grid vs List Layouts
-            <div className={`grid gap-6 ${
-              layoutMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"
-            }`}>
+            <div className="max-h-[850px] overflow-y-auto overflow-x-hidden custom-scrollbar pr-2 pb-4">
+              <div className={`grid gap-6 ${
+                layoutMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"
+              }`}>
               {filteredEstoque.map((veiculo) => {
                 const pdpUrl = getVeiculoPdpUrl(veiculo);
 
@@ -1864,9 +1865,9 @@ export default function HeroSection() {
                         </button>
                       </div>
                     </div>
-                  </div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>
