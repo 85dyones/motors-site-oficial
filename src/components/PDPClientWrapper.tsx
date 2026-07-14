@@ -75,6 +75,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   // Lead modal states
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
+  const [activeChannel, setActiveChannel] = useState("WhatsApp Proposta");
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -208,6 +209,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   
   const handleWhatsappPDPClick = () => {
     if (typeof window !== "undefined") {
+      setActiveChannel("WhatsApp Proposta");
       const msg = veiculo.vendido
         ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} que foi vendido. Gostaria de saber se possuem modelos semelhantes disponíveis. (Ref: ${agUid})`
         : `Olá! Vi o anúncio no site e gostaria de saber mais sobre o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
@@ -219,6 +221,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
   const handleProposalClick = () => {
     if (typeof window !== "undefined") {
+      setActiveChannel("WhatsApp Dúvidas");
       const msg = `Olá! Gostaria de tirar dúvidas com o vendedor sobre o veículo ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
       setActiveMessage(msg);
       setIsLeadModalOpen(true);
@@ -238,7 +241,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       remoteJid,
       telefone: formattedPhone,
       tipo: "lead_whatsapp",
-      canal: "WhatsApp PDP",
+      canal: activeChannel,
       mensagem: activeMessage,
       veiculo: {
         id: veiculo.id,
@@ -512,7 +515,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             {veiculo.vendido ? "Consultar Similares (Vendido)" : "Garantir Proposta no WhatsApp"}
           </button>
           <button
-            onClick={handleWhatsappPDPClick}
+            onClick={handleProposalClick}
             className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(34,197,94,0.25)] hover:shadow-[0_4px_25px_rgba(34,197,94,0.35)] transition-all duration-300 cursor-pointer"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">

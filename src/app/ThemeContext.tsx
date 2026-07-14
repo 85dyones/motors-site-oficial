@@ -110,6 +110,8 @@ export interface Webhooks {
   webhookUrl: string;
   webhookAvaliacaoUrl: string;
   webhookNotificacoesUrl: string;
+  webhookPropostaUrl?: string;
+  webhookDuvidasUrl?: string;
   events?: Record<string, boolean>;
   apiSecretToken?: string;
 }
@@ -161,6 +163,8 @@ export const DEFAULT_WEBHOOKS: Webhooks = {
   webhookUrl: "https://n8n.v2o5.com.br/webhook/lead-entrada",
   webhookAvaliacaoUrl: "https://n8n.v2o5.com.br/webhook/sdr-captura-lead",
   webhookNotificacoesUrl: "",
+  webhookPropostaUrl: "https://n8n.v2o5.com.br/webhook/lead-entrada",
+  webhookDuvidasUrl: "https://n8n.v2o5.com.br/webhook/lead-entrada",
   events: {
     conta_vencida: true,
     conta_criada: true,

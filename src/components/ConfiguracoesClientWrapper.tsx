@@ -256,6 +256,10 @@ export default function ConfiguracoesClientWrapper() {
   const [webhookAvaliacaoStatus, setWebhookAvaliacaoStatus] = useState<"idle" | "saved">("idle");
   const [webhookNotificacoesUrl, setWebhookNotificacoesUrl] = useState("");
   const [webhookNotificacoesStatus, setWebhookNotificacoesStatus] = useState<"idle" | "saved">("idle");
+  const [webhookPropostaUrl, setWebhookPropostaUrl] = useState("");
+  const [webhookPropostaStatus, setWebhookPropostaStatus] = useState<"idle" | "saved">("idle");
+  const [webhookDuvidasUrl, setWebhookDuvidasUrl] = useState("");
+  const [webhookDuvidasStatus, setWebhookDuvidasStatus] = useState<"idle" | "saved">("idle");
   const [apiSecretToken, setApiSecretToken] = useState("");
   const [eventsConfig, setEventsConfig] = useState<Record<string, boolean>>({
     conta_vencida: true,
@@ -409,6 +413,8 @@ export default function ConfiguracoesClientWrapper() {
       setWebhookUrl(contextWebhooks.webhookUrl || "");
       setWebhookAvaliacaoUrl(contextWebhooks.webhookAvaliacaoUrl || "");
       setWebhookNotificacoesUrl(contextWebhooks.webhookNotificacoesUrl || "");
+      setWebhookPropostaUrl(contextWebhooks.webhookPropostaUrl || "");
+      setWebhookDuvidasUrl(contextWebhooks.webhookDuvidasUrl || "");
       setApiSecretToken(contextWebhooks.apiSecretToken || "");
       if (contextWebhooks.events) {
         setEventsConfig({
@@ -583,6 +589,8 @@ export default function ConfiguracoesClientWrapper() {
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
         webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        webhookPropostaUrl: webhookPropostaUrl.trim(),
+        webhookDuvidasUrl: webhookDuvidasUrl.trim(),
         events: eventsConfig,
         apiSecretToken: apiSecretToken.trim()
       });
@@ -602,6 +610,8 @@ export default function ConfiguracoesClientWrapper() {
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
         webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        webhookPropostaUrl: webhookPropostaUrl.trim(),
+        webhookDuvidasUrl: webhookDuvidasUrl.trim(),
         events: eventsConfig,
         apiSecretToken: apiSecretToken.trim()
       });
@@ -621,6 +631,8 @@ export default function ConfiguracoesClientWrapper() {
         webhookUrl: webhookUrl.trim(),
         webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
         webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        webhookPropostaUrl: webhookPropostaUrl.trim(),
+        webhookDuvidasUrl: webhookDuvidasUrl.trim(),
         events: eventsConfig,
         apiSecretToken: apiSecretToken.trim()
       });
@@ -629,6 +641,48 @@ export default function ConfiguracoesClientWrapper() {
       setTimeout(() => setWebhookNotificacoesStatus("idle"), 2500);
     } catch (e) {
       console.error("Failed to save notification webhook:", e);
+    }
+  };
+
+  // Save proposal webhook URL
+  const handleSaveWebhookProposta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateWebhooks({
+        webhookUrl: webhookUrl.trim(),
+        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        webhookPropostaUrl: webhookPropostaUrl.trim(),
+        webhookDuvidasUrl: webhookDuvidasUrl.trim(),
+        events: eventsConfig,
+        apiSecretToken: apiSecretToken.trim()
+      });
+      setWebhookPropostaStatus("saved");
+      console.log(`[Telemetry] Webhook de proposta atualizado para: ${webhookPropostaUrl}`);
+      setTimeout(() => setWebhookPropostaStatus("idle"), 2500);
+    } catch (e) {
+      console.error("Failed to save proposal webhook:", e);
+    }
+  };
+
+  // Save doubts webhook URL
+  const handleSaveWebhookDuvidas = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateWebhooks({
+        webhookUrl: webhookUrl.trim(),
+        webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
+        webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+        webhookPropostaUrl: webhookPropostaUrl.trim(),
+        webhookDuvidasUrl: webhookDuvidasUrl.trim(),
+        events: eventsConfig,
+        apiSecretToken: apiSecretToken.trim()
+      });
+      setWebhookDuvidasStatus("saved");
+      console.log(`[Telemetry] Webhook de dúvidas atualizado para: ${webhookDuvidasUrl}`);
+      setTimeout(() => setWebhookDuvidasStatus("idle"), 2500);
+    } catch (e) {
+      console.error("Failed to save doubts webhook:", e);
     }
   };
 
@@ -1219,13 +1273,130 @@ export default function ConfiguracoesClientWrapper() {
                         webhookUrl: fallbackUrl,
                         webhookAvaliacaoUrl: webhookAvaliacaoUrl,
                         webhookNotificacoesUrl: webhookNotificacoesUrl,
-                        events: eventsConfig
+                        webhookPropostaUrl: webhookPropostaUrl,
+                        webhookDuvidasUrl: webhookDuvidasUrl,
+                        events: eventsConfig,
+                        apiSecretToken: apiSecretToken
                       });
                       alert("Webhook redefinido para o padrão com sucesso!");
                     }}
                     className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
                   >
                     Restaurar Padrão
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Webhook Proposta Settings Section */}
+            <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm">
+              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
+                GARANTIA DE PROPOSTA
+              </span>
+              <h2 className="text-lg font-bold text-brand-text mb-2 uppercase">
+                WEBHOOK DE GARANTIA DE PROPOSTA
+              </h2>
+              <p className="text-xs text-brand-text/50 mb-4 font-light leading-relaxed">
+                Configure a URL de destino exclusiva para os leads gerados no botão "Garantir Proposta no WhatsApp". Se deixado em branco, usará o Webhook Geral.
+              </p>
+
+              <form onSubmit={handleSaveWebhookProposta} className="flex flex-col gap-3.5">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="webhook-proposta-input" className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                    URL do Webhook de Proposta (n8n / Make / Custom)
+                  </label>
+                  <input
+                    id="webhook-proposta-input"
+                    type="url"
+                    placeholder="https://n8n.dominio.com/webhook/..."
+                    value={webhookPropostaUrl}
+                    onChange={(e) => setWebhookPropostaUrl(e.target.value)}
+                    className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary font-mono transition-all"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="submit"
+                    className="h-10 bg-brand-primary hover:bg-brand-primary-hover text-white text-[10px] font-bold uppercase tracking-widest px-5 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {webhookPropostaStatus === "saved" ? "WEBHOOK DE PROPOSTA SALVO ✓" : "SALVAR WEBHOOK DE PROPOSTA"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setWebhookPropostaUrl("");
+                      await updateWebhooks({
+                        webhookUrl: webhookUrl,
+                        webhookAvaliacaoUrl: webhookAvaliacaoUrl,
+                        webhookNotificacoesUrl: webhookNotificacoesUrl,
+                        webhookPropostaUrl: "",
+                        webhookDuvidasUrl: webhookDuvidasUrl,
+                        events: eventsConfig,
+                        apiSecretToken: apiSecretToken
+                      });
+                      alert("Webhook de proposta redefinido com sucesso!");
+                    }}
+                    className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    Limpar / Padrão
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Webhook Dúvidas Settings Section */}
+            <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm">
+              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
+                DÚVIDAS COM VENDEDOR
+              </span>
+              <h2 className="text-lg font-bold text-brand-text mb-2 uppercase">
+                WEBHOOK DE TIRAR DÚVIDAS
+              </h2>
+              <p className="text-xs text-brand-text/50 mb-4 font-light leading-relaxed">
+                Configure a URL de destino exclusiva para os leads gerados no botão "Tirar dúvidas com o vendedor". Se deixado em branco, usará o Webhook Geral.
+              </p>
+
+              <form onSubmit={handleSaveWebhookDuvidas} className="flex flex-col gap-3.5">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="webhook-duvidas-input" className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                    URL do Webhook de Dúvidas (n8n / Make / Custom)
+                  </label>
+                  <input
+                    id="webhook-duvidas-input"
+                    type="url"
+                    placeholder="https://n8n.dominio.com/webhook/..."
+                    value={webhookDuvidasUrl}
+                    onChange={(e) => setWebhookDuvidasUrl(e.target.value)}
+                    className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary font-mono transition-all"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="submit"
+                    className="h-10 bg-brand-primary hover:bg-brand-primary-hover text-white text-[10px] font-bold uppercase tracking-widest px-5 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {webhookDuvidasStatus === "saved" ? "WEBHOOK DE DÚVIDAS SALVO ✓" : "SALVAR WEBHOOK DE DÚVIDAS"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setWebhookDuvidasUrl("");
+                      await updateWebhooks({
+                        webhookUrl: webhookUrl,
+                        webhookAvaliacaoUrl: webhookAvaliacaoUrl,
+                        webhookNotificacoesUrl: webhookNotificacoesUrl,
+                        webhookPropostaUrl: webhookPropostaUrl,
+                        webhookDuvidasUrl: "",
+                        events: eventsConfig,
+                        apiSecretToken: apiSecretToken
+                      });
+                      alert("Webhook de dúvidas redefinido com sucesso!");
+                    }}
+                    className="h-10 bg-brand-bg border border-brand-card-border text-brand-text/60 text-[10px] font-bold uppercase tracking-widest px-4 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  >
+                    Limpar / Padrão
                   </button>
                 </div>
               </form>
@@ -1275,7 +1446,10 @@ export default function ConfiguracoesClientWrapper() {
                         webhookUrl: webhookUrl,
                         webhookAvaliacaoUrl: fallbackUrl,
                         webhookNotificacoesUrl: webhookNotificacoesUrl,
-                        events: eventsConfig
+                        webhookPropostaUrl: webhookPropostaUrl,
+                        webhookDuvidasUrl: webhookDuvidasUrl,
+                        events: eventsConfig,
+                        apiSecretToken: apiSecretToken
                       });
                       alert("Webhook de avaliação redefinido para o padrão com sucesso!");
                     }}
@@ -1449,7 +1623,10 @@ export default function ConfiguracoesClientWrapper() {
                         webhookUrl: webhookUrl,
                         webhookAvaliacaoUrl: webhookAvaliacaoUrl,
                         webhookNotificacoesUrl: "",
-                        events: eventsConfig
+                        webhookPropostaUrl: webhookPropostaUrl,
+                        webhookDuvidasUrl: webhookDuvidasUrl,
+                        events: eventsConfig,
+                        apiSecretToken: apiSecretToken
                       });
                       alert("Webhook de notificações redefinido com sucesso!");
                     }}
@@ -1499,6 +1676,8 @@ export default function ConfiguracoesClientWrapper() {
                           webhookUrl: webhookUrl.trim(),
                           webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
                           webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+                          webhookPropostaUrl: webhookPropostaUrl.trim(),
+                          webhookDuvidasUrl: webhookDuvidasUrl.trim(),
                           events: eventsConfig,
                           apiSecretToken: apiSecretToken.trim()
                         });
@@ -1519,6 +1698,8 @@ export default function ConfiguracoesClientWrapper() {
                           webhookUrl: webhookUrl.trim(),
                           webhookAvaliacaoUrl: webhookAvaliacaoUrl.trim(),
                           webhookNotificacoesUrl: webhookNotificacoesUrl.trim(),
+                          webhookPropostaUrl: webhookPropostaUrl.trim(),
+                          webhookDuvidasUrl: webhookDuvidasUrl.trim(),
                           events: eventsConfig,
                           apiSecretToken: ""
                         });

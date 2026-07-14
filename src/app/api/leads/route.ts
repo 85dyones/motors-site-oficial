@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const { cliente, veiculo, utm, intencao_busca, agUid, webhookUrl, turnstileToken } = body;
 
     // 1. Verify Turnstile Captcha (only mandatory for user modals that render captcha)
-    const needsCaptcha = ["WhatsApp Card", "WhatsApp PDP", "CarMatch Recommendations", "Appraisal Chat"].includes(body.canal);
+    const needsCaptcha = ["WhatsApp Card", "WhatsApp PDP", "CarMatch Recommendations", "Appraisal Chat", "WhatsApp Proposta", "WhatsApp Dúvidas"].includes(body.canal);
 
     if (needsCaptcha) {
       if (!turnstileToken) {
@@ -69,9 +69,18 @@ export async function POST(request: NextRequest) {
     const dbSecretToken = webhooks.apiSecretToken;
     const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
 
-    const targetWebhookUrl = webhooks.webhookUrl?.trim() 
-      || process.env.N8N_WEBHOOK_LEAD_URL 
-      || "https://n8n.v2o5.com.br/webhook/lead-entrada";
+    let targetWebhookUrl = "";
+    if (body.canal === "WhatsApp Proposta") {
+      targetWebhookUrl = webhooks.webhookPropostaUrl?.trim() || webhooks.webhookUrl?.trim();
+    } else if (body.canal === "WhatsApp Dúvidas") {
+      targetWebhookUrl = webhooks.webhookDuvidasUrl?.trim() || webhooks.webhookUrl?.trim();
+    } else {
+      targetWebhookUrl = webhooks.webhookUrl?.trim();
+    }
+
+    if (!targetWebhookUrl) {
+      targetWebhookUrl = process.env.N8N_WEBHOOK_LEAD_URL || "https://n8n.v2o5.com.br/webhook/lead-entrada";
+    }
 
     // 4. Construct payload for n8n
     const cookieStore = await cookies();
