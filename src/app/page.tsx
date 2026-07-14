@@ -2,6 +2,7 @@ import HeroSection from "../components/HeroSection";
 import CarMatch from "../components/CarMatch";
 import AutoAvaliacao from "../components/AutoAvaliacao";
 import InstagramFeed from "../components/InstagramFeed";
+import GoogleReviewsFeed from "../components/GoogleReviewsFeed";
 import { DEFAULT_COMPANY_SETTINGS } from "./ThemeContext";
 
 export default function Home() {
@@ -102,6 +103,14 @@ export default function Home() {
 
         {/* Section 3: Instagram Feed Preview */}
         <InstagramFeed />
+
+        {/* Elegant fading primary divider */}
+        <div className="w-full flex items-center justify-center py-2 px-6">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent" />
+        </div>
+
+        {/* Section 4: Google Reviews */}
+        <GoogleReviewsFeed />
       </div>
     </div>
   );

@@ -5,7 +5,12 @@ import Script from "next/script";
 
 export default function InstagramFeed() {
   const { companySettings } = useTheme();
-  const elfsightId = companySettings?.instagramElfsightId?.trim();
+  const rawId = companySettings?.instagramElfsightId?.trim() || "";
+  let elfsightId = rawId;
+  const match = rawId.match(/elfsight-app-([a-zA-Z0-9-]+)/);
+  if (match && match[1]) {
+    elfsightId = match[1];
+  }
 
   return (
     <section className="w-full bg-brand-card/30 border border-brand-card-border rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fadeIn">

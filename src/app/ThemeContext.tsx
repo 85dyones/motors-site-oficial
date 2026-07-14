@@ -80,6 +80,7 @@ export interface CompanySettings {
   metaPixelId?: string;
   instagramUsername?: string;
   instagramElfsightId?: string;
+  googleReviewsElfsightId?: string;
 }
 
 export interface AboutSettings {

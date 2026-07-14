@@ -2679,19 +2679,34 @@ export default function ConfiguracoesClientWrapper() {
                     />
                   </div>
 
-                  {/* Elfsight ID */}
+                  {/* Elfsight ID - Instagram */}
                   <div className="flex flex-col gap-1.5 col-span-2">
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
-                      ID do Widget Elfsight (Instagram Feed)
+                      Widget Elfsight (Instagram Feed)
                     </label>
-                    <input
-                      type="text"
+                    <textarea
                       value={companyForm.instagramElfsightId || ""}
                       onChange={(e) => setCompanyForm({ ...companyForm, instagramElfsightId: e.target.value })}
-                      placeholder="e.g. 1a2b3c4d-5678-90ef-gh12-34567890abcd"
-                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                      placeholder={'Cole o ID ou o código completo <script src="...">...'}
+                      rows={2}
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono resize-y"
                     />
-                    <span className="text-[8px] text-brand-text/30">Crie seu widget grátis em elfsight.com e cole apenas o ID aqui.</span>
+                    <span className="text-[8px] text-brand-text/30">Cole aqui o código do widget gerado no elfsight.com para o Instagram.</span>
+                  </div>
+
+                  {/* Elfsight ID - Google Reviews */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Widget Elfsight (Google Reviews)
+                    </label>
+                    <textarea
+                      value={companyForm.googleReviewsElfsightId || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, googleReviewsElfsightId: e.target.value })}
+                      placeholder={'Cole o ID ou o código completo <script src="...">...'}
+                      rows={2}
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono resize-y"
+                    />
+                    <span className="text-[8px] text-brand-text/30">Cole aqui o código do widget gerado no elfsight.com para as Avaliações do Google.</span>
                   </div>
                 </div>
 
