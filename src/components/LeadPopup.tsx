@@ -375,7 +375,8 @@ export default function LeadPopup() {
 
       // Track when the mouse first enters the document — exit intent only makes sense
       // if the user's cursor was already inside the page and then moved to leave.
-      const handleMouseEnter = () => {
+      // mousemove is more reliable than mouseenter because the cursor might already be inside the viewport on load
+      const handleMouseMove = () => {
         hasMouseEnteredPage = true;
       };
 
@@ -394,7 +395,7 @@ export default function LeadPopup() {
         if (exitIntentRef.current) return;
 
         // Guard 5: Mouse must be leaving through the top of the viewport (towards browser chrome/tabs)
-        if (e.clientY > 10) return;
+        if (e.clientY > 20) return;
 
         // Guard 6: Verify the mouse is actually leaving the document bounds via relatedTarget
         const relatedTarget = e.relatedTarget as Node | null;
@@ -406,13 +407,13 @@ export default function LeadPopup() {
         console.log("[Lead Popup] Exit-intent triggered after user engagement.");
       };
 
-      // Use mouseenter/mouseout on documentElement for reliable detection
-      document.documentElement.addEventListener("mouseenter", handleMouseEnter);
+      // Use mousemove for initial detection and mouseout for exit intent
+      document.documentElement.addEventListener("mousemove", handleMouseMove, { once: true });
       document.documentElement.addEventListener("mouseout", handleExitIntent);
 
       return () => {
         if (timerRef.current) clearTimeout(timerRef.current);
-        document.documentElement.removeEventListener("mouseenter", handleMouseEnter);
+        document.documentElement.removeEventListener("mousemove", handleMouseMove);
         document.documentElement.removeEventListener("mouseout", handleExitIntent);
       };
     }
