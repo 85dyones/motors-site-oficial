@@ -81,6 +81,8 @@ export interface CompanySettings {
   instagramUsername?: string;
   instagramElfsightId?: string;
   googleReviewsElfsightId?: string;
+  carMatchTitle?: string;
+  avaliacaoExpressTitle?: string;
 }
 
 export interface AboutSettings {

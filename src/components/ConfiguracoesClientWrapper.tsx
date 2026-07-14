@@ -2708,6 +2708,31 @@ export default function ConfiguracoesClientWrapper() {
                     />
                     <span className="text-[8px] text-brand-text/30">Cole aqui o código do widget gerado no elfsight.com para as Avaliações do Google.</span>
                   </div>
+                  {/* Section Titles */}
+                  <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-1">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Título da Seção: Match de Garagem
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.carMatchTitle || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, carMatchTitle: e.target.value })}
+                      placeholder="Match de Garagem"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-1">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Título da Seção: Avaliação Express
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.avaliacaoExpressTitle || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, avaliacaoExpressTitle: e.target.value })}
+                      placeholder="Avaliação Express"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                    />
+                  </div>
                 </div>
 
                 {/* Submit buttons */}

@@ -59,50 +59,24 @@ export default function Home() {
           <div className="h-px w-full bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent" />
         </div>
 
-        {/* Section 1: Match de Garagem */}
-        <section id="match-garagem" className="flex flex-col gap-4 px-4 sm:px-6">
-          <div className="text-center flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
-              Curadoria Personalizada
-            </span>
-            <h2 className="text-2xl font-black text-brand-text tracking-tight">
-              Match de Garagem
-            </h2>
-            <p className="text-xs text-brand-text/50 max-w-xs mx-auto">
-              Responda a 3 perguntas e nosso algoritmo recomendará os carros mais alinhados em nosso estoque.
-            </p>
-          </div>
-          <CarMatch />
-        </section>
-
-        {/* Elegant fading primary divider */}
-        <div className="w-full flex items-center justify-center py-2 px-6">
-          <div className="h-px w-full bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent" />
-        </div>
-
-        {/* Section 2: Avaliação Express */}
-        <section id="avaliacao-express" className="flex flex-col gap-4 px-4 sm:px-6">
-          <div className="text-center flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
-              Facilidade de Venda
-            </span>
-            <h2 className="text-2xl font-black text-brand-text tracking-tight">
-              Avaliação Express
-            </h2>
-            <p className="text-xs text-brand-text/50 max-w-xs mx-auto">
-              Quer vender ou dar seu carro de entrada? Receba uma cotação rápida do mercado premium.
-            </p>
-          </div>
-          <AutoAvaliacao />
-        </section>
-
-        {/* Elegant fading primary divider */}
-        <div className="w-full flex items-center justify-center py-2 px-6">
-          <div className="h-px w-full bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent" />
-        </div>
-
-        {/* Section 3: Instagram Feed Preview */}
+        {/* Section 1: Instagram Feed Preview */}
         <InstagramFeed />
+
+        {/* Elegant fading primary divider */}
+        <div className="w-full flex items-center justify-center py-2 px-6">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent" />
+        </div>
+
+        {/* Section 2: Match de Garagem */}
+        <CarMatch />
+
+        {/* Elegant fading primary divider */}
+        <div className="w-full flex items-center justify-center py-2 px-6">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent" />
+        </div>
+
+        {/* Section 3: Avaliação Express */}
+        <AutoAvaliacao />
 
         {/* Elegant fading primary divider */}
         <div className="w-full flex items-center justify-center py-2 px-6">

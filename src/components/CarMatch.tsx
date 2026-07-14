@@ -554,7 +554,19 @@ export default function CarMatch() {
   };
 
   return (
-    <div className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative overflow-hidden transition-all duration-300">
+    <section id="match-garagem" className="flex flex-col gap-4 w-full">
+      <div className="text-center flex flex-col gap-1.5 px-4 sm:px-6">
+        <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
+          Curadoria Personalizada
+        </span>
+        <h2 className="text-2xl font-black text-brand-text tracking-tight">
+          {companySettings?.carMatchTitle || "Match de Garagem"}
+        </h2>
+        <p className="text-xs text-brand-text/50 max-w-xs mx-auto">
+          Responda a 3 perguntas e nosso algoritmo recomendará os carros mais alinhados em nosso estoque.
+        </p>
+      </div>
+      <div className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative overflow-hidden transition-all duration-300">
       {/* Visual Gold glow background */}
       <div className="absolute -left-16 -top-16 h-36 w-36 rounded-full bg-brand-primary/5 blur-[50px] pointer-events-none" />
       <div className="absolute -right-16 -bottom-16 h-36 w-36 rounded-full bg-brand-primary/5 blur-[50px] pointer-events-none" />
@@ -1118,6 +1130,7 @@ export default function CarMatch() {
           ano: activeVehicle.ano
         } : undefined}
       />
-    </div>
+      </div>
+    </section>
   );
 }

@@ -685,12 +685,24 @@ export default function AutoAvaliacao() {
   const yearItems = fipeYears.map((y) => ({ key: y.codigo, label: y.nome }));
 
   return (
-    <form
-      toolname="auto_avaliacao_veiculo"
-      tooldescription="Inicia a avaliação comercial de um veículo para troca ou venda na Motors Store, retornando os preços oficiais da FIPE."
-      onSubmit={handleSubmit}
-      className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative transition-all duration-300"
-    >
+    <section id="avaliacao-express" className="flex flex-col gap-4 w-full">
+      <div className="text-center flex flex-col gap-1.5 px-4 sm:px-6">
+        <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
+          Facilidade de Venda
+        </span>
+        <h2 className="text-2xl font-black text-brand-text tracking-tight">
+          {companySettings?.avaliacaoExpressTitle || "Avaliação Express"}
+        </h2>
+        <p className="text-xs text-brand-text/50 max-w-xs mx-auto">
+          Quer vender ou dar seu carro de entrada? Receba uma cotação rápida do mercado premium.
+        </p>
+      </div>
+      <form
+        toolname="auto_avaliacao_veiculo"
+        tooldescription="Inicia a avaliação comercial de um veículo para troca ou venda na Motors Store, retornando os preços oficiais da FIPE."
+        onSubmit={handleSubmit}
+        className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative transition-all duration-300"
+      >
       <input type="hidden" name="tipo_veiculo" value={vehicleType} toolparamdescription="Categoria de automóvel (carros, motos ou caminhoes)." />
       <input type="hidden" name="estado_mecanico" value={step2.estadoMecanico} toolparamdescription="Estado mecânico do veículo (excelente, bom, atencao, ruim)." />
       <input type="hidden" name="estado_conservacao" value={step2.estadoConservacao} toolparamdescription="Estado de conservação da lataria/funilaria (impecavel, riscos, reparos, avariado)." />
@@ -1142,6 +1154,7 @@ export default function AutoAvaliacao() {
           ano: step1.ano
         }}
       />
-    </form>
+      </form>
+    </section>
   );
 }
