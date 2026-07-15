@@ -1957,7 +1957,15 @@ export default function ConfiguracoesClientWrapper() {
                       <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">Campo Mapeado</label>
                       <select
                         value={editingQuickTag?.field || "tipo"}
-                        onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, field: e.target.value as any } : null)}
+                        onChange={(e) => {
+                          const newField = e.target.value as any;
+                          setEditingQuickTag(prev => prev ? { 
+                            ...prev, 
+                            field: newField,
+                            operator: newField === "manual" ? "none" : prev.operator === "none" ? "equals" : prev.operator,
+                            value: newField === "manual" ? "" : prev.value 
+                          } : null);
+                        }}
                         className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full cursor-pointer"
                       >
                         <option value="tipo">Carroceria (Tipo)</option>
@@ -1966,33 +1974,38 @@ export default function ConfiguracoesClientWrapper() {
                         <option value="quilometragem">Quilometragem</option>
                         <option value="marca">Marca (Fabricante)</option>
                         <option value="combustivel">Combustível</option>
+                        <option value="manual">Manual (Apenas Associação Direta)</option>
                       </select>
                     </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">Operador de Regra</label>
-                      <select
-                        value={editingQuickTag?.operator || "equals"}
-                        onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, operator: e.target.value as any } : null)}
-                        className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full cursor-pointer"
-                      >
-                        <option value="equals">Igual a</option>
-                        <option value="contains">Contém Texto</option>
-                        <option value="less">Menor que (&lt;)</option>
-                        <option value="greater">Maior que (&gt;)</option>
-                      </select>
-                    </div>
+                    {editingQuickTag?.field !== "manual" && (
+                      <>
+                        <div className="flex flex-col gap-1.5 animate-fadeIn">
+                          <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">Operador de Regra</label>
+                          <select
+                            value={editingQuickTag?.operator || "equals"}
+                            onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, operator: e.target.value as any } : null)}
+                            className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full cursor-pointer"
+                          >
+                            <option value="equals">Igual a</option>
+                            <option value="contains">Contém Texto</option>
+                            <option value="less">Menor que (&lt;)</option>
+                            <option value="greater">Maior que (&gt;)</option>
+                          </select>
+                        </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">Valor Mapeado</label>
-                      <input
-                        type="text"
-                        placeholder="EX: ESPORTIVO ou 150000"
-                        value={editingQuickTag?.value || ""}
-                        onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, value: e.target.value } : null)}
-                        className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full placeholder-brand-text/30"
-                      />
-                    </div>
+                        <div className="flex flex-col gap-1.5 animate-fadeIn">
+                          <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">Valor Mapeado</label>
+                          <input
+                            type="text"
+                            placeholder="EX: ESPORTIVO ou 150000"
+                            value={editingQuickTag?.value || ""}
+                            onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, value: e.target.value } : null)}
+                            className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full placeholder-brand-text/30"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-2 mt-2">

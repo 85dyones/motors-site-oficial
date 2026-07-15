@@ -92,8 +92,8 @@ function normalizeText(text: string | null | undefined): string {
 export interface QuickTag {
   id: string;
   name: string;
-  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel";
-  operator: "equals" | "less" | "greater" | "contains";
+  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel" | "manual";
+  operator: "equals" | "less" | "greater" | "contains" | "none";
   value: string;
 }
 
@@ -105,6 +105,64 @@ const DEFAULT_QUICK_TAGS: QuickTag[] = [
 ];
 
 // Removed obsolete filters constants
+
+function checkTagMatchesVehicle(tag: QuickTag, car: Veiculo, stockOverrides: any): boolean {
+  // Check manual overrides first
+  const manualTags = stockOverrides?.[car.id]?.quick_tags || [];
+  if (manualTags.includes(tag.id)) {
+    return true;
+  }
+
+  if (tag.field === "manual" || tag.operator === "none") {
+    return false;
+  }
+
+  // Special fallback for the default "economicos" tag to match original behavior
+  if (tag.id === "economicos" && tag.field === "preco" && tag.operator === "less" && tag.value === "180000") {
+    const p = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
+      ? car.preco_promocional
+      : car.preco_original;
+    const combustivel = resolveTipoCombustivel(car);
+    return p < 180000 || combustivel === "Elétrico" || combustivel === "Híbrido";
+  }
+
+  // Extract the field value from the car
+  let fieldValue: any;
+  if (tag.field === "preco") {
+    fieldValue = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
+      ? car.preco_promocional
+      : car.preco_original;
+  } else if (tag.field === "quilometragem") {
+    fieldValue = car.quilometragem;
+  } else if (tag.field === "combustivel") {
+    fieldValue = resolveTipoCombustivel(car);
+  } else if (tag.field === "perfil_uso") {
+    fieldValue = car.perfil_uso || "";
+  } else if (tag.field === "tipo") {
+    fieldValue = car.tipo || "";
+  } else if (tag.field === "marca") {
+    fieldValue = car.marca || "";
+  } else {
+    fieldValue = (car as any)[tag.field] || "";
+  }
+
+  const strFieldValue = String(fieldValue).toLowerCase().trim();
+  const ruleValue = tag.value.toLowerCase().trim();
+
+  // Evaluate rule based on operator
+  switch (tag.operator) {
+    case "equals":
+      return strFieldValue === ruleValue;
+    case "contains":
+      return strFieldValue.includes(ruleValue);
+    case "less":
+      return Number(fieldValue) < Number(tag.value);
+    case "greater":
+      return Number(fieldValue) > Number(tag.value);
+    default:
+      return false;
+  }
+}
 
 function calculateCampaignMatchScore(car: Veiculo, campaign: string): number {
   let score = 0;
@@ -561,6 +619,14 @@ export default function HeroSection({
     }
   };
 
+  // Only show QuickTags that have at least one vehicle matching them
+  const validQuickTags = useMemo(() => {
+    if (!estoque || estoque.length === 0) return [];
+    return quickTags.filter((tag) => 
+      estoque.some((car) => checkTagMatchesVehicle(tag, car, stockOverrides))
+    );
+  }, [quickTags, estoque, stockOverrides]);
+
   // Generate dynamic options for selects based on the active inventory items
   const marcasDisponiveis = Array.from(new Set(estoque.map((c) => c.marca))).sort();
   
@@ -651,57 +717,7 @@ export default function HeroSection({
         const activeTag = quickTags.find(t => t.id === selectedQuickTag);
         if (activeTag) {
           result = result.filter(car => {
-            // Check manual overrides first
-            const manualTags = stockOverrides?.[car.id]?.quick_tags || [];
-            if (manualTags.includes(activeTag.id)) {
-              return true;
-            }
-
-            // Special fallback for the default "economicos" tag to match original behavior
-            if (activeTag.id === "economicos" && activeTag.field === "preco" && activeTag.operator === "less" && activeTag.value === "180000") {
-              const p = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
-                ? car.preco_promocional
-                : car.preco_original;
-              const combustivel = resolveTipoCombustivel(car);
-              return p < 180000 || combustivel === "Elétrico" || combustivel === "Híbrido";
-            }
-
-            // Extract the field value from the car
-            let fieldValue: any;
-            if (activeTag.field === "preco") {
-              fieldValue = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
-                ? car.preco_promocional
-                : car.preco_original;
-            } else if (activeTag.field === "quilometragem") {
-              fieldValue = car.quilometragem;
-            } else if (activeTag.field === "combustivel") {
-              fieldValue = resolveTipoCombustivel(car);
-            } else if (activeTag.field === "perfil_uso") {
-              fieldValue = car.perfil_uso || "";
-            } else if (activeTag.field === "tipo") {
-              fieldValue = car.tipo || "";
-            } else if (activeTag.field === "marca") {
-              fieldValue = car.marca || "";
-            } else {
-              fieldValue = (car as any)[activeTag.field] || "";
-            }
-
-            const strFieldValue = String(fieldValue).toLowerCase().trim();
-            const ruleValue = activeTag.value.toLowerCase().trim();
-
-            // Evaluate rule based on operator
-            switch (activeTag.operator) {
-              case "equals":
-                return strFieldValue === ruleValue;
-              case "contains":
-                return strFieldValue.includes(ruleValue);
-              case "less":
-                return Number(fieldValue) < Number(activeTag.value);
-              case "greater":
-                return Number(fieldValue) > Number(activeTag.value);
-              default:
-                return false;
-            }
+            return checkTagMatchesVehicle(activeTag, car, stockOverrides);
           });
         }
       }
@@ -1022,18 +1038,18 @@ export default function HeroSection({
       {/* 2. SEARCH BAR CONSOLE & 3. FILTER CONSOLE (Grouped for closer layout) */}
       <div id="catalogo" className="flex flex-col gap-3 bg-white border border-brand-primary p-3 sm:p-4 rounded-xl shadow-[0_8px_30px_var(--brand-shadow)] animate-fadeIn select-none">
         
-        {/* TOP ROW: CARROCERIA & DESTAQUES SIDE-BY-SIDE ON DESKTOP */}
-        <div className="flex flex-col lg:flex-row gap-3 lg:gap-6 w-full overflow-hidden">
+        {/* TOP ROW: CARROCERIA & DESTAQUES ON INDEPENDENT LINES */}
+        <div className="flex flex-col gap-4 w-full overflow-hidden">
           
           {/* CARROCERIA */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          <div className="flex flex-col gap-1.5 w-full">
             <div className="relative self-start group/carroceria cursor-default">
               <span className="text-[9px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/carroceria:text-brand-primary">
                 CARROCERIA
               </span>
               <span className="absolute bottom-0 left-1 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/carroceria:w-[calc(100%-4px)]" />
             </div>
-            <div className="flex overflow-x-auto scrollbar-none gap-2 w-full select-none -mx-3 px-3 sm:mx-0 sm:px-0 scroll-smooth">
+            <div className="flex overflow-x-auto scrollbar-none gap-2 w-full select-none -mx-3 px-3 sm:mx-0 sm:px-0 scroll-smooth pb-1">
               {bodyTypes.map((style) => {
                 const isSelected = selectedCategory === style.id;
                 return (
@@ -1054,7 +1070,7 @@ export default function HeroSection({
           </div>
 
           {/* DESTAQUES RÁPIDOS */}
-          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          <div className="flex flex-col gap-1.5 w-full">
             <div className="relative self-start group/destaques cursor-default">
               <span className="text-[9px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/destaques:text-brand-primary">
                 DESTAQUES RÁPIDOS
