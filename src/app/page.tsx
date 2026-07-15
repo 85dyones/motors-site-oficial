@@ -50,7 +50,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(autoDealerSchema) }}
       />
-      <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 flex flex-col gap-10 pb-16">
+      <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 flex flex-col gap-10 pt-6 md:pt-8 pb-16">
         {/* Active stock search & standard categories catalog */}
         <HeroSection />
 
