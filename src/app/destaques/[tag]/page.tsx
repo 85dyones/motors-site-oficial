@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getCachedSettings } from '../../api/settings/route';
+import { getCachedSettings } from '../../../lib/settings';
 import HeroSection from '../../../components/HeroSection';
 import { DEFAULT_QUICK_TAGS } from '../../ThemeContext';
 
