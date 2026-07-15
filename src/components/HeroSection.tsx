@@ -1020,28 +1020,30 @@ export default function HeroSection({
       )}
 
       {/* 2. SEARCH BAR CONSOLE & 3. FILTER CONSOLE (Grouped for closer layout) */}
-      <div id="catalogo" className="flex flex-col gap-4 bg-white border border-brand-primary p-4 sm:p-5 lg:p-6 rounded-2xl shadow-[0_8px_30px_var(--brand-shadow)] animate-fadeIn select-none">
-        {/* 3. TWO-LINE SIMPLIFIED FILTER CONSOLE (Abaixo do Slider) */}
-        <div className="flex flex-col gap-3.5">
-          {/* Row 1: CARROCERIA */}
-          <div className="flex flex-col gap-2">
-            <div className="relative self-start py-0.5 group/carroceria cursor-default">
-              <span className="text-[10px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/carroceria:text-brand-primary">
+      <div id="catalogo" className="flex flex-col gap-3 bg-white border border-brand-primary p-3 sm:p-4 rounded-xl shadow-[0_8px_30px_var(--brand-shadow)] animate-fadeIn select-none">
+        
+        {/* TOP ROW: CARROCERIA & DESTAQUES SIDE-BY-SIDE ON DESKTOP */}
+        <div className="flex flex-col lg:flex-row gap-3 lg:gap-6 w-full overflow-hidden">
+          
+          {/* CARROCERIA */}
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            <div className="relative self-start group/carroceria cursor-default">
+              <span className="text-[9px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/carroceria:text-brand-primary">
                 CARROCERIA
               </span>
               <span className="absolute bottom-0 left-1 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/carroceria:w-[calc(100%-4px)]" />
             </div>
-            <div className="flex overflow-x-auto scrollbar-none gap-2 pb-1.5 w-full select-none -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
+            <div className="flex overflow-x-auto scrollbar-none gap-2 w-full select-none -mx-3 px-3 sm:mx-0 sm:px-0 scroll-smooth">
               {bodyTypes.map((style) => {
                 const isSelected = selectedCategory === style.id;
                 return (
                   <button
                     key={style.id}
                     onClick={() => setSelectedCategory(style.id)}
-                    className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
+                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded-md border text-center transition-all duration-300 active:scale-95 text-[11px] font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
                       isSelected
                         ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                        : "bg-zinc-50 border-zinc-200 text-zinc-700 shadow-sm hover:border-brand-primary hover:text-brand-primary hover:bg-white"
+                        : "bg-zinc-50 border-zinc-200 text-zinc-700 hover:border-brand-primary hover:text-brand-primary hover:bg-white"
                     }`}
                   >
                     {style.name.toUpperCase()}
@@ -1051,27 +1053,24 @@ export default function HeroSection({
             </div>
           </div>
 
-          {/* Divider line */}
-          <div className="h-px w-full bg-zinc-200/50" />
-
-          {/* Row 2: DESTAQUES RÁPIDOS */}
-          <div className="flex flex-col gap-2">
-            <div className="relative self-start py-0.5 group/destaques cursor-default">
-              <span className="text-[10px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/destaques:text-brand-primary">
+          {/* DESTAQUES RÁPIDOS */}
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            <div className="relative self-start group/destaques cursor-default">
+              <span className="text-[9px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/destaques:text-brand-primary">
                 DESTAQUES RÁPIDOS
               </span>
               <span className="absolute bottom-0 left-1 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/destaques:w-[calc(100%-4px)]" />
             </div>
-            <div className="flex overflow-x-auto scrollbar-none gap-2 pb-1.5 w-full select-none -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
+            <div className="flex overflow-x-auto scrollbar-none gap-2 w-full select-none -mx-3 px-3 sm:mx-0 sm:px-0 scroll-smooth">
               {[
                 { id: "todos", name: "TODOS" },
                 ...quickTags
               ].map((opt) => {
                 const isSelected = selectedQuickTag === opt.id;
-                const cssClasses = `inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
+                const cssClasses = `inline-flex items-center justify-center px-3 py-1.5 rounded-md border text-center transition-all duration-300 active:scale-95 text-[11px] font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
                   isSelected
                     ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                    : "bg-zinc-50 border-zinc-200 text-zinc-700 shadow-sm hover:border-brand-primary hover:text-brand-primary hover:bg-white"
+                    : "bg-zinc-50 border-zinc-200 text-zinc-700 hover:border-brand-primary hover:text-brand-primary hover:bg-white"
                 }`;
 
                 if (opt.id === "todos") {
@@ -1099,189 +1098,180 @@ export default function HeroSection({
               })}
             </div>
           </div>
-
-          {/* Mobile Dropdowns refinement block (Filtro Rápido Inline) */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4 lg:hidden">
-            
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Câmbio</label>
-              <select
-                value={filterCambio}
-                onChange={(e) => setFilterCambio(e.target.value)}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Câmbio</option>
-                {cambiosDisponiveis.map((cambio) => (
-                  <option key={cambio} value={cambio}>
-                    {cambio.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Direção</label>
-              <select
-                value={filterDirecao}
-                onChange={(e) => setFilterDirecao(e.target.value)}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Direção</option>
-                {direcoesDisponiveis.map((dir) => (
-                  <option key={dir} value={dir}>
-                    {dir.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Combustível</label>
-              <select
-                value={filterCombustivel}
-                onChange={(e) => setFilterCombustivel(e.target.value)}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Combustível</option>
-                {combustiveisDisponiveis.map((comb) => (
-                  <option key={comb} value={comb}>
-                    {comb.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Marca</label>
-              <select
-                value={filterMarca}
-                onChange={(e) => {
-                  setFilterMarca(e.target.value);
-                  setFilterModelo("todos");
-                }}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Todas Marcas</option>
-                {marcasDisponiveis.map((marca) => (
-                  <option key={marca} value={marca}>
-                    {marca}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Modelo</label>
-              <select
-                value={filterModelo}
-                onChange={(e) => setFilterModelo(e.target.value)}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Todos Modelos</option>
-                {modelosDisponiveis.map((modelo) => (
-                  <option key={modelo} value={modelo}>
-                    {modelo}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Ano</label>
-              <select
-                value={filterAno}
-                onChange={(e) => setFilterAno(e.target.value)}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Todos Anos</option>
-                {anosDisponiveis.map((ano) => (
-                  <option key={ano} value={ano}>
-                    {ano}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Preço Mínimo</label>
-              <select
-                value={filterPrecoMin}
-                onChange={(e) => setFilterPrecoMin(e.target.value)}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Mínimo</option>
-                <option value="100000">R$ 100 mil</option>
-                <option value="250000">R$ 250 mil</option>
-                <option value="500000">R$ 500 mil</option>
-                <option value="750000">R$ 750 mil</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
-              <label className="text-[9px] font-bold uppercase text-zinc-500 pl-1">Preço Máximo</label>
-              <select
-                value={filterPrecoMax}
-                onChange={(e) => setFilterPrecoMax(e.target.value)}
-                className="bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 px-3 h-12 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <option value="todos">Máximo</option>
-                <option value="300000">R$ 300 mil</option>
-                <option value="600000">R$ 600 mil</option>
-                <option value="1000000">R$ 1.0 milhão</option>
-                <option value="1500000">R$ 1.5 milhão</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Clear Filters CTA for mobile */}
-          {(searchTerm || selectedCategory !== "todos" || selectedQuickTag !== "todos" || filterMarca !== "todos" || filterModelo !== "todos" || filterAno !== "todos" || filterPrecoMin !== "todos" || filterPrecoMax !== "todos" || filterCambio !== "todos" || filterDirecao !== "todos" || filterCombustivel !== "todos") && (
-            <button
-              onClick={handleClearFilters}
-              className="lg:hidden mt-2 w-full py-3 px-4 bg-zinc-100 text-brand-primary font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-zinc-200 transition-colors duration-300"
-              style={{ minHeight: "48px" }}
-            >
-              Limpar Filtros Selecionados
-            </button>
-          )}
         </div>
 
-        {/* Divider line between Filters and Search */}
-        <div className="h-px w-full bg-zinc-200/50 my-1" />
+        {/* Mobile Dropdowns refinement block (Filtro Rápido Inline) */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2 lg:hidden">
+          
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Câmbio</label>
+            <select
+              value={filterCambio}
+              onChange={(e) => setFilterCambio(e.target.value)}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Câmbio</option>
+              {cambiosDisponiveis.map((cambio) => (
+                <option key={cambio} value={cambio}>
+                  {cambio.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* 2. SEARCH BAR CONSOLE (Abaixo do Slider) */}
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Direção</label>
+            <select
+              value={filterDirecao}
+              onChange={(e) => setFilterDirecao(e.target.value)}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Direção</option>
+              {direcoesDisponiveis.map((dir) => (
+                <option key={dir} value={dir}>
+                  {dir.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Combustível</label>
+            <select
+              value={filterCombustivel}
+              onChange={(e) => setFilterCombustivel(e.target.value)}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Combustível</option>
+              {combustiveisDisponiveis.map((comb) => (
+                <option key={comb} value={comb}>
+                  {comb.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Marca</label>
+            <select
+              value={filterMarca}
+              onChange={(e) => {
+                setFilterMarca(e.target.value);
+                setFilterModelo("todos");
+              }}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Todas Marcas</option>
+              {marcasDisponiveis.map((marca) => (
+                <option key={marca} value={marca}>
+                  {marca}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Modelo</label>
+            <select
+              value={filterModelo}
+              onChange={(e) => setFilterModelo(e.target.value)}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Todos Modelos</option>
+              {modelosDisponiveis.map((modelo) => (
+                <option key={modelo} value={modelo}>
+                  {modelo}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Ano</label>
+            <select
+              value={filterAno}
+              onChange={(e) => setFilterAno(e.target.value)}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Todos Anos</option>
+              {anosDisponiveis.map((ano) => (
+                <option key={ano} value={ano}>
+                  {ano}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Preço Mínimo</label>
+            <select
+              value={filterPrecoMin}
+              onChange={(e) => setFilterPrecoMin(e.target.value)}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Mínimo</option>
+              <option value="100000">R$ 100 mil</option>
+              <option value="250000">R$ 250 mil</option>
+              <option value="500000">R$ 500 mil</option>
+              <option value="750000">R$ 750 mil</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-0.5 col-span-2 md:col-span-1">
+            <label className="text-[8px] font-bold uppercase text-zinc-500 pl-1">Preço Máximo</label>
+            <select
+              value={filterPrecoMax}
+              onChange={(e) => setFilterPrecoMax(e.target.value)}
+              className="bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] font-bold text-zinc-800 px-2 h-9 w-full focus:outline-none focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all duration-300"
+            >
+              <option value="todos">Máximo</option>
+              <option value="300000">R$ 300 mil</option>
+              <option value="600000">R$ 600 mil</option>
+              <option value="1000000">R$ 1.0 milhão</option>
+              <option value="1500000">R$ 1.5 milhão</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Clear Filters CTA for mobile */}
+        {(searchTerm || selectedCategory !== "todos" || selectedQuickTag !== "todos" || filterMarca !== "todos" || filterModelo !== "todos" || filterAno !== "todos" || filterPrecoMin !== "todos" || filterPrecoMax !== "todos" || filterCambio !== "todos" || filterDirecao !== "todos" || filterCombustivel !== "todos") && (
+          <button
+            onClick={handleClearFilters}
+            className="lg:hidden mt-1 w-full py-2 px-4 bg-zinc-100 text-brand-primary font-bold uppercase tracking-wider text-[10px] rounded-lg hover:bg-zinc-200 transition-colors duration-300"
+          >
+            Limpar Filtros Selecionados
+          </button>
+        )}
+
+        {/* Divider line between Filters and Search */}
+        <div className="h-px w-full bg-zinc-200/50 mt-1 mb-0.5" />
+
+        {/* BOTTOM ROW: SEARCH BAR */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleApplySearch();
           }}
-          className="w-full flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 relative group"
+          className="w-full flex flex-col md:flex-row items-center justify-between gap-3 relative group"
         >
           
           {/* Left Side: Refined typography with hover animation */}
-          <div className="flex items-center gap-2.5 self-start md:self-auto cursor-default">
-            <span className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" />
-            <div className="relative py-1 group/title">
-              <h3 className="text-brand-primary text-xs md:text-sm font-extrabold tracking-[0.2em] uppercase transition-colors duration-300 select-none whitespace-nowrap">
+          <div className="flex items-center gap-2 self-start md:self-auto cursor-default">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-primary animate-pulse" />
+            <div className="relative group/title">
+              <h3 className="text-brand-primary text-[11px] md:text-xs font-extrabold tracking-[0.2em] uppercase transition-colors duration-300 select-none whitespace-nowrap">
                 ENCONTRE SEU VEÍCULO
               </h3>
               {/* Hover slide line animation */}
-              <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-brand-primary transition-all duration-300 group-hover/title:w-full" />
+              <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/title:w-full" />
             </div>
           </div>
 
           {/* Right Side: Clean Input Box */}
           <div className="relative flex-grow w-full max-w-2xl">
             {/* Magnifying Glass Icon (Left) */}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
               </svg>
             </div>
@@ -1291,15 +1281,14 @@ export default function HeroSection({
               value={tempSearchTerm}
               onChange={(e) => setTempSearchTerm(e.target.value)}
               placeholder="Pesquise por modelo ou marca..."
-              className="w-full bg-brand-primary/5 hover:bg-brand-primary/10 text-zinc-900 placeholder-brand-primary/70 pl-11 pr-16 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-bold border border-brand-primary/30 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/20 outline-none transition-all duration-300 shadow-sm"
-              style={{ minHeight: "48px" }}
+              className="w-full bg-brand-primary/5 hover:bg-brand-primary/10 text-zinc-900 placeholder-brand-primary/70 pl-9 pr-14 py-2 md:py-2.5 rounded-lg text-[11px] md:text-xs font-bold border border-brand-primary/30 focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all duration-300 shadow-sm"
               aria-label="Pesquise por modelo ou marca"
             />
 
             {/* Clean "Search" tag on the right */}
             <button
               type="submit"
-              className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 bg-brand-primary text-white hover:bg-brand-primary-hover font-extrabold px-3 py-1 rounded-md tracking-wider transition-colors duration-200 uppercase cursor-pointer text-[10px]"
+              className="absolute right-2 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 bg-brand-primary text-white hover:bg-brand-primary-hover font-extrabold px-2.5 py-1 rounded tracking-wider transition-colors duration-200 uppercase cursor-pointer text-[9px]"
             >
               Buscar
             </button>
