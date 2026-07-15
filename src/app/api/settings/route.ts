@@ -29,7 +29,7 @@ function hasPromptInjection(obj: any): boolean {
 }
 
 // 1. Get cached settings using Next.js unstable_cache
-const getCachedSettings = unstable_cache(
+export const getCachedSettings = unstable_cache(
   async () => {
     let companySettings = null;
     let aboutSettings = null;

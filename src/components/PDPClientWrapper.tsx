@@ -952,12 +952,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                   <span className="text-brand-text font-extrabold">{veiculo.tipo}</span>
                 </div>
               )}
-              {veiculo.perfil_uso && (
-                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                  <span className="text-brand-gold font-bold uppercase">PERFIL RECOMENDADO</span>
-                  <span className="text-brand-text font-extrabold">{veiculo.perfil_uso}</span>
-                </div>
-              )}
+
             </div>
 
             {/* Direct contact CTA box in side desk bar */}

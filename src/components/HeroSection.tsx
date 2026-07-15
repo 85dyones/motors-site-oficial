@@ -226,7 +226,17 @@ function applyCustomDisplaySorting(vehicles: Veiculo[]): Veiculo[] {
   return vehicles;
 }
 
-export default function HeroSection() {
+interface HeroSectionProps {
+  initialQuickTag?: string;
+  isLandingPage?: boolean;
+  landingPageTitle?: string;
+}
+
+export default function HeroSection({
+  initialQuickTag = "todos",
+  isLandingPage = false,
+  landingPageTitle = ""
+}: HeroSectionProps = {}) {
   const {
     addToCompare,
     removeFromCompare,
@@ -290,6 +300,9 @@ export default function HeroSection() {
     return "todos";
   });
   const [selectedQuickTag, setSelectedQuickTag] = useState<string>(() => {
+    if (initialQuickTag !== "todos") {
+      return initialQuickTag;
+    }
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const val = params.get("destaque") || params.get("tag");
@@ -886,7 +899,18 @@ export default function HeroSection() {
     <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-10">
       
       {/* 1. HERO CAROUSEL / SLIDER (Auto Club Top Slider Look) */}
-      {featuredCars.length > 0 && (
+      {isLandingPage && (
+        <div className="w-full pt-8 pb-4 flex flex-col items-center justify-center text-center px-4 animate-fadeIn">
+          <h1 className="text-3xl md:text-5xl font-extrabold text-brand-primary uppercase tracking-tight drop-shadow-sm mb-3">
+            Carros {landingPageTitle}
+          </h1>
+          <p className="text-brand-text/80 max-w-2xl text-sm md:text-base font-medium">
+            Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você.
+          </p>
+        </div>
+      )}
+
+      {!isLandingPage && featuredCars.length > 0 && (
         <div className="relative w-full h-[60vh] md:h-[75vh] max-h-[720px] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 animate-fadeIn group">
           {/* Carousel Slide Wrapper */}
           <div className="relative w-full h-full">
@@ -1045,18 +1069,33 @@ export default function HeroSection() {
                 ...quickTags
               ].map((opt) => {
                 const isSelected = selectedQuickTag === opt.id;
+                const cssClasses = `inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
+                  isSelected
+                    ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
+                    : "bg-zinc-50 border-zinc-200 text-zinc-700 shadow-sm hover:border-brand-primary hover:text-brand-primary hover:bg-white"
+                }`;
+
+                if (opt.id === "todos") {
+                  return (
+                    <Link
+                      key={opt.id}
+                      href="/#catalogo"
+                      onClick={() => setSelectedQuickTag("todos")}
+                      className={cssClasses}
+                    >
+                      {opt.name.toUpperCase()}
+                    </Link>
+                  );
+                }
+
                 return (
-                  <button
+                  <Link
                     key={opt.id}
-                    onClick={() => setSelectedQuickTag(opt.id)}
-                    className={`inline-flex items-center justify-center px-4 py-2 rounded-lg border text-center transition-all duration-300 active:scale-95 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
-                      isSelected
-                        ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                        : "bg-zinc-50 border-zinc-200 text-zinc-700 shadow-sm hover:border-brand-primary hover:text-brand-primary hover:bg-white"
-                    }`}
+                    href={`/destaques/${opt.id}`}
+                    className={cssClasses}
                   >
                     {opt.name.toUpperCase()}
-                  </button>
+                  </Link>
                 );
               })}
             </div>

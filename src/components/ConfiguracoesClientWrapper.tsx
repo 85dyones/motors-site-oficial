@@ -1110,23 +1110,7 @@ export default function ConfiguracoesClientWrapper() {
                             />
                           </div>
 
-                          {/* Profile Use (Estilo) Select */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[8px] font-bold text-brand-text/40 uppercase tracking-widest pl-1">
-                              Estilo de Vida
-                            </label>
-                            <select
-                              value={currentPerfil}
-                              onChange={(e) => handleOverrideChange(vehicle.id, "perfil_uso", e.target.value)}
-                              className="bg-brand-bg text-brand-text border border-brand-card-border rounded-xl px-3 py-2 text-[11px] font-medium outline-none focus:border-brand-primary cursor-pointer w-full"
-                            >
-                              {usageProfiles.map((p) => (
-                                <option key={p} value={p}>
-                                  {p}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+
 
                           {/* Status Tag (Custom Tag) Text Input */}
                           <div className="flex flex-col gap-1.5">
