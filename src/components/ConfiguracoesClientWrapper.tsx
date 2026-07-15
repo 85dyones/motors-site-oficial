@@ -244,7 +244,7 @@ export default function ConfiguracoesClientWrapper() {
   const [searchQuery, setSearchQuery] = useState("");
   
   // Local overrides states: mapping of vehicle.id -> { tipo?, perfil_uso?, status_tag?, status_tag_color?, vendido?, preco_compra?, descricao?, laudo_pericia?, opcionais? }
-  const [overrides, setOverrides] = useState<Record<string, { tipo?: string; perfil_uso?: string; status_tag?: string; status_tag_color?: string; vendido?: boolean; preco_compra?: number; descricao?: string; laudo_pericia?: string; opcionais?: string }>>({});
+  const [overrides, setOverrides] = useState<Record<string, { tipo?: string; perfil_uso?: string; status_tag?: string; status_tag_color?: string; vendido?: boolean; preco_compra?: number; descricao?: string; laudo_pericia?: string; opcionais?: string; quick_tags?: string[] }>>({});
   
   // Single vehicle save notifications: mapping of vehicle.id -> boolean
   const [savedNotifications, setSavedNotifications] = useState<Record<string, boolean>>({});
@@ -471,7 +471,7 @@ export default function ConfiguracoesClientWrapper() {
   });
 
   // Handle single vehicle override values change
-  const handleOverrideChange = (id: string, field: "tipo" | "perfil_uso" | "status_tag" | "status_tag_color" | "vendido" | "descricao" | "laudo_pericia" | "opcionais" | "preco_compra", value: any) => {
+  const handleOverrideChange = (id: string, field: "tipo" | "perfil_uso" | "status_tag" | "status_tag_color" | "vendido" | "descricao" | "laudo_pericia" | "opcionais" | "preco_compra" | "quick_tags", value: any) => {
     setOverrides((prev) => {
       const vehicleOverrides = prev[id] || {};
       return {
@@ -1173,6 +1173,41 @@ export default function ConfiguracoesClientWrapper() {
                               <option value="false">DISPONÍVEL</option>
                               <option value="true">VENDIDO</option>
                             </select>
+                          </div>
+                        </div>
+
+                        {/* Manual Quick Tags Selection */}
+                        <div className="flex flex-col gap-2.5 w-full pt-1">
+                          <label className="text-[8px] font-bold text-brand-text/40 uppercase tracking-widest pl-1">
+                            Destaques Rápidos Manuais (Fixar Veículo)
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {quickTags.length === 0 ? (
+                              <span className="text-[10px] text-brand-text/30 font-medium">Nenhum destaque rápido cadastrado.</span>
+                            ) : (
+                              quickTags.map((tag) => {
+                                const activeLocalTags = overrides[vehicle.id]?.quick_tags ?? [];
+                                const isActive = activeLocalTags.includes(tag.id);
+                                return (
+                                  <button
+                                    key={tag.id}
+                                    onClick={() => {
+                                      const newTags = isActive
+                                        ? activeLocalTags.filter(id => id !== tag.id)
+                                        : [...activeLocalTags, tag.id];
+                                      handleOverrideChange(vehicle.id, "quick_tags", newTags);
+                                    }}
+                                    className={`h-7 px-3 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all cursor-pointer border ${
+                                      isActive
+                                        ? "bg-brand-primary border-brand-primary text-white shadow-sm"
+                                        : "bg-brand-bg border-brand-card-border text-brand-text/60 hover:text-brand-text hover:border-brand-primary/30"
+                                    }`}
+                                  >
+                                    {tag.name} {isActive && "✓"}
+                                  </button>
+                                );
+                              })
+                            )}
                           </div>
                         </div>
                         

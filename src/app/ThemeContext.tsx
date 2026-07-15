@@ -155,6 +155,10 @@ export type StockOverrides = Record<string, {
   status_tag?: string;
   status_tag_color?: string;
   vendido?: boolean;
+  tipo?: string;
+  perfil_uso?: string;
+  preco_compra?: number;
+  quick_tags?: string[];
 }>;
 
 import DEFAULT_COMPANY_SETTINGS_JSON from "../lib/companySettings.json";

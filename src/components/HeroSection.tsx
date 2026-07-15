@@ -235,7 +235,8 @@ export default function HeroSection() {
     companySettings,
     quickTags: contextQuickTags,
     carouselVehicleIds,
-    webhooks
+    webhooks,
+    stockOverrides
   } = useTheme();
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
   const [filteredEstoque, setFilteredEstoque] = useState<Veiculo[]>([]);
@@ -637,6 +638,12 @@ export default function HeroSection() {
         const activeTag = quickTags.find(t => t.id === selectedQuickTag);
         if (activeTag) {
           result = result.filter(car => {
+            // Check manual overrides first
+            const manualTags = stockOverrides?.[car.id]?.quick_tags || [];
+            if (manualTags.includes(activeTag.id)) {
+              return true;
+            }
+
             // Special fallback for the default "economicos" tag to match original behavior
             if (activeTag.id === "economicos" && activeTag.field === "preco" && activeTag.operator === "less" && activeTag.value === "180000") {
               const p = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
