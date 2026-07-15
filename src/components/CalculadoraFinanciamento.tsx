@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { calculateFinancing, SimulationResult } from "../lib/finance-calculator";
 
 interface CalculadoraProps {
@@ -11,6 +11,7 @@ interface CalculadoraProps {
 }
 
 type OcupacaoType = "publico" | "aposentado" | "clt" | "autonomo" | "outros";
+type TipoEntradaType = "dinheiro" | "veiculo_troca";
 
 export default function CalculadoraFinanciamento({
   vehiclePrice,
@@ -21,6 +22,7 @@ export default function CalculadoraFinanciamento({
   const [downPaymentPercent, setDownPaymentPercent] = useState<number>(30);
   const [installments, setInstallments] = useState<number>(48);
   const [occupation, setOccupation] = useState<OcupacaoType>("clt");
+  const [tipoEntrada, setTipoEntrada] = useState<TipoEntradaType>("dinheiro");
   const [result, setResult] = useState<SimulationResult | null>(null);
   
   useEffect(() => {
@@ -39,9 +41,10 @@ export default function CalculadoraFinanciamento({
     if (!result) return;
     const entradaFormatada = (vehiclePrice * (downPaymentPercent / 100)).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
     const parcelaFormatada = result.parcela_mensal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const entradaTexto = tipoEntrada === "dinheiro" ? "em dinheiro" : "como veículo na troca";
     
     const msg = `Olá! Tenho interesse no ${vehicleName} e gostaria de ver se aprova um financiamento.
-Fiz uma simulação no site com R$ ${entradaFormatada} de entrada e saldo em ${installments}x de R$ ${parcelaFormatada}. Podem me ajudar?`;
+Fiz uma simulação no site com R$ ${entradaFormatada} de entrada (${entradaTexto}) e saldo em ${installments}x de R$ ${parcelaFormatada}. Podem me ajudar?`;
     onSimulateClick(msg);
   };
 
@@ -62,22 +65,39 @@ Fiz uma simulação no site com R$ ${entradaFormatada} de entrada e saldo em ${i
         Simulador Realista
       </h3>
 
-      {/* Ocupação Selector */}
-      <div className="mb-6">
-        <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
-          Seu Perfil Profissional
-        </label>
-        <select
-          value={occupation}
-          onChange={(e) => setOccupation(e.target.value as OcupacaoType)}
-          className="w-full bg-white border border-brand-border/60 rounded-xl text-xs font-bold text-brand-text px-3 h-12 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
-        >
-          <option value="clt">Trabalhador CLT</option>
-          <option value="publico">Funcionário Público</option>
-          <option value="aposentado">Aposentado / Pensionista</option>
-          <option value="autonomo">Profissional Autônomo / PJ</option>
-          <option value="outros">Outros</option>
-        </select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Ocupação Selector */}
+        <div>
+          <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
+            Seu Perfil Profissional
+          </label>
+          <select
+            value={occupation}
+            onChange={(e) => setOccupation(e.target.value as OcupacaoType)}
+            className="w-full bg-white border border-brand-border/60 rounded-xl text-xs font-bold text-brand-text px-3 h-12 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
+          >
+            <option value="clt">Trabalhador CLT</option>
+            <option value="publico">Funcionário Público</option>
+            <option value="aposentado">Aposentado / Pensionista</option>
+            <option value="autonomo">Profissional Autônomo / PJ</option>
+            <option value="outros">Outros</option>
+          </select>
+        </div>
+
+        {/* Tipo de Entrada Selector */}
+        <div>
+          <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
+            Forma de Entrada
+          </label>
+          <select
+            value={tipoEntrada}
+            onChange={(e) => setTipoEntrada(e.target.value as TipoEntradaType)}
+            className="w-full bg-white border border-brand-border/60 rounded-xl text-xs font-bold text-brand-text px-3 h-12 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
+          >
+            <option value="dinheiro">Dinheiro (PIX/Transferência)</option>
+            <option value="veiculo_troca">Veículo na Troca</option>
+          </select>
+        </div>
       </div>
       
       {/* Entrada Slider */}
@@ -150,12 +170,12 @@ Fiz uma simulação no site com R$ ${entradaFormatada} de entrada e saldo em ${i
 
       <button
         onClick={handleSimulateAction}
-        className="mt-4 w-full bg-[#25D366] hover:bg-[#1EBE5D] text-white py-3.5 rounded-xl font-bold uppercase text-xs tracking-wider transition-all duration-300 active:scale-95 shadow-sm shadow-[#25D366]/20 flex items-center justify-center gap-2"
+        className="mt-4 w-full bg-brand-primary hover:bg-brand-primary-hover text-white py-3.5 rounded-xl font-bold uppercase text-xs tracking-widest transition-all duration-300 active:scale-95 shadow-sm shadow-brand-primary/30 flex items-center justify-center gap-2"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-          <path fillRule="evenodd" d="M1.5 4.5a3 3 0 0 1 3-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 0 1-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 0 0 6.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 0 1 1.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 0 1-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5Z" clipRule="evenodd" />
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
         </svg>
-        Analisar Crédito Rápido
+        Quero ver opções de Financiamento
       </button>
     </div>
   );
