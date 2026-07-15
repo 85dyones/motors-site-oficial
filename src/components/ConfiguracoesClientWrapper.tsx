@@ -124,17 +124,17 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
   },
   {
     id: "camp-exit-intent",
-    name: "👋 Intenção de Saída (WhatsApp)",
+    name: "👋 Resgate Sazonal (Exit-Intent)",
     enabled: true,
     targetPage: "any",
     triggerType: "exit",
     delaySeconds: 0,
     actionType: "whatsapp",
-    actionTarget: "Olá! Gostaria de receber uma avaliação exclusiva sem compromisso antes de decidir. (Ref: {ref})",
-    icon: "👋",
-    title: "ANTES DE IR...",
-    subtitle: "Que tal uma avaliação sem compromisso? Nosso especialista está disponível agora para te atender com exclusividade.",
-    ctaText: "FALAR COM ESPECIALISTA"
+    actionTarget: "Olá! Gostaria de resgatar o bônus sazonal (IPVA Grátis ou Super Avaliação) antes de fechar a página. (Ref: {ref})",
+    icon: "🎁",
+    title: "ESPERE! NÃO VÁ AINDA...",
+    subtitle: "Temos um Bônus Sazonal exclusivo (IPVA Pago ou Super Avaliação no seu Usado) se você falar com nosso especialista agora.",
+    ctaText: "RESGATAR MEU BÔNUS"
   }
 ];
 
