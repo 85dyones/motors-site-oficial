@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { calculateFinancing, SimulationResult } from "../lib/finance-calculator";
 
 interface CalculadoraProps {
@@ -10,6 +10,8 @@ interface CalculadoraProps {
   onSimulateClick: (message: string) => void;
 }
 
+type OcupacaoType = "publico" | "aposentado" | "clt" | "autonomo" | "outros";
+
 export default function CalculadoraFinanciamento({
   vehiclePrice,
   vehicleYear,
@@ -18,22 +20,28 @@ export default function CalculadoraFinanciamento({
 }: CalculadoraProps) {
   const [downPaymentPercent, setDownPaymentPercent] = useState<number>(30);
   const [installments, setInstallments] = useState<number>(48);
+  const [occupation, setOccupation] = useState<OcupacaoType>("clt");
   const [result, setResult] = useState<SimulationResult | null>(null);
   
   useEffect(() => {
+    const downPaymentValue = vehiclePrice * (downPaymentPercent / 100);
     const res = calculateFinancing({
       vehiclePrice,
       vehicleYear,
-      downPaymentPercent,
-      installments
+      downPaymentValue,
+      installments,
+      occupation
     });
     setResult(res);
-  }, [vehiclePrice, vehicleYear, downPaymentPercent, installments]);
+  }, [vehiclePrice, vehicleYear, downPaymentPercent, installments, occupation]);
 
   const handleSimulateAction = () => {
     if (!result) return;
+    const entradaFormatada = (vehiclePrice * (downPaymentPercent / 100)).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const parcelaFormatada = result.parcela_mensal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    
     const msg = `Olá! Tenho interesse no ${vehicleName} e gostaria de ver se aprova um financiamento.
-Fiz uma simulação no site com R$ ${result.downPaymentValue.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})} de entrada e saldo em ${installments}x de R$ ${result.monthlyInstallment.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}. Podem me ajudar?`;
+Fiz uma simulação no site com R$ ${entradaFormatada} de entrada e saldo em ${installments}x de R$ ${parcelaFormatada}. Podem me ajudar?`;
     onSimulateClick(msg);
   };
 
@@ -43,14 +51,34 @@ Fiz uma simulação no site com R$ ${result.downPaymentValue.toLocaleString('pt-
 
   if (!result) return null;
 
+  const entradaValue = vehiclePrice * (downPaymentPercent / 100);
+
   return (
     <div className="bg-brand-bg/50 border border-brand-border/40 rounded-2xl p-5 shadow-sm mt-6">
       <h3 className="text-sm font-extrabold text-brand-primary uppercase tracking-wider mb-4 flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Simulador de Financiamento
+        Simulador Realista
       </h3>
+
+      {/* Ocupação Selector */}
+      <div className="mb-6">
+        <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
+          Seu Perfil Profissional
+        </label>
+        <select
+          value={occupation}
+          onChange={(e) => setOccupation(e.target.value as OcupacaoType)}
+          className="w-full bg-white border border-brand-border/60 rounded-xl text-xs font-bold text-brand-text px-3 h-12 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
+        >
+          <option value="clt">Trabalhador CLT</option>
+          <option value="publico">Funcionário Público</option>
+          <option value="aposentado">Aposentado / Pensionista</option>
+          <option value="autonomo">Profissional Autônomo / PJ</option>
+          <option value="outros">Outros</option>
+        </select>
+      </div>
       
       {/* Entrada Slider */}
       <div className="mb-6">
@@ -59,7 +87,7 @@ Fiz uma simulação no site com R$ ${result.downPaymentValue.toLocaleString('pt-
             Sua Entrada ({downPaymentPercent}%)
           </label>
           <span className="text-sm font-extrabold text-brand-text">
-            {formatCurrency(result.downPaymentValue)}
+            {formatCurrency(entradaValue)}
           </span>
         </div>
         <input
@@ -107,13 +135,17 @@ Fiz uma simulação no site com R$ ${result.downPaymentValue.toLocaleString('pt-
         <div className="flex items-baseline gap-1">
           <span className="text-sm font-bold text-brand-text/70">{installments}x de</span>
           <span className="text-3xl font-black text-brand-primary tracking-tight">
-            R$ {result.monthlyInstallment.toLocaleString("pt-BR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+            R$ {result.parcela_mensal.toLocaleString("pt-BR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}
           </span>
         </div>
-        <p className="text-[9px] text-brand-text/40 uppercase mt-2 font-medium">
-          Taxas referenciais a partir de {result.interestRateApplied.toFixed(2)}% a.m. <br/>
-          Sujeito à análise de crédito do seu banco.
-        </p>
+        <div className="text-[9px] text-brand-text/50 mt-3 font-medium text-center leading-relaxed">
+          <p className="mb-1 text-brand-text/70 font-semibold">
+            CET a partir de {result.taxa_aplicada_mes_pct.toFixed(2)}% a.m. ({result.perfil_calculado})
+          </p>
+          <p>
+            Esta simulação usa taxas que podem variar dependendo de análises das instituições bancárias referente ao crédito disponível e "score" de cada pessoa. Valores incluem TAC e IOF.
+          </p>
+        </div>
       </div>
 
       <button

@@ -896,11 +896,11 @@ export default function HeroSection({
   };
 
   return (
-    <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-10">
+    <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-6 md:gap-8">
       
       {/* 1. HERO CAROUSEL / SLIDER (Auto Club Top Slider Look) */}
       {isLandingPage && (
-        <div className="w-full pt-8 pb-4 flex flex-col items-center justify-center text-center px-4 animate-fadeIn">
+        <div className="w-full pt-4 pb-0 flex flex-col items-center justify-center text-center px-4 animate-fadeIn">
           <h1 className="text-3xl md:text-5xl font-extrabold text-brand-primary uppercase tracking-tight drop-shadow-sm mb-3">
             Carros {landingPageTitle}
           </h1>
@@ -1020,10 +1020,9 @@ export default function HeroSection({
       )}
 
       {/* 2. SEARCH BAR CONSOLE & 3. FILTER CONSOLE (Grouped for closer layout) */}
-      <div className="flex flex-col gap-3.5">
+      <div id="catalogo" className="flex flex-col gap-4 bg-white border border-brand-primary p-4 sm:p-5 lg:p-6 rounded-2xl shadow-[0_8px_30px_var(--brand-shadow)] animate-fadeIn select-none">
         {/* 3. TWO-LINE SIMPLIFIED FILTER CONSOLE (Abaixo do Slider) */}
-        <div id="catalogo" className="flex flex-col gap-3.5 bg-white border border-brand-primary p-4 sm:p-5 rounded-2xl shadow-[0_8px_30px_var(--brand-shadow)] animate-fadeIn select-none">
-          
+        <div className="flex flex-col gap-3.5">
           {/* Row 1: CARROCERIA */}
           <div className="flex flex-col gap-2">
             <div className="relative self-start py-0.5 group/carroceria cursor-default">
@@ -1254,20 +1253,23 @@ export default function HeroSection({
           )}
         </div>
 
+        {/* Divider line between Filters and Search */}
+        <div className="h-px w-full bg-zinc-200/50 my-1" />
+
         {/* 2. SEARCH BAR CONSOLE (Abaixo do Slider) */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleApplySearch();
           }}
-          className="w-full bg-white border border-brand-primary px-6 py-4 md:px-8 md:py-5 rounded-2xl shadow-[0_8px_30px_var(--brand-shadow)] flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 animate-fadeIn select-none relative group"
+          className="w-full flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 relative group"
         >
           
           {/* Left Side: Refined typography with hover animation */}
           <div className="flex items-center gap-2.5 self-start md:self-auto cursor-default">
             <span className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" />
             <div className="relative py-1 group/title">
-              <h3 className="text-zinc-800 text-xs md:text-sm font-extrabold tracking-[0.2em] uppercase transition-colors duration-300 group-hover/title:text-brand-primary select-none whitespace-nowrap">
+              <h3 className="text-brand-primary text-xs md:text-sm font-extrabold tracking-[0.2em] uppercase transition-colors duration-300 select-none whitespace-nowrap">
                 ENCONTRE SEU VEÍCULO
               </h3>
               {/* Hover slide line animation */}
@@ -1278,7 +1280,7 @@ export default function HeroSection({
           {/* Right Side: Clean Input Box */}
           <div className="relative flex-grow w-full max-w-2xl">
             {/* Magnifying Glass Icon (Left) */}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
               </svg>
@@ -1289,7 +1291,7 @@ export default function HeroSection({
               value={tempSearchTerm}
               onChange={(e) => setTempSearchTerm(e.target.value)}
               placeholder="Pesquise por modelo ou marca..."
-              className="w-full bg-zinc-50 hover:bg-zinc-100/70 text-zinc-900 placeholder-zinc-400 pl-11 pr-16 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-bold border border-zinc-200 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all duration-300 shadow-sm"
+              className="w-full bg-brand-primary/5 hover:bg-brand-primary/10 text-zinc-900 placeholder-brand-primary/70 pl-11 pr-16 py-3 md:py-3.5 rounded-xl text-xs md:text-sm font-bold border border-brand-primary/30 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/20 outline-none transition-all duration-300 shadow-sm"
               style={{ minHeight: "48px" }}
               aria-label="Pesquise por modelo ou marca"
             />
@@ -1297,7 +1299,7 @@ export default function HeroSection({
             {/* Clean "Search" tag on the right */}
             <button
               type="submit"
-              className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 bg-zinc-200/50 hover:bg-brand-primary hover:text-white border border-zinc-300/30 text-[10px] text-zinc-500 hover:text-white font-extrabold px-3 py-1 rounded-md tracking-wider transition-colors duration-200 uppercase cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 bg-brand-primary text-white hover:bg-brand-primary-hover font-extrabold px-3 py-1 rounded-md tracking-wider transition-colors duration-200 uppercase cursor-pointer text-[10px]"
             >
               Buscar
             </button>
