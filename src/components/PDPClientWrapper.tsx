@@ -73,10 +73,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
 
-  // Lead modal states
+// Lead modal states
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
   const [activeChannel, setActiveChannel] = useState("WhatsApp Proposta");
+  const [activeSimulacao, setActiveSimulacao] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -216,6 +217,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         : `Olá! Vi o anúncio no site e gostaria de saber mais sobre o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
       
       setActiveMessage(msg);
+      setActiveSimulacao(null);
       setIsLeadModalOpen(true);
     }
   };
@@ -225,6 +227,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       setActiveChannel("WhatsApp Dúvidas");
       const msg = `Olá! Gostaria de tirar dúvidas com o vendedor sobre o veículo ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
       setActiveMessage(msg);
+      setActiveSimulacao(null);
       setIsLeadModalOpen(true);
     }
   };
@@ -232,7 +235,6 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
     const utmParams = getUtmParameters();
     const tipoBadge = veiculo.baixa_km ? "BAIXA KM" : (veiculo.unico_dono ? "ÚNICO DONO" : (veiculo.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
-    const perfilUso = veiculo.perfil_uso || "URBANO & EFICIENTE";
 
     const cleanPhone = leadData.whatsapp;
     const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
@@ -253,10 +255,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original,
         vendido: !!veiculo.vendido,
         veiculo_contexto: {
-          perfil_uso: perfilUso,
+          categoria: veiculo.tipo || "N/A",
           tipo_badge: tipoBadge
         }
       },
+      simulacao_financiamento: activeSimulacao || null,
       cliente: {
         nome: leadData.nome,
         email: leadData.email,
