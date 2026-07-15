@@ -31,11 +31,39 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Destaques Rápidos' };
   }
 
+  const title = `Carros ${tag.name} em Curitiba | Motors Store`;
+  const description = `Confira nossa seleção exclusiva de veículos na categoria ${tag.name}. As melhores condições, procedência garantida e atendimento premium na Motors Store.`;
+  const url = `https://motors-site-oficial.vercel.app/destaques/${tag.id}`;
+
   return {
-    title: `Carros ${tag.name} em Curitiba | Motors`,
-    description: `Confira nossa seleção exclusiva de veículos na categoria ${tag.name}. As melhores condições e procedência garantida.`,
+    title,
+    description,
     alternates: {
-      canonical: `/destaques/${tag.id}`,
+      canonical: url,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: 'Motors Store',
+      locale: 'pt_BR',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
     },
   };
 }
@@ -48,8 +76,29 @@ export default async function DestaquesPage({ params }: PageProps) {
     notFound();
   }
 
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "item": {
+          "@type": "WebPage",
+          "name": `Catálogo de Veículos: ${tag.name}`,
+          "url": `https://motors-site-oficial.vercel.app/destaques/${tag.id}`
+        }
+      }
+    ]
+  };
+
   return (
     <div className="flex flex-col min-h-screen pt-24">
+      {/* Structured Data (JSON-LD) for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+      />
       {/* We reuse the HeroSection, passing the initial tag so it auto-filters */}
       <HeroSection initialQuickTag={tag.id} isLandingPage={true} landingPageTitle={tag.name} />
     </div>

@@ -550,9 +550,18 @@ export default function HeroSection({
         }
       };
 
+      // Avoid redundant query parameters if the route already defines the context
+      const isDestaqueRoute = window.location.pathname.startsWith('/destaques/');
+      
       setOrDelete("busca", searchTerm);
       setOrDelete("tipo", selectedCategory);
-      setOrDelete("destaque", selectedQuickTag);
+      
+      if (!isDestaqueRoute) {
+        setOrDelete("destaque", selectedQuickTag);
+      } else {
+        params.delete("destaque"); // Clean up if it was there
+      }
+      
       setOrDelete("marca", filterMarca);
       setOrDelete("modelo", filterModelo);
       setOrDelete("ano", filterAno);
@@ -1080,7 +1089,7 @@ export default function HeroSection({
             <div className="flex overflow-x-auto scrollbar-none gap-2 w-full select-none -mx-3 px-3 sm:mx-0 sm:px-0 scroll-smooth">
               {[
                 { id: "todos", name: "TODOS" },
-                ...quickTags
+                ...validQuickTags
               ].map((opt) => {
                 const isSelected = selectedQuickTag === opt.id;
                 const cssClasses = `inline-flex items-center justify-center px-3 py-1.5 rounded-md border text-center transition-all duration-300 active:scale-95 text-[11px] font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
@@ -1096,6 +1105,8 @@ export default function HeroSection({
                       href="/#catalogo"
                       onClick={() => setSelectedQuickTag("todos")}
                       className={cssClasses}
+                      title="Ver todos os veículos"
+                      aria-label="Remover filtros e ver todos os veículos"
                     >
                       {opt.name.toUpperCase()}
                     </Link>
@@ -1107,6 +1118,8 @@ export default function HeroSection({
                     key={opt.id}
                     href={`/destaques/${opt.id}`}
                     className={cssClasses}
+                    title={`Ver veículos em destaque: ${opt.name}`}
+                    aria-label={`Filtrar catálogo pela categoria de destaque ${opt.name}`}
                   >
                     {opt.name.toUpperCase()}
                   </Link>
