@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getCachedSettings } from '../../api/settings/route';
 import HeroSection from '../../../components/HeroSection';
+import { DEFAULT_QUICK_TAGS } from '../../ThemeContext';
 
 export const revalidate = 3600; // 1 hour cache
 export const dynamicParams = true;
@@ -14,11 +15,11 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const { quickTags } = await getCachedSettings();
+  const { quickTags: fetchedTags } = await getCachedSettings();
   
-  if (!quickTags || !Array.isArray(quickTags)) {
-    return { title: 'Destaques Rápidos' };
-  }
+  const quickTags = (fetchedTags && Array.isArray(fetchedTags) && fetchedTags.length > 0) 
+    ? fetchedTags 
+    : DEFAULT_QUICK_TAGS;
   
   const tag = quickTags.find((t: any) => t.id === resolvedParams.tag);
   
@@ -28,21 +29,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   return {
     title: `Carros ${tag.name} em Curitiba | Motors`,
-    description: `Encontre sua próxima conquista com nossa seleção especial de ${tag.name}. Estoque 100% periciado com as melhores condições e garantia de procedência.`,
-    openGraph: {
-      title: `Carros ${tag.name} em Curitiba | Motors`,
-      description: `Encontre sua próxima conquista com nossa seleção especial de ${tag.name}. Estoque 100% periciado com as melhores condições.`,
-    }
+    description: `Confira nossa seleção exclusiva de veículos na categoria ${tag.name}. As melhores condições e procedência garantida.`,
+    alternates: {
+      canonical: `/destaques/${tag.id}`,
+    },
   };
 }
 
 export default async function DestaquesPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const { quickTags } = await getCachedSettings();
+  const { quickTags: fetchedTags } = await getCachedSettings();
   
-  if (!quickTags || !Array.isArray(quickTags)) {
-    notFound();
-  }
+  const quickTags = (fetchedTags && Array.isArray(fetchedTags) && fetchedTags.length > 0) 
+    ? fetchedTags 
+    : DEFAULT_QUICK_TAGS;
   
   const tag = quickTags.find((t: any) => t.id === resolvedParams.tag);
 

@@ -144,7 +144,7 @@ export interface QuickTag {
   value: string;
 }
 
-const DEFAULT_QUICK_TAGS: QuickTag[] = [
+export const DEFAULT_QUICK_TAGS: QuickTag[] = [
   { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
   { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
   { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
