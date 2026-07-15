@@ -6,6 +6,7 @@ import { Veiculo, truncateString } from "../lib/supabase";
 import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
+import CalculadoraFinanciamento from "./CalculadoraFinanciamento";
 
 interface PDPClientWrapperProps {
   veiculo: Veiculo;
@@ -955,8 +956,22 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
             </div>
 
-            {/* Direct contact CTA box in side desk bar */}
-            <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4 print:hidden">
+          {/* Dinamic Finance Calculator */}
+          <CalculadoraFinanciamento 
+            vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
+            vehicleYear={parseInt(veiculo.ano.split('/')[0] || "2020", 10)}
+            vehicleName={`${veiculo.marca} ${veiculo.modelo}`}
+            onSimulateClick={(msg) => {
+              if (typeof window !== "undefined") {
+                setActiveChannel("Simulação de Financiamento");
+                setActiveMessage(`${msg} (Ref: ${agUid})`);
+                setIsLeadModalOpen(true);
+              }
+            }}
+          />
+
+          {/* Direct contact CTA box in side desk bar */}
+          <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4 print:hidden">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-brand-primary/10 border border-brand-primary flex items-center justify-center flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-4 h-4 text-brand-primary">
