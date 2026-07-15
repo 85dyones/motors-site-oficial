@@ -959,7 +959,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           {/* Dinamic Finance Calculator */}
           <CalculadoraFinanciamento 
             vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
-            vehicleYear={parseInt(veiculo.ano.split('/')[0] || "2020", 10)}
+            vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
             vehicleName={`${veiculo.marca} ${veiculo.modelo}`}
             onSimulateClick={(msg) => {
               if (typeof window !== "undefined") {

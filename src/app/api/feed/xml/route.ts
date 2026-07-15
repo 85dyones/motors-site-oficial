@@ -54,7 +54,7 @@ export async function GET(request: Request) {
       <g:availability>in_stock</g:availability>
       <g:price>${price.toFixed(2)} BRL</g:price>
       <g:vehicle_type>car</g:vehicle_type>
-      <g:year>${car.ano.split('/')[0] || car.ano}</g:year>
+      <g:year>${String(car.ano).split('/')[0] || car.ano}</g:year>
       <g:mileage>
         <g:value>${car.quilometragem}</g:value>
         <g:unit>km</g:unit>
