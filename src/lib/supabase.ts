@@ -23,6 +23,7 @@ export interface Veiculo {
   tipo?: string;
   perfil_uso?: string;
   descricao?: string;
+  descricao_seo?: string;
   cabine_premium?: boolean;
   tecnologia_embarcada?: boolean;
   conducao_dinamica?: boolean;
