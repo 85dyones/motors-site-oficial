@@ -1,11 +1,15 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getCachedSettings } from '../../../lib/settings';
 import HeroSection from '../../../components/HeroSection';
-import { DEFAULT_QUICK_TAGS } from '../../ThemeContext';
 
-export const revalidate = 3600; // 1 hour cache
-export const dynamicParams = true;
+const STATIC_QUICK_TAGS = [
+  { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
+  { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
+  { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
+  { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" }
+];
+
+export const revalidate = 3600;
 
 interface PageProps {
   params: Promise<{
@@ -13,15 +17,15 @@ interface PageProps {
   }>;
 }
 
+export async function generateStaticParams() {
+  return STATIC_QUICK_TAGS.map((tag) => ({
+    tag: tag.id,
+  }));
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const { quickTags: fetchedTags } = await getCachedSettings();
-  
-  const quickTags = (fetchedTags && Array.isArray(fetchedTags) && fetchedTags.length > 0) 
-    ? fetchedTags 
-    : DEFAULT_QUICK_TAGS;
-  
-  const tag = quickTags.find((t: any) => t.id === resolvedParams.tag);
+  const tag = STATIC_QUICK_TAGS.find((t) => t.id === resolvedParams.tag);
   
   if (!tag) {
     return { title: 'Destaques Rápidos' };
@@ -38,13 +42,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function DestaquesPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const { quickTags: fetchedTags } = await getCachedSettings();
-  
-  const quickTags = (fetchedTags && Array.isArray(fetchedTags) && fetchedTags.length > 0) 
-    ? fetchedTags 
-    : DEFAULT_QUICK_TAGS;
-  
-  const tag = quickTags.find((t: any) => t.id === resolvedParams.tag);
+  const tag = STATIC_QUICK_TAGS.find((t) => t.id === resolvedParams.tag);
 
   if (!tag) {
     notFound();
