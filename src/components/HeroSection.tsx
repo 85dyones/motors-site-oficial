@@ -1281,11 +1281,11 @@ export default function HeroSection({
             e.preventDefault();
             handleApplySearch();
           }}
-          className="w-full flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 relative group"
+          className="w-full flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 relative group"
         >
           
           {/* Left Side: Refined typography with hover animation */}
-          <div className="flex items-center gap-2 cursor-default">
+          <div className="flex items-center gap-2 cursor-default shrink-0">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-primary animate-pulse" />
             <div className="relative group/title">
               <h3 className="text-brand-primary text-[11px] md:text-xs font-extrabold tracking-[0.2em] uppercase transition-colors duration-300 select-none whitespace-nowrap">
@@ -1297,7 +1297,7 @@ export default function HeroSection({
           </div>
 
           {/* Right Side: Clean Input Box */}
-          <div className="relative w-full md:w-[500px] lg:w-[600px]">
+          <div className="relative w-full max-w-[400px] sm:max-w-[500px]">
             {/* Magnifying Glass Icon (Left) */}
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-primary">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5">
