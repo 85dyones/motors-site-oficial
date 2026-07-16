@@ -89,7 +89,7 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Ocupação Selector */}
-        <div className="flex flex-col justify-end">
+        <div className="flex flex-col h-full justify-between">
           <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
             Seu Perfil Profissional
           </label>
@@ -107,7 +107,7 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
         </div>
 
         {/* Tipo de Entrada Selector */}
-        <div className="flex flex-col justify-end">
+        <div className="flex flex-col h-full justify-between">
           <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
             Forma de Entrada
           </label>
