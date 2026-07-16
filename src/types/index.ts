@@ -130,6 +130,8 @@ export interface Veiculo {
   status_tag?: string;
   status_tag_color?: string;
   vendido?: boolean;
+  preco_compra?: number;
+  preco?: number;
 }
 
 export type StockOverrides = Record<string, {
