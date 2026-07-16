@@ -5,7 +5,7 @@ import { logThemeChanged } from "../lib/telemetry";
 import { supabase } from "../lib/supabase";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 
-export type {
+import type {
   ThemeType,
   ThemeProperties,
   CompanySettings,
@@ -16,6 +16,18 @@ export type {
   StockOverrides,
   PopupSettings
 } from "../types";
+
+export type {
+  ThemeType,
+  ThemeProperties,
+  CompanySettings,
+  AboutSettings,
+  Webhooks,
+  Campaign,
+  QuickTag,
+  StockOverrides,
+  PopupSettings
+};
 
 export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
   "luxury-light": {
