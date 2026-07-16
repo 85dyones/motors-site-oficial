@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { Veiculo } from "../types";
+import type { Veiculo } from "../types";
+export type { Veiculo };
 
 // 1. Supabase credentials from .env.local
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
