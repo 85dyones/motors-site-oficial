@@ -5,21 +5,17 @@ import { logThemeChanged } from "../lib/telemetry";
 import { supabase } from "../lib/supabase";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 
-export type ThemeType = "luxury-light" | "stealth-dark" | "sport-nardo";
-
-export interface ThemeProperties {
-  "--brand-background": string;
-  "--brand-foreground": string;
-  "--brand-primary": string;
-  "--brand-primary-hover": string;
-  "--brand-gold": string;
-  "--brand-card": string;
-  "--brand-card-border": string;
-  "--brand-border": string;
-  "--brand-shadow": string;
-  "--brand-glass-bg": string;
-  "--brand-footer-bg": string;
-}
+export type {
+  ThemeType,
+  ThemeProperties,
+  CompanySettings,
+  AboutSettings,
+  Webhooks,
+  Campaign,
+  QuickTag,
+  StockOverrides,
+  PopupSettings
+} from "../types";
 
 export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
   "luxury-light": {
@@ -63,86 +59,7 @@ export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
   },
 };
 
-export interface CompanySettings {
-  name: string;
-  phone: string;
-  whatsapp: string;
-  whatsappRaw: string;
-  address: string;
-  hours: string;
-  instagram: string;
-  facebook: string;
-  cnpj: string;
-  faviconUrl?: string;
-  logoUrl?: string;
-  isCustom?: boolean;
-  ga4Id?: string;
-  metaPixelId?: string;
-  instagramUsername?: string;
-  instagramElfsightId?: string;
-  googleReviewsElfsightId?: string;
-  carMatchTitle?: string;
-  avaliacaoExpressTitle?: string;
-}
-
-export interface AboutSettings {
-  heroTitle: string;
-  heroSubtitle: string;
-  historyTitle: string;
-  historyP1: string;
-  historyP2: string;
-  valuesTitle: string;
-  value1: string;
-  value2: string;
-  value3: string;
-  techTitle: string;
-  techSubtitle: string;
-  card1Title: string;
-  card1Desc: string;
-  card2Title: string;
-  card2Desc: string;
-  card3Title: string;
-  card3Desc: string;
-  ctaTitle?: string;
-  ctaDescription?: string;
-  ctaBtn1Text?: string;
-  ctaBtn2Text?: string;
-  isCustom?: boolean;
-}
-
-export interface Webhooks {
-  webhookUrl: string;
-  webhookAvaliacaoUrl: string;
-  webhookNotificacoesUrl: string;
-  webhookPropostaUrl?: string;
-  webhookDuvidasUrl?: string;
-  events?: Record<string, boolean>;
-  apiSecretToken?: string;
-}
-
-export interface Campaign {
-  id: string;
-  name: string;
-  enabled: boolean;
-  targetPage: "home" | "pdp" | "any" | "specific";
-  triggerType: "time" | "exit";
-  delaySeconds: number;
-  actionType: "whatsapp" | "link" | "compare";
-  actionTarget: string;
-  icon: string;
-  title: string;
-  subtitle: string;
-  ctaText: string;
-  targetVehicleId?: string;
-}
-
-export interface QuickTag {
-  id: string;
-  name: string;
-  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel" | "manual";
-  operator: "equals" | "less" | "greater" | "contains" | "none";
-  value: string;
-}
+// Types imported from ../types
 
 export const DEFAULT_QUICK_TAGS: QuickTag[] = [
   { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
@@ -151,15 +68,7 @@ export const DEFAULT_QUICK_TAGS: QuickTag[] = [
   { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" }
 ];
 
-export type StockOverrides = Record<string, {
-  status_tag?: string;
-  status_tag_color?: string;
-  vendido?: boolean;
-  tipo?: string;
-  perfil_uso?: string;
-  preco_compra?: number;
-  quick_tags?: string[];
-}>;
+// StockOverrides imported from ../types
 
 import DEFAULT_COMPANY_SETTINGS_JSON from "../lib/companySettings.json";
 import DEFAULT_ABOUT_SETTINGS_JSON from "../lib/aboutSettings.json";
@@ -275,11 +184,7 @@ export const DEFAULT_CAMPAIGNS: Campaign[] = [
   }
 ];
 
-export interface PopupSettings {
-  enabled: boolean;
-  cooldownHours: number;
-  whatsappNumber: string;
-}
+// PopupSettings imported from ../types
 
 export const DEFAULT_POPUP_SETTINGS: PopupSettings = {
   enabled: true,

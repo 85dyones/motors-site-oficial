@@ -490,6 +490,7 @@ export default function AutoAvaliacao() {
           tipo_veiculo: vehicleType,
           fipe_valor: fipeValor,
           fipe_codigo: fipeCodigo,
+          utm: getUtmParameters(),
           turnstileToken
         }),
       });
@@ -612,14 +613,9 @@ export default function AutoAvaliacao() {
         email: leadData.email,
         whatsapp: leadData.whatsapp
       },
-      utm: {
-        utm_source: utmParams.utm_source,
-        utm_medium: utmParams.utm_medium,
-        utm_campaign: utmParams.utm_campaign,
-        utm_content: utmParams.utm_content
-      },
+      utm: utmParams,
       intencao_busca: {},
-      agUid: agUid
+      agUid: activeUid
     };
 
     // Dispatch lead via secure server proxy api

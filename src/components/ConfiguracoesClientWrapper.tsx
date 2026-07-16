@@ -5,138 +5,19 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useConfirm } from "./admin/ConfirmDialog";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
-import { useTheme, ThemeType, AboutSettings, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS } from "../app/ThemeContext";
+import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
+import type { 
+  ThemeType, 
+  AboutSettings, 
+  CompanySettings, 
+  Campaign, 
+  PopupSettings, 
+  QuickTag 
+} from "../types";
 
-interface Campaign {
-  id: string;
-  name: string;
-  enabled: boolean;
-  targetPage: "home" | "pdp" | "any" | "specific";
-  targetVehicleId?: string;
-  triggerType: "time" | "exit";
-  delaySeconds: number;
-  actionType: "whatsapp" | "link" | "compare";
-  actionTarget: string; // whatsapp message templates OR anchor link (e.g. /#avaliacao-express)
-  icon: string;
-  title: string;
-  subtitle: string;
-  ctaText: string;
-}
+// Types imported from ../types
 
-interface PopupSettings {
-  enabled: boolean;
-  cooldownHours: number;
-  whatsappNumber: string;
-}
-
-const DEFAULT_POPUP_SETTINGS: PopupSettings = {
-  enabled: true,
-  cooldownHours: 4,
-  whatsappNumber: "554198089550",
-};
-
-export interface QuickTag {
-  id: string;
-  name: string;
-  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel" | "manual";
-  operator: "equals" | "less" | "greater" | "contains" | "none";
-  value: string;
-}
-
-const DEFAULT_QUICK_TAGS: QuickTag[] = [
-  { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
-  { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
-  { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
-  { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" }
-];
-
-const DEFAULT_CAMPAIGNS: Campaign[] = [
-  {
-    id: "camp-home-wa",
-    name: "🔥 Ofertão Relâmpago (WhatsApp)",
-    enabled: true,
-    targetPage: "home",
-    triggerType: "time",
-    delaySeconds: 45,
-    actionType: "whatsapp",
-    actionTarget: "Olá! Vi a condição especial no site e gostaria de falar com um especialista agora! (Ref: {ref})",
-    icon: "🔥",
-    title: "CONDIÇÃO EXCLUSIVA PRA VOCÊ",
-    subtitle: "Fale agora com nosso especialista e garanta sua condição diferenciada. Oferta válida por tempo limitado.",
-    ctaText: "FALAR COM ESPECIALISTA AGORA"
-  },
-  {
-    id: "camp-pdp-wa",
-    name: "⚡ Oferta Ficha Técnica (WhatsApp)",
-    enabled: true,
-    targetPage: "pdp",
-    triggerType: "time",
-    delaySeconds: 20,
-    actionType: "whatsapp",
-    actionTarget: "Olá! Vi a oferta especial do {carro} no site e gostaria de aproveitar a condição exclusiva! (Ref: {ref})",
-    icon: "⚡",
-    title: "OPORTUNIDADE ÚNICA — {carro}",
-    subtitle: "Condição especial exclusiva para o {carro}{preco}. Fale com nosso especialista antes que expire.",
-    ctaText: "GARANTIR MINHA CONDIÇÃO"
-  },
-  {
-    id: "camp-carmatch",
-    name: "🤖 Assistente de Garagem IA (Link)",
-    enabled: true,
-    targetPage: "home",
-    triggerType: "time",
-    delaySeconds: 30,
-    actionType: "link",
-    actionTarget: "/#match-garagem",
-    icon: "🤖",
-    title: "BUSCANDO O CARRO PERFEITO?",
-    subtitle: "Experimente nosso Assistente de Garagem IA. Responda 3 perguntas e o algoritmo faz a curadoria ideal para você.",
-    ctaText: "FAZER MATCH DE GARAGEM"
-  },
-  {
-    id: "camp-avaliacao",
-    name: "🚗 Avaliação Express (Link)",
-    enabled: true,
-    targetPage: "home",
-    triggerType: "time",
-    delaySeconds: 60,
-    actionType: "link",
-    actionTarget: "/#avaliacao-express",
-    icon: "🚗",
-    title: "QUER VENDER SEU VEÍCULO?",
-    subtitle: "Simule a avaliação do seu carro usado agora mesmo na nossa ferramenta online. Simples, rápido e com preço de pátio.",
-    ctaText: "AVALIAR MEU USADO AGORA"
-  },
-  {
-    id: "camp-comparador",
-    name: "📊 Educacional Comparador (Ação Interna)",
-    enabled: true,
-    targetPage: "pdp",
-    triggerType: "time",
-    delaySeconds: 35,
-    actionType: "compare",
-    actionTarget: "",
-    icon: "📊",
-    title: "DÚVIDA ENTRE MODELOS?",
-    subtitle: "Sabia que você pode adicionar veículos do catálogo para comparar as especificações técnicas completas lado a lado?",
-    ctaText: "ABRIR MEU COMPARADOR"
-  },
-  {
-    id: "camp-exit-intent",
-    name: "👋 Resgate Sazonal (Exit-Intent)",
-    enabled: true,
-    targetPage: "any",
-    triggerType: "exit",
-    delaySeconds: 0,
-    actionType: "whatsapp",
-    actionTarget: "Olá! Gostaria de resgatar o bônus sazonal (IPVA Grátis ou Super Avaliação) antes de fechar a página. (Ref: {ref})",
-    icon: "🎁",
-    title: "ESPERE! NÃO VÁ AINDA...",
-    subtitle: "Temos um Bônus Sazonal exclusivo (IPVA Pago ou Super Avaliação no seu Usado) se você falar com nosso especialista agora.",
-    ctaText: "RESGATAR MEU BÔNUS"
-  }
-];
 
 const PROMPT_INJECTION_REGEX = /(ignore\s+all\s+(?:previous\s+)?instructions|system\s+prompt|you\s+are\s+a\s+bot|act\s+as\s+a|new\s+instruction|jailbreak\b)/i;
 

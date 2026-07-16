@@ -207,12 +207,7 @@ export default function CarMatch() {
         email: leadData.email,
         whatsapp: leadData.whatsapp
       },
-      utm: {
-        utm_source: utmParams.utm_source,
-        utm_medium: utmParams.utm_medium,
-        utm_campaign: utmParams.utm_campaign,
-        utm_content: utmParams.utm_content
-      },
+      utm: utmParams,
       intencao_busca: {
         aiQuery: aiQuery || "",
         budgetTab: budgetTab

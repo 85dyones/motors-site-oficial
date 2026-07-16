@@ -1,41 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-// TypeScript Interface representing the `estoque_motors` Supabase schema
-export interface Veiculo {
-  id: string;
-  marca: string;
-  modelo: string;
-  versao: string;
-  ano: number;
-  quilometragem: number;
-  cambio: string;
-  combustivel: string;
-  cor: string;
-  placa: string;
-  fipe: string;
-  preco_original: number;
-  preco_promocional: number;
-  pericia: string;
-  whatsapp_images: string[];
-  web_full_images: string[];
-  opcionais: string; // Comma separated list of features
-  laudo_pericia: string;
-  tipo?: string;
-  perfil_uso?: string;
-  descricao?: string;
-  descricao_seo?: string;
-  cabine_premium?: boolean;
-  tecnologia_embarcada?: boolean;
-  conducao_dinamica?: boolean;
-  cautelar_100?: boolean;
-  baixa_km?: boolean;
-  unico_dono?: boolean;
-  oportunidade_patio?: boolean;
-  status_tag?: string;
-  status_tag_color?: string;
-  vendido?: boolean;
-  preco_compra?: number;
-}
+import { Veiculo } from "../types";
 
 // 1. Supabase credentials from .env.local
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -412,7 +376,8 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
     vendido: !!dbItem.vendido,
-    preco_compra: dbItem.preco_compra ? Number(dbItem.preco_compra) : 0
+    // SECURITY FIX: Do not expose preco_compra to the frontend
+    // preco_compra is a sensitive business logic field
   };
 }
 

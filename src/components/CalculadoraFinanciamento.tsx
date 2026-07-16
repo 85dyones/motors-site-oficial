@@ -3,15 +3,25 @@
 import { useState, useEffect } from "react";
 import { calculateFinancing, SimulationResult } from "../lib/finance-calculator";
 
+export interface SimulacaoData {
+  valor_veiculo: number;
+  valor_entrada: number;
+  percentual_entrada: number;
+  tipo_entrada: "dinheiro" | "veiculo_troca";
+  parcelas: number;
+  valor_parcela: number;
+  ocupacao: string;
+}
+
 interface CalculadoraProps {
   vehiclePrice: number;
   vehicleYear: number;
   vehicleName: string;
-  onSimulateClick: (message: string) => void;
+  onSimulateClick: (message: string, simulacaoData?: SimulacaoData) => void;
 }
 
 type OcupacaoType = "publico" | "aposentado" | "clt" | "autonomo" | "outros";
-type TipoEntradaType = "dinheiro" | "veiculo_troca";
+type TipoEntradaType = "dinheiro" | "veiculo_troca" | "sem_entrada";
 
 export default function CalculadoraFinanciamento({
   vehiclePrice,
@@ -39,13 +49,25 @@ export default function CalculadoraFinanciamento({
 
   const handleSimulateAction = () => {
     if (!result) return;
-    const entradaFormatada = (vehiclePrice * (downPaymentPercent / 100)).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const downPaymentValue = vehiclePrice * (downPaymentPercent / 100);
+    const entradaFormatada = downPaymentValue.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
     const parcelaFormatada = result.parcela_mensal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-    const entradaTexto = tipoEntrada === "dinheiro" ? "em dinheiro" : "como veículo na troca";
+    const entradaTexto = tipoEntrada === "sem_entrada" ? "sem entrada" : (tipoEntrada === "dinheiro" ? "em dinheiro" : "como veículo na troca");
     
     const msg = `Olá! Tenho interesse no ${vehicleName} e gostaria de ver se aprova um financiamento.
-Fiz uma simulação no site com R$ ${entradaFormatada} de entrada (${entradaTexto}) e saldo em ${installments}x de R$ ${parcelaFormatada}. Podem me ajudar?`;
-    onSimulateClick(msg);
+Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100% financiado)" : `com R$ ${entradaFormatada} de entrada (${entradaTexto})`} e saldo em ${installments}x de R$ ${parcelaFormatada}. Podem me ajudar?`;
+
+    const simulacaoData: SimulacaoData = {
+      valor_veiculo: vehiclePrice,
+      valor_entrada: downPaymentValue,
+      percentual_entrada: downPaymentPercent,
+      tipo_entrada: tipoEntrada,
+      parcelas: installments,
+      valor_parcela: result.parcela_mensal,
+      ocupacao: occupation
+    };
+
+    onSimulateClick(msg, simulacaoData);
   };
 
   const formatCurrency = (val: number) => {
@@ -62,7 +84,7 @@ Fiz uma simulação no site com R$ ${entradaFormatada} de entrada (${entradaText
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Simulador Realista
+        Simulador de Financiamento
       </h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -91,17 +113,22 @@ Fiz uma simulação no site com R$ ${entradaFormatada} de entrada (${entradaText
           </label>
           <select
             value={tipoEntrada}
-            onChange={(e) => setTipoEntrada(e.target.value as TipoEntradaType)}
+            onChange={(e) => {
+              const val = e.target.value as TipoEntradaType;
+              setTipoEntrada(val);
+              if (val === "sem_entrada") setDownPaymentPercent(0);
+            }}
             className="w-full bg-white border border-brand-border/60 rounded-xl text-xs font-bold text-brand-text px-3 h-12 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
           >
             <option value="dinheiro">Dinheiro (PIX/Transferência)</option>
             <option value="veiculo_troca">Veículo na Troca</option>
+            <option value="sem_entrada">Sem entrada (100% Financiado)</option>
           </select>
         </div>
       </div>
       
       {/* Entrada Slider */}
-      <div className="mb-6">
+      <div className={`mb-6 transition-opacity duration-300 ${tipoEntrada === "sem_entrada" ? "opacity-50 pointer-events-none" : ""}`}>
         <div className="flex justify-between items-end mb-2">
           <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide">
             Sua Entrada ({downPaymentPercent}%)
@@ -117,6 +144,7 @@ Fiz uma simulação no site com R$ ${entradaFormatada} de entrada (${entradaText
           step="10"
           value={downPaymentPercent}
           onChange={(e) => setDownPaymentPercent(Number(e.target.value))}
+          disabled={tipoEntrada === "sem_entrada"}
           className="w-full h-2 bg-brand-border rounded-lg appearance-none cursor-pointer accent-brand-primary"
         />
         <div className="flex justify-between text-[10px] text-brand-text/40 font-medium mt-1">
@@ -175,7 +203,7 @@ Fiz uma simulação no site com R$ ${entradaFormatada} de entrada (${entradaText
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
         </svg>
-        Quero ver opções de Financiamento
+        Ver opções reais de Simulação Agora
       </button>
     </div>
   );

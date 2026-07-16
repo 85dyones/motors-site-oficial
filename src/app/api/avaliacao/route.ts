@@ -118,9 +118,9 @@ export async function POST(request: NextRequest) {
       fipe_valor: requestBody.fipe_valor || "",
       fipe_codigo: requestBody.fipe_codigo || "",
       ag_uid: agUid,
-      utm_source: request.nextUrl.searchParams.get("utm_source") || undefined,
-      utm_medium: request.nextUrl.searchParams.get("utm_medium") || undefined,
-      utm_campaign: request.nextUrl.searchParams.get("utm_campaign") || undefined,
+      utm_source: requestBody.utm?.utm_source || request.nextUrl.searchParams.get("utm_source") || undefined,
+      utm_medium: requestBody.utm?.utm_medium || request.nextUrl.searchParams.get("utm_medium") || undefined,
+      utm_campaign: requestBody.utm?.utm_campaign || request.nextUrl.searchParams.get("utm_campaign") || undefined,
       created_at: new Date().toISOString()
     };
 

@@ -35,12 +35,7 @@ export default function ContatoClientWrapper() {
       email,
       telefone: phone,
       mensagem: message,
-      utm: {
-        utm_source: utmParams.utm_source || "contato",
-        utm_medium: utmParams.utm_medium || "organico",
-        utm_campaign: utmParams.utm_campaign || "site-direct",
-        utm_content: utmParams.utm_content
-      },
+      utm: utmParams,
       intencao_busca: {}
     };
 
