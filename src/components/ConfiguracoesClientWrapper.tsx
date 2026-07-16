@@ -39,8 +39,8 @@ const DEFAULT_POPUP_SETTINGS: PopupSettings = {
 export interface QuickTag {
   id: string;
   name: string;
-  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel";
-  operator: "equals" | "less" | "greater" | "contains";
+  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel" | "manual";
+  operator: "equals" | "less" | "greater" | "contains" | "none";
   value: string;
 }
 
