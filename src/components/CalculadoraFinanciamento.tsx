@@ -7,7 +7,7 @@ export interface SimulacaoData {
   valor_veiculo: number;
   valor_entrada: number;
   percentual_entrada: number;
-  tipo_entrada: "dinheiro" | "veiculo_troca";
+  tipo_entrada: "dinheiro" | "veiculo_troca" | "sem_entrada";
   parcelas: number;
   valor_parcela: number;
   ocupacao: string;
