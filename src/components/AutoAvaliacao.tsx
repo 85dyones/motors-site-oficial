@@ -511,7 +511,7 @@ export default function AutoAvaliacao() {
 
     // Telemetry structure for data_agent and log_agent coordination
     const leadPayload = {
-      agUid: activeUid,
+      agUid: agUid,
       timestamp: new Date().toISOString(),
       tipoLead: "auto_avaliacao",
       veiculo: {
@@ -615,7 +615,7 @@ export default function AutoAvaliacao() {
       },
       utm: utmParams,
       intencao_busca: {},
-      agUid: activeUid
+      agUid: agUid
     };
 
     // Dispatch lead via secure server proxy api
