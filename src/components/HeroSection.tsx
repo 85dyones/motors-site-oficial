@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
 import type { Veiculo } from "../types";
 import { useTheme } from "../app/ThemeContext";
-import { getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
+import { getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import SearchConsole from "./SearchConsole";
 import FilterConsole from "./FilterConsole";
 import QuickTagsCarousel from "./QuickTagsCarousel";
@@ -917,6 +917,7 @@ export default function HeroSection({
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
+    trackContactClick("whatsapp", "Hero Section - Conversão WhatsApp");
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

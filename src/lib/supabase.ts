@@ -546,7 +546,7 @@ export function getVeiculoPdpUrl(veiculo: { id: string; marca: string; modelo: s
   const slugVersao = finalVersion.replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
 
   // Create clean, beautiful full slug and URL path
-  const slugCompletoComId = `${veiculo.id}.html`;
+  const slugCompletoComId = `${slugMarca}-${slugModelo}-${slugVersao}-${veiculo.id}`;
   
   return `/carros/${slugMarca}/${slugModelo}/${slugVersao}/${slugCompletoComId}`;
 }

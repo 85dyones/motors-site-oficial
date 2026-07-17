@@ -109,6 +109,9 @@ export interface UtmParameters {
   utm_medium: string | null;
   utm_campaign: string | null;
   utm_content: string | null;
+  utm_term: string | null;
+  gclid: string | null;
+  fbclid: string | null;
 }
 
 /**
@@ -121,13 +124,16 @@ export function getUtmParameters(): UtmParameters {
     utm_medium: null,
     utm_campaign: null,
     utm_content: null,
+    utm_term: null,
+    gclid: null,
+    fbclid: null,
   };
 
   if (typeof window === "undefined") return result;
 
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    const keys: (keyof UtmParameters)[] = ["utm_source", "utm_medium", "utm_campaign", "utm_content"];
+    const keys: (keyof UtmParameters)[] = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"];
 
     keys.forEach((key) => {
       // 1. Try URL context first
@@ -277,6 +283,35 @@ export function trackCarMatch(tags: string[], resultsCount: number) {
     console.log(`[Telemetry Tracking] Event Logged: Search - CarMatch`);
   } catch (err) {
     console.warn("[Telemetry Tracking] Failed to log search event:", err);
+  }
+}
+
+export function trackContactClick(method: "whatsapp" | "phone", label: string = "") {
+  if (typeof window === "undefined") return;
+  
+  try {
+    const consent = localStorage.getItem("ag_cookie_consent");
+    if (consent !== "accepted") return;
+
+    // Google Analytics 4 Event
+    if (window.gtag) {
+      window.gtag("event", "generate_lead", {
+        method: method,
+        description: label
+      });
+    }
+
+    // Meta Pixel Event
+    if (window.fbq) {
+      window.fbq("track", "Contact", {
+        content_name: label,
+        content_category: method
+      });
+    }
+
+    console.log(`[Telemetry Tracking] Event Logged: Contact Click - ${method}`);
+  } catch (err) {
+    console.warn("[Telemetry Tracking] Failed to log contact click event:", err);
   }
 }
 

@@ -24,6 +24,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.8,
     },
+    ...["curadoria", "economicos", "baixa_km", "parcela_1k"].map(tag => ({
+      url: `${SITE_URL}/destaques/${tag}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.9,
+    }))
   ];
 
   // Dynamic vehicle detail pages (PDP) fetched from Supabase

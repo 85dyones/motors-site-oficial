@@ -35,6 +35,20 @@ export const metadata: Metadata = {
     icon: "/favicon.ico?v=2",
     apple: "/apple-touch-icon.png",
   },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Motors Store",
+    title: "Motors Store | Encontre seu Veículo Premium dos Sonhos",
+    description: "A melhor revenda e avaliação de carros premium e seminovos selecionados. Facilidade no financiamento sem entrada.",
+    images: [{ url: "/logo.png", width: 1200, height: 630, alt: "Motors Store Logo" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Motors Store | Encontre seu Veículo Premium dos Sonhos",
+    description: "A melhor revenda e avaliação de carros premium e seminovos selecionados.",
+    images: ["/logo.png"],
+  },
 };
 
 export default function RootLayout({

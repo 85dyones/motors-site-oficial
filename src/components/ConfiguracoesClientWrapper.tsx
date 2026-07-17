@@ -2578,6 +2578,34 @@ export default function ConfiguracoesClientWrapper() {
                     />
                   </div>
 
+                  {/* Google Ads ID */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      ID de Conversão do Google Ads
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.googleAdsId || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, googleAdsId: e.target.value })}
+                      placeholder="AW-123456789"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+
+                  {/* Google Ads Conversion Label */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Rótulo de Conversão do Google Ads (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.googleAdsConversionLabel || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, googleAdsConversionLabel: e.target.value })}
+                      placeholder="AbCdEfGhIjKlMnOpQrS"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+
                   {/* Instagram Username */}
                   <div className="flex flex-col gap-1.5 col-span-2">
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">

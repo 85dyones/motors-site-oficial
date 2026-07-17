@@ -31,6 +31,8 @@ export interface CompanySettings {
   isCustom?: boolean;
   ga4Id?: string;
   metaPixelId?: string;
+  googleAdsId?: string;
+  googleAdsConversionLabel?: string;
   instagramUsername?: string;
   instagramElfsightId?: string;
   googleReviewsElfsightId?: string;

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Veiculo, truncateString } from "../lib/supabase";
-import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission } from "../lib/telemetry";
+import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 import CalculadoraFinanciamento from "./CalculadoraFinanciamento";
@@ -329,6 +329,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(activeMessage)}`;
+    trackContactClick("whatsapp", "PDP - Conversão WhatsApp");
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -617,7 +618,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         <div className="flex flex-row justify-between items-end mt-2">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{veiculo.marca}</span>
-            <h1 className="text-2xl font-bold text-black leading-tight mt-0.5">{veiculo.modelo}</h1>
+            <div className="text-2xl font-bold text-black leading-tight mt-0.5">{veiculo.modelo}</div>
             <p className="text-[10px] text-zinc-600 uppercase tracking-wide mt-1">
               {veiculo.versao} • Ano {veiculo.ano} • {veiculo.cor}
             </p>

@@ -18,9 +18,11 @@ export default function IntegrationsTracker() {
   const pathname = usePathname();
   const ga4Id = companySettings?.ga4Id || "";
   const metaPixelId = companySettings?.metaPixelId || "";
+  const googleAdsId = companySettings?.googleAdsId || "";
   
   const initializedGA4 = useRef(false);
   const initializedMeta = useRef(false);
+  const initializedGAds = useRef(false);
 
   useEffect(() => {
     const checkAndInitTrackors = () => {
@@ -56,6 +58,31 @@ export default function IntegrationsTracker() {
           initializedGA4.current = true;
         } catch (e) {
           console.error("[IntegrationsTracker] Failed to initialize GA4:", e);
+        }
+      }
+
+      // 1.5. Google Ads Initialization
+      if (googleAdsId && !initializedGAds.current) {
+        try {
+          console.log(`[IntegrationsTracker] Initializing Google Ads with ID: ${googleAdsId}`);
+          
+          const script1 = document.createElement("script");
+          script1.async = true;
+          script1.src = `https://www.googletagmanager.com/gtag/js?id=${googleAdsId}`;
+          document.head.appendChild(script1);
+
+          const script2 = document.createElement("script");
+          script2.innerHTML = `
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){window.dataLayer.push(arguments);}
+            window.gtag = window.gtag || gtag;
+            window.gtag('js', new Date());
+            window.gtag('config', '${googleAdsId}');
+          `;
+          document.head.appendChild(script2);
+          initializedGAds.current = true;
+        } catch (e) {
+          console.error("[IntegrationsTracker] Failed to initialize Google Ads:", e);
         }
       }
 
