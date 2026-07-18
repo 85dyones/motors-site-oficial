@@ -99,6 +99,9 @@ export default function ConfiguracoesClientWrapper() {
       formData.append('file', processedBlob, file.name);
       formData.append('type', type);
 
+      if (companyForm.s3AccessKeyId) formData.append('s3AccessKeyId', companyForm.s3AccessKeyId);
+      if (companyForm.s3SecretAccessKey) formData.append('s3SecretAccessKey', companyForm.s3SecretAccessKey);
+
       const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
 
       const res = await fetch('/api/upload-branding', {
@@ -2784,6 +2787,41 @@ export default function ConfiguracoesClientWrapper() {
                       onChange={(e) => setCompanyForm({ ...companyForm, avaliacaoExpressTitle: e.target.value })}
                       placeholder="Avaliação Express"
                       className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-brand-border/60">
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
+                      Configurações de Storage S3 (Supabase)
+                    </label>
+                    <p className="text-[10px] text-brand-text/50 font-light leading-relaxed">
+                      Insira suas credenciais S3 do Supabase caso queira permitir a criação automática de buckets de storage via SDK da AWS (opcional).
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Access Key ID
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.s3AccessKeyId || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, s3AccessKeyId: e.target.value })}
+                      placeholder="Ex: d41d8cd98f00b204e980..."
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Secret Access Key
+                    </label>
+                    <input
+                      type="password"
+                      value={companyForm.s3SecretAccessKey || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, s3SecretAccessKey: e.target.value })}
+                      placeholder="Ex: 098f6bcd4621d373cade..."
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
                     />
                   </div>
                 </div>

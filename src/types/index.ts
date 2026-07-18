@@ -39,6 +39,8 @@ export interface CompanySettings {
   googleReviewsElfsightId?: string;
   carMatchTitle?: string;
   avaliacaoExpressTitle?: string;
+  s3AccessKeyId?: string;
+  s3SecretAccessKey?: string;
 }
 
 export interface AboutSettings {
