@@ -155,15 +155,37 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
     if (!query) return available;
     
     return available.filter(car => 
-      car.marca.toLowerCase().includes(query) ||
-      car.modelo.toLowerCase().includes(query) ||
-      car.versao.toLowerCase().includes(query)
+      (car.marca || "").toLowerCase().includes(query) ||
+      (car.modelo || "").toLowerCase().includes(query) ||
+      (car.versao || "").toLowerCase().includes(query)
     );
   };
 
   // Dynamic Preset Generation
   const getPresets = () => {
     const presets: { id: string; name: string; icon: string; cars: Veiculo[] }[] = [];
+
+    const getDistinct = (cars: Veiculo[], limit: number) => {
+      const distinct: Veiculo[] = [];
+      const seen = new Set<string>();
+      for (const c of cars) {
+        const key = (c.marca + " " + c.modelo).toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          distinct.push(c);
+          if (distinct.length === limit) break;
+        }
+      }
+      if (distinct.length < limit) {
+        for (const c of cars) {
+          if (!distinct.find(d => d.id === c.id)) {
+            distinct.push(c);
+            if (distinct.length === limit) break;
+          }
+        }
+      }
+      return distinct;
+    };
 
     // 1. SUVs de Luxo
     const suvs = fullStock.filter(v => v.tipo === "SUV" && !v.vendido);
@@ -172,7 +194,7 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
         id: "suvs_luxo",
         name: "SUVs Premium",
         icon: "SUV",
-        cars: suvs.slice(0, 3)
+        cars: getDistinct(suvs, 3)
       });
     }
 
@@ -185,31 +207,31 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
         id: "hibridos_evs",
         name: "Híbridos & EVs",
         icon: "EV",
-        cars: hibridosEvs.slice(0, 3)
+        cars: getDistinct(hibridosEvs, 3)
       });
     }
 
-    // 3. Linhagem Esportiva
+    // 3. Linhagem Esportiva (Usando potência ou marca se perfil_uso não existe mais)
     const esportivos = fullStock.filter(v => 
-      (v.perfil_uso === "LINHAGEM ESPORTIVA" || v.marca.toLowerCase() === "porsche") && !v.vendido
+      ((v.marca || "").toLowerCase() === "porsche" || (v.marca || "").toLowerCase() === "bmw" || (v.versao || "").toLowerCase().includes("amg") || (v.versao || "").toLowerCase().includes("m sport")) && !v.vendido
     );
     if (esportivos.length >= 2) {
       presets.push({
         id: "esportivos",
         name: "Performance & Pista",
         icon: "Sport",
-        cars: esportivos.slice(0, 3)
+        cars: getDistinct(esportivos, 3)
       });
     }
 
     // 4. Melhor Custo-Benefício
-    const custoBeneficio = fullStock.filter(v => v.preco_original < 200000 && !v.vendido);
+    const custoBeneficio = fullStock.filter(v => v.preco_original > 0 && v.preco_original < 200000 && !v.vendido);
     if (custoBeneficio.length >= 2) {
       presets.push({
         id: "custo_beneficio",
         name: "Melhor Custo-Benefício",
         icon: "Fipe",
-        cars: custoBeneficio.slice(0, 3)
+        cars: getDistinct(custoBeneficio, 3)
       });
     }
 
@@ -577,8 +599,9 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
                     <div className="grid grid-cols-4 gap-4 px-4 py-4 text-xs items-center">
                       <span className="text-brand-gold font-bold uppercase text-[9px] tracking-wider">PERÍCIA CAUTELAR</span>
                       {vehicles.map((car) => {
-                        const isAprovado = car.pericia.toLowerCase().includes("aprovad");
-                        const isAnalise = car.pericia.toLowerCase().includes("analis") || car.pericia.toLowerCase().includes("análise");
+                        const periciaSafe = car.pericia || "";
+                        const isAprovado = periciaSafe.toLowerCase().includes("aprovad");
+                        const isAnalise = periciaSafe.toLowerCase().includes("analis") || periciaSafe.toLowerCase().includes("análise");
                         
                         return (
                           <div key={car.id} className="flex flex-col gap-1">
@@ -587,10 +610,10 @@ export default function VehicleCompare({ onClose }: VehicleCompareProps) {
                             ) : isAnalise ? (
                               <span className="text-amber-500 font-extrabold text-[11px] uppercase">⚡ Em Análise</span>
                             ) : (
-                              <span className="text-brand-gold font-extrabold text-[11px] uppercase">{car.pericia}</span>
+                              <span className="text-brand-gold font-extrabold text-[11px] uppercase">{periciaSafe || "Não Informado"}</span>
                             )}
                             <span className="text-[10px] text-brand-text/50 font-medium leading-tight line-clamp-2">
-                              {car.laudo_pericia || car.pericia}
+                              {car.laudo_pericia || periciaSafe}
                             </span>
                           </div>
                         );
