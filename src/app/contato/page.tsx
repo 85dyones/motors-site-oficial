@@ -7,11 +7,45 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/contato",
   },
+  openGraph: {
+    title: "Fale Conosco | Motors Store - Atendimento Showroom",
+    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe na Avenida Europa para agendamentos e propostas.",
+    url: "/contato",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Fale Conosco | Motors Store - Atendimento Showroom",
+    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe na Avenida Europa para agendamentos e propostas.",
+  },
 };
 
 export default function ContatoPage() {
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://motors-site-oficial.vercel.app/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Contato",
+        "item": "https://motors-site-oficial.vercel.app/contato"
+      }
+    ]
+  };
+
   return (
     <div className="flex flex-col flex-grow items-center justify-start bg-brand-bg text-brand-text transition-colors duration-300 py-12 px-4 sm:px-6 lg:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
         
         {/* Breadcrumbs / System Label */}

@@ -157,12 +157,43 @@ export default async function CarDetailsPage({ params }: PageProps) {
     }
   };
 
+  // Construct BreadcrumbList JSON-LD for rich breadcrumbs in Google search results
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://motors-site-oficial.vercel.app/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": veiculo.marca,
+        "item": `https://motors-site-oficial.vercel.app/carros/${encodeURIComponent(veiculo.marca.toLowerCase())}`
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": `${veiculo.marca} ${veiculo.modelo}`,
+        "item": `https://motors-site-oficial.vercel.app${pdpUrl}`
+      }
+    ]
+  };
+
   return (
     <div className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
       {/* Dynamic JSON-LD Structured Data Schema for search engines (Rich Results) */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(carSchema) }}
+      />
+      {/* BreadcrumbList JSON-LD for Google Rich Breadcrumbs */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <PDPClientWrapper veiculo={veiculo} />
     </div>

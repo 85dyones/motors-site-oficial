@@ -428,6 +428,9 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   ];
 
   const renderSidebar = (isMobile: boolean) => {
+    // SEO: Only the mobile sidebar renders an <h1> (appears first in DOM).
+    // The desktop sidebar uses <h2> with identical styling to avoid duplicate H1s.
+    const HeadingTag = isMobile ? "h1" : "h2";
     return (
       <aside
         className={`w-full bg-transparent lg:bg-brand-card border-0 lg:border border-brand-border/40 p-4 sm:p-6 lg:p-8 rounded-none lg:rounded-3xl shadow-none lg:shadow-[0_8px_30px_var(--brand-shadow)] flex flex-col gap-6 max-sm:gap-4 max-sm:p-2 print:hidden ${
@@ -440,9 +443,9 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             {veiculo.marca}
           </span>
           
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-brand-text leading-tight uppercase">
+          <HeadingTag className="text-2xl md:text-3xl font-semibold tracking-tight text-brand-text leading-tight uppercase">
             {veiculo.modelo}
-          </h1>
+          </HeadingTag>
           
           <p className="text-xs md:text-sm text-brand-text/80 font-normal uppercase tracking-wider mt-1 flex flex-wrap gap-2 items-center">
             <span>{truncateString(veiculo.versao, 35)}</span>
