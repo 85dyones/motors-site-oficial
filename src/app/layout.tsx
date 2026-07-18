@@ -21,35 +21,49 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL("https://motors-site-oficial.vercel.app"),
-  title: "Motors Store | Encontre seu Veículo Premium dos Sonhos",
-  description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados de São Paulo. Facilidade no financiamento sem entrada.",
-  alternates: {
-    canonical: "/",
-    types: {
-      "application/llms+txt": "/api/llms-full.txt"
+import { getCachedSettings } from "../lib/settings";
+
+export async function generateMetadata(): Promise<Metadata> {
+  let tabTitle = "Motors Store | Encontre seu Veículo Premium dos Sonhos";
+  try {
+    const { companySettings } = await getCachedSettings();
+    if (companySettings?.tabTitle?.trim()) {
+      tabTitle = companySettings.tabTitle.trim();
     }
-  },
-  icons: {
-    icon: "/favicon.ico?v=2",
-    apple: "/apple-touch-icon.png",
-  },
-  openGraph: {
-    type: "website",
-    locale: "pt_BR",
-    siteName: "Motors Store",
-    title: "Motors Store | Encontre seu Veículo Premium dos Sonhos",
-    description: "A melhor revenda e avaliação de carros premium e seminovos selecionados. Facilidade no financiamento sem entrada.",
-    images: [{ url: "/logo.png", width: 1200, height: 630, alt: "Motors Store Logo" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Motors Store | Encontre seu Veículo Premium dos Sonhos",
-    description: "A melhor revenda e avaliação de carros premium e seminovos selecionados.",
-    images: ["/logo.png"],
-  },
-};
+  } catch (e) {
+    // Fallback to default
+  }
+
+  return {
+    metadataBase: new URL("https://motors-site-oficial.vercel.app"),
+    title: tabTitle,
+    description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados de São Paulo. Facilidade no financiamento sem entrada.",
+    alternates: {
+      canonical: "/",
+      types: {
+        "application/llms+txt": "/api/llms-full.txt"
+      }
+    },
+    icons: {
+      icon: "/favicon.ico?v=2",
+      apple: "/apple-touch-icon.png",
+    },
+    openGraph: {
+      type: "website",
+      locale: "pt_BR",
+      siteName: "Motors Store",
+      title: tabTitle,
+      description: "A melhor revenda e avaliação de carros premium e seminovos selecionados. Facilidade no financiamento sem entrada.",
+      images: [{ url: "/logo.png", width: 1200, height: 630, alt: "Motors Store Logo" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: tabTitle,
+      description: "A melhor revenda e avaliação de carros premium e seminovos selecionados.",
+      images: ["/logo.png"],
+    },
+  };
+}
 
 export default function RootLayout({
   children,
