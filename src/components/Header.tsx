@@ -34,30 +34,6 @@ export default function Header() {
     setCompareOpen(false);
   }, [pathname]);
 
-  // Dynamic favicon update effect based on company settings
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const targetFavicon = companySettings.faviconUrl?.trim() || "/favicon.ico";
-    
-    let faviconLink: HTMLLinkElement | null = document.querySelector("link[rel='icon']");
-    let shortcutLink: HTMLLinkElement | null = document.querySelector("link[rel='shortcut icon']");
-    
-    // Add version query parameter to default favicon path to bypass stale browser caches
-    const finalFaviconUrl = targetFavicon === "/favicon.ico" ? "/favicon.ico?v=2" : targetFavicon;
-    
-    if (faviconLink) {
-      faviconLink.href = finalFaviconUrl;
-    } else {
-      faviconLink = document.createElement("link");
-      faviconLink.rel = "icon";
-      faviconLink.href = finalFaviconUrl;
-      document.head.appendChild(faviconLink);
-    }
-    
-    if (shortcutLink) {
-      shortcutLink.href = finalFaviconUrl;
-    }
-  }, [companySettings.faviconUrl]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

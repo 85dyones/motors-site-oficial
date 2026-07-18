@@ -2519,6 +2519,22 @@ export default function ConfiguracoesClientWrapper() {
                   {/* Favicon URL */}
                   <div className="flex flex-col gap-1.5 col-span-2">
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                      Frase da Aba do Navegador (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.tabTitle || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, tabTitle: e.target.value })}
+                      placeholder="Ex: Motors Store | Encontre seu Veículo Premium dos Sonhos"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                    <span className="text-[9px] text-brand-text/40 ml-1">
+                      O título que aparece na aba do navegador.
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
                       Favicon Personalizado (URL do ícone ou imagem)
                     </label>
                     <input

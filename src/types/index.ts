@@ -26,6 +26,7 @@ export interface CompanySettings {
   instagram: string;
   facebook: string;
   cnpj: string;
+  tabTitle?: string;
   faviconUrl?: string;
   logoUrl?: string;
   isCustom?: boolean;
