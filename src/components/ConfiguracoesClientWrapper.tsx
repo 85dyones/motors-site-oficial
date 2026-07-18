@@ -2583,23 +2583,21 @@ export default function ConfiguracoesClientWrapper() {
 
                   <div className="flex flex-col gap-1.5 col-span-2">
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
-                      Favicon Personalizado (URL do ícone ou imagem)
+                      Favicon Personalizado
                     </label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <input
-                        type="url"
-                        value={companyForm.faviconUrl || ""}
-                        onChange={(e) => setCompanyForm({ ...companyForm, faviconUrl: e.target.value })}
-                        placeholder="https://sua-empresa.com.br/logo-favicon.png"
-                        className="flex-1 w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
-                      />
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      {companyForm.faviconUrl && (
+                        <div className="w-12 h-12 rounded-xl bg-brand-bg border border-brand-card-border flex items-center justify-center p-2 overflow-hidden shrink-0">
+                          <img src={companyForm.faviconUrl} alt="Favicon" className="w-full h-full object-contain" />
+                        </div>
+                      )}
                       <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-brand-border/50 text-xs font-bold transition-all cursor-pointer ${isUploadingFavicon ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-primary/10 hover:border-brand-primary hover:text-brand-primary'}`}>
                         {isUploadingFavicon ? (
                           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         ) : (
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         )}
-                        <span>{isUploadingFavicon ? 'ENVIANDO...' : 'UPLOAD'}</span>
+                        <span>{isUploadingFavicon ? 'ENVIANDO...' : 'FAZER UPLOAD'}</span>
                         <input 
                           type="file" 
                           accept="image/*" 
@@ -2608,32 +2606,39 @@ export default function ConfiguracoesClientWrapper() {
                           onChange={(e) => handleImageUpload(e, 'favicon')} 
                         />
                       </label>
+                      {companyForm.faviconUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setCompanyForm({ ...companyForm, faviconUrl: "" })}
+                          className="text-xs text-red-500/70 hover:text-red-500 transition-colors px-2 py-3"
+                        >
+                          Remover
+                        </button>
+                      )}
                     </div>
                     <p className="text-[10px] text-brand-text/40 font-light leading-relaxed">
-                      Faça o upload de uma imagem ou insira a URL manualmente (deixe em branco para o padrão).
+                      Faça o upload de uma imagem para ser usada como o ícone da aba do navegador.
                     </p>
                   </div>
 
-                  {/* Logo URL */}
+                  {/* Logo Upload */}
                   <div className="flex flex-col gap-1.5 col-span-2">
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
-                      Logo Personalizado (URL da imagem)
+                      Logo Personalizado
                     </label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <input
-                        type="url"
-                        value={companyForm.logoUrl || ""}
-                        onChange={(e) => setCompanyForm({ ...companyForm, logoUrl: e.target.value })}
-                        placeholder="https://sua-empresa.com.br/logo.png"
-                        className="flex-1 w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
-                      />
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      {companyForm.logoUrl && (
+                        <div className="w-24 h-12 rounded-xl bg-brand-bg border border-brand-card-border flex items-center justify-center p-2 overflow-hidden shrink-0">
+                          <img src={companyForm.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                        </div>
+                      )}
                       <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-brand-border/50 text-xs font-bold transition-all cursor-pointer ${isUploadingLogo ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-primary/10 hover:border-brand-primary hover:text-brand-primary'}`}>
                         {isUploadingLogo ? (
                           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         ) : (
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         )}
-                        <span>{isUploadingLogo ? 'ENVIANDO...' : 'UPLOAD'}</span>
+                        <span>{isUploadingLogo ? 'ENVIANDO...' : 'FAZER UPLOAD'}</span>
                         <input 
                           type="file" 
                           accept="image/*" 
@@ -2642,9 +2647,18 @@ export default function ConfiguracoesClientWrapper() {
                           onChange={(e) => handleImageUpload(e, 'logo')} 
                         />
                       </label>
+                      {companyForm.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setCompanyForm({ ...companyForm, logoUrl: "" })}
+                          className="text-xs text-red-500/70 hover:text-red-500 transition-colors px-2 py-3"
+                        >
+                          Remover
+                        </button>
+                      )}
                     </div>
                     <p className="text-[10px] text-brand-text/40 font-light leading-relaxed">
-                      Faça o upload do logotipo ou insira a URL manualmente (será exibido no topo da página e menu lateral).
+                      Faça o upload do logotipo oficial da empresa (será exibido no topo da página e menu lateral).
                     </p>
                   </div>
 
