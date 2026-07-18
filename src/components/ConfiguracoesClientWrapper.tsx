@@ -7,6 +7,7 @@ import { useConfirm } from "./admin/ConfirmDialog";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
+import { processImage } from "../lib/imageProcessor";
 import type { 
   ThemeType, 
   AboutSettings, 
@@ -82,6 +83,53 @@ export default function ConfiguracoesClientWrapper() {
   // Company settings states
   const [companyForm, setCompanyForm] = useState(companySettings);
   const [companyStatus, setCompanyStatus] = useState<"idle" | "saved">("idle");
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (type === 'logo') setIsUploadingLogo(true);
+    else setIsUploadingFavicon(true);
+
+    try {
+      const processedBlob = await processImage(file, type);
+      const formData = new FormData();
+      formData.append('file', processedBlob, file.name);
+      formData.append('type', type);
+
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+
+      const res = await fetch('/api/upload-branding', {
+        method: 'POST',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {},
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao fazer upload da imagem');
+      }
+
+      if (type === 'logo') {
+        setCompanyForm({ ...companyForm, logoUrl: data.url });
+      } else {
+        setCompanyForm({ ...companyForm, faviconUrl: data.url });
+      }
+      
+      alert('Upload concluído com sucesso!');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      alert(error.message || 'Erro inesperado ao processar imagem.');
+    } finally {
+      if (type === 'logo') setIsUploadingLogo(false);
+      else setIsUploadingFavicon(false);
+      e.target.value = '';
+    }
+  };
 
   // About page settings states
   const [aboutForm, setAboutForm] = useState<AboutSettings>(aboutSettings);
@@ -2537,15 +2585,32 @@ export default function ConfiguracoesClientWrapper() {
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
                       Favicon Personalizado (URL do ícone ou imagem)
                     </label>
-                    <input
-                      type="url"
-                      value={companyForm.faviconUrl || ""}
-                      onChange={(e) => setCompanyForm({ ...companyForm, faviconUrl: e.target.value })}
-                      placeholder="https://sua-empresa.com.br/logo-favicon.png"
-                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
-                    />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input
+                        type="url"
+                        value={companyForm.faviconUrl || ""}
+                        onChange={(e) => setCompanyForm({ ...companyForm, faviconUrl: e.target.value })}
+                        placeholder="https://sua-empresa.com.br/logo-favicon.png"
+                        className="flex-1 w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                      />
+                      <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-brand-border/50 text-xs font-bold transition-all cursor-pointer ${isUploadingFavicon ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-primary/10 hover:border-brand-primary hover:text-brand-primary'}`}>
+                        {isUploadingFavicon ? (
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        )}
+                        <span>{isUploadingFavicon ? 'ENVIANDO...' : 'UPLOAD'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          disabled={isUploadingFavicon}
+                          onChange={(e) => handleImageUpload(e, 'favicon')} 
+                        />
+                      </label>
+                    </div>
                     <p className="text-[10px] text-brand-text/40 font-light leading-relaxed">
-                      Insira a URL de uma imagem para ser usada como o ícone da aba do navegador (favicon). Deixe em branco para usar o padrão da Motors.
+                      Faça o upload de uma imagem ou insira a URL manualmente (deixe em branco para o padrão).
                     </p>
                   </div>
 
@@ -2554,15 +2619,32 @@ export default function ConfiguracoesClientWrapper() {
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
                       Logo Personalizado (URL da imagem)
                     </label>
-                    <input
-                      type="url"
-                      value={companyForm.logoUrl || ""}
-                      onChange={(e) => setCompanyForm({ ...companyForm, logoUrl: e.target.value })}
-                      placeholder="https://sua-empresa.com.br/logo.png"
-                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
-                    />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input
+                        type="url"
+                        value={companyForm.logoUrl || ""}
+                        onChange={(e) => setCompanyForm({ ...companyForm, logoUrl: e.target.value })}
+                        placeholder="https://sua-empresa.com.br/logo.png"
+                        className="flex-1 w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                      />
+                      <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-brand-border/50 text-xs font-bold transition-all cursor-pointer ${isUploadingLogo ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-primary/10 hover:border-brand-primary hover:text-brand-primary'}`}>
+                        {isUploadingLogo ? (
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        )}
+                        <span>{isUploadingLogo ? 'ENVIANDO...' : 'UPLOAD'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          disabled={isUploadingLogo}
+                          onChange={(e) => handleImageUpload(e, 'logo')} 
+                        />
+                      </label>
+                    </div>
                     <p className="text-[10px] text-brand-text/40 font-light leading-relaxed">
-                      Insira a URL de uma imagem para ser usada como logotipo do site (exibido no topo da página e no menu lateral do painel). Deixe em branco para usar o padrão da Motors.
+                      Faça o upload do logotipo ou insira a URL manualmente (será exibido no topo da página e menu lateral).
                     </p>
                   </div>
 
