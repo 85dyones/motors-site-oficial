@@ -3,18 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import ThemeSettings from "./ThemeSettings";
 import { useTheme } from "../app/ThemeContext";
-import VehicleCompare from "./VehicleCompare";
 
 export default function Header() {
   const [activeTap, setActiveTap] = useState(false);
   const { compareIds, theme, companySettings } = useTheme();
-  const [compareOpen, setCompareOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   // Logo mapping corresponding to active theme presets - Next.js maps public folder to root
   const logoSrcMap: Record<string, string> = {
@@ -29,23 +28,17 @@ export default function Header() {
     console.log(`[Antigravity Branding] Logo do Header alternada para a variação correspondente ao tema: ${theme}`);
   }, [theme]);
 
-  // Close comparison modal on page transitions to prevent blocking overlay persistence
-  useEffect(() => {
-    setCompareOpen(false);
-  }, [pathname]);
-
-
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const handleOpenCompare = () => {
-      setCompareOpen(true);
+      router.push('/comparar');
     };
     window.addEventListener("ag-open-compare", handleOpenCompare);
 
     const checkHash = () => {
       if (window.location.hash === "#comparar") {
-        setCompareOpen(true);
+        router.push('/comparar');
       }
     };
     
@@ -170,7 +163,7 @@ export default function Header() {
           {/* Compare Button */}
           {compareIds.length > 1 ? (
             <button
-              onClick={() => setCompareOpen(true)}
+              onClick={() => router.push('/comparar')}
               className="relative flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-[#C83F00] hover:bg-[#B23800] text-white font-bold text-[10px] uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-md border border-[#C83F00]"
               title="Comparar veículos selecionados"
             >
@@ -181,7 +174,7 @@ export default function Header() {
             </button>
           ) : (
             <button
-              onClick={() => setCompareOpen(true)}
+              onClick={() => router.push('/comparar')}
               className={`relative flex items-center justify-center h-9 w-9 rounded-full border transition-all duration-300 active:scale-90 ${
                 compareIds.length > 0 
                   ? "border-brand-primary/50 bg-brand-primary/8 text-brand-primary" 
@@ -322,10 +315,7 @@ export default function Header() {
         </button>
       )}
 
-      {/* Comparison Drawer / Modal Overlay */}
-      {compareOpen && (
-        <VehicleCompare onClose={() => setCompareOpen(false)} />
-      )}
+      {/* Config Panel */}
     </header>
   );
 }

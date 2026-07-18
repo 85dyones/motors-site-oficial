@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
 import type { Veiculo } from "../types";
 import { useTheme } from "../app/ThemeContext";
@@ -11,7 +12,6 @@ import SearchConsole from "./SearchConsole";
 import FilterConsole from "./FilterConsole";
 import QuickTagsCarousel from "./QuickTagsCarousel";
 import VehicleGrid from "./VehicleGrid";
-import VehicleCompare from "./VehicleCompare";
 import LeadCaptureModal from "./LeadCaptureModal";
 
 // Formatter helpers
@@ -315,7 +315,7 @@ export default function HeroSection({
   const [filteredEstoque, setFilteredEstoque] = useState<Veiculo[]>([]);
   const [featuredCars, setFeaturedCars] = useState<Veiculo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [compareOpen, setCompareOpen] = useState<boolean>(false);
+  const router = useRouter();
   const [visibleCount, setVisibleCount] = useState<number>(12);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -1355,7 +1355,7 @@ export default function HeroSection({
         {/* Desktop: Fixed bottom-right floating button */}
         {compareIds.length >= 2 && (
           <button
-            onClick={() => setCompareOpen(true)}
+            onClick={() => router.push('/comparar')}
             className="hidden lg:flex fixed bottom-8 right-8 z-50 items-center gap-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold text-sm uppercase tracking-wider pl-5 pr-4 py-4 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.2)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:scale-105 active:scale-95 animate-[slideUp_0.4s_ease-out]"
             aria-label="Comparar veículos selecionados"
           >
@@ -1371,18 +1371,13 @@ export default function HeroSection({
         {compareIds.length >= 2 && (
           <div
             className="lg:hidden fixed bottom-0 left-0 w-full z-40 bg-brand-primary text-white font-semibold text-center uppercase p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.2)] flex items-center justify-center gap-3 cursor-pointer active:opacity-90 transition-all duration-300 animate-[slideUp_0.3s_ease-out]"
-            onClick={() => setCompareOpen(true)}
+            onClick={() => router.push('/comparar')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
             </svg>
             <span className="text-sm tracking-wider">Comparar {compareIds.length} modelos</span>
           </div>
-        )}
-
-        {/* Comparison Full-Screen Modal */}
-        {compareOpen && (
-          <VehicleCompare onClose={() => setCompareOpen(false)} />
         )}
 
       {/* Positive Friction Lead Capture Modal */}
