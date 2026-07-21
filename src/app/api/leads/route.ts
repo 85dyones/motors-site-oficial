@@ -86,12 +86,13 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
     const resolvedAgUid = agUid || body.ag_uid || cookieStore.get("ag_uid")?.value || "ag_ref_nao_localizado";
 
-    // Format phone clean and JID
-    const phoneClean = cliente.whatsapp.replace(/\D/g, "");
+    // Format phone clean and JID safely
+    const rawWhatsapp = typeof cliente?.whatsapp === "string" ? cliente.whatsapp : "";
+    const phoneClean = rawWhatsapp.replace(/\D/g, "");
     const formattedPhone = phoneClean.length === 10 || phoneClean.length === 11
       ? (phoneClean.startsWith("55") ? phoneClean : `55${phoneClean}`)
       : phoneClean;
-    const remoteJid = `${formattedPhone}@s.whatsapp.net`;
+    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
 
     const n8nPayload = {
       remoteJid,
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
       cliente: {
         nome: cliente.nome,
         email: cliente.email || "",
-        whatsapp: cliente.whatsapp
+        whatsapp: rawWhatsapp
       },
       veiculo: veiculo || null,
       utm: utm || {},

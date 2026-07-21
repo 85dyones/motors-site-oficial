@@ -13,19 +13,34 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
 -- 2. Habilitar o Row Level Security (RLS)
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 
--- 3. Criar políticas para permitir leitura e gravação públicas
--- IMPORTANTE: Garante acesso livre para que o site consiga sincronizar entre desktop e mobile
+-- 3. Criar políticas para permitir leitura pública e gravação protegida para administradores
 DROP POLICY IF EXISTS "Allow public read access" ON public.site_settings;
 CREATE POLICY "Allow public read access" ON public.site_settings
     FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Allow public update access" ON public.site_settings;
-CREATE POLICY "Allow public update access" ON public.site_settings
-    FOR UPDATE USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow admin update access" ON public.site_settings;
+CREATE POLICY "Allow admin update access" ON public.site_settings
+    FOR UPDATE USING (
+        auth.role() = 'authenticated' AND (
+            EXISTS (
+                SELECT 1 FROM public.profiles
+                WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+            ) OR auth.jwt() ->> 'email' IN ('motors@motorsstoreoficial.com.br', 'dyones@gmail.com')
+        )
+    ) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public insert access" ON public.site_settings;
-CREATE POLICY "Allow public insert access" ON public.site_settings
-    FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow admin insert access" ON public.site_settings;
+CREATE POLICY "Allow admin insert access" ON public.site_settings
+    FOR INSERT WITH CHECK (
+        auth.role() = 'authenticated' AND (
+            EXISTS (
+                SELECT 1 FROM public.profiles
+                WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+            ) OR auth.jwt() ->> 'email' IN ('motors@motorsstoreoficial.com.br', 'dyones@gmail.com')
+        )
+    );
 
 -- 4. Inserir dados padrão de semente (Seeding) caso não existam
 -- Usamos "isCustom": false por padrão para que o primeiro acesso do cliente com dados customizados

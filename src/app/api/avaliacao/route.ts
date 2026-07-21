@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Schema validation (Phone number format validation)
-    const phoneClean = telefone.replace(/\D/g, "");
+    const rawTelefone = typeof telefone === "string" ? telefone : String(telefone || "");
+    const phoneClean = rawTelefone.replace(/\D/g, "");
     if (phoneClean.length < 10) {
       return sendResponse(
         NextResponse.json({ error: "Número de telefone inválido (deve conter DDD)." }, { status: 400 }),

@@ -150,6 +150,13 @@ export async function proxy(request: NextRequest) {
       }
     } catch (err) {
       console.error("[Middleware] Role verification failed:", err);
+      if (isAdminPath) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/login";
+        return NextResponse.redirect(url);
+      } else {
+        return NextResponse.json({ error: "Erro na verificação de autorização" }, { status: 403 });
+      }
     }
 
     return response;

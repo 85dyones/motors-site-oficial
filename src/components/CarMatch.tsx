@@ -10,14 +10,15 @@ interface AnswerState {
   budgetMin: number;
   budgetMax: number;
   objective: "status" | "family" | "efficiency" | "offroad" | "";
+  experience: "performance" | "comfort" | "tech" | "economy" | "";
   style: "suv" | "sedan" | "sport" | "pickup" | "open" | "";
   timeline: "immediate" | "researching" | "future" | "";
 }
 
 export default function CarMatch() {
   const { companySettings } = useTheme();
-  const [gameState, setGameState] = useState<"intro" | "q1" | "q2" | "q3" | "q4" | "loading" | "results">("intro");
-  const [answers, setAnswers] = useState<AnswerState>({ budgetMin: 0, budgetMax: 0, objective: "", style: "", timeline: "" });
+  const [gameState, setGameState] = useState<"intro" | "q1" | "q2" | "q3" | "q4" | "q5" | "loading" | "results">("intro");
+  const [answers, setAnswers] = useState<AnswerState>({ budgetMin: 0, budgetMax: 0, objective: "", experience: "", style: "", timeline: "" });
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
 
@@ -134,17 +135,6 @@ export default function CarMatch() {
     }
   }, [estoque]);
 
-  const getCustomMatchCount = (maxLimit: number) => {
-    if (estoque.length === 0) return 0;
-    return estoque.filter((v) => {
-      const price = (v.preco_promocional > 0 && v.preco_promocional < v.preco_original)
-        ? v.preco_promocional
-        : v.preco_original;
-      const limit = allowUpsell ? maxLimit * 1.15 : maxLimit;
-      return price <= limit;
-    }).length;
-  };
-
   const confirmCustomBudget = () => {
     setAnswers((prev) => ({
       ...prev,
@@ -158,10 +148,20 @@ export default function CarMatch() {
 
   const formatObjective = (obj: AnswerState["objective"]) => {
     switch(obj) {
-      case "status": return "Status, Exclusividade & Esportividade";
-      case "family": return "Conforto, Segurança & Espaço";
-      case "efficiency": return "Tecnologia, Eficiência & Inovação";
-      case "offroad": return "Força, Capacidade & Aventura";
+      case "status": return "Status, Exclusividade & Design";
+      case "family": return "Conforto, Segurança & Família";
+      case "efficiency": return "Tecnologia, Inovação & Eficiência";
+      case "offroad": return "Força, Aventura & Capacidade";
+      default: return "Não definido";
+    }
+  };
+
+  const formatExperience = (exp: AnswerState["experience"]) => {
+    switch(exp) {
+      case "performance": return "Performance & Potência";
+      case "comfort": return "Conforto Máximo & Silêncio";
+      case "tech": return "Tecnologia & Conectividade";
+      case "economy": return "Custo-Benefício & Baixa Manutenção";
       default: return "Não definido";
     }
   };
@@ -193,7 +193,7 @@ export default function CarMatch() {
   };
 
   const handleShowResults = () => {
-    const defaultMsg = `Olá! Vi que você montou seu perfil no nosso Match de Garagem buscando um veículo com foco em ${formatObjective(answers.objective)} até R$ ${formatShort(answers.budgetMax)}. Gostaria de conhecer as opções disponíveis?`;
+    const defaultMsg = `Olá! Vi que você montou seu perfil no nosso Match de Garagem buscando um veículo (foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}) até R$ ${formatShort(answers.budgetMax)}. Gostaria de conhecer as opções disponíveis?`;
     setActiveMessage(defaultMsg);
     setIsLeadModalOpen(true);
   };
@@ -204,7 +204,7 @@ export default function CarMatch() {
     const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
     const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
 
-    const finalMsg = `Olá! Vi que você montou seu perfil no nosso Match de Garagem buscando um veículo com foco em ${formatObjective(answers.objective)} até R$ ${formatShort(answers.budgetMax)}. Separei excelentes opções no nosso estoque. Podemos conversar?`;
+    const finalMsg = `Olá! Vi que você montou seu perfil no nosso Match de Garagem buscando um veículo focado em ${formatObjective(answers.objective)} até R$ ${formatShort(answers.budgetMax)}. Separei excelentes opções para o seu perfil. Podemos conversar?`;
 
     const payload = {
       remoteJid,
@@ -216,11 +216,16 @@ export default function CarMatch() {
         orcamento_maximo: answers.budgetMax,
         orcamento_minimo: answers.budgetMin,
         objetivo_principal: formatObjective(answers.objective),
+        experiencia_valorizada: formatExperience(answers.experience),
         estilo_preferido: formatStyle(answers.style),
         urgencia: formatTimeline(answers.timeline),
         resumo_ia: isAiCuratorActive 
-          ? `IA Request: ${aiQuery}. Cliente busca focado em ${formatObjective(answers.objective)} com urgência ${formatTimeline(answers.timeline)} e budget até R$ ${formatShort(answers.budgetMax)}.`
-          : `O cliente busca um ${formatStyle(answers.style)} com foco em ${formatObjective(answers.objective)}, orçamento de até R$ ${answers.budgetMax.toLocaleString('pt-BR')}. Prazo: ${formatTimeline(answers.timeline)}.`
+          ? `IA Request: ${aiQuery}. Cliente focado em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)} com urgência ${formatTimeline(answers.timeline)} e budget até R$ ${formatShort(answers.budgetMax)}.`
+          : `Busca: ${formatStyle(answers.style)}, foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}, budget R$ ${answers.budgetMax.toLocaleString('pt-BR')}. Prazo: ${formatTimeline(answers.timeline)}.`
+      },
+      intencao: {
+        nivel: answers.timeline === "immediate" ? "ALTO" : answers.timeline === "researching" ? "MÉDIO" : "BAIXO",
+        ticket: answers.budgetMax >= 200000 ? "PREMIUM" : "NORMAL"
       },
       cliente: {
         nome: leadData.nome,
@@ -308,7 +313,7 @@ export default function CarMatch() {
       style = "pickup";
     }
 
-    return { budgetMax: parsedBudget, objective: obj, style: style };
+    return { budgetMax: parsedBudget, objective: obj, experience: "tech" as any, style: style };
   };
 
   const confirmAiCuratorQuery = () => {
@@ -321,6 +326,7 @@ export default function CarMatch() {
       budgetMin: 0,
       budgetMax: parsed.budgetMax,
       objective: parsed.objective,
+      experience: parsed.experience,
       style: parsed.style,
       timeline: "researching" // default for AI query
     }));
@@ -342,9 +348,14 @@ export default function CarMatch() {
     setTimeout(() => { setGameState("q3"); }, 200);
   };
 
+  const selectExperience = (experience: AnswerState["experience"]) => {
+    setAnswers((prev) => ({ ...prev, experience }));
+    setTimeout(() => { setGameState("q4"); }, 200);
+  };
+
   const selectStyle = (style: AnswerState["style"]) => {
     setAnswers((prev) => ({ ...prev, style }));
-    setTimeout(() => { setGameState("q4"); }, 200);
+    setTimeout(() => { setGameState("q5"); }, 200);
   };
 
   const selectTimeline = (timeline: AnswerState["timeline"]) => {
@@ -354,8 +365,8 @@ export default function CarMatch() {
 
   useEffect(() => {
     if (gameState === "loading") {
-      const tags = [answers.objective, answers.style, answers.timeline].filter(Boolean);
-      trackCarMatch(tags, 0); // Count is 0 because we just profile, not list cars
+      const tags = [answers.objective, answers.style, answers.experience, answers.timeline].filter(Boolean);
+      trackCarMatch(tags, 0);
 
       if (typeof window !== "undefined") {
         const activeUid = getActiveAgUid();
@@ -389,7 +400,7 @@ export default function CarMatch() {
   }, [gameState, answers, agUid]);
 
   const handleReset = () => {
-    setAnswers({ budgetMin: 0, budgetMax: 0, objective: "", style: "", timeline: "" });
+    setAnswers({ budgetMin: 0, budgetMax: 0, objective: "", experience: "", style: "", timeline: "" });
     setBudgetTab("presets");
     setAllowUpsell(true);
     setAiQuery("");
@@ -411,7 +422,7 @@ export default function CarMatch() {
           {companySettings?.carMatchTitle || "Garagem Profiler"}
         </h2>
         <p className="text-xs text-brand-text/50 max-w-xs mx-auto">
-          Traçaremos seu perfil ideal para que nossos consultores apresentem apenas as opções mais exclusivas do nosso estoque.
+          Traçaremos seu perfil ideal para que nossos consultores apresentem apenas as opções mais exclusivas.
         </p>
       </div>
       <div className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative overflow-hidden transition-all duration-300">
@@ -428,7 +439,7 @@ export default function CarMatch() {
             </svg>
           </div>
           <p className="text-xs text-brand-text/50 leading-relaxed mb-6 max-w-sm">
-            Diferente de filtros comuns, nossa inteligência analisa suas respostas para gerar um perfil de curadoria. Nossos especialistas usarão esse perfil para enviar as melhores sugestões diretamente no seu WhatsApp.
+            Nossa inteligência analisa suas respostas para gerar um perfil de curadoria detalhado. Nossos especialistas usarão esse perfil para enviar as melhores sugestões diretamente no seu WhatsApp.
           </p>
           <button
             type="button"
@@ -447,7 +458,7 @@ export default function CarMatch() {
       {gameState === "q1" && (
         <div className="flex flex-col gap-5 animate-fadeIn">
           <div className="flex justify-between items-center px-1">
-            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 1 de 4</span>
+            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 1 de 5</span>
             <span className="bg-brand-card-border text-brand-gold px-2.5 py-0.5 rounded-full font-thin uppercase text-[10px] md:text-xs tracking-wider">Orçamento</span>
           </div>
           <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
@@ -517,18 +528,18 @@ export default function CarMatch() {
       {gameState === "q2" && (
         <div className="flex flex-col gap-5 animate-fadeIn">
           <div className="flex justify-between items-center px-1">
-            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 2 de 4</span>
-            <span className="bg-brand-card-border text-brand-gold px-2.5 py-0.5 rounded-full font-thin uppercase text-[10px] md:text-xs tracking-wider">Perfil</span>
+            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 2 de 5</span>
+            <span className="bg-brand-card-border text-brand-gold px-2.5 py-0.5 rounded-full font-thin uppercase text-[10px] md:text-xs tracking-wider">Motivação</span>
           </div>
           <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
-            Como você descreveria o objetivo principal no seu próximo veículo?
+            Qual o principal objetivo na sua próxima compra?
           </h3>
           <div className="grid grid-cols-1 gap-3">
             {[
-              { id: "status", title: "Status & Esportividade", desc: "Design imponente, exclusividade e dinâmica afiada." },
-              { id: "family", title: "Conforto & Espaço", desc: "Segurança reforçada e espaço para a família nas viagens." },
-              { id: "efficiency", title: "Tecnologia & Eficiência", desc: "Inovação, uso urbano inteligente e conectividade." },
-              { id: "offroad", title: "Força & Aventura", desc: "Capacidade off-road, versatilidade e presença." }
+              { id: "family", title: "Conforto, Segurança & Família", desc: "Viagens seguras e bastante espaço." },
+              { id: "status", title: "Status, Exclusividade & Design", desc: "Design imponente e presença única." },
+              { id: "efficiency", title: "Tecnologia, Inovação & Eficiência", desc: "Uso urbano inteligente." },
+              { id: "offroad", title: "Força, Aventura & Capacidade", desc: "Capacidade offroad ou para trabalho pesado." }
             ].map((opt) => (
               <button key={opt.id} type="button" onClick={() => selectObjective(opt.id as any)} className="w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
                 <div className="text-xs font-extrabold text-brand-text mb-1">{opt.title}</div>
@@ -539,11 +550,37 @@ export default function CarMatch() {
         </div>
       )}
 
-      {/* QUESTION 3: Style */}
+      {/* QUESTION 3: Experience */}
       {gameState === "q3" && (
         <div className="flex flex-col gap-5 animate-fadeIn">
           <div className="flex justify-between items-center px-1">
-            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 3 de 4</span>
+            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 3 de 5</span>
+            <span className="bg-brand-card-border text-brand-gold px-2.5 py-0.5 rounded-full font-thin uppercase text-[10px] md:text-xs tracking-wider">Experiência</span>
+          </div>
+          <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
+            O que você mais valoriza ao dirigir?
+          </h3>
+          <div className="grid grid-cols-1 gap-3">
+            {[
+              { id: "performance", title: "Performance & Potência", desc: "Aceleração rápida e dinâmica afiada." },
+              { id: "comfort", title: "Conforto Máximo & Silêncio", desc: "Isolamento acústico e rodar suave." },
+              { id: "tech", title: "Tecnologia & Conectividade", desc: "Telas avançadas e sistemas de assistência." },
+              { id: "economy", title: "Custo-Benefício & Manutenção", desc: "Economia no dia a dia e liquidez." }
+            ].map((opt) => (
+              <button key={opt.id} type="button" onClick={() => selectExperience(opt.id as any)} className="w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
+                <div className="text-xs font-extrabold text-brand-text mb-1">{opt.title}</div>
+                <div className="text-[10px] text-brand-text/40 leading-relaxed">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* QUESTION 4: Style */}
+      {gameState === "q4" && (
+        <div className="flex flex-col gap-5 animate-fadeIn">
+          <div className="flex justify-between items-center px-1">
+            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 4 de 5</span>
             <span className="bg-brand-card-border text-brand-gold px-2.5 py-0.5 rounded-full font-thin uppercase text-[10px] md:text-xs tracking-wider">Estilo</span>
           </div>
           <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
@@ -555,7 +592,7 @@ export default function CarMatch() {
               { id: "sedan", title: "Sedans Elegantes" },
               { id: "sport", title: "Esportivos / Coupés" },
               { id: "pickup", title: "Picapes Premium" },
-              { id: "open", title: "Surpreenda-me" }
+              { id: "open", title: "Aberto a Sugestões" }
             ].map((opt) => (
               <button key={opt.id} type="button" onClick={() => selectStyle(opt.id as any)} className="w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
                 <div className="text-xs font-extrabold text-brand-text">{opt.title}</div>
@@ -565,12 +602,12 @@ export default function CarMatch() {
         </div>
       )}
 
-      {/* QUESTION 4: Timeline */}
-      {gameState === "q4" && (
+      {/* QUESTION 5: Timeline */}
+      {gameState === "q5" && (
         <div className="flex flex-col gap-5 animate-fadeIn">
           <div className="flex justify-between items-center px-1">
-            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 4 de 4</span>
-            <span className="bg-brand-card-border text-brand-gold px-2.5 py-0.5 rounded-full font-thin uppercase text-[10px] md:text-xs tracking-wider">Prazo</span>
+            <span className="text-brand-text/50 font-thin uppercase text-xs tracking-wider">Pergunta 5 de 5</span>
+            <span className="bg-brand-card-border text-brand-gold px-2.5 py-0.5 rounded-full font-thin uppercase text-[10px] md:text-xs tracking-wider">Momento</span>
           </div>
           <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
             Qual o seu prazo ideal para fechar o negócio?
@@ -579,7 +616,7 @@ export default function CarMatch() {
             {[
               { id: "immediate", title: "Imediato", desc: "Pronto para fechar negócio nas próximas semanas." },
               { id: "researching", title: "Pesquisando", desc: "Mapeando opções para compra no próximo mês." },
-              { id: "future", title: "Futuro", desc: "Apenas acompanhando o mercado por enquanto." }
+              { id: "future", title: "Apenas Sondando", desc: "Acompanhando o mercado sem pressa." }
             ].map((opt) => (
               <button key={opt.id} type="button" onClick={() => selectTimeline(opt.id as any)} className="w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
                 <div className="text-xs font-extrabold text-brand-text mb-1">{opt.title}</div>
@@ -597,9 +634,9 @@ export default function CarMatch() {
             <div className="absolute inset-0 border-t-2 border-brand-primary rounded-full animate-spin"></div>
             <div className="absolute inset-2 border-r-2 border-brand-gold rounded-full animate-spin direction-reverse"></div>
           </div>
-          <span className="text-sm font-extrabold text-brand-text mb-2 tracking-widest uppercase">Gerando seu Perfil...</span>
+          <span className="text-sm font-extrabold text-brand-text mb-2 tracking-widest uppercase">Traçando seu Perfil...</span>
           <span className="text-[10px] text-brand-text/40 max-w-[200px] text-center font-light leading-relaxed">
-            Processando suas preferências e cruzando com nosso acervo premium oculto.
+            Nossos consultores usarão este perfil para trazer as máquinas mais exclusivas do mercado.
           </span>
         </div>
       )}
@@ -612,15 +649,15 @@ export default function CarMatch() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </div>
-          <h3 className="text-xl font-black text-brand-text mb-3">Perfil de Curadoria Concluído!</h3>
+          <h3 className="text-xl font-black text-brand-text mb-3">Perfil Traçado com Sucesso!</h3>
           <p className="text-xs text-brand-text/60 leading-relaxed mb-6 max-w-sm">
-            Identificamos exatamente o que você busca. Temos opções altamente exclusivas no estoque que se alinham ao seu perfil de <strong>{formatObjective(answers.objective)}</strong>, algumas recém-chegadas e ainda não publicadas no site.
+            Identificamos suas preferências. Temos opções altamente exclusivas que se alinham ao seu perfil focado em <strong>{formatExperience(answers.experience)}</strong>, algumas recém-chegadas e ainda não publicadas.
           </p>
           <button
             onClick={handleShowResults}
             className="w-full max-w-sm h-12 bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white font-extrabold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:opacity-95 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2"
           >
-            Receber Opções no WhatsApp
+            Falar com Especialista
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
               <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4.13-5.69Z" clipRule="evenodd" />
             </svg>
@@ -634,7 +671,7 @@ export default function CarMatch() {
 
       </div>
       
-      {/* Lead Capture Modal without requiring vehicleInfo to display a car */}
+      {/* Lead Capture Modal */}
       <LeadCaptureModal
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
