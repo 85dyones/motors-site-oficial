@@ -684,7 +684,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           {/* Gallery block */}
           <section className="w-full flex flex-col gap-3 max-sm:gap-1.5 print:hidden">
             {/* Images container fitted to generous, gorgeous full-bleed responsive heights and styled with bg-zinc-950 */}
-            <div className="relative w-full aspect-video bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
+            <div className="relative w-full aspect-video landscape:max-h-[75vh] bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
               {/* Horizontal scroll snap container */}
               <div
                 ref={carouselRef}
@@ -695,7 +695,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 {displayImages.map((imgUrl, index) => (
                   <div
                     key={index}
-                    className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0"
+                    onClick={() => {
+                      setLightboxImageIndex(index);
+                      setIsLightboxOpen(true);
+                    }}
+                    className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
                   >
                     <Image
                       src={imgUrl}
@@ -1067,17 +1071,23 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         </button>
       </div>
 
-      {/* 6. LIGHTBOX MODAL (Fullscreen View) */}
+      {/* 6. LIGHTBOX MODAL (Fullscreen View - Full 100vw x 100vh Landscape Optimized) */}
       {isLightboxOpen && (
-        <div className="fixed inset-0 bg-black/95 z-[9999] backdrop-blur-md flex flex-col justify-between p-4 transition-all duration-300 select-none print:hidden">
-          {/* Header section of Lightbox */}
-          <div className="flex justify-between items-center w-full max-w-[1600px] mx-auto py-2 px-4">
-            <div className="text-white text-xs font-black uppercase tracking-widest">
-              {veiculo.marca} {veiculo.modelo}
+        <div className="fixed inset-0 bg-black/98 z-[9999] backdrop-blur-xl flex flex-col justify-between p-0 transition-all duration-300 select-none print:hidden overflow-hidden">
+          {/* Top Bar with Floating Controls & Counter */}
+          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between w-full p-3 sm:p-5 bg-gradient-to-b from-black/85 via-black/50 to-transparent pointer-events-auto">
+            <div className="flex items-center gap-3">
+              <span className="text-white text-xs sm:text-sm font-black uppercase tracking-widest drop-shadow-md truncate max-w-[200px] sm:max-w-md">
+                {veiculo.marca} {veiculo.modelo}
+              </span>
+              <span className="text-white/80 text-[10px] sm:text-xs font-bold tracking-widest uppercase bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15 backdrop-blur-md">
+                {lightboxImageIndex + 1} / {veiculo.web_full_images.length}
+              </span>
             </div>
+
             <button
               onClick={() => setIsLightboxOpen(false)}
-              className="h-10 w-10 rounded-full bg-white/10 hover:bg-white hover:text-black text-white flex items-center justify-center transition-all duration-300 border border-white/10 active:scale-95 cursor-pointer"
+              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-black/60 hover:bg-white hover:text-black text-white flex items-center justify-center transition-all duration-300 border border-white/20 active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
               title="Fechar tela cheia"
               aria-label="Fechar visualização em tela cheia"
             >
@@ -1087,28 +1097,28 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             </button>
           </div>
 
-          {/* Main image container */}
-          <div className="relative flex-grow flex items-center justify-center w-full max-w-[1600px] mx-auto my-4 h-[70vh]">
+          {/* Main Fullscreen Image area: Takes 100% of viewport width and height */}
+          <div className="relative w-full h-full flex items-center justify-center overflow-hidden p-0 m-0">
             {/* Left navigation arrow */}
             {veiculo.web_full_images.length > 1 && (
               <button
                 onClick={() => setLightboxImageIndex((prev) => (prev - 1 + veiculo.web_full_images.length) % veiculo.web_full_images.length)}
-                className="absolute left-4 z-50 h-12 w-12 rounded-full bg-black/60 hover:bg-brand-primary text-white flex items-center justify-center border border-white/10 transition-all duration-300 active:scale-95 cursor-pointer"
+                className="absolute left-3 sm:left-6 z-50 h-11 w-11 sm:h-14 sm:w-14 rounded-full bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer shadow-2xl"
                 aria-label="Imagem anterior"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
                 </svg>
               </button>
             )}
 
-            {/* Centered Image */}
-            <div className="relative w-full h-full max-h-[80vh] flex items-center justify-center">
+            {/* Edge-to-Edge Image rendering */}
+            <div className="relative w-full h-full max-w-full max-h-full flex items-center justify-center p-0">
               <Image
                 src={veiculo.web_full_images[lightboxImageIndex]}
                 alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ampliada ${lightboxImageIndex + 1}`}
                 fill
-                className="object-contain w-full h-full"
+                className="object-contain w-full h-full p-2 sm:p-4"
                 sizes="100vw"
                 priority
               />
@@ -1118,19 +1128,14 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             {veiculo.web_full_images.length > 1 && (
               <button
                 onClick={() => setLightboxImageIndex((prev) => (prev + 1) % veiculo.web_full_images.length)}
-                className="absolute right-4 z-50 h-12 w-12 rounded-full bg-black/60 hover:bg-brand-primary text-white flex items-center justify-center border border-white/10 transition-all duration-300 active:scale-95 cursor-pointer"
+                className="absolute right-3 sm:right-6 z-50 h-11 w-11 sm:h-14 sm:w-14 rounded-full bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer shadow-2xl"
                 aria-label="Próxima imagem"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                 </svg>
               </button>
             )}
-          </div>
-
-          {/* Footer section of Lightbox: Page Indicator */}
-          <div className="text-center text-white/60 text-[10px] font-bold tracking-widest uppercase py-2">
-            {lightboxImageIndex + 1} / {veiculo.web_full_images.length}
           </div>
         </div>
       )}
