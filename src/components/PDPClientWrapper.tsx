@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { Veiculo, truncateString } from "../lib/supabase";
 import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
-import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
-import CalculadoraFinanciamento from "./CalculadoraFinanciamento";
+
+const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
+const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
 
 interface PDPClientWrapperProps {
   veiculo: Veiculo;
@@ -682,7 +684,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                       priority={index === 0}
                       fetchPriority={index === 0 ? "high" : "auto"}
                       className={`object-cover w-full h-full border-none p-0 m-0 ${veiculo.vendido ? "filter grayscale-[30%] opacity-75" : ""}`}
-                      sizes="(max-w-1024px) 100vw, 900px"
+                      sizes="(max-width: 1024px) 100vw, 900px"
                     />
                   </div>
                 ))}

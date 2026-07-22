@@ -90,10 +90,11 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Ocupação Selector */}
         <div className="flex flex-col h-full justify-between">
-          <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
+          <label htmlFor="calc-occupation" className="text-[11px] font-bold text-brand-text/75 uppercase tracking-wide mb-2 block">
             Seu Perfil Profissional
           </label>
           <select
+            id="calc-occupation"
             value={occupation}
             onChange={(e) => setOccupation(e.target.value as OcupacaoType)}
             className="w-full bg-white border border-brand-border/60 rounded-xl text-xs font-bold text-brand-text px-3 h-12 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 transition-all duration-300"
@@ -108,10 +109,11 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
 
         {/* Tipo de Entrada Selector */}
         <div className="flex flex-col h-full justify-between">
-          <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide mb-2 block">
+          <label htmlFor="calc-tipo-entrada" className="text-[11px] font-bold text-brand-text/75 uppercase tracking-wide mb-2 block">
             Forma de Entrada
           </label>
           <select
+            id="calc-tipo-entrada"
             value={tipoEntrada}
             onChange={(e) => {
               const val = e.target.value as TipoEntradaType;
@@ -130,7 +132,7 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
       {/* Entrada Slider */}
       <div className={`mb-6 transition-opacity duration-300 ${tipoEntrada === "sem_entrada" ? "opacity-50 pointer-events-none" : ""}`}>
         <div className="flex justify-between items-end mb-2">
-          <label className="text-[11px] font-bold text-brand-text/60 uppercase tracking-wide">
+          <label htmlFor="calc-range-entrada" className="text-[11px] font-bold text-brand-text/75 uppercase tracking-wide">
             Sua Entrada ({downPaymentPercent}%)
           </label>
           <span className="text-sm font-extrabold text-brand-text">
@@ -138,6 +140,7 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
           </span>
         </div>
         <input
+          id="calc-range-entrada"
           type="range"
           min="0"
           max="90"
@@ -145,9 +148,10 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
           value={downPaymentPercent}
           onChange={(e) => setDownPaymentPercent(Number(e.target.value))}
           disabled={tipoEntrada === "sem_entrada"}
+          aria-label="Porcentagem de entrada"
           className="w-full h-2 bg-brand-border rounded-lg appearance-none cursor-pointer accent-brand-primary"
         />
-        <div className="flex justify-between text-[10px] text-brand-text/40 font-medium mt-1">
+        <div className="flex justify-between text-[10px] text-brand-text/70 font-medium mt-1">
           <span>R$ 0</span>
           <span>90%</span>
         </div>

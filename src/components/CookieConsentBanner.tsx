@@ -32,7 +32,12 @@ export default function CookieConsentBanner() {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-[9999] bg-brand-card/95 backdrop-blur-md border border-brand-card-border p-5 shadow-2xl flex flex-col gap-4 rounded-2xl animate-fadeIn">
+    <div 
+      className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-[9999] bg-brand-card/95 backdrop-blur-md border border-brand-card-border p-5 shadow-2xl flex flex-col gap-4 rounded-2xl animate-fadeIn"
+      role="dialog"
+      aria-live="polite"
+      aria-label="Aviso de Privacidade e Cookies"
+    >
       {/* Header */}
       <div className="flex items-center gap-2">
         <div className="h-5 w-5 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">

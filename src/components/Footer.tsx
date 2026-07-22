@@ -10,38 +10,11 @@ const DEFAULT_MODELS = ["911 Carrera S", "Defender 110", "Dolphin", "Hilux", "X5
 
 export default function Footer() {
   const { companySettings } = useTheme();
-  const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
-  const [models, setModels] = useState<string[]>(DEFAULT_MODELS);
-
-  useEffect(() => {
-    let active = true;
-    async function loadBrandsAndModels() {
-      try {
-        const estoque = await getEstoque();
-        if (!active) return;
-
-        const uniqueBrands = Array.from(
-          new Set(estoque.map((car) => car.marca).filter(Boolean))
-        ).sort();
-
-        const uniqueModels = Array.from(
-          new Set(estoque.map((car) => car.modelo).filter(Boolean))
-        ).sort();
-
-        setBrands(uniqueBrands);
-        setModels(uniqueModels);
-      } catch (err) {
-        console.error("Error loading brands and models for footer:", err);
-      }
-    }
-    loadBrandsAndModels();
-    return () => {
-      active = false;
-    };
-  }, []);
+  const brands = DEFAULT_BRANDS;
+  const models = DEFAULT_MODELS;
 
   return (
-    <footer className="w-full bg-brand-footer border-t border-brand-border text-brand-text/60 py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
+    <footer className="w-full bg-brand-footer border-t border-brand-border text-brand-text/75 py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="mx-auto max-w-[1600px]">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-8">
           
@@ -50,7 +23,7 @@ export default function Footer() {
             <h3 className="text-brand-text font-bold text-lg tracking-wide uppercase">
               {companySettings.name}
             </h3>
-            <p className="text-xs text-brand-text/50 leading-relaxed max-w-xs">
+            <p className="text-xs text-brand-text/75 leading-relaxed max-w-xs">
               A melhor experiência na compra, venda e troca de veículos premium e selecionados. Procedência, garantia e transparência.
             </p>
             {/* Social Links */}
@@ -61,8 +34,8 @@ export default function Footer() {
                     href={companySettings.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-brand-text/50 hover:text-brand-primary font-bold uppercase tracking-wider transition-colors duration-200"
-                    aria-label="Instagram"
+                    className="text-xs text-brand-text/75 hover:text-brand-primary font-bold uppercase tracking-wider transition-colors duration-200"
+                    aria-label="Siga no Instagram"
                   >
                     Instagram
                   </a>
@@ -72,8 +45,8 @@ export default function Footer() {
                     href={companySettings.facebook}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-brand-text/50 hover:text-brand-primary font-bold uppercase tracking-wider transition-colors duration-200"
-                    aria-label="Facebook"
+                    className="text-xs text-brand-text/75 hover:text-brand-primary font-bold uppercase tracking-wider transition-colors duration-200"
+                    aria-label="Siga no Facebook"
                   >
                     Facebook
                   </a>
@@ -90,19 +63,19 @@ export default function Footer() {
             <nav className="flex flex-col gap-2">
               <Link
                 href="/sobre"
-                className="text-xs text-brand-text/50 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
+                className="text-xs text-brand-text/75 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
               >
                 QUEM SOMOS
               </Link>
               <Link
                 href="/contato"
-                className="text-xs text-brand-text/50 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
+                className="text-xs text-brand-text/75 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
               >
                 FALE CONOSCO
               </Link>
               <Link
                 href="/#match-garagem"
-                className="text-xs text-brand-text/50 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
+                className="text-xs text-brand-text/75 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
               >
                 MATCH DE GARAGEM
               </Link>
@@ -115,14 +88,14 @@ export default function Footer() {
               Atendimento
             </h4>
             <p className="text-xs">
-              <span className="text-brand-text/40 font-bold uppercase tracking-wider">Telefone:</span> {companySettings.phone}
+              <span className="text-brand-text/70 font-bold uppercase tracking-wider">Telefone:</span> {companySettings.phone}
             </p>
             <p className="text-xs">
-              <span className="text-brand-text/40 font-bold uppercase tracking-wider">WhatsApp:</span> {companySettings.whatsapp}
+              <span className="text-brand-text/70 font-bold uppercase tracking-wider">WhatsApp:</span> {companySettings.whatsapp}
             </p>
             <div className="text-xs leading-relaxed">
-              <span className="text-brand-text/40 font-bold uppercase tracking-wider block mb-0.5">Horários:</span>
-              <span className="whitespace-pre-line text-brand-text/50">{companySettings.hours}</span>
+              <span className="text-brand-text/70 font-bold uppercase tracking-wider block mb-0.5">Horários:</span>
+              <span className="whitespace-pre-line text-brand-text/75">{companySettings.hours}</span>
             </div>
           </div>
 
@@ -131,10 +104,10 @@ export default function Footer() {
             <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest mb-1">
               Localização
             </h4>
-            <p className="text-xs leading-relaxed whitespace-pre-line text-brand-text/50">
+            <p className="text-xs leading-relaxed whitespace-pre-line text-brand-text/75">
               {companySettings.address}
             </p>
-            <p className="text-[10px] text-brand-text/40 mt-1">
+            <p className="text-[10px] text-brand-text/70 mt-1">
               {companySettings.name}
               {companySettings.cnpj && (
                 <>
@@ -154,7 +127,7 @@ export default function Footer() {
               <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest">
                 Marcas Disponíveis
               </h4>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 text-xs text-brand-text/50">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 text-xs text-brand-text/75">
                 {brands.map((brand) => (
                   <Link
                     key={brand}
@@ -173,7 +146,7 @@ export default function Footer() {
               <h4 className="text-brand-text font-semibold text-xs uppercase tracking-widest">
                 Modelos em Destaque
               </h4>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 text-xs text-brand-text/50">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 text-xs text-brand-text/75">
                 {models.map((model) => (
                   <Link
                     key={model}
@@ -190,10 +163,10 @@ export default function Footer() {
 
         {/* Copyright & Disclaimers */}
         <div className="border-t border-brand-border pt-6 text-center md:flex md:justify-between md:text-left">
-          <p className="text-xs text-brand-text/50">
+          <p className="text-xs text-brand-text/75">
             &copy; {new Date().getFullYear()} {companySettings.name}. Todos os direitos reservados.
           </p>
-          <p className="text-[10px] text-brand-text/40 mt-2 md:mt-0 max-w-md md:text-right">
+          <p className="text-[10px] text-brand-text/70 mt-2 md:mt-0 max-w-md md:text-right">
             Preços e condições sujeitos a alterações sem aviso prévio. Crédito sujeito a aprovação.
           </p>
         </div>

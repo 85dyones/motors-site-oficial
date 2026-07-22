@@ -562,7 +562,7 @@ export default function LeadPopup() {
             {/* Dismiss link */}
             <button
               onClick={handleDismiss}
-              className="text-[10px] text-brand-text/25 hover:text-brand-text/50 transition-colors duration-200 font-medium cursor-pointer py-0.5"
+              className="text-[10px] text-brand-text/70 hover:text-brand-text transition-colors duration-200 font-medium cursor-pointer py-0.5"
             >
               Não, obrigado. Talvez depois.
             </button>

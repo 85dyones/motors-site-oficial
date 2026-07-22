@@ -99,6 +99,9 @@ export default function LeadCaptureModal({
     <div 
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="lead-modal-title"
     >
       {/* Modal Card - Styled like a premium WhatsApp prompt */}
       <div 
@@ -118,7 +121,7 @@ export default function LeadCaptureModal({
             </div>
 
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-white tracking-tight leading-tight">Motors Store</span>
+              <span id="lead-modal-title" className="text-sm font-bold text-white tracking-tight leading-tight">Motors Store</span>
               <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Online
@@ -129,7 +132,7 @@ export default function LeadCaptureModal({
           <button
             onClick={onClose}
             className="text-white/60 hover:text-white transition-colors duration-200 h-8 w-8 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 cursor-pointer"
-            aria-label="Fechar"
+            aria-label="Fechar modal"
             disabled={loading}
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">

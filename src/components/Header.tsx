@@ -76,11 +76,12 @@ export default function Header() {
         
         {/* Clickable Logo */}
         <Link href="/" className="flex items-center group transition-transform active:scale-95 duration-200 flex-shrink-0">
-          <img
+          <Image
             src={activeLogo}
             alt="Motors Store Logo"
             width={180}
             height={55}
+            priority
             className="h-11 lg:h-[52px] w-auto object-contain transition-all duration-300 group-hover:scale-[1.02] filter brightness-105 drop-shadow-[0_2px_6px_rgba(0,0,0,0.06)] dark:drop-shadow-[0_2px_12px_rgba(255,255,255,0.12)]"
           />
         </Link>
@@ -89,69 +90,69 @@ export default function Header() {
         <nav className="hidden sm:flex items-center gap-2 lg:gap-4.5 mx-4">
           <Link
             href="/"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-brand-text/50 hover:text-brand-primary transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group"
+            className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-brand-text/75 hover:text-brand-primary transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group"
           >
             HOME
             <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
           
-          <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>          <Link
+          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>          <Link
             href="/#match-garagem"
             className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
           >
             {/* 1 line on tablets/mobile */}
-            <span className="lg:hidden text-brand-text/50 group-hover:text-brand-primary transition-all">
+            <span className="lg:hidden text-brand-text/75 group-hover:text-brand-primary transition-all">
               ENCONTRE O CARRO PERFEITO
             </span>
             {/* 2 lines on desktop */}
             <span className="hidden lg:flex flex-col items-center">
-              <span className="text-[8px] font-bold text-brand-text/40 group-hover:text-brand-primary/60 transition-all">ENCONTRE O</span>
-              <span className="text-[10px] font-extrabold text-brand-text/50 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">CARRO PERFEITO</span>
+              <span className="text-[8px] font-bold text-brand-text/65 group-hover:text-brand-primary/60 transition-all">ENCONTRE O</span>
+              <span className="text-[10px] font-extrabold text-brand-text/75 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">CARRO PERFEITO</span>
             </span>
             <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
           
-          <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>
+          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>
           
           <Link
             href="/#avaliacao-express"
             className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
           >
             {/* 1 line on tablets/mobile */}
-            <span className="lg:hidden text-brand-text/50 group-hover:text-brand-primary transition-all">
+            <span className="lg:hidden text-brand-text/75 group-hover:text-brand-primary transition-all">
               SEU CARRO AVALIE AGORA
             </span>
             {/* 2 lines on desktop */}
             <span className="hidden lg:flex flex-col items-center">
-              <span className="text-[8px] font-bold text-brand-text/40 group-hover:text-brand-primary/60 transition-all">SEU CARRO</span>
-              <span className="text-[10px] font-extrabold text-brand-text/50 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">AVALIE AGORA</span>
+              <span className="text-[8px] font-bold text-brand-text/65 group-hover:text-brand-primary/60 transition-all">SEU CARRO</span>
+              <span className="text-[10px] font-extrabold text-brand-text/75 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">AVALIE AGORA</span>
             </span>
             <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
  
-          <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>
+          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>
  
           <Link
             href="/sobre"
             className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
           >
             {/* 1 line on tablets/mobile */}
-            <span className="lg:hidden text-brand-text/50 group-hover:text-brand-primary transition-all">
+            <span className="lg:hidden text-brand-text/75 group-hover:text-brand-primary transition-all">
               SOBRE A MOTORS
             </span>
             {/* 2 lines on desktop */}
             <span className="hidden lg:flex flex-col items-center">
-              <span className="text-[8px] font-bold text-brand-text/40 group-hover:text-brand-primary/60 transition-all">SOBRE A</span>
-              <span className="text-[10px] font-extrabold text-brand-text/50 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">MOTORS</span>
+              <span className="text-[8px] font-bold text-brand-text/65 group-hover:text-brand-primary/60 transition-all">SOBRE A</span>
+              <span className="text-[10px] font-extrabold text-brand-text/75 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">MOTORS</span>
             </span>
             <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
           </Link>
 
-          <span className="text-brand-border/40 text-[9px] font-thin select-none">/</span>
+          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>
 
           <Link
             href="/contato"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-brand-text/50 hover:text-brand-primary transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group"
+            className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-brand-text/75 hover:text-brand-primary transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group"
           >
             CONTATO
             <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
@@ -166,6 +167,7 @@ export default function Header() {
               onClick={() => router.push('/comparar')}
               className="relative flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-[#C83F00] hover:bg-[#B23800] text-white font-bold text-[10px] uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-md border border-[#C83F00]"
               title="Comparar veículos selecionados"
+              aria-label={`Comparar (${compareIds.length}) veículos selecionados`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-3.5 w-3.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
@@ -178,7 +180,7 @@ export default function Header() {
               className={`relative flex items-center justify-center h-9 w-9 rounded-full border transition-all duration-300 active:scale-90 ${
                 compareIds.length > 0 
                   ? "border-brand-primary/50 bg-brand-primary/8 text-brand-primary" 
-                  : "border-brand-border/50 text-brand-text/35 hover:text-brand-text/60 hover:border-brand-border"
+                  : "border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border"
               }`}
               title="Comparar veículos"
               aria-label="Comparar veículos"
@@ -197,7 +199,7 @@ export default function Header() {
           {/* Profile Icon — Shortcut to Settings Panel */}
           <Link
             href="/configuracoes"
-            className="flex items-center justify-center h-9 w-9 rounded-full border border-brand-border/50 text-brand-text/35 hover:text-brand-text/60 hover:border-brand-border transition-all duration-300 active:scale-90"
+            className="flex items-center justify-center h-9 w-9 rounded-full border border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border transition-all duration-300 active:scale-90"
             title="Área Administrativa"
             aria-label="Área Administrativa"
           >
@@ -217,7 +219,7 @@ export default function Header() {
             className={`flex items-center justify-center h-9 w-9 rounded-full border transition-all duration-300 active:scale-90 ${
               activeTap 
                 ? "border-brand-primary/60 bg-brand-primary/15 text-brand-primary" 
-                : "border-brand-border/50 text-brand-text/35 hover:text-brand-text/60 hover:border-brand-border"
+                : "border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border"
             }`}
             aria-label="Ligar agora"
             title="Ligar agora"
@@ -230,8 +232,9 @@ export default function Header() {
           {/* Mobile Menu Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex sm:hidden items-center justify-center h-9 w-9 rounded-full border border-brand-border/50 text-brand-text/35 hover:text-brand-text/60 hover:border-brand-border transition-all duration-300 active:scale-90"
+            className="flex sm:hidden items-center justify-center h-9 w-9 rounded-full border border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border transition-all duration-300 active:scale-90"
             aria-label="Menu principal"
+            aria-expanded={mobileMenuOpen}
             title="Menu principal"
           >
             {mobileMenuOpen ? (
