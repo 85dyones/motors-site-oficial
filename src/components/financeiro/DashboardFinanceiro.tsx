@@ -54,40 +54,6 @@ export default function DashboardFinanceiro() {
     entradaCaixaMes: 0,
     saldoPorBanco: {},
   });
-
-interface BillItem {
-  id: string;
-  tipo: "pagar" | "receber";
-  descricao: string;
-  valor: number;
-  data_vencimento: string;
-  status: string;
-  fornecedor?: string;
-  cliente?: string;
-  categoria?: {
-    nome: string;
-    cor: string;
-    icone: string;
-  };
-}
-
-interface ChartItem {
-  label: string;
-  entradas: number;
-  saidas: number;
-}
-
-export default function DashboardFinanceiro() {
-  const [kpis, setKpis] = useState<KPIState>({
-    aPagarMes: 0,
-    aReceberMes: 0,
-    saldoProjetado: 0,
-    overdueCount: 0,
-    custoFixoMensal: 0,
-    saldoCaixaAcumulado: 0,
-    entradaCaixaMes: 0,
-    saldoPorBanco: {},
-  });
   const [upcomingBills, setUpcomingBills] = useState<BillItem[]>([]);
   const [overdueBills, setOverdueBills] = useState<BillItem[]>([]);
   const [chartData, setChartData] = useState<ChartItem[]>([]);
