@@ -17,12 +17,20 @@ export default function Header() {
 
   // Logo mapping corresponding to active theme presets - Next.js maps public folder to root
   const logoSrcMap: Record<string, string> = {
-    "luxury-light": "/Motors Store - logo 1.png",
-    "stealth-dark": "/Motors Store - logo 2.png",
-    "sport-nardo": "/Motors Store - logo 3 b.png",
+    "luxury-light": "/motors-store-logo-1.png",
+    "stealth-dark": "/motors-store-logo-2.png",
+    "sport-nardo": "/motors-store-logo-3.png",
   };
 
-  const activeLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/Motors Store - logo 1.png";
+  const activeLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/motors-store-logo-1.png";
+  const [logoSrc, setLogoSrc] = useState<string>(activeLogo);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    const newLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/motors-store-logo-1.png";
+    setLogoSrc(newLogo);
+    setImgError(false);
+  }, [theme, companySettings?.logoUrl]);
 
   useEffect(() => {
     console.log(`[Antigravity Branding] Logo do Header alternada para a variação correspondente ao tema: ${theme}`);
@@ -75,15 +83,29 @@ export default function Header() {
       <div className="mx-auto flex h-16 lg:h-[75px] max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
         
         {/* Clickable Logo */}
-        <Link href="/" className="flex items-center group transition-transform active:scale-95 duration-200 flex-shrink-0">
-          <Image
-            src={activeLogo}
-            alt="Motors Store Logo"
-            width={180}
-            height={55}
-            priority
-            className="h-11 lg:h-[52px] w-auto object-contain transition-all duration-300 group-hover:scale-[1.02] filter brightness-105 drop-shadow-[0_2px_6px_rgba(0,0,0,0.06)] dark:drop-shadow-[0_2px_12px_rgba(255,255,255,0.12)]"
-          />
+        <Link href="/" className="flex items-center group transition-transform active:scale-95 duration-200 shrink-0">
+          {!imgError ? (
+            <Image
+              src={encodeURI(logoSrc)}
+              alt={companySettings?.name || "Motors Store Logo"}
+              width={180}
+              height={55}
+              priority
+              unoptimized
+              onError={() => {
+                if (logoSrc !== "/motors-store-logo-1.png") {
+                  setLogoSrc("/motors-store-logo-1.png");
+                } else {
+                  setImgError(true);
+                }
+              }}
+              className="h-10 lg:h-[50px] w-auto max-w-[200px] object-contain transition-all duration-300 group-hover:scale-[1.02] filter brightness-105 drop-shadow-[0_2px_6px_rgba(0,0,0,0.06)] dark:drop-shadow-[0_2px_12px_rgba(255,255,255,0.12)]"
+            />
+          ) : (
+            <span className="text-xl font-black tracking-widest text-brand-text uppercase font-mono">
+              {companySettings?.name || "MOTORS STORE"}
+            </span>
+          )}
         </Link>
 
         {/* Navigation Shortcuts - Balanced and Premium */}
