@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import LancamentoRapidoModal from "./LancamentoRapidoModal";
+import ImportadorRevendaMais from "./ImportadorRevendaMais";
 
 interface KPIState {
   aPagarMes: number;
@@ -14,6 +16,44 @@ interface KPIState {
   entradaCaixaMes?: number;
   saldoPorBanco?: Record<string, number>;
 }
+
+interface BillItem {
+  id: string;
+  tipo: "pagar" | "receber";
+  descricao: string;
+  valor: number;
+  data_vencimento: string;
+  status: string;
+  fornecedor?: string;
+  cliente?: string;
+  categoria?: {
+    nome: string;
+    cor: string;
+    icone: string;
+  };
+}
+
+interface ChartItem {
+  label: string;
+  entradas: number;
+  saidas: number;
+}
+
+export default function DashboardFinanceiro() {
+  const [isLancamentoRapidoOpen, setIsLancamentoRapidoOpen] = useState(false);
+  const [isImportadorOpen, setIsImportadorOpen] = useState(false);
+  const [isNotifyingWhatsapp, setIsNotifyingWhatsapp] = useState(false);
+
+  const [kpis, setKpis] = useState<KPIState>({
+    aPagarMes: 0,
+    aReceberMes: 0,
+    saldoProjetado: 0,
+    overdueCount: 0,
+    custoFixoMensal: 0,
+    saldoCaixaAcumulado: 0,
+    entradaCaixaMes: 0,
+    saldoPorBanco: {},
+  });
 
 interface BillItem {
   id: string;
@@ -147,6 +187,23 @@ export default function DashboardFinanceiro() {
     } finally {
       setIsGenerating(false);
     }
+  const handleTriggerWhatsappNotif = async () => {
+    setIsNotifyingWhatsapp(true);
+    setNotification("");
+    try {
+      const res = await fetch("/api/financeiro/notificacoes/processar", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setNotification(`Notificações enviadas ao WhatsApp! ${data.notifiedCount || 0} avisos disparados.`);
+      } else {
+        setNotification(`Erro ao enviar: ${data.error || "Verifique as configurações."}`);
+      }
+    } catch (err: any) {
+      setNotification(`Erro ao se comunicar com o webhook: ${err.message}`);
+    } finally {
+      setIsNotifyingWhatsapp(false);
+      setTimeout(() => setNotification(""), 4000);
+    }
   };
 
   const formatPrice = (value: number) => {
@@ -179,6 +236,36 @@ export default function DashboardFinanceiro() {
           <span>{notification}</span>
         </div>
       )}
+
+      {/* Top Quick Actions Bar (Despesas Corriqueiras & RevendaMais Integration) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-brand-card/30 border border-brand-border/40 p-4 rounded-2xl backdrop-blur-sm select-none">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsLancamentoRapidoOpen(true)}
+            className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+          >
+            <span>⚡</span>
+            <span>Lançamento Rápido (10s)</span>
+          </button>
+
+          <button
+            onClick={() => setIsImportadorOpen(true)}
+            className="px-4 py-2.5 bg-brand-card border border-brand-border hover:border-brand-primary text-brand-text font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2"
+          >
+            <span>📥</span>
+            <span>Importar do RevendaMais</span>
+          </button>
+        </div>
+
+        <button
+          onClick={handleTriggerWhatsappNotif}
+          disabled={isNotifyingWhatsapp}
+          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+        >
+          <span>📲</span>
+          <span>{isNotifyingWhatsapp ? "Enviando..." : "Enviar Avisos no WhatsApp"}</span>
+        </button>
+      </div>
 
       {isLoading ? (
         <div className="py-24 text-center text-xs text-brand-text/50">Carregando dados financeiros...</div>
@@ -584,6 +671,28 @@ export default function DashboardFinanceiro() {
           </div>
         </>
       )}
+
+      {/* Fast Expense Modal */}
+      <LancamentoRapidoModal
+        isOpen={isLancamentoRapidoOpen}
+        onClose={() => setIsLancamentoRapidoOpen(false)}
+        onSuccess={() => {
+          setNotification("Lançamento rápido cadastrado com sucesso!");
+          fetchDashboardData();
+          setTimeout(() => setNotification(""), 4000);
+        }}
+      />
+
+      {/* RevendaMais Batch Importer Modal */}
+      <ImportadorRevendaMais
+        isOpen={isImportadorOpen}
+        onClose={() => setIsImportadorOpen(false)}
+        onSuccess={() => {
+          setNotification("Lote de contas importado do RevendaMais com sucesso!");
+          fetchDashboardData();
+          setTimeout(() => setNotification(""), 4000);
+        }}
+      />
     </div>
   );
 }
