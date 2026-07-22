@@ -887,7 +887,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                     </div>
                     <div>
                       <h4 className="text-sm font-extrabold text-emerald-600 uppercase tracking-wide">LAUDO TÉCNICO APROVADO</h4>
-                      <p className="text-[10px] text-brand-text/40 font-bold uppercase tracking-wider">Histórico livre de sinistros e leilão</p>
+                      <p className="text-[10px] text-brand-text/75 font-extrabold uppercase tracking-wider">Histórico livre de sinistros e leilão</p>
                     </div>
                   </div>
                   <p className="text-xs text-brand-text/70 leading-relaxed italic bg-brand-bg p-4 rounded-xl border border-brand-border font-medium">

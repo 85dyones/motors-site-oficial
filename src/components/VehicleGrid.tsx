@@ -104,29 +104,29 @@ export default function VehicleGrid({
                     <h4 className="text-base max-sm:text-sm font-bold text-brand-text leading-tight max-sm:leading-tight group-hover/link:text-brand-primary transition-colors duration-200 uppercase mt-0.5">
                       {veiculo.modelo}
                     </h4>
-                    <span className="text-[10px] max-sm:text-[9px] text-brand-text/40 truncate max-w-[240px] font-light uppercase tracking-wide mt-0.5 block">
+                    <span className="text-[10px] max-sm:text-[9px] text-brand-text/75 truncate max-w-[240px] font-medium uppercase tracking-wide mt-0.5 block">
                       {veiculo.versao}
                     </span>
                   </Link>
 
                   {/* Specs Grid Link */}
                   <Link prefetch={false} href={pdpUrl} className="block cursor-pointer">
-                    <div className="grid grid-cols-3 gap-1 max-sm:gap-0.5 py-1 max-sm:py-0.5 border-t border-b border-brand-border/40 my-1 text-center font-thin uppercase tracking-wider text-[9px] max-sm:text-[8px] max-sm:h-auto text-brand-text/50 hover:border-brand-primary/30 transition-all duration-300">
+                    <div className="grid grid-cols-3 gap-1 max-sm:gap-0.5 py-1 max-sm:py-0.5 border-t border-b border-brand-border/40 my-1 text-center font-thin uppercase tracking-wider text-[9px] max-sm:text-[8px] max-sm:h-auto text-brand-text/80 hover:border-brand-primary/30 transition-all duration-300">
                       <div className="flex flex-col gap-0.5 border-r border-brand-border/40 last:border-r-0 py-0.5">
-                        <span className="text-[7px] text-brand-text/30 font-semibold">ANO</span>
-                        <span className="text-brand-text/70 font-semibold">{veiculo.ano}</span>
+                        <span className="text-[7px] text-brand-text/70 font-extrabold">ANO</span>
+                        <span className="text-brand-text/90 font-bold">{veiculo.ano}</span>
                       </div>
                       <div className="flex flex-col gap-0.5 border-r border-brand-border/40 last:border-r-0 py-0.5 truncate">
-                        <span className="text-[7px] text-brand-text/30 font-semibold">KM</span>
-                        <span className="text-brand-text/70 font-semibold truncate">
+                        <span className="text-[7px] text-brand-text/70 font-extrabold">KM</span>
+                        <span className="text-brand-text/90 font-bold truncate">
                           {veiculo.quilometragem === 0
                             ? "NOVO"
                             : formatKm(veiculo.quilometragem).split(" ")[0]}
                         </span>
                       </div>
                       <div className="flex flex-col gap-0.5 border-r border-brand-border/40 last:border-r-0 py-0.5 truncate">
-                        <span className="text-[7px] text-brand-text/30 font-semibold">CÂMBIO</span>
-                        <span className="text-brand-text/70 font-semibold truncate">
+                        <span className="text-[7px] text-brand-text/70 font-extrabold">CÂMBIO</span>
+                        <span className="text-brand-text/90 font-bold truncate">
                           {veiculo.cambio.split(" ")[0].toUpperCase()}
                         </span>
                       </div>
@@ -143,7 +143,7 @@ export default function VehicleGrid({
                     >
                       {hasDiscount ? (
                         <>
-                          <span className="text-[9px] text-brand-text/40 line-through leading-none mb-0.5">
+                          <span className="text-[9px] text-brand-text/75 line-through leading-none mb-0.5">
                             De {formatPrice(veiculo.preco_original)}
                           </span>
                           <span className="text-base max-sm:text-sm font-bold text-brand-primary leading-none">

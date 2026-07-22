@@ -49,6 +49,17 @@ html, body {
   overflow-x: hidden;
 }
 
+/* WCAG 2.1 AA Guaranteed High-Contrast Secondary Text Classes */
+.text-brand-muted {
+  color: var(--brand-foreground);
+  opacity: 0.78;
+}
+
+.text-brand-subtle {
+  color: var(--brand-foreground);
+  opacity: 0.70;
+}
+
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
