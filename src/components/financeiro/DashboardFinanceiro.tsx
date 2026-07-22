@@ -184,6 +184,91 @@ export default function DashboardFinanceiro() {
         <div className="py-24 text-center text-xs text-brand-text/50">Carregando dados financeiros...</div>
       ) : (
         <>
+          {/* Smart Alerts Section (Avisos Inteligentes do Dia) */}
+          <div className="bg-brand-card/40 border border-brand-border/50 rounded-3xl p-5 backdrop-blur-md flex flex-col gap-3 shadow-lg select-none">
+            <div className="flex items-center justify-between border-b border-brand-border/40 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                <h3 className="text-xs font-black uppercase text-brand-text tracking-wider">
+                  Central de Avisos Inteligentes & Gestão de Risco
+                </h3>
+              </div>
+              <span className="text-[10px] font-bold uppercase text-brand-gold bg-brand-gold/10 px-2.5 py-1 rounded-lg border border-brand-gold/20">
+                Plano de Contas Revenda Conectado
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Alert 1: Vencimentos Críticos */}
+              <div className={`p-3.5 rounded-2xl border flex flex-col gap-1.5 transition-all ${
+                overdueBills.length > 0
+                  ? "bg-red-500/10 border-red-500/30 text-red-500"
+                  : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">
+                    {overdueBills.length > 0 ? "⚠️ Contas Vencidas Exigindo Baixa" : "✅ Nenhuma Conta Vencida"}
+                  </span>
+                  <span className="text-[9px] font-black">{overdueBills.length} pendentes</span>
+                </div>
+                <p className="text-[11px] font-medium leading-tight">
+                  {overdueBills.length > 0
+                    ? `Atenção: Existem ${overdueBills.length} título(s) pendentes vencidos totalizando ${formatPrice(overdueBills.reduce((a, b) => a + b.valor, 0))}.`
+                    : "Fluxo em dia: Todos os compromissos financeiros anteriores foram baixados."}
+                </p>
+                {overdueBills.length > 0 && (
+                  <Link
+                    href="/admin/financeiro/contas-pagar"
+                    className="text-[10px] font-extrabold uppercase underline tracking-wider mt-1 hover:opacity-80"
+                  >
+                    Liquidar Títulos Agora →
+                  </Link>
+                )}
+              </div>
+
+              {/* Alert 2: Próximos Vencimentos */}
+              <div className="p-3.5 rounded-2xl border bg-brand-bg/60 border-brand-border/50 text-brand-text flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-gold">
+                    📅 Vencimentos da Semana
+                  </span>
+                  <span className="text-[9px] font-bold text-brand-text/60">{upcomingBills.length} contas</span>
+                </div>
+                <p className="text-[11px] text-brand-text/80 font-medium leading-tight">
+                  Projeção de desembolso para os próximos dias: <strong className="font-mono text-brand-primary">{formatPrice(upcomingBills.reduce((a, b) => a + b.valor, 0))}</strong>.
+                </p>
+                <Link
+                  href="/admin/financeiro/contas-pagar"
+                  className="text-[10px] font-bold uppercase text-brand-primary tracking-wider mt-1 hover:underline"
+                >
+                  Ver Cronograma →
+                </Link>
+              </div>
+
+              {/* Alert 3: Previsão de DRE & Margem por Veículo */}
+              <div className="p-3.5 rounded-2xl border bg-brand-primary/5 border-brand-primary/20 text-brand-text flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-primary">
+                    🚗 Custo de Preparação & Margem
+                  </span>
+                  <span className="text-[9px] font-black text-brand-primary uppercase">DRE 003.005.006</span>
+                </div>
+                <p className="text-[11px] text-brand-text/80 font-medium leading-tight">
+                  Despesas de manutenção/peças são atribuídas diretamente à placa do veículo para cálculo de margem líquida real.
+                </p>
+                <Link
+                  href="/admin/financeiro/relatorios"
+                  className="text-[10px] font-bold uppercase text-brand-primary tracking-wider mt-1 hover:underline"
+                >
+                  Abrir DRE Gerencial →
+                </Link>
+              </div>
+            </div>
+          </div>
+
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* KPI: A Pagar */}

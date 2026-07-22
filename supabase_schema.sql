@@ -497,5 +497,32 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
+-- ==========================================================
+-- 7.8. TABELA DO PLANO DE CONTAS OFICIAL DE REVENDA DE VEÍCULOS
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS public.plano_contas (
+  codigo TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  nivel INTEGER NOT NULL CHECK (nivel BETWEEN 1 AND 4),
+  tipo TEXT NOT NULL CHECK (tipo IN ('ENTRADA', 'DEBITO', 'RECEITA', 'CUSTO', 'DESPESA', 'OUTROS')),
+  permite_lancamento BOOLEAN DEFAULT true,
+  conta_pai TEXT REFERENCES public.plano_contas(codigo) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.plano_contas ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS (Leitura pública e gravação apenas financeiro/admin)
+DROP POLICY IF EXISTS "Plano de contas read access" ON public.plano_contas;
+CREATE POLICY "Plano de contas read access" ON public.plano_contas
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Plano de contas manage access" ON public.plano_contas;
+CREATE POLICY "Plano de contas manage access" ON public.plano_contas
+  FOR ALL USING ( public.has_finance_access(auth.uid()) );
+
+
+
 
 
