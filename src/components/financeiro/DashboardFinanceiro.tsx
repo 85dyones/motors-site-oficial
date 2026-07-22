@@ -153,6 +153,8 @@ export default function DashboardFinanceiro() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
   const handleTriggerWhatsappNotif = async () => {
     setIsNotifyingWhatsapp(true);
     setNotification("");
