@@ -2665,18 +2665,22 @@ export default function ConfiguracoesClientWrapper() {
                     </p>
                   </div>
 
-                  {/* GA4 ID */}
+                  {/* GA4 / Google Tag ID */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
-                      ID de Medição do Google Analytics 4 (GA4)
+                    <label htmlFor="input-ga4-id" className="text-[9px] font-bold text-brand-text/75 uppercase tracking-widest">
+                      ID da Google Tag / Analytics (gtag.js)
                     </label>
                     <input
+                      id="input-ga4-id"
                       type="text"
                       value={companyForm.ga4Id || ""}
                       onChange={(e) => setCompanyForm({ ...companyForm, ga4Id: e.target.value })}
-                      placeholder="G-XXXXXXXXXX"
+                      placeholder="G-CZ4B4RYF61"
                       className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
                     />
+                    <p className="text-[10px] text-brand-text/70 font-light leading-relaxed">
+                      Código da Google Tag (ex: <code className="font-mono text-brand-primary">G-CZ4B4RYF61</code>). O script da Google Tag é injetado automaticamente no &lt;head&gt; de todas as páginas.
+                    </p>
                   </div>
 
                   {/* Meta Pixel ID */}

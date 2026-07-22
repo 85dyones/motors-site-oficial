@@ -16,7 +16,7 @@ declare global {
 export default function IntegrationsTracker() {
   const { companySettings } = useTheme();
   const pathname = usePathname();
-  const ga4Id = companySettings?.ga4Id || "";
+  const ga4Id = companySettings?.ga4Id || "G-CZ4B4RYF61";
   const metaPixelId = companySettings?.metaPixelId || "";
   const googleAdsId = companySettings?.googleAdsId || "";
   
