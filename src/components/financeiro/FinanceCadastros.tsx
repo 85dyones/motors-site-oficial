@@ -121,9 +121,9 @@ export default function FinanceCadastros() {
     const isConfirmed = await confirm({
       title: "Excluir Parceiro",
       message: `Tem certeza que deseja excluir o parceiro "${nome}"?`,
-      confirmText: "Sim, Excluir",
-      cancelText: "Cancelar",
-      variant: "danger",
+      confirmLabel: "Sim, Excluir",
+      cancelLabel: "Cancelar",
+      type: "danger",
     });
 
     if (!isConfirmed) return;
