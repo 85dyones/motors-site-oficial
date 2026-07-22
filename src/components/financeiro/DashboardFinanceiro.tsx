@@ -155,6 +155,26 @@ export default function DashboardFinanceiro() {
     }
   };
 
+  const handleFixEncoding = async () => {
+    setIsLoading(true);
+    setNotification("Corrigindo caracteres de lançamentos antigos...");
+    try {
+      const res = await fetch("/api/financeiro/corrigir-caracteres", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setNotification(data.message || "Acentuação de lançamentos corrigida!");
+        fetchDashboardData();
+      } else {
+        setNotification(`Erro ao corrigir: ${data.error}`);
+      }
+    } catch (err: any) {
+      setNotification(`Erro de conexão: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setNotification(""), 5000);
+    }
+  };
+
   const handleTriggerWhatsappNotif = async () => {
     setIsNotifyingWhatsapp(true);
     setNotification("");
@@ -207,7 +227,7 @@ export default function DashboardFinanceiro() {
 
       {/* Top Quick Actions Bar (Despesas Corriqueiras & RevendaMais Integration) */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-brand-card/30 border border-brand-border/40 p-4 rounded-2xl backdrop-blur-sm select-none">
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => setIsLancamentoRapidoOpen(true)}
             className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
@@ -222,6 +242,15 @@ export default function DashboardFinanceiro() {
           >
             <span>📥</span>
             <span>Importar do RevendaMais</span>
+          </button>
+
+          <button
+            onClick={handleFixEncoding}
+            title="Corrigir acentuação em contas antigas já salvas no banco"
+            className="px-3 py-2.5 bg-brand-bg border border-brand-border hover:border-amber-500 text-amber-500 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <span>🔧</span>
+            <span>Corrigir Acentuação</span>
           </button>
         </div>
 

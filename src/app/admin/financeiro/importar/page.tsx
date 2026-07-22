@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import FinanceHeaderNav from "@/components/financeiro/FinanceHeaderNav";
+import { readFileWithEncodingAutoDetect, sanitizeTextEncoding } from "@/lib/encodingUtils";
 
 interface ImportItem {
   descricao: string;
@@ -23,7 +24,7 @@ export default function ImportarRevendaPage() {
   const [resultMessage, setResultMessage] = useState("");
   const [error, setError] = useState("");
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -34,18 +35,17 @@ export default function ImportarRevendaPage() {
     const isXml = file.name.toLowerCase().endsWith(".xml");
     setFileType(isXml ? "xml" : "csv");
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
+    try {
+      const text = await readFileWithEncodingAutoDetect(file);
       setFileContent(text);
       if (isXml) {
         parseXML(text);
       } else {
         parseCSV(text);
       }
-    };
-
-    reader.readAsText(file);
+    } catch (err) {
+      setError("Erro ao ler o arquivo. Verifique se o formato está correto.");
+    }
   };
 
   const parseXML = (xmlText: string) => {
@@ -57,7 +57,7 @@ export default function ImportarRevendaPage() {
       // Try NFe format (<infNfe>)
       const nfeProc = xmlDoc.getElementsByTagName("infNfe")[0] || xmlDoc.getElementsByTagName("NFe")[0];
       if (nfeProc) {
-        const emitName = xmlDoc.getElementsByTagName("xNome")[0]?.textContent || "Fornecedor NFe";
+        const emitName = sanitizeTextEncoding(xmlDoc.getElementsByTagName("xNome")[0]?.textContent || "Fornecedor NFe");
         const totalValStr = xmlDoc.getElementsByTagName("vNF")[0]?.textContent || xmlDoc.getElementsByTagName("vPag")[0]?.textContent || "0";
         const totalVal = parseFloat(totalValStr) || 0;
         const dhEmi = xmlDoc.getElementsByTagName("dhEmi")[0]?.textContent || xmlDoc.getElementsByTagName("dEmi")[0]?.textContent;
@@ -67,7 +67,7 @@ export default function ImportarRevendaPage() {
         const prods = xmlDoc.getElementsByTagName("det");
         if (prods.length > 0) {
           for (let i = 0; i < prods.length; i++) {
-            const xProd = prods[i].getElementsByTagName("xProd")[0]?.textContent || "Produto/Peça NFe";
+            const xProd = sanitizeTextEncoding(prods[i].getElementsByTagName("xProd")[0]?.textContent || "Produto/Peça NFe");
             const vProdStr = prods[i].getElementsByTagName("vProd")[0]?.textContent || "0";
             const vProd = parseFloat(vProdStr) || 0;
             if (vProd > 0) {
@@ -97,10 +97,10 @@ export default function ImportarRevendaPage() {
         // Generic XML parsing
         const contaNodes = xmlDoc.getElementsByTagName("conta") || xmlDoc.getElementsByTagName("lancamento");
         for (let i = 0; i < contaNodes.length; i++) {
-          const desc = contaNodes[i].getElementsByTagName("descricao")[0]?.textContent || "Lançamento XML";
+          const desc = sanitizeTextEncoding(contaNodes[i].getElementsByTagName("descricao")[0]?.textContent || "Lançamento XML");
           const val = parseFloat(contaNodes[i].getElementsByTagName("valor")[0]?.textContent || "0") || 0;
           const venc = contaNodes[i].getElementsByTagName("vencimento")[0]?.textContent || new Date().toISOString().split("T")[0];
-          const part = contaNodes[i].getElementsByTagName("parceiro")[0]?.textContent || "RevendaMais";
+          const part = sanitizeTextEncoding(contaNodes[i].getElementsByTagName("parceiro")[0]?.textContent || "RevendaMais");
 
           if (val > 0) {
             items.push({
@@ -137,13 +137,13 @@ export default function ImportarRevendaPage() {
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(delimiter).map((c) => c.trim().replace(/^"|"$/g, ""));
         if (cols.length >= 2) {
-          const desc = cols[0];
+          const desc = sanitizeTextEncoding(cols[0]);
           const valStr = cols[1].replace("R$", "").replace(/\./g, "").replace(",", ".");
           const val = parseFloat(valStr) || 0;
           const tipoStr = (cols[2] || "").toLowerCase();
           const tipo = tipoStr.includes("rec") || tipoStr.includes("ent") ? "receber" : "pagar";
           const venc = cols[3] || new Date().toISOString().split("T")[0];
-          const part = cols[4] || "RevendaMais";
+          const part = sanitizeTextEncoding(cols[4] || "RevendaMais");
           const codPlano = cols[5] || "";
 
           if (desc && val > 0) {
@@ -199,6 +199,25 @@ export default function ImportarRevendaPage() {
     }
   };
 
+  const handleFixEncoding = async () => {
+    setIsLoading(true);
+    setError("");
+    setResultMessage("Corrigindo acentuação de lançamentos antigos no banco...");
+    try {
+      const res = await fetch("/api/financeiro/corrigir-caracteres", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setResultMessage(data.message || "Acentuação de lançamentos corrigida com sucesso!");
+      } else {
+        setError(`Erro ao corrigir: ${data.error}`);
+      }
+    } catch (err: any) {
+      setError(`Erro de conexão: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const downloadSampleCSV = () => {
     const csvContent = "Descricao;Valor;Tipo;Vencimento;FornecedorCliente;CodigoPlano\n" +
       "COMPRA DE PEÇAS FREIO TRACKER;1450.00;pagar;2026-08-10;AutoPeças Curitiba;003.005.006.016\n" +
@@ -233,13 +252,24 @@ export default function ImportarRevendaPage() {
           </p>
         </div>
 
-        <button
-          onClick={downloadSampleCSV}
-          className="px-4 py-2.5 bg-brand-bg border border-brand-border hover:border-brand-primary text-brand-primary font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shadow-sm"
-        >
-          <span>📥</span>
-          <span>Baixar Planilha Modelo (.CSV)</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={downloadSampleCSV}
+            className="px-4 py-2.5 bg-brand-bg border border-brand-border hover:border-brand-primary text-brand-primary font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shadow-sm"
+          >
+            <span>📥</span>
+            <span>Baixar Planilha Modelo (.CSV)</span>
+          </button>
+
+          <button
+            onClick={handleFixEncoding}
+            title="Corrigir acentuação em contas antigas já salvas no banco"
+            className="px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-500 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shadow-sm"
+          >
+            <span>🔧</span>
+            <span>Corrigir Acentuação de Registros Antigos</span>
+          </button>
+        </div>
       </div>
 
       {error && (

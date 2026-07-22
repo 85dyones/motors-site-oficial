@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { readFileWithEncodingAutoDetect, sanitizeTextEncoding } from "@/lib/encodingUtils";
 
 interface ImportadorRevendaMaisProps {
   isOpen: boolean;
@@ -17,21 +18,20 @@ export default function ImportadorRevendaMais({ isOpen, onClose, onSuccess }: Im
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setError("");
     setResultMessage("");
-    const reader = new FileReader();
 
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
+    try {
+      const text = await readFileWithEncodingAutoDetect(file);
       setFileContent(text);
       parseCSV(text);
-    };
-
-    reader.readAsText(file);
+    } catch (err) {
+      setError("Erro ao ler o arquivo.");
+    }
   };
 
   const parseCSV = (text: string) => {
@@ -42,20 +42,19 @@ export default function ImportadorRevendaMais({ isOpen, onClose, onSuccess }: Im
         return;
       }
 
-      // Expected headers: Descrição, Valor, Tipo (pagar/receber), Vencimento (YYYY-MM-DD), Fornecedor/Cliente, CodigoPlano
       const items: any[] = [];
       const delimiter = text.includes(";") ? ";" : ",";
 
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(delimiter).map((c) => c.trim().replace(/^"|"$/g, ""));
         if (cols.length >= 3) {
-          const desc = cols[0];
-          const valStr = cols[1].replace("R$", "").replace(".", "").replace(",", ".");
+          const desc = sanitizeTextEncoding(cols[0]);
+          const valStr = cols[1].replace("R$", "").replace(/\./g, "").replace(",", ".");
           const val = parseFloat(valStr) || 0;
           const tipoStr = (cols[2] || "").toLowerCase();
           const tipo = tipoStr.includes("rec") || tipoStr.includes("ent") ? "receber" : "pagar";
           const venc = cols[3] || new Date().toISOString().split("T")[0];
-          const part = cols[4] || "RevendaMais";
+          const part = sanitizeTextEncoding(cols[4] || "RevendaMais");
           const codPlano = cols[5] || "";
 
           if (desc && val > 0) {

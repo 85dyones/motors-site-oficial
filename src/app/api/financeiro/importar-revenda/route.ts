@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { searchPlanoDeContas } from "@/lib/planoContasData";
+import { sanitizeTextEncoding } from "@/lib/encodingUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,10 @@ export async function POST(request: Request) {
         continue;
       }
 
+      const cleanDesc = sanitizeTextEncoding(item.descricao);
+      const cleanPartner = sanitizeTextEncoding(item.fornecedor_cliente);
+      const cleanObs = sanitizeTextEncoding(item.observacoes);
+
       // Try to correlate category code
       let matchedCategoryId: string | null = null;
       if (item.categoria_codigo) {
@@ -60,15 +65,15 @@ export async function POST(request: Request) {
 
       const accountPayload = {
         tipo: item.tipo || "pagar",
-        descricao: item.descricao,
+        descricao: cleanDesc,
         valor: Math.abs(item.valor),
         data_vencimento: item.data_vencimento,
         status: "pendente",
-        fornecedor: item.tipo === "pagar" ? (item.fornecedor_cliente || "Importado RevendaMais") : null,
-        cliente: item.tipo === "receber" ? (item.fornecedor_cliente || "Cliente RevendaMais") : null,
+        fornecedor: item.tipo === "pagar" ? (cleanPartner || "Importado RevendaMais") : null,
+        cliente: item.tipo === "receber" ? (cleanPartner || "Cliente RevendaMais") : null,
         categoria_id: matchedCategoryId,
         veiculo_id: item.veiculo_id || null,
-        observacoes: item.observacoes ? `${item.observacoes} (Origem: RevendaMais)` : "Importado via Lote do RevendaMais",
+        observacoes: cleanObs ? `${cleanObs} (Origem: RevendaMais)` : "Importado via Lote do RevendaMais",
         created_by: user.id,
       };
 
