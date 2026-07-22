@@ -218,16 +218,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Funções auxiliares para evitar recursão infinita no RLS
-CREATE OR REPLACE FUNCTION public.is_admin(user_id UUID)
-RETURNS BOOLEAN AS $$
+CREATE OR REPLACE FUNCTION public.is_admin(user_id UUID) RETURNS BOOLEAN AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles
     WHERE id = user_id AND role = 'admin'
   );
 $$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 
-CREATE OR REPLACE FUNCTION public.has_finance_access(user_id UUID)
-RETURNS BOOLEAN AS $$
+CREATE OR REPLACE FUNCTION public.has_finance_access(user_id UUID) RETURNS BOOLEAN AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles
     WHERE id = user_id AND role IN ('admin', 'financeiro') AND is_active = true
@@ -248,8 +246,7 @@ CREATE POLICY "Admins manage all profiles" ON public.profiles
   FOR ALL USING ( public.is_admin(auth.uid()) );
 
 -- Trigger para criação automática de perfil no cadastro do usuário
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, role)
   VALUES (
@@ -486,8 +483,7 @@ CREATE POLICY "Finance notifications access" ON public.notificacoes_financeiras
   FOR ALL USING ( public.has_finance_access(auth.uid()) );
 
 -- 7.7. Função Utilitária para Atualizar Contas Vencidas Diariamente
-CREATE OR REPLACE FUNCTION public.atualizar_contas_vencidas()
-RETURNS void AS $$
+CREATE OR REPLACE FUNCTION public.atualizar_contas_vencidas() RETURNS void AS $$
 BEGIN
   UPDATE public.contas
   SET status = 'vencido', updated_at = now()
