@@ -234,6 +234,26 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     }
   };
 
+  const handleTradeInClick = () => {
+    if (typeof window !== "undefined") {
+      setActiveChannel("WhatsApp Usado na Troca");
+      const msg = `Olá! Estou analisando o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) no site e gostaria de avaliar meu veículo como entrada na troca! (Ref: ${agUid})`;
+      setActiveMessage(msg);
+      setActiveSimulacao(null);
+      setIsLeadModalOpen(true);
+    }
+  };
+
+  const handleTestDriveClick = () => {
+    if (typeof window !== "undefined") {
+      setActiveChannel("Agendamento Test-Drive");
+      const msg = `Olá! Gostaria de agendar um horário para ver o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) e fazer um test-drive no showroom! (Ref: ${agUid})`;
+      setActiveMessage(msg);
+      setActiveSimulacao(null);
+      setIsLeadModalOpen(true);
+    }
+  };
+
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
     const utmParams = getUtmParameters();
     const tipoBadge = veiculo.baixa_km ? "BAIXA KM" : (veiculo.unico_dono ? "ÚNICO DONO" : (veiculo.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
@@ -979,30 +999,43 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             }}
           />
 
-          {/* Direct contact CTA box in side desk bar */}
+          {/* Direct contact CTA box in side desk bar — Re-structured for High Conversion Trade-In & Showroom Visit */}
           <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4 print:hidden">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-brand-primary/10 border border-brand-primary flex items-center justify-center flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-4 h-4 text-brand-primary">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.387a12.035 12.035 0 0 1-7.108-7.108c-.155-.44.01-1.037.387-1.318l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-5 w-5 text-brand-primary">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                   </svg>
                 </div>
                 <div>
-                  <h5 className="text-xs font-black text-brand-text uppercase leading-none">Canal Especialista</h5>
-                  <p className="text-[10px] text-brand-text/50 font-semibold tracking-wide uppercase mt-1">Negociação Rápida Direct</p>
+                  <h5 className="text-xs font-black text-brand-text uppercase leading-none">Seu Usado na Troca ou Test-Drive</h5>
+                  <p className="text-[10px] text-brand-text/75 font-semibold tracking-wide uppercase mt-1">Supervalorização FIPE + Visita no Showroom</p>
                 </div>
               </div>
 
-              <button
-                onClick={handleWhatsappPDPClick}
-                className="w-full h-14 bg-green-600 hover:bg-green-500 text-white font-extrabold text-[11px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(34,197,94,0.25)] hover:shadow-[0_4px_25px_rgba(34,197,94,0.35)] transition-all duration-300"
-                style={{ minHeight: "48px" }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4 animate-bounce">
-                  <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
-                </svg>
-                {veiculo.vendido ? "Consultar Similares (Vendido)" : "Falar com Especialista Agora"}
-              </button>
+              <div className="flex flex-col gap-2.5">
+                <button
+                  onClick={handleTradeInClick}
+                  className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-[11px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(34,197,94,0.25)] hover:shadow-[0_4px_25px_rgba(34,197,94,0.35)] transition-all duration-300 cursor-pointer"
+                  style={{ minHeight: "48px" }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 .999.999 0 0 0-.987 1.106v7.635m12-6.677h-12" />
+                  </svg>
+                  <span>Avaliar Meu Carro na Troca</span>
+                </button>
+
+                <button
+                  onClick={handleTestDriveClick}
+                  className="w-full h-11 bg-brand-card hover:bg-brand-primary/10 text-brand-primary font-extrabold text-[10px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 border border-brand-primary/40 hover:border-brand-primary transition-all duration-300 cursor-pointer active:scale-95"
+                  style={{ minHeight: "44px" }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                  </svg>
+                  <span>Agendar Test-Drive / Visita</span>
+                </button>
+              </div>
             </div>
           </aside>
 
@@ -1010,17 +1043,27 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
       </div>
 
-      {/* 5. STICKY BOTTOM BAR (Mobile Thumb Zone CTA) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-brand-card/90 border-t border-brand-border backdrop-blur-md px-4 py-3.5 flex justify-center pb-safe shadow-lg md:hidden print:hidden">
+      {/* 5. STICKY BOTTOM BAR (Mobile Thumb Zone CTA — High-Impact Dual Action) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-brand-card/95 border-t border-brand-border backdrop-blur-md px-3 py-2.5 flex items-center gap-2 justify-center pb-safe shadow-2xl md:hidden print:hidden">
+        <button
+          onClick={handleTradeInClick}
+          className="flex-1 flex items-center justify-center gap-1.5 bg-brand-card hover:bg-brand-primary/10 text-brand-primary font-extrabold text-[10px] uppercase tracking-wider py-3 px-2 rounded-xl active:scale-95 border border-brand-primary/40 transition-all duration-300 cursor-pointer"
+          style={{ minHeight: "44px" }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-3.5 h-3.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
+          <span>Usado na Troca</span>
+        </button>
         <button
           onClick={handleWhatsappPDPClick}
-          className="w-full max-w-md flex items-center justify-center gap-2.5 bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-widest py-4 px-6 rounded-2xl active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.25)] transition-all duration-300 cursor-pointer"
-          style={{ minHeight: "48px" }}
+          className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500 text-white font-extrabold text-[10px] uppercase tracking-wider py-3 px-2 rounded-xl active:scale-95 shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all duration-300 cursor-pointer"
+          style={{ minHeight: "44px" }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4 animate-bounce">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
           </svg>
-          {veiculo.vendido ? "Consultar Veículos Similares" : "Iniciar Negociação Imediata"}
+          <span>Garantir Proposta</span>
         </button>
       </div>
 
