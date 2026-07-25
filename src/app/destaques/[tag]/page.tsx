@@ -82,7 +82,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function DestaquesPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const { tagId, tagName, cleanSlug } = await resolveTagInfo(resolvedParams.tag);
+  const { matchedTag, tagId, tagName, cleanSlug } = await resolveTagInfo(resolvedParams.tag);
 
   const itemListSchema = {
     "@context": "https://schema.org",
