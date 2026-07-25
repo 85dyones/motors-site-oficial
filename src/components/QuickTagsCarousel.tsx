@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import type { QuickTag } from "../types";
+import { slugifyTag } from "../lib/tagUtils";
 
 interface BodyType {
   id: string;
@@ -24,55 +25,50 @@ export default function QuickTagsCarousel({
   selectedQuickTag,
   setSelectedQuickTag,
 }: QuickTagsCarouselProps) {
+  const defaultOptions: QuickTag[] = [
+    { id: "todos", name: "Todos", field: "tipo", operator: "equals", value: "" },
+    ...validQuickTags,
+  ];
+
   return (
-    <div className="flex flex-col gap-4 w-full overflow-hidden">
-      
-      {/* CARROCERIA */}
-      <div className="flex flex-col gap-1.5 w-full">
-        <div className="relative self-start group/carroceria cursor-default">
-          <span className="text-[9px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/carroceria:text-brand-primary">
+    <div className="w-full bg-brand-bg border-b border-brand-border/40 py-3.5 transition-colors duration-300">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 flex flex-col gap-3">
+        {/* Carroceria Filter Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
+          <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-brand-text/50 shrink-0 mr-1.5">
             CARROCERIA
           </span>
-          <span className="absolute bottom-0 left-1 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/carroceria:w-[calc(100%-4px)]" />
-        </div>
-        <div className="flex overflow-x-auto scrollbar-none gap-2 w-full select-none -mx-3 px-3 sm:mx-0 sm:px-0 scroll-smooth pb-1">
-          {bodyTypes.map((style) => {
-            const isSelected = selectedCategory === style.id;
+          {bodyTypes.map((item) => {
+            const isActive = selectedCategory === item.id;
             return (
               <button
-                key={style.id}
-                onClick={() => setSelectedCategory(style.id)}
-                className={`inline-flex items-center justify-center px-3 py-1.5 rounded-md border text-center transition-all duration-300 active:scale-95 text-[11px] font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
-                  isSelected
-                    ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                    : "bg-zinc-50 border-zinc-200 text-zinc-700 hover:border-brand-primary hover:text-brand-primary hover:bg-white"
+                key={item.id}
+                onClick={() => setSelectedCategory(item.id)}
+                className={`h-8 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all duration-300 shrink-0 cursor-pointer border ${
+                  isActive
+                    ? "bg-brand-primary border-brand-primary text-white shadow-md shadow-brand-primary/20 scale-[1.02]"
+                    : "bg-brand-card/60 border-brand-border/60 text-brand-text/75 hover:border-brand-primary/40 hover:text-brand-text hover:bg-brand-card"
                 }`}
               >
-                {style.name.toUpperCase()}
+                {item.name}
               </button>
             );
           })}
         </div>
-      </div>
 
-      {/* DESTAQUES RÁPIDOS */}
-      <div className="flex flex-col gap-1.5 w-full">
-        <div className="relative self-start group/destaques cursor-default">
-          <span className="text-[9px] font-extrabold text-zinc-800 uppercase tracking-[0.16em] pl-1 select-none transition-colors duration-300 group-hover/destaques:text-brand-primary">
+        {/* Destaques Rápidos Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-brand-text/50 shrink-0 mr-1.5">
             DESTAQUES RÁPIDOS
           </span>
-          <span className="absolute bottom-0 left-1 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover/destaques:w-[calc(100%-4px)]" />
-        </div>
-        <div className="flex overflow-x-auto scrollbar-none gap-2 w-full select-none -mx-3 px-3 sm:mx-0 sm:px-0 scroll-smooth">
-          {[
-            { id: "todos", name: "TODOS" },
-            ...validQuickTags
-          ].map((opt) => {
-            const isSelected = selectedQuickTag === opt.id;
-            const cssClasses = `inline-flex items-center justify-center px-3 py-1.5 rounded-md border text-center transition-all duration-300 active:scale-95 text-[11px] font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
+          {defaultOptions.map((opt) => {
+            const tagSlug = slugifyTag(opt.name) || opt.id;
+            const isSelected = selectedQuickTag === opt.id || selectedQuickTag === tagSlug;
+
+            const cssClasses = `h-8 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all duration-300 shrink-0 cursor-pointer flex items-center justify-center border ${
               isSelected
-                ? "bg-brand-primary text-white border-brand-primary shadow-sm font-semibold"
-                : "bg-zinc-50 border-zinc-200 text-zinc-700 hover:border-brand-primary hover:text-brand-primary hover:bg-white"
+                ? "bg-brand-primary border-brand-primary text-white shadow-md shadow-brand-primary/20 scale-[1.02]"
+                : "bg-brand-card/60 border-brand-border/60 text-brand-text/75 hover:border-brand-primary/40 hover:text-brand-text hover:bg-brand-card"
             }`;
 
             if (opt.id === "todos") {
@@ -90,10 +86,12 @@ export default function QuickTagsCarousel({
               );
             }
 
+            const utmUrl = `/destaques/${tagSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(tagSlug)}`;
+
             return (
               <Link
                 key={opt.id}
-                href={`/destaques/${opt.id}`}
+                href={utmUrl}
                 className={cssClasses}
                 title={`Ver veículos em destaque: ${opt.name}`}
                 aria-label={`Filtrar catálogo pela categoria de destaque ${opt.name}`}

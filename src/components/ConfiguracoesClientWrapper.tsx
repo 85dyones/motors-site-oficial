@@ -8,6 +8,7 @@ import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 import { processImage } from "../lib/imageProcessor";
+import { slugifyTag } from "../lib/tagUtils";
 import type { 
   ThemeType, 
   AboutSettings, 
@@ -1959,8 +1960,10 @@ export default function ConfiguracoesClientWrapper() {
                           return;
                         }
                         
+                        const generatedId = slugifyTag(editingQuickTag.name) || "tag-" + Date.now();
                         const tagToSave: QuickTag = {
                           ...editingQuickTag,
+                          id: isCreatingQuickTag ? generatedId : editingQuickTag.id,
                           operator: isManual ? "none" : editingQuickTag.operator,
                           value: isManual ? "" : editingQuickTag.value
                         };
@@ -1985,47 +1988,80 @@ export default function ConfiguracoesClientWrapper() {
 
               {/* List of current quick tags */}
               <div className="flex flex-col gap-3">
-                {quickTags.map((tag) => (
-                  <div key={tag.id} className="flex items-center justify-between p-4 bg-brand-bg/60 border border-brand-border rounded-2xl">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-brand-gold uppercase tracking-wider">{tag.name}</span>
-                      <span className="text-[9px] text-brand-text/50 font-mono">
-                        {tag.field === "manual" ? "Regra: Associação manual direta por veículo" : `Regra: ${tag.field} ${tag.operator} "${tag.value}"`}
-                      </span>
+                {quickTags.map((tag) => {
+                  const tagSlug = slugifyTag(tag.name) || tag.id;
+                  const linkedCount = vehicles.filter((v) => {
+                    const manualTags = overrides[v.id]?.quick_tags ?? [];
+                    if (manualTags.includes(tag.id) || manualTags.includes(tagSlug)) return true;
+                    if (tag.field === "manual" || tag.operator === "none") return false;
+                    let val: any = (v as any)[tag.field];
+                    if (tag.field === "preco") val = v.preco_promocional > 0 && v.preco_promocional < v.preco_original ? v.preco_promocional : v.preco_original;
+                    if (tag.field === "quilometragem") val = v.quilometragem;
+                    const strVal = String(val || "").toLowerCase();
+                    const targetVal = tag.value.toLowerCase();
+                    if (tag.operator === "equals") return strVal === targetVal;
+                    if (tag.operator === "contains") return strVal.includes(targetVal);
+                    if (tag.operator === "less") return Number(val) < Number(tag.value);
+                    if (tag.operator === "greater") return Number(val) > Number(tag.value);
+                    return false;
+                  }).length;
+
+                  return (
+                    <div key={tag.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-brand-bg/60 border border-brand-border rounded-2xl gap-3">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-bold text-brand-gold uppercase tracking-wider">{tag.name}</span>
+                          <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                            linkedCount > 0 
+                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
+                              : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                          }`}>
+                            {linkedCount} {linkedCount === 1 ? "veículo vinculado" : "veículos vinculados"}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-brand-text/50 font-mono">
+                          {tag.field === "manual" ? "Regra: Associação manual direta por veículo" : `Regra: ${tag.field} ${tag.operator} "${tag.value}"`}
+                        </span>
+                        {linkedCount === 0 && (
+                          <span className="text-[9px] text-amber-500 font-medium">
+                            ⚠️ Nenhum veículo vinculado. Edite os veículos desejados na tabela de estoque abaixo e marque esta categoria para exibi-la na Home.
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        <button
+                          onClick={() => {
+                            setEditingQuickTag({ ...tag });
+                            setIsCreatingQuickTag(false);
+                          }}
+                          className="h-8 bg-brand-card border border-brand-border hover:border-brand-primary/30 text-brand-text/60 hover:text-brand-primary text-[9px] font-bold uppercase tracking-widest px-3 rounded-lg active:scale-95 transition-all cursor-pointer"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const isConfirmed = await confirm({
+                              title: "Remover Destaque Rápido",
+                              message: `Deseja realmente remover o destaque rápido "${tag.name}"?`,
+                              type: "danger",
+                              confirmLabel: "Remover",
+                              cancelLabel: "Cancelar"
+                            });
+                            if (isConfirmed) {
+                              const next = quickTags.filter(t => t.id !== tag.id);
+                              setQuickTags(next);
+                              await updateQuickTags(next);
+                            }
+                          }}
+                          className="h-8 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-[9px] font-bold uppercase tracking-widest px-3 rounded-lg active:scale-95 transition-all cursor-pointer"
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingQuickTag({ ...tag });
-                          setIsCreatingQuickTag(false);
-                        }}
-                        className="h-8 bg-brand-card border border-brand-border hover:border-brand-primary/30 text-brand-text/60 hover:text-brand-primary text-[9px] font-bold uppercase tracking-widest px-3 rounded-lg active:scale-95 transition-all cursor-pointer"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const isConfirmed = await confirm({
-                            title: "Remover Destaque Rápido",
-                            message: `Deseja realmente remover o destaque rápido "${tag.name}"?`,
-                            type: "danger",
-                            confirmLabel: "Remover",
-                            cancelLabel: "Cancelar"
-                          });
-                          if (isConfirmed) {
-                            const next = quickTags.filter(t => t.id !== tag.id);
-                            setQuickTags(next);
-                            await updateQuickTags(next);
-                          }
-                        }}
-                        className="h-8 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-[9px] font-bold uppercase tracking-widest px-3 rounded-lg active:scale-95 transition-all cursor-pointer"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {!isCreatingQuickTag && !editingQuickTag && (

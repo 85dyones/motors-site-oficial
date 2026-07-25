@@ -8,6 +8,7 @@ import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
 import type { Veiculo } from "../types";
 import { useTheme } from "../app/ThemeContext";
 import { getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { findMatchingQuickTag } from "../lib/tagUtils";
 import SearchConsole from "./SearchConsole";
 import FilterConsole from "./FilterConsole";
 import QuickTagsCarousel from "./QuickTagsCarousel";
@@ -728,7 +729,7 @@ export default function HeroSection({
 
       // 2b. Select Quick Tag Filter
       if (selectedQuickTag !== "todos") {
-        const activeTag = quickTags.find(t => t.id === selectedQuickTag);
+        const activeTag = findMatchingQuickTag(quickTags, selectedQuickTag);
         if (activeTag) {
           result = result.filter(car => {
             return checkTagMatchesVehicle(activeTag, car, stockOverrides);

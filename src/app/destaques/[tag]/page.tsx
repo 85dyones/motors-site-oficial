@@ -1,15 +1,18 @@
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import HeroSection from '../../../components/HeroSection';
+import { getCachedSettings } from '../../../lib/settings';
+import { slugifyTag, unslugifyTag, findMatchingQuickTag } from '../../../lib/tagUtils';
+import { QuickTag } from '../../../types';
 
-const STATIC_QUICK_TAGS = [
+const STATIC_QUICK_TAGS: QuickTag[] = [
   { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
   { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
   { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
   { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" }
 ];
 
-export const revalidate = 3600;
+export const revalidate = 60; // 60s for revalidation so newly created tags show up fast!
+export const dynamicParams = true;
 
 interface PageProps {
   params: Promise<{
@@ -23,23 +26,32 @@ export async function generateStaticParams() {
   }));
 }
 
+async function resolveTagInfo(tagParam: string) {
+  const settings = await getCachedSettings();
+  const dynamicTags: QuickTag[] = settings.quickTags && Array.isArray(settings.quickTags) ? settings.quickTags : [];
+  const allTags = [...STATIC_QUICK_TAGS, ...dynamicTags];
+
+  const matchedTag = findMatchingQuickTag(allTags, tagParam);
+  const tagId = matchedTag ? matchedTag.id : tagParam;
+  const tagName = matchedTag ? matchedTag.name : unslugifyTag(tagParam);
+  const cleanSlug = matchedTag ? (slugifyTag(matchedTag.name) || matchedTag.id) : slugifyTag(tagParam);
+
+  return { matchedTag, tagId, tagName, cleanSlug };
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const tag = STATIC_QUICK_TAGS.find((t) => t.id === resolvedParams.tag);
-  
-  if (!tag) {
-    return { title: 'Destaques Rápidos' };
-  }
+  const { tagName, cleanSlug } = await resolveTagInfo(resolvedParams.tag);
 
-  const title = `Carros ${tag.name} em Curitiba | Motors Store`;
-  const description = `Confira nossa seleção exclusiva de veículos na categoria ${tag.name}. As melhores condições, procedência garantida e atendimento premium na Motors Store.`;
-  const url = `https://motors-site-oficial.vercel.app/destaques/${tag.id}`;
+  const title = `Carros ${tagName} em Curitiba | Motors Store`;
+  const description = `Confira nossa seleção exclusiva de veículos na categoria ${tagName}. As melhores condições, procedência garantida e atendimento premium na Motors Store.`;
+  const url = `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(cleanSlug)}`;
 
   return {
     title,
     description,
     alternates: {
-      canonical: url,
+      canonical: `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}`,
     },
     robots: {
       index: true,
@@ -70,11 +82,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function DestaquesPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const tag = STATIC_QUICK_TAGS.find((t) => t.id === resolvedParams.tag);
-
-  if (!tag) {
-    notFound();
-  }
+  const { tagId, tagName, cleanSlug } = await resolveTagInfo(resolvedParams.tag);
 
   const itemListSchema = {
     "@context": "https://schema.org",
@@ -85,8 +93,8 @@ export default async function DestaquesPage({ params }: PageProps) {
         "position": 1,
         "item": {
           "@type": "WebPage",
-          "name": `Catálogo de Veículos: ${tag.name}`,
-          "url": `https://motors-site-oficial.vercel.app/destaques/${tag.id}`
+          "name": `Catálogo de Veículos: ${tagName}`,
+          "url": `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}`
         }
       }
     ]
@@ -100,7 +108,7 @@ export default async function DestaquesPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
       />
       {/* We reuse the HeroSection, passing the initial tag so it auto-filters */}
-      <HeroSection initialQuickTag={tag.id} isLandingPage={true} landingPageTitle={tag.name} />
+      <HeroSection initialQuickTag={tagId} isLandingPage={true} landingPageTitle={tagName} />
     </div>
   );
 }
