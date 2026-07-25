@@ -1952,15 +1952,23 @@ export default function ConfiguracoesClientWrapper() {
                     </button>
                     <button
                       onClick={async () => {
-                        if (!editingQuickTag?.name.trim() || !editingQuickTag?.value.trim()) {
+                        if (!editingQuickTag) return;
+                        const isManual = editingQuickTag.field === "manual";
+                        if (!editingQuickTag.name.trim() || (!isManual && !editingQuickTag.value.trim())) {
                           alert("Preencha todos os campos corretamente.");
                           return;
                         }
                         
-                        const exists = quickTags.some(t => t.id === editingQuickTag.id);
+                        const tagToSave: QuickTag = {
+                          ...editingQuickTag,
+                          operator: isManual ? "none" : editingQuickTag.operator,
+                          value: isManual ? "" : editingQuickTag.value
+                        };
+                        
+                        const exists = quickTags.some(t => t.id === tagToSave.id);
                         const next = exists
-                          ? quickTags.map(t => t.id === editingQuickTag.id ? editingQuickTag : t)
-                          : [...quickTags, editingQuickTag];
+                          ? quickTags.map(t => t.id === tagToSave.id ? tagToSave : t)
+                          : [...quickTags, tagToSave];
                         setQuickTags(next);
                         await updateQuickTags(next);
                         
@@ -1982,7 +1990,7 @@ export default function ConfiguracoesClientWrapper() {
                     <div className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold text-brand-gold uppercase tracking-wider">{tag.name}</span>
                       <span className="text-[9px] text-brand-text/50 font-mono">
-                        Regra: {tag.field} {tag.operator} &ldquo;{tag.value}&rdquo;
+                        {tag.field === "manual" ? "Regra: Associação manual direta por veículo" : `Regra: ${tag.field} ${tag.operator} "${tag.value}"`}
                       </span>
                     </div>
                     
