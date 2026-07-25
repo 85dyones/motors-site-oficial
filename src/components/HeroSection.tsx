@@ -294,12 +294,16 @@ interface HeroSectionProps {
   initialQuickTag?: string;
   isLandingPage?: boolean;
   landingPageTitle?: string;
+  landingPageDescription?: string;
+  landingPageBgImage?: string;
 }
 
 export default function HeroSection({
   initialQuickTag = "todos",
   isLandingPage = false,
-  landingPageTitle = ""
+  landingPageTitle = "",
+  landingPageDescription,
+  landingPageBgImage
 }: HeroSectionProps = {}) {
   const {
     addToCompare,
@@ -925,15 +929,36 @@ export default function HeroSection({
   return (
     <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-6 md:gap-8">
       
-      {/* 1. HERO CAROUSEL / SLIDER (Auto Club Top Slider Look) */}
+      {/* 1. HERO CAROUSEL / SLIDER / LANDING PAGE BANNER */}
       {isLandingPage && (
-        <div className="w-full pt-4 pb-0 flex flex-col items-center justify-center text-center px-4 animate-fadeIn">
-          <h1 className="text-3xl md:text-5xl font-extrabold text-brand-primary uppercase tracking-tight drop-shadow-sm mb-3">
-            Carros {landingPageTitle}
-          </h1>
-          <p className="text-brand-text/80 max-w-2xl text-sm md:text-base font-medium">
-            Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você.
-          </p>
+        <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-zinc-950 shadow-2xl mb-2 border border-brand-border/40 animate-fadeIn min-h-[220px] md:min-h-[300px] flex items-center justify-center">
+          {landingPageBgImage ? (
+            <>
+              <Image
+                src={landingPageBgImage}
+                alt={`Carros ${landingPageTitle}`}
+                fill
+                priority
+                className="object-cover object-center filter brightness-90 transition-transform duration-[10000ms] ease-out hover:scale-105"
+                sizes="100vw"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/35" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-tr from-brand-bg via-brand-card to-zinc-950 opacity-95" />
+          )}
+
+          <div className="relative z-10 w-full py-10 md:py-16 px-6 sm:px-12 flex flex-col items-center justify-center text-center max-w-4xl mx-auto gap-3.5">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-4 py-1.5 rounded-full backdrop-blur-md">
+              Categoria em Destaque
+            </span>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white uppercase tracking-tight drop-shadow-md">
+              Carros {landingPageTitle}
+            </h1>
+            <p className="text-zinc-200/90 max-w-2xl text-xs sm:text-sm md:text-base font-medium leading-relaxed drop-shadow-sm">
+              {landingPageDescription || "Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você."}
+            </p>
+          </div>
         </div>
       )}
 

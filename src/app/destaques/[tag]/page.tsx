@@ -108,7 +108,13 @@ export default async function DestaquesPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
       />
       {/* We reuse the HeroSection, passing the initial tag so it auto-filters */}
-      <HeroSection initialQuickTag={tagId} isLandingPage={true} landingPageTitle={tagName} />
+      <HeroSection 
+        initialQuickTag={tagId} 
+        isLandingPage={true} 
+        landingPageTitle={tagName} 
+        landingPageDescription={matchedTag?.description}
+        landingPageBgImage={matchedTag?.bgImageUrl}
+      />
     </div>
   );
 }

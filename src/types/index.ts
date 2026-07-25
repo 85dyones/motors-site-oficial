@@ -100,6 +100,8 @@ export interface QuickTag {
   field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel" | "manual";
   operator: "equals" | "less" | "greater" | "contains" | "none";
   value: string;
+  description?: string;
+  bgImageUrl?: string;
 }
 
 export interface Veiculo {

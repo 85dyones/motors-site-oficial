@@ -129,8 +129,49 @@ export default function ConfiguracoesClientWrapper() {
       console.error('Upload error:', error);
       alert(error.message || 'Erro inesperado ao processar imagem.');
     } finally {
-      if (type === 'logo') setIsUploadingLogo(false);
-      else setIsUploadingFavicon(false);
+      setIsUploadingLogo(false);
+      setIsUploadingFavicon(false);
+    }
+  };
+
+  const [isUploadingTagBg, setIsUploadingTagBg] = useState(false);
+  const handleTagBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingTagBg(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'banner');
+
+      if (companyForm.s3AccessKeyId) formData.append('s3AccessKeyId', companyForm.s3AccessKeyId);
+      if (companyForm.s3SecretAccessKey) formData.append('s3SecretAccessKey', companyForm.s3SecretAccessKey);
+
+      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
+
+      const res = await fetch('/api/upload-branding', {
+        method: 'POST',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {},
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao fazer upload da imagem');
+      }
+
+      if (data.url || data.publicUrl) {
+        const url = data.url || data.publicUrl;
+        setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: url } : null);
+      }
+    } catch (err: any) {
+      alert("Falha no upload da imagem: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setIsUploadingTagBg(false);
       e.target.value = '';
     }
   };
@@ -1939,6 +1980,62 @@ export default function ConfiguracoesClientWrapper() {
                         </div>
                       </>
                     )}
+
+                    {/* Custom Landing Page Description */}
+                    <div className="flex flex-col gap-1.5 sm:col-span-2 border-t border-brand-border/40 pt-3">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Descrição da Landing Page (Customizada)
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="EX: Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida..."
+                        value={editingQuickTag?.description || ""}
+                        onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, description: e.target.value } : null)}
+                        className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text p-3 w-full placeholder-brand-text/30 resize-none"
+                      />
+                    </div>
+
+                    {/* Custom Landing Page Background Image */}
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Imagem de Fundo do Banner da Landing Page (URL ou Upload)
+                      </label>
+                      <div className="flex flex-col sm:flex-row items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="https://exemplo.com/imagem-fundo.jpg"
+                          value={editingQuickTag?.bgImageUrl || ""}
+                          onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: e.target.value } : null)}
+                          className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full placeholder-brand-text/30"
+                        />
+                        <label className="h-10 px-4 bg-brand-card hover:bg-brand-primary/10 border border-brand-border hover:border-brand-primary/40 text-brand-text text-[10px] font-bold uppercase tracking-widest rounded-xl flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95">
+                          {isUploadingTagBg ? "Enviando..." : "📁 Enviar Imagem"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={isUploadingTagBg}
+                            onChange={handleTagBgUpload}
+                          />
+                        </label>
+                      </div>
+                      {editingQuickTag?.bgImageUrl && (
+                        <div className="relative w-full h-28 rounded-xl overflow-hidden border border-brand-border/60 mt-1">
+                          <img
+                            src={editingQuickTag.bgImageUrl}
+                            alt="Preview de Fundo"
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: "" } : null)}
+                            className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold px-2.5 py-1 rounded-md shadow-md"
+                          >
+                            Remover Imagem
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-2 mt-2">
