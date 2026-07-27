@@ -166,7 +166,7 @@ export default function ConfiguracoesClientWrapper() {
 
       if (data.url || data.publicUrl) {
         const url = data.url || data.publicUrl;
-        setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: url } : null);
+        setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: url, bannerMode: "image" } : null);
       }
     } catch (err: any) {
       alert("Falha no upload da imagem: " + (err.message || "Erro desconhecido"));
@@ -1981,7 +1981,7 @@ export default function ConfiguracoesClientWrapper() {
                       </>
                     )}
 
-                    {/* Banner Mode Selector (Image background option for manual categories, Carousel for all) */}
+                    {/* Banner Mode Selector (Allows image background option or carousel for any category) */}
                     <div className="flex flex-col gap-1.5 sm:col-span-2 border-t border-brand-border/40 pt-3">
                       <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
                         Modo de Exibição do Banner no Topo da Landing Page
@@ -1999,23 +1999,17 @@ export default function ConfiguracoesClientWrapper() {
                           <span>🚗 Carrossel / Lista de Veículos</span>
                         </button>
                         
-                        {editingQuickTag?.field === "manual" ? (
-                          <button
-                            type="button"
-                            onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bannerMode: "image" } : null)}
-                            className={`h-10 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                              editingQuickTag?.bannerMode === "image"
-                                ? "bg-brand-primary border-brand-primary text-white shadow-md"
-                                : "bg-brand-card border-brand-border text-brand-text/75 hover:border-brand-primary/40"
-                            }`}
-                          >
-                            <span>🖼️ Foto de Fundo Customizada</span>
-                          </button>
-                        ) : (
-                          <div className="h-10 px-3 rounded-xl text-[9px] font-medium text-brand-text/40 bg-brand-bg/40 border border-brand-border/40 flex items-center justify-center text-center">
-                            <span>(Foto customizada exclusiva para categorias manuais)</span>
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bannerMode: "image" } : null)}
+                          className={`h-10 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                            editingQuickTag?.bannerMode === "image"
+                              ? "bg-brand-primary border-brand-primary text-white shadow-md"
+                              : "bg-brand-card border-brand-border text-brand-text/75 hover:border-brand-primary/40"
+                          }`}
+                        >
+                          <span>🖼️ Foto de Fundo Customizada</span>
+                        </button>
                       </div>
                     </div>
 
@@ -2033,8 +2027,8 @@ export default function ConfiguracoesClientWrapper() {
                       />
                     </div>
 
-                    {/* Custom Landing Page Background Image (Shown when bannerMode is image on manual category) */}
-                    {editingQuickTag?.field === "manual" && editingQuickTag?.bannerMode === "image" && (
+                    {/* Custom Landing Page Background Image (Shown when bannerMode is image OR when bgImageUrl exists) */}
+                    {(editingQuickTag?.bannerMode === "image" || editingQuickTag?.bgImageUrl) && (
                       <div className="flex flex-col gap-1.5 sm:col-span-2 animate-fadeIn">
                         <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
                           Imagem de Fundo do Banner (URL ou Upload)
@@ -2044,7 +2038,7 @@ export default function ConfiguracoesClientWrapper() {
                             type="text"
                             placeholder="https://exemplo.com/imagem-fundo.jpg"
                             value={editingQuickTag?.bgImageUrl || ""}
-                            onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: e.target.value } : null)}
+                            onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: e.target.value, bannerMode: e.target.value ? "image" : prev.bannerMode } : null)}
                             className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full placeholder-brand-text/30"
                           />
                           <label className="h-10 px-4 bg-brand-card hover:bg-brand-primary/10 border border-brand-border hover:border-brand-primary/40 text-brand-text text-[10px] font-bold uppercase tracking-widest rounded-xl flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95">
@@ -2067,7 +2061,7 @@ export default function ConfiguracoesClientWrapper() {
                             />
                             <button
                               type="button"
-                              onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: "" } : null)}
+                              onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: "", bannerMode: "carousel" } : null)}
                               className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold px-2.5 py-1 rounded-md shadow-md"
                             >
                               Remover Imagem

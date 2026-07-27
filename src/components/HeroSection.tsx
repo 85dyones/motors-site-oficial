@@ -933,9 +933,10 @@ export default function HeroSection({
     return findMatchingQuickTag(quickTags, selectedQuickTag) || findMatchingQuickTag(quickTags, initialQuickTag);
   }, [quickTags, selectedQuickTag, initialQuickTag]);
 
-  const activeBannerMode = currentTag?.bannerMode || landingPageBannerMode || (currentTag?.field === "manual" && currentTag?.bgImageUrl ? "image" : "carousel");
-  const activeDescription = currentTag?.description || landingPageDescription || "Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você.";
   const activeBgImage = currentTag?.bgImageUrl || landingPageBgImage;
+  const activeBannerMode = currentTag?.bannerMode || landingPageBannerMode || (activeBgImage ? "image" : "carousel");
+  const activeDescription = currentTag?.description || landingPageDescription || "Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você.";
+  const isImageBanner = Boolean(activeBgImage && activeBannerMode !== "carousel");
 
   const displayCars = useMemo(() => {
     if (isLandingPage && currentTag) {
@@ -949,7 +950,7 @@ export default function HeroSection({
     <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-6 md:gap-8">
       
       {/* 1. HERO CAROUSEL / SLIDER / LANDING PAGE BANNER */}
-      {isLandingPage && activeBannerMode === "image" && activeBgImage ? (
+      {isLandingPage && isImageBanner ? (
         /* Custom Photo Hero Banner (For Manual Categories with Custom Image) */
         <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-zinc-950 shadow-2xl mb-2 border border-brand-border/40 animate-fadeIn min-h-[220px] md:min-h-[300px] flex items-center justify-center">
           <Image
