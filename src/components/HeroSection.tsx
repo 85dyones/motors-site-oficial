@@ -928,16 +928,33 @@ export default function HeroSection({
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
+  // Dynamic tag and banner resolution
+  const currentTag = useMemo(() => {
+    return findMatchingQuickTag(quickTags, selectedQuickTag) || findMatchingQuickTag(quickTags, initialQuickTag);
+  }, [quickTags, selectedQuickTag, initialQuickTag]);
+
+  const activeBannerMode = currentTag?.bannerMode || landingPageBannerMode || (currentTag?.field === "manual" && currentTag?.bgImageUrl ? "image" : "carousel");
+  const activeDescription = currentTag?.description || landingPageDescription || "Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você.";
+  const activeBgImage = currentTag?.bgImageUrl || landingPageBgImage;
+
+  const displayCars = useMemo(() => {
+    if (isLandingPage && currentTag) {
+      const tagVehicles = estoque.filter(car => checkTagMatchesVehicle(currentTag, car, stockOverrides));
+      if (tagVehicles.length > 0) return tagVehicles;
+    }
+    return featuredCars;
+  }, [isLandingPage, currentTag, estoque, stockOverrides, featuredCars]);
+
   return (
     <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-6 md:gap-8">
       
       {/* 1. HERO CAROUSEL / SLIDER / LANDING PAGE BANNER */}
-      {isLandingPage && landingPageBannerMode === "image" && landingPageBgImage ? (
+      {isLandingPage && activeBannerMode === "image" && activeBgImage ? (
         /* Custom Photo Hero Banner (For Manual Categories with Custom Image) */
         <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-zinc-950 shadow-2xl mb-2 border border-brand-border/40 animate-fadeIn min-h-[220px] md:min-h-[300px] flex items-center justify-center">
           <Image
-            src={landingPageBgImage}
-            alt={`Carros ${landingPageTitle}`}
+            src={activeBgImage}
+            alt={`Carros ${landingPageTitle || currentTag?.name || ''}`}
             fill
             priority
             className="object-cover object-center filter brightness-90 transition-transform duration-[10000ms] ease-out hover:scale-105"
@@ -950,134 +967,137 @@ export default function HeroSection({
               Categoria em Destaque
             </span>
             <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white uppercase tracking-tight drop-shadow-md">
-              Carros {landingPageTitle}
+              Carros {landingPageTitle || currentTag?.name || ''}
             </h1>
             <p className="text-zinc-200/90 max-w-2xl text-xs sm:text-sm md:text-base font-medium leading-relaxed drop-shadow-sm">
-              {landingPageDescription || "Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você."}
+              {activeDescription}
             </p>
           </div>
         </div>
-      ) : isLandingPage ? (
-        /* Category Landing Page Header */
-        <div className="w-full pt-2 pb-2 flex flex-col items-center justify-center text-center px-4 animate-fadeIn">
-          <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-4 py-1 rounded-full backdrop-blur-md mb-2">
-            Categoria em Destaque
-          </span>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-brand-primary uppercase tracking-tight drop-shadow-sm mb-2">
-            Carros {landingPageTitle}
-          </h1>
-          <p className="text-brand-text/80 max-w-2xl text-xs md:text-base font-medium">
-            {landingPageDescription || "Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você."}
-          </p>
-        </div>
-      ) : null}
+      ) : (
+        /* Carousel Slider (or Category Header + Carousel) */
+        <div className="w-full flex flex-col gap-4 animate-fadeIn">
+          {isLandingPage && (
+            <div className="w-full pt-2 pb-2 flex flex-col items-center justify-center text-center px-4">
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-4 py-1 rounded-full backdrop-blur-md mb-2">
+                Categoria em Destaque
+              </span>
+              <h1 className="text-3xl md:text-5xl font-extrabold text-brand-primary uppercase tracking-tight drop-shadow-sm mb-2">
+                Carros {landingPageTitle || currentTag?.name || ''}
+              </h1>
+              <p className="text-brand-text/80 max-w-2xl text-xs md:text-base font-medium">
+                {activeDescription}
+              </p>
+            </div>
+          )}
 
-      {!isLandingPage && featuredCars.length > 0 && (
-        <div className="relative w-full h-[60vh] md:h-[75vh] max-h-[720px] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 animate-fadeIn group">
-          {/* Carousel Slide Wrapper */}
-          <div className="relative w-full h-full">
-            {featuredCars.map((car, index) => {
-              const isActive = index === activeSlide;
-              const pdpUrl = getVeiculoPdpUrl(car);
+          {displayCars.length > 0 && (
+            <div className="relative w-full h-[55vh] md:h-[70vh] max-h-[680px] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 group">
+              {/* Carousel Slide Wrapper */}
+              <div className="relative w-full h-full">
+                {displayCars.map((car, index) => {
+                  const isActive = index === activeSlide;
+                  const pdpUrl = getVeiculoPdpUrl(car);
 
-              const promoPrice = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
-                ? car.preco_promocional
-                : car.preco_original;
+                  const promoPrice = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
+                    ? car.preco_promocional
+                    : car.preco_original;
 
-              return (
-                <div
-                  key={car.id}
-                  className={`absolute inset-0 w-full h-full transition-opacity duration-1000 flex flex-col justify-end p-6 md:p-16 ${
-                    isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-                  }`}
-                >
-                  {/* Clickable cover image + gradient background */}
-                  <Link prefetch={false} href={pdpUrl} className="absolute inset-0 block z-0 group/slide-img cursor-pointer overflow-hidden">
-                    <Image
-                      src={car.whatsapp_images[0] || car.web_full_images[0]}
-                      alt={`${car.marca} ${car.modelo}`}
-                      fill
-                      priority={index === 0}
-                      fetchPriority={index === 0 ? "high" : "auto"}
-                      className="object-cover transition-transform duration-[8000ms] ease-out group-hover/slide-img:scale-105"
-                      sizes="100vw"
-                    />
-                    {/* Sleek luxury gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-                  </Link>
-
-                  {/* Letters Garrafais Text Overlay details */}
-                  <div className="relative z-20 flex flex-col gap-2 md:gap-4 max-w-2xl text-white transform translate-y-0 transition-transform duration-700">
-                    <Link prefetch={false} href={pdpUrl} className="group/slide-text block cursor-pointer">
-                      <span className="text-xs md:text-sm font-semibold uppercase tracking-widest text-brand-primary drop-shadow block mb-1">
-                        {car.marca} • {car.ano}
-                      </span>
-                      
-                      <h2 className="text-3xl md:text-6xl font-bold tracking-tight leading-none drop-shadow-md group-hover/slide-text:text-brand-primary transition-colors duration-300">
-                        {car.modelo}
-                      </h2>
-                      
-                      <p className="text-xs md:text-lg text-white/95 font-medium uppercase tracking-wide line-clamp-1 mt-1 group-hover/slide-text:text-white/80 transition-colors duration-300">
-                        {car.versao}
-                      </p>
-                    </Link>
-
-                    <div className="flex flex-row items-center gap-3 mt-2">
-                      {/* Gold Highlight Promo Price */}
-                      <div className="bg-brand-primary/90 text-white font-bold text-lg md:text-2xl px-5 h-12 rounded-xl inline-flex items-center shadow-lg border border-brand-primary-hover backdrop-blur-sm">
-                        {formatPrice(promoPrice)}
-                      </div>
-
-                      <Link
-                        href={pdpUrl}
-                        aria-label={`Ver Detalhes do ${car.marca} ${car.modelo}`}
-                        className="bg-white/10 hover:bg-white hover:text-black transition-all duration-300 font-semibold text-[11px] uppercase tracking-widest px-5 h-12 rounded-xl border border-white/30 backdrop-blur-sm shadow-md inline-flex items-center justify-center"
-                      >
-                        Ver Detalhes
+                  return (
+                    <div
+                      key={car.id}
+                      className={`absolute inset-0 w-full h-full transition-opacity duration-1000 flex flex-col justify-end p-6 md:p-16 ${
+                        isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+                      }`}
+                    >
+                      {/* Clickable cover image + gradient background */}
+                      <Link prefetch={false} href={pdpUrl} className="absolute inset-0 block z-0 group/slide-img cursor-pointer overflow-hidden">
+                        <Image
+                          src={car.whatsapp_images[0] || car.web_full_images[0]}
+                          alt={`${car.marca} ${car.modelo}`}
+                          fill
+                          priority={index === 0}
+                          fetchPriority={index === 0 ? "high" : "auto"}
+                          className="object-cover transition-transform duration-[8000ms] ease-out group-hover/slide-img:scale-105"
+                          sizes="100vw"
+                        />
+                        {/* Sleek luxury gradient overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
                       </Link>
+
+                      {/* Text Overlay details */}
+                      <div className="relative z-20 flex flex-col gap-2 md:gap-4 max-w-2xl text-white transform translate-y-0 transition-transform duration-700">
+                        <Link prefetch={false} href={pdpUrl} className="group/slide-text block cursor-pointer">
+                          <span className="text-xs md:text-sm font-semibold uppercase tracking-widest text-brand-primary drop-shadow block mb-1">
+                            {car.marca} • {car.ano}
+                          </span>
+                          
+                          <h2 className="text-3xl md:text-6xl font-bold tracking-tight leading-none drop-shadow-md group-hover/slide-text:text-brand-primary transition-colors duration-300">
+                            {car.modelo}
+                          </h2>
+                          
+                          <p className="text-xs md:text-lg text-white/95 font-medium uppercase tracking-wide line-clamp-1 mt-1 group-hover/slide-text:text-white/80 transition-colors duration-300">
+                            {car.versao}
+                          </p>
+                        </Link>
+
+                        <div className="flex flex-row items-center gap-3 mt-2">
+                          <div className="bg-brand-primary/90 text-white font-bold text-lg md:text-2xl px-5 h-12 rounded-xl inline-flex items-center shadow-lg border border-brand-primary-hover backdrop-blur-sm">
+                            {formatPrice(promoPrice)}
+                          </div>
+
+                          <Link
+                            href={pdpUrl}
+                            aria-label={`Ver Detalhes do ${car.marca} ${car.modelo}`}
+                            className="bg-white/10 hover:bg-white hover:text-black transition-all duration-300 font-semibold text-[11px] uppercase tracking-widest px-5 h-12 rounded-xl border border-white/30 backdrop-blur-sm shadow-md inline-flex items-center justify-center"
+                          >
+                            Ver Detalhes
+                          </Link>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
 
-          {/* Slider Left/Right Arrows */}
-          <button
-            onClick={() => setActiveSlide((prev) => (prev - 1 + featuredCars.length) % featuredCars.length)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/30 hover:bg-brand-primary/90 hover:scale-105 active:scale-95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md pointer-events-auto"
-            aria-label="Anterior slide"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-            </svg>
-          </button>
-          
-          <button
-            onClick={() => setActiveSlide((prev) => (prev + 1) % featuredCars.length)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/30 hover:bg-brand-primary/90 hover:scale-105 active:scale-95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md pointer-events-auto"
-            aria-label="Próximo slide"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-            </svg>
-          </button>
-
-          {/* Bottom Dot indicators */}
-          <div className="absolute bottom-2 left-0 right-0 z-20 flex justify-center items-center">
-            {featuredCars.map((_, idx) => (
+              {/* Slider Left/Right Arrows */}
               <button
-                key={idx}
-                onClick={() => setActiveSlide(idx)}
-                className="w-10 h-10 flex items-center justify-center group/dot focus:outline-none"
-                aria-label={`Slide ${idx + 1}`}
+                onClick={() => setActiveSlide((prev) => (prev - 1 + displayCars.length) % displayCars.length)}
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/30 hover:bg-brand-primary/90 hover:scale-105 active:scale-95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md pointer-events-auto cursor-pointer"
+                aria-label="Anterior slide"
               >
-                <div className={`h-2 rounded-full transition-all duration-300 ${
-                  idx === activeSlide ? "w-8 bg-brand-primary shadow-sm" : "w-2 bg-white/40 group-hover/dot:bg-white"
-                }`} />
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                </svg>
               </button>
-            ))}
-          </div>
+              
+              <button
+                onClick={() => setActiveSlide((prev) => (prev + 1) % displayCars.length)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/30 hover:bg-brand-primary/90 hover:scale-105 active:scale-95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md pointer-events-auto cursor-pointer"
+                aria-label="Próximo slide"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+
+              {/* Bottom Dot indicators */}
+              <div className="absolute bottom-2 left-0 right-0 z-20 flex justify-center items-center">
+                {displayCars.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveSlide(idx)}
+                    className="w-10 h-10 flex items-center justify-center group/dot focus:outline-none"
+                    aria-label={`Slide ${idx + 1}`}
+                  >
+                    <div className={`h-2 rounded-full transition-all duration-300 ${
+                      idx === activeSlide ? "w-8 bg-brand-primary shadow-sm" : "w-2 bg-white/40 group-hover/dot:bg-white"
+                    }`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

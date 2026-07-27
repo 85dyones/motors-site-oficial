@@ -29,7 +29,7 @@ export async function generateStaticParams() {
 async function resolveTagInfo(tagParam: string) {
   const settings = await getCachedSettings();
   const dynamicTags: QuickTag[] = settings.quickTags && Array.isArray(settings.quickTags) ? settings.quickTags : [];
-  const allTags = [...STATIC_QUICK_TAGS, ...dynamicTags];
+  const allTags = [...dynamicTags, ...STATIC_QUICK_TAGS];
 
   const matchedTag = findMatchingQuickTag(allTags, tagParam);
   const tagId = matchedTag ? matchedTag.id : tagParam;
