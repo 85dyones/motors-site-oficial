@@ -101,7 +101,9 @@ export interface QuickTag {
   operator: "equals" | "less" | "greater" | "contains" | "none";
   value: string;
   description?: string;
+  bannerMode?: "image" | "carousel";
   bgImageUrl?: string;
+  featuredVehicleIds?: string[];
 }
 
 export interface Veiculo {

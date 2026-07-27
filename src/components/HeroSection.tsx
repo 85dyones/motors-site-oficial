@@ -296,6 +296,7 @@ interface HeroSectionProps {
   landingPageTitle?: string;
   landingPageDescription?: string;
   landingPageBgImage?: string;
+  landingPageBannerMode?: "image" | "carousel";
 }
 
 export default function HeroSection({
@@ -303,7 +304,8 @@ export default function HeroSection({
   isLandingPage = false,
   landingPageTitle = "",
   landingPageDescription,
-  landingPageBgImage
+  landingPageBgImage,
+  landingPageBannerMode
 }: HeroSectionProps = {}) {
   const {
     addToCompare,
@@ -930,23 +932,18 @@ export default function HeroSection({
     <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-6 md:gap-8">
       
       {/* 1. HERO CAROUSEL / SLIDER / LANDING PAGE BANNER */}
-      {isLandingPage && (
+      {isLandingPage && landingPageBannerMode === "image" && landingPageBgImage ? (
+        /* Custom Photo Hero Banner (For Manual Categories with Custom Image) */
         <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-zinc-950 shadow-2xl mb-2 border border-brand-border/40 animate-fadeIn min-h-[220px] md:min-h-[300px] flex items-center justify-center">
-          {landingPageBgImage ? (
-            <>
-              <Image
-                src={landingPageBgImage}
-                alt={`Carros ${landingPageTitle}`}
-                fill
-                priority
-                className="object-cover object-center filter brightness-90 transition-transform duration-[10000ms] ease-out hover:scale-105"
-                sizes="100vw"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/35" />
-            </>
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-tr from-brand-bg via-brand-card to-zinc-950 opacity-95" />
-          )}
+          <Image
+            src={landingPageBgImage}
+            alt={`Carros ${landingPageTitle}`}
+            fill
+            priority
+            className="object-cover object-center filter brightness-90 transition-transform duration-[10000ms] ease-out hover:scale-105"
+            sizes="100vw"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/35" />
 
           <div className="relative z-10 w-full py-10 md:py-16 px-6 sm:px-12 flex flex-col items-center justify-center text-center max-w-4xl mx-auto gap-3.5">
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-4 py-1.5 rounded-full backdrop-blur-md">
@@ -960,7 +957,20 @@ export default function HeroSection({
             </p>
           </div>
         </div>
-      )}
+      ) : isLandingPage ? (
+        /* Category Landing Page Header */
+        <div className="w-full pt-2 pb-2 flex flex-col items-center justify-center text-center px-4 animate-fadeIn">
+          <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-4 py-1 rounded-full backdrop-blur-md mb-2">
+            Categoria em Destaque
+          </span>
+          <h1 className="text-3xl md:text-5xl font-extrabold text-brand-primary uppercase tracking-tight drop-shadow-sm mb-2">
+            Carros {landingPageTitle}
+          </h1>
+          <p className="text-brand-text/80 max-w-2xl text-xs md:text-base font-medium">
+            {landingPageDescription || "Selecionamos a dedo as melhores opções que se encaixam no seu estilo de vida. Carros 100% periciados com garantia de procedência e as melhores condições para você."}
+          </p>
+        </div>
+      ) : null}
 
       {!isLandingPage && featuredCars.length > 0 && (
         <div className="relative w-full h-[60vh] md:h-[75vh] max-h-[720px] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 animate-fadeIn group">

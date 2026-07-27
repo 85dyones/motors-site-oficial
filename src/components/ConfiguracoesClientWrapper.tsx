@@ -1981,8 +1981,46 @@ export default function ConfiguracoesClientWrapper() {
                       </>
                     )}
 
-                    {/* Custom Landing Page Description */}
+                    {/* Banner Mode Selector (Image background option for manual categories, Carousel for all) */}
                     <div className="flex flex-col gap-1.5 sm:col-span-2 border-t border-brand-border/40 pt-3">
+                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                        Modo de Exibição do Banner no Topo da Landing Page
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bannerMode: "carousel" } : null)}
+                          className={`h-10 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                            (editingQuickTag?.bannerMode || "carousel") === "carousel"
+                              ? "bg-brand-primary border-brand-primary text-white shadow-md"
+                              : "bg-brand-card border-brand-border text-brand-text/75 hover:border-brand-primary/40"
+                          }`}
+                        >
+                          <span>🚗 Carrossel / Lista de Veículos</span>
+                        </button>
+                        
+                        {editingQuickTag?.field === "manual" ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bannerMode: "image" } : null)}
+                            className={`h-10 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                              editingQuickTag?.bannerMode === "image"
+                                ? "bg-brand-primary border-brand-primary text-white shadow-md"
+                                : "bg-brand-card border-brand-border text-brand-text/75 hover:border-brand-primary/40"
+                            }`}
+                          >
+                            <span>🖼️ Foto de Fundo Customizada</span>
+                          </button>
+                        ) : (
+                          <div className="h-10 px-3 rounded-xl text-[9px] font-medium text-brand-text/40 bg-brand-bg/40 border border-brand-border/40 flex items-center justify-center text-center">
+                            <span>(Foto customizada exclusiva para categorias manuais)</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Custom Landing Page Description */}
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
                       <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
                         Descrição da Landing Page (Customizada)
                       </label>
@@ -1995,47 +2033,49 @@ export default function ConfiguracoesClientWrapper() {
                       />
                     </div>
 
-                    {/* Custom Landing Page Background Image */}
-                    <div className="flex flex-col gap-1.5 sm:col-span-2">
-                      <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
-                        Imagem de Fundo do Banner da Landing Page (URL ou Upload)
-                      </label>
-                      <div className="flex flex-col sm:flex-row items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="https://exemplo.com/imagem-fundo.jpg"
-                          value={editingQuickTag?.bgImageUrl || ""}
-                          onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: e.target.value } : null)}
-                          className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full placeholder-brand-text/30"
-                        />
-                        <label className="h-10 px-4 bg-brand-card hover:bg-brand-primary/10 border border-brand-border hover:border-brand-primary/40 text-brand-text text-[10px] font-bold uppercase tracking-widest rounded-xl flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95">
-                          {isUploadingTagBg ? "Enviando..." : "📁 Enviar Imagem"}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            disabled={isUploadingTagBg}
-                            onChange={handleTagBgUpload}
-                          />
+                    {/* Custom Landing Page Background Image (Shown when bannerMode is image on manual category) */}
+                    {editingQuickTag?.field === "manual" && editingQuickTag?.bannerMode === "image" && (
+                      <div className="flex flex-col gap-1.5 sm:col-span-2 animate-fadeIn">
+                        <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
+                          Imagem de Fundo do Banner (URL ou Upload)
                         </label>
-                      </div>
-                      {editingQuickTag?.bgImageUrl && (
-                        <div className="relative w-full h-28 rounded-xl overflow-hidden border border-brand-border/60 mt-1">
-                          <img
-                            src={editingQuickTag.bgImageUrl}
-                            alt="Preview de Fundo"
-                            className="w-full h-full object-cover"
+                        <div className="flex flex-col sm:flex-row items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="https://exemplo.com/imagem-fundo.jpg"
+                            value={editingQuickTag?.bgImageUrl || ""}
+                            onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: e.target.value } : null)}
+                            className="bg-brand-card border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full placeholder-brand-text/30"
                           />
-                          <button
-                            type="button"
-                            onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: "" } : null)}
-                            className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold px-2.5 py-1 rounded-md shadow-md"
-                          >
-                            Remover Imagem
-                          </button>
+                          <label className="h-10 px-4 bg-brand-card hover:bg-brand-primary/10 border border-brand-border hover:border-brand-primary/40 text-brand-text text-[10px] font-bold uppercase tracking-widest rounded-xl flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95">
+                            {isUploadingTagBg ? "Enviando..." : "📁 Enviar Imagem"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={isUploadingTagBg}
+                              onChange={handleTagBgUpload}
+                            />
+                          </label>
                         </div>
-                      )}
-                    </div>
+                        {editingQuickTag?.bgImageUrl && (
+                          <div className="relative w-full h-28 rounded-xl overflow-hidden border border-brand-border/60 mt-1">
+                            <img
+                              src={editingQuickTag.bgImageUrl}
+                              alt="Preview de Fundo"
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setEditingQuickTag(prev => prev ? { ...prev, bgImageUrl: "" } : null)}
+                              className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold px-2.5 py-1 rounded-md shadow-md"
+                            >
+                              Remover Imagem
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-2 mt-2">

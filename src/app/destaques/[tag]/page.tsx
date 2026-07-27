@@ -114,6 +114,7 @@ export default async function DestaquesPage({ params }: PageProps) {
         landingPageTitle={tagName} 
         landingPageDescription={matchedTag?.description}
         landingPageBgImage={matchedTag?.bgImageUrl}
+        landingPageBannerMode={matchedTag?.bannerMode || (matchedTag?.field === "manual" && matchedTag?.bgImageUrl ? "image" : "carousel")}
       />
     </div>
   );
