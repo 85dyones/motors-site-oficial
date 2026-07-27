@@ -992,7 +992,7 @@ export default function HeroSection({
             </div>
           )}
 
-          {displayCars.length > 0 && (
+          {!isLandingPage && displayCars.length > 0 && (
             <div className="relative w-full h-[55vh] md:h-[70vh] max-h-[680px] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 group">
               {/* Carousel Slide Wrapper */}
               <div className="relative w-full h-full">
