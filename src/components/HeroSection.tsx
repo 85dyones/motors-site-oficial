@@ -950,7 +950,7 @@ export default function HeroSection({
     <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-6 md:gap-8">
       
       {/* 1. HERO CAROUSEL / SLIDER / LANDING PAGE BANNER */}
-      {isLandingPage && isImageBanner ? (
+      {isLandingPage && isImageBanner && activeBgImage ? (
         /* Custom Photo Hero Banner (For Manual Categories with Custom Image) */
         <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-zinc-950 shadow-2xl mb-2 border border-brand-border/40 animate-fadeIn min-h-[220px] md:min-h-[300px] flex items-center justify-center">
           <Image
