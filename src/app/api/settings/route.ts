@@ -192,8 +192,8 @@ export async function POST(request: Request) {
     
     // Invalidate the settings cache tag on Edge
     try {
-      revalidateTag("site_settings");
-      revalidateTag("settings");
+      revalidateTag("site_settings", "max");
+      revalidateTag("settings", "max");
     } catch (rErr) {
       console.warn("[Settings API] revalidateTag failed:", rErr);
     }
