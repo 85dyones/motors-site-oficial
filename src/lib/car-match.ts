@@ -1,5 +1,14 @@
 import { getEstoque, Veiculo } from "./supabase";
 
+export function calculateMatchScore(veiculo: Veiculo, queryTags: string[]): number {
+  if (queryTags.length === 0) return 100;
+  const vehicleTags = getVehicleTags(veiculo);
+  const normalizedQuery = queryTags.map(t => t.toLowerCase().trim());
+  const matchCount = normalizedQuery.filter(t => vehicleTags.includes(t)).length;
+  // Base score from tag matching (0-70) + budget proximity bonus (30)
+  return Math.min(100, Math.round((matchCount / normalizedQuery.length) * 70 + 30));
+}
+
 export interface MatchOptions {
   tags?: string[];
   budget?: number;
@@ -104,7 +113,7 @@ export function getVehicleTags(veiculo: Veiculo): string[] {
 /**
  * Core query helper to retrieve, filter, and prioritize premium recommendations.
  */
-export async function matchVehicles(options: MatchOptions): Promise<Veiculo[]> {
+export async function matchVehicles(options: MatchOptions): Promise<(Veiculo & { score?: number })[]> {
   const { tags = [], budget } = options;
   const estoque = await getEstoque();
 
@@ -149,5 +158,8 @@ export async function matchVehicles(options: MatchOptions): Promise<Veiculo[]> {
 
     // Secondary sorting: highest price first (Premium preference)
     return precoB - precoA;
-  });
+  }).map(veiculo => ({
+    ...veiculo,
+    score: calculateMatchScore(veiculo, tags)
+  }));
 }

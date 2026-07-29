@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { matchVehicles } from "../../../lib/car-match";
+import { matchVehicles, calculateMatchScore } from "../../../lib/car-match";
 import { logCarMatchQueried, logApiTelemetry } from "../../../lib/telemetry";
 
 export const dynamic = "force-dynamic";
@@ -36,8 +36,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 3. Query inventory (from live 'veiculos' table mapped in supabase.ts)
     const matched = await matchVehicles({ tags, budget });
     
-    // 4. Return top 3 premium recommendations
-    const top3 = matched.slice(0, 3);
+    // 4. Return top 6 premium recommendations
+    const top6 = matched.slice(0, 6);
+    const matchedVehicles = top6.map(v => ({
+      ...v,
+      matchScore: calculateMatchScore(v, tags)
+    }));
     
     // 5. Extract agUid from cookies or query parameters
     const cookieStore = await cookies();
@@ -47,8 +51,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     logCarMatchQueried({
       tags,
       maxBudget: budget,
-      resultsCount: top3.length,
-      matchedVehicles: top3.map((v) => `${v.marca} ${v.modelo} (ID: ${v.id})`),
+      resultsCount: top6.length,
+      matchedVehicles: top6.map((v) => `${v.marca} ${v.modelo} (ID: ${v.id})`),
       agUid,
     });
     
@@ -56,8 +60,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       NextResponse.json({
         success: true,
         filters: { tags, budget },
-        count: top3.length,
-        recommendations: top3,
+        count: top6.length,
+        matchedVehicles,
       })
     );
   } catch (error: any) {
@@ -103,8 +107,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // 3. Query inventory (from live 'veiculos' table mapped in supabase.ts)
     const matched = await matchVehicles({ tags, budget });
     
-    // 4. Return top 3 premium recommendations
-    const top3 = matched.slice(0, 3);
+    // 4. Return top 6 premium recommendations
+    const top6 = matched.slice(0, 6);
+    const matchedVehicles = top6.map(v => ({
+      ...v,
+      matchScore: calculateMatchScore(v, tags)
+    }));
     
     // 5. Extract agUid from cookies or request body
     const cookieStore = await cookies();
@@ -114,8 +122,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     logCarMatchQueried({
       tags,
       maxBudget: budget,
-      resultsCount: top3.length,
-      matchedVehicles: top3.map((v) => `${v.marca} ${v.modelo} (ID: ${v.id})`),
+      resultsCount: top6.length,
+      matchedVehicles: top6.map((v) => `${v.marca} ${v.modelo} (ID: ${v.id})`),
       agUid,
     });
     
@@ -123,8 +131,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       NextResponse.json({
         success: true,
         filters: { tags, budget },
-        count: top3.length,
-        recommendations: top3,
+        count: top6.length,
+        matchedVehicles,
       })
     );
   } catch (error: any) {
