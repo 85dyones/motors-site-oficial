@@ -79,5 +79,5 @@ export const getCachedSettings = unstable_cache(
     };
   },
   ["site-settings"],
-  { revalidate: 3600, tags: ["site_settings"] }
+  { revalidate: 10, tags: ["site_settings", "settings"] }
 );

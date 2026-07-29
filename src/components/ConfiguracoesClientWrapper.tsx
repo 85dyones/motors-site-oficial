@@ -2096,7 +2096,10 @@ export default function ConfiguracoesClientWrapper() {
                           ...editingQuickTag,
                           id: isCreatingQuickTag ? generatedId : editingQuickTag.id,
                           operator: isManual ? "none" : editingQuickTag.operator,
-                          value: isManual ? "" : editingQuickTag.value
+                          value: isManual ? "" : editingQuickTag.value,
+                          description: editingQuickTag.description || "",
+                          bgImageUrl: editingQuickTag.bgImageUrl || "",
+                          bannerMode: editingQuickTag.bannerMode || (editingQuickTag.bgImageUrl ? "image" : "carousel")
                         };
                         
                         const exists = quickTags.some(t => t.id === tagToSave.id);

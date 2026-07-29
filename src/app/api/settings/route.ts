@@ -32,7 +32,13 @@ import { getCachedSettings } from "../../../lib/settings";
 
 export async function GET() {
   const data = await getCachedSettings();
-  return NextResponse.json(data);
+  return NextResponse.json(data, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0"
+    }
+  });
 }
 
 export async function POST(request: Request) {
@@ -185,7 +191,12 @@ export async function POST(request: Request) {
     console.log("[Settings API] Settings saved to Supabase successfully. Invalidating cache...");
     
     // Invalidate the settings cache tag on Edge
-    revalidateTag("settings", "max");
+    try {
+      revalidateTag("site_settings");
+      revalidateTag("settings");
+    } catch (rErr) {
+      console.warn("[Settings API] revalidateTag failed:", rErr);
+    }
 
     // 4. Optional local JSON file backup write (errors here are non-critical)
     try {
