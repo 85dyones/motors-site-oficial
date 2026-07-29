@@ -951,16 +951,30 @@ export default function HeroSection({
       
       {/* 1. HERO CAROUSEL / SLIDER / LANDING PAGE BANNER */}
       {isLandingPage && isImageBanner && activeBgImage ? (
-        /* Custom Photo Hero Banner (For Manual Categories with Custom Image) */
+        /* Custom Photo Hero Banner */
         <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-zinc-950 shadow-2xl mb-2 border border-brand-border/40 animate-fadeIn min-h-[220px] md:min-h-[300px] flex items-center justify-center">
-          <Image
-            src={activeBgImage}
-            alt={`Carros ${landingPageTitle || currentTag?.name || ''}`}
-            fill
-            priority
-            className="object-cover object-center filter brightness-90 transition-transform duration-[10000ms] ease-out hover:scale-105"
-            sizes="100vw"
-          />
+          {/* Use native <img> for data URIs or unknown external hosts; Next.js <Image> for optimizable sources */}
+          {activeBgImage.startsWith("data:") ? (
+            <img
+              src={activeBgImage}
+              alt={`Carros ${landingPageTitle || currentTag?.name || ''}`}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+              className="absolute inset-0 w-full h-full object-cover object-center filter brightness-90"
+            />
+          ) : (
+            <Image
+              src={activeBgImage}
+              alt={`Carros ${landingPageTitle || currentTag?.name || ''}`}
+              fill
+              priority
+              fetchPriority="high"
+              unoptimized={!activeBgImage.includes("supabase.co") && !activeBgImage.includes("s3.carro57.com.br")}
+              className="object-cover object-center filter brightness-90"
+              sizes="100vw"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/35" />
 
           <div className="relative z-10 w-full py-10 md:py-16 px-6 sm:px-12 flex flex-col items-center justify-center text-center max-w-4xl mx-auto gap-3.5">
