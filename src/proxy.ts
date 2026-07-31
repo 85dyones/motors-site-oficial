@@ -8,6 +8,7 @@ const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 let ratelimit: Ratelimit | null = null;
+let capiRatelimit: Ratelimit | null = null;
 
 if (redisUrl && redisToken) {
   try {
@@ -15,12 +16,22 @@ if (redisUrl && redisToken) {
       url: redisUrl,
       token: redisToken,
     });
-    
+
     ratelimit = new Ratelimit({
       redis: redis,
       limiter: Ratelimit.slidingWindow(5, "1 h"), // 5 requests per 1 hour
       analytics: true,
       prefix: "@upstash/ratelimit",
+    });
+
+    // /api/capi é chamado a cada PDP visitada (ViewContent), não a cada
+    // envio de formulário — precisa de uma janela bem mais generosa que
+    // o limite de leads, só para conter flood/abuso do endpoint público.
+    capiRatelimit = new Ratelimit({
+      redis: redis,
+      limiter: Ratelimit.slidingWindow(60, "1 h"), // 60 requests per 1 hour
+      analytics: true,
+      prefix: "@upstash/ratelimit/capi",
     });
     console.log("[Middleware] Rate limiting active with Upstash Redis");
   } catch (e) {
@@ -37,7 +48,7 @@ export async function proxy(request: NextRequest) {
       try {
         const ip = (request as any).ip || request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
         const { success, limit, reset, remaining } = await ratelimit.limit(`ratelimit_${path}_${ip}`);
-        
+
         if (!success) {
           return NextResponse.json(
             { error: "Muitas requisições enviadas a partir deste IP. Limite de 5 envios por hora excedido." },
@@ -53,6 +64,23 @@ export async function proxy(request: NextRequest) {
         }
       } catch (err) {
         console.error("[RateLimit] Upstash Redis query failed. Bypassing check:", err);
+      }
+    }
+  }
+
+  // 1.5. Apply a looser rate limit to the public CAPI mirror endpoint
+  if (request.method === "POST" && path === "/api/capi") {
+    if (capiRatelimit) {
+      try {
+        const ip = (request as any).ip || request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
+        const { success } = await capiRatelimit.limit(`ratelimit_${path}_${ip}`);
+
+        if (!success) {
+          // 204 silencioso: não vazar que o rate limit foi atingido para um endpoint público.
+          return new NextResponse(null, { status: 204 });
+        }
+      } catch (err) {
+        console.error("[RateLimit] Upstash Redis query failed for /api/capi. Bypassing check:", err);
       }
     }
   }
@@ -169,6 +197,7 @@ export const config = {
   matcher: [
     "/api/leads",
     "/api/avaliacao",
+    "/api/capi",
     "/admin/:path*",
     "/api/financeiro/:path*",
     "/api/users/:path*",

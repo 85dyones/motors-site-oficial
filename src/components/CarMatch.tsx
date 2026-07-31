@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { getEstoque, Veiculo } from "../lib/supabase";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackCarMatch } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 
@@ -216,6 +217,22 @@ export default function CarMatch() {
 
     const finalMsg = `Olá! Vi que você montou seu perfil no nosso Match de Garagem buscando um veículo focado em ${formatObjective(answers.objective)} até R$ ${formatShort(answers.budgetMax)}. Separei excelentes opções para o seu perfil. Podemos conversar?`;
 
+    // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
+    // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).
+    // Sem veículo específico aqui (é uma curadoria), então não há content_ids.
+    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const eventId = trackLeadSubmission(
+      { marca: "CarMatch", modelo: "Curadoria Especial", preco: answers.budgetMax },
+      finalMsg,
+      {
+        googleAdsId: companySettings?.googleAdsId,
+        googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
+        email: leadData.email,
+        phoneE164
+      }
+    );
+    const { fbp, fbc } = getMatchParams();
+
     const payload = {
       remoteJid,
       telefone: formattedPhone,
@@ -247,7 +264,11 @@ export default function CarMatch() {
         aiQuery: aiQuery || "",
         budgetTab: budgetTab
       },
-      agUid: agUid
+      agUid: agUid,
+      eventId,
+      eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      fbp,
+      fbc
     };
 
     try {
@@ -283,6 +304,7 @@ export default function CarMatch() {
     }
 
     const whatsappUrl = `https://wa.me/${companySettings?.whatsappRaw || ""}?text=${encodeURIComponent(finalMsg)}`;
+    trackContactClick("whatsapp", "CarMatch - Conversão WhatsApp");
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

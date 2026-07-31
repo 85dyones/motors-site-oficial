@@ -23,6 +23,24 @@ export default function IntegrationsTracker() {
   const initializedGA4 = useRef(false);
   const initializedMeta = useRef(false);
   const initializedGAds = useRef(false);
+  const isFirstPathnameRun = useRef(true);
+
+  // Persist _fbc por 90 dias se veio fbclid na URL e o cookie ainda não existe.
+  // Independe de consentimento de analytics: é apenas a captura do parâmetro de
+  // clique do próprio anúncio que trouxe a visita, para não perder o dado antes
+  // do usuário aceitar (o evento em si só é enviado depois, já gated por consentimento).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+      if (fbclid && !document.cookie.includes("_fbc=")) {
+        const fbc = `fb.1.${Date.now()}.${fbclid}`;
+        document.cookie = `_fbc=${fbc}; path=/; max-age=7776000; SameSite=Lax`;
+      }
+    } catch (e) {
+      console.warn("[IntegrationsTracker] Failed to persist _fbc cookie:", e);
+    }
+  }, []);
 
   useEffect(() => {
     const checkAndInitTrackors = () => {
@@ -87,7 +105,9 @@ export default function IntegrationsTracker() {
       }
 
       // 2. Meta Pixel Initialization
-      if (metaPixelId && !initializedMeta.current) {
+      if (!metaPixelId) {
+        console.warn("[IntegrationsTracker] metaPixelId ausente em companySettings — Meta Pixel NÃO será inicializado. Configurar em site_settings (Supabase).");
+      } else if (!initializedMeta.current) {
         try {
           console.log(`[IntegrationsTracker] Initializing Meta Pixel with ID: ${metaPixelId}`);
 
@@ -125,6 +145,15 @@ export default function IntegrationsTracker() {
   // Track dynamic PageView changes when pathname changes
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    // The first run coincides with the initial mount/init above, which already
+    // sends its own PageView (via fbq('track','PageView') and gtag('config', ...)).
+    // Skip it here to avoid double-counting; only real pathname changes should fire.
+    if (isFirstPathnameRun.current) {
+      isFirstPathnameRun.current = false;
+      return;
+    }
+
     const consent = localStorage.getItem("ag_cookie_consent");
     if (consent !== "accepted") return;
 

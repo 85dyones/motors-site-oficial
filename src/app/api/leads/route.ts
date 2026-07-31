@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { logLeadCaptured } from "../../../lib/telemetry";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
+import { getCachedSettings } from "../../../lib/settings";
+import { sendCapiEvent } from "../../../lib/meta-capi";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +134,42 @@ export async function POST(request: NextRequest) {
       }
     } catch (webhookError: any) {
       console.warn(`[Webhook n8n Proxy] Network/fetch error (non-blocking): ${webhookError.message}`);
+    }
+
+    // 5.5 Meta CAPI — espelha o evento Lead disparado no browser (mesmo event_id = dedup)
+    // Non-blocking: falha de CAPI nunca pode travar o retorno ao cliente.
+    try {
+      const { companySettings } = await getCachedSettings();
+      const pixelId = companySettings?.metaPixelId || null;
+
+      if (pixelId && body.eventId) {
+        await sendCapiEvent({
+          eventName: "Lead",
+          eventId: body.eventId,
+          eventSourceUrl: body.eventSourceUrl || null,
+          userData: {
+            email: cliente.email || null,
+            phone: rawWhatsapp || null,
+            fbp: body.fbp || null,
+            fbc: body.fbc || null,
+            externalId: resolvedAgUid,
+            clientIpAddress:
+              request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+              request.headers.get("x-real-ip"),
+            clientUserAgent: request.headers.get("user-agent"),
+          },
+          customData: {
+            content_ids: veiculo?.id ? [String(veiculo.id)] : undefined,
+            content_type: "product",
+            content_name: veiculo ? `${veiculo.marca} ${veiculo.modelo}` : undefined,
+            value: veiculo?.preco,
+            currency: "BRL",
+          },
+          pixelId,
+        });
+      }
+    } catch (capiError) {
+      console.warn("[Meta CAPI] Falha não-bloqueante no lead:", capiError);
     }
 
     // 6. Invoke Telemetry Hook

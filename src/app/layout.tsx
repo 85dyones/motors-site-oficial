@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AntigravityTracker from "../components/AntigravityTracker";
@@ -71,41 +70,14 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let ga4Id = "G-CZ4B4RYF61";
-  try {
-    const { companySettings } = await getCachedSettings();
-    if (companySettings?.ga4Id?.trim()) {
-      ga4Id = companySettings.ga4Id.trim();
-    }
-  } catch (e) {
-    // Fallback default
-  }
-
   return (
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        {/* Google Tag (gtag.js) */}
-        {ga4Id && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${ga4Id}`}
-              strategy="afterInteractive"
-            />
-            <Script id="google-gtag-init" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){window.dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${ga4Id}');
-              `}
-            </Script>
-          </>
-        )}
-      </head>
+      {/* GA4/Meta/Google Ads são inicializados exclusivamente pelo <IntegrationsTracker />,
+          que respeita o consentimento de cookies (ag_cookie_consent). Não duplicar aqui. */}
       <body className="min-h-full flex flex-col bg-brand-bg text-brand-text font-sans transition-colors duration-300">
         {/* Anti-Flicker: blocking inline script restores theme BEFORE first paint */}
         <script

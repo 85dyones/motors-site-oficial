@@ -8,6 +8,7 @@ import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
 import type { Veiculo } from "../types";
 import { useTheme } from "../app/ThemeContext";
 import { getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { getMatchParams } from "../lib/tracking-identity";
 import { findMatchingQuickTag } from "../lib/tagUtils";
 import SearchConsole from "./SearchConsole";
 import FilterConsole from "./FilterConsole";
@@ -839,6 +840,22 @@ export default function HeroSection({
     const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
     const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
 
+    // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
+    // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
+    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const eventId = trackLeadSubmission({
+      id: activeVehicle.id,
+      marca: activeVehicle.marca,
+      modelo: activeVehicle.modelo,
+      preco: activeVehicle.preco_promocional > 0 ? activeVehicle.preco_promocional : activeVehicle.preco_original
+    }, activeMessage, {
+      googleAdsId: companySettings?.googleAdsId,
+      googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
+      email: leadData.email,
+      phoneE164
+    });
+    const { fbp, fbc } = getMatchParams();
+
     const payload = {
       remoteJid,
       telefone: formattedPhone,
@@ -865,7 +882,11 @@ export default function HeroSection({
       },
       utm: utmParams,
       intencao_busca: {},
-      agUid: agUid
+      agUid: agUid,
+      eventId,
+      eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      fbp,
+      fbc
     };
 
     // Dispatch lead via secure server proxy api
@@ -886,16 +907,6 @@ export default function HeroSection({
       }
     } catch (fetchError: any) {
       console.warn("[Lead Submit] Network error (non-blocking):", fetchError.message);
-    }
-
-    if (activeVehicle) {
-      // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel
-      trackLeadSubmission({
-        id: activeVehicle.id,
-        marca: activeVehicle.marca,
-        modelo: activeVehicle.modelo,
-        preco: activeVehicle.preco_promocional > 0 ? activeVehicle.preco_promocional : activeVehicle.preco_original
-      }, activeMessage);
     }
 
     // Save lead to history

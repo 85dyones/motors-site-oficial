@@ -5,6 +5,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString } from "../lib/supabase";
 import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
@@ -154,12 +155,36 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     console.log(`[Antigravity Log] PageView iniciada para o veículo: ${veiculo.marca} ${veiculo.modelo} ID: ${veiculo.id}`);
 
     // Dispara telemetria de visualização do item no GA4/Meta Pixel
-    trackVehicleView({
+    const viewEventId = trackVehicleView({
       id: veiculo.id,
       marca: veiculo.marca,
       modelo: veiculo.modelo,
       preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original
     });
+
+    // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)
+    if (viewEventId) {
+      const { fbp, fbc } = getMatchParams();
+      fetch("/api/capi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventName: "ViewContent",
+          eventId: viewEventId,
+          eventSourceUrl: window.location.href,
+          fbp,
+          fbc,
+          externalId: uid,
+          customData: {
+            content_ids: [veiculo.id],
+            content_type: "product",
+            content_name: `${veiculo.marca} ${veiculo.modelo}`,
+            value: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original,
+            currency: "BRL"
+          }
+        })
+      }).catch((err) => console.warn("[CAPI] ViewContent dispatch failed (non-blocking):", err));
+    }
 
     // Track seen vehicle history for homepage personalization
     if (typeof window !== "undefined") {
@@ -262,6 +287,22 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
     const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
 
+    // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
+    // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
+    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const eventId = trackLeadSubmission({
+      id: veiculo.id,
+      marca: veiculo.marca,
+      modelo: veiculo.modelo,
+      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original
+    }, activeMessage, {
+      googleAdsId: companySettings?.googleAdsId,
+      googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
+      email: leadData.email,
+      phoneE164
+    });
+    const { fbp, fbc } = getMatchParams();
+
     const payload = {
       remoteJid,
       telefone: formattedPhone,
@@ -294,7 +335,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         utm_content: utmParams.utm_content
       },
       intencao_busca: {},
-      agUid: agUid
+      agUid: agUid,
+      eventId,
+      eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      fbp,
+      fbc
     };
 
     // Dispatch lead via secure server proxy api
@@ -316,14 +361,6 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     } catch (fetchError: any) {
       console.warn("[Lead Submit PDP] Network error (non-blocking):", fetchError.message);
     }
-
-    // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel
-    trackLeadSubmission({
-      id: veiculo.id,
-      marca: veiculo.marca,
-      modelo: veiculo.modelo,
-      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original
-    }, activeMessage);
 
     // Save lead to history
     try {

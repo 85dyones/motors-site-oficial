@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackAppraisalSubmit } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import Turnstile from "./Turnstile";
 import { useTheme } from "../app/ThemeContext";
@@ -590,6 +591,22 @@ export default function AutoAvaliacao() {
     const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
     const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
 
+    // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
+    // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
+    const fipeNumericValue = fipeValor ? Number(fipeValor.replace(/[^\d]/g, "")) / 100 : 0;
+    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const eventId = trackLeadSubmission(
+      { marca: step1.marca, modelo: step1.modelo, preco: fipeNumericValue },
+      activeMessage,
+      {
+        googleAdsId: companySettings?.googleAdsId,
+        googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
+        email: leadData.email,
+        phoneE164
+      }
+    );
+    const { fbp, fbc } = getMatchParams();
+
     const payload = {
       remoteJid,
       telefone: formattedPhone,
@@ -615,7 +632,11 @@ export default function AutoAvaliacao() {
       },
       utm: utmParams,
       intencao_busca: {},
-      agUid: agUid
+      agUid: agUid,
+      eventId,
+      eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      fbp,
+      fbc
     };
 
     // Dispatch lead via secure server proxy api
@@ -667,6 +688,7 @@ export default function AutoAvaliacao() {
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
+    trackContactClick("whatsapp", "Avaliação - Conversão WhatsApp");
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

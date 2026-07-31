@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getActiveAgUid, getUtmParameters } from "../lib/telemetry";
+import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
+import { generateEventId, getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
 
 export default function ContatoClientWrapper() {
-  const { webhooks } = useTheme();
+  const { webhooks, companySettings } = useTheme();
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -27,20 +28,30 @@ export default function ContatoClientWrapper() {
     setStatus("sending");
 
     const utmParams = getUtmParameters();
+    // Gerado antes do POST para poder ser reaproveitado no pixel do browser
+    // (que só dispara depois de confirmado o sucesso, mais abaixo) — mesmo
+    // event_id nos dois lados garante a deduplicação no Meta.
+    const eventId = generateEventId("Lead");
+    const { fbp, fbc } = getMatchParams();
+
     const payload = {
       agUid,
       timestamp: new Date().toISOString(),
-      tipoLead: "contato_mensagem",
-      nome: name,
-      email,
-      telefone: phone,
+      tipo: "contato_mensagem",
+      canal: "Formulário Contato",
       mensagem: message,
+      cliente: {
+        nome: name,
+        email,
+        whatsapp: phone
+      },
       utm: utmParams,
-      intencao_busca: {}
+      intencao_busca: {},
+      eventId,
+      eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      fbp,
+      fbc
     };
-
-    // Telemetry log
-    console.log("📈 [Antigravity Telemetry] Novo Lead de Contato Enviado:", payload);
 
     try {
       const response = await fetch("/api/leads", {
@@ -51,22 +62,33 @@ export default function ContatoClientWrapper() {
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        setStatus("success");
-        // Clear inputs
-        setName("");
-        setEmail("");
-        setPhone("");
-        setMessage("");
-      } else {
-        console.warn("[Webhook] Resposta com erro do servidor:", response.statusText);
-        // Fallback to success visually but log warning, or set error
-        setStatus("success"); // We fallback to success so user doesn't get blocked by mock url failures, but let's log it
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.warn("[Contato] API retornou erro:", errorData?.error || response.status);
+        setStatus("error");
+        return;
       }
-    } catch (error) {
-      console.error("[Webhook] Falha de conexão ao enviar lead:", error);
-      // Fallback to success visually since the webhook might be offline/mock during testing, but log warning
+
+      // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel, reaproveitando o event_id
+      const phoneDigits = phone.replace(/\D/g, "");
+      const phoneE164 = phoneDigits ? `+${phoneDigits.length === 10 || phoneDigits.length === 11 ? `55${phoneDigits}` : phoneDigits}` : null;
+      trackLeadSubmission({ marca: "Contato", modelo: "Formulário Geral", preco: 0 }, message, {
+        presetEventId: eventId,
+        googleAdsId: companySettings?.googleAdsId,
+        googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
+        email,
+        phoneE164
+      });
+
       setStatus("success");
+      // Clear inputs
+      setName("");
+      setEmail("");
+      setPhone("");
+      setMessage("");
+    } catch (error) {
+      console.error("[Contato] Falha de conexão ao enviar lead:", error);
+      setStatus("error");
     }
   };
 
@@ -97,6 +119,11 @@ export default function ContatoClientWrapper() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            {status === "error" && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-600 text-[11px] font-medium leading-relaxed px-4 py-3 rounded-xl">
+                Não foi possível enviar sua mensagem agora. Tente novamente ou fale com a gente pelo WhatsApp.
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="name-input" className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
                 Nome Completo

@@ -1,3 +1,9 @@
+import { generateEventId } from "./tracking-identity";
+
+// Vertical do catálogo Meta Commerce Manager usado pela Motors Store.
+// Trocar para "vehicle" se o catálogo migrar de vertical (decisão em aberto).
+export const META_CONTENT_TYPE = "product";
+
 export interface TelemetryLeadPayload {
   marca: string;
   modelo: string;
@@ -156,12 +162,29 @@ export function getUtmParameters(): UtmParameters {
   return result;
 }
 
-export function trackLeadSubmission(vehicle: { id?: string; marca: string; modelo: string; preco: number }, message: string) {
-  if (typeof window === "undefined") return;
-  
+export interface TrackLeadOptions {
+  // Aceita um event_id já gerado (ex: quando o caller precisa do mesmo ID
+  // no payload do CAPI antes de confirmar que o pixel do browser deve disparar).
+  presetEventId?: string;
+  // Google Ads Enhanced Conversions — omitir quaisquer dos dois desativa o envio.
+  googleAdsId?: string | null;
+  googleAdsConversionLabel?: string | null;
+  email?: string | null;
+  phoneE164?: string | null; // formato +5541999998888 (COM o "+" — diferente do Meta)
+}
+
+export function trackLeadSubmission(
+  vehicle: { id?: string; marca: string; modelo: string; preco: number },
+  message: string,
+  options?: TrackLeadOptions
+): string | null {
+  if (typeof window === "undefined") return null;
+
   try {
     const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return;
+    if (consent !== "accepted") return null;
+
+    const eventId = options?.presetEventId || generateEventId("Lead");
 
     // Google Analytics 4 Event
     if (window.gtag) {
@@ -173,27 +196,48 @@ export function trackLeadSubmission(vehicle: { id?: string; marca: string; model
       });
     }
 
-    // Meta Pixel Event
-    if (window.fbq) {
-      window.fbq("track", "Lead", {
-        content_name: `${vehicle.marca} ${vehicle.modelo}`,
+    // Google Ads Enhanced Conversions — requer "Conversões otimizadas" ativado
+    // no painel do Google Ads, senão o user_data é descartado silenciosamente.
+    if (window.gtag && options?.googleAdsId && options?.googleAdsConversionLabel) {
+      window.gtag("set", "user_data", {
+        email: options.email || undefined,
+        phone_number: options.phoneE164 || undefined,
+      });
+      window.gtag("event", "conversion", {
+        send_to: `${options.googleAdsId}/${options.googleAdsConversionLabel}`,
         value: vehicle.preco,
-        currency: "BRL"
+        currency: "BRL",
+        transaction_id: eventId, // mesmo ID do Meta, evita dupla atribuição da conversão
       });
     }
 
-    console.log(`[Telemetry Tracking] Event Logged: Lead - ${vehicle.marca} ${vehicle.modelo}`);
+    // Meta Pixel Event
+    if (window.fbq) {
+      window.fbq("track", "Lead", {
+        content_ids: vehicle.id ? [vehicle.id] : undefined,
+        content_type: META_CONTENT_TYPE,
+        content_name: `${vehicle.marca} ${vehicle.modelo}`,
+        value: vehicle.preco,
+        currency: "BRL"
+      }, { eventID: eventId });
+    }
+
+    console.log(`[Telemetry Tracking] Event Logged: Lead - ${vehicle.marca} ${vehicle.modelo} (${eventId})`);
+    return eventId;
   } catch (err) {
     console.warn("[Telemetry Tracking] Failed to log lead event:", err);
+    return null;
   }
 }
 
-export function trackVehicleView(vehicle: { id: string; marca: string; modelo: string; preco: number }) {
-  if (typeof window === "undefined") return;
-  
+export function trackVehicleView(vehicle: { id: string; marca: string; modelo: string; preco: number }): string | null {
+  if (typeof window === "undefined") return null;
+
   try {
     const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return;
+    if (consent !== "accepted") return null;
+
+    const eventId = generateEventId("ViewContent");
 
     // Google Analytics 4 Event
     if (window.gtag) {
@@ -212,24 +256,29 @@ export function trackVehicleView(vehicle: { id: string; marca: string; modelo: s
     if (window.fbq) {
       window.fbq("track", "ViewContent", {
         content_ids: [vehicle.id],
+        content_type: META_CONTENT_TYPE,
         content_name: `${vehicle.marca} ${vehicle.modelo}`,
         value: vehicle.preco,
         currency: "BRL"
-      });
+      }, { eventID: eventId });
     }
 
-    console.log(`[Telemetry Tracking] Event Logged: ViewContent - ${vehicle.marca} ${vehicle.modelo}`);
+    console.log(`[Telemetry Tracking] Event Logged: ViewContent - ${vehicle.marca} ${vehicle.modelo} (${eventId})`);
+    return eventId;
   } catch (err) {
     console.warn("[Telemetry Tracking] Failed to log view item event:", err);
+    return null;
   }
 }
 
-export function trackAppraisalSubmit(category: string, brand: string, model: string, year: string, fipe: number) {
-  if (typeof window === "undefined") return;
-  
+export function trackAppraisalSubmit(category: string, brand: string, model: string, year: string, fipe: number): string | null {
+  if (typeof window === "undefined") return null;
+
   try {
     const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return;
+    if (consent !== "accepted") return null;
+
+    const eventId = generateEventId("CompleteRegistration");
 
     // Google Analytics 4 Event
     if (window.gtag) {
@@ -248,21 +297,25 @@ export function trackAppraisalSubmit(category: string, brand: string, model: str
         content_name: `Avaliacao ${category} - ${brand} ${model}`,
         value: fipe,
         currency: "BRL"
-      });
+      }, { eventID: eventId });
     }
 
-    console.log(`[Telemetry Tracking] Event Logged: CompleteRegistration - Appraisal ${category}`);
+    console.log(`[Telemetry Tracking] Event Logged: CompleteRegistration - Appraisal ${category} (${eventId})`);
+    return eventId;
   } catch (err) {
     console.warn("[Telemetry Tracking] Failed to log registration event:", err);
+    return null;
   }
 }
 
-export function trackCarMatch(tags: string[], resultsCount: number) {
-  if (typeof window === "undefined") return;
-  
+export function trackCarMatch(tags: string[], resultsCount: number): string | null {
+  if (typeof window === "undefined") return null;
+
   try {
     const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return;
+    if (consent !== "accepted") return null;
+
+    const eventId = generateEventId("Search");
 
     // Google Analytics 4 Event
     if (window.gtag) {
@@ -277,21 +330,25 @@ export function trackCarMatch(tags: string[], resultsCount: number) {
       window.fbq("track", "Search", {
         search_string: tags.join(", "),
         content_category: "CarMatch Recommendation"
-      });
+      }, { eventID: eventId });
     }
 
-    console.log(`[Telemetry Tracking] Event Logged: Search - CarMatch`);
+    console.log(`[Telemetry Tracking] Event Logged: Search - CarMatch (${eventId})`);
+    return eventId;
   } catch (err) {
     console.warn("[Telemetry Tracking] Failed to log search event:", err);
+    return null;
   }
 }
 
-export function trackContactClick(method: "whatsapp" | "phone", label: string = "") {
-  if (typeof window === "undefined") return;
-  
+export function trackContactClick(method: "whatsapp" | "phone", label: string = ""): string | null {
+  if (typeof window === "undefined") return null;
+
   try {
     const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return;
+    if (consent !== "accepted") return null;
+
+    const eventId = generateEventId("Contact");
 
     // Google Analytics 4 Event
     if (window.gtag) {
@@ -306,12 +363,14 @@ export function trackContactClick(method: "whatsapp" | "phone", label: string = 
       window.fbq("track", "Contact", {
         content_name: label,
         content_category: method
-      });
+      }, { eventID: eventId });
     }
 
-    console.log(`[Telemetry Tracking] Event Logged: Contact Click - ${method}`);
+    console.log(`[Telemetry Tracking] Event Logged: Contact Click - ${method} (${eventId})`);
+    return eventId;
   } catch (err) {
     console.warn("[Telemetry Tracking] Failed to log contact click event:", err);
+    return null;
   }
 }
 

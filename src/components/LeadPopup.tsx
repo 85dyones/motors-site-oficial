@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getActiveAgUid, getUtmParameters } from "../lib/telemetry";
+import { getActiveAgUid, getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
 
 // ─── Default Configurations ───
@@ -237,6 +238,22 @@ export default function LeadPopup() {
     if (activeCampaign.actionType === "whatsapp") {
       const leadMessage = resolvePlaceholders(activeCampaign.actionTarget);
 
+      // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
+      // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
+      const eventId = trackLeadSubmission(
+        vehicle
+          ? { id: vehicle.id, marca: vehicle.marca, modelo: vehicle.modelo, preco: vehicle.preco }
+          : { marca: "Lead Popup", modelo: activeCampaign.name, preco: 0 },
+        leadMessage,
+        {
+          googleAdsId: companySettings?.googleAdsId,
+          googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
+          email: null,
+          phoneE164: null
+        }
+      );
+      const { fbp, fbc } = getMatchParams();
+
       // Dispatch to webhook via secure server proxy
       fetch("/api/leads", {
         method: "POST",
@@ -268,6 +285,10 @@ export default function LeadPopup() {
           },
           intencao_busca: { popup_campaign: activeCampaign.name },
           agUid,
+          eventId,
+          eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
+          fbp,
+          fbc,
         }),
       }).catch((err) => console.warn("[Webhook] Lead Popup campaign dispatch failed:", err));
 
@@ -276,6 +297,7 @@ export default function LeadPopup() {
         ? settings.whatsappNumber
         : companySettings.whatsappRaw;
       const whatsappUrl = `https://wa.me/${targetNumber}?text=${encodeURIComponent(leadMessage)}`;
+      trackContactClick("whatsapp", "Lead Popup - Conversão WhatsApp");
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
 
     } else if (activeCampaign.actionType === "link") {
