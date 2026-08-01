@@ -79,6 +79,12 @@ export default function Footer() {
               >
                 MATCH DE GARAGEM
               </Link>
+              <Link
+                href="/privacidade"
+                className="text-xs text-brand-text/75 hover:text-brand-primary uppercase tracking-wider transition-colors duration-200"
+              >
+                PRIVACIDADE & LGPD
+              </Link>
             </nav>
           </div>
 

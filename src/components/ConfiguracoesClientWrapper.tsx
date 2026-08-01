@@ -2843,6 +2843,24 @@ export default function ConfiguracoesClientWrapper() {
                     </p>
                   </div>
 
+                  {/* E-mail de contato para LGPD */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label htmlFor="input-privacy-email" className="text-[9px] font-bold text-brand-text/75 uppercase tracking-widest">
+                      E-mail para Solicitações de Privacidade (LGPD)
+                    </label>
+                    <input
+                      id="input-privacy-email"
+                      type="email"
+                      value={companyForm.privacyContactEmail || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, privacyContactEmail: e.target.value })}
+                      placeholder="privacidade@motorsstore.com.br"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                    <p className="text-[10px] text-brand-text/70 font-light leading-relaxed">
+                      Canal por onde clientes pedem acesso, correção ou exclusão dos dados deles. Exibido na página <code className="font-mono text-brand-primary">/privacidade</code>. A LGPD exige um canal de contato identificado — se ficar vazio, a página direciona para o formulário de contato como alternativa.
+                    </p>
+                  </div>
+
                   {/* GA4 / Google Tag ID */}
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="input-ga4-id" className="text-[9px] font-bold text-brand-text/75 uppercase tracking-widest">

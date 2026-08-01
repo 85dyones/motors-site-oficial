@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 export default function CookieConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
@@ -52,7 +53,14 @@ export default function CookieConsentBanner() {
 
       {/* Description */}
       <p className="text-[11px] text-brand-text/75 leading-relaxed">
-        A Motors Store utiliza cookies e outras tecnologias semelhantes para melhorar a sua experiência, otimizar a navegação, personalizar publicidade (Google e Meta Pixel) e analisar o tráfego do portal. Ao aceitar, você concorda com o uso dessas tags sob a nossa política de privacidade e em conformidade com a LGPD.
+        A Motors Store utiliza cookies e outras tecnologias semelhantes para melhorar a sua experiência, otimizar a navegação, personalizar publicidade (Google e Meta Pixel) e analisar o tráfego do portal. Ao aceitar, você concorda com o uso dessas tags conforme a nossa{" "}
+        <Link
+          href="/privacidade"
+          className="text-brand-primary hover:text-brand-primary-hover underline underline-offset-2 font-medium"
+        >
+          Política de Privacidade
+        </Link>
+        , em conformidade com a LGPD. Recusar não impede o uso do site.
       </p>
 
       {/* Action Buttons */}

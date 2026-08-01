@@ -30,6 +30,8 @@ export interface CompanySettings {
   faviconUrl?: string;
   logoUrl?: string;
   isCustom?: boolean;
+  /** Canal de contato para solicitações de titular de dados (LGPD Art. 18/41). Exibido em /privacidade. */
+  privacyContactEmail?: string;
   ga4Id?: string;
   gtmId?: string;
   metaPixelId?: string;
