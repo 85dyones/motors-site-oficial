@@ -13,14 +13,24 @@ declare global {
   }
 }
 
+// O painel admin aceita tanto o ID puro ("GTM-TB665RN9") quanto o snippet
+// completo colado do Google Tag Manager. Extrai só o ID e descarta o resto —
+// o valor é interpolado dentro de um <script>, então nada além do ID entra.
+function sanitizeGtmId(raw: string): string {
+  const match = raw.match(/GTM-[A-Z0-9]+/i);
+  return match ? match[0].toUpperCase() : "";
+}
+
 export default function IntegrationsTracker() {
   const { companySettings } = useTheme();
   const pathname = usePathname();
   const ga4Id = companySettings?.ga4Id || "G-CZ4B4RYF61";
+  const gtmId = sanitizeGtmId(companySettings?.gtmId || "");
   const metaPixelId = companySettings?.metaPixelId || "";
   const googleAdsId = companySettings?.googleAdsId || "";
-  
+
   const initializedGA4 = useRef(false);
+  const initializedGTM = useRef(false);
   const initializedMeta = useRef(false);
   const initializedGAds = useRef(false);
   const isFirstPathnameRun = useRef(true);
@@ -76,6 +86,30 @@ export default function IntegrationsTracker() {
           initializedGA4.current = true;
         } catch (e) {
           console.error("[IntegrationsTracker] Failed to initialize GA4:", e);
+        }
+      }
+
+      // 1.2. Google Tag Manager (container)
+      // ATENÇÃO: GA4, Google Ads e Meta Pixel já são carregados diretamente aqui
+      // neste mesmo componente. NÃO configurar essas mesmas tags dentro do
+      // container do GTM — os eventos disparariam duas vezes. Use o GTM apenas
+      // para tags de terceiros que não passam por este arquivo.
+      if (gtmId && !initializedGTM.current) {
+        try {
+          console.log(`[IntegrationsTracker] Initializing GTM with ID: ${gtmId}`);
+
+          const script = document.createElement("script");
+          script.innerHTML = `
+            (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','${gtmId}');
+          `;
+          document.head.appendChild(script);
+          initializedGTM.current = true;
+        } catch (e) {
+          console.error("[IntegrationsTracker] Failed to initialize GTM:", e);
         }
       }
 
@@ -140,7 +174,7 @@ export default function IntegrationsTracker() {
     return () => {
       window.removeEventListener("ag-cookie-consent-updated", checkAndInitTrackors);
     };
-  }, [ga4Id, metaPixelId]);
+  }, [ga4Id, gtmId, metaPixelId, googleAdsId]);
 
   // Track dynamic PageView changes when pathname changes
   useEffect(() => {

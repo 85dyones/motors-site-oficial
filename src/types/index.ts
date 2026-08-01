@@ -31,6 +31,7 @@ export interface CompanySettings {
   logoUrl?: string;
   isCustom?: boolean;
   ga4Id?: string;
+  gtmId?: string;
   metaPixelId?: string;
   googleAdsId?: string;
   googleAdsConversionLabel?: string;

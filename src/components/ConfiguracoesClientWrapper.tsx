@@ -2861,6 +2861,26 @@ export default function ConfiguracoesClientWrapper() {
                     </p>
                   </div>
 
+                  {/* Google Tag Manager ID */}
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="input-gtm-id" className="text-[9px] font-bold text-brand-text/75 uppercase tracking-widest">
+                      ID do Google Tag Manager (Opcional)
+                    </label>
+                    <input
+                      id="input-gtm-id"
+                      type="text"
+                      value={companyForm.gtmId || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, gtmId: e.target.value })}
+                      placeholder="GTM-TB665RN9"
+                      className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all font-mono"
+                    />
+                    <p className="text-[10px] text-brand-text/70 font-light leading-relaxed">
+                      Cole apenas o ID (ex: <code className="font-mono text-brand-primary">GTM-TB665RN9</code>) — se colar o snippet inteiro, o ID é extraído automaticamente. O container é injetado no &lt;head&gt; após o aceite de cookies.
+                      <br />
+                      <strong className="text-amber-500/90">Atenção:</strong> GA4, Google Ads e Meta Pixel já são carregados diretamente pelo site. Não recrie essas tags dentro do GTM ou os eventos vão contar em dobro.
+                    </p>
+                  </div>
+
                   {/* Meta Pixel ID */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[9px] font-bold text-brand-text/40 uppercase tracking-widest">
