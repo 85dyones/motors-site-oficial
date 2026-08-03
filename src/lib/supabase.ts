@@ -195,7 +195,7 @@ const formatPericia = (p: string, laudo?: string): string => {
 };
 
 /**
- * Maps a database row from the live `veiculos` table to the visual frontend interface `Veiculo`.
+ * Maps a database row from the live `estoque_motors` table to the visual frontend interface `Veiculo`.
  */
 export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   if (!dbItem) {
@@ -437,7 +437,7 @@ export async function getEstoque(): Promise<Veiculo[]> {
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
-        .from("veiculos")
+        .from("estoque_motors")
         .select("*")
         .order("preco", { ascending: false });
 
@@ -468,7 +468,7 @@ export async function getVeiculoById(id: string): Promise<Veiculo | null> {
     try {
       // First try to match string ID directly
       let { data, error } = await supabase
-        .from("veiculos")
+        .from("estoque_motors")
         .select("*")
         .eq("id", id)
         .maybeSingle();
@@ -477,7 +477,7 @@ export async function getVeiculoById(id: string): Promise<Veiculo | null> {
       if (!data && /^\d+$/.test(id)) {
         const numericId = parseInt(id, 10);
         const { data: numData } = await supabase
-          .from("veiculos")
+          .from("estoque_motors")
           .select("*")
           .eq("id", numericId)
           .maybeSingle();

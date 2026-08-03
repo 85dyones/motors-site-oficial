@@ -486,7 +486,7 @@ export default function ConfiguracoesClientWrapper() {
         if (Object.keys(dbUpdates).length > 0) {
           const targetId = /^\d+$/.test(id) ? parseInt(id, 10) : id;
           const { error } = await supabase
-            .from("veiculos")
+            .from("estoque_motors")
             .update(dbUpdates)
             .eq("id", targetId);
 

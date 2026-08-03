@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     // 2. Search for the vehicle in the database
     // Search by plate first
     let { data: veiculo } = await supabase
-      .from("veiculos")
+      .from("estoque_motors")
       .select("*")
       .ilike("placa", `%${query.trim()}%`)
       .limit(1)
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Fallback: search by exact ID
     if (!veiculo) {
       const isNumeric = /^\d+$/.test(query.trim());
-      let idQuery = supabase.from("veiculos").select("*");
+      let idQuery = supabase.from("estoque_motors").select("*");
       if (isNumeric) {
         idQuery = idQuery.eq("id", parseInt(query.trim(), 10));
       } else {
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Fallback: search by model or brand similarity
     if (!veiculo) {
       const { data: likeData } = await supabase
-        .from("veiculos")
+        .from("estoque_motors")
         .select("*")
         .or(`modelo.ilike.%${query.trim()}%,marca.ilike.%${query.trim()}%`)
         .limit(1)

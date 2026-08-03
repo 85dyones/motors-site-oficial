@@ -1,0 +1,30 @@
+-- ==========================================================
+-- PASSO 4 do cutover — remover a view de compatibilidade
+-- ==========================================================
+--
+-- ⚠️  ESTE ARQUIVO NÃO ESTÁ EM `supabase/migrations/` DE PROPÓSITO.
+--
+--     Se estivesse, `supabase db push` o aplicaria na mesma execução que cria
+--     a view (migração 20260803120100) — derrubando a compatibilidade no
+--     mesmo instante em que ela é criada, e com ela o sync do n8n. A janela de
+--     segurança do cutover deixaria de existir.
+--
+-- APLICAR SOMENTE DEPOIS de confirmar o passo 3 do runbook: o nó Supabase do
+-- workflow "Antigravity - Sincronizador de Estoque" em n8n.v2o5.com.br
+-- apontando para `estoque_motors`, com pelo menos um ciclo de sync bem
+-- sucedido (o schedule roda a cada 6h).
+--
+-- Como confirmar antes de aplicar — se este SELECT retornar 0, o sync ainda
+-- não gravou nada desde o cutover e é cedo demais:
+--
+--     SELECT count(*) FROM public.estoque_motors
+--     WHERE created_at > now() - interval '7 hours';
+--
+--     (ajuste a coluna se o schema real não tiver `created_at` —
+--      AUDITORIA.md §5.3 ainda em aberto)
+--
+-- Ao aplicar, mova este arquivo para `supabase/migrations/` com um timestamp
+-- novo, para que o histórico registre a remoção.
+-- ==========================================================
+
+DROP VIEW IF EXISTS public.veiculos;

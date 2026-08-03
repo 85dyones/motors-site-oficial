@@ -1,6 +1,23 @@
 -- ==========================================================
 -- SCRIPT DE SCHEMA PARA DADOS DA EMPRESA E SOBRE (SITE SETTINGS)
--- Execute este script no SQL Editor do seu Dashboard do Supabase.
+-- ==========================================================
+--
+-- ⚠️  LEGADO — NÃO É MAIS O CAMINHO PADRÃO PARA ALTERAR SCHEMA.
+--
+--     Desde 2026-08-03 (Pacote 0.5) o projeto tem migrações versionadas em
+--     `supabase/migrations/`. CLAUDE.md:62 é explícito: "Migrações do Supabase
+--     são versionadas. Nunca altere schema direto pelo painel." Este arquivo
+--     nasceu do padrão oposto — colar no SQL Editor — e é o que a regra proíbe.
+--
+--     Mantido porque ainda é o único registro textual de 11 das 12 tabelas, e
+--     porque o schema real de produção nunca foi lido (AUDITORIA.md §5.3:
+--     credenciais vazias, MCP sem OAuth). Não é possível afirmar que este
+--     arquivo bate com o que está no ar.
+--
+--     Próximo passo, assim que houver credencial: `supabase db pull` para
+--     gerar um baseline verdadeiro e aposentar este arquivo de vez.
+--
+--     Até lá: mudanças de schema vão em `supabase/migrations/`, não aqui.
 -- ==========================================================
 
 -- 1. Criar a tabela 'site_settings'
@@ -167,34 +184,34 @@ ON CONFLICT (id) DO NOTHING;
 
 
 -- ==========================================================
--- 5. AJUSTES DA TABELA 'veiculos' (OPCIONAIS, LAUDO E RLS)
+-- 5. AJUSTES DA TABELA 'estoque_motors' (OPCIONAIS, LAUDO E RLS)
 -- Execute estas instruções para garantir que a tabela de veículos
 -- tenha as colunas customizadas do painel e as políticas RLS adequadas.
 -- ==========================================================
 
 -- Adicionar colunas customizadas do painel administrativo se não existirem
-ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS laudo_pericia text;
-ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS opcionais text;
-ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS tipo text;
-ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS perfil_uso text;
-ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS status_tag text;
-ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS status_tag_color text;
-ALTER TABLE public.veiculos ADD COLUMN IF NOT EXISTS vendido boolean DEFAULT false;
+ALTER TABLE public.estoque_motors ADD COLUMN IF NOT EXISTS laudo_pericia text;
+ALTER TABLE public.estoque_motors ADD COLUMN IF NOT EXISTS opcionais text;
+ALTER TABLE public.estoque_motors ADD COLUMN IF NOT EXISTS tipo text;
+ALTER TABLE public.estoque_motors ADD COLUMN IF NOT EXISTS perfil_uso text;
+ALTER TABLE public.estoque_motors ADD COLUMN IF NOT EXISTS status_tag text;
+ALTER TABLE public.estoque_motors ADD COLUMN IF NOT EXISTS status_tag_color text;
+ALTER TABLE public.estoque_motors ADD COLUMN IF NOT EXISTS vendido boolean DEFAULT false;
 
--- Habilitar o Row Level Security (RLS) na tabela 'veiculos'
-ALTER TABLE public.veiculos ENABLE ROW LEVEL SECURITY;
+-- Habilitar o Row Level Security (RLS) na tabela 'estoque_motors'
+ALTER TABLE public.estoque_motors ENABLE ROW LEVEL SECURITY;
 
--- Criar políticas para permitir leitura, inserção e atualização públicas na tabela 'veiculos'
-DROP POLICY IF EXISTS "Allow public read access" ON public.veiculos;
-CREATE POLICY "Allow public read access" ON public.veiculos
+-- Criar políticas para permitir leitura, inserção e atualização públicas na tabela 'estoque_motors'
+DROP POLICY IF EXISTS "Allow public read access" ON public.estoque_motors;
+CREATE POLICY "Allow public read access" ON public.estoque_motors
     FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Allow public update access" ON public.veiculos;
-CREATE POLICY "Allow public update access" ON public.veiculos
+DROP POLICY IF EXISTS "Allow public update access" ON public.estoque_motors;
+CREATE POLICY "Allow public update access" ON public.estoque_motors
     FOR UPDATE USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Allow public insert access" ON public.veiculos;
-CREATE POLICY "Allow public insert access" ON public.veiculos
+DROP POLICY IF EXISTS "Allow public insert access" ON public.estoque_motors;
+CREATE POLICY "Allow public insert access" ON public.estoque_motors
     FOR INSERT WITH CHECK (true);
 
 

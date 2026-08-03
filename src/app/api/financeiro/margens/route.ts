@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (veiculoId) {
       // Fetch specific vehicle details
       const { data: rawVeiculo } = await supabase
-        .from("veiculos")
+        .from("estoque_motors")
         .select("*")
         .eq("id", veiculoId)
         .single();
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       // Fetch all vehicles with transactions
       // 1. Fetch all vehicles to map details
       const { data: veiculos } = await supabase
-        .from("veiculos")
+        .from("estoque_motors")
         .select("id, marca, modelo, versao, ano, preco, preco_original, preco_promocional, vendido, preco_compra");
 
       // 1b. Fetch overrides from site_settings to support manual pricing input overrides

@@ -50,7 +50,7 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
     if (!vehicleId) return null;
     try {
       const { data } = await supabase
-        .from("veiculos")
+        .from("estoque_motors")
         .select("marca, modelo, ano")
         .eq("id", vehicleId)
         .maybeSingle();

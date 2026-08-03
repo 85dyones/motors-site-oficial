@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /**
  * GET Handler for Car Matching
  * Processes matching queries from incoming URL search parameters (tags and budget).
- * Targets the live `veiculos` database table (mapped to the frontend schema).
+ * Targets the live `estoque_motors` database table (mapped to the frontend schema).
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const budgetParam = searchParams.get("budget");
     const budget = budgetParam ? parseFloat(budgetParam) : undefined;
     
-    // 3. Query inventory (from live 'veiculos' table mapped in supabase.ts)
+    // 3. Query inventory (from live 'estoque_motors' table mapped in supabase.ts)
     const matched = await matchVehicles({ tags, budget });
     
     // 4. Return top 6 premium recommendations
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 /**
  * POST Handler for Car Matching
  * Processes matching queries from a JSON payload containing tags and budget.
- * Targets the live `veiculos` database table (mapped to the frontend schema).
+ * Targets the live `estoque_motors` database table (mapped to the frontend schema).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ? parseFloat(requestBody.budget as string)
       : undefined;
       
-    // 3. Query inventory (from live 'veiculos' table mapped in supabase.ts)
+    // 3. Query inventory (from live 'estoque_motors' table mapped in supabase.ts)
     const matched = await matchVehicles({ tags, budget });
     
     // 4. Return top 6 premium recommendations
