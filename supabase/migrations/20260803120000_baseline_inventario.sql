@@ -6,40 +6,43 @@
 -- CLAUDE.md:62 ("migrações são versionadas") — havia apenas
 -- `supabase_schema.sql`, um script de colar no SQL Editor do painel.
 --
--- Esta migração versiona a ÚNICA tabela que nunca esteve sob controle de
--- versão nenhum: a de inventário. `supabase_schema.sql` só a altera
--- (ALTER TABLE ... ADD COLUMN IF NOT EXISTS), nunca a cria — ela nasceu
--- fora do repositório, criada à mão no painel ou pelo n8n.
+-- Versiona a ÚNICA tabela que nunca esteve sob controle de versão nenhum: a de
+-- inventário. `supabase_schema.sql` só a altera (ALTER TABLE ... ADD COLUMN IF
+-- NOT EXISTS), nunca a cria — ela nasceu fora do repositório.
 --
--- ⚠️  SCHEMA RECONSTRUÍDO, NÃO VERIFICADO CONTRA PRODUÇÃO.
---     AUDITORIA.md §5.3 continua em aberto: o banco não foi inspecionado
---     (credenciais Supabase vazias em `.env.local`, MCP exige OAuth).
---     Cada coluna abaixo traz a origem de onde foi inferida. Os TIPOS são
---     a parte mais frágil da inferência — especialmente `id` e os campos
---     de imagem.
+-- ✅ SCHEMA VERIFICADO CONTRA PRODUÇÃO em 2026-08-03.
+--    Projeto `zwbqmzgnagfeqinqkolp`, 78 linhas, 27 colunas.
+--    Resolve AUDITORIA.md §5.3.
 --
---     Assim que houver acesso ao banco, rode `supabase db pull` e
---     substitua este arquivo pelo schema real. Até lá, `IF NOT EXISTS`
---     garante que esta migração seja NO-OP em produção, onde a tabela já
---     existe: ela serve para criar bancos de dev/teste, não para alterar
---     o que está no ar.
+--    A primeira versão deste arquivo era uma RECONSTRUÇÃO inferida do workflow
+--    n8n e das colunas lidas pelo código, e estava errada em 4 pontos —
+--    declarava `placa`, `fipe` e `preco_compra`, que NÃO existem, e omitia
+--    `created_at`, que existe. Corrigida aqui contra o banco real.
 --
--- Fontes da reconstrução:
---   (n8n)    workflow "Antigravity - Sincronizador de Estoque (veiculos)",
---            nó Code → nó Supabase `Create a row` com autoMapInputData
---   (ALTER)  supabase_schema.sql:176-182
---   (app)    colunas lidas pelo código mas ausentes do sync
+--    Correção segura: em produção esta migração foi NO-OP (a tabela já
+--    existia, e `IF NOT EXISTS` a preservou). Editar o arquivo não altera o
+--    que está no ar — só corrige a criação de bancos de dev e teste.
+--    Se algum dia `supabase db push` reclamar de histórico, resolver com
+--    `supabase migration repair --status applied 20260803120000`.
+--
+-- ⚠️  RESSALVA — tipos das colunas de imagem.
+--    Nomes de coluna e tipos foram lidos do banco via PostgREST, que devolve
+--    `jsonb` e `text[]` da mesma forma: um array JSON. `whatsapp_images` e
+--    `web_full_images` podem ser qualquer um dos dois. Rodar
+--    `supabase link` + `supabase db pull` resolve em definitivo — agora é
+--    possível, as credenciais existem.
 -- ==========================================================
 
 CREATE TABLE IF NOT EXISTS public.veiculos (
-    -- (n8n) `id = parseInt(carro.ID)` — o ID do ANÚNCIO no RevendaMais.
-    -- Não é chassi, não é placa, não é UUID. O código convive com ambiguidade
-    -- de tipo: getVeiculoById tenta string e depois número
-    -- (src/lib/supabase.ts:470-485) e `contas.veiculo_id` é TEXT.
-    -- ⚠️ tipo inferido de parseInt — confirmar contra produção.
+    -- `id = parseInt(carro.ID)` no workflow n8n — o ID do ANÚNCIO no
+    -- RevendaMais. Não é chassi, não é placa, não é UUID.
+    -- Verificado: valores como 7950008. O código convive com ambiguidade de
+    -- tipo (getVeiculoById tenta string e depois número, src/lib/supabase.ts),
+    -- e `contas.veiculo_id` é TEXT — o join já é frouxo.
     id                 bigint PRIMARY KEY,
 
-    -- (n8n) identificação e ficha técnica
+    -- Identificação e ficha técnica. Gravadas em minúsculas pelo sync; a
+    -- capitalização para exibição acontece no mapper, não no banco.
     marca              text,
     modelo             text,
     versao             text,
@@ -50,81 +53,86 @@ CREATE TABLE IF NOT EXISTS public.veiculos (
     combustivel        text,
     cor                text,
 
-    -- (n8n) preços. `preco_compra` NÃO vem do sync — ver bloco (app) abaixo.
+    -- Preços.
     preco              numeric,
     preco_original     numeric,
     preco_promocional  numeric,
 
-    -- (n8n) mídia e conversão.
-    -- ⚠️ jsonb inferido de o nó n8n inserir arrays JSON e de o mapper fazer
-    --    Array.isArray() (src/lib/supabase.ts:223-229). Pode ser text[].
+    -- Mídia e conversão. Imagens hospedadas no S3 do RevendaMais
+    -- (s3.carro57.com.br). Ver ressalva sobre o tipo, no cabeçalho.
     url_imagem         text,
     link_conversao     text,
     whatsapp_images    jsonb,
     web_full_images    jsonb,
 
-    -- (n8n) conteúdo
+    -- Conteúdo.
     pericia            text,
     descricao          text,
 
-    -- (n8n + ALTER) classificação. Gravadas pelo sync E pelo painel admin.
+    -- Classificação. Gravadas pelo sync E pelo painel admin.
     tipo               text,
     perfil_uso         text,
 
-    -- (ALTER) supabase_schema.sql:176-182 — colunas do painel administrativo
+    -- Colunas do painel administrativo (supabase_schema.sql:176-182).
+    -- Verificado: as quatro estão NULL em toda a amostra — o painel existe,
+    -- mas essas quatro nunca foram preenchidas em produção.
     laudo_pericia      text,
     opcionais          text,
     status_tag         text,
     status_tag_color   text,
+
     vendido            boolean DEFAULT false,
 
-    -- (app) lidas pelo código, ausentes do sync do RevendaMais.
-    -- `placa`: o front declara no tipo Veiculo mas usa o default "V-REF100"
-    --   quando ausente (src/lib/supabase.ts:358) — indício forte de coluna
-    --   vazia em produção. AUDITORIA.md §5.3.
-    -- `preco_compra`: custo de aquisição, lido em /api/financeiro/margens.
-    --   Nunca exposto ao front, por decisão de segurança.
-    -- `fipe`: lido pelo mapper.
-    placa              text,
-    preco_compra       numeric,
-    fipe               text
+    created_at         timestamptz DEFAULT now()
 );
 
-COMMENT ON TABLE public.veiculos IS
-    'Inventário, espelho do feed XML do RevendaMais (sync n8n a cada 6h). '
-    'Schema reconstruído no baseline 20260803120000 e ainda NÃO verificado '
-    'contra produção — ver AUDITORIA.md §5.3.';
+-- ----------------------------------------------------------
+-- 🔴 Colunas que o código lê e que NÃO EXISTEM no banco
+-- ----------------------------------------------------------
+--
+-- Deliberadamente NÃO criadas aqui. O baseline registra o que existe; criá-las
+-- para "consertar" as queries seria mudar produção por baixo de uma decisão que
+-- não é minha — e as duas primeiras quebram funcionalidade real hoje:
+--
+--   `preco_compra`  — /api/financeiro/margens seleciona esta coluna
+--                     explicitamente. A query FALHA inteira:
+--                     "column estoque_motors.preco_compra does not exist".
+--                     O painel de margens não lista nada.
+--
+--   `placa`         — /api/financeiro/margens/consulta busca por placa com
+--                     .ilike("placa", ...). A query falha, mas o código
+--                     ignora o `error` e cai no fallback por ID — falha
+--                     SILENCIOSA, a busca por placa nunca funcionou.
+--
+--   `fipe`          — lida pelo mapper, que já tem default ("Consulta Fipe").
+--                     Inofensiva.
+--
+-- Nenhuma delas é regressão do rename: nunca existiram. O rename só tornou o
+-- erro visível, porque forçou a primeira verificação real do schema.
+--
+-- Decisão pendente do dono: criar as colunas e popular, ou remover as leituras
+-- do código. Fora do escopo do Pacote 0.5.
 
 -- ----------------------------------------------------------
--- RLS — preservada exatamente como está em produção
+-- RLS — preservada como está em produção
 -- ----------------------------------------------------------
 --
 -- 🔴 RISCO DE PRODUÇÃO CONHECIDO — AUDITORIA.md §3.4.
 --
 -- Estas políticas são `USING (true)` sem restrição de role. A anon key é
 -- pública por natureza (vai no bundle do browser), então como está escrito
--- QUALQUER PESSOA pode alterar preço, marcar veículo como vendido ou
--- inserir veículos.
+-- QUALQUER PESSOA pode alterar preço, marcar veículo como vendido ou inserir
+-- veículos.
 --
--- Isso NÃO é acidente de configuração: o painel admin depende disso —
--- ConfiguracoesClientWrapper.tsx:489 faz .update() do lado do cliente com a
--- anon key. Fechar a policy quebra o painel de estoque. Corrigir exige mover
--- essa escrita para uma API route com service role.
+-- Não é acidente: o painel admin depende disso —
+-- ConfiguracoesClientWrapper.tsx faz .update() do lado do cliente com a anon
+-- key. Fechar a policy quebra o painel. Corrigir exige mover a escrita para
+-- uma API route com service role.
 --
--- Reproduzido aqui de propósito: o baseline registra o que existe, não o que
--- deveria existir. Corrigir é decisão do dono, fora do escopo do Pacote 0.5.
---
--- ⚠️  MAS NÃO SOBRESCREVE.
---
---     A auditoria registra que produção "pode ter sido endurecida à mão" e que
---     isso não é verificável sem acesso ao banco (§3.4). Se alguém já fechou
---     essas policies, um `DROP POLICY` + `CREATE POLICY ... USING (true)` cego
---     aqui REABRIRIA a brecha — silenciosamente, no meio de um `db push`, sob
---     o nome inofensivo de "baseline".
---
---     Por isso o bloco abaixo só age se a tabela ainda NÃO tiver policy
---     nenhuma. Numa base nova ele reproduz o estado atual; numa produção já
---     endurecida ele não toca em nada.
+-- ⚠️  NÃO SOBRESCREVE. Se alguém já endureceu essas policies à mão, um
+--     DROP POLICY + CREATE ... USING (true) cego aqui REABRIRIA a brecha,
+--     em silêncio, no meio de um `db push`, sob o nome de "baseline".
+--     Por isso o bloco abaixo só age se não houver policy nenhuma.
 
 ALTER TABLE public.veiculos ENABLE ROW LEVEL SECURITY;
 
@@ -149,3 +157,7 @@ BEGIN
 
     RAISE NOTICE 'Policies publicas de veiculos criadas (estado atual reproduzido).';
 END $$;
+
+COMMENT ON TABLE public.veiculos IS
+    'Inventário, espelho do feed XML do RevendaMais (sync n8n a cada 6h). '
+    'Schema verificado contra produção em 2026-08-03.';

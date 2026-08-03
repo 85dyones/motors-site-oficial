@@ -116,19 +116,54 @@ E reverter o deploy do código. Depois do passo 4, o workflow n8n já estará em
 
 ---
 
-## Pendências que bloqueiam o Pacote 1
+## Estado do cutover — verificado em 2026-08-03
 
-Herdadas de `AUDITORIA.md` e **não resolvidas** no Pacote 0.5:
+Migrações aplicadas com sucesso. Verificado por consulta direta ao banco
+(somente leitura), não pela mensagem de sucesso do `db push`:
 
-- **§5.3 — o schema real de `estoque_motors` é desconhecido.** O baseline é
-  reconstruído a partir do workflow n8n, dos `ALTER TABLE` de
-  `supabase_schema.sql` e das colunas lidas pelo código. Os tipos são a parte
-  mais frágil. Rodar `supabase db pull` e substituir o baseline assim que
-  houver credencial.
-- **§5.6 — qual projeto Supabase é produção.** `CLAUDE.md:21` diz
-  `lanatcqpskcmifuxfatn`; `.mcp.json` diz `zwbqmzgnagfeqinqkolp`. **Resolver
-  antes de rodar `db push`** — é a diferença entre migrar produção e migrar
-  outra coisa.
-- **`.env.local` com 15 de 18 variáveis vazias**, incluindo as do Supabase.
-- **§5.7 — testes de RLS** (Pacote 1) exigem instância Supabase de teste, local
-  via CLI ou branch do projeto. Decisão de infra ainda em aberto.
+| Verificação | Resultado |
+|---|---|
+| `estoque_motors` existe, com dados reais | ✅ 78 linhas, 27 colunas |
+| A tabela é a original renomeada, não uma criada pelo baseline | ✅ tem `created_at`, coluna que o baseline não criava |
+| View de compatibilidade `veiculos` responde | ✅ mesmas 78 linhas, mesmas colunas |
+| `getEstoque()` da vitrine funciona | ✅ retorna estoque real |
+
+**Passos 3 e 4 continuam pendentes** — o workflow n8n ainda aponta para o nome
+antigo, e é a view de compatibilidade que o mantém funcionando. Enquanto ela
+existir, o cutover parece completo sem estar.
+
+## Resolvido no cutover
+
+- **§5.6 — qual projeto é produção: `zwbqmzgnagfeqinqkolp`.** É o que estava em
+  `.mcp.json`. **`CLAUDE.md:21` está errado** — diz `lanatcqpskcmifuxfatn`.
+  Como `CLAUDE.md` está no `.gitignore`, a correção não é versionável; vale
+  decidir se ele deveria sair de lá.
+- **§5.3 — schema real conhecido.** O baseline foi corrigido contra o banco.
+  A reconstrução original errava em 4 pontos: declarava `placa`, `fipe` e
+  `preco_compra`, que não existem, e omitia `created_at`.
+
+## 🔴 Dois bugs de produção que a verificação revelou
+
+Nenhum é regressão do rename — as colunas nunca existiram. O rename só forçou
+a primeira leitura real do schema, que os expôs.
+
+- **`/api/financeiro/margens`** seleciona `preco_compra` explicitamente. A query
+  falha inteira (`column estoque_motors.preco_compra does not exist`) e o painel
+  de margens não lista nada.
+- **`/api/financeiro/margens/consulta`** busca por `placa`, que também não
+  existe. Aqui a falha é **silenciosa**: o código ignora o `error` e cai no
+  fallback por ID. A busca por placa nunca funcionou.
+
+Decisão pendente: criar as colunas e popular, ou remover as leituras do código.
+
+## Pendências que ainda bloqueiam o Pacote 1
+
+- **§5.4 — onde está a base histórica de vendas e leads.** Nenhum lead é
+  persistido no Supabase; `/api/leads` e `/api/avaliacao` só repassam ao n8n.
+  Bloqueia o planejamento do mutirão do manual §3.3, não a criação do schema.
+- **§5.7 — testes de RLS** exigem instância Supabase de teste. O runner já
+  existe; falta o alvo. Docker não está instalado nesta máquina, então
+  `supabase start` exige instalar Docker Desktop — ou usar um segundo projeto
+  Supabase como alvo de teste.
+- **Tipo das colunas de imagem** (`whatsapp_images`, `web_full_images`):
+  PostgREST não distingue `jsonb` de `text[]`. `supabase db pull` resolve.
