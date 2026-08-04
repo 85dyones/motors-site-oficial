@@ -431,8 +431,61 @@ function applyLocalOverridesToSingle(v: Veiculo | null): Veiculo | null {
   return v;
 }
 
-// Helper to query the stock database from Supabase or Fallback to Mocks
-export async function getEstoque(): Promise<Veiculo[]> {
+/**
+ * Tolerância para agrupar linhas de um mesmo ciclo de sync.
+ *
+ * O n8n grava um veículo por requisição, então os carimbos de um mesmo ciclo
+ * ficam espalhados por alguns segundos. 30 minutos é folga de sobra para isso
+ * (45 requisições levam segundos) e curto o bastante para que o ciclo ANTERIOR,
+ * horas antes, fique de fora.
+ */
+const JANELA_MESMO_SYNC_MS = 30 * 60 * 1000;
+
+/**
+ * Descarta veículos que não vieram no ciclo de sync mais recente.
+ *
+ * O feed do RevendaMais é a fonte da verdade sobre o que está à venda, e o sync
+ * é upsert puro — quem sai do feed nunca é removido do banco. Em 2026-08-04 o
+ * feed tinha 45 veículos e a tabela 88: 43 anúncios de carros que a loja não
+ * lista mais, todos com `vendido = false`, todos visíveis no site.
+ *
+ * A comparação é contra o carimbo MAIS RECENTE DA PRÓPRIA TABELA, nunca contra
+ * `Date.now()`. O workflow n8n não tem agendamento (só gatilho manual), então
+ * um corte por relógio de parede esvaziaria o site em qualquer período sem
+ * ninguém rodar o sync. Assim, o pior caso é servir estoque velho — nunca
+ * estoque vazio.
+ */
+export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(linhas: T[]): T[] {
+  const carimbos = linhas
+    .map((l) => (l.last_seen_at ? new Date(l.last_seen_at).getTime() : NaN))
+    .filter((t) => !Number.isNaN(t));
+
+  // Nenhum carimbo: banco anterior à migração `last_seen_at`, ou sync ainda não
+  // rodou com o campo. Filtrar aqui esconderia o estoque inteiro — não filtra.
+  if (carimbos.length === 0) return linhas;
+
+  const maisRecente = Math.max(...carimbos);
+  const corte = maisRecente - JANELA_MESMO_SYNC_MS;
+
+  // Linha sem carimbo é mantida: pode ter sido inserida à mão pelo painel, e
+  // sumir do site em silêncio seria pior que aparecer indevidamente.
+  return linhas.filter((l) => {
+    if (!l.last_seen_at) return true;
+    return new Date(l.last_seen_at).getTime() >= corte;
+  });
+}
+
+/**
+ * Consulta o estoque no Supabase, com fallback para os mocks.
+ *
+ * Por padrão devolve só o que veio no último ciclo de sync — é o que o site
+ * público deve mostrar. O painel admin passa `incluirForaDoFeed: true`, porque
+ * lá os veículos que saíram do feed precisam continuar visíveis para serem
+ * marcados, conferidos na margem e auditados.
+ */
+export async function getEstoque(
+  opts: { incluirForaDoFeed?: boolean } = {}
+): Promise<Veiculo[]> {
   let list: Veiculo[] = [];
   if (isSupabaseConfigured && supabase) {
     try {
@@ -445,7 +498,18 @@ export async function getEstoque(): Promise<Veiculo[]> {
         console.warn("[Supabase] Query error, falling back to offline dataset:", error.message);
         list = MOCK_ESTOQUE;
       } else if (data && data.length > 0) {
-        list = data.map(mapVeiculoDbToVeiculo);
+        const visiveis = opts.incluirForaDoFeed ? data : apenasDoUltimoSync(data);
+        // O filtro nunca pode zerar a lista e derrubar o site no MOCK_ESTOQUE —
+        // 5 carros ficticios em producao. Se zerou, algo esta errado no carimbo:
+        // serve o que veio do banco e registra.
+        if (visiveis.length === 0) {
+          console.warn(
+            "[Supabase] Filtro de last_seen_at descartou todas as linhas; servindo o estoque completo."
+          );
+          list = data.map(mapVeiculoDbToVeiculo);
+        } else {
+          list = visiveis.map(mapVeiculoDbToVeiculo);
+        }
       } else {
         list = MOCK_ESTOQUE;
       }
@@ -457,7 +521,7 @@ export async function getEstoque(): Promise<Veiculo[]> {
     console.info("[Supabase] Client not configured. Serving high-fidelity local catalog.");
     list = MOCK_ESTOQUE;
   }
-  
+
   return applyLocalOverrides(list);
 }
 

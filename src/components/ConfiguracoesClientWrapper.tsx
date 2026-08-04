@@ -363,8 +363,12 @@ export default function ConfiguracoesClientWrapper() {
     async function loadData() {
       try {
         setLoading(true);
-        // Load stock from database client wrapper
-        const data = await getEstoque();
+        // Load stock from database client wrapper.
+        // `incluirForaDoFeed` — o painel precisa enxergar TAMBÉM os veículos que
+        // saíram do feed do RevendaMais. O site público não os mostra, mas é
+        // aqui que eles são marcados como vendidos e conferidos na margem;
+        // escondê-los deixaria o veículo inalcançável.
+        const data = await getEstoque({ incluirForaDoFeed: true });
         setVehicles(data);
       } catch (err) {
         console.error("Error loading settings panel stock:", err);
@@ -547,8 +551,8 @@ export default function ConfiguracoesClientWrapper() {
         console.log("[Telemetry] Todas as categorizações manuais foram removidas. Reset global concluído.");
         alert("Todos os veículos foram restaurados aos valores originais com sucesso!");
         
-        // Reload stock list
-        getEstoque().then((data) => setVehicles(data));
+        // Reload stock list — inclui os fora do feed, como no load inicial
+        getEstoque({ incluirForaDoFeed: true }).then((data) => setVehicles(data));
       } catch (e) {
         console.error("Failed to purge overrides:", e);
       }

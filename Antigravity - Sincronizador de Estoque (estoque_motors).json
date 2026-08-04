@@ -94,7 +94,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  id: $json.id,\n  marca: $json.marca,\n  modelo: $json.modelo,\n  versao: $json.versao,\n  ano: $json.ano,\n  ano_fabricacao: $json.ano_fabricacao,\n  preco: $json.preco,\n  preco_original: $json.preco_original,\n  preco_promocional: $json.preco_promocional,\n  quilometragem: $json.quilometragem,\n  cambio: $json.cambio,\n  combustivel: $json.combustivel,\n  cor: $json.cor,\n  tipo: $json.tipo,\n  perfil_uso: $json.perfil_uso,\n  url_imagem: $json.url_imagem,\n  link_conversao: $json.link_conversao,\n  pericia: $json.pericia,\n  descricao: $json.descricao,\n  whatsapp_images: $json.whatsapp_images,\n  web_full_images: $json.web_full_images\n}) }}",
+        "body": "={{ JSON.stringify({\n  id: $json.id,\n  marca: $json.marca,\n  modelo: $json.modelo,\n  versao: $json.versao,\n  ano: $json.ano,\n  ano_fabricacao: $json.ano_fabricacao,\n  preco: $json.preco,\n  preco_original: $json.preco_original,\n  preco_promocional: $json.preco_promocional,\n  quilometragem: $json.quilometragem,\n  cambio: $json.cambio,\n  combustivel: $json.combustivel,\n  cor: $json.cor,\n  tipo: $json.tipo,\n  perfil_uso: $json.perfil_uso,\n  url_imagem: $json.url_imagem,\n  link_conversao: $json.link_conversao,\n  pericia: $json.pericia,\n  descricao: $json.descricao,\n  whatsapp_images: $json.whatsapp_images,\n  web_full_images: $json.web_full_images,\n  last_seen_at: new Date().toISOString()\n}) }}",
         "options": {
           "response": {
             "response": {

@@ -54,13 +54,19 @@ const NAO_E_COLUNA = new Set([
 ]);
 
 /**
- * Colunas declaradas no `CREATE TABLE` do baseline.
+ * Colunas da tabela de inventário, montadas a partir do histórico completo de
+ * migrações — não só do baseline.
  *
- * O baseline cria a tabela com o nome ANTIGO (`veiculos`) — ele é anterior à
+ * O baseline cria a tabela com o nome ANTIGO (`veiculos`): ele é anterior à
  * migração de rename, e essa ordem é proposital (ver migracoes.test.ts). O
  * conjunto de colunas é o mesmo; o rename não mexe em coluna.
+ *
+ * Migrações posteriores somam (`ADD COLUMN`) e subtraem (`DROP COLUMN`). Ler só
+ * o baseline faria toda coluna nova nascer acusada de não existir — o guarda
+ * viraria obstáculo a mudança legítima de schema em vez de proteção. Seria o
+ * caso de `last_seen_at`, adicionada em 2026-08-04.
  */
-function colunasDoBaseline(): Set<string> {
+function colunasDaTabela(): Set<string> {
   const sql = readFileSync(BASELINE, "utf8");
   const inicio = sql.search(/CREATE TABLE IF NOT EXISTS public\.veiculos\s*\(/i);
   if (inicio < 0) throw new Error("CREATE TABLE do baseline não encontrado.");
@@ -76,6 +82,25 @@ function colunasDoBaseline(): Set<string> {
     const m = limpa.match(/^([a-z_][a-z0-9_]*)\s+\S/i);
     if (m && !NAO_E_COLUNA.has(m[1].toLowerCase())) colunas.add(m[1]);
   }
+
+  // Aplica as migrações seguintes em ordem cronológica — o nome começa com
+  // timestamp, então ordenar por nome é ordenar por tempo.
+  const dirMigracoes = join(RAIZ, "supabase", "migrations");
+  for (const arquivo of readdirSync(dirMigracoes).filter((f) => f.endsWith(".sql")).sort()) {
+    if (arquivo === "20260803120000_baseline_inventario.sql") continue;
+    const executavel = readFileSync(join(dirMigracoes, arquivo), "utf8")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n");
+
+    let m: RegExpExecArray | null;
+    const add = /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z_][a-z0-9_]*)/gi;
+    while ((m = add.exec(executavel)) !== null) colunas.add(m[1]);
+
+    const drop = /DROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?([a-z_][a-z0-9_]*)/gi;
+    while ((m = drop.exec(executavel)) !== null) colunas.delete(m[1]);
+  }
+
   return colunas;
 }
 
@@ -158,15 +183,21 @@ function colunasCitadas(arquivos: string[]): Citacao[] {
 }
 
 describe("colunas de estoque_motors citadas em queries", () => {
-  const colunas = colunasDoBaseline();
+  const colunas = colunasDaTabela();
   const citacoes = colunasCitadas(arquivosFonte(RAIZ_SRC));
 
-  it("o baseline foi lido — o conjunto de colunas não está vazio", () => {
+  it("o histórico de migrações foi lido — o conjunto de colunas não está vazio", () => {
     // Se o parser do CREATE TABLE quebrar, `colunas` vira vazio e TODA citação
     // viraria violação. O teste falharia ruidosamente, mas pelo motivo errado.
     expect(colunas.size).toBeGreaterThan(20);
     expect(colunas.has("preco")).toBe(true);
     expect(colunas.has("vendido")).toBe(true);
+  });
+
+  it("colunas de migrações posteriores ao baseline entram no conjunto", () => {
+    // Contraprova de que o histórico é aplicado, e não só o baseline: esta
+    // coluna nasceu em 20260804200000, depois do CREATE TABLE.
+    expect(colunas.has("last_seen_at")).toBe(true);
   });
 
   it("o scanner encontrou queries — a varredura não passa por vacuidade", () => {
