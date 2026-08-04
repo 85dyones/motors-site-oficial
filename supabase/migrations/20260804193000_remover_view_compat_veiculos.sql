@@ -1,0 +1,41 @@
+-- ==========================================================
+-- PASSO 4 do cutover — remover a view de compatibilidade
+-- ==========================================================
+--
+-- ✅ APLICADO EM PRODUÇÃO em 2026-08-04 pelo dono do projeto, à mão.
+--    Verificado por consulta direta ao PostgREST: `public.veiculos` responde
+--    404 / PGRST205 ("Could not find the table 'public.veiculos' in the schema
+--    cache") e `estoque_motors` segue servindo — 88 linhas no momento da
+--    verificação. O cutover do Pacote 0.5 se fecha aqui.
+--
+-- Este arquivo viveu em `supabase/pendente/` até ser aplicado, deliberadamente
+-- fora de `migrations/`: se estivesse dentro desde o início, o `supabase db
+-- push` do passo 2 teria aplicado a remoção na MESMA execução que cria a view,
+-- fechando a janela de compatibilidade no instante em que ela é aberta — e
+-- derrubando o sync de estoque do n8n junto. Movido para cá depois da
+-- aplicação, conforme o runbook em `supabase/README.md`, para que o histórico
+-- registre a remoção e um banco reconstruído do zero chegue ao estado final.
+--
+-- Ordem para quem reconstrói: baseline → rename (cria a view) → esta migração
+-- (remove a view). Estado final: só `estoque_motors`.
+--
+-- ⚠️  O QUE ESTA MIGRAÇÃO TORNA IRREVERSÍVEL DE GRAÇA.
+--
+--     Enquanto a view existia, os dois nomes funcionavam e o rollback era
+--     barato. A partir daqui, QUALQUER escrita que ainda aponte para o nome
+--     antigo falha. O consumidor externo que importa é o workflow n8n
+--     `Antigravity - Sincronizador de Estoque` (n8n.v2o5.com.br, a cada 6h) —
+--     ver passo 3 do runbook, que é manual e não é verificável a partir deste
+--     repositório: o JSON versionado é uma cópia exportada, não o workflow ao
+--     vivo.
+--
+--     Se o nó `Create a row` ainda disser `veiculos`, o sync para de gravar e
+--     NÃO reclama alto: o site segue servindo estoque cada vez mais velho.
+--     Como conferir sem abrir o n8n — se voltar 0 depois de passado um ciclo
+--     de 6h desde esta migração, o passo 3 não foi feito:
+--
+--         SELECT count(*) FROM public.estoque_motors
+--         WHERE created_at > now() - interval '7 hours';
+-- ==========================================================
+
+DROP VIEW IF EXISTS public.veiculos;

@@ -1,0 +1,187 @@
+{
+  "name": "Antigravity - Sincronizador de Estoque (estoque_motors)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "21db4745-759b-4ca5-8465-04c5f1096ee4",
+      "name": "Executar Manualmente",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        160,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://app.revendamais.com.br/application/index.php/apiGeneratorXml/companyFeed/id/7762/type/sitedaloja/hash/f8e2fefb37d235f028e056ccb6baa7ff.xml",
+        "options": {}
+      },
+      "id": "4fe57f33-31f5-4862-b5a6-b9605c69cb2a",
+      "name": "Buscar XML RevendaMais",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        384,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "59da4e08-7065-4907-a0e6-9e6b80b02a1c",
+      "name": "XML para JSON",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        608,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "ADS.AD",
+        "options": {}
+      },
+      "id": "c9a9bc74-3743-48e4-8403-3e0ad8e04b7e",
+      "name": "Separar Veículos",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        832,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const veiculos = $input.all();\nconst resultados = [];\n\nfunction deizarAmigavel(texto) {\n    if (!texto) return '';\n    return texto\n        .toString()\n        .normalize(\"NFD\")\n        .replace(/[\\u0300-\\u036f]/g, \"\")\n        .replace(/\\./g, '')\n        .replace(/[^a-zA-Z0-9\\s-]/g, '')\n        .trim()\n        .split(/[\\s-]+/)\n        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())\n        .join('-');\n}\n\nfor (const item of veiculos) {\n    const carro = item.json;\n    const id = parseInt(carro.ID);\n    \n    const precoOriginal = parseFloat(carro.PRICE || 0);\n    let precoPromo = parseFloat(carro.PROMOTION_PRICE || 0);\n    const precoFinal = (precoPromo > 0 && precoPromo < precoOriginal) ? precoPromo : precoOriginal;\n\n    if (!(precoPromo > 0 && precoPromo < precoOriginal)) {\n        precoPromo = 0;\n    }\n\n    const marcaSlug = deizarAmigavel(carro.MAKE);\n    const modeloBaseSlug = deizarAmigavel(carro.BASE_MODEL);\n    const baseModelRegex = new RegExp(`^${carro.BASE_MODEL}`, 'i');\n    const versaoLimpa = (carro.MODEL || '').replace(baseModelRegex, '').trim();\n    const versaoSlug = deizarAmigavel(versaoLimpa);\n    const modeloCompletoSlug = deizarAmigavel(carro.MODEL);\n    const cidadeSlug = deizarAmigavel(carro.LOCATION_CITY);\n    const estadoSlug = deizarAmigavel(carro.LOCATION_STATE);\n    \n    const linkSite = `https://motorsstoreoficial.com.br/carros/${marcaSlug}/${modeloBaseSlug}/${versaoSlug}/${marcaSlug}-${modeloCompletoSlug}-${carro.YEAR}-${cidadeSlug}-${estadoSlug}-${id}.html`;\n\n    let urlImagem = \"\";\n    if (carro.IMAGES_LARGE?.IMAGE_URL_LARGE) {\n        urlImagem = Array.isArray(carro.IMAGES_LARGE.IMAGE_URL_LARGE) ? carro.IMAGES_LARGE.IMAGE_URL_LARGE[0] : carro.IMAGES_LARGE.IMAGE_URL_LARGE;\n    } else if (carro.IMAGES?.IMAGE_URL) {\n        urlImagem = Array.isArray(carro.IMAGES.IMAGE_URL) ? carro.IMAGES.IMAGE_URL[0] : carro.IMAGES.IMAGE_URL;\n    }\n\n    const modeloLower = (carro.MODEL || '').toLowerCase();\n    const makeLower = (carro.MAKE || '').toLowerCase();\n    const categoryLower = (carro.CATEGORY || '').toLowerCase();\n    const bodyTypeLower = (carro.BODY_TYPE || '').toLowerCase();\n\n    let tipo = \"Hatch\";\n    if (categoryLower === \"motocicleta\" || categoryLower === \"moto\" || modeloLower.match(/(cb|twister|harley|davidson|moto)/)) {\n        tipo = \"Motocicleta\";\n    } else if (bodyTypeLower === \"suv\" || modeloLower.match(/(renegade|ecosport|tiguan|taos|x1|x4|duster|tracker|toro)/)) {\n        tipo = \"SUV\";\n    } else if (bodyTypeLower === \"sedan\" || modeloLower.match(/(prisma|cruze|classic|c-180|c 180|seda)/)) {\n        tipo = \"Sedan\";\n    } else if (bodyTypeLower === \"picape\" || modeloLower.match(/(amarok|saveiro|hilux|s10|ranger)/)) {\n        tipo = \"Picape\";\n    } else if (bodyTypeLower === \"hatch\" || modeloLower.match(/(gol|c3|palio|fiesta|march|mobi|polo|argo|clio|fit|fox)/)) {\n        tipo = \"Hatch\";\n    }\n\n    let perfilUso = \"Uso Diário\";\n    if (tipo === \"Motocicleta\") {\n        perfilUso = \"Agilidade / Economia\";\n    } else if (makeLower.match(/(porsche|bmw|mercedes|audi|land-rover)/) || modeloLower.match(/(m sport|gts|turbo|r-line|amg)/)) {\n        perfilUso = \"Performance / Premium\";\n    } else if (tipo === \"SUV\" || tipo === \"Sedan\" || modeloLower.match(/(weekend|allspace|family|familia|fit)/)) {\n        perfilUso = \"Família / Conforto\";\n    } else if (tipo === \"Picape\" || (carro.FUEL || '').toLowerCase() === \"diesel\") {\n        perfilUso = \"Trabalho / Robustez\";\n    } else if (parseFloat(carro.MOTOR || 0) <= 1.0 || modeloLower.match(/(gol|mobi|march|clio|argo|uno|fox)/)) {\n        perfilUso = \"Econômico / Diário\";\n    }\n\n    resultados.push({\n        json: {\n            id: id,\n            marca: carro.MAKE || \"N/D\",\n            modelo: carro.MODEL || \"N/D\",\n            versao: versaoLimpa || \"Série\",\n            ano: parseInt(carro.YEAR || 0),\n            ano_fabricacao: parseInt(carro.FABRIC_YEAR || 0),\n            preco: precoFinal,\n            preco_original: precoOriginal,\n            preco_promocional: precoPromo,\n            quilometragem: parseInt(carro.MILEAGE || 0),\n            cambio: carro.GEAR || \"N/D\",\n            combustivel: carro.FUEL || \"N/D\",\n            cor: carro.COLOR || \"N/D\",\n            tipo: tipo,\n            perfil_uso: perfilUso,\n            url_imagem: urlImagem,\n            link_conversao: linkSite,\n            pericia: carro.PERICIA || \"Em análise\",\n            descricao: carro.DESCRIPTION || \"Sem descrição informada\",\n            whatsapp_images: Array.isArray(carro.IMAGES?.IMAGE_URL) ? carro.IMAGES.IMAGE_URL : [carro.IMAGES?.IMAGE_URL || ''],\n            web_full_images: Array.isArray(carro.IMAGES_LARGE?.IMAGE_URL_LARGE) ? carro.IMAGES_LARGE.IMAGE_URL_LARGE : [carro.IMAGES_LARGE?.IMAGE_URL_LARGE || '']\n        }\n    });\n}\n\nreturn resultados;"
+      },
+      "id": "e344d952-7261-4da2-bd40-ef6345690972",
+      "name": "Classificação e Regras de Negócio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://zwbqmzgnagfeqinqkolp.supabase.co/rest/v1/estoque_motors",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  id: $json.id,\n  marca: $json.marca,\n  modelo: $json.modelo,\n  versao: $json.versao,\n  ano: $json.ano,\n  ano_fabricacao: $json.ano_fabricacao,\n  preco: $json.preco,\n  preco_original: $json.preco_original,\n  preco_promocional: $json.preco_promocional,\n  quilometragem: $json.quilometragem,\n  cambio: $json.cambio,\n  combustivel: $json.combustivel,\n  cor: $json.cor,\n  tipo: $json.tipo,\n  perfil_uso: $json.perfil_uso,\n  url_imagem: $json.url_imagem,\n  link_conversao: $json.link_conversao,\n  pericia: $json.pericia,\n  descricao: $json.descricao,\n  whatsapp_images: $json.whatsapp_images,\n  web_full_images: $json.web_full_images\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "41f82d87-3235-41db-a7da-e9cb92c0a40d",
+      "name": "Upsert Veículo (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1248,
+        2416
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Executar Manualmente": {
+      "main": [
+        [
+          {
+            "node": "Buscar XML RevendaMais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar XML RevendaMais": {
+      "main": [
+        [
+          {
+            "node": "XML para JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML para JSON": {
+      "main": [
+        [
+          {
+            "node": "Separar Veículos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Veículos": {
+      "main": [
+        [
+          {
+            "node": "Classificação e Regras de Negócio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificação e Regras de Negócio": {
+      "main": [
+        [
+          {
+            "node": "Upsert Veículo (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "62d9387f-c392-4ce5-98f3-e30e9eac4e5b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0854a136cd60cfd768dabb9a965327cf232a008716742af850ad6cedb6ea4e78"
+  },
+  "nodeGroups": [],
+  "id": "wfYIjBaxaFFnvAYa",
+  "tags": []
+}

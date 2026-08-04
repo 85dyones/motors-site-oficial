@@ -127,23 +127,52 @@ describe("migração de rename — cutover", () => {
 });
 
 describe("passo 4 do cutover — remoção da view", () => {
-  it("está fora de supabase/migrations/", () => {
-    // Se estivesse dentro, `supabase db push` aplicaria a remoção na mesma
-    // execução que cria a view, fechando a janela de compatibilidade no
-    // instante em que ela é aberta — e derrubando o sync de estoque do n8n.
-    const migracoes = readdirSync(DIR_MIGRACOES);
-    const infrator = migracoes.find(
-      (m) => /remover.*view|drop.*view|view.*compat/i.test(m)
-    );
+  /**
+   * ⚠️ A premissa deste bloco MUDOU em 2026-08-04.
+   *
+   * Até então o passo 4 vivia em `supabase/pendente/`, e o teste exigia que
+   * ele NÃO estivesse em `migrations/`: lá dentro, o `supabase db push` do
+   * passo 2 aplicaria a remoção na mesma execução que cria a view, fechando a
+   * janela de compatibilidade no instante em que ela é aberta — e derrubando o
+   * sync de estoque do n8n junto.
+   *
+   * O dono aplicou o passo 4 à mão em produção em 2026-08-04 (verificado: a
+   * view responde 404/PGRST205). Com a janela já fechada, o arquivo foi movido
+   * para `migrations/` conforme o runbook, para que o histórico registre a
+   * remoção e um banco reconstruído do zero chegue ao mesmo estado final.
+   *
+   * O que passa a ser protegido é a ORDEM: remover a view antes de criá-la
+   * deixaria o histórico incoerente para quem reconstruir.
+   */
+  const migracoes = readdirSync(DIR_MIGRACOES)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  const remocao = migracoes.find((m) => /remover_view_compat/i.test(m));
+
+  it("está versionado em supabase/migrations/", () => {
     expect(
-      infrator,
-      `A remoção da view de compatibilidade não pode viver em migrations/: ${infrator}`
-    ).toBeUndefined();
+      remocao,
+      "A remoção da view foi aplicada em produção e precisa estar versionada."
+    ).toBeDefined();
   });
 
-  it("existe, versionado, na pasta de pendentes", () => {
-    expect(existsSync(DIR_PENDENTE)).toBe(true);
-    const pendentes = readdirSync(DIR_PENDENTE);
-    expect(pendentes.some((f) => f.includes("remover_view_compat"))).toBe(true);
+  it("vem depois da migração que cria a view", () => {
+    const iRename = migracoes.findIndex((m) => m.includes("renomear_veiculos"));
+    expect(iRename).toBeGreaterThanOrEqual(0);
+    expect(migracoes.indexOf(remocao!)).toBeGreaterThan(iRename);
+  });
+
+  it("é idempotente — reexecutar não aborta o push", () => {
+    const sql = sqlExecutavel(join(DIR_MIGRACOES, remocao!));
+    expect(sql).toMatch(/DROP VIEW IF EXISTS public\.veiculos/i);
+  });
+
+  it("não sobrou nada pendente sem aplicar", () => {
+    // `pendente/` é uma antessala, não um depósito: um arquivo esquecido lá é
+    // um passo manual que ninguém deu. Se voltar a existir, é de propósito e
+    // este teste deve ser revisto junto.
+    if (!existsSync(DIR_PENDENTE)) return;
+    const pendentes = readdirSync(DIR_PENDENTE).filter((f) => f.endsWith(".sql"));
+    expect(pendentes, `Pendentes não aplicados: ${pendentes.join(", ")}`).toEqual([]);
   });
 });
