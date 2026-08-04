@@ -35,26 +35,25 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Search for the vehicle in the database
-    // Search by plate first
-    let { data: veiculo } = await supabase
-      .from("estoque_motors")
-      .select("*")
-      .ilike("placa", `%${query.trim()}%`)
-      .limit(1)
-      .maybeSingle();
+    //
+    // NÃO existe busca por placa. A coluna `placa` não existe em
+    // `estoque_motors` (baseline verificado contra produção, 2026-08-03) e o
+    // sync do RevendaMais não tem de onde populá-la — não há campo de placa no
+    // XML. A tentativa anterior (`.ilike("placa", ...)` como busca primária)
+    // falhava com "column estoque_motors.placa does not exist", tinha o `error`
+    // descartado, e caía neste mesmo fallback por ID. Ou seja: a busca por
+    // placa nunca funcionou; só custava um round-trip inútil por consulta.
+    // Decisão do dono em 2026-08-03: remover a busca em vez de criar a coluna.
 
-    // Fallback: search by exact ID
-    if (!veiculo) {
-      const isNumeric = /^\d+$/.test(query.trim());
-      let idQuery = supabase.from("estoque_motors").select("*");
-      if (isNumeric) {
-        idQuery = idQuery.eq("id", parseInt(query.trim(), 10));
-      } else {
-        idQuery = idQuery.eq("id", query.trim());
-      }
-      const { data: idData } = await idQuery.limit(1).maybeSingle();
-      veiculo = idData;
+    // Search by exact ID
+    const isNumeric = /^\d+$/.test(query.trim());
+    let idQuery = supabase.from("estoque_motors").select("*");
+    if (isNumeric) {
+      idQuery = idQuery.eq("id", parseInt(query.trim(), 10));
+    } else {
+      idQuery = idQuery.eq("id", query.trim());
     }
+    let { data: veiculo } = await idQuery.limit(1).maybeSingle();
 
     // Fallback: search by model or brand similarity
     if (!veiculo) {
@@ -114,14 +113,13 @@ export async function GET(request: NextRequest) {
       : (sumContasCompra + sumProdCompra);
 
     if (precoEntrada <= 0) {
-      const warningMessage = `⚠️ *Atenção:* O veículo *${veiculo.marca.toUpperCase()} ${veiculo.modelo.toUpperCase()}* (${veiculo.placa || "Sem Placa"}) não possui um valor de entrada (preço de compra) cadastrado.\n\nPara obter a margem correta, acesse o painel administrativo em Configurações e ajuste o valor de entrada deste veículo.`;
+      const warningMessage = `⚠️ *Atenção:* O veículo *${veiculo.marca.toUpperCase()} ${veiculo.modelo.toUpperCase()}* (ID ${veiculo.id}) não possui um valor de entrada (preço de compra) cadastrado.\n\nPara obter a margem correta, acesse o painel administrativo em Configurações e ajuste o valor de entrada deste veículo.`;
       return NextResponse.json({
         sucesso: false,
         veiculo: {
           id: veiculo.id,
           marca: veiculo.marca,
-          modelo: veiculo.modelo,
-          placa: veiculo.placa
+          modelo: veiculo.modelo
         },
         mensagem: warningMessage
       });
@@ -183,7 +181,7 @@ export async function GET(request: NextRequest) {
       `━━━━━━━━━━━━━━━━━━`,
       `🚗 *Veículo:* ${veiculo.marca.toUpperCase()} ${veiculo.modelo.toUpperCase()}`,
       `⚙️ *Versão:* ${veiculo.versao || "Padrão"}`,
-      `📅 *Ano:* ${veiculo.ano} | 🏷️ *Placa:* ${veiculo.placa || "Sem Placa"}`,
+      `📅 *Ano:* ${veiculo.ano} | 🏷️ *ID:* ${veiculo.id}`,
       `📌 *Status:* ${statusStr}`,
       `━━━━━━━━━━━━━━━━━━`,
       `💰 *Preço de Entrada:* ${precoEntrada > 0 ? formatCurrency(precoEntrada) : "_Não cadastrado_"}`,
@@ -209,7 +207,6 @@ export async function GET(request: NextRequest) {
         modelo: veiculo.modelo,
         versao: veiculo.versao,
         ano: veiculo.ano,
-        placa: veiculo.placa,
         vendido: isVendido
       },
       financeiro: {
