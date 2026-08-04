@@ -74,6 +74,20 @@ export async function GET(request: NextRequest) {
       }, { status: 404 });
     }
 
+    // 2b. Merge manual overrides from site_settings over the raw row.
+    // `preco_compra` is not a column of `estoque_motors`: it is typed in the
+    // admin panel and stored in `site_settings.stock_overrides`. Without this
+    // merge the entry price below is always undefined and the margin sheet
+    // silently falls back to the transaction sum, disagreeing with the panel.
+    // Same merge as /api/financeiro/margens (both branches).
+    const { data: overridesRow } = await supabase
+      .from("site_settings")
+      .select("*")
+      .eq("id", "stock_overrides")
+      .maybeSingle();
+    const stockOverrides = overridesRow?.data?.overrides || {};
+    veiculo = { ...veiculo, ...(stockOverrides[veiculo.id] || {}) };
+
     // 3. Fetch all accounts (excluding cancelled ones) linked to the vehicle
     const { data: contas } = await supabase
       .from("contas")
