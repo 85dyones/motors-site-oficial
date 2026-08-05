@@ -553,14 +553,15 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               </span>
             </div>
           )}
-          {/* FIPE vem do banco como texto livre; exibido como está, sem
-              recalcular percentual — número que não veio do dado não é
-              inventado aqui (CLAUDE.md). */}
-          {veiculo.fipe && (
-            <div className="mt-3 text-[13px] text-mt-neutral-800">
-              Referência FIPE: <strong>{veiculo.fipe}</strong>
-            </div>
-          )}
+          {/* Não existe linha de FIPE aqui, e é deliberado.
+              O redesign tinha reintroduzido "Referência FIPE" partindo de que
+              o valor vinha do banco. Não vem: `fipe` não é coluna de
+              `estoque_motors` — todo carro caía no default "Consulta Fipe",
+              dado inventado apresentado ao cliente como fato. Removido da
+              matriz de especificações por decisão do dono em 2026-08-06
+              (ver comentário na matriz, mais abaixo); manter o bloco aqui
+              recriaria o mesmo problema no primeiro carro que trouxesse
+              qualquer texto nesse campo. */}
         </div>
 
         {/* Ações */}
@@ -859,7 +860,12 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             </section>
           </div>
 
-          {/* Accordion: Opcionais e Acessórios */}
+          {/* Accordion: Opcionais e Acessórios.
+              Some quando o feed não traz opcionais — o que hoje é o caso de 87
+              dos 88 veículos. Antes, esses 87 exibiam uma lista fabricada
+              ("Teto solar, Multimídia, Rodas de liga leve, Câmera de ré");
+              manter a seção vazia só trocaria a mentira por uma caixa oca. */}
+          {featuresList.length > 0 && (
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300 print-avoid-break">
               <button
@@ -887,23 +893,27 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                   opcionaisOpen ? "max-h-[1000px] border-t border-brand-border p-6 max-sm:p-4" : "max-h-0"
                 }`}
               >
-                {featuresList.length > 0 ? (
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-3 text-xs text-brand-text/70">
-                    {featuresList.map((item, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <span className="text-brand-primary font-black text-sm">✓</span>
-                        <span className="font-medium">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-brand-text/40">Itens padrão de fábrica.</p>
-                )}
+                <ul className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-3 text-xs text-brand-text/70">
+                  {featuresList.map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-2">
+                      <span className="text-brand-primary font-black text-sm">✓</span>
+                      <span className="font-medium">{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
+          )}
 
-          {/* Accordion: Perícia Cautelar */}
+          {/* Accordion: Perícia Cautelar.
+              Renderizado SÓ quando o feed traz um laudo de verdade E a perícia
+              está aprovada. Antes era incondicional: os 88 veículos exibiam
+              "LAUDO TÉCNICO APROVADO — Histórico livre de sinistros e leilão"
+              com um texto de perícia fabricado, incluindo carros cuja perícia
+              está "Em análise". Afirmar laudo limpo sobre carro não periciado é
+              o tipo de declaração que gera passivo direto de CDC. */}
+          {veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA" && (
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300 print-avoid-break">
               <button
@@ -944,12 +954,13 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                     </div>
                   </div>
                   <p className="text-xs text-brand-text/70 leading-relaxed italic bg-brand-bg p-4 rounded-xl border border-brand-border font-medium">
-                    &ldquo;{veiculo.laudo_pericia || "Estrutura e longarinas intactas, numeração de motor e chassi originais, pintura em perfeito estado com laudo 100% livre."}&rdquo;
+                    &ldquo;{veiculo.laudo_pericia}&rdquo;
                   </p>
                 </div>
               </div>
             </div>
           </div>
+          )}
 
         </div>
 
@@ -985,30 +996,35 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 <span className="text-brand-gold font-bold uppercase">QUILOMETRAGEM</span>
                 <span className="text-brand-text font-extrabold">{formatKm(veiculo.quilometragem)}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">TRANSMISSÃO</span>
-                <span className="text-brand-text font-extrabold">{veiculo.cambio}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">COMBUSTÍVEL</span>
-                <span className="text-brand-text font-extrabold">{veiculo.combustivel}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">DIREÇÃO</span>
-                <span className="text-brand-text font-extrabold">{resolveDirecao(veiculo).toUpperCase()}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">COR EXTERNA</span>
-                <span className="text-brand-text font-extrabold">{veiculo.cor}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">ID DO VEÍCULO</span>
-                <span className="text-brand-text font-extrabold font-mono">{getShortVehicleId(veiculo.id)}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">FIPE REFERÊNCIA</span>
-                <span className="text-brand-text font-extrabold">{veiculo.fipe}</span>
-              </div>
+              {/* Linha sem dado real é OCULTADA, não exibida vazia nem com
+                  default. `combustivel` está ausente em 19 dos 88 veículos e
+                  vinha preenchido com "Flex" — inclusive em elétricos e diesel. */}
+              {veiculo.cambio && (
+                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
+                  <span className="text-brand-gold font-bold uppercase">TRANSMISSÃO</span>
+                  <span className="text-brand-text font-extrabold">{veiculo.cambio}</span>
+                </div>
+              )}
+              {veiculo.combustivel && (
+                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
+                  <span className="text-brand-gold font-bold uppercase">COMBUSTÍVEL</span>
+                  <span className="text-brand-text font-extrabold">{veiculo.combustivel}</span>
+                </div>
+              )}
+              {/* DIREÇÃO removida: `resolveDirecao` é heurística sobre o nome do
+                  modelo e o texto livre da descrição — chute apresentado no
+                  mesmo grid que km e ano, que são dados reais do feed. */}
+              {veiculo.cor && (
+                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
+                  <span className="text-brand-gold font-bold uppercase">COR EXTERNA</span>
+                  <span className="text-brand-text font-extrabold">{veiculo.cor}</span>
+                </div>
+              )}
+              {/* ID interno e FIPE ficam FORA da matriz, por decisão do dono
+                  (2026-08-06): o ID é dado operacional da loja, e `fipe` nem
+                  existe no banco — todo carro exibia o default "Consulta Fipe",
+                  um dado inventado apresentado ao cliente como fato. O ID
+                  segue disponível no cabeçalho de impressão da ficha. */}
               {veiculo.tipo && (
                 <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                   <span className="text-brand-gold font-bold uppercase">CARROCERIA</span>

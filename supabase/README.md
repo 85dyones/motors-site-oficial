@@ -31,10 +31,15 @@ projeto. Ver o passo 4 do runbook abaixo para o motivo.
 e dois deles são manuais.**
 
 A tabela de inventário é escrita por um agente externo — o workflow n8n
-`Antigravity - Sincronizador de Estoque`, que roda a cada 6 horas. Renomear a
-tabela sem tocar no workflow faz o sync apontar para um nome que não existe
-mais. Ele não quebra alto: o estoque simplesmente para de atualizar, e o site
-segue servindo dados cada vez mais velhos até alguém notar.
+`Antigravity - Sincronizador de Estoque`. Renomear a tabela sem tocar no
+workflow faz o sync apontar para um nome que não existe mais. Ele não quebra
+alto: o estoque simplesmente para de atualizar, e o site segue servindo dados
+cada vez mais velhos até alguém notar.
+
+> **Correção de 2026-08-04:** este documento afirmava que o sync roda a cada 6
+> horas. O workflow ao vivo tem **só um `manualTrigger`** e está `active: false`
+> — não há agendamento nenhum. O "a cada 6h" vinha de uma cópia versionada que
+> não corresponde ao que roda. Ver passo 3.
 
 A view de compatibilidade criada no passo 2 existe exatamente para cobrir a
 janela entre os passos 2 e 3.
@@ -69,38 +74,48 @@ WHERE relname IN ('veiculos', 'estoque_motors');
 -- esperado: estoque_motors = 'r' (tabela), veiculos = 'v' (view)
 ```
 
-### Passo 3 — atualizar o workflow n8n 🔧 MANUAL
+### Passo 3 — atualizar o workflow n8n 🔧 MANUAL, **PENDENTE**
 
-Em `n8n.v2o5.com.br`, workflow `Antigravity - Sincronizador de Estoque`:
-o nó Supabase **`Create a row`** precisa apontar para `estoque_motors`.
+> 🔴 **Os passos 3 e 4 foram executados fora de ordem.** O passo 4 foi aplicado
+> em 2026-08-04 sem o passo 3. A view não existe mais e o workflow ao vivo
+> ainda apontava para o nome antigo: **o sync está quebrado agora**, e só volta
+> quando o workflow corrigido for importado.
 
-O JSON neste repositório já foi atualizado e pode ser reimportado — mas ele é
-uma **cópia exportada**, não o workflow ao vivo. Editar o arquivo não muda o que
-está rodando.
+A cópia exportada em 2026-08-04 revelou que **o workflow ao vivo não é o que
+estava versionado aqui**. Diferenças que importam:
 
-Dois pontos a verificar enquanto estiver lá, ambos levantados em `AUDITORIA.md`:
+| | cópia antiga do repo | workflow ao vivo |
+|---|---|---|
+| nó de escrita | `Create a row` (nó Supabase, credencial) | `Upsert Veículo (HTTP)` (`httpRequest`) |
+| alvo | `estoque_motors` | `/rest/v1/veiculos` ← **quebrado** |
+| agendamento | `scheduleTrigger` a cada 6h | **só `manualTrigger`** |
+| duplicatas | insert (AUDITORIA §1.4) | `Prefer: resolution=merge-duplicates` — upsert de verdade |
+| credencial | credencial do n8n | **`service_role` JWT inline nos headers** |
 
-- **`"active": false`** na cópia exportada (§5.9). Ou o workflow em produção é
-  outro, ou o sync está parado. Vale descobrir qual antes de confiar no cutover.
-- O nó é **`Create a row` — insert, não upsert** (§1.4). Como as reexecuções a
-  cada 6h evitam duplicata é indeterminado pelo arquivo. Não é problema do
-  rename, mas é a hora de olhar.
+Resolve AUDITORIA §5.9 e §1.4: o insert-sem-upsert já estava resolvido ao vivo;
+o `"active": false` é real e o agendamento de 6h **não existe** no workflow que
+roda — o sync só acontece quando alguém clica.
 
-### Passo 4 — remover a view de compatibilidade
+`Antigravity - Sincronizador de Estoque (estoque_motors).json` neste repositório
+é a versão corrigida (alvo `estoque_motors`, campo `combustivel` restaurado),
+com o JWT trocado por `{{ $env.SUPABASE_SERVICE_ROLE_KEY }}` — **este repositório
+é público e não pode conter a chave**. Importar exige configurar essa variável
+no n8n.
 
-**Só depois de confirmar que o passo 3 funcionou**, com pelo menos um ciclo de
-sync bem sucedido.
+### Passo 4 — remover a view de compatibilidade ✅ APLICADO 2026-08-04
 
-O SQL está em `pendente/PASSO_4_remover_view_compat_veiculos.sql`, **fora de
-`migrations/` de propósito**: se estivesse dentro, o `supabase db push` do passo
-2 aplicaria a remoção na mesma execução que cria a view, fechando a janela de
-compatibilidade no instante em que ela é aberta.
+Aplicado à mão pelo dono. Verificado: `public.veiculos` responde 404 /
+`PGRST205`, `estoque_motors` segue servindo.
 
-Ao aplicar, mova o arquivo para `migrations/` com timestamp novo, para que o
-histórico registre a remoção.
+O SQL vivia em `pendente/`, **fora de `migrations/` de propósito**: se estivesse
+dentro, o `supabase db push` do passo 2 aplicaria a remoção na mesma execução
+que cria a view, fechando a janela de compatibilidade no instante em que ela é
+aberta. Com a janela já fechada, foi movido para
+`migrations/20260804193000_remover_view_compat_veiculos.sql`.
 
-Guarda automatizada: `tests/migracoes.test.ts` falha se esse arquivo aparecer
-em `migrations/`.
+Guarda automatizada: `tests/migracoes.test.ts` exige que a remoção esteja
+versionada, venha depois da migração que cria a view, seja idempotente, e que
+`pendente/` não acumule passo manual esquecido.
 
 ### Rollback
 

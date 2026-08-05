@@ -19,7 +19,8 @@ export const metadata: Metadata = {
  */
 export default function CarroPerfeitoPage() {
   return (
-    <main role="main" className="flex flex-col bg-mt-inverso-fundo font-modernist text-mt-inverso">
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
+    <div className="flex flex-col bg-mt-inverso-fundo font-modernist text-mt-inverso">
       <div className="px-[18px] pb-10 pt-10 lg:px-14 lg:pb-14 lg:pt-11">
         <div className="flex items-center gap-3.5">
           <span className="h-6 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
@@ -46,6 +47,6 @@ export default function CarroPerfeitoPage() {
       <div className="bg-mt-bg px-[18px] py-10 text-mt-ink lg:px-14 lg:py-14">
         <CarMatch />
       </div>
-    </main>
+    </div>
   );
 }

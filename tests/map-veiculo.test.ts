@@ -87,3 +87,110 @@ describe("mapVeiculoDbToVeiculo", () => {
     expect(semDesconto.oportunidade_patio).toBe(false);
   });
 });
+
+/**
+ * Invariante de veracidade: o mapper NÃO INVENTA atributo de veículo.
+ *
+ * Estes testes existem porque a auditoria de 2026-08-06 encontrou o mapper
+ * preenchendo atributo ausente com texto promocional fixo, e o site exibindo
+ * isso como fato. Medido contra produção no mesmo dia: `opcionais` vazio em 87
+ * dos 88 veículos (todos anunciando "Teto solar, Multimídia, Rodas de liga
+ * leve, Câmera de ré") e `laudo_pericia` vazio em 88 de 88 (todos com
+ * "histórico livre de passagens por leilão ou sinistros").
+ *
+ * A remoção desses defaults NÃO quebrou nenhum teste — a suíte inteira passou
+ * antes e depois. Era um buraco: a invariante mais cara do site, do ponto de
+ * vista de risco ao consumidor, não tinha guarda nenhuma. Isto é essa guarda.
+ *
+ * Anunciar opcional que o carro não tem, ou laudo limpo em carro não periciado,
+ * é afirmação falsa sobre o produto — CDC art. 37.
+ */
+describe("mapVeiculoDbToVeiculo — não inventa atributo do veículo", () => {
+  const INVENCOES_CONHECIDAS = [
+    "Teto solar",
+    "Câmera de ré",
+    "Rodas de liga leve",
+    "histórico livre",
+    "Cinza Nardo",
+    "V-REF100",
+    "Consulta Fipe",
+    "vistoria cautelar aprovada",
+  ];
+
+  it("linha sem atributos não ganha nenhum texto promocional", () => {
+    const v = mapVeiculoDbToVeiculo(linhaDoBanco());
+    const serializado = JSON.stringify(v);
+
+    for (const invencao of INVENCOES_CONHECIDAS) {
+      expect(
+        serializado.includes(invencao),
+        `O mapper reintroduziu um default inventado: "${invencao}"`
+      ).toBe(false);
+    }
+  });
+
+  it("campos ausentes viram string vazia, para a UI poder ocultar a seção", () => {
+    const v = mapVeiculoDbToVeiculo(linhaDoBanco());
+    expect(v.opcionais).toBe("");
+    expect(v.laudo_pericia).toBe("");
+    expect(v.combustivel).toBe("");
+    expect(v.cor).toBe("");
+    expect(v.cambio).toBe("");
+  });
+
+  it("preserva o atributo real quando ele existe", () => {
+    // Contraprova: sem isto, um mapper que zerasse TUDO passaria nos testes
+    // acima e destruiria a ficha dos veículos que têm dado de verdade.
+    const v = mapVeiculoDbToVeiculo(
+      linhaDoBanco({
+        opcionais: "Ar-condicionado, Direção elétrica",
+        combustivel: "diesel",
+        cor: "branco",
+        cambio: "manual",
+      })
+    );
+    expect(v.opcionais).toBe("Ar-condicionado, Direção elétrica");
+    expect(v.combustivel).toBe("Diesel");
+    expect(v.cor).toBe("Branco");
+    expect(v.cambio).toBe("Manual");
+  });
+
+  it("só marca perícia aprovada com aprovação explícita no feed", () => {
+    expect(mapVeiculoDbToVeiculo(linhaDoBanco({ pericia: "Aprovado" })).pericia)
+      .toBe("PERÍCIA APROVADA");
+    expect(mapVeiculoDbToVeiculo(linhaDoBanco({ pericia: "Em análise" })).pericia)
+      .toBe("EM ANÁLISE");
+    expect(mapVeiculoDbToVeiculo(linhaDoBanco()).pericia).toBe("EM ANÁLISE");
+  });
+
+  it("negação no texto da perícia nunca vira selo de aprovação", () => {
+    // A heurística anterior aprovava com qualquer menção a "cautelar", "ok" ou
+    // "100%" — um "cautelar reprovada" no feed estampava selo verde.
+    for (const texto of [
+      "cautelar reprovada",
+      "laudo cautelar pendente",
+      "não aprovado",
+      "nao aprovado",
+      "sem aprovação",
+    ]) {
+      const v = mapVeiculoDbToVeiculo(linhaDoBanco({ pericia: texto }));
+      expect(v.pericia, `"${texto}" não pode virar perícia aprovada`).not.toBe(
+        "PERÍCIA APROVADA"
+      );
+      expect(v.cautelar_100, `"${texto}" não pode acender o selo cautelar`).toBe(false);
+    }
+  });
+
+  it("laudo promocional não acende o selo de perícia aprovada", () => {
+    // O selo afirma aprovação ao cliente; só o status real do feed pode ligá-lo.
+    // Antes, a mera presença de `laudo_pericia` (texto livre) já aprovava.
+    const v = mapVeiculoDbToVeiculo(
+      linhaDoBanco({
+        pericia: "Em análise",
+        laudo_pericia: "Veículo aprovado em vistoria cautelar completa",
+      })
+    );
+    expect(v.pericia).toBe("EM ANÁLISE");
+    expect(v.cautelar_100).toBe(false);
+  });
+});

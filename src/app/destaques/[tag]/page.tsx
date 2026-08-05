@@ -134,7 +134,8 @@ export default async function DestaquesPage({ params }: PageProps) {
   const relacionados = resolvidos.filter((d) => d.slug !== destaque.slug);
 
   return (
-    <main role="main" className="flex min-h-screen flex-col bg-mt-bg text-mt-ink">
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
+    <div className="flex min-h-screen flex-col bg-mt-bg text-mt-ink">
       {/* Structured Data (JSON-LD) for SEO */}
       <script
         type="application/ld+json"
@@ -145,6 +146,6 @@ export default async function DestaquesPage({ params }: PageProps) {
         relacionados={relacionados}
         introducao={matchedTag?.description}
       />
-    </main>
+    </div>
   );
 }

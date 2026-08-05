@@ -24,7 +24,8 @@ const COMO = [
  */
 export default function AvaliacaoPage() {
   return (
-    <main role="main" className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
+    <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
       <div className="flex flex-col lg:flex-row lg:items-stretch">
         <div className="min-w-0 flex-1 px-[18px] py-10 lg:border-r-2 lg:border-mt-regua lg:px-11 lg:py-14">
           <Rotulo accent className="text-[11px] tracking-[.18em]">
@@ -77,6 +78,6 @@ export default function AvaliacaoPage() {
           </p>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

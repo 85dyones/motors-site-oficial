@@ -60,9 +60,17 @@ export async function GET(request: NextRequest) {
     } else {
       // Fetch all vehicles with transactions
       // 1. Fetch all vehicles to map details
+      //
+      // `preco_compra` NÃO entra neste select: a coluna não existe em
+      // `estoque_motors` (baseline verificado contra produção, 2026-08-03).
+      // Nomeá-la fazia o PostgREST rejeitar a query INTEIRA com
+      // "column estoque_motors.preco_compra does not exist" — e como o `error`
+      // é descartado aqui, `veiculos` vinha undefined e o painel listava zero
+      // veículos. O preço de compra chega pelo merge de overrides logo abaixo,
+      // que é onde o painel admin de fato o grava (site_settings/stock_overrides).
       const { data: veiculos } = await supabase
         .from("estoque_motors")
-        .select("id, marca, modelo, versao, ano, preco, preco_original, preco_promocional, vendido, preco_compra");
+        .select("id, marca, modelo, versao, ano, preco, preco_original, preco_promocional, vendido");
 
       // 1b. Fetch overrides from site_settings to support manual pricing input overrides
       const { data: overridesRow } = await supabase

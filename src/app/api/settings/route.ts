@@ -28,13 +28,40 @@ function hasPromptInjection(obj: any): boolean {
   return false;
 }
 
-import { getCachedSettings } from "../../../lib/settings";
+import { getCachedSettings, recortePublicoDeSettings } from "../../../lib/settings";
 
+/**
+ * Settings do site. O corpo da resposta depende de haver sessão.
+ *
+ * Até 2026-08-06 este GET era aberto e devolvia TUDO a qualquer visitante
+ * anônimo — verificado contra produção: `preco_compra` de veículo (o custo de
+ * aquisição da loja) e as URLs internas do n8n saíam na resposta. `bankBalances`
+ * e `apiSecretToken` vinham no envelope e estavam vazios só por acaso: no dia em
+ * que fossem preenchidos pelo painel, nasceriam públicos.
+ *
+ * Visitante anônimo recebe o recorte público; sessão válida recebe o payload
+ * completo, que é o que o painel admin consome. O POST já era autenticado.
+ */
 export async function GET() {
-  const data = await getCachedSettings();
-  return NextResponse.json(data, {
+  const completo = await getCachedSettings();
+
+  let autenticado = false;
+  try {
+    const client = await createServerSupabaseClient();
+    const { data } = await client.auth.getUser();
+    autenticado = !!data?.user;
+  } catch (err: any) {
+    // Sem sessão utilizável — segue como anônimo, que é o caminho seguro.
+    console.warn("[Settings API] Checagem de sessão no GET falhou:", err?.message);
+  }
+
+  const corpo = autenticado ? completo : recortePublicoDeSettings(completo);
+
+  return NextResponse.json(corpo, {
     headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      // `private` importa: sem isso um proxy compartilhado poderia servir a
+      // resposta autenticada de um admin para o próximo visitante anônimo.
+      "Cache-Control": "private, no-store, no-cache, must-revalidate, proxy-revalidate",
       "Pragma": "no-cache",
       "Expires": "0"
     }

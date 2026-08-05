@@ -37,7 +37,8 @@ export default async function EstoquePage() {
   const stockOverrides = normalizarStockOverrides(settings.stockOverrides);
 
   return (
-    <main role="main" className="flex flex-col bg-mt-bg text-mt-ink">
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
+    <div className="flex flex-col bg-mt-bg text-mt-ink">
       <Suspense fallback={<div className="min-h-[60vh]" />}>
         <Catalogo
           estoque={disponiveis}
@@ -45,6 +46,6 @@ export default async function EstoquePage() {
           stockOverrides={stockOverrides}
         />
       </Suspense>
-    </main>
+    </div>
   );
 }

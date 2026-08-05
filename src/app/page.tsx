@@ -4,6 +4,7 @@ import BuscaRegua from "../components/modernist/BuscaRegua";
 import BotaoWhatsApp from "../components/modernist/BotaoWhatsApp";
 import InstagramFeed from "../components/InstagramFeed";
 import GoogleReviewsFeed from "../components/GoogleReviewsFeed";
+import type { Metadata } from "next";
 import {
   CabecalhoSecao,
   CardVeiculo,
@@ -19,7 +20,64 @@ import {
   normalizarStockOverrides,
   resolverDestaques,
 } from "../lib/destaquesRapidos";
-import { DEFAULT_COMPANY_SETTINGS } from "./ThemeContext";
+// Importa o JSON DIRETO, não via `./ThemeContext`.
+//
+// `ThemeContext` é um módulo "use client": quando um Server Component importa
+// uma constante dele, o Next entrega uma referência de cliente no lugar do
+// objeto real. Era por isso que este schema.org saía com `"name": ""` e
+// `"sameAs": []` — verificado em produção em 2026-08-06, bug silencioso e
+// anterior a esta rodada: o nome da loja nunca chegou ao structured data.
+import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
+
+// A home declara o próprio canonical desde que ele saiu do layout raiz, onde
+// era herdado indevidamente por /login, /test e /admin. As demais páginas
+// públicas (sobre, contato, privacidade, destaques, PDP) já declaravam o seu.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
+
+/**
+ * Endereço da loja para o schema.org, derivado do endereço em vigor — o mesmo
+ * que alimenta o rodapé e a ficha impressa.
+ *
+ * Até 2026-08-06 este schema declarava "Av. Europa, 1000, São Paulo-SP" e o
+ * telefone +55 11 4003-0000, ambos fictícios: a loja é em Curitiba. O Google
+ * recebia um NAP (nome/endereço/telefone) que contradizia o rodapé e o title
+ * das landings, o que anula SEO local e derruba a confiança no structured data
+ * do domínio. Derivar da mesma fonte impede que as duas divirjam de novo.
+ *
+ * Recebe o endereço por parâmetro (e não lê o JSON direto) porque a home passou
+ * a resolver as configurações no servidor: o que vale é o que está no painel,
+ * com o JSON apenas como fallback.
+ */
+function enderecoDoSchema(endereco: string) {
+  // Formato esperado, o que o painel grava hoje:
+  // "Rua Ernesto Piazzetta, 98 - Bacacheri, Curitiba - PR, 82510-350"
+  //  └─ logradouro ──────┘   └ bairro ┘  └ cidade ┘  └UF┘ └─ CEP ─┘
+  const bruto = (endereco || "").trim();
+
+  const logradouro = bruto.split(" - ")[0]?.trim() || "";
+  const miolo = bruto.split(" - ")[1] || "";
+  const bairro = miolo.split(",")[0]?.trim() || "";
+  const cidade = miolo.split(",")[1]?.trim() || "";
+  const uf = (bruto.match(/\b([A-Z]{2})\b(?=\s*,|\s*\d{5})/) || [])[1] || "";
+  const cep = (bruto.match(/\d{5}-?\d{3}/) || [""])[0];
+
+  // Falha segura: endereço parcial no schema.org é pior que endereço nenhum —
+  // o Google trata NAP inconsistente como sinal de baixa confiança. Se o dono
+  // reescrever o endereço no painel num formato que este parse não entenda,
+  // preferimos omitir o campo a publicar um endereço truncado ou errado.
+  if (!logradouro || !cidade || !uf) return undefined;
+
+  return {
+    "@type": "PostalAddress",
+    streetAddress: [logradouro, bairro].filter(Boolean).join(" - "),
+    addressLocality: cidade,
+    addressRegion: uf,
+    postalCode: cep || undefined,
+    addressCountry: "BR",
+  };
+}
 
 export const revalidate = 60;
 
@@ -73,22 +131,35 @@ export default async function Home() {
   const autoDealerSchema = {
     "@context": "https://schema.org",
     "@type": "AutoDealer",
-    name: empresa.name,
-    image: `${SITE_URL}/logo.png`,
-    url: SITE_URL,
-    telephone: empresa.phone,
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: empresa.address,
-      addressLocality: "Curitiba",
-      addressRegion: "PR",
-      addressCountry: "BR",
-    },
-    sameAs: [empresa.instagram, empresa.facebook].filter(Boolean),
+    "name": empresa.name,
+    "image": `${SITE_URL}/logo.png`,
+    "url": SITE_URL,
+    // `whatsappRaw` é o número real em formato discável ("5541998426127").
+    "telephone": empresa.whatsappRaw ? `+${empresa.whatsappRaw}` : undefined,
+    "address": enderecoDoSchema(empresa.address),
+    "sameAs": [empresa.instagram, empresa.facebook].filter(Boolean),
+    // Horário real da loja: Seg-Sex 08h30-18h30, Sáb 08h30-15h.
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "opens": "08:30",
+        "closes": "18:30"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Saturday"],
+        "opens": "08:30",
+        "closes": "15:00"
+      }
+    ]
   };
 
   return (
-    <main role="main" className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`, e landmarks
+    // aninhados desorientam navegação por leitor de tela.
+    <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
+      {/* Local Business (AutoDealer) Schema Markup */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(autoDealerSchema) }}
@@ -264,6 +335,6 @@ export default async function Home() {
           />
         </div>
       </section>
-    </main>
+    </div>
   );
 }
