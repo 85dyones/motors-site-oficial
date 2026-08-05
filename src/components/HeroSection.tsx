@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
 import type { Veiculo } from "../types";
 import { useTheme } from "../app/ThemeContext";
@@ -291,6 +291,41 @@ function applyCustomDisplaySorting(vehicles: Veiculo[]): Veiculo[] {
   return vehicles;
 }
 
+/**
+ * Aplica `marca`/`modelo`/`busca` da URL aos filtros, de forma reativa.
+ *
+ * Por que isto existe: os links de marca/modelo do rodapé (e de qualquer outro
+ * lugar do site) usam `next/link`, que navega no cliente sem recarregar a
+ * página. Como `/` é a MESMA rota antes e depois do clique, o React não
+ * desmonta `HeroSection` — e os `useState(() => window.location.search)`
+ * usados para ler esses parâmetros só rodam UMA VEZ, no primeiro render. O clique
+ * mudava a URL na barra de endereço, mas o filtro nunca era aplicado: a barra
+ * dizia `?marca=Chevrolet`, a grade continuava mostrando as 88 marcas.
+ *
+ * A correção usa `useSearchParams()`, que É reativo a navegação client-side do
+ * Next — diferente de ler `window.location.search` direto. Precisa estar
+ * isolado num componente próprio porque o App Router exige que qualquer uso de
+ * `useSearchParams()` esteja dentro de um `<Suspense>` para não quebrar a
+ * geração estática da página; envolver o `HeroSection` inteiro seria bem mais
+ * invasivo do que isolar só esta leitura.
+ *
+ * O outro sentido — filtro mudando a URL via `window.history.replaceState`,
+ * mais abaixo neste arquivo — não passa pelo roteador do Next, então não
+ * aciona este efeito de volta. Sem isso as duas sincronizações se
+ * realimentariam.
+ */
+function FilterUrlSync({ onParams }: { onParams: (params: URLSearchParams) => void }) {
+  const searchParams = useSearchParams();
+  const paramsString = searchParams.toString();
+
+  useEffect(() => {
+    onParams(new URLSearchParams(paramsString));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsString]);
+
+  return null;
+}
+
 interface HeroSectionProps {
   initialQuickTag?: string;
   isLandingPage?: boolean;
@@ -456,30 +491,23 @@ export default function HeroSection({
     }
   }, [contextQuickTags]);
 
-  // Parse URL search parameters on mount (for SEO brand/model footer links)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
+  // Aplica marca/modelo/busca vindos da URL — chamado pelo <FilterUrlSync>
+  // abaixo, tanto no primeiro carregamento quanto em cada navegação client-side
+  // (ex.: clique num link de marca no rodapé, ou no logo "HOME" para limpar).
+  const syncFiltersFromUrl = useCallback((params: URLSearchParams) => {
     const marcaParam = params.get("marca");
     const modeloParam = params.get("modelo");
     const buscaParam = params.get("busca");
 
-    let hasParam = false;
-    if (marcaParam) {
-      setFilterMarca(marcaParam);
-      hasParam = true;
-    }
-    if (modeloParam) {
-      setFilterModelo(modeloParam);
-      hasParam = true;
-    }
-    if (buscaParam) {
-      setSearchTerm(buscaParam);
-      setTempSearchTerm(buscaParam);
-      hasParam = true;
-    }
+    // Ausência de parâmetro reseta o filtro — não só a presença o define.
+    // Sem isto, ir de `?marca=Chevrolet` para `/` (clique em "HOME") deixaria o
+    // filtro de marca preso em Chevrolet mesmo com a URL limpa.
+    setFilterMarca(marcaParam || "todos");
+    setFilterModelo(modeloParam || "todos");
+    setSearchTerm(buscaParam || "");
+    setTempSearchTerm(buscaParam || "");
 
-    if (hasParam) {
+    if (marcaParam || modeloParam || buscaParam) {
       setTimeout(() => {
         const catalogEl = document.getElementById("catalogo");
         if (catalogEl) {
@@ -959,7 +987,12 @@ export default function HeroSection({
 
   return (
     <div role="region" aria-label="Catálogo de Veículos" className="w-full flex flex-col gap-6 md:gap-8">
-      
+      {/* Não renderiza nada — só observa a URL e reaplica os filtros a cada
+          navegação client-side. Ver comentário em FilterUrlSync. */}
+      <Suspense fallback={null}>
+        <FilterUrlSync onParams={syncFiltersFromUrl} />
+      </Suspense>
+
       {/* 1. HERO CAROUSEL / SLIDER / LANDING PAGE BANNER */}
       {isLandingPage && isImageBanner && activeBgImage ? (
         /* Custom Photo Hero Banner */
