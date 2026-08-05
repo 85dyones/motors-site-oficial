@@ -161,7 +161,9 @@ export const DEFAULT_CAMPAIGNS: Campaign[] = [
     triggerType: "time",
     delaySeconds: 30,
     actionType: "link",
-    actionTarget: "/#match-garagem",
+    // Rota própria desde o redesign de 2026. A âncora antiga (`/#match-garagem`)
+    // apontava para uma seção que saiu da home quando o quiz ganhou página.
+    actionTarget: "/carro-perfeito",
     icon: "🤖",
     title: "BUSCANDO O CARRO PERFEITO?",
     subtitle: "Experimente nosso Assistente de Garagem IA. Responda 3 perguntas e o algoritmo faz a curadoria ideal para você.",
@@ -175,7 +177,8 @@ export const DEFAULT_CAMPAIGNS: Campaign[] = [
     triggerType: "time",
     delaySeconds: 60,
     actionType: "link",
-    actionTarget: "/#avaliacao-express",
+    // Idem: a Avaliação Express saiu da home e virou /avaliacao.
+    actionTarget: "/avaliacao",
     icon: "🚗",
     title: "QUER VENDER SEU VEÍCULO?",
     subtitle: "Simule a avaliação do seu carro usado agora mesmo na nossa ferramenta online. Simples, rápido e com preço de pátio.",
