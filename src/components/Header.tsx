@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import ThemeSettings from "./ThemeSettings";
 import { useTheme } from "../app/ThemeContext";
-import { IconeWhatsApp } from "./modernist/primitivos";
+import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
 
 /**
  * Cabeçalho Modernist (redesign 2026).
@@ -16,6 +16,15 @@ import { IconeWhatsApp } from "./modernist/primitivos";
  * doc, mas estão em produção — ficam no cluster da direita, reescritas na
  * linguagem do sistema (quadradas, contorno de 1px).
  */
+
+const LOGO_PADRAO = "/motors-store-logo-1.png";
+
+const LOGO_POR_TEMA: Record<string, string> = {
+  "motors-modernist": "/motors-store-logo-1.png",
+  "luxury-light": "/motors-store-logo-1.png",
+  "stealth-dark": "/motors-store-logo-2.png",
+  "sport-nardo": "/motors-store-logo-3.png",
+};
 
 const NAV = [
   { href: "/estoque", rotulo: "ESTOQUE" },
@@ -32,22 +41,13 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const logoSrcMap: Record<string, string> = {
-    "motors-modernist": "/motors-store-logo-1.png",
-    "luxury-light": "/motors-store-logo-1.png",
-    "stealth-dark": "/motors-store-logo-2.png",
-    "sport-nardo": "/motors-store-logo-3.png",
-  };
-
-  const activeLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/motors-store-logo-1.png";
-  const [logoSrc, setLogoSrc] = useState<string>(activeLogo);
-  const [imgError, setImgError] = useState(false);
-
-  useEffect(() => {
-    const newLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/motors-store-logo-1.png";
-    setLogoSrc(newLogo);
-    setImgError(false);
-  }, [theme, companySettings?.logoUrl]);
+  // A logo é derivada do tema e das configurações — não precisa de estado
+  // nem de efeito. Só a falha de carregamento é estado, e ela é resetada
+  // pela `key` do <Image> quando a fonte muda.
+  const logoSrc =
+    companySettings?.logoUrl || LOGO_POR_TEMA[theme] || LOGO_PADRAO;
+  const [logoFalhou, setLogoFalhou] = useState(false);
+  const usarFallbackTextual = logoFalhou;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -82,18 +82,16 @@ export default function Header() {
       <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-9 px-6 lg:px-10 sm:flex">
         <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">
           <span className="h-[26px] w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
-          {!imgError ? (
+          {!usarFallbackTextual ? (
             <Image
+              key={logoSrc}
               src={encodeURI(logoSrc)}
               alt={companySettings?.name || "Motors Store"}
               width={160}
               height={40}
               priority
               unoptimized
-              onError={() => {
-                if (logoSrc !== "/motors-store-logo-1.png") setLogoSrc("/motors-store-logo-1.png");
-                else setImgError(true);
-              }}
+              onError={() => setLogoFalhou(true)}
               className="h-8 w-auto max-w-[170px] object-contain object-left"
             />
           ) : (
@@ -163,30 +161,29 @@ export default function Header() {
           <ThemeSettings />
         </div>
 
-        <a
+        <BotaoWhatsApp
           href={whatsappHref}
-          target="_blank"
-          rel="noopener noreferrer"
+          origem="Header - WhatsApp"
+          rotulo="WHATSAPP"
+          tamanhoIcone={15}
           className="mt-btn mt-btn-primario mt-foco shrink-0 px-4 py-2.5 text-xs tracking-[.08em]"
-        >
-          <IconeWhatsApp size={15} />
-          WHATSAPP
-        </a>
+        />
       </div>
 
       {/* ─── Mobile ─── */}
       <div className="flex h-[58px] items-center gap-3 px-[18px] sm:hidden">
         <Link href="/" className="mt-foco mr-auto flex items-center gap-2.5">
           <span className="h-[22px] w-1.5 shrink-0 bg-mt-accent" aria-hidden="true" />
-          {!imgError ? (
+          {!usarFallbackTextual ? (
             <Image
+              key={logoSrc}
               src={encodeURI(logoSrc)}
               alt={companySettings?.name || "Motors Store"}
               width={120}
               height={30}
               priority
               unoptimized
-              onError={() => setImgError(true)}
+              onError={() => setLogoFalhou(true)}
               className="h-7 w-auto max-w-[130px] object-contain object-left"
             />
           ) : (

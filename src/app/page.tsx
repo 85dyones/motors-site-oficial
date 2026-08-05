@@ -1,12 +1,12 @@
 import Link from "next/link";
 import HeroHome from "../components/modernist/HeroHome";
 import BuscaRegua from "../components/modernist/BuscaRegua";
+import BotaoWhatsApp from "../components/modernist/BotaoWhatsApp";
 import InstagramFeed from "../components/InstagramFeed";
 import GoogleReviewsFeed from "../components/GoogleReviewsFeed";
 import {
   CabecalhoSecao,
   CardVeiculo,
-  IconeWhatsApp,
   LinkRegua,
   Rotulo,
   Seta,
@@ -256,15 +256,12 @@ export default async function Home() {
             VER OS {total} VEÍCULOS
             <Seta />
           </Link>
-          <a
+          <BotaoWhatsApp
             href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
+            origem="Home - Faixa de contato"
+            rotulo="FALAR COM CONSULTOR"
             className="mt-btn mt-foco border-2 border-mt-inverso text-mt-inverso"
-          >
-            <IconeWhatsApp />
-            FALAR COM CONSULTOR
-          </a>
+          />
         </div>
       </section>
     </main>
