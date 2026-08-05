@@ -179,18 +179,26 @@ const formatCombustivel = (c: string): string => {
   return c.charAt(0).toUpperCase() + c.slice(1);
 };
 
-const formatPericia = (p: string, laudo?: string): string => {
-  if (laudo && laudo.toLowerCase().includes("aprovad")) {
-    return "PERÍCIA APROVADA";
-  }
-  if (!p) return laudo ? "PERÍCIA APROVADA" : "EM ANÁLISE";
-  const val = p.toLowerCase().trim();
-  if (val.includes("aprovad") || val.includes("cautelar") || val.includes("ok") || val.includes("100%")) {
-    return "PERÍCIA APROVADA";
-  }
-  if (val.includes("analise") || val.includes("análise")) {
-    return "EM ANÁLISE";
-  }
+/**
+ * Status de perícia do veículo, a partir do campo `pericia` do feed.
+ *
+ * Só aprova com afirmação EXPLÍCITA de aprovação, e nunca quando há negação
+ * junto. A versão anterior aprovava se o texto contivesse "cautelar", "ok" ou
+ * "100%" — bastava um "cautelar reprovada" ou "laudo cautelar pendente" no
+ * feed para o site estampar selo verde de perícia aprovada num carro reprovado.
+ * Também aprovava por presença de `laudo_pericia`, texto livre que hoje é o
+ * default promocional do mapper: aprovação por conteúdo de marketing.
+ *
+ * Valores reais em produção (2026-08-06): "Aprovado" e "Em análise".
+ */
+const formatPericia = (p: string): string => {
+  const val = (p || "").toLowerCase().trim();
+  if (!val) return "EM ANÁLISE";
+
+  const nega = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/.test(val);
+  if (!nega && /aprovad/.test(val)) return "PERÍCIA APROVADA";
+  if (/analise|análise/.test(val)) return "EM ANÁLISE";
+
   return p.toUpperCase();
 };
 
@@ -308,7 +316,7 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     return "URBANO & EFICIENTE";
   };
 
-  const periciaVal = formatPericia(dbItem.pericia, dbItem.laudo_pericia);
+  const periciaVal = formatPericia(dbItem.pericia);
   
   const rawDesc = (dbItem.laudo_pericia || dbItem.opcionais || dbItem.description || dbItem.descricao || "").toLowerCase();
   const rawM = (dbItem.modelo || "").toLowerCase();
@@ -330,11 +338,12 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     dynamicTerms.some(t => rawDesc.includes(t)) ||
     (dbItem.cambio && (dbItem.cambio.toLowerCase().includes("pdk") || dbItem.cambio.toLowerCase().includes("zf8") || dbItem.cambio.toLowerCase().includes("dsg") || dbItem.cambio.toLowerCase().includes("dupla embreagem")));
 
-  // cautelar_100: approved pericia
-  const hasCautelar100 = 
-    periciaVal.toLowerCase().includes("aprovad") ||
-    periciaVal.toLowerCase().includes("cautelar") ||
-    rawDesc.includes("cautelar") || rawDesc.includes("perícia") || rawDesc.includes("pericia") || rawDesc.includes("aprovado") || rawDesc.includes("aprovada");
+  // cautelar_100 — só com a perícia REALMENTE aprovada no feed.
+  //
+  // Antes bastava a descrição mencionar a palavra "perícia" (ou "cautelar")
+  // para o badge acender: um texto dizendo "perícia pendente" ligava o selo.
+  // O badge afirma aprovação ao cliente; só o status real pode acendê-lo.
+  const hasCautelar100 = periciaVal === "PERÍCIA APROVADA";
 
   // baixa_km: km < 40000
   const hasBaixaKm = (typeof dbItem.quilometragem === "number" ? dbItem.quilometragem : (Number(dbItem.quilometragem) || 0)) < 40000;
@@ -352,21 +361,39 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     versao: dbItem.versao ? dbItem.versao.trim() : "Padrão",
     ano: typeof dbItem.ano === "number" ? dbItem.ano : (Number(dbItem.ano) || new Date().getFullYear()),
     quilometragem: typeof dbItem.quilometragem === "number" ? dbItem.quilometragem : (Number(dbItem.quilometragem) || 0),
-    cambio: dbItem.cambio ? formatCambio(dbItem.cambio) : "Automático",
-    combustivel: dbItem.combustivel ? formatCombustivel(dbItem.combustivel) : "Flex",
-    cor: dbItem.cor ? capitalizeWords(dbItem.cor.trim()) : "Cinza Nardo",
-    placa: dbItem.placa || "V-REF100",
-    fipe: dbItem.fipe || "Consulta Fipe",
+    // ⚠️  NADA DE DEFAULT INVENTADO NOS CAMPOS ABAIXO.
+    //
+    // Até 2026-08-06 este mapper preenchia atributos ausentes com texto
+    // promocional fixo, e o site os exibia como fato ao cliente. Medido contra
+    // produção no dia da correção:
+    //
+    //   `opcionais`      vazio em 87 dos 88 veículos → praticamente TODO o
+    //                    estoque anunciava "Teto solar, Multimídia, Rodas de
+    //                    liga leve, Câmera de ré".
+    //   `laudo_pericia`  vazio em 88 de 88 → todo carro exibia "Estrutura
+    //                    íntegra, histórico livre de passagens por leilão ou
+    //                    sinistros", incluindo os com perícia "Em análise".
+    //   `combustivel`    vazio em 19 de 88 → exibidos como "Flex", inclusive
+    //                    veículos elétricos e a diesel.
+    //
+    // Anunciar teto solar num carro que não tem, ou laudo limpo num carro não
+    // periciado, é afirmação falsa sobre o produto — exposição direta ao CDC
+    // para uma loja de veículos. String vazia deixa a UI ocultar a seção.
+    cambio: dbItem.cambio ? formatCambio(dbItem.cambio) : "",
+    combustivel: dbItem.combustivel ? formatCombustivel(dbItem.combustivel) : "",
+    cor: dbItem.cor ? capitalizeWords(dbItem.cor.trim()) : "",
+    placa: dbItem.placa || "",
+    fipe: dbItem.fipe || "",
     preco_original: precoOriginal,
     preco_promocional: precoPromocional,
     pericia: periciaVal,
     whatsapp_images: whatsappImgs,
     web_full_images: webFullImgs,
-    opcionais: dbItem.opcionais || "Teto solar, Multimídia, Rodas de liga leve, Câmera de ré",
-    laudo_pericia: dbItem.laudo_pericia || "Estrutura íntegra, histórico livre de passagens por leilão ou sinistros.",
+    opcionais: dbItem.opcionais || "",
+    laudo_pericia: dbItem.laudo_pericia || "",
     tipo: resolveTipo(dbItem),
     perfil_uso: resolvePerfilUso(dbItem),
-    descricao: dbItem.descricao || dbItem.laudo_pericia || "Estrutura 100% íntegra, vistoria cautelar aprovada com nota máxima e procedência de showroom garantida. Veículo revisado pontualmente e mantido em perfeito estado de conservação estática e mecânica.",
+    descricao: dbItem.descricao || dbItem.laudo_pericia || "",
     cabine_premium: hasCabinePremium,
     tecnologia_embarcada: hasTech,
     conducao_dinamica: hasConducaoDinamica,
@@ -483,6 +510,32 @@ export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(l
  * lá os veículos que saíram do feed precisam continuar visíveis para serem
  * marcados, conferidos na margem e auditados.
  */
+/**
+ * O que servir quando o Supabase não responde.
+ *
+ * `MOCK_ESTOQUE` são 5 carros FICTÍCIOS de demonstração — Porsche 911 a
+ * R$ 998.000, Defender, BYD Dolphin — com placas falsas e fotos do Unsplash.
+ * Servi-los em produção significa anunciar carros que a loja não tem, com CTAs
+ * de WhatsApp funcionais: o cliente inicia negociação de um veículo inexistente.
+ * Pior, `getEstoque()` nunca lança erro, então o `try/catch` do sitemap nunca
+ * dispara — numa indisponibilidade do banco o sitemap publicaria as URLs
+ * fictícias e as PDPs renderizariam schema.org com preços inventados.
+ *
+ * Em produção o correto é a vitrine vazia: honesta e visivelmente errada, em vez
+ * de plausível e falsa. Os mocks continuam servindo o desenvolvimento local,
+ * onde é exatamente o que se quer sem banco configurado.
+ */
+function estoqueDeContingencia(): Veiculo[] {
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "[Supabase] Estoque indisponível em produção — servindo vitrine vazia. " +
+        "MOCK_ESTOQUE NÃO é servido: são carros fictícios."
+    );
+    return [];
+  }
+  return MOCK_ESTOQUE;
+}
+
 export async function getEstoque(
   opts: { incluirForaDoFeed?: boolean } = {}
 ): Promise<Veiculo[]> {
@@ -495,8 +548,8 @@ export async function getEstoque(
         .order("preco", { ascending: false });
 
       if (error) {
-        console.warn("[Supabase] Query error, falling back to offline dataset:", error.message);
-        list = MOCK_ESTOQUE;
+        console.warn("[Supabase] Query error:", error.message);
+        list = estoqueDeContingencia();
       } else if (data && data.length > 0) {
         const visiveis = opts.incluirForaDoFeed ? data : apenasDoUltimoSync(data);
         // O filtro nunca pode zerar a lista e derrubar o site no MOCK_ESTOQUE —
@@ -511,15 +564,17 @@ export async function getEstoque(
           list = visiveis.map(mapVeiculoDbToVeiculo);
         }
       } else {
-        list = MOCK_ESTOQUE;
+        list = estoqueDeContingencia();
       }
     } catch (err) {
-      console.warn("[Supabase] Unexpected connection error, falling back to offline dataset:", err);
-      list = MOCK_ESTOQUE;
+      console.warn("[Supabase] Unexpected connection error:", err);
+      list = estoqueDeContingencia();
     }
   } else {
-    console.info("[Supabase] Client not configured. Serving high-fidelity local catalog.");
-    list = MOCK_ESTOQUE;
+    // Sem credenciais: em dev serve o catálogo local; em produção seria um
+    // deploy sem env configurada — vitrine vazia, nunca carros fictícios.
+    console.info("[Supabase] Client not configured.");
+    list = estoqueDeContingencia();
   }
 
   return applyLocalOverrides(list);
@@ -557,7 +612,9 @@ export async function getVeiculoById(id: string): Promise<Veiculo | null> {
   }
 
   if (!car) {
-    const found = MOCK_ESTOQUE.find((item) => item.id === id);
+    // Em produção, veículo não encontrado é 404 — não um carro de demonstração
+    // com preço e placa inventados servido como se fosse do estoque real.
+    const found = estoqueDeContingencia().find((item) => item.id === id);
     car = found || null;
   }
 
