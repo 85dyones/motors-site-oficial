@@ -1009,14 +1009,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 <span className="text-brand-gold font-bold uppercase">COR EXTERNA</span>
                 <span className="text-brand-text font-extrabold">{veiculo.cor}</span>
               </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">ID DO VEÍCULO</span>
-                <span className="text-brand-text font-extrabold font-mono">{getShortVehicleId(veiculo.id)}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">FIPE REFERÊNCIA</span>
-                <span className="text-brand-text font-extrabold">{veiculo.fipe}</span>
-              </div>
+              {/* ID interno e FIPE ficam FORA da matriz, por decisão do dono
+                  (2026-08-06): o ID é dado operacional da loja, e `fipe` nem
+                  existe no banco — todo carro exibia o default "Consulta Fipe",
+                  um dado inventado apresentado ao cliente como fato. O ID
+                  segue disponível no cabeçalho de impressão da ficha. */}
               {veiculo.tipo && (
                 <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                   <span className="text-brand-gold font-bold uppercase">CARROCERIA</span>
