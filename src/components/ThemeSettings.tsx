@@ -28,6 +28,12 @@ export default function ThemeSettings() {
     colors: string[];
   }[] = [
     {
+      id: "motors-modernist",
+      name: "Motors Modernista 2026",
+      shortName: "Modernista",
+      colors: ["#f3f2f2", "#ec3013", "#201e1d"],
+    },
+    {
       id: "luxury-light",
       name: "Luxury Laranja Claro",
       shortName: "Claro",

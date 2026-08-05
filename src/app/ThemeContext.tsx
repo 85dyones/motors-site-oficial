@@ -30,6 +30,21 @@ export type {
 };
 
 export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
+  // Paleta do redesign 2026 (design doc "Motors site modernista redesign").
+  // Os tokens --mt-* de modernist.css derivam destes valores.
+  "motors-modernist": {
+    "--brand-background": "#f3f2f2",
+    "--brand-foreground": "#201e1d",
+    "--brand-primary": "#ec3013",
+    "--brand-primary-hover": "#ae1800",
+    "--brand-gold": "#ec3013",
+    "--brand-card": "#eae9e9",
+    "--brand-card-border": "#d7d3d3",
+    "--brand-border": "#d7d3d3",
+    "--brand-shadow": "rgba(45, 43, 43, 0.22)",
+    "--brand-glass-bg": "rgba(243, 242, 242, 0.86)",
+    "--brand-footer-bg": "#201e1d",
+  },
   "luxury-light": {
     "--brand-background": "#fafafc",
     "--brand-foreground": "#1a1a23",

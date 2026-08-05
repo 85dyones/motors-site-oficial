@@ -10,6 +10,7 @@ import { useTheme } from "../app/ThemeContext";
 import { getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { findMatchingQuickTag } from "../lib/tagUtils";
+import { resolveTipoCombustivel, checkTagMatchesVehicle } from "../lib/regrasEstoque";
 import SearchConsole from "./SearchConsole";
 import FilterConsole from "./FilterConsole";
 import QuickTagsCarousel from "./QuickTagsCarousel";
@@ -46,16 +47,9 @@ function resolveTipoCambio(car: Veiculo): string {
   return "Automático";
 }
 
-function resolveTipoCombustivel(car: Veiculo): string {
-  const c = (car.combustivel || "").toLowerCase();
-  if (c.includes("flex")) return "Flex";
-  if (c.includes("álcool") || c.includes("alcool")) return "Álcool";
-  if (c.includes("elétrico") || c.includes("eletrico") || c.includes("ev")) return "Elétrico";
-  if (c.includes("híbrido") || c.includes("hibrido") || c.includes("mhev")) return "Híbrido";
-  if (c.includes("diesel")) return "Diesel";
-  if (c.includes("gasolina")) return "Gasolina";
-  return car.combustivel || "Flex";
-}
+// Movidas para ../lib/regrasEstoque para poderem rodar no servidor.
+// Reexportadas aqui porque este arquivo já servia de módulo utilitário.
+export { resolveTipoCombustivel, checkTagMatchesVehicle };
 
 export function resolveTagColorClass(color?: string): string {
   switch (color) {
@@ -112,64 +106,6 @@ const DEFAULT_QUICK_TAGS: QuickTag[] = [
 ];
 
 // Removed obsolete filters constants
-
-function checkTagMatchesVehicle(tag: QuickTag, car: Veiculo, stockOverrides: any): boolean {
-  // Check manual overrides first
-  const manualTags = stockOverrides?.[car.id]?.quick_tags || [];
-  if (manualTags.includes(tag.id)) {
-    return true;
-  }
-
-  if (tag.field === "manual" || tag.operator === "none") {
-    return false;
-  }
-
-  // Special fallback for the default "economicos" tag to match original behavior
-  if (tag.id === "economicos" && tag.field === "preco" && tag.operator === "less" && tag.value === "180000") {
-    const p = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
-      ? car.preco_promocional
-      : car.preco_original;
-    const combustivel = resolveTipoCombustivel(car);
-    return p < 180000 || combustivel === "Elétrico" || combustivel === "Híbrido";
-  }
-
-  // Extract the field value from the car
-  let fieldValue: any;
-  if (tag.field === "preco") {
-    fieldValue = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
-      ? car.preco_promocional
-      : car.preco_original;
-  } else if (tag.field === "quilometragem") {
-    fieldValue = car.quilometragem;
-  } else if (tag.field === "combustivel") {
-    fieldValue = resolveTipoCombustivel(car);
-  } else if (tag.field === "perfil_uso") {
-    fieldValue = car.perfil_uso || "";
-  } else if (tag.field === "tipo") {
-    fieldValue = car.tipo || "";
-  } else if (tag.field === "marca") {
-    fieldValue = car.marca || "";
-  } else {
-    fieldValue = (car as any)[tag.field] || "";
-  }
-
-  const strFieldValue = String(fieldValue).toLowerCase().trim();
-  const ruleValue = tag.value.toLowerCase().trim();
-
-  // Evaluate rule based on operator
-  switch (tag.operator) {
-    case "equals":
-      return strFieldValue === ruleValue;
-    case "contains":
-      return strFieldValue.includes(ruleValue);
-    case "less":
-      return Number(fieldValue) < Number(tag.value);
-    case "greater":
-      return Number(fieldValue) > Number(tag.value);
-    default:
-      return false;
-  }
-}
 
 function calculateCampaignMatchScore(car: Veiculo, campaign: string): number {
   let score = 0;
