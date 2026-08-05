@@ -25,17 +25,18 @@ export const DESTAQUES_PADRAO: QuickTag[] = [
  */
 export function normalizarQuickTags(bruto: unknown): QuickTag[] {
   if (Array.isArray(bruto)) return bruto as QuickTag[];
-  if (bruto && typeof bruto === "object" && Array.isArray((bruto as any).quickTags)) {
-    return (bruto as any).quickTags as QuickTag[];
+  if (bruto && typeof bruto === "object") {
+    const aninhado = (bruto as { quickTags?: unknown }).quickTags;
+    if (Array.isArray(aninhado)) return aninhado as QuickTag[];
   }
   return [];
 }
 
 export function normalizarStockOverrides(bruto: unknown): StockOverrides {
   if (!bruto || typeof bruto !== "object") return {};
-  const comChave = bruto as any;
-  if (comChave.overrides && typeof comChave.overrides === "object") {
-    return comChave.overrides as StockOverrides;
+  const aninhado = (bruto as { overrides?: unknown }).overrides;
+  if (aninhado && typeof aninhado === "object") {
+    return aninhado as StockOverrides;
   }
   return bruto as StockOverrides;
 }

@@ -1,4 +1,4 @@
-import type { QuickTag, Veiculo } from "../types";
+import type { QuickTag, StockOverrides, Veiculo } from "../types";
 
 /**
  * Regras de leitura do estoque.
@@ -30,7 +30,7 @@ export function precoVigente(car: Veiculo): number {
 export function checkTagMatchesVehicle(
   tag: QuickTag,
   car: Veiculo,
-  stockOverrides: any,
+  stockOverrides: StockOverrides,
 ): boolean {
   // Associação manual feita no painel vence a regra automática
   const manualTags = stockOverrides?.[car.id]?.quick_tags || [];
@@ -50,7 +50,7 @@ export function checkTagMatchesVehicle(
     return p < 180000 || combustivel === "Elétrico" || combustivel === "Híbrido";
   }
 
-  let fieldValue: any;
+  let fieldValue: string | number;
   if (tag.field === "preco") {
     fieldValue = precoVigente(car);
   } else if (tag.field === "quilometragem") {
@@ -64,7 +64,10 @@ export function checkTagMatchesVehicle(
   } else if (tag.field === "marca") {
     fieldValue = car.marca || "";
   } else {
-    fieldValue = (car as any)[tag.field] || "";
+    // `tag.field` é aberto no schema: uma categoria criada no painel pode
+    // apontar para qualquer coluna do veículo.
+    const bruto = (car as unknown as Record<string, unknown>)[tag.field];
+    fieldValue = typeof bruto === "number" ? bruto : String(bruto ?? "");
   }
 
   const strFieldValue = String(fieldValue).toLowerCase().trim();
