@@ -3,20 +3,20 @@ import ContatoClientWrapper from "../../components/ContatoClientWrapper";
 
 export const metadata: Metadata = {
   title: "Fale Conosco | Motors Store - Atendimento Showroom",
-  description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe na Avenida Europa para agendamentos e propostas.",
+  description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.",
   alternates: {
     canonical: "/contato",
   },
   openGraph: {
     title: "Fale Conosco | Motors Store - Atendimento Showroom",
-    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe na Avenida Europa para agendamentos e propostas.",
+    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.",
     url: "/contato",
     type: "website",
   },
   twitter: {
     card: "summary",
     title: "Fale Conosco | Motors Store - Atendimento Showroom",
-    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe na Avenida Europa para agendamentos e propostas.",
+    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.",
   },
 };
 
@@ -71,7 +71,7 @@ export default function ContatoPage() {
             FALE CONOSCO
           </h1>
           <p className="text-xs text-brand-text/60 leading-relaxed font-light">
-            Envie sua mensagem abaixo e nosso time premium da Avenida Europa fará contato em poucos minutos via WhatsApp para agendar visitas e analisar propostas.
+            Envie sua mensagem abaixo e nosso time premium em Curitiba fará contato em poucos minutos via WhatsApp para agendar visitas e analisar propostas.
           </p>
         </section>
 

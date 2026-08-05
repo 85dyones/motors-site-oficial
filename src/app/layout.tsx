@@ -37,9 +37,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL("https://motors-site-oficial.vercel.app"),
     title: tabTitle,
-    description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados de São Paulo. Facilidade no financiamento sem entrada.",
+    description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados em Curitiba. Facilidade no financiamento sem entrada.",
     alternates: {
-      canonical: "/",
+      // Sem `canonical` aqui de propósito. No layout raiz ele é HERDADO por
+      // toda página que não declare o seu — /login, /test e as rotas de /admin
+      // acabavam anunciando a home como canônica. As páginas públicas
+      // (home, sobre, contato, privacidade, destaques, PDP) definem o próprio.
       types: {
         "application/llms+txt": "/api/llms-full.txt"
       }

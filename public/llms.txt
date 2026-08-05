@@ -7,7 +7,6 @@
 - Sobre a Motors: `/sobre` (Nossa história, missão e diferenciais de pátio)
 - Contato: `/contato` (Canais de atendimento, endereço físico, horários de funcionamento e formulário direto)
 - Ficha de Detalhes do Veículo (PDP): `/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]` (Exemplo: `/carros/fiat/titano/volcano-22-16v-4x4-tb-die-aut/8171616.html`)
-- Configurações Administrativas: `/configuracoes` (Dashboard para personalização de tags, estoque e webhooks da loja)
 
 ## Recursos para Agentes de IA (WebMCP Tools)
 O site oferece ferramentas declarativas WebMCP para que agentes virtuais interajam com as principais ações de negócio:

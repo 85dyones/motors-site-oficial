@@ -2701,7 +2701,7 @@ export default function ConfiguracoesClientWrapper() {
                       required
                       value={companyForm.address}
                       onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
-                      placeholder="Av. Europa, 1000 - Jardim Europa, São Paulo - SP, CEP 01449-000"
+                      placeholder="Rua Ernesto Piazzetta, 98 - Bacacheri, Curitiba - PR, 82510-350"
                       className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
                     />
                   </div>
@@ -3134,7 +3134,7 @@ export default function ConfiguracoesClientWrapper() {
                         required
                         value={aboutForm.historyTitle}
                         onChange={(e) => setAboutForm({ ...aboutForm, historyTitle: e.target.value })}
-                        placeholder="A Herança da Avenida Europa"
+                        placeholder="A Herança da Motors Store"
                         className="w-full p-3.5 bg-brand-bg text-brand-text placeholder-brand-text/30 border border-brand-card-border rounded-xl text-xs outline-none focus:border-brand-primary transition-all"
                       />
                     </div>
