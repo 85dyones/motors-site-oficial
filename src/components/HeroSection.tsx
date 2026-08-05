@@ -16,6 +16,28 @@ import QuickTagsCarousel from "./QuickTagsCarousel";
 import VehicleGrid from "./VehicleGrid";
 import LeadCaptureModal from "./LeadCaptureModal";
 
+/**
+ * Comparador de veículos — DESLIGADO.
+ *
+ * A funcionalidade estava quebrada em produção: os botões "Comparar" nos cards
+ * alimentavam um seletor, e o CTA flutuante levava para `/comparar` — uma rota
+ * que NÃO EXISTE. Verificado no navegador em 2026-08-06: 404.
+ *
+ * O componente que renderizaria a comparação (`VehicleCompare.tsx`, 684 linhas)
+ * existe, mas nunca foi importado por arquivo nenhum — nunca rodou em produção,
+ * e a auditoria de acessibilidade apontou que o overlay dele não tem
+ * `role="dialog"`, `aria-modal` nem focus trap.
+ *
+ * Decisão do dono em 2026-08-06: esconder por ora, em vez de publicar a rota e
+ * estrear 684 linhas não testadas com cliente na frente.
+ *
+ * Esconder o CTA e MANTER os botões dos cards seria trocar um 404 por um beco
+ * sem saída — o cliente marcaria carros e nada aconteceria. Por isso a flag
+ * apaga a superfície inteira. Ligar de volta = `true` + criar a rota
+ * `/comparar` que renderize `VehicleCompare`.
+ */
+export const COMPARADOR_HABILITADO = false;
+
 // Formatter helpers
 export function formatPrice(value: number): string {
   return value.toLocaleString("pt-BR", {
@@ -1468,7 +1490,7 @@ export default function HeroSection({
 
         {/* FLOATING COMPARISON CTA — appears when 2+ cars selected */}
         {/* Desktop: Fixed bottom-right floating button */}
-        {compareIds.length >= 2 && (
+        {COMPARADOR_HABILITADO && compareIds.length >= 2 && (
           <button
             onClick={() => router.push('/comparar')}
             className="hidden lg:flex fixed bottom-8 right-8 z-50 items-center gap-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold text-sm uppercase tracking-wider pl-5 pr-4 py-4 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.2)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:scale-105 active:scale-95 animate-[slideUp_0.4s_ease-out]"
@@ -1483,7 +1505,7 @@ export default function HeroSection({
         )}
 
         {/* Mobile: Fixed bottom full-width CTA bar */}
-        {compareIds.length >= 2 && (
+        {COMPARADOR_HABILITADO && compareIds.length >= 2 && (
           <div
             className="lg:hidden fixed bottom-0 left-0 w-full z-40 bg-brand-primary text-white font-semibold text-center uppercase p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.2)] flex items-center justify-center gap-3 cursor-pointer active:opacity-90 transition-all duration-300 animate-[slideUp_0.3s_ease-out]"
             onClick={() => router.push('/comparar')}

@@ -2,7 +2,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Veiculo } from "../types";
-import { formatPrice, formatKm, resolveTagColorClass } from "./HeroSection";
+import { formatPrice, formatKm, resolveTagColorClass, COMPARADOR_HABILITADO } from "./HeroSection";
 
 interface VehicleGridProps {
   filteredEstoque: Veiculo[];
@@ -159,7 +159,8 @@ export default function VehicleGrid({
 
                     {/* CTAs Group */}
                     <div className="flex items-center gap-2 max-sm:gap-1.5 self-end flex-shrink-0">
-                      {/* Toggle Comparar Button */}
+                      {/* Toggle Comparar Button — ver COMPARADOR_HABILITADO */}
+                      {COMPARADOR_HABILITADO && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -193,6 +194,7 @@ export default function VehicleGrid({
                         </svg>
                         <span>{isInCompare(veiculo.id) ? "Comparando" : "Comparar"}</span>
                       </button>
+                      )}
 
                       {/* Square Green Emerald WhatsApp Button (w-12 h-12 / 48x48px) */}
                       <button
@@ -444,7 +446,8 @@ export default function VehicleGrid({
                     )}
                   </Link>
 
-                  {/* Toggle Comparar Button */}
+                  {/* Toggle Comparar Button — ver COMPARADOR_HABILITADO */}
+                  {COMPARADOR_HABILITADO && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -478,6 +481,7 @@ export default function VehicleGrid({
                     </svg>
                     <span>{isInCompare(veiculo.id) ? "Comparando" : "Comparar"}</span>
                   </button>
+                  )}
                 </div>
 
                 {/* Direct Click Buttons Block CTAs */}
