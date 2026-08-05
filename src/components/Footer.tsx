@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import { getEstoque, getVeiculoPdpUrl, truncateString, type Veiculo } from "../lib/supabase";
+import { trackContactClick } from "../lib/telemetry";
 
 /**
  * Rodapé Modernist (redesign 2026).
@@ -81,7 +82,10 @@ export default function Footer() {
   const { companySettings } = useTheme();
   const { marcas, modelos } = useVitrineDestaque();
 
-  const colunas = [
+  const colunas: {
+    titulo: string;
+    itens: { rotulo: string; href: string | null; contato?: "whatsapp" | "phone" }[];
+  }[] = [
     {
       titulo: "INSTITUCIONAL",
       itens: [
@@ -94,10 +98,15 @@ export default function Footer() {
     {
       titulo: "ATENDIMENTO",
       itens: [
-        { rotulo: companySettings.phone, href: `tel:${(companySettings.phone || "").replace(/\D/g, "")}` },
+        {
+          rotulo: companySettings.phone,
+          href: `tel:${(companySettings.phone || "").replace(/\D/g, "")}`,
+          contato: "phone",
+        },
         {
           rotulo: `WhatsApp ${companySettings.whatsapp}`,
           href: `https://wa.me/${(companySettings.whatsappRaw || companySettings.whatsapp || "").replace(/\D/g, "")}`,
+          contato: "whatsapp",
         },
         { rotulo: companySettings.hours, href: null },
       ],
@@ -141,6 +150,19 @@ export default function Footer() {
                       <Link
                         key={item.rotulo}
                         href={item.href}
+                        // Telefone e WhatsApp do rodapé aparecem em todas as
+                        // páginas e são rota de contato como qualquer outra —
+                        // até 2026-08-06 eram os únicos CTAs de contato do
+                        // site que não disparavam `Contact`.
+                        onClick={
+                          item.contato
+                            ? () =>
+                                trackContactClick(
+                                  item.contato!,
+                                  `Rodapé - ${item.contato === "whatsapp" ? "WhatsApp" : "Telefone"}`,
+                                )
+                            : undefined
+                        }
                         className="mt-foco whitespace-pre-line text-mt-inverso-suave no-underline hover:text-mt-inverso"
                       >
                         {item.rotulo}
