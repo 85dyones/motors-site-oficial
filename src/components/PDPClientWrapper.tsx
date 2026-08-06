@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString } from "../lib/supabase";
@@ -26,16 +26,6 @@ function formatPrice(value: number): string {
 function formatKm(value: number): string {
   if (value === 0) return "Sem Uso (0 km)";
   return `${value.toLocaleString("pt-BR")} km`;
-}
-
-function resolveDirecao(car: Veiculo): string {
-  const text = `${car.opcionais} ${car.laudo_pericia} ${car.descricao || ""}`.toLowerCase();
-  if (text.includes("hidráulica") || text.includes("hidraulica")) return "Hidráulica";
-  if (text.includes("mecânica") || text.includes("mecanica")) return "Mecânica";
-  if (car.marca.toLowerCase() === "toyota" && car.modelo.toLowerCase().includes("hilux")) {
-    return "Hidráulica";
-  }
-  return "Elétrica";
 }
 
 function getShortVehicleId(id: string): string {
@@ -65,9 +55,22 @@ function resolveTagColorClass(color?: string): string {
 }
 
 export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientWrapperProps) {
-  const { companySettings, webhooks, stockOverrides } = useTheme();
-  const [veiculo, setVeiculo] = useState<Veiculo>(initialVeiculo);
-  const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
+  const { companySettings, stockOverrides } = useTheme();
+
+  /**
+   * O veículo exibido é derivado, não estado.
+   *
+   * Eram duas coisas: um `useState` inicializado com a prop e dois efeitos
+   * que o re-sincronizavam — um quando a prop mudava, outro quando os
+   * overrides do painel chegavam. Nada além desses efeitos escrevia nele,
+   * então era estado derivado disfarçado, pagando um render extra a cada
+   * navegação entre PDPs. `useMemo` faz o mesmo em um passo só.
+   */
+  const veiculo: Veiculo = useMemo(() => {
+    const itemOverrides = stockOverrides?.[initialVeiculo.id];
+    return itemOverrides ? { ...initialVeiculo, ...itemOverrides } : initialVeiculo;
+  }, [initialVeiculo, stockOverrides]);
+
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [opcionaisOpen, setOpcionaisOpen] = useState(true);
   const [periciaOpen, setPericiaOpen] = useState(true);
@@ -80,7 +83,9 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
   const [activeChannel, setActiveChannel] = useState("WhatsApp Proposta");
-  const [activeSimulacao, setActiveSimulacao] = useState<any>(null);
+  // Simulação de financiamento anexada ao lead. Hoje só é zerada — a
+  // calculadora ainda não devolve o objeto — mas o campo já viaja no payload.
+  const [activeSimulacao, setActiveSimulacao] = useState<Record<string, unknown> | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -96,11 +101,6 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   const displayImages = veiculo.whatsapp_images && veiculo.whatsapp_images.length > 0
     ? veiculo.whatsapp_images
     : veiculo.web_full_images;
-
-  // Sync prop changes
-  useEffect(() => {
-    setVeiculo(initialVeiculo);
-  }, [initialVeiculo]);
 
   // Handle body scroll locking when lightbox is active
   useEffect(() => {
@@ -132,25 +132,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     };
   }, [isLightboxOpen, veiculo.web_full_images.length]);
 
-  // Load client-side overrides on mount / when initialVeiculo or stockOverrides changes
-  useEffect(() => {
-    if (stockOverrides) {
-      const itemOverrides = stockOverrides[initialVeiculo.id];
-      if (itemOverrides) {
-        setVeiculo((prev) => ({
-          ...prev,
-          ...itemOverrides,
-        }));
-        console.log(`[Overrides] Applied local overrides for vehicle ${initialVeiculo.id} in PDP:`, itemOverrides);
-      }
-    }
-  }, [initialVeiculo, stockOverrides]);
-
   // Fetch tracking ID from LocalStorage on mount
   useEffect(() => {
     const uid = getActiveAgUid();
-    setAgUid(uid);
-    
+
     // Dynamic page view logger
     console.log(`[Antigravity Log] PageView iniciada para o veículo: ${veiculo.marca} ${veiculo.modelo} ID: ${veiculo.id}`);
 
@@ -236,8 +221,12 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   // WhatsApp lead url creation with client-side tracking reference
   const whatsappNumber = companySettings.whatsappRaw;
   
+  // O `ag_uid` é lido na hora do clique, e não guardado em estado: ele pode
+  // ser gravado depois da montagem da página, e o valor fresco é o que deve
+  // ir para a mensagem e para o payload do lead.
   const handleWhatsappPDPClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Proposta");
       const msg = veiculo.vendido
         ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} que foi vendido. Gostaria de saber se possuem modelos semelhantes disponíveis. (Ref: ${agUid})`
@@ -251,6 +240,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
   const handleProposalClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Dúvidas");
       const msg = `Olá! Gostaria de tirar dúvidas com o vendedor sobre o veículo ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
       setActiveMessage(msg);
@@ -261,6 +251,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
   const handleTradeInClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Usado na Troca");
       const msg = `Olá! Estou analisando o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) no site e gostaria de avaliar meu veículo como entrada na troca! (Ref: ${agUid})`;
       setActiveMessage(msg);
@@ -271,6 +262,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
   const handleTestDriveClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("Agendamento Test-Drive");
       const msg = `Olá! Gostaria de agendar um horário para ver o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) e fazer um test-drive no showroom! (Ref: ${agUid})`;
       setActiveMessage(msg);
@@ -280,6 +272,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   };
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
+    const agUid = getActiveAgUid();
     const utmParams = getUtmParameters();
     const tipoBadge = veiculo.baixa_km ? "BAIXA KM" : (veiculo.unico_dono ? "ÚNICO DONO" : (veiculo.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
 
@@ -358,8 +351,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         const errorData = await response.json().catch(() => ({}));
         console.warn("[Lead Submit PDP] API returned error (non-blocking):", errorData?.error || response.status);
       }
-    } catch (fetchError: any) {
-      console.warn("[Lead Submit PDP] Network error (non-blocking):", fetchError.message);
+    } catch (fetchError) {
+      console.warn(
+        "[Lead Submit PDP] Network error (non-blocking):",
+        fetchError instanceof Error ? fetchError.message : fetchError,
+      );
     }
 
     // Save lead to history
@@ -696,6 +692,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       <div className="hidden print:block w-full mb-6">
         {displayImages[0] && (
           <div className="relative w-full h-[320px] bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200">
+            {/* `<img>` cru de propósito: este bloco só existe na impressão da
+                ficha, e o `next/image` serve um srcset que a impressora não
+                aproveita. Mesma exceção do card em `modernist/primitivos`. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={displayImages[0]}
               alt={`${veiculo.marca} ${veiculo.modelo}`}
@@ -1011,9 +1011,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                   <span className="text-brand-text font-extrabold">{veiculo.combustivel}</span>
                 </div>
               )}
-              {/* DIREÇÃO removida: `resolveDirecao` é heurística sobre o nome do
-                  modelo e o texto livre da descrição — chute apresentado no
-                  mesmo grid que km e ano, que são dados reais do feed. */}
+              {/* DIREÇÃO não entra nesta matriz: o valor era adivinhado a
+                  partir do nome do modelo e do texto livre da descrição —
+                  chute apresentado ao lado de km e ano, que são dados reais
+                  do feed. A função que fazia esse palpite foi removida em
+                  2026-08-06; se a direção voltar, tem que vir do feed. */}
               {veiculo.cor && (
                 <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                   <span className="text-brand-gold font-bold uppercase">COR EXTERNA</span>
@@ -1042,7 +1044,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             onSimulateClick={(msg) => {
               if (typeof window !== "undefined") {
                 setActiveChannel("Simulação de Financiamento");
-                setActiveMessage(`${msg} (Ref: ${agUid})`);
+                setActiveMessage(`${msg} (Ref: ${getActiveAgUid()})`);
                 setIsLeadModalOpen(true);
               }
             }}
