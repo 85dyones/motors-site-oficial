@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Veiculo } from "../../types";
 import { formatarKm, formatarPreco } from "./primitivos";
+import { paginaDaFaixa } from "../../lib/faixaVitrine";
 
 /**
  * Vitrine da TV do showroom — tela 08 A do design doc.
@@ -15,6 +16,18 @@ import { formatarKm, formatarPreco } from "./primitivos";
  */
 
 const INTERVALO_MS = 8000;
+
+/**
+ * Células da faixa "A SEGUIR".
+ *
+ * Quatro é a composição do design doc: numa TV de 1920px cada célula fica com
+ * ~430px, respiro de 34px e o modelo em 22px. É o rodapé, não o rodízio, que
+ * tem esse limite — antes a faixa dava uma célula por carro exposto, então
+ * expor sete apertava cada célula a ~245px e truncava o nome do modelo. Agora
+ * a faixa pagina: mostra quatro e vira a página quando o rodízio passa da
+ * quarta. O rodízio em si nunca teve teto.
+ */
+export const POR_PAGINA = 4;
 
 export default function VitrineTV({
   veiculos,
@@ -48,6 +61,13 @@ export default function VitrineTV({
 
   const carro = veiculos[atual];
   if (!carro) return null;
+
+  // A página da faixa acompanha o rodízio: passou da quarta, vira.
+  const {
+    inicio: inicioDaPagina,
+    visiveis: daPagina,
+    vazias: vaziasNaPagina,
+  } = paginaDaFaixa(veiculos, atual, POR_PAGINA);
 
   const preco =
     carro.preco_promocional > 0 && carro.preco_promocional < carro.preco_original
@@ -182,12 +202,12 @@ export default function VitrineTV({
             {atual + 1} de {veiculos.length}
           </span>
         </div>
-        {veiculos.map((v, i) => {
+        {daPagina.map((v, i) => {
           const p =
             v.preco_promocional > 0 && v.preco_promocional < v.preco_original
               ? v.preco_promocional
               : v.preco_original;
-          const ativo = i === atual;
+          const ativo = inicioDaPagina + i === atual;
           return (
             <div
               key={v.id}
@@ -225,6 +245,13 @@ export default function VitrineTV({
             </div>
           );
         })}
+        {Array.from({ length: vaziasNaPagina }, (_, i) => (
+          <div
+            key={`vazia-${i}`}
+            aria-hidden="true"
+            className="flex-1 border-r border-mt-inverso-regua-fina"
+          />
+        ))}
       </div>
     </div>
   );
