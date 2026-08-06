@@ -115,6 +115,14 @@ describe("mapVeiculoDbToVeiculo — não inventa atributo do veículo", () => {
     "V-REF100",
     "Consulta Fipe",
     "vistoria cautelar aprovada",
+    // Carroceria e perfil de uso adivinhados, removidos em 2026-08-06.
+    // "Premium" era o fim da cadeia de `modelo.includes()` de `resolveTipo`:
+    // o que o site chamava de CATEGORIA quando não sabia a carroceria.
+    "Premium",
+    "URBANO & EFICIENTE",
+    "FORÇA & OFF-ROAD",
+    "LINHAGEM ESPORTIVA",
+    "CURADORIA EXCLUSIVA",
   ];
 
   it("linha sem atributos não ganha nenhum texto promocional", () => {
@@ -136,6 +144,8 @@ describe("mapVeiculoDbToVeiculo — não inventa atributo do veículo", () => {
     expect(v.combustivel).toBe("");
     expect(v.cor).toBe("");
     expect(v.cambio).toBe("");
+    expect(v.tipo).toBe("");
+    expect(v.perfil_uso).toBe("");
   });
 
   it("preserva o atributo real quando ele existe", () => {
@@ -153,6 +163,52 @@ describe("mapVeiculoDbToVeiculo — não inventa atributo do veículo", () => {
     expect(v.combustivel).toBe("Diesel");
     expect(v.cor).toBe("Branco");
     expect(v.cambio).toBe("Manual");
+  });
+
+  it("o nome do modelo não decide a carroceria", () => {
+    // `resolveTipo` caía numa cadeia de `modelo.includes()` quando `tipo` vinha
+    // vazio. Medido em produção em 2026-08-06: `tipo` preenchido em 88 de 88
+    // veículos — a cadeia inteira era palpite guardado para um caso que não
+    // acontece. Carroceria é dado do feed ou não é nada.
+    for (const modelo of ["hilux", "compass", "corolla", "911 carrera", "gol"]) {
+      const v = mapVeiculoDbToVeiculo(linhaDoBanco({ modelo }));
+      expect(v.tipo, `"${modelo}" não pode inferir carroceria`).toBe("");
+    }
+  });
+
+  it("perfil de uso não sai de marca, preço, quilometragem nem texto livre", () => {
+    // Os quatro casos que a heurística antiga classificava com mais confiança —
+    // e que o feed contradizia. Em produção o palpite acertava 0 de 88.
+    const casos = [
+      { rotulo: "marca de prestígio + km baixo", linha: { marca: "bmw", quilometragem: 12000 } },
+      { rotulo: "preço alto", linha: { marca: "porsche", preco_original: 400000 } },
+      { rotulo: "diesel", linha: { combustivel: "diesel" } },
+      { rotulo: "'tsi' na versão", linha: { versao: "1.4 TSI Comfortline" } },
+      { rotulo: "'4x4' no texto livre", linha: { opcionais: "Tração 4x4, ar-condicionado" } },
+    ];
+
+    for (const { rotulo, linha } of casos) {
+      const v = mapVeiculoDbToVeiculo(linhaDoBanco(linha));
+      expect(v.perfil_uso, `${rotulo} não pode virar perfil de uso`).toBe("");
+    }
+  });
+
+  it("preserva o perfil de uso do feed sem reescrever o vocabulário", () => {
+    // O feed usa um vocabulário próprio ("Família / Conforto", "Econômico /
+    // Diário", ...) que não é o dos rótulos inventados. O mapper repassa o
+    // texto como está: normalizar aqui seria inventar de novo, um nível abaixo.
+    const v = mapVeiculoDbToVeiculo(
+      linhaDoBanco({ perfil_uso: "Família / Conforto", combustivel: "diesel" })
+    );
+    expect(v.perfil_uso).toBe("Família / Conforto");
+  });
+
+  it("normaliza a carroceria para exibição, sem inferir nada", () => {
+    expect(mapVeiculoDbToVeiculo(linhaDoBanco({ tipo: "suv" })).tipo).toBe("SUV");
+    expect(mapVeiculoDbToVeiculo(linhaDoBanco({ tipo: "hatch" })).tipo).toBe("Hatch");
+    expect(mapVeiculoDbToVeiculo(linhaDoBanco({ tipo: "MOTOCICLETA" })).tipo).toBe("Motocicleta");
+    // "Selecionado" é o placeholder do painel, não uma carroceria.
+    expect(mapVeiculoDbToVeiculo(linhaDoBanco({ tipo: "Selecionado" })).tipo).toBe("");
   });
 
   it("só marca perícia aprovada com aprovação explícita no feed", () => {

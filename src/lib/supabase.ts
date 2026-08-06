@@ -239,81 +239,55 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   const precoOriginal = typeof dbItem.preco_original === "number" ? dbItem.preco_original : (typeof dbItem.preco === "number" ? dbItem.preco : 0);
   const precoPromocional = typeof dbItem.preco_promocional === "number" ? dbItem.preco_promocional : 0;
 
-  // Resolve smart defaults for vehicle body type
+  // Carroceria — só o que o feed traz.
+  //
+  // Até 2026-08-06 este resolvedor caía numa cadeia de `modelo.includes()`
+  // quando `tipo` vinha vazio ("hilux" → Picape, "compass" → SUV, "corolla" →
+  // Sedan) e, sem nenhum match, devolvia o literal "Premium" — que não é
+  // carroceria de coisa nenhuma. A ficha do veículo exibe esse valor na linha
+  // CATEGORIA, como fato sobre o produto.
+  //
+  // Medido contra produção em 2026-08-06: `tipo` preenchido em 88 de 88
+  // veículos (Hatch 43, SUV 22, Sedan 13, Motocicleta 6, Picape 4), nenhum
+  // "Selecionado". A cadeia inteira era código morto — palpite guardado
+  // esperando o dia em que o feed viesse vazio. Sem dado, string vazia: a UI
+  // oculta a linha, como em `cambio`, `combustivel` e `cor`.
   const resolveTipo = (item: any): string => {
-    if (item.tipo && item.tipo.trim() && item.tipo.toLowerCase() !== "selecionado") {
-      // Capitalize first letter (e.g. "hatch" -> "Hatch", "suv" -> "SUV")
-      const rawTipo = item.tipo.trim();
-      if (rawTipo.toLowerCase() === "suv") return "SUV";
-      if (rawTipo.toLowerCase() === "ev" || rawTipo.toLowerCase() === "elétrico") return "Elétrico";
-      return rawTipo.charAt(0).toUpperCase() + rawTipo.slice(1).toLowerCase();
-    }
-    const m = (item.modelo || "").toLowerCase();
-    if (m.includes("hilux") || m.includes("ranger") || m.includes("toro") || m.includes("l200") || m.includes("amarok") || m.includes("ram")) {
-      return "Picape";
-    }
-    if (m.includes("911") || m.includes("carrera") || m.includes("boxster") || m.includes("cayman") || m.includes("mustang")) {
-      return "Esportivo";
-    }
-    if (m.includes("defender") || m.includes("x5") || m.includes("commander") || m.includes("compass") || m.includes("renegade") || m.includes("discovery") || m.includes("tiguan")) {
-      return "SUV";
-    }
-    if (m.includes("dolphin") || m.includes("fit") || m.includes("hb20") || m.includes("gol") || m.includes("sandero") || m.includes("c3") || m.includes("ka") || m.includes("meriva")) {
-      return "Hatch";
-    }
-    if (m.includes("plus") || m.includes("sedan") || m.includes("prisma") || m.includes("classic") || m.includes("corolla") || m.includes("civic")) {
-      return "Sedan";
-    }
-    return "Premium";
+    const bruto = (item.tipo || "").trim();
+    if (!bruto || bruto.toLowerCase() === "selecionado") return "";
+
+    // Normalização de exibição, não inferência: "suv" → "SUV", "hatch" → "Hatch".
+    const minusculo = bruto.toLowerCase();
+    if (minusculo === "suv") return "SUV";
+    if (minusculo === "ev" || minusculo === "elétrico") return "Elétrico";
+    return bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
   };
 
-  // Resolve smart defaults for vehicle use profile (Lifestyle Categories)
+  // Perfil de uso — coluna do banco, não classificação por palpite.
+  //
+  // A versão anterior nunca leu coluna nenhuma. Classificava o veículo em
+  // "CURADORIA EXCLUSIVA" / "LINHAGEM ESPORTIVA" / "FORÇA & OFF-ROAD" /
+  // "URBANO & EFICIENTE" a partir de marca, preço, quilometragem e palavras
+  // soltas na versão e no texto livre de `opcionais`/`laudo_pericia`: qualquer
+  // diesel virava "FORÇA & OFF-ROAD", qualquer "tsi" na versão virava
+  // esportivo.
+  //
+  // Medido contra produção em 2026-08-06: `perfil_uso` preenchido em 88 de 88
+  // veículos, com vocabulário próprio do feed — Família / Conforto (31),
+  // Econômico / Diário (24), Uso Diário (13), Performance / Premium (10),
+  // Agilidade / Economia (6), Trabalho / Robustez (4). O palpite coincidia com
+  // o dado real em 0 dos 88: 71 veículos eram rotulados "URBANO & EFICIENTE",
+  // entre eles os 31 de família e 2 dos 10 de performance.
+  //
+  // Ler a coluna não é só apagar palpite, também conserta o que dependia dela:
+  // as condições de `perfil_uso` em `car-match.ts` procuram "premium",
+  // "performance", "econ" e "diário" — nenhum dos quatro rótulos inventados
+  // contém essas palavras, então estavam mortas. Com o dado real elas voltam a
+  // casar (10 luxo, 10 esportivo, 43 econômico).
   const resolvePerfilUso = (item: any): string => {
-    const brand = (item.marca || "").toLowerCase();
-    const m = (item.modelo || "").toLowerCase();
-    const v = (item.versao || "").toLowerCase();
-    const fuel = (item.combustivel || "").toLowerCase();
-    const bodyType = (item.tipo || "").toLowerCase();
-    const desc = (item.laudo_pericia || item.opcionais || item.description || item.descricao || "").toLowerCase();
-    
-    const price = typeof item.preco_promocional === "number" && item.preco_promocional > 0
-      ? item.preco_promocional
-      : (typeof item.preco_original === "number" ? item.preco_original : (typeof item.preco === "number" ? item.preco : 0));
-      
-    const km = typeof item.quilometragem === "number" ? item.quilometragem : (Number(item.quilometragem) || 0);
-
-    // 1. CURADORIA EXCLUSIVA
-    const isPrestige = ["porsche", "bmw", "mercedes", "audi", "land rover", "volvo"].some(b => brand.includes(b));
-    const isExclusive = isPrestige && (price > 140000 || km < 40000);
-    if (isExclusive) {
-      return "CURADORIA EXCLUSIVA";
-    }
-
-    // 2. LINHAGEM ESPORTIVA
-    const esportivaTerms = ["turbo", "forjado", "prep", "m sport", "amg", "fueltech", "ft300", "gts", "tsi"];
-    const isEsportiva = 
-      esportivaTerms.some(t => m.includes(t)) ||
-      esportivaTerms.some(t => v.includes(t)) ||
-      esportivaTerms.some(t => desc.includes(t));
-      
-    if (isEsportiva) {
-      return "LINHAGEM ESPORTIVA";
-    }
-
-    // 3. FORÇA & OFF-ROAD
-    const isOffRoad = 
-      fuel.includes("diesel") || 
-      bodyType.includes("picape") ||
-      ["toro", "amarok", "hilux", "ranger", "l200", "ram", "defender", "freedom"].some(t => m.includes(t)) ||
-      desc.includes("4x4") || desc.includes("4wd") || desc.includes("awd") || desc.includes("integral") || desc.includes("tração") || desc.includes("tracao") || desc.includes("tração integral") ||
-      v.includes("4x4") || v.includes("4wd") || v.includes("awd");
-      
-    if (isOffRoad) {
-      return "FORÇA & OFF-ROAD";
-    }
-
-    // 4. URBANO & EFICIENTE
-    return "URBANO & EFICIENTE";
+    const bruto = (item.perfil_uso || "").trim();
+    if (!bruto || bruto.toLowerCase() === "selecionado") return "";
+    return bruto;
   };
 
   const periciaVal = formatPericia(dbItem.pericia);

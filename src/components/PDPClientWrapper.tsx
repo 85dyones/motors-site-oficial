@@ -458,16 +458,23 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
       ) 
     },
 
-    { 
-      label: "CATEGORIA", 
-      value: veiculo.tipo || "Premium", 
+    {
+      label: "CATEGORIA",
+      value: veiculo.tipo,
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
         </svg>
-      ) 
+      )
     }
-  ];
+    // Linha sem dado não entra na régua.
+    //
+    // O mapper deixa em branco o atributo que o feed não traz (`cambio`,
+    // `combustivel`, `cor`, `tipo`) em vez de inventar um valor. Sem este
+    // filtro a régua ainda renderizava o rótulo com o valor vazio embaixo —
+    // "CATEGORIA" sobre um espaço em branco. Ocultar é o mesmo tratamento que
+    // o resto da página dá a campo ausente.
+  ].filter((spec) => spec.value);
 
   const renderSidebar = (isMobile: boolean) => {
     // SEO: Only the mobile sidebar renders an <h1> (appears first in DOM).

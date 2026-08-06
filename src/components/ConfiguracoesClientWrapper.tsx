@@ -912,9 +912,44 @@ export default function ConfiguracoesClientWrapper() {
     }
   };
 
-  // Dropdown options
-  const bodyTypes = ["SUV", "Sedan", "Picape", "Hatch", "Esportivo", "Conversível", "Coupe", "Wagon", "Premium"];
-  const usageProfiles = ["URBANO & EFICIENTE", "FORÇA & OFF-ROAD", "LINHAGEM ESPORTIVA", "CURADORIA EXCLUSIVA"];
+  // Opções dos dropdowns.
+  //
+  // As duas listas precisam falar o mesmo vocabulário do feed, porque desde
+  // 2026-08-06 o site exibe `tipo` e `perfil_uso` como vêm do banco em vez de
+  // adivinhá-los. Escolher aqui um rótulo de outra taxonomia sobrescreve o
+  // dado real do veículo por um que o resto do estoque não usa.
+  //
+  // Vocabulário medido em produção em 2026-08-06, sobre os 88 veículos:
+  //   tipo         Hatch, SUV, Sedan, Motocicleta, Picape
+  //   perfil_uso   Família / Conforto, Econômico / Diário, Uso Diário,
+  //                Performance / Premium, Agilidade / Economia,
+  //                Trabalho / Robustez
+  //
+  // "Premium" saiu de `bodyTypes`: não é carroceria, era o default inventado
+  // que o mapper devolvia quando não sabia — deixá-lo no dropdown permitiria
+  // reintroduzir à mão a string que acabou de sair do código.
+  //
+  // Os quatro rótulos antigos de perfil seguem na lista, ao final: dois
+  // veículos carregam "LINHAGEM ESPORTIVA" gravada à mão em stock_overrides, e
+  // remover a opção tiraria do dono a chance de reescolher o próprio valor.
+  //
+  // Ressalva: `usageProfiles` hoje não é renderizada — o select de perfil saiu
+  // da grade de overrides em algum redesign e só `bodyTypes` continua na tela.
+  // A lista fica corrigida para quem reintroduzir o campo não recriá-lo com o
+  // vocabulário que o feed não usa.
+  const bodyTypes = ["SUV", "Sedan", "Picape", "Hatch", "Motocicleta", "Esportivo", "Conversível", "Coupe", "Wagon"];
+  const usageProfiles = [
+    "Família / Conforto",
+    "Econômico / Diário",
+    "Uso Diário",
+    "Performance / Premium",
+    "Agilidade / Economia",
+    "Trabalho / Robustez",
+    "URBANO & EFICIENTE",
+    "FORÇA & OFF-ROAD",
+    "LINHAGEM ESPORTIVA",
+    "CURADORIA EXCLUSIVA",
+  ];
 
 
 
@@ -995,7 +1030,10 @@ export default function ConfiguracoesClientWrapper() {
               ) : (
                 filteredVehicles.map((vehicle) => {
                   const hasLocalOverride = !!overrides[vehicle.id];
-                  const currentTipo = overrides[vehicle.id]?.tipo ?? vehicle.tipo ?? "Hatch";
+                  // Sem carroceria no feed o select fica vazio, não em "Hatch":
+                  // o default anterior mostrava um palpite ao dono e o gravava
+                  // no banco se ele salvasse a linha por outro motivo.
+                  const currentTipo = overrides[vehicle.id]?.tipo || vehicle.tipo || "";
                   const currentPerfil = overrides[vehicle.id]?.perfil_uso ?? vehicle.perfil_uso ?? "URBANO & EFICIENTE";
                   const currentStatusTag = overrides[vehicle.id]?.status_tag ?? vehicle.status_tag ?? "";
 
@@ -1066,6 +1104,7 @@ export default function ConfiguracoesClientWrapper() {
                               onChange={(e) => handleOverrideChange(vehicle.id, "tipo", e.target.value)}
                               className="bg-brand-bg text-brand-text border border-brand-card-border rounded-xl px-3 py-2 text-[11px] font-medium outline-none focus:border-brand-primary cursor-pointer w-full"
                             >
+                              <option value="">— SEM CARROCERIA —</option>
                               {bodyTypes.map((t) => (
                                 <option key={t} value={t}>
                                   {t.toUpperCase()}
