@@ -933,10 +933,13 @@ export default function ConfiguracoesClientWrapper() {
   // veículos carregam "LINHAGEM ESPORTIVA" gravada à mão em stock_overrides, e
   // remover a opção tiraria do dono a chance de reescolher o próprio valor.
   //
-  // Ressalva: `usageProfiles` hoje não é renderizada — o select de perfil saiu
-  // da grade de overrides em algum redesign e só `bodyTypes` continua na tela.
-  // A lista fica corrigida para quem reintroduzir o campo não recriá-lo com o
-  // vocabulário que o feed não usa.
+  // `usageProfiles` voltou à tela em 2026-08-06. O select de perfil tinha saído
+  // da grade em 293479a (2026-07-15) porque não havia como encaixar os perfis
+  // nos carros do estoque: as únicas opções eram os quatro rótulos inventados,
+  // que nenhum veículo do feed usa. Escolher qualquer um deles era sobrescrever
+  // o dado real por um vocabulário órfão — daí tirar o campo. O motivo caiu
+  // quando o mapper passou a ler a coluna: os seis rótulos do feed acima
+  // encaixam nos 88 veículos, e a lista abaixo é a mesma que o estoque fala.
   const bodyTypes = ["SUV", "Sedan", "Picape", "Hatch", "Motocicleta", "Esportivo", "Conversível", "Coupe", "Wagon"];
   const usageProfiles = [
     "Família / Conforto",
@@ -1034,7 +1037,18 @@ export default function ConfiguracoesClientWrapper() {
                   // o default anterior mostrava um palpite ao dono e o gravava
                   // no banco se ele salvasse a linha por outro motivo.
                   const currentTipo = overrides[vehicle.id]?.tipo || vehicle.tipo || "";
-                  const currentPerfil = overrides[vehicle.id]?.perfil_uso ?? vehicle.perfil_uso ?? "URBANO & EFICIENTE";
+                  // Sem perfil no feed o select fica vazio. O default
+                  // "URBANO & EFICIENTE" era o rótulo que o resolvedor colava
+                  // em 71 dos 88 veículos — mantê-lo aqui reintroduziria à mão
+                  // a invenção que saiu do mapper.
+                  //
+                  // O `??` no override é o que faz "— SEM PERFIL —" funcionar.
+                  // Com `||`, escolher a opção vazia gravaria "" no override e
+                  // o próprio operador cairia de volta no valor do feed: o
+                  // select voltaria sozinho ao rótulo anterior e o dono nunca
+                  // conseguiria apagar um perfil. Só `undefined` (sem override)
+                  // pode cair para o feed.
+                  const currentPerfil = overrides[vehicle.id]?.perfil_uso ?? vehicle.perfil_uso ?? "";
                   const currentStatusTag = overrides[vehicle.id]?.status_tag ?? vehicle.status_tag ?? "";
 
                   return (
@@ -1127,7 +1141,24 @@ export default function ConfiguracoesClientWrapper() {
                             />
                           </div>
 
-
+                          {/* Profile Use (Estilo) Select */}
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[8px] font-bold text-brand-text/40 uppercase tracking-widest pl-1">
+                              Estilo de Vida
+                            </label>
+                            <select
+                              value={currentPerfil}
+                              onChange={(e) => handleOverrideChange(vehicle.id, "perfil_uso", e.target.value)}
+                              className="bg-brand-bg text-brand-text border border-brand-card-border rounded-xl px-3 py-2 text-[11px] font-medium outline-none focus:border-brand-primary cursor-pointer w-full"
+                            >
+                              <option value="">— SEM PERFIL —</option>
+                              {usageProfiles.map((p) => (
+                                <option key={p} value={p}>
+                                  {p.toUpperCase()}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
                           {/* Status Tag (Custom Tag) Text Input */}
                           <div className="flex flex-col gap-1.5">
