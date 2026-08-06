@@ -3,30 +3,40 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Guarda de "rótulo sem valor" nos blocos de especificação.
+ * Guardas dos blocos de especificação da ficha do veículo.
  *
- * Por que este teste existe:
+ * Duas regras diferentes vivem aqui porque incidem sobre o mesmo literal
+ * (`quickSpecs`, a régua da barra lateral da PDP) e quebrariam uma à outra se
+ * fossem varridas por parsers independentes:
  *
- * Desde 2026-08-06 o mapper não inventa mais default (commit fdd9785): quando
- * o feed do RevendaMais não traz o campo, `cambio`, `combustivel` e `cor`
- * chegam à UI como string vazia. Isso é deliberado — o default anterior
- * afirmava "Flex" sobre veículo elétrico. Mas transfere para cada ponto de
- * exibição a obrigação de não renderizar a célula.
+ *   1. VERACIDADE — nenhuma linha da régua pode ser adivinhada. Até 2026-08-06
+ *      TRAÇÃO e LUGARES eram inferidas do NOME DO MODELO por cadeia de
+ *      `includes()` e exibidas ao cliente como ficha técnica: "Dianteira (FWD)"
+ *      para TODO O RESTO da lista — Amarok, S10 e Compass 4x4 anunciados como
+ *      tração dianteira. `estoque_motors` tem 28 colunas em 88 veículos e
+ *      nenhuma de tração, lugares, portas ou assentos; o sync do n8n consome 21
+ *      campos do XML do RevendaMais e nenhum traz essa informação. Sem fonte, a
+ *      linha sai da régua. Afirmar tração errada sobre um veículo é afirmação
+ *      falsa sobre o produto — CDC art. 37.
  *
- * Três blocos exibem esses campos hoje: a matriz de especificações e a régua
- * de especificações rápidas, ambas na ficha do veículo, e a régua da vitrine
- * da TV. O commit que removeu os defaults acertou a matriz e esqueceu a régua
- * da ficha — e o esquecimento não quebra build, não quebra lint e não aparece
- * em teste: vira um rótulo "COMBUSTÍVEL" sobre espaço em branco em 19 dos 88
- * veículos, visível só para quem abrir a PDP de um desses. Corrigido em
- * 2026-08-06.
+ *   2. RÓTULO SEM VALOR — nenhuma célula pode aparecer com o rótulo sobre um
+ *      espaço em branco. Desde o commit fdd9785 o mapper não inventa mais
+ *      default: `cambio`, `combustivel` e `cor` chegam à UI como string vazia
+ *      quando o feed não traz o campo. Isso é deliberado — o default anterior
+ *      afirmava "Flex" sobre veículo elétrico — mas transfere para cada ponto
+ *      de exibição a obrigação de não renderizar a célula. `combustivel` está
+ *      ausente em 19 dos 88 veículos em produção.
  *
- * Alcance, sem exagero: este teste varre o código-fonte, não renderiza React.
- * O runner roda em ambiente `node` sem jsdom (ver vitest.config.ts), e os três
- * blocos vivem dentro de componentes clientes grandes cujo render exigiria
- * jsdom, plugin React e um `Veiculo` completo. O que ele prova é que o filtro
- * continua no código, escrito sobre o campo certo — não o pixel na tela. Se um
- * quarto bloco de especificações nascer, ele não entra aqui sozinho.
+ * As duas são a mesma decisão vista de dois lados: o site não afirma o que não
+ * sabe. Três blocos exibem esses campos hoje — a matriz de especificações e a
+ * régua rápida, ambas na ficha, e a régua da vitrine da TV.
+ *
+ * Alcance, sem exagero: isto varre código-fonte, não renderiza React. O runner
+ * roda em `environment: "node"` sem jsdom (vitest.config.ts), e os blocos vivem
+ * dentro de componentes clientes grandes cujo render exigiria jsdom, plugin
+ * React e um `Veiculo` completo. O que se prova é que as guardas continuam no
+ * código, escritas sobre o campo certo — não o pixel na tela. Se um quarto
+ * bloco de especificações nascer, ele não entra aqui sozinho.
  */
 
 const RAIZ_SRC = join(__dirname, "..", "src");
@@ -38,31 +48,107 @@ const pdp = readFileSync(PDP, "utf8");
 const vitrineTV = readFileSync(VITRINE_TV, "utf8");
 const supabase = readFileSync(SUPABASE, "utf8");
 
-/** Campos que o mapper pode devolver vazios — a premissa de tudo aqui. */
+/**
+ * A ficha sem as linhas inteiras de comentário.
+ *
+ * O comentário que documenta a remoção de TRAÇÃO e LUGARES cita os valores
+ * inventados textualmente — é o registro do que não pode voltar. Varrer o
+ * arquivo cru faria a própria explicação disparar o teste que ela explica. Só
+ * linhas inteiras de comentário são descartadas: recortar `//` no meio da linha
+ * comeria o `http://www.w3.org` dos SVGs inline.
+ */
+const pdpSemComentarios = pdp
+  .split("\n")
+  .filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l))
+  .join("\n");
+
+/** Campos que o mapper pode devolver vazios — a premissa da regra 2. */
 const CAMPOS_SEM_DEFAULT = ["cambio", "combustivel", "cor"] as const;
 
 /**
- * Corpo do array `quickSpecs` e o que vem encadeado depois dele.
+ * Recorta o literal `const quickSpecs = [ ... ].filter(...);` em duas partes.
  *
  * O array fecha em `]` na indentação de dentro do componente (dois espaços);
- * nenhuma linha do corpo fecha nessa coluna, e não há `;` dentro dele.
+ * nenhuma linha do corpo fecha nessa coluna, e não há `;` dentro dele. O que
+ * vem entre esse `]` e o `;` é o `encadeado` — hoje o `.filter()` da regra 2.
+ *
+ * Recebe a fonte como parâmetro porque a regra 1 precisa varrer a versão sem
+ * comentários e a regra 2 precisa da versão crua (o comentário do filtro fica
+ * dentro do próprio literal).
  */
-function reguaDaFicha(): { corpo: string; encadeado: string } {
-  const inicio = pdp.indexOf("const quickSpecs = [");
+function reguaDaFicha(fonte: string): { corpo: string; encadeado: string } {
+  const inicio = fonte.indexOf("const quickSpecs = [");
   if (inicio < 0) throw new Error("Array `quickSpecs` não encontrado na PDP.");
 
-  const fecha = pdp.indexOf("\n  ]", inicio);
+  const fecha = fonte.indexOf("\n  ]", inicio);
   if (fecha < 0) throw new Error("Fim do array `quickSpecs` não encontrado.");
 
-  const pontoEVirgula = pdp.indexOf(";", fecha);
+  const pontoEVirgula = fonte.indexOf(";", fecha);
   return {
-    corpo: pdp.slice(inicio, fecha),
-    encadeado: pdp.slice(fecha, pontoEVirgula),
+    corpo: fonte.slice(inicio, fecha),
+    encadeado: fonte.slice(fecha, pontoEVirgula),
   };
 }
 
+/** Rótulos das células da régua, na ordem em que aparecem. */
+function rotulos(): string[] {
+  const { corpo } = reguaDaFicha(pdpSemComentarios);
+  return [...corpo.matchAll(/label:\s*"([^"]+)"/g)].map((m) => m[1]);
+}
+
+describe("régua da ficha: nenhuma especificação adivinhada", () => {
+  it("o parser achou a régua — a varredura não passa por vacuidade", () => {
+    // Contraprova: renomear `quickSpecs` ou quebrar a regex faria todos os
+    // testes abaixo passarem em silêncio, sobre uma lista vazia.
+    expect(rotulos().length).toBeGreaterThan(3);
+  });
+
+  it("não anuncia TRAÇÃO nem LUGARES — o feed não traz esse dado", () => {
+    const inventados = rotulos().filter(
+      (r) => r.includes("TRAÇÃO") || r.includes("LUGARES")
+    );
+
+    expect(
+      inventados,
+      "A régua voltou a exibir tração ou número de lugares.\n" +
+        "`estoque_motors` não tem coluna para nenhum dos dois (verificado em\n" +
+        "produção, 2026-08-06), então o valor só pode estar sendo adivinhado a\n" +
+        "partir do modelo. Se o feed passou a trazer o dado, a linha volta\n" +
+        "lendo `veiculo.*` e sai da régua quando vier vazia — e este teste é\n" +
+        "atualizado junto, com a coluna nomeada."
+    ).toEqual([]);
+  });
+
+  it("nenhum palpite de tração ou lugares sobrou no arquivo", () => {
+    // As funções saíram, mas o texto poderia reaparecer em outro ponto da
+    // ficha (schema.org, meta description, aba de detalhes).
+    const PALPITES = [
+      "Dianteira (FWD)",
+      "Traseira (RWD)",
+      "Integral (4x4",
+      "5 Lugares",
+      "2 ou 4 Lugares",
+      "5 a 7 Lugares",
+    ];
+
+    const presentes = PALPITES.filter((p) => pdpSemComentarios.includes(p));
+    expect(
+      presentes,
+      `Valor de ficha técnica inferido do nome do modelo de volta na PDP: ${presentes.join(", ")}`
+    ).toEqual([]);
+  });
+
+  it("os valores saem do objeto do veículo, não de `includes()` no modelo", () => {
+    // A inferência antiga tinha uma assinatura reconhecível: cadeia de
+    // `modelo.includes("hilux") || ...` devolvendo string de ficha técnica.
+    const { corpo } = reguaDaFicha(pdpSemComentarios);
+    expect(corpo).not.toMatch(/modelo[\s\S]{0,40}\.includes\(/);
+    expect(corpo.includes("veiculo.")).toBe(true);
+  });
+});
+
 describe("blocos de especificação não exibem rótulo sem valor", () => {
-  const regua = reguaDaFicha();
+  const regua = reguaDaFicha(pdp);
 
   it("o mapper de fato devolve vazio nesses campos — a premissa segue válida", () => {
     // Contraprova da razão de existir de todo o resto. Se alguém reintroduzir

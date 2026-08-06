@@ -375,30 +375,26 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
-  // Reactive drivetrain (Tração) calculation based on vehicle characteristics
-  const calculateTração = (): string => {
-    const m = veiculo.modelo.toLowerCase();
-    const t = veiculo.tipo?.toLowerCase() || "";
-    if (m.includes("hilux") || m.includes("ranger") || m.includes("defender") || m.includes("x5") || m.includes("discovery") || m.includes("4x4") || m.includes("awd")) {
-      return "Integral (4x4 / AWD)";
-    }
-    if (m.includes("911") || m.includes("carrera") || m.includes("boxster") || m.includes("cayman") || t.includes("esportivo")) {
-      return "Traseira (RWD)";
-    }
-    return "Dianteira (FWD)";
-  };
-
-  // Reactive passenger count (Lugares) calculation
-  const calculateLugares = (): string => {
-    const m = veiculo.modelo.toLowerCase();
-    if (m.includes("911") || m.includes("carrera") || m.includes("boxster") || m.includes("cayman")) {
-      return "2 ou 4 Lugares";
-    }
-    if (m.includes("defender") || m.includes("commander") || m.includes("discovery")) {
-      return "5 a 7 Lugares";
-    }
-    return "5 Lugares";
-  };
+  // ⚠️  TRAÇÃO e LUGARES saíram da régua — não existe dado real para elas.
+  //
+  // Até aqui as duas linhas eram calculadas a partir do NOME DO MODELO e
+  // exibidas ao cliente como ficha técnica. `calculateTração()` devolvia
+  // "Integral (4x4 / AWD)" para uma lista de sete modelos, "Traseira (RWD)"
+  // para a família 911, e "Dianteira (FWD)" para TODO O RESTO: Amarok, S10 e
+  // Compass 4x4 eram anunciados como tração dianteira. `calculateLugares()`
+  // tinha o mesmo desenho, com "5 Lugares" de fallback.
+  //
+  // Verificado contra produção em 2026-08-06: `estoque_motors` tem 28 colunas
+  // em 88 veículos e NENHUMA de tração, lugares, portas ou assentos. O sync do
+  // n8n consome 21 campos do XML do RevendaMais (MAKE, MODEL, GEAR, FUEL,
+  // BODY_TYPE, COLOR…) e nenhum deles traz essa informação — não é caso de
+  // mapper que esqueceu de ler a coluna, a coluna não existe.
+  //
+  // Sem fonte, a linha sai da régua em vez de mostrar palpite (mesma regra de
+  // src/components/modernist/VitrineTV.tsx:62). Se algum dia o feed passar a
+  // trazer o dado, é só voltar a linha lendo `veiculo.*` e ocultá-la quando
+  // vier vazia. Afirmar tração errada sobre um veículo é afirmação falsa sobre
+  // o produto — CDC art. 37, o mesmo motivo do commit fdd9785.
 
   // Specs array with premium custom inline SVGs
   const quickSpecs = [
@@ -429,27 +425,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
         </svg>
       ) 
     },
-    { 
-      label: "TRAÇÃO", 
-      value: calculateTração(), 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h7.5m3 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-6-12h3" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75H19.5v-3.75L17.25 9H6.75L4.5 12v3.75Z" />
-        </svg>
-      ) 
-    },
-    { 
-      label: "LUGARES", 
-      value: calculateLugares(), 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-        </svg>
-      ) 
-    },
-    { 
-      label: "COR EXTERNA", 
+    {
+      label: "COR EXTERNA",
       value: veiculo.cor, 
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
@@ -457,9 +434,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
         </svg>
       ) 
     },
-
-    { 
-      label: "CATEGORIA", 
+    {
+      label: "CATEGORIA",
       value: veiculo.tipo || "Premium", 
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
