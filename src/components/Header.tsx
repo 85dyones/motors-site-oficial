@@ -3,8 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import ThemeSettings from "./ThemeSettings";
+import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
 
@@ -12,9 +11,9 @@ import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
  * Cabeçalho Modernist (redesign 2026).
  *
  * Barra escura de 68px, sem arredondamento, com a régua vermelha marcando a
- * seção ativa. As ações de comparar / painel / tema não aparecem no design
- * doc, mas estão em produção — ficam no cluster da direita, reescritas na
- * linguagem do sistema (quadradas, contorno de 1px).
+ * seção ativa. O acesso ao painel não aparece no design doc, mas está em
+ * produção — fica à direita, reescrito na linguagem do sistema (quadrado,
+ * contorno de 1px).
  */
 
 const LOGO_PADRAO = "/motors-store-logo-1.png";
@@ -35,11 +34,10 @@ const NAV = [
 ];
 
 export default function Header() {
-  const { compareIds, theme, companySettings } = useTheme();
+  const { theme, companySettings } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
 
   // A logo é derivada do tema e das configurações — não precisa de estado
   // nem de efeito. Só a falha de carregamento é estado, e ela é resetada
@@ -52,21 +50,10 @@ export default function Header() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handleOpenCompare = () => router.push("/comparar");
-    window.addEventListener("ag-open-compare", handleOpenCompare);
-
-    const checkHash = () => {
-      if (window.location.hash === "#comparar") router.push("/comparar");
-    };
-    checkHash();
-    window.addEventListener("hashchange", checkHash);
-
     const handleScroll = () => setShowBackToTop(window.scrollY > 400);
     window.addEventListener("scroll", handleScroll);
 
     return () => {
-      window.removeEventListener("ag-open-compare", handleOpenCompare);
-      window.removeEventListener("hashchange", checkHash);
       window.removeEventListener("scroll", handleScroll);
     };
   }, []);
@@ -127,25 +114,11 @@ export default function Header() {
           {companySettings?.phone}
         </a>
 
-        {/* Ações que o design doc não mostra, mas produção usa */}
+        {/* Acesso ao painel. O comparador e o seletor de paleta saíram daqui
+            em 2026-08-06: o comparador apontava para `/comparar`, rota que
+            não existe, e a troca de paleta passou a viver só na área
+            administrativa. */}
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => router.push("/comparar")}
-            title="Comparar veículos"
-            aria-label={`Comparar veículos${compareIds.length ? ` (${compareIds.length})` : ""}`}
-            className="mt-foco relative flex h-9 w-9 items-center justify-center border border-[#444141] text-mt-inverso-suave transition-colors hover:border-mt-inverso hover:text-mt-inverso"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
-            </svg>
-            {compareIds.length > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center bg-mt-accent px-1 text-[9px] font-bold text-mt-inverso">
-                {compareIds.length}
-              </span>
-            )}
-          </button>
-
           <Link
             href="/configuracoes"
             title="Área administrativa"
@@ -157,8 +130,6 @@ export default function Header() {
               <circle cx="12" cy="7" r="4" />
             </svg>
           </Link>
-
-          <ThemeSettings />
         </div>
 
         <BotaoWhatsApp
@@ -233,16 +204,6 @@ export default function Header() {
             </Link>
           ))}
           <div className="flex items-center gap-3 pt-4">
-            <Link
-              href="/comparar"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-[11px] font-extrabold tracking-[.16em] text-mt-inverso-suave no-underline"
-            >
-              COMPARAR{compareIds.length > 0 ? ` (${compareIds.length})` : ""}
-            </Link>
-            <span className="text-mt-inverso-regua" aria-hidden="true">
-              ·
-            </span>
             <Link
               href="/configuracoes"
               onClick={() => setMobileMenuOpen(false)}
