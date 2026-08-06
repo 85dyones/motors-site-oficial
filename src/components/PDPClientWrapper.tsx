@@ -479,10 +479,18 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
     // SEO: Only the mobile sidebar renders an <h1> (appears first in DOM).
     // The desktop sidebar uses <h2> with identical styling to avoid duplicate H1s.
     const HeadingTag = isMobile ? "h1" : "h2";
+    // O alternador de visibilidade abaixo tem que falar em `flex`, não em
+    // `block`: `gap` só existe em container flex ou grid, e é ele que separa os
+    // cinco blocos desta coluna. Com `lg:block`, o `lg:gap-8` da mesma linha
+    // virava regra morta — variante de media query é emitida depois do
+    // utilitário sem prefixo, então `lg:block` ganhava do `flex` e o container
+    // voltava a ser bloco. Até 2026-08-06 a coluna tinha 28px entre os blocos
+    // no celular e 0 no desktop, com a régua de especificações encostada no
+    // preço e o preço encostado no botão do consultor.
     return (
       <aside
         className={`flex w-full flex-col gap-7 bg-transparent p-0 print:hidden lg:gap-8 ${
-          isMobile ? "block lg:hidden" : "hidden lg:block"
+          isMobile ? "flex lg:hidden" : "hidden lg:flex"
         }`}
       >
         {/* Marca, código, modelo e versão */}
