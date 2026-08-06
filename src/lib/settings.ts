@@ -20,6 +20,7 @@ export const getCachedSettings = unstable_cache(
     let stockOverrides = null;
     let carouselVehicleIds = null;
     let bankBalances = null;
+    let procedencia = null;
     let fetchedFromSupabase = false;
 
     if (supabaseUrl && supabaseAnonKey) {
@@ -38,6 +39,7 @@ export const getCachedSettings = unstable_cache(
           const stockOverridesRow = data.find((row) => row.id === "stock_overrides");
           const carouselRow = data.find((row) => row.id === "carousel_vehicles");
           const bankBalancesRow = data.find((row) => row.id === "bank_balances");
+          const procedenciaRow = data.find((row) => row.id === "procedencia");
 
           if (companyRow) companySettings = companyRow.data;
           if (aboutRow) aboutSettings = aboutRow.data;
@@ -47,6 +49,7 @@ export const getCachedSettings = unstable_cache(
           if (stockOverridesRow) stockOverrides = stockOverridesRow.data;
           if (carouselRow) carouselVehicleIds = carouselRow.data;
           if (bankBalancesRow) bankBalances = bankBalancesRow.data;
+          if (procedenciaRow) procedencia = procedenciaRow.data;
           fetchedFromSupabase = true;
           console.log("[Settings API] Loaded settings from Supabase (Cached)");
         }
@@ -75,7 +78,8 @@ export const getCachedSettings = unstable_cache(
       quickTags,
       stockOverrides,
       carouselVehicleIds,
-      bankBalances
+      bankBalances,
+      procedencia
     };
   },
   ["site-settings"],
@@ -150,5 +154,7 @@ export function recortePublicoDeSettings(
     quickTags: completo.quickTags,
     carouselVehicleIds: completo.carouselVehicleIds,
     stockOverrides: filtrarOverridesPublicos(completo.stockOverrides),
+    // Público de propósito: é o texto que a PDP já mostra a quem não tem sessão.
+    procedencia: completo.procedencia,
   };
 }

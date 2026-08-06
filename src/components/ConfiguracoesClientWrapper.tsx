@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useConfirm } from "./admin/ConfirmDialog";
 import AparenciaCores from "./admin/AparenciaCores";
+import FaixaProcedenciaTextos from "./admin/FaixaProcedenciaTextos";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
@@ -32,6 +33,7 @@ const ABAS = [
   "destaques",
   "aparencia",
   "sobre",
+  "procedencia",
   "integracao",
   "popups",
   "empresa",
@@ -75,6 +77,8 @@ export default function ConfiguracoesClientWrapper() {
     updateStockOverrides,
     carouselVehicleIds: contextCarouselVehicleIds,
     updateCarouselVehicleIds,
+    procedencia,
+    updateProcedencia,
   } = useTheme();
 
   const searchParams = useSearchParams();
@@ -944,6 +948,7 @@ export default function ConfiguracoesClientWrapper() {
       case "popups": return "Pop-ups de Lead";
       case "empresa": return "Dados da Concessionária";
       case "sobre": return "Página Quem Somos";
+      case "procedencia": return "Faixa de Procedência";
       default: return "Controle Administrativo";
     }
   };
@@ -1818,6 +1823,8 @@ export default function ConfiguracoesClientWrapper() {
             companySettings={companySettings}
             aoAbrirDadosDaEmpresa={() => handleTabChange("empresa")}
           />
+        ) : activeTab === "procedencia" ? (
+          <FaixaProcedenciaTextos itens={procedencia} aoSalvar={updateProcedencia} />
         ) : activeTab === "destaques" ? (
           // DESTAQUES RÁPIDOS CRUD
           <div className="flex flex-col gap-6 animate-fadeIn">

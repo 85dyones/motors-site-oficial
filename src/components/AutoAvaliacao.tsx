@@ -28,6 +28,15 @@ import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
  * — nenhum valor de compra é prometido antes da vistoria presencial.
  *
  * A regra em si mora em `lib/avaliacaoRecomendacao.ts`, isolada e testada.
+ *
+ * Sobre a moldura da coluna escura (2026-08-06): ela dizia "PRÉVIA DO
+ * RESULTADO" e "COMO CHEGAMOS NESSE NÚMERO" em volta do valor FIPE. Nenhum
+ * código inflava o número — ele é a FIPE crua —, mas a moldura fazia o
+ * cliente ler 100% da FIPE como a oferta da loja, e a loja compra abaixo
+ * dela em qualquer estado de conservação. Criar expectativa acima do que se
+ * vai pagar é o mesmo erro de mostrar um valor inventado. Agora a FIPE
+ * aparece rotulada como ponto de partida do mercado, e a avaliação é
+ * declaradamente do consultor.
  */
 
 // ─── FIPE API Types ───
@@ -82,10 +91,17 @@ const ESTADO_CONSERVACAO = [
   { val: "avariado", label: "Avariado / Batido", desc: "Necessita funilaria expressa" },
 ];
 
-/** O "como chegamos nesse número" da coluna escura, direto do design doc. */
-const COMO_CHEGAMOS = [
-  "Giro real do modelo no nosso estoque nos últimos 90 dias.",
-  "Ajuste por opcionais, estado de pneus e histórico de revisões.",
+/**
+ * O que a coluna escura explica embaixo do valor.
+ *
+ * Não é mais "como chegamos nesse número": o número é da FIPE, não nosso.
+ * É o caminho até a proposta — e ele diz, sem rodeio, que a compra fica
+ * abaixo da FIPE. Sem percentuais: a faixa da regra é insumo do consultor,
+ * o cliente nunca vê valor de compra antes da vistoria.
+ */
+const COMO_A_PROPOSTA_E_FEITA = [
+  "A compra da loja fica abaixo da FIPE. Estado, quilometragem, opcionais e histórico de revisões definem o quanto.",
+  "O consultor confere os dados, faz a vistoria em Curitiba e envia a avaliação pelo WhatsApp.",
 ];
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -1101,7 +1117,10 @@ export default function AutoAvaliacao() {
                 </div>
                 {fipeValor && (
                   <div className="flex justify-between gap-4 border-b border-mt-regua-fina py-3 text-[13px]">
-                    <span className="text-mt-neutral-600">Referência FIPE</span>
+                    <span className="text-mt-neutral-600">
+                      Referência FIPE{" "}
+                      <span className="text-mt-neutral-500">(mercado)</span>
+                    </span>
                     <span className="text-right font-extrabold text-mt-accent">{fipeValor}</span>
                   </div>
                 )}
@@ -1148,8 +1167,9 @@ export default function AutoAvaliacao() {
               </div>
 
               <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
-                Enviaremos a estimativa de preço comercial baseada no estado
-                informado.
+                O consultor recebe estes dados e envia a avaliação pelo
+                WhatsApp. A FIPE acima é referência de mercado — a proposta de
+                compra fica abaixo dela e é confirmada na vistoria.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-0.5">
@@ -1187,7 +1207,7 @@ export default function AutoAvaliacao() {
                   {vehicleType === "motos" ? "moto" : vehicleType === "caminhoes" ? "caminhão" : "carro"}{" "}
                   {step1.marca} {step1.modelo} {step1.ano}
                 </strong>{" "}
-                e enviam os valores de mercado e as opções de troca no WhatsApp{" "}
+                e enviam a avaliação e as opções de troca no WhatsApp{" "}
                 <strong>{step3.whatsapp}</strong>.
               </p>
 
@@ -1229,7 +1249,7 @@ export default function AutoAvaliacao() {
         className="shrink-0 bg-mt-inverso-fundo px-[18px] py-10 text-mt-inverso lg:w-[470px] lg:px-10 lg:py-14"
       >
         <Rotulo className="text-[11px] tracking-[.18em] text-mt-accent-400">
-          PRÉVIA DO RESULTADO
+          PONTO DE PARTIDA
         </Rotulo>
         <h2 className="mt-titulo m-0 mt-3 text-[28px] text-mt-inverso lg:text-[32px]">
           Referência FIPE
@@ -1257,25 +1277,35 @@ export default function AutoAvaliacao() {
                   </span>
                 )}
               </div>
+
+              {/* O aviso mora aqui, colado no número, e não no rodapé da
+                  coluna: é ele que impede o cliente de sair da tela achando
+                  que a loja vai pagar a FIPE cheia. */}
+              <p className="m-0 mt-5 border-l-2 border-mt-accent pl-3.5 text-[12.5px] font-semibold leading-relaxed text-mt-neutral-300">
+                Este é o valor de mercado da tabela, não a nossa proposta. A
+                loja compra abaixo da FIPE — a avaliação do seu veículo vem do
+                consultor.
+              </p>
             </>
           ) : (
             <p className="m-0 text-sm leading-relaxed text-mt-neutral-400">
               Escolha marca, modelo e ano ao lado. O valor oficial da Tabela
-              FIPE para a versão exata aparece aqui.
+              FIPE para a versão exata aparece aqui — como referência de
+              mercado, não como proposta de compra.
             </p>
           )}
         </div>
 
         <div className="mt-8 border-t border-mt-inverso-regua-fina pt-5">
           <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
-            COMO CHEGAMOS NESSE NÚMERO
+            COMO A PROPOSTA É FEITA
           </Rotulo>
           <div className="mt-3.5">
             {[
               fipeMesReferencia
-                ? `Tabela FIPE oficial de ${fipeMesReferencia} para a versão exata.`
-                : "Tabela FIPE oficial para a versão exata do seu veículo.",
-              ...COMO_CHEGAMOS,
+                ? `A FIPE oficial de ${fipeMesReferencia}, na versão exata, é o ponto de partida.`
+                : "A FIPE oficial, na versão exata do seu veículo, é o ponto de partida.",
+              ...COMO_A_PROPOSTA_E_FEITA,
             ].map((item) => (
               <div
                 key={item}
@@ -1308,8 +1338,9 @@ export default function AutoAvaliacao() {
             RECEBER PROPOSTA REAL
           </button>
           <p className="m-0 mt-3.5 text-[11px] leading-relaxed text-mt-neutral-500">
-            O valor FIPE é referência de mercado, não é a nossa oferta. A
-            proposta final depende de vistoria presencial em Curitiba.
+            Quem envia a avaliação é o consultor, com os dados que você
+            informou. A proposta final depende de vistoria presencial em
+            Curitiba.
           </p>
         </div>
       </aside>

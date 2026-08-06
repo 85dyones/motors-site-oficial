@@ -157,7 +157,10 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
       <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
         <EstatisticasRegua
           itens={[
-            { valor: "100%", rotulo: "LAUDO CAUTELAR", accent: true },
+            // Processo, não resultado: todo carro vai para a perícia, mas
+            // parte do estoque está sempre com o laudo em análise. Ver a
+            // mesma régua em `modernist/HeroHome`.
+            { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
             { valor: "FIPE", rotulo: "BASE DE AVALIAÇÃO" },
             { valor: "6 MESES", rotulo: "GARANTIA MOTOR E CÂMBIO" },
           ]}

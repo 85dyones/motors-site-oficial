@@ -19,11 +19,12 @@ const INTERVALO_MS = 5200;
 export default function HeroHome({
   slides,
   totalEstoque,
-  anosDeCasa = 12,
+  totalMarcas,
 }: {
   slides: Veiculo[];
   totalEstoque: number;
-  anosDeCasa?: number;
+  /** Marcas distintas no estoque disponível — ver `lib/estatisticasEstoque`. */
+  totalMarcas: number;
 }) {
   const [atual, setAtual] = useState(0);
   const [pausado, setPausado] = useState(false);
@@ -134,13 +135,22 @@ export default function HeroHome({
           cautelar e garantia. Curadoria, não vitrine.
         </p>
 
+        {/* Régua de indicadores: os três números precisam sair do estoque
+            real. O do meio era "12 ANOS" de casa — default fixo no
+            componente, sem fonte nenhuma. Trocado em 2026-08-06 por marcas
+            distintas, que se conta do mesmo estoque que já está em memória. */}
         <EstatisticasRegua
           inverso
           className="mt-8 hidden w-[460px] lg:flex"
           itens={[
             { valor: String(totalEstoque), rotulo: "EM ESTOQUE" },
-            { valor: String(anosDeCasa), rotulo: "ANOS" },
-            { valor: "100%", rotulo: "LAUDO CAUTELAR", accent: true },
+            { valor: String(totalMarcas), rotulo: "MARCAS" },
+            // "100% LAUDO CAUTELAR" era lido como "100% aprovado", e no feed
+            // de 2026-08-06 só 35 dos 88 estavam aprovados — 53 seguiam em
+            // análise. O compromisso real da loja, confirmado pelo dono, é de
+            // processo: todo carro é enviado para a perícia. O rótulo agora
+            // diz isso, e não o resultado.
+            { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
           ]}
         />
       </div>

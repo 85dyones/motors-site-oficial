@@ -1089,7 +1089,13 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
                 </div>
                 <div>
                   <h5 className="text-xs font-black text-brand-text uppercase leading-none">Seu Usado na Troca ou Test-Drive</h5>
-                  <p className="text-[10px] text-brand-text/75 font-semibold tracking-wide uppercase mt-1">Supervalorização FIPE + Visita no Showroom</p>
+                  {/* "Supervalorização FIPE" prometia pagar acima da tabela.
+                      A loja compra abaixo da FIPE em qualquer estado de
+                      conservação (regra em `lib/avaliacaoRecomendacao.ts`),
+                      então a frase criava uma expectativa que o consultor
+                      teria que desmontar no atendimento. Trocada em
+                      2026-08-06. */}
+                  <p className="text-[10px] text-brand-text/75 font-semibold tracking-wide uppercase mt-1">Avaliação com base na FIPE + Visita no Showroom</p>
                 </div>
               </div>
 

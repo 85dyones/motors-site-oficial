@@ -74,7 +74,7 @@ export default function VitrineTV({
           </span>
         </div>
         <span className="text-[0.83vw] font-semibold tracking-[.18em] text-mt-inverso-suave">
-          {totalEstoque} VEÍCULOS EM ESTOQUE · LAUDO CAUTELAR EM 100%
+          {totalEstoque} VEÍCULOS EM ESTOQUE · 100% PASSAM PELA PERÍCIA CAUTELAR
         </span>
         <span className="h-[3.5vh] w-px bg-[#444141]" aria-hidden="true" />
         <span className="text-[1.04vw] font-extrabold">{telefone}</span>

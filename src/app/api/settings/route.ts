@@ -82,7 +82,8 @@ export async function POST(request: Request) {
       quickTags,
       stockOverrides,
       carouselVehicleIds,
-      bankBalances
+      bankBalances,
+      procedencia
     } = body;
 
     const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
@@ -199,6 +200,16 @@ export async function POST(request: Request) {
         if (error) {
           console.error("[Settings API] Supabase write error for carouselVehicleIds:", error.message);
           return NextResponse.json({ error: `Falha ao salvar carrossel de veículos: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      if (procedencia) {
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "procedencia", data: procedencia, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for procedencia:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar a faixa de procedência: ${error.message}` }, { status: 500 });
         }
       }
 

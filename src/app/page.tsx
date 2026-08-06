@@ -13,6 +13,7 @@ import {
   Seta,
 } from "../components/modernist/primitivos";
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
+import { contarMarcas } from "../lib/estatisticasEstoque";
 import { getCachedSettings } from "../lib/settings";
 import {
   DESTAQUES_PADRAO,
@@ -165,7 +166,11 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(autoDealerSchema) }}
       />
 
-      <HeroHome slides={slidesHero} totalEstoque={total} />
+      <HeroHome
+        slides={slidesHero}
+        totalEstoque={total}
+        totalMarcas={contarMarcas(disponiveis)}
+      />
 
       <BuscaRegua estoque={disponiveis} />
 

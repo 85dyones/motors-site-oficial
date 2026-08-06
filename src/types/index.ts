@@ -71,6 +71,21 @@ export interface AboutSettings {
   isCustom?: boolean;
 }
 
+/**
+ * Um dos blocos da faixa de procedência da página do veículo.
+ *
+ * O texto é institucional — vale para todo o estoque — mas é editável no
+ * painel porque promete coisa que nem sempre a loja pode cumprir do mesmo
+ * jeito (histórico de revisões que não existe, transferência que depende do
+ * caso). `ativo: false` tira o bloco do ar sem apagar o texto.
+ */
+export interface ItemProcedencia {
+  id: string;
+  titulo: string;
+  descricao: string;
+  ativo: boolean;
+}
+
 export interface Webhooks {
   webhookUrl: string;
   webhookAvaliacaoUrl: string;

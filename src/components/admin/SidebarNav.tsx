@@ -53,6 +53,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
         { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
         { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
+        { name: "Faixa de procedência", href: "/admin/configuracoes?tab=procedencia" },
       ],
     },
     {

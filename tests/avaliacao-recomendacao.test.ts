@@ -131,6 +131,38 @@ describe("quilometragem", () => {
   });
 });
 
+describe("nenhuma combinação chega na FIPE cheia", () => {
+  /**
+   * A loja compra abaixo da FIPE, sempre. Nenhum estado de conservação, por
+   * melhor que seja, pode produzir um valor igual ou acima da tabela — nem
+   * no JSON do consultor, nem em qualquer texto que a tela venha a exibir.
+   */
+  const MECANICAS = ["excelente", "bom", "atencao", "ruim"];
+  const CONSERVACOES = ["impecavel", "riscos", "reparos", "avariado"];
+  const FIPE_NUMERICA = 100000;
+
+  it("o teto sugerido fica no máximo 10% abaixo da FIPE", () => {
+    for (const mecanica of MECANICAS) {
+      for (const conservacao of CONSERVACOES) {
+        for (const km of [0, 50000, LIMITE_KM_ALTO + 1, 400000]) {
+          const r = avaliar(mecanica, conservacao, km);
+          expect(r.desconto_min).toBeGreaterThanOrEqual(10);
+          expect(r.valor_sugerido_max).not.toBeNull();
+          expect(r.valor_sugerido_max!).toBeLessThanOrEqual(FIPE_NUMERICA * 0.9);
+        }
+      }
+    }
+  });
+
+  it("o rótulo de toda faixa diz 'abaixo da FIPE'", () => {
+    for (const mecanica of MECANICAS) {
+      for (const conservacao of CONSERVACOES) {
+        expect(avaliar(mecanica, conservacao).faixa_label).toContain("abaixo da FIPE");
+      }
+    }
+  });
+});
+
 describe("sem FIPE legível", () => {
   it("mantém a faixa mas omite os valores em reais", () => {
     const r = avaliar("bom", "impecavel", 50000, null);

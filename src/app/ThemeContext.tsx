@@ -5,6 +5,8 @@ import { logThemeChanged } from "../lib/telemetry";
 import { supabase } from "../lib/supabase";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 
+import { PROCEDENCIA_PADRAO, normalizarProcedencia } from "../lib/procedencia";
+
 import type {
   ThemeType,
   ThemeProperties,
@@ -14,7 +16,8 @@ import type {
   Campaign,
   QuickTag,
   StockOverrides,
-  PopupSettings
+  PopupSettings,
+  ItemProcedencia
 } from "../types";
 
 export type {
@@ -26,8 +29,12 @@ export type {
   Campaign,
   QuickTag,
   StockOverrides,
-  PopupSettings
+  PopupSettings,
+  ItemProcedencia
 };
+
+/** Texto padrão da faixa de procedência da PDP. Definição em `lib/procedencia.ts`. */
+export const DEFAULT_PROCEDENCIA = PROCEDENCIA_PADRAO;
 
 export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
   // Paleta do redesign 2026 (design doc "Motors site modernista redesign").
@@ -248,6 +255,8 @@ interface ThemeContextProps {
   updateStockOverrides: (overrides: StockOverrides) => Promise<void>;
   carouselVehicleIds: string[];
   updateCarouselVehicleIds: (ids: string[]) => Promise<void>;
+  procedencia: ItemProcedencia[];
+  updateProcedencia: (itens: ItemProcedencia[]) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
@@ -263,6 +272,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [quickTags, setQuickTags] = useState<QuickTag[]>(DEFAULT_QUICK_TAGS);
   const [stockOverrides, setStockOverrides] = useState<StockOverrides>({});
   const [carouselVehicleIds, setCarouselVehicleIds] = useState<string[]>([]);
+  const [procedencia, setProcedencia] = useState<ItemProcedencia[]>(PROCEDENCIA_PADRAO);
 
   useEffect(() => {
     // Theme and compare IDs are UI-only preferences — localStorage is fine for these
@@ -324,6 +334,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
               }
             }
             console.log("[ThemeContext] Stock overrides loaded from Supabase");
+          }
+          if (data.procedencia) {
+            setProcedencia(normalizarProcedencia(data.procedencia));
+            console.log("[ThemeContext] Procedência loaded from Supabase");
           }
           if (data.carouselVehicleIds && Array.isArray(data.carouselVehicleIds)) {
             setCarouselVehicleIds(data.carouselVehicleIds);
@@ -492,6 +506,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await postSettings({ carouselVehicleIds: newIds });
   };
 
+  const updateProcedencia = async (itens: ItemProcedencia[]) => {
+    const normalizados = normalizarProcedencia(itens);
+    setProcedencia(normalizados);
+    await postSettings({ procedencia: normalizados });
+  };
+
   const updateQuickTags = async (newQuickTags: QuickTag[]) => {
     setQuickTags(newQuickTags);
     await postSettings({ quickTags: { quickTags: newQuickTags } });
@@ -606,6 +626,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         updateStockOverrides,
         carouselVehicleIds,
         updateCarouselVehicleIds,
+        procedencia,
+        updateProcedencia,
       }}
     >
       {children}
