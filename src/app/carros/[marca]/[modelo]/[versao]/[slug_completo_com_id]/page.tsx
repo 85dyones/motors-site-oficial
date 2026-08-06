@@ -122,6 +122,36 @@ export default async function CarDetailsPage({ params }: PageProps) {
     notFound();
   }
 
+  /**
+   * "Também no seu perfil" — os três do estoque mais próximos deste.
+   *
+   * Proximidade aqui é preço: quem está olhando um carro de R$ 300 mil não
+   * quer ver um de R$ 40 mil na mesma régua. Mesma carroceria ganha
+   * prioridade quando existe. Vendido não entra, e o próprio carro sai da
+   * lista.
+   */
+  const estoqueCompleto = await getEstoque();
+  const precoDoAtual =
+    veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original
+      ? veiculo.preco_promocional
+      : veiculo.preco_original;
+
+  const similares = estoqueCompleto
+    .filter((v) => !v.vendido && v.id !== veiculo.id)
+    .map((v) => {
+      const preco = v.preco_promocional > 0 && v.preco_promocional < v.preco_original
+        ? v.preco_promocional
+        : v.preco_original;
+      const mesmaCarroceria = Boolean(veiculo.tipo && v.tipo === veiculo.tipo);
+      return { veiculo: v, distancia: Math.abs(preco - precoDoAtual), mesmaCarroceria };
+    })
+    .sort((a, b) => {
+      if (a.mesmaCarroceria !== b.mesmaCarroceria) return a.mesmaCarroceria ? -1 : 1;
+      return a.distancia - b.distancia;
+    })
+    .slice(0, 3)
+    .map((c) => c.veiculo);
+
   // Construct JSON-LD Structured Data for the vehicle (Car schema)
   const hasDiscount = veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original;
   const finalPrice = hasDiscount ? veiculo.preco_promocional : veiculo.preco_original;
@@ -200,7 +230,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <PDPClientWrapper veiculo={veiculo} />
+      <PDPClientWrapper veiculo={veiculo} similares={similares} />
       <FaixaProcedencia />
     </div>
   );

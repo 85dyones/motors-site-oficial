@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Veiculo, truncateString } from "../lib/supabase";
+import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
+import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
@@ -13,6 +14,8 @@ const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciament
 
 interface PDPClientWrapperProps {
   veiculo: Veiculo;
+  /** Três veículos próximos deste, resolvidos no servidor. */
+  similares?: Veiculo[];
 }
 
 function formatPrice(value: number): string {
@@ -54,7 +57,7 @@ function resolveTagColorClass(color?: string): string {
   }
 }
 
-export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientWrapperProps) {
+export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = [] }: PDPClientWrapperProps) {
   const { companySettings, stockOverrides } = useTheme();
 
   /**
@@ -353,7 +356,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       }
     } catch (fetchError) {
       console.warn(
-        "[Lead Submit PDP] Network error (non-blocking):",
+"[Lead Submit PDP] Network error (non-blocking):",
         fetchError instanceof Error ? fetchError.message : fetchError,
       );
     }
@@ -565,7 +568,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           <button
             type="button"
             onClick={handleWhatsappPDPClick}
-            className="mt-btn mt-btn-primario mt-btn-bloco mt-foco px-5 py-[18px] text-sm"
+ className="mt-btn mt-btn-primario mt-btn-bloco mt-foco px-5 py-[18px] text-sm"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-[19px] w-[19px]" aria-hidden="true">
               <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-4.2-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
@@ -575,7 +578,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           <button
             type="button"
             onClick={handleProposalClick}
-            className="mt-btn mt-btn-contorno mt-btn-bloco mt-foco px-5 py-3.5 text-xs tracking-[.08em]"
+ className="mt-btn mt-btn-contorno mt-btn-bloco mt-foco px-5 py-3.5 text-xs tracking-[.08em]"
           >
             TIRAR DÚVIDAS COM O VENDEDOR
           </button>
@@ -585,7 +588,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         <div className="flex items-center justify-between border-t border-brand-border/40 pt-4 mt-1 select-none">
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-brand-text/80 hover:text-brand-primary border border-brand-border/80 hover:border-brand-primary/50 hover:bg-brand-primary/5 px-3 py-2 rounded-xl transition-all duration-300 select-none cursor-pointer"
+ className="flex items-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-brand-text/80 hover:text-brand-primary border border-brand-border/80 hover:border-brand-primary/50 hover:bg-brand-primary/5 px-3 py-2  transition-all duration-300 select-none cursor-pointer"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18.75 9H5.25" />
@@ -600,7 +603,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 const text = `🚗 ${veiculo.marca} ${veiculo.modelo} - ${veiculo.ano}\n💰 ${formatPrice(hasDiscount ? veiculo.preco_promocional : veiculo.preco_original)}\n📋 ${veiculo.versao}\n\n🔗 ${typeof window !== 'undefined' ? window.location.href : ''}`;
                 window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
               }}
-              className="flex items-center justify-center h-9 w-9 rounded-full border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-emerald-600 hover:border-emerald-600 transition-all duration-300 cursor-pointer"
+ className="flex items-center justify-center h-9 w-9  border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-emerald-600 hover:border-emerald-600 transition-all duration-300 cursor-pointer"
               aria-label="Compartilhar ficha do veículo no WhatsApp"
               title="Compartilhar no WhatsApp"
             >
@@ -613,7 +616,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             <div className="relative flex items-center">
               <button
                 onClick={handleCopyLink}
-                className="flex items-center justify-center h-9 w-9 rounded-full border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-gradient-to-tr hover:from-amber-500 hover:via-pink-500 hover:to-purple-600 hover:border-transparent transition-all duration-300 cursor-pointer"
+ className="flex items-center justify-center h-9 w-9  border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-gradient-to-tr hover:from-amber-500 hover:via-pink-500 hover:to-purple-600 hover:border-transparent transition-all duration-300 cursor-pointer"
                 aria-label="Compartilhar ficha do veículo no Instagram"
                 title="Copiar link para Instagram"
               >
@@ -622,7 +625,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 </svg>
               </button>
               {copied && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-950 text-white text-[9px] font-bold rounded-lg shadow-md whitespace-nowrap animate-bounce border border-brand-border/40 uppercase tracking-widest">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-950 text-white text-[9px] font-bold   whitespace-nowrap animate-bounce border border-brand-border/40 uppercase tracking-widest">
                   Link copiado!
                 </div>
               )}
@@ -634,7 +637,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 const url = typeof window !== 'undefined' ? window.location.href : '';
                 window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
               }}
-              className="flex items-center justify-center h-9 w-9 rounded-full border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-blue-600 hover:border-blue-600 transition-all duration-300 cursor-pointer"
+ className="flex items-center justify-center h-9 w-9  border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-blue-600 hover:border-blue-600 transition-all duration-300 cursor-pointer"
               aria-label="Compartilhar ficha do veículo no Facebook"
               title="Compartilhar no Facebook"
             >
@@ -691,7 +694,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       {/* PRINT ONLY FEATURED IMAGE */}
       <div className="hidden print:block w-full mb-6">
         {displayImages[0] && (
-          <div className="relative w-full h-[320px] bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200">
+          <div className="relative w-full h-[320px] bg-zinc-100  overflow-hidden border border-zinc-200">
             {/* `<img>` cru de propósito: este bloco só existe na impressão da
                 ficha, e o `next/image` serve um srcset que a impressora não
                 aproveita. Mesma exceção do card em `modernist/primitivos`. */}
@@ -699,7 +702,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             <img
               src={displayImages[0]}
               alt={`${veiculo.marca} ${veiculo.modelo}`}
-              className="w-full h-full object-cover print-main-image"
+ className="w-full h-full object-cover print-main-image"
             />
           </div>
         )}
@@ -714,12 +717,12 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           {/* Gallery block */}
           <section className="w-full flex flex-col gap-3 max-sm:gap-1.5 print:hidden">
             {/* Images container fitted to generous, gorgeous full-bleed responsive heights and styled with bg-zinc-950 */}
-            <div className="relative w-full aspect-video landscape:max-h-[75vh] bg-zinc-950 group border-none p-0 m-0 overflow-hidden rounded-2xl shadow-lg">
+            <div className="relative w-full aspect-video landscape:max-h-[75vh] bg-mt-inverso-fundo group border-none p-0 m-0 overflow-hidden">
               {/* Horizontal scroll snap container */}
               <div
                 ref={carouselRef}
                 onScroll={handleCarouselScroll}
-                className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0"
+ className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0"
                 style={{ scrollBehavior: "smooth" }}
               >
                 {displayImages.map((imgUrl, index) => (
@@ -729,7 +732,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                       setLightboxImageIndex(index);
                       setIsLightboxOpen(true);
                     }}
-                    className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
+ className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
                   >
                     <Image
                       src={imgUrl}
@@ -737,7 +740,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                       fill
                       priority={index === 0}
                       fetchPriority={index === 0 ? "high" : "auto"}
-                      className={`object-cover w-full h-full border-none p-0 m-0 ${veiculo.vendido ? "filter grayscale-[30%] opacity-75" : ""}`}
+ className={`object-cover w-full h-full border-none p-0 m-0 ${veiculo.vendido ? "filter grayscale-[30%] opacity-75" : ""}`}
                       sizes="(max-width: 1024px) 100vw, 900px"
                     />
                   </div>
@@ -749,7 +752,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 <>
                   <button
                     onClick={() => scrollCarouselTo((activeImageIndex - 1 + displayImages.length) % displayImages.length)}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full bg-black/40 hover:bg-brand-primary/95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md active:scale-95 cursor-pointer"
+ className="mt-foco absolute left-0 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
                     aria-label="Imagem anterior"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-4 h-4">
@@ -758,7 +761,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                   </button>
                   <button
                     onClick={() => scrollCarouselTo((activeImageIndex + 1) % displayImages.length)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-30 h-11 w-11 rounded-full bg-black/40 hover:bg-brand-primary/95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md active:scale-95 cursor-pointer"
+ className="mt-foco absolute right-0 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
                     aria-label="Próxima imagem"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-4 h-4">
@@ -768,11 +771,19 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 </>
               )}
 
-              {/* Float approved inspection indicator */}
+              {/* Etiqueta de estado, colada no canto — o sistema não flutua
+                  selo com sombra e raio, encosta na quina da célula. */}
               {veiculo.status_tag && (
-                <div className={`absolute top-4 left-4 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-white shadow-lg z-30 flex items-center gap-1.5 border ${resolveTagColorClass(veiculo.status_tag_color)}`}>
-                  <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                <div className="mt-etiqueta mt-etiqueta-accent absolute left-0 top-0 z-30 gap-2 text-[10px]">
+                  <span className="mt-pulso h-1.5 w-1.5 bg-mt-inverso" aria-hidden="true" />
                   {veiculo.status_tag.toUpperCase()}
+                </div>
+              )}
+
+              {/* Contador de fotos — "03 / 42" do design doc */}
+              {displayImages.length > 0 && (
+                <div className="pointer-events-none absolute bottom-0 right-0 z-30 bg-[rgba(20,18,18,.85)] px-3.5 py-2 text-xs font-semibold tracking-[.08em] text-mt-inverso">
+                  {String(activeImageIndex + 1).padStart(2, "0")} / {displayImages.length}
                 </div>
               )}
 
@@ -782,7 +793,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                   setLightboxImageIndex(activeImageIndex);
                   setIsLightboxOpen(true);
                 }}
-                className="absolute top-4 right-4 z-30 h-10 w-10 rounded-full bg-black/40 hover:bg-brand-primary/95 text-white flex items-center justify-center border border-white/10 backdrop-blur-sm transition-all duration-300 shadow-md active:scale-95 cursor-pointer"
+ className="mt-foco absolute right-0 top-0 z-30 flex h-11 w-11 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
                 title="Visualizar em tela cheia"
                 aria-label="Visualizar fotos do veículo em tela cheia"
               >
@@ -794,8 +805,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               {/* Sold overlay */}
               {veiculo.vendido && (
                 <div className="absolute inset-0 bg-zinc-950/45 flex items-center justify-center z-20 backdrop-blur-[0.5px] pointer-events-none">
-                  <div className="bg-black/80 backdrop-blur-md border border-red-500/30 px-6 py-3 rounded-lg shadow-2xl flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  <div className="bg-black/80 backdrop-blur-md border border-red-500/30 px-6 py-3   flex items-center gap-2">
+                    <span className="h-2 w-2  bg-red-500 animate-pulse" />
                     <span className="text-[11px] font-black tracking-[0.25em] text-white uppercase">
                       VENDIDO
                     </span>
@@ -813,8 +824,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                     <button
                       key={index}
                       onClick={() => scrollCarouselTo(index)}
-                      className={`relative h-16 w-24 overflow-hidden flex-shrink-0 border-2 transition-all duration-300 ${
-                        isActive ? "border-brand-primary scale-[0.98] shadow-md rounded-xl" : "border-brand-border hover:border-brand-primary/40 opacity-70 hover:opacity-100 rounded-xl"
+ className={`relative h-16 w-24 overflow-hidden flex-shrink-0 border-2 transition-all duration-300 ${
+                        isActive ? "border-brand-primary scale-[0.98]" : "border-brand-border hover:border-brand-primary/40 opacity-70 hover:opacity-100 "
                       }`}
                       aria-label={`Visualizar foto ${index + 1}`}
                     >
@@ -822,7 +833,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                         src={imgUrl}
                         alt={`Miniatura ${index + 1}`}
                         fill
-                        className="object-cover w-full border-none p-0 m-0"
+ className="object-cover w-full border-none p-0 m-0"
                         sizes="96px"
                       />
                     </button>
@@ -839,7 +850,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
           {/* Description Section */}
           <div className="px-4 md:px-0 print:px-0">
-            <section className="bg-brand-card border border-brand-border/40 p-6 md:p-8 max-sm:p-4 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)] print-avoid-break">
+            <section className="bg-brand-card border border-brand-border/40 p-6 md:p-8 max-sm:p-4   print-avoid-break">
               <h3 className="text-xs font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-3 mb-4 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H3.75A1.125 1.125 0 0 0 2.625 3.375v17.25c0 .621.504 1.125 1.125 1.125h16.5a1.125 1.125 0 0 0 1.125-1.125V14.25z" />
@@ -849,7 +860,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               </h3>
               {veiculo.descricao && /<[a-z][\s\S]*>/i.test(veiculo.descricao) ? (
                 <div 
-                  className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl rich-text-content"
+ className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl rich-text-content"
                   dangerouslySetInnerHTML={{ __html: veiculo.descricao }}
                 />
               ) : (
@@ -867,10 +878,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               manter a seção vazia só trocaria a mentira por uma caixa oca. */}
           {featuresList.length > 0 && (
           <div className="px-4 md:px-0 print:px-0">
-            <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300 print-avoid-break">
+            <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
               <button
                 onClick={() => setOpcionaisOpen(!opcionaisOpen)}
-                className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
+ className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
                 aria-expanded={opcionaisOpen}
               >
                 <span className="uppercase tracking-widest text-sm max-sm:text-xs">OPCIONAIS E ACESSÓRIOS DE SÉRIE</span>
@@ -909,16 +920,16 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           {/* Accordion: Perícia Cautelar.
               Renderizado SÓ quando o feed traz um laudo de verdade E a perícia
               está aprovada. Antes era incondicional: os 88 veículos exibiam
-              "LAUDO TÉCNICO APROVADO — Histórico livre de sinistros e leilão"
+"LAUDO TÉCNICO APROVADO — Histórico livre de sinistros e leilão"
               com um texto de perícia fabricado, incluindo carros cuja perícia
               está "Em análise". Afirmar laudo limpo sobre carro não periciado é
               o tipo de declaração que gera passivo direto de CDC. */}
           {veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA" && (
           <div className="px-4 md:px-0 print:px-0">
-            <div className="bg-brand-card border border-brand-card-border shadow-[0_8px_30px_var(--brand-shadow)] rounded-3xl overflow-hidden transition-all duration-300 print-avoid-break">
+            <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
               <button
                 onClick={() => setPericiaOpen(!periciaOpen)}
-                className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
+ className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
                 aria-expanded={periciaOpen}
               >
                 <span className="uppercase tracking-widest text-sm max-sm:text-xs">LAUDO DE PERÍCIA CAUTELAR CERTIFICADO</span>
@@ -943,7 +954,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               >
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="bg-emerald-500/10 text-emerald-600 p-2.5 rounded-full">
+                    <div className="bg-emerald-500/10 text-emerald-600 p-2.5 ">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                         <path fillRule="evenodd" d="M12.516 2.17a.75.75 0 0 0-1.032 0 11.209 11.209 0 0 1-7.877 3.08.75.75 0 0 0-.722.515A12.74 12.74 0 0 0 2.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 0 0 .374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 0 0-.722-.516l-.143.001c-2.996 0-5.717-1.17-7.734-3.08ZM12 8.25a.75.75 0 0 1 .75.75v3.25a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 6a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Z" clipRule="evenodd" />
                       </svg>
@@ -953,7 +964,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                       <p className="text-[10px] text-brand-text/75 font-extrabold uppercase tracking-wider">Histórico livre de sinistros e leilão</p>
                     </div>
                   </div>
-                  <p className="text-xs text-brand-text/70 leading-relaxed italic bg-brand-bg p-4 rounded-xl border border-brand-border font-medium">
+                  <p className="text-xs text-brand-text/70 leading-relaxed italic bg-brand-bg p-4  border border-brand-border font-medium">
                     &ldquo;{veiculo.laudo_pericia}&rdquo;
                   </p>
                 </div>
@@ -973,7 +984,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           </div>
 
           {/* Specification Matrix Table */}
-          <aside className="bg-brand-card border border-brand-border/40 p-6 max-sm:p-4 rounded-3xl shadow-[0_8px_30px_var(--brand-shadow)] w-full print-avoid-break">
+          <aside className="bg-brand-card border border-brand-border/40 p-6 max-sm:p-4   w-full print-avoid-break">
             <h3 className="text-sm font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-4 mb-4">
               MATRIZ DE ESPECIFICAÇÕES
             </h3>
@@ -1053,7 +1064,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           {/* Direct contact CTA box in side desk bar — Re-structured for High Conversion Trade-In & Showroom Visit */}
           <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4 print:hidden">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-brand-primary/10 border border-brand-primary flex items-center justify-center flex-shrink-0">
+                <div className="h-10 w-10  bg-brand-primary/10 border border-brand-primary flex items-center justify-center flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-5 w-5 text-brand-primary">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                   </svg>
@@ -1067,7 +1078,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
               <div className="flex flex-col gap-2.5">
                 <button
                   onClick={handleTradeInClick}
-                  className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-[11px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(34,197,94,0.25)] hover:shadow-[0_4px_25px_rgba(34,197,94,0.35)] transition-all duration-300 cursor-pointer"
+ className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-[11px] uppercase tracking-widest  flex items-center justify-center gap-2 active:scale-95  hover: transition-all duration-300 cursor-pointer"
                   style={{ minHeight: "48px" }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
@@ -1078,7 +1089,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
                 <button
                   onClick={handleTestDriveClick}
-                  className="w-full h-11 bg-brand-card hover:bg-brand-primary/10 text-brand-primary font-extrabold text-[10px] uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 border border-brand-primary/40 hover:border-brand-primary transition-all duration-300 cursor-pointer active:scale-95"
+ className="w-full h-11 bg-brand-card hover:bg-brand-primary/10 text-brand-primary font-extrabold text-[10px] uppercase tracking-widest  flex items-center justify-center gap-2 border border-brand-primary/40 hover:border-brand-primary transition-all duration-300 cursor-pointer active:scale-95"
                   style={{ minHeight: "44px" }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
@@ -1098,14 +1109,14 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       <div className="pb-safe fixed bottom-0 left-0 right-0 z-40 flex items-center gap-0.5 bg-mt-bg pt-0.5 md:hidden print:hidden">
         <button
           onClick={handleTradeInClick}
-          className="mt-btn mt-btn-contorno mt-foco flex-none justify-center px-3 py-3 text-center text-[11px] leading-tight tracking-[.06em]"
+ className="mt-btn mt-btn-contorno mt-foco flex-none justify-center px-3 py-3 text-center text-[11px] leading-tight tracking-[.06em]"
           style={{ minHeight: "44px", width: "96px" }}
         >
           USADO<br />NA TROCA
         </button>
         <button
           onClick={handleWhatsappPDPClick}
-          className="mt-btn mt-btn-primario mt-foco flex-1 px-4 py-[18px] text-[13px] tracking-[.08em]"
+ className="mt-btn mt-btn-primario mt-foco flex-1 px-4 py-[18px] text-[13px] tracking-[.08em]"
           style={{ minHeight: "44px" }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-3.5 h-3.5">
@@ -1121,17 +1132,17 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
           {/* Top Bar with Floating Controls & Counter */}
           <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between w-full p-3 sm:p-5 bg-gradient-to-b from-black/85 via-black/50 to-transparent pointer-events-auto">
             <div className="flex items-center gap-3">
-              <span className="text-white text-xs sm:text-sm font-black uppercase tracking-widest drop-shadow-md truncate max-w-[200px] sm:max-w-md">
+              <span className="text-white text-xs sm:text-sm font-black uppercase tracking-widest drop- truncate max-w-[200px] sm:max-w-md">
                 {veiculo.marca} {veiculo.modelo}
               </span>
-              <span className="text-white/80 text-[10px] sm:text-xs font-bold tracking-widest uppercase bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15 backdrop-blur-md">
+              <span className="text-white/80 text-[10px] sm:text-xs font-bold tracking-widest uppercase bg-white/10 px-2.5 py-0.5  border border-white/15 backdrop-blur-md">
                 {lightboxImageIndex + 1} / {veiculo.web_full_images.length}
               </span>
             </div>
 
             <button
               onClick={() => setIsLightboxOpen(false)}
-              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-black/60 hover:bg-white hover:text-black text-white flex items-center justify-center transition-all duration-300 border border-white/20 active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
+ className="h-10 w-10 sm:h-11 sm:w-11  bg-black/60 hover:bg-white hover:text-black text-white flex items-center justify-center transition-all duration-300 border border-white/20 active:scale-95 cursor-pointer  backdrop-blur-md"
               title="Fechar tela cheia"
               aria-label="Fechar visualização em tela cheia"
             >
@@ -1147,7 +1158,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             {veiculo.web_full_images.length > 1 && (
               <button
                 onClick={() => setLightboxImageIndex((prev) => (prev - 1 + veiculo.web_full_images.length) % veiculo.web_full_images.length)}
-                className="absolute left-3 sm:left-6 z-50 h-11 w-11 sm:h-14 sm:w-14 rounded-full bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer shadow-2xl"
+ className="absolute left-3 sm:left-6 z-50 h-11 w-11 sm:h-14 sm:w-14  bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer "
                 aria-label="Imagem anterior"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
@@ -1162,7 +1173,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                 src={veiculo.web_full_images[lightboxImageIndex]}
                 alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ampliada ${lightboxImageIndex + 1}`}
                 fill
-                className="object-contain w-full h-full p-2 sm:p-4"
+ className="object-contain w-full h-full p-2 sm:p-4"
                 sizes="100vw"
                 priority
               />
@@ -1172,7 +1183,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             {veiculo.web_full_images.length > 1 && (
               <button
                 onClick={() => setLightboxImageIndex((prev) => (prev + 1) % veiculo.web_full_images.length)}
-                className="absolute right-3 sm:right-6 z-50 h-11 w-11 sm:h-14 sm:w-14 rounded-full bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer shadow-2xl"
+ className="absolute right-3 sm:right-6 z-50 h-11 w-11 sm:h-14 sm:w-14  bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer "
                 aria-label="Próxima imagem"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
@@ -1182,6 +1193,33 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             )}
           </div>
         </div>
+      )}
+
+      {/* ─── Também no seu perfil ───
+          Fecha a página como no design doc: três do estoque próximos a este,
+          no mesmo card do resto do site. */}
+      {similares.length > 0 && (
+        <section
+          aria-label="Veículos semelhantes"
+          className="mx-auto mt-16 w-full max-w-[1600px] px-[18px] font-modernist md:px-8 print:hidden"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-regua pb-3.5">
+            <h2 className="mt-titulo m-0 text-[26px] text-mt-ink lg:text-[32px]">
+              Também no seu perfil
+            </h2>
+            <LinkRegua href="/estoque">VER TODOS</LinkRegua>
+          </div>
+          <div className="grid gap-x-7 gap-y-9 pt-8 sm:grid-cols-2 lg:grid-cols-3">
+            {similares.map((similar) => (
+              <CardVeiculo
+                key={similar.id}
+                veiculo={similar}
+                href={getVeiculoPdpUrl(similar)}
+                densidade="destaque"
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Positive Friction Lead Capture Modal */}
