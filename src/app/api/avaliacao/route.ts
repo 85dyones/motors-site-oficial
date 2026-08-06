@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { logLeadCaptured, logApiTelemetry } from "../../../lib/telemetry";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
+import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,27 @@ export async function POST(request: NextRequest) {
     const agUid = requestBody.ag_uid || requestBody.agUid || cookieStore.get("ag_uid")?.value || "ag_ref_nao_localizado";
 
     // 6. Construct n8n webhook payload
+    //
+    // A partir de 2026-08-06 o consultor recebe, além dos dados do veículo e
+    // do contato, a recomendação de faixa de compra: o site coleta e sugere,
+    // quem decide é a vistoria. O cliente não vê nada disso — ver
+    // `lib/avaliacaoRecomendacao.ts`.
+    //
+    // A recomendação é recalculada aqui, no servidor, e não copiada do corpo
+    // da requisição: o cliente é público e não pode ditar o preço que o
+    // consultor lê. O que vem do cliente são os fatos (estado e km).
+    const quilometragem =
+      typeof requestBody.quilometragem === "number" && requestBody.quilometragem >= 0
+        ? requestBody.quilometragem
+        : null;
+
+    const recomendacao = recomendarAvaliacao({
+      estadoMecanico: String(requestBody.estado_mecanico || ""),
+      estadoConservacao: String(requestBody.estado_conservacao || ""),
+      quilometragem,
+      fipeValor: requestBody.fipe_valor || "",
+    });
+
     const n8nPayload = {
       remoteJid,
       telefone: formattedPhone,
@@ -114,10 +136,16 @@ export async function POST(request: NextRequest) {
       modelo,
       ano: Number(ano),
       estado,
+      estado_mecanico: requestBody.estado_mecanico || "",
+      estado_conservacao: requestBody.estado_conservacao || "",
+      quilometragem,
+      observacoes: requestBody.observacoes || "",
       nome,
       tipo_veiculo: resolvedType,
       fipe_valor: requestBody.fipe_valor || "",
       fipe_codigo: requestBody.fipe_codigo || "",
+      fipe_mes_referencia: requestBody.fipe_mes_referencia || "",
+      recomendacao,
       ag_uid: agUid,
       utm_source: requestBody.utm?.utm_source || request.nextUrl.searchParams.get("utm_source") || undefined,
       utm_medium: requestBody.utm?.utm_medium || request.nextUrl.searchParams.get("utm_medium") || undefined,

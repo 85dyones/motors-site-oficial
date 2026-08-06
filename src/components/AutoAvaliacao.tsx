@@ -7,6 +7,7 @@ import LeadCaptureModal from "./LeadCaptureModal";
 import Turnstile from "./Turnstile";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
+import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
 
 /**
  * Tela 05 — Avaliação Express, na linguagem Modernist.
@@ -20,11 +21,13 @@ import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
  * backend. Isto aqui é troca de camada de apresentação.
  *
  * Uma diferença deliberada em relação ao design doc: o doc mostra uma "faixa
- * estimada" (R$ 61.400 — R$ 66.900) em volta do valor FIPE. Esse intervalo
- * sairia de um percentual que não existe no código nem no manual, e número
- * que não veio do dado não se inventa (CLAUDE.md). Enquanto o percentual não
- * for definido, a prévia mostra o valor FIPE real da versão exata — que é o
- * que de fato temos — e diz que a proposta depende de vistoria.
+ * estimada" (R$ 61.400 — R$ 66.900) em volta do valor FIPE. Ela não existe
+ * aqui, por decisão do dono em 2026-08-06: o formulário coleta os dados e a
+ * regra de precificação vai no JSON que o n8n recebe, para o consultor abrir
+ * o lead já com a faixa sugerida. O cliente vê a referência FIPE e nada mais
+ * — nenhum valor de compra é prometido antes da vistoria presencial.
+ *
+ * A regra em si mora em `lib/avaliacaoRecomendacao.ts`, isolada e testada.
  */
 
 // ─── FIPE API Types ───
@@ -41,6 +44,8 @@ interface Step1Data {
 interface Step2Data {
   estadoMecanico: string;
   estadoConservacao: string;
+  /** Só dígitos; a máscara de milhar é aplicada na exibição. */
+  quilometragem: string;
   observacoes: string;
 }
 
@@ -51,14 +56,9 @@ interface Step3Data {
 
 const FIPE_BASE = "https://parallelum.com.br/fipe/api/v1";
 
-/**
- * Trilho de passos do topo. O passo 02 é "estado e conservação", não
- * "estado e quilometragem" como no design doc: este formulário não pergunta
- * a quilometragem, e rotular um campo que não existe é promessa falsa.
- */
 const PASSOS = [
   { numero: "01", titulo: "Seu veículo" },
-  { numero: "02", titulo: "Estado e conservação" },
+  { numero: "02", titulo: "Estado e quilometragem" },
   { numero: "03", titulo: "Contato e proposta" },
 ];
 
@@ -322,7 +322,7 @@ export default function AutoAvaliacao() {
 
   // Form states
   const [step1, setStep1] = useState<Step1Data>({ marca: "", modelo: "", ano: "" });
-  const [step2, setStep2] = useState<Step2Data>({ estadoMecanico: "", estadoConservacao: "", observacoes: "" });
+  const [step2, setStep2] = useState<Step2Data>({ estadoMecanico: "", estadoConservacao: "", quilometragem: "", observacoes: "" });
   const [step3, setStep3] = useState<Step3Data>({ nome: "", whatsapp: "" });
 
   // ─── FIPE API States ───
@@ -529,6 +529,18 @@ export default function AutoAvaliacao() {
     setStep1((prev) => ({ ...prev, ano: "" }));
   };
 
+  /**
+   * Regra de precificação de compra, resolvida no cliente e enviada no
+   * payload. Não aparece em lugar nenhum da tela: é insumo do consultor.
+   */
+  const quilometragemNumerica = step2.quilometragem ? Number(step2.quilometragem) : null;
+  const recomendacao = recomendarAvaliacao({
+    estadoMecanico: step2.estadoMecanico,
+    estadoConservacao: step2.estadoConservacao,
+    quilometragem: quilometragemNumerica,
+    fipeValor,
+  });
+
   // Navigations
   const handleNextStep = () => {
     if (step === 1) {
@@ -577,6 +589,15 @@ export default function AutoAvaliacao() {
           tipo_veiculo: vehicleType,
           fipe_valor: fipeValor,
           fipe_codigo: fipeCodigo,
+          fipe_mes_referencia: fipeMesReferencia,
+          // Campos que o consultor precisa para aplicar a regra de compra.
+          // `observacoes` já era coletado e era descartado antes de chegar
+          // ao n8n — só ia parar no histórico do localStorage.
+          quilometragem: quilometragemNumerica,
+          estado_mecanico: step2.estadoMecanico,
+          estado_conservacao: step2.estadoConservacao,
+          observacoes: step2.observacoes,
+          recomendacao: recomendacao,
           utm: getUtmParameters(),
           turnstileToken
         }),
@@ -612,8 +633,10 @@ export default function AutoAvaliacao() {
       condicoes: {
         estadoMecanico: step2.estadoMecanico,
         estadoConservacao: step2.estadoConservacao,
+        quilometragem: quilometragemNumerica,
         observacoes: step2.observacoes || "Nenhuma observação inserida",
       },
+      recomendacao,
       cliente: {
         nome: step3.nome,
         whatsapp: step3.whatsapp,
@@ -643,7 +666,7 @@ export default function AutoAvaliacao() {
   // Reset form
   const handleReset = () => {
     setStep1({ marca: "", modelo: "", ano: "" });
-    setStep2({ estadoMecanico: "", estadoConservacao: "", observacoes: "" });
+    setStep2({ estadoMecanico: "", estadoConservacao: "", quilometragem: "", observacoes: "" });
     setStep3({ nome: "", whatsapp: "" });
     setSelectedBrandId("");
     setSelectedModelId("");
@@ -781,7 +804,11 @@ export default function AutoAvaliacao() {
 
   // Validation checkers for button enabling
   const isStep1Valid = step1.marca && step1.modelo && step1.ano;
-  const isStep2Valid = step2.estadoMecanico && step2.estadoConservacao;
+  // A quilometragem entrou como obrigatória junto com a regra de
+  // precificação (2026-08-06): sem ela o consultor não consegue aplicar a
+  // faixa de 30%, que depende do limite de 150.000 km.
+  const isStep2Valid =
+    step2.estadoMecanico && step2.estadoConservacao && step2.quilometragem;
   const isStep3Valid = step3.nome && step3.whatsapp.replace(/\D/g, "").length >= 10;
 
   // Convert FIPE data to combobox items
@@ -971,6 +998,49 @@ export default function AutoAvaliacao() {
                     />
                   ))}
                 </div>
+              </div>
+
+              <div className="mt-8 border-t-2 border-mt-regua pt-4">
+                <label
+                  className="mt-rotulo mb-2 block text-[10px] tracking-[.14em]"
+                  htmlFor="km-input"
+                >
+                  QUILOMETRAGEM
+                </label>
+                <div
+                  className={`flex items-baseline gap-2 border-b-2 pb-2 transition-colors ${
+                    step2.quilometragem ? "border-mt-accent" : "border-mt-regua-fina"
+                  }`}
+                >
+                  <input
+                    id="km-input"
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    placeholder="Ex.: 68.000"
+                    value={
+                      step2.quilometragem
+                        ? Number(step2.quilometragem).toLocaleString("pt-BR")
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setStep2((prev) => ({
+                        ...prev,
+                        // Guarda só dígitos; o teto de 7 casas evita que um
+                        // dedo pesado mande 9.999.999.999 km para o consultor.
+                        quilometragem: e.target.value.replace(/\D/g, "").slice(0, 7),
+                      }))
+                    }
+                    className="mt-campo mt-foco min-w-0 flex-1"
+                    toolparamdescription="Quilometragem atual do veículo, em quilômetros."
+                  />
+                  <span className="shrink-0 text-[13px] font-semibold text-mt-neutral-600">
+                    km
+                  </span>
+                </div>
+                <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
+                  É o dado que mais pesa na avaliação, depois da versão.
+                </p>
               </div>
 
               <div className="mt-8 border-t-2 border-mt-regua pt-4">
