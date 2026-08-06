@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useConfirm } from "./admin/ConfirmDialog";
+import AparenciaCores from "./admin/AparenciaCores";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
@@ -20,6 +21,22 @@ import type {
 
 // Types imported from ../types
 
+/**
+ * As abas desta tela. A lista era repetida quatro vezes como união literal;
+ * virou constante única quando `aparencia` entrou — quatro lugares para
+ * lembrar é o tipo de coisa que deixa uma aba acessível pela URL e invisível
+ * na navegação.
+ */
+const ABAS = [
+  "estoque",
+  "destaques",
+  "aparencia",
+  "sobre",
+  "integracao",
+  "popups",
+  "empresa",
+] as const;
+type AbaConfiguracoes = (typeof ABAS)[number];
 
 const PROMPT_INJECTION_REGEX = /(ignore\s+all\s+(?:previous\s+)?instructions|system\s+prompt|you\s+are\s+a\s+bot|act\s+as\s+a|new\s+instruction|jailbreak\b)/i;
 
@@ -62,19 +79,19 @@ export default function ConfiguracoesClientWrapper() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const tabParam = searchParams.get("tab") as "estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre" | null;
+  const tabParam = searchParams.get("tab") as AbaConfiguracoes | null;
 
-  const [activeTab, setActiveTab] = useState<"estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre">("estoque");
+  const [activeTab, setActiveTab] = useState<AbaConfiguracoes>("estoque");
   const [loading, setLoading] = useState(true);
 
   // Synchronize state with URL search param changes
   useEffect(() => {
-    if (tabParam && ["estoque", "integracao", "popups", "destaques", "empresa", "sobre"].includes(tabParam)) {
+    if (tabParam && ABAS.includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
 
-  const handleTabChange = (newTab: "estoque" | "integracao" | "popups" | "destaques" | "empresa" | "sobre") => {
+  const handleTabChange = (newTab: AbaConfiguracoes) => {
     setActiveTab(newTab);
     const params = new URLSearchParams(window.location.search);
     params.set("tab", newTab);
@@ -921,7 +938,8 @@ export default function ConfiguracoesClientWrapper() {
   const getTabLabel = (tab: string) => {
     switch (tab) {
       case "estoque": return "Categorização de Estoque";
-      case "integracao": return "Integração & Layout";
+      case "integracao": return "Integrações & Webhooks";
+      case "aparencia": return "Aparência e Cores";
       case "destaques": return "Destaques Rápidos";
       case "popups": return "Pop-ups de Lead";
       case "empresa": return "Dados da Concessionária";
@@ -1711,111 +1729,6 @@ export default function ConfiguracoesClientWrapper() {
               </div>
             </div>
 
-            {/* Layout Aesthetics & Dynamic Presets Selector */}
-            <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm">
-              <span className="text-[9px] font-bold text-brand-primary uppercase tracking-widest">
-                PERSONALIZAÇÃO DE MARCA
-              </span>
-              <h2 className="text-lg font-bold text-brand-text mb-2 uppercase">
-                ESTILO E CORES DO PORTAL
-              </h2>
-              <p className="text-xs text-brand-text/50 mb-4 font-light leading-relaxed">
-                Alterne os temas visuais da Motors Store. A paleta do portal inteiro é controlada dinamicamente com base nas opções de curadoria selecionadas.
-              </p>
-
-              {/* Grid Preview Palettes */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                {[
-                  {
-                    id: "luxury-light",
-                    name: "Luxury Laranja Claro",
-                    colors: ["#fafafc", "#C83F00", "#1a1a23"],
-                    bgClass: "bg-[#fafafc] border border-gray-200",
-                    textClass: "text-[#1a1a23]",
-                    primaryHex: "#C83F00",
-                  },
-                  {
-                    id: "stealth-dark",
-                    name: "Stealth Carbon Dark",
-                    colors: ["#09090B", "#D4AF37", "#14141B"],
-                    bgClass: "bg-[#09090B] border border-neutral-800",
-                    textClass: "text-[#fafafc]",
-                    primaryHex: "#D4AF37",
-                  },
-                  {
-                    id: "sport-nardo",
-                    name: "Sport Nardo Red",
-                    colors: ["#1A1D20", "#E30613", "#272B30"],
-                    bgClass: "bg-[#1A1D20] border border-neutral-700",
-                    textClass: "text-white",
-                    primaryHex: "#E30613",
-                  },
-                ].map((preset) => {
-                  const isActive = theme === preset.id;
-                  return (
-                    <button
-                      key={preset.id}
-                      onClick={() => setTheme(preset.id as ThemeType)}
-                      className={`text-left p-4 rounded-2xl flex flex-col gap-3 transition-all duration-300 active:scale-98 cursor-pointer ${
-                        preset.bgClass
-                      } ${
-                        isActive
-                          ? "ring-2 ring-brand-primary ring-offset-2 ring-offset-brand-bg shadow-md"
-                          : "opacity-60 hover:opacity-100"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider ${preset.textClass}`}>
-                          {preset.name}
-                        </span>
-                        {isActive && (
-                          <span className="text-[9px] text-brand-primary font-bold">✓</span>
-                        )}
-                      </div>
-                      
-                      {/* Swatch dots */}
-                      <div className="flex items-center gap-1.5">
-                        {preset.colors.map((c, i) => (
-                          <span
-                            key={i}
-                            className="h-4.5 w-4.5 rounded-full border border-black/10 flex-shrink-0"
-                            style={{ backgroundColor: c }}
-                          />
-                        ))}
-                      </div>
-                      
-                      {/* Color Preview Block */}
-                      <div
-                        className="h-4 w-full rounded-md"
-                        style={{ backgroundColor: preset.primaryHex }}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Color Block Preview (Real time CSS styles) */}
-              <div className="border border-brand-border bg-brand-bg/60 p-5 rounded-2xl flex flex-col gap-3">
-                <span className="text-[8px] font-bold text-brand-text/40 uppercase tracking-widest">
-                  Visualização do Design System em Tempo Real
-                </span>
-                <div className="flex items-center gap-3">
-                  <div className="h-8 px-4 bg-brand-primary text-white rounded-lg flex items-center justify-center text-[10px] font-bold uppercase tracking-widest shadow-sm">
-                    Botão Primário
-                  </div>
-                  <div className="h-8 px-4 bg-brand-card border border-brand-card-border text-brand-text/80 rounded-lg flex items-center justify-center text-[10px] font-bold uppercase tracking-widest shadow-sm">
-                    Botão Secundário
-                  </div>
-                  <div className="h-8 px-4 text-brand-gold font-bold text-[10px] uppercase tracking-widest flex items-center">
-                    Texto Gold
-                  </div>
-                </div>
-                <div className="text-[10px] text-brand-text/40 leading-relaxed font-light">
-                  A cor primária do seu portal atual é <span className="font-mono text-brand-primary font-bold">{theme === "luxury-light" ? "#C83F00" : theme === "stealth-dark" ? "#D4AF37" : "#E30613"}</span>.
-                </div>
-              </div>
-            </div>
-
             {/* Featured Carousel Configuration Section */}
             <div className="bg-brand-card border border-brand-card-border rounded-3xl p-6 shadow-sm mt-6">
               <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">
@@ -1898,6 +1811,13 @@ export default function ConfiguracoesClientWrapper() {
             </div>
 
           </div>
+        ) : activeTab === "aparencia" ? (
+          <AparenciaCores
+            theme={theme}
+            setTheme={setTheme}
+            companySettings={companySettings}
+            aoAbrirDadosDaEmpresa={() => handleTabChange("empresa")}
+          />
         ) : activeTab === "destaques" ? (
           // DESTAQUES RÁPIDOS CRUD
           <div className="flex flex-col gap-6 animate-fadeIn">

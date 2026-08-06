@@ -52,7 +52,7 @@ export default async function AdminLayout({
       fullName={fullName}
       roleLabel={getRoleLabel(role)}
       sidebarNav={
-        <Suspense fallback={<div className="h-40 animate-pulse bg-brand-card/30 rounded-xl" />}>
+        <Suspense fallback={<div className="m-5 h-40 animate-pulse bg-mt-inverso-regua-fina" />}>
           <SidebarNav role={role} />
         </Suspense>
       }

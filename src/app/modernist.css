@@ -260,6 +260,108 @@
   outline-offset: 2px;
 }
 
+/* ─── Painel interno ───────────────────────────────────────────────────────
+   As três classes abaixo existem por causa do admin: o design doc do painel
+   monta quase toda tela com tabela, controle segmentado e cartão, e nenhum
+   dos três cabia numa utility solta do Tailwind.
+
+   O DS chama esses componentes de `.table`, `.seg` e `.card`. Aqui eles
+   entram com o prefixo `mt-` e em português, como o resto do arquivo
+   (`mt-btn-primario`, `mt-campo-caixa`): o repositório já nomeia assim, e um
+   `.table` sem prefixo é nome genérico demais para conviver com o CSS que já
+   está em produção.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* — tabela de dados —
+   Cabeçalho em versalete, régua de 2px embaixo dele e de 1px entre as linhas.
+   Sem zebra: a régua organiza, como no resto do sistema. */
+.mt-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.mt-tabela th {
+  padding: 0 14px 8px 0;
+  border-bottom: 2px solid var(--mt-regua);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--mt-neutral-700);
+  white-space: nowrap;
+}
+.mt-tabela td {
+  padding: 11px 14px 11px 0;
+  border-bottom: 1px solid var(--mt-regua-fina);
+  vertical-align: middle;
+}
+.mt-tabela th:last-child,
+.mt-tabela td:last-child {
+  padding-right: 0;
+}
+/* Números alinham pela vírgula: valor e razão de contraste ficam em coluna. */
+.mt-tabela .mt-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* — controle segmentado —
+   Radios nativos: sem script, e o teclado continua funcionando de graça. O
+   input fica escondido mas focável, e o `:focus-visible` marca o rótulo. */
+.mt-seg {
+  display: inline-flex;
+  border: 1px solid var(--mt-regua);
+}
+.mt-seg-opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-right: 1px solid var(--mt-regua-fina);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--mt-neutral-700);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.mt-seg-opt:last-child {
+  border-right: 0;
+}
+.mt-seg-opt input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.mt-seg-opt:hover {
+  background: color-mix(in srgb, var(--mt-ink) 6%, transparent);
+}
+.mt-seg-opt:has(input:checked) {
+  background: var(--mt-ink);
+  color: var(--mt-bg);
+}
+.mt-seg-opt:has(input:focus-visible) {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: 2px;
+}
+
+/* — cartão —
+   Superfície com régua de 1px e zero raio. Não tem sombra: no sistema, o que
+   separa um cartão do fundo é a linha, não a elevação. */
+.mt-cartao {
+  border: 1px solid var(--mt-regua-fina);
+  background: var(--mt-surface);
+  padding: 16px;
+}
+.mt-cartao-ativo {
+  border: 2px solid var(--mt-accent);
+}
+
 } /* fim de @layer components */
 
 /* — pulso do indicador ao vivo (quiz, integrações) — */

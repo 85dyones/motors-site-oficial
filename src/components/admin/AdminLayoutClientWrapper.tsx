@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import LogoutButton from "./LogoutButton";
 import { useTheme } from "../../app/ThemeContext";
 import { ConfirmProvider } from "./ConfirmDialog";
@@ -11,6 +13,65 @@ interface AdminLayoutClientWrapperProps {
   roleLabel: string;
   sidebarNav: React.ReactNode;
   children: React.ReactNode;
+}
+
+/**
+ * Trilha da barra de topo — `PAINEL / SITE / APARÊNCIA E CORES`.
+ *
+ * O design doc põe essa linha em todas as doze telas do painel. Ela é
+ * derivada da rota em vez de recebida por prop porque a casca é um layout do
+ * App Router: as páginas abaixo dela são componentes de servidor e não têm
+ * como empurrar estado para cima sem um contexto novo só para isso.
+ */
+function trilhaDaRota(pathname: string, aba: string | null): string {
+  const partes: string[] = ["PAINEL"];
+
+  if (pathname.startsWith("/admin/financeiro")) {
+    partes.push("FINANCEIRO");
+    const folha = pathname.replace("/admin/financeiro", "").replace("/", "");
+    const nomes: Record<string, string> = {
+      "contas-pagar": "CONTAS A PAGAR",
+      "contas-receber": "CONTAS A RECEBER",
+      recorrentes: "DESPESAS RECORRENTES",
+      compras: "COMPRAS DE INSUMOS",
+      relatorios: "RELATÓRIOS E BALANÇO",
+      cadastros: "CADASTROS AUXILIARES",
+      margens: "MARGEM POR VEÍCULO",
+    };
+    partes.push(folha ? nomes[folha] ?? folha.toUpperCase() : "VISÃO GERAL");
+  } else if (pathname.startsWith("/admin/usuarios")) {
+    partes.push("SISTEMA", "USUÁRIOS E PERMISSÕES");
+  } else if (pathname.startsWith("/admin/configuracoes")) {
+    const nomes: Record<string, [string, string]> = {
+      estoque: ["SITE", "CATEGORIZAÇÃO DE ESTOQUE"],
+      destaques: ["SITE", "DESTAQUES RÁPIDOS"],
+      sobre: ["SITE", "PÁGINA QUEM SOMOS"],
+      aparencia: ["SITE", "APARÊNCIA E CORES"],
+      integracao: ["SISTEMA", "INTEGRAÇÕES E WEBHOOKS"],
+      popups: ["SISTEMA", "POP-UPS DE LEAD"],
+      empresa: ["SISTEMA", "DADOS DA CONCESSIONÁRIA"],
+    };
+    partes.push(...(nomes[aba ?? "estoque"] ?? ["SITE", "CONFIGURAÇÕES"]));
+  }
+
+  return partes.join(" / ");
+}
+
+/**
+ * `useSearchParams` obriga a uma fronteira de Suspense acima de quem o chama —
+ * sem ela o build do App Router falha na página inteira. Por isso a trilha é
+ * um componente próprio: o Suspense fica em volta só desta linha, e não em
+ * volta da casca toda.
+ */
+function TrilhaDoTopo() {
+  const pathname = usePathname();
+  const aba = useSearchParams().get("tab");
+
+  return (
+    <div className="mr-auto truncate text-[11px] font-semibold tracking-[.14em] text-mt-neutral-700">
+      {trilhaDaRota(pathname, aba)}
+    </div>
+  );
 }
 
 export default function AdminLayoutClientWrapper({
@@ -25,103 +86,95 @@ export default function AdminLayoutClientWrapper({
 
   return (
     <ConfirmProvider>
-      <div className="min-h-screen bg-brand-bg text-brand-text flex relative overflow-hidden font-sans">
-        {/* Mobile Sidebar Overlay */}
+      <div className="relative flex min-h-screen bg-mt-bg font-modernist text-mt-ink">
+        {/* Véu do menu no mobile */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/60 z-35 md:hidden backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 z-35 bg-mt-inverso-fundo/70 md:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
-        {/* Sidebar - responsive position */}
+        {/* ─── Trilho ───
+            248px fixos e fundo de tinta, como nas doze telas do doc. A largura
+            não é responsiva: o trilho some por inteiro abaixo de `md` e volta
+            como gaveta. */}
         <aside
-          className={`fixed md:sticky top-0 left-0 h-screen w-64 border-r border-brand-border/40 bg-brand-bg flex flex-col justify-between p-6 z-40 transition-transform duration-300 md:translate-x-0 ${
+          className={`fixed left-0 top-0 z-40 flex h-screen w-[248px] flex-none flex-col bg-mt-inverso-fundo text-mt-inverso transition-transform duration-200 md:sticky md:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex flex-col gap-8">
-            {/* Logo / Header */}
-            <div className="flex flex-col gap-1 select-none">
-              <div className="flex items-center justify-between">
-                {companySettings?.logoUrl ? (
-                  <img
-                    src={companySettings.logoUrl}
-                    alt={companySettings.name || "Motors"}
-                    className="h-10 w-auto object-contain max-w-[170px]"
-                  />
-                ) : (
-                  <span className="text-xl font-black tracking-widest text-brand-text uppercase">
-                    {companySettings?.name || "MOTORS"}
-                  </span>
-                )}
-                {/* Mobile Close Button */}
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="md:hidden p-1 text-brand-text/50 hover:text-brand-text cursor-pointer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              {!companySettings?.logoUrl && (
-                <>
-                  <span className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.15em] block">
-                    Painel de Controle
-                  </span>
-                  <div className="h-[2px] w-8 bg-brand-primary rounded-full mt-1" />
-                </>
-              )}
-            </div>
-
-            {/* Navigation Links */}
-            <div onClick={() => setSidebarOpen(false)}>
-              {sidebarNav}
-            </div>
+          {/* Marca */}
+          <div className="flex items-center gap-2.5 border-b border-mt-inverso-regua-fina px-5 py-5">
+            <span className="h-[22px] w-[7px] shrink-0 bg-mt-accent" aria-hidden="true" />
+            {companySettings?.logoUrl ? (
+              <img
+                src={companySettings.logoUrl}
+                alt={companySettings.name || "Motors"}
+                className="h-6 w-auto max-w-[150px] object-contain"
+              />
+            ) : (
+              <span className="text-sm font-extrabold tracking-[.04em]">
+                MOTORS
+                <span className="font-normal text-mt-inverso-suave"> ADMIN</span>
+              </span>
+            )}
+            <button
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Fechar menu"
+              className="mt-foco ml-auto cursor-pointer p-1 text-mt-inverso-suave hover:text-mt-inverso md:hidden"
+            >
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
+                <path strokeLinecap="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
-          {/* User Card info inside sidebar */}
-          <div className="flex flex-col gap-4 border-t border-brand-border/40 pt-4 mt-auto">
-            <div className="flex flex-col pl-1">
-              <span className="text-xs font-bold text-brand-text truncate">
-                {fullName}
-              </span>
-              <span className="text-[9px] font-semibold text-brand-gold uppercase tracking-wider mt-0.5">
-                {roleLabel}
-              </span>
+          {/* Navegação */}
+          <div className="min-h-0 flex-1 overflow-y-auto" onClick={() => setSidebarOpen(false)}>
+            {sidebarNav}
+          </div>
+
+          {/* Quem está logado — rodapé do trilho, como no doc */}
+          <div className="mt-auto border-t border-mt-inverso-regua-fina px-5 py-4">
+            <div className="truncate text-xs font-extrabold">{fullName}</div>
+            <div className="mt-0.5 text-[11px] text-mt-inverso-suave">
+              {roleLabel} · {role}
             </div>
-            <LogoutButton />
+            <div className="mt-3">
+              <LogoutButton />
+            </div>
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <div className="flex-grow flex flex-col min-h-screen overflow-y-auto relative z-10 w-full">
-          {/* Main Content Header */}
-          <header className="h-16 border-b border-brand-border/40 bg-brand-bg px-4 md:px-8 flex items-center justify-between md:justify-end shrink-0 select-none">
-            {/* Mobile Menu Toggle Button */}
+        {/* ─── Conteúdo ─── */}
+        <div className="flex min-h-screen w-full min-w-0 flex-grow flex-col">
+          {/* Barra de topo: 64px e régua de 2px, fixas pelo doc */}
+          <header className="flex h-16 shrink-0 items-center gap-4 border-b-2 border-mt-regua bg-mt-bg px-4 md:px-7">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-xl border border-brand-border/60 hover:bg-brand-card/30 text-brand-text cursor-pointer"
+              aria-label="Abrir menu"
+              className="mt-foco cursor-pointer text-mt-ink md:hidden"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
+                <path strokeLinecap="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
               </svg>
             </button>
 
-            <div className="flex items-center gap-4">
-              <span className="text-[10px] font-bold text-brand-text/40 tracking-wider uppercase">
-                Motors Showcase v2.0
-              </span>
-            </div>
+            <Suspense fallback={<div className="mr-auto" />}>
+              <TrilhaDoTopo />
+            </Suspense>
+
+            <Link
+              href="/"
+              target="_blank"
+              className="mt-btn mt-btn-contorno mt-foco px-4 py-2.5 text-[11px]"
+            >
+              VER O SITE
+            </Link>
           </header>
 
-          {/* Content body wrapper centered */}
-          <main className="flex-grow p-4 md:p-8 flex justify-center w-full">
-            <div className="max-w-6xl w-full flex flex-col gap-6">
-              {children}
-            </div>
-          </main>
+          <main className="min-w-0 flex-grow p-4 md:p-7">{children}</main>
         </div>
       </div>
     </ConfirmProvider>
