@@ -13,8 +13,25 @@ import { EstatisticasRegua, Rotulo, Seta } from "./modernist/primitivos";
  * `about-cta-contact`) foram mantidos porque podem estar em uso por
  * analytics.
  */
-export default function SobreClientWrapper() {
+export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: number }) {
   const { aboutSettings, companySettings } = useTheme();
+
+  /**
+   * Troca `{{total}}` pelo tamanho real do estoque.
+   *
+   * O manifesto afirma "o estoque tem N unidades e não 300" — é o argumento
+   * central do texto, e um número errado ali destrói justamente a frase que
+   * pede confiança. O design doc traz 75, que era o estoque do dia em que
+   * ele foi desenhado. Aqui o número vem do banco; se ele não estiver
+   * disponível, a frase perde o trecho em vez de mentir.
+   */
+  const comTotal = (texto: string): string => {
+    if (!texto.includes("{{total}}")) return texto;
+    if (typeof totalEstoque !== "number") {
+      return texto.replace(/\s*tem \{\{total\}\} unidades e não 300/, " é do tamanho que é, e não três vezes maior");
+    }
+    return texto.replace(/\{\{total\}\}/g, String(totalEstoque));
+  };
 
   /** Divide o item em rótulo e descrição no primeiro dois-pontos. */
   const renderValorItem = (val: string) => {
@@ -81,12 +98,12 @@ export default function SobreClientWrapper() {
             <div className="flex flex-col gap-8 lg:flex-row lg:gap-16">
               {aboutSettings.historyP1 && (
                 <p className="m-0 flex-1 text-[15px] leading-relaxed text-mt-neutral-800 lg:text-base">
-                  {aboutSettings.historyP1}
+                  {comTotal(aboutSettings.historyP1)}
                 </p>
               )}
               {aboutSettings.historyP2 && (
                 <p className="m-0 flex-1 text-[15px] leading-relaxed text-mt-neutral-800 lg:text-base">
-                  {aboutSettings.historyP2}
+                  {comTotal(aboutSettings.historyP2)}
                 </p>
               )}
             </div>

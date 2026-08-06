@@ -7,9 +7,9 @@
   "card1Desc": "Nosso catálogo digital é atualizado em tempo real com fotos detalhadas e informações reais de procedência. Você conhece o histórico detalhado e o laudo de perícia do veículo antes mesmo de sair de casa ou de iniciar o seu atendimento de fora do estado.",
   "card2Desc": "Sem burocracia ou robôs que não entendem o seu perfil. Nossa equipe realiza a simulação e a pré-aprovação do seu financiamento direto pelo WhatsApp com os principais bancos parceiros do mercado, garantindo as melhores taxas de forma rápida e humana.",
   "card3Desc": "Avaliamos seu veículo usado de forma justa com base na Tabela FIPE para entrar na troca. Além disso, oferecemos uma estrutura completa de consultoria digital e suporte de transporte seguro para entregar seu novo seminovo em qualquer região do Brasil.",
-  "heroTitle": "DOMINANDO A ENGENHARIA DA PROCEDÊNCIA PREMIUM",
-  "historyP1": "A Motors Store nasceu na tradicional região do Bacacheri com uma missão clara: erradicar a desconfiança que historicamente cerca o comércio de carros usados. Projetamos uma loja conceito focada em alta seletividade, onde cada veículo do acervo passa por uma blindagem técnica e jurídica rigorosa antes de ser exposto em nosso pátio ou plataforma.",
-  "historyP2": "Nosso compromisso começou local, atendendo ao público altamente exigente de Curitiba. Hoje, essa mesma assinatura de rigor cruzou fronteiras: estruturamos uma consultoria digital humanizada e eficiente, capaz de entregar a mesma segurança de uma compra presencial para clientes de outros estados, do primeiro contato à entrega na porta de casa.",
+  "heroTitle": "Vendemos menos carros do que poderíamos.",
+  "historyP1": "De cada dez veículos avaliados, aceitamos três. O resto não passa no laudo, na procedência ou simplesmente não é bom o bastante para levar nosso nome. É por isso que o estoque tem {{total}} unidades e não 300.",
+  "historyP2": "Cada carro entra com laudo cautelar completo, histórico de manutenção rastreado e garantia de motor e câmbio. O preço está no anúncio — sem \"consulte-nos\", sem surpresa na mesa de negociação.",
   "techTitle": "A EXPERIÊNCIA COMPLETA MOTORS STORE",
   "card1Title": "ESTOQUE 100% TRANSPARENTE",
   "card2Title": "CRÉDITO E PRÉ-APROVAÇÃO DIGITAL",
@@ -17,8 +17,8 @@
   "ctaBtn1Text": "INICIAR CURADORIA IA",
   "ctaBtn2Text": "FALE CONOSCO",
   "valuesTitle": "O Rigor que o Mercado Exige",
-  "heroSubtitle": "Da solidez do nosso showroom físico na Zona Norte de Curitiba ao alcance do nosso atendimento digital em todo o país. A Motors Store redefine a experiência de compra de carros seminovos através de uma curadoria rigorosa, laudos cautelares 100% aprovados e transparência total para quem exige segurança, esteja onde estiver.",
-  "historyTitle": "A Nova Referência em Confiança",
+  "heroSubtitle": "",
+  "historyTitle": "",
   "techSubtitle": "Unimos a agilidade do atendimento digital com a segurança do olho no olho.",
   "ctaDescription": "Experimente a segurança da nossa curadoria digital ou agende uma visita ao nosso showroom no Bacacheri, pertinho da Rua Canadá. Atendimento presencial de excelência e logística de entrega para todo o Brasil."
 }

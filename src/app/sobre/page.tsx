@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import SobreClientWrapper from "../../components/SobreClientWrapper";
+import { getEstoque } from "../../lib/supabase";
+
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Quem Somos | Motors Store - Tradição e Tecnologia Premium",
@@ -39,14 +42,19 @@ const breadcrumbSchema = {
   ]
 };
 
-export default function SobrePage() {
+export default async function SobrePage() {
+  // O manifesto cita o tamanho do estoque como argumento ("N unidades e não
+  // 300"). O número vem do banco, não do texto — ver `comTotal` no wrapper.
+  const estoque = await getEstoque();
+  const totalEstoque = estoque.filter((v) => !v.vendido).length;
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <SobreClientWrapper />
+      <SobreClientWrapper totalEstoque={totalEstoque} />
     </>
   );
 }
