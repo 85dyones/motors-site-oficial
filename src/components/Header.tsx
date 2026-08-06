@@ -3,344 +3,230 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import ThemeSettings from "./ThemeSettings";
+import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
+import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
+
+/**
+ * Cabeçalho Modernist (redesign 2026).
+ *
+ * Barra escura de 68px, sem arredondamento, com a régua vermelha marcando a
+ * seção ativa. O acesso ao painel não aparece no design doc, mas está em
+ * produção — fica à direita, reescrito na linguagem do sistema (quadrado,
+ * contorno de 1px).
+ */
+
+const LOGO_PADRAO = "/motors-store-logo-1.png";
+
+const LOGO_POR_TEMA: Record<string, string> = {
+  "motors-modernist": "/motors-store-logo-1.png",
+  "luxury-light": "/motors-store-logo-1.png",
+  "stealth-dark": "/motors-store-logo-2.png",
+  "sport-nardo": "/motors-store-logo-3.png",
+};
+
+const NAV = [
+  { href: "/estoque", rotulo: "ESTOQUE" },
+  { href: "/carro-perfeito", rotulo: "CARRO PERFEITO" },
+  { href: "/avaliacao", rotulo: "AVALIE SEU CARRO" },
+  { href: "/sobre", rotulo: "A MOTORS" },
+  { href: "/contato", rotulo: "CONTATO" },
+];
 
 export default function Header() {
-  const [activeTap, setActiveTap] = useState(false);
-  const { compareIds, theme, companySettings } = useTheme();
+  const { theme, companySettings } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
 
-  // Logo mapping corresponding to active theme presets - Next.js maps public folder to root
-  const logoSrcMap: Record<string, string> = {
-    "luxury-light": "/motors-store-logo-1.png",
-    "stealth-dark": "/motors-store-logo-2.png",
-    "sport-nardo": "/motors-store-logo-3.png",
-  };
-
-  const activeLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/motors-store-logo-1.png";
-  const [logoSrc, setLogoSrc] = useState<string>(activeLogo);
-  const [imgError, setImgError] = useState(false);
-
-  useEffect(() => {
-    const newLogo = companySettings?.logoUrl || logoSrcMap[theme] || "/motors-store-logo-1.png";
-    setLogoSrc(newLogo);
-    setImgError(false);
-  }, [theme, companySettings?.logoUrl]);
-
-  useEffect(() => {
-    console.log(`[Antigravity Branding] Logo do Header alternada para a variação correspondente ao tema: ${theme}`);
-  }, [theme]);
+  // A logo é derivada do tema e das configurações — não precisa de estado
+  // nem de efeito. Só a falha de carregamento é estado, e ela é resetada
+  // pela `key` do <Image> quando a fonte muda.
+  const logoSrc =
+    companySettings?.logoUrl || LOGO_POR_TEMA[theme] || LOGO_PADRAO;
+  const [logoFalhou, setLogoFalhou] = useState(false);
+  const usarFallbackTextual = logoFalhou;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handleOpenCompare = () => {
-      router.push('/comparar');
-    };
-    window.addEventListener("ag-open-compare", handleOpenCompare);
-
-    const checkHash = () => {
-      if (window.location.hash === "#comparar") {
-        router.push('/comparar');
-      }
-    };
-    
-    checkHash();
-    window.addEventListener("hashchange", checkHash);
-
-    const handleScroll = () => {
-      if (window.scrollY > 400) {
-        setShowBackToTop(true);
-      } else {
-        setShowBackToTop(false);
-      }
-    };
+    const handleScroll = () => setShowBackToTop(window.scrollY > 400);
     window.addEventListener("scroll", handleScroll);
 
     return () => {
-      window.removeEventListener("ag-open-compare", handleOpenCompare);
-      window.removeEventListener("hashchange", checkHash);
       window.removeEventListener("scroll", handleScroll);
     };
   }, []);
 
-  const scrollToTop = () => {
-    if (typeof window !== "undefined") {
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth"
-      });
-    }
-  };
+  const ativo = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const whatsappHref = `https://wa.me/${(companySettings?.whatsappRaw || companySettings?.whatsapp || "").replace(/\D/g, "")}`;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-brand-border bg-brand-glass backdrop-blur-md transition-all duration-300">
-      <div className="mx-auto flex h-16 lg:h-[75px] max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
-        
-        {/* Clickable Logo */}
-        <Link href="/" className="flex items-center group transition-transform active:scale-95 duration-200 shrink-0">
-          {!imgError ? (
+    <header className="sticky top-0 z-50 w-full bg-mt-inverso-fundo text-mt-inverso">
+      {/* ─── Desktop ─── */}
+      <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-9 px-6 lg:px-10 sm:flex">
+        <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">
+          <span className="h-[26px] w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
+          {!usarFallbackTextual ? (
             <Image
+              key={logoSrc}
               src={encodeURI(logoSrc)}
-              alt={companySettings?.name || "Motors Store Logo"}
-              width={180}
-              height={55}
+              alt={companySettings?.name || "Motors Store"}
+              width={160}
+              height={40}
               priority
               unoptimized
-              onError={() => {
-                if (logoSrc !== "/motors-store-logo-1.png") {
-                  setLogoSrc("/motors-store-logo-1.png");
-                } else {
-                  setImgError(true);
-                }
-              }}
-              className="h-10 lg:h-[50px] w-auto max-w-[200px] object-contain transition-all duration-300 group-hover:scale-[1.02] filter brightness-105 drop-shadow-[0_2px_6px_rgba(0,0,0,0.06)] dark:drop-shadow-[0_2px_12px_rgba(255,255,255,0.12)]"
+              onError={() => setLogoFalhou(true)}
+              className="h-8 w-auto max-w-[170px] object-contain object-left"
             />
           ) : (
-            <span className="text-xl font-black tracking-widest text-brand-text uppercase font-mono">
-              {companySettings?.name || "MOTORS STORE"}
+            <span className="text-[18px] font-extrabold tracking-[.02em]">
+              MOTORS<span className="font-normal text-mt-inverso-suave"> STORE</span>
             </span>
           )}
         </Link>
 
-        {/* Navigation Shortcuts - Balanced and Premium */}
-        <nav className="hidden sm:flex items-center gap-2 lg:gap-4.5 mx-4">
-          <Link
-            href="/"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-brand-text/75 hover:text-brand-primary transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group"
-          >
-            HOME
-            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
-          </Link>
-          
-          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>          <Link
-            href="/#match-garagem"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
-          >
-            {/* 1 line on tablets/mobile */}
-            <span className="lg:hidden text-brand-text/75 group-hover:text-brand-primary transition-all">
-              ENCONTRE O CARRO PERFEITO
-            </span>
-            {/* 2 lines on desktop */}
-            <span className="hidden lg:flex flex-col items-center">
-              <span className="text-[8px] font-bold text-brand-text/65 group-hover:text-brand-primary/60 transition-all">ENCONTRE O</span>
-              <span className="text-[10px] font-extrabold text-brand-text/75 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">CARRO PERFEITO</span>
-            </span>
-            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
-          </Link>
-          
-          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>
-          
-          <Link
-            href="/#avaliacao-express"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
-          >
-            {/* 1 line on tablets/mobile */}
-            <span className="lg:hidden text-brand-text/75 group-hover:text-brand-primary transition-all">
-              SEU CARRO AVALIE AGORA
-            </span>
-            {/* 2 lines on desktop */}
-            <span className="hidden lg:flex flex-col items-center">
-              <span className="text-[8px] font-bold text-brand-text/65 group-hover:text-brand-primary/60 transition-all">SEU CARRO</span>
-              <span className="text-[10px] font-extrabold text-brand-text/75 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">AVALIE AGORA</span>
-            </span>
-            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
-          </Link>
- 
-          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>
- 
-          <Link
-            href="/sobre"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group flex flex-col items-center text-center"
-          >
-            {/* 1 line on tablets/mobile */}
-            <span className="lg:hidden text-brand-text/75 group-hover:text-brand-primary transition-all">
-              SOBRE A MOTORS
-            </span>
-            {/* 2 lines on desktop */}
-            <span className="hidden lg:flex flex-col items-center">
-              <span className="text-[8px] font-bold text-brand-text/65 group-hover:text-brand-primary/60 transition-all">SOBRE A</span>
-              <span className="text-[10px] font-extrabold text-brand-text/75 group-hover:text-brand-primary pb-0.5 mt-0.5 tracking-[0.12em] transition-all">MOTORS</span>
-            </span>
-            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
-          </Link>
-
-          <span className="text-brand-border/60 text-[9px] font-thin select-none">/</span>
-
-          <Link
-            href="/contato"
-            className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-brand-text/75 hover:text-brand-primary transition-all duration-300 whitespace-nowrap py-1.5 px-0.5 group"
-          >
-            CONTATO
-            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-brand-primary transition-all duration-300 group-hover:w-full" />
-          </Link>
+        <nav className="flex items-center gap-7">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={ativo(item.href) ? "page" : undefined}
+              className={`mt-foco border-b-2 pb-[3px] text-[11px] font-semibold tracking-[.14em] no-underline transition-colors ${
+                ativo(item.href)
+                  ? "border-mt-accent text-mt-inverso"
+                  : "border-transparent text-mt-inverso-suave hover:text-mt-inverso"
+              }`}
+            >
+              {item.rotulo}
+            </Link>
+          ))}
         </nav>
 
-        {/* Right-side Actions: Compare + Theme + Contact (icon-only) */}
-        <div className="flex items-center gap-1.5">
-          {/* Compare Button */}
-          {compareIds.length > 1 ? (
-            <button
-              onClick={() => router.push('/comparar')}
-              className="relative flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-[#C83F00] hover:bg-[#B23800] text-white font-bold text-[10px] uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-md border border-[#C83F00]"
-              title="Comparar veículos selecionados"
-              aria-label={`Comparar (${compareIds.length}) veículos selecionados`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-3.5 w-3.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
-              </svg>
-              <span>COMPARAR ({compareIds.length})</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => router.push('/comparar')}
-              className={`relative flex items-center justify-center h-9 w-9 rounded-full border transition-all duration-300 active:scale-90 ${
-                compareIds.length > 0 
-                  ? "border-brand-primary/50 bg-brand-primary/8 text-brand-primary" 
-                  : "border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border"
-              }`}
-              title="Comparar veículos"
-              aria-label="Comparar veículos"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
-              </svg>
-              {compareIds.length > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[8px] font-bold text-white bg-brand-primary">
-                  {compareIds.length}
-                </span>
-              )}
-            </button>
-          )}
+        <span className="h-[26px] w-px bg-[#444141]" aria-hidden="true" />
 
-          {/* Profile Icon — Shortcut to Settings Panel */}
+        <a
+          href={`tel:${(companySettings?.phone || "").replace(/\D/g, "")}`}
+          className="mt-foco hidden text-[13px] text-mt-neutral-300 no-underline hover:text-mt-inverso lg:block"
+        >
+          {companySettings?.phone}
+        </a>
+
+        {/* Acesso ao painel. O comparador e o seletor de paleta saíram daqui
+            em 2026-08-06: o comparador apontava para `/comparar`, rota que
+            não existe, e a troca de paleta passou a viver só na área
+            administrativa. */}
+        <div className="flex items-center gap-1.5">
           <Link
             href="/configuracoes"
-            className="flex items-center justify-center h-9 w-9 rounded-full border border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border transition-all duration-300 active:scale-90"
-            title="Área Administrativa"
-            aria-label="Área Administrativa"
+            title="Área administrativa"
+            aria-label="Área administrativa"
+            className="mt-foco flex h-9 w-9 items-center justify-center border border-[#444141] text-mt-inverso-suave transition-colors hover:border-mt-inverso hover:text-mt-inverso"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4.5 w-4.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
           </Link>
-
-          {/* Contact — icon only, clean circle */}
-          <button
-            onClick={() => {
-              setActiveTap(true);
-              setTimeout(() => setActiveTap(false), 200);
-              window.location.href = "tel:" + companySettings.phone.replace(/\D/g, "");
-            }}
-            className={`flex items-center justify-center h-9 w-9 rounded-full border transition-all duration-300 active:scale-90 ${
-              activeTap 
-                ? "border-brand-primary/60 bg-brand-primary/15 text-brand-primary" 
-                : "border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border"
-            }`}
-            aria-label="Ligar agora"
-            title="Ligar agora"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-          </button>
-
-          {/* Mobile Menu Hamburger Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex sm:hidden items-center justify-center h-9 w-9 rounded-full border border-brand-border/50 text-brand-text/70 hover:text-brand-text hover:border-brand-border transition-all duration-300 active:scale-90"
-            aria-label="Menu principal"
-            aria-expanded={mobileMenuOpen}
-            title="Menu principal"
-          >
-            {mobileMenuOpen ? (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4.5 w-4.5 text-brand-primary animate-none">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4.5 w-4.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-            )}
-          </button>
         </div>
 
+        <BotaoWhatsApp
+          href={whatsappHref}
+          origem="Header - WhatsApp"
+          rotulo="WHATSAPP"
+          tamanhoIcone={15}
+          className="mt-btn mt-btn-primario mt-foco shrink-0 px-4 py-2.5 text-xs tracking-[.08em]"
+        />
       </div>
 
-      {/* Mobile Menu Panel */}
+      {/* ─── Mobile ─── */}
+      <div className="flex h-[58px] items-center gap-3 px-[18px] sm:hidden">
+        <Link href="/" className="mt-foco mr-auto flex items-center gap-2.5">
+          <span className="h-[22px] w-1.5 shrink-0 bg-mt-accent" aria-hidden="true" />
+          {!usarFallbackTextual ? (
+            <Image
+              key={logoSrc}
+              src={encodeURI(logoSrc)}
+              alt={companySettings?.name || "Motors Store"}
+              width={120}
+              height={30}
+              priority
+              unoptimized
+              onError={() => setLogoFalhou(true)}
+              className="h-7 w-auto max-w-[130px] object-contain object-left"
+            />
+          ) : (
+            <span className="text-[15px] font-extrabold">MOTORS</span>
+          )}
+        </Link>
+
+        <Link href="/estoque" aria-label="Buscar no estoque" className="mt-foco p-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-[22px] w-[22px]">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4.3-4.3" />
+          </svg>
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Menu principal"
+          aria-expanded={mobileMenuOpen}
+          className="mt-foco p-1"
+        >
+          {mobileMenuOpen ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-6 w-6">
+              <path d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-6 w-6">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          )}
+        </button>
+      </div>
+
       {mobileMenuOpen && (
-        <div className="sm:hidden absolute top-full left-0 right-0 bg-brand-glass backdrop-blur-lg border-b border-brand-border py-5 px-6 shadow-2xl flex flex-col gap-4.5 transition-all duration-300">
-          <Link
-            href="/"
-            onClick={() => setMobileMenuOpen(false)}
-            className={`text-[11px] font-extrabold uppercase tracking-[0.2em] border-b border-brand-border/30 pb-3 transition-colors ${
-              pathname === "/" ? "text-brand-primary" : "text-brand-text/70 hover:text-brand-primary"
-            }`}
-          >
-            HOME
-          </Link>
-          
-          <Link
-            href="/#match-garagem"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/70 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors flex justify-between items-center"
-          >
-            <span>ENCONTRE O CARRO PERFEITO</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary font-bold">IA</span>
-          </Link>
-          
-          <Link
-            href="/#avaliacao-express"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand-text/70 hover:text-brand-primary border-b border-brand-border/30 pb-3 transition-colors flex justify-between items-center"
-          >
-            <span>AVALIE SEU CARRO AGORA</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary font-bold">FIPE</span>
-          </Link>
-          
-          <Link
-            href="/sobre"
-            onClick={() => setMobileMenuOpen(false)}
-            className={`text-[11px] font-extrabold uppercase tracking-[0.2em] border-b border-brand-border/30 pb-3 transition-colors ${
-              pathname === "/sobre" ? "text-brand-primary" : "text-brand-text/70 hover:text-brand-primary"
-            }`}
-          >
-            SOBRE A MOTORS
-          </Link>
-          
-          <Link
-            href="/contato"
-            onClick={() => setMobileMenuOpen(false)}
-            className={`text-[11px] font-extrabold uppercase tracking-[0.2em] pb-1 transition-colors ${
-              pathname === "/contato" ? "text-brand-primary" : "text-brand-text/70 hover:text-brand-primary"
-            }`}
-          >
-            CONTATO
-          </Link>
+        <div className="absolute left-0 right-0 top-full flex flex-col bg-mt-inverso-fundo px-[18px] pb-5 sm:hidden">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
+              aria-current={ativo(item.href) ? "page" : undefined}
+              className={`border-b border-mt-inverso-regua-fina py-3.5 text-[11px] font-extrabold tracking-[.2em] no-underline ${
+                ativo(item.href) ? "text-mt-accent" : "text-mt-inverso-suave"
+              }`}
+            >
+              {item.rotulo}
+            </Link>
+          ))}
+          <div className="flex items-center gap-3 pt-4">
+            <Link
+              href="/configuracoes"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-[11px] font-extrabold tracking-[.16em] text-mt-inverso-suave no-underline"
+            >
+              PAINEL
+            </Link>
+          </div>
         </div>
       )}
 
-      {/* Back to Top floating button (Mobile only) */}
       {showBackToTop && (
         <button
-          onClick={scrollToTop}
-          className="fixed bottom-[90px] right-4 z-[999] sm:hidden flex h-10 w-10 items-center justify-center rounded-full bg-brand-card/95 border border-brand-primary/30 text-brand-primary shadow-lg backdrop-blur-sm transition-all duration-300 hover:bg-brand-bg active:scale-90"
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           aria-label="Voltar ao topo"
-          title="Voltar ao topo"
+          className="mt-foco fixed bottom-[90px] right-4 z-[999] flex h-10 w-10 items-center justify-center border-2 border-mt-ink bg-mt-bg text-mt-ink sm:hidden"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="h-4 w-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="h-4 w-4">
+            <path d="m4.5 15.75 7.5-7.5 7.5 7.5" />
           </svg>
         </button>
       )}
-
-      {/* Config Panel */}
     </header>
   );
 }

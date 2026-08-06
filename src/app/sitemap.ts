@@ -1,7 +1,37 @@
 import { MetadataRoute } from "next";
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
+import { getCachedSettings } from "../lib/settings";
+import {
+  DESTAQUES_PADRAO,
+  normalizarQuickTags,
+  normalizarStockOverrides,
+  resolverDestaques,
+} from "../lib/destaquesRapidos";
 
 const SITE_URL = "https://motors-site-oficial.vercel.app";
+
+/**
+ * Slugs das landings de destaque que realmente existem.
+ *
+ * Antes esta lista era fixa: anunciava `curadoria` e `economicos`, que não
+ * estão configuradas em produção, e omitia as categorias criadas no painel.
+ * Agora sai do mesmo lugar que alimenta os chips da home — e só entra quem
+ * tem veículo casando com a regra, para o Google não indexar grade vazia.
+ */
+async function destaquesParaSitemap(): Promise<string[]> {
+  try {
+    const [estoque, settings] = await Promise.all([getEstoque(), getCachedSettings()]);
+    const tags = normalizarQuickTags(settings.quickTags);
+    return resolverDestaques(
+      tags.length > 0 ? tags : DESTAQUES_PADRAO,
+      estoque.filter((v) => !v.vendido),
+      normalizarStockOverrides(settings.stockOverrides),
+    ).map((d) => d.slug);
+  } catch (error) {
+    console.error("[Sitemap] Falha ao resolver destaques:", error);
+    return [];
+  }
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Static pages of the website
@@ -11,6 +41,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: "daily" as const,
       priority: 1.0,
+    },
+    {
+      // Catálogo completo — a página que a home aponta como "ver todo o estoque"
+      url: `${SITE_URL}/estoque`,
+      lastModified: new Date(),
+      changeFrequency: "daily" as const,
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/carro-perfeito`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    },
+    {
+      url: `${SITE_URL}/avaliacao`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
     },
     {
       url: `${SITE_URL}/sobre`,
@@ -30,8 +79,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly" as const,
       priority: 0.3,
     },
-    ...["curadoria", "economicos", "baixa_km", "parcela_1k"].map(tag => ({
-      url: `${SITE_URL}/destaques/${tag}`,
+    ...(await destaquesParaSitemap()).map(slug => ({
+      url: `${SITE_URL}/destaques/${slug}`,
       lastModified: new Date(),
       changeFrequency: "weekly" as const,
       priority: 0.9,

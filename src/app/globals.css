@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./modernist.css";
 
 :root {
   --brand-background: #fafafc;
@@ -30,8 +31,35 @@
   --color-brand-glass: var(--brand-glass-bg);
   --color-brand-footer: var(--brand-footer-bg);
 
+  /* Modernist (redesign 2026) — ver modernist.css.
+     Expostos como utilities: bg-mt-ink, text-mt-accent, border-mt-regua… */
+  --color-mt-bg: var(--mt-bg);
+  --color-mt-surface: var(--mt-surface);
+  --color-mt-ink: var(--mt-ink);
+  --color-mt-accent: var(--mt-accent);
+  --color-mt-accent-hover: var(--mt-accent-hover);
+  --color-mt-accent-100: var(--mt-accent-100);
+  --color-mt-accent-300: var(--mt-accent-300);
+  --color-mt-accent-400: var(--mt-accent-400);
+  --color-mt-accent-800: var(--mt-accent-800);
+  --color-mt-regua: var(--mt-regua);
+  --color-mt-regua-fina: var(--mt-regua-fina);
+  --color-mt-regua-media: var(--mt-regua-media);
+  --color-mt-neutral-300: var(--mt-neutral-300);
+  --color-mt-neutral-400: var(--mt-neutral-400);
+  --color-mt-neutral-500: var(--mt-neutral-500);
+  --color-mt-neutral-600: var(--mt-neutral-600);
+  --color-mt-neutral-700: var(--mt-neutral-700);
+  --color-mt-neutral-800: var(--mt-neutral-800);
+  --color-mt-inverso: var(--mt-inverso-texto);
+  --color-mt-inverso-fundo: var(--mt-inverso-fundo);
+  --color-mt-inverso-regua: var(--mt-inverso-regua);
+  --color-mt-inverso-regua-fina: var(--mt-inverso-regua-fina);
+  --color-mt-inverso-suave: var(--mt-inverso-suave);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-modernist: var(--font-archivo), "Archivo", system-ui, sans-serif;
 
   /* Global 60% Border Radius Reduction (Sutler styling) */
   --radius-3xl: 10px;

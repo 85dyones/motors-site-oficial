@@ -2,7 +2,11 @@
 
 **Projeto:** `motors-site-oficial` (Next.js 16 / React 19 / App Router / TypeScript)
 **Objetivo:** fazer o site novo alimentar corretamente o Meta e o Google Ads, habilitando anúncios de catálogo (Advantage+) e otimização por lead real.
-**Data:** 30/07/2026
+**Data:** 30/07/2026 · **Auditada e atualizada em:** 06/08/2026
+
+> **Comece pela [Auditoria de 2026-08-06](#auditoria-de-2026-08-06)**, no fim do
+> documento: as Fases 0 a 2 já estão implementadas, e o que está em aberto hoje
+> é um preenchimento de painel (Fase 3) e a Fase 5, nova.
 
 ---
 
@@ -27,13 +31,37 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 
 ### Estado atual do repositório
 
+> Atualizado em 2026-08-06, depois do redesign Modernist. A tabela original
+> desta seção listava `HeroSection.tsx` como superfície de lead da home; ele
+> deixou de ser renderizado quando a home foi reescrita.
+
 | Arquivo | Papel |
 |---|---|
-| `src/components/IntegrationsTracker.tsx` | Inicializa GA4, Google Ads e Meta Pixel; dispara PageView |
+| `src/components/IntegrationsTracker.tsx` | Inicializa GA4, Google Ads e Meta Pixel; dispara PageView; persiste `_fbc` a partir do `fbclid` |
 | `src/lib/telemetry.ts` | Funções client-side de tracking (`trackVehicleView`, `trackLeadSubmission`, `trackContactClick`, `trackCarMatch`, `trackAppraisalSubmit`) |
-| `src/app/api/leads/route.ts` | Recebe lead, valida Turnstile, envia para webhook n8n |
+| `src/lib/tracking-identity.ts` | `generateEventId` e leitura de `_fbp`/`_fbc` (Fase 1) |
+| `src/lib/meta-capi.ts` | Envio server-side ao Meta, com hash de PII (Fase 2) |
+| `src/app/api/leads/route.ts` | Recebe lead, valida Turnstile, envia para webhook n8n e espelha `Lead` no CAPI |
+| `src/app/api/capi/route.ts` | Rota genérica de CAPI, com whitelist de eventos e rate limit no `proxy.ts` |
 | `src/app/api/feed/xml/route.ts` | Gera feed do catálogo; emite `<g:id>${car.id}</g:id>`; pula `car.vendido` |
 | `src/app/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx` | PDP (página de detalhe do veículo) |
+
+**Superfícies que disparam evento hoje** — todas passam `eventId`, `fbp`, `fbc`
+e `eventSourceUrl` no POST para `/api/leads`:
+
+| Superfície | Evento |
+|---|---|
+| `PDPClientWrapper.tsx` | `ViewContent` (browser + CAPI), `Lead`, `Contact` |
+| `CarMatch.tsx` (`/carro-perfeito`) | `Search`, `Lead`, `Contact` |
+| `AutoAvaliacao.tsx` (`/avaliacao`) | `CompleteRegistration`, `Lead`, `Contact` |
+| `ContatoClientWrapper.tsx` (`/contato`) | `Lead`, `Contact` |
+| `LeadPopup.tsx` (global, no layout) | `Lead`, `Contact` |
+| `Header.tsx` e `page.tsx`, via `modernist/BotaoWhatsApp.tsx` | `Contact` |
+| `Footer.tsx` (global) | `Contact` — telefone e WhatsApp |
+
+> **`HeroSection.tsx` e `VehicleGrid.tsx` são código morto** desde o redesign:
+> só se importam entre si e não são renderizados por nenhuma rota. As chamadas
+> de tracking dentro deles nunca disparam. Não usar como referência.
 
 **Alinhamento de ID já está correto:** o feed emite `car.id` e o pixel envia `content_ids: [vehicle.id]` — mesma origem. Não alterar isso.
 
@@ -483,13 +511,95 @@ A escolha entre bloqueio total e consent mode envolve apetite de risco jurídico
 
 ## Resumo da ordem de execução
 
-| Fase | Escopo | Depende de | Impacto |
-|---|---|---|---|
-| **0** | `content_type`, Pixel ID, `content_ids` no Lead | — | Destrava o catálogo |
-| **1** | `event_id`, `_fbp`/`_fbc`/`fbclid` | Fase 0 | Base para CAPI |
-| **2** | CAPI em `/api/leads` e `/api/capi` | Fase 1 | Recupera eventos perdidos |
-| **3** | Enhanced Conversions | Fase 1 | Otimização no Google |
-| **4** | Consent mode | Decisão jurídica | Cobertura de medição |
+| Fase | Escopo | Depende de | Impacto | Situação |
+|---|---|---|---|---|
+| **0** | `content_type`, Pixel ID, `content_ids` no Lead | — | Destrava o catálogo | ✅ feita |
+| **1** | `event_id`, `_fbp`/`_fbc`/`fbclid` | Fase 0 | Base para CAPI | ✅ feita |
+| **2** | CAPI em `/api/leads` e `/api/capi` | Fase 1 | Recupera eventos perdidos | ✅ feita no código |
+| **3** | Enhanced Conversions | Fase 1 | Otimização no Google | ⚠️ código pronto, **inerte** |
+| **4** | Consent mode | Decisão jurídica | Cobertura de medição | ⏸️ parada, por decisão |
+| **5** | Espelhar `Contact`, `Search` e `CompleteRegistration` no CAPI | Fase 2 | Fecha a cobertura server-side | 🔜 próxima |
+
+---
+
+## Auditoria de 2026-08-06
+
+Conferência fase a fase do código contra esta spec, feita depois do redesign
+Modernist (que trocou home, catálogo, PDP, destaques, contato, Profiler e
+Avaliação de lugar).
+
+### O que já está de pé
+
+- **Fase 0** — `META_CONTENT_TYPE` exportado e usado em `ViewContent` e `Lead`;
+  `content_ids` presente no `Lead`; `console.warn` explícito quando o
+  `metaPixelId` está vazio. O `metaPixelId` **está configurado** em
+  `site_settings` com `1410450786690090`.
+- **Fase 1** — `tracking-identity.ts` existe; `_fbc` é persistido por 90 dias a
+  partir do `fbclid`, fora do gate de consentimento (só a captura do
+  parâmetro; o evento continua gated); as cinco funções de tracking passam
+  `eventID` no **terceiro** argumento do `fbq`.
+- **Fase 2** — `meta-capi.ts` com hash SHA-256 de e-mail e telefone; `Lead`
+  espelhado dentro de `/api/leads`; `/api/capi` com whitelist de cinco eventos,
+  IP e User-Agent lidos dos headers, resposta sempre `204` e rate limit Upstash
+  no `proxy.ts`. As seis superfícies que postam em `/api/leads` mandam
+  `eventId`, `fbp`, `fbc` e `eventSourceUrl`.
+
+### ⚠️ Bloqueio ativo: Fase 3 não está rodando
+
+O código de Enhanced Conversions está correto em `telemetry.ts`, mas a guarda é:
+
+```typescript
+if (window.gtag && options?.googleAdsId && options?.googleAdsConversionLabel) {
+```
+
+e **os dois campos estão vazios** em `site_settings`. Nenhuma conversão chega
+ao Google Ads hoje — nem otimizada, nem comum. Não é defeito de código: é
+preenchimento no painel.
+
+**Ação:** cadastrar `googleAdsId` e `googleAdsConversionLabel` em
+Configurações → Integrações. Sem os dois, o bloco inteiro é pulado em silêncio.
+
+### Verificar no Vercel
+
+Não dá para conferir a partir do repositório; conferir no painel do projeto:
+
+- `META_PIXEL_ID`, `META_CAPI_ACCESS_TOKEN`, `META_GRAPH_API_VERSION` —
+  sem os três, `sendCapiEvent` desiste e loga um `console.warn`.
+- `META_CAPI_TEST_EVENT_CODE` — precisa estar **vazia** em produção.
+- `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` — sem elas o rate
+  limit de `/api/capi` é ignorado (regra 6 abaixo).
+
+### Corrigido nesta rodada
+
+- **Rodapé sem `Contact`.** Telefone e WhatsApp do rodapé aparecem em todas as
+  páginas e eram os únicos CTAs de contato do site que não disparavam evento.
+  Passam a chamar `trackContactClick` com os rótulos `Rodapé - WhatsApp` e
+  `Rodapé - Telefone`. Evento adicionado, nenhum renomeado — regra 7 do
+  CLAUDE.md preservada.
+
+---
+
+## Fase 5 — Espelhar os demais eventos no CAPI
+
+Hoje só `Lead` e `ViewContent` chegam ao servidor. `Contact`, `Search` e
+`CompleteRegistration` já geram `event_id` no browser e **já estão na whitelist
+de `/api/capi`** — falta só o POST.
+
+O padrão já existe em `PDPClientWrapper.tsx`, que dispara `ViewContent` no
+browser e em seguida posta o mesmo `eventId` em `/api/capi`. Replicar em:
+
+| Função | Evento | Onde chamar |
+|---|---|---|
+| `trackContactClick` | `Contact` | 7 superfícies — vale embrulhar o POST dentro da própria função |
+| `trackCarMatch` | `Search` | `CarMatch.tsx` |
+| `trackAppraisalSubmit` | `CompleteRegistration` | `AutoAvaliacao.tsx` |
+
+> **Cuidado com o volume.** `Contact` é o evento mais frequente do site. Antes
+> de ligar, confirmar que o rate limit do Upstash está ativo em produção — o
+> comentário no `proxy.ts` já observa que `/api/capi` é chamado a cada PDP.
+
+**Critério de aceite:** no Events Manager, `Contact` aparece com origem
+"Servidor" e marcado como **"Desduplicado"**, não com contagem dobrada.
 
 ---
 
@@ -514,6 +624,9 @@ A escolha entre bloqueio total e consent mode envolve apetite de risco jurídico
 | Meta Business ID | `1318713333562215` |
 | Ad Account ID | `802008949148808` |
 | Página Facebook | `783652398162743` |
-| GA4 (fallback atual no código) | `G-CZ4B4RYF61` |
+| GA4 (fallback no código) | `G-CZ4B4RYF61` |
+| GA4 (em uso, via `site_settings`) | `G-KBL1MFN9E3` |
+| Google Ads ID | **não cadastrado** — ver Fase 3 |
+| Label de conversão do Google Ads | **não cadastrado** — ver Fase 3 |
 
 > **Pendência conhecida no catálogo:** existem 3 feeds primários no mesmo catálogo (`Estoque_140726`, `estoque atualizado Motors`, `Novo feed de dados para Estoque Motors Store`) e o diagnóstico acusa erro de upload. Consolidar em um único feed primário apontando para `api/feed/xml` com atualização agendada. Não faz parte desta spec, mas afeta o resultado final.

@@ -1,6 +1,14 @@
 import { Metadata } from 'next';
-import HeroSection from '../../../components/HeroSection';
+import { notFound } from 'next/navigation';
+import LandingDestaque from '../../../components/modernist/LandingDestaque';
+import { getEstoque } from '../../../lib/supabase';
 import { getCachedSettings } from '../../../lib/settings';
+import {
+  DESTAQUES_PADRAO,
+  normalizarQuickTags,
+  normalizarStockOverrides,
+  resolverDestaques,
+} from '../../../lib/destaquesRapidos';
 import { slugifyTag, unslugifyTag, findMatchingQuickTag } from '../../../lib/tagUtils';
 import { QuickTag } from '../../../types';
 
@@ -28,7 +36,10 @@ export async function generateStaticParams() {
 
 async function resolveTagInfo(tagParam: string) {
   const settings = await getCachedSettings();
-  const dynamicTags: QuickTag[] = settings.quickTags && Array.isArray(settings.quickTags) ? settings.quickTags : [];
+  // O row `quick_tags` chega como `{ quickTags: [...] }`, não como array —
+  // o `Array.isArray` que existia aqui era sempre falso, então nenhuma
+  // categoria criada no painel era resolvida pela própria regra.
+  const dynamicTags: QuickTag[] = normalizarQuickTags(settings.quickTags);
   const allTags = [...dynamicTags, ...STATIC_QUICK_TAGS];
 
   const matchedTag = findMatchingQuickTag(allTags, tagParam);
@@ -100,21 +111,40 @@ export default async function DestaquesPage({ params }: PageProps) {
     ]
   };
 
+  // A grade é resolvida no servidor pela mesma regra que alimenta os chips
+  // da home e a coluna de filtros do catálogo.
+  const [estoque, settings] = await Promise.all([getEstoque(), getCachedSettings()]);
+  const disponiveis = estoque.filter((v) => !v.vendido);
+  const stockOverrides = normalizarStockOverrides(settings.stockOverrides);
+  const dinamicas = normalizarQuickTags(settings.quickTags);
+  const todasTags = dinamicas.length > 0 ? dinamicas : DESTAQUES_PADRAO;
+
+  const resolvidos = resolverDestaques(todasTags, disponiveis, stockOverrides);
+  const destaque =
+    resolvidos.find((d) => d.tag.id === tagId || d.slug === cleanSlug) ??
+    // Categoria conhecida mas sem veículo agora: mantém a página no ar com
+    // grade vazia em vez de 404 — a URL é indexada e a regra volta a casar
+    // quando o estoque girar.
+    (matchedTag
+      ? { tag: matchedTag, slug: cleanSlug, href: `/destaques/${cleanSlug}`, total: 0, veiculos: [] }
+      : null);
+
+  if (!destaque) notFound();
+
+  const relacionados = resolvidos.filter((d) => d.slug !== destaque.slug);
+
   return (
-    <div className="flex flex-col min-h-screen pt-24">
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
+    <div className="flex min-h-screen flex-col bg-mt-bg text-mt-ink">
       {/* Structured Data (JSON-LD) for SEO */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
       />
-      {/* We reuse the HeroSection, passing the initial tag so it auto-filters */}
-      <HeroSection 
-        initialQuickTag={tagId} 
-        isLandingPage={true} 
-        landingPageTitle={tagName} 
-        landingPageDescription={matchedTag?.description}
-        landingPageBgImage={matchedTag?.bgImageUrl}
-        landingPageBannerMode={matchedTag?.bannerMode || (matchedTag?.field === "manual" && matchedTag?.bgImageUrl ? "image" : "carousel")}
+      <LandingDestaque
+        destaque={destaque}
+        relacionados={relacionados}
+        introducao={matchedTag?.description}
       />
     </div>
   );

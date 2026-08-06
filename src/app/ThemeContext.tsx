@@ -30,6 +30,21 @@ export type {
 };
 
 export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
+  // Paleta do redesign 2026 (design doc "Motors site modernista redesign").
+  // Os tokens --mt-* de modernist.css derivam destes valores.
+  "motors-modernist": {
+    "--brand-background": "#f3f2f2",
+    "--brand-foreground": "#201e1d",
+    "--brand-primary": "#ec3013",
+    "--brand-primary-hover": "#ae1800",
+    "--brand-gold": "#ec3013",
+    "--brand-card": "#eae9e9",
+    "--brand-card-border": "#d7d3d3",
+    "--brand-border": "#d7d3d3",
+    "--brand-shadow": "rgba(45, 43, 43, 0.22)",
+    "--brand-glass-bg": "rgba(243, 242, 242, 0.86)",
+    "--brand-footer-bg": "#201e1d",
+  },
   "luxury-light": {
     "--brand-background": "#fafafc",
     "--brand-foreground": "#1a1a23",
@@ -146,7 +161,9 @@ export const DEFAULT_CAMPAIGNS: Campaign[] = [
     triggerType: "time",
     delaySeconds: 30,
     actionType: "link",
-    actionTarget: "/#match-garagem",
+    // Rota própria desde o redesign de 2026. A âncora antiga (`/#match-garagem`)
+    // apontava para uma seção que saiu da home quando o quiz ganhou página.
+    actionTarget: "/carro-perfeito",
     icon: "🤖",
     title: "BUSCANDO O CARRO PERFEITO?",
     subtitle: "Experimente nosso Assistente de Garagem IA. Responda 3 perguntas e o algoritmo faz a curadoria ideal para você.",
@@ -160,7 +177,8 @@ export const DEFAULT_CAMPAIGNS: Campaign[] = [
     triggerType: "time",
     delaySeconds: 60,
     actionType: "link",
-    actionTarget: "/#avaliacao-express",
+    // Idem: a Avaliação Express saiu da home e virou /avaliacao.
+    actionTarget: "/avaliacao",
     icon: "🚗",
     title: "QUER VENDER SEU VEÍCULO?",
     subtitle: "Simule a avaliação do seu carro usado agora mesmo na nossa ferramenta online. Simples, rápido e com preço de pátio.",

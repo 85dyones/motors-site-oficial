@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../../lib/supabase";
 import PDPClientWrapper from "../../../../../../components/PDPClientWrapper";
+import FaixaProcedencia from "../../../../../../components/modernist/FaixaProcedencia";
 
 // Incremental Static Regeneration (ISR) configuration
 export const revalidate = 3600; // Revalidate every 1 hour
@@ -200,6 +201,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <PDPClientWrapper veiculo={veiculo} />
+      <FaixaProcedencia />
     </div>
   );
 }

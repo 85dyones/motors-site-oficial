@@ -1,6 +1,6 @@
 // Global TypeScript Interfaces for Motors Store
 
-export type ThemeType = "luxury-light" | "stealth-dark" | "sport-nardo";
+export type ThemeType = "luxury-light" | "stealth-dark" | "sport-nardo" | "motors-modernist";
 
 export interface ThemeProperties {
   "--brand-background": string;

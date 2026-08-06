@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Archivo } from "next/font/google";
 import "./globals.css";
 import AntigravityTracker from "../components/AntigravityTracker";
 import Header from "../components/Header";
@@ -18,6 +18,15 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+});
+
+// Tipografia do redesign Modernist. Os três pesos são os que o design doc
+// usa: 400 corrido, 600 rótulos em versalete, 800 títulos e botões.
+const archivo = Archivo({
+  variable: "--font-archivo",
+  subsets: ["latin"],
+  weight: ["400", "600", "800"],
   display: "swap",
 });
 
@@ -76,7 +85,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${archivo.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       {/* GA4/Meta/Google Ads são inicializados exclusivamente pelo <IntegrationsTracker />,
@@ -90,6 +99,15 @@ export default async function RootLayout({
                 try {
                   var t = localStorage.getItem('ag_theme') || 'luxury-light';
                   var p = {
+                    'motors-modernist': {
+                      '--brand-background':'#f3f2f2','--brand-foreground':'#201e1d',
+                      '--brand-primary':'#ec3013','--brand-primary-hover':'#ae1800',
+                      '--brand-gold':'#ec3013','--brand-card':'#eae9e9',
+                      '--brand-card-border':'#d7d3d3','--brand-border':'#d7d3d3',
+                      '--brand-shadow':'rgba(45,43,43,0.22)',
+                      '--brand-glass-bg':'rgba(243,242,242,0.86)',
+                      '--brand-footer-bg':'#201e1d'
+                    },
                     'luxury-light': {
                       '--brand-background':'#fafafc','--brand-foreground':'#1a1a23',
                       '--brand-primary':'#C83F00','--brand-primary-hover':'#9E3100',
@@ -122,7 +140,8 @@ export default async function RootLayout({
                   var d = document.documentElement;
                   for (var k in a) d.style.setProperty(k, a[k]);
                   d.setAttribute('data-theme', t);
-                  if (t !== 'luxury-light') d.classList.add('dark');
+                  // motors-modernist e luxury-light são temas claros
+                  if (t === 'stealth-dark' || t === 'sport-nardo') d.classList.add('dark');
                 } catch(e) {}
               })();
             `,

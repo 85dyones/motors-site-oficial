@@ -2466,14 +2466,14 @@ export default function ConfiguracoesClientWrapper() {
                           value={editingCampaign.actionTarget}
                           onChange={(e) => setEditingCampaign({ ...editingCampaign, actionTarget: e.target.value })}
                           rows={2}
-                          placeholder={editingCampaign.actionType === "whatsapp" ? "Ex: Olá! Gostaria de mais informações..." : "Ex: /#avaliacao-express"}
+                          placeholder={editingCampaign.actionType === "whatsapp" ? "Ex: Olá! Gostaria de mais informações..." : "Ex: /avaliacao"}
                           className="w-full p-3 bg-brand-bg text-brand-text border border-brand-card-border rounded-lg text-xs outline-none focus:border-brand-primary resize-none font-mono"
                         />
                         {editingCampaign.actionType === "whatsapp" && (
                           <span className="text-[9px] text-brand-text/30">Suporta placeholders: {"{ref}"} (Lead ID), {"{carro}"} (Veículo PDP), {"{preco}"} (Preço PDP).</span>
                         )}
                         {editingCampaign.actionType === "link" && (
-                          <span className="text-[9px] text-brand-text/30">Dica: use links como `/#avaliacao-express` ou `/#match-garagem` para rolar até as ferramentas.</span>
+                          <span className="text-[9px] text-brand-text/30">Dica: use links internos como `/avaliacao`, `/carro-perfeito` ou `/estoque`.</span>
                         )}
                       </div>
                     )}

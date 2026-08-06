@@ -1,0 +1,283 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Modernist — camada de tokens do redesign 2026.
+
+   Portado de `_ds/modernist-.../styles.css` do projeto Claude Design
+   "Motors site modernista redesign".
+
+   Direção: grade modular visível, réguas de 2px, zero arredondamento,
+   vermelho usado só onde há decisão. Fotos de veículo ficam em cores —
+   exceção deliberada ao preto e branco do sistema.
+
+   Os tokens crus vivem em `--mt-*` e derivam de `--brand-*` (ThemeContext),
+   para que a troca de paleta no painel continue recolorindo o site inteiro.
+   O preset `motors-modernist` carrega os valores desenhados.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* — base, derivada do preset de marca ativo — */
+  --mt-bg: var(--brand-background, #f3f2f2);
+  --mt-surface: var(--brand-card, #eae9e9);
+  --mt-ink: var(--brand-foreground, #201e1d);
+  --mt-accent: var(--brand-primary, #ec3013);
+  --mt-accent-hover: var(--brand-primary-hover, #ae1800);
+
+  /* — réguas —
+     A régua de 2px é o elemento estrutural do sistema: separa seções.
+     A de 1px separa itens dentro de uma seção. */
+  --mt-regua: color-mix(in srgb, var(--mt-ink) 40%, transparent);
+  --mt-regua-fina: color-mix(in srgb, var(--mt-ink) 18%, transparent);
+  --mt-regua-media: color-mix(in srgb, var(--mt-ink) 22%, transparent);
+
+  /* — rampa neutra —
+     Derivada da tinta para acompanhar qualquer paleta. Os valores de
+     referência do design (#9b9797, #7d7979, …) saem da paleta Modernist. */
+  --mt-neutral-300: color-mix(in srgb, var(--mt-ink) 18%, var(--mt-bg));
+  --mt-neutral-400: color-mix(in srgb, var(--mt-ink) 32%, var(--mt-bg));
+  --mt-neutral-500: color-mix(in srgb, var(--mt-ink) 45%, var(--mt-bg));
+  --mt-neutral-600: color-mix(in srgb, var(--mt-ink) 58%, var(--mt-bg));
+  --mt-neutral-700: color-mix(in srgb, var(--mt-ink) 70%, var(--mt-bg));
+  --mt-neutral-800: color-mix(in srgb, var(--mt-ink) 84%, var(--mt-bg));
+
+  /* — rampa de acento — */
+  --mt-accent-100: color-mix(in srgb, var(--mt-accent) 8%, #ffffff);
+  --mt-accent-300: color-mix(in srgb, var(--mt-accent) 32%, #ffffff);
+  --mt-accent-400: color-mix(in srgb, var(--mt-accent) 52%, #ffffff);
+  --mt-accent-800: color-mix(in srgb, var(--mt-accent) 62%, #201e1d);
+
+  /* — sobre fundo escuro (header, hero, blocos invertidos) — */
+  --mt-inverso-texto: #f3f2f2;
+  --mt-inverso-fundo: #201e1d;
+  --mt-inverso-regua: rgba(243, 242, 242, 0.35);
+  --mt-inverso-regua-fina: rgba(243, 242, 242, 0.18);
+  --mt-inverso-suave: #9b9797;
+
+  /* — elevação —
+     Usada só nas molduras de mockup e em overlays. As seções da página
+     não flutuam: a régua organiza, não a sombra. */
+  --mt-shadow-lg: 0 12px 32px color-mix(in srgb, var(--mt-ink) 22%, transparent);
+}
+
+/* O preset Modernist é o desenho de referência: aplicado quando nenhum
+   tema alternativo está ativo. Os hexadecimais vêm do design doc. */
+:root[data-theme="motors-modernist"] {
+  --mt-neutral-300: #d7d3d3;
+  --mt-neutral-400: #bab6b6;
+  --mt-neutral-500: #9b9797;
+  --mt-neutral-600: #7d7979;
+  --mt-neutral-700: #605d5d;
+  --mt-neutral-800: #444141;
+
+  --mt-accent-100: #fff2ef;
+  --mt-accent-300: #ffc4b8;
+  --mt-accent-400: #ff9783;
+  --mt-accent-800: #7c1405;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Classes utilitárias do sistema.
+
+   Só entra aqui o que se repete em várias telas e não cabe numa utility do
+   Tailwind. O resto fica nos componentes.
+
+   Tudo daqui até o fim do bloco vive em `@layer components`, e isso não é
+   detalhe de organização: o Tailwind v4 põe as utilities em `@layer
+   utilities`, e CSS sem camada vence CSS em camada independente da
+   especificidade. Sem o layer, `.mt-campo { border: 0 }` derrotava um
+   `border-b-2` escrito ao lado no mesmo elemento — o campo simplesmente não
+   tinha régua, silenciosamente. Dentro do layer a ordem se inverte e a
+   utility ganha, que é o comportamento esperado por quem escreve a classe.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+
+/* — réguas — */
+.mt-regua {
+  border-top: 2px solid var(--mt-regua);
+}
+.mt-regua-fina {
+  border-top: 1px solid var(--mt-regua-fina);
+}
+
+/* — rótulo em versalete —
+   O rótulo pequeno de letra espaçada aparece acima de quase todo bloco:
+   é ele que dá o tom técnico do sistema. */
+.mt-rotulo {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--mt-neutral-600);
+}
+.mt-rotulo-accent {
+  color: var(--mt-accent);
+}
+
+/* — numeração de seção (01 —, 02 —) — */
+.mt-secao-numero {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--mt-accent);
+}
+
+/* — título de display —
+   O aperto de tracking cresce com o corpo: em 100px+ o texto precisa
+   fechar mais para não parecer solto. */
+.mt-display {
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+.mt-titulo {
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+/* — botões —
+   Zero raio, rótulo em caixa alta espaçada, alinhado à esquerda mesmo
+   quando o botão é largo (premissa 04 do design doc). */
+.mt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 26px;
+  border: 0;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.mt-btn-primario {
+  background: var(--mt-accent);
+  color: var(--mt-inverso-texto);
+}
+.mt-btn-primario:hover {
+  background: var(--mt-accent-hover);
+}
+.mt-btn-contorno {
+  background: transparent;
+  color: var(--mt-ink);
+  box-shadow: inset 0 0 0 2px var(--mt-ink);
+}
+.mt-btn-contorno:hover {
+  background: color-mix(in srgb, var(--mt-ink) 7%, transparent);
+}
+.mt-btn-tinta {
+  background: var(--mt-ink);
+  color: var(--mt-bg);
+}
+.mt-btn-tinta:hover {
+  background: color-mix(in srgb, var(--mt-ink) 86%, var(--mt-bg));
+}
+.mt-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mt-btn-bloco {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* — link sublinhado em régua vermelha — */
+.mt-link-regua {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--mt-accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--mt-ink);
+  text-decoration: none;
+}
+
+/* — etiqueta sobre foto — */
+.mt-etiqueta {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--mt-inverso-fundo);
+  color: var(--mt-inverso-texto);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.mt-etiqueta-accent {
+  background: var(--mt-accent);
+}
+
+/* — campo de formulário em régua —
+   O sistema não usa caixa de input: usa uma linha com rótulo em cima,
+   separada por régua. */
+.mt-campo {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--mt-ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.mt-campo::placeholder {
+  color: var(--mt-neutral-500);
+  font-weight: 400;
+}
+.mt-campo:focus {
+  outline: none;
+}
+.mt-campo-caixa {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--mt-regua);
+  border-radius: 0;
+  background: var(--mt-surface);
+  color: var(--mt-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.mt-campo-caixa:focus-visible {
+  border-color: var(--mt-accent);
+  outline: none;
+}
+
+/* — foco visível —
+   Herdado do DS: contorno de acento, sem raio. */
+.mt-foco:focus-visible {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: 2px;
+}
+
+} /* fim de @layer components */
+
+/* — pulso do indicador ao vivo (quiz, integrações) — */
+@keyframes mtPulso {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.mt-pulso {
+  animation: mtPulso 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-pulso {
+    animation: none;
+  }
+}

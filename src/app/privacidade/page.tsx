@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCachedSettings } from "../../lib/settings";
+import { LinkRegua, Rotulo } from "../../components/modernist/primitivos";
 import type { CompanySettings } from "../../types";
 
 export const metadata: Metadata = {
@@ -50,9 +51,11 @@ const ULTIMA_ATUALIZACAO = "1º de agosto de 2026";
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-24 flex flex-col gap-3">
-      <h2 className="text-brand-text font-bold text-base sm:text-lg tracking-wide">{titulo}</h2>
-      <div className="flex flex-col gap-3 text-sm text-brand-text/75 leading-relaxed font-light">
+    <section id={id} className="flex scroll-mt-24 flex-col gap-3">
+      <h2 className="mt-titulo m-0 border-t-2 border-mt-regua pt-4 text-[22px] sm:text-[26px]">
+        {titulo}
+      </h2>
+      <div className="flex flex-col gap-3 text-sm leading-relaxed text-mt-neutral-800">
         {children}
       </div>
     </section>
@@ -81,32 +84,31 @@ export default async function PrivacidadePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        <article className="mx-auto max-w-3xl flex flex-col gap-10">
+      {/* `<div>`, não `<main>`: o layout raiz já abre um `<main>`. */}
+      <div className="w-full bg-mt-bg px-[18px] py-12 font-modernist text-mt-ink sm:px-6 sm:py-16 lg:px-8">
+        <article className="mx-auto flex max-w-3xl flex-col gap-10">
           {/* Cabeçalho */}
-          <header className="flex flex-col gap-3 border-b border-brand-card-border pb-8">
-            <span className="text-[10px] font-bold text-brand-primary uppercase tracking-widest">
-              Privacidade &amp; LGPD
-            </span>
-            <h1 className="text-brand-text font-extrabold text-2xl sm:text-3xl tracking-tight">
+          <header className="flex flex-col gap-3 border-b-2 border-mt-regua pb-8">
+            <Rotulo accent className="text-[11px] tracking-[.18em]">
+              PRIVACIDADE &amp; LGPD
+            </Rotulo>
+            <h1 className="mt-titulo m-0 mt-1 text-[38px] sm:text-[52px]">
               Política de Privacidade
             </h1>
-            <p className="text-sm text-brand-text/75 leading-relaxed font-light">
+            <p className="m-0 text-sm leading-relaxed text-mt-neutral-800 sm:text-base">
               Esta página explica quais dados a {nome} coleta quando você navega neste site,
               por que os coletamos, com quem compartilhamos e como você pode pedir acesso,
               correção ou exclusão deles.
             </p>
-            <p className="text-[11px] text-brand-text/50 mt-1">
+            <p className="m-0 mt-1 text-[11px] text-mt-neutral-600">
               Última atualização: {ULTIMA_ATUALIZACAO}
             </p>
           </header>
 
           {/* Índice */}
           <nav aria-label="Índice desta página" className="flex flex-col gap-2">
-            <h2 className="text-[10px] font-bold text-brand-text/40 uppercase tracking-widest">
-              Nesta página
-            </h2>
-            <ol className="flex flex-col gap-1.5 text-sm text-brand-text/75 font-light">
+            <Rotulo className="text-[10px] tracking-[.16em]">NESTA PÁGINA</Rotulo>
+            <ol className="mt-1.5 flex flex-col text-sm text-mt-neutral-800">
               {[
                 ["quem-somos", "Quem é o controlador dos seus dados"],
                 ["dados", "Quais dados coletamos"],
@@ -119,10 +121,10 @@ export default async function PrivacidadePage() {
                 ["seguranca", "Segurança"],
                 ["contato", "Como falar conosco"],
               ].map(([id, label]) => (
-                <li key={id}>
+                <li key={id} className="border-b border-mt-regua-fina">
                   <a
                     href={`#${id}`}
-                    className="hover:text-brand-primary hover:underline underline-offset-4 transition-colors"
+                    className="mt-foco block py-2 no-underline transition-colors hover:text-mt-accent"
                   >
                     {label}
                   </a>
@@ -147,7 +149,7 @@ export default async function PrivacidadePage() {
           <Secao id="dados" titulo="Quais dados coletamos">
             <p>Coletamos dados em dois momentos distintos.</p>
             <p>
-              <strong className="text-brand-text/90">Quando você preenche um formulário.</strong>{" "}
+              <strong className="text-mt-ink">Quando você preenche um formulário.</strong>{" "}
               Nos formulários de contato, avaliação de veículo, Match de Garagem e nas solicitações
               de proposta, pedimos <strong>nome, e-mail e telefone/WhatsApp</strong>. Nos formulários
               de avaliação, também coletamos os dados do veículo que você quer vender (marca,
@@ -155,7 +157,7 @@ export default async function PrivacidadePage() {
               navegar — só para ser atendido.
             </p>
             <p>
-              <strong className="text-brand-text/90">Enquanto você navega.</strong> Registramos
+              <strong className="text-mt-ink">Enquanto você navega.</strong> Registramos
               automaticamente as páginas e veículos que você visita, seu endereço IP, informações do
               navegador e dispositivo, a origem da visita (por exemplo, se você chegou por um anúncio)
               e um identificador anônimo gerado pelo próprio site para reconhecer sua sessão.
@@ -169,21 +171,21 @@ export default async function PrivacidadePage() {
           <Secao id="finalidades" titulo="Para que usamos">
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>
-                <strong className="text-brand-text/90">Atender você.</strong> Responder à sua
+                <strong className="text-mt-ink">Atender você.</strong> Responder à sua
                 mensagem, elaborar propostas, avaliar seu veículo e dar continuidade à negociação
                 pelo WhatsApp ou telefone.
               </li>
               <li>
-                <strong className="text-brand-text/90">Melhorar o site.</strong> Entender quais
+                <strong className="text-mt-ink">Melhorar o site.</strong> Entender quais
                 veículos e páginas despertam mais interesse para organizar melhor o catálogo.
               </li>
               <li>
-                <strong className="text-brand-text/90">Publicidade.</strong> Medir o resultado dos
+                <strong className="text-mt-ink">Publicidade.</strong> Medir o resultado dos
                 nossos anúncios no Google e na Meta (Facebook e Instagram) e exibir anúncios mais
                 relevantes para quem já visitou o site.
               </li>
               <li>
-                <strong className="text-brand-text/90">Segurança.</strong> Prevenir envio automatizado
+                <strong className="text-mt-ink">Segurança.</strong> Prevenir envio automatizado
                 de formulários, spam e uso abusivo.
               </li>
             </ul>
@@ -195,21 +197,21 @@ export default async function PrivacidadePage() {
             </p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>
-                <strong className="text-brand-text/90">Consentimento</strong> — para cookies de
+                <strong className="text-mt-ink">Consentimento</strong> — para cookies de
                 publicidade e análise. Só são ativados depois que você clica em &ldquo;Aceitar&rdquo;
                 no aviso de cookies, e você pode mudar de ideia a qualquer momento.
               </li>
               <li>
-                <strong className="text-brand-text/90">Execução de contrato e procedimentos
+                <strong className="text-mt-ink">Execução de contrato e procedimentos
                 preliminares</strong> — para tratar os dados que você nos envia com o objetivo de
                 comprar, vender ou avaliar um veículo.
               </li>
               <li>
-                <strong className="text-brand-text/90">Legítimo interesse</strong> — para segurança
+                <strong className="text-mt-ink">Legítimo interesse</strong> — para segurança
                 do site e prevenção a fraudes.
               </li>
               <li>
-                <strong className="text-brand-text/90">Obrigação legal</strong> — para guardar
+                <strong className="text-mt-ink">Obrigação legal</strong> — para guardar
                 registros que a legislação fiscal e civil exige.
               </li>
             </ul>
@@ -218,31 +220,31 @@ export default async function PrivacidadePage() {
           <Secao id="cookies" titulo="Cookies e tecnologias de rastreamento">
             <p>
               Ao entrar no site pela primeira vez, você vê um aviso perguntando se aceita cookies.
-              <strong className="text-brand-text/90"> Enquanto você não aceitar, nenhuma ferramenta
+              <strong className="text-mt-ink"> Enquanto você não aceitar, nenhuma ferramenta
               de análise ou publicidade é carregada</strong> — nem Google Analytics, nem Google Ads,
               nem Meta Pixel. Se você recusar, o site continua funcionando normalmente.
             </p>
             <p>Se você aceitar, usamos:</p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>
-                <strong className="text-brand-text/90">Google Analytics 4</strong> — mede audiência e
+                <strong className="text-mt-ink">Google Analytics 4</strong> — mede audiência e
                 comportamento de navegação de forma agregada.
               </li>
               <li>
-                <strong className="text-brand-text/90">Google Ads</strong> — mede quais anúncios
+                <strong className="text-mt-ink">Google Ads</strong> — mede quais anúncios
                 geraram contato. Quando você envia um formulário, seu e-mail e telefone são
                 convertidos em um código embaralhado irreversível (hash) antes de sair do seu
                 navegador. O Google recebe esse código, nunca o dado original.
               </li>
               <li>
-                <strong className="text-brand-text/90">Meta Pixel e Conversions API</strong> — mesma
+                <strong className="text-mt-ink">Meta Pixel e Conversions API</strong> — mesma
                 finalidade, para anúncios no Facebook e Instagram. Parte dessas informações é enviada
                 pelo seu navegador e parte pelos nossos servidores, sempre com e-mail e telefone
                 embaralhados da mesma forma. Também usamos os cookies <code>_fbp</code> e{" "}
                 <code>_fbc</code> para identificar de qual anúncio veio a visita.
               </li>
               <li>
-                <strong className="text-brand-text/90">Cloudflare Turnstile</strong> — verifica que
+                <strong className="text-mt-ink">Cloudflare Turnstile</strong> — verifica que
                 quem preenche o formulário é uma pessoa, não um robô.
               </li>
             </ul>
@@ -255,26 +257,26 @@ export default async function PrivacidadePage() {
 
           <Secao id="compartilhamento" titulo="Com quem compartilhamos">
             <p>
-              <strong className="text-brand-text/90">Não vendemos seus dados.</strong> Compartilhamos
+              <strong className="text-mt-ink">Não vendemos seus dados.</strong> Compartilhamos
               apenas com quem é necessário para o site funcionar:
             </p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>
-                <strong className="text-brand-text/90">Google e Meta</strong> — dados de navegação e
+                <strong className="text-mt-ink">Google e Meta</strong> — dados de navegação e
                 identificadores embaralhados, para medição de anúncios, mediante seu consentimento.
               </li>
               <li>
-                <strong className="text-brand-text/90">Provedores de infraestrutura</strong> —
+                <strong className="text-mt-ink">Provedores de infraestrutura</strong> —
                 serviços de hospedagem, banco de dados e automação que armazenam e processam os
                 dados em nosso nome, seguindo nossas instruções.
               </li>
               <li>
-                <strong className="text-brand-text/90">Instituições financeiras</strong> — apenas se
+                <strong className="text-mt-ink">Instituições financeiras</strong> — apenas se
                 você solicitar simulação ou proposta de financiamento, e somente os dados necessários
                 para isso.
               </li>
               <li>
-                <strong className="text-brand-text/90">Autoridades</strong> — quando houver
+                <strong className="text-mt-ink">Autoridades</strong> — quando houver
                 obrigação legal ou ordem judicial.
               </li>
             </ul>
@@ -348,7 +350,7 @@ export default async function PrivacidadePage() {
                   E-mail:{" "}
                   <a
                     href={`mailto:${email}`}
-                    className="text-brand-primary hover:underline underline-offset-4 font-medium"
+                    className="text-mt-accent hover:underline underline-offset-4 font-medium"
                   >
                     {email}
                   </a>
@@ -358,7 +360,7 @@ export default async function PrivacidadePage() {
                 Formulário:{" "}
                 <Link
                   href="/contato"
-                  className="text-brand-primary hover:underline underline-offset-4 font-medium"
+                  className="text-mt-accent hover:underline underline-offset-4 font-medium"
                 >
                   página de contato
                 </Link>
@@ -373,7 +375,7 @@ export default async function PrivacidadePage() {
                 href="https://www.gov.br/anpd/pt-br"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-primary hover:underline underline-offset-4 font-medium"
+                className="text-mt-accent hover:underline underline-offset-4 font-medium"
               >
                 Autoridade Nacional de Proteção de Dados (ANPD)
               </a>
@@ -382,20 +384,15 @@ export default async function PrivacidadePage() {
           </Secao>
 
           {/* Rodapé da página */}
-          <footer className="border-t border-brand-card-border pt-6 flex flex-col gap-3">
-            <p className="text-[11px] text-brand-text/50 leading-relaxed">
+          <footer className="flex flex-col items-start gap-5 border-t-2 border-mt-regua pt-6">
+            <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-600">
               Podemos atualizar esta política para refletir mudanças no site ou na legislação.
               Alterações relevantes serão sinalizadas nesta página com nova data de atualização.
             </p>
-            <Link
-              href="/"
-              className="text-[10px] font-bold text-brand-primary hover:text-brand-primary-hover uppercase tracking-widest transition-colors w-fit"
-            >
-              ← Voltar ao início
-            </Link>
+            <LinkRegua href="/">VOLTAR AO INÍCIO</LinkRegua>
           </footer>
         </article>
-      </main>
+      </div>
     </>
   );
 }

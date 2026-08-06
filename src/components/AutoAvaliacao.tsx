@@ -6,6 +6,29 @@ import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import Turnstile from "./Turnstile";
 import { useTheme } from "../app/ThemeContext";
+import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
+import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
+
+/**
+ * Tela 05 — Avaliação Express, na linguagem Modernist.
+ *
+ * Duas colunas: o formulário em régua à esquerda, a prévia do resultado na
+ * faixa escura à direita. A prévia mora aqui dentro, e não na página, porque
+ * depende do valor que a consulta FIPE devolve enquanto o usuário preenche.
+ *
+ * O que NÃO mudou: a cascata marca → modelo → ano na API da FIPE, os três
+ * passos, o Turnstile, as chamadas de telemetria e o payload enviado ao
+ * backend. Isto aqui é troca de camada de apresentação.
+ *
+ * Uma diferença deliberada em relação ao design doc: o doc mostra uma "faixa
+ * estimada" (R$ 61.400 — R$ 66.900) em volta do valor FIPE. Ela não existe
+ * aqui, por decisão do dono em 2026-08-06: o formulário coleta os dados e a
+ * regra de precificação vai no JSON que o n8n recebe, para o consultor abrir
+ * o lead já com a faixa sugerida. O cliente vê a referência FIPE e nada mais
+ * — nenhum valor de compra é prometido antes da vistoria presencial.
+ *
+ * A regra em si mora em `lib/avaliacaoRecomendacao.ts`, isolada e testada.
+ */
 
 // ─── FIPE API Types ───
 interface FipeBrand { codigo: string; nome: string; }
@@ -21,6 +44,8 @@ interface Step1Data {
 interface Step2Data {
   estadoMecanico: string;
   estadoConservacao: string;
+  /** Só dígitos; a máscara de milhar é aplicada na exibição. */
+  quilometragem: string;
   observacoes: string;
 }
 
@@ -31,7 +56,46 @@ interface Step3Data {
 
 const FIPE_BASE = "https://parallelum.com.br/fipe/api/v1";
 
-// ─── Reusable Searchable Combobox Component ───
+const PASSOS = [
+  { numero: "01", titulo: "Seu veículo" },
+  { numero: "02", titulo: "Estado e quilometragem" },
+  { numero: "03", titulo: "Contato e proposta" },
+];
+
+const TIPOS_VEICULO = [
+  { id: "carros", rotulo: "CARROS" },
+  { id: "motos", rotulo: "MOTOS" },
+  { id: "caminhoes", rotulo: "CAMINHÕES" },
+] as const;
+
+const ESTADO_MECANICO = [
+  { val: "excelente", label: "Excelente", desc: "Funcionamento perfeito" },
+  { val: "bom", label: "Bom", desc: "Apenas revisões preventivas" },
+  { val: "atencao", label: "Requer Atenção", desc: "Pequenos barulhos/ajustes" },
+  { val: "ruim", label: "Ruim", desc: "Problemas mecânicos graves" },
+];
+
+const ESTADO_CONSERVACAO = [
+  { val: "impecavel", label: "Impecável", desc: "Sem detalhes ou riscos" },
+  { val: "riscos", label: "Pequenos Riscos", desc: "Pequenos arranhões de uso" },
+  { val: "reparos", label: "Amassados leves", desc: "Pequenos retoques pendentes" },
+  { val: "avariado", label: "Avariado / Batido", desc: "Necessita funilaria expressa" },
+];
+
+/** O "como chegamos nesse número" da coluna escura, direto do design doc. */
+const COMO_CHEGAMOS = [
+  "Giro real do modelo no nosso estoque nos últimos 90 dias.",
+  "Ajuste por opcionais, estado de pneus e histórico de revisões.",
+];
+
+/* ────────────────────────────────────────────────────────────────────────
+   Campo de escolha com busca
+
+   O sistema não usa caixa de input: usa uma linha com rótulo em cima,
+   separada por régua. A régua fica vermelha quando o campo está resolvido —
+   é o que substitui o antigo selo verde "Selecionado: X".
+   ──────────────────────────────────────────────────────────────────────── */
+
 function SearchableCombobox({
   id,
   label,
@@ -90,7 +154,7 @@ function SearchableCombobox({
   }, [value, displayValue]);
 
   const normalize = (s: string) =>
-    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
   const filtered = search.trim() && search !== displayValue
     ? items.filter((i) => normalize(i.label).includes(normalize(search)))
@@ -112,31 +176,26 @@ function SearchableCombobox({
   };
 
   return (
-    <div className="flex flex-col gap-2 relative">
-      <label className="text-xs font-bold text-brand-text/60" htmlFor={id}>
+    <div className={`relative py-4 pr-0 md:pr-6 ${disabled ? "opacity-45" : ""}`}>
+      <label
+        className="mt-rotulo mb-2 block text-[10px] tracking-[.14em]"
+        htmlFor={id}
+      >
         {label}
       </label>
-      <div className="relative">
-        {/* Search icon */}
-        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-brand-text/30">
-          {loading ? (
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
-            </svg>
-          )}
-        </div>
+
+      <div
+        className={`flex items-center gap-3 border-b-2 pb-2 transition-colors ${
+          value ? "border-mt-accent" : "border-mt-regua-fina"
+        }`}
+      >
         <input
           ref={inputRef}
           id={id}
           type="text"
           autoComplete="off"
           disabled={disabled || loading}
-          placeholder={loading ? "Carregando..." : placeholder}
+          placeholder={loading ? "Carregando…" : placeholder}
           value={search}
           onFocus={() => !disabled && setOpen(true)}
           onChange={(e) => {
@@ -149,85 +208,105 @@ function SearchableCombobox({
               onClear();
             }
           }}
-          className={`w-full h-12 bg-brand-card border rounded-xl pl-10 pr-10 text-sm text-brand-text placeholder-brand-text/40 focus:outline-none transition-all duration-200 ${
-            disabled ? "opacity-50 cursor-not-allowed" :
-            value
-              ? "border-brand-primary ring-2 ring-brand-primary/20 shadow-[0_0_12px_var(--brand-shadow)]"
-              : "border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
-          }`}
+          className="mt-campo mt-foco min-w-0 flex-1 disabled:cursor-not-allowed"
           toolparamdescription={toolParamDescription}
         />
-        {/* Clear button */}
-        {search && !disabled && (
+
+        {search && !disabled ? (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-text/40 hover:text-brand-text/70 transition-colors"
-            aria-label="Limpar campo de pesquisa"
+            aria-label={`Limpar ${label.toLowerCase()}`}
+            className="mt-foco shrink-0 text-mt-neutral-600 transition-colors hover:text-mt-ink"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
+        ) : (
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            aria-hidden="true"
+            className={`shrink-0 ${loading ? "mt-pulso" : ""} text-mt-accent`}
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         )}
       </div>
 
-      {/* Dropdown */}
       {open && !disabled && !loading && (
         <div
           ref={dropdownRef}
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-brand-card/95 backdrop-blur-xl border border-brand-border rounded-2xl shadow-[0_12px_40px_var(--brand-shadow)] max-h-52 overflow-y-auto overscroll-contain"
-          style={{ scrollbarWidth: "thin" }}
+          className="absolute left-0 right-0 top-[calc(100%-4px)] z-50 max-h-56 overflow-y-auto border-2 border-mt-ink bg-mt-bg md:right-6"
         >
           {filtered.length > 0 ? (
-            <div className="p-1.5">
-              {filtered.map((item) => {
-                const isSelected = value === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => handleSelect(item.key, item.label)}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 flex items-center justify-between ${
-                      isSelected
-                        ? "bg-brand-primary/10 text-brand-gold border border-brand-primary/30"
-                        : "text-brand-text/70 hover:bg-brand-bg hover:text-brand-text border border-transparent"
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    {isSelected && (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-brand-primary shrink-0">
-                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            filtered.map((item) => {
+              const isSelected = value === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => handleSelect(item.key, item.label)}
+                  className={`mt-foco flex w-full items-center justify-between gap-3 border-b border-mt-regua-fina px-4 py-2.5 text-left text-[13px] transition-colors last:border-b-0 ${
+                    isSelected
+                      ? "bg-mt-accent text-mt-inverso"
+                      : "text-mt-neutral-800 hover:bg-mt-surface"
+                  }`}
+                >
+                  <span>{item.label}</span>
+                </button>
+              );
+            })
           ) : (
-            <div className="p-4 text-center">
-              <p className="text-xs text-brand-text/40 font-medium">
+            <div className="px-4 py-5">
+              <p className="m-0 text-xs text-mt-neutral-700">
                 {emptyMessage || `Nenhum resultado para "${search}"`}
               </p>
-              <p className="text-[10px] text-brand-text/30 mt-1">Verifique a ortografia e tente novamente</p>
+              <p className="m-0 mt-1 text-[11px] text-mt-neutral-600">
+                Verifique a ortografia e tente novamente.
+              </p>
             </div>
           )}
         </div>
-      )}
-
-      {/* Confirmed badge */}
-      {value && (
-        <span className="text-[10px] text-green-600 font-bold self-start mt-0.5 animate-fadeIn flex items-center gap-1">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-            <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-          </svg>
-          Selecionado: {displayValue}
-        </span>
       )}
     </div>
   );
 }
 
+/** Opção quadrada de estado — mesma gramática das opções do Profiler. */
+function OpcaoEstado({
+  label,
+  desc,
+  selecionada,
+  onClick,
+}: {
+  label: string;
+  desc: string;
+  selecionada: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selecionada}
+      className={`mt-foco flex flex-col items-start border-2 p-3.5 text-left transition-colors ${
+        selecionada
+          ? "border-mt-accent bg-mt-accent-100"
+          : "border-mt-regua-fina hover:border-mt-regua"
+      }`}
+    >
+      <span className="text-[13px] font-extrabold leading-tight">{label}</span>
+      <span className="mt-1 text-[11px] leading-snug text-mt-neutral-600">{desc}</span>
+    </button>
+  );
+}
 
 export default function AutoAvaliacao() {
   const { companySettings, webhooks } = useTheme();
@@ -243,7 +322,7 @@ export default function AutoAvaliacao() {
 
   // Form states
   const [step1, setStep1] = useState<Step1Data>({ marca: "", modelo: "", ano: "" });
-  const [step2, setStep2] = useState<Step2Data>({ estadoMecanico: "", estadoConservacao: "", observacoes: "" });
+  const [step2, setStep2] = useState<Step2Data>({ estadoMecanico: "", estadoConservacao: "", quilometragem: "", observacoes: "" });
   const [step3, setStep3] = useState<Step3Data>({ nome: "", whatsapp: "" });
 
   // ─── FIPE API States ───
@@ -262,6 +341,9 @@ export default function AutoAvaliacao() {
   // FIPE Value states
   const [fipeValor, setFipeValor] = useState("");
   const [fipeCodigo, setFipeCodigo] = useState("");
+  // Mês de referência devolvido pela própria API — é o que autoriza dizer
+  // "tabela de agosto/2026" sem chutar a data.
+  const [fipeMesReferencia, setFipeMesReferencia] = useState("");
 
   // Display labels
   const [brandDisplay, setBrandDisplay] = useState("");
@@ -277,6 +359,7 @@ export default function AutoAvaliacao() {
     setSelectedYearId("");
     setFipeValor("");
     setFipeCodigo("");
+    setFipeMesReferencia("");
     setBrandDisplay("");
     setModelDisplay("");
     setYearDisplay("");
@@ -345,6 +428,7 @@ export default function AutoAvaliacao() {
     if (!selectedBrandId || !selectedModelId || !selectedYearId) {
       setFipeValor("");
       setFipeCodigo("");
+      setFipeMesReferencia("");
       return;
     }
 
@@ -355,6 +439,7 @@ export default function AutoAvaliacao() {
         if (data && data.Valor) {
           setFipeValor(data.Valor);
           setFipeCodigo(data.CodigoFipe);
+          setFipeMesReferencia((data.MesReferencia || "").trim());
         }
       } catch (err) {
         console.error("[FIPE] Erro ao buscar detalhes de valor:", err);
@@ -440,8 +525,21 @@ export default function AutoAvaliacao() {
     setSelectedYearId("");
     setFipeValor("");
     setFipeCodigo("");
+    setFipeMesReferencia("");
     setStep1((prev) => ({ ...prev, ano: "" }));
   };
+
+  /**
+   * Regra de precificação de compra, resolvida no cliente e enviada no
+   * payload. Não aparece em lugar nenhum da tela: é insumo do consultor.
+   */
+  const quilometragemNumerica = step2.quilometragem ? Number(step2.quilometragem) : null;
+  const recomendacao = recomendarAvaliacao({
+    estadoMecanico: step2.estadoMecanico,
+    estadoConservacao: step2.estadoConservacao,
+    quilometragem: quilometragemNumerica,
+    fipeValor,
+  });
 
   // Navigations
   const handleNextStep = () => {
@@ -491,6 +589,15 @@ export default function AutoAvaliacao() {
           tipo_veiculo: vehicleType,
           fipe_valor: fipeValor,
           fipe_codigo: fipeCodigo,
+          fipe_mes_referencia: fipeMesReferencia,
+          // Campos que o consultor precisa para aplicar a regra de compra.
+          // `observacoes` já era coletado e era descartado antes de chegar
+          // ao n8n — só ia parar no histórico do localStorage.
+          quilometragem: quilometragemNumerica,
+          estado_mecanico: step2.estadoMecanico,
+          estado_conservacao: step2.estadoConservacao,
+          observacoes: step2.observacoes,
+          recomendacao: recomendacao,
           utm: getUtmParameters(),
           turnstileToken
         }),
@@ -526,8 +633,10 @@ export default function AutoAvaliacao() {
       condicoes: {
         estadoMecanico: step2.estadoMecanico,
         estadoConservacao: step2.estadoConservacao,
+        quilometragem: quilometragemNumerica,
         observacoes: step2.observacoes || "Nenhuma observação inserida",
       },
+      recomendacao,
       cliente: {
         nome: step3.nome,
         whatsapp: step3.whatsapp,
@@ -557,13 +666,14 @@ export default function AutoAvaliacao() {
   // Reset form
   const handleReset = () => {
     setStep1({ marca: "", modelo: "", ano: "" });
-    setStep2({ estadoMecanico: "", estadoConservacao: "", observacoes: "" });
+    setStep2({ estadoMecanico: "", estadoConservacao: "", quilometragem: "", observacoes: "" });
     setStep3({ nome: "", whatsapp: "" });
     setSelectedBrandId("");
     setSelectedModelId("");
     setSelectedYearId("");
     setFipeValor("");
     setFipeCodigo("");
+    setFipeMesReferencia("");
     setBrandDisplay("");
     setModelDisplay("");
     setYearDisplay("");
@@ -586,7 +696,7 @@ export default function AutoAvaliacao() {
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => {
     const utmParams = getUtmParameters();
-    
+
     const cleanPhone = leadData.whatsapp;
     const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
     const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
@@ -694,7 +804,11 @@ export default function AutoAvaliacao() {
 
   // Validation checkers for button enabling
   const isStep1Valid = step1.marca && step1.modelo && step1.ano;
-  const isStep2Valid = step2.estadoMecanico && step2.estadoConservacao;
+  // A quilometragem entrou como obrigatória junto com a regra de
+  // precificação (2026-08-06): sem ela o consultor não consegue aplicar a
+  // faixa de 30%, que depende do limite de 150.000 km.
+  const isStep2Valid =
+    step2.estadoMecanico && step2.estadoConservacao && step2.quilometragem;
   const isStep3Valid = step3.nome && step3.whatsapp.replace(/\D/g, "").length >= 10;
 
   // Convert FIPE data to combobox items
@@ -702,462 +816,503 @@ export default function AutoAvaliacao() {
   const modelItems = fipeModels.map((m) => ({ key: String(m.codigo), label: m.nome }));
   const yearItems = fipeYears.map((y) => ({ key: y.codigo, label: y.nome }));
 
+  const nomeDoVeiculo = [step1.marca, step1.modelo].filter(Boolean).join(" ").toUpperCase();
+  const tituloDaTela = companySettings?.avaliacaoExpressTitle || "Avaliação Express";
+
   return (
-    <section id="avaliacao-express" aria-label="Avaliação Express" className="flex flex-col gap-4 w-full">
-      <div className="text-center flex flex-col gap-1.5 px-4 sm:px-6">
-        <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
-          Facilidade de Venda
-        </span>
-        <h2 className="text-2xl font-black text-brand-text tracking-tight">
-          {companySettings?.avaliacaoExpressTitle || "Avaliação Express"}
-        </h2>
-        <p className="text-xs text-brand-text/50 max-w-xs mx-auto">
-          Quer vender ou dar seu carro de entrada? Receba uma cotação rápida do mercado premium.
+    <section
+      id="avaliacao-express"
+      aria-label="Avaliação Express"
+      className="flex flex-col bg-mt-bg font-modernist text-mt-ink lg:flex-row lg:items-stretch"
+    >
+      {/* ─────────── Coluna do formulário ─────────── */}
+      <div className="min-w-0 flex-1 px-[18px] py-10 lg:border-r-2 lg:border-mt-regua lg:px-11 lg:py-14">
+        <Rotulo accent className="text-[11px] tracking-[.18em]">
+          VENDA OU TROCA
+        </Rotulo>
+        <h1 className="mt-titulo m-0 mt-3 text-[38px] lg:text-[64px] lg:leading-[.95]">
+          {tituloDaTela}
+        </h1>
+        <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-neutral-800 lg:text-base">
+          Dados oficiais da Tabela FIPE cruzados com o giro real do nosso
+          estoque. Proposta no WhatsApp em menos de 10 minutos.
         </p>
+
+        {/* Trilho de passos */}
+        {step < 4 && (
+          <div className="mt-9 flex border-t-2 border-mt-regua lg:mt-10">
+            {PASSOS.map((passo, i) => {
+              const numero = i + 1;
+              const ativo = numero === step;
+              const concluido = numero < step;
+              return (
+                <button
+                  key={passo.numero}
+                  type="button"
+                  onClick={() => concluido && setStep(numero as 1 | 2 | 3)}
+                  disabled={!concluido}
+                  aria-current={ativo ? "step" : undefined}
+                  className={`mt-foco flex-1 border-r border-mt-regua-fina py-4 pr-4 text-left last:border-r-0 ${
+                    concluido ? "cursor-pointer" : "cursor-default"
+                  }`}
+                >
+                  <span
+                    className={`block text-[11px] font-extrabold tracking-[.12em] ${
+                      ativo ? "text-mt-accent" : "text-mt-neutral-500"
+                    }`}
+                  >
+                    {passo.numero}
+                  </span>
+                  <span
+                    className={`mt-2 block text-[13px] font-extrabold leading-tight tracking-[-.01em] lg:text-[15px] ${
+                      ativo ? "text-mt-ink" : "text-mt-neutral-500"
+                    }`}
+                  >
+                    {passo.titulo}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <form
+          toolname="auto_avaliacao_veiculo"
+          tooldescription="Inicia a avaliação comercial de um veículo para troca ou venda na Motors Store, retornando os preços oficiais da FIPE."
+          onSubmit={handleSubmit}
+          className="mt-8"
+        >
+          <input type="hidden" name="tipo_veiculo" value={vehicleType} toolparamdescription="Categoria de automóvel (carros, motos ou caminhoes)." />
+          <input type="hidden" name="estado_mecanico" value={step2.estadoMecanico} toolparamdescription="Estado mecânico do veículo (excelente, bom, atencao, ruim)." />
+          <input type="hidden" name="estado_conservacao" value={step2.estadoConservacao} toolparamdescription="Estado de conservação da lataria/funilaria (impecavel, riscos, reparos, avariado)." />
+
+          {/* ─── 01 · Seu veículo ─── */}
+          {step === 1 && (
+            <div>
+              <Rotulo className="text-[10px] tracking-[.16em]">TIPO DE VEÍCULO</Rotulo>
+              <div className="mt-3 flex w-full border-2 border-mt-ink md:w-max">
+                {TIPOS_VEICULO.map((tipo, i) => (
+                  <button
+                    key={tipo.id}
+                    type="button"
+                    onClick={() => handleVehicleTypeChange(tipo.id)}
+                    aria-pressed={vehicleType === tipo.id}
+                    className={`mt-foco flex-1 px-4 py-3 text-[12px] font-extrabold tracking-[.08em] transition-colors md:flex-none md:px-7 md:text-[13px] ${
+                      i > 0 ? "border-l-2 border-mt-ink" : ""
+                    } ${
+                      vehicleType === tipo.id
+                        ? "bg-mt-accent text-mt-inverso"
+                        : "text-mt-ink hover:bg-mt-surface"
+                    }`}
+                  >
+                    {tipo.rotulo}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-9 grid border-t-2 border-mt-regua md:grid-cols-2 md:gap-x-2">
+                <SearchableCombobox
+                  id="brand-search-fipe"
+                  label="MARCA"
+                  placeholder="Digite ou busque a marca…"
+                  items={brandItems}
+                  value={selectedBrandId}
+                  displayValue={brandDisplay}
+                  onSelect={handleBrandSelect}
+                  onClear={handleBrandClear}
+                  loading={loadingBrands}
+                  toolParamDescription="Marca do automóvel de acordo com a base oficial FIPE."
+                />
+
+                <SearchableCombobox
+                  id="model-search-fipe"
+                  label="MODELO"
+                  placeholder={selectedBrandId ? "Busque o modelo…" : "Selecione a marca primeiro"}
+                  items={modelItems}
+                  value={selectedModelId}
+                  displayValue={modelDisplay}
+                  onSelect={handleModelSelect}
+                  onClear={handleModelClear}
+                  loading={loadingModels}
+                  disabled={!selectedBrandId}
+                  emptyMessage="Nenhum modelo encontrado"
+                  toolParamDescription="Modelo correspondente à marca na base FIPE."
+                />
+
+                <SearchableCombobox
+                  id="year-search-fipe"
+                  label="ANO / COMBUSTÍVEL"
+                  placeholder={selectedModelId ? "Busque o ano…" : "Selecione o modelo primeiro"}
+                  items={yearItems}
+                  value={yearDisplay ? fipeYears.find((y) => y.nome === yearDisplay)?.codigo || "" : ""}
+                  displayValue={yearDisplay}
+                  onSelect={handleYearSelect}
+                  onClear={handleYearClear}
+                  loading={loadingYears}
+                  disabled={!selectedModelId}
+                  emptyMessage="Nenhum ano encontrado"
+                  toolParamDescription="Ano modelo e combustível do veículo na base FIPE."
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={!isStep1Valid}
+                onClick={handleNextStep}
+                className="mt-btn mt-btn-primario mt-foco mt-9"
+              >
+                AVANÇAR PARA ESTADO DO VEÍCULO
+                <Seta />
+              </button>
+            </div>
+          )}
+
+          {/* ─── 02 · Estado e conservação ─── */}
+          {step === 2 && (
+            <div>
+              <Rotulo className="text-[10px] tracking-[.16em]">ESTADO MECÂNICO</Rotulo>
+              <div className="mt-3 grid gap-0.5 sm:grid-cols-2">
+                {ESTADO_MECANICO.map((opt) => (
+                  <OpcaoEstado
+                    key={opt.val}
+                    label={opt.label}
+                    desc={opt.desc}
+                    selecionada={step2.estadoMecanico === opt.val}
+                    onClick={() => setStep2((prev) => ({ ...prev, estadoMecanico: opt.val }))}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-8">
+                <Rotulo className="text-[10px] tracking-[.16em]">
+                  FUNILARIA & CONSERVAÇÃO EXTERNA
+                </Rotulo>
+                <div className="mt-3 grid gap-0.5 sm:grid-cols-2">
+                  {ESTADO_CONSERVACAO.map((opt) => (
+                    <OpcaoEstado
+                      key={opt.val}
+                      label={opt.label}
+                      desc={opt.desc}
+                      selecionada={step2.estadoConservacao === opt.val}
+                      onClick={() => setStep2((prev) => ({ ...prev, estadoConservacao: opt.val }))}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-8 border-t-2 border-mt-regua pt-4">
+                <label
+                  className="mt-rotulo mb-2 block text-[10px] tracking-[.14em]"
+                  htmlFor="km-input"
+                >
+                  QUILOMETRAGEM
+                </label>
+                <div
+                  className={`flex items-baseline gap-2 border-b-2 pb-2 transition-colors ${
+                    step2.quilometragem ? "border-mt-accent" : "border-mt-regua-fina"
+                  }`}
+                >
+                  <input
+                    id="km-input"
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    placeholder="Ex.: 68.000"
+                    value={
+                      step2.quilometragem
+                        ? Number(step2.quilometragem).toLocaleString("pt-BR")
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setStep2((prev) => ({
+                        ...prev,
+                        // Guarda só dígitos; o teto de 7 casas evita que um
+                        // dedo pesado mande 9.999.999.999 km para o consultor.
+                        quilometragem: e.target.value.replace(/\D/g, "").slice(0, 7),
+                      }))
+                    }
+                    className="mt-campo mt-foco min-w-0 flex-1"
+                    toolparamdescription="Quilometragem atual do veículo, em quilômetros."
+                  />
+                  <span className="shrink-0 text-[13px] font-semibold text-mt-neutral-600">
+                    km
+                  </span>
+                </div>
+                <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
+                  É o dado que mais pesa na avaliação, depois da versão.
+                </p>
+              </div>
+
+              <div className="mt-8 border-t-2 border-mt-regua pt-4">
+                <label
+                  className="mt-rotulo mb-2 flex items-center justify-between text-[10px] tracking-[.14em]"
+                  htmlFor="obs-textarea"
+                >
+                  OBSERVAÇÕES / OPCIONAIS EXTRAS
+                  <span className="text-mt-neutral-500">OPCIONAL</span>
+                </label>
+                <textarea
+                  id="obs-textarea"
+                  placeholder="Ex.: teto solar, pneus novos, único dono, manual e chave reserva…"
+                  value={step2.observacoes}
+                  onChange={(e) => setStep2((prev) => ({ ...prev, observacoes: e.target.value }))}
+                  rows={2}
+                  className="mt-campo mt-foco resize-none border-b-2 border-mt-regua-fina pb-2"
+                  toolparamdescription="Observações ou opcionais extras instalados no veículo."
+                />
+              </div>
+
+              <div className="mt-9 flex flex-wrap gap-0.5">
+                <button
+                  type="button"
+                  onClick={handlePrevStep}
+                  className="mt-btn mt-btn-contorno mt-foco"
+                >
+                  VOLTAR
+                </button>
+                <button
+                  type="button"
+                  disabled={!isStep2Valid}
+                  onClick={handleNextStep}
+                  className="mt-btn mt-btn-primario mt-foco"
+                >
+                  AVANÇAR PARA CONTATO
+                  <Seta />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── 03 · Contato e proposta ─── */}
+          {step === 3 && (
+            <div>
+              <div className="border-t-2 border-mt-regua">
+                <div className="flex justify-between gap-4 border-b border-mt-regua-fina py-3 text-[13px]">
+                  <span className="text-mt-neutral-600">Veículo</span>
+                  <span className="text-right font-extrabold">
+                    {step1.marca} {step1.modelo} ({step1.ano})
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4 border-b border-mt-regua-fina py-3 text-[13px]">
+                  <span className="text-mt-neutral-600">Mecânica / conservação</span>
+                  <span className="text-right font-extrabold capitalize">
+                    {step2.estadoMecanico} / {step2.estadoConservacao}
+                  </span>
+                </div>
+                {fipeValor && (
+                  <div className="flex justify-between gap-4 border-b border-mt-regua-fina py-3 text-[13px]">
+                    <span className="text-mt-neutral-600">Referência FIPE</span>
+                    <span className="text-right font-extrabold text-mt-accent">{fipeValor}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8 grid md:grid-cols-2 md:gap-x-2">
+                <div className="py-4 pr-0 md:pr-6">
+                  <label className="mt-rotulo mb-2 block text-[10px] tracking-[.14em]" htmlFor="nome-input">
+                    SEU NOME COMPLETO
+                  </label>
+                  <input
+                    id="nome-input"
+                    type="text"
+                    required
+                    placeholder="Digite seu nome…"
+                    value={step3.nome}
+                    onChange={(e) => setStep3((prev) => ({ ...prev, nome: e.target.value }))}
+                    className={`mt-campo mt-foco border-b-2 pb-2 transition-colors ${
+                      step3.nome ? "border-mt-accent" : "border-mt-regua-fina"
+                    }`}
+                    toolparamdescription="Nome completo do responsável pela solicitação de avaliação."
+                  />
+                </div>
+
+                <div className="py-4 pr-0 md:pr-6">
+                  <label className="mt-rotulo mb-2 block text-[10px] tracking-[.14em]" htmlFor="whatsapp-input">
+                    WHATSAPP
+                  </label>
+                  <input
+                    id="whatsapp-input"
+                    type="tel"
+                    required
+                    placeholder="(00) 00000-0000"
+                    value={step3.whatsapp}
+                    onChange={(e) => handleWhatsappChange(e.target.value)}
+                    className={`mt-campo mt-foco border-b-2 pb-2 transition-colors ${
+                      step3.whatsapp.replace(/\D/g, "").length >= 10
+                        ? "border-mt-accent"
+                        : "border-mt-regua-fina"
+                    }`}
+                    toolparamdescription="Número de WhatsApp com DDD para contato."
+                  />
+                </div>
+              </div>
+
+              <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
+                Enviaremos a estimativa de preço comercial baseada no estado
+                informado.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-0.5">
+                <button
+                  type="button"
+                  onClick={handlePrevStep}
+                  className="mt-btn mt-btn-contorno mt-foco"
+                >
+                  VOLTAR
+                </button>
+                <button
+                  type="submit"
+                  disabled={!isStep3Valid || loading || !turnstileToken}
+                  className="mt-btn mt-btn-primario mt-foco"
+                >
+                  {loading ? "CALCULANDO…" : "SOLICITAR PROPOSTA"}
+                  {!loading && <Seta />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── 04 · Enviado ─── */}
+          {step === 4 && (
+            <div className="border-t-2 border-mt-regua pt-8">
+              <Rotulo accent className="text-[11px] tracking-[.18em]">
+                PROPOSTA A CAMINHO
+              </Rotulo>
+              <h2 className="mt-titulo m-0 mt-4 text-[30px] lg:text-[44px]">
+                Obrigado, {step3.nome.split(" ")[0]}.
+              </h2>
+              <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-neutral-800">
+                Nossos avaliadores receberam o seu{" "}
+                <strong>
+                  {vehicleType === "motos" ? "moto" : vehicleType === "caminhoes" ? "caminhão" : "carro"}{" "}
+                  {step1.marca} {step1.modelo} {step1.ano}
+                </strong>{" "}
+                e enviam os valores de mercado e as opções de troca no WhatsApp{" "}
+                <strong>{step3.whatsapp}</strong>.
+              </p>
+
+              <div className="mt-9 flex flex-wrap gap-0.5">
+                <button
+                  type="button"
+                  onClick={handleWhatsappAvaliacaoClick}
+                  className="mt-btn mt-btn-primario mt-foco"
+                >
+                  <IconeWhatsApp />
+                  ABRIR CONVERSA NO WHATSAPP
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="mt-btn mt-btn-contorno mt-foco"
+                >
+                  NOVA AVALIAÇÃO
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Turnstile fica montado desde o passo 01, como em produção: ele
+              resolve o desafio em segundo plano e o token já está pronto
+              quando o usuário chega no envio. Montar só no passo 03 deixaria
+              o botão desabilitado esperando. */}
+          {step < 4 && (
+            <div className="mt-9 border-t border-mt-regua-fina pt-5">
+              <Turnstile onSuccess={(token) => setTurnstileToken(token)} />
+            </div>
+          )}
+        </form>
       </div>
-      <form
-        toolname="auto_avaliacao_veiculo"
-        tooldescription="Inicia a avaliação comercial de um veículo para troca ou venda na Motors Store, retornando os preços oficiais da FIPE."
-        onSubmit={handleSubmit}
-        className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative transition-all duration-300"
+
+      {/* ─────────── Prévia do resultado ─────────── */}
+      <aside
+        aria-label="Prévia do resultado"
+        className="shrink-0 bg-mt-inverso-fundo px-[18px] py-10 text-mt-inverso lg:w-[470px] lg:px-10 lg:py-14"
       >
-      <input type="hidden" name="tipo_veiculo" value={vehicleType} toolparamdescription="Categoria de automóvel (carros, motos ou caminhoes)." />
-      <input type="hidden" name="estado_mecanico" value={step2.estadoMecanico} toolparamdescription="Estado mecânico do veículo (excelente, bom, atencao, ruim)." />
-      <input type="hidden" name="estado_conservacao" value={step2.estadoConservacao} toolparamdescription="Estado de conservação da lataria/funilaria (impecavel, riscos, reparos, avariado)." />
-      {/* Visual Gold glow element */}
-      <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-brand-primary/5 blur-[60px] pointer-events-none" />
-      <div className="absolute -left-20 -bottom-20 h-40 w-40 rounded-full bg-brand-primary/5 blur-[60px] pointer-events-none" />
-
-      {/* Header */}
-      <div className="flex flex-col gap-1 mb-6 text-center md:text-left">
-        <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
-          Avaliação Express
-        </span>
-        <h2 className="text-xl font-extrabold text-brand-text tracking-tight">
-          Avalie seu Carro Usado
+        <Rotulo className="text-[11px] tracking-[.18em] text-mt-accent-400">
+          PRÉVIA DO RESULTADO
+        </Rotulo>
+        <h2 className="mt-titulo m-0 mt-3 text-[28px] text-mt-inverso lg:text-[32px]">
+          Referência FIPE
         </h2>
-        <p className="text-xs text-brand-text/50">
-          Receba uma proposta real em menos de 10 minutos via WhatsApp.
-        </p>
-      </div>
 
-      {/* FIPE data source badge */}
-      <div className="flex items-center gap-1.5 mb-5">
-        <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-        <span className="text-[9px] font-bold text-brand-text/30 uppercase tracking-widest">
-          Dados oficiais Tabela FIPE
-        </span>
-      </div>
+        <div className="mt-6 border-t-2 border-mt-inverso-regua pt-5">
+          {fipeValor ? (
+            <>
+              <div className="text-xs tracking-[.06em] text-mt-inverso-suave">
+                {nomeDoVeiculo}
+                {step1.ano ? ` · ${step1.ano}` : ""}
+              </div>
+              <div className="mt-2.5 text-[38px] font-extrabold leading-none tracking-[-.04em] lg:text-[44px]">
+                {fipeValor}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                {fipeCodigo && (
+                  <span className="bg-mt-accent-800 px-2.5 py-1 text-[11px] font-semibold text-mt-accent-300">
+                    CÓDIGO {fipeCodigo}
+                  </span>
+                )}
+                {fipeMesReferencia && (
+                  <span className="text-xs text-mt-inverso-suave">
+                    tabela de {fipeMesReferencia}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="m-0 text-sm leading-relaxed text-mt-neutral-400">
+              Escolha marca, modelo e ano ao lado. O valor oficial da Tabela
+              FIPE para a versão exata aparece aqui.
+            </p>
+          )}
+        </div>
 
-      {/* Step Stepper Indicator (Only visible if not on success screen) */}
-      {step < 4 && (
-        <div className="relative flex items-center justify-between mb-8 max-w-xs mx-auto md:mx-0">
-          {/* Progress bar line background */}
-          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-brand-card-border z-0" />
-          {/* Active progress bar line fill */}
-          <div
-            className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-gradient-to-r from-brand-primary to-brand-primary-hover z-0 transition-all duration-500"
-            style={{ width: `${((step - 1) / 2) * 100}%` }}
-          />
-
-          {/* Step 1 Circle */}
-          <div
-            onClick={() => step > 1 && setStep(1)}
-            className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs z-10 transition-all duration-300 cursor-pointer ${
-              step >= 1
-                ? "bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white shadow-[0_0_10px_var(--brand-shadow)]"
-                : "bg-brand-card-border border border-brand-border text-brand-text/40"
-            }`}
-          >
-            1
-          </div>
-
-          {/* Step 2 Circle */}
-          <div
-            onClick={() => step > 2 && setStep(2)}
-            className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs z-10 transition-all duration-300 ${
-              step >= 2 ? "cursor-pointer" : "cursor-default"
-            } ${
-              step >= 2
-                ? "bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white shadow-[0_0_10px_var(--brand-shadow)]"
-                : "bg-brand-card-border border border-brand-border text-brand-text/40"
-            }`}
-          >
-            2
-          </div>
-
-          {/* Step 3 Circle */}
-          <div
-            className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs z-10 transition-all duration-300 ${
-              step >= 3
-                ? "bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white shadow-[0_0_10px_var(--brand-shadow)]"
-                : "bg-brand-card-border border border-brand-border text-brand-text/40"
-            }`}
-          >
-            3
+        <div className="mt-8 border-t border-mt-inverso-regua-fina pt-5">
+          <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+            COMO CHEGAMOS NESSE NÚMERO
+          </Rotulo>
+          <div className="mt-3.5">
+            {[
+              fipeMesReferencia
+                ? `Tabela FIPE oficial de ${fipeMesReferencia} para a versão exata.`
+                : "Tabela FIPE oficial para a versão exata do seu veículo.",
+              ...COMO_CHEGAMOS,
+            ].map((item) => (
+              <div
+                key={item}
+                className="flex gap-3 border-b border-mt-inverso-regua-fina py-3 text-[13px] leading-snug"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  className="mt-1 h-3.5 w-3.5 shrink-0 text-mt-accent"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                <span className="text-mt-neutral-300">{item}</span>
+              </div>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* STEP 1: Brand/Model/Year — All powered by FIPE API */}
-      {step === 1 && (
-        <div className="flex flex-col gap-4 animate-fadeIn">
-          {/* ─── Vehicle Type Switcher ─── */}
-          <div className="flex bg-brand-bg p-1 rounded-xl border border-brand-card-border gap-1 mb-2">
-            <button
-              type="button"
-              onClick={() => handleVehicleTypeChange("carros")}
-              className={`flex-1 py-2.5 text-center rounded-lg uppercase text-[10px] md:text-xs tracking-wider transition-all duration-200 font-bold ${
-                vehicleType === "carros"
-                  ? "bg-brand-primary text-white shadow-md border border-brand-primary"
-                  : "text-brand-text/50 hover:bg-brand-card/50 hover:text-brand-text"
-              }`}
-            >
-              🚗 CARROS
-            </button>
-            <button
-              type="button"
-              onClick={() => handleVehicleTypeChange("motos")}
-              className={`flex-1 py-2.5 text-center rounded-lg uppercase text-[10px] md:text-xs tracking-wider transition-all duration-200 font-bold ${
-                vehicleType === "motos"
-                  ? "bg-brand-primary text-white shadow-md border border-brand-primary"
-                  : "text-brand-text/50 hover:bg-brand-card/50 hover:text-brand-text"
-              }`}
-            >
-              🏍️ MOTOS
-            </button>
-            <button
-              type="button"
-              onClick={() => handleVehicleTypeChange("caminhoes")}
-              className={`flex-1 py-2.5 text-center rounded-lg uppercase text-[10px] md:text-xs tracking-wider transition-all duration-200 font-bold ${
-                vehicleType === "caminhoes"
-                  ? "bg-brand-primary text-white shadow-md border border-brand-primary"
-                  : "text-brand-text/50 hover:bg-brand-card/50 hover:text-brand-text"
-              }`}
-            >
-              🚛 CAMINHÕES
-            </button>
-          </div>
-
-          {/* ─── Brand Combobox (FIPE) ─── */}
-          <SearchableCombobox
-            id="brand-search-fipe"
-            label="Marca do Veículo"
-            placeholder="Digite ou busque a marca..."
-            items={brandItems}
-            value={selectedBrandId}
-            displayValue={brandDisplay}
-            onSelect={handleBrandSelect}
-            onClear={handleBrandClear}
-            loading={loadingBrands}
-            toolParamDescription="Marca do automóvel de acordo com a base oficial FIPE."
-          />
-
-          {/* ─── Model Combobox (FIPE) ─── */}
-          <SearchableCombobox
-            id="model-search-fipe"
-            label="Modelo do Veículo"
-            placeholder={selectedBrandId ? "Busque o modelo..." : "Selecione a marca primeiro"}
-            items={modelItems}
-            value={selectedModelId}
-            displayValue={modelDisplay}
-            onSelect={handleModelSelect}
-            onClear={handleModelClear}
-            loading={loadingModels}
-            disabled={!selectedBrandId}
-            emptyMessage="Nenhum modelo encontrado"
-            toolParamDescription="Modelo correspondente à marca na base FIPE."
-          />
-
-          {/* ─── Year Combobox (FIPE) ─── */}
-          <SearchableCombobox
-            id="year-search-fipe"
-            label="Ano / Combustível"
-            placeholder={selectedModelId ? "Busque o ano..." : "Selecione o modelo primeiro"}
-            items={yearItems}
-            value={yearDisplay ? fipeYears.find((y) => y.nome === yearDisplay)?.codigo || "" : ""}
-            displayValue={yearDisplay}
-            onSelect={handleYearSelect}
-            onClear={handleYearClear}
-            loading={loadingYears}
-            disabled={!selectedModelId}
-            emptyMessage="Nenhum ano encontrado"
-            toolParamDescription="Ano modelo e combustível do veículo na base FIPE."
-          />
-
-          {/* Next Button */}
+        <div className="mt-8">
           <button
             type="button"
-            disabled={!isStep1Valid}
-            onClick={handleNextStep}
-            className={`w-full h-12 rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-300 active:scale-95 mt-4 flex items-center justify-center gap-2 ${
-              isStep1Valid
-                ? "bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white shadow-lg shadow-brand-primary/15 hover:opacity-95"
-                : "bg-brand-card-border text-brand-text/40 border border-brand-border cursor-not-allowed"
-            }`}
+            onClick={handleWhatsappAvaliacaoClick}
+            className="mt-btn mt-btn-primario mt-btn-bloco mt-foco"
           >
-            Avançar para Estado
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.22 5.03a.75.75 0 1 1 1.06-1.06l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06l4.168-4.17H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
-            </svg>
+            <IconeWhatsApp />
+            RECEBER PROPOSTA REAL
           </button>
-        </div>
-      )}
-
-      {/* STEP 2: Condition & Conservation */}
-      {step === 2 && (
-        <div className="flex flex-col gap-5 animate-fadeIn">
-          {/* Mechanical State options */}
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-brand-text/60">Estado Mecânico</span>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { val: "excelente", label: "Excelente", desc: "Funcionamento perfeito" },
-                { val: "bom", label: "Bom", desc: "Apenas revisões preventivas" },
-                { val: "atencao", label: "Requer Atenção", desc: "Pequenos barulhos/ajustes" },
-                { val: "ruim", label: "Ruim", desc: "Problemas mecânicos graves" },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() => setStep2((prev) => ({ ...prev, estadoMecanico: opt.val }))}
-                  className={`p-3 text-left rounded-xl border flex flex-col gap-0.5 transition-all duration-200 active:scale-95 ${
-                    step2.estadoMecanico === opt.val
-                      ? "bg-brand-card border-2 border-brand-primary text-brand-gold shadow-[0_4px_12px_var(--brand-shadow)]"
-                      : "bg-brand-card border border-brand-border text-brand-text/50 hover:bg-brand-bg hover:border-brand-border"
-                  }`}
-                >
-                  <span className="text-xs font-bold text-brand-text">{opt.label}</span>
-                  <span className="text-[9px] text-brand-text/40 leading-tight">{opt.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Conservation State options */}
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-brand-text/60">Funilaria & Conservação Externa</span>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { val: "impecavel", label: "Impecável", desc: "Sem detalhes ou riscos" },
-                { val: "riscos", label: "Pequenos Riscos", desc: "Pequenos arranhões de uso" },
-                { val: "reparos", label: "Amassados leves", desc: "Pequenos retoques pendentes" },
-                { val: "avariado", label: "Avariado / Batido", desc: "Necessita funilaria expressa" },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() => setStep2((prev) => ({ ...prev, estadoConservacao: opt.val }))}
-                  className={`p-3 text-left rounded-xl border flex flex-col gap-0.5 transition-all duration-200 active:scale-95 ${
-                    step2.estadoConservacao === opt.val
-                      ? "bg-brand-card border-2 border-brand-primary text-brand-gold shadow-[0_4px_12px_var(--brand-shadow)]"
-                      : "bg-brand-card border border-brand-border text-brand-text/50 hover:bg-brand-bg hover:border-brand-border"
-                  }`}
-                >
-                  <span className="text-xs font-bold text-brand-text">{opt.label}</span>
-                  <span className="text-[9px] text-brand-text/40 leading-tight">{opt.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Additional Notes Textarea */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-brand-text/60" htmlFor="obs-textarea">
-                Observações / Opcionais Extras
-              </label>
-              <span className="text-[9px] text-brand-text/40 font-semibold">Opcional</span>
-            </div>
-            <textarea
-              id="obs-textarea"
-              placeholder="Ex: Teto solar, pneus novos, único dono, manual e chave reserva..."
-              value={step2.observacoes}
-              onChange={(e) => setStep2((prev) => ({ ...prev, observacoes: e.target.value }))}
-              rows={2}
-              className="w-full bg-brand-card border border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary rounded-xl p-3 text-xs text-brand-text placeholder-brand-text/40 focus:outline-none transition-colors duration-200 resize-none shadow-sm"
-              toolparamdescription="Observações ou opcionais extras instalados no veículo."
-            />
-          </div>
-
-          {/* Buttons Navigation */}
-          <div className="grid grid-cols-5 gap-2 mt-2">
-            <button
-              type="button"
-              onClick={handlePrevStep}
-              className="col-span-2 h-12 bg-brand-card border border-brand-border text-brand-text/60 hover:bg-brand-bg hover:border-brand-border active:scale-95 rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-200"
-            >
-              Voltar
-            </button>
-            <button
-              type="button"
-              disabled={!isStep2Valid}
-              onClick={handleNextStep}
-              className={`col-span-3 h-12 rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-300 active:scale-95 flex items-center justify-center gap-1.5 ${
-                isStep2Valid
-                  ? "bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white shadow-lg shadow-brand-primary/15 hover:opacity-95"
-                  : "bg-brand-card-border text-brand-text/40 border border-brand-border cursor-not-allowed"
-              }`}
-            >
-              Avançar
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.22 5.03a.75.75 0 1 1 1.06-1.06l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06l4.168-4.17H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3: Contact Name/WhatsApp */}
-      {step === 3 && (
-        <div className="flex flex-col gap-4 animate-fadeIn">
-          {/* Summary Box */}
-          <div className="bg-brand-bg border border-brand-card-border p-3 rounded-2xl flex flex-col gap-1 text-[11px] text-brand-text/50">
-            <span className="font-bold text-brand-gold uppercase text-[9px] tracking-wide">Resumo da Avaliação</span>
-            <div className="flex justify-between">
-              <span>Veículo:</span>
-              <span className="font-bold text-brand-text">
-                {step1.marca} {step1.modelo} ({step1.ano})
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Mecânica / Conservação:</span>
-              <span className="font-bold text-brand-text capitalize">
-                {step2.estadoMecanico} / {step2.estadoConservacao}
-              </span>
-            </div>
-            {fipeValor && (
-              <div className="flex justify-between border-t border-brand-card-border/60 pt-1 mt-1">
-                <span>Valor de Ref. FIPE:</span>
-                <span className="font-bold text-brand-gold">{fipeValor}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Name Field */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-brand-text/60" htmlFor="nome-input">
-              Seu Nome Completo
-            </label>
-            <input
-              id="nome-input"
-              type="text"
-              required
-              placeholder="Digite seu nome..."
-              value={step3.nome}
-              onChange={(e) => setStep3((prev) => ({ ...prev, nome: e.target.value }))}
-              className="w-full h-12 bg-brand-card border border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary rounded-xl px-4 text-sm text-brand-text placeholder-brand-text/40 focus:outline-none transition-colors duration-200 shadow-sm"
-              toolparamdescription="Nome completo do responsável pela solicitação de avaliação."
-            />
-          </div>
-
-          {/* WhatsApp Field */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-brand-text/60" htmlFor="whatsapp-input">
-              WhatsApp
-            </label>
-            <input
-              id="whatsapp-input"
-              type="tel"
-              required
-              placeholder="(00) 00000-0000"
-              value={step3.whatsapp}
-              onChange={(e) => handleWhatsappChange(e.target.value)}
-              className="w-full h-12 bg-brand-card border border-brand-border focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary rounded-xl px-4 text-sm text-brand-text placeholder-brand-text/40 focus:outline-none transition-colors duration-200 shadow-sm"
-              toolparamdescription="Número de WhatsApp com DDD para contato."
-            />
-            <span className="text-[10px] text-brand-text/40 font-medium">
-              Enviaremos a estimativa de preço comercial baseada no seu estado.
-            </span>
-          </div>
-
-          {/* Buttons Navigation */}
-          <div className="grid grid-cols-5 gap-2 mt-2">
-            <button
-              type="button"
-              onClick={handlePrevStep}
-              className="col-span-2 h-12 bg-brand-card border border-brand-border text-brand-text/60 hover:bg-brand-bg hover:border-brand-border active:scale-95 rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-200"
-            >
-              Voltar
-            </button>
-            <button
-              type="submit"
-              disabled={!isStep3Valid || loading || !turnstileToken}
-              className={`col-span-3 h-12 rounded-xl font-bold uppercase tracking-wider text-xs transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 ${
-                isStep3Valid && !loading && turnstileToken
-                  ? "bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white shadow-lg shadow-brand-primary/15 hover:opacity-95"
-                  : "bg-brand-card-border text-brand-text/40 border border-brand-border cursor-not-allowed"
-              }`}
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-1 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Calculando...
-                </>
-              ) : (
-                <>
-                  Solicitar Preço
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
-                  </svg>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 4: SUCCESS PAGE */}
-      {step === 4 && (
-        <div className="flex flex-col items-center text-center py-6 px-2 animate-scaleUp">
-          {/* Beautiful Gold check badge */}
-          <div className="h-16 w-16 bg-brand-primary/10 border border-brand-primary rounded-full flex items-center justify-center mb-4 text-brand-primary shadow-[0_0_25px_var(--brand-shadow)] relative">
-            <span className="absolute animate-ping h-full w-full rounded-full bg-brand-primary/5 opacity-75" />
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-8 h-8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-          </div>
-
-          <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest mb-1">
-            Proposta Pronta
-          </span>
-          <h3 className="text-xl font-extrabold text-brand-text mb-2">
-            Obrigado, {step3.nome.split(" ")[0]}!
-          </h3>
-          <p className="text-xs text-brand-text/50 max-w-sm leading-relaxed mb-6">
-            Nossos avaliadores geraram uma estimativa para o(a) seu(sua){" "}
-            <strong className="text-brand-text font-bold">
-              {vehicleType === "motos" ? "moto" : (vehicleType === "caminhoes" ? "caminhão" : "carro")} {step1.marca} {step1.modelo} {step1.ano}
-            </strong>
-            . Acabamos de te enviar os valores de mercado e opções de troca no WhatsApp{" "}
-            <strong className="text-brand-gold font-bold">{step3.whatsapp}</strong>.
+          <p className="m-0 mt-3.5 text-[11px] leading-relaxed text-mt-neutral-500">
+            O valor FIPE é referência de mercado, não é a nossa oferta. A
+            proposta final depende de vistoria presencial em Curitiba.
           </p>
-
-          <div className="flex flex-col gap-2 w-full max-w-xs">
-            <button
-              onClick={handleWhatsappAvaliacaoClick}
-              className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all duration-300 shadow-[0_0_15px_rgba(34,197,94,0.3)] cursor-pointer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
-                <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
-              </svg>
-              Abrir Conversa WhatsApp
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="text-xs text-brand-text/40 hover:text-brand-text/70 transition-colors duration-200 mt-2 font-bold py-2 underline"
-            >
-              Nova Avaliação
-            </button>
-          </div>
         </div>
-      )}
-      {/* Cloudflare Turnstile Verification */}
-      <Turnstile onSuccess={(token) => setTurnstileToken(token)} />
+      </aside>
 
       {/* Positive Friction Lead Capture Modal */}
       <LeadCaptureModal
@@ -1172,7 +1327,6 @@ export default function AutoAvaliacao() {
           ano: step1.ano
         }}
       />
-      </form>
     </section>
   );
 }

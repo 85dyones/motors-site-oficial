@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import LoginForm from "../../components/LoginForm";
+import { Rotulo } from "../../components/modernist/primitivos";
 
 export const metadata = {
-  title: "Acesso Restrito — Motors Showcase",
+  title: "Acesso Restrito — Motors Store",
   description: "Área administrativa e painel de controle.",
+  // Página de acesso interno não tem por que aparecer em busca.
+  robots: { index: false, follow: false },
 };
 
 export default async function LoginPage() {
@@ -17,22 +20,27 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen w-full bg-brand-bg text-brand-text flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background decoration elements */}
-      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-brand-primary/5 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-brand-primary/5 blur-[120px] pointer-events-none" />
-
-      <div className="z-10 w-full flex flex-col items-center gap-6">
-        {/* Dealership Logo Placeholder/Text */}
-        <div className="flex flex-col items-center gap-1 select-none">
-          <span className="text-2xl font-black tracking-widest text-brand-text uppercase">
-            MOTORS
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
+    // Sem os halos desfocados que existiam aqui — o sistema Modernist não
+    // usa sombra nem brilho para organizar; usa régua.
+    <div className="flex min-h-[70vh] w-full flex-col items-center justify-center bg-mt-bg px-[18px] py-16 font-modernist text-mt-ink">
+      <div className="flex w-full max-w-[380px] flex-col gap-8">
+        <div className="flex items-center gap-2.5 select-none">
+          <span className="h-6 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
+          <span className="text-[17px] font-extrabold tracking-[.02em]">
+            MOTORS<span className="font-normal text-mt-neutral-600"> STORE</span>
           </span>
-          <div className="h-[2px] w-8 bg-brand-primary rounded-full" />
+        </div>
+
+        <div className="border-t-2 border-mt-regua pt-6">
+          <Rotulo accent className="text-[11px] tracking-[.18em]">
+            ACESSO RESTRITO
+          </Rotulo>
+          <h1 className="mt-titulo m-0 mt-3 text-[30px]">Painel</h1>
         </div>
 
         <LoginForm />
       </div>
-    </main>
+    </div>
   );
 }

@@ -1,11 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getEstoque, Veiculo } from "../lib/supabase";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { getEstoque, getVeiculoPdpUrl, Veiculo } from "../lib/supabase";
+import { precoVigente } from "../lib/regrasEstoque";
 import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
+import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
+
+/**
+ * Tela 04 — Garagem Profiler, na linguagem Modernist.
+ *
+ * O quiz ocupa a tela inteira em fundo escuro, com o perfil se formando na
+ * coluna clara ao lado — comparativo tipo assistente de compra, como no
+ * design doc. A régua de progresso substitui a trilha de bolinhas.
+ *
+ * O que NÃO mudou: perguntas, pontuação, faixas de orçamento derivadas do
+ * estoque, curador por texto livre, chamadas de telemetria e o payload
+ * enviado ao n8n. Isto aqui é troca de camada de apresentação; os textos
+ * longos que vão no payload continuam saindo das funções `format*`.
+ */
 
 interface AnswerState {
   budgetMin: number;
@@ -16,20 +32,141 @@ interface AnswerState {
   timeline: "immediate" | "researching" | "future" | "";
 }
 
-const getVeiculoPdpUrl = (car: any) => {
-  const slug = `${car.marca}-${car.modelo}-${car.versao}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  return `/veiculo/${slug}-${car.id}`;
-};
+type EstadoQuiz = "intro" | "q1" | "q2" | "q3" | "q4" | "q5" | "loading" | "results";
+
+/**
+ * As cinco perguntas, na ordem. Alimenta a régua de progresso e a lista do
+ * painel lateral — antes as duas coisas tinham cada uma a sua lista.
+ */
+const PERGUNTAS = [
+  { id: "q1", numero: "01", rotulo: "ORÇAMENTO" },
+  { id: "q2", numero: "02", rotulo: "OBJETIVO" },
+  { id: "q3", numero: "03", rotulo: "EXPERIÊNCIA" },
+  { id: "q4", numero: "04", rotulo: "ESTILO" },
+  { id: "q5", numero: "05", rotulo: "PRAZO" },
+] as const;
+
+/** Segundos por pergunta usados no "faltam N · ~Ns" — o ritmo do design doc. */
+const SEGUNDOS_POR_PERGUNTA = 6;
+
+/**
+ * Opções de cada pergunta.
+ *
+ * `resumo` é o rótulo curto do painel lateral. O texto que vai no payload
+ * continua vindo de `formatObjective`/`formatExperience`/… — mexer nestes
+ * títulos não muda o que o n8n recebe.
+ */
+const OPCOES_OBJETIVO = [
+  { id: "family", letra: "A", titulo: "Conforto, Segurança & Família", desc: "Viagens seguras e bastante espaço.", resumo: "Família" },
+  { id: "status", letra: "B", titulo: "Status, Exclusividade & Design", desc: "Design imponente e presença única.", resumo: "Status" },
+  { id: "efficiency", letra: "C", titulo: "Tecnologia, Inovação & Eficiência", desc: "Uso urbano inteligente.", resumo: "Eficiência" },
+  { id: "offroad", letra: "D", titulo: "Força, Aventura & Capacidade", desc: "Capacidade offroad ou para trabalho pesado.", resumo: "Aventura" },
+] as const;
+
+const OPCOES_EXPERIENCIA = [
+  { id: "performance", letra: "A", titulo: "Performance & Potência", desc: "Aceleração rápida e dinâmica afiada.", resumo: "Performance" },
+  { id: "comfort", letra: "B", titulo: "Conforto Máximo & Silêncio", desc: "Isolamento acústico e rodar suave.", resumo: "Conforto" },
+  { id: "tech", letra: "C", titulo: "Tecnologia & Conectividade", desc: "Telas avançadas e sistemas de assistência.", resumo: "Tecnologia" },
+  { id: "economy", letra: "D", titulo: "Custo-Benefício & Manutenção", desc: "Economia no dia a dia e liquidez.", resumo: "Custo-benefício" },
+] as const;
+
+const OPCOES_ESTILO = [
+  { id: "suv", letra: "A", titulo: "SUVs Imponentes", desc: "", resumo: "SUV" },
+  { id: "sedan", letra: "B", titulo: "Sedans Elegantes", desc: "", resumo: "Sedã" },
+  { id: "sport", letra: "C", titulo: "Esportivos / Coupés", desc: "", resumo: "Esportivo" },
+  { id: "pickup", letra: "D", titulo: "Picapes Premium", desc: "", resumo: "Picape" },
+  { id: "open", letra: "E", titulo: "Aberto a Sugestões", desc: "", resumo: "Sem preferência" },
+] as const;
+
+const OPCOES_PRAZO = [
+  { id: "immediate", letra: "A", titulo: "Imediato", desc: "Pronto para fechar negócio nas próximas semanas.", resumo: "Imediato" },
+  { id: "researching", letra: "B", titulo: "Pesquisando", desc: "Mapeando opções para compra no próximo mês.", resumo: "Pesquisando" },
+  { id: "future", letra: "C", titulo: "Apenas Sondando", desc: "Acompanhando o mercado sem pressa.", resumo: "Sondando" },
+] as const;
+
+/* ────────────────────────────────────────────────────────────────────────
+   Peças da tela
+   ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Opção de resposta: letra em vermelho, título e descrição.
+ * Sem raio, sem sombra — a borda de 2px é o que marca a seleção.
+ */
+function OpcaoQuiz({
+  letra,
+  titulo,
+  desc,
+  selecionada,
+  onClick,
+}: {
+  letra: string;
+  titulo: string;
+  desc?: string;
+  selecionada: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selecionada}
+      className={`mt-foco flex w-full items-start gap-4 border-2 p-4 text-left transition-colors lg:gap-[18px] lg:px-6 lg:py-[22px] ${
+        selecionada
+          ? "border-mt-accent bg-[color-mix(in_srgb,var(--mt-accent)_14%,transparent)]"
+          : "border-mt-inverso-regua-fina hover:border-mt-inverso-regua"
+      }`}
+    >
+      <span className="mt-0.5 text-[11px] font-extrabold tracking-[.1em] text-mt-accent lg:mt-1 lg:text-xs">
+        {letra}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[17px] font-extrabold leading-tight tracking-[-.02em] lg:text-[21px]">
+          {titulo}
+        </span>
+        {desc && (
+          <span className="mt-1.5 block text-xs leading-snug text-mt-inverso-suave lg:text-[13px]">
+            {desc}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+/** Régua de progresso — "02 / 05 · USO PRINCIPAL" e a barra vermelha. */
+function ReguaProgresso({ indice }: { indice: number }) {
+  const pergunta = PERGUNTAS[indice];
+  const percentual = ((indice + 1) / PERGUNTAS.length) * 100;
+
+  return (
+    <div className="mt-9 lg:mt-13">
+      <div className="flex items-baseline gap-3 lg:gap-3.5">
+        <span className="text-xs font-extrabold tracking-[.12em] text-mt-accent lg:text-[13px]">
+          {pergunta.numero} / 0{PERGUNTAS.length}
+        </span>
+        <span className="text-[11px] tracking-[.08em] text-mt-inverso-suave lg:text-xs">
+          {pergunta.rotulo}
+        </span>
+      </div>
+      <div className="mt-3 h-0.5 bg-mt-inverso-regua-fina lg:mt-3.5">
+        <div
+          className="h-0.5 bg-mt-accent transition-[width] duration-300"
+          style={{ width: `${percentual}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function CarMatch() {
   const { companySettings } = useTheme();
-  const [gameState, setGameState] = useState<"intro" | "q1" | "q2" | "q3" | "q4" | "q5" | "loading" | "results">("intro");
+  const [gameState, setGameState] = useState<EstadoQuiz>("intro");
   const [answers, setAnswers] = useState<AnswerState>({ budgetMin: 0, budgetMax: 0, objective: "", experience: "", style: "", timeline: "" });
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
 
   // New States
-  const [matchedVehicles, setMatchedVehicles] = useState<any[]>([]);
+  const [matchedVehicles, setMatchedVehicles] = useState<(Veiculo & { matchScore?: number })[]>([]);
   const [loadingPhase, setLoadingPhase] = useState<number>(0);
   const [resultsCount, setResultsCount] = useState<number>(0);
 
@@ -74,7 +211,11 @@ export default function CarMatch() {
   useEffect(() => {
     if (estoque.length === 0) return;
 
+    // Só veículo à venda entra na conta. O rótulo da faixa diz "N veículos
+    // disponíveis"; contando vendidos, o número não batia com o painel ao
+    // vivo nem com o que a curadoria devolve no fim.
     const prices = estoque
+      .filter((v) => !v.vendido)
       .map((v) => (v.preco_promocional > 0 && v.preco_promocional < v.preco_original) ? v.preco_promocional : v.preco_original)
       .filter((p) => p > 0)
       .sort((a, b) => a - b);
@@ -246,7 +387,7 @@ export default function CarMatch() {
         experiencia_valorizada: formatExperience(answers.experience),
         estilo_preferido: formatStyle(answers.style),
         urgencia: formatTimeline(answers.timeline),
-        resumo_ia: isAiCuratorActive 
+        resumo_ia: isAiCuratorActive
           ? `IA Request: ${aiQuery}. Cliente focado em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)} com urgência ${formatTimeline(answers.timeline)} e budget até R$ ${formatShort(answers.budgetMax)}.`
           : `Busca: ${formatStyle(answers.style)}, foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}, budget R$ ${answers.budgetMax.toLocaleString('pt-BR')}. Prazo: ${formatTimeline(answers.timeline)}.`
       },
@@ -310,19 +451,19 @@ export default function CarMatch() {
 
   const parseFreeTextQuery = (text: string) => {
     const lower = text.toLowerCase();
-    
+
     let parsedBudget = 0;
     const milMatch = lower.match(/(\d+)\s*(?:mil|k)/);
     const rawNumberMatch = lower.match(/(?:r\$)?\s*(\d{2,3})(?:\.\d{3})*(?:,00)?/);
-    
+
     if (milMatch) {
       parsedBudget = parseInt(milMatch[1]) * 1000;
     } else if (rawNumberMatch) {
       const num = parseInt(rawNumberMatch[1].replace(/\./g, ""));
       if (num > 1000) parsedBudget = num;
-      else if (num > 0) parsedBudget = num * 1000; 
+      else if (num > 0) parsedBudget = num * 1000;
     }
-    
+
     if (parsedBudget === 0) parsedBudget = 1000000;
 
     let obj: AnswerState["objective"] = "status";
@@ -350,9 +491,9 @@ export default function CarMatch() {
 
   const confirmAiCuratorQuery = () => {
     if (!aiQuery.trim()) return;
-    
+
     const parsed = parseFreeTextQuery(aiQuery);
-    
+
     setAnswers((prev) => ({
       ...prev,
       budgetMin: 0,
@@ -362,9 +503,9 @@ export default function CarMatch() {
       style: parsed.style,
       timeline: "researching"
     }));
-    
+
     setIsAiCuratorActive(true);
-    
+
     setTimeout(() => {
       setGameState("loading");
     }, 200);
@@ -399,7 +540,7 @@ export default function CarMatch() {
     if (gameState === "loading") {
       const tags = [answers.objective, answers.style, answers.experience, answers.timeline].filter(Boolean);
       trackCarMatch(tags, 0);
-      
+
       let fetchCompleted = false;
       let animCompleted = false;
 
@@ -448,7 +589,7 @@ export default function CarMatch() {
       setLoadingPhase(0);
       const phases = 4; // 0, 1, 2, 3
       let currentPhase = 0;
-      
+
       const interval = setInterval(() => {
         currentPhase++;
         if (currentPhase < phases) {
@@ -479,370 +620,494 @@ export default function CarMatch() {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
   };
 
-  const renderProgressBar = () => {
-    if (["intro", "loading", "results"].includes(gameState)) return null;
-
-    const steps = [
-      { id: "q1", label: "💰 Orçamento" },
-      { id: "q2", label: "🎯 Motivação" },
-      { id: "q3", label: "🏎️ Experiência" },
-      { id: "q4", label: "🎨 Estilo" },
-      { id: "q5", label: "⏰ Momento" }
-    ];
-
-    const currentIndex = steps.findIndex(s => s.id === gameState);
-
-    return (
-      <div className="flex flex-col mb-6">
-        <div className="flex items-center justify-between relative px-2">
-          <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-brand-card-border -z-10" />
-          {steps.map((step, index) => {
-            const isCompleted = index < currentIndex;
-            const isCurrent = index === currentIndex;
-            return (
-              <div key={step.id} className="flex flex-col items-center gap-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs border-2 transition-colors ${
-                  isCompleted ? "bg-brand-primary border-brand-primary text-white" :
-                  isCurrent ? "bg-brand-primary border-brand-primary text-white scale-110" :
-                  "bg-brand-card border-brand-card-border text-brand-text/30"
-                }`}>
-                  {isCompleted ? "✓" : index + 1}
-                </div>
-                <span className={`hidden md:block text-[10px] uppercase font-bold tracking-wider mt-1 ${isCurrent ? "text-brand-primary" : "text-brand-text/40"}`}>
-                  {step.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
   const getLoadingText = () => {
     switch (loadingPhase) {
-      case 0: return `Analisando ${estoque.length} veículos do estoque...`;
-      case 1: return `Filtrando por orçamento até R$ ${formatShort(answers.budgetMax)}...`;
-      case 2: return "Calculando compatibilidade de perfil...";
-      case 3: return "Curadoria finalizada!";
-      default: return "Processando...";
+      case 0: return `Analisando ${estoque.length} veículos do estoque`;
+      case 1: return `Filtrando por orçamento até R$ ${formatShort(answers.budgetMax)}`;
+      case 2: return "Calculando compatibilidade de perfil";
+      case 3: return "Curadoria finalizada";
+      default: return "Processando";
     }
   };
 
+  /* ──────────────────────────────────────────────────────────────────────
+     Painel "seu perfil, ao vivo"
+
+     Tudo aqui sai do estoque que já está carregado no cliente. Nada de
+     percentual de compatibilidade inventado: o que se mostra é o recorte
+     real do estoque diante do orçamento respondido.
+     ────────────────────────────────────────────────────────────────────── */
+
+  const estoqueCompativel = useMemo(() => {
+    const disponiveis = estoque.filter((v) => !v.vendido);
+    if (!answers.budgetMax) return disponiveis;
+    return disponiveis.filter((v) => precoVigente(v) <= answers.budgetMax);
+  }, [estoque, answers.budgetMax]);
+
+  /** Composição por carroceria do que cabe no orçamento — dado real, não score. */
+  const composicaoEstoque = useMemo(() => {
+    const total = estoqueCompativel.length;
+    if (total === 0) return [];
+
+    const contagem = new Map<string, number>();
+    for (const v of estoqueCompativel) {
+      const chave = (v.tipo || "").trim() || "Outros";
+      contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
+    }
+
+    return [...contagem.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([tipo, quantidade]) => ({
+        tipo,
+        quantidade,
+        percentual: Math.round((quantidade / total) * 100),
+      }));
+  }, [estoqueCompativel]);
+
+  const respostasDoPainel = useMemo(() => {
+    const valor = (v: string | undefined) => v ?? "";
+    return [
+      {
+        numero: "01",
+        rotulo: "ORÇAMENTO",
+        valor: answers.budgetMax ? `Até R$ ${formatShort(answers.budgetMax)}` : "",
+      },
+      { numero: "02", rotulo: "OBJETIVO", valor: valor(OPCOES_OBJETIVO.find((o) => o.id === answers.objective)?.resumo) },
+      { numero: "03", rotulo: "EXPERIÊNCIA", valor: valor(OPCOES_EXPERIENCIA.find((o) => o.id === answers.experience)?.resumo) },
+      { numero: "04", rotulo: "ESTILO", valor: valor(OPCOES_ESTILO.find((o) => o.id === answers.style)?.resumo) },
+      { numero: "05", rotulo: "PRAZO", valor: valor(OPCOES_PRAZO.find((o) => o.id === answers.timeline)?.resumo) },
+    ];
+  }, [answers]);
+
+  const indicePergunta = PERGUNTAS.findIndex((p) => p.id === gameState);
+  const emPergunta = indicePergunta >= 0;
+  const restantes = emPergunta ? PERGUNTAS.length - (indicePergunta + 1) : 0;
+  const mostrarPainel = gameState === "intro" || emPergunta;
+
+  /** Volta uma pergunta; da primeira, volta para a abertura. */
+  const voltarPergunta = () => {
+    if (indicePergunta <= 0) {
+      setGameState("intro");
+      return;
+    }
+    setGameState(PERGUNTAS[indicePergunta - 1].id as EstadoQuiz);
+  };
+
+  const tituloBarra = (companySettings?.carMatchTitle || "Garagem Profiler").toUpperCase();
+
   return (
-    <section id="match-garagem" aria-label="Match de Garagem" className="flex flex-col gap-4 w-full">
-      <div className="text-center flex flex-col gap-1.5 px-4 sm:px-6">
-        <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest">
-          Consultoria Especializada
-        </span>
-        <h2 className="text-2xl font-black text-brand-text tracking-tight">
-          {companySettings?.carMatchTitle || "Garagem Profiler"}
-        </h2>
-        <p className="text-xs text-brand-text/50 max-w-xs mx-auto">
-          Traçaremos seu perfil ideal para que nossos consultores apresentem apenas as opções mais exclusivas.
-        </p>
-      </div>
-      <div className="w-full bg-brand-card border border-brand-card-border rounded-3xl p-5 md:p-8 shadow-[0_8px_30px_var(--brand-shadow)] relative overflow-hidden transition-all duration-300">
-        <div className="absolute -left-16 -top-16 h-36 w-36 rounded-full bg-brand-primary/5 blur-[50px] pointer-events-none" />
-        <div className="absolute -right-16 -bottom-16 h-36 w-36 rounded-full bg-brand-primary/5 blur-[50px] pointer-events-none" />
+    <section
+      id="match-garagem"
+      aria-label="Garagem Profiler"
+      className="flex flex-col bg-mt-inverso-fundo font-modernist text-mt-inverso lg:min-h-[840px] lg:flex-row lg:items-stretch"
+    >
+      {/* ─────────── Coluna do fluxo ─────────── */}
+      <div className="flex min-w-0 flex-1 flex-col px-[18px] py-8 lg:px-14 lg:py-11">
+        <div className="flex items-center gap-3.5">
+          <span className="h-6 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
+          <span className="text-[13px] font-extrabold tracking-[.02em] lg:text-[15px]">
+            {tituloBarra}
+          </span>
+          <Link
+            href="/"
+            className="mt-foco ml-auto text-[11px] tracking-[.1em] text-mt-inverso-suave no-underline transition-colors hover:text-mt-inverso lg:text-xs"
+          >
+            SAIR
+          </Link>
+        </div>
 
-        {renderProgressBar()}
-
-        {/* INTRO */}
+        {/* ─── Abertura ─── */}
         {gameState === "intro" && (
-          <div className="flex flex-col items-center text-center py-4 px-2 animate-fadeIn">
-            <div className="h-12 w-12 bg-brand-primary/10 border border-brand-primary/30 rounded-full flex items-center justify-center mb-4 text-brand-gold shadow-[0_0_20px_rgba(197,168,128,0.15)] relative">
-              <span className="absolute animate-ping h-8 w-8 rounded-full bg-brand-primary/5 opacity-75" />
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-              </svg>
-            </div>
-            
-            <div className="flex gap-2 items-center justify-center text-[10px] text-brand-text/60 font-bold uppercase tracking-wider mb-6 flex-wrap">
-              <span className="bg-brand-bg px-2 py-1 rounded-md border border-brand-card-border">⚡ 5 perguntas</span>
-              <span className="bg-brand-bg px-2 py-1 rounded-md border border-brand-card-border">⏱️ 30 segundos</span>
-              <span className="bg-brand-bg px-2 py-1 rounded-md border border-brand-card-border">🚗 Resultados reais</span>
+          <div className="mt-10 flex flex-1 flex-col lg:mt-12">
+            <div className="max-w-[640px]">
+              <Rotulo accent className="text-[11px] tracking-[.18em]">
+                CONSULTORIA
+              </Rotulo>
+              <h1 className="mt-display m-0 mt-5 text-[38px] text-mt-inverso lg:text-[66px]">
+                Cinco perguntas até o carro certo.
+              </h1>
+              <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-inverso-suave lg:text-base">
+                Cruzamos suas respostas com o estoque e um consultor envia três
+                sugestões reais no WhatsApp — com fotos, laudo e parcela.
+              </p>
             </div>
 
-            <p className="text-xs text-brand-text/50 leading-relaxed mb-6 max-w-sm">
-              Nossa inteligência analisa suas respostas para gerar um perfil de curadoria detalhado. Nossos especialistas usarão esse perfil para enviar as melhores sugestões diretamente no seu WhatsApp.
-            </p>
-            <button
-              type="button"
-              onClick={() => setGameState("q1")}
-              className="w-full max-w-xs h-12 bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white font-extrabold text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-[#c5a880]/15 hover:opacity-95 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2"
-            >
-              Iniciar Curadoria
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.22 5.03a.75.75 0 1 1 1.06-1.06l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 1 1-1.06-1.06l4.168-4.17H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
-              </svg>
-            </button>
+            <div className="mt-9 flex border-t-2 border-mt-inverso-regua pt-4 lg:mt-11">
+              {[
+                { valor: "05", rotulo: "PERGUNTAS" },
+                { valor: "30s", rotulo: "PARA RESPONDER" },
+                { valor: estoque.length > 0 ? String(estoque.length) : "—", rotulo: "VEÍCULOS ANALISADOS" },
+              ].map((item) => (
+                <div key={item.rotulo} className="flex-1">
+                  <div className="text-[28px] font-extrabold leading-none lg:text-[34px]">
+                    {item.valor}
+                  </div>
+                  <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-inverso-suave">
+                    {item.rotulo}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-9 lg:mt-auto lg:pt-11">
+              <button
+                type="button"
+                onClick={() => setGameState("q1")}
+                className="mt-btn mt-btn-primario mt-foco"
+              >
+                INICIAR CURADORIA
+                <Seta size={15} />
+              </button>
+            </div>
           </div>
         )}
 
-        {/* QUESTION 1: Budget */}
-        {gameState === "q1" && (
-          <div className="flex flex-col gap-5 animate-fadeIn">
-            <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
-              Qual a faixa de investimento desejada para sua nova máquina?
-            </h3>
+        {/* ─── Perguntas ─── */}
+        {emPergunta && (
+          <>
+            <ReguaProgresso indice={indicePergunta} />
 
-            <div className="flex bg-brand-bg p-1 rounded-xl border border-brand-card-border gap-1">
-              <button type="button" onClick={() => setBudgetTab("presets")} className={`flex-1 py-2.5 text-center rounded-lg uppercase text-xs tracking-wider transition-all duration-200 font-bold ${budgetTab === "presets" ? "bg-brand-primary text-white shadow-md border border-brand-primary" : "text-brand-text/50 hover:bg-brand-card/50"}`}>
-                Rápido
-              </button>
-              <button type="button" onClick={() => setBudgetTab("custom")} className={`flex-1 py-2.5 text-center rounded-lg uppercase text-xs tracking-wider transition-all duration-200 font-bold ${budgetTab === "custom" ? "bg-brand-primary text-white shadow-md border border-brand-primary" : "text-brand-text/50 hover:bg-brand-card/50"}`}>
-                Exato
-              </button>
-              <button type="button" onClick={() => setBudgetTab("ai")} className={`flex-1 py-2.5 text-center rounded-lg uppercase text-xs tracking-wider transition-all duration-200 font-bold ${budgetTab === "ai" ? "bg-brand-primary text-white shadow-md border border-brand-primary" : "text-brand-text/50 hover:bg-brand-card/50"}`}>
-                IA
-              </button>
-            </div>
+            {/* 01 — Orçamento */}
+            {gameState === "q1" && (
+              <div className="flex flex-1 flex-col">
+                <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
+                  Qual a faixa de investimento para a próxima garagem?
+                </h2>
 
-            {budgetTab === "presets" && (
-              <div className="grid grid-cols-1 gap-3 animate-fadeIn">
-                {budgetRanges.length > 0 ? (
-                  budgetRanges.map((range) => (
-                    <button key={range.id} type="button" onClick={() => selectBudget(range)} className="w-full min-h-[56px] py-3.5 px-4 text-left rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200 flex items-center justify-between shadow-sm">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-extrabold text-brand-text">{range.title}</span>
-                        <span className="text-[10px] text-brand-text/40">{range.desc}</span>
-                      </div>
+                {/* Modo de responder: faixa pronta, valor exato ou texto livre */}
+                <div className="mt-8 flex w-max border-2 border-mt-inverso-regua">
+                  {([
+                    { id: "presets", rotulo: "FAIXA" },
+                    { id: "custom", rotulo: "VALOR EXATO" },
+                    { id: "ai", rotulo: "DESCREVER" },
+                  ] as const).map((aba, i) => (
+                    <button
+                      key={aba.id}
+                      type="button"
+                      onClick={() => setBudgetTab(aba.id)}
+                      className={`mt-foco px-5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors lg:px-7 lg:text-[13px] ${
+                        i > 0 ? "border-l-2 border-mt-inverso-regua" : ""
+                      } ${
+                        budgetTab === aba.id
+                          ? "bg-mt-accent text-mt-inverso"
+                          : "text-mt-inverso-suave hover:text-mt-inverso"
+                      }`}
+                    >
+                      {aba.rotulo}
                     </button>
-                  ))
-                ) : (
-                  Array.from({ length: 3 }).map((_, i) => <div key={i} className="w-full h-[56px] bg-brand-bg border border-brand-card-border rounded-xl animate-pulse" />)
+                  ))}
+                </div>
+
+                {budgetTab === "presets" && (
+                  <div className="mt-6 grid gap-0.5 md:grid-cols-2">
+                    {budgetRanges.length > 0
+                      ? budgetRanges.map((range, i) => (
+                          <OpcaoQuiz
+                            key={range.id}
+                            letra={String.fromCharCode(65 + i)}
+                            titulo={range.title}
+                            desc={range.desc}
+                            selecionada={answers.budgetMax === range.max && answers.budgetMin === range.min}
+                            onClick={() => selectBudget(range)}
+                          />
+                        ))
+                      : Array.from({ length: 4 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="h-[86px] border-2 border-mt-inverso-regua-fina"
+                            aria-hidden="true"
+                          />
+                        ))}
+                  </div>
+                )}
+
+                {budgetTab === "custom" && (
+                  <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
+                    <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                      LIMITE DE INVESTIMENTO
+                    </Rotulo>
+                    <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
+                      {formatPrice(customMaxBudget)}
+                    </div>
+                    <input
+                      type="range"
+                      min={100000}
+                      max={1000000}
+                      step={20000}
+                      value={customMaxBudget}
+                      onChange={(e) => setCustomMaxBudget(Number(e.target.value))}
+                      aria-label="Limite de investimento"
+                      className="mt-6 h-0.5 w-full cursor-pointer appearance-none bg-mt-inverso-regua accent-[var(--mt-accent)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={confirmCustomBudget}
+                      className="mt-btn mt-btn-primario mt-foco mt-7"
+                    >
+                      CONFIRMAR
+                      <Seta size={15} />
+                    </button>
+                  </div>
+                )}
+
+                {budgetTab === "ai" && (
+                  <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
+                    <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                      DESCREVA O QUE VOCÊ PROCURA
+                    </Rotulo>
+                    <textarea
+                      value={aiQuery}
+                      onChange={(e) => setAiQuery(e.target.value)}
+                      placeholder="Ex.: um SUV para a família, até R$ 350 mil, para viagens de estrada"
+                      rows={3}
+                      aria-label="Descreva o que você procura"
+                      className="mt-campo mt-foco mt-4 resize-none border-b-2 border-mt-inverso-regua bg-transparent pb-3 text-mt-inverso placeholder:text-mt-inverso-suave"
+                    />
+                    <button
+                      type="button"
+                      onClick={confirmAiCuratorQuery}
+                      disabled={!aiQuery.trim()}
+                      className="mt-btn mt-btn-primario mt-foco mt-6"
+                    >
+                      MONTAR PERFIL
+                      <Seta size={15} />
+                    </button>
+                  </div>
                 )}
               </div>
             )}
 
-            {budgetTab === "custom" && (
-              <div className="flex flex-col gap-4 p-4 bg-brand-bg/30 border border-brand-card-border rounded-2xl animate-fadeIn">
-                <div className="text-center py-2 flex flex-col gap-1">
-                  <span className="text-brand-text/40 font-thin uppercase text-xs tracking-wider">Limite de Investimento</span>
-                  <span className="text-2xl md:text-3xl font-black text-brand-gold">{formatPrice(customMaxBudget)}</span>
-                </div>
-                <div className="px-2 flex flex-col gap-2">
-                  <input type="range" min={100000} max={1000000} step={20000} value={customMaxBudget} onChange={(e) => setCustomMaxBudget(Number(e.target.value))} className="w-full h-2 bg-brand-bg rounded-lg appearance-none cursor-pointer accent-brand-primary border border-brand-card-border" />
-                </div>
-                <button type="button" onClick={confirmCustomBudget} className="w-full h-11 bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-all mt-2">
-                  Confirmar
-                </button>
-              </div>
+            {/* 02 — Objetivo */}
+            {gameState === "q2" && (
+              <BlocoPergunta
+                titulo="Qual o principal objetivo na sua próxima compra?"
+                opcoes={OPCOES_OBJETIVO}
+                selecionado={answers.objective}
+                onSelecionar={(id) => selectObjective(id as AnswerState["objective"])}
+              />
             )}
 
-            {budgetTab === "ai" && (
-              <div className="flex flex-col gap-4 p-4 bg-brand-bg/30 border border-brand-card-border rounded-2xl animate-fadeIn">
-                <textarea value={aiQuery} onChange={(e) => setAiQuery(e.target.value)} placeholder="EX: QUERO UM SUV PARA A FAMÍLIA ATÉ R$ 600 MIL..." rows={3} className="w-full p-3 bg-brand-card text-brand-text border border-brand-card-border rounded-xl focus:border-brand-primary text-xs outline-none resize-none font-thin uppercase" />
-                <button type="button" onClick={confirmAiCuratorQuery} disabled={!aiQuery.trim()} className={`w-full h-11 bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white font-thin uppercase text-xs rounded-xl shadow-md ${!aiQuery.trim() ? "opacity-50" : "cursor-pointer"}`}>
-                  CONSULTAR IA
-                </button>
-              </div>
+            {/* 03 — Experiência */}
+            {gameState === "q3" && (
+              <BlocoPergunta
+                titulo="O que você mais valoriza ao dirigir?"
+                opcoes={OPCOES_EXPERIENCIA}
+                selecionado={answers.experience}
+                onSelecionar={(id) => selectExperience(id as AnswerState["experience"])}
+              />
             )}
 
-            <button type="button" onClick={handleReset} className="text-xs text-brand-text/40 hover:text-gray-700 transition-colors self-center font-bold mt-2 py-1 underline">
-              Cancelar
-            </button>
-          </div>
-        )}
+            {/* 04 — Estilo */}
+            {gameState === "q4" && (
+              <BlocoPergunta
+                titulo="Qual carroceria mais atrai você hoje?"
+                opcoes={OPCOES_ESTILO}
+                selecionado={answers.style}
+                onSelecionar={(id) => selectStyle(id as AnswerState["style"])}
+              />
+            )}
 
-        {/* QUESTION 2: Objective */}
-        {gameState === "q2" && (
-          <div className="flex flex-col gap-5 animate-fadeIn">
-            <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
-              Qual o principal objetivo na sua próxima compra?
-            </h3>
-            <div className="grid grid-cols-1 gap-3">
-              {[
-                { id: "family", emoji: "👨‍👩‍👧‍👦", title: "Conforto, Segurança & Família", desc: "Viagens seguras e bastante espaço." },
-                { id: "status", emoji: "💎", title: "Status, Exclusividade & Design", desc: "Design imponente e presença única." },
-                { id: "efficiency", emoji: "⚡", title: "Tecnologia, Inovação & Eficiência", desc: "Uso urbano inteligente." },
-                { id: "offroad", emoji: "🏔️", title: "Força, Aventura & Capacidade", desc: "Capacidade offroad ou para trabalho pesado." }
-              ].map((opt) => (
-                <button key={opt.id} type="button" onClick={() => selectObjective(opt.id as any)} className="flex items-center w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
-                  <span className="text-xl mr-3">{opt.emoji}</span>
-                  <div>
-                    <div className="text-xs font-extrabold text-brand-text mb-1">{opt.title}</div>
-                    <div className="text-[10px] text-brand-text/40 leading-relaxed">{opt.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+            {/* 05 — Prazo */}
+            {gameState === "q5" && (
+              <BlocoPergunta
+                titulo="Qual o seu prazo ideal para fechar negócio?"
+                opcoes={OPCOES_PRAZO}
+                selecionado={answers.timeline}
+                onSelecionar={(id) => selectTimeline(id as AnswerState["timeline"])}
+              />
+            )}
 
-        {/* QUESTION 3: Experience */}
-        {gameState === "q3" && (
-          <div className="flex flex-col gap-5 animate-fadeIn">
-            <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
-              O que você mais valoriza ao dirigir?
-            </h3>
-            <div className="grid grid-cols-1 gap-3">
-              {[
-                { id: "performance", emoji: "🏎️", title: "Performance & Potência", desc: "Aceleração rápida e dinâmica afiada." },
-                { id: "comfort", emoji: "🛋️", title: "Conforto Máximo & Silêncio", desc: "Isolamento acústico e rodar suave." },
-                { id: "tech", emoji: "📱", title: "Tecnologia & Conectividade", desc: "Telas avançadas e sistemas de assistência." },
-                { id: "economy", emoji: "💰", title: "Custo-Benefício & Manutenção", desc: "Economia no dia a dia e liquidez." }
-              ].map((opt) => (
-                <button key={opt.id} type="button" onClick={() => selectExperience(opt.id as any)} className="flex items-center w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
-                  <span className="text-xl mr-3">{opt.emoji}</span>
-                  <div>
-                    <div className="text-xs font-extrabold text-brand-text mb-1">{opt.title}</div>
-                    <div className="text-[10px] text-brand-text/40 leading-relaxed">{opt.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* QUESTION 4: Style */}
-        {gameState === "q4" && (
-          <div className="flex flex-col gap-5 animate-fadeIn">
-            <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
-              Qual o estilo de carroceria que mais atrai você hoje?
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[
-                { id: "suv", emoji: "🚙", title: "SUVs Imponentes" },
-                { id: "sedan", emoji: "🚗", title: "Sedans Elegantes" },
-                { id: "sport", emoji: "🏁", title: "Esportivos / Coupés" },
-                { id: "pickup", emoji: "🛻", title: "Picapes Premium" },
-                { id: "open", emoji: "🎲", title: "Aberto a Sugestões" }
-              ].map((opt) => (
-                <button key={opt.id} type="button" onClick={() => selectStyle(opt.id as any)} className="flex items-center w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
-                  <span className="text-xl mr-3">{opt.emoji}</span>
-                  <div className="text-xs font-extrabold text-brand-text">{opt.title}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* QUESTION 5: Timeline */}
-        {gameState === "q5" && (
-          <div className="flex flex-col gap-5 animate-fadeIn">
-            <h3 className="text-base font-extrabold text-brand-text text-center md:text-left leading-tight">
-              Qual o seu prazo ideal para fechar o negócio?
-            </h3>
-            <div className="grid grid-cols-1 gap-3">
-              {[
-                { id: "immediate", emoji: "🔥", title: "Imediato", desc: "Pronto para fechar negócio nas próximas semanas." },
-                { id: "researching", emoji: "🔍", title: "Pesquisando", desc: "Mapeando opções para compra no próximo mês." },
-                { id: "future", emoji: "☕", title: "Apenas Sondando", desc: "Acompanhando o mercado sem pressa." }
-              ].map((opt) => (
-                <button key={opt.id} type="button" onClick={() => selectTimeline(opt.id as any)} className="flex items-center w-full text-left p-4 rounded-xl bg-brand-card border border-brand-border hover:bg-brand-bg hover:border-brand-primary transition-all duration-200">
-                  <span className="text-xl mr-3">{opt.emoji}</span>
-                  <div>
-                    <div className="text-xs font-extrabold text-brand-text mb-1">{opt.title}</div>
-                    <div className="text-[10px] text-brand-text/40 leading-relaxed">{opt.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* LOADING */}
-        {gameState === "loading" && (
-          <div className="flex flex-col items-center justify-center py-16 animate-pulse">
-            <div className="relative h-16 w-16 mb-6">
-              <div className="absolute inset-0 border-t-2 border-brand-primary rounded-full animate-spin"></div>
-              <div className="absolute inset-2 border-r-2 border-brand-gold rounded-full animate-spin direction-reverse"></div>
-            </div>
-            <span className="text-sm font-extrabold text-brand-text mb-2 tracking-widest uppercase text-center">
-              {getLoadingText()}
-            </span>
-            
-            <div className="w-full max-w-xs bg-brand-bg rounded-full h-1.5 mt-4 overflow-hidden border border-brand-card-border">
-              <div 
-                className="bg-brand-primary h-1.5 rounded-full transition-all duration-800 ease-linear"
-                style={{ width: `${(loadingPhase / 3) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-
-        {/* RESULTS */}
-        {gameState === "results" && (
-          <div className="flex flex-col py-2 px-1 animate-fadeIn w-full">
-            <div className="flex items-center justify-center mb-6">
-              <h3 className="text-lg md:text-xl font-black text-brand-text text-center">
-                ✅ Curadoria Completa
-                <span className="block text-xs font-normal text-brand-text/60 mt-1">
-                  {matchedVehicles.length} {matchedVehicles.length === 1 ? "veículo compatível encontrado" : "veículos compatíveis encontrados"}
+            {/* Navegação. Não há "PRÓXIMA": escolher uma opção já avança, que
+                é como o fluxo sempre funcionou em produção. */}
+            <div className="mt-8 flex flex-wrap items-center gap-5 lg:mt-9">
+              <button
+                type="button"
+                onClick={voltarPergunta}
+                className="mt-btn mt-foco border-2 border-mt-inverso-regua text-mt-neutral-300"
+              >
+                VOLTAR
+              </button>
+              {restantes > 0 && (
+                <span className="text-xs text-mt-inverso-suave">
+                  {restantes === 1 ? "Falta 1 pergunta" : `Faltam ${restantes} perguntas`} · ~
+                  {restantes * SEGUNDOS_POR_PERGUNTA}s
                 </span>
-              </h3>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ─── Processando ─── */}
+        {gameState === "loading" && (
+          <div className="flex flex-1 flex-col justify-center py-16 lg:py-24">
+            <Rotulo accent className="text-[11px] tracking-[.18em]">
+              CURADORIA EM ANDAMENTO
+            </Rotulo>
+            <p
+              aria-live="polite"
+              className="mt-display m-0 mt-5 max-w-[720px] text-[26px] text-mt-inverso lg:text-[44px]"
+            >
+              {getLoadingText()}
+            </p>
+            <div className="mt-9 h-0.5 max-w-[560px] bg-mt-inverso-regua-fina">
+              <div
+                className="h-0.5 bg-mt-accent transition-[width] duration-700 ease-linear"
+                style={{ width: `${((loadingPhase + 1) / 4) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ─── Resultado ─── */}
+        {gameState === "results" && (
+          <div className="mt-9 flex flex-1 flex-col lg:mt-11">
+            <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-inverso-regua pb-4">
+              <div>
+                <Rotulo accent className="text-[11px] tracking-[.18em]">
+                  CURADORIA COMPLETA
+                </Rotulo>
+                <h2 className="mt-titulo m-0 mt-2.5 text-3xl text-mt-inverso lg:text-[46px]">
+                  {matchedVehicles.length === 1
+                    ? "1 veículo compatível"
+                    : `${matchedVehicles.length} veículos compatíveis`}
+                </h2>
+              </div>
             </div>
 
             {matchedVehicles.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                {matchedVehicles.map((car: any) => (
-                  <a key={car.id} href={getVeiculoPdpUrl(car)} className="group bg-brand-bg rounded-xl border border-brand-card-border overflow-hidden hover:border-brand-primary transition-colors flex flex-col relative">
-                    <div className="relative h-36 w-full overflow-hidden bg-brand-card">
-                      <img 
-                        src={car.whatsapp_images?.[0] || car.web_full_images?.[0] || "/placeholder-car.jpg"} 
-                        alt={`${car.marca} ${car.modelo}`} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      {car.matchScore && (
-                        <div className="absolute top-2 right-2 bg-gradient-to-br from-green-500 to-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg border border-green-400/30">
-                          {car.matchScore}% Match
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 flex flex-col flex-1">
-                      <span className="text-[10px] text-brand-text/50 uppercase tracking-widest font-bold mb-0.5">
-                        {car.marca} • {car.ano_fabricacao}/{car.ano_modelo}
-                      </span>
-                      <h4 className="text-sm font-black text-brand-text leading-tight mb-1">
-                        {car.modelo}
-                      </h4>
-                      <p className="text-[10px] text-brand-text/60 line-clamp-1 mb-2">
-                        {car.versao}
-                      </p>
-                      <div className="mt-auto pt-2 border-t border-brand-card-border/50">
-                        <span className="text-sm font-black text-brand-primary">
-                          {formatPrice(car.preco_promocional > 0 ? car.preco_promocional : car.preco_original)}
-                        </span>
-                      </div>
-                    </div>
-                  </a>
+              <div className="mt-8 grid gap-x-7 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
+                {matchedVehicles.map((car) => (
+                  <div key={car.id} className="text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
+                    <CardVeiculo
+                      veiculo={car}
+                      href={getVeiculoPdpUrl(car)}
+                      etiqueta={car.matchScore ? `${car.matchScore}% COMPATÍVEL` : undefined}
+                    />
+                  </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center bg-brand-bg p-6 rounded-xl border border-brand-card-border mb-8">
-                <span className="text-3xl mb-3 block">👀</span>
-                <p className="text-sm text-brand-text font-bold mb-2">
-                  Não encontramos veículos exatos para esse perfil no momento.
+              <div className="mt-8 max-w-[620px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
+                <p className="m-0 text-lg font-extrabold leading-tight lg:text-[22px]">
+                  Nenhum veículo do estoque bate com esse perfil agora.
                 </p>
-                <p className="text-xs text-brand-text/60 max-w-md mx-auto">
-                  Mas nossos especialistas podem localizar opções exclusivas para você em nossa rede de parceiros premium.
+                <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-inverso-suave">
+                  O perfil vai para o consultor do mesmo jeito: a busca continua
+                  na nossa rede de parceiros e você recebe as opções no WhatsApp.
                 </p>
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3 w-full max-w-lg mx-auto">
+            <div className="mt-10 flex flex-wrap gap-0.5 lg:mt-12">
               <button
+                type="button"
                 onClick={handleShowResults}
-                className="flex-1 h-12 bg-gradient-to-r from-brand-primary to-brand-primary-hover text-white font-extrabold text-xs uppercase tracking-widest rounded-xl shadow-lg hover:opacity-95 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2"
+                className="mt-btn mt-btn-primario mt-foco"
               >
-                🟢 Falar com Especialista
+                FALAR COM UM CONSULTOR
+                <Seta size={15} />
               </button>
-              
-              <button 
-                type="button" 
-                onClick={handleReset} 
-                className="flex-1 h-12 bg-brand-bg text-brand-text border border-brand-card-border font-extrabold text-xs uppercase tracking-widest rounded-xl hover:bg-brand-card transition-all duration-300 flex items-center justify-center gap-2"
+              <button
+                type="button"
+                onClick={handleReset}
+                className="mt-btn mt-foco border-2 border-mt-inverso-regua text-mt-neutral-300"
               >
-                ↩️ Refazer Curadoria
+                REFAZER CURADORIA
               </button>
             </div>
           </div>
         )}
-
       </div>
-      
+
+      {/* ─────────── Painel: o perfil se formando ─────────── */}
+      {mostrarPainel && (
+        <aside
+          aria-label="Seu perfil, ao vivo"
+          className="flex shrink-0 flex-col bg-mt-bg px-[18px] py-8 text-mt-ink lg:w-[456px] lg:px-10 lg:py-11"
+        >
+          <Rotulo accent className="text-[11px] tracking-[.18em]">
+            SEU PERFIL, AO VIVO
+          </Rotulo>
+          <h2 className="mt-titulo m-0 mt-3 text-[28px] lg:text-4xl">
+            Curadoria em formação
+          </h2>
+
+          <div className="mt-6 border-t-2 border-mt-regua lg:mt-7">
+            {respostasDoPainel.map((r) => (
+              <div
+                key={r.numero}
+                className="flex items-center gap-3.5 border-b border-mt-regua-fina py-3.5"
+              >
+                <span className="w-5 text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-600">
+                  {r.numero}
+                </span>
+                <span className="w-[104px] shrink-0 text-[11px] tracking-[.06em] text-mt-neutral-600 lg:text-xs">
+                  {r.rotulo}
+                </span>
+                <span
+                  className={`ml-auto text-right text-sm font-extrabold ${
+                    r.valor ? "text-mt-accent" : "text-mt-neutral-500"
+                  }`}
+                >
+                  {r.valor || "a responder"}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {composicaoEstoque.length > 0 && (
+            <div className="mt-8">
+              <Rotulo className="text-[11px] tracking-[.16em]">
+                {answers.budgetMax
+                  ? "O QUE CABE NO SEU ORÇAMENTO"
+                  : "COMPOSIÇÃO DO ESTOQUE"}
+              </Rotulo>
+              <div className="mt-3.5 flex flex-col gap-3.5">
+                {composicaoEstoque.map((linha) => (
+                  <div key={linha.tipo}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                      <span className="text-sm font-extrabold tracking-[-.01em]">
+                        {linha.tipo}
+                      </span>
+                      <span className="text-[13px] font-extrabold text-mt-accent">
+                        {linha.percentual}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-mt-neutral-300">
+                      <div
+                        className="h-1.5 bg-mt-accent transition-[width] duration-300"
+                        style={{ width: `${linha.percentual}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="m-0 mt-3 text-[11px] leading-relaxed text-mt-neutral-600">
+                Participação por carroceria entre os veículos disponíveis — não é
+                nota de compatibilidade.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-8 border-t-2 border-mt-regua pt-5 lg:mt-auto">
+            <p className="m-0 text-[13px] leading-relaxed text-mt-neutral-800">
+              Ao final, seu perfil vai para o consultor e você recebe{" "}
+              <strong>3 sugestões reais do estoque</strong> no WhatsApp.
+            </p>
+            {estoqueCompativel.length > 0 && (
+              <div className="mt-3.5 flex items-center gap-2.5">
+                <span className="mt-pulso h-2 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
+                <span className="text-[11px] tracking-[.1em] text-mt-neutral-600">
+                  {estoqueCompativel.length}{" "}
+                  {answers.budgetMax ? "VEÍCULOS COMPATÍVEIS AGORA" : "VEÍCULOS EM ESTOQUE"}
+                </span>
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
+
       {/* Lead Capture Modal */}
       <LeadCaptureModal
         isOpen={isLeadModalOpen}
@@ -850,5 +1115,41 @@ export default function CarMatch() {
         onSubmit={handleLeadSubmit}
       />
     </section>
+  );
+}
+
+/**
+ * Perguntas 02 a 05: título grande e a grade de opções.
+ * A 01 fica fora porque tem três modos de resposta.
+ */
+function BlocoPergunta({
+  titulo,
+  opcoes,
+  selecionado,
+  onSelecionar,
+}: {
+  titulo: string;
+  opcoes: readonly { id: string; letra: string; titulo: string; desc: string }[];
+  selecionado: string;
+  onSelecionar: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col">
+      <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
+        {titulo}
+      </h2>
+      <div className="mt-8 grid gap-0.5 md:grid-cols-2 lg:mt-auto">
+        {opcoes.map((opcao) => (
+          <OpcaoQuiz
+            key={opcao.id}
+            letra={opcao.letra}
+            titulo={opcao.titulo}
+            desc={opcao.desc}
+            selecionada={selecionado === opcao.id}
+            onClick={() => onSelecionar(opcao.id)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString } from "../lib/supabase";
@@ -26,16 +26,6 @@ function formatPrice(value: number): string {
 function formatKm(value: number): string {
   if (value === 0) return "Sem Uso (0 km)";
   return `${value.toLocaleString("pt-BR")} km`;
-}
-
-function resolveDirecao(car: Veiculo): string {
-  const text = `${car.opcionais} ${car.laudo_pericia} ${car.descricao || ""}`.toLowerCase();
-  if (text.includes("hidráulica") || text.includes("hidraulica")) return "Hidráulica";
-  if (text.includes("mecânica") || text.includes("mecanica")) return "Mecânica";
-  if (car.marca.toLowerCase() === "toyota" && car.modelo.toLowerCase().includes("hilux")) {
-    return "Hidráulica";
-  }
-  return "Elétrica";
 }
 
 function getShortVehicleId(id: string): string {
@@ -65,9 +55,22 @@ function resolveTagColorClass(color?: string): string {
 }
 
 export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientWrapperProps) {
-  const { companySettings, webhooks, stockOverrides } = useTheme();
-  const [veiculo, setVeiculo] = useState<Veiculo>(initialVeiculo);
-  const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
+  const { companySettings, stockOverrides } = useTheme();
+
+  /**
+   * O veículo exibido é derivado, não estado.
+   *
+   * Eram duas coisas: um `useState` inicializado com a prop e dois efeitos
+   * que o re-sincronizavam — um quando a prop mudava, outro quando os
+   * overrides do painel chegavam. Nada além desses efeitos escrevia nele,
+   * então era estado derivado disfarçado, pagando um render extra a cada
+   * navegação entre PDPs. `useMemo` faz o mesmo em um passo só.
+   */
+  const veiculo: Veiculo = useMemo(() => {
+    const itemOverrides = stockOverrides?.[initialVeiculo.id];
+    return itemOverrides ? { ...initialVeiculo, ...itemOverrides } : initialVeiculo;
+  }, [initialVeiculo, stockOverrides]);
+
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [opcionaisOpen, setOpcionaisOpen] = useState(true);
   const [periciaOpen, setPericiaOpen] = useState(true);
@@ -80,7 +83,9 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
   const [activeChannel, setActiveChannel] = useState("WhatsApp Proposta");
-  const [activeSimulacao, setActiveSimulacao] = useState<any>(null);
+  // Simulação de financiamento anexada ao lead. Hoje só é zerada — a
+  // calculadora ainda não devolve o objeto — mas o campo já viaja no payload.
+  const [activeSimulacao, setActiveSimulacao] = useState<Record<string, unknown> | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -96,11 +101,6 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   const displayImages = veiculo.whatsapp_images && veiculo.whatsapp_images.length > 0
     ? veiculo.whatsapp_images
     : veiculo.web_full_images;
-
-  // Sync prop changes
-  useEffect(() => {
-    setVeiculo(initialVeiculo);
-  }, [initialVeiculo]);
 
   // Handle body scroll locking when lightbox is active
   useEffect(() => {
@@ -132,25 +132,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     };
   }, [isLightboxOpen, veiculo.web_full_images.length]);
 
-  // Load client-side overrides on mount / when initialVeiculo or stockOverrides changes
-  useEffect(() => {
-    if (stockOverrides) {
-      const itemOverrides = stockOverrides[initialVeiculo.id];
-      if (itemOverrides) {
-        setVeiculo((prev) => ({
-          ...prev,
-          ...itemOverrides,
-        }));
-        console.log(`[Overrides] Applied local overrides for vehicle ${initialVeiculo.id} in PDP:`, itemOverrides);
-      }
-    }
-  }, [initialVeiculo, stockOverrides]);
-
   // Fetch tracking ID from LocalStorage on mount
   useEffect(() => {
     const uid = getActiveAgUid();
-    setAgUid(uid);
-    
+
     // Dynamic page view logger
     console.log(`[Antigravity Log] PageView iniciada para o veículo: ${veiculo.marca} ${veiculo.modelo} ID: ${veiculo.id}`);
 
@@ -236,8 +221,12 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   // WhatsApp lead url creation with client-side tracking reference
   const whatsappNumber = companySettings.whatsappRaw;
   
+  // O `ag_uid` é lido na hora do clique, e não guardado em estado: ele pode
+  // ser gravado depois da montagem da página, e o valor fresco é o que deve
+  // ir para a mensagem e para o payload do lead.
   const handleWhatsappPDPClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Proposta");
       const msg = veiculo.vendido
         ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} que foi vendido. Gostaria de saber se possuem modelos semelhantes disponíveis. (Ref: ${agUid})`
@@ -251,6 +240,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
   const handleProposalClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Dúvidas");
       const msg = `Olá! Gostaria de tirar dúvidas com o vendedor sobre o veículo ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
       setActiveMessage(msg);
@@ -261,6 +251,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
   const handleTradeInClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Usado na Troca");
       const msg = `Olá! Estou analisando o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) no site e gostaria de avaliar meu veículo como entrada na troca! (Ref: ${agUid})`;
       setActiveMessage(msg);
@@ -271,6 +262,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
 
   const handleTestDriveClick = () => {
     if (typeof window !== "undefined") {
+      const agUid = getActiveAgUid();
       setActiveChannel("Agendamento Test-Drive");
       const msg = `Olá! Gostaria de agendar um horário para ver o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) e fazer um test-drive no showroom! (Ref: ${agUid})`;
       setActiveMessage(msg);
@@ -280,6 +272,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
   };
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
+    const agUid = getActiveAgUid();
     const utmParams = getUtmParameters();
     const tipoBadge = veiculo.baixa_km ? "BAIXA KM" : (veiculo.unico_dono ? "ÚNICO DONO" : (veiculo.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
 
@@ -358,8 +351,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
         const errorData = await response.json().catch(() => ({}));
         console.warn("[Lead Submit PDP] API returned error (non-blocking):", errorData?.error || response.status);
       }
-    } catch (fetchError: any) {
-      console.warn("[Lead Submit PDP] Network error (non-blocking):", fetchError.message);
+    } catch (fetchError) {
+      console.warn(
+        "[Lead Submit PDP] Network error (non-blocking):",
+        fetchError instanceof Error ? fetchError.message : fetchError,
+      );
     }
 
     // Save lead to history
@@ -492,103 +488,96 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
     const HeadingTag = isMobile ? "h1" : "h2";
     return (
       <aside
-        className={`w-full bg-transparent lg:bg-brand-card border-0 lg:border border-brand-border/40 p-4 sm:p-6 lg:p-8 rounded-none lg:rounded-3xl shadow-none lg:shadow-[0_8px_30px_var(--brand-shadow)] flex flex-col gap-6 max-sm:gap-4 max-sm:p-2 print:hidden ${
+        className={`flex w-full flex-col gap-7 bg-transparent p-0 print:hidden lg:gap-8 ${
           isMobile ? "block lg:hidden" : "hidden lg:block"
         }`}
       >
-        {/* Brand, Model, Version & Vistoria Badge */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs md:text-sm font-semibold uppercase tracking-widest text-brand-gold">
+        {/* Marca, código, modelo e versão */}
+        <div className="flex flex-col">
+          <span className="text-[11px] font-semibold uppercase tracking-[.18em] text-mt-accent">
             {veiculo.marca}
+            {veiculo.id && ` · COD. ${veiculo.id}`}
           </span>
-          
-          <HeadingTag className="text-2xl md:text-3xl font-semibold tracking-tight text-brand-text leading-tight uppercase">
+
+          <HeadingTag className="mt-titulo m-0 mt-2.5 text-[30px] leading-none text-mt-ink lg:text-[40px]">
             {veiculo.modelo}
           </HeadingTag>
-          
-          <p className="text-xs md:text-sm text-brand-text/80 font-normal uppercase tracking-wider mt-1 flex flex-wrap gap-2 items-center">
-            <span>{truncateString(veiculo.versao, 35)}</span>
-            <span className="text-brand-primary font-bold">•</span>
-            <span>Ano {veiculo.ano}</span>
+
+          <p className="m-0 mt-1 text-sm text-mt-neutral-700">
+            {truncateString(veiculo.versao, 45)}
           </p>
-          
-          {veiculo.pericia && 
-           !veiculo.pericia.toLowerCase().includes("análise") && 
-           !veiculo.pericia.toLowerCase().includes("analise") && (
-            <div className="flex items-center gap-1.5 mt-2 bg-emerald-500/10 text-emerald-600 px-3 py-1.5 rounded-lg text-[10px] font-bold w-fit uppercase tracking-wider border border-emerald-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {veiculo.pericia}
-            </div>
-          )}
+
+          {veiculo.pericia &&
+            !veiculo.pericia.toLowerCase().includes("análise") &&
+            !veiculo.pericia.toLowerCase().includes("analise") && (
+              <span className="mt-3 flex w-fit items-center gap-2 bg-mt-inverso-fundo px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.12em] text-mt-inverso">
+                <span className="mt-pulso h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
+                {veiculo.pericia}
+              </span>
+            )}
         </div>
 
-        {/* Pricing Box */}
-        <div className="flex flex-col border-t border-b border-brand-border/40 py-3.5">
-          <span className="text-[9px] font-semibold text-brand-text/50 uppercase tracking-widest leading-none mb-2">
-            Preço de Venda
-          </span>
-          {hasDiscount ? (
-            <div className="flex items-baseline gap-2.5 flex-wrap">
-              <span className="text-2xl font-black text-brand-primary tracking-tight">
-                Por {formatPrice(veiculo.preco_promocional)}
-              </span>
-              <span className="text-xs font-semibold text-brand-text/60 line-through">
-                De {formatPrice(veiculo.preco_original)}
-              </span>
-            </div>
-          ) : (
-            <span className="text-2xl font-black text-brand-primary tracking-tight">
-              {formatPrice(veiculo.preco_original)}
-            </span>
-          )}
-        </div>
-
-        {/* Quick Specs Compact Grid */}
-        <div className="flex flex-col gap-3">
-          <span className="text-[10px] font-bold text-brand-text/40 uppercase tracking-widest">
-            Especificações Rápidas
-          </span>
-          <div className="grid grid-cols-2 gap-2.5">
-            {quickSpecs.map((spec, index) => (
-              <div
-                key={index}
-                className="bg-brand-bg/40 border border-brand-border/40 p-2.5 rounded-xl flex items-center gap-2.5 shadow-sm hover:border-brand-primary/20 transition-all duration-300"
-              >
-                <span className="flex items-center justify-center h-8 w-8 rounded-full bg-brand-primary/10 flex-shrink-0 text-brand-primary">
-                  {spec.icon}
-                </span>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[7px] font-black uppercase text-brand-text/40 tracking-wider">
-                    {spec.label}
-                  </span>
-                  <span className="text-[10px] font-bold text-brand-text leading-tight truncate uppercase">
-                    {spec.value}
-                  </span>
-                </div>
+        {/* Especificações rápidas em régua */}
+        <div className="grid grid-cols-2 border-t-2 border-mt-regua">
+          {quickSpecs.map((spec, index) => (
+            <div key={index} className="border-b border-mt-regua-fina py-3">
+              <div className="text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600">
+                {spec.label}
               </div>
-            ))}
-          </div>
+              <div className="mt-1 truncate text-base font-extrabold text-mt-ink">
+                {spec.value}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Primary Call-to-Actions */}
-        <div className="flex flex-col gap-3 pt-2">
+        {/* Preço */}
+        <div>
+          <div className="text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
+            {hasDiscount ? "PREÇO PROMOCIONAL" : "À VISTA"}
+          </div>
+          <div className="mt-1.5 text-[38px] font-extrabold leading-none tracking-[-.04em] lg:text-[48px]">
+            {formatPrice(finalPrice)}
+          </div>
+          {hasDiscount && (
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              <span className="bg-mt-accent-100 px-2.5 py-1 text-[11px] font-semibold text-mt-accent-800">
+                ABAIXO DO PREÇO ANTERIOR
+              </span>
+              <span className="text-xs text-mt-neutral-600 line-through">
+                {formatPrice(veiculo.preco_original)}
+              </span>
+            </div>
+          )}
+          {/* Não existe linha de FIPE aqui, e é deliberado.
+              O redesign tinha reintroduzido "Referência FIPE" partindo de que
+              o valor vinha do banco. Não vem: `fipe` não é coluna de
+              `estoque_motors` — todo carro caía no default "Consulta Fipe",
+              dado inventado apresentado ao cliente como fato. Removido da
+              matriz de especificações por decisão do dono em 2026-08-06
+              (ver comentário na matriz, mais abaixo); manter o bloco aqui
+              recriaria o mesmo problema no primeiro carro que trouxesse
+              qualquer texto nesse campo. */}
+        </div>
+
+        {/* Ações */}
+        <div className="flex flex-col gap-0.5">
           <button
+            type="button"
             onClick={handleWhatsappPDPClick}
-            className="w-full h-12 bg-green-800 hover:bg-green-700 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(22,101,52,0.25)] hover:shadow-[0_4px_25px_rgba(22,101,52,0.35)] transition-all duration-300 cursor-pointer"
+            className="mt-btn mt-btn-primario mt-btn-bloco mt-foco px-5 py-[18px] text-sm"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
-              <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-[19px] w-[19px]" aria-hidden="true">
+              <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-4.2-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
             </svg>
-            {veiculo.vendido ? "Consultar Similares (Vendido)" : "Garantir Proposta no WhatsApp"}
+            {veiculo.vendido ? "CONSULTAR SIMILARES" : "FALAR COM O CONSULTOR"}
           </button>
           <button
+            type="button"
             onClick={handleProposalClick}
-            className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow-[0_4px_20px_rgba(34,197,94,0.25)] hover:shadow-[0_4px_25px_rgba(34,197,94,0.35)] transition-all duration-300 cursor-pointer"
+            className="mt-btn mt-btn-contorno mt-btn-bloco mt-foco px-5 py-3.5 text-xs tracking-[.08em]"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4 h-4">
-              <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
-            </svg>
-            Tirar dúvidas com o vendedor
+            TIRAR DÚVIDAS COM O VENDEDOR
           </button>
         </div>
 
@@ -703,6 +692,10 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       <div className="hidden print:block w-full mb-6">
         {displayImages[0] && (
           <div className="relative w-full h-[320px] bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200">
+            {/* `<img>` cru de propósito: este bloco só existe na impressão da
+                ficha, e o `next/image` serve um srcset que a impressora não
+                aproveita. Mesma exceção do card em `modernist/primitivos`. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={displayImages[0]}
               alt={`${veiculo.marca} ${veiculo.modelo}`}
@@ -1018,9 +1011,11 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
                   <span className="text-brand-text font-extrabold">{veiculo.combustivel}</span>
                 </div>
               )}
-              {/* DIREÇÃO removida: `resolveDirecao` é heurística sobre o nome do
-                  modelo e o texto livre da descrição — chute apresentado no
-                  mesmo grid que km e ano, que são dados reais do feed. */}
+              {/* DIREÇÃO não entra nesta matriz: o valor era adivinhado a
+                  partir do nome do modelo e do texto livre da descrição —
+                  chute apresentado ao lado de km e ano, que são dados reais
+                  do feed. A função que fazia esse palpite foi removida em
+                  2026-08-06; se a direção voltar, tem que vir do feed. */}
               {veiculo.cor && (
                 <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
                   <span className="text-brand-gold font-bold uppercase">COR EXTERNA</span>
@@ -1049,7 +1044,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
             onSimulateClick={(msg) => {
               if (typeof window !== "undefined") {
                 setActiveChannel("Simulação de Financiamento");
-                setActiveMessage(`${msg} (Ref: ${agUid})`);
+                setActiveMessage(`${msg} (Ref: ${getActiveAgUid()})`);
                 setIsLeadModalOpen(true);
               }
             }}
@@ -1100,26 +1095,23 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo }: PDPClientW
       </div>
 
       {/* 5. STICKY BOTTOM BAR (Mobile Thumb Zone CTA — High-Impact Dual Action) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-brand-card/95 border-t border-brand-border backdrop-blur-md px-3 py-2.5 flex items-center gap-2 justify-center pb-safe shadow-2xl md:hidden print:hidden">
+      <div className="pb-safe fixed bottom-0 left-0 right-0 z-40 flex items-center gap-0.5 bg-mt-bg pt-0.5 md:hidden print:hidden">
         <button
           onClick={handleTradeInClick}
-          className="flex-1 flex items-center justify-center gap-1.5 bg-brand-card hover:bg-brand-primary/10 text-brand-primary font-extrabold text-[10px] uppercase tracking-wider py-3 px-2 rounded-xl active:scale-95 border border-brand-primary/40 transition-all duration-300 cursor-pointer"
-          style={{ minHeight: "44px" }}
+          className="mt-btn mt-btn-contorno mt-foco flex-none justify-center px-3 py-3 text-center text-[11px] leading-tight tracking-[.06em]"
+          style={{ minHeight: "44px", width: "96px" }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-3.5 h-3.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-          </svg>
-          <span>Usado na Troca</span>
+          USADO<br />NA TROCA
         </button>
         <button
           onClick={handleWhatsappPDPClick}
-          className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500 text-white font-extrabold text-[10px] uppercase tracking-wider py-3 px-2 rounded-xl active:scale-95 shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all duration-300 cursor-pointer"
+          className="mt-btn mt-btn-primario mt-foco flex-1 px-4 py-[18px] text-[13px] tracking-[.08em]"
           style={{ minHeight: "44px" }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
           </svg>
-          <span>Garantir Proposta</span>
+          <span>CHAMAR NO WHATSAPP</span>
         </button>
       </div>
 
