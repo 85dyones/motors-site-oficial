@@ -518,7 +518,7 @@ A escolha entre bloqueio total e consent mode envolve apetite de risco jurídico
 | **2** | CAPI em `/api/leads` e `/api/capi` | Fase 1 | Recupera eventos perdidos | ✅ feita no código |
 | **3** | Enhanced Conversions | Fase 1 | Otimização no Google | ⚠️ código pronto, **inerte** |
 | **4** | Consent mode | Decisão jurídica | Cobertura de medição | ⏸️ parada, por decisão |
-| **5** | Espelhar `Contact`, `Search` e `CompleteRegistration` no CAPI | Fase 2 | Fecha a cobertura server-side | 🔜 próxima |
+| **5** | Espelhar `Contact`, `Search` e `CompleteRegistration` no CAPI | Fase 2 | Fecha a cobertura server-side | ✅ feita — **conferir Upstash antes de publicar** |
 
 ---
 
@@ -581,22 +581,35 @@ Não dá para conferir a partir do repositório; conferir no painel do projeto:
 
 ## Fase 5 — Espelhar os demais eventos no CAPI
 
-Hoje só `Lead` e `ViewContent` chegam ao servidor. `Contact`, `Search` e
-`CompleteRegistration` já geram `event_id` no browser e **já estão na whitelist
-de `/api/capi`** — falta só o POST.
+**Implementada em 2026-08-06.** Os cinco eventos agora chegam ao servidor.
 
-O padrão já existe em `PDPClientWrapper.tsx`, que dispara `ViewContent` no
-browser e em seguida posta o mesmo `eventId` em `/api/capi`. Replicar em:
+O POST foi embrulhado numa função só, `espelharNoCapi` em `telemetry.ts`,
+chamada de dentro de `trackContactClick`, `trackCarMatch` e
+`trackAppraisalSubmit`. Embrulhar na própria função de tracking, em vez de
+repetir o `fetch` em cada call site, é o que garante que as 7 superfícies de
+`Contact` estejam cobertas sem sete chances de esquecer uma.
 
-| Função | Evento | Onde chamar |
-|---|---|---|
-| `trackContactClick` | `Contact` | 7 superfícies — vale embrulhar o POST dentro da própria função |
-| `trackCarMatch` | `Search` | `CarMatch.tsx` |
-| `trackAppraisalSubmit` | `CompleteRegistration` | `AutoAvaliacao.tsx` |
+| Evento | Onde é espelhado |
+|---|---|
+| `Lead` | dentro de `/api/leads` — já é servidor e tem e-mail e telefone para hashear |
+| `ViewContent` | no `PDPClientWrapper`, que conhece o veículo inteiro para montar o `custom_data` |
+| `Contact`, `Search`, `CompleteRegistration` | `espelharNoCapi`, a partir de `telemetry.ts` |
 
-> **Cuidado com o volume.** `Contact` é o evento mais frequente do site. Antes
-> de ligar, confirmar que o rate limit do Upstash está ativo em produção — o
-> comentário no `proxy.ts` já observa que `/api/capi` é chamado a cada PDP.
+Dois detalhes que valem registro:
+
+- O `fetch` usa **`keepalive: true`**. O clique de contato costuma navegar
+  para fora (WhatsApp em outra aba, `tel:` no discador); sem isso o POST
+  morre junto com a página e o evento se perde justamente no clique que mais
+  importa.
+- IP e User-Agent **não** vão no corpo. O servidor lê dos headers, seguindo a
+  regra 4 — cliente não é fonte confiável para isso.
+
+### ⚠️ Antes de publicar
+
+`Contact` é o evento mais frequente do site. **Confirmar que
+`UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` estão preenchidas no
+Vercel** — sem elas o rate limit de `/api/capi` é ignorado (o `proxy.ts` loga
+o bypass e segue), e a rota fica exposta com volume muito maior que antes.
 
 **Critério de aceite:** no Events Manager, `Contact` aparece com origem
 "Servidor" e marcado como **"Desduplicado"**, não com contagem dobrada.

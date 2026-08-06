@@ -1,4 +1,4 @@
-import { generateEventId } from "./tracking-identity";
+import { generateEventId, getMatchParams } from "./tracking-identity";
 
 // Vertical do catálogo Meta Commerce Manager usado pela Motors Store.
 // Trocar para "vehicle" se o catálogo migrar de vertical (decisão em aberto).
@@ -162,6 +162,53 @@ export function getUtmParameters(): UtmParameters {
   return result;
 }
 
+/**
+ * Espelha no CAPI um evento que acabou de ser disparado no browser.
+ *
+ * O `eventId` é o mesmo dos dois lados — é ele que faz o Events Manager
+ * marcar "Desduplicado" em vez de contar duas vezes. IP e User-Agent não vão
+ * daqui: o servidor lê dos headers, porque cliente não é fonte confiável
+ * para isso (regra 4 do TRACKING_SPEC.md).
+ *
+ * Fire-and-forget de propósito. Falha de integração nunca pode travar o
+ * fluxo do usuário — quem chama já seguiu adiante.
+ *
+ * `Lead` não passa por aqui: ele é espelhado dentro de `/api/leads`, que já
+ * é servidor e tem o e-mail e o telefone para hashear. `ViewContent` também
+ * não: o disparo dele vive no `PDPClientWrapper`, que é quem conhece o
+ * veículo inteiro para montar o `custom_data`.
+ */
+function espelharNoCapi(
+  eventName: "Contact" | "Search" | "CompleteRegistration",
+  eventId: string,
+  customData: Record<string, unknown>,
+): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    const { fbp, fbc } = getMatchParams();
+
+    fetch("/api/capi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventName,
+        eventId,
+        eventSourceUrl: window.location.href,
+        fbp,
+        fbc,
+        externalId: getActiveAgUid(),
+        customData,
+      }),
+      keepalive: true, // o clique costuma navegar para fora (WhatsApp); sem isto o POST morre com a página
+    }).catch((err) =>
+      console.warn(`[CAPI] ${eventName} dispatch failed (non-blocking):`, err),
+    );
+  } catch (err) {
+    console.warn(`[CAPI] ${eventName} dispatch skipped (non-blocking):`, err);
+  }
+}
+
 export interface TrackLeadOptions {
   // Aceita um event_id já gerado (ex: quando o caller precisa do mesmo ID
   // no payload do CAPI antes de confirmar que o pixel do browser deve disparar).
@@ -300,6 +347,12 @@ export function trackAppraisalSubmit(category: string, brand: string, model: str
       }, { eventID: eventId });
     }
 
+    espelharNoCapi("CompleteRegistration", eventId, {
+      content_name: `Avaliacao ${category} - ${brand} ${model}`,
+      value: fipe,
+      currency: "BRL",
+    });
+
     console.log(`[Telemetry Tracking] Event Logged: CompleteRegistration - Appraisal ${category} (${eventId})`);
     return eventId;
   } catch (err) {
@@ -333,6 +386,11 @@ export function trackCarMatch(tags: string[], resultsCount: number): string | nu
       }, { eventID: eventId });
     }
 
+    espelharNoCapi("Search", eventId, {
+      search_string: tags.join(", "),
+      content_category: "CarMatch Recommendation",
+    });
+
     console.log(`[Telemetry Tracking] Event Logged: Search - CarMatch (${eventId})`);
     return eventId;
   } catch (err) {
@@ -365,6 +423,11 @@ export function trackContactClick(method: "whatsapp" | "phone", label: string = 
         content_category: method
       }, { eventID: eventId });
     }
+
+    espelharNoCapi("Contact", eventId, {
+      content_name: label,
+      content_category: method,
+    });
 
     console.log(`[Telemetry Tracking] Event Logged: Contact Click - ${method} (${eventId})`);
     return eventId;
