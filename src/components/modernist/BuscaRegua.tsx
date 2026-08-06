@@ -72,6 +72,14 @@ export default function BuscaRegua({
     router.push(`/estoque${params.toString() ? `?${params}` : ""}`);
   };
 
+  /**
+   * `soDesktop` esconde o campo abaixo de 1280px em vez de removê-lo da
+   * árvore. A tela 09 do design doc pede três campos na faixa do tablet e
+   * cinco no desktop; alternar isso por JavaScript exigiria medir a janela no
+   * cliente, o que dá divergência de hidratação e um piscar de campos na
+   * primeira pintura. Escondido por CSS, o valor do campo continua no estado
+   * e volta intacto quando a janela cresce.
+   */
   const campos = compacto
     ? [
         { label: "MARCA", value: marca, set: setMarca, opcoes: marcas },
@@ -87,8 +95,20 @@ export default function BuscaRegua({
     : [
         { label: "MARCA", value: marca, set: setMarca, opcoes: marcas },
         { label: "MODELO", value: modelo, set: setModelo, opcoes: modelos },
-        { label: "ANO", value: ano, set: setAno, opcoes: anos.map(String) },
-        { label: "CÂMBIO", value: cambio, set: setCambio, opcoes: cambios },
+        {
+          label: "ANO",
+          value: ano,
+          set: setAno,
+          opcoes: anos.map(String),
+          soDesktop: true,
+        },
+        {
+          label: "CÂMBIO",
+          value: cambio,
+          set: setCambio,
+          opcoes: cambios,
+          soDesktop: true,
+        },
         {
           label: "FAIXA DE PREÇO",
           value: faixa,
@@ -104,14 +124,16 @@ export default function BuscaRegua({
         e.preventDefault();
         buscar();
       }}
-      className="flex flex-col border-b-2 border-mt-regua bg-mt-bg lg:flex-row lg:items-stretch"
+      className="flex flex-col border-b-2 border-mt-regua bg-mt-bg md:flex-row md:items-stretch"
       role="search"
       aria-label="Buscar no estoque"
     >
       {campos.map((campo) => (
         <div
           key={campo.label}
-          className="flex-1 border-b border-mt-regua-fina px-[18px] py-4 last:border-b-0 lg:border-b-0 lg:border-r lg:border-mt-regua-media lg:px-5"
+          className={`flex-1 border-b border-mt-regua-fina px-[18px] py-4 last:border-b-0 md:border-b-0 md:border-r md:border-mt-regua-media md:px-4 lg:px-5 ${
+            "soDesktop" in campo && campo.soDesktop ? "hidden desktop:block" : ""
+          }`}
         >
           <label
             htmlFor={`busca-${campo.label}`}
@@ -150,7 +172,7 @@ export default function BuscaRegua({
 
       <button
         type="submit"
-        className="mt-btn mt-btn-primario mt-foco justify-center px-8 py-4 text-sm lg:py-0"
+        className="mt-btn mt-btn-primario mt-foco justify-center px-6 py-4 text-sm md:py-0 lg:px-8"
       >
         <svg
           aria-hidden="true"

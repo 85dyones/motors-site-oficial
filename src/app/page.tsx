@@ -171,16 +171,19 @@ export default async function Home() {
 
       {/* Trilho de destaques rápidos — cada um é uma landing indexável */}
       {destaquesRapidos.length > 0 && (
-        <div className="flex flex-col border-b border-mt-regua-fina lg:flex-row lg:items-center lg:px-10">
-          <span className="shrink-0 px-[18px] py-3.5 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600 lg:border-r lg:border-mt-regua-fina lg:py-3.5 lg:pl-0 lg:pr-5">
+        /* A partir do tablet o trilho é uma faixa de 56px que rola na
+           horizontal, e não uma caixa que quebra em várias linhas: na tela 09
+           do design doc ele é uma régua só, do lado do rótulo. */
+        <div className="flex flex-col border-b border-mt-regua-fina md:flex-row md:items-center lg:px-10">
+          <span className="shrink-0 px-[18px] py-3.5 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600 md:border-r md:border-mt-regua-fina md:py-3.5 md:pr-5 lg:pl-0">
             DESTAQUES RÁPIDOS
           </span>
-          <div className="flex flex-wrap gap-1.5 px-[18px] pb-3 lg:gap-0 lg:px-0 lg:pb-0">
+          <div className="flex flex-wrap gap-1.5 px-[18px] pb-3 md:flex-nowrap md:gap-0 md:overflow-x-auto md:px-0 md:pb-0">
             {destaquesRapidos.map((d) => (
               <Link
                 key={d.slug}
                 href={d.href}
-                className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold tracking-[.06em] text-mt-ink no-underline lg:border-0 lg:border-r lg:border-mt-regua-fina lg:px-5 lg:py-3.5 lg:text-xs lg:tracking-[.08em]"
+                className="mt-foco flex shrink-0 items-baseline gap-1.5 whitespace-nowrap border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold tracking-[.06em] text-mt-ink no-underline md:border-0 md:border-r md:border-mt-regua-fina md:px-5 md:py-3.5 md:text-xs md:tracking-[.08em]"
               >
                 {d.tag.name}
                 <span className="text-[10px] font-semibold text-mt-accent">{d.total}</span>
@@ -199,7 +202,11 @@ export default async function Home() {
             <LinkRegua href="/estoque">VER OS {total} VEÍCULOS</LinkRegua>
           }
         />
-        <div className="grid grid-cols-1 gap-x-8 gap-y-10 pt-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-y-12">
+        {/* Três colunas só a partir de 1280px. A tela 09 do design doc põe a
+            grade em duas colunas na faixa do tablet — é a tela que roda no
+            navegador da TV e do tablet de balcão da loja, onde a foto do
+            carro precisa de tamanho para vender de longe. */}
+        <div className="grid grid-cols-1 gap-x-8 gap-y-10 pt-10 sm:grid-cols-2 lg:gap-y-12 desktop:grid-cols-3">
           {destaquesSemana.map((v, i) => (
             <CardVeiculo
               key={v.id}

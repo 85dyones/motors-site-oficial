@@ -61,6 +61,20 @@
   --font-mono: var(--font-geist-mono);
   --font-modernist: var(--font-archivo), "Archivo", system-ui, sans-serif;
 
+  /* Breakpoint do desktop cheio — tela 09 do design doc.
+     A faixa do tablet vai até 1280px INCLUSIVE: o próprio doc titula a tela
+     "Breakpoint tablet — 1280×800", que é a resolução do navegador da TV e do
+     tablet de balcão da loja. Com o `xl` do Tailwind (min-width:1280px) esse
+     aparelho cairia justamente do lado do desktop. Daí um degrau próprio logo
+     acima, usado em `desktop:` onde a tela 09 muda de composição.
+
+     Em rem, e não nos 1281px equivalentes, porque o Tailwind ordena os
+     breakpoints comparando os valores crus: um valor em px não é comparável
+     aos 40/48/64/80rem dos degraus nativos, e a media query saía impressa
+     ANTES de todas elas. `sm:grid-cols-2` então vencia `desktop:grid-cols-3`
+     em 1440px — a home ficava presa em duas colunas no desktop. */
+  --breakpoint-desktop: 80.0625rem;
+
   /* Global 60% Border Radius Reduction (Sutler styling) */
   --radius-3xl: 10px;
   --radius-2xl: 8px;

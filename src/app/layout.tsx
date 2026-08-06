@@ -6,6 +6,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LeadPopup from "../components/LeadPopup";
 import CookieConsentBanner from "../components/CookieConsentBanner";
+import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import { ThemeProvider } from "./ThemeContext";
 
@@ -150,13 +151,17 @@ export default async function RootLayout({
         <ThemeProvider>
           <IntegrationsTracker />
           <AntigravityTracker />
-          <Header />
+          <MolduraDoSite>
+            <Header />
+          </MolduraDoSite>
           <main className="flex-grow flex flex-col">
             {children}
           </main>
-          <Footer />
-          <LeadPopup />
-          <CookieConsentBanner />
+          <MolduraDoSite>
+            <Footer />
+            <LeadPopup />
+            <CookieConsentBanner />
+          </MolduraDoSite>
         </ThemeProvider>
       </body>
     </html>

@@ -66,10 +66,13 @@ export default function HeroHome({
      * número fixo.
      *
      * 43vw reproduz o desenho em 1440 (619px), cresce até 860px e para —
-     * acima disso a foto viraria pôster e o conteúdo abaixo sumiria. O
-     * `max-h` guarda o caso da tela baixa: o hero nunca passa da altura útil
-     * da janela descontando os 68px do cabeçalho. */
-    <section className="relative bg-mt-inverso-fundo min-h-[520px] lg:h-[min(43vw,860px)] lg:max-h-[calc(100vh-68px)]">
+     * acima disso a foto viraria pôster e o conteúdo abaixo sumiria.
+     *
+     * É `min-h`, não `h`: com altura travada o conteúdo transbordava para
+     * fora da foto assim que a janela estreitava, porque 43vw encolhe junto
+     * com a largura e o bloco editorial não. Como piso, a proporção manda
+     * enquanto couber e o conteúdo manda quando não couber. */
+    <section className="relative flex flex-col bg-mt-inverso-fundo min-h-[520px] lg:min-h-[min(43vw,860px)]">
       {slides.map((v, i) => {
         const foto = v.web_full_images?.[0] ?? v.whatsapp_images?.[0];
         if (!foto) return null;
@@ -103,8 +106,16 @@ export default function HeroHome({
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(20,18,18,.25),rgba(20,18,18,.92))] lg:bg-[linear-gradient(90deg,rgba(20,18,18,.92)_0%,rgba(20,18,18,.55)_46%,rgba(20,18,18,0)_78%)]"
       />
 
-      {/* Bloco editorial */}
-      <div className="pointer-events-none relative z-10 max-w-[700px] px-[18px] pb-32 pt-16 lg:absolute lg:left-10 lg:top-[76px] lg:px-0 lg:pb-0 lg:pt-0">
+      {/* Conteúdo do hero.
+       *
+       * Em fluxo, não em posicionamento absoluto. O bloco editorial ficava
+       * ancorado no topo e os indicadores no rodapé, cada um com sua própria
+       * âncora: quando a altura do hero encolhia (ela é 43vw, então encolhe
+       * junto com a largura), a régua de estatísticas descia por cima do
+       * "01 02 03". Uma coluna flex com `mt-auto` no rodapé mantém a mesma
+       * composição e torna a colisão impossível. */}
+      <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-16 lg:px-10 lg:pb-10 lg:pt-[76px]">
+      <div className="pointer-events-none max-w-[700px]">
         <div className="mb-6 flex items-center gap-3 lg:mb-[26px]">
           <span className="h-0.5 w-5 bg-mt-accent lg:w-7" aria-hidden="true" />
           <span className="text-[9px] font-semibold tracking-[.2em] text-mt-accent-300 lg:text-[11px]">
@@ -134,59 +145,63 @@ export default function HeroHome({
         />
       </div>
 
-      {/* Placa do veículo em destaque */}
-      {destaque && (
-        <Link
-          href={getVeiculoPdpUrl(destaque)}
-          className="mt-foco absolute bottom-10 right-10 z-10 hidden min-w-[280px] flex-col items-start bg-[rgba(20,18,18,.86)] px-[22px] py-[18px] no-underline lg:flex"
-        >
-          <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent-400">
-            EM DESTAQUE
-          </span>
-          <span className="mt-[7px] text-xl font-extrabold tracking-[-.02em] text-mt-inverso">
-            {destaque.modelo}
-          </span>
-          <span className="mt-0.5 text-xs text-mt-inverso-suave">{destaque.versao}</span>
-          <span className="mt-3 flex w-full items-baseline gap-2.5 border-t border-[rgba(243,242,242,.25)] pt-3">
-            <span className="text-[22px] font-extrabold tracking-[-.03em] text-mt-inverso">
-              {formatarPreco(preco)}
-            </span>
-            <span className="ml-auto text-[11px] text-mt-inverso-suave">
-              {formatarKm(destaque.quilometragem)}
-            </span>
-          </span>
-        </Link>
-      )}
-
-      {/* Indicadores */}
-      {slides.length > 1 && (
-        <div className="absolute bottom-6 left-[18px] z-10 flex items-center gap-4 lg:bottom-10 lg:left-10 lg:gap-[18px]">
-          {slides.map((v, i) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => setAtual(i)}
-              aria-label={`Ver ${v.marca} ${v.modelo}`}
-              aria-current={i === atual}
-              className="mt-foco flex w-[76px] flex-col gap-2"
-            >
-              <span className="h-0.5 w-full bg-[rgba(243,242,242,.3)]">
-                <span
-                  className="block h-0.5 bg-mt-accent transition-[width] duration-[400ms] ease-linear"
-                  style={{ width: i === atual ? "100%" : "0%" }}
-                />
-              </span>
-              <span
-                className={`text-[11px] font-extrabold tracking-[.12em] ${
-                  i === atual ? "text-mt-inverso" : "text-mt-inverso-suave"
-                }`}
+      {/* Rodapé do hero: indicadores à esquerda, placa do destaque à direita */}
+      <div className="mt-auto flex items-end justify-between gap-6 pt-10">
+        {slides.length > 1 ? (
+          <div className="flex items-center gap-4 lg:gap-[18px]">
+            {slides.map((v, i) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => setAtual(i)}
+                aria-label={`Ver ${v.marca} ${v.modelo}`}
+                aria-current={i === atual}
+                className="mt-foco flex w-[76px] flex-col gap-2"
               >
-                {String(i + 1).padStart(2, "0")}
+                <span className="h-0.5 w-full bg-[rgba(243,242,242,.3)]">
+                  <span
+                    className="block h-0.5 bg-mt-accent transition-[width] duration-[400ms] ease-linear"
+                    style={{ width: i === atual ? "100%" : "0%" }}
+                  />
+                </span>
+                <span
+                  className={`text-[11px] font-extrabold tracking-[.12em] ${
+                    i === atual ? "text-mt-inverso" : "text-mt-inverso-suave"
+                  }`}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
+
+        {destaque && (
+          <Link
+            href={getVeiculoPdpUrl(destaque)}
+            className="mt-foco hidden min-w-[280px] flex-col items-start bg-[rgba(20,18,18,.86)] px-[22px] py-[18px] no-underline lg:flex"
+          >
+            <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent-400">
+              EM DESTAQUE
+            </span>
+            <span className="mt-[7px] text-xl font-extrabold tracking-[-.02em] text-mt-inverso">
+              {destaque.modelo}
+            </span>
+            <span className="mt-0.5 text-xs text-mt-inverso-suave">{destaque.versao}</span>
+            <span className="mt-3 flex w-full items-baseline gap-2.5 border-t border-[rgba(243,242,242,.25)] pt-3">
+              <span className="text-[22px] font-extrabold tracking-[-.03em] text-mt-inverso">
+                {formatarPreco(preco)}
               </span>
-            </button>
-          ))}
-        </div>
-      )}
+              <span className="ml-auto text-[11px] text-mt-inverso-suave">
+                {formatarKm(destaque.quilometragem)}
+              </span>
+            </span>
+          </Link>
+        )}
+      </div>
+      </div>
     </section>
   );
 }

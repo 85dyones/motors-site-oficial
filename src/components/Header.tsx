@@ -66,7 +66,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full bg-mt-inverso-fundo text-mt-inverso">
       {/* ─── Desktop ─── */}
-      <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-9 px-6 lg:px-10 sm:flex">
+      <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-5 px-6 sm:flex lg:px-10 desktop:gap-9">
         <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">
           <span className="h-[26px] w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
           {!usarFallbackTextual ? (
@@ -88,13 +88,20 @@ export default function Header() {
           )}
         </Link>
 
-        <nav className="flex items-center gap-7">
+        {/* A barra tem 68px e uma linha só de rótulo. Sem `whitespace-nowrap`
+            os três rótulos de duas palavras quebravam em duas linhas entre
+            768 e 1024px — a faixa do tablet da loja. `CONTATO` sai abaixo de
+            1280px inclusive porque é o único item cujo destino já está no rodapé e no
+            botão de WhatsApp ao lado, como na tela 09 do design doc. */}
+        <nav className="flex items-center gap-4 desktop:gap-7">
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={ativo(item.href) ? "page" : undefined}
-              className={`mt-foco border-b-2 pb-[3px] text-[11px] font-semibold tracking-[.14em] no-underline transition-colors ${
+              className={`mt-foco whitespace-nowrap border-b-2 pb-[3px] text-[11px] font-semibold tracking-[.14em] no-underline transition-colors ${
+                item.href === "/contato" ? "hidden desktop:block" : ""
+              } ${
                 ativo(item.href)
                   ? "border-mt-accent text-mt-inverso"
                   : "border-transparent text-mt-inverso-suave hover:text-mt-inverso"

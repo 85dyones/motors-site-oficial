@@ -41,22 +41,6 @@ function getShortVehicleId(id: string): string {
   return id.substring(0, 8).toUpperCase();
 }
 
-function resolveTagColorClass(color?: string): string {
-  switch (color) {
-    case "red":
-      return "bg-red-600/90 border-red-500/20 text-white";
-    case "gold":
-      return "bg-amber-500/90 border-amber-400/20 text-white";
-    case "gray":
-      return "bg-zinc-600/90 border-zinc-500/20 text-white";
-    case "primary":
-      return "bg-brand-primary/95 border-brand-primary-hover/20 text-white";
-    case "green":
-    default:
-      return "bg-green-500/90 border-emerald-400/20 text-white";
-  }
-}
-
 export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = [] }: PDPClientWrapperProps) {
   const { companySettings, stockOverrides } = useTheme();
 
@@ -86,8 +70,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
   const [activeChannel, setActiveChannel] = useState("WhatsApp Proposta");
-  // Simulação de financiamento anexada ao lead. Hoje só é zerada — a
-  // calculadora ainda não devolve o objeto — mas o campo já viaja no payload.
+  // Simulação de financiamento anexada ao lead: preenchida quando o lead
+  // nasce do simulador, zerada nos demais fluxos de contato.
   const [activeSimulacao, setActiveSimulacao] = useState<Record<string, unknown> | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -582,6 +566,24 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
           >
             TIRAR DÚVIDAS COM O VENDEDOR
           </button>
+          {/* Segunda linha de ações da tela 03: simular leva à faixa do
+              simulador nesta mesma página; a troca abre o fluxo já existente. */}
+          <div className="flex gap-0.5">
+            <button
+              type="button"
+              onClick={() => document.getElementById("simulador")?.scrollIntoView({ behavior: "smooth" })}
+ className="mt-btn mt-btn-contorno mt-foco flex-1 justify-center px-3 py-3.5 text-center text-[11px] leading-tight tracking-[.06em]"
+            >
+              SIMULAR FINANCIAMENTO
+            </button>
+            <button
+              type="button"
+              onClick={handleTradeInClick}
+ className="mt-btn mt-btn-contorno mt-foco flex-1 justify-center px-3 py-3.5 text-center text-[11px] leading-tight tracking-[.06em]"
+            >
+              DAR MEU CARRO DE ENTRADA
+            </button>
+          </div>
         </div>
 
         {/* Social Share & Print Row */}
@@ -815,30 +817,60 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
               )}
             </div>
 
-            {/* Interactive horizontal thumbnail strip below the active slide */}
+            {/* Grade de miniaturas — tela 03 do design doc: células 4:3
+                separadas por 2px, a última escura com "+N VER GALERIA".
+                Substitui a faixa rolável antiga; a navegação foto a foto
+                continua nas setas e no arrasto do carrossel. No mobile são
+                três células (duas fotos), no desktop quatro (três fotos). */}
             {displayImages.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin max-w-full px-4 md:px-0">
-                {displayImages.map((imgUrl, index) => {
-                  const isActive = index === activeImageIndex;
+              /* Flex e não grade: a grade tem um número fixo de colunas e o
+                 carro com só duas ou três fotos ficava com células vazias no
+                 fim da linha. Com `flex-1` as células dividem a largura seja
+                 qual for a quantidade. */
+              <div className="flex gap-0.5 bg-mt-bg">
+                {displayImages.slice(1, 4).map((imgUrl, i) => {
+                  const index = i + 1;
                   return (
                     <button
                       key={index}
                       onClick={() => scrollCarouselTo(index)}
- className={`relative h-16 w-24 overflow-hidden flex-shrink-0 border-2 transition-all duration-300 ${
-                        isActive ? "border-brand-primary scale-[0.98]" : "border-brand-border hover:border-brand-primary/40 opacity-70 hover:opacity-100 "
-                      }`}
+ className={`mt-foco relative aspect-[4/3] flex-1 cursor-pointer overflow-hidden bg-mt-neutral-300 ${i === 2 ? "hidden sm:block" : ""}`}
                       aria-label={`Visualizar foto ${index + 1}`}
                     >
                       <Image
                         src={imgUrl}
-                        alt={`Miniatura ${index + 1}`}
+                        alt={`${veiculo.marca} ${veiculo.modelo} — miniatura ${index + 1}`}
                         fill
- className="object-cover w-full border-none p-0 m-0"
-                        sizes="96px"
+ className="object-cover"
+                        sizes="(max-width: 640px) 33vw, 240px"
                       />
                     </button>
                   );
                 })}
+                <button
+                  onClick={() => {
+                    setLightboxImageIndex(0);
+                    setIsLightboxOpen(true);
+                  }}
+ className="mt-foco grid aspect-[4/3] flex-1 cursor-pointer place-items-center bg-mt-inverso-fundo text-mt-inverso"
+                  aria-label="Ver todas as fotos do veículo"
+                >
+                  <span className="text-center">
+                    {displayImages.length > 3 && (
+                      <span className="block text-[22px] font-extrabold leading-none sm:hidden">
+                        +{displayImages.length - 3}
+                      </span>
+                    )}
+                    {displayImages.length > 4 && (
+                      <span className="hidden text-[26px] font-extrabold leading-none sm:block">
+                        +{displayImages.length - 4}
+                      </span>
+                    )}
+                    <span className="mt-1.5 block text-[10px] font-semibold tracking-[.14em] text-mt-inverso-suave">
+                      VER GALERIA
+                    </span>
+                  </span>
+                </button>
               </div>
             )}
           </section>
@@ -1047,20 +1079,6 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
 
             </div>
 
-          {/* Dinamic Finance Calculator */}
-          <CalculadoraFinanciamento 
-            vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
-            vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
-            vehicleName={`${veiculo.marca} ${veiculo.modelo}`}
-            onSimulateClick={(msg) => {
-              if (typeof window !== "undefined") {
-                setActiveChannel("Simulação de Financiamento");
-                setActiveMessage(`${msg} (Ref: ${getActiveAgUid()})`);
-                setIsLeadModalOpen(true);
-              }
-            }}
-          />
-
           {/* Direct contact CTA box in side desk bar — Re-structured for High Conversion Trade-In & Showroom Visit */}
           <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4 print:hidden">
               <div className="flex items-center gap-3">
@@ -1194,6 +1212,29 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
           </div>
         </div>
       )}
+
+      {/* ─── Simulador — "Monte sua parcela" ───
+          Faixa própria, largura da página, como na tela 03 do design doc.
+          Antes vivia dentro da coluna lateral, com o visual antigo. */}
+      <section
+        id="simulador"
+        aria-label="Simulador de financiamento"
+        className="mx-auto mt-16 w-full max-w-[1600px] px-[18px] font-modernist md:px-8 print:hidden"
+      >
+        <CalculadoraFinanciamento
+          vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
+          vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
+          vehicleName={`${veiculo.marca} ${veiculo.modelo}`}
+          onSimulateClick={(msg, simulacaoData) => {
+            if (typeof window !== "undefined") {
+              setActiveChannel("Simulação de Financiamento");
+              setActiveMessage(`${msg} (Ref: ${getActiveAgUid()})`);
+              setActiveSimulacao(simulacaoData ? { ...simulacaoData } : null);
+              setIsLeadModalOpen(true);
+            }
+          }}
+        />
+      </section>
 
       {/* ─── Também no seu perfil ───
           Fecha a página como no design doc: três do estoque próximos a este,
