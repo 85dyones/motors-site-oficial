@@ -56,7 +56,20 @@ export default function HeroHome({
     : 0;
 
   return (
-    <section className="relative bg-mt-inverso-fundo min-h-[520px] lg:h-[620px]">
+    /* A altura acompanha a largura, e isso é o ponto.
+     *
+     * O design doc desenha o hero com 620px num canvas de 1440 — proporção
+     * 2,32:1. Copiar o valor em pixel funcionava em 1440 e quebrava acima
+     * disso: em 1920 a mesma caixa vira 3,1:1, o `object-cover` come o topo
+     * e a base da foto e o carro perde a roda. A própria tela 09 do doc já
+     * mostra o hero em 724px num canvas de 1280, ou seja, ele nunca foi um
+     * número fixo.
+     *
+     * 43vw reproduz o desenho em 1440 (619px), cresce até 860px e para —
+     * acima disso a foto viraria pôster e o conteúdo abaixo sumiria. O
+     * `max-h` guarda o caso da tela baixa: o hero nunca passa da altura útil
+     * da janela descontando os 68px do cabeçalho. */
+    <section className="relative bg-mt-inverso-fundo min-h-[520px] lg:h-[min(43vw,860px)] lg:max-h-[calc(100vh-68px)]">
       {slides.map((v, i) => {
         const foto = v.web_full_images?.[0] ?? v.whatsapp_images?.[0];
         if (!foto) return null;
@@ -72,7 +85,14 @@ export default function HeroHome({
               src={foto}
               alt={i === atual ? `${v.marca} ${v.modelo} em destaque` : ""}
               loading={i === 0 ? "eager" : "lazy"}
-              className="h-full w-full object-cover"
+              /* O recorte olha para baixo do centro, não para o centro.
+               *
+               * Foto de carro tem o veículo na metade inferior do quadro e
+               * céu, parede ou teto na superior. Com `object-position` no
+               * padrão (50% 50%) a faixa do hero come as rodas e mantém o
+               * que não interessa; puxando para 62% o carro entra inteiro e
+               * o que se perde é o topo do fundo. */
+              className="h-full w-full object-cover object-[50%_62%]"
             />
           </div>
         );
