@@ -60,7 +60,11 @@ export default function VitrineTV({
     { rotulo: "CÂMBIO", valor: carro.cambio },
     { rotulo: "COMBUSTÍVEL", valor: carro.combustivel },
     // Coluna sem dado real sai da régua em vez de aparecer vazia — mesma
-    // regra da matriz de especificações da ficha do veículo.
+    // regra dos dois blocos de especificação da ficha do veículo: a matriz
+    // (que oculta a linha) e a régua de especificações rápidas da barra
+    // lateral (que filtra a célula). A régua só passou a seguir a regra em
+    // 2026-08-06; até lá exibia rótulo sobre valor em branco. Guarda em
+    // tests/especificacoes-pdp.test.ts.
   ].filter((s) => s.valor && s.valor.trim() !== "");
 
   return (

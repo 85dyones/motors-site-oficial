@@ -465,9 +465,15 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
         </svg>
-      ) 
+      )
     }
-  ];
+    // Célula sem dado real sai da régua — mesma regra da matriz de
+    // especificações, mais abaixo, e da vitrine da TV. Desde 2026-08-06 o
+    // mapper não inventa mais default: `cambio`, `combustivel` e `cor` chegam
+    // como string vazia quando o feed do RevendaMais não traz o campo
+    // (`combustivel` está ausente em 19 dos 88 veículos em produção). Sem este
+    // filtro, esses 19 exibem o rótulo "COMBUSTÍVEL" sobre um valor em branco.
+  ].filter((spec) => spec.value && spec.value.trim() !== "");
 
   const renderSidebar = (isMobile: boolean) => {
     // SEO: Only the mobile sidebar renders an <h1> (appears first in DOM).
@@ -506,8 +512,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
 
         {/* Especificações rápidas em régua */}
         <div className="grid grid-cols-2 border-t-2 border-mt-regua">
-          {quickSpecs.map((spec, index) => (
-            <div key={index} className="border-b border-mt-regua-fina py-3">
+          {quickSpecs.map((spec) => (
+            <div key={spec.label} className="border-b border-mt-regua-fina py-3">
               <div className="text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600">
                 {spec.label}
               </div>
