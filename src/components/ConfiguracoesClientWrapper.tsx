@@ -1036,7 +1036,10 @@ export default function ConfiguracoesClientWrapper() {
                   // Sem carroceria no feed o select fica vazio, não em "Hatch":
                   // o default anterior mostrava um palpite ao dono e o gravava
                   // no banco se ele salvasse a linha por outro motivo.
-                  const currentTipo = overrides[vehicle.id]?.tipo || vehicle.tipo || "";
+                  //
+                  // O `??` no override é o que faz "— SEM CARROCERIA —"
+                  // funcionar, pelo mesmo motivo descrito abaixo em `currentPerfil`.
+                  const currentTipo = overrides[vehicle.id]?.tipo ?? vehicle.tipo ?? "";
                   // Sem perfil no feed o select fica vazio. O default
                   // "URBANO & EFICIENTE" era o rótulo que o resolvedor colava
                   // em 71 dos 88 veículos — mantê-lo aqui reintroduziria à mão
