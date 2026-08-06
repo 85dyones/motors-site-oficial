@@ -66,26 +66,59 @@ export async function POST(request: NextRequest) {
         const { companySettings } = await getCachedSettings();
         const pixelId = companySettings?.metaPixelId || null;
 
-        if (pixelId) {
-          await sendCapiEvent({
-            eventName: validEventName,
-            eventId: validEventId,
-            eventSourceUrl: typeof eventSourceUrl === "string" ? eventSourceUrl : null,
-            userData: {
-              fbp: typeof fbp === "string" ? fbp : null,
-              fbc: typeof fbc === "string" ? fbc : null,
-              externalId: typeof externalId === "string" ? externalId : null,
-              clientIpAddress:
-                request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-                request.headers.get("x-real-ip"),
-              clientUserAgent: request.headers.get("user-agent"),
+        /**
+         * Fila no n8n em vez de entrega direta ao Meta.
+         *
+         * Decidido em 2026-08-06: o n8n já é a peça de integração do projeto,
+         * dá fila, retry e visibilidade de graça, e evita mais um serviço só
+         * para isso. Precisa ser um webhook DIFERENTE do de leads — ver o
+         * comentário no ponto de envio.
+         *
+         * Sem a variável, o comportamento anterior continua valendo: entrega
+         * direta. Assim configurar depois não é pré-requisito para publicar.
+         */
+        const webhookTracking = process.env.N8N_WEBHOOK_TRACKING_URL?.trim() || null;
+
+        const evento = {
+          eventName: validEventName,
+          eventId: validEventId,
+          eventSourceUrl: typeof eventSourceUrl === "string" ? eventSourceUrl : null,
+          userData: {
+            fbp: typeof fbp === "string" ? fbp : null,
+            fbc: typeof fbc === "string" ? fbc : null,
+            externalId: typeof externalId === "string" ? externalId : null,
+            clientIpAddress:
+              request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+              request.headers.get("x-real-ip"),
+            clientUserAgent: request.headers.get("user-agent"),
+          },
+          customData:
+            customData && typeof customData === "object"
+              ? sanitizeCustomData(customData as Record<string, unknown>)
+              : undefined,
+        };
+
+        if (webhookTracking) {
+          // Caminho preferido: o n8n enfileira, repete em caso de falha do
+          // Meta e dá visibilidade do que passou. Este é o fluxo de volume
+          // (Contact é o evento mais frequente do site) e por isso usa um
+          // webhook PRÓPRIO, separado do de leads: enxurrada de tracking não
+          // pode degradar a entrega de lead, que é o caminho do dinheiro.
+          await fetch(webhookTracking, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(process.env.N8N_SECRET_TOKEN
+                ? { Authorization: `Bearer ${process.env.N8N_SECRET_TOKEN}` }
+                : {}),
             },
-            customData:
-              customData && typeof customData === "object"
-                ? sanitizeCustomData(customData as Record<string, unknown>)
-                : undefined,
-            pixelId,
+            body: JSON.stringify({ ...evento, pixelId, recebidoEm: new Date().toISOString() }),
           });
+        } else if (pixelId) {
+          // Sem webhook configurado, segue direto para o Meta — é o
+          // comportamento anterior, mantido para não desligar o tracking se
+          // a variável não estiver preenchida.
+          await sendCapiEvent({ ...evento, pixelId });
         }
       }
     }

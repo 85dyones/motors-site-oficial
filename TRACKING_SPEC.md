@@ -42,7 +42,7 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 | `src/lib/tracking-identity.ts` | `generateEventId` e leitura de `_fbp`/`_fbc` (Fase 1) |
 | `src/lib/meta-capi.ts` | Envio server-side ao Meta, com hash de PII (Fase 2) |
 | `src/app/api/leads/route.ts` | Recebe lead, valida Turnstile, envia para webhook n8n e espelha `Lead` no CAPI |
-| `src/app/api/capi/route.ts` | Rota genérica de CAPI, com whitelist de eventos e rate limit no `proxy.ts` |
+| `src/app/api/capi/route.ts` | Rota genérica de CAPI, com whitelist de eventos; posta no webhook de fila do n8n (ou direto no Meta, se ele não estiver configurado) |
 | `src/app/api/feed/xml/route.ts` | Gera feed do catálogo; emite `<g:id>${car.id}</g:id>`; pula `car.vendido` |
 | `src/app/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx` | PDP (página de detalhe do veículo) |
 
@@ -518,7 +518,7 @@ A escolha entre bloqueio total e consent mode envolve apetite de risco jurídico
 | **2** | CAPI em `/api/leads` e `/api/capi` | Fase 1 | Recupera eventos perdidos | ✅ feita no código |
 | **3** | Enhanced Conversions | Fase 1 | Otimização no Google | ⚠️ código pronto, **inerte** |
 | **4** | Consent mode | Decisão jurídica | Cobertura de medição | ⏸️ parada, por decisão |
-| **5** | Espelhar `Contact`, `Search` e `CompleteRegistration` no CAPI | Fase 2 | Fecha a cobertura server-side | ✅ feita — **conferir Upstash antes de publicar** |
+| **5** | Espelhar `Contact`, `Search` e `CompleteRegistration` no CAPI | Fase 2 | Fecha a cobertura server-side | ✅ feita — fila no n8n |
 
 ---
 
@@ -604,12 +604,33 @@ Dois detalhes que valem registro:
 - IP e User-Agent **não** vão no corpo. O servidor lê dos headers, seguindo a
   regra 4 — cliente não é fonte confiável para isso.
 
-### ⚠️ Antes de publicar
+### A fila mora no n8n, não no Upstash
 
-`Contact` é o evento mais frequente do site. **Confirmar que
-`UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` estão preenchidas no
-Vercel** — sem elas o rate limit de `/api/capi` é ignorado (o `proxy.ts` loga
-o bypass e segue), e a rota fica exposta com volume muito maior que antes.
+**Decidido em 2026-08-06.** O `/api/capi` deixou de entregar direto ao Meta e
+passa a postar num webhook do n8n, que enfileira, repete em caso de falha e
+dá visibilidade do que passou. Um serviço a menos, e reaproveita a peça de
+integração que o projeto já tem.
+
+Configurado por `N8N_WEBHOOK_TRACKING_URL`. **Vazia, o comportamento anterior
+continua valendo** (entrega direta), então configurar depois não é
+pré-requisito para publicar.
+
+> **Tem que ser um webhook diferente do de lead.** `Contact` é o evento mais
+> frequente do site. Se o firehose de tracking entrar no mesmo fluxo que
+> entrega lead, uma enxurrada degrada o caminho que gera dinheiro. Fila e
+> proteção de porta pública são problemas diferentes: o n8n resolve o
+> primeiro, não o segundo.
+
+#### Sobre o rate limit
+
+O `proxy.ts` referencia Upstash em `/api/leads`, `/api/avaliacao` e
+`/api/capi`, mas **isso nunca esteve ligado em produção**. Sondagem de
+2026-08-06: 12 POSTs seguidos em `/api/capi`, todos `204`, nenhum `429`. Sem
+as variáveis o `proxy.ts` loga o bypass e segue.
+
+Ou seja, as três rotas públicas rodam sem limite desde sempre — não é uma
+regressão desta fase. Fica registrado como pendência de segurança em aberto,
+separada da decisão de fila acima.
 
 **Critério de aceite:** no Events Manager, `Contact` aparece com origem
 "Servidor" e marcado como **"Desduplicado"**, não com contagem dobrada.
