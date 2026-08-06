@@ -235,4 +235,31 @@ describe("colunas de estoque_motors citadas em queries", () => {
     );
     expect(proibidas).toEqual([]);
   });
+
+  it("`placa` também não é campo do tipo `Veiculo`", () => {
+    // Camada diferente do teste acima, e o motivo de ela existir: enquanto
+    // `Veiculo.placa: string` estava declarado, o campo tinha que ser
+    // preenchido em algum lugar. O mapper o preenchia com `dbItem.placa || ""`
+    // sobre uma coluna inexistente — sempre `""` — e os 5 mocks traziam placas
+    // fictícias ("PDK-9110"). Um tipo obrigatório sobre um dado que não existe
+    // é um convite permanente a inventá-lo: foi assim que "V-REF100" chegou a
+    // ser o default do mapper.
+    //
+    // Fora do tipo, o compilador passa a recusar a reintrodução em vez de
+    // exigi-la. Se o RevendaMais um dia trouxer placa no XML, o caminho é
+    // migração + coluna + campo — nesta ordem, e este teste sai junto.
+    const tipos = readFileSync(join(RAIZ_SRC, "types", "index.ts"), "utf8");
+    const interfaceVeiculo = tipos.slice(
+      tipos.indexOf("export interface Veiculo {")
+    );
+    const corpo = interfaceVeiculo.slice(0, interfaceVeiculo.indexOf("\n}"));
+
+    expect(corpo, "O parser não achou a interface `Veiculo`.").toContain("modelo");
+    expect(
+      corpo,
+      "`placa` voltou ao tipo `Veiculo`. `estoque_motors` não tem essa coluna\n" +
+        "(verificado contra produção em 2026-08-03), então o valor só pode ser\n" +
+        "string vazia ou invenção."
+    ).not.toMatch(/^\s*placa[?]?:/m);
+  });
 });

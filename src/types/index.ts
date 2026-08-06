@@ -134,7 +134,6 @@ export interface Veiculo {
   cambio: string;
   combustivel: string;
   cor: string;
-  placa: string;
   fipe: string;
   preco_original: number;
   preco_promocional: number;

@@ -25,7 +25,6 @@ const MOCK_ESTOQUE: Veiculo[] = [
     cambio: "Automático PDK",
     combustivel: "Gasolina",
     cor: "Cinza Nardo",
-    placa: "PDK-9110",
     fipe: "R$ 1.050.000",
     preco_original: 1050000,
     preco_promocional: 998000,
@@ -53,7 +52,6 @@ const MOCK_ESTOQUE: Veiculo[] = [
     cambio: "Automático ZF8",
     combustivel: "Diesel (Híbrido Leve)",
     cor: "Preto Santorini",
-    placa: "LRD-1100",
     fipe: "R$ 610.000",
     preco_original: 620000,
     preco_promocional: 589900,
@@ -81,7 +79,6 @@ const MOCK_ESTOQUE: Veiculo[] = [
     cambio: "Automático",
     combustivel: "Elétrico",
     cor: "Cinza Dolphin",
-    placa: "BYD-0E24",
     fipe: "R$ 149.800",
     preco_original: 149800,
     preco_promocional: 0, // No promotion active
@@ -109,7 +106,6 @@ const MOCK_ESTOQUE: Veiculo[] = [
     cambio: "Automático ZF8",
     combustivel: "Híbrido (Gasolina/Elétrico)",
     cor: "Branco Mineral",
-    placa: "BMW-5X23",
     fipe: "R$ 685.000",
     preco_original: 689000,
     preco_promocional: 659900,
@@ -137,7 +133,6 @@ const MOCK_ESTOQUE: Veiculo[] = [
     cambio: "Automático 6m",
     combustivel: "Diesel",
     cor: "Prata Metalizado",
-    placa: "TOY-2823",
     fipe: "R$ 290.000",
     preco_original: 295000,
     preco_promocional: 279900,
@@ -382,7 +377,6 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     cambio: dbItem.cambio ? formatCambio(dbItem.cambio) : "",
     combustivel: dbItem.combustivel ? formatCombustivel(dbItem.combustivel) : "",
     cor: dbItem.cor ? capitalizeWords(dbItem.cor.trim()) : "",
-    placa: dbItem.placa || "",
     fipe: dbItem.fipe || "",
     preco_original: precoOriginal,
     preco_promocional: precoPromocional,
@@ -514,7 +508,7 @@ export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(l
  * O que servir quando o Supabase não responde.
  *
  * `MOCK_ESTOQUE` são 5 carros FICTÍCIOS de demonstração — Porsche 911 a
- * R$ 998.000, Defender, BYD Dolphin — com placas falsas e fotos do Unsplash.
+ * R$ 998.000, Defender, BYD Dolphin — com preços e fotos do Unsplash falsos.
  * Servi-los em produção significa anunciar carros que a loja não tem, com CTAs
  * de WhatsApp funcionais: o cliente inicia negociação de um veículo inexistente.
  * Pior, `getEstoque()` nunca lança erro, então o `try/catch` do sitemap nunca
@@ -613,7 +607,7 @@ export async function getVeiculoById(id: string): Promise<Veiculo | null> {
 
   if (!car) {
     // Em produção, veículo não encontrado é 404 — não um carro de demonstração
-    // com preço e placa inventados servido como se fosse do estoque real.
+    // com preço inventado servido como se fosse do estoque real.
     const found = estoqueDeContingencia().find((item) => item.id === id);
     car = found || null;
   }
