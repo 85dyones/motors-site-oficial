@@ -1,89 +1,51 @@
 -- ==========================================================
--- RECONCILIAÇÃO — trazer `vendido` do JSON para a coluna
+-- RECONCILIAÇÃO — marcar como vendidos na coluna
 -- ==========================================================
 --
--- ⚠️  NÃO É MIGRAÇÃO DE SCHEMA. É CORREÇÃO DE DADO EM PRODUÇÃO.
---     Fica em `pendente/` de propósito: `supabase db push` não a aplica.
---     Só rode depois de conferir a lista do passo 1.
+-- ▶ COLE ESTE ARQUIVO INTEIRO NO SQL EDITOR E EXECUTE.
+--   Não há passo comentado: tudo aqui roda.
 --
 -- ----------------------------------------------------------
--- O que aconteceu
+-- Por que esta versão é diferente da anterior
 -- ----------------------------------------------------------
--- Até 2026-08-07 o painel gravava `vendido` apenas no blob JSON
--- `site_settings.stock_overrides`, nunca na coluna `estoque_motors.vendido`
--- (ver o comentário em `handleSaveVehicleOverride`,
--- ConfiguracoesClientWrapper.tsx, e `tests/painel-grava-colunas.test.ts`).
+-- A primeira versão trazia o UPDATE comentado, para ninguém alterar dado por
+-- copiar-colar distraído. O efeito prático foi o oposto do pretendido: rodar
+-- o arquivo executava só o SELECT de conferência, o editor respondia
+-- "Success", e a impressão era de que a reconciliação tinha sido feita — duas
+-- vezes seguidas, com os 23 carros seguindo anunciados no site.
 --
--- Como a home é Server Component e filtra por `!v.vendido` lendo a COLUNA —
--- e `applyLocalOverrides` não roda no servidor —, tudo que foi marcado como
--- vendido no painel seguiu anunciado no site.
+-- A conferência já foi feita. Esta versão executa.
 --
--- Medido em produção em 2026-08-07:
---
---   veículos na tabela ................................. 88
---   com `vendido = true` na COLUNA ...................... 0
---   marcados `vendido: true` no JSON de overrides ....... 23
---   veículos anunciados na home ......................... 88
---
--- Ou seja: 23 carros já vendidos continuam na vitrine, com CTA de WhatsApp
--- ativo. O código já foi corrigido (salvamentos novos gravam nos dois
--- lugares), mas os 23 antigos seguem presos no JSON — este script os move.
+-- Também trocamos a subquery sobre o JSON por uma lista literal de ids: é
+-- menos elegante e muito mais previsível — não depende de `jsonb_each`, de
+-- LATERAL nem do formato do blob, e o que vai ser alterado está à vista.
 --
 -- ----------------------------------------------------------
--- PASSO 1 — CONFERIR ANTES (não altera nada)
+-- O que este script corrige
 -- ----------------------------------------------------------
--- Rode só isto primeiro e olhe a lista. Se algum veículo estiver aqui por
--- engano, corrija-o no painel ANTES de rodar o passo 2 — depois de aplicado,
--- desmarcar é manual.
+-- Até 2026-08-07 o painel gravava `vendido` só no JSON `stock_overrides`,
+-- nunca na coluna. Como a home é Server Component e filtra por `!v.vendido`
+-- lendo a COLUNA, esses carros continuaram na vitrine com CTA de WhatsApp
+-- ativo. O código já foi corrigido; estes 23 são o passivo de antes.
+--
+-- Os ids saíram do próprio JSON, conferidos em produção em 2026-08-07.
+-- ==========================================================
 
-SELECT e.id,
-       e.marca,
-       e.modelo,
-       e.preco,
-       e.vendido AS vendido_na_coluna_hoje
-  FROM public.estoque_motors AS e
-  JOIN (
-        SELECT ov.key::bigint AS veiculo_id
-          FROM public.site_settings AS s,
-               LATERAL jsonb_each(s.data->'overrides') AS ov(key, value)
-         WHERE s.id = 'stock_overrides'
-           AND ov.value->>'vendido' = 'true'
-       ) AS alvo
-    ON e.id = alvo.veiculo_id
- ORDER BY e.marca, e.modelo;
+-- ── 1. Aplica ────────────────────────────────────────────
+update public.estoque_motors
+   set vendido = true
+ where id in (
+        6609121, 6984959, 7781099, 7786077, 7950008, 7950065,
+        7987637, 8006476, 8038352, 8055096, 8056955, 8061939,
+        8089098, 8100626, 8101950, 8138493, 8147325, 8152141,
+        8180982, 8196763, 8197237, 8199227, 8238401
+       )
+   and vendido is distinct from true;
 
--- ----------------------------------------------------------
--- PASSO 2 — APLICAR (altera dado)
--- ----------------------------------------------------------
--- Espera-se `UPDATE 23`. Se o número divergir muito da conferência acima,
--- pare e investigue antes de seguir.
-
--- UPDATE public.estoque_motors AS e
---    SET vendido = true
---   FROM (
---         SELECT ov.key::bigint AS veiculo_id
---           FROM public.site_settings AS s,
---                LATERAL jsonb_each(s.data->'overrides') AS ov(key, value)
---          WHERE s.id = 'stock_overrides'
---            AND ov.value->>'vendido' = 'true'
---        ) AS alvo
---  WHERE e.id = alvo.veiculo_id
---    AND e.vendido IS DISTINCT FROM true;
-
--- ----------------------------------------------------------
--- PASSO 3 — VERIFICAR
--- ----------------------------------------------------------
--- Deve devolver 23 (ou o número conferido no passo 1). Depois disso, a home
--- passa a anunciar 88 − 23 = 65 veículos.
-
--- SELECT count(*) AS vendidos_na_coluna
---   FROM public.estoque_motors
---  WHERE vendido IS true;
-
--- ----------------------------------------------------------
--- Nota sobre o `preco_compra`
--- ----------------------------------------------------------
--- O mesmo blob guarda `preco_compra` de alguns veículos, e a coluna passou a
--- existir na migração 20260807160000. NÃO é reconciliado aqui de propósito:
--- é dado financeiro, as rotas de margem ainda leem do JSON, e mover a fonte
--- exige decisão própria. Enquanto isso, os dois lugares convivem.
+-- ── 2. Confere ───────────────────────────────────────────
+-- Esperado depois de aplicar:
+--   vendidos = 23 · disponiveis = 65 · total = 88
+select count(*) filter (where vendido is true)  as vendidos,
+       count(*) filter (where vendido is not true) as disponiveis,
+       count(*)                                  as total
+  from public.estoque_motors;
