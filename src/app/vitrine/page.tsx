@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import VitrineTV from "../../components/modernist/VitrineTV";
+import VitrineTV, { POR_PAGINA } from "../../components/modernist/VitrineTV";
 import { getEstoque } from "../../lib/supabase";
 import { getCachedSettings } from "../../lib/settings";
 import DEFAULT_COMPANY_SETTINGS from "../../lib/companySettings.json";
@@ -28,13 +28,20 @@ export default async function VitrinePage() {
   const disponiveis = estoque.filter((v) => !v.vendido);
 
   // A vitrine mostra a mesma curadoria do carrossel da home quando ela existe.
-  // Sem curadoria, os quatro primeiros do estoque — que já vem ordenado.
   const curados = Array.isArray(settings.carouselVehicleIds)
     ? (settings.carouselVehicleIds as string[])
         .map((id) => disponiveis.find((v) => v.id === id))
         .filter((v): v is NonNullable<typeof v> => Boolean(v))
     : [];
-  const vitrine = (curados.length > 0 ? curados : disponiveis).slice(0, 4);
+
+  // A curadoria entra inteira: o rodapé da TV pagina de quatro em quatro, então
+  // marcar sete veículos no painel expõe os sete. Antes o corte era em quatro
+  // fixos e os demais nunca apareciam.
+  //
+  // Sem curadoria nenhuma, continua uma página só. Não é limitação técnica — é
+  // que rodar o pátio inteiro a 8s por carro daria mais de dez minutos de volta
+  // completa, e quem decide o que a TV mostra é a loja, curando.
+  const vitrine = curados.length > 0 ? curados : disponiveis.slice(0, POR_PAGINA);
 
   // Só entra na rotação quem tem foto: uma célula vazia numa TV de showroom é
   // pior do que um veículo a menos no rodízio.
