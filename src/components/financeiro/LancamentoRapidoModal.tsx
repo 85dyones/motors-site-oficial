@@ -83,28 +83,28 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-fadeIn">
-      <div className="bg-brand-card border border-brand-border/60 rounded-3xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5">
-        <div className="flex items-center justify-between border-b border-brand-border/40 pb-3">
+    <div className="fixed inset-0 z-50 bg-mt-inverso-fundo/80 flex items-center justify-center p-4 select-none">
+      <div className="bg-mt-surface border border-mt-regua-fina max-w-lg w-full p-6 flex flex-col gap-5">
+        <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3">
           <div className="flex items-center gap-2">
             <span className="text-xl">⚡</span>
             <div>
-              <h3 className="text-sm font-extrabold text-brand-text uppercase tracking-wider">
+              <h3 className="text-sm font-extrabold text-mt-ink uppercase tracking-wider">
                 Lançamento Rápido de 10 Segundos
               </h3>
-              <p className="text-[10px] text-brand-text/70 uppercase">Despesas Corriqueiras do Dia a Dia</p>
+              <p className="text-[10px] text-mt-neutral-700 uppercase">Despesas Corriqueiras do Dia a Dia</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-brand-text/50 hover:text-brand-text text-lg font-bold p-1 cursor-pointer"
+            className="text-mt-neutral-700 hover:text-mt-ink text-lg font-bold p-1 cursor-pointer"
           >
             ✕
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-2.5 rounded-xl">
+          <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-2.5">
             {error}
           </div>
         )}
@@ -115,10 +115,10 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
             <button
               type="button"
               onClick={() => setTipo("pagar")}
-              className={`py-2.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
+              className={`py-2.5 text-xs font-extrabold uppercase tracking-wider border transition-all cursor-pointer ${
                 tipo === "pagar"
-                  ? "bg-red-500 text-white border-red-500 shadow-md"
-                  : "bg-brand-bg text-brand-text/70 border-brand-border"
+                  ? "bg-mt-accent text-mt-inverso border-mt-accent"
+                  : "bg-mt-bg text-mt-neutral-700 border-mt-regua-fina"
               }`}
             >
               🔴 Conta a Pagar (Saída)
@@ -126,10 +126,10 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
             <button
               type="button"
               onClick={() => setTipo("receber")}
-              className={`py-2.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
+              className={`py-2.5 text-xs font-extrabold uppercase tracking-wider border transition-all cursor-pointer ${
                 tipo === "receber"
-                  ? "bg-emerald-500 text-white border-emerald-500 shadow-md"
-                  : "bg-brand-bg text-brand-text/70 border-brand-border"
+                  ? "bg-mt-ink text-mt-inverso border-mt-ink"
+                  : "bg-mt-bg text-mt-neutral-700 border-mt-regua-fina"
               }`}
             >
               🟢 Conta a Receber (Entrada)
@@ -138,17 +138,17 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
 
           {/* Quick Category Pills */}
           <div className="flex flex-col gap-1.5">
-            <span className="text-[9px] font-bold uppercase text-brand-text/60">Atalho Rápido de Categoria</span>
+            <span className="text-[9px] font-bold uppercase text-mt-neutral-700">Atalho Rápido de Categoria</span>
             <div className="flex flex-wrap gap-1.5">
               {quickPills.map((pill) => (
                 <button
                   key={pill.codigo}
                   type="button"
                   onClick={() => setPlanoCodigo(pill.codigo)}
-                  className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                  className={`text-[10px] font-bold px-2.5 py-1 border transition-all cursor-pointer ${
                     planoCodigo === pill.codigo
-                      ? "bg-brand-primary text-white border-brand-primary"
-                      : "bg-brand-bg text-brand-text/80 border-brand-border/60 hover:border-brand-primary/40"
+                      ? "bg-mt-accent text-mt-inverso border-mt-accent"
+                      : "bg-mt-bg text-mt-neutral-800 border-mt-regua-fina hover:border-mt-accent"
                   }`}
                 >
                   {pill.label}
@@ -160,25 +160,25 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
           {/* Description & Value */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2 flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-brand-text/70">Descrição da Despesa</label>
+              <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Descrição da Despesa</label>
               <input
                 type="text"
                 required
                 placeholder="Ex: Troca de óleo, Uber cartório..."
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl px-3.5 h-11 text-xs text-brand-text outline-none focus:border-brand-primary"
+                className="bg-mt-bg border border-mt-regua-fina px-3.5 h-11 text-xs text-mt-ink outline-none focus:border-mt-accent"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-brand-text/70">Valor (R$)</label>
+              <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Valor (R$)</label>
               <input
                 type="text"
                 required
                 placeholder="0,00"
                 value={valor}
                 onChange={(e) => setValor(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl px-3.5 h-11 text-xs text-brand-text font-mono font-bold outline-none focus:border-brand-primary text-right"
+                className="bg-mt-bg border border-mt-regua-fina px-3.5 h-11 text-xs text-mt-ink font-mono font-bold outline-none focus:border-mt-accent text-right"
               />
             </div>
           </div>
@@ -186,44 +186,44 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
           {/* Date, Partner & Vehicle Placa */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-brand-text/70">Vencimento</label>
+              <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Vencimento</label>
               <input
                 type="date"
                 required
                 value={dataVencimento}
                 onChange={(e) => setDataVencimento(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text outline-none focus:border-brand-primary"
+                className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-brand-text/70">Fornecedor / Local</label>
+              <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Fornecedor / Local</label>
               <input
                 type="text"
                 placeholder="Ex: Posto Shell, AutoPeças"
                 value={fornecedorCliente}
                 onChange={(e) => setFornecedorCliente(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text outline-none focus:border-brand-primary"
+                className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-brand-text/70">Placa Veículo (Opcional)</label>
+              <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Placa Veículo (Opcional)</label>
               <input
                 type="text"
                 placeholder="Ex: ABC-1234"
                 value={veiculoPlaca}
                 onChange={(e) => setVeiculoPlaca(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text uppercase font-mono outline-none focus:border-brand-primary"
+                className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink uppercase font-mono outline-none focus:border-mt-accent"
               />
             </div>
           </div>
 
           {/* Plano de contas selector */}
           <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-bold uppercase text-brand-text/70">Plano de Contas Oficial de Revenda</label>
+            <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Plano de Contas Oficial de Revenda</label>
             <select
               value={planoCodigo}
               onChange={(e) => setPlanoCodigo(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text outline-none focus:border-brand-primary font-mono cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent font-mono cursor-pointer"
             >
               {PLANO_DE_CONTAS_REVENDA.filter(c => c.permiteLancamento).map((c) => (
                 <option key={c.codigo} value={c.codigo}>
@@ -233,18 +233,18 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
             </select>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-brand-border/40 mt-1">
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-mt-regua-fina mt-1">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 bg-brand-bg border border-brand-border text-brand-text/70 text-xs font-bold uppercase rounded-xl hover:bg-brand-primary/10 transition-all cursor-pointer"
+              className="px-4 py-2.5 bg-mt-bg border border-mt-regua-fina text-mt-neutral-700 text-xs font-bold uppercase hover:bg-mt-accent-100 transition-all cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+              className="px-6 py-2.5 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-xs font-extrabold uppercase tracking-wider transition-all  cursor-pointer disabled:opacity-50"
             >
               {isLoading ? "Salvando..." : "⚡ Confirmar Lançamento"}
             </button>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { logLeadCaptured } from "../../../lib/telemetry";
-import { createServerSupabaseClient } from "../../../lib/supabase-server";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 
@@ -134,6 +134,47 @@ export async function POST(request: NextRequest) {
       }
     } catch (webhookError: any) {
       console.warn(`[Webhook n8n Proxy] Network/fetch error (non-blocking): ${webhookError.message}`);
+    }
+
+    // 5.2 Persistência do lead — telas A1/A8/A9 do painel.
+    //
+    // Até 2026-08-07 o lead existia só no webhook do n8n: quem não abrisse o
+    // n8n não tinha como saber que alguém pediu contato. Agora fica também no
+    // nosso banco, com o que o dono decidiu guardar (nome, telefone,
+    // interesse) e sem prazo de expiração.
+    //
+    // Mesma regra do webhook e da CAPI: **nunca bloqueia**. O visitante está
+    // a caminho do WhatsApp, e falha de gravação nossa não pode segurá-lo —
+    // perder o registro é ruim, travar o contato é pior.
+    try {
+      // `insert` na tabela `leads` exige contornar a RLS (não há policy de
+      // INSERT para anônimo, de propósito), então usa a chave de serviço.
+      const supabaseAdmin = createAdminSupabaseClient();
+
+      // "Interesse" é o que a pessoa quer, na melhor forma disponível: o
+      // veículo da ficha, senão o que ela digitou, senão a busca que fazia.
+      const interesse =
+        (veiculo && [veiculo.marca, veiculo.modelo, veiculo.versao].filter(Boolean).join(" ")) ||
+        body.mensagem ||
+        (intencao_busca && Object.values(intencao_busca).filter(Boolean).join(" · ")) ||
+        null;
+
+      const { error: erroLead } = await supabaseAdmin.from("leads").insert({
+        nome: cliente.nome,
+        telefone: formattedPhone || null,
+        interesse,
+        canal: body.canal || body.tipo || "site",
+        veiculo_id: veiculo?.id ? Number(veiculo.id) || null : null,
+        // `email` já existia na tabela e alguns formulários do site o
+        // coletam — aproveitar a coluna evita perder o dado que já chega.
+        email: cliente.email || null,
+      });
+
+      if (erroLead) {
+        console.warn("[Leads API] Falha ao gravar lead (não bloqueante):", erroLead.message);
+      }
+    } catch (erroPersistencia: any) {
+      console.warn("[Leads API] Erro ao gravar lead (não bloqueante):", erroPersistencia?.message);
     }
 
     // 5.5 Meta CAPI — espelha o evento Lead disparado no browser (mesmo event_id = dedup)

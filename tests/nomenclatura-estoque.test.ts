@@ -66,15 +66,20 @@ describe("nomenclatura da tabela de inventário", () => {
     const padrao = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/;
     const comAcesso = arquivos.filter((a) => padrao.test(readFileSync(a, "utf8")));
 
-    // 5 arquivos, 9 pontos de acesso — o inventário completo mapeado no cutover:
-    //   lib/supabase.ts (3), api/financeiro/margens/consulta/route.ts (2),
+    // 7 arquivos, 14 pontos de acesso — o inventário atual:
+    //   lib/supabase.ts (3), api/estoque/[id]/route.ts (4),
+    //   api/financeiro/margens/consulta/route.ts (2),
     //   api/financeiro/margens/route.ts (2), lib/webhook-dispatcher.ts (1),
-    //   components/ConfiguracoesClientWrapper.tsx (1)
+    //   components/ConfiguracoesClientWrapper.tsx (1),
+    //   app/admin/estoque/[id]/page.tsx (1)
     //
-    // Eram 10 até 2026-08-03. A consulta perdeu um acesso quando a busca por
-    // placa foi removida — a coluna `placa` não existe e a query nunca achou
-    // nada. Ver o comentário em api/financeiro/margens/consulta/route.ts.
-    expect(comAcesso.length).toBe(5);
+    // Eram 10 acessos em 5 arquivos até 2026-08-03. A consulta perdeu um
+    // quando a busca por placa foi removida (a coluna não existia então).
+    // Em 2026-08-07 entraram os dois arquivos do editor de veículo (tela A15
+    // do design doc): a página que carrega o carro e a rota que o grava. O
+    // quarto acesso da rota é a leitura do estado ANTERIOR, feita antes do
+    // update para alimentar o histórico por veículo.
+    expect(comAcesso.length).toBe(7);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -82,6 +87,6 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(9);
+    expect(total).toBe(14);
   });
 });

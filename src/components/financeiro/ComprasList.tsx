@@ -93,10 +93,10 @@ export default function ComprasList() {
 
   const getStatusBadge = (s: string) => {
     switch (s) {
-      case "recebido": return "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500";
-      case "encomendado": return "bg-brand-gold/10 border border-brand-gold/20 text-brand-gold";
-      case "pendente": return "bg-amber-500/10 border border-amber-500/20 text-amber-500";
-      case "cancelado": default: return "bg-zinc-500/10 border border-zinc-500/20 text-zinc-500";
+      case "recebido": return "bg-mt-surface border border-mt-regua-fina text-mt-accent-800";
+      case "encomendado": return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent";
+      case "pendente": return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent-800";
+      case "cancelado": default: return "bg-mt-surface border border-mt-regua-fina text-mt-neutral-600";
     }
   };
 
@@ -115,7 +115,7 @@ export default function ComprasList() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl">
       {/* List Action header */}
-      <div className="flex items-center justify-end border-b border-brand-border/40 pb-4 select-none">
+      <div className="flex items-center justify-end border-b border-mt-regua-fina pb-4 select-none">
         <button
           onClick={() => {
             setSelectedId(undefined);
@@ -123,7 +123,7 @@ export default function ComprasList() {
             setError("");
             setSuccessMsg("");
           }}
-          className="h-10 bg-brand-primary hover:bg-brand-primary/95 text-white text-[11px] font-bold uppercase tracking-wider px-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md select-none"
+          className="h-10 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-[11px] font-bold uppercase tracking-wider px-4 flex items-center justify-center gap-2  transition-all cursor-pointer select-none"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
@@ -134,7 +134,7 @@ export default function ComprasList() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2 select-none">
+        <div className="bg-mt-surface border border-mt-regua-fina text-mt-accent-800 text-xs px-4 py-3 flex items-center gap-2 select-none">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
           </svg>
@@ -142,7 +142,7 @@ export default function ComprasList() {
         </div>
       )}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2 select-none">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-3 flex items-center gap-2 select-none">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
           </svg>
@@ -153,16 +153,16 @@ export default function ComprasList() {
       {/* Grid List layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Table of items */}
-        <div className={`lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md ${isFormOpen ? "hidden lg:block" : "block"}`}>
+        <div className={`lg:col-span-2 bg-mt-surface border border-mt-regua-fina p-6 ${isFormOpen ? "hidden lg:block" : "block"}`}>
           {isLoading ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Carregando compras...</div>
+            <div className="py-12 text-center text-xs text-mt-neutral-700">Carregando compras...</div>
           ) : compras.length === 0 ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Nenhuma compra registrada.</div>
+            <div className="py-12 text-center text-xs text-mt-neutral-700">Nenhuma compra registrada.</div>
           ) : (
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-brand-border/40 text-brand-text/40 font-bold uppercase tracking-wider">
+                  <tr className="border-b border-mt-regua-fina text-mt-neutral-600 font-bold uppercase tracking-wider">
                     <th className="pb-3 pl-2">Item</th>
                     <th className="pb-3">Data</th>
                     <th className="pb-3">Fornecedor</th>
@@ -172,25 +172,25 @@ export default function ComprasList() {
                     <th className="pb-3 pr-2 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-brand-border/20">
+                <tbody className="divide-y divide-mt-regua-fina">
                   {compras.map((c) => (
-                    <tr key={c.id} className="hover:bg-brand-card/10 transition-colors">
-                      <td className="py-4 pl-2 font-bold text-brand-text">
+                    <tr key={c.id} className="hover:bg-mt-surface transition-colors">
+                      <td className="py-4 pl-2 font-bold text-mt-ink">
                         <div className="flex flex-col gap-0.5">
                           <span>{c.descricao}</span>
-                          <span className="text-[10px] text-brand-text/40 font-normal">
-                            📦 {getCatLabel(c.categoria)} {c.nota_fiscal ? `• NF: ${c.nota_fiscal}` : ""}
+                          <span className="text-[10px] text-mt-neutral-600 font-normal">
+                            {getCatLabel(c.categoria)} {c.nota_fiscal ? `• NF: ${c.nota_fiscal}` : ""}
                           </span>
                         </div>
                       </td>
-                      <td className="py-4 text-brand-text/70">{formatDate(c.data_compra)}</td>
-                      <td className="py-4 text-brand-text/70">{c.fornecedor}</td>
-                      <td className="py-4 text-brand-text/70">
+                      <td className="py-4 text-mt-neutral-700">{formatDate(c.data_compra)}</td>
+                      <td className="py-4 text-mt-neutral-700">{c.fornecedor}</td>
+                      <td className="py-4 text-mt-neutral-700">
                         {c.quantidade}x • {formatPrice(c.valor_unitario)}
                       </td>
-                      <td className="py-4 font-black text-brand-text">{formatPrice(c.valor_total)}</td>
+                      <td className="py-4 font-extrabold text-mt-ink">{formatPrice(c.valor_total)}</td>
                       <td className="py-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${getStatusBadge(c.status)}`}>
+                        <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getStatusBadge(c.status)}`}>
                           {c.status}
                         </span>
                       </td>
@@ -201,7 +201,7 @@ export default function ComprasList() {
                               setSelectedId(c.id);
                               setIsFormOpen(true);
                             }}
-                            className="p-1.5 text-brand-text/40 hover:text-brand-gold hover:bg-brand-card/50 rounded-lg transition-all cursor-pointer"
+                            className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-surface transition-all cursor-pointer"
                             title="Editar"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -210,7 +210,7 @@ export default function ComprasList() {
                           </button>
                           <button
                             onClick={() => handleDelete(c.id)}
-                            className="p-1.5 text-brand-text/40 hover:text-red-500 hover:bg-red-500/5 rounded-lg transition-all cursor-pointer"
+                            className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
                             title="Excluir"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -230,8 +230,8 @@ export default function ComprasList() {
         {/* Right side form */}
         <div className={`lg:col-span-1 ${isFormOpen ? "block" : "hidden lg:block"}`}>
           {isFormOpen ? (
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">
-              <h3 className="text-sm font-extrabold uppercase text-brand-text select-none">
+            <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4 animate-slideUpPopup">
+              <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink select-none">
                 {selectedId ? "Editar Compra" : "Nova Compra"}
               </h3>
               <CompraForm
@@ -244,7 +244,7 @@ export default function ComprasList() {
               />
             </div>
           ) : (
-            <div className="bg-brand-card/10 border border-dashed border-brand-border/40 rounded-3xl p-8 text-center text-xs text-brand-text/40 select-none">
+            <div className="bg-mt-surface border border-dashed border-mt-regua-fina p-8 text-center text-xs text-mt-neutral-600 select-none">
               Selecione um registro para detalhar ou clique em "Registrar Compra" para registrar novas mercadorias.
             </div>
           )}

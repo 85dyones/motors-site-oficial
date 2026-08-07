@@ -38,8 +38,11 @@ export interface CompanySettings {
   googleAdsId?: string;
   googleAdsConversionLabel?: string;
   instagramUsername?: string;
-  instagramElfsightId?: string;
-  googleReviewsElfsightId?: string;
+  // `instagramElfsightId` e `googleReviewsElfsightId` saíram em 2026-08-06.
+  // Eram o ID do widget de terceiro que renderizava a faixa do Instagram e a
+  // seção de reputação. Ambas passaram a ser servidas pelo próprio site — ver
+  // `lib/instagramCuradoria.ts` e `lib/avaliacoesGoogle.ts`. Linha que sobrar
+  // no blob de `site_settings` é ignorada: nada mais lê esses campos.
   carMatchTitle?: string;
   avaliacaoExpressTitle?: string;
   s3AccessKeyId?: string;
@@ -158,6 +161,16 @@ export interface Veiculo {
   vendido?: boolean;
   preco_compra?: number;
   preco?: number;
+  // Ficha própria do painel (migração 20260807160000) — preenchida por nós,
+  // nunca pelo sync do RevendaMais. `placa` voltou ao tipo por decisão do
+  // dono em 2026-08-07: agora a coluna EXISTE, então o campo deixa de ser
+  // convite a inventar valor (o incidente que o tirou daqui). O site público
+  // não exibe a placa; ela é operacional do painel.
+  placa?: string;
+  motor?: string;
+  cor_interna?: string;
+  donos_anteriores?: number;
+  garantia_fabrica?: string;
 }
 
 export type StockOverrides = Record<string, {

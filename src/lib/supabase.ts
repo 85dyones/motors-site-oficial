@@ -372,6 +372,16 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
     vendido: !!dbItem.vendido,
+    // Ficha própria do painel (migração 20260807160000): vazio até alguém
+    // preencher — a UI oculta a linha, como em cambio/combustivel/cor.
+    // O site público NÃO exibe `placa`; ela existe para o painel e para a
+    // busca interna.
+    placa: dbItem.placa || "",
+    motor: dbItem.motor || "",
+    cor_interna: dbItem.cor_interna || "",
+    donos_anteriores:
+      typeof dbItem.donos_anteriores === "number" ? dbItem.donos_anteriores : undefined,
+    garantia_fabrica: dbItem.garantia_fabrica || "",
     // SECURITY FIX: Do not expose preco_compra to the frontend
     // preco_compra is a sensitive business logic field
   };

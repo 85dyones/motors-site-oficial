@@ -1,0 +1,760 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+/**
+ * Tela A15 do design doc — editor de veículo.
+ *
+ * Antes disto, editar um carro era rolar até ele numa lista de 88 cards e
+ * mexer nos campos ali mesmo. O doc pede tela dedicada, com abas e o
+ * checklist de publicação sempre à vista — é o que esta é.
+ *
+ * O que o doc desenha e NÃO está aqui, por não haver fonte:
+ *
+ * - **Visitas na página.** Não há coleta de analytics no banco.
+ * - **Histórico do veículo.** `auditoria_admin` registra ações de sistema
+ *   (permissão, paleta), não edição campo a campo de veículo.
+ * - **Reordenar fotos / marca d'água.** As imagens vêm do feed do
+ *   RevendaMais e são sobrescritas a cada sync; uma ordem salva aqui se
+ *   perderia no ciclo seguinte. Entra junto com o storage próprio, quando o
+ *   feed for descontinuado.
+ * - **Enviar para revisão.** É a tela A16, ainda não construída.
+ *
+ * Cada um aparece nomeado na interface em vez de simulado — a régua da casa.
+ */
+
+interface VeiculoDb {
+  id: number | string;
+  marca: string | null;
+  modelo: string | null;
+  versao: string | null;
+  ano: number | null;
+  ano_fabricacao: number | null;
+  quilometragem: number | null;
+  cambio: string | null;
+  combustivel: string | null;
+  cor: string | null;
+  preco: number | null;
+  preco_original: number | null;
+  whatsapp_images: string[] | null;
+  pericia: string | null;
+  descricao: string | null;
+  laudo_pericia: string | null;
+  opcionais: string | null;
+  tipo: string | null;
+  perfil_uso: string | null;
+  status_tag: string | null;
+  status_tag_color: string | null;
+  vendido: boolean | null;
+  created_at: string | null;
+  last_seen_at: string | null;
+  placa: string | null;
+  motor: string | null;
+  cor_interna: string | null;
+  donos_anteriores: number | null;
+  garantia_fabrica: string | null;
+  preco_compra: number | null;
+}
+
+type Aba = "fotos" | "ficha" | "opcionais" | "preco" | "texto";
+
+interface LinhaDeHistorico {
+  id: string;
+  campo: string;
+  valor_anterior: string | null;
+  valor_novo: string | null;
+  autor_nome: string | null;
+  registrado_em: string;
+}
+
+/** Rótulo legível para o nome de coluna que o histórico grava. */
+const NOME_DO_CAMPO: Record<string, string> = {
+  placa: "Placa",
+  motor: "Motor",
+  cor_interna: "Cor interna",
+  donos_anteriores: "Donos anteriores",
+  garantia_fabrica: "Garantia de fábrica",
+  preco_compra: "Preço de compra",
+  descricao: "Descrição",
+  laudo_pericia: "Laudo cautelar",
+  opcionais: "Opcionais",
+  status_tag: "Tag de destaque",
+  status_tag_color: "Cor da tag",
+  vendido: "Disponibilidade",
+  tipo: "Carroceria",
+  perfil_uso: "Perfil de uso",
+};
+
+/** Encurta valor longo (descrição, opcionais) para caber na linha. */
+const resumir = (v: string | null) => {
+  if (v === null || v === "") return "vazio";
+  if (v === "true") return "vendido";
+  if (v === "false") return "disponível";
+  return v.length > 40 ? v.slice(0, 40) + "…" : v;
+};
+
+const brl = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+const rotuloCampo = "text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700";
+const campoCaixa =
+  "mt-campo-caixa mt-foco";
+
+export default function EditorDeVeiculo({
+  inicial,
+  visitas30Dias,
+}: {
+  inicial: VeiculoDb;
+  /** `null` = GA4 não configurado ou indisponível. Nunca confundir com zero. */
+  visitas30Dias: number | null;
+}) {
+  const [aba, setAba] = useState<Aba>("fotos");
+  const [v, setV] = useState<VeiculoDb>(inicial);
+  const [salvo, setSalvo] = useState<VeiculoDb>(inicial);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [historico, setHistorico] = useState<LinhaDeHistorico[]>([]);
+  const [migracaoPendente, setMigracaoPendente] = useState(false);
+
+  const carregarHistorico = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/estoque/${inicial.id}/historico`);
+      const d = await res.json();
+      setHistorico(d.historico ?? []);
+      setMigracaoPendente(Boolean(d.migracaoPendente));
+    } catch {
+      /* histórico é informativo: falha nele não atrapalha a edição */
+    }
+  }, [inicial.id]);
+
+  useEffect(() => {
+    carregarHistorico();
+  }, [carregarHistorico]);
+
+  const sujo = JSON.stringify(v) !== JSON.stringify(salvo);
+  const set = <K extends keyof VeiculoDb>(campo: K, valor: VeiculoDb[K]) =>
+    setV((atual) => ({ ...atual, [campo]: valor }));
+
+  const fotos = useMemo(
+    () => (Array.isArray(v.whatsapp_images) ? v.whatsapp_images.filter(Boolean) : []),
+    [v.whatsapp_images],
+  );
+
+  const diasEmEstoque = useMemo(() => {
+    if (!v.created_at) return null;
+    const d = Math.floor((Date.now() - new Date(v.created_at).getTime()) / 86400000);
+    return d >= 0 ? d : null;
+  }, [v.created_at]);
+
+  const fichaPropriaCompleta = Boolean(
+    v.placa && v.motor && v.cor_interna && v.donos_anteriores !== null && v.garantia_fabrica,
+  );
+
+  /** Checklist de publicação — os itens do doc que temos como verificar. */
+  const checklist = [
+    {
+      l: "8 fotos obrigatórias",
+      d: "Frente, traseira, laterais, interior, painel e porta-malas.",
+      ok: fotos.length >= 8,
+      estado: fotos.length >= 8 ? "OK" : `FALTAM ${8 - fotos.length}`,
+    },
+    {
+      l: "Ficha própria completa",
+      d: "Placa, motor, cor interna, donos anteriores e garantia.",
+      ok: fichaPropriaCompleta,
+      estado: fichaPropriaCompleta ? "OK" : "PENDENTE",
+    },
+    {
+      l: "Laudo cautelar anexado",
+      d: "Texto do laudo exibido na ficha do veículo.",
+      ok: Boolean(v.laudo_pericia),
+      estado: v.laudo_pericia ? "OK" : "PENDENTE",
+    },
+    {
+      l: "Texto do anúncio revisado",
+      d: "Descrição editorial que abre a página do veículo.",
+      ok: Boolean(v.descricao),
+      estado: v.descricao ? "OK" : "PENDENTE",
+    },
+    {
+      l: "Opcionais preenchidos",
+      d: "Os primeiros aparecem no card do catálogo.",
+      ok: Boolean(v.opcionais),
+      estado: v.opcionais ? "OK" : "PENDENTE",
+    },
+    {
+      l: "Preço de compra lançado",
+      d: "Sem ele a margem por veículo não fecha.",
+      ok: v.preco_compra !== null && v.preco_compra !== undefined,
+      estado: v.preco_compra ? "OK" : "PENDENTE",
+    },
+    {
+      l: "Carroceria e perfil",
+      d: "Alimentam os filtros e a curadoria do site.",
+      ok: Boolean(v.tipo && v.perfil_uso),
+      estado: v.tipo && v.perfil_uso ? "OK" : "PENDENTE",
+    },
+  ];
+  const concluidos = checklist.filter((c) => c.ok).length;
+
+  const margem =
+    v.preco_compra && v.preco_original ? v.preco_original - Number(v.preco_compra) : null;
+  const margemPct =
+    margem !== null && v.preco_original ? (margem / v.preco_original) * 100 : null;
+
+  const salvar = async () => {
+    setSalvando(true);
+    setErro("");
+    setAviso("");
+    try {
+      const res = await fetch(`/api/estoque/${v.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placa: v.placa,
+          motor: v.motor,
+          cor_interna: v.cor_interna,
+          donos_anteriores: v.donos_anteriores,
+          garantia_fabrica: v.garantia_fabrica,
+          preco_compra: v.preco_compra,
+          descricao: v.descricao,
+          laudo_pericia: v.laudo_pericia,
+          opcionais: v.opcionais,
+          status_tag: v.status_tag,
+          status_tag_color: v.status_tag_color,
+          vendido: v.vendido,
+          tipo: v.tipo,
+          perfil_uso: v.perfil_uso,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Falha ao salvar");
+      setSalvo(v);
+      setAviso(
+        data.mudancasRegistradas > 0
+          ? `Salvo — ${data.mudancasRegistradas} alteração(ões) no histórico.`
+          : "Salvo — nada havia mudado.",
+      );
+      carregarHistorico();
+      setTimeout(() => setAviso(""), 4000);
+    } catch (e: any) {
+      setErro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const abas: Array<{ id: Aba; l: string; nota: string; alerta?: boolean }> = [
+    { id: "fotos", l: "Fotos e mídia", nota: String(fotos.length) },
+    { id: "ficha", l: "Ficha técnica", nota: fichaPropriaCompleta ? "COMPLETA" : "PENDENTE", alerta: !fichaPropriaCompleta },
+    { id: "opcionais", l: "Opcionais", nota: v.opcionais ? "OK" : "VAZIO", alerta: !v.opcionais },
+    { id: "preco", l: "Preço e margem", nota: v.preco_compra ? "OK" : "PENDENTE", alerta: !v.preco_compra },
+    { id: "texto", l: "Texto e SEO", nota: v.descricao ? "OK" : "VAZIO", alerta: !v.descricao },
+  ];
+
+  return (
+    <div className="flex w-full max-w-6xl flex-col gap-6">
+      {/* Cabeçalho do veículo */}
+      <div className="flex flex-wrap items-start gap-5 border-b-2 border-mt-regua pb-5">
+        <div className="h-[82px] w-[132px] flex-none overflow-hidden border border-mt-regua-fina bg-mt-surface">
+          {fotos[0] ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={fotos[0]} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-[10px] text-mt-neutral-500">
+              SEM FOTO
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <Link
+            href="/admin/configuracoes?tab=estoque"
+            className="text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-700 hover:text-mt-accent"
+          >
+            ← ESTOQUE
+          </Link>
+          <div className="mt-1 flex flex-wrap items-baseline gap-3">
+            <h1 className="mt-titulo text-2xl md:text-3xl">
+              {v.marca} {v.modelo}
+            </h1>
+            <span
+              className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                v.vendido
+                  ? "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent-800"
+                  : "border border-mt-regua text-mt-neutral-700"
+              }`}
+            >
+              {v.vendido ? "VENDIDO" : "PUBLICADO"}
+            </span>
+          </div>
+          <div className="mt-1.5 text-xs text-mt-neutral-700">
+            cód. {v.id} · {v.versao || "sem versão"} · {v.ano || "—"}
+            {v.quilometragem ? ` · ${v.quilometragem.toLocaleString("pt-BR")} km` : ""}
+            {v.placa ? ` · placa ${v.placa}` : ""}
+            {diasEmEstoque !== null ? ` · ${diasEmEstoque} dias em estoque` : ""}
+          </div>
+        </div>
+
+        <div className="flex flex-none items-center gap-3">
+          {sujo && (
+            <span className="text-[11px] font-semibold text-mt-accent-800">Não salvo</span>
+          )}
+          <button
+            onClick={() => setV(salvo)}
+            disabled={!sujo || salvando}
+            className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:opacity-45"
+          >
+            Descartar
+          </button>
+          <button
+            onClick={salvar}
+            disabled={!sujo || salvando}
+            className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[11px] disabled:opacity-45"
+          >
+            {salvando ? "Salvando…" : "Salvar"}
+          </button>
+        </div>
+      </div>
+
+      {erro && (
+        <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
+          {erro}
+        </div>
+      )}
+      {aviso && (
+        <div className="border-l-[3px] border-mt-ink bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">
+          {aviso}
+        </div>
+      )}
+
+      {/* Régua de status */}
+      <div className="grid select-none grid-cols-2 border-t-2 border-mt-regua lg:grid-cols-4">
+        {[
+          { l: "Dias em estoque", v: diasEmEstoque !== null ? String(diasEmEstoque) : "—", nota: v.created_at ? "desde a entrada no feed" : "sem data de entrada" },
+          { l: "Fotos", v: String(fotos.length), nota: fotos.length >= 8 ? "acima do mínimo" : "mínimo de 8" },
+          { l: "Checklist", v: `${concluidos}/${checklist.length}`, nota: concluidos === checklist.length ? "pronto para publicar" : "itens pendentes" },
+          {
+            l: "Visitas na página",
+            v: visitas30Dias === null ? "—" : visitas30Dias.toLocaleString("pt-BR"),
+            nota: visitas30Dias === null ? "GA4 sem credencial de leitura" : "últimos 30 dias",
+          },
+        ].map((k) => (
+          <div
+            key={k.l}
+            className="flex flex-col gap-2 border-b border-mt-regua-fina py-4 pr-5 lg:border-b-0 lg:border-r lg:last:border-r-0"
+          >
+            <span className="mt-rotulo">{k.l}</span>
+            <span className="text-2xl font-extrabold tracking-[-.03em] tabular-nums">{k.v}</span>
+            <span className="text-[11px] leading-tight text-mt-neutral-700">{k.nota}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Abas */}
+      <div className="flex flex-wrap border-b-2 border-mt-regua">
+        {abas.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => setAba(a.id)}
+            className={`mt-foco flex cursor-pointer items-center gap-2 border-r border-mt-regua-fina px-5 py-3.5 text-[12px] font-extrabold uppercase tracking-[.08em] ${
+              aba === a.id ? "bg-mt-ink text-mt-bg" : "text-mt-neutral-700 hover:text-mt-ink"
+            }`}
+          >
+            {a.l}
+            <span
+              className={`text-[10px] font-semibold ${
+                aba === a.id
+                  ? "text-mt-neutral-400"
+                  : a.alerta
+                    ? "text-mt-accent"
+                    : "text-mt-neutral-600"
+              }`}
+            >
+              {a.nota}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-8 xl:flex-row">
+        <div className="min-w-0 flex-1 xl:border-r xl:border-mt-regua-fina xl:pr-7">
+          {aba === "fotos" && (
+            <>
+              <div className="mb-3 flex flex-wrap items-baseline gap-3">
+                <div className="mt-rotulo">Fotos · {fotos.length}</div>
+                <span className="ml-auto text-[11px] text-mt-neutral-700">
+                  A primeira é a capa do anúncio e do card no catálogo
+                </span>
+              </div>
+              {fotos.length === 0 ? (
+                <p className="py-8 text-center text-xs text-mt-neutral-700">
+                  Nenhuma foto neste veículo.
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                  {fotos.map((f, i) => (
+                    <div
+                      key={f + i}
+                      className="relative aspect-[4/3] overflow-hidden border border-mt-regua-fina bg-mt-surface"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f} alt="" className="h-full w-full object-cover" />
+                      {i === 0 && (
+                        <span className="absolute left-0 top-0 bg-mt-accent px-1.5 py-0.5 text-[9px] font-extrabold tracking-[.1em] text-mt-inverso">
+                          CAPA
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
+                <p className="text-xs leading-relaxed text-mt-neutral-800">
+                  As fotos vêm do feed do RevendaMais e são reescritas a cada sincronização —
+                  por isso <strong>reordenar, subir ou aplicar marca d&apos;água ainda não é
+                  possível aqui</strong>: a mudança se perderia no ciclo seguinte. Entra junto
+                  com o armazenamento próprio, quando o feed for descontinuado.
+                </p>
+              </div>
+            </>
+          )}
+
+          {aba === "ficha" && (
+            <>
+              <div className="mt-rotulo mb-3">Ficha própria · preenchida por nós</div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  { campo: "placa" as const, l: "Placa", ph: "ABC1D23", up: true },
+                  { campo: "motor" as const, l: "Motor", ph: "2.0 turbo · 249 cv" },
+                  { campo: "cor_interna" as const, l: "Cor interna", ph: "Ebony" },
+                  { campo: "garantia_fabrica" as const, l: "Garantia de fábrica", ph: "Até 03/2027" },
+                ].map((c) => (
+                  <div key={c.campo} className="flex flex-col gap-1.5">
+                    <label className={rotuloCampo} htmlFor={`f-${c.campo}`}>{c.l}</label>
+                    <input
+                      id={`f-${c.campo}`}
+                      value={(v[c.campo] as string) ?? ""}
+                      placeholder={c.ph}
+                      onChange={(e) =>
+                        set(c.campo, (c.up ? e.target.value.toUpperCase() : e.target.value) as any)
+                      }
+                      className={campoCaixa}
+                    />
+                  </div>
+                ))}
+                <div className="flex flex-col gap-1.5">
+                  <label className={rotuloCampo} htmlFor="f-donos">Donos anteriores</label>
+                  <input
+                    id="f-donos"
+                    type="number"
+                    min={0}
+                    value={v.donos_anteriores ?? ""}
+                    onChange={(e) =>
+                      set("donos_anteriores", e.target.value === "" ? null : Number(e.target.value))
+                    }
+                    className={campoCaixa}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 border-t-2 border-mt-regua pt-4">
+                <div className="mt-rotulo mb-3">Do feed · sobrescrito a cada sync</div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["Marca", v.marca],
+                    ["Modelo", v.modelo],
+                    ["Versão", v.versao],
+                    ["Ano", v.ano ? String(v.ano) : null],
+                    ["KM", v.quilometragem ? v.quilometragem.toLocaleString("pt-BR") : null],
+                    ["Câmbio", v.cambio],
+                    ["Combustível", v.combustivel],
+                    ["Cor externa", v.cor],
+                  ].map(([l, valor]) => (
+                    <span
+                      key={l as string}
+                      className="inline-flex items-center gap-1.5 border border-mt-regua-fina bg-mt-bg px-2.5 py-1.5 text-[11px] text-mt-neutral-800"
+                      title="Campo do feed — editar aqui seria perdido no próximo sync"
+                    >
+                      <span className="font-semibold uppercase tracking-[.08em] text-mt-neutral-600">
+                        {l}
+                      </span>
+                      {valor || <span className="text-mt-neutral-500">—</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-4 border-t-2 border-mt-regua pt-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className={rotuloCampo} htmlFor="f-tipo">Carroceria</label>
+                  <input
+                    id="f-tipo"
+                    value={v.tipo ?? ""}
+                    placeholder="SUV, Sedan, Hatch…"
+                    onChange={(e) => set("tipo", e.target.value)}
+                    className={campoCaixa}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={rotuloCampo} htmlFor="f-perfil">Perfil de uso</label>
+                  <input
+                    id="f-perfil"
+                    value={v.perfil_uso ?? ""}
+                    placeholder="Família / Conforto…"
+                    onChange={(e) => set("perfil_uso", e.target.value)}
+                    className={campoCaixa}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {aba === "opcionais" && (
+            <>
+              <div className="mb-3 flex flex-wrap items-baseline gap-3">
+                <div className="mt-rotulo">Opcionais e equipamentos</div>
+                <span className="ml-auto text-[11px] text-mt-neutral-700">
+                  separados por vírgula · os primeiros aparecem no card
+                </span>
+              </div>
+              <textarea
+                rows={5}
+                value={v.opcionais ?? ""}
+                onChange={(e) => set("opcionais", e.target.value)}
+                placeholder="Teto solar, Bancos de couro, Câmera 360, Piloto adaptativo…"
+                className="mt-campo-caixa mt-foco resize-y leading-relaxed"
+              />
+              {v.opcionais && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {v.opcionais
+                    .split(",")
+                    .map((o) => o.trim())
+                    .filter(Boolean)
+                    .map((o, i) => (
+                      <span
+                        key={o + i}
+                        className="inline-flex items-center gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] text-mt-ink"
+                      >
+                        <span className="h-2 w-2 flex-none bg-mt-ink" />
+                        {o}
+                      </span>
+                    ))}
+                </div>
+              )}
+              <p className="mt-4 text-[11px] leading-relaxed text-mt-neutral-700">
+                O doc agrupa os opcionais em Conforto, Segurança, Tecnologia e Exterior. O
+                agrupamento exige um catálogo de opcionais que ainda não existe — hoje o campo
+                é texto livre, e os chips acima são a leitura dele.
+              </p>
+            </>
+          )}
+
+          {aba === "preco" && (
+            <>
+              <div className="mt-rotulo mb-3">Preço e margem</div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <span className={rotuloCampo}>Preço anunciado · do feed</span>
+                  <div className="border border-mt-regua-fina bg-mt-surface px-3 py-2.5 text-lg font-extrabold tabular-nums tracking-[-.03em] text-mt-neutral-700">
+                    {v.preco_original ? brl(v.preco_original) : "—"}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={rotuloCampo} htmlFor="f-compra">
+                    Preço de compra · nosso
+                  </label>
+                  <input
+                    id="f-compra"
+                    type="number"
+                    min={0}
+                    value={v.preco_compra ?? ""}
+                    placeholder="Ex: 248000"
+                    onChange={(e) =>
+                      set("preco_compra", e.target.value === "" ? null : Number(e.target.value))
+                    }
+                    className={`${campoCaixa} border-mt-accent text-lg font-extrabold`}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-baseline gap-3 border-t-2 border-mt-regua pt-4">
+                <span className="text-sm text-mt-neutral-800">Margem bruta projetada</span>
+                <span
+                  className={`ml-auto text-xl font-extrabold tabular-nums tracking-[-.03em] ${
+                    margem === null
+                      ? "text-mt-neutral-500"
+                      : margem >= 0
+                        ? "text-mt-accent-800"
+                        : "text-mt-accent"
+                  }`}
+                >
+                  {margem === null
+                    ? "—"
+                    : `${brl(margem)} · ${margemPct!.toFixed(1).replace(".", ",")}%`}
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-mt-neutral-700">
+                Bruta: preço anunciado menos o de compra. Não inclui preparação, documentação
+                nem custo de pátio — esses entram por lançamento no financeiro e aparecem em
+                <Link href="/admin/financeiro/margens" className="ml-1 font-semibold text-mt-accent underline underline-offset-2">
+                  margem por veículo
+                </Link>
+                .
+              </p>
+
+              <div className="mt-6 grid grid-cols-1 gap-4 border-t-2 border-mt-regua pt-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className={rotuloCampo} htmlFor="f-tag">Tag de destaque</label>
+                  <input
+                    id="f-tag"
+                    value={v.status_tag ?? ""}
+                    placeholder="ÚNICO DONO"
+                    onChange={(e) => set("status_tag", e.target.value)}
+                    className={campoCaixa}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className={rotuloCampo}>Disponibilidade</span>
+                  <div className="mt-seg">
+                    {[
+                      [false, "Disponível"],
+                      [true, "Vendido"],
+                    ].map(([valor, rotulo]) => (
+                      <label key={String(valor)} className="mt-seg-opt">
+                        <input
+                          type="radio"
+                          name="disponibilidade"
+                          checked={Boolean(v.vendido) === valor}
+                          onChange={() => set("vendido", valor as boolean)}
+                        />
+                        <span>{rotulo as string}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {aba === "texto" && (
+            <>
+              <div className="mt-rotulo mb-3">Descrição editorial</div>
+              <textarea
+                rows={7}
+                value={v.descricao ?? ""}
+                onChange={(e) => set("descricao", e.target.value)}
+                placeholder="Texto que abre a página do veículo."
+                className="mt-campo-caixa mt-foco resize-y leading-relaxed"
+              />
+              <div className="mt-rotulo mb-3 mt-6">Laudo cautelar</div>
+              <textarea
+                rows={5}
+                value={v.laudo_pericia ?? ""}
+                onChange={(e) => set("laudo_pericia", e.target.value)}
+                placeholder="Ex: Laudo cautelar aprovado. Pintura original, sem retoques."
+                className="mt-campo-caixa mt-foco resize-y leading-relaxed"
+              />
+              <p className="mt-3 text-[11px] leading-relaxed text-mt-neutral-700">
+                O laudo só acende o selo de perícia aprovada no site quando o próprio feed traz
+                a perícia como aprovada — texto aqui não liga selo, para não afirmar ao cliente
+                algo que a vistoria não disse.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Checklist */}
+        <div className="w-full flex-none xl:w-[340px]">
+          <div className="mt-rotulo mt-rotulo-accent mb-3">Checklist de publicação</div>
+          {checklist.map((c) => (
+            <div key={c.l} className="flex gap-3 border-b border-mt-regua-fina py-2.5">
+              <span
+                className={`mt-0.5 h-3.5 w-3.5 flex-none border-2 ${
+                  c.ok ? "border-mt-ink bg-mt-ink" : "border-mt-accent bg-transparent"
+                }`}
+              />
+              <div className="min-w-0 flex-1">
+                <div className={`text-[13px] font-${c.ok ? "semibold" : "extrabold"}`}>{c.l}</div>
+                <div className="mt-0.5 text-[11px] leading-snug text-mt-neutral-700">{c.d}</div>
+              </div>
+              <span
+                className={`flex-none text-[9px] font-bold uppercase tracking-wider ${
+                  c.ok ? "text-mt-neutral-600" : "text-mt-accent"
+                }`}
+              >
+                {c.estado}
+              </span>
+            </div>
+          ))}
+          <div className="mt-3 flex items-baseline gap-2 border-t-2 border-mt-regua pt-3">
+            <span className="text-[13px] font-extrabold">
+              {concluidos} de {checklist.length} concluídos
+            </span>
+            {concluidos < checklist.length && (
+              <span className="ml-auto text-[11px] text-mt-neutral-700">
+                faltam {checklist.length - concluidos}
+              </span>
+            )}
+          </div>
+
+          {/* Histórico deste veículo */}
+          <div className="mt-6 border-t-2 border-mt-regua pt-4">
+            <div className="mt-rotulo mb-3">Histórico deste veículo</div>
+            {migracaoPendente ? (
+              <p className="text-[11px] leading-relaxed text-mt-neutral-700">
+                A tabela de histórico ainda não existe no banco. Aplique a migração{" "}
+                <code className="text-mt-ink">20260807190000_historico_veiculo.sql</code> para
+                começar a registrar quem mudou o quê.
+              </p>
+            ) : historico.length === 0 ? (
+              <p className="text-[11px] leading-relaxed text-mt-neutral-700">
+                Nenhuma alteração registrada ainda. A partir de agora, cada campo salvo aqui
+                entra nesta lista com autor e horário.
+              </p>
+            ) : (
+              historico.map((h) => (
+                <div key={h.id} className="border-b border-mt-regua-fina py-2.5 text-xs">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-semibold text-mt-ink">
+                      {NOME_DO_CAMPO[h.campo] ?? h.campo}
+                    </span>
+                    <span className="ml-auto flex-none text-[11px] tabular-nums text-mt-neutral-700">
+                      {new Date(h.registrado_em).toLocaleString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <div className="mt-1 leading-snug text-mt-neutral-800">
+                    <span className="text-mt-neutral-600 line-through">
+                      {resumir(h.valor_anterior)}
+                    </span>
+                    <span className="mx-1.5 text-mt-neutral-500">→</span>
+                    <span className="font-semibold">{resumir(h.valor_novo)}</span>
+                  </div>
+                  {h.autor_nome && (
+                    <div className="mt-0.5 text-[11px] text-mt-neutral-700">{h.autor_nome}</div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="mt-6 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
+            <div className="mt-rotulo mb-2">Ainda sem fonte</div>
+            <p className="text-xs leading-relaxed text-mt-neutral-800">
+              <strong>Visitas na página</strong> dependem da leitura do GA4 — a coleta já
+              acontece no site, falta a credencial de serviço para o painel consultar. O envio
+              para revisão é a tela A16.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

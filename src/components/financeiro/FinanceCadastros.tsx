@@ -151,34 +151,34 @@ export default function FinanceCadastros() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl">
       {/* Top Banner */}
-      <div className="bg-brand-card/40 border border-brand-border/50 rounded-3xl p-6 backdrop-blur-xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 select-none">
+      <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 select-none">
         <div>
-          <h1 className="text-base font-black uppercase text-brand-text tracking-wider flex items-center gap-2">
-            <span>📝</span> Cadastros Auxiliares & Plano de Contas
+          <h1 className="text-[17px] font-extrabold tracking-[-.015em] text-mt-ink">
+            Cadastros auxiliares & plano de contas
           </h1>
-          <p className="text-xs text-brand-text/75 mt-1">
+          <p className="text-xs text-mt-neutral-800 mt-1">
             Gestão de Parceiros (Clientes e Fornecedores) e consulta da estrutura oficial do **Plano de Contas de Revenda**.
           </p>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex items-center gap-2 bg-brand-bg/60 p-1 rounded-xl border border-brand-border/50">
+        <div className="flex items-center gap-2 bg-mt-bg p-1 border border-mt-regua-fina">
           <button
             onClick={() => setActiveTab("parceiros")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
               activeTab === "parceiros"
-                ? "bg-brand-primary text-white shadow-md"
-                : "text-brand-text/70 hover:text-brand-text"
+                ? "bg-mt-accent text-mt-inverso"
+                : "text-mt-neutral-700 hover:text-mt-ink"
             }`}
           >
             🏢 Parceiros ({parceiros.length})
           </button>
           <button
             onClick={() => setActiveTab("plano")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
               activeTab === "plano"
-                ? "bg-brand-primary text-white shadow-md"
-                : "text-brand-text/70 hover:text-brand-text"
+                ? "bg-mt-accent text-mt-inverso"
+                : "text-mt-neutral-700 hover:text-mt-ink"
             }`}
           >
             🌳 Árvore do Plano de Contas ({PLANO_DE_CONTAS_REVENDA.length})
@@ -187,44 +187,44 @@ export default function FinanceCadastros() {
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs px-4 py-3 rounded-xl select-none">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-3 select-none">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs px-4 py-3 rounded-xl select-none font-bold">
+        <div className="bg-mt-surface border border-mt-regua-fina text-mt-accent-800 text-xs px-4 py-3 select-none font-bold">
           {success}
         </div>
       )}
 
       {/* PARCEIROS TAB */}
       {activeTab === "parceiros" && (
-        <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-6 shadow-xl">
-          <div className="flex items-center justify-between border-b border-brand-border/40 pb-4">
+        <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-6">
+          <div className="flex items-center justify-between border-b border-mt-regua-fina pb-4">
             <div>
-              <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider">
+              <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider">
                 Cadastro de Clientes & Fornecedores
               </h3>
-              <p className="text-[10px] text-brand-text/60 mt-0.5">Parceiros comerciais vinculados aos lançamentos de contas.</p>
+              <p className="text-[10px] text-mt-neutral-700 mt-0.5">Parceiros comerciais vinculados aos lançamentos de contas.</p>
             </div>
             <button
               onClick={() => handleOpenParceiroForm()}
-              className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer active:scale-95"
+              className="px-4 py-2.5 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer "
             >
               + Novo Parceiro
             </button>
           </div>
 
           {isLoadingParceiros ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Carregando parceiros...</div>
+            <div className="py-12 text-center text-xs text-mt-neutral-700">Carregando parceiros...</div>
           ) : parceiros.length === 0 ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Nenhum parceiro cadastrado ainda.</div>
+            <div className="py-12 text-center text-xs text-mt-neutral-700">Nenhum parceiro cadastrado ainda.</div>
           ) : (
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-brand-border/40 text-brand-text/60 font-bold uppercase tracking-wider">
+                  <tr className="border-b border-mt-regua-fina text-mt-neutral-700 font-bold uppercase tracking-wider">
                     <th className="pb-3 pl-2">Nome</th>
                     <th className="pb-3">Tipo</th>
                     <th className="pb-3">CPF / CNPJ</th>
@@ -232,36 +232,36 @@ export default function FinanceCadastros() {
                     <th className="pb-3 pr-2 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-brand-border/30">
+                <tbody className="divide-y divide-mt-regua-fina">
                   {parceiros.map((p) => (
-                    <tr key={p.id} className="hover:bg-brand-primary/5 transition-colors">
-                      <td className="py-3 pl-2 font-bold text-brand-text">{p.nome}</td>
+                    <tr key={p.id} className="hover:bg-mt-accent-100 transition-colors">
+                      <td className="py-3 pl-2 font-bold text-mt-ink">{p.nome}</td>
                       <td className="py-3">
                         <span
-                          className={`text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                          className={`text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 border ${
                             p.tipo === "fornecedor"
-                              ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                              ? "bg-mt-accent-100 text-mt-accent-800 border-mt-accent-300"
                               : p.tipo === "cliente"
-                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                              : "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                              ? "bg-mt-surface text-mt-accent-800 border-mt-regua-fina"
+                              : "bg-mt-surface text-mt-neutral-700 border-mt-regua-fina"
                           }`}
                         >
                           {p.tipo}
                         </span>
                       </td>
-                      <td className="py-3 text-brand-text/70 font-mono">{p.documento || "—"}</td>
-                      <td className="py-3 text-brand-text/70">{p.telefone || "—"}</td>
+                      <td className="py-3 text-mt-neutral-700 font-mono">{p.documento || "—"}</td>
+                      <td className="py-3 text-mt-neutral-700">{p.telefone || "—"}</td>
                       <td className="py-3 pr-2 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleOpenParceiroForm(p)}
-                            className="text-xs text-brand-primary font-bold hover:underline"
+                            className="text-xs text-mt-accent font-bold hover:underline"
                           >
                             Editar
                           </button>
                           <button
                             onClick={() => handleDeleteParceiro(p.id, p.nome)}
-                            className="text-xs text-red-500/70 font-bold hover:text-red-500 hover:underline"
+                            className="text-xs text-mt-accent-800 font-bold hover:text-mt-accent hover:underline"
                           >
                             Excluir
                           </button>
@@ -278,13 +278,13 @@ export default function FinanceCadastros() {
 
       {/* PLANO DE CONTAS TAB */}
       {activeTab === "plano" && (
-        <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-6 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-brand-border/40 pb-4 gap-3">
+        <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-mt-regua-fina pb-4 gap-3">
             <div>
-              <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider">
+              <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider">
                 Estrutura do Plano de Contas de Revenda
               </h3>
-              <p className="text-[10px] text-brand-text/60 mt-0.5">Hierarquia oficial utilizada em todos os lançamentos e relatórios DRE.</p>
+              <p className="text-[10px] text-mt-neutral-700 mt-0.5">Hierarquia oficial utilizada em todos os lançamentos e relatórios DRE.</p>
             </div>
 
             <input
@@ -292,14 +292,14 @@ export default function FinanceCadastros() {
               placeholder="Buscar código ou nome (ex: 003.005.006)..."
               value={planoSearch}
               onChange={(e) => setPlanoSearch(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl px-3.5 h-10 text-xs text-brand-text outline-none focus:border-brand-primary max-w-xs font-mono"
+              className="bg-mt-bg border border-mt-regua-fina px-3.5 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent max-w-xs font-mono"
             />
           </div>
 
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left text-xs border-collapse font-mono">
               <thead>
-                <tr className="border-b border-brand-border/40 text-brand-text/60 font-bold uppercase tracking-wider">
+                <tr className="border-b border-mt-regua-fina text-mt-neutral-700 font-bold uppercase tracking-wider">
                   <th className="pb-3 pl-2">Código</th>
                   <th className="pb-3">Nome da Conta / Grupo</th>
                   <th className="pb-3">Nível</th>
@@ -307,25 +307,25 @@ export default function FinanceCadastros() {
                   <th className="pb-3 pr-2 text-right">Lançamento?</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-border/30">
+              <tbody className="divide-y divide-mt-regua-fina">
                 {filteredPlano.map((c) => (
-                  <tr key={c.codigo} className={`hover:bg-brand-primary/5 transition-colors ${c.nivel === 1 ? "bg-brand-primary/10 font-bold" : ""}`}>
-                    <td className="py-2.5 pl-2 font-bold text-brand-primary">{c.codigo}</td>
-                    <td className="py-2.5 text-brand-text" style={{ paddingLeft: `${(c.nivel - 1) * 16 + 8}px` }}>
+                  <tr key={c.codigo} className={`hover:bg-mt-accent-100 transition-colors ${c.nivel === 1 ? "bg-mt-accent-100 font-bold" : ""}`}>
+                    <td className="py-2.5 pl-2 font-bold text-mt-accent">{c.codigo}</td>
+                    <td className="py-2.5 text-mt-ink" style={{ paddingLeft: `${(c.nivel - 1) * 16 + 8}px` }}>
                       {c.nivel === 1 ? <strong>{c.nome}</strong> : c.nome}
                     </td>
-                    <td className="py-2.5 text-brand-text/60">Nível {c.nivel}</td>
+                    <td className="py-2.5 text-mt-neutral-700">Nível {c.nivel}</td>
                     <td className="py-2.5">
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-brand-bg text-brand-text/80 border-brand-border">
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 border bg-mt-bg text-mt-neutral-800 border-mt-regua-fina">
                         {c.tipo}
                       </span>
                     </td>
                     <td className="py-2.5 pr-2 text-right">
                       <span
-                        className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                        className={`text-[9px] font-extrabold uppercase px-2 py-0.5 ${
                           c.permiteLancamento
-                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                            : "bg-brand-bg text-brand-text/40 border border-brand-border"
+                            ? "bg-mt-surface text-mt-accent-800 border border-mt-regua-fina"
+                            : "bg-mt-bg text-mt-neutral-600 border border-mt-regua-fina"
                         }`}
                       >
                         {c.permiteLancamento ? "SIM" : "NÃO"}
@@ -341,37 +341,37 @@ export default function FinanceCadastros() {
 
       {/* Partner Form Modal */}
       {isParceiroFormOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="bg-brand-card border border-brand-border/60 rounded-3xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-brand-border/40 pb-3">
-              <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider">
+        <div className="fixed inset-0 z-50 bg-mt-inverso-fundo/80 flex items-center justify-center p-4 select-none">
+          <div className="bg-mt-surface border border-mt-regua-fina max-w-md w-full p-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3">
+              <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider">
                 {selectedParceiro ? "Editar Parceiro" : "Novo Parceiro Commercial"}
               </h3>
-              <button onClick={() => setIsParceiroFormOpen(false)} className="text-brand-text/50 hover:text-brand-text font-bold">
+              <button onClick={() => setIsParceiroFormOpen(false)} className="text-mt-neutral-700 hover:text-mt-ink font-bold">
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleSaveParceiro} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-[9px] font-bold uppercase text-brand-text/70">Nome Razão Social / Fantasia</label>
+                <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Nome Razão Social / Fantasia</label>
                 <input
                   type="text"
                   required
                   value={partNome}
                   onChange={(e) => setPartNome(e.target.value)}
                   placeholder="Ex: AutoPeças Curitiba Ltda"
-                  className="bg-brand-bg border border-brand-border rounded-xl px-3.5 h-10 text-xs text-brand-text outline-none focus:border-brand-primary"
+                  className="bg-mt-bg border border-mt-regua-fina px-3.5 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/70">Tipo de Parceiro</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Tipo de Parceiro</label>
                   <select
                     value={partTipo}
                     onChange={(e: any) => setPartTipo(e.target.value)}
-                    className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text outline-none focus:border-brand-primary cursor-pointer"
+                    className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent cursor-pointer"
                   >
                     <option value="fornecedor">Fornecedor</option>
                     <option value="cliente">Cliente</option>
@@ -379,51 +379,51 @@ export default function FinanceCadastros() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/70">CPF / CNPJ</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700">CPF / CNPJ</label>
                   <input
                     type="text"
                     value={partDoc}
                     onChange={(e) => setPartDoc(e.target.value)}
                     placeholder="00.000.000/0000-00"
-                    className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text font-mono outline-none focus:border-brand-primary"
+                    className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink font-mono outline-none focus:border-mt-accent"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/70">Telefone / WhatsApp</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Telefone / WhatsApp</label>
                   <input
                     type="text"
                     value={partTel}
                     onChange={(e) => setPartTel(e.target.value)}
                     placeholder="(41) 99999-9999"
-                    className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text outline-none focus:border-brand-primary"
+                    className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/70">E-mail</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700">E-mail</label>
                   <input
                     type="email"
                     value={partEmail}
                     onChange={(e) => setPartEmail(e.target.value)}
                     placeholder="contato@empresa.com"
-                    className="bg-brand-bg border border-brand-border rounded-xl px-3 h-10 text-xs text-brand-text outline-none focus:border-brand-primary"
+                    className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-brand-border/40 mt-1">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-mt-regua-fina mt-1">
                 <button
                   type="button"
                   onClick={() => setIsParceiroFormOpen(false)}
-                  className="px-4 py-2 bg-brand-bg border border-brand-border text-brand-text/70 text-xs font-bold uppercase rounded-xl"
+                  className="px-4 py-2 bg-mt-bg border border-mt-regua-fina text-mt-neutral-700 text-xs font-bold uppercase"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-brand-primary text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md"
+                  className="px-6 py-2 bg-mt-accent text-mt-inverso text-xs font-extrabold uppercase tracking-wider"
                 >
                   Salvar Parceiro
                 </button>

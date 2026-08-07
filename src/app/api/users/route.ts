@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../lib/webhook-dispatcher";
+import { registrarAcaoSensivel } from "../../../lib/auditoria";
+import { PERFIS } from "../../../lib/permissoes";
 
 export async function GET() {
   try {
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, full_name")
       .eq("id", currentUser.id)
       .single();
 
@@ -61,6 +63,12 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password || !full_name || !role) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
+    }
+
+    // O vocabulário de perfis é o da matriz A17 — `role` era texto livre e
+    // um typo aqui criava um usuário que nenhum gate reconhece.
+    if (!(PERFIS as readonly string[]).includes(role)) {
+      return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
 
     const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -91,6 +99,10 @@ export async function POST(request: NextRequest) {
         }).catch((err) =>
           console.error("[WebhookDispatch] Failed to dispatch user created event:", err.message)
         );
+        await registrarAcaoSensivel(supabase, "usuario_criado", `${email} como ${role}`, {
+          id: currentUser.id,
+          nome: profile?.full_name ?? currentUser.email,
+        });
       }
 
       return NextResponse.json({ user: data.user });
@@ -124,6 +136,10 @@ export async function POST(request: NextRequest) {
         }).catch((err) =>
           console.error("[WebhookDispatch] Failed to dispatch user created event (fallback):", err.message)
         );
+        await registrarAcaoSensivel(supabase, "usuario_criado", `${email} como ${role}`, {
+          id: currentUser.id,
+          nome: profile?.full_name ?? currentUser.email,
+        });
       }
 
       return NextResponse.json({ user: data.user });

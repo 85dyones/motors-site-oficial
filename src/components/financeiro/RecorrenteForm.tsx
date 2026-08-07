@@ -218,27 +218,27 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
   return (
     <div className="flex flex-col gap-4">
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-2.5 rounded-xl">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-2.5">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Descrição do Lançamento</label>
+          <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Descrição do Lançamento</label>
           <input
             type="text"
             required
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             placeholder="Ex: Assinatura Software, Conta de Luz"
-            className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+            className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Valor Estimado (R$)</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Valor Estimado (R$)</label>
             <input
               type="number"
               step="0.01"
@@ -246,12 +246,12 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
               value={valor}
               onChange={(e) => setValor(e.target.value)}
               placeholder="0,00"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Dia do Vencimento</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Dia do Vencimento</label>
             <input
               type="number"
               min="1"
@@ -260,16 +260,16 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
               value={diaVencimento}
               onChange={(e) => setDiaVencimento(e.target.value)}
               placeholder="1 a 31"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Frequência</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Frequência</label>
             <select
               value={frequencia}
               onChange={(e) => setFrequencia(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="semanal">Semanal</option>
               <option value="quinzenal">Quinzenal</option>
@@ -282,7 +282,7 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
           </div>
 
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Categoria de Despesa</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Categoria de Despesa</label>
             <select
               value={showNewCategoryForm ? "__new_category__" : categoriaId}
               onChange={(e) => {
@@ -295,7 +295,7 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
                 }
               }}
               required={!showNewCategoryForm}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="">Selecione...</option>
               {categories.map((c) => (
@@ -307,28 +307,28 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
             </select>
 
             {showNewCategoryForm && (
-              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
-                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+              <div className="flex flex-col gap-3.5 p-4.5 bg-mt-bg border border-mt-regua-fina mt-1 select-none">
+                <span className="mt-rotulo mt-rotulo-accent block">
                   Nova Categoria de Despesa
                 </span>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1 md:col-span-2">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome da Categoria</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Nome da Categoria</label>
                     <input
                       type="text"
                       required
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       placeholder="Ex: Assinaturas, Concessionárias"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Ícone (Emoji)</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Ícone (Emoji)</label>
                     <select
                       value={newCategoryIcon}
                       onChange={(e) => setNewCategoryIcon(e.target.value)}
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
                     >
                       <option value="📁">📁 Pasta</option>
                       <option value="💸">💸 Dinheiro</option>
@@ -346,9 +346,9 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
           </div>
 
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Fornecedor</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Fornecedor</label>
             {showNewPartnerForm ? (
-              <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
+              <div className="flex items-center justify-between bg-mt-bg border border-mt-regua-fina px-3 py-2 text-xs text-mt-neutral-700">
                 <span>Cadastrando Novo Fornecedor...</span>
                 <button
                   type="button"
@@ -356,7 +356,7 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
                     setShowNewPartnerForm(false);
                     setFornecedor("");
                   }}
-                  className="text-[9px] font-bold text-brand-text/40 uppercase hover:text-brand-text cursor-pointer"
+                  className="text-[9px] font-bold text-mt-neutral-600 uppercase hover:text-mt-ink cursor-pointer"
                 >
                   Voltar
                 </button>
@@ -374,7 +374,7 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
                     setFornecedor(e.target.value);
                   }
                 }}
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
               >
                 <option value="">Selecione um fornecedor...</option>
                 {partners.filter(p => p.tipo === "fornecedor" || p.tipo === "ambos").map(p => (
@@ -385,13 +385,13 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
             )}
 
             {showNewPartnerForm && (
-              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
-                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+              <div className="flex flex-col gap-3.5 p-4.5 bg-mt-bg border border-mt-regua-fina mt-1 select-none">
+                <span className="mt-rotulo mt-rotulo-accent block">
                   Novo Cadastro de Fornecedor
                 </span>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1 md:col-span-2">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome do Fornecedor</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Nome do Fornecedor</label>
                     <input
                       type="text"
                       required
@@ -401,37 +401,37 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
                         setFornecedor(e.target.value);
                       }}
                       placeholder="Ex: Copel Distribuidora S.A."
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Documento (CPF / CNPJ)</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Documento (CPF / CNPJ)</label>
                     <input
                       type="text"
                       value={newPartnerDoc}
                       onChange={(e) => setNewPartnerDoc(e.target.value)}
                       placeholder="00.000.000/0001-00"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Telefone</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Telefone</label>
                     <input
                       type="text"
                       value={newPartnerPhone}
                       onChange={(e) => setNewPartnerPhone(e.target.value)}
                       placeholder="(11) 99999-9999"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1 md:col-span-2">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">E-mail</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">E-mail</label>
                     <input
                       type="email"
                       value={newPartnerEmail}
                       onChange={(e) => setNewPartnerEmail(e.target.value)}
                       placeholder="financeiro@empresa.com.br"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                 </div>
@@ -440,11 +440,11 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Forma de Pagamento Prevista</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Forma de Pagamento Prevista</label>
             <select
               value={formaPagamento}
               onChange={(e) => setFormaPagamento(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="">Selecione...</option>
               <option value="pix">PIX</option>
@@ -458,40 +458,40 @@ export default function RecorrenteForm({ recorrenteId, onClose, onSuccess }: Rec
         </div>
 
         <div className="flex items-center gap-3 py-1">
-          <span className="text-[10px] font-bold text-brand-text/50 uppercase pl-1">Status da Recorrência:</span>
+          <span className="text-[10px] font-bold text-mt-neutral-700 uppercase pl-1">Status da Recorrência:</span>
           <label className="flex items-center gap-1.5 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={ativa}
               onChange={(e) => setAtiva(e.target.checked)}
-              className="rounded border-brand-border text-brand-primary focus:ring-brand-primary/20 w-4 h-4 cursor-pointer"
+              className="border-mt-regua-fina text-mt-accent focus:ring-mt-accent w-4 h-4 cursor-pointer"
             />
-            <span className="text-xs text-brand-text font-semibold">Ativa (Gerar automaticamente)</span>
+            <span className="text-xs text-mt-ink font-semibold">Ativa (Gerar automaticamente)</span>
           </label>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Observações</label>
+          <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Observações</label>
           <textarea
             value={observacoes}
             onChange={(e) => setObservacoes(e.target.value)}
             placeholder="Detalhes adicionais..."
-            className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text p-4 h-20 w-full focus:outline-none focus:border-brand-primary resize-none"
+            className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink p-4 h-20 w-full focus:outline-none focus:border-mt-accent resize-none"
           />
         </div>
 
-        <div className="flex items-center gap-2.5 mt-2 border-t border-brand-border/40 pt-4">
+        <div className="flex items-center gap-2.5 mt-2 border-t border-mt-regua-fina pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 h-11 bg-transparent hover:bg-brand-card/50 text-brand-text/70 hover:text-brand-text border border-brand-border text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer"
+            className="flex-1 h-11 bg-transparent hover:bg-mt-surface text-mt-neutral-700 hover:text-mt-ink border border-mt-regua-fina text-[11px] font-bold uppercase tracking-wider cursor-pointer"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={isLoading}
-            className="flex-1 h-11 bg-brand-primary text-white text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-50"
+            className="flex-1 h-11 bg-mt-accent text-mt-inverso text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
           >
             {isLoading ? "Salvando..." : recorrenteId ? "Salvar Lançamento" : "Registrar Recorrência"}
           </button>

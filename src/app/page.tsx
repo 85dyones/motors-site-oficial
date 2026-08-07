@@ -1,4 +1,6 @@
+import { Fragment } from "react";
 import Link from "next/link";
+import { areasVisiveis, normalizarAreas } from "../lib/areasDoSite";
 import HeroHome from "../components/modernist/HeroHome";
 import BuscaRegua from "../components/modernist/BuscaRegua";
 import BotaoWhatsApp from "../components/modernist/BotaoWhatsApp";
@@ -15,6 +17,8 @@ import {
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
 import { contarMarcas } from "../lib/estatisticasEstoque";
 import { getCachedSettings } from "../lib/settings";
+import { getReputacaoGoogle } from "../lib/avaliacoesGoogle";
+import { normalizarCuradoria } from "../lib/instagramCuradoria";
 import {
   DESTAQUES_PADRAO,
   normalizarQuickTags,
@@ -103,8 +107,17 @@ const PASSOS_PROFILER = [
 export default async function Home() {
   const SITE_URL = "https://motors-site-oficial.vercel.app";
 
-  const [estoque, settings] = await Promise.all([getEstoque(), getCachedSettings()]);
+  const [estoque, settings, reputacao] = await Promise.all([
+    getEstoque(),
+    getCachedSettings(),
+    // Em paralelo com o estoque: são queries independentes, e encadeá-las
+    // somaria a latência das duas ao TTFB da home.
+    getReputacaoGoogle(),
+  ]);
   const empresa = settings.companySettings ?? DEFAULT_COMPANY_SETTINGS;
+
+  const publicacoesInstagram = normalizarCuradoria(settings.instagramCuradoria);
+  const configDasAreas = normalizarAreas(settings.areasHome);
 
   const disponiveis = estoque.filter((v) => !v.vendido);
   const total = disponiveis.length;
@@ -156,26 +169,28 @@ export default async function Home() {
     ]
   };
 
-  return (
-    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`, e landmarks
-    // aninhados desorientam navegação por leitor de tela.
-    <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
-      {/* Local Business (AutoDealer) Schema Markup */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(autoDealerSchema) }}
-      />
-
+  /**
+   * As seções da home, indexadas pelo id do catálogo (`lib/areasDoSite.ts`).
+   *
+   * Até 2026-08-07 esta lista era JSX direto no `return`, em ordem fixa —
+   * mudar a home exigia deploy. A tela A3 do design doc pede ordem e
+   * visibilidade editáveis, então o `return` passou a percorrer a
+   * configuração salva em vez do JSX literal. O conteúdo de cada bloco não
+   * mudou; só passou a ter nome.
+   */
+  const blocos: Record<string, React.ReactNode> = {
+    hero: (
       <HeroHome
         slides={slidesHero}
         totalEstoque={total}
         totalMarcas={contarMarcas(disponiveis)}
       />
+    ),
 
-      <BuscaRegua estoque={disponiveis} />
+    busca: <BuscaRegua estoque={disponiveis} />,
 
-      {/* Trilho de destaques rápidos — cada um é uma landing indexável */}
-      {destaquesRapidos.length > 0 && (
+    /* Trilho de destaques rápidos — cada um é uma landing indexável */
+    destaques_rapidos: destaquesRapidos.length > 0 && (
         /* A partir do tablet o trilho é uma faixa de 56px que rola na
            horizontal, e não uma caixa que quebra em várias linhas: na tela 09
            do design doc ele é uma régua só, do lado do rótulo. */
@@ -196,9 +211,10 @@ export default async function Home() {
             ))}
           </div>
         </div>
-      )}
+      ),
 
-      {/* ─── 01 Estoque selecionado ─── */}
+    /* ─── 01 Estoque selecionado ─── */
+    estoque_selecionado: (
       <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
         <CabecalhoSecao
           numero="01 — ESTOQUE SELECIONADO"
@@ -225,7 +241,10 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ─── 02 Consultoria ─── */}
+    ),
+
+    /* ─── 02 Consultoria ─── */
+    consultoria: (
       <section className="mt-16 flex flex-col gap-10 bg-mt-inverso-fundo px-[18px] py-12 text-mt-inverso lg:mt-20 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
         <div className="lg:flex-[1.15]">
           <div className="mb-3.5 text-[10px] font-semibold tracking-[.18em] text-mt-accent-400 lg:text-[11px]">
@@ -266,7 +285,10 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ─── 03 Venda ou troca ─── */}
+    ),
+
+    /* ─── 03 Venda ou troca ─── */
+    venda_troca: (
       <section className="border-b-2 border-mt-regua px-[18px] py-12 lg:px-10 lg:py-16">
         <Rotulo accent className="text-[11px] tracking-[.18em]">
           03 — VENDA OU TROCA
@@ -297,16 +319,24 @@ export default async function Home() {
         </Link>
       </section>
 
-      {/* ─── 04 Reputação ─── */}
-      <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
-        <CabecalhoSecao numero="04 — REPUTAÇÃO" titulo="O que dizem os clientes da Motors" />
-        {/* Widget de terceiro: mantém o template próprio dentro desta grade */}
-        <div className="pt-8">
-          <GoogleReviewsFeed />
-        </div>
-      </section>
+    ),
 
-      {/* ─── Instagram ─── */}
+    /* ─── 04 Reputação ───
+       A seção inteira depende do sync do Google ter rodado. Sem dado ela não
+       existe — nunca um cabeçalho "O que dizem os clientes" seguido de caixa
+       vazia, que é o que anuncia ao visitante que a loja não tem avaliação. */
+    reputacao: reputacao && (
+        <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
+          <CabecalhoSecao numero="04 — REPUTAÇÃO" titulo="O que dizem os clientes da Motors" />
+          <GoogleReviewsFeed painel={reputacao} />
+        </section>
+    ),
+
+    /* ─── Instagram ───
+       Mesma regra da reputação: sem publicação curada no painel, não há
+       faixa. O cabeçalho com o @ da loja só aparece se houver o que mostrar
+       embaixo dele. */
+    instagram: publicacoesInstagram.length > 0 && (
       <section className="px-[18px] py-12 lg:px-10 lg:py-16">
         <div className="mb-3.5 flex flex-wrap items-baseline gap-4 border-t-2 border-mt-regua pt-5">
           <h3 className="mt-titulo m-0 text-2xl">
@@ -326,10 +356,12 @@ export default async function Home() {
             </a>
           )}
         </div>
-        <InstagramFeed />
+        <InstagramFeed publicacoes={publicacoesInstagram} />
       </section>
+    ),
 
-      {/* ─── Faixa de contato ─── */}
+    /* ─── Faixa de contato ─── */
+    contato: (
       <section className="bg-mt-accent px-[18px] py-14 text-mt-inverso lg:px-10 lg:py-[76px]">
         <h2 className="mt-display m-0 max-w-[1000px] text-[34px] lg:text-[88px]">
           O carro certo não é o mais caro. É o que você não quer devolver.
@@ -347,6 +379,25 @@ export default async function Home() {
           />
         </div>
       </section>
+    ),
+  };
+
+  return (
+    // `<div>`, não `<main>`: o layout raiz já abre um `<main>`, e landmarks
+    // aninhados desorientam navegação por leitor de tela.
+    <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
+      {/* Local Business (AutoDealer) Schema Markup */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(autoDealerSchema) }}
+      />
+
+      {/* A ordem e a visibilidade vêm da tela A3 do painel. `areasVisiveis`
+          já descarta o que está desligado e normaliza config estranha — uma
+          seção nunca some do site por causa de JSON malformado. */}
+      {areasVisiveis(configDasAreas).map((area) => (
+        <Fragment key={area.id}>{blocos[area.id]}</Fragment>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../../lib/supabase-server";
+import { registrarAcaoSensivel } from "../../../../lib/auditoria";
+import { PERFIS } from "../../../../lib/permissoes";
 
 export async function PUT(
   request: NextRequest,
@@ -27,6 +29,10 @@ export async function PUT(
 
     const body = await request.json();
     const { full_name, role, is_active } = body;
+
+    if (role !== undefined && !(PERFIS as readonly string[]).includes(role)) {
+      return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
+    }
 
     const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -73,6 +79,13 @@ export async function PUT(
         return NextResponse.json({ error: profileError.message }, { status: 500 });
       }
     }
+
+    await registrarAcaoSensivel(
+      supabase,
+      "perfil_alterado",
+      `${full_name ?? id} → ${role ?? "sem mudança de perfil"}${is_active === false ? " · desativado" : ""}`,
+      { id: currentUser.id, nome: currentUser.email },
+    );
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
@@ -129,6 +142,11 @@ export async function DELETE(
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
     }
+
+    await registrarAcaoSensivel(supabase, "usuario_excluido", `id ${id}`, {
+      id: currentUser.id,
+      nome: currentUser.email,
+    });
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

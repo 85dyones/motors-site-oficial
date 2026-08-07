@@ -151,11 +151,11 @@ export default function RecorrentesList() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl">
       {/* Action panel header */}
-      <div className="flex items-center justify-between border-b border-brand-border/40 pb-4 select-none">
+      <div className="flex items-center justify-between border-b border-mt-regua-fina pb-4 select-none">
         <button
           onClick={handleForceGenerate}
           disabled={isGenerating}
-          className="h-10 border border-brand-border hover:border-brand-primary/50 text-[11px] font-bold uppercase tracking-wider px-4 rounded-xl transition-all cursor-pointer bg-brand-bg/50 hover:bg-brand-primary/5 disabled:opacity-50"
+          className="h-10 border border-mt-regua-fina hover:border-mt-accent text-[11px] font-bold uppercase tracking-wider px-4 transition-all cursor-pointer bg-mt-bg hover:bg-mt-accent-100 disabled:opacity-50"
         >
           {isGenerating ? "Processando..." : "Rodar Rotina de Geração"}
         </button>
@@ -167,7 +167,7 @@ export default function RecorrentesList() {
             setError("");
             setSuccessMsg("");
           }}
-          className="h-10 bg-brand-primary hover:bg-brand-primary/95 text-white text-[11px] font-bold uppercase tracking-wider px-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md select-none"
+          className="h-10 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-[11px] font-bold uppercase tracking-wider px-4 flex items-center justify-center gap-2  transition-all cursor-pointer select-none"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
@@ -178,7 +178,7 @@ export default function RecorrentesList() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2 select-none">
+        <div className="bg-mt-surface border border-mt-regua-fina text-mt-accent-800 text-xs px-4 py-3 flex items-center gap-2 select-none">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
           </svg>
@@ -186,7 +186,7 @@ export default function RecorrentesList() {
         </div>
       )}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2 select-none">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-3 flex items-center gap-2 select-none">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
           </svg>
@@ -197,16 +197,16 @@ export default function RecorrentesList() {
       {/* Grid List layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Table representation */}
-        <div className={`lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md ${isFormOpen ? "hidden lg:block" : "block"}`}>
+        <div className={`lg:col-span-2 bg-mt-surface border border-mt-regua-fina p-6 ${isFormOpen ? "hidden lg:block" : "block"}`}>
           {isLoading ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Carregando despesas recorrentes...</div>
+            <div className="py-12 text-center text-xs text-mt-neutral-700">Carregando despesas recorrentes...</div>
           ) : recorrentes.length === 0 ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Nenhuma despesa recorrente registrada.</div>
+            <div className="py-12 text-center text-xs text-mt-neutral-700">Nenhuma despesa recorrente registrada.</div>
           ) : (
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-brand-border/40 text-brand-text/40 font-bold uppercase tracking-wider">
+                  <tr className="border-b border-mt-regua-fina text-mt-neutral-600 font-bold uppercase tracking-wider">
                     <th className="pb-3 pl-2">Descrição</th>
                     <th className="pb-3">Período</th>
                     <th className="pb-3">Vencimento</th>
@@ -215,32 +215,32 @@ export default function RecorrentesList() {
                     <th className="pb-3 pr-2 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-brand-border/20">
+                <tbody className="divide-y divide-mt-regua-fina">
                   {recorrentes.map((r) => (
-                    <tr key={r.id} className="hover:bg-brand-card/10 transition-colors">
-                      <td className="py-4 pl-2 font-bold text-brand-text">
+                    <tr key={r.id} className="hover:bg-mt-surface transition-colors">
+                      <td className="py-4 pl-2 font-bold text-mt-ink">
                         <div className="flex flex-col gap-0.5">
                           <span>{r.descricao}</span>
-                          <span className="text-[10px] text-brand-text/40 font-normal">
+                          <span className="text-[10px] text-mt-neutral-600 font-normal">
                             {r.categoria?.icone} {r.categoria?.nome || "Outros"}
                           </span>
                         </div>
                       </td>
-                      <td className="py-4 text-brand-text/70">{getFreqLabel(r.frequencia)}</td>
-                      <td className="py-4 text-brand-text/70">
+                      <td className="py-4 text-mt-neutral-700">{getFreqLabel(r.frequencia)}</td>
+                      <td className="py-4 text-mt-neutral-700">
                         <div className="flex flex-col gap-0.5">
                           <span>Dia {r.dia_vencimento}</span>
-                          <span className="text-[10px] text-brand-text/40">Próx: {formatDate(r.proxima_geracao)}</span>
+                          <span className="text-[10px] text-mt-neutral-600">Próx: {formatDate(r.proxima_geracao)}</span>
                         </div>
                       </td>
-                      <td className="py-4 font-black text-brand-text">{formatPrice(r.valor)}</td>
+                      <td className="py-4 font-extrabold text-mt-ink">{formatPrice(r.valor)}</td>
                       <td className="py-4">
                         <button
                           onClick={() => handleToggleAtiva(r.id, r.ativa)}
-                          className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                          className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
                             r.ativa
-                              ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500"
-                              : "bg-zinc-500/10 border border-zinc-500/20 text-zinc-500"
+                              ? "bg-mt-surface border border-mt-regua-fina text-mt-accent-800"
+                              : "bg-mt-surface border border-mt-regua-fina text-mt-neutral-600"
                           }`}
                         >
                           {r.ativa ? "Ativa" : "Pausada"}
@@ -253,7 +253,7 @@ export default function RecorrentesList() {
                               setSelectedId(r.id);
                               setIsFormOpen(true);
                             }}
-                            className="p-1.5 text-brand-text/40 hover:text-brand-gold hover:bg-brand-card/50 rounded-lg transition-all cursor-pointer"
+                            className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-surface transition-all cursor-pointer"
                             title="Editar"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -262,7 +262,7 @@ export default function RecorrentesList() {
                           </button>
                           <button
                             onClick={() => handleDelete(r.id)}
-                            className="p-1.5 text-brand-text/40 hover:text-red-500 hover:bg-red-500/5 rounded-lg transition-all cursor-pointer"
+                            className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
                             title="Excluir"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -282,8 +282,8 @@ export default function RecorrentesList() {
         {/* Right side form */}
         <div className={`lg:col-span-1 ${isFormOpen ? "block" : "hidden lg:block"}`}>
           {isFormOpen ? (
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">
-              <h3 className="text-sm font-extrabold uppercase text-brand-text select-none">
+            <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4 animate-slideUpPopup">
+              <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink select-none">
                 {selectedId ? "Editar Recorrência" : "Nova Despesa Recorrente"}
               </h3>
               <RecorrenteForm
@@ -296,7 +296,7 @@ export default function RecorrentesList() {
               />
             </div>
           ) : (
-            <div className="bg-brand-card/10 border border-dashed border-brand-border/40 rounded-3xl p-8 text-center text-xs text-brand-text/40 select-none">
+            <div className="bg-mt-surface border border-dashed border-mt-regua-fina p-8 text-center text-xs text-mt-neutral-600 select-none">
               Selecione uma recorrência para configurar ou clique em "Nova Recorrência" para criar um agendamento.
             </div>
           )}

@@ -1,30 +1,82 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useConfirm } from "./ConfirmDialog";
+import {
+  ALCADA_DO_PERFIL,
+  DESCRICAO_DO_PERFIL,
+  MATRIZ_DE_PERMISSOES,
+  PERFIS,
+  ROTULO_DO_PERFIL,
+  normalizarPerfil,
+  type Perfil,
+  type Permissao,
+} from "../../lib/permissoes";
+
+/**
+ * Tela A17 do design doc — usuários e permissões.
+ *
+ * Três abas, como o doc desenha: Permissões (os quatro perfis e a matriz),
+ * Pessoas (a tabela real de `profiles`, com convite e edição) e Registro
+ * (a trilha de `auditoria_admin`). A matriz vem de `lib/permissoes.ts` — é
+ * especificação transcrita do doc, e os pontos de alçada fina passam a
+ * consultá-la conforme as telas que dependem dela (editor de veículo,
+ * publicação) forem entrando.
+ */
 
 interface UserProfile {
   id: string;
   email: string;
   full_name: string;
-  role: "admin" | "comercial" | "financeiro";
+  role: string;
   is_active: boolean;
   created_at: string;
 }
 
+interface RegistroAuditoria {
+  id: string;
+  acao: string;
+  detalhe: string | null;
+  autor_nome: string | null;
+  registrado_em: string;
+}
+
+const ROTULO_ACAO: Record<string, string> = {
+  paleta_alterada: "Paleta do site alterada",
+  usuario_criado: "Usuário criado",
+  perfil_alterado: "Perfil alterado",
+  usuario_excluido: "Usuário excluído",
+  texto_legal_alterado: "Texto legal alterado",
+};
+
+const CELULA_DA_MATRIZ: Record<Permissao, { texto: string; caixa: string; cor: string }> = {
+  faz: { texto: "FAZ", caixa: "bg-mt-ink border-mt-ink", cor: "text-mt-ink" },
+  revisao: { texto: "REVISÃO", caixa: "bg-mt-accent border-mt-accent", cor: "text-mt-accent-800" },
+  nao_ve: { texto: "NÃO VÊ", caixa: "bg-transparent border-mt-neutral-400", cor: "text-mt-neutral-600" },
+};
+
+const dataCurta = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+type Aba = "permissoes" | "pessoas" | "registro";
+
 export default function UserManagement() {
   const { confirm } = useConfirm();
+  const [aba, setAba] = useState<Aba>("permissoes");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  const [registros, setRegistros] = useState<RegistroAuditoria[]>([]);
+  const [registroCarregado, setRegistroCarregado] = useState(false);
 
   // Create User Form State
   const [isCreating, setIsCreating] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<"comercial" | "admin" | "financeiro">("comercial");
+  const [role, setRole] = useState<Perfil>("comercial");
   const [isSaving, setIsSaving] = useState(false);
 
   // Edit User State
@@ -51,6 +103,31 @@ export default function UserManagement() {
     fetchUsers();
   }, []);
 
+  // O registro só é buscado quando a aba abre — e uma vez.
+  useEffect(() => {
+    if (aba !== "registro" || registroCarregado) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/auditoria");
+        const data = await res.json();
+        if (res.ok) {
+          setRegistros(data.registros || []);
+          setRegistroCarregado(true);
+        } else {
+          setError(data.error || "Falha ao carregar o registro.");
+        }
+      } catch {
+        setError("Erro ao conectar com o servidor.");
+      }
+    })();
+  }, [aba, registroCarregado]);
+
+  const contagemPorPerfil = useMemo(() => {
+    const c: Record<Perfil, number> = { admin: 0, marketing: 0, comercial: 0, financeiro: 0 };
+    for (const u of users) c[normalizarPerfil(u.role)] += 1;
+    return c;
+  }, [users]);
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -72,6 +149,7 @@ export default function UserManagement() {
         setPassword("");
         setFullName("");
         setRole("comercial");
+        setRegistroCarregado(false);
         fetchUsers();
       } else {
         setError(data.error || "Falha ao criar usuário.");
@@ -105,6 +183,7 @@ export default function UserManagement() {
       if (res.ok) {
         setSuccessMsg("Usuário atualizado com sucesso!");
         setEditingUser(null);
+        setRegistroCarregado(false);
         fetchUsers();
       } else {
         setError(data.error || "Falha ao atualizar usuário.");
@@ -134,6 +213,7 @@ export default function UserManagement() {
 
       if (res.ok) {
         setSuccessMsg("Usuário excluído com sucesso!");
+        setRegistroCarregado(false);
         fetchUsers();
       } else {
         setError(data.error || "Falha ao excluir usuário.");
@@ -143,275 +223,383 @@ export default function UserManagement() {
     }
   };
 
+  /** Etiquetas na linguagem de tag do doc: acento para Admin, contorno para o resto. */
   const getRoleBadgeClass = (r: string) => {
-    switch (r) {
-      case "admin": return "bg-brand-primary/10 border border-brand-primary/20 text-brand-primary";
-      case "financeiro": return "bg-brand-gold/10 border border-brand-gold/20 text-brand-gold";
-      case "comercial": default: return "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500";
+    switch (normalizarPerfil(r)) {
+      case "admin": return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent-800";
+      case "financeiro": return "border border-mt-regua text-mt-neutral-800";
+      case "marketing": return "border border-mt-regua text-mt-neutral-800";
+      default: return "border border-mt-regua-fina text-mt-neutral-700";
     }
   };
 
+  const rotuloCampo = "text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1";
+  const campoCaixa =
+    "bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent";
+
   return (
-    <div className="flex flex-col gap-6 w-full max-w-6xl">
-      {/* Page Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-brand-border/40">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight uppercase">
-            Controle de Usuários
-          </h1>
-          <p className="text-xs text-brand-text/50">
-            Gerencie os acessos administrativos, comerciais e financeiros do sistema.
+    <div className="flex w-full max-w-6xl flex-col gap-6">
+      {/* Cabeçalho na anatomia A17 */}
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-regua pb-5">
+        <div className="flex flex-col gap-1.5">
+          <div className="mt-rotulo mt-rotulo-accent">Sistema</div>
+          <h1 className="mt-titulo text-3xl md:text-4xl">Usuários e permissões</h1>
+          <p className="mt-1 max-w-[640px] text-sm text-mt-neutral-800">
+            Quatro perfis, uma regra por linha. Preço, texto legal e paleta são os pontos onde
+            um erro custa caro — cada um tem dono explícito, e o que for negado some da
+            interface, não fica cinza.
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setIsCreating(true);
-            setEditingUser(null);
-            setError("");
-            setSuccessMsg("");
-          }}
-          className="h-10 bg-brand-primary hover:bg-brand-primary/95 text-white text-[11px] font-bold uppercase tracking-wider px-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md select-none"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
-          </svg>
-          Novo Usuário
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="mt-seg">
+            {(
+              [
+                ["permissoes", "Permissões"],
+                ["pessoas", "Pessoas"],
+                ["registro", "Registro"],
+              ] as const
+            ).map(([valor, rotulo]) => (
+              <label key={valor} className="mt-seg-opt">
+                <input type="radio" name="aba-usuarios" checked={aba === valor} onChange={() => setAba(valor)} />
+                <span>{rotulo}</span>
+              </label>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              setAba("pessoas");
+              setIsCreating(true);
+              setEditingUser(null);
+              setError("");
+              setSuccessMsg("");
+            }}
+            className="mt-btn mt-btn-primario mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
+          >
+            Convidar usuário
+          </button>
+        </div>
       </div>
 
       {/* Notifications */}
       {successMsg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
-            <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
-          </svg>
-          <span>{successMsg}</span>
+        <div className="flex items-center gap-2 border-l-[3px] border-mt-ink bg-mt-surface px-4 py-3 text-xs text-mt-accent-800">
+          {successMsg}
         </div>
       )}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
-            <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
-          </svg>
-          <span>{error}</span>
+        <div className="flex items-center gap-2 border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
+          {error}
         </div>
       )}
 
-      {/* Main Layout Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Users Table / List */}
-        <div className="lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md">
-          {isLoading ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Carregando usuários...</div>
-          ) : users.length === 0 ? (
-            <div className="py-12 text-center text-xs text-brand-text/50">Nenhum usuário cadastrado.</div>
-          ) : (
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-left text-xs border-collapse">
+      {aba === "permissoes" && (
+        <>
+          {/* Os quatro perfis */}
+          <div className="grid grid-cols-1 gap-6 border-t-2 border-mt-regua pt-5 sm:grid-cols-2 lg:grid-cols-4">
+            {PERFIS.map((p) => (
+              <div key={p} className="border-r border-mt-regua-fina pr-5 last:border-r-0">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[15px] font-extrabold tracking-[-.01em]">{ROTULO_DO_PERFIL[p]}</span>
+                  <span className="ml-auto text-[11px] text-mt-neutral-700">
+                    {contagemPorPerfil[p]} pessoa(s)
+                  </span>
+                </div>
+                <div className={`mt-2.5 h-[3px] ${p === "admin" ? "bg-mt-accent" : "bg-mt-ink"}`} />
+                <p className="mt-2.5 text-xs leading-relaxed text-mt-neutral-800">
+                  {DESCRICAO_DO_PERFIL[p].descricao}
+                </p>
+                <div className="mt-2 text-[11px] font-semibold text-mt-accent-800">
+                  {DESCRICAO_DO_PERFIL[p].chave}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Matriz */}
+          <div>
+            <div className="mb-3 flex flex-wrap items-baseline gap-3">
+              <div className="mt-rotulo">Matriz de permissões</div>
+              <div className="ml-auto flex gap-4 text-[11px] text-mt-neutral-700">
+                <span className="flex items-center gap-1.5"><span className="h-[11px] w-[11px] bg-mt-ink" />Faz</span>
+                <span className="flex items-center gap-1.5"><span className="h-[11px] w-[11px] bg-mt-accent" />Faz, mas passa por revisão</span>
+                <span className="flex items-center gap-1.5"><span className="h-[11px] w-[11px] border border-mt-neutral-400" />Não vê</span>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="mt-tabela">
                 <thead>
-                  <tr className="border-b border-brand-border/40 text-brand-text/40 font-bold uppercase tracking-wider">
-                    <th className="pb-3 pl-2">Nome</th>
-                    <th className="pb-3">E-mail</th>
-                    <th className="pb-3">Nível</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 pr-2 text-right">Ações</th>
+                  <tr>
+                    <th>O que pode ser feito</th>
+                    {PERFIS.map((p) => (
+                      <th key={p} className="w-[110px]">{ROTULO_DO_PERFIL[p]}</th>
+                    ))}
+                    <th>Observação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-brand-border/20">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-brand-card/10 transition-colors">
-                      <td className="py-4 pl-2 font-bold text-brand-text">{u.full_name}</td>
-                      <td className="py-4 text-brand-text/70">{u.email}</td>
-                      <td className="py-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${getRoleBadgeClass(u.role)}`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="py-4">
-                        <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${u.is_active ? "bg-emerald-500" : "bg-zinc-500"}`} />
-                        <span className="text-brand-text/60">{u.is_active ? "Ativo" : "Inativo"}</span>
-                      </td>
-                      <td className="py-4 pr-2 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingUser({ ...u });
-                              setIsCreating(false);
-                              setError("");
-                              setSuccessMsg("");
-                            }}
-                            className="p-1.5 text-brand-text/50 hover:text-brand-gold hover:bg-brand-card/50 rounded-lg transition-all cursor-pointer"
-                            title="Editar usuário"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                              <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.287.287-.63.502-1.01.633l-3.156 1.262a.75.75 0 0 1-.98-.98Z" />
-                              <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(u.id)}
-                            className="p-1.5 text-brand-text/50 hover:text-red-500 hover:bg-red-500/5 rounded-lg transition-all cursor-pointer"
-                            title="Excluir usuário"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                              <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H3.75a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H14v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 3.75A1.25 1.25 0 0 1 9.25 2.5h2.5A1.25 1.25 0 0 1 13 3.75V4H8v-.25ZM3.5 7.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v7.75A2.75 2.75 0 0 1 13.75 18H6.25A2.75 2.75 0 0 1 3.5 15.25V7.5Zm3.5 2a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11 9.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
+                <tbody>
+                  {MATRIZ_DE_PERMISSOES.map((l) => (
+                    <tr key={l.acao}>
+                      <td className="font-extrabold">{l.acao}</td>
+                      {PERFIS.map((p) => {
+                        const cel = CELULA_DA_MATRIZ[l.permissoes[p]];
+                        return (
+                          <td key={p}>
+                            <span className={`inline-flex items-center gap-2 text-[11px] font-semibold tracking-[.06em] ${cel.cor}`}>
+                              <span className={`h-3 w-3 flex-none border ${cel.caixa}`} />
+                              {cel.texto}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td className="text-mt-neutral-700">{l.observacao}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Action Panel: Create or Edit */}
-        <div className="lg:col-span-1">
-          {isCreating && (
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">
-              <h3 className="text-sm font-extrabold uppercase text-brand-text select-none">Novo Usuário</h3>
-              <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-brand-text/50 uppercase pl-1">Nome Completo</label>
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="João da Silva"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                  />
-                </div>
+          {/* As três travas */}
+          <div className="max-w-[720px]">
+            <div className="mt-rotulo mt-rotulo-accent mb-3">Três travas que não caem</div>
+            {[
+              {
+                t: "Preço",
+                d: "Comercial mexe até 5%; acima disso a mudança para na fila de revisão até Admin ou Financeiro liberar.",
+                quem: "COMERCIAL COM ALÇADA · ADMIN SEM LIMITE",
+              },
+              {
+                t: "Texto legal",
+                d: "CET, condições de financiamento e avisos obrigatórios vivem no módulo financeiro — ninguém reescreve sem querer.",
+                quem: "SOMENTE FINANCEIRO E ADMIN",
+              },
+              {
+                t: "Paleta e identidade",
+                d: "Cores, logo e tipografia mudam o site inteiro. Fica fora da visão de Marketing para evitar ajuste de campanha virando rebranding.",
+                quem: "SOMENTE ADMIN",
+              },
+            ].map((trava) => (
+              <div key={trava.t} className="mb-3 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
+                <div className="text-sm font-extrabold tracking-[-.01em]">{trava.t}</div>
+                <p className="mt-1 text-xs leading-relaxed text-mt-neutral-800">{trava.d}</p>
+                <div className="mt-2 text-[10px] font-extrabold tracking-[.12em] text-mt-accent-800">{trava.quem}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-brand-text/50 uppercase pl-1">E-mail</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="joao@motors.com.br"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                  />
-                </div>
+      {aba === "pessoas" && (
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+          {/* Users Table / List */}
+          <div className="border border-mt-regua-fina bg-mt-surface p-6 lg:col-span-2">
+            {isLoading ? (
+              <div className="py-12 text-center text-xs text-mt-neutral-700">Carregando usuários...</div>
+            ) : users.length === 0 ? (
+              <div className="py-12 text-center text-xs text-mt-neutral-700">Nenhum usuário cadastrado.</div>
+            ) : (
+              <div className="w-full overflow-x-auto">
+                <table className="mt-tabela">
+                  <thead>
+                    <tr>
+                      <th>Pessoa</th>
+                      <th>Perfil</th>
+                      <th>Alçada</th>
+                      <th>Status</th>
+                      <th className="text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id}>
+                        <td>
+                          <div className="font-extrabold tracking-[-.01em] text-mt-ink">{u.full_name}</div>
+                          <div className="mt-0.5 text-[11px] text-mt-neutral-700">{u.email}</div>
+                        </td>
+                        <td>
+                          <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getRoleBadgeClass(u.role)}`}>
+                            {ROTULO_DO_PERFIL[normalizarPerfil(u.role)]}
+                          </span>
+                        </td>
+                        <td className="mt-num text-mt-neutral-700">{ALCADA_DO_PERFIL[normalizarPerfil(u.role)]}</td>
+                        <td>
+                          <span className={`mr-1.5 inline-block h-2 w-2 ${u.is_active ? "bg-mt-ink" : "bg-mt-neutral-500"}`} />
+                          <span className="text-mt-neutral-700">{u.is_active ? "Ativo" : "Inativo"}</span>
+                        </td>
+                        <td className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingUser({ ...u });
+                                setIsCreating(false);
+                                setError("");
+                                setSuccessMsg("");
+                              }}
+                              className="mt-foco cursor-pointer p-1.5 text-mt-neutral-700 hover:bg-mt-surface hover:text-mt-accent"
+                              title="Editar usuário"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.287.287-.63.502-1.01.633l-3.156 1.262a.75.75 0 0 1-.98-.98Z" />
+                                <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.id)}
+                              className="mt-foco cursor-pointer p-1.5 text-mt-neutral-700 hover:bg-mt-accent-100 hover:text-mt-accent"
+                              title="Excluir usuário"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H3.75a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H14v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 3.75A1.25 1.25 0 0 1 9.25 2.5h2.5A1.25 1.25 0 0 1 13 3.75V4H8v-.25ZM3.5 7.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v7.75A2.75 2.75 0 0 1 13.75 18H6.25A2.75 2.75 0 0 1 3.5 15.25V7.5Zm3.5 2a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11 9.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-brand-text/50 uppercase pl-1">Senha Provisória</label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 6 caracteres"
-                    minLength={6}
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                  />
-                </div>
+          {/* Action Panel: Create or Edit */}
+          <div className="lg:col-span-1">
+            {isCreating && (
+              <div className="flex flex-col gap-4 border border-mt-regua-fina bg-mt-surface p-6">
+                <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink select-none">Convidar usuário</h3>
+                <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className={rotuloCampo}>Nome Completo</label>
+                    <input type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="João da Silva" className={campoCaixa} />
+                  </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-brand-text/50 uppercase pl-1">Nível de Permissão</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as any)}
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
-                  >
-                    <option value="comercial">Comercial</option>
-                    <option value="financeiro">Financeiro</option>
-                    <option value="admin">Administrador (Total)</option>
-                  </select>
-                </div>
+                  <div className="flex flex-col gap-1">
+                    <label className={rotuloCampo}>E-mail</label>
+                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="joao@motors.com.br" className={campoCaixa} />
+                  </div>
 
-                <div className="flex items-center gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreating(false)}
-                    className="flex-1 h-11 bg-transparent hover:bg-brand-card/50 text-brand-text/70 hover:text-brand-text border border-brand-border text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="flex-1 h-11 bg-brand-primary text-white text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-50"
-                  >
-                    {isSaving ? "Salvando..." : "Criar"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+                  <div className="flex flex-col gap-1">
+                    <label className={rotuloCampo}>Senha Provisória</label>
+                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 caracteres" minLength={6} className={campoCaixa} />
+                  </div>
 
-          {editingUser && (
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">
-              <h3 className="text-sm font-extrabold uppercase text-brand-text select-none">Editar Usuário</h3>
-              <form onSubmit={handleUpdateUser} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-brand-text/50 uppercase pl-1">Nome Completo</label>
-                  <input
-                    type="text"
-                    required
-                    value={editingUser.full_name}
-                    onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })}
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
-                  />
-                </div>
+                  <div className="flex flex-col gap-1">
+                    <label className={rotuloCampo}>Perfil</label>
+                    <select value={role} onChange={(e) => setRole(e.target.value as Perfil)} className={`${campoCaixa} cursor-pointer`}>
+                      {PERFIS.map((p) => (
+                        <option key={p} value={p}>{ROTULO_DO_PERFIL[p]}</option>
+                      ))}
+                    </select>
+                    <span className="pl-1 text-[10px] text-mt-neutral-700">Alçada: {ALCADA_DO_PERFIL[role]}</span>
+                  </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-brand-text/50 uppercase pl-1">Nível de Permissão</label>
-                  <select
-                    value={editingUser.role}
-                    onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })}
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
-                  >
-                    <option value="comercial">Comercial</option>
-                    <option value="financeiro">Financeiro</option>
-                    <option value="admin">Administrador (Total)</option>
-                  </select>
-                </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button type="button" onClick={() => setIsCreating(false)} className="mt-foco h-11 flex-1 cursor-pointer border border-mt-regua-fina bg-transparent text-[11px] font-bold uppercase tracking-wider text-mt-neutral-700 hover:bg-mt-surface hover:text-mt-ink">
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={isSaving} className="mt-foco h-11 flex-1 cursor-pointer bg-mt-accent text-[11px] font-bold uppercase tracking-wider text-mt-inverso hover:bg-mt-accent-hover disabled:opacity-50">
+                      {isSaving ? "Salvando..." : "Criar"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
 
-                <div className="flex items-center gap-3 py-1">
-                  <span className="text-[10px] font-bold text-brand-text/50 uppercase pl-1">Status da Conta:</span>
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            {editingUser && (
+              <div className="flex flex-col gap-4 border border-mt-regua-fina bg-mt-surface p-6">
+                <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink select-none">Editar usuário</h3>
+                <form onSubmit={handleUpdateUser} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className={rotuloCampo}>Nome Completo</label>
                     <input
-                      type="checkbox"
-                      checked={editingUser.is_active}
-                      onChange={(e) => setEditingUser({ ...editingUser, is_active: e.target.checked })}
-                      className="rounded border-brand-border text-brand-primary focus:ring-brand-primary/20 w-4 h-4 cursor-pointer"
+                      type="text"
+                      required
+                      value={editingUser.full_name}
+                      onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })}
+                      className={campoCaixa}
                     />
-                    <span className="text-xs text-brand-text font-semibold">Conta Ativa</span>
-                  </label>
-                </div>
+                  </div>
 
-                <div className="flex items-center gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingUser(null)}
-                    className="flex-1 h-11 bg-transparent hover:bg-brand-card/50 text-brand-text/70 hover:text-brand-text border border-brand-border text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="flex-1 h-11 bg-brand-primary text-white text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-50"
-                  >
-                    {isSaving ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+                  <div className="flex flex-col gap-1">
+                    <label className={rotuloCampo}>Perfil</label>
+                    <select
+                      value={normalizarPerfil(editingUser.role)}
+                      onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                      className={`${campoCaixa} cursor-pointer`}
+                    >
+                      {PERFIS.map((p) => (
+                        <option key={p} value={p}>{ROTULO_DO_PERFIL[p]}</option>
+                      ))}
+                    </select>
+                    <span className="pl-1 text-[10px] text-mt-neutral-700">
+                      Alçada: {ALCADA_DO_PERFIL[normalizarPerfil(editingUser.role)]}
+                    </span>
+                  </div>
 
-          {!isCreating && !editingUser && (
-            <div className="bg-brand-card/10 border border-dashed border-brand-border/40 rounded-3xl p-8 text-center text-xs text-brand-text/40 select-none">
-              Selecione um usuário para editar ou clique em "Novo Usuário" para começar.
+                  <div className="flex items-center gap-3 py-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">Status da Conta:</span>
+                    <label className="flex cursor-pointer select-none items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={editingUser.is_active}
+                        onChange={(e) => setEditingUser({ ...editingUser, is_active: e.target.checked })}
+                        className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
+                      />
+                      <span className="text-xs font-semibold text-mt-ink">Conta Ativa</span>
+                    </label>
+                  </div>
+
+                  <div className="mt-2 flex items-center gap-2">
+                    <button type="button" onClick={() => setEditingUser(null)} className="mt-foco h-11 flex-1 cursor-pointer border border-mt-regua-fina bg-transparent text-[11px] font-bold uppercase tracking-wider text-mt-neutral-700 hover:bg-mt-surface hover:text-mt-ink">
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={isSaving} className="mt-foco h-11 flex-1 cursor-pointer bg-mt-accent text-[11px] font-bold uppercase tracking-wider text-mt-inverso hover:bg-mt-accent-hover disabled:opacity-50">
+                      {isSaving ? "Salvando..." : "Salvar"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {!isCreating && !editingUser && (
+              <div className="select-none border border-dashed border-mt-regua-fina bg-mt-surface p-8 text-center text-xs text-mt-neutral-600">
+                Selecione um usuário para editar ou clique em "Convidar usuário" para começar.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {aba === "registro" && (
+        <div className="max-w-[720px]">
+          <div className="mb-3 flex items-baseline gap-3">
+            <div className="mt-rotulo">Últimas ações sensíveis</div>
+            <span className="ml-auto text-[11px] text-mt-neutral-700">
+              Registro permanente — não dá para apagar nem editar depois
+            </span>
+          </div>
+          {!registroCarregado ? (
+            <div className="py-10 text-center text-xs text-mt-neutral-700">Carregando registro…</div>
+          ) : registros.length === 0 ? (
+            <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-8 text-center text-xs text-mt-neutral-600">
+              Nenhuma ação sensível registrada ainda. Trocas de paleta, convites e mudanças de
+              perfil passam a aparecer aqui.
             </div>
+          ) : (
+            registros.map((r) => (
+              <div key={r.id} className="flex gap-3 border-b border-mt-regua-fina py-2.5 text-[13px]">
+                <span className="min-w-0 flex-1 leading-snug">
+                  <span className="font-semibold">{ROTULO_ACAO[r.acao] ?? r.acao}</span>
+                  {r.detalhe && <span className="text-mt-neutral-800"> — {r.detalhe}</span>}
+                  {r.autor_nome && <span className="text-mt-neutral-700"> · {r.autor_nome}</span>}
+                </span>
+                <span className="flex-none text-[11px] text-mt-neutral-700 tabular-nums">{dataCurta(r.registrado_em)}</span>
+              </div>
+            ))
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

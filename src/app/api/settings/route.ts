@@ -83,7 +83,10 @@ export async function POST(request: Request) {
       stockOverrides,
       carouselVehicleIds,
       bankBalances,
-      procedencia
+      procedencia,
+      instagramCuradoria,
+      areasHome,
+      musicaGrade
     } = body;
 
     const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
@@ -210,6 +213,48 @@ export async function POST(request: Request) {
         if (error) {
           console.error("[Settings API] Supabase write error for procedencia:", error.message);
           return NextResponse.json({ error: `Falha ao salvar a faixa de procedência: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      // Envelope `{ publicacoes: [...] }`, e não o array pelado, porque a
+      // guarda destes blocos é a truthiness do valor: esvaziar a faixa no
+      // painel manda `[]`, que é truthy como objeto mas seria fácil de
+      // confundir com "nada a salvar" em qualquer refatoração do guard. Com o
+      // envelope, remover a última publicação salva de fato.
+      if (instagramCuradoria) {
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "instagram_curadoria", data: instagramCuradoria, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for instagramCuradoria:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar a faixa do Instagram: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      // Ordem e visibilidade das seções da home (tela A3). Envelope
+      // `{ ordem, ocultas }` pela mesma razão do bloco acima: `ocultas: []`
+      // é estado legítimo (nada escondido) e precisa sobreviver ao guard.
+      if (areasHome) {
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "areas_home", data: areasHome, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for areasHome:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar as áreas da home: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      // Grade horária da música do showroom (tela A18). `{ ativa, faixas }` —
+      // `ativa: false` com a grade inteira preenchida é estado legítimo (a
+      // loja desligou o rodízio sem perder a escala), então o guard testa o
+      // objeto, não o conteúdo.
+      if (musicaGrade) {
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "musica_grade", data: musicaGrade, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for musicaGrade:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar a grade de música: ${error.message}` }, { status: 500 });
         }
       }
 

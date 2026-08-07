@@ -245,29 +245,29 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
   return (
     <div className="flex flex-col gap-4">
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-2.5 rounded-xl">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-2.5">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Item / Descrição da Compra</label>
+          <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Item / Descrição da Compra</label>
           <input
             type="text"
             required
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             placeholder="Ex: 4 Pneus Aro 17, Pastilhas de Freio"
-            className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+            className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Fornecedor</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Fornecedor</label>
             {showNewPartnerForm ? (
-              <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
+              <div className="flex items-center justify-between bg-mt-bg border border-mt-regua-fina px-3 py-2 text-xs text-mt-neutral-700">
                 <span>Cadastrando Novo Fornecedor...</span>
                 <button
                   type="button"
@@ -275,7 +275,7 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
                     setShowNewPartnerForm(false);
                     setFornecedor("");
                   }}
-                  className="text-[9px] font-bold text-brand-text/40 uppercase hover:text-brand-text cursor-pointer"
+                  className="text-[9px] font-bold text-mt-neutral-600 uppercase hover:text-mt-ink cursor-pointer"
                 >
                   Voltar
                 </button>
@@ -293,24 +293,24 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
                     setFornecedor(e.target.value);
                   }
                 }}
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
               >
                 <option value="">Selecione um fornecedor...</option>
                 {partners.filter(p => p.tipo === "fornecedor" || p.tipo === "ambos").map(p => (
                   <option key={p.id} value={p.nome}>{p.nome}</option>
                 ))}
-                <option value="__new_partner__">➕ Cadastrar Novo Fornecedor...</option>
+                <option value="__new_partner__">Cadastrar novo fornecedor…</option>
               </select>
             )}
 
             {showNewPartnerForm && (
-              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
-                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+              <div className="flex flex-col gap-3.5 p-4.5 bg-mt-bg border border-mt-regua-fina mt-1 select-none">
+                <span className="mt-rotulo mt-rotulo-accent block">
                   Novo Cadastro de Fornecedor
                 </span>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1 md:col-span-2">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome do Fornecedor</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Nome do Fornecedor</label>
                     <input
                       type="text"
                       required
@@ -320,37 +320,37 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
                         setFornecedor(e.target.value);
                       }}
                       placeholder="Ex: Auto Peças XYZ"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Documento (CPF / CNPJ)</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Documento (CPF / CNPJ)</label>
                     <input
                       type="text"
                       value={newPartnerDoc}
                       onChange={(e) => setNewPartnerDoc(e.target.value)}
                       placeholder="00.000.000/0001-00"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Telefone</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Telefone</label>
                     <input
                       type="text"
                       value={newPartnerPhone}
                       onChange={(e) => setNewPartnerPhone(e.target.value)}
                       placeholder="(11) 99999-9999"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1 md:col-span-2">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">E-mail</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">E-mail</label>
                     <input
                       type="email"
                       value={newPartnerEmail}
                       onChange={(e) => setNewPartnerEmail(e.target.value)}
                       placeholder="vendas@xyz.com.br"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                 </div>
@@ -359,18 +359,18 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Data da Compra</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Data da Compra</label>
             <input
               type="date"
               required
               value={dataCompra}
               onChange={(e) => setDataCompra(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Valor Total (R$)</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Valor Total (R$)</label>
             <input
               type="number"
               step="0.01"
@@ -378,36 +378,36 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
               value={valorTotal}
               onChange={(e) => setValorTotal(e.target.value)}
               placeholder="0,00"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Quantidade</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Quantidade</label>
             <input
               type="number"
               required
               value={quantidade}
               onChange={(e) => setQuantidade(e.target.value)}
               placeholder="1"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Valor Unitário (R$)</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Valor Unitário (R$)</label>
             <input
               type="number"
               step="0.01"
               value={valorUnitario}
               onChange={(e) => setValorUnitario(e.target.value)}
               placeholder="Opcional (calculado auto)"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Categoria do Produto</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Categoria do Produto</label>
             <select
               value={showNewCategoryForm ? "__new_category__" : categoria}
               onChange={(e) => {
@@ -420,7 +420,7 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
                 }
               }}
               required={!showNewCategoryForm}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="">Selecione...</option>
               {categories.map((c) => (
@@ -428,32 +428,32 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
                   {c.icone} {c.nome}
                 </option>
               ))}
-              <option value="__new_category__">➕ Cadastrar Nova Categoria...</option>
+              <option value="__new_category__">Cadastrar nova categoria…</option>
             </select>
 
             {showNewCategoryForm && (
-              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
-                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+              <div className="flex flex-col gap-3.5 p-4.5 bg-mt-bg border border-mt-regua-fina mt-1 select-none">
+                <span className="mt-rotulo mt-rotulo-accent block">
                   Nova Categoria de Despesa
                 </span>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1 md:col-span-2">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome da Categoria</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Nome da Categoria</label>
                     <input
                       type="text"
                       required
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       placeholder="Ex: Peças, Pneus, Funilaria"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Ícone (Emoji)</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Ícone (Emoji)</label>
                     <select
                       value={newCategoryIcon}
                       onChange={(e) => setNewCategoryIcon(e.target.value)}
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
                     >
                       <option value="📁">📁 Pasta</option>
                       <option value="💸">💸 Dinheiro</option>
@@ -471,11 +471,11 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Forma de Pagamento Prevista</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Forma de Pagamento Prevista</label>
             <select
               value={formaPagamento}
               onChange={(e) => setFormaPagamento(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="pix">PIX</option>
               <option value="dinheiro">Dinheiro</option>
@@ -487,22 +487,22 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Nota Fiscal</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Nota Fiscal</label>
             <input
               type="text"
               value={notaFiscal}
               onChange={(e) => setNotaFiscal(e.target.value)}
               placeholder="Número / Série"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Status da Compra</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Status da Compra</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="recebido">Recebido</option>
               <option value="encomendado">Encomendado</option>
@@ -513,11 +513,11 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
 
           {/* Bind to vehicle */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Vincular Custo ao Veículo</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Vincular Custo ao Veículo</label>
             <select
               value={veiculoId}
               onChange={(e) => setVeiculoId(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="">Não vincular (Custo Geral)</option>
               {vehicles.map((v) => (
@@ -529,18 +529,18 @@ export default function CompraForm({ compraId, onClose, onSuccess }: CompraFormP
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 mt-2 border-t border-brand-border/40 pt-4">
+        <div className="flex items-center gap-2.5 mt-2 border-t border-mt-regua-fina pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 h-11 bg-transparent hover:bg-brand-card/50 text-brand-text/70 hover:text-brand-text border border-brand-border text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer"
+            className="flex-1 h-11 bg-transparent hover:bg-mt-surface text-mt-neutral-700 hover:text-mt-ink border border-mt-regua-fina text-[11px] font-bold uppercase tracking-wider cursor-pointer"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={isLoading}
-            className="flex-1 h-11 bg-brand-primary text-white text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-50"
+            className="flex-1 h-11 bg-mt-accent text-mt-inverso text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
           >
             {isLoading ? "Salvando..." : compraId ? "Salvar Compra" : "Registrar Compra"}
           </button>
