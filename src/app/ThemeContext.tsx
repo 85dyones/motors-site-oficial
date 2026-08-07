@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 
 import { PROCEDENCIA_PADRAO, normalizarProcedencia } from "../lib/procedencia";
+import { normalizarCuradoria, type PublicacaoInstagram } from "../lib/instagramCuradoria";
 
 import type {
   ThemeType,
@@ -257,6 +258,8 @@ interface ThemeContextProps {
   updateCarouselVehicleIds: (ids: string[]) => Promise<void>;
   procedencia: ItemProcedencia[];
   updateProcedencia: (itens: ItemProcedencia[]) => Promise<void>;
+  instagramCuradoria: PublicacaoInstagram[];
+  updateInstagramCuradoria: (publicacoes: PublicacaoInstagram[]) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
@@ -273,6 +276,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [stockOverrides, setStockOverrides] = useState<StockOverrides>({});
   const [carouselVehicleIds, setCarouselVehicleIds] = useState<string[]>([]);
   const [procedencia, setProcedencia] = useState<ItemProcedencia[]>(PROCEDENCIA_PADRAO);
+  // Sem padrão de fábrica: a faixa do Instagram são fotos reais da loja, e não
+  // existe versão genérica dela que faça sentido publicar.
+  const [instagramCuradoria, setInstagramCuradoria] = useState<PublicacaoInstagram[]>([]);
 
   useEffect(() => {
     // Theme and compare IDs are UI-only preferences — localStorage is fine for these
@@ -338,6 +344,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           if (data.procedencia) {
             setProcedencia(normalizarProcedencia(data.procedencia));
             console.log("[ThemeContext] Procedência loaded from Supabase");
+          }
+          if (data.instagramCuradoria) {
+            setInstagramCuradoria(normalizarCuradoria(data.instagramCuradoria));
+            console.log("[ThemeContext] Curadoria do Instagram loaded from Supabase");
           }
           if (data.carouselVehicleIds && Array.isArray(data.carouselVehicleIds)) {
             setCarouselVehicleIds(data.carouselVehicleIds);
@@ -512,6 +522,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await postSettings({ procedencia: normalizados });
   };
 
+  const updateInstagramCuradoria = async (publicacoes: PublicacaoInstagram[]) => {
+    const normalizadas = normalizarCuradoria(publicacoes);
+    setInstagramCuradoria(normalizadas);
+    // Envelope `{ publicacoes }` — ver o comentário no POST de /api/settings:
+    // é o que permite esvaziar a faixa sem o guard confundir lista vazia com
+    // "nada a salvar".
+    await postSettings({ instagramCuradoria: { publicacoes: normalizadas } });
+  };
+
   const updateQuickTags = async (newQuickTags: QuickTag[]) => {
     setQuickTags(newQuickTags);
     await postSettings({ quickTags: { quickTags: newQuickTags } });
@@ -628,6 +647,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         updateCarouselVehicleIds,
         procedencia,
         updateProcedencia,
+        instagramCuradoria,
+        updateInstagramCuradoria,
       }}
     >
       {children}
