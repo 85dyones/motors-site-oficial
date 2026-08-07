@@ -221,45 +221,28 @@ describe("colunas de estoque_motors citadas em queries", () => {
     ).toEqual([]);
   });
 
-  it("`preco_compra` e `placa` seguem fora das queries", () => {
-    // Pino explícito nas duas que já custaram um painel morto e uma busca que
-    // nunca funcionou. O teste acima já as pegaria; este nomeia o incidente,
-    // para que reintroduzi-las exija uma decisão consciente e não um descuido.
+  it("`preco_compra` e `placa` agora existem — por migração, não por descuido", () => {
+    // Este teste substitui os dois pinos que proibiam as colunas em query e
+    // no tipo `Veiculo`. Eles existiam porque as colunas eram FANTASMAS
+    // (painel de margens morto, busca por placa silenciosamente quebrada), e
+    // avisavam: reintroduzir exige decisão consciente, na ordem migração →
+    // coluna → campo.
     //
-    // `preco_compra` continua existindo NO CÓDIGO, de propósito: o painel admin
-    // grava o valor em site_settings/stock_overrides e as rotas de margem o
-    // mesclam por cima da linha do banco. O que não pode voltar é pedi-lo ao
-    // PostgREST como coluna.
-    const proibidas = citacoes.filter(
-      (c) => c.coluna === "preco_compra" || c.coluna === "placa"
-    );
-    expect(proibidas).toEqual([]);
-  });
-
-  it("`placa` também não é campo do tipo `Veiculo`", () => {
-    // Camada diferente do teste acima, e o motivo de ela existir: enquanto
-    // `Veiculo.placa: string` estava declarado, o campo tinha que ser
-    // preenchido em algum lugar. O mapper o preenchia com `dbItem.placa || ""`
-    // sobre uma coluna inexistente — sempre `""` — e os 5 mocks traziam placas
-    // fictícias ("PDK-9110"). Um tipo obrigatório sobre um dado que não existe
-    // é um convite permanente a inventá-lo: foi assim que "V-REF100" chegou a
-    // ser o default do mapper.
+    // A decisão veio do dono em 2026-08-07 ("o RevendaMais será
+    // descontinuado; os campos passam a ser preenchidos por nós") e a ordem
+    // foi respeitada: a migração 20260807160000_ficha_propria_do_painel.sql
+    // cria as duas — junto de motor, cor_interna, donos_anteriores e
+    // garantia_fabrica — como colunas do PAINEL, fora do mapeamento do sync.
     //
-    // Fora do tipo, o compilador passa a recusar a reintrodução em vez de
-    // exigi-la. Se o RevendaMais um dia trouxer placa no XML, o caminho é
-    // migração + coluna + campo — nesta ordem, e este teste sai junto.
-    const tipos = readFileSync(join(RAIZ_SRC, "types", "index.ts"), "utf8");
-    const interfaceVeiculo = tipos.slice(
-      tipos.indexOf("export interface Veiculo {")
-    );
-    const corpo = interfaceVeiculo.slice(0, interfaceVeiculo.indexOf("\n}"));
-
-    expect(corpo, "O parser não achou a interface `Veiculo`.").toContain("modelo");
-    expect(
-      corpo,
-      "`placa` voltou ao tipo `Veiculo`. `estoque_motors` não tem essa coluna\n" +
-        "(verificado contra produção em 2026-08-03), então o valor só pode ser\n" +
-        "string vazia ou invenção."
-    ).not.toMatch(/^\s*placa[?]?:/m);
+    // O guarda geral acima continua valendo para qualquer coluna: se alguém
+    // citar uma que não esteja no histórico de migrações, o teste acusa. O
+    // que este pino agora afirma é o contrário do antigo: as colunas têm de
+    // constar do histórico — se a migração sumir, isto aqui grita.
+    expect(colunas.has("placa")).toBe(true);
+    expect(colunas.has("preco_compra")).toBe(true);
+    expect(colunas.has("motor")).toBe(true);
+    expect(colunas.has("cor_interna")).toBe(true);
+    expect(colunas.has("donos_anteriores")).toBe(true);
+    expect(colunas.has("garantia_fabrica")).toBe(true);
   });
 });

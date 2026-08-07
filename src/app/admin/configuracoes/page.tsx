@@ -11,8 +11,8 @@ export const metadata = {
 export default function AdminConfiguracoesPage() {
   return (
     <Suspense fallback={
-      <div className="flex flex-col items-center justify-center min-h-[400px] bg-brand-bg text-brand-text/60 gap-3">
-        <span className="h-8 w-8 border-2 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center min-h-[400px] bg-mt-bg text-mt-neutral-700 gap-3">
+        <span className="h-8 w-8 border-2 border-mt-accent-300 border-t-mt-accent rounded-full animate-spin" />
         <span className="text-xs uppercase tracking-wider font-bold">Carregando painel...</span>
       </div>
     }>

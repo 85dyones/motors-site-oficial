@@ -288,14 +288,27 @@ export default async function PrivacidadePage() {
 
           <Secao id="retencao" titulo="Por quanto tempo guardamos">
             <p>
-              Mantemos seus dados de contato enquanto durar o relacionamento comercial e pelo prazo
-              necessário para cumprir obrigações legais, fiscais e de defesa em eventual processo.
+              Quando você preenche um formulário do site, registramos em nossa base o{" "}
+              <strong>nome, o telefone e o interesse informado</strong> (o veículo ou o tipo de
+              carro que você procura), junto da data do contato. Esse registro é o que permite a
+              nossa equipe retomar a conversa de onde parou.
+            </p>
+            <p>
+              Esses dados de contato <strong>não têm prazo de descarte automático</strong>: ficam
+              conosco enquanto forem úteis ao atendimento e ao relacionamento comercial, e são
+              eliminados quando você pedir. O acesso é restrito à equipe autenticada no nosso painel
+              interno.
+            </p>
+            <p>
               Dados de navegação e publicidade seguem os prazos de retenção definidos pelas próprias
               plataformas Google e Meta.
             </p>
             <p>
-              Encerrada a finalidade e vencidos os prazos legais, os dados são eliminados ou
-              anonimizados.
+              Você pode pedir a eliminação a qualquer momento, pelos canais da seção{" "}
+              <a href="#contato" className="underline underline-offset-2">
+                Como falar conosco
+              </a>
+              . Atendido o pedido, o registro é apagado — não fica cópia em nossa base.
             </p>
           </Secao>
 

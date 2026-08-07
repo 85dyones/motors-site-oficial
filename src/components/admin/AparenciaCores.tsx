@@ -159,7 +159,20 @@ export default function AparenciaCores({
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setTheme(id)}
+                  onClick={() => {
+                    setTheme(id);
+                    // Trilha da A17: paleta é uma das três travas — a troca
+                    // gera registro permanente. Fire-and-forget: auditoria
+                    // nunca segura a ação.
+                    fetch("/api/auditoria", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        acao: "paleta_alterada",
+                        detalhe: `Paleta do site: ${meta.nome}`,
+                      }),
+                    }).catch(() => {});
+                  }}
                   aria-pressed={selecionada}
                   className={`mt-foco cursor-pointer p-3.5 text-left ${
                     selecionada ? "mt-cartao mt-cartao-ativo" : "mt-cartao"

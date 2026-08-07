@@ -21,6 +21,9 @@ export const getCachedSettings = unstable_cache(
     let carouselVehicleIds = null;
     let bankBalances = null;
     let procedencia = null;
+    let instagramCuradoria = null;
+    let areasHome = null;
+    let musicaGrade = null;
     let fetchedFromSupabase = false;
 
     if (supabaseUrl && supabaseAnonKey) {
@@ -40,6 +43,9 @@ export const getCachedSettings = unstable_cache(
           const carouselRow = data.find((row) => row.id === "carousel_vehicles");
           const bankBalancesRow = data.find((row) => row.id === "bank_balances");
           const procedenciaRow = data.find((row) => row.id === "procedencia");
+          const instagramRow = data.find((row) => row.id === "instagram_curadoria");
+          const areasRow = data.find((row) => row.id === "areas_home");
+          const musicaRow = data.find((row) => row.id === "musica_grade");
 
           if (companyRow) companySettings = companyRow.data;
           if (aboutRow) aboutSettings = aboutRow.data;
@@ -50,6 +56,9 @@ export const getCachedSettings = unstable_cache(
           if (carouselRow) carouselVehicleIds = carouselRow.data;
           if (bankBalancesRow) bankBalances = bankBalancesRow.data;
           if (procedenciaRow) procedencia = procedenciaRow.data;
+          if (instagramRow) instagramCuradoria = instagramRow.data;
+          if (areasRow) areasHome = areasRow.data;
+          if (musicaRow) musicaGrade = musicaRow.data;
           fetchedFromSupabase = true;
           console.log("[Settings API] Loaded settings from Supabase (Cached)");
         }
@@ -79,7 +88,14 @@ export const getCachedSettings = unstable_cache(
       stockOverrides,
       carouselVehicleIds,
       bankBalances,
-      procedencia
+      procedencia,
+      instagramCuradoria,
+      areasHome,
+      // Grade horária da música do showroom (tela A18). Fora do recorte
+      // público de propósito: é escala de operação interna, e o visitante do
+      // site não tem o que fazer com o horário em que a loja troca de
+      // playlist.
+      musicaGrade
     };
   },
   ["site-settings"],
@@ -156,5 +172,11 @@ export function recortePublicoDeSettings(
     stockOverrides: filtrarOverridesPublicos(completo.stockOverrides),
     // Público de propósito: é o texto que a PDP já mostra a quem não tem sessão.
     procedencia: completo.procedencia,
+    // Idem: são as fotos e os links que a home publica para qualquer visitante.
+    instagramCuradoria: completo.instagramCuradoria,
+    // Ordem e visibilidade das seções da home (tela A3). É público porque
+    // descreve o que a própria página já mostra — não há nada a esconder em
+    // "a faixa do Instagram vem depois da reputação".
+    areasHome: completo.areasHome,
   };
 }
