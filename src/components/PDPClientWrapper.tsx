@@ -375,30 +375,26 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
-  // Reactive drivetrain (Tração) calculation based on vehicle characteristics
-  const calculateTração = (): string => {
-    const m = veiculo.modelo.toLowerCase();
-    const t = veiculo.tipo?.toLowerCase() || "";
-    if (m.includes("hilux") || m.includes("ranger") || m.includes("defender") || m.includes("x5") || m.includes("discovery") || m.includes("4x4") || m.includes("awd")) {
-      return "Integral (4x4 / AWD)";
-    }
-    if (m.includes("911") || m.includes("carrera") || m.includes("boxster") || m.includes("cayman") || t.includes("esportivo")) {
-      return "Traseira (RWD)";
-    }
-    return "Dianteira (FWD)";
-  };
-
-  // Reactive passenger count (Lugares) calculation
-  const calculateLugares = (): string => {
-    const m = veiculo.modelo.toLowerCase();
-    if (m.includes("911") || m.includes("carrera") || m.includes("boxster") || m.includes("cayman")) {
-      return "2 ou 4 Lugares";
-    }
-    if (m.includes("defender") || m.includes("commander") || m.includes("discovery")) {
-      return "5 a 7 Lugares";
-    }
-    return "5 Lugares";
-  };
+  // ⚠️  TRAÇÃO e LUGARES saíram da régua — não existe dado real para elas.
+  //
+  // Até aqui as duas linhas eram calculadas a partir do NOME DO MODELO e
+  // exibidas ao cliente como ficha técnica. `calculateTração()` devolvia
+  // "Integral (4x4 / AWD)" para uma lista de sete modelos, "Traseira (RWD)"
+  // para a família 911, e "Dianteira (FWD)" para TODO O RESTO: Amarok, S10 e
+  // Compass 4x4 eram anunciados como tração dianteira. `calculateLugares()`
+  // tinha o mesmo desenho, com "5 Lugares" de fallback.
+  //
+  // Verificado contra produção em 2026-08-06: `estoque_motors` tem 28 colunas
+  // em 88 veículos e NENHUMA de tração, lugares, portas ou assentos. O sync do
+  // n8n consome 21 campos do XML do RevendaMais (MAKE, MODEL, GEAR, FUEL,
+  // BODY_TYPE, COLOR…) e nenhum deles traz essa informação — não é caso de
+  // mapper que esqueceu de ler a coluna, a coluna não existe.
+  //
+  // Sem fonte, a linha sai da régua em vez de mostrar palpite (mesma regra de
+  // src/components/modernist/VitrineTV.tsx:62). Se algum dia o feed passar a
+  // trazer o dado, é só voltar a linha lendo `veiculo.*` e ocultá-la quando
+  // vier vazia. Afirmar tração errada sobre um veículo é afirmação falsa sobre
+  // o produto — CDC art. 37, o mesmo motivo do commit fdd9785.
 
   // Specs array with premium custom inline SVGs
   const quickSpecs = [
@@ -429,27 +425,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
         </svg>
       ) 
     },
-    { 
-      label: "TRAÇÃO", 
-      value: calculateTração(), 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h7.5m3 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-6-12h3" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75H19.5v-3.75L17.25 9H6.75L4.5 12v3.75Z" />
-        </svg>
-      ) 
-    },
-    { 
-      label: "LUGARES", 
-      value: calculateLugares(), 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-        </svg>
-      ) 
-    },
-    { 
-      label: "COR EXTERNA", 
+    {
+      label: "COR EXTERNA",
       value: veiculo.cor, 
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
@@ -457,7 +434,6 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
         </svg>
       ) 
     },
-
     {
       label: "CATEGORIA",
       value: veiculo.tipo,
@@ -467,23 +443,36 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
         </svg>
       )
     }
-    // Linha sem dado não entra na régua.
+    // Célula sem dado real sai da régua — mesma regra da matriz de
+    // especificações, mais abaixo, e da vitrine da TV. Desde 2026-08-06 o
+    // mapper não inventa mais default: `cambio`, `combustivel`, `cor` e `tipo`
+    // chegam vazios quando o feed do RevendaMais não traz o campo
+    // (`combustivel` está ausente em 19 dos 88 veículos em produção). Sem este
+    // filtro, esses 19 exibem o rótulo "COMBUSTÍVEL" sobre um valor em branco,
+    // e o mesmo vale para "CATEGORIA" desde que o default "Premium" saiu.
     //
-    // O mapper deixa em branco o atributo que o feed não traz (`cambio`,
-    // `combustivel`, `cor`, `tipo`) em vez de inventar um valor. Sem este
-    // filtro a régua ainda renderizava o rótulo com o valor vazio embaixo —
-    // "CATEGORIA" sobre um espaço em branco. Ocultar é o mesmo tratamento que
-    // o resto da página dá a campo ausente.
-  ].filter((spec) => spec.value);
+    // O `.trim()` aqui é redundante hoje — o mapper já normaliza (supabase.ts:
+    // `cor` passa por `.trim()`, e os demais saem de `format*()`). Fica como
+    // cinto e suspensório: este filtro é a última barreira antes da tela, e
+    // custa menos que descobrir pela PDP que a normalização mudou.
+  ].filter((spec) => spec.value && spec.value.trim() !== "");
 
   const renderSidebar = (isMobile: boolean) => {
     // SEO: Only the mobile sidebar renders an <h1> (appears first in DOM).
     // The desktop sidebar uses <h2> with identical styling to avoid duplicate H1s.
     const HeadingTag = isMobile ? "h1" : "h2";
+    // O alternador de visibilidade abaixo tem que falar em `flex`, não em
+    // `block`: `gap` só existe em container flex ou grid, e é ele que separa os
+    // cinco blocos desta coluna. Com `lg:block`, o `lg:gap-8` da mesma linha
+    // virava regra morta — variante de media query é emitida depois do
+    // utilitário sem prefixo, então `lg:block` ganhava do `flex` e o container
+    // voltava a ser bloco. Até 2026-08-06 a coluna tinha 28px entre os blocos
+    // no celular e 0 no desktop, com a régua de especificações encostada no
+    // preço e o preço encostado no botão do consultor.
     return (
       <aside
         className={`flex w-full flex-col gap-7 bg-transparent p-0 print:hidden lg:gap-8 ${
-          isMobile ? "block lg:hidden" : "hidden lg:block"
+          isMobile ? "flex lg:hidden" : "hidden lg:flex"
         }`}
       >
         {/* Marca, código, modelo e versão */}
@@ -513,8 +502,8 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
 
         {/* Especificações rápidas em régua */}
         <div className="grid grid-cols-2 border-t-2 border-mt-regua">
-          {quickSpecs.map((spec, index) => (
-            <div key={index} className="border-b border-mt-regua-fina py-3">
+          {quickSpecs.map((spec) => (
+            <div key={spec.label} className="border-b border-mt-regua-fina py-3">
               <div className="text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600">
                 {spec.label}
               </div>
