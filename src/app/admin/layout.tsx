@@ -42,6 +42,7 @@ export default async function AdminLayout({
       case "admin": return "Administrador";
       case "financeiro": return "Financeiro";
       case "comercial": return "Comercial";
+      case "marketing": return "Marketing";
       default: return "Colaborador";
     }
   };

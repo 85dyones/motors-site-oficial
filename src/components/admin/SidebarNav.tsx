@@ -32,6 +32,25 @@ export default function SidebarNav({ role }: SidebarNavProps) {
 
   const menuGroups = [
     {
+      // Grupo GERAL do doc. Marketing entra porque a matriz A17 lhe dá o
+      // volume agregado de leads — a rota devolve contagem sem nome nem
+      // telefone para esse perfil.
+      title: "Geral",
+      roles: ["admin", "comercial", "marketing", "financeiro"],
+      items: [
+        { name: "Visão geral", href: "/admin" },
+        { name: "Leads", href: "/admin/leads" },
+      ],
+    },
+    {
+      // "Gerenciar campanhas de mídia paga": Admin e Marketing, pela matriz
+      // A17 — Comercial e Financeiro nem veem o grupo ("o que for negado
+      // some da interface, não fica cinza").
+      title: "Marketing",
+      roles: ["admin", "marketing"],
+      items: [{ name: "Mídia paga", href: "/admin/marketing/midia-paga" }],
+    },
+    {
       title: "Financeiro",
       roles: ["admin", "financeiro"],
       items: [
@@ -40,20 +59,32 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         { name: "Contas a receber", href: "/admin/financeiro/contas-receber" },
         { name: "Despesas recorrentes", href: "/admin/financeiro/recorrentes" },
         { name: "Compras de insumos", href: "/admin/financeiro/compras" },
+        { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
         { name: "Relatórios e balanço", href: "/admin/financeiro/relatorios" },
         { name: "Cadastros auxiliares", href: "/admin/financeiro/cadastros" },
         { name: "Margem por veículo", href: "/admin/financeiro/margens" },
       ],
     },
     {
+      // Marketing entra pela matriz A17: fotos, textos, SEO e destaques são
+      // o domínio natural do perfil. A trava fina (aparência é só de Admin)
+      // entra quando as abas ganharem gate próprio.
       title: "Site",
-      roles: ["admin", "comercial"],
+      roles: ["admin", "comercial", "marketing"],
       items: [
+        // Tela A3: a porta de entrada do conteúdo do site. Vem primeiro
+        // porque é dela que se alcança a edição de cada seção da home.
+        { name: "Áreas e conteúdo", href: "/admin/site/areas" },
         { name: "Categorização de estoque", href: "/admin/configuracoes?tab=estoque" },
         { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
         { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
+        // Tela A18: a música do showroom entra em "Site" e não em "Sistema"
+        // porque o que se edita aqui é a escala da loja, não a credencial —
+        // essa vive no ambiente e aparece em Integrações.
+        { name: "Música do showroom", href: "/admin/site/musica" },
         { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
         { name: "Faixa de procedência", href: "/admin/configuracoes?tab=procedencia" },
+        { name: "Faixa do Instagram", href: "/admin/configuracoes?tab=instagram" },
       ],
     },
     {
@@ -85,6 +116,12 @@ export default function SidebarNav({ role }: SidebarNavProps) {
 
     if (href === "/admin/financeiro") {
       return pathname === "/admin/financeiro";
+    }
+
+    // A leitura de campanha (/admin/marketing/midia-paga/[id]) continua
+    // dentro de "Mídia paga" no trilho.
+    if (href === "/admin/marketing/midia-paga") {
+      return pathname.startsWith("/admin/marketing/midia-paga");
     }
 
     return pathname === href;

@@ -26,7 +26,14 @@ interface AdminLayoutClientWrapperProps {
 function trilhaDaRota(pathname: string, aba: string | null): string {
   const partes: string[] = ["PAINEL"];
 
-  if (pathname.startsWith("/admin/financeiro")) {
+  if (pathname.startsWith("/admin/marketing/midia-paga")) {
+    partes.push("MARKETING", "MÍDIA PAGA");
+    // A rota da campanha tem um segmento a mais (o id); o nome dela vive no
+    // conteúdo da página, não na trilha.
+    if (pathname.replace("/admin/marketing/midia-paga", "").replace("/", "")) {
+      partes.push("CAMPANHA");
+    }
+  } else if (pathname.startsWith("/admin/financeiro")) {
     partes.push("FINANCEIRO");
     const folha = pathname.replace("/admin/financeiro", "").replace("/", "");
     const nomes: Record<string, string> = {
@@ -34,11 +41,20 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
       "contas-receber": "CONTAS A RECEBER",
       recorrentes: "DESPESAS RECORRENTES",
       compras: "COMPRAS DE INSUMOS",
+      importar: "IMPORTAR REVENDAMAIS",
       relatorios: "RELATÓRIOS E BALANÇO",
       cadastros: "CADASTROS AUXILIARES",
       margens: "MARGEM POR VEÍCULO",
     };
     partes.push(folha ? nomes[folha] ?? folha.toUpperCase() : "VISÃO GERAL");
+  } else if (pathname === "/admin") {
+    partes.push("VISÃO GERAL");
+  } else if (pathname.startsWith("/admin/leads")) {
+    partes.push("GERAL", "LEADS");
+  } else if (pathname.startsWith("/admin/estoque/")) {
+    partes.push("ESTOQUE", "VEÍCULOS", `CÓD. ${pathname.split("/")[3] ?? ""}`);
+  } else if (pathname.startsWith("/admin/site/areas")) {
+    partes.push("SITE", "ÁREAS E CONTEÚDO");
   } else if (pathname.startsWith("/admin/usuarios")) {
     partes.push("SISTEMA", "USUÁRIOS E PERMISSÕES");
   } else if (pathname.startsWith("/admin/configuracoes")) {
