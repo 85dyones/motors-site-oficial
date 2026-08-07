@@ -933,9 +933,47 @@ export default function ConfiguracoesClientWrapper() {
     }
   };
 
-  // Dropdown options
-  const bodyTypes = ["SUV", "Sedan", "Picape", "Hatch", "Esportivo", "Conversível", "Coupe", "Wagon", "Premium"];
-  const usageProfiles = ["URBANO & EFICIENTE", "FORÇA & OFF-ROAD", "LINHAGEM ESPORTIVA", "CURADORIA EXCLUSIVA"];
+  // Opções dos dropdowns.
+  //
+  // As duas listas precisam falar o mesmo vocabulário do feed, porque desde
+  // 2026-08-06 o site exibe `tipo` e `perfil_uso` como vêm do banco em vez de
+  // adivinhá-los. Escolher aqui um rótulo de outra taxonomia sobrescreve o
+  // dado real do veículo por um que o resto do estoque não usa.
+  //
+  // Vocabulário medido em produção em 2026-08-06, sobre os 88 veículos:
+  //   tipo         Hatch, SUV, Sedan, Motocicleta, Picape
+  //   perfil_uso   Família / Conforto, Econômico / Diário, Uso Diário,
+  //                Performance / Premium, Agilidade / Economia,
+  //                Trabalho / Robustez
+  //
+  // "Premium" saiu de `bodyTypes`: não é carroceria, era o default inventado
+  // que o mapper devolvia quando não sabia — deixá-lo no dropdown permitiria
+  // reintroduzir à mão a string que acabou de sair do código.
+  //
+  // Os quatro rótulos antigos de perfil seguem na lista, ao final: dois
+  // veículos carregam "LINHAGEM ESPORTIVA" gravada à mão em stock_overrides, e
+  // remover a opção tiraria do dono a chance de reescolher o próprio valor.
+  //
+  // `usageProfiles` voltou à tela em 2026-08-06. O select de perfil tinha saído
+  // da grade em 293479a (2026-07-15) porque não havia como encaixar os perfis
+  // nos carros do estoque: as únicas opções eram os quatro rótulos inventados,
+  // que nenhum veículo do feed usa. Escolher qualquer um deles era sobrescrever
+  // o dado real por um vocabulário órfão — daí tirar o campo. O motivo caiu
+  // quando o mapper passou a ler a coluna: os seis rótulos do feed acima
+  // encaixam nos 88 veículos, e a lista abaixo é a mesma que o estoque fala.
+  const bodyTypes = ["SUV", "Sedan", "Picape", "Hatch", "Motocicleta", "Esportivo", "Conversível", "Coupe", "Wagon"];
+  const usageProfiles = [
+    "Família / Conforto",
+    "Econômico / Diário",
+    "Uso Diário",
+    "Performance / Premium",
+    "Agilidade / Economia",
+    "Trabalho / Robustez",
+    "URBANO & EFICIENTE",
+    "FORÇA & OFF-ROAD",
+    "LINHAGEM ESPORTIVA",
+    "CURADORIA EXCLUSIVA",
+  ];
 
 
 
@@ -1018,8 +1056,25 @@ export default function ConfiguracoesClientWrapper() {
               ) : (
                 filteredVehicles.map((vehicle) => {
                   const hasLocalOverride = !!overrides[vehicle.id];
-                  const currentTipo = overrides[vehicle.id]?.tipo ?? vehicle.tipo ?? "Hatch";
-                  const currentPerfil = overrides[vehicle.id]?.perfil_uso ?? vehicle.perfil_uso ?? "URBANO & EFICIENTE";
+                  // Sem carroceria no feed o select fica vazio, não em "Hatch":
+                  // o default anterior mostrava um palpite ao dono e o gravava
+                  // no banco se ele salvasse a linha por outro motivo.
+                  //
+                  // O `??` no override é o que faz "— SEM CARROCERIA —"
+                  // funcionar, pelo mesmo motivo descrito abaixo em `currentPerfil`.
+                  const currentTipo = overrides[vehicle.id]?.tipo ?? vehicle.tipo ?? "";
+                  // Sem perfil no feed o select fica vazio. O default
+                  // "URBANO & EFICIENTE" era o rótulo que o resolvedor colava
+                  // em 71 dos 88 veículos — mantê-lo aqui reintroduziria à mão
+                  // a invenção que saiu do mapper.
+                  //
+                  // O `??` no override é o que faz "— SEM PERFIL —" funcionar.
+                  // Com `||`, escolher a opção vazia gravaria "" no override e
+                  // o próprio operador cairia de volta no valor do feed: o
+                  // select voltaria sozinho ao rótulo anterior e o dono nunca
+                  // conseguiria apagar um perfil. Só `undefined` (sem override)
+                  // pode cair para o feed.
+                  const currentPerfil = overrides[vehicle.id]?.perfil_uso ?? vehicle.perfil_uso ?? "";
                   const currentStatusTag = overrides[vehicle.id]?.status_tag ?? vehicle.status_tag ?? "";
 
                   return (
@@ -1089,6 +1144,7 @@ export default function ConfiguracoesClientWrapper() {
                               onChange={(e) => handleOverrideChange(vehicle.id, "tipo", e.target.value)}
                               className="bg-brand-bg text-brand-text border border-brand-card-border rounded-xl px-3 py-2 text-[11px] font-medium outline-none focus:border-brand-primary cursor-pointer w-full"
                             >
+                              <option value="">— SEM CARROCERIA —</option>
                               {bodyTypes.map((t) => (
                                 <option key={t} value={t}>
                                   {t.toUpperCase()}
@@ -1111,7 +1167,24 @@ export default function ConfiguracoesClientWrapper() {
                             />
                           </div>
 
-
+                          {/* Profile Use (Estilo) Select */}
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[8px] font-bold text-brand-text/40 uppercase tracking-widest pl-1">
+                              Estilo de Vida
+                            </label>
+                            <select
+                              value={currentPerfil}
+                              onChange={(e) => handleOverrideChange(vehicle.id, "perfil_uso", e.target.value)}
+                              className="bg-brand-bg text-brand-text border border-brand-card-border rounded-xl px-3 py-2 text-[11px] font-medium outline-none focus:border-brand-primary cursor-pointer w-full"
+                            >
+                              <option value="">— SEM PERFIL —</option>
+                              {usageProfiles.map((p) => (
+                                <option key={p} value={p}>
+                                  {p.toUpperCase()}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
                           {/* Status Tag (Custom Tag) Text Input */}
                           <div className="flex flex-col gap-1.5">
