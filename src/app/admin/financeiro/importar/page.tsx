@@ -239,15 +239,15 @@ export default function ImportarRevendaPage() {
       <FinanceHeaderNav />
 
       {/* Header Banner */}
-      <div className="bg-brand-card/40 border border-brand-border/50 rounded-3xl p-6 backdrop-blur-xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 select-none">
+      <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 select-none">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">📥</span>
-            <h1 className="text-base font-black uppercase text-brand-text tracking-wider">
-              Central de Importação RevendaMais (CSV & XML)
+          <div className="flex flex-col gap-1.5">
+            <span className="mt-rotulo mt-rotulo-accent">Importação</span>
+            <h1 className="text-[17px] font-extrabold tracking-[-.015em] text-mt-ink">
+              Central de importação RevendaMais (CSV & XML)
             </h1>
           </div>
-          <p className="text-xs text-brand-text/75 mt-1 max-w-2xl">
+          <p className="text-xs text-mt-neutral-800 mt-1 max-w-2xl">
             Importe em lote arquivos exportados do **RevendaMais** (planilhas CSV, Excel ou XMLs de NFe). Todos os lançamentos serão automaticamente categorizados no **Plano de Contas Oficial de Revenda de Veículos**.
           </p>
         </div>
@@ -255,51 +255,51 @@ export default function ImportarRevendaPage() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={downloadSampleCSV}
-            className="px-4 py-2.5 bg-brand-bg border border-brand-border hover:border-brand-primary text-brand-primary font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shadow-sm"
+            className="px-4 py-2.5 bg-mt-bg border border-mt-regua-fina hover:border-mt-accent text-mt-accent font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap"
           >
-            <span>📥</span>
+            
             <span>Baixar Planilha Modelo (.CSV)</span>
           </button>
 
           <button
             onClick={handleFixEncoding}
             title="Corrigir acentuação em contas antigas já salvas no banco"
-            className="px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-500 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shadow-sm"
+            className="px-4 py-2.5 bg-mt-accent-100 border border-mt-accent-300 hover:bg-mt-accent-100 text-mt-accent-800 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap"
           >
-            <span>🔧</span>
+            
             <span>Corrigir Acentuação de Registros Antigos</span>
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs px-5 py-4 rounded-2xl font-semibold shadow-md">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-5 py-4 font-semibold">
           {error}
         </div>
       )}
 
       {resultMessage && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs px-5 py-4 rounded-2xl font-bold shadow-md animate-bounce">
+        <div className="bg-mt-surface border border-mt-regua-fina text-mt-accent-800 text-xs px-5 py-4 font-bold animate-bounce">
           {resultMessage}
         </div>
       )}
 
       {/* Upload Drag & Drop Area */}
-      <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-8 backdrop-blur-md flex flex-col items-center justify-center text-center gap-4 border-dashed hover:border-brand-primary/60 transition-all select-none shadow-lg">
-        <div className="h-16 w-16 rounded-full bg-brand-primary/10 border border-brand-primary/30 flex items-center justify-center text-2xl text-brand-primary">
-          {fileType === "xml" ? "📜" : "📊"}
+      <div className="bg-mt-surface border border-mt-regua-fina p-8 flex flex-col items-center justify-center text-center gap-4 border-dashed hover:border-mt-accent transition-all select-none">
+        <div className="h-16 w-16 bg-mt-accent-100 border border-mt-accent-300 flex items-center justify-center text-2xl text-mt-accent">
+          {fileType === "xml" ? "XML" : "CSV"}
         </div>
 
         <div>
-          <h3 className="text-sm font-extrabold text-brand-text uppercase tracking-wide">
+          <h3 className="text-sm font-extrabold text-mt-ink uppercase tracking-wide">
             {fileName ? `Arquivo Selecionado: ${fileName}` : "Arraste seu arquivo CSV ou XML do RevendaMais aqui"}
           </h3>
-          <p className="text-xs text-brand-text/60 mt-1">
+          <p className="text-xs text-mt-neutral-700 mt-1">
             Suporta planilhas exportadas do RevendaMais ou arquivos XML de Nota Fiscal Eletrônica (NFe/NFSe).
           </p>
         </div>
 
-        <label className="px-6 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg cursor-pointer transition-all active:scale-95">
+        <label className="px-6 py-3 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-xs font-extrabold uppercase tracking-wider cursor-pointer transition-all ">
           <span>Escolher Arquivo no Computador</span>
           <input
             type="file"
@@ -312,27 +312,27 @@ export default function ImportarRevendaPage() {
 
       {/* Parsed items table */}
       {parsedItems.length > 0 && (
-        <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-brand-border/40 pb-3">
+        <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3">
             <div>
-              <h3 className="text-xs font-extrabold uppercase text-emerald-500 tracking-wider">
+              <h3 className="text-xs font-extrabold uppercase text-mt-accent-800 tracking-wider">
                 Pré-visualização do Lote — {parsedItems.length} lançamentos identificados
               </h3>
-              <p className="text-[10px] text-brand-text/60 mt-0.5">Confira os valores antes de efetuar a gravação no banco de dados.</p>
+              <p className="text-[10px] text-mt-neutral-700 mt-0.5">Confira os valores antes de efetuar a gravação no banco de dados.</p>
             </div>
             <button
               onClick={handleImportSubmit}
               disabled={isLoading}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+              className="px-6 py-3 bg-mt-ink hover:bg-mt-neutral-800 text-mt-inverso font-extrabold text-xs uppercase tracking-wider transition-all  cursor-pointer disabled:opacity-50"
             >
-              {isLoading ? "Processando..." : `🚀 Confirmar e Importar ${parsedItems.length} Contas`}
+              {isLoading ? "Processando..." : `Confirmar e importar ${parsedItems.length} Contas`}
             </button>
           </div>
 
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left text-xs border-collapse font-mono">
               <thead>
-                <tr className="border-b border-brand-border/40 text-brand-text/60 font-bold uppercase tracking-wider">
+                <tr className="border-b border-mt-regua-fina text-mt-neutral-700 font-bold uppercase tracking-wider">
                   <th className="pb-3 pl-2">Descrição</th>
                   <th className="pb-3">Tipo</th>
                   <th className="pb-3">Vencimento</th>
@@ -340,26 +340,26 @@ export default function ImportarRevendaPage() {
                   <th className="pb-3 pr-2 text-right">Valor (R$)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-border/30">
+              <tbody className="divide-y divide-mt-regua-fina">
                 {parsedItems.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-brand-primary/5 transition-colors">
-                    <td className="py-3 pl-2 font-bold text-brand-text">{item.descricao}</td>
+                  <tr key={idx} className="hover:bg-mt-accent-100 transition-colors">
+                    <td className="py-3 pl-2 font-bold text-mt-ink">{item.descricao}</td>
                     <td className="py-3">
                       <span
-                        className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                        className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 border ${
                           item.tipo === "receber"
-                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                            : "bg-red-500/10 text-red-500 border-red-500/20"
+                            ? "bg-mt-surface text-mt-accent-800 border-mt-regua-fina"
+                            : "bg-mt-accent-100 text-mt-accent border-mt-accent-300"
                         }`}
                       >
                         {item.tipo}
                       </span>
                     </td>
-                    <td className="py-3 text-brand-text/80">{item.data_vencimento}</td>
-                    <td className="py-3 text-brand-text/80">{item.fornecedor_cliente || "Geral"}</td>
+                    <td className="py-3 text-mt-neutral-800">{item.data_vencimento}</td>
+                    <td className="py-3 text-mt-neutral-800">{item.fornecedor_cliente || "Geral"}</td>
                     <td
-                      className={`py-3 pr-2 text-right font-black ${
-                        item.tipo === "receber" ? "text-emerald-500" : "text-red-500"
+                      className={`py-3 pr-2 text-right font-extrabold ${
+                        item.tipo === "receber" ? "text-mt-accent-800" : "text-mt-accent"
                       }`}
                     >
                       R$ {item.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}

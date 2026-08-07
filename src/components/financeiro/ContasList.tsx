@@ -161,14 +161,14 @@ export default function ContasList({ tipo }: ContasListProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pago":
-        return "bg-emerald-500/10 border border-emerald-500/20 text-emerald-500";
+        return "bg-mt-surface border border-mt-regua-fina text-mt-accent-800";
       case "vencido":
-        return "bg-red-500/10 border border-red-500/20 text-red-500";
+        return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent";
       case "cancelado":
-        return "bg-zinc-500/10 border border-zinc-500/20 text-zinc-500";
+        return "bg-mt-surface border border-mt-regua-fina text-mt-neutral-600";
       case "pendente":
       default:
-        return "bg-brand-gold/10 border border-brand-gold/20 text-brand-gold";
+        return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent";
     }
   };
 
@@ -182,11 +182,11 @@ export default function ContasList({ tipo }: ContasListProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por descrição, parceiro..."
-            className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-10 w-full focus:outline-none focus:border-brand-primary"
+            className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-10 w-full focus:outline-none focus:border-mt-accent"
           />
           <button
             type="submit"
-            className="h-10 bg-brand-card/50 hover:bg-brand-card text-brand-text border border-brand-border text-[11px] font-bold uppercase tracking-wider px-4 rounded-xl cursor-pointer"
+            className="h-10 bg-mt-surface hover:bg-mt-surface text-mt-ink border border-mt-regua-fina text-[11px] font-bold uppercase tracking-wider px-4 cursor-pointer"
           >
             Buscar
           </button>
@@ -199,7 +199,7 @@ export default function ContasList({ tipo }: ContasListProps) {
             setError("");
             setSuccessMsg("");
           }}
-          className="h-10 bg-brand-primary hover:bg-brand-primary/95 text-white text-[11px] font-bold uppercase tracking-wider px-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md w-full sm:w-auto"
+          className="h-10 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-[11px] font-bold uppercase tracking-wider px-4 flex items-center justify-center gap-2  transition-all cursor-pointer w-full sm:w-auto"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
@@ -210,7 +210,7 @@ export default function ContasList({ tipo }: ContasListProps) {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2 select-none">
+        <div className="bg-mt-surface border border-mt-regua-fina text-mt-accent-800 text-xs px-4 py-3 flex items-center gap-2 select-none">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
           </svg>
@@ -218,7 +218,7 @@ export default function ContasList({ tipo }: ContasListProps) {
         </div>
       )}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-3 rounded-xl flex items-center gap-2 select-none">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-3 flex items-center gap-2 select-none">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
           </svg>
@@ -231,31 +231,31 @@ export default function ContasList({ tipo }: ContasListProps) {
         {/* Left Side: Table & Filters */}
         <div className={`lg:col-span-2 flex flex-col gap-4 ${(isFormOpen || payingBill) ? "hidden lg:flex" : "flex"}`}>
           {/* Quick Date Filters row */}
-          <div className="flex flex-wrap items-center gap-3 bg-brand-card/10 border border-brand-border/20 rounded-2xl p-4 select-none">
+          <div className="flex flex-wrap items-center gap-3 bg-mt-surface border border-mt-regua-fina p-4 select-none">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-brand-text/50 uppercase">Vencimento de:</span>
+              <span className="text-[10px] font-bold text-mt-neutral-700 uppercase">Vencimento de:</span>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-8 cursor-pointer"
+                className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-8 cursor-pointer"
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-brand-text/50 uppercase">Até:</span>
+              <span className="text-[10px] font-bold text-mt-neutral-700 uppercase">Até:</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-8 cursor-pointer"
+                className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-8 cursor-pointer"
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-brand-text/50 uppercase">Status:</span>
+              <span className="text-[10px] font-bold text-mt-neutral-700 uppercase">Status:</span>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-8 cursor-pointer"
+                className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-8 cursor-pointer"
               >
                 <option value="">Todos</option>
                 <option value="pendente">Pendente</option>
@@ -267,16 +267,16 @@ export default function ContasList({ tipo }: ContasListProps) {
           </div>
 
           {/* Table list */}
-          <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md">
+          <div className="bg-mt-surface border border-mt-regua-fina p-6">
             {isLoading ? (
-              <div className="py-12 text-center text-xs text-brand-text/50">Carregando lançamentos...</div>
+              <div className="py-12 text-center text-xs text-mt-neutral-700">Carregando lançamentos...</div>
             ) : contas.length === 0 ? (
-              <div className="py-12 text-center text-xs text-brand-text/50">Nenhum lançamento encontrado.</div>
+              <div className="py-12 text-center text-xs text-mt-neutral-700">Nenhum lançamento encontrado.</div>
             ) : (
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-brand-border/40 text-brand-text/40 font-bold uppercase tracking-wider">
+                    <tr className="border-b border-mt-regua-fina text-mt-neutral-600 font-bold uppercase tracking-wider">
                       <th className="pb-3 pl-2">Descrição</th>
                       <th className="pb-3">Vencimento</th>
                       <th className="pb-3">Parceiro</th>
@@ -285,31 +285,31 @@ export default function ContasList({ tipo }: ContasListProps) {
                       <th className="pb-3 pr-2 text-right">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-brand-border/20">
+                  <tbody className="divide-y divide-mt-regua-fina">
                     {contas.map((c) => (
-                      <tr key={c.id} className="hover:bg-brand-card/10 transition-colors">
-                        <td className="py-4 pl-2 font-bold text-brand-text">
+                      <tr key={c.id} className="hover:bg-mt-surface transition-colors">
+                        <td className="py-4 pl-2 font-bold text-mt-ink">
                           <div className="flex flex-col gap-0.5">
                             <div className="flex items-center gap-1.5">
                               <span>{c.descricao}</span>
                               {c.total_parcelas > 1 && (
-                                <span className="bg-brand-card text-brand-text/50 text-[8px] font-bold px-1 rounded">
+                                <span className="bg-mt-surface text-mt-neutral-700 text-[8px] font-bold px-1">
                                   {c.parcela_atual}/{c.total_parcelas}
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] text-brand-text/40 font-normal">
+                            <span className="text-[10px] text-mt-neutral-600 font-normal">
                               {c.categoria?.icone} {c.categoria?.nome || "Outros"}
                             </span>
                           </div>
                         </td>
-                        <td className="py-4 text-brand-text/70">{formatDate(c.data_vencimento)}</td>
-                        <td className="py-4 text-brand-text/70">
+                        <td className="py-4 text-mt-neutral-700">{formatDate(c.data_vencimento)}</td>
+                        <td className="py-4 text-mt-neutral-700">
                           {tipo === "pagar" ? c.fornecedor || "-" : c.cliente || "-"}
                         </td>
-                        <td className="py-4 font-black text-brand-text">{formatPrice(c.valor)}</td>
+                        <td className="py-4 font-extrabold text-mt-ink">{formatPrice(c.valor)}</td>
                         <td className="py-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${getStatusBadge(c.status)}`}>
+                          <span className={`px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getStatusBadge(c.status)}`}>
                             {c.status}
                           </span>
                         </td>
@@ -321,7 +321,7 @@ export default function ContasList({ tipo }: ContasListProps) {
                                   setPayingBill(c);
                                   setIsFormOpen(false);
                                 }}
-                                className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-md select-none"
+                                className="h-7 px-2.5 bg-mt-ink hover:bg-mt-neutral-800 text-mt-inverso font-bold text-[9px] uppercase tracking-wider transition-all cursor-pointer select-none"
                               >
                                 {tipo === "pagar" ? "Pagar" : "Receber"}
                               </button>
@@ -332,7 +332,7 @@ export default function ContasList({ tipo }: ContasListProps) {
                                 setIsFormOpen(true);
                                 setPayingBill(null);
                               }}
-                              className="p-1.5 text-brand-text/40 hover:text-brand-gold hover:bg-brand-card/50 rounded-lg transition-all cursor-pointer"
+                              className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-surface transition-all cursor-pointer"
                               title="Editar"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -341,7 +341,7 @@ export default function ContasList({ tipo }: ContasListProps) {
                             </button>
                             <button
                               onClick={() => handleDelete(c.id)}
-                              className="p-1.5 text-brand-text/40 hover:text-red-500 hover:bg-red-500/5 rounded-lg transition-all cursor-pointer"
+                              className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
                               title="Excluir"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -363,9 +363,9 @@ export default function ContasList({ tipo }: ContasListProps) {
         <div className={`lg:col-span-1 ${(isFormOpen || payingBill) ? "block" : "hidden lg:block"}`}>
           {/* Launch / Edit Account Form */}
           {isFormOpen && (
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">
-              <div className="flex items-center justify-between border-b border-brand-border/30 pb-3 select-none">
-                <h3 className="text-sm font-extrabold uppercase text-brand-text">
+            <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4 animate-slideUpPopup">
+              <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3 select-none">
+                <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink">
                   {selectedContaId ? "Editar Lançamento" : "Lançamento Financeiro"}
                 </h3>
               </div>
@@ -383,34 +383,34 @@ export default function ContasList({ tipo }: ContasListProps) {
 
           {/* Pay Account Quick Form */}
           {payingBill && (
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4 animate-slideUpPopup">
-              <div className="flex flex-col gap-0.5 border-b border-brand-border/30 pb-3 select-none">
-                <h3 className="text-sm font-extrabold uppercase text-brand-text">
+            <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4 animate-slideUpPopup">
+              <div className="flex flex-col gap-0.5 border-b border-mt-regua-fina pb-3 select-none">
+                <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink">
                   {tipo === "pagar" ? "Efetuar Pagamento" : "Confirmar Recebimento"}
                 </h3>
-                <span className="text-[10px] text-brand-text/50 leading-tight">
+                <span className="text-[10px] text-mt-neutral-700 leading-tight">
                   {payingBill.descricao} • {formatPrice(payingBill.valor)}
                 </span>
               </div>
 
               <form onSubmit={handlePaySubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Data do Pagamento</label>
+                  <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Data do Pagamento</label>
                   <input
                     type="date"
                     required
                     value={dataPagamento}
                     onChange={(e) => setDataPagamento(e.target.value)}
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                    className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Forma de Pagamento</label>
+                  <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Forma de Pagamento</label>
                   <select
                     value={formaPagamento}
                     onChange={(e) => setFormaPagamento(e.target.value)}
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                    className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
                   >
                     <option value="pix">PIX</option>
                     <option value="dinheiro">Dinheiro</option>
@@ -426,13 +426,13 @@ export default function ContasList({ tipo }: ContasListProps) {
                   <button
                     type="button"
                     onClick={() => setPayingBill(null)}
-                    className="flex-1 h-11 bg-transparent hover:bg-brand-card/50 text-brand-text/70 hover:text-brand-text border border-brand-border text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer"
+                    className="flex-1 h-11 bg-transparent hover:bg-mt-surface text-mt-neutral-700 hover:text-mt-ink border border-mt-regua-fina text-[11px] font-bold uppercase tracking-wider cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow-md"
+                    className="flex-1 h-11 bg-mt-ink hover:bg-mt-neutral-800 text-mt-inverso text-[11px] font-bold uppercase tracking-wider cursor-pointer"
                   >
                     Confirmar
                   </button>
@@ -442,7 +442,7 @@ export default function ContasList({ tipo }: ContasListProps) {
           )}
 
           {!isFormOpen && !payingBill && (
-            <div className="bg-brand-card/10 border border-dashed border-brand-border/40 rounded-3xl p-8 text-center text-xs text-brand-text/40 select-none">
+            <div className="bg-mt-surface border border-dashed border-mt-regua-fina p-8 text-center text-xs text-mt-neutral-600 select-none">
               Selecione uma conta para dar baixa ou clique em "Lançar Conta" para registrar um novo fluxo.
             </div>
           )}

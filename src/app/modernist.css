@@ -51,6 +51,14 @@
   --mt-inverso-regua-fina: rgba(243, 242, 242, 0.18);
   --mt-inverso-suave: #9b9797;
 
+  /* — verde do Spotify (telas 08 A e 08 C) —
+     Único valor do sistema que NÃO deriva de `--brand-*`, e é de propósito:
+     é a cor de marca de um serviço de terceiro, e ela identifica de onde vem
+     o som. Recolorir junto com a paleta do painel faria o painel de música
+     mudar de dono a cada troca de tema. */
+  --mt-spotify: #1db954;
+  --mt-spotify-hover: #17a349;
+
   /* — elevação —
      Usada só nas molduras de mockup e em overlays. As seções da página
      não flutuam: a régua organiza, não a sombra. */
@@ -381,5 +389,33 @@
 @media (prefers-reduced-motion: reduce) {
   .mt-pulso {
     animation: none;
+  }
+}
+
+/* — equalizador da faixa de música (tela 08 A e 08 C) —
+   Quatro barras com durações diferentes, sem múltiplo comum, para que o
+   conjunto não caia em sincronia e vire um bloco piscando. A duração e o
+   atraso de cada barra vêm inline, do componente. */
+@keyframes mtEqualizador {
+  0%,
+  100% {
+    transform: scaleY(0.22);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.mt-eq-barra {
+  transform-origin: bottom;
+  animation: mtEqualizador var(--mt-eq-dur, 0.62s) ease-in-out infinite;
+  animation-delay: var(--mt-eq-atraso, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Pausado, e não `animation: none` — sem a animação as barras voltam a 100%
+     de altura e o equalizador parado fica mais berrante do que o animado. */
+  .mt-eq-barra {
+    animation-play-state: paused;
+    transform: scaleY(0.55);
   }
 }

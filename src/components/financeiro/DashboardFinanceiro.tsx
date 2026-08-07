@@ -213,11 +213,15 @@ export default function DashboardFinanceiro() {
   // Find max value in chart to scale graph appropriately
   const maxVal = Math.max(...chartData.map((d) => Math.max(d.entradas, d.saidas, 1000)));
 
+  // Soma dos títulos em atraso. A API devolve a lista completa de vencidos
+  // (não paginada), então somar aqui evita um endpoint só para o total.
+  const totalVencido = overdueBills.reduce((acc, b) => acc + Number(b.valor || 0), 0);
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl">
       {/* Toast Notice */}
       {notification && (
-        <div className="bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs px-4 py-3 rounded-xl flex items-center gap-2 animate-bounce">
+        <div className="bg-mt-accent-100 border-l-[3px] border-mt-accent text-mt-accent-800 text-xs px-4 py-3 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h1a.75.75 0 0 0 0-1.5H9Z" clipRule="evenodd" />
           </svg>
@@ -226,77 +230,68 @@ export default function DashboardFinanceiro() {
       )}
 
       {/* Top Quick Actions Bar (Despesas Corriqueiras & RevendaMais Integration) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-brand-card/30 border border-brand-border/40 p-4 rounded-2xl backdrop-blur-sm select-none">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-mt-surface border border-mt-regua-fina p-4 select-none">
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => setIsLancamentoRapidoOpen(true)}
-            className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+            className="mt-btn mt-btn-primario mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
           >
-            <span>⚡</span>
-            <span>Lançamento Rápido (10s)</span>
+            Lançamento rápido
           </button>
 
           <button
             onClick={() => setIsImportadorOpen(true)}
-            className="px-4 py-2.5 bg-brand-card border border-brand-border hover:border-brand-primary text-brand-text font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-2"
+            className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
           >
-            <span>📥</span>
-            <span>Importar do RevendaMais</span>
+            Importar do RevendaMais
           </button>
 
           <button
             onClick={handleFixEncoding}
             title="Corrigir acentuação em contas antigas já salvas no banco"
-            className="px-3 py-2.5 bg-brand-bg border border-brand-border hover:border-amber-500 text-amber-500 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+            className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
           >
-            <span>🔧</span>
-            <span>Corrigir Acentuação</span>
+            Corrigir acentuação
           </button>
         </div>
 
         <button
           onClick={handleTriggerWhatsappNotif}
           disabled={isNotifyingWhatsapp}
-          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+          className="mt-btn mt-btn-tinta mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:opacity-50"
         >
-          <span>📲</span>
-          <span>{isNotifyingWhatsapp ? "Enviando..." : "Enviar Avisos no WhatsApp"}</span>
+          {isNotifyingWhatsapp ? "Enviando..." : "Enviar avisos no WhatsApp"}
         </button>
       </div>
 
       {isLoading ? (
-        <div className="py-24 text-center text-xs text-brand-text/50">Carregando dados financeiros...</div>
+        <div className="py-24 text-center text-xs text-mt-neutral-700">Carregando dados financeiros...</div>
       ) : (
         <>
           {/* Smart Alerts Section (Avisos Inteligentes do Dia) */}
-          <div className="bg-brand-card/40 border border-brand-border/50 rounded-3xl p-5 backdrop-blur-md flex flex-col gap-3 shadow-lg select-none">
-            <div className="flex items-center justify-between border-b border-brand-border/40 pb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="flex h-2.5 w-2.5 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-                </span>
-                <h3 className="text-xs font-black uppercase text-brand-text tracking-wider">
-                  Central de Avisos Inteligentes & Gestão de Risco
+          <div className="bg-mt-surface border border-mt-regua-fina p-5 flex flex-col gap-3 select-none">
+            <div className="flex items-center justify-between border-b border-mt-regua-fina pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <span className="mt-pulso inline-flex h-2 w-2 bg-mt-accent" />
+                <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink">
+                  Exige atenção hoje
                 </h3>
               </div>
-              <span className="text-[10px] font-bold uppercase text-brand-gold bg-brand-gold/10 px-2.5 py-1 rounded-lg border border-brand-gold/20">
-                Plano de Contas Revenda Conectado
-              </span>
+              <span className="mt-rotulo">Plano de contas Revenda conectado</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Alert 1: Vencimentos Críticos */}
-              <div className={`p-3.5 rounded-2xl border flex flex-col gap-1.5 transition-all ${
+              <div className={`p-3.5 border flex flex-col gap-1.5 transition-all ${
                 overdueBills.length > 0
-                  ? "bg-red-500/10 border-red-500/30 text-red-500"
-                  : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
+                  ? "bg-mt-accent-100 border-mt-accent-300 text-mt-accent"
+                  : "bg-mt-surface border-mt-regua-fina text-mt-accent-800"
               }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider">
-                    {overdueBills.length > 0 ? "⚠️ Contas Vencidas Exigindo Baixa" : "✅ Nenhuma Conta Vencida"}
+                    {overdueBills.length > 0 ? "Contas vencidas exigindo baixa" : "Nenhuma conta vencida"}
                   </span>
-                  <span className="text-[9px] font-black">{overdueBills.length} pendentes</span>
+                  <span className="text-[9px] font-extrabold">{overdueBills.length} pendentes</span>
                 </div>
                 <p className="text-[11px] font-medium leading-tight">
                   {overdueBills.length > 0
@@ -314,38 +309,38 @@ export default function DashboardFinanceiro() {
               </div>
 
               {/* Alert 2: Próximos Vencimentos */}
-              <div className="p-3.5 rounded-2xl border bg-brand-bg/60 border-brand-border/50 text-brand-text flex flex-col gap-1.5">
+              <div className="p-3.5 border bg-mt-bg border-mt-regua-fina text-mt-ink flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-gold">
-                    📅 Vencimentos da Semana
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-mt-accent">
+                    Vencimentos da semana
                   </span>
-                  <span className="text-[9px] font-bold text-brand-text/60">{upcomingBills.length} contas</span>
+                  <span className="text-[9px] font-bold text-mt-neutral-700">{upcomingBills.length} contas</span>
                 </div>
-                <p className="text-[11px] text-brand-text/80 font-medium leading-tight">
-                  Projeção de desembolso para os próximos dias: <strong className="font-mono text-brand-primary">{formatPrice(upcomingBills.reduce((a, b) => a + b.valor, 0))}</strong>.
+                <p className="text-[11px] text-mt-neutral-800 font-medium leading-tight">
+                  Projeção de desembolso para os próximos dias: <strong className="font-mono text-mt-accent">{formatPrice(upcomingBills.reduce((a, b) => a + b.valor, 0))}</strong>.
                 </p>
                 <Link
                   href="/admin/financeiro/contas-pagar"
-                  className="text-[10px] font-bold uppercase text-brand-primary tracking-wider mt-1 hover:underline"
+                  className="text-[10px] font-bold uppercase text-mt-accent tracking-wider mt-1 hover:underline"
                 >
                   Ver Cronograma →
                 </Link>
               </div>
 
               {/* Alert 3: Previsão de DRE & Margem por Veículo */}
-              <div className="p-3.5 rounded-2xl border bg-brand-primary/5 border-brand-primary/20 text-brand-text flex flex-col gap-1.5">
+              <div className="p-3.5 border bg-mt-accent-100 border-mt-accent-300 text-mt-ink flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-primary">
-                    🚗 Custo de Preparação & Margem
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-mt-accent">
+                    Custo de preparação & margem
                   </span>
-                  <span className="text-[9px] font-black text-brand-primary uppercase">DRE 003.005.006</span>
+                  <span className="text-[9px] font-extrabold text-mt-accent uppercase">DRE 003.005.006</span>
                 </div>
-                <p className="text-[11px] text-brand-text/80 font-medium leading-tight">
+                <p className="text-[11px] text-mt-neutral-800 font-medium leading-tight">
                   Despesas de manutenção/peças são atribuídas diretamente à placa do veículo para cálculo de margem líquida real.
                 </p>
                 <Link
                   href="/admin/financeiro/relatorios"
-                  className="text-[10px] font-bold uppercase text-brand-primary tracking-wider mt-1 hover:underline"
+                  className="text-[10px] font-bold uppercase text-mt-accent tracking-wider mt-1 hover:underline"
                 >
                   Abrir DRE Gerencial →
                 </Link>
@@ -353,64 +348,85 @@ export default function DashboardFinanceiro() {
             </div>
           </div>
 
-          {/* KPI Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* KPI: A Pagar */}
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-              <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">A Pagar (Mês)</span>
-              <span className="text-base font-black text-red-500 tracking-tight">{formatPrice(kpis.aPagarMes)}</span>
-            </div>
-
-            {/* KPI: A Receber */}
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-              <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">A Receber (Mês)</span>
-              <span className="text-base font-black text-emerald-500 tracking-tight">{formatPrice(kpis.aReceberMes)}</span>
-            </div>
-
-            {/* KPI: Saldo Projetado */}
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-              <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Saldo Projetado</span>
-              <span className={`text-base font-black tracking-tight ${kpis.saldoProjetado >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                {formatPrice(kpis.saldoProjetado)}
-              </span>
-            </div>
-
-            {/* KPI: Vencidos */}
-            <div className={`bg-brand-card/30 border rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none ${kpis.overdueCount > 0 ? "border-red-500/30" : "border-brand-border/40"}`}>
-              <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Contas Vencidas</span>
-              <div className="flex items-center justify-between">
-                <span className={`text-base font-black tracking-tight ${kpis.overdueCount > 0 ? "text-red-500" : "text-brand-text"}`}>
-                  {kpis.overdueCount}
+          {/* Régua de KPIs, na anatomia da tela A10: régua de 2px no topo e
+              colunas separadas por régua fina — sem caixa, o número organiza.
+              Vermelho pleno só onde há urgência; valor positivo fica no tom
+              profundo da rampa (intensidade, não matiz). */}
+          <div className="grid select-none grid-cols-1 border-t-2 border-mt-regua sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              {
+                // A nota do vencido vive aqui porque `aPagarMes` conta só o
+                // que vence DENTRO do mês corrente. Com títulos em atraso de
+                // meses anteriores, o card sozinho dizia "R$ 0,00 a pagar"
+                // enquanto havia milhões vencidos logo ao lado — leitura
+                // tranquilizadora e falsa.
+                rotulo: "A pagar · mês",
+                valor: formatPrice(kpis.aPagarMes),
+                cor: "text-mt-accent",
+                nota:
+                  totalVencido > 0
+                    ? `+ ${formatPrice(totalVencido)} vencidos de meses anteriores`
+                    : (null as string | null),
+              },
+              {
+                rotulo: "A receber · mês",
+                valor: formatPrice(kpis.aReceberMes),
+                cor: "text-mt-accent-800",
+                nota: null,
+              },
+              {
+                rotulo: "Saldo projetado",
+                valor: formatPrice(kpis.saldoProjetado),
+                cor: kpis.saldoProjetado >= 0 ? "text-mt-accent-800" : "text-mt-accent",
+                nota: "receber − pagar do mês",
+              },
+              {
+                rotulo: "Contas vencidas",
+                valor: String(kpis.overdueCount),
+                cor: kpis.overdueCount > 0 ? "text-mt-accent" : "text-mt-ink",
+                // Contagem sem valor não dimensiona o problema: 708 títulos
+                // pode ser R$ 700 ou R$ 7 milhões.
+                nota:
+                  kpis.overdueCount > 0
+                    ? `${formatPrice(totalVencido)} · exigem baixa`
+                    : "em dia",
+              },
+              {
+                rotulo: "Custo fixo mensal",
+                valor: formatPrice(kpis.custoFixoMensal),
+                cor: "text-mt-ink",
+                nota: null,
+              },
+            ].map((kpi) => (
+              <div
+                key={kpi.rotulo}
+                className="flex flex-col gap-2 border-b border-mt-regua-fina px-0 py-4 pr-5 lg:border-b-0 lg:border-r lg:last:border-r-0"
+              >
+                <span className="mt-rotulo">{kpi.rotulo}</span>
+                <span className={`text-2xl font-extrabold tracking-[-.03em] tabular-nums ${kpi.cor}`}>
+                  {kpi.valor}
                 </span>
-                {kpis.overdueCount > 0 && (
-                  <span className="bg-red-500/10 text-red-500 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">
-                    Ação Urgente
-                  </span>
+                {kpi.nota && (
+                  <span className="text-[11px] leading-tight text-mt-neutral-700">{kpi.nota}</span>
                 )}
               </div>
-            </div>
-
-            {/* KPI: Custo Fixo */}
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-2xl p-5 flex flex-col gap-1 backdrop-blur-sm select-none">
-              <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Custo Fixo Mensal</span>
-              <span className="text-base font-black text-brand-gold tracking-tight">{formatPrice(kpis.custoFixoMensal)}</span>
-            </div>
+            ))}
           </div>
 
           {/* Graph and Bank Balances Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Graph Card */}
-            <div className="lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-6">
+            <div className="lg:col-span-2 bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-6">
               <div className="flex items-center justify-between select-none">
                 <div>
-                  <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider">Fluxo de Caixa Mensal</h3>
-                  <p className="text-[10px] text-brand-text/40 mt-0.5">Visão geral comparativa de entradas e saídas.</p>
+                  <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider">Fluxo de Caixa Mensal</h3>
+                  <p className="text-[10px] text-mt-neutral-600 mt-0.5">Visão geral comparativa de entradas e saídas.</p>
                 </div>
 
                 <button
                   onClick={handleGenerateRecurring}
                   disabled={isGenerating}
-                  className="h-9 px-3 border border-brand-border hover:border-brand-primary/50 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer select-none bg-brand-bg/50 hover:bg-brand-primary/5 disabled:opacity-50"
+                  className="h-9 px-3 border border-mt-regua-fina hover:border-mt-accent text-[10px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer select-none bg-mt-bg hover:bg-mt-accent-100 disabled:opacity-50"
                 >
                   {isGenerating ? "Gerando..." : "Gerar Recorrências"}
                 </button>
@@ -418,7 +434,7 @@ export default function DashboardFinanceiro() {
 
               {/* Visual SVG/CSS bar chart */}
               <div className="flex flex-col gap-3 pt-4 select-none">
-                <div className="flex items-end justify-between h-48 w-full px-2 border-b border-brand-border/30 pb-2">
+                <div className="flex items-end justify-between h-48 w-full px-2 border-b border-mt-regua-fina pb-2">
                   {chartData.map((d, index) => {
                     const entHeight = `${(d.entradas / maxVal) * 100}%`;
                     const saiHeight = `${(d.saidas / maxVal) * 100}%`;
@@ -428,39 +444,39 @@ export default function DashboardFinanceiro() {
                         <div className="flex items-end gap-1.5 h-36 w-full justify-center">
                           {/* Entrada Bar */}
                           <div
-                            className="w-4.5 bg-gradient-to-t from-emerald-600 to-emerald-500 rounded-t-md relative group cursor-pointer transition-all duration-300 hover:scale-x-110"
+                            className="w-4.5 bg-mt-ink relative group cursor-pointer"
                             style={{ height: entHeight }}
                           >
                             {/* Tooltip on hover */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-zinc-950 border border-brand-border text-white text-[9px] font-bold rounded px-1.5 py-0.5 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-mt-inverso-fundo border border-mt-regua-fina text-mt-inverso text-[9px] font-bold px-1.5 py-0.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
                               Entrada: {formatPrice(d.entradas)}
                             </div>
                           </div>
 
                           {/* Saida Bar */}
                           <div
-                            className="w-4.5 bg-gradient-to-t from-red-600 to-red-500 rounded-t-md relative group cursor-pointer transition-all duration-300 hover:scale-x-110"
+                            className="w-4.5 bg-mt-accent relative group cursor-pointer"
                             style={{ height: saiHeight }}
                           >
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-zinc-950 border border-brand-border text-white text-[9px] font-bold rounded px-1.5 py-0.5 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-mt-inverso-fundo border border-mt-regua-fina text-mt-inverso text-[9px] font-bold px-1.5 py-0.5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-30 whitespace-nowrap">
                               Saída: {formatPrice(d.saidas)}
                             </div>
                           </div>
                         </div>
-                        <span className="text-[9px] font-bold text-brand-text/50 uppercase tracking-wider">{d.label}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 tracking-wider">{d.label}</span>
                       </div>
                     );
                   })}
                 </div>
 
                 {/* Chart Legend */}
-                <div className="flex items-center gap-4 justify-end text-[9px] font-bold uppercase tracking-wider text-brand-text/50 pr-2">
+                <div className="flex items-center gap-4 justify-end text-[9px] font-bold uppercase tracking-wider text-mt-neutral-700 pr-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                    <span className="w-2.5 h-2.5 bg-mt-ink inline-block" />
                     <span>Entradas (Receitas)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                    <span className="w-2.5 h-2.5 bg-mt-accent inline-block" />
                     <span>Saídas (Despesas)</span>
                   </div>
                 </div>
@@ -468,33 +484,33 @@ export default function DashboardFinanceiro() {
             </div>
 
             {/* Bank Balances Card */}
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
+            <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4">
               {isEditingSaldos ? (
-                <div className="flex items-center justify-between border-b border-brand-border/20 pb-3">
+                <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3">
                   <div className="flex flex-col select-none">
-                    <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">Ajuste de Saldos</span>
-                    <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider mt-0.5">Modo de Edição</h3>
+                    <span className="mt-rotulo mt-rotulo-accent">Ajuste de Saldos</span>
+                    <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider mt-0.5">Modo de Edição</h3>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setIsEditingSaldos(false)}
-                      className="text-[9px] font-bold text-brand-text/50 uppercase hover:underline cursor-pointer select-none"
+                      className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 hover:underline cursor-pointer select-none"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleSaveSaldos}
-                      className="text-[9px] font-bold text-emerald-500 uppercase hover:underline cursor-pointer select-none"
+                      className="text-[9px] font-bold text-mt-accent-800 uppercase hover:underline cursor-pointer select-none"
                     >
                       Salvar
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between border-b border-brand-border/20 pb-3">
+                <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3">
                   <div className="flex flex-col select-none">
-                    <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest">Disponibilidade</span>
-                    <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider mt-0.5">Saldos Bancários</h3>
+                    <span className="mt-rotulo mt-rotulo-accent">Disponibilidade</span>
+                    <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider mt-0.5">Saldos Bancários</h3>
                   </div>
                   <button
                     onClick={() => {
@@ -506,7 +522,7 @@ export default function DashboardFinanceiro() {
                       });
                       setEditSaldosBancos(initialBancos);
                     }}
-                    className="text-[9px] font-bold text-brand-primary uppercase hover:underline cursor-pointer select-none"
+                    className="text-[9px] font-bold text-mt-accent uppercase hover:underline cursor-pointer select-none"
                   >
                     Editar Saldos
                   </button>
@@ -518,40 +534,40 @@ export default function DashboardFinanceiro() {
                 {isEditingSaldos ? (
                   <div className="flex flex-col gap-3.5">
                     {Object.keys(editSaldosBancos).map((banco) => (
-                      <div key={banco} className="flex flex-col gap-1 border-b border-brand-border/10 pb-2.5 last:border-0 last:pb-0">
-                        <label className="text-[9px] font-bold text-brand-text/40 uppercase pl-0.5">{banco}</label>
+                      <div key={banco} className="flex flex-col gap-1 border-b border-mt-regua-fina pb-2.5 last:border-0 last:pb-0">
+                        <label className="text-[9px] font-bold text-mt-neutral-600 uppercase pl-0.5">{banco}</label>
                         <input
                           type="number"
                           step="0.01"
                           value={editSaldosBancos[banco] || ""}
                           onChange={(e) => setEditSaldosBancos({ ...editSaldosBancos, [banco]: e.target.value })}
-                          className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 py-2 w-full focus:outline-none focus:border-brand-primary font-mono"
+                          className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 py-2 w-full focus:outline-none focus:border-mt-accent font-mono"
                         />
                       </div>
                     ))}
                   </div>
                 ) : kpis.saldoPorBanco && Object.entries(kpis.saldoPorBanco).length > 0 ? (
                   Object.entries(kpis.saldoPorBanco).map(([banco, saldo]) => (
-                    <div key={banco} className="flex items-center justify-between border-b border-brand-border/10 pb-3 last:border-0 last:pb-0">
+                    <div key={banco} className="flex items-center justify-between border-b border-mt-regua-fina pb-3 last:border-0 last:pb-0">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-bold text-brand-text/80">{banco}</span>
-                        <span className="text-[8px] font-bold text-brand-text/30 uppercase tracking-wider">Conta Corrente Ativa</span>
+                        <span className="text-[10px] font-bold text-mt-neutral-800">{banco}</span>
+                        <span className="text-[8px] font-bold text-mt-neutral-500 uppercase tracking-wider">Conta Corrente Ativa</span>
                       </div>
-                      <span className={`text-xs font-black tracking-tight ${saldo >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                      <span className={`text-xs font-extrabold tracking-tight ${saldo >= 0 ? "text-mt-accent-800" : "text-mt-accent"}`}>
                         {formatPrice(saldo)}
                       </span>
                     </div>
                   ))
                 ) : (
-                  <div className="py-8 text-center text-xs text-brand-text/30">Nenhum saldo bancário disponível.</div>
+                  <div className="py-8 text-center text-xs text-mt-neutral-500">Nenhum saldo bancário disponível.</div>
                 )}
               </div>
 
               {/* Total Box */}
-              <div className="bg-brand-bg/50 border border-brand-border/20 rounded-2xl p-4 flex items-center justify-between mt-auto">
+              <div className="bg-mt-bg border border-mt-regua-fina p-4 flex items-center justify-between mt-auto">
                 <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-wider">Saldo Geral Disponível</span>
-                  <span className="text-[8px] text-brand-text/30 uppercase tracking-widest mt-0.5">Caixa Consolidado</span>
+                  <span className="text-[9px] font-bold text-mt-neutral-600 uppercase tracking-wider">Saldo Geral Disponível</span>
+                  <span className="text-[8px] text-mt-neutral-500 uppercase tracking-widest mt-0.5">Caixa Consolidado</span>
                 </div>
                 {isEditingSaldos ? (
                   <input
@@ -559,10 +575,10 @@ export default function DashboardFinanceiro() {
                     step="0.01"
                     value={editSaldoCaixa}
                     onChange={(e) => setEditSaldoCaixa(e.target.value)}
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 py-2 w-32 focus:outline-none focus:border-brand-primary text-right font-black font-mono"
+                    className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 py-2 w-32 focus:outline-none focus:border-mt-accent text-right font-extrabold font-mono"
                   />
                 ) : (
-                  <span className={`text-sm font-black tracking-tight ${kpis.saldoCaixaAcumulado && kpis.saldoCaixaAcumulado >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  <span className={`text-sm font-extrabold tracking-tight ${kpis.saldoCaixaAcumulado && kpis.saldoCaixaAcumulado >= 0 ? "text-mt-accent-800" : "text-mt-accent"}`}>
                     {formatPrice(kpis.saldoCaixaAcumulado || 0)}
                   </span>
                 )}
@@ -573,39 +589,39 @@ export default function DashboardFinanceiro() {
           {/* Lists Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Próximos Vencimentos (7 dias) */}
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-brand-border/30 pb-3 select-none">
-                <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider">Próximos Vencimentos</h3>
-                <span className="text-[9px] font-bold text-brand-text/40 uppercase">Próximos 7 dias</span>
+            <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3 select-none">
+                <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider">Próximos Vencimentos</h3>
+                <span className="text-[9px] font-bold text-mt-neutral-600 uppercase">Próximos 7 dias</span>
               </div>
 
               {upcomingBills.length === 0 ? (
-                <div className="py-12 text-center text-xs text-brand-text/30">Nenhuma conta com vencimento próximo.</div>
+                <div className="py-12 text-center text-xs text-mt-neutral-500">Nenhuma conta com vencimento próximo.</div>
               ) : (
-                <div className="flex flex-col divide-y divide-brand-border/20">
+                <div className="flex flex-col divide-y divide-mt-regua-fina">
                   {upcomingBills.map((b) => (
-                    <div key={b.id} className="py-3.5 flex items-center justify-between hover:bg-brand-card/5 transition-colors rounded-xl px-2">
+                    <div key={b.id} className="py-3.5 flex items-center justify-between hover:bg-mt-surface transition-colors px-2">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-brand-text leading-tight">{b.descricao}</span>
+                          <span className="text-xs font-bold text-mt-ink leading-tight">{b.descricao}</span>
                           <span
-                            className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider text-white"
+                            className="px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-mt-inverso"
                             style={{ backgroundColor: b.categoria?.cor || "#6B7280" }}
                           >
                             {b.categoria?.nome || "Outros"}
                           </span>
                         </div>
-                        <span className="text-[10px] text-brand-text/50">
+                        <span className="text-[10px] text-mt-neutral-700">
                           {b.tipo === "pagar" ? `Para: ${b.fornecedor || "Geral"}` : `De: ${b.cliente || "Geral"}`} • Vence em {formatDate(b.data_vencimento)}
                         </span>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className={`text-xs font-black tracking-tight ${b.tipo === "pagar" ? "text-red-500" : "text-emerald-500"}`}>
+                        <span className={`text-xs font-extrabold tracking-tight ${b.tipo === "pagar" ? "text-mt-accent" : "text-mt-accent-800"}`}>
                           {b.tipo === "pagar" ? "-" : "+"} {formatPrice(b.valor)}
                         </span>
                         <Link
                           href={b.tipo === "pagar" ? "/admin/financeiro/contas-pagar" : "/admin/financeiro/contas-receber"}
-                          className="h-7 w-7 rounded-full border border-brand-border hover:border-brand-primary/50 flex items-center justify-center text-brand-text/50 hover:text-brand-primary hover:bg-brand-primary/5 transition-all cursor-pointer"
+                          className="h-7 w-7 border border-mt-regua-fina hover:border-mt-accent flex items-center justify-center text-mt-neutral-700 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
                           title="Gerenciar conta"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -621,38 +637,38 @@ export default function DashboardFinanceiro() {
             </div>
 
             {/* Contas Vencidas */}
-            <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-brand-border/30 pb-3 select-none">
-                <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider text-red-500">Contas Pendentes Vencidas</h3>
-                <span className="bg-red-500/10 text-red-500 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-red-500/20">
+            <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3 select-none">
+                <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider text-mt-accent">Contas Pendentes Vencidas</h3>
+                <span className="bg-mt-accent-100 text-mt-accent text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 border border-mt-accent-300">
                   Total: {overdueBills.length}
                 </span>
               </div>
 
               {overdueBills.length === 0 ? (
-                <div className="py-12 text-center text-xs text-brand-text/30">Nenhuma conta em atraso. Parabéns!</div>
+                <div className="py-12 text-center text-xs text-mt-neutral-500">Nenhuma conta em atraso. Parabéns!</div>
               ) : (
-                <div className="flex flex-col divide-y divide-brand-border/20 max-h-[300px] overflow-y-auto scrollbar-thin">
+                <div className="flex flex-col divide-y divide-mt-regua-fina max-h-[300px] overflow-y-auto scrollbar-thin">
                   {overdueBills.map((b) => (
-                    <div key={b.id} className="py-3.5 flex items-center justify-between hover:bg-brand-card/5 transition-colors rounded-xl px-2">
+                    <div key={b.id} className="py-3.5 flex items-center justify-between hover:bg-mt-surface transition-colors px-2">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-brand-text leading-tight">{b.descricao}</span>
-                          <span className="bg-red-500/10 border border-red-500/20 text-red-500 text-[8px] font-bold uppercase px-1.5 py-0.2 rounded">
+                          <span className="text-xs font-bold text-mt-ink leading-tight">{b.descricao}</span>
+                          <span className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-[8px] font-bold uppercase px-1.5 py-0.2">
                             Atrasada
                           </span>
                         </div>
-                        <span className="text-[10px] text-brand-text/50">
+                        <span className="text-[10px] text-mt-neutral-700">
                           Venceu em: {formatDate(b.data_vencimento)}
                         </span>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="text-xs font-black tracking-tight text-red-500">
+                        <span className="text-xs font-extrabold tracking-tight text-mt-accent">
                           {formatPrice(b.valor)}
                         </span>
                         <Link
                           href={b.tipo === "pagar" ? "/admin/financeiro/contas-pagar" : "/admin/financeiro/contas-receber"}
-                          className="h-7 w-7 rounded-full border border-brand-border hover:border-brand-primary/50 flex items-center justify-center text-brand-text/50 hover:text-brand-primary hover:bg-brand-primary/5 transition-all cursor-pointer"
+                          className="h-7 w-7 border border-mt-regua-fina hover:border-mt-accent flex items-center justify-center text-mt-neutral-700 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
                           title="Pagar / Gerenciar"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">

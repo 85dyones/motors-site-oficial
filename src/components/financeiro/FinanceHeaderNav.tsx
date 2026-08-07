@@ -3,24 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+/**
+ * Navegação horizontal do módulo financeiro, no desenho de controle
+ * segmentado do design system (`.seg`): moldura de 1px, opções separadas por
+ * régua fina, ativa em fundo de tinta. Os ícones-emoji do desenho anterior
+ * saíram — no Modernist quem organiza é o alinhamento, não o pictograma.
+ *
+ * Ela repete os itens do trilho lateral de propósito: no mobile o trilho vira
+ * gaveta, e esta régua é o caminho de um clique entre as telas do módulo.
+ */
 export default function FinanceHeaderNav() {
   const pathname = usePathname();
 
   const tabs = [
-    { name: "Visão Geral", icon: "📄", href: "/admin/financeiro" },
-    { name: "Importar RevendaMais", icon: "📥", href: "/admin/financeiro/importar" },
-    { name: "Contas a Pagar", icon: "❌", href: "/admin/financeiro/contas-pagar" },
-    { name: "Contas a Receber", icon: "➕", href: "/admin/financeiro/contas-receber" },
-    { name: "Despesas Recorrentes", icon: "🔄", href: "/admin/financeiro/recorrentes" },
-    { name: "Compras de Insumos", icon: "🛒", href: "/admin/financeiro/compras" },
-    { name: "Relatórios & Balanço", icon: "📊", href: "/admin/financeiro/relatorios" },
-    { name: "Cadastros Auxiliares", icon: "📝", href: "/admin/financeiro/cadastros" },
-    { name: "Margem por Veículo", icon: "📦", href: "/admin/financeiro/margens" },
+    { name: "Visão Geral", href: "/admin/financeiro" },
+    { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
+    { name: "Contas a Pagar", href: "/admin/financeiro/contas-pagar" },
+    { name: "Contas a Receber", href: "/admin/financeiro/contas-receber" },
+    { name: "Despesas Recorrentes", href: "/admin/financeiro/recorrentes" },
+    { name: "Compras de Insumos", href: "/admin/financeiro/compras" },
+    { name: "Relatórios & Balanço", href: "/admin/financeiro/relatorios" },
+    { name: "Cadastros Auxiliares", href: "/admin/financeiro/cadastros" },
+    { name: "Margem por Veículo", href: "/admin/financeiro/margens" },
   ];
 
   return (
-    <nav className="w-full mb-6 select-none bg-brand-card/40 border border-brand-border/50 rounded-2xl p-1.5 backdrop-blur-xl shadow-lg overflow-x-auto scrollbar-none">
-      <div className="flex items-center gap-1 min-w-max">
+    <nav className="scrollbar-none mb-6 w-full select-none overflow-x-auto">
+      <div className="inline-flex min-w-max border border-mt-regua">
         {tabs.map((tab) => {
           const isActive =
             tab.href === "/admin/financeiro"
@@ -31,14 +40,14 @@ export default function FinanceHeaderNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-[11px] font-extrabold uppercase tracking-wider transition-all duration-300 cursor-pointer whitespace-nowrap ${
+              aria-current={isActive ? "page" : undefined}
+              className={`mt-foco whitespace-nowrap border-r border-mt-regua-fina px-3.5 py-2.5 text-[11px] font-semibold tracking-[.08em] uppercase transition-colors last:border-r-0 ${
                 isActive
-                  ? "bg-brand-primary text-white shadow-md shadow-brand-primary/20 scale-[1.02]"
-                  : "text-brand-text/70 hover:text-brand-text hover:bg-brand-primary/10"
+                  ? "bg-mt-ink text-mt-bg"
+                  : "text-mt-neutral-700 hover:bg-mt-accent-100 hover:text-mt-ink"
               }`}
             >
-              <span className="text-xs">{tab.icon}</span>
-              <span>{tab.name}</span>
+              {tab.name}
             </Link>
           );
         })}

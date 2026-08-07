@@ -298,7 +298,7 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   return (
     <div className="flex flex-col gap-4">
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-2.5 rounded-xl">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-2.5">
           {error}
         </div>
       )}
@@ -306,14 +306,14 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Toggle Pagar/Receber (Only when creating) */}
         {!contaId && (
-          <div className="flex items-center gap-2 border border-brand-border/40 rounded-xl p-1 bg-brand-bg/30 w-fit select-none">
+          <div className="flex items-center gap-2 border border-mt-regua-fina p-1 bg-mt-bg w-fit select-none">
             <button
               type="button"
               onClick={() => setTipo("pagar")}
-              className={`px-4 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all cursor-pointer ${
+              className={`px-4 py-1.5 text-[10px] font-bold uppercase transition-all cursor-pointer ${
                 tipo === "pagar"
-                  ? "bg-red-600 text-white shadow-md"
-                  : "text-brand-text/50 hover:text-brand-text"
+                  ? "bg-mt-accent text-mt-inverso"
+                  : "text-mt-neutral-700 hover:text-mt-ink"
               }`}
             >
               A Pagar
@@ -321,10 +321,10 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
             <button
               type="button"
               onClick={() => setTipo("receber")}
-              className={`px-4 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all cursor-pointer ${
+              className={`px-4 py-1.5 text-[10px] font-bold uppercase transition-all cursor-pointer ${
                 tipo === "receber"
-                  ? "bg-emerald-600 text-white shadow-md"
-                  : "text-brand-text/50 hover:text-brand-text"
+                  ? "bg-mt-ink text-mt-inverso"
+                  : "text-mt-neutral-700 hover:text-mt-ink"
               }`}
             >
               A Receber
@@ -335,20 +335,20 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Descrição */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Descrição</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Descrição</label>
             <input
               type="text"
               required
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               placeholder="Ex: Aluguel do Showroom, Compra de Peças, Venda de Fox"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           {/* Valor */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Valor (R$)</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Valor (R$)</label>
             <input
               type="number"
               step="0.01"
@@ -356,27 +356,27 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
               value={valor}
               onChange={(e) => setValor(e.target.value)}
               placeholder="0,00"
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent"
             />
           </div>
 
           {/* Vencimento */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Vencimento</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Vencimento</label>
             <input
               type="date"
               required
               value={dataVencimento}
               onChange={(e) => setDataVencimento(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             />
           </div>
 
           {/* Categoria */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Categoria</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Categoria</label>
             {/* Diagnóstico temporário - remover após resolver */}
-            <div className={`text-[9px] px-2 py-1 rounded-lg ${debugInfo.startsWith('✅') ? 'bg-emerald-500/10 text-emerald-400' : debugInfo.startsWith('❌') ? 'bg-red-500/10 text-red-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+            <div className={`text-[9px] px-2 py-1 ${debugInfo.startsWith('✅') ? 'bg-mt-surface text-mt-accent-800' : debugInfo.startsWith('❌') ? 'bg-mt-accent-100 text-mt-accent' : 'bg-mt-accent-100 text-mt-accent-800'}`}>
               {debugInfo} | filtradas: {filteredCategories.length} | total: {categories.length}
             </div>
             <select
@@ -391,7 +391,7 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                 }
               }}
               required={!showNewCategoryForm}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="">Selecione...</option>
               {filteredCategories.map((c) => (
@@ -399,32 +399,32 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                   {c.icone} {c.nome}
                 </option>
               ))}
-              <option value="__new_category__">➕ Cadastrar Nova Categoria...</option>
+              <option value="__new_category__">Cadastrar nova categoria…</option>
             </select>
 
             {showNewCategoryForm && (
-              <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl mt-1 select-none animate-fadeIn">
-                <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+              <div className="flex flex-col gap-3.5 p-4.5 bg-mt-bg border border-mt-regua-fina mt-1 select-none">
+                <span className="mt-rotulo mt-rotulo-accent block">
                   Nova Categoria de {tipo === "pagar" ? "Despesa" : "Receita"}
                 </span>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1 md:col-span-2">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome da Categoria</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Nome da Categoria</label>
                     <input
                       type="text"
                       required
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       placeholder="Ex: Marketing, Manutenção"
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Ícone (Emoji)</label>
+                    <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Ícone (Emoji)</label>
                     <select
                       value={newCategoryIcon}
                       onChange={(e) => setNewCategoryIcon(e.target.value)}
-                      className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                      className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
                     >
                       <option value="📁">📁 Pasta</option>
                       <option value="💸">💸 Dinheiro</option>
@@ -444,11 +444,11 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           {/* Parcelamento (Only when creating) */}
           {!contaId ? (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Parcelas</label>
+              <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Parcelas</label>
               <select
                 value={totalParcelas}
                 onChange={(e) => setTotalParcelas(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
               >
                 <option value="1">1x (À vista)</option>
                 <option value="2">2x</option>
@@ -464,11 +464,11 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Status</label>
+              <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Status</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
               >
                 <option value="pendente">Pendente</option>
                 <option value="pago">Pago</option>
@@ -478,9 +478,9 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           )}
           {tipo === "pagar" ? (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Fornecedor</label>
+              <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Fornecedor</label>
               {showNewPartnerForm ? (
-                <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
+                <div className="flex items-center justify-between bg-mt-bg border border-mt-regua-fina px-3 py-2 text-xs text-mt-neutral-700">
                   <span>Cadastrando Novo Fornecedor...</span>
                   <button
                     type="button"
@@ -488,7 +488,7 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                       setShowNewPartnerForm(false);
                       setFornecedor("");
                     }}
-                    className="text-[9px] font-bold text-brand-text/40 uppercase hover:text-brand-text cursor-pointer"
+                    className="text-[9px] font-bold text-mt-neutral-600 uppercase hover:text-mt-ink cursor-pointer"
                   >
                     Voltar
                   </button>
@@ -506,7 +506,7 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                       setFornecedor(e.target.value);
                     }
                   }}
-                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                  className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
                 >
                   <option value="">Selecione um fornecedor...</option>
                   {partners.filter(p => p.tipo === "fornecedor" || p.tipo === "ambos").map(p => (
@@ -518,9 +518,9 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Cliente</label>
+              <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Cliente</label>
               {showNewPartnerForm ? (
-                <div className="flex items-center justify-between bg-brand-bg/40 border border-brand-border/40 rounded-xl px-3 py-2 text-xs text-brand-text/60">
+                <div className="flex items-center justify-between bg-mt-bg border border-mt-regua-fina px-3 py-2 text-xs text-mt-neutral-700">
                   <span>Cadastrando Novo Cliente...</span>
                   <button
                     type="button"
@@ -528,7 +528,7 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                       setShowNewPartnerForm(false);
                       setCliente("");
                     }}
-                    className="text-[9px] font-bold text-brand-text/40 uppercase hover:text-brand-text cursor-pointer"
+                    className="text-[9px] font-bold text-mt-neutral-600 uppercase hover:text-mt-ink cursor-pointer"
                   >
                     Voltar
                   </button>
@@ -546,7 +546,7 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                       setCliente(e.target.value);
                     }
                   }}
-                  className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+                  className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
                 >
                   <option value="">Selecione um cliente...</option>
                   {partners.filter(p => p.tipo === "cliente" || p.tipo === "ambos").map(p => (
@@ -560,13 +560,13 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
 
           {/* New Partner Inline Form */}
           {showNewPartnerForm && (
-            <div className="flex flex-col gap-3.5 p-4.5 bg-brand-bg/50 border border-brand-border/40 rounded-2xl md:col-span-2 select-none animate-fadeIn">
-              <span className="text-[9px] font-bold text-brand-gold uppercase tracking-widest block">
+            <div className="flex flex-col gap-3.5 p-4.5 bg-mt-bg border border-mt-regua-fina md:col-span-2 select-none">
+              <span className="mt-rotulo mt-rotulo-accent block">
                 Novo Cadastro de Parceiro ({tipo === "pagar" ? "Fornecedor" : "Cliente"})
               </span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1 md:col-span-2">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Nome do Parceiro</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Nome do Parceiro</label>
                   <input
                     type="text"
                     required
@@ -577,37 +577,37 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
                       else setCliente(e.target.value);
                     }}
                     placeholder="Ex: Auto Peças São Paulo, João Silva"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Documento (CPF / CNPJ)</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Documento (CPF / CNPJ)</label>
                   <input
                     type="text"
                     value={newPartnerDoc}
                     onChange={(e) => setNewPartnerDoc(e.target.value)}
                     placeholder="00.000.000/0001-00"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">Telefone</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">Telefone</label>
                   <input
                     type="text"
                     value={newPartnerPhone}
                     onChange={(e) => setNewPartnerPhone(e.target.value)}
                     placeholder="(11) 99999-9999"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                   />
                 </div>
                 <div className="flex flex-col gap-1 md:col-span-2">
-                  <label className="text-[9px] font-bold uppercase text-brand-text/50 pl-0.5">E-mail</label>
+                  <label className="text-[9px] font-bold uppercase text-mt-neutral-700 pl-0.5">E-mail</label>
                   <input
                     type="email"
                     value={newPartnerEmail}
                     onChange={(e) => setNewPartnerEmail(e.target.value)}
                     placeholder="contato@empresa.com.br"
-                    className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-10 w-full focus:outline-none focus:border-brand-primary"
+                    className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full focus:outline-none focus:border-mt-accent"
                   />
                 </div>
               </div>
@@ -616,11 +616,11 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
 
           {/* Forma de Pagamento */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Forma de Pagamento</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Forma de Pagamento</label>
             <select
               value={formaPagamento}
               onChange={(e) => setFormaPagamento(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="">Selecione...</option>
               <option value="pix">PIX</option>
@@ -636,11 +636,11 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
 
           {/* Vinculo de Veículo */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Vincular a Veículo (Opcional)</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Vincular a Veículo (Opcional)</label>
             <select
               value={veiculoId}
               onChange={(e) => setVeiculoId(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-4 h-11 w-full focus:outline-none focus:border-brand-primary cursor-pointer"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 h-11 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
             >
               <option value="">Não vincular</option>
               {vehicles.map((v) => (
@@ -653,29 +653,29 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
 
           {/* Observações */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
-            <label className="text-[10px] font-bold uppercase text-brand-text/50 pl-1">Observações</label>
+            <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Observações</label>
             <textarea
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Detalhes adicionais..."
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text p-4 h-24 w-full focus:outline-none focus:border-brand-primary resize-none"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink p-4 h-24 w-full focus:outline-none focus:border-mt-accent resize-none"
             />
           </div>
         </div>
 
         {/* Submit Actions */}
-        <div className="flex items-center gap-2.5 mt-2 border-t border-brand-border/40 pt-4">
+        <div className="flex items-center gap-2.5 mt-2 border-t border-mt-regua-fina pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 h-11 bg-transparent hover:bg-brand-card/50 text-brand-text/70 hover:text-brand-text border border-brand-border text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer"
+            className="flex-1 h-11 bg-transparent hover:bg-mt-surface text-mt-neutral-700 hover:text-mt-ink border border-mt-regua-fina text-[11px] font-bold uppercase tracking-wider cursor-pointer"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={isLoading}
-            className="flex-1 h-11 bg-brand-primary text-white text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-50"
+            className="flex-1 h-11 bg-mt-accent text-mt-inverso text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
           >
             {isLoading ? "Salvando..." : contaId ? "Salvar Alterações" : "Lançar Conta"}
           </button>

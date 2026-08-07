@@ -140,24 +140,24 @@ export default function FinanceRelatorios() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl">
       {/* Top Filter and Tab Selection */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-brand-card/30 border border-brand-border/40 rounded-2xl p-4 select-none backdrop-blur-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-mt-surface border border-mt-regua-fina p-4 select-none">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab("dre")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
               activeTab === "dre"
-                ? "bg-brand-primary text-white shadow-md"
-                : "bg-brand-bg text-brand-text/70 hover:bg-brand-primary/10 hover:text-brand-primary border border-brand-border/50"
+                ? "bg-mt-accent text-mt-inverso"
+                : "bg-mt-bg text-mt-neutral-700 hover:bg-mt-accent-100 hover:text-mt-accent border border-mt-regua-fina"
             }`}
           >
             📊 DRE Gerencial Revenda
           </button>
           <button
             onClick={() => setActiveTab("categorias")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
               activeTab === "categorias"
-                ? "bg-brand-primary text-white shadow-md"
-                : "bg-brand-bg text-brand-text/70 hover:bg-brand-primary/10 hover:text-brand-primary border border-brand-border/50"
+                ? "bg-mt-accent text-mt-inverso"
+                : "bg-mt-bg text-mt-neutral-700 hover:bg-mt-accent-100 hover:text-mt-accent border border-mt-regua-fina"
             }`}
           >
             📁 Fechamento por Categoria
@@ -166,11 +166,11 @@ export default function FinanceRelatorios() {
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-brand-text/60 uppercase">Mês:</span>
+            <span className="text-[10px] font-bold text-mt-neutral-700 uppercase">Mês:</span>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-9 cursor-pointer outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-9 cursor-pointer outline-none focus:border-mt-accent"
             >
               <option value="1">Janeiro</option>
               <option value="2">Fevereiro</option>
@@ -187,11 +187,11 @@ export default function FinanceRelatorios() {
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-brand-text/60 uppercase">Ano:</span>
+            <span className="text-[10px] font-bold text-mt-neutral-700 uppercase">Ano:</span>
             <select
               value={year}
               onChange={(e) => setYear(e.target.value)}
-              className="bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text px-3 h-9 cursor-pointer outline-none focus:border-brand-primary"
+              className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-9 cursor-pointer outline-none focus:border-mt-accent"
             >
               <option value="2025">2025</option>
               <option value="2026">2026</option>
@@ -202,79 +202,79 @@ export default function FinanceRelatorios() {
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs px-4 py-3 rounded-xl select-none">
+        <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-3 select-none">
           {error}
         </div>
       )}
 
       {/* DRE GERENCIAL VIEW */}
       {activeTab === "dre" && (
-        <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-6 shadow-xl">
-          <div className="flex items-center justify-between border-b border-brand-border/40 pb-4">
+        <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-6">
+          <div className="flex items-center justify-between border-b border-mt-regua-fina pb-4">
             <div>
-              <h3 className="text-sm font-extrabold uppercase text-brand-text tracking-wider">
+              <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink tracking-wider">
                 DRE — Demonstração do Resultado do Exercício
               </h3>
-              <p className="text-[11px] text-brand-text/70 mt-1">
-                Estruturado rigorosamente conforme o <strong className="text-brand-primary">Plano de Contas Oficial de Revenda de Veículos</strong>.
+              <p className="text-[11px] text-mt-neutral-700 mt-1">
+                Estruturado rigorosamente conforme o <strong className="text-mt-accent">Plano de Contas Oficial de Revenda de Veículos</strong>.
               </p>
             </div>
             <button
               onClick={() => window.print()}
-              className="px-3.5 py-2 bg-brand-bg border border-brand-border hover:border-brand-primary text-brand-text text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all"
+              className="px-3.5 py-2 bg-mt-bg border border-mt-regua-fina hover:border-mt-accent text-mt-ink text-[10px] font-bold uppercase tracking-wider transition-all"
             >
               🖨️ Imprimir DRE
             </button>
           </div>
 
           {isLoading ? (
-            <div className="py-16 text-center text-xs text-brand-text/50">Calculando DRE do período...</div>
+            <div className="py-16 text-center text-xs text-mt-neutral-700">Calculando DRE do período...</div>
           ) : (
-            <div className="flex flex-col divide-y divide-brand-border/40 font-mono text-xs">
+            <div className="flex flex-col divide-y divide-mt-regua-fina font-mono text-xs">
               {/* 003.001 - RECEITAS OPERACIONAIS */}
-              <div className="flex items-center justify-between py-3.5 pl-2 font-bold text-emerald-500 bg-emerald-500/5 rounded-lg px-3">
+              <div className="flex items-center justify-between py-3.5 pl-2 font-bold text-mt-accent-800 bg-mt-surface px-3">
                 <span>(+) 003.001 - RECEITAS OPERACIONAIS (Venda Veículos, F&I, Seguros)</span>
                 <span>{formatPrice(receitasOperacionais?.total || 0)}</span>
               </div>
 
               {/* 003.003 - CMV / CSV */}
-              <div className="flex items-center justify-between py-3.5 pl-6 text-red-400">
+              <div className="flex items-center justify-between py-3.5 pl-6 text-mt-accent">
                 <span>(-) 003.003 - CUSTOS DOS VEÍCULOS E SERVIÇOS (CMV/CSV)</span>
                 <span>{formatPrice(custosCMV?.total || 0)}</span>
               </div>
 
               {/* LUCRO BRUTO OPERACIONAL */}
-              <div className="flex items-center justify-between py-3.5 pl-2 font-extrabold text-brand-text bg-brand-primary/10 border-t border-b border-brand-primary/30 px-3">
+              <div className="flex items-center justify-between py-3.5 pl-2 font-extrabold text-mt-ink bg-mt-accent-100 border-t border-b border-mt-accent-300 px-3">
                 <span className="uppercase text-[11px]">(=) LUCRO BRUTO OPERACIONAL</span>
-                <span className={lucroBruto >= 0 ? "text-emerald-500" : "text-red-500"}>{formatPrice(lucroBruto)}</span>
+                <span className={lucroBruto >= 0 ? "text-mt-accent-800" : "text-mt-accent"}>{formatPrice(lucroBruto)}</span>
               </div>
 
               {/* 003.004 - COMISSÕES E VENDAS */}
-              <div className="flex items-center justify-between py-3.5 pl-6 text-red-400">
+              <div className="flex items-center justify-between py-3.5 pl-6 text-mt-accent">
                 <span>(-) 003.004 - CUSTOS DE VENDAS E COMISSÕES</span>
                 <span>{formatPrice(custosComissoes?.total || 0)}</span>
               </div>
 
               {/* 003.005 - DESPESAS OPERACIONAIS */}
-              <div className="flex items-center justify-between py-3.5 pl-6 text-red-400">
+              <div className="flex items-center justify-between py-3.5 pl-6 text-mt-accent">
                 <span>(-) 003.005 - DESPESAS OPERACIONAIS (Admin, Pessoal, Mkt, Veículos)</span>
                 <span>{formatPrice(despesasOperacionais?.total || 0)}</span>
               </div>
 
               {/* EBITDA / RESULTADO OPERACIONAL */}
-              <div className="flex items-center justify-between py-3.5 pl-2 font-extrabold text-brand-text bg-brand-bg/80 border-t border-b border-brand-border/80 px-3">
+              <div className="flex items-center justify-between py-3.5 pl-2 font-extrabold text-mt-ink bg-mt-bg border-t border-b border-mt-regua-fina px-3">
                 <span className="uppercase text-[11px]">(=) RESULTADO OPERACIONAL LÍQUIDO (EBITDA)</span>
-                <span className={ebitda >= 0 ? "text-emerald-500" : "text-red-500"}>{formatPrice(ebitda)}</span>
+                <span className={ebitda >= 0 ? "text-mt-accent-800" : "text-mt-accent"}>{formatPrice(ebitda)}</span>
               </div>
 
               {/* 003.006 - DESPESAS FINANCEIRAS E DIVERSAS */}
-              <div className="flex items-center justify-between py-3.5 pl-6 text-red-400">
+              <div className="flex items-center justify-between py-3.5 pl-6 text-mt-accent">
                 <span>(-) 003.006 - MOVIMENTAÇÕES DIVERSAS E PRÓ-LABORE</span>
                 <span>{formatPrice(despesasFinanceiras?.total || 0)}</span>
               </div>
 
               {/* RESULTADO LÍQUIDO FINAL */}
-              <div className="flex items-center justify-between py-4 pl-2 font-black text-sm text-white bg-brand-primary rounded-xl px-4 shadow-lg mt-2">
+              <div className="flex items-center justify-between py-4 pl-2 font-extrabold text-sm text-mt-inverso bg-mt-accent px-4 mt-2">
                 <span className="uppercase tracking-wider">(=) RESULTADO LÍQUIDO DO EXERCÍCIO</span>
                 <span>{formatPrice(resultadoLiquido)}</span>
               </div>
@@ -286,37 +286,37 @@ export default function FinanceRelatorios() {
       {/* CATEGORIES BREAKDOWN VIEW */}
       {activeTab === "categorias" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md">
-            <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider border-b border-brand-border/30 pb-3 mb-4 select-none">
+          <div className="lg:col-span-2 bg-mt-surface border border-mt-regua-fina p-6">
+            <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider border-b border-mt-regua-fina pb-3 mb-4 select-none">
               Fechamento por Categoria
             </h3>
             {isLoading ? (
-              <div className="py-12 text-center text-xs text-brand-text/50">Carregando relatório...</div>
+              <div className="py-12 text-center text-xs text-mt-neutral-700">Carregando relatório...</div>
             ) : data.length === 0 ? (
-              <div className="py-12 text-center text-xs text-brand-text/50">Sem lançamentos para o período filtrado.</div>
+              <div className="py-12 text-center text-xs text-mt-neutral-700">Sem lançamentos para o período filtrado.</div>
             ) : (
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-brand-border/40 text-brand-text/60 font-bold uppercase tracking-wider">
+                    <tr className="border-b border-mt-regua-fina text-mt-neutral-700 font-bold uppercase tracking-wider">
                       <th className="pb-3 pl-2">Categoria</th>
                       <th className="pb-3">Tipo</th>
                       <th className="pb-3 pr-2 text-right">Total Acumulado</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-brand-border/30">
+                  <tbody className="divide-y divide-mt-regua-fina">
                     {data.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-brand-primary/5 transition-colors">
+                      <tr key={idx} className="hover:bg-mt-accent-100 transition-colors">
                         <td className="py-3 pl-2 font-medium flex items-center gap-2">
                           <span>{item.categoria_icone}</span>
-                          <span className="text-brand-text font-semibold">{item.categoria_nome}</span>
+                          <span className="text-mt-ink font-semibold">{item.categoria_nome}</span>
                         </td>
                         <td className="py-3">
                           <span
-                            className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 border ${
                               item.tipo === "receita"
-                                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                                : "bg-red-500/10 text-red-500 border-red-500/20"
+                                ? "bg-mt-surface text-mt-accent-800 border-mt-regua-fina"
+                                : "bg-mt-accent-100 text-mt-accent border-mt-accent-300"
                             }`}
                           >
                             {item.tipo}
@@ -324,7 +324,7 @@ export default function FinanceRelatorios() {
                         </td>
                         <td
                           className={`py-3 pr-2 text-right font-extrabold font-mono ${
-                            item.tipo === "receita" ? "text-emerald-500" : "text-red-500"
+                            item.tipo === "receita" ? "text-mt-accent-800" : "text-mt-accent"
                           }`}
                         >
                           {formatPrice(item.valor_total)}
@@ -338,23 +338,23 @@ export default function FinanceRelatorios() {
           </div>
 
           {/* Right Summary Card */}
-          <div className="bg-brand-card/30 border border-brand-border/40 rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
-            <h3 className="text-xs font-extrabold uppercase text-brand-text tracking-wider border-b border-brand-border/30 pb-3 select-none">
+          <div className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4">
+            <h3 className="text-xs font-extrabold uppercase text-mt-ink tracking-wider border-b border-mt-regua-fina pb-3 select-none">
               Resumo do Período
             </h3>
             <div className="flex justify-between items-center text-xs">
-              <span className="text-brand-text/70 font-medium uppercase">Entradas / Receitas:</span>
-              <span className="font-extrabold font-mono text-emerald-500">{formatPrice(totalReceitas)}</span>
+              <span className="text-mt-neutral-700 font-medium uppercase">Entradas / Receitas:</span>
+              <span className="font-extrabold font-mono text-mt-accent-800">{formatPrice(totalReceitas)}</span>
             </div>
             <div className="flex justify-between items-center text-xs">
-              <span className="text-brand-text/70 font-medium uppercase">Saídas / Despesas:</span>
-              <span className="font-extrabold font-mono text-red-500">{formatPrice(totalDespesas)}</span>
+              <span className="text-mt-neutral-700 font-medium uppercase">Saídas / Despesas:</span>
+              <span className="font-extrabold font-mono text-mt-accent">{formatPrice(totalDespesas)}</span>
             </div>
-            <div className="border-t border-brand-border/40 pt-3 flex justify-between items-center text-xs">
-              <span className="text-brand-text font-bold uppercase">Resultado do Mês:</span>
+            <div className="border-t border-mt-regua-fina pt-3 flex justify-between items-center text-xs">
+              <span className="text-mt-ink font-bold uppercase">Resultado do Mês:</span>
               <span
-                className={`font-black font-mono text-sm ${
-                  totalReceitas - totalDespesas >= 0 ? "text-emerald-500" : "text-red-500"
+                className={`font-extrabold font-mono text-sm ${
+                  totalReceitas - totalDespesas >= 0 ? "text-mt-accent-800" : "text-mt-accent"
                 }`}
               >
                 {formatPrice(totalReceitas - totalDespesas)}
