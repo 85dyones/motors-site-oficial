@@ -10,8 +10,21 @@ versionadas em `supabase/migrations/`. Nunca altere schema direto pelo painel."*
 supabase/
 ├── migrations/     aplicadas em ordem por `supabase db push`
 ├── pendente/       SQL pronto, MAS que não pode ser aplicado ainda
+├── manutencao/     correção de DADO, pontual — nunca vira migração
 └── README.md
 ```
+
+`pendente/` e `manutencao/` não são a mesma coisa, e a diferença importa:
+
+- **`pendente/`** é antessala de **migração de schema**: o arquivo espera um
+  passo manual (um cutover coordenado, por exemplo) e, depois de aplicado,
+  **move para `migrations/`**. Um arquivo esquecido lá é um passo que ninguém
+  deu — `tests/migracoes.test.ts` falha se sobrar algum.
+- **`manutencao/`** é **correção de dado** que roda uma vez e fica arquivada
+  como registro do que foi feito. Não descreve o estado desejado do schema,
+  então nunca vira migração e não entra em `db push`. Cada arquivo traz a
+  conferência antes e a verificação depois; o passo destrutivo fica comentado,
+  para não rodar por copiar-colar distraído.
 
 `pendente/` não é uma convenção do Supabase CLI — é uma salvaguarda deste
 projeto. Ver o passo 4 do runbook abaixo para o motivo.
@@ -22,6 +35,93 @@ projeto. Ver o passo 4 do runbook abaixo para o motivo.
 |---|---|
 | `20260803120000_baseline_inventario.sql` | Versiona a tabela de inventário, que nunca esteve sob controle de versão. Schema **reconstruído**, não verificado. |
 | `20260803120100_renomear_veiculos_para_estoque_motors.sql` | `veiculos` → `estoque_motors` + view de compatibilidade. |
+| `20260804193000_remover_view_compat_veiculos.sql` | Remove a view de compatibilidade após o cutover. |
+| `20260804200000_adicionar_last_seen_at.sql` | Reconciliação com o feed: quem não veio no último sync não é exibido. |
+| `20260807120000_midia_paga_e_auditoria.sql` | Módulo de mídia paga (telas A13/A14) + trilha de auditoria (A17), com RLS. Auditoria é append-only por ausência de policy de UPDATE/DELETE. |
+| `20260807160000_ficha_propria_do_painel.sql` | Ficha própria do painel em `estoque_motors`: `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`. **Nunca entram no mapeamento do sync n8n** — ver contrato abaixo. |
+
+## Runbook — aplicar migração quando `api.supabase.com` falha
+
+Sintoma: `Failed to fetch (api.supabase.com)` em `supabase login`, `link` ou
+`db push`. Diagnosticado em 2026-08-07.
+
+**Não é o banco.** Medido no dia: o PostgREST do projeto responde 200 e
+`api.supabase.com` responde `Unauthorized` — a rede alcança os dois. O que
+falha é a **API de gerenciamento**, usada por `login` e `link`. Duas causas
+somam:
+
+1. O projeto **nunca foi linkado** (não há `supabase/config.toml` nem
+   `.temp/`), e `db push` sem link precisa da API de gerenciamento.
+2. `db.<ref>.supabase.co` é **IPv6-only** (sem registro A). Em rede sem IPv6
+   funcional, a conexão direta ao banco também falha — e o erro se parece com
+   o mesmo "failed to fetch".
+
+### Caminho que não passa pela API de gerenciamento
+
+Use `--db-url` com o **session pooler**, que tem IPv4
+(`aws-0-sa-east-1.pooler.supabase.com` → 54.94.90.106). A string sai do
+dashboard em **Connect → Session pooler** (porta 5432; a 6543, de transaction
+mode, não serve para DDL).
+
+⚠️ A URI contém a senha do banco: não a cole em chat, ticket ou commit.
+
+**Passo 1 — conferir o histórico remoto ANTES de empurrar:**
+
+```
+supabase migration list --db-url "<uri-do-session-pooler>"
+```
+
+**Passo 2 — só então:**
+
+```
+supabase db push --db-url "<uri-do-session-pooler>"
+```
+
+### 🔴 Por que o passo 1 não é opcional
+
+Se `supabase_migrations.schema_migrations` estiver **vazia** no remoto, o push
+tenta reaplicar o histórico inteiro — e o baseline não é seguro nesse cenário:
+
+- `20260803120000` faz `CREATE TABLE IF NOT EXISTS public.veiculos`. Como
+  `veiculos` virou `estoque_motors` no cutover, o `IF NOT EXISTS` não protege
+  nada: **cria uma tabela `veiculos` vazia** e, em seguida, policies públicas
+  de INSERT/UPDATE sobre ela.
+- `20260804193000` faz `DROP VIEW IF EXISTS public.veiculos`. Sobre uma
+  *tabela*, isso é erro (`is not a view`) e **aborta o push no meio**,
+  deixando a tabela fantasma para trás.
+
+Se a lista vier vazia, registre as quatro antigas como aplicadas — elas estão,
+de fato — e só depois empurre as novas:
+
+```
+supabase migration repair --status applied 20260803120000 20260803120100 20260804193000 20260804200000 --db-url "<uri-do-session-pooler>"
+```
+
+(É o mesmo remédio que o cabeçalho do baseline já previa.)
+
+### Alternativa: SQL Editor do dashboard
+
+Cole o conteúdo **integral e sem edição** de cada arquivo de
+`supabase/migrations/`, na ordem do nome. Isso não viola o `CLAUDE.md:62`
+("nunca altere schema direto pelo painel"): a regra existe contra schema *não
+versionado*, e aqui o arquivo versionado continua sendo a fonte de verdade —
+o que muda é só o transporte. Depois, quando o CLI voltar a funcionar, alinhe
+o histórico com `supabase migration repair --status applied <timestamp>` para
+cada uma aplicada por essa via.
+
+## ⚠️ Contrato com o sync — campos do painel
+
+Decisão do dono em 2026-08-07: o RevendaMais será descontinuado em breve, e os
+campos que o feed não fornece são preenchidos **pelo painel**. A regra, literal:
+*"se o campo não existe no sync, não sobrescreva, mantenha o atual, mesmo que
+seja em branco."*
+
+O upsert do workflow n8n (`Antigravity - Sincronizador de Estoque`) só escreve
+as colunas que ele nomeia. As colunas da migração `20260807160000` ficam FORA
+desse mapeamento — é isso que preserva o que foi digitado no painel a cada
+ciclo. **Não adicione essas colunas ao workflow**: o feed não as tem, e o
+upsert as sobrescreveria com vazio. Quando o RevendaMais desligar, o sync para
+e todas as colunas passam a ser do painel, sem migração extra.
 
 ---
 
