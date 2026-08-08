@@ -176,3 +176,51 @@ describe("passo 4 do cutover — remoção da view", () => {
     expect(pendentes, `Pendentes não aplicados: ${pendentes.join(", ")}`).toEqual([]);
   });
 });
+
+describe("RLS de escrita do estoque", () => {
+  const sql = sqlExecutavel(
+    join(DIR_MIGRACOES, "20260808120000_rls_escrita_autenticada_estoque.sql")
+  );
+
+  it("restringe UPDATE e INSERT ao papel authenticated", () => {
+    // O buraco do §3.4 era exatamente a ausência do `TO`: sem ele a policy
+    // vale para `public`, e a anon key vai no bundle do browser.
+    expect(sql).toMatch(/FOR UPDATE TO authenticated/i);
+    expect(sql).toMatch(/FOR INSERT TO authenticated/i);
+  });
+
+  it("nenhuma policy de escrita fica sem `TO`", () => {
+    // Varre cada CREATE POLICY e cobra o papel em todas que não são SELECT.
+    const criacoes = sql.match(/CREATE POLICY[\s\S]*?;/gi) ?? [];
+    const escritaSemPapel = criacoes.filter(
+      (c) => /FOR (UPDATE|INSERT|DELETE|ALL)/i.test(c) && !/TO\s+authenticated/i.test(c),
+    );
+    expect(
+      escritaSemPapel,
+      "Policy de escrita sem `TO authenticated` — vale para public:\n" +
+        escritaSemPapel.join("\n"),
+    ).toEqual([]);
+  });
+
+  it("preserva a leitura pública — é a vitrine do site", () => {
+    // Fechar o SELECT deixaria o catálogo vazio para o visitante anônimo.
+    expect(sql).toMatch(/FOR SELECT USING \(true\)/i);
+  });
+
+  it("aborta se sobrar escrita aberta ao público", () => {
+    // A migração se autoconfere: sem isso, "rodei" não é o mesmo que "fechou".
+    expect(sql).toMatch(/FROM pg_policies/i);
+    expect(sql).toMatch(/RAISE EXCEPTION/i);
+    expect(sql).toMatch(/'anon' = ANY\(roles\)/i);
+  });
+
+  it("não apaga policy de leitura junto com as de escrita", () => {
+    const drops = sql.match(/DROP POLICY IF EXISTS "([^"]+)"/gi) ?? [];
+    expect(drops.length).toBeGreaterThan(0);
+    for (const d of drops) {
+      expect(d.toLowerCase(), `DROP suspeito de leitura: ${d}`).not.toContain("read");
+      expect(d.toLowerCase()).not.toContain("leitura");
+      expect(d.toLowerCase()).not.toContain("select");
+    }
+  });
+});

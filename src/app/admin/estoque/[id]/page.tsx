@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import EditorDeVeiculo from "../../../../components/admin/EditorDeVeiculo";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { visitasDaPagina } from "../../../../lib/analytics";
+import { normalizarPerfil } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Editor de Veículo — Motors Showcase",
+  title: "Editor de Veículo — Motors Store",
   description: "Fotos, ficha técnica, opcionais e checklist de publicação.",
 };
 
@@ -33,5 +34,23 @@ export default async function EditorDeVeiculoPage({
   // `null` quando o GA4 não está configurado: a tela mostra "—", não zero.
   const visitas = await visitasDaPagina(String(data.id), 30);
 
-  return <EditorDeVeiculo inicial={data} visitas30Dias={visitas} />;
+  // O perfil decide o que a tela desenha: campo que este perfil não grava não
+  // é renderizado — e, por não existir no HTML, também não vaza valor (foi o
+  // caso do preço de compra). O layout do admin já garantiu a sessão.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user!.id)
+    .single();
+
+  return (
+    <EditorDeVeiculo
+      inicial={data}
+      visitas30Dias={visitas}
+      perfil={normalizarPerfil(profile?.role)}
+    />
+  );
 }

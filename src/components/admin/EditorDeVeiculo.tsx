@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -106,11 +107,20 @@ const campoCaixa =
 export default function EditorDeVeiculo({
   inicial,
   visitas30Dias,
+  perfil,
 }: {
   inicial: VeiculoDb;
   /** `null` = GA4 não configurado ou indisponível. Nunca confundir com zero. */
   visitas30Dias: number | null;
+  /** Perfil de quem abriu a tela. Governa o que aparece e o que é enviado. */
+  perfil: Perfil;
 }) {
+  /** "Tudo que for negado some da interface, não fica cinza" — regra do doc
+   *  A17. Campo que este perfil não grava não é desenhado, e por isso também
+   *  não entra no corpo do PATCH: mandar um campo proibido faria a rota
+   *  devolver 403 e derrubaria o salvamento inteiro, inclusive o que a pessoa
+   *  podia mesmo alterar. */
+  const podeGravar = (campo: string) => podeGravarCampo(perfil, campo);
   const [aba, setAba] = useState<Aba>("fotos");
   const [v, setV] = useState<VeiculoDb>(inicial);
   const [salvo, setSalvo] = useState<VeiculoDb>(inicial);
@@ -186,12 +196,18 @@ export default function EditorDeVeiculo({
       ok: Boolean(v.opcionais),
       estado: v.opcionais ? "OK" : "PENDENTE",
     },
-    {
-      l: "Preço de compra lançado",
-      d: "Sem ele a margem por veículo não fecha.",
-      ok: v.preco_compra !== null && v.preco_compra !== undefined,
-      estado: v.preco_compra ? "OK" : "PENDENTE",
-    },
+    // Só para quem vê custo: "PENDENTE" aqui já contaria a quem não pode ver
+    // que o preço de compra está (ou não) lançado.
+    ...(podeGravarCampo(perfil, "preco_compra")
+      ? [
+          {
+            l: "Preço de compra lançado",
+            d: "Sem ele a margem por veículo não fecha.",
+            ok: v.preco_compra !== null && v.preco_compra !== undefined,
+            estado: v.preco_compra ? "OK" : "PENDENTE",
+          },
+        ]
+      : []),
     {
       l: "Carroceria e perfil",
       d: "Alimentam os filtros e a curadoria do site.",
@@ -211,25 +227,30 @@ export default function EditorDeVeiculo({
     setErro("");
     setAviso("");
     try {
+      const tudo: Record<string, unknown> = {
+        placa: v.placa,
+        motor: v.motor,
+        cor_interna: v.cor_interna,
+        donos_anteriores: v.donos_anteriores,
+        garantia_fabrica: v.garantia_fabrica,
+        preco_compra: v.preco_compra,
+        descricao: v.descricao,
+        laudo_pericia: v.laudo_pericia,
+        opcionais: v.opcionais,
+        status_tag: v.status_tag,
+        status_tag_color: v.status_tag_color,
+        vendido: v.vendido,
+        tipo: v.tipo,
+        perfil_uso: v.perfil_uso,
+      };
+      const corpo = Object.fromEntries(
+        Object.entries(tudo).filter(([campo]) => podeGravar(campo)),
+      );
+
       const res = await fetch(`/api/estoque/${v.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          placa: v.placa,
-          motor: v.motor,
-          cor_interna: v.cor_interna,
-          donos_anteriores: v.donos_anteriores,
-          garantia_fabrica: v.garantia_fabrica,
-          preco_compra: v.preco_compra,
-          descricao: v.descricao,
-          laudo_pericia: v.laudo_pericia,
-          opcionais: v.opcionais,
-          status_tag: v.status_tag,
-          status_tag_color: v.status_tag_color,
-          vendido: v.vendido,
-          tipo: v.tipo,
-          perfil_uso: v.perfil_uso,
-        }),
+        body: JSON.stringify(corpo),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Falha ao salvar");
@@ -252,7 +273,14 @@ export default function EditorDeVeiculo({
     { id: "fotos", l: "Fotos e mídia", nota: String(fotos.length) },
     { id: "ficha", l: "Ficha técnica", nota: fichaPropriaCompleta ? "COMPLETA" : "PENDENTE", alerta: !fichaPropriaCompleta },
     { id: "opcionais", l: "Opcionais", nota: v.opcionais ? "OK" : "VAZIO", alerta: !v.opcionais },
-    { id: "preco", l: "Preço e margem", nota: v.preco_compra ? "OK" : "PENDENTE", alerta: !v.preco_compra },
+    {
+      id: "preco",
+      l: podeGravar("preco_compra") ? "Preço e margem" : "Preço e destaque",
+      // Sem direito a custo, a aba não anuncia estado nenhum — o "PENDENTE"
+      // era leitura indireta do preço de compra.
+      nota: podeGravar("preco_compra") ? (v.preco_compra ? "OK" : "PENDENTE") : "",
+      alerta: podeGravar("preco_compra") ? !v.preco_compra : false,
+    },
     { id: "texto", l: "Texto e SEO", nota: v.descricao ? "OK" : "VAZIO", alerta: !v.descricao },
   ];
 
@@ -433,7 +461,7 @@ export default function EditorDeVeiculo({
                   { campo: "motor" as const, l: "Motor", ph: "2.0 turbo · 249 cv" },
                   { campo: "cor_interna" as const, l: "Cor interna", ph: "Ebony" },
                   { campo: "garantia_fabrica" as const, l: "Garantia de fábrica", ph: "Até 03/2027" },
-                ].map((c) => (
+                ].filter((c) => podeGravar(c.campo)).map((c) => (
                   <div key={c.campo} className="flex flex-col gap-1.5">
                     <label className={rotuloCampo} htmlFor={`f-${c.campo}`}>{c.l}</label>
                     <input
@@ -447,19 +475,21 @@ export default function EditorDeVeiculo({
                     />
                   </div>
                 ))}
-                <div className="flex flex-col gap-1.5">
-                  <label className={rotuloCampo} htmlFor="f-donos">Donos anteriores</label>
-                  <input
-                    id="f-donos"
-                    type="number"
-                    min={0}
-                    value={v.donos_anteriores ?? ""}
-                    onChange={(e) =>
-                      set("donos_anteriores", e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    className={campoCaixa}
-                  />
-                </div>
+                {podeGravar("donos_anteriores") && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className={rotuloCampo} htmlFor="f-donos">Donos anteriores</label>
+                    <input
+                      id="f-donos"
+                      type="number"
+                      min={0}
+                      value={v.donos_anteriores ?? ""}
+                      onChange={(e) =>
+                        set("donos_anteriores", e.target.value === "" ? null : Number(e.target.value))
+                      }
+                      className={campoCaixa}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 border-t-2 border-mt-regua pt-4">
@@ -564,48 +594,58 @@ export default function EditorDeVeiculo({
                     {v.preco_original ? brl(v.preco_original) : "—"}
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className={rotuloCampo} htmlFor="f-compra">
-                    Preço de compra · nosso
-                  </label>
-                  <input
-                    id="f-compra"
-                    type="number"
-                    min={0}
-                    value={v.preco_compra ?? ""}
-                    placeholder="Ex: 248000"
-                    onChange={(e) =>
-                      set("preco_compra", e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    className={`${campoCaixa} border-mt-accent text-lg font-extrabold`}
-                  />
-                </div>
+                {podeGravar("preco_compra") && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className={rotuloCampo} htmlFor="f-compra">
+                      Preço de compra · nosso
+                    </label>
+                    <input
+                      id="f-compra"
+                      type="number"
+                      min={0}
+                      value={v.preco_compra ?? ""}
+                      placeholder="Ex: 248000"
+                      onChange={(e) =>
+                        set("preco_compra", e.target.value === "" ? null : Number(e.target.value))
+                      }
+                      className={`${campoCaixa} border-mt-accent text-lg font-extrabold`}
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="mt-5 flex flex-wrap items-baseline gap-3 border-t-2 border-mt-regua pt-4">
-                <span className="text-sm text-mt-neutral-800">Margem bruta projetada</span>
-                <span
-                  className={`ml-auto text-xl font-extrabold tabular-nums tracking-[-.03em] ${
-                    margem === null
-                      ? "text-mt-neutral-500"
-                      : margem >= 0
-                        ? "text-mt-accent-800"
-                        : "text-mt-accent"
-                  }`}
-                >
-                  {margem === null
-                    ? "—"
-                    : `${brl(margem)} · ${margemPct!.toFixed(1).replace(".", ",")}%`}
-                </span>
-              </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-mt-neutral-700">
-                Bruta: preço anunciado menos o de compra. Não inclui preparação, documentação
-                nem custo de pátio — esses entram por lançamento no financeiro e aparecem em
-                <Link href="/admin/financeiro/margens" className="ml-1 font-semibold text-mt-accent underline underline-offset-2">
-                  margem por veículo
-                </Link>
-                .
-              </p>
+              {/* Margem sai junto com o custo, e por não-renderização, não por
+                  CSS: ela é o custo por subtração, e um `hidden` deixaria o
+                  valor no HTML para quem abrir o código-fonte. */}
+              {podeGravar("preco_compra") && (
+                <>
+                  <div className="mt-5 flex flex-wrap items-baseline gap-3 border-t-2 border-mt-regua pt-4">
+                    <span className="text-sm text-mt-neutral-800">Margem bruta projetada</span>
+                    <span
+                      className={`ml-auto text-xl font-extrabold tabular-nums tracking-[-.03em] ${
+                        margem === null
+                          ? "text-mt-neutral-500"
+                          : margem >= 0
+                            ? "text-mt-accent-800"
+                            : "text-mt-accent"
+                      }`}
+                    >
+                      {margem === null
+                        ? "—"
+                        : `${brl(margem)} · ${margemPct!.toFixed(1).replace(".", ",")}%`}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-mt-neutral-700">
+                    Bruta: preço anunciado menos o de compra. Não inclui preparação,
+                    documentação nem custo de pátio — esses entram por lançamento no
+                    financeiro e aparecem em
+                    <Link href="/admin/financeiro/margens" className="ml-1 font-semibold text-mt-accent underline underline-offset-2">
+                      margem por veículo
+                    </Link>
+                    .
+                  </p>
+                </>
+              )}
 
               <div className="mt-6 grid grid-cols-1 gap-4 border-t-2 border-mt-regua pt-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">

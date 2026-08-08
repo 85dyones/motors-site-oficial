@@ -184,6 +184,19 @@ export function campoNegadoAoPerfil(
 }
 
 /**
+ * Este perfil grava este campo?
+ *
+ * A forma de consulta que a interface usa: o doc manda esconder o que for
+ * negado ("some da interface, não fica cinza"), então cada campo do editor
+ * pergunta antes de se desenhar — e a mesma resposta filtra o corpo do PATCH,
+ * senão salvar um texto levaria junto um campo proibido e o salvamento inteiro
+ * voltaria 403.
+ */
+export function podeGravarCampo(perfil: Perfil, campo: string): boolean {
+  return campoNegadoAoPerfil(perfil, [campo]) === null;
+}
+
+/**
  * Papel legado → perfil. `role` em `profiles` é texto livre validado no app;
  * qualquer valor fora do vocabulário cai em `comercial`, o perfil de menor
  * alcance financeiro — errar para baixo, nunca para cima.

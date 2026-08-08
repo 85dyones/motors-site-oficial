@@ -408,13 +408,12 @@ reprodutibilidade da curva. Nada disso é verificável hoje.
 Escolher e instalar o runner é pré-requisito do Pacote 1, não tarefa dele. Não está previsto
 em nenhum pacote do plano (5.7).
 
-### 3.9 🟢 Ambiguidade sobre qual é o projeto Supabase
+### 3.9 ✅ Ambiguidade sobre qual é o projeto Supabase — RESOLVIDA em 2026-08-08
 
-`CLAUDE.md:21` diz projeto `lanatcqpskcmifuxfatn`. `.mcp.json` aponta
-`project_ref=zwbqmzgnagfeqinqkolp`. `.env.local` está vazio e não desempata.
-
-Pode ser dev vs. produção, pode ser documentação desatualizada. Baixo risco enquanto
-ninguém escreve no banco — mas o Pacote 1 escreve. **Resolver antes** (5.6).
+`CLAUDE.md:21` dizia `lanatcqpskcmifuxfatn`. `.mcp.json`, o `.env.local` e o
+sincronizador do n8n sempre apontaram `zwbqmzgnagfeqinqkolp` — e o dono
+confirmou que este é o de produção. Era documentação desatualizada, não dois
+ambientes: o `CLAUDE.md` foi corrigido.
 
 ### 3.10 🟢 Divergências menores de conteúdo
 
@@ -560,11 +559,11 @@ não pode publicá-las como "premissas visíveis" sem violar `CLAUDE.md:65`.
 Pergunta associada: existe financeira parceira formalizada? O manual §6.1 fala em
 "pré-aprovação integrada às financeiras parceiras" — hoje não há integração nenhuma.
 
-### 5.6 🟡 Qual projeto Supabase é produção? — antes de qualquer migração
+### 5.6 ✅ Qual projeto Supabase é produção? — RESPONDIDA em 2026-08-08
 
-`CLAUDE.md:21` diz `lanatcqpskcmifuxfatn`; `.mcp.json` diz `zwbqmzgnagfeqinqkolp`.
-`.env.local` está vazio. São dev e produção? Um deles está obsoleto? A primeira migração
-precisa saber onde vai rodar.
+`zwbqmzgnagfeqinqkolp`, confirmado pelo dono. O `lanatcqpskcmifuxfatn` do
+`CLAUDE.md` era documentação obsoleta e foi corrigido. Todas as migrações
+aplicadas até aqui rodaram no projeto certo.
 
 ### 5.7 🟡 Qual framework de teste adotar? — bloqueia todos os critérios de aceite
 

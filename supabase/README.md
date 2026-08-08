@@ -250,9 +250,11 @@ existir, o cutover parece completo sem estar.
 ## Resolvido no cutover
 
 - **§5.6 — qual projeto é produção: `zwbqmzgnagfeqinqkolp`.** É o que estava em
-  `.mcp.json`. **`CLAUDE.md:21` está errado** — diz `lanatcqpskcmifuxfatn`.
-  Como `CLAUDE.md` está no `.gitignore`, a correção não é versionável; vale
-  decidir se ele deveria sair de lá.
+  `.mcp.json`, no `.env.local` e no sincronizador do n8n. O `CLAUDE.md` dizia
+  `lanatcqpskcmifuxfatn`; **corrigido em 2026-08-08**, com o dono confirmando o
+  ref. Como `CLAUDE.md` está no `.gitignore`, essa correção vive só na máquina
+  de quem trabalha no projeto — vale decidir se ele deveria sair de lá, senão a
+  próxima cópia do repositório volta com o ref errado.
 - **§5.3 — schema real conhecido.** O baseline foi corrigido contra o banco.
   A reconstrução original errava em 4 pontos: declarava `placa`, `fipe` e
   `preco_compra`, que não existem, e omitia `created_at`.
