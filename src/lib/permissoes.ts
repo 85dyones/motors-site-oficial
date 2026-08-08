@@ -96,6 +96,17 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     "Reescreve o histórico do veículo",
   ),
   linha("Editar opcionais e destaques rápidos", ["faz", "faz", "faz", "nao_ve"]),
+  // Linha ACRESCENTADA ao doc, por decisão do dono em 2026-08-08: "a placa é
+  // informação interna, precisamos ter todos os campos da documentação padrão
+  // — placa, renavam, carroceria". Preencher documento é trabalho de operação,
+  // não de administrador; a linha acima ("ficha técnica travada") continua
+  // valendo para o que vem da consulta de placa e ninguém edita: marca,
+  // modelo, ano e versão.
+  linha(
+    "Preencher documentação do veículo (placa, renavam)",
+    ["faz", "faz", "faz", "nao_ve"],
+    "Dado interno — nunca aparece no site",
+  ),
   linha(
     "Ver e mover leads no kanban",
     ["faz", "nao_ve", "faz", "nao_ve"],
@@ -123,6 +134,53 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
 export function podeFazer(perfil: Perfil, acao: string): Permissao {
   const l = MATRIZ_DE_PERMISSOES.find((m) => m.acao === acao);
   return l ? l.permissoes[perfil] : "nao_ve";
+}
+
+/**
+ * Cada campo gravável do veículo, na linha da matriz que o governa.
+ *
+ * Sem este mapa, cada rota inventava o próprio recorte: a do editor checava só
+ * `preco_compra` e a de lote só `vendido` e a classificação, então `placa`,
+ * `descricao` e a ficha própria passavam por qualquer perfil autenticado, em
+ * lote inclusive.
+ *
+ * `placa` fica na linha de documentação (Admin, Marketing e Comercial), e não
+ * na de ficha travada: decisão do dono em 2026-08-08 — preencher documento é
+ * trabalho de operação. O renavam, quando entrar, vem para esta mesma linha.
+ */
+export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
+  placa: "Preencher documentação do veículo (placa, renavam)",
+  motor: "Preencher documentação do veículo (placa, renavam)",
+  cor_interna: "Preencher documentação do veículo (placa, renavam)",
+  donos_anteriores: "Preencher documentação do veículo (placa, renavam)",
+  garantia_fabrica: "Preencher documentação do veículo (placa, renavam)",
+  preco_compra: "Ver custo de aquisição e margem",
+  vendido: "Publicar ou despublicar veículo",
+  tipo: "Editar opcionais e destaques rápidos",
+  perfil_uso: "Editar opcionais e destaques rápidos",
+  status_tag: "Editar opcionais e destaques rápidos",
+  status_tag_color: "Editar opcionais e destaques rápidos",
+  descricao: "Editar opcionais e destaques rápidos",
+  laudo_pericia: "Editar opcionais e destaques rápidos",
+  opcionais: "Editar opcionais e destaques rápidos",
+};
+
+/**
+ * O primeiro campo que este perfil NÃO pode gravar, ou `null` se pode todos.
+ *
+ * Campo sem linha declarada é negado: acrescentar campo gravável passa a
+ * exigir decidir de quem ele é.
+ */
+export function campoNegadoAoPerfil(
+  perfil: Perfil,
+  campos: string[],
+): { campo: string; acao: string } | null {
+  for (const campo of campos) {
+    const acao = ACAO_DO_CAMPO_DE_VEICULO[campo];
+    if (!acao) return { campo, acao: "(campo sem linha na matriz)" };
+    if (podeFazer(perfil, acao) !== "faz") return { campo, acao };
+  }
+  return null;
 }
 
 /**

@@ -37,7 +37,9 @@ export default async function AdminVisaoGeralPage() {
   const supabase = await createServerSupabaseClient();
 
   const [estoque, settings, visitas] = await Promise.all([
-    getEstoque({ incluirForaDoFeed: true }),
+    // `incluirPlaca`: o alerta de ficha própria incompleta conta placa entre
+    // os campos. Rota do painel, atrás do guarda de sessão do layout.
+    getEstoque({ incluirForaDoFeed: true, incluirPlaca: true }),
     getCachedSettings(),
     // `null` quando o GA4 não tem credencial de leitura — a tela mostra "—".
     resumoDeVisitas(30),
@@ -113,7 +115,7 @@ export default async function AdminVisaoGeralPage() {
       detalhe:
         "Marcados como vendidos no painel, mas a coluna do banco segue disponível — o site continua exibindo. Reconciliação pendente.",
       acao: "ABRIR ESTOQUE",
-      href: "/admin/configuracoes?tab=estoque",
+      href: "/admin/estoque",
       urgente: true,
     });
   }
@@ -134,7 +136,7 @@ export default async function AdminVisaoGeralPage() {
       detalhe:
         "O checklist de publicação pede frente, traseira, laterais, interior, painel e porta-malas.",
       acao: "ABRIR ESTOQUE",
-      href: "/admin/configuracoes?tab=estoque",
+      href: "/admin/estoque",
       urgente: false,
     });
   }
@@ -145,7 +147,7 @@ export default async function AdminVisaoGeralPage() {
       detalhe:
         "Placa, motor e garantia são nossos — o feed não os traz, e sem eles a ficha do site fica incompleta.",
       acao: "PREENCHER FICHA",
-      href: "/admin/configuracoes?tab=estoque",
+      href: "/admin/estoque",
       urgente: false,
     });
   }
@@ -271,7 +273,8 @@ export default async function AdminVisaoGeralPage() {
           </div>
           <div className="flex flex-col">
             {[
-              ["Categorização de estoque", "/admin/configuracoes?tab=estoque"],
+              ["Estoque", "/admin/estoque"],
+              ["Leads", "/admin/leads"],
               ["Contas a pagar", "/admin/financeiro/contas-pagar"],
               ["Mídia paga", "/admin/marketing/midia-paga"],
               ["Aparência e cores", "/admin/configuracoes?tab=aparencia"],
@@ -294,10 +297,11 @@ export default async function AdminVisaoGeralPage() {
           <div className="mt-6 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
             <div className="mt-rotulo mb-2">Ainda sem fonte de dados</div>
             <p className="text-xs leading-relaxed text-mt-neutral-800">
-              O desenho desta tela prevê <strong>fila de leads</strong> e <strong>funil da
-              semana</strong>. Os dois dependem de persistir lead — hoje ele vai direto ao
-              webhook do n8n e nada fica no nosso banco. É PII entrando pela primeira vez,
-              então retenção e texto de privacidade precisam ser decididos antes de codar.
+              A <strong>fila de leads</strong> deste desenho já existe, na tela de Leads. O que
+              falta é o <strong>funil da semana</strong>: ele compara etapa a etapa entre
+              períodos, e a tabela guarda a situação atual do lead, não a data em que cada
+              etapa foi alcançada. Sem esse histórico, qualquer taxa de conversão semanal
+              seria chute.
             </p>
           </div>
         </div>

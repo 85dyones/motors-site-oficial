@@ -8,13 +8,15 @@ import Link from "next/link";
  *
  * Antes disto, editar um carro era rolar até ele numa lista de 88 cards e
  * mexer nos campos ali mesmo. O doc pede tela dedicada, com abas e o
- * checklist de publicação sempre à vista — é o que esta é.
+ * checklist de publicação sempre à vista — é o que esta é. Desde 2026-08-08 a
+ * lista de cards não existe mais: quem lista é a tabela A6
+ * (`/admin/estoque`), e é dela que se chega aqui.
  *
  * O que o doc desenha e NÃO está aqui, por não haver fonte:
  *
- * - **Visitas na página.** Não há coleta de analytics no banco.
- * - **Histórico do veículo.** `auditoria_admin` registra ações de sistema
- *   (permissão, paleta), não edição campo a campo de veículo.
+ * - **Visitas na página.** Vêm do GA4 por caminho, e a leitura hoje é feita em
+ *   lote na tabela A6; por veículo, entra quando houver credencial garantida
+ *   em produção.
  * - **Reordenar fotos / marca d'água.** As imagens vêm do feed do
  *   RevendaMais e são sobrescritas a cada sync; uma ordem salva aqui se
  *   perderia no ciclo seguinte. Entra junto com o storage próprio, quando o
@@ -271,7 +273,7 @@ export default function EditorDeVeiculo({
 
         <div className="min-w-0 flex-1">
           <Link
-            href="/admin/configuracoes?tab=estoque"
+            href="/admin/estoque"
             className="text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-700 hover:text-mt-accent"
           >
             ← ESTOQUE

@@ -43,6 +43,13 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       ],
     },
     {
+      // Grupo ESTOQUE do doc — a trilha `PAINEL / ESTOQUE / VEÍCULOS`. A
+      // tabela A6 é a porta; o editor de um carro (A15) abre a partir dela.
+      title: "Estoque",
+      roles: ["admin", "comercial", "marketing"],
+      items: [{ name: "Veículos", href: "/admin/estoque" }],
+    },
+    {
       // "Gerenciar campanhas de mídia paga": Admin e Marketing, pela matriz
       // A17 — Comercial e Financeiro nem veem o grupo ("o que for negado
       // some da interface, não fica cinza").
@@ -75,7 +82,6 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         // Tela A3: a porta de entrada do conteúdo do site. Vem primeiro
         // porque é dela que se alcança a edição de cada seção da home.
         { name: "Áreas e conteúdo", href: "/admin/site/areas" },
-        { name: "Categorização de estoque", href: "/admin/configuracoes?tab=estoque" },
         { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
         { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
         // Tela A18: a música do showroom entra em "Site" e não em "Sistema"
@@ -111,11 +117,17 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       const tabPart = url.searchParams.get("tab");
       if (pathname !== "/admin/configuracoes") return false;
       if (tabPart) return activeTab === tabPart;
-      return !activeTab || activeTab === "estoque"; // aba padrão quando a URL não diz
+      return !activeTab || activeTab === "destaques"; // aba padrão quando a URL não diz
     }
 
     if (href === "/admin/financeiro") {
       return pathname === "/admin/financeiro";
+    }
+
+    // O editor de um veículo (/admin/estoque/[id]) continua dentro de
+    // "Veículos" no trilho — é de lá que se chega nele.
+    if (href === "/admin/estoque") {
+      return pathname.startsWith("/admin/estoque");
     }
 
     // A leitura de campanha (/admin/marketing/midia-paga/[id]) continua

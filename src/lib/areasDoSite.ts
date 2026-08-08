@@ -82,7 +82,7 @@ export const AREAS_DA_HOME: DefinicaoDeArea[] = [
     nome: "Estoque selecionado",
     descricao: "Grade com os veículos em destaque da semana.",
     tipo: "ESTOQUE",
-    editarEm: "/admin/configuracoes?tab=estoque",
+    editarEm: "/admin/estoque",
   },
   {
     id: "consultoria",

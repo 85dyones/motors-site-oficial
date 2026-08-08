@@ -374,9 +374,14 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     vendido: !!dbItem.vendido,
     // Ficha própria do painel (migração 20260807160000): vazio até alguém
     // preencher — a UI oculta a linha, como em cambio/combustivel/cor.
-    // O site público NÃO exibe `placa`; ela existe para o painel e para a
-    // busca interna.
-    placa: dbItem.placa || "",
+    //
+    // `placa` NÃO sai daqui, pelo mesmo motivo de `preco_compra`: o objeto
+    // mapeado é passado como prop de Server Component para o catálogo e a PDP,
+    // e tudo que é prop vai serializado no HTML da página pública. Até
+    // 2026-08-08 ele levava `placa:""` 65 vezes em /estoque — inofensivo só
+    // porque nenhuma placa estava preenchida. Documento do veículo é dado
+    // interno; quem precisa dele pede `incluirPlaca` em `getEstoque`, e isso
+    // só acontece em rota autenticada.
     motor: dbItem.motor || "",
     cor_interna: dbItem.cor_interna || "",
     donos_anteriores:
@@ -515,8 +520,16 @@ function estoqueDeContingencia(): Veiculo[] {
 }
 
 export async function getEstoque(
-  opts: { incluirForaDoFeed?: boolean } = {}
+  opts: { incluirForaDoFeed?: boolean; incluirPlaca?: boolean } = {}
 ): Promise<Veiculo[]> {
+  /** O mapper não devolve `placa` (ver a nota lá): quem pede, recebe de volta
+   *  aqui. Só chame com `incluirPlaca` em contexto autenticado — o resultado
+   *  desta função vira prop de Server Component nas telas públicas. */
+  const mapear = (linha: any): Veiculo => {
+    const v = mapVeiculoDbToVeiculo(linha);
+    return opts.incluirPlaca ? { ...v, placa: linha.placa || "" } : v;
+  };
+
   let list: Veiculo[] = [];
   if (isSupabaseConfigured && supabase) {
     try {
@@ -537,9 +550,9 @@ export async function getEstoque(
           console.warn(
             "[Supabase] Filtro de last_seen_at descartou todas as linhas; servindo o estoque completo."
           );
-          list = data.map(mapVeiculoDbToVeiculo);
+          list = data.map(mapear);
         } else {
-          list = visiveis.map(mapVeiculoDbToVeiculo);
+          list = visiveis.map(mapear);
         }
       } else {
         list = estoqueDeContingencia();

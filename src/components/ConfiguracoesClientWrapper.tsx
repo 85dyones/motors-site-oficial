@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useConfirm } from "./admin/ConfirmDialog";
 import AparenciaCores from "./admin/AparenciaCores";
@@ -13,7 +12,6 @@ import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POP
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 import { processImage } from "../lib/imageProcessor";
 import { slugifyTag } from "../lib/tagUtils";
-import { ehTabelaOuColunaAusente } from "../lib/erroDeSchema";
 import type { 
   ThemeType, 
   AboutSettings, 
@@ -32,7 +30,6 @@ import type {
  * na navegação.
  */
 const ABAS = [
-  "estoque",
   "destaques",
   "aparencia",
   "sobre",
@@ -78,9 +75,6 @@ export default function ConfiguracoesClientWrapper() {
     quickTags: contextQuickTags,
     updateQuickTags,
     stockOverrides: contextStockOverrides,
-    updateStockOverrides,
-    carouselVehicleIds: contextCarouselVehicleIds,
-    updateCarouselVehicleIds,
     procedencia,
     updateProcedencia,
     instagramCuradoria,
@@ -91,7 +85,10 @@ export default function ConfiguracoesClientWrapper() {
   const router = useRouter();
   const tabParam = searchParams.get("tab") as AbaConfiguracoes | null;
 
-  const [activeTab, setActiveTab] = useState<AbaConfiguracoes>("estoque");
+  // A aba padrão era `estoque`, que virou tela própria (`/admin/estoque`) em
+  // 2026-08-08. Sem ela, quem chega em /admin/configuracoes sem `?tab=` cai
+  // nos destaques rápidos, a primeira da lista.
+  const [activeTab, setActiveTab] = useState<AbaConfiguracoes>("destaques");
   const [loading, setLoading] = useState(true);
 
   // Synchronize state with URL search param changes
@@ -217,8 +214,6 @@ export default function ConfiguracoesClientWrapper() {
     setCompanyForm(companySettings);
   }, [companySettings]);
 
-  // Carousel selection state
-  const [carouselVehicleIds, setCarouselVehicleIds] = useState<string[]>([]);
 
   // Quick tags manager state
   const [quickTags, setQuickTags] = useState<QuickTag[]>([]);
@@ -234,24 +229,16 @@ export default function ConfiguracoesClientWrapper() {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Authentication states
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [authError, setAuthError] = useState("");
-  
   // Stock data states
   const [vehicles, setVehicles] = useState<Veiculo[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   
-  // Local overrides states: mapping of vehicle.id -> { tipo?, perfil_uso?, status_tag?, status_tag_color?, vendido?, preco_compra?, descricao?, laudo_pericia?, opcionais? }
-  // + a ficha própria do painel (migração 20260807160000): placa, motor,
-  // cor_interna, donos_anteriores, garantia_fabrica — campos NOSSOS, que o
-  // sync do RevendaMais não conhece e por isso nunca sobrescreve.
-  const [overrides, setOverrides] = useState<Record<string, { tipo?: string; perfil_uso?: string; status_tag?: string; status_tag_color?: string; vendido?: boolean; preco_compra?: number; descricao?: string; laudo_pericia?: string; opcionais?: string; quick_tags?: string[]; placa?: string; motor?: string; cor_interna?: string; donos_anteriores?: number; garantia_fabrica?: string }>>({});
+  // Overrides do estoque, aqui só para LEITURA: a aba de destaques conta
+  // quantos veículos cada categoria alcança, e a associação manual vive no
+  // JSON (`quick_tags`). A edição de veículo saiu desta tela em 2026-08-08 —
+  // é a tabela A6 (`/admin/estoque`) e o editor A15 que escrevem, por rota
+  // autenticada, nas colunas do banco.
+  const [overrides, setOverrides] = useState<Record<string, { quick_tags?: string[] }>>({});
   
-  // Single vehicle save notifications: mapping of vehicle.id -> boolean
-  const [savedNotifications, setSavedNotifications] = useState<Record<string, boolean>>({});
 
   // Webhook integration states
   const [webhookUrl, setWebhookUrl] = useState("");
@@ -279,42 +266,6 @@ export default function ConfiguracoesClientWrapper() {
     recorrente_deletada: true
   });
 
-  // Check login state on session restore
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const loggedIn = sessionStorage.getItem("ag_admin_logged_in") === "true";
-      if (loggedIn) {
-        setIsAuthenticated(true);
-        return;
-      }
-    }
-
-    const checkSupabaseSession = async () => {
-      try {
-        const browserClient = createBrowserSupabaseClient();
-        const { data: { session } } = await browserClient.auth.getSession();
-        if (session) {
-          setIsAuthenticated(true);
-          return;
-        }
-      } catch (err) {
-        console.warn("[Configuracoes] Failed to restore SSR session:", err);
-      }
-
-      if (supabase) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            setIsAuthenticated(true);
-          }
-        } catch (err) {
-          console.warn("[Configuracoes] Failed to restore Supabase session:", err);
-        }
-      }
-    };
-    checkSupabaseSession();
-  }, []);
-
   const getAuthToken = async (): Promise<string | null> => {
     try {
       const browserClient = createBrowserSupabaseClient();
@@ -334,58 +285,6 @@ export default function ConfiguracoesClientWrapper() {
       }
     }
     return null;
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError("");
-    
-    // 1. Tenta fazer login real via Supabase se configurado
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        if (error) {
-          console.warn("[Auth] Supabase authentication failed, trying local fallback:", error.message);
-        } else if (data?.user) {
-          setIsAuthenticated(true);
-          if (typeof window !== "undefined") {
-            sessionStorage.setItem("ag_admin_logged_in", "true");
-          }
-          return;
-        }
-      } catch (err) {
-        console.warn("[Auth] Supabase connection error, trying local fallback:", err);
-      }
-    }
-
-    // 2. Fallback local/mock
-    if (email === "motors@motorsstoreoficial.com.br" && password === "test123456") {
-      setIsAuthenticated(true);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("ag_admin_logged_in", "true");
-      }
-    } else {
-      setAuthError("Credenciais inválidas. Verifique seu e-mail e senha.");
-    }
-  };
-
-  const handleLogout = async () => {
-    setIsAuthenticated(false);
-    setEmail("");
-    setPassword("");
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem("ag_admin_logged_in");
-    }
-    if (supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch (err) {
-        console.warn("[Auth] Failed to sign out from Supabase:", err);
-      }
-    }
   };
 
   // Load database catalog on mount
@@ -455,179 +354,10 @@ export default function ConfiguracoesClientWrapper() {
   }, [contextPopups]);
 
   useEffect(() => {
-    if (contextCarouselVehicleIds) {
-      setCarouselVehicleIds(contextCarouselVehicleIds);
-    }
-  }, [contextCarouselVehicleIds]);
-
-  useEffect(() => {
     if (contextQuickTags) {
       setQuickTags(contextQuickTags);
     }
   }, [contextQuickTags]);
-
-  // Filter vehicles based on search bar text query
-  const filteredVehicles = vehicles.filter((v) => {
-    const term = searchQuery.toLowerCase().trim();
-    if (!term) return true;
-    return (
-      v.marca.toLowerCase().includes(term) ||
-      v.modelo.toLowerCase().includes(term) ||
-      v.versao.toLowerCase().includes(term) ||
-      v.id.toLowerCase().includes(term)
-    );
-  });
-
-  // Handle single vehicle override values change
-  const handleOverrideChange = (id: string, field: "tipo" | "perfil_uso" | "status_tag" | "status_tag_color" | "vendido" | "descricao" | "laudo_pericia" | "opcionais" | "preco_compra" | "quick_tags" | "placa" | "motor" | "cor_interna" | "donos_anteriores" | "garantia_fabrica", value: any) => {
-    setOverrides((prev) => {
-      const vehicleOverrides = prev[id] || {};
-      return {
-        ...prev,
-        [id]: {
-          ...vehicleOverrides,
-          [field]: value,
-        },
-      };
-    });
-  };
-
-  // Save changes for a single vehicle override
-  const handleSaveVehicleOverride = async (id: string) => {
-    const itemOverrides = overrides[id];
-    if (!itemOverrides) return;
-
-    try {
-      const nextOverrides = {
-        ...overrides,
-        [id]: {
-          ...(overrides[id] || {}),
-          ...itemOverrides,
-        },
-      };
-
-      await updateStockOverrides(nextOverrides);
-
-      // Persist to live Supabase database directly if Supabase is active
-      if (supabase) {
-        const dbUpdates: any = {};
-        if (itemOverrides.tipo !== undefined) dbUpdates.tipo = itemOverrides.tipo;
-        if (itemOverrides.perfil_uso !== undefined) dbUpdates.perfil_uso = itemOverrides.perfil_uso;
-        if (itemOverrides.descricao !== undefined) dbUpdates.descricao = itemOverrides.descricao;
-        if (itemOverrides.laudo_pericia !== undefined) dbUpdates.laudo_pericia = itemOverrides.laudo_pericia;
-        if (itemOverrides.opcionais !== undefined) dbUpdates.opcionais = itemOverrides.opcionais;
-        // ⚠️  As três abaixo são COLUNAS REAIS de `estoque_motors` e, até
-        // 2026-08-07, o painel as gravava só no JSON de `stock_overrides`.
-        //
-        // O efeito era grave e silencioso: `applyLocalOverrides` volta sem
-        // aplicar nada quando roda no servidor (`typeof window === "undefined"`,
-        // src/lib/supabase.ts), e a home filtra o estoque por
-        // `estoque.filter((v) => !v.vendido)` — que lê a COLUNA. Marcar um
-        // veículo como VENDIDO no painel gravava no JSON e não mexia na coluna,
-        // então o carro continuava anunciado na vitrine, com CTA de WhatsApp
-        // ativo, para um veículo que a loja acabou de vender.
-        //
-        // Mesma história para a tag de destaque: marcada no painel, invisível
-        // no site renderizado no servidor.
-        //
-        // O JSON continua sendo gravado acima (`updateStockOverrides`) para não
-        // quebrar quem já lê de lá; a coluna passa a ser a fonte que o site vê.
-        if (itemOverrides.vendido !== undefined) dbUpdates.vendido = itemOverrides.vendido;
-        if (itemOverrides.status_tag !== undefined) dbUpdates.status_tag = itemOverrides.status_tag;
-        if (itemOverrides.status_tag_color !== undefined) dbUpdates.status_tag_color = itemOverrides.status_tag_color;
-        // Ficha própria do painel — colunas nossas, fora do sync. Entram no
-        // update só quando editadas, para o save de outros campos continuar
-        // funcionando mesmo antes de a migração 20260807160000 ser aplicada.
-        if (itemOverrides.placa !== undefined) dbUpdates.placa = itemOverrides.placa;
-        if (itemOverrides.motor !== undefined) dbUpdates.motor = itemOverrides.motor;
-        if (itemOverrides.cor_interna !== undefined) dbUpdates.cor_interna = itemOverrides.cor_interna;
-        if (itemOverrides.donos_anteriores !== undefined) dbUpdates.donos_anteriores = itemOverrides.donos_anteriores;
-        if (itemOverrides.garantia_fabrica !== undefined) dbUpdates.garantia_fabrica = itemOverrides.garantia_fabrica;
-        // A casa definitiva de preco_compra passa a ser a coluna; o valor no
-        // JSON de overrides continua sendo gravado acima, e as rotas de
-        // margem seguem lendo de lá até a mudança de fonte ser deliberada.
-        if (itemOverrides.preco_compra !== undefined) dbUpdates.preco_compra = itemOverrides.preco_compra;
-
-        if (Object.keys(dbUpdates).length > 0) {
-          const targetId = /^\d+$/.test(id) ? parseInt(id, 10) : id;
-          const { error } = await supabase
-            .from("estoque_motors")
-            .update(dbUpdates)
-            .eq("id", targetId);
-
-          if (error) {
-            console.warn(`[Supabase] Failed to persist updates to db for ${id}:`, error.message);
-            // Migração da ficha própria ainda não aplicada. Sem este aviso a
-            // falha morre no console e o dono acha que salvou.
-            if (ehTabelaOuColunaAusente(error)) {
-              alert(
-                "Os campos da ficha própria ainda não existem no banco. " +
-                  "Aplique a migração 20260807160000_ficha_propria_do_painel.sql " +
-                  "com `supabase db push` e salve de novo.",
-              );
-            }
-          } else {
-            console.log(`[Supabase] Successfully persisted updates to db for ${id}:`, dbUpdates);
-          }
-        }
-      }
-      
-      // Trigger Antigravity telemetry log
-      console.log(`[Telemetry] Veículo ${id} atualizado. Carroceria: "${itemOverrides.tipo || "não alterada"}", Estilo: "${itemOverrides.perfil_uso || "não alterado"}"`);
-
-      // Trigger temporary visual validation notification
-      setSavedNotifications((prev) => ({ ...prev, [id]: true }));
-      setTimeout(() => {
-        setSavedNotifications((prev) => ({ ...prev, [id]: false }));
-      }, 2500);
-    } catch (e) {
-      console.error("Failed to save local vehicle override:", e);
-    }
-  };
-
-  // Reset override for a single vehicle back to original default schema
-  const handleResetVehicleOverride = async (id: string) => {
-    try {
-      const nextOverrides = { ...overrides };
-      delete nextOverrides[id];
-      await updateStockOverrides(nextOverrides);
-      setOverrides(nextOverrides);
-
-      // Refetch / reset locally
-      console.log(`[Telemetry] Veículo ${id} revertido para as categorias originais de fábrica.`);
-      
-      setSavedNotifications((prev) => ({ ...prev, [id]: true }));
-      setTimeout(() => {
-        setSavedNotifications((prev) => ({ ...prev, [id]: false }));
-      }, 2000);
-    } catch (e) {
-      console.error("Failed to reset local vehicle override:", e);
-    }
-  };
-
-  // Reset all stock overrides globally
-  const handlePurgeAllOverrides = async () => {
-    const isConfirmed = await confirm({
-      title: "Resetar Categorização de Estoque",
-      message: "Deseja realmente redefinir todos os veículos para a categorização original do banco de dados?",
-      type: "danger",
-      confirmLabel: "Resetar Tudo",
-      cancelLabel: "Cancelar"
-    });
-    if (isConfirmed) {
-      try {
-        await updateStockOverrides({});
-        setOverrides({});
-        console.log("[Telemetry] Todas as categorizações manuais foram removidas. Reset global concluído.");
-        alert("Todos os veículos foram restaurados aos valores originais com sucesso!");
-        
-        // Reload stock list — inclui os fora do feed, como no load inicial
-        getEstoque({ incluirForaDoFeed: true }).then((data) => setVehicles(data));
-      } catch (e) {
-        console.error("Failed to purge overrides:", e);
-      }
-    }
-  };
 
   // Save general webhook URL
   const handleSaveWebhook = async (e: React.FormEvent) => {
@@ -982,53 +712,9 @@ export default function ConfiguracoesClientWrapper() {
     }
   };
 
-  // Opções dos dropdowns.
-  //
-  // As duas listas precisam falar o mesmo vocabulário do feed, porque desde
-  // 2026-08-06 o site exibe `tipo` e `perfil_uso` como vêm do banco em vez de
-  // adivinhá-los. Escolher aqui um rótulo de outra taxonomia sobrescreve o
-  // dado real do veículo por um que o resto do estoque não usa.
-  //
-  // Vocabulário medido em produção em 2026-08-06, sobre os 88 veículos:
-  //   tipo         Hatch, SUV, Sedan, Motocicleta, Picape
-  //   perfil_uso   Família / Conforto, Econômico / Diário, Uso Diário,
-  //                Performance / Premium, Agilidade / Economia,
-  //                Trabalho / Robustez
-  //
-  // "Premium" saiu de `bodyTypes`: não é carroceria, era o default inventado
-  // que o mapper devolvia quando não sabia — deixá-lo no dropdown permitiria
-  // reintroduzir à mão a string que acabou de sair do código.
-  //
-  // Os quatro rótulos antigos de perfil seguem na lista, ao final: dois
-  // veículos carregam "LINHAGEM ESPORTIVA" gravada à mão em stock_overrides, e
-  // remover a opção tiraria do dono a chance de reescolher o próprio valor.
-  //
-  // `usageProfiles` voltou à tela em 2026-08-06. O select de perfil tinha saído
-  // da grade em 293479a (2026-07-15) porque não havia como encaixar os perfis
-  // nos carros do estoque: as únicas opções eram os quatro rótulos inventados,
-  // que nenhum veículo do feed usa. Escolher qualquer um deles era sobrescrever
-  // o dado real por um vocabulário órfão — daí tirar o campo. O motivo caiu
-  // quando o mapper passou a ler a coluna: os seis rótulos do feed acima
-  // encaixam nos 88 veículos, e a lista abaixo é a mesma que o estoque fala.
-  const bodyTypes = ["SUV", "Sedan", "Picape", "Hatch", "Motocicleta", "Esportivo", "Conversível", "Coupe", "Wagon"];
-  const usageProfiles = [
-    "Família / Conforto",
-    "Econômico / Diário",
-    "Uso Diário",
-    "Performance / Premium",
-    "Agilidade / Economia",
-    "Trabalho / Robustez",
-    "URBANO & EFICIENTE",
-    "FORÇA & OFF-ROAD",
-    "LINHAGEM ESPORTIVA",
-    "CURADORIA EXCLUSIVA",
-  ];
-
-
 
   const getTabLabel = (tab: string) => {
     switch (tab) {
-      case "estoque": return "Categorização de Estoque";
       case "integracao": return "Integrações & Webhooks";
       case "aparencia": return "Aparência e Cores";
       case "destaques": return "Destaques Rápidos";
@@ -1060,478 +746,6 @@ export default function ConfiguracoesClientWrapper() {
           <div className="flex flex-col items-center justify-center py-12 gap-3 bg-mt-surface border border-mt-regua-fina">
             <span className="h-6 w-6 border-2 border-mt-accent-300 border-t-mt-accent rounded-full animate-spin" />
             <span className="mt-rotulo">Carregando painel</span>
-          </div>
-        ) : activeTab === "estoque" ? (
-          // TABLE/LIST OF CAR CATEGORY OVERRIDES
-          <div className="flex flex-col gap-4">
-            {/* Barra de busca e reset, como a barra de topo da tela A6 */}
-            <div className="flex flex-col items-center justify-between gap-3 border-b-2 border-mt-regua pb-4 sm:flex-row">
-              <div className="relative w-full sm:max-w-xs">
-                <input
-                  type="text"
-                  placeholder="Buscar por marca, modelo ou código"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="mt-campo-caixa mt-foco pr-8"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Limpar busca"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-xs text-mt-neutral-600 hover:text-mt-ink"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              <button
-                onClick={handlePurgeAllOverrides}
-                className="mt-btn mt-btn-contorno mt-foco w-full cursor-pointer px-4 py-2.5 text-[11px] sm:w-auto"
-              >
-                Redefinir todos
-              </button>
-            </div>
-
-            {/* Vehicles Listing */}
-            <div className="flex flex-col gap-3">
-              {filteredVehicles.length === 0 ? (
-                <div className="text-center py-12 bg-mt-surface border border-mt-regua-fina">
-                  <p className="text-xs text-mt-neutral-700 font-normal">Nenhum veículo localizado para a busca informada.</p>
-                </div>
-              ) : (
-                filteredVehicles.map((vehicle) => {
-                  const hasLocalOverride = !!overrides[vehicle.id];
-                  // Sem carroceria no feed o select fica vazio, não em "Hatch":
-                  // o default anterior mostrava um palpite ao dono e o gravava
-                  // no banco se ele salvasse a linha por outro motivo.
-                  //
-                  // O `??` no override é o que faz "— SEM CARROCERIA —"
-                  // funcionar, pelo mesmo motivo descrito abaixo em `currentPerfil`.
-                  const currentTipo = overrides[vehicle.id]?.tipo ?? vehicle.tipo ?? "";
-                  // Sem perfil no feed o select fica vazio. O default
-                  // "URBANO & EFICIENTE" era o rótulo que o resolvedor colava
-                  // em 71 dos 88 veículos — mantê-lo aqui reintroduziria à mão
-                  // a invenção que saiu do mapper.
-                  //
-                  // O `??` no override é o que faz "— SEM PERFIL —" funcionar.
-                  // Com `||`, escolher a opção vazia gravaria "" no override e
-                  // o próprio operador cairia de volta no valor do feed: o
-                  // select voltaria sozinho ao rótulo anterior e o dono nunca
-                  // conseguiria apagar um perfil. Só `undefined` (sem override)
-                  // pode cair para o feed.
-                  const currentPerfil = overrides[vehicle.id]?.perfil_uso ?? vehicle.perfil_uso ?? "";
-                  const currentStatusTag = overrides[vehicle.id]?.status_tag ?? vehicle.status_tag ?? "";
-
-                  return (
-                    <div
-                      key={vehicle.id}
-                      className={`bg-mt-surface border p-5 transition-all duration-300 ${
-                        hasLocalOverride ? "border-mt-accent-300" : "border-mt-regua-fina"
-                      }`}
-                    >
-                      <div className="flex flex-col gap-4">
-                        
-                        {/* Row 1: Header (Info + Action Buttons) */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-mt-regua-fina pb-3">
-                          {/* Car Details info */}
-                          <div className="flex items-center gap-3">
-                            {/* Mini Thumbnail */}
-                            <div className="h-12 w-16 bg-mt-bg overflow-hidden flex-shrink-0 border border-mt-regua-fina">
-                              <img
-                                src={vehicle.whatsapp_images[0] || "/logo.png"}
-                                alt={vehicle.modelo}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-mt-accent uppercase tracking-wider">
-                                ID: {vehicle.id} {hasLocalOverride && "• PERSONALIZADO"}
-                              </span>
-                              <h3 className="text-sm font-bold text-mt-ink uppercase leading-none">
-                                {vehicle.marca} {vehicle.modelo}
-                              </h3>
-                              <p className="text-[10px] text-mt-neutral-700 leading-relaxed font-normal">
-                                {vehicle.versao} • {vehicle.ano} • R$ {vehicle.preco_original.toLocaleString("pt-BR")}
-                              </p>
-                              {/* Checklist de completude do anúncio (tela A15),
-                                  calculado do dado real — quadrado cheio = ok. */}
-                              <div className="mt-1 flex flex-wrap items-center gap-2.5">
-                                {(() => {
-                                  const ov = overrides[vehicle.id] ?? {};
-                                  const fotos = Array.isArray(vehicle.whatsapp_images)
-                                    ? vehicle.whatsapp_images.filter((f) => f && f !== "/logo.png").length
-                                    : 0;
-                                  const fichaCompleta = Boolean(
-                                    (ov.placa ?? vehicle.placa) &&
-                                      (ov.motor ?? vehicle.motor) &&
-                                      (ov.cor_interna ?? vehicle.cor_interna) &&
-                                      (ov.donos_anteriores ?? vehicle.donos_anteriores) !== undefined &&
-                                      (ov.garantia_fabrica ?? vehicle.garantia_fabrica),
-                                  );
-                                  const itens: Array<[string, boolean]> = [
-                                    // Só mostra o alvo enquanto ele não foi
-                                    // atingido: "Fotos 17/8" lia como erro.
-                                    [fotos >= 8 ? `Fotos ${fotos}` : `Fotos ${fotos}/8`, fotos >= 8],
-                                    ["Descrição", Boolean(ov.descricao ?? vehicle.descricao)],
-                                    ["Laudo", Boolean(ov.laudo_pericia ?? vehicle.laudo_pericia)],
-                                    ["Opcionais", Boolean(ov.opcionais ?? vehicle.opcionais)],
-                                    ["Ficha própria", fichaCompleta],
-                                  ];
-                                  return itens.map(([rotulo, ok]) => (
-                                    <span
-                                      key={rotulo}
-                                      className={`inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[.08em] ${
-                                        ok ? "text-mt-neutral-800" : "text-mt-accent-800"
-                                      }`}
-                                    >
-                                      <span
-                                        className={`inline-block h-2 w-2 border ${
-                                          ok ? "border-mt-ink bg-mt-ink" : "border-mt-accent bg-transparent"
-                                        }`}
-                                      />
-                                      {rotulo}
-                                    </span>
-                                  ));
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Action CTA Buttons in header */}
-                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                            {/* Tela A15: o editor dedicado. Esta lista continua
-                                servindo para a edição rápida em lote; o carro
-                                inteiro (fotos, checklist, margem) abre lá. */}
-                            <Link
-                              href={`/admin/estoque/${vehicle.id}`}
-                              className="mt-foco flex h-8.5 shrink-0 items-center justify-center border border-mt-regua px-3 text-[10px] font-bold uppercase tracking-widest text-mt-neutral-700 transition-colors hover:border-mt-accent hover:text-mt-ink"
-                            >
-                              Abrir editor
-                            </Link>
-                            <button
-                              onClick={() => handleSaveVehicleOverride(vehicle.id)}
-                              className="h-8.5 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-[10px] font-bold uppercase tracking-widest px-4 transition-all  cursor-pointer flex items-center justify-center gap-1 shrink-0"
-                            >
-                              {savedNotifications[vehicle.id] ? "Salvo! ✓" : "Salvar"}
-                            </button>
-                            
-                            {hasLocalOverride && (
-                              <button
-                                onClick={() => handleResetVehicleOverride(vehicle.id)}
-                                className="h-8.5 bg-mt-bg border border-mt-regua-fina hover:border-mt-accent text-mt-neutral-700 hover:text-mt-accent text-[10px] font-bold uppercase tracking-widest px-3 transition-all  cursor-pointer flex items-center justify-center shrink-0"
-                                title="Reverter para originais"
-                              >
-                                Reverter
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Row 2: Overrides Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5 w-full">
-                          {/* Body Type (Carroceria) Select */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                              Carroceria
-                            </label>
-                            <select
-                              value={currentTipo}
-                              onChange={(e) => handleOverrideChange(vehicle.id, "tipo", e.target.value)}
-                              className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent cursor-pointer w-full"
-                            >
-                              <option value="">— SEM CARROCERIA —</option>
-                              {bodyTypes.map((t) => (
-                                <option key={t} value={t}>
-                                  {t.toUpperCase()}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Preço de Entrada (Compra) Text Input */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                              Preço de Entrada (Compra)
-                            </label>
-                            <input
-                              type="number"
-                              placeholder="EX: 45000"
-                              value={overrides[vehicle.id]?.preco_compra ?? vehicle.preco_compra ?? ""}
-                              onChange={(e) => handleOverrideChange(vehicle.id, "preco_compra", e.target.value ? parseFloat(e.target.value) : undefined)}
-                              className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full"
-                            />
-                          </div>
-
-                          {/* Profile Use (Estilo) Select */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                              Estilo de Vida
-                            </label>
-                            <select
-                              value={currentPerfil}
-                              onChange={(e) => handleOverrideChange(vehicle.id, "perfil_uso", e.target.value)}
-                              className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent cursor-pointer w-full"
-                            >
-                              <option value="">— SEM PERFIL —</option>
-                              {usageProfiles.map((p) => (
-                                <option key={p} value={p}>
-                                  {p.toUpperCase()}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Status Tag (Custom Tag) Text Input */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                              Tag de Destaque
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="EX: ÚNICO DONO"
-                              value={currentStatusTag}
-                              onChange={(e) => handleOverrideChange(vehicle.id, "status_tag", e.target.value)}
-                              className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 uppercase tracking-wider w-full"
-                            />
-                          </div>
-
-                          {/* Status Tag Color Select */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                              Cor da Tag
-                            </label>
-                            <select
-                              value={overrides[vehicle.id]?.status_tag_color ?? vehicle.status_tag_color ?? "green"}
-                              onChange={(e) => handleOverrideChange(vehicle.id, "status_tag_color", e.target.value)}
-                              className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent cursor-pointer w-full"
-                            >
-                              <option value="green">VERDE</option>
-                              <option value="red">VERMELHO</option>
-                              <option value="primary">PALETA PRINCIPAL</option>
-                              <option value="gold">PALETA OURO</option>
-                              <option value="gray">CINZA</option>
-                            </select>
-                          </div>
-
-                          {/* Sold status select */}
-                          <div className="flex flex-col gap-1.5 col-span-2 sm:col-span-1">
-                            <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                              Disponibilidade
-                            </label>
-                            {/* `?? vehicle.vendido` — o mesmo fallback que
-                                carroceria, perfil e tag já faziam. Sem ele o
-                                select lia só o JSON de overrides: um veículo
-                                marcado como vendido NO BANCO aparecia como
-                                "DISPONÍVEL" para quem abrisse o painel de
-                                outro navegador, ou depois de um "Reverter" —
-                                o painel afirmando o contrário do que o site
-                                mostra. */}
-                            <select
-                              value={(overrides[vehicle.id]?.vendido ?? vehicle.vendido) ? "true" : "false"}
-                              onChange={(e) => handleOverrideChange(vehicle.id, "vendido", e.target.value === "true")}
-                              className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent cursor-pointer w-full"
-                            >
-                              <option value="false">DISPONÍVEL</option>
-                              <option value="true">VENDIDO</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* ─── Ficha técnica própria (tela A15) ───
-                            Campos NOSSOS: o sync do RevendaMais não os conhece
-                            e nunca os sobrescreve — decisão do dono de
-                            2026-08-07, preparando a descontinuação do feed.
-                            Ao lado, os campos que ainda são do feed aparecem
-                            travados, no padrão de campo com origem da A15:
-                            editá-los aqui seria perder a edição no próximo
-                            ciclo de sync. */}
-                        <div className="w-full border-t border-mt-regua-fina pt-3">
-                          <div className="mb-2.5 flex flex-wrap items-baseline gap-2">
-                            <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-accent">
-                              Ficha técnica própria
-                            </span>
-                            <span className="text-[10px] text-mt-neutral-700">
-                              preenchida por nós · o sync não mexe nestes campos
-                            </span>
-                          </div>
-                          <div className="grid w-full grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-5">
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                                Placa
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="ABC1D23"
-                                value={overrides[vehicle.id]?.placa ?? vehicle.placa ?? ""}
-                                onChange={(e) => handleOverrideChange(vehicle.id, "placa", e.target.value.toUpperCase())}
-                                className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium uppercase outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full"
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                                Motor
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Ex: 2.0 turbo · 249 cv"
-                                value={overrides[vehicle.id]?.motor ?? vehicle.motor ?? ""}
-                                onChange={(e) => handleOverrideChange(vehicle.id, "motor", e.target.value)}
-                                className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full"
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                                Cor interna
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Ex: Ebony"
-                                value={overrides[vehicle.id]?.cor_interna ?? vehicle.cor_interna ?? ""}
-                                onChange={(e) => handleOverrideChange(vehicle.id, "cor_interna", e.target.value)}
-                                className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full"
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                                Donos anteriores
-                              </label>
-                              <input
-                                type="number"
-                                min={0}
-                                placeholder="Ex: 1"
-                                value={overrides[vehicle.id]?.donos_anteriores ?? vehicle.donos_anteriores ?? ""}
-                                onChange={(e) =>
-                                  handleOverrideChange(
-                                    vehicle.id,
-                                    "donos_anteriores",
-                                    e.target.value === "" ? undefined : parseInt(e.target.value, 10),
-                                  )
-                                }
-                                className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full"
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                                Garantia de fábrica
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Ex: Até 03/2027"
-                                value={overrides[vehicle.id]?.garantia_fabrica ?? vehicle.garantia_fabrica ?? ""}
-                                onChange={(e) => handleOverrideChange(vehicle.id, "garantia_fabrica", e.target.value)}
-                                className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3 py-2 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Campos que ainda são do feed — travados, com a
-                              origem à vista. Quando o RevendaMais desligar,
-                              destravam e viram nossos. */}
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-mt-neutral-600">
-                              Do feed · sobrescritos a cada sync:
-                            </span>
-                            {[
-                              { l: "Ano", v: vehicle.ano ? String(vehicle.ano) : "" },
-                              { l: "KM", v: vehicle.quilometragem ? vehicle.quilometragem.toLocaleString("pt-BR") : "" },
-                              { l: "Câmbio", v: vehicle.cambio },
-                              { l: "Combustível", v: vehicle.combustivel },
-                              { l: "Cor externa", v: vehicle.cor },
-                            ].map((campo) => (
-                              <span
-                                key={campo.l}
-                                className="inline-flex items-center gap-1.5 border border-mt-regua-fina bg-mt-bg px-2 py-1 text-[10px] text-mt-neutral-800"
-                                title="Campo do feed RevendaMais — editar aqui seria perdido no próximo sync"
-                              >
-                                <span className="font-semibold uppercase tracking-[.08em] text-mt-neutral-600">{campo.l}</span>
-                                {campo.v || <span className="text-mt-neutral-500">—</span>}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Manual Quick Tags Selection */}
-                        <div className="flex flex-col gap-2.5 w-full pt-1">
-                          <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                            Destaques Rápidos Manuais (Fixar Veículo)
-                          </label>
-                          <div className="flex flex-wrap gap-2">
-                            {quickTags.length === 0 ? (
-                              <span className="text-[10px] text-mt-neutral-500 font-medium">Nenhum destaque rápido cadastrado.</span>
-                            ) : (
-                              quickTags.map((tag) => {
-                                const activeLocalTags = overrides[vehicle.id]?.quick_tags ?? [];
-                                const isActive = activeLocalTags.includes(tag.id);
-                                return (
-                                  <button
-                                    key={tag.id}
-                                    onClick={() => {
-                                      const newTags = isActive
-                                        ? activeLocalTags.filter(id => id !== tag.id)
-                                        : [...activeLocalTags, tag.id];
-                                      handleOverrideChange(vehicle.id, "quick_tags", newTags);
-                                    }}
-                                    className={`h-7 px-3 text-[9px] font-bold uppercase tracking-widest transition-all cursor-pointer border ${
-                                      isActive
-                                        ? "bg-mt-accent border-mt-accent text-mt-inverso"
-                                        : "bg-mt-bg border-mt-regua-fina text-mt-neutral-700 hover:text-mt-ink hover:border-mt-accent"
-                                    }`}
-                                  >
-                                    {tag.name} {isActive && "✓"}
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Descrição de SEO / Editorial */}
-                        <div className="flex flex-col gap-1.5 w-full">
-                          <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1">
-                            Descrição de SEO / Editorial (Salva diretamente no banco de dados)
-                          </label>
-                          <RichTextEditor
-                            value={overrides[vehicle.id]?.descricao ?? vehicle.descricao ?? ""}
-                            onChange={(value) => handleOverrideChange(vehicle.id, "descricao", value)}
-                            placeholder="Escreva uma descrição atraente, formatada com títulos H1-H4, listas de marcadores, negrito e tabulação..."
-                          />
-                        </div>
-
-                        {/* Laudo de Perícia Cautelar */}
-                        <div className="flex flex-col gap-1.5 w-full">
-                          <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1 flex items-center gap-1.5">
-                            Laudo de Perícia Cautelar (Exibido na ficha do veículo)
-                          </label>
-                          <textarea
-                            rows={3}
-                            value={overrides[vehicle.id]?.laudo_pericia ?? vehicle.laudo_pericia ?? ""}
-                            onChange={(e) => handleOverrideChange(vehicle.id, "laudo_pericia", e.target.value)}
-                            placeholder="Ex: Laudo cautelar 100% aprovado pela SuperVisão. Pintura 100% original, sem retoques. Todas as revisões realizadas na concessionária..."
-                            className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-3.5 py-2.5 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full resize-y font-sans leading-relaxed"
-                          />
-                        </div>
-
-                        {/* Opcionais e Acessórios */}
-                        <div className="flex flex-col gap-1.5 w-full">
-                          <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 pl-1 flex items-center gap-1.5">
-                            Opcionais e Acessórios (Separados por vírgula)
-                          </label>
-                          <textarea
-                            rows={3}
-                            value={overrides[vehicle.id]?.opcionais ?? vehicle.opcionais ?? ""}
-                            onChange={(e) => handleOverrideChange(vehicle.id, "opcionais", e.target.value)}
-                            placeholder="Ex: Ar Condicionado Digital, Bancos em Couro, Central Multimídia, Câmera de Ré, Teto Solar Panorâmico, Rodas Aro 20..."
-                            className="bg-mt-bg text-mt-ink border border-mt-accent-300 px-3.5 py-2.5 text-[11px] font-medium outline-none focus:border-mt-accent placeholder-mt-neutral-500 w-full resize-y font-sans leading-relaxed"
-                          />
-                        </div>
-
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
           </div>
         ) : activeTab === "integracao" ? (
           // WEBHOOK & THEME INTEGRATIONS
@@ -2025,87 +1239,6 @@ export default function ConfiguracoesClientWrapper() {
                     </button>
                   )}
                 </div>
-              </div>
-            </div>
-
-            {/* Featured Carousel Configuration Section */}
-            <div className="bg-mt-surface border border-mt-regua-fina p-6 mt-6">
-              <span className="mt-rotulo mt-rotulo-accent">
-                Curadoria de Destaques
-              </span>
-              <h2 className="mb-2 text-[17px] font-extrabold tracking-[-.015em] text-mt-ink">
-                Veículos do Carrossel de Topo
-              </h2>
-              <p className="text-xs text-mt-neutral-700 mb-4 font-normal leading-relaxed">
-                Selecione os veículos que serão exibidos no carrossel de topo (Hero Banner) na página inicial. Se nenhum veículo for selecionado, os 3 primeiros carros do estoque serão exibidos automaticamente.
-              </p>
-
-              <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto border border-mt-regua-fina bg-mt-bg p-4 mb-4">
-                {vehicles.map((vehicle) => {
-                  const isChecked = carouselVehicleIds.includes(vehicle.id);
-                  return (
-                    <label
-                      key={vehicle.id}
-                      className={`flex items-center justify-between p-3 border transition-all cursor-pointer ${
-                        isChecked 
-                          ? "bg-mt-accent-100 border-mt-accent-300" 
-                          : "bg-mt-surface border-mt-regua-fina hover:border-mt-accent"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={async () => {
-                            const next = carouselVehicleIds.includes(vehicle.id)
-                              ? carouselVehicleIds.filter(id => id !== vehicle.id)
-                              : [...carouselVehicleIds, vehicle.id];
-                            setCarouselVehicleIds(next);
-                            await updateCarouselVehicleIds(next);
-                            console.log(`[Carousel Configuration] Destaques atualizados:`, next);
-                          }}
-                          className="h-4 w-4 border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
-                        />
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={vehicle.whatsapp_images[0] || "/logo.png"}
-                            alt={vehicle.modelo}
-                            className="h-8 w-12 object-cover"
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-mt-ink uppercase leading-none">
-                              {vehicle.marca} {vehicle.modelo}
-                            </span>
-                            <span className="text-[9px] text-mt-neutral-700 uppercase leading-none mt-1">
-                              {vehicle.versao} • {vehicle.ano}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-xs font-extrabold text-mt-accent">
-                        R$ {vehicle.preco_original.toLocaleString("pt-BR")}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-mt-neutral-700 uppercase">
-                  {carouselVehicleIds.length} veículo(s) selecionado(s)
-                </span>
-                {carouselVehicleIds.length > 0 && (
-                  <button
-                    onClick={async () => {
-                      setCarouselVehicleIds([]);
-                      await updateCarouselVehicleIds([]);
-                      alert("Destaques do carrossel redefinidos para o padrão.");
-                    }}
-                    className="h-8 bg-mt-bg border border-mt-regua-fina text-mt-neutral-700 text-[9px] font-bold uppercase tracking-widest px-3  transition-all cursor-pointer"
-                  >
-                    Limpar Seleção
-                  </button>
-                )}
               </div>
             </div>
 
@@ -3643,122 +2776,3 @@ export default function ConfiguracoesClientWrapper() {
     </div>
   );
 }
-
-interface RichTextEditorProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}
-
-function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  
-  // Set initial content and handle external updates (like reset/revert)
-  useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value;
-    }
-  }, [value]);
-
-  const handleInput = () => {
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML);
-    }
-  };
-
-  const executeCommand = (command: string, value: string = "") => {
-    document.execCommand(command, false, value);
-    handleInput();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      if (e.shiftKey) {
-        executeCommand("outdent");
-      } else {
-        executeCommand("indent");
-      }
-    }
-  };
-
-  return (
-    <div className="rich-text-editor-container border border-mt-regua-fina bg-mt-bg overflow-hidden flex flex-col focus-within:border-mt-accent transition-colors w-full">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-1 p-2 bg-mt-surface border-b border-mt-regua-fina text-mt-ink">
-        {/* Headings */}
-        <select
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val) {
-              executeCommand("formatBlock", `<${val}>`);
-              e.target.value = ""; // reset selection
-            }
-          }}
-          defaultValue=""
-          className="bg-mt-bg text-mt-ink border border-mt-regua-fina px-2 py-1 text-[10px] font-semibold outline-none cursor-pointer"
-        >
-          <option value="" disabled>Título</option>
-          <option value="H1">Título 1</option>
-          <option value="H2">Título 2</option>
-          <option value="H3">Título 3</option>
-          <option value="H4">Título 4</option>
-          <option value="P">Texto Normal</option>
-        </select>
-
-        <span className="w-px h-4 bg-mt-regua-fina mx-1" />
-
-        {/* Formatting Buttons */}
-        <button
-          type="button"
-          onClick={() => executeCommand("bold")}
-          className="p-1 px-2 hover:bg-mt-bg font-bold text-[10px] cursor-pointer"
-          title="Negrito"
-        >
-          B
-        </button>
-
-        <button
-          type="button"
-          onClick={() => executeCommand("insertUnorderedList")}
-          className="p-1 px-2 hover:bg-mt-bg text-[10px] cursor-pointer"
-          title="Lista com Marcadores"
-        >
-          • Lista
-        </button>
-
-        <span className="w-px h-4 bg-mt-regua-fina mx-1" />
-
-        {/* Indent / Outdent Buttons */}
-        <button
-          type="button"
-          onClick={() => executeCommand("outdent")}
-          className="p-1 px-2 hover:bg-mt-bg text-[10px] cursor-pointer"
-          title="Recuar (Shift+Tab)"
-        >
-          ← Recuar
-        </button>
-
-        <button
-          type="button"
-          onClick={() => executeCommand("indent")}
-          className="p-1 px-2 hover:bg-mt-bg text-[10px] cursor-pointer"
-          title="Indentar (Tab)"
-        >
-          Indentar →
-        </button>
-      </div>
-
-      {/* Editable Area */}
-      <div
-        ref={editorRef}
-        contentEditable
-        onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        data-placeholder={placeholder}
-        className="rich-text-content p-3.5 outline-none min-h-[120px] text-[11px] text-mt-ink leading-relaxed cursor-text bg-mt-bg"
-      />
-    </div>
-  );
-}
-

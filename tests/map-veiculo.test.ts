@@ -54,6 +54,22 @@ describe("mapVeiculoDbToVeiculo", () => {
     expect(JSON.stringify(v)).not.toContain("98000");
   });
 
+  it("nunca expõe a placa ao front", () => {
+    // Mesma invariante do custo, por outro motivo: placa é documento do
+    // veículo, dado interno da operação. O objeto mapeado vira prop de Server
+    // Component no catálogo e na PDP, e prop de Server Component vai
+    // serializada no HTML — "a UI não mostra" não impede que esteja lá.
+    //
+    // Até 2026-08-08 o payload público de /estoque levava `placa` de todos os
+    // 65 veículos; passava despercebido porque o campo estava vazio em todos.
+    // Quem precisa dela pede `getEstoque({ incluirPlaca: true })`, em rota
+    // autenticada.
+    const v = mapVeiculoDbToVeiculo(linhaDoBanco({ placa: "ABC1D23" }));
+
+    expect(v).not.toHaveProperty("placa");
+    expect(JSON.stringify(v)).not.toContain("ABC1D23");
+  });
+
   it("preserva siglas de marca que não devem ser capitalizadas", () => {
     expect(mapVeiculoDbToVeiculo(linhaDoBanco({ marca: "bmw" })).marca).toBe("BMW");
     expect(mapVeiculoDbToVeiculo(linhaDoBanco({ marca: "byd" })).marca).toBe("BYD");

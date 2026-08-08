@@ -66,20 +66,25 @@ describe("nomenclatura da tabela de inventário", () => {
     const padrao = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/;
     const comAcesso = arquivos.filter((a) => padrao.test(readFileSync(a, "utf8")));
 
-    // 7 arquivos, 14 pontos de acesso — o inventário atual:
-    //   lib/supabase.ts (3), api/estoque/[id]/route.ts (4),
+    // 8 arquivos, 14 pontos de acesso — o inventário atual:
+    //   lib/supabase.ts (3), lib/estoqueEscrita.ts (2),
+    //   api/estoque/[id]/route.ts (2, sendo 1 em comentário),
     //   api/financeiro/margens/consulta/route.ts (2),
     //   api/financeiro/margens/route.ts (2), lib/webhook-dispatcher.ts (1),
-    //   components/ConfiguracoesClientWrapper.tsx (1),
-    //   app/admin/estoque/[id]/page.tsx (1)
+    //   app/admin/estoque/page.tsx (1), app/admin/estoque/[id]/page.tsx (1)
     //
     // Eram 10 acessos em 5 arquivos até 2026-08-03. A consulta perdeu um
     // quando a busca por placa foi removida (a coluna não existia então).
     // Em 2026-08-07 entraram os dois arquivos do editor de veículo (tela A15
-    // do design doc): a página que carrega o carro e a rota que o grava. O
-    // quarto acesso da rota é a leitura do estado ANTERIOR, feita antes do
-    // update para alimentar o histórico por veículo.
-    expect(comAcesso.length).toBe(7);
+    // do design doc): a página que carrega o carro e a rota que o grava.
+    //
+    // Em 2026-08-08 a tabela A6 mudou a distribuição sem mudar o total: a
+    // gravação da rota do editor virou `lib/estoqueEscrita.ts`, compartilhada
+    // com a rota de lote, e `ConfiguracoesClientWrapper` PERDEU o seu acesso —
+    // era o `.update()` do lado do cliente com a anon key que `AUDITORIA.md
+    // §3.4` registra como risco. Se ele reaparecer nesta lista, a escrita
+    // direta voltou.
+    expect(comAcesso.length).toBe(8);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(

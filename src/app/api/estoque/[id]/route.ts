@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
-import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
+import { campoNegadoAoPerfil, normalizarPerfil } from "../../../../lib/permissoes";
+import { aplicarNosVeiculos, extrairCamposNossos, normalizarId } from "../../../../lib/estoqueEscrita";
 
 export const dynamic = "force-dynamic";
 
@@ -15,26 +15,10 @@ export const dynamic = "force-dynamic";
  * conhecido — a policy de UPDATE é `USING (true)`, então qualquer um com a
  * chave pública, que vai no bundle, pode alterar preço. A tela nova não
  * amplia essa superfície.
+ *
+ * A gravação em si mora em `lib/estoqueEscrita.ts`, compartilhada com a rota
+ * de lote da tela A6 — uma regra de histórico só.
  */
-
-/** Campos que o painel controla. O sync do RevendaMais não conhece nenhum
- *  deles — é o contrato da migração 20260807160000. */
-const CAMPOS_NOSSOS = [
-  "placa",
-  "motor",
-  "cor_interna",
-  "donos_anteriores",
-  "garantia_fabrica",
-  "preco_compra",
-  "descricao",
-  "laudo_pericia",
-  "opcionais",
-  "status_tag",
-  "status_tag_color",
-  "vendido",
-  "tipo",
-  "perfil_uso",
-] as const;
 
 export async function GET(
   _request: NextRequest,
@@ -49,7 +33,7 @@ export async function GET(
     }
 
     // O id é bigint no banco, mas chega como string na URL.
-    const alvo = /^\d+$/.test(id) ? Number(id) : id;
+    const alvo = normalizarId(id);
     const { data, error } = await supabase
       .from("estoque_motors")
       .select("*")
@@ -89,95 +73,34 @@ export async function PATCH(
     const perfil = normalizarPerfil(profile?.role);
 
     const body = await request.json();
+    const atualizacao = extrairCamposNossos(body);
 
-    const atualizacao: Record<string, unknown> = {};
-    for (const campo of CAMPOS_NOSSOS) {
-      if (campo in body) atualizacao[campo] = body[campo];
-    }
-
-    if (Object.keys(atualizacao).length === 0) {
-      return NextResponse.json({ error: "Nada para atualizar" }, { status: 400 });
-    }
-
-    // Matriz A17: Marketing edita foto, texto e destaque, mas não mexe em
-    // preço. Aqui `preco_compra` é custo de aquisição — cai na linha "ver
-    // custo de aquisição e margem", que Marketing e Comercial não veem.
-    if ("preco_compra" in atualizacao && podeFazer(perfil, "Ver custo de aquisição e margem") !== "faz") {
+    // Matriz A17, campo a campo. `preco_compra` é custo de aquisição, que
+    // Marketing e Comercial não veem; `placa` é a ficha travada, só de Admin.
+    // O mapa vive em `lib/permissoes.ts`, compartilhado com a rota de lote —
+    // até 2026-08-08 esta rota checava só o custo, e a placa passava por
+    // qualquer perfil autenticado.
+    const negado = campoNegadoAoPerfil(perfil, Object.keys(atualizacao));
+    if (negado) {
       return NextResponse.json(
-        { error: "Seu perfil não altera custo de aquisição" },
+        { error: `Seu perfil não altera "${negado.campo}" (${negado.acao})` },
         { status: 403 },
       );
     }
 
-    const alvo = /^\d+$/.test(id) ? Number(id) : id;
+    const resultado = await aplicarNosVeiculos(supabase, [id], atualizacao, {
+      id: user.id,
+      nome: profile?.full_name ?? user.email ?? null,
+    });
 
-    // Estado anterior, lido ANTES do update: é o "NO AR HOJE" que a tela A16
-    // compara com o proposto. Reconstruir isso depois exigiria refazer a
-    // cadeia inteira de trás para frente.
-    const { data: antes } = await supabase
-      .from("estoque_motors")
-      .select(CAMPOS_NOSSOS.join(","))
-      .eq("id", alvo)
-      .maybeSingle();
-
-    const { error } = await supabase
-      .from("estoque_motors")
-      .update(atualizacao)
-      .eq("id", alvo);
-
-    if (error) {
-      if (ehTabelaOuColunaAusente(error)) {
-        return NextResponse.json(
-          {
-            error:
-              "Campo da ficha própria ainda não existe no banco. Aplique a migração " +
-              "20260807160000_ficha_propria_do_painel.sql.",
-          },
-          { status: 500 },
-        );
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Histórico: uma linha por campo que REALMENTE mudou. Salvar sem alterar
-    // nada não pode poluir a trilha — senão "quem mexeu no preço?" vira uma
-    // lista de cliques em Salvar.
-    const anterior = (antes ?? {}) as Record<string, unknown>;
-    const mudancas = Object.entries(atualizacao)
-      .filter(([campo, novo]) => {
-        const velho = anterior[campo];
-        // Comparação frouxa de propósito: o formulário devolve "" onde o
-        // banco tem null, e number onde tem string numérica.
-        const norm = (x: unknown) => (x === null || x === undefined || x === "" ? "" : String(x));
-        return norm(velho) !== norm(novo);
-      })
-      .map(([campo, novo]) => ({
-        veiculo_id: typeof alvo === "number" ? alvo : Number(alvo),
-        campo,
-        valor_anterior: anterior[campo] === null || anterior[campo] === undefined
-          ? null
-          : String(anterior[campo]),
-        valor_novo: novo === null || novo === undefined ? null : String(novo),
-        autor_id: user.id,
-        autor_nome: profile?.full_name ?? user.email ?? null,
-      }));
-
-    if (mudancas.length > 0) {
-      // Nunca derruba o salvamento: a alteração já está no banco, e perder o
-      // registro é menos grave que devolver erro para uma gravação que deu
-      // certo. Mesma regra de `registrarAcaoSensivel`.
-      const { error: erroHistorico } = await supabase
-        .from("historico_veiculo")
-        .insert(mudancas);
-      if (erroHistorico) {
-        console.warn("[Estoque] Falha ao registrar histórico:", erroHistorico.message);
-      }
+    if (resultado.erro) {
+      return NextResponse.json({ error: resultado.erro }, { status: resultado.status ?? 500 });
     }
 
     return NextResponse.json({
       ok: true,
-      camposSalvos: Object.keys(atualizacao),
-      mudancasRegistradas: mudancas.length,
+      camposSalvos: resultado.camposSalvos,
+      mudancasRegistradas: resultado.mudancasRegistradas,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -5,7 +5,10 @@ import {
   podeFazer,
   normalizarPerfil,
   ALCADA_DO_PERFIL,
+  ACAO_DO_CAMPO_DE_VEICULO,
+  campoNegadoAoPerfil,
 } from "../src/lib/permissoes";
+import { CAMPOS_NOSSOS } from "../src/lib/estoqueEscrita";
 
 /**
  * Testes da matriz de permissões (tela A17).
@@ -71,5 +74,54 @@ describe("ALCADA_DO_PERFIL", () => {
     expect(ALCADA_DO_PERFIL.admin).toBe("Sem limite");
     expect(ALCADA_DO_PERFIL.comercial).toBe("5% no preço");
     expect(ALCADA_DO_PERFIL.financeiro).toBe("R$ 1.500");
+  });
+});
+
+describe("campoNegadoAoPerfil", () => {
+  it("todo campo gravável do veículo tem linha declarada na matriz", () => {
+    // Contraprova da regra "campo sem linha é negado": se alguém acrescentar
+    // um campo a CAMPOS_NOSSOS sem decidir de quem ele é, o painel passaria a
+    // devolver 403 sem explicação. Este teste obriga a decisão junto.
+    const semLinha = CAMPOS_NOSSOS.filter((c) => !ACAO_DO_CAMPO_DE_VEICULO[c]);
+    expect(
+      semLinha,
+      "Campo gravável sem linha na matriz A17: " + semLinha.join(", "),
+    ).toEqual([]);
+  });
+
+  it("documentação do veículo: operação preenche, Financeiro não", () => {
+    // Decisão do dono em 2026-08-08 — placa é dado interno que a operação
+    // preenche, e renavam vem para esta mesma linha. Antes disso o furo era o
+    // oposto: NENHUMA das duas rotas checava `placa`, e qualquer perfil
+    // autenticado a gravava, em lote inclusive.
+    for (const perfil of ["admin", "marketing", "comercial"] as const) {
+      expect(campoNegadoAoPerfil(perfil, ["placa", "motor", "garantia_fabrica"])).toBeNull();
+    }
+    expect(campoNegadoAoPerfil("financeiro", ["placa"])?.campo).toBe("placa");
+  });
+
+  it("custo de aquisição fica com Admin e Financeiro", () => {
+    expect(campoNegadoAoPerfil("financeiro", ["preco_compra"])).toBeNull();
+    expect(campoNegadoAoPerfil("comercial", ["preco_compra"])?.campo).toBe("preco_compra");
+    expect(campoNegadoAoPerfil("marketing", ["preco_compra"])?.campo).toBe("preco_compra");
+  });
+
+  it("marcar vendido é de quem publica — Marketing passa por revisão, logo não faz direto", () => {
+    expect(campoNegadoAoPerfil("comercial", ["vendido"])).toBeNull();
+    expect(campoNegadoAoPerfil("marketing", ["vendido"])?.campo).toBe("vendido");
+    expect(campoNegadoAoPerfil("financeiro", ["vendido"])?.campo).toBe("vendido");
+  });
+
+  it("conteúdo do anúncio: Financeiro não escreve", () => {
+    expect(campoNegadoAoPerfil("marketing", ["tipo", "descricao", "opcionais"])).toBeNull();
+    expect(campoNegadoAoPerfil("financeiro", ["descricao"])?.campo).toBe("descricao");
+  });
+
+  it("campo fora do vocabulário é negado, não ignorado", () => {
+    expect(campoNegadoAoPerfil("admin", ["preco"])?.campo).toBe("preco");
+  });
+
+  it("lista vazia não nega nada", () => {
+    expect(campoNegadoAoPerfil("financeiro", [])).toBeNull();
   });
 });

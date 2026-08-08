@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { CAMPOS_NOSSOS } from "../src/lib/estoqueEscrita";
 
 /**
  * Guarda contra edição do painel que não chega ao banco.
@@ -19,13 +20,17 @@ import { join } from "node:path";
  * preenchido o override aparecia — então quem testava do próprio painel via
  * "funcionando".
  *
- * Este teste cruza os três lados: o que o painel deixa editar, o que ele
- * envia ao banco, e o que existe como coluna. Campo editável que é coluna
- * real e não é enviado = violação.
+ * O QUE MUDOU EM 2026-08-08. A aba de cards que continha essa escrita saiu do
+ * painel: a tela A6 (`/admin/estoque`) e o editor A15 gravam por rota
+ * autenticada, e a lista de campos que podem ser gravados é
+ * `CAMPOS_NOSSOS`, em `lib/estoqueEscrita.ts`. A guarda mudou de alvo junto —
+ * o risco não é mais "grava no JSON e esquece a coluna", é "declara um campo
+ * que não é coluna" (o update falha inteiro) ou "volta a escrever do cliente
+ * com a anon key".
  *
- * Alcance: leitura estática do arquivo do painel. Não prova que a escrita
- * chega ao Postgres (só um teste de integração provaria) — prova que a
- * intenção de gravar existe no código, que é onde o bug morava.
+ * Alcance: leitura estática. Não prova que a escrita chega ao Postgres (só um
+ * teste de integração provaria) — prova que a intenção de gravar existe no
+ * código, que é onde o bug morava.
  */
 
 const RAIZ = join(__dirname, "..");
@@ -71,68 +76,58 @@ function colunasDaTabela(): Set<string> {
 const codigoDoPainel = readFileSync(PAINEL, "utf8");
 
 /**
- * Campos que o painel deixa editar, lidos da união de tipos aceita por
- * `handleOverrideChange` — a porta única por onde toda edição de veículo
- * passa.
- */
-function camposEditaveis(): string[] {
-  const assinatura = codigoDoPainel.match(
-    /const handleOverrideChange\s*=\s*\(\s*id:\s*string,\s*field:\s*([^,]+),/,
-  );
-  if (!assinatura) throw new Error("Assinatura de handleOverrideChange não encontrada.");
-  return [...assinatura[1].matchAll(/"([a-z_][a-z0-9_]*)"/gi)].map((m) => m[1]);
-}
-
-/** Campos que o painel envia ao banco (`dbUpdates.<campo> = ...`). */
-function camposEnviadosAoBanco(): Set<string> {
-  return new Set(
-    [...codigoDoPainel.matchAll(/dbUpdates\.([a-z_][a-z0-9_]*)\s*=/gi)].map((m) => m[1]),
-  );
-}
-
-/**
  * Campos que vivem só no JSON de overrides, por não serem coluna. Lista
  * explícita: se um campo novo do painel não for coluna, ou ele entra aqui
  * com justificativa, ou vira migração.
  */
 const SOMENTE_JSON = new Set([
   // Vínculo veículo ↔ destaque rápido. Mora no blob porque as tags são
-  // definidas em `site_settings`, não em `estoque_motors`.
+  // definidas em `site_settings`, não em `estoque_motors`. Quem escreve é a
+  // ação em lote da tela A6, via `/api/settings`.
   "quick_tags",
 ]);
 
 describe("o que o painel edita chega ao banco", () => {
   const colunas = colunasDaTabela();
-  const editaveis = camposEditaveis();
-  const enviados = camposEnviadosAoBanco();
 
-  it("o parser leu os três lados — sem vacuidade", () => {
+  it("o parser leu os dois lados — sem vacuidade", () => {
     // Sem isto, uma regex quebrada faria o teste passar vazio.
     expect(colunas.size).toBeGreaterThan(20);
-    expect(editaveis.length).toBeGreaterThan(8);
-    expect(enviados.size).toBeGreaterThan(8);
+    expect(CAMPOS_NOSSOS.length).toBeGreaterThan(8);
   });
 
-  it("todo campo editável que é coluna real é enviado ao banco", () => {
-    const faltando = editaveis
-      .filter((campo) => colunas.has(campo) && !enviados.has(campo))
-      .filter((campo) => !SOMENTE_JSON.has(campo));
+  it("todo campo gravável é coluna real de estoque_motors", () => {
+    const fantasmas = CAMPOS_NOSSOS.filter(
+      (campo) => !colunas.has(campo) && !SOMENTE_JSON.has(campo),
+    );
 
     expect(
-      faltando,
-      "Campo editável no painel que é COLUNA de estoque_motors mas nunca é\n" +
-        "gravado nela. O valor fica só no JSON de stock_overrides, e\n" +
-        "`applyLocalOverrides` não roda no servidor — então o site renderizado\n" +
-        "no servidor NÃO enxerga a edição. Foi assim que 'marcar como vendido'\n" +
-        "deixou de tirar o carro da vitrine.\n" +
-        "Campos: " + faltando.join(", "),
+      fantasmas,
+      "Campo em CAMPOS_NOSSOS que NÃO é coluna de estoque_motors.\n" +
+        "O update do Supabase falha inteiro quando uma coluna não existe —\n" +
+        "salvar o veículo passa a devolver erro para todos os campos, não só\n" +
+        "para o novo. Crie a migração antes de declarar o campo.\n" +
+        "Campos: " + fantasmas.join(", "),
     ).toEqual([]);
   });
 
-  it("`vendido` chega ao banco — é o que tira o carro da vitrine", () => {
+  it("`vendido` é gravável — é o que tira o carro da vitrine", () => {
     // Pino nomeado no campo de maior consequência comercial: a home faz
     // `estoque.filter((v) => !v.vendido)` sobre a coluna.
-    expect(enviados.has("vendido")).toBe(true);
+    expect(CAMPOS_NOSSOS).toContain("vendido");
+    expect(colunas.has("vendido")).toBe(true);
+  });
+
+  it("o painel de configurações não escreve mais em veículo pelo cliente", () => {
+    // Era o `.update()` com a anon key dentro do componente — a razão de a
+    // policy de UPDATE ser `USING (true)` (AUDITORIA.md §3.4). Se voltar,
+    // volta junto a chance de gravar só no JSON.
+    expect(
+      /\.from\(\s*["'`]estoque_motors["'`]\s*\)/.test(codigoDoPainel),
+      "ConfiguracoesClientWrapper voltou a escrever direto em estoque_motors.\n" +
+        "A edição de veículo mora em /admin/estoque (A6) e no editor (A15),\n" +
+        "que gravam por rota autenticada.",
+    ).toBe(false);
   });
 
   it("campo que só existe no JSON está declarado como tal", () => {

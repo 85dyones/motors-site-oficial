@@ -35,7 +35,10 @@ export async function GET() {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const veiculos = await getEstoque({ incluirForaDoFeed: true });
+    // `incluirPlaca`: a rota é autenticada e a busca por placa da tela de
+    // margens depende dela. O mapper não a devolve por padrão — ver a nota em
+    // `mapVeiculoDbToVeiculo`.
+    const veiculos = await getEstoque({ incluirForaDoFeed: true, incluirPlaca: true });
 
     // Só o que os seletores precisam. `getEstoque` já não expõe
     // `preco_compra` (ver o "SECURITY FIX" no mapper), e devolver a linha
