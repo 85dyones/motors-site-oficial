@@ -159,16 +159,20 @@ export function EstatisticasRegua({
   inverso?: boolean;
   className?: string;
 }) {
+  /* `--regua-pt` e `--regua-valor` são pontos de ajuste opcionais: quem monta
+     a régua num espaço apertado (o hero da home, que precisa caber na altura
+     da janela) define as vars num ancestral e elas chegam aqui por herança.
+     Sem ninguém definindo, o fallback é o valor do design. */
   return (
     <div
-      className={`flex border-t-2 pt-4 ${
+      className={`flex border-t-2 pt-[var(--regua-pt,16px)] ${
         inverso ? "border-mt-inverso-regua" : "border-mt-regua"
       } ${className}`}
     >
       {itens.map((item) => (
         <div key={item.rotulo} className="flex-1">
           <div
-            className={`text-[34px] font-extrabold leading-none ${
+            className={`text-[length:var(--regua-valor,34px)] font-extrabold leading-none ${
               item.accent
                 ? "text-mt-accent"
                 : inverso
