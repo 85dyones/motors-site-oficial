@@ -1,9 +1,9 @@
 import Link from "next/link";
-import type { QuickTag, Veiculo } from "../../types";
+import type { Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
-import type { DestaqueResolvido } from "../../lib/destaquesRapidos";
+import { resumirSelecao, type DestaqueResolvido } from "../../lib/destaquesRapidos";
 import { nomeEmFrase } from "../../lib/tagUtils";
-import { CardVeiculo } from "./primitivos";
+import { CardVeiculo, formatarKm, formatarPreco } from "./primitivos";
 
 /**
  * Landing de destaque — tela 07 do design doc.
@@ -13,45 +13,6 @@ import { CardVeiculo } from "./primitivos";
  * rodapé vêm do cadastro da categoria quando existem; a grade se mantém
  * sozinha pela regra do quick tag.
  */
-
-/** A regra em texto legível — é o que o doc mostra no box "REGRA DESTA PÁGINA". */
-function descreverRegra(tag: QuickTag): string | null {
-  const campos: Record<string, string> = {
-    preco: "Preço",
-    quilometragem: "Quilometragem",
-    combustivel: "Combustível",
-    perfil_uso: "Perfil de uso",
-    tipo: "Carroceria",
-    marca: "Marca",
-  };
-  const operadores: Record<string, string> = {
-    less: "até",
-    greater: "acima de",
-    equals: "igual a",
-    contains: "contém",
-  };
-
-  if (tag.field === "manual" || tag.operator === "none") {
-    return "Seleção manual feita no painel";
-  }
-
-  const campo = campos[tag.field];
-  const operador = operadores[tag.operator];
-  if (!campo || !operador) return null;
-
-  let valor = tag.value;
-  if (tag.field === "preco") {
-    valor = Number(tag.value).toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      maximumFractionDigits: 0,
-    });
-  } else if (tag.field === "quilometragem") {
-    valor = `${Number(tag.value).toLocaleString("pt-BR")} km`;
-  }
-
-  return `${campo} ${operador} ${valor}`;
-}
 
 export default function LandingDestaque({
   destaque,
@@ -64,8 +25,32 @@ export default function LandingDestaque({
   introducao?: string;
   textoEditorial?: string;
 }) {
-  const { tag, total, veiculos, slug } = destaque;
-  const regra = descreverRegra(tag);
+  // `slug` saiu junto com o box da regra, que era quem exibia o endereço.
+  const { tag, total, veiculos } = destaque;
+
+  /**
+   * O box da direita mostrava a regra do quick tag — "Seleção manual feita no
+   * painel", o endereço da própria página e "atualizada automaticamente pela
+   * regra". É operação da loja, e estas landings vão receber tráfego pago de
+   * Google e Meta. No lugar entra o resumo da seleção: números do estoque
+   * real desta página, que é texto indexável com marca e ano de verdade.
+   */
+  const resumo = resumirSelecao(veiculos);
+
+  /**
+   * Teto de 6 marcas. Sem ele, "Parcela 1K" listava 16 e o box ficava com
+   * 192px contra 61px do bloco do H1 — além de virar lista de palavra-chave,
+   * que é o contrário de reforçar SEO.
+   */
+  const MAX_MARCAS = 6;
+  const marcasVisiveis = resumo.marcas.slice(0, MAX_MARCAS);
+  const marcasOcultas = resumo.marcas.length - marcasVisiveis.length;
+
+  const temResumo =
+    resumo.precoMinimo !== null ||
+    resumo.kmMinimo !== null ||
+    resumo.anoMaisNovo !== null ||
+    resumo.marcas.length > 0;
   // A <h1> é a única peça da landing em caixa de frase, de propósito — a
   // mesma caixa do <title>. A regra vive em `tagUtils` porque o SEO da rota
   // usa a irmã dela, e as duas precisam mudar juntas.
@@ -103,20 +88,56 @@ export default function LandingDestaque({
             )}
           </div>
 
-          {regra && (
+          {temResumo && (
             <div className="shrink-0 border-t-2 border-mt-regua pt-3.5 lg:w-[300px]">
               <div className="mb-2 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
-                REGRA DESTA PÁGINA
+                NESTA SELEÇÃO
               </div>
-              <div className="text-[15px] font-extrabold">{regra}</div>
-              <div className="mt-1.5 text-xs text-mt-neutral-600">
-                motorsstore.com.br
-                <strong className="text-mt-ink">/destaques/{slug}</strong>
-              </div>
+              {resumo.precoMinimo !== null && (
+                <div className="text-[15px] font-extrabold">
+                  A partir de {formatarPreco(resumo.precoMinimo)}
+                </div>
+              )}
+              <dl className="m-0 mt-1.5 text-xs leading-relaxed text-mt-neutral-600">
+                {resumo.anoMaisNovo !== null && (
+                  <div>
+                    <dt className="inline">Ano: </dt>
+                    <dd className="m-0 inline text-mt-ink">
+                      {resumo.anoMaisAntigo === resumo.anoMaisNovo
+                        ? resumo.anoMaisNovo
+                        : `${resumo.anoMaisAntigo} a ${resumo.anoMaisNovo}`}
+                    </dd>
+                  </div>
+                )}
+                {resumo.kmMinimo !== null && (
+                  <div>
+                    <dt className="inline">Quilometragem: </dt>
+                    <dd className="m-0 inline text-mt-ink">
+                      a partir de {formatarKm(resumo.kmMinimo)}
+                    </dd>
+                  </div>
+                )}
+                {marcasVisiveis.length > 0 && (
+                  <div>
+                    <dt className="inline">
+                      {resumo.marcas.length === 1 ? "Marca: " : "Marcas: "}
+                    </dt>
+                    <dd className="m-0 inline text-mt-ink">
+                      {marcasVisiveis.join(", ")}
+                      {marcasOcultas > 0 && ` e mais ${marcasOcultas}`}
+                    </dd>
+                  </div>
+                )}
+              </dl>
               <div className="mt-3 flex items-center gap-2">
                 <span className="h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
+                {/* "Passam pela" e não "têm laudo": todo carro vai para a
+                    perícia, mas parte do estoque está sempre com o laudo em
+                    análise. É a mesma redação da régua da home — processo,
+                    não resultado. Não prometer o que a loja nem sempre pode
+                    cumprir vale ainda mais numa página de tráfego pago. */}
                 <span className="text-[10px] font-semibold tracking-[.1em] text-mt-neutral-600">
-                  ATUALIZADA AUTOMATICAMENTE PELA REGRA
+                  TODOS PASSAM PELA PERÍCIA CAUTELAR
                 </span>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import type { QuickTag, StockOverrides, Veiculo } from "../types";
-import { checkTagMatchesVehicle } from "./regrasEstoque";
+import { checkTagMatchesVehicle, precoVigente } from "./regrasEstoque";
 import { slugifyTag } from "./tagUtils";
 
 /**
@@ -39,6 +39,46 @@ export function normalizarStockOverrides(bruto: unknown): StockOverrides {
     return aninhado as StockOverrides;
   }
   return bruto as StockOverrides;
+}
+
+/**
+ * Resumo de uma seleção — números agregados dos veículos que estão na página.
+ *
+ * Substitui o box "REGRA DESTA PÁGINA", que expunha a operação da loja
+ * ("Seleção manual feita no painel") numa tela pública que vai receber
+ * tráfego pago. Cada campo aqui sai do estoque real da própria landing: não
+ * há número estimado, e categoria sem o dado devolve `null` em vez de zero.
+ */
+export interface ResumoSelecao {
+  precoMinimo: number | null;
+  kmMinimo: number | null;
+  anoMaisNovo: number | null;
+  anoMaisAntigo: number | null;
+  marcas: string[];
+}
+
+export function resumirSelecao(veiculos: Veiculo[]): ResumoSelecao {
+  const precos = veiculos.map(precoVigente).filter((p) => p > 0);
+  const kms = veiculos.map((v) => v.quilometragem).filter((k) => k > 0);
+  const anos = veiculos.map((v) => v.ano).filter((a) => a > 0);
+
+  // Ordenadas pelo peso que têm na seleção: a tela só mostra as primeiras, e
+  // numa categoria de 56 carros a marca que aparece uma vez só não é o que
+  // descreve a página. Empate mantém a ordem da grade (sort estável).
+  const porMarca = new Map<string, number>();
+  for (const v of veiculos) {
+    if (!v.marca) continue;
+    porMarca.set(v.marca, (porMarca.get(v.marca) ?? 0) + 1);
+  }
+  const marcas = [...porMarca.entries()].sort((a, b) => b[1] - a[1]).map(([m]) => m);
+
+  return {
+    precoMinimo: precos.length > 0 ? Math.min(...precos) : null,
+    kmMinimo: kms.length > 0 ? Math.min(...kms) : null,
+    anoMaisNovo: anos.length > 0 ? Math.max(...anos) : null,
+    anoMaisAntigo: anos.length > 0 ? Math.min(...anos) : null,
+    marcas,
+  };
 }
 
 export interface DestaqueResolvido {
