@@ -45,6 +45,18 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
     { title: aboutSettings.card3Title, desc: aboutSettings.card3Desc },
   ].filter((c) => c.title || c.desc);
 
+  /**
+   * Campo vazio no painel significa "não mostre" — nenhum texto padrão entra
+   * no lugar. Sem nada para dizer, a faixa vermelha de fechamento inteira sai,
+   * em vez de virar um bloco de cor com um botão solto.
+   */
+  const temFechamento = Boolean(
+    aboutSettings.ctaTitle ||
+      aboutSettings.ctaDescription ||
+      aboutSettings.ctaBtn1Text ||
+      aboutSettings.ctaBtn2Text
+  );
+
   return (
     <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
       {/* ─── Manifesto ─── */}
@@ -65,9 +77,11 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
           </Rotulo>
         )}
 
-        <h1 className="mt-display m-0 mt-4 max-w-[1100px] text-[42px] lg:text-[104px] lg:leading-[.9]">
-          {aboutSettings.heroTitle}
-        </h1>
+        {aboutSettings.heroTitle && (
+          <h1 className="mt-display m-0 mt-4 max-w-[1100px] text-[42px] lg:text-[104px] lg:leading-[.9]">
+            {aboutSettings.heroTitle}
+          </h1>
+        )}
 
         {aboutSettings.heroSubtitle && (
           <p className="m-0 mt-6 max-w-[720px] text-[15px] leading-relaxed text-mt-neutral-800 lg:text-[17px]">
@@ -101,9 +115,11 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
       {/* ─── Valores ─── */}
       {valores.length > 0 && (
         <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
-          <Rotulo accent className="text-[11px] tracking-[.18em]">
-            {aboutSettings.valuesTitle || "NOSSOS VALORES"}
-          </Rotulo>
+          {aboutSettings.valuesTitle && (
+            <Rotulo accent className="text-[11px] tracking-[.18em]">
+              {aboutSettings.valuesTitle}
+            </Rotulo>
+          )}
           <div className="mt-5 flex flex-col border-t-2 border-mt-regua lg:flex-row">
             {valores.map((valor, i) => (
               <div
@@ -123,20 +139,22 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
       )}
 
       {/* ─── Tecnologia ─── */}
-      {(aboutSettings.techTitle || cards.length > 0) && (
+      {(aboutSettings.techTitle || aboutSettings.techSubtitle || cards.length > 0) && (
         <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
-          <div className="border-b-2 border-mt-regua pb-4">
-            {aboutSettings.techTitle && (
-              <h2 className="mt-titulo m-0 text-[28px] lg:text-[40px]">
-                {aboutSettings.techTitle}
-              </h2>
-            )}
-            {aboutSettings.techSubtitle && (
-              <p className="m-0 mt-3 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800">
-                {aboutSettings.techSubtitle}
-              </p>
-            )}
-          </div>
+          {(aboutSettings.techTitle || aboutSettings.techSubtitle) && (
+            <div className="border-b-2 border-mt-regua pb-4">
+              {aboutSettings.techTitle && (
+                <h2 className="mt-titulo m-0 text-[28px] lg:text-[40px]">
+                  {aboutSettings.techTitle}
+                </h2>
+              )}
+              {aboutSettings.techSubtitle && (
+                <p className="m-0 mt-3 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800">
+                  {aboutSettings.techSubtitle}
+                </p>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-x-8 pt-6 md:grid-cols-3">
             {cards.map((card, i) => (
               <div key={i} className="border-b border-mt-regua-fina py-5 md:border-b-0">
@@ -165,6 +183,7 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
             { valor: "6 MESES", rotulo: "GARANTIA MOTOR E CÂMBIO" },
           ]}
         />
+        {(companySettings.address || companySettings.hours || companySettings.phone) && (
         <div className="mt-8 flex flex-col gap-6 border-t-2 border-mt-regua pt-6 lg:flex-row lg:gap-14">
           {companySettings.address && (
             <div className="flex-1">
@@ -191,32 +210,47 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
             </div>
           )}
         </div>
+        )}
       </section>
 
       {/* ─── Faixa de fechamento ─── */}
-      <section className="mt-14 bg-mt-accent px-[18px] py-12 text-mt-inverso lg:px-10 lg:py-[76px]">
-        <h2 className="mt-display m-0 max-w-[1000px] text-[32px] lg:text-[76px]">
-          {aboutSettings.ctaTitle || "PRONTO PARA ENCONTRAR SEU PRÓXIMO DESTINO?"}
-        </h2>
-        {aboutSettings.ctaDescription && (
-          <p className="m-0 mt-6 max-w-[620px] text-[14px] leading-relaxed lg:text-base">
-            {aboutSettings.ctaDescription}
-          </p>
-        )}
-        <div className="mt-8 flex flex-wrap gap-0.5 lg:mt-11">
-          <Link href="/carro-perfeito" id="about-cta-match" className="mt-btn mt-btn-tinta mt-foco">
-            {aboutSettings.ctaBtn1Text || "INICIAR CURADORIA IA"}
-            <Seta />
-          </Link>
-          <Link
-            href="/contato"
-            id="about-cta-contact"
-            className="mt-btn mt-foco border-2 border-mt-inverso text-mt-inverso"
-          >
-            {aboutSettings.ctaBtn2Text || "FALE CONOSCO"}
-          </Link>
-        </div>
-      </section>
+      {temFechamento && (
+        <section className="mt-14 bg-mt-accent px-[18px] py-12 text-mt-inverso lg:px-10 lg:py-[76px]">
+          {aboutSettings.ctaTitle && (
+            <h2 className="mt-display m-0 max-w-[1000px] text-[32px] lg:text-[76px]">
+              {aboutSettings.ctaTitle}
+            </h2>
+          )}
+          {aboutSettings.ctaDescription && (
+            <p className="m-0 mt-6 max-w-[620px] text-[14px] leading-relaxed lg:text-base">
+              {aboutSettings.ctaDescription}
+            </p>
+          )}
+          {(aboutSettings.ctaBtn1Text || aboutSettings.ctaBtn2Text) && (
+            <div className="mt-8 flex flex-wrap gap-0.5 lg:mt-11">
+              {aboutSettings.ctaBtn1Text && (
+                <Link
+                  href="/carro-perfeito"
+                  id="about-cta-match"
+                  className="mt-btn mt-btn-tinta mt-foco"
+                >
+                  {aboutSettings.ctaBtn1Text}
+                  <Seta />
+                </Link>
+              )}
+              {aboutSettings.ctaBtn2Text && (
+                <Link
+                  href="/contato"
+                  id="about-cta-contact"
+                  className="mt-btn mt-foco border-2 border-mt-inverso text-mt-inverso"
+                >
+                  {aboutSettings.ctaBtn2Text}
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

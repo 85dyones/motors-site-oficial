@@ -2420,6 +2420,11 @@ export default function ConfiguracoesClientWrapper() {
               <p className="text-xs text-mt-neutral-700 mb-6 font-normal leading-relaxed">
                 Personalize o conteúdo da página "Quem Somos" (/sobre). Digite as informações em caixa alta nos títulos se desejar seguir a estética premium do site.
               </p>
+              <p className="text-xs text-mt-neutral-700 mb-6 font-normal leading-relaxed">
+                Nenhum campo é obrigatório: o que ficar em branco simplesmente não aparece
+                na página — sem texto de exemplo no lugar. Para esvaziar uma seção inteira,
+                deixe todos os campos dela em branco.
+              </p>
 
               <form onSubmit={handleSaveAboutSettings} className="flex flex-col gap-8">
                 {/* Seção 1: Hero */}
@@ -2434,7 +2439,6 @@ export default function ConfiguracoesClientWrapper() {
                       </label>
                       <input
                         type="text"
-                        required
                         value={aboutForm.heroTitle}
                         onChange={(e) => setAboutForm({ ...aboutForm, heroTitle: e.target.value })}
                         placeholder="MOLDANDO A CURADORIA PREMIUM"
@@ -2446,7 +2450,6 @@ export default function ConfiguracoesClientWrapper() {
                         Texto do Manifesto
                       </label>
                       <textarea
-                        required
                         rows={3}
                         value={aboutForm.heroSubtitle}
                         onChange={(e) => setAboutForm({ ...aboutForm, heroSubtitle: e.target.value })}
@@ -2469,7 +2472,6 @@ export default function ConfiguracoesClientWrapper() {
                       </label>
                       <input
                         type="text"
-                        required
                         value={aboutForm.historyTitle}
                         onChange={(e) => setAboutForm({ ...aboutForm, historyTitle: e.target.value })}
                         placeholder="A Herança da Motors Store"
@@ -2481,7 +2483,6 @@ export default function ConfiguracoesClientWrapper() {
                         Parágrafo 1 (História)
                       </label>
                       <textarea
-                        required
                         rows={3}
                         value={aboutForm.historyP1}
                         onChange={(e) => setAboutForm({ ...aboutForm, historyP1: e.target.value })}
@@ -2494,7 +2495,6 @@ export default function ConfiguracoesClientWrapper() {
                         Parágrafo 2 (História)
                       </label>
                       <textarea
-                        required
                         rows={3}
                         value={aboutForm.historyP2}
                         onChange={(e) => setAboutForm({ ...aboutForm, historyP2: e.target.value })}
@@ -2517,7 +2517,6 @@ export default function ConfiguracoesClientWrapper() {
                       </label>
                       <input
                         type="text"
-                        required
                         value={aboutForm.valuesTitle}
                         onChange={(e) => setAboutForm({ ...aboutForm, valuesTitle: e.target.value })}
                         placeholder="Perícia e Rigor Técnico"
@@ -2530,7 +2529,6 @@ export default function ConfiguracoesClientWrapper() {
                       </label>
                       <input
                         type="text"
-                        required
                         value={aboutForm.value1}
                         onChange={(e) => setAboutForm({ ...aboutForm, value1: e.target.value })}
                         placeholder="Laudo Cautelar 100% Livre: Histórico estrutural..."
@@ -2543,7 +2541,6 @@ export default function ConfiguracoesClientWrapper() {
                       </label>
                       <input
                         type="text"
-                        required
                         value={aboutForm.value2}
                         onChange={(e) => setAboutForm({ ...aboutForm, value2: e.target.value })}
                         placeholder="Garantia de Showroom: Revisão profunda..."
@@ -2556,7 +2553,6 @@ export default function ConfiguracoesClientWrapper() {
                       </label>
                       <input
                         type="text"
-                        required
                         value={aboutForm.value3}
                         onChange={(e) => setAboutForm({ ...aboutForm, value3: e.target.value })}
                         placeholder="Valoração Fipe de Precisão: Atualização contínua..."
@@ -2579,7 +2575,6 @@ export default function ConfiguracoesClientWrapper() {
                         </label>
                         <input
                           type="text"
-                          required
                           value={aboutForm.techTitle}
                           onChange={(e) => setAboutForm({ ...aboutForm, techTitle: e.target.value })}
                           placeholder="NOSSOS PILARES DE EXCELÊNCIA"
@@ -2592,7 +2587,6 @@ export default function ConfiguracoesClientWrapper() {
                         </label>
                         <input
                           type="text"
-                          required
                           value={aboutForm.techSubtitle}
                           onChange={(e) => setAboutForm({ ...aboutForm, techSubtitle: e.target.value })}
                           placeholder="Nossa plataforma web 2.0 não é apenas..."
@@ -2609,7 +2603,6 @@ export default function ConfiguracoesClientWrapper() {
                           <label className="text-[8px] font-bold text-mt-neutral-600">Título</label>
                           <input
                             type="text"
-                            required
                             value={aboutForm.card1Title}
                             onChange={(e) => setAboutForm({ ...aboutForm, card1Title: e.target.value })}
                             placeholder="PRECISÃO FIPE EXPRESS"
@@ -2619,7 +2612,6 @@ export default function ConfiguracoesClientWrapper() {
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[8px] font-bold text-mt-neutral-600">Descrição</label>
                           <textarea
-                            required
                             rows={3}
                             value={aboutForm.card1Desc}
                             onChange={(e) => setAboutForm({ ...aboutForm, card1Desc: e.target.value })}
@@ -2636,7 +2628,6 @@ export default function ConfiguracoesClientWrapper() {
                           <label className="text-[8px] font-bold text-mt-neutral-600">Título</label>
                           <input
                             type="text"
-                            required
                             value={aboutForm.card2Title}
                             onChange={(e) => setAboutForm({ ...aboutForm, card2Title: e.target.value })}
                             placeholder="ALGORITMO DE DISTÂNCIA"
@@ -2646,7 +2637,6 @@ export default function ConfiguracoesClientWrapper() {
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[8px] font-bold text-mt-neutral-600">Descrição</label>
                           <textarea
-                            required
                             rows={3}
                             value={aboutForm.card2Desc}
                             onChange={(e) => setAboutForm({ ...aboutForm, card2Desc: e.target.value })}
@@ -2663,7 +2653,6 @@ export default function ConfiguracoesClientWrapper() {
                           <label className="text-[8px] font-bold text-mt-neutral-600">Título</label>
                           <input
                             type="text"
-                            required
                             value={aboutForm.card3Title}
                             onChange={(e) => setAboutForm({ ...aboutForm, card3Title: e.target.value })}
                             placeholder="ASSISTENTE SEMÂNTICO LOCAL"
@@ -2673,7 +2662,6 @@ export default function ConfiguracoesClientWrapper() {
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[8px] font-bold text-mt-neutral-600">Descrição</label>
                           <textarea
-                            required
                             rows={3}
                             value={aboutForm.card3Desc}
                             onChange={(e) => setAboutForm({ ...aboutForm, card3Desc: e.target.value })}
@@ -2699,7 +2687,6 @@ export default function ConfiguracoesClientWrapper() {
                         </label>
                         <input
                           type="text"
-                          required
                           value={aboutForm.ctaTitle || ""}
                           onChange={(e) => setAboutForm({ ...aboutForm, ctaTitle: e.target.value })}
                           placeholder="PRONTO PARA ENCONTRAR SEU PRÓXIMO DESTINO?"
@@ -2711,7 +2698,6 @@ export default function ConfiguracoesClientWrapper() {
                           Texto de Apoio
                         </label>
                         <textarea
-                          required
                           rows={3}
                           value={aboutForm.ctaDescription || ""}
                           onChange={(e) => setAboutForm({ ...aboutForm, ctaDescription: e.target.value })}
@@ -2727,7 +2713,6 @@ export default function ConfiguracoesClientWrapper() {
                         </label>
                         <input
                           type="text"
-                          required
                           value={aboutForm.ctaBtn1Text || ""}
                           onChange={(e) => setAboutForm({ ...aboutForm, ctaBtn1Text: e.target.value })}
                           placeholder="INICIAR CURADORIA IA"
@@ -2740,7 +2725,6 @@ export default function ConfiguracoesClientWrapper() {
                         </label>
                         <input
                           type="text"
-                          required
                           value={aboutForm.ctaBtn2Text || ""}
                           onChange={(e) => setAboutForm({ ...aboutForm, ctaBtn2Text: e.target.value })}
                           placeholder="FALE CONOSCO"
