@@ -928,15 +928,19 @@ export default function TestPage() {
     // Step 7: Verify dynamic header logo path switching corresponding to active theme presets
     updateStepStatus("scenario-7", 6, "running");
     addLog("🔍 Auditing dynamic header logo preset mappings...");
+    // Os caminhos vinham com prefixo `/public/`, que não existe na web: em
+    // Next.js a pasta `public/` É a raiz. Para as imagens não darem 404 alguém
+    // criou um diretório `public/public/` literal com cópias dos três logos.
+    // Aqui ficam os arquivos de verdade, os mesmos que o Header.tsx serve.
     const testLogoMap: Record<string, string> = {
-      "luxury-light": "/public/Motors Store - logo 1.png",
-      "stealth-dark": "/public/Motors Store - logo 2.png",
-      "sport-nardo": "/public/Motors Store - logo 3 b.png",
+      "luxury-light": "/motors-store-logo-1.png",
+      "stealth-dark": "/motors-store-logo-2.png",
+      "sport-nardo": "/motors-store-logo-3.png",
     };
-    const allPresetsValid = 
-      testLogoMap["luxury-light"].includes("logo 1") &&
-      testLogoMap["stealth-dark"].includes("logo 2") &&
-      testLogoMap["sport-nardo"].includes("logo 3 b");
+    const allPresetsValid =
+      testLogoMap["luxury-light"].includes("logo-1") &&
+      testLogoMap["stealth-dark"].includes("logo-2") &&
+      testLogoMap["sport-nardo"].includes("logo-3");
       
     if (allPresetsValid) {
       addLog("✅ Header logo preset switching successfully verified! Light maps to logo 1, Dark maps to logo 2, and Nardo maps to logo 3 b.");
