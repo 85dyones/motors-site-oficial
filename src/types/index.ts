@@ -16,6 +16,40 @@ export interface ThemeProperties {
   "--brand-footer-bg": string;
 }
 
+/**
+ * O que o WhatsApp, o Facebook e o LinkedIn mostram quando alguém cola o link
+ * de uma página.
+ *
+ * Campo vazio não vira texto padrão nem imagem quebrada: cai no fallback da
+ * página (o texto que o SEO já usa) e, na falta de imagem, no card gerado por
+ * `/api/og`. Mesma regra do resto do painel — branco significa "usa o de
+ * fábrica", não "publica em branco".
+ */
+export interface CardCompartilhamento {
+  titulo?: string;
+  descricao?: string;
+  /** 1200×630. O upload do painel já entrega nessa proporção, em JPEG. */
+  imagemUrl?: string;
+}
+
+/**
+ * Cards por página, com `padrao` valendo para toda página sem card próprio.
+ *
+ * A PDP não está aqui de propósito: ela compartilha a foto do próprio veículo,
+ * que é sempre melhor do que qualquer arte fixa que a loja subisse.
+ */
+export interface CompartilhamentoSettings {
+  padrao?: CardCompartilhamento;
+  home?: CardCompartilhamento;
+  estoque?: CardCompartilhamento;
+  avaliacao?: CardCompartilhamento;
+  carroPerfeito?: CardCompartilhamento;
+  sobre?: CardCompartilhamento;
+  contato?: CardCompartilhamento;
+  destaques?: CardCompartilhamento;
+  privacidade?: CardCompartilhamento;
+}
+
 export interface CompanySettings {
   name: string;
   phone: string;
@@ -45,6 +79,8 @@ export interface CompanySettings {
   // no blob de `site_settings` é ignorada: nada mais lê esses campos.
   carMatchTitle?: string;
   avaliacaoExpressTitle?: string;
+  /** Cards de compartilhamento por página (aba "Compartilhar" do painel). */
+  compartilhamento?: CompartilhamentoSettings;
   s3AccessKeyId?: string;
   s3SecretAccessKey?: string;
 }

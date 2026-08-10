@@ -89,6 +89,9 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         // essa vive no ambiente e aparece em Integrações.
         { name: "Música do showroom", href: "/admin/site/musica" },
         { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
+        // O card que aparece quando alguém cola um link do site no WhatsApp.
+        // Fica em "Site" porque é conteúdo de página, não credencial.
+        { name: "Compartilhamento", href: "/admin/configuracoes?tab=compartilhamento" },
         { name: "Faixa de procedência", href: "/admin/configuracoes?tab=procedencia" },
         { name: "Faixa do Instagram", href: "/admin/configuracoes?tab=instagram" },
       ],

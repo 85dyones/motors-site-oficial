@@ -32,17 +32,37 @@ const archivo = Archivo({
 });
 
 import { getCachedSettings } from "../lib/settings";
+import { montarCompartilhamento } from "../lib/compartilhamento";
 
 export async function generateMetadata(): Promise<Metadata> {
   let tabTitle = "Motors Store | Encontre seu Veículo Premium dos Sonhos";
+  let empresa = null;
   try {
     const { companySettings } = await getCachedSettings();
+    empresa = companySettings;
     if (companySettings?.tabTitle?.trim()) {
       tabTitle = companySettings.tabTitle.trim();
     }
   } catch (e) {
     // Fallback to default
   }
+
+  const descricaoPadrao =
+    "A melhor revenda e avaliação de carros premium e seminovos selecionados. Facilidade no financiamento sem entrada.";
+
+  // Card herdado por quem não declara o próprio — hoje só /login, /test e as
+  // rotas de /admin, que ninguém compartilha. As páginas públicas montam o
+  // seu com `montarCompartilhamento`, cada uma com o seu texto.
+  //
+  // Até 2026-08-10 este bloco declarava `/logo.png` como 1200×630. O arquivo é
+  // 1024×513, e o scraper estica a imagem para a dimensão declarada: era daí o
+  // logo deformado no WhatsApp.
+  const { openGraph, twitter } = montarCompartilhamento({
+    empresa,
+    pagina: "home",
+    tituloPadrao: tabTitle,
+    descricaoPadrao,
+  });
 
   return {
     metadataBase: new URL("https://motors-site-oficial.vercel.app"),
@@ -61,20 +81,8 @@ export async function generateMetadata(): Promise<Metadata> {
       icon: "/favicon.ico?v=2",
       apple: "/apple-touch-icon.png",
     },
-    openGraph: {
-      type: "website",
-      locale: "pt_BR",
-      siteName: "Motors Store",
-      title: tabTitle,
-      description: "A melhor revenda e avaliação de carros premium e seminovos selecionados. Facilidade no financiamento sem entrada.",
-      images: [{ url: "/logo.png", width: 1200, height: 630, alt: "Motors Store Logo" }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: tabTitle,
-      description: "A melhor revenda e avaliação de carros premium e seminovos selecionados.",
-      images: ["/logo.png"],
-    },
+    openGraph,
+    twitter,
   };
 }
 

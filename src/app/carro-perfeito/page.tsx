@@ -1,12 +1,27 @@
 import type { Metadata } from "next";
 import CarMatch from "../../components/CarMatch";
+import { getCachedSettings } from "../../lib/settings";
+import { montarCompartilhamento } from "../../lib/compartilhamento";
 
-export const metadata: Metadata = {
-  title: "Garagem Profiler — encontre o carro certo | Motors Store",
-  description:
-    "Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e um consultor envia três sugestões reais do estoque no WhatsApp.",
-  alternates: { canonical: "/carro-perfeito" },
-};
+const DESCRICAO =
+  "Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e um consultor envia três sugestões reais do estoque no WhatsApp.";
+
+// Mesma correção da /avaliacao: sem card próprio, o quiz era compartilhado com
+// o texto da home.
+export async function generateMetadata(): Promise<Metadata> {
+  const { companySettings } = await getCachedSettings();
+
+  return {
+    title: "Garagem Profiler — encontre o carro certo | Motors Store",
+    description: DESCRICAO,
+    alternates: { canonical: "/carro-perfeito" },
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: "carroPerfeito",
+      caminho: "/carro-perfeito",
+    }),
+  };
+}
 
 /**
  * Tela 04 — Garagem Profiler.

@@ -1,27 +1,32 @@
 import type { Metadata } from "next";
 import SobreClientWrapper from "../../components/SobreClientWrapper";
 import { getEstoque } from "../../lib/supabase";
+import { getCachedSettings } from "../../lib/settings";
+import { montarCompartilhamento } from "../../lib/compartilhamento";
 
 export const revalidate = 60;
 
-export const metadata: Metadata = {
-  title: "Quem Somos | Motors Store - Tradição e Tecnologia Premium",
-  description: "Conheça a história da Motors Store. De um showroom tradicional em Curitiba a pioneira na inteligência artificial para curadoria de veículos de alto padrão.",
-  alternates: {
-    canonical: "/sobre",
-  },
-  openGraph: {
+const DESCRICAO =
+  "Conheça a história da Motors Store. De um showroom tradicional em Curitiba a pioneira na inteligência artificial para curadoria de veículos de alto padrão.";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { companySettings } = await getCachedSettings();
+
+  return {
     title: "Quem Somos | Motors Store - Tradição e Tecnologia Premium",
-    description: "Conheça a história da Motors Store. De um showroom tradicional em Curitiba a pioneira na inteligência artificial para curadoria de veículos de alto padrão.",
-    url: "/sobre",
-    type: "website",
-  },
-  twitter: {
-    card: "summary",
-    title: "Quem Somos | Motors Store - Tradição e Tecnologia Premium",
-    description: "Conheça a história da Motors Store. De um showroom tradicional em Curitiba a pioneira na inteligência artificial para curadoria de veículos de alto padrão.",
-  },
-};
+    description: DESCRICAO,
+    alternates: {
+      canonical: "/sobre",
+    },
+    // Texto de fábrica do card vem do catálogo em `lib/compartilhamento.ts`,
+    // que é a mesma fonte que o preview do painel lê.
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: "sobre",
+      caminho: "/sobre",
+    }),
+  };
+}
 
 const breadcrumbSchema = {
   "@context": "https://schema.org",

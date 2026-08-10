@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Catalogo from "../../components/modernist/Catalogo";
 import { getEstoque } from "../../lib/supabase";
 import { getCachedSettings } from "../../lib/settings";
+import { montarCompartilhamento } from "../../lib/compartilhamento";
 import {
   DESTAQUES_PADRAO,
   normalizarQuickTags,
@@ -12,7 +13,10 @@ import {
 export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const estoque = await getEstoque();
+  const [estoque, { companySettings }] = await Promise.all([
+    getEstoque(),
+    getCachedSettings(),
+  ]);
   const total = estoque.filter((v) => !v.vendido).length;
 
   return {
@@ -21,11 +25,14 @@ export async function generateMetadata(): Promise<Metadata> {
       `${total} veículos premium selecionados com laudo cautelar, procedência auditada e garantia. ` +
       "Filtre por marca, carroceria, câmbio e faixa de preço.",
     alternates: { canonical: "/estoque" },
-    openGraph: {
-      title: `Estoque — ${total} veículos | Motors Store`,
-      description:
-        "Veículos premium selecionados com laudo cautelar, procedência auditada e garantia.",
-    },
+    // O card contava o estoque no título e não tinha imagem — herdava o logo
+    // esticado do layout. A contagem fica: é o que dá vontade de abrir.
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: "estoque",
+      tituloPadrao: `${total} veículos premium em Curitiba`,
+      caminho: "/estoque",
+    }),
   };
 }
 

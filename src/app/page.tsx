@@ -17,6 +17,7 @@ import {
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
 import { contarMarcas } from "../lib/estatisticasEstoque";
 import { getCachedSettings } from "../lib/settings";
+import { montarCompartilhamento } from "../lib/compartilhamento";
 import { getReputacaoGoogle } from "../lib/avaliacoesGoogle";
 import { normalizarCuradoria } from "../lib/instagramCuradoria";
 import {
@@ -38,9 +39,26 @@ import { linkWhatsApp } from "../lib/whatsapp";
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
 // públicas (sobre, contato, privacidade, destaques, PDP) já declaravam o seu.
-export const metadata: Metadata = {
-  alternates: { canonical: "/" },
-};
+//
+// O card de compartilhamento também é próprio: herdar o do layout funcionava,
+// mas deixava a home sem lugar no painel — e é justamente a página que mais se
+// cola no WhatsApp.
+export async function generateMetadata(): Promise<Metadata> {
+  const { companySettings } = await getCachedSettings();
+  const tabTitle = companySettings?.tabTitle?.trim();
+
+  return {
+    alternates: { canonical: "/" },
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: "home",
+      tituloPadrao: tabTitle || "Motors Store | Seminovos premium em Curitiba",
+      descricaoPadrao:
+        "Veículos premium selecionados com laudo cautelar, procedência auditada e garantia. Financiamento sem entrada.",
+      caminho: "/",
+    }),
+  };
+}
 
 /**
  * Endereço da loja para o schema.org, derivado do endereço em vigor — o mesmo

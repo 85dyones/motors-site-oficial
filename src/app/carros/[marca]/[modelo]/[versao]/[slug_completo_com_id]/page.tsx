@@ -4,6 +4,7 @@ import { getEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "..
 import PDPClientWrapper from "../../../../../../components/PDPClientWrapper";
 import FaixaProcedencia from "../../../../../../components/modernist/FaixaProcedencia";
 import { getCachedSettings } from "../../../../../../lib/settings";
+import { montarCompartilhamento } from "../../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../../lib/similares";
 
@@ -79,31 +80,32 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
+  const { companySettings } = await getCachedSettings();
 
+  // A foto vence qualquer arte do painel: é o próprio produto. Quando o
+  // veículo chega sem foto utilizável, `montarCompartilhamento` desce para o
+  // card do painel e, na falta dele, para o card gerado — nunca para nada.
+  //
+  // As dimensões saíram daqui. Estavam fixas em 800×600 para qualquer foto: o
+  // scraper confia no que é declarado, e foto em 4:3 anunciada como se fosse
+  // outra coisa é o mesmo defeito que esticava o logo da home. Sem declaração,
+  // Facebook e WhatsApp medem o arquivo sozinhos.
   return {
     title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} - ${priceText} | Motors Store`,
     description: seoDescription,
     alternates: {
       canonical: pdpUrl,
     },
-    openGraph: {
-      title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} por ${priceText}`,
-      description: seoDescription,
-      images: [
-        {
-          url: imageUrl,
-          width: 800,
-          height: 600,
-          alt: `${veiculo.marca} ${veiculo.modelo}`
-        }
-      ]
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} - ${priceText} | Motors Store`,
-      description: seoDescription,
-      images: [imageUrl],
-    }
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: "pdp",
+      rotulo: `${veiculo.marca} ${veiculo.modelo}`,
+      tituloPadrao: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} por ${priceText}`,
+      descricaoPadrao: seoDescription,
+      caminho: pdpUrl,
+      imagemPreferida: imageUrl,
+      imagemPreferidaSemDimensao: true,
+    }),
   };
 }
 

@@ -1,24 +1,27 @@
 import type { Metadata } from "next";
 import ContatoClientWrapper from "../../components/ContatoClientWrapper";
+import { getCachedSettings } from "../../lib/settings";
+import { montarCompartilhamento } from "../../lib/compartilhamento";
 
-export const metadata: Metadata = {
-  title: "Fale Conosco | Motors Store - Atendimento Showroom",
-  description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.",
-  alternates: {
-    canonical: "/contato",
-  },
-  openGraph: {
+const DESCRICAO =
+  "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { companySettings } = await getCachedSettings();
+
+  return {
     title: "Fale Conosco | Motors Store - Atendimento Showroom",
-    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.",
-    url: "/contato",
-    type: "website",
-  },
-  twitter: {
-    card: "summary",
-    title: "Fale Conosco | Motors Store - Atendimento Showroom",
-    description: "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.",
-  },
-};
+    description: DESCRICAO,
+    alternates: {
+      canonical: "/contato",
+    },
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: "contato",
+      caminho: "/contato",
+    }),
+  };
+}
 
 export default function ContatoPage() {
   const breadcrumbSchema = {

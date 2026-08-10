@@ -5,7 +5,10 @@
  * esteja num tamanho otimizado para web.
  */
 
-export const processImage = (file: File, type: 'logo' | 'favicon'): Promise<Blob> => {
+export const processImage = (
+  file: File,
+  type: 'logo' | 'favicon' | 'compartilhamento'
+): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     // 1. Ler o arquivo para um Data URL
     const reader = new FileReader();
@@ -21,7 +24,35 @@ export const processImage = (file: File, type: 'logo' | 'favicon'): Promise<Blob
           return reject(new Error("Não foi possível iniciar o processador de imagem."));
         }
 
-        if (type === 'favicon') {
+        if (type === 'compartilhamento') {
+          // Card de prévia de link: 1200×630 exatos, sempre.
+          //
+          // Recorte central cobrindo a moldura inteira, em vez de encaixar a
+          // imagem dentro dela. Deixar a arte "caber" com barras é o que
+          // produz aquele card com faixas pretas em cima e embaixo no
+          // WhatsApp; e esticar é o defeito que essa rodada veio corrigir.
+          // Cortar é a única opção que não deforma nem sobra.
+          const LARGURA = 1200;
+          const ALTURA = 630;
+          canvas.width = LARGURA;
+          canvas.height = ALTURA;
+
+          const escala = Math.max(LARGURA / img.width, ALTURA / img.height);
+          const w = img.width * escala;
+          const h = img.height * escala;
+
+          // Fundo branco antes de desenhar: PNG com transparência vira preto
+          // no JPEG, e logo transparente ficaria ilegível na prévia.
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, LARGURA, ALTURA);
+          ctx.drawImage(img, (LARGURA - w) / 2, (ALTURA - h) / 2, w, h);
+
+          // JPEG, não WebP: o WhatsApp não renderiza WebP em prévia de link.
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Falha ao exportar a imagem de compartilhamento."));
+          }, 'image/jpeg', 0.88);
+        } else if (type === 'favicon') {
           // Favicon: Enquadrar em quadrado (256x256), manter proporção
           const size = 256;
           canvas.width = size;

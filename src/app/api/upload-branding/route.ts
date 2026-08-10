@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     // Process FormData
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    const type = formData.get("type") as string; // 'logo' | 'favicon' | 'banner'
+    const type = formData.get("type") as string; // 'logo' | 'favicon' | 'banner' | 'compartilhamento'
     const s3AccessKeyId = formData.get("s3AccessKeyId") as string | null;
     const s3SecretAccessKey = formData.get("s3SecretAccessKey") as string | null;
 
@@ -156,6 +156,23 @@ export async function POST(request: Request) {
     }
 
     // Method 3: Resilient Fallback - Base64 Data URL (for images <= 3MB)
+    //
+    // Não vale para imagem de compartilhamento. Um data URL funciona no
+    // painel e no site — o browser desenha —, mas nenhum scraper de prévia
+    // busca `data:`: o WhatsApp simplesmente não mostraria imagem nenhuma, e
+    // a loja veria a miniatura certa no admin sem entender por que o link
+    // sai sem card. Falhar aqui é mais honesto do que gravar um valor que
+    // parece uma URL válida.
+    if (type === "compartilhamento") {
+      return NextResponse.json(
+        {
+          error:
+            "Não foi possível gravar a imagem no Storage. A imagem de compartilhamento precisa de uma URL pública — tente novamente ou verifique as credenciais de armazenamento.",
+        },
+        { status: 500 }
+      );
+    }
+
     if (buffer.length <= 3.5 * 1024 * 1024) {
       const mimeType = file.type || "image/webp";
       const base64Data = buffer.toString("base64");

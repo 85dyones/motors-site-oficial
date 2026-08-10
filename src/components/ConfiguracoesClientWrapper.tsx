@@ -33,6 +33,7 @@ const ABAS = [
   "destaques",
   "aparencia",
   "sobre",
+  "compartilhamento",
   "procedencia",
   "instagram",
   "integracao",
@@ -721,6 +722,7 @@ export default function ConfiguracoesClientWrapper() {
       case "popups": return "Pop-ups de Lead";
       case "empresa": return "Dados da Concessionária";
       case "sobre": return "Página Quem Somos";
+      case "compartilhamento": return "Compartilhamento em Redes e WhatsApp";
       case "procedencia": return "Faixa de Procedência";
       case "instagram": return "Faixa do Instagram";
       default: return "Controle Administrativo";

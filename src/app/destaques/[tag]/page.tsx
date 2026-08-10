@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import LandingDestaque from '../../../components/modernist/LandingDestaque';
 import { getEstoque } from '../../../lib/supabase';
 import { getCachedSettings } from '../../../lib/settings';
+import { montarCompartilhamento } from '../../../lib/compartilhamento';
 import {
   DESTAQUES_PADRAO,
   normalizarQuickTags,
@@ -58,7 +59,10 @@ async function resolveTagInfo(tagParam: string) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const { tagName, cleanSlug } = await resolveTagInfo(resolvedParams.tag);
+  const [{ tagName, cleanSlug }, { companySettings }] = await Promise.all([
+    resolveTagInfo(resolvedParams.tag),
+    getCachedSettings(),
+  ]);
 
   // Caixa de frase, não a caixa alta que a tela usa: o nome cai no meio da
   // frase, e `<title>` todo em maiúscula é candidato a ser reescrito pelo
@@ -86,19 +90,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         'max-snippet': -1,
       },
     },
-    openGraph: {
-      title,
-      description,
-      url,
-      siteName: 'Motors Store',
-      locale: 'pt_BR',
-      type: 'website',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-    },
+    // O `url` com UTM continua sendo o do og:url — é por ele que a loja mede
+    // o tráfego de link colado. O restante do card vem da cascata do painel;
+    // o rótulo é o nome do destaque, que é o que distingue uma landing da
+    // outra na prévia.
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: 'destaques',
+      rotulo: nome,
+      tituloPadrao: `Carros ${nome} em Curitiba`,
+      descricaoPadrao: description,
+      caminho: url,
+    }),
   };
 }
 

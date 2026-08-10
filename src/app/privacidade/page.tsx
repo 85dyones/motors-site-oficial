@@ -1,30 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCachedSettings } from "../../lib/settings";
+import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { LinkRegua, Rotulo } from "../../components/modernist/primitivos";
 import type { CompanySettings } from "../../types";
 
-export const metadata: Metadata = {
-  title: "Política de Privacidade e LGPD | Motors Store",
-  description:
-    "Como a Motors Store coleta, usa e protege seus dados pessoais. Cookies, publicidade, compartilhamento com terceiros e seus direitos como titular sob a LGPD.",
-  alternates: {
-    canonical: "/privacidade",
-  },
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  const { companySettings } = await getCachedSettings();
+
+  return {
     title: "Política de Privacidade e LGPD | Motors Store",
     description:
-      "Como a Motors Store coleta, usa e protege seus dados pessoais, e como exercer seus direitos sob a LGPD.",
-    url: "/privacidade",
-    type: "website",
-  },
-  twitter: {
-    card: "summary",
-    title: "Política de Privacidade e LGPD | Motors Store",
-    description:
-      "Como a Motors Store coleta, usa e protege seus dados pessoais, e como exercer seus direitos sob a LGPD.",
-  },
-};
+      "Como a Motors Store coleta, usa e protege seus dados pessoais. Cookies, publicidade, compartilhamento com terceiros e seus direitos como titular sob a LGPD.",
+    alternates: {
+      canonical: "/privacidade",
+    },
+    ...montarCompartilhamento({
+      empresa: companySettings,
+      pagina: "privacidade",
+      caminho: "/privacidade",
+    }),
+  };
+}
 
 const breadcrumbSchema = {
   "@context": "https://schema.org",
