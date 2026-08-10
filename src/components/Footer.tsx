@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import { getEstoque, getVeiculoPdpUrl, truncateString, type Veiculo } from "../lib/supabase";
 import { trackContactClick } from "../lib/telemetry";
+import { linkWhatsApp } from "../lib/whatsapp";
 
 /**
  * Rodapé Modernist (redesign 2026).
@@ -105,7 +106,7 @@ export default function Footer() {
         },
         {
           rotulo: `WhatsApp ${companySettings.whatsapp}`,
-          href: `https://wa.me/${(companySettings.whatsappRaw || companySettings.whatsapp || "").replace(/\D/g, "")}`,
+          href: linkWhatsApp(companySettings),
           contato: "whatsapp",
         },
         { rotulo: companySettings.hours, href: null },

@@ -3,6 +3,7 @@ import VitrineBalcao from "../../../components/modernist/VitrineBalcao";
 import { getEstoque } from "../../../lib/supabase";
 import { getCachedSettings } from "../../../lib/settings";
 import DEFAULT_COMPANY_SETTINGS from "../../../lib/companySettings.json";
+import { linkWhatsApp } from "../../../lib/whatsapp";
 
 /**
  * Tela 08 B do design doc — o tablet de balcão.
@@ -24,7 +25,7 @@ export default async function VitrineBalcaoPage() {
   // O estoque inteiro, não uma seleção: no balcão o cliente pagina até o fim.
   const disponiveis = estoque.filter((v) => !v.vendido);
 
-  const whatsappHref = `https://wa.me/${(empresa.whatsappRaw || empresa.whatsapp || "").replace(/\D/g, "")}`;
+  const whatsappHref = linkWhatsApp(empresa);
 
   return (
     <VitrineBalcao

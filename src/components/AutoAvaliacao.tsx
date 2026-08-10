@@ -8,6 +8,7 @@ import Turnstile from "./Turnstile";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
 import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
+import { linkWhatsApp } from "../lib/whatsapp";
 
 /**
  * Tela 05 — Avaliação Express, na linguagem Modernist.
@@ -813,7 +814,7 @@ export default function AutoAvaliacao() {
     }
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
-    const whatsappUrl = `https://wa.me/${companySettings.whatsappRaw}?text=${encodeURIComponent(activeMessage)}`;
+    const whatsappUrl = linkWhatsApp(companySettings, activeMessage);
     trackContactClick("whatsapp", "Avaliação - Conversão WhatsApp");
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };

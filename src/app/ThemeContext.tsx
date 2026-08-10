@@ -224,10 +224,11 @@ export const DEFAULT_CAMPAIGNS: Campaign[] = [
 
 // PopupSettings imported from ../types
 
+// `whatsappNumber` saiu daqui em 2026-08-10: era um segundo número possível
+// para a loja, diferente do que o site inteiro usava. Ver `lib/whatsapp.ts`.
 export const DEFAULT_POPUP_SETTINGS: PopupSettings = {
   enabled: true,
   cooldownHours: 4,
-  whatsappNumber: "554198089550",
 };
 
 interface ThemeContextProps {

@@ -185,5 +185,11 @@ export type StockOverrides = Record<string, {
 export interface PopupSettings {
   enabled: boolean;
   cooldownHours: number;
-  whatsappNumber: string;
+  /**
+   * O pop-up não tem mais número próprio — usa o da concessionária, como o
+   * resto do site (`lib/whatsapp.ts`). A chave pode continuar existindo no
+   * JSON já gravado em `site_settings`; ninguém a lê. Removida do tipo de
+   * propósito: campo morto que parece vivo é como a loja acaba atendendo em
+   * dois números sem perceber.
+   */
 }

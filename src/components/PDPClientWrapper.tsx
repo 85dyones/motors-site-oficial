@@ -8,6 +8,7 @@ import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
+import { linkWhatsApp } from "../lib/whatsapp";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -370,7 +371,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
     }
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
-    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(activeMessage)}`;
+    const whatsappUrl = linkWhatsApp(companySettings, activeMessage);
     trackContactClick("whatsapp", "PDP - Conversão WhatsApp");
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };

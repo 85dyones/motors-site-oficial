@@ -3,11 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getActiveAgUid, getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
+import { linkWhatsApp } from "../lib/whatsapp";
 import { useTheme } from "../app/ThemeContext";
 
 // ─── Default Configurations ───
-const COOLDOWN_HOURS = 4;                  
-const WHATSAPP_NUMBER = "5511999999999";
+const COOLDOWN_HOURS = 4;
 
 // Minimum time (ms) the user must be on the page before exit-intent can fire.
 // This prevents the false trigger that occurs when the browser fires mouseleave
@@ -33,13 +33,11 @@ interface Campaign {
 interface PopupSettings {
   enabled: boolean;
   cooldownHours: number;
-  whatsappNumber: string;
 }
 
 const DEFAULT_SETTINGS: PopupSettings = {
   enabled: true,
   cooldownHours: 4,
-  whatsappNumber: "5511999999999",
 };
 
 // ─── Anti-Spam Storage Keys ───
@@ -292,13 +290,16 @@ export default function LeadPopup() {
         }),
       }).catch((err) => console.warn("[Webhook] Lead Popup campaign dispatch failed:", err));
 
-      // Open WhatsApp
-      const targetNumber = (settings?.whatsappNumber && settings.whatsappNumber !== "554198089550" && settings.whatsappNumber !== "5511999999999")
-        ? settings.whatsappNumber
-        : companySettings.whatsappRaw;
-      const whatsappUrl = `https://wa.me/${targetNumber}?text=${encodeURIComponent(leadMessage)}`;
-      trackContactClick("whatsapp", "Lead Popup - Conversão WhatsApp");
-      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      // O pop-up tinha número próprio e escolhia comparando contra dois
+      // valores mágicos, o que permitia à loja atender em dois números sem
+      // perceber. Agora é o número da empresa, como no resto do site.
+      const whatsappUrl = linkWhatsApp(companySettings, leadMessage);
+      if (whatsappUrl) {
+        trackContactClick("whatsapp", "Lead Popup - Conversão WhatsApp");
+        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      } else {
+        console.warn("[LeadPopup] Sem número de WhatsApp configurado — nada a abrir.");
+      }
 
     } else if (activeCampaign.actionType === "link") {
       const targetUrl = resolvePlaceholders(activeCampaign.actionTarget);

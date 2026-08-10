@@ -1629,18 +1629,20 @@ export default function ConfiguracoesClientWrapper() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* WhatsApp Number */}
-                  <div className="flex flex-col gap-1.5 col-span-2">
-                    <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
-                      Número do WhatsApp Destinatário (Código do País + DDD + Número)
-                    </label>
-                    <input
-                      type="text"
-                      value={popupSettings.whatsappNumber}
-                      onChange={(e) => setPopupSettings(prev => ({ ...prev, whatsappNumber: e.target.value }))}
-                      placeholder="Ex: 554198089550"
-                      className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all font-mono"
-                    />
+                  {/* O campo de número saiu daqui em 2026-08-10. Era o único
+                      ponto do painel capaz de criar um segundo WhatsApp de
+                      atendimento, e nada na tela avisava. O pop-up usa o
+                      número de "Dados da concessionária", como o site todo. */}
+                  <div className="col-span-2 border border-mt-regua-fina bg-mt-bg p-3.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                      WhatsApp de destino
+                    </div>
+                    <p className="mt-1.5 text-xs leading-relaxed text-mt-neutral-700">
+                      O pop-up abre a conversa no número cadastrado em{" "}
+                      <strong className="text-mt-ink">Dados da concessionária</strong>. O
+                      site inteiro usa esse mesmo número — para trocar, altere lá e vale
+                      em todos os pontos de contato.
+                    </p>
                   </div>
 
                   {/* Cooldown Hours */}
@@ -2045,19 +2047,26 @@ export default function ConfiguracoesClientWrapper() {
                     />
                   </div>
 
-                  {/* WhatsApp Raw */}
+                  {/* WhatsApp Raw — o único número de atendimento do site.
+                      Todo botão de WhatsApp, o pop-up de lead e o telefone do
+                      schema.org saem daqui. Ver `lib/whatsapp.ts`. */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
-                      WhatsApp Link (Apenas números com DDI: ex: 5511999999999)
+                      WhatsApp de atendimento (só números, com DDI e DDD)
                     </label>
                     <input
                       type="text"
                       required
                       value={companyForm.whatsappRaw}
                       onChange={(e) => setCompanyForm({ ...companyForm, whatsappRaw: e.target.value.replace(/\D/g, "") })}
-                      placeholder="5511999999999"
+                      placeholder="DDI + DDD + número"
                       className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all font-mono"
                     />
+                    <p className="text-[11px] leading-relaxed text-mt-neutral-700">
+                      É o número usado em <strong className="text-mt-ink">todo</strong> o
+                      site: botões do topo e do rodapé, ficha do veículo, curadoria,
+                      avaliação e pop-up de lead. Trocar aqui troca em todos.
+                    </p>
                   </div>
 
                   {/* Address */}

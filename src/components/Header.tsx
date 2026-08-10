@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
+import { linkWhatsApp } from "../lib/whatsapp";
 
 /**
  * Cabeçalho Modernist (redesign 2026).
@@ -61,7 +62,7 @@ export default function Header() {
   const ativo = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const whatsappHref = `https://wa.me/${(companySettings?.whatsappRaw || companySettings?.whatsapp || "").replace(/\D/g, "")}`;
+  const whatsappHref = linkWhatsApp(companySettings);
 
   return (
     <header className="sticky top-0 z-50 w-full bg-mt-inverso-fundo text-mt-inverso">

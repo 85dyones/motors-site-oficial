@@ -33,6 +33,7 @@ import {
 // `"sameAs": []` — verificado em produção em 2026-08-06, bug silencioso e
 // anterior a esta rodada: o nome da loja nunca chegou ao structured data.
 import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
+import { linkWhatsApp } from "../lib/whatsapp";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -140,7 +141,7 @@ export default async function Home() {
   const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, 3);
   const destaquesSemana = disponiveis.slice(0, 6);
 
-  const whatsappHref = `https://wa.me/${(empresa.whatsappRaw || empresa.whatsapp || "").replace(/\D/g, "")}`;
+  const whatsappHref = linkWhatsApp(empresa);
 
   const autoDealerSchema = {
     "@context": "https://schema.org",
@@ -148,7 +149,8 @@ export default async function Home() {
     "name": empresa.name,
     "image": `${SITE_URL}/logo.png`,
     "url": SITE_URL,
-    // `whatsappRaw` é o número real em formato discável ("5541998426127").
+    // `whatsappRaw` é o número da loja em formato discável, o mesmo que
+    // alimenta todo botão de WhatsApp do site (`lib/whatsapp.ts`).
     "telephone": empresa.whatsappRaw ? `+${empresa.whatsappRaw}` : undefined,
     "address": enderecoDoSchema(empresa.address),
     "sameAs": [empresa.instagram, empresa.facebook].filter(Boolean),

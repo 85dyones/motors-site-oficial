@@ -9,6 +9,7 @@ import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
+import { linkWhatsApp } from "../lib/whatsapp";
 
 /**
  * Tela 04 — Garagem Profiler, na linguagem Modernist.
@@ -444,7 +445,7 @@ export default function CarMatch() {
       console.warn("[Telemetry] Failed to save lead payload to history:", e);
     }
 
-    const whatsappUrl = `https://wa.me/${companySettings?.whatsappRaw || ""}?text=${encodeURIComponent(finalMsg)}`;
+    const whatsappUrl = linkWhatsApp(companySettings, finalMsg);
     trackContactClick("whatsapp", "CarMatch - Conversão WhatsApp");
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
