@@ -1281,11 +1281,18 @@ export default function ConfiguracoesClientWrapper() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">Nome da Categoria</label>
+                      {/* O `uppercase` da classe é só CSS: mostrava em caixa alta e
+                          gravava o que foi digitado. Foi assim que "pole position
+                          motors" saiu em caixa baixa no trilho da home enquanto o
+                          painel jurava o contrário. Agora grava o que mostra. */}
                       <input
                         type="text"
                         placeholder="EX: SUPER ESPORTIVOS"
                         value={editingQuickTag?.name || ""}
-                        onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, name: e.target.value } : { id: "custom-" + Date.now(), name: e.target.value, field: "tipo", operator: "equals", value: "" })}
+                        onChange={(e) => {
+                          const nome = e.target.value.toUpperCase();
+                          setEditingQuickTag(prev => prev ? { ...prev, name: nome } : { id: "custom-" + Date.now(), name: nome, field: "tipo", operator: "equals", value: "" });
+                        }}
                         className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full placeholder-mt-neutral-500 uppercase"
                       />
                     </div>

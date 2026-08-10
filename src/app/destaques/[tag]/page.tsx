@@ -9,7 +9,13 @@ import {
   normalizarStockOverrides,
   resolverDestaques,
 } from '../../../lib/destaquesRapidos';
-import { slugifyTag, unslugifyTag, findMatchingQuickTag } from '../../../lib/tagUtils';
+import {
+  slugifyTag,
+  unslugifyTag,
+  findMatchingQuickTag,
+  nomeEmFrase,
+  nomeEmMinuscula,
+} from '../../../lib/tagUtils';
 import { QuickTag } from '../../../types';
 
 const STATIC_QUICK_TAGS: QuickTag[] = [
@@ -54,8 +60,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const resolvedParams = await params;
   const { tagName, cleanSlug } = await resolveTagInfo(resolvedParams.tag);
 
-  const title = `Carros ${tagName} em Curitiba | Motors Store`;
-  const description = `Confira nossa seleção exclusiva de veículos na categoria ${tagName}. As melhores condições, procedência garantida e atendimento premium na Motors Store.`;
+  // Caixa de frase, não a caixa alta que a tela usa: o nome cai no meio da
+  // frase, e `<title>` todo em maiúscula é candidato a ser reescrito pelo
+  // Google. O nome vem do painel, então a normalização é obrigatória — sem
+  // ela o título depende de como a loja digitou.
+  const nome = nomeEmMinuscula(tagName);
+  const title = `Carros ${nome} em Curitiba | Motors Store`;
+  const description = `Confira nossa seleção exclusiva de veículos na categoria ${nome}. As melhores condições, procedência garantida e atendimento premium na Motors Store.`;
   const url = `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(cleanSlug)}`;
 
   return {
@@ -104,7 +115,8 @@ export default async function DestaquesPage({ params }: PageProps) {
         "position": 1,
         "item": {
           "@type": "WebPage",
-          "name": `Catálogo de Veículos: ${tagName}`,
+          // Depois de dois-pontos o nome abre a própria frase.
+          "name": `Catálogo de Veículos: ${nomeEmFrase(tagName)}`,
           "url": `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}`
         }
       }

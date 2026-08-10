@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { QuickTag, Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import type { DestaqueResolvido } from "../../lib/destaquesRapidos";
+import { nomeEmFrase } from "../../lib/tagUtils";
 import { CardVeiculo } from "./primitivos";
 
 /**
@@ -65,7 +66,10 @@ export default function LandingDestaque({
 }) {
   const { tag, total, veiculos, slug } = destaque;
   const regra = descreverRegra(tag);
-  const titulo = tag.name.charAt(0) + tag.name.slice(1).toLowerCase();
+  // A <h1> é a única peça da landing em caixa de frase, de propósito — a
+  // mesma caixa do <title>. A regra vive em `tagUtils` porque o SEO da rota
+  // usa a irmã dela, e as duas precisam mudar juntas.
+  const titulo = nomeEmFrase(tag.name);
 
   return (
     <div className="font-modernist">
@@ -84,7 +88,7 @@ export default function LandingDestaque({
           >
             ESTOQUE
           </Link>{" "}
-          / <span className="text-mt-ink">{tag.name}</span>
+          / <span className="uppercase text-mt-ink">{tag.name}</span>
         </nav>
 
         <div className="flex flex-col gap-8 border-b-2 border-mt-regua pb-6 pt-4 lg:flex-row lg:items-end lg:gap-11">
@@ -152,7 +156,7 @@ export default function LandingDestaque({
               <Link
                 key={d.slug}
                 href={d.href}
-                className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold tracking-[.06em] text-mt-ink no-underline lg:border-0 lg:border-r lg:border-mt-regua-fina lg:px-5 lg:py-2 lg:text-xs lg:tracking-[.08em]"
+                className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline lg:border-0 lg:border-r lg:border-mt-regua-fina lg:px-5 lg:py-2 lg:text-xs lg:tracking-[.08em]"
               >
                 {d.tag.name}
                 <span className="text-[10px] font-semibold text-mt-accent">{d.total}</span>
@@ -165,7 +169,7 @@ export default function LandingDestaque({
       {textoEditorial && (
         <div className="flex flex-col gap-8 border-t-2 border-mt-regua bg-mt-surface px-[18px] py-11 lg:flex-row lg:gap-14 lg:px-10">
           <div className="shrink-0 lg:w-[300px]">
-            <div className="mb-2.5 text-[10px] font-semibold tracking-[.16em] text-mt-accent">
+            <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[.16em] text-mt-accent">
               POR QUE {tag.name}
             </div>
             <h2 className="mt-titulo m-0 text-[26px] leading-tight">

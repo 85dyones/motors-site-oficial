@@ -31,6 +31,31 @@ export function unslugifyTag(slug: string): string {
 }
 
 /**
+ * Nome do destaque em caixa de frase, para começo de texto.
+ * "BAIXA QUILOMETRAGEM" e "pole position motors" -> "Baixa quilometragem"
+ *
+ * O nome é digitado no painel e vai para o banco em caixa alta, mas o que já
+ * está salvo pode estar em qualquer caixa — por isso normaliza os dois lados
+ * em vez de só capitalizar a primeira letra.
+ */
+export function nomeEmFrase(nome: string): string {
+  if (!nome) return "";
+  return nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase();
+}
+
+/**
+ * Nome do destaque para o meio de uma frase, onde caixa alta viraria grito.
+ * "BAIXA QUILOMETRAGEM" -> "baixa quilometragem"
+ *
+ * Usado nos textos de SEO: `<title>` todo em maiúscula é candidato a ser
+ * reescrito pelo Google, e "Carros BAIXA QUILOMETRAGEM em Curitiba" lê pior
+ * na SERP do que a mesma frase em caixa normal.
+ */
+export function nomeEmMinuscula(nome: string): string {
+  return nome ? nome.toLowerCase() : "";
+}
+
+/**
  * Finds a matching QuickTag from a list by ID, slug, or normalized name.
  */
 export function findMatchingQuickTag(tags: QuickTag[], searchParam: string): QuickTag | undefined {

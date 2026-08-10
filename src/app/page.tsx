@@ -203,7 +203,10 @@ export default async function Home() {
               <Link
                 key={d.slug}
                 href={d.href}
-                className="mt-foco flex shrink-0 items-baseline gap-1.5 whitespace-nowrap border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold tracking-[.06em] text-mt-ink no-underline md:border-0 md:border-r md:border-mt-regua-fina md:px-5 md:py-3.5 md:text-xs md:tracking-[.08em]"
+                /* `uppercase` porque o nome vem do painel e não há garantia de
+                   caixa no que já está salvo — o trilho é uma régua só, e um
+                   chip em caixa baixa no meio dela salta aos olhos. */
+                className="mt-foco flex shrink-0 items-baseline gap-1.5 whitespace-nowrap border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline md:border-0 md:border-r md:border-mt-regua-fina md:px-5 md:py-3.5 md:text-xs md:tracking-[.08em]"
               >
                 {d.tag.name}
                 <span className="text-[10px] font-semibold text-mt-accent">{d.total}</span>

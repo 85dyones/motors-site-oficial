@@ -147,7 +147,9 @@ export default function Catalogo({
             passaNosFiltros(v, "destaque") &&
             checkTagMatchesVehicle(tag, v, stockOverrides),
         ).length;
-        return { valor: slug, rotulo: tag.name, total };
+        // Caixa alta como os outros grupos do filtro, que vêm de campo do
+        // banco já normalizado. O nome do destaque é digitado no painel.
+        return { valor: slug, rotulo: tag.name.toUpperCase(), total };
       })
       .filter((o) => o.total > 0);
 
