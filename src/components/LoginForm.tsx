@@ -40,7 +40,7 @@ export default function LoginForm() {
         }
       } else {
         // Use full page load to ensure cookies are sent with the next request
-        window.location.href = "/admin/configuracoes";
+        window.location.href = "/admin";
       }
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Conexão com servidor falhou.");

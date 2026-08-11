@@ -14,9 +14,9 @@ export default async function LoginPage() {
   const supabase = await createServerSupabaseClient();
   const { data: { session } } = await supabase.auth.getSession();
 
-  // Redirect if already authenticated
+  // Já autenticado entra direto na Visão geral, que é a porta do painel.
   if (session) {
-    redirect("/admin/configuracoes");
+    redirect("/admin");
   }
 
   return (

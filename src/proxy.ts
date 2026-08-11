@@ -149,7 +149,10 @@ export async function proxy(request: NextRequest) {
         if (path.startsWith("/admin/usuarios") || path.startsWith("/api/users")) {
           if (isAdminPath) {
             const url = request.nextUrl.clone();
-            url.pathname = "/admin/configuracoes";
+            // Visão geral, e não Configurações: é a única tela que todo
+            // perfil enxerga. Mandar para Configurações fazia o Financeiro
+            // quicar duas vezes, porque a regra abaixo o expulsa de lá.
+            url.pathname = "/admin";
             return NextResponse.redirect(url);
           } else {
             return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
@@ -161,7 +164,7 @@ export async function proxy(request: NextRequest) {
           if (role !== "financeiro") {
             if (isAdminPath) {
               const url = request.nextUrl.clone();
-              url.pathname = "/admin/configuracoes";
+              url.pathname = "/admin";
               return NextResponse.redirect(url);
             } else {
               return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
