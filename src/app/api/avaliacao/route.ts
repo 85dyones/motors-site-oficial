@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { logLeadCaptured, logApiTelemetry } from "../../../lib/telemetry";
-import { createServerSupabaseClient } from "../../../lib/supabase-server";
+import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
 
 export const dynamic = "force-dynamic";
@@ -153,6 +153,34 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString()
     };
 
+    // 6.5 Persistência do lead de avaliação.
+    //
+    // Até 2026-08-11 esta rota não gravava nada: o pedido de avaliação vivia
+    // só no webhook do n8n. Como aquele webhook aponta para um workflow
+    // parado, todo pedido de avaliação estava sendo perdido — o mesmo que
+    // acontecia com `/api/leads` antes da migração 20260811130000.
+    //
+    // Mesma regra de lá: **nunca bloqueia**. Quem preencheu a avaliação está
+    // a caminho do WhatsApp, e falha de gravação nossa não pode segurá-lo.
+    try {
+      const supabaseAdmin = createAdminSupabaseClient();
+      const { error: erroLead } = await supabaseAdmin.from("leads").insert({
+        nome,
+        telefone: formattedPhone || null,
+        // O interesse aqui é o inverso do lead comum: a pessoa quer VENDER
+        // este carro, não comprá-lo. O canal é o que distingue os dois no
+        // kanban.
+        interesse: [marca, modelo, ano].filter(Boolean).join(" ") || null,
+        canal: "Avaliação",
+        event_id: requestBody.eventId || null,
+      });
+      if (erroLead) {
+        console.warn("[Avaliacao API] Falha ao gravar lead (não bloqueante):", erroLead.message);
+      }
+    } catch (erroPersistencia: any) {
+      console.warn("[Avaliacao API] Erro ao gravar lead (não bloqueante):", erroPersistencia?.message);
+    }
+
     // 7. Load webhook settings from database to get the configured custom URL
     const { data: webhooksRow } = await supabase
       .from("site_settings")
@@ -169,14 +197,24 @@ export async function POST(request: NextRequest) {
       || "https://n8n.v2o5.com.br/webhook/sdr-captura-lead";
 
     // 8. Send POST request to n8n with secret token authentication
-    const response = await fetch(n8nWebhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(secretToken && secretToken.trim() !== "" ? { "Authorization": `Bearer ${secretToken.trim()}` } : {})
-      },
-      body: JSON.stringify(n8nPayload)
-    });
+    //
+    // Envolvido em try/catch como em `/api/leads`: sem isto, n8n fora do ar
+    // derruba o formulário de avaliação para o cliente. Uma indisponibilidade
+    // da automação não pode virar indisponibilidade da loja — ainda mais
+    // agora que o lead já foi gravado no banco logo acima.
+    let response: Response | null = null;
+    try {
+      response = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(secretToken && secretToken.trim() !== "" ? { "Authorization": `Bearer ${secretToken.trim()}` } : {})
+        },
+        body: JSON.stringify(n8nPayload)
+      });
+    } catch (erroWebhook: any) {
+      console.warn(`[Webhook n8n Proxy] Erro de rede na avaliação (não bloqueante): ${erroWebhook?.message}`);
+    }
 
     // 9. Invoke Telemetry Hook
     logLeadCaptured({
@@ -187,10 +225,10 @@ export async function POST(request: NextRequest) {
       nome,
       telefone,
       agUid,
-      status: response.status
+      status: response?.status ?? 0
     });
 
-    if (!response.ok) {
+    if (response && !response.ok) {
       const errorText = await response.text().catch(() => "");
       console.warn(`[Webhook n8n Proxy] Evaluation error response [${response.status}]: ${errorText}`);
     }
