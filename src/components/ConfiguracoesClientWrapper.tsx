@@ -6,18 +6,20 @@ import { useConfirm } from "./admin/ConfirmDialog";
 import AparenciaCores from "./admin/AparenciaCores";
 import FaixaProcedenciaTextos from "./admin/FaixaProcedenciaTextos";
 import InstagramCuradoria from "./admin/InstagramCuradoria";
+import CardsCompartilhamento from "./admin/CardsCompartilhamento";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 import { processImage } from "../lib/imageProcessor";
 import { slugifyTag } from "../lib/tagUtils";
-import type { 
-  ThemeType, 
-  AboutSettings, 
-  CompanySettings, 
-  Campaign, 
-  PopupSettings, 
-  QuickTag 
+import type {
+  ThemeType,
+  AboutSettings,
+  CompanySettings,
+  Campaign,
+  CompartilhamentoSettings,
+  PopupSettings,
+  QuickTag
 } from "../types";
 
 // Types imported from ../types
@@ -156,6 +158,72 @@ export default function ConfiguracoesClientWrapper() {
       setIsUploadingLogo(false);
       setIsUploadingFavicon(false);
     }
+  };
+
+  /**
+   * Upload de arte de compartilhamento.
+   *
+   * Tipo próprio, e não `logo`: o processador recorta em 1200×630 e exporta
+   * JPEG. O caminho do logo entrega WebP, que o WhatsApp não renderiza em
+   * prévia de link — a arte subiria, apareceria certa aqui no painel, e o
+   * card sairia sem imagem no celular do cliente.
+   *
+   * A rota também não cai em base64 para este tipo: nenhum scraper busca
+   * `data:`, então um erro visível é melhor que uma URL que só funciona aqui.
+   */
+  const enviarArteDeCompartilhamento = async (arquivo: File): Promise<string> => {
+    const processada = await processImage(arquivo, "compartilhamento");
+    const formData = new FormData();
+    formData.append("file", processada, "compartilhamento.jpg");
+    formData.append("type", "compartilhamento");
+
+    if (companyForm.s3AccessKeyId) formData.append("s3AccessKeyId", companyForm.s3AccessKeyId);
+    if (companyForm.s3SecretAccessKey) formData.append("s3SecretAccessKey", companyForm.s3SecretAccessKey);
+
+    const token = await getAuthToken();
+    const res = await fetch("/api/upload-branding", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.url) {
+      throw new Error(data?.error || "Erro ao enviar a imagem de compartilhamento.");
+    }
+    return data.url as string;
+  };
+
+  /**
+   * Grava a partir de `companySettings` (o que está no ar), não de
+   * `companyForm`: o rascunho da aba "Dados da concessionária" pode ter
+   * alteração não salva, e salvar o card não pode publicar de carona um
+   * telefone que a loja ainda estava digitando.
+   */
+  const salvarCompartilhamento = async (valor: CompartilhamentoSettings) => {
+    const atualizado: CompanySettings = {
+      ...companySettings,
+      compartilhamento: valor,
+      isCustom: true,
+    };
+
+    const token = await getAuthToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const response = await fetch("/api/settings", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ companySettings: atualizado }),
+    });
+
+    if (!response.ok) {
+      const erro = await response.json().catch(() => ({}));
+      throw new Error(erro.error || `Server responded with ${response.status}`);
+    }
+
+    updateCompanySettings(atualizado);
+    setCompanyForm((anterior) => ({ ...anterior, compartilhamento: valor }));
   };
 
   const [isUploadingTagBg, setIsUploadingTagBg] = useState(false);
@@ -1244,6 +1312,14 @@ export default function ConfiguracoesClientWrapper() {
             setTheme={setTheme}
             companySettings={companySettings}
             aoAbrirDadosDaEmpresa={() => handleTabChange("empresa")}
+          />
+        ) : activeTab === "compartilhamento" ? (
+          <CardsCompartilhamento
+            valor={companySettings.compartilhamento ?? {}}
+            nomeLoja={companySettings.name}
+            tituloDaAba={companySettings.tabTitle}
+            aoEnviarImagem={enviarArteDeCompartilhamento}
+            aoSalvar={salvarCompartilhamento}
           />
         ) : activeTab === "procedencia" ? (
           <FaixaProcedenciaTextos itens={procedencia} aoSalvar={updateProcedencia} />

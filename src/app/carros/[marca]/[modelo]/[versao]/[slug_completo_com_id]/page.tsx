@@ -82,6 +82,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
   const { companySettings } = await getCachedSettings();
 
+  /**
+   * Nome do veículo sem repetir a versão.
+   *
+   * O RevendaMais já manda a versão embutida no modelo em boa parte do
+   * estoque, então `marca + modelo + versao` produzia "BMW X4 M40i 3.0 M Sport
+   * Edit V6 Turbo Aut m40i 3.0 m sport edit v6 turbo aut" — verificado no
+   * estoque em 2026-08-10. Num card de WhatsApp, que corta por volta de 65
+   * caracteres, a repetição consome o título inteiro e o preço nunca aparece.
+   *
+   * Só o card foi corrigido. O `<title>` da página tem a mesma duplicação e
+   * continua como está: mexer nele é mudança de SEO em produção, e essa é uma
+   * decisão da loja, não desta tarefa.
+   */
+  const modeloNormalizado = `${veiculo.marca} ${veiculo.modelo}`.trim();
+  const versao = (veiculo.versao || "").trim();
+  const nomeDoVeiculo =
+    versao && !modeloNormalizado.toLowerCase().includes(versao.toLowerCase())
+      ? `${modeloNormalizado} ${versao}`
+      : modeloNormalizado;
+
   // A foto vence qualquer arte do painel: é o próprio produto. Quando o
   // veículo chega sem foto utilizável, `montarCompartilhamento` desce para o
   // card do painel e, na falta dele, para o card gerado — nunca para nada.
@@ -99,8 +119,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "pdp",
-      rotulo: `${veiculo.marca} ${veiculo.modelo}`,
-      tituloPadrao: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} por ${priceText}`,
+      rotulo: `${veiculo.ano} · ${veiculo.quilometragem.toLocaleString("pt-BR")} km`,
+      tituloPadrao: `${nomeDoVeiculo} por ${priceText}`,
       descricaoPadrao: seoDescription,
       caminho: pdpUrl,
       imagemPreferida: imageUrl,

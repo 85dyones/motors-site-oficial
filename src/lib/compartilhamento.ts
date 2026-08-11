@@ -20,7 +20,7 @@ import type {
  *   1. imagem do contexto (a foto do veículo, na PDP);
  *   2. a arte que a loja subiu para AQUELA página, no painel;
  *   3. a arte padrão do painel, que vale para o site todo;
- *   4. o card gerado por `/api/og`, sempre 1200×630.
+ *   4. o card gerado por `/og`, sempre 1200×630.
  *
  * Cascata do TEXTO, deliberadamente mais curta:
  *   1. o texto que a loja escreveu para AQUELA página;
@@ -32,12 +32,12 @@ import type {
  * repetida no site inteiro é aceitável; título repetido não é.
  */
 
-/**
- * Domínio de produção. Repetido em `sitemap.ts`, `robots.ts` e `page.tsx` —
- * não unifiquei os quatro nesta rodada para não misturar com a mudança de
- * compartilhamento, mas trocar de domínio hoje exige editar os quatro.
- */
-export const SITE_URL = "https://motors-site-oficial.vercel.app";
+// Sem constante de domínio aqui de propósito. `sitemap.ts`, `robots.ts` e
+// `page.tsx` já têm cada um a sua cópia de
+// "https://motors-site-oficial.vercel.app"; uma quarta pioraria o problema em
+// vez de resolvê-lo. As URLs deste módulo saem relativas e o Next as resolve
+// contra o `metadataBase` do layout, que é o único lugar a trocar no dia em
+// que a loja mudar de domínio.
 
 /**
  * As páginas que a loja customiza no painel.
@@ -137,10 +137,6 @@ export type ContextoCompartilhamento = IdPaginaCompartilhavel | "pdp";
 export const LARGURA_CARD = 1200;
 export const ALTURA_CARD = 630;
 
-export function paginaCompartilhavel(id: IdPaginaCompartilhavel) {
-  return PAGINAS_COMPARTILHAVEIS.find((p) => p.id === id)!;
-}
-
 function limpar(valor?: string | null): string {
   return typeof valor === "string" ? valor.trim() : "";
 }
@@ -162,12 +158,18 @@ export function imagemServivelComoPrevia(url?: string | null): boolean {
   return true;
 }
 
-/** URL do card gerado, para quando não há arte subida no painel. */
+/**
+ * URL do card gerado, para quando não há arte subida no painel.
+ *
+ * `/og`, e não `/api/og`: o `robots.ts` bloqueia `/api/` para todo agente, e o
+ * crawler do Facebook — o mesmo que monta a prévia do WhatsApp — obedece
+ * robots.txt ao buscar o `og:image`. Ver a nota em `src/app/og/route.tsx`.
+ */
 export function urlDoCardGerado(titulo: string, rotulo?: string): string {
   const params = new URLSearchParams({ titulo: limpar(titulo).slice(0, 120) });
   const marcador = limpar(rotulo);
   if (marcador) params.set("rotulo", marcador.slice(0, 40));
-  return `/api/og?${params.toString()}`;
+  return `/og?${params.toString()}`;
 }
 
 interface EntradaCompartilhamento {

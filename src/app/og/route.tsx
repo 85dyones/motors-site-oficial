@@ -1,13 +1,13 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "fs/promises";
 import path from "path";
-import { getCachedSettings } from "../../../lib/settings";
-import DEFAULT_COMPANY_SETTINGS from "../../../lib/companySettings.json";
+import { getCachedSettings } from "../../lib/settings";
+import DEFAULT_COMPANY_SETTINGS from "../../lib/companySettings.json";
 import {
   ALTURA_CARD,
   LARGURA_CARD,
   imagemServivelComoPrevia,
-} from "../../../lib/compartilhamento";
+} from "../../lib/compartilhamento";
 
 /**
  * Card de compartilhamento gerado, 1200×630.
@@ -20,12 +20,62 @@ import {
  * Sem tema: quem vê a prévia está no WhatsApp, não no site. A paleta é a
  * Modernist fixa, que é a única que se lê igual no modo claro e no escuro do
  * app.
+ *
+ * Serve em `/og` e NÃO em `/api/og` de propósito: o `robots.ts` declara
+ * `disallow: ["/api/"]`, e o crawler do Facebook — que é o mesmo que gera a
+ * prévia do WhatsApp — respeita robots.txt ao buscar o `og:image`. Debaixo de
+ * `/api` o card responderia 200 no navegador e sairia sem imagem no celular
+ * do cliente, que é o tipo de defeito que ninguém encontra testando na tela.
  */
 export const runtime = "nodejs";
 
 const TINTA = "#201e1d";
 const ACENTO = "#ec3013";
 const PAPEL = "#f3f2f2";
+
+/**
+ * Archivo, a mesma tipografia do site, para o card não sair em outra voz.
+ *
+ * `next/og` embute uma fonte de peso único: sem isto o `fontWeight: 800` do
+ * título não tem efeito nenhum e o card sai numa regular fina, que é o oposto
+ * do título apertado e pesado do design.
+ *
+ * Vai à rede uma vez por instância e guarda em memória. Falhou — rede fora,
+ * Google bloqueado — o card sai na fonte padrão: mais fraco, mas correto.
+ * Nunca deixa a geração morrer por causa de fonte.
+ */
+let cacheDeFontes: Array<{ name: string; data: ArrayBuffer; weight: 600 | 800 }> | null =
+  null;
+
+async function carregarArchivo() {
+  if (cacheDeFontes) return cacheDeFontes;
+
+  try {
+    const pesos: Array<600 | 800> = [600, 800];
+    const carregadas = await Promise.all(
+      pesos.map(async (weight) => {
+        const css = await fetch(
+          `https://fonts.googleapis.com/css2?family=Archivo:wght@${weight}`,
+          // Sem User-Agent moderno o Google devolve TrueType em vez de WOFF2,
+          // que é o único formato que o rasterizador lê.
+          { headers: { "User-Agent": "Mozilla/4.0" } }
+        ).then((r) => r.text());
+
+        const url = css.match(/src: url\((.+?)\) format\('(?:truetype|opentype)'\)/)?.[1];
+        if (!url) throw new Error("URL da fonte não encontrada no CSS");
+
+        const data = await fetch(url).then((r) => r.arrayBuffer());
+        return { name: "Archivo", data, weight };
+      })
+    );
+
+    cacheDeFontes = carregadas;
+    return cacheDeFontes;
+  } catch (err) {
+    console.warn("[OG] Archivo indisponível, usando a fonte padrão:", err);
+    return null;
+  }
+}
 
 /**
  * O logo como data URI, ou `null` se não der para carregar.
@@ -71,7 +121,10 @@ export async function GET(request: Request) {
   }
 
   const nomeLoja = empresa?.name?.trim() || "Motors Store";
-  const logo = await carregarLogo(empresa?.logoUrl);
+  const [logo, fontes] = await Promise.all([
+    carregarLogo(empresa?.logoUrl),
+    carregarArchivo(),
+  ]);
 
   return new ImageResponse(
     (
@@ -84,6 +137,7 @@ export async function GET(request: Request) {
           justifyContent: "space-between",
           backgroundColor: TINTA,
           padding: "72px 80px",
+          fontFamily: "Archivo",
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start" }}>
@@ -152,7 +206,7 @@ export async function GET(request: Request) {
               color: "#a8a3a1",
             }}
           >
-            {nomeLoja.toUpperCase()} · CURITIBA
+            CURITIBA · PARANÁ
           </div>
         </div>
       </div>
@@ -160,6 +214,7 @@ export async function GET(request: Request) {
     {
       width: LARGURA_CARD,
       height: ALTURA_CARD,
+      ...(fontes ? { fonts: fontes } : {}),
       headers: {
         // O card só muda quando a loja troca logo ou nome. Um dia de cache na
         // borda evita rasterizar de novo a cada scraper que passa.

@@ -14,7 +14,7 @@ import type { CardCompartilhamento, CompartilhamentoSettings } from "../../types
  * Uma página por vez, e não oito formulários abertos: o que a loja faz aqui é
  * "vou arrumar o link da avaliação", não "vou revisar o site". A prévia ao
  * lado mostra o card real — inclusive o gerado, que é buscado do mesmo
- * `/api/og` que o site publica. Preview desenhado à mão mentiria na primeira
+ * `/og` que o site publica. Preview desenhado à mão mentiria na primeira
  * vez que o gerador mudasse.
  *
  * Campo em branco não publica em branco: cai no texto de fábrica da página
@@ -24,6 +24,12 @@ import type { CardCompartilhamento, CompartilhamentoSettings } from "../../types
 interface CardsCompartilhamentoProps {
   valor: CompartilhamentoSettings;
   nomeLoja: string;
+  /**
+   * "Frase da aba do navegador", de Dados da concessionária. A home usa esse
+   * campo como título do card quando não há um escrito aqui — sem isto o
+   * preview mostraria o texto de fábrica e o site publicaria outro.
+   */
+  tituloDaAba?: string;
   /** Devolve a URL pública da arte já recortada em 1200×630. */
   aoEnviarImagem: (arquivo: File) => Promise<string>;
   aoSalvar: (valor: CompartilhamentoSettings) => Promise<void>;
@@ -37,6 +43,7 @@ const LIMITE_DESCRICAO = 130;
 export default function CardsCompartilhamento({
   valor,
   nomeLoja,
+  tituloDaAba,
   aoEnviarImagem,
   aoSalvar,
 }: CardsCompartilhamentoProps) {
@@ -56,7 +63,12 @@ export default function CardsCompartilhamento({
   const card: CardCompartilhamento = rascunho[selecionada] ?? {};
   const artePadrao = rascunho.padrao?.imagemUrl?.trim() || "";
 
-  const tituloExibido = card.titulo?.trim() || pagina.tituloPadrao;
+  const tituloDeFabrica =
+    selecionada === "home" && tituloDaAba?.trim()
+      ? tituloDaAba.trim()
+      : pagina.tituloPadrao;
+
+  const tituloExibido = card.titulo?.trim() || tituloDeFabrica;
   const descricaoExibida = card.descricao?.trim() || pagina.descricaoPadrao;
 
   // Qual imagem o site vai publicar para esta página, na mesma ordem da
@@ -179,7 +191,7 @@ export default function CardsCompartilhamento({
             className="mt-campo-caixa mt-1"
             value={card.titulo ?? ""}
             maxLength={LIMITE_TITULO}
-            placeholder={pagina.tituloPadrao}
+            placeholder={tituloDeFabrica}
             onChange={(e) => alterar(selecionada, "titulo", e.target.value)}
           />
           <div className="mt-1 text-right text-[10px] text-mt-neutral-700">
