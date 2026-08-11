@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 import type { Veiculo } from "../../types";
 import { formatarKm, formatarPreco } from "./primitivos";
 import { paginaDaFaixa } from "../../lib/faixaVitrine";
-import FaixaMusica from "./FaixaMusica";
-import PlayerDaTV from "./PlayerDaTV";
-import { useMusica } from "./useMusica";
 
 /**
  * Vitrine da TV do showroom — tela 08 A do design doc.
@@ -45,11 +42,6 @@ export default function VitrineTV({
 }) {
   const [atual, setAtual] = useState(0);
   const [decorrido, setDecorrido] = useState(0);
-
-  // A TV só lê o player — quem comanda é o painel do balcão (08 C). Sem
-  // credencial do Spotify configurada, `FaixaMusica` não renderiza nada e a
-  // barra superior fica exatamente como era.
-  const { estado: musica } = useMusica();
 
   useEffect(() => {
     if (veiculos.length < 2) return;
@@ -97,10 +89,6 @@ export default function VitrineTV({
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#141212] font-modernist text-mt-inverso">
-      {/* Registra esta aba como o dispositivo "TV Showroom" no Spotify
-          Connect (A18). Não desenha nada; sem credencial ou sem sessão no
-          navegador da TV, sai de cena sozinho. */}
-      <PlayerDaTV ativo={musica.configurado} />
       {/* ─── Barra superior ─── */}
       <div className="flex h-[8.9vh] flex-none items-center gap-[1.7vw] border-b-2 border-mt-inverso-regua px-[2.9vw]">
         <div className="mr-auto flex items-center gap-[0.7vw]">
@@ -112,10 +100,6 @@ export default function VitrineTV({
         <span className="text-[0.83vw] font-semibold tracking-[.18em] text-mt-inverso-suave">
           {totalEstoque} VEÍCULOS EM ESTOQUE · 100% PASSAM PELA PERÍCIA CAUTELAR
         </span>
-        {musica.configurado && musica.faixa && (
-          <span className="h-[3.5vh] w-px bg-[#444141]" aria-hidden="true" />
-        )}
-        <FaixaMusica estado={musica} />
         <span className="h-[3.5vh] w-px bg-[#444141]" aria-hidden="true" />
         <span className="text-[1.04vw] font-extrabold">{telefone}</span>
       </div>

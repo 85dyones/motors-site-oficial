@@ -23,7 +23,6 @@ export const getCachedSettings = unstable_cache(
     let procedencia = null;
     let instagramCuradoria = null;
     let areasHome = null;
-    let musicaGrade = null;
     let fetchedFromSupabase = false;
 
     if (supabaseUrl && supabaseAnonKey) {
@@ -45,7 +44,6 @@ export const getCachedSettings = unstable_cache(
           const procedenciaRow = data.find((row) => row.id === "procedencia");
           const instagramRow = data.find((row) => row.id === "instagram_curadoria");
           const areasRow = data.find((row) => row.id === "areas_home");
-          const musicaRow = data.find((row) => row.id === "musica_grade");
 
           if (companyRow) companySettings = companyRow.data;
           if (aboutRow) aboutSettings = aboutRow.data;
@@ -58,7 +56,6 @@ export const getCachedSettings = unstable_cache(
           if (procedenciaRow) procedencia = procedenciaRow.data;
           if (instagramRow) instagramCuradoria = instagramRow.data;
           if (areasRow) areasHome = areasRow.data;
-          if (musicaRow) musicaGrade = musicaRow.data;
           fetchedFromSupabase = true;
           console.log("[Settings API] Loaded settings from Supabase (Cached)");
         }
@@ -91,11 +88,6 @@ export const getCachedSettings = unstable_cache(
       procedencia,
       instagramCuradoria,
       areasHome,
-      // Grade horária da música do showroom (tela A18). Fora do recorte
-      // público de propósito: é escala de operação interna, e o visitante do
-      // site não tem o que fazer com o horário em que a loja troca de
-      // playlist.
-      musicaGrade
     };
   },
   ["site-settings"],

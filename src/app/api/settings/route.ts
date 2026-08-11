@@ -85,8 +85,7 @@ export async function POST(request: Request) {
       bankBalances,
       procedencia,
       instagramCuradoria,
-      areasHome,
-      musicaGrade
+      areasHome
     } = body;
 
     const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
@@ -241,20 +240,6 @@ export async function POST(request: Request) {
         if (error) {
           console.error("[Settings API] Supabase write error for areasHome:", error.message);
           return NextResponse.json({ error: `Falha ao salvar as áreas da home: ${error.message}` }, { status: 500 });
-        }
-      }
-
-      // Grade horária da música do showroom (tela A18). `{ ativa, faixas }` —
-      // `ativa: false` com a grade inteira preenchida é estado legítimo (a
-      // loja desligou o rodízio sem perder a escala), então o guard testa o
-      // objeto, não o conteúdo.
-      if (musicaGrade) {
-        const { error } = await requestSupabase
-          .from("site_settings")
-          .upsert({ id: "musica_grade", data: musicaGrade, updated_at: new Date().toISOString() });
-        if (error) {
-          console.error("[Settings API] Supabase write error for musicaGrade:", error.message);
-          return NextResponse.json({ error: `Falha ao salvar a grade de música: ${error.message}` }, { status: 500 });
         }
       }
 

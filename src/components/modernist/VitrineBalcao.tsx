@@ -77,30 +77,10 @@ export default function VitrineBalcao({
     setPagina(0);
   };
 
-  /**
-   * Abaixa a música para o atendimento — rodapé da tela 08 C do design doc.
-   *
-   * Melhor esforço, e de propósito: se o Spotify não estiver configurado, se
-   * não houver aparelho ativo ou se a rede cair, o `catch` engole e o
-   * WhatsApp abre do mesmo jeito. O cliente tocou em CHAMAR CONSULTOR — essa
-   * é a ação que não pode falhar. Quem sobe o volume de volta é o painel do
-   * balcão, que tem o botão RESTAURAR.
-   *
-   * `keepalive` porque este clique navega para fora da página: sem ele, o
-   * navegador cancela o fetch em voo ao sair.
-   */
-  const abaixarMusica = () => {
-    try {
-      void fetch("/api/musica", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ acao: "abaixar" }),
-        keepalive: true,
-      }).catch(() => {});
-    } catch {
-      // idem
-    }
-  };
+  // O botão CHAMAR CONSULTOR abaixava a música do showroom antes de abrir o
+  // WhatsApp. O projeto de música foi abortado em 2026-08-11 e removido do
+  // repositório; o botão continua fazendo o que importa, que é abrir a
+  // conversa.
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-mt-bg font-modernist text-mt-ink">
@@ -117,7 +97,6 @@ export default function VitrineBalcao({
           href={whatsappHref}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={abaixarMusica}
           className="mt-btn mt-btn-primario mt-foco h-14 px-[22px] text-sm"
         >
           <svg

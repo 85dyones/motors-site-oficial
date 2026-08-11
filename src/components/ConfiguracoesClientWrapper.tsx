@@ -6,7 +6,6 @@ import { useConfirm } from "./admin/ConfirmDialog";
 import AparenciaCores from "./admin/AparenciaCores";
 import FaixaProcedenciaTextos from "./admin/FaixaProcedenciaTextos";
 import InstagramCuradoria from "./admin/InstagramCuradoria";
-import ConectorSpotify from "./admin/ConectorSpotify";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
 import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
@@ -752,12 +751,6 @@ export default function ConfiguracoesClientWrapper() {
         ) : activeTab === "integracao" ? (
           // WEBHOOK & THEME INTEGRATIONS
           <div className="flex flex-col gap-6">
-
-            {/* Conector de terceiro com estado, e não campo de texto solto —
-                princípio 04 do design doc do admin. O Spotify é o primeiro a
-                entrar nesse formato; Meta Pixel, GA4 e WhatsApp continuam
-                como campo abaixo até ganharem a mesma linha. */}
-            <ConectorSpotify />
 
             {/* Webhook Settings Section */}
             <div className="bg-mt-surface border border-mt-regua-fina p-6">

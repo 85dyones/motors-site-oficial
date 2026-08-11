@@ -84,10 +84,6 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         { name: "Áreas e conteúdo", href: "/admin/site/areas" },
         { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
         { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
-        // Tela A18: a música do showroom entra em "Site" e não em "Sistema"
-        // porque o que se edita aqui é a escala da loja, não a credencial —
-        // essa vive no ambiente e aparece em Integrações.
-        { name: "Música do showroom", href: "/admin/site/musica" },
         { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
         // O card que aparece quando alguém cola um link do site no WhatsApp.
         // Fica em "Site" porque é conteúdo de página, não credencial.
