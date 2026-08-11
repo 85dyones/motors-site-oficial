@@ -25,7 +25,7 @@
 --
 -- Esta migração não apaga nada. Só remove as travas que impedem o insert.
 
--- ── 1. A trava confirmada pelo erro do banco ──
+-- ── A única trava ──
 --
 -- `event_id` era a chave do evento de rastreamento no desenho antigo. Nada
 -- no código de hoje lê essa coluna. Deixar nulável é menos destrutivo que
@@ -33,23 +33,13 @@
 alter table public.leads
     alter column event_id drop not null;
 
--- ── 2. As demais, por precaução ──
---
--- `id`, `situacao` e `atualizado_em` aparecem como obrigatórias sem default
--- na descrição que o PostgREST expõe. As três são declaradas com default na
--- migração 20260807210000, então provavelmente é imprecisão da leitura — mas
--- confirmar exigiria outra tentativa de insert em produção, e o custo de
--- errar é o lead do cliente sumindo de novo.
---
--- Definir o default de novo é idempotente: se já existir, nada muda.
-alter table public.leads
-    alter column id set default gen_random_uuid();
-
-alter table public.leads
-    alter column situacao set default 'novo';
-
-alter table public.leads
-    alter column atualizado_em set default now();
+-- Uma versão anterior desta migração também redefinia o default de `id`,
+-- `situacao` e `atualizado_em`, porque a descrição que o PostgREST expõe as
+-- marca como obrigatórias sem default. Verificado contra a produção antes de
+-- aplicar: inserindo apenas com `event_id` preenchido, o insert passa e as
+-- três vêm sozinhas (`gen_random_uuid()`, `'novo'`, `now()`). Era leitura
+-- imprecisa da descrição, não default ausente — e DDL que não precisa
+-- existir não deve rodar em produção.
 
 -- ── 3. Registro do que a tabela é de fato ──
 --

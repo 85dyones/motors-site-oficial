@@ -36,12 +36,12 @@ describe("a migração", () => {
     expect(sql).toMatch(/alter column event_id drop not null/i);
   });
 
-  it("garante default nas outras obrigatórias", () => {
-    // Redefinir default é idempotente. Errar aqui custa o lead do cliente
-    // sumindo de novo, então cobre as quatro em vez de só a confirmada.
-    expect(sql).toMatch(/alter column id set default gen_random_uuid\(\)/i);
-    expect(sql).toMatch(/alter column situacao set default 'novo'/i);
-    expect(sql).toMatch(/alter column atualizado_em set default now\(\)/i);
+  it("não roda DDL além do necessário", () => {
+    // Verificado contra produção: inserindo só com `event_id`, o insert passa
+    // e id/situacao/atualizado_em vêm por default. Mexer neles seria DDL sem
+    // motivo numa tabela viva.
+    const alteracoes = sql.match(/alter\s+column/gi) ?? [];
+    expect(alteracoes).toHaveLength(1);
   });
 
   it("não apaga coluna nem dado", () => {
