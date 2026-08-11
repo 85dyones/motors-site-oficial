@@ -168,6 +168,15 @@ export async function POST(request: NextRequest) {
         // `email` já existia na tabela e alguns formulários do site o
         // coletam — aproveitar a coluna evita perder o dado que já chega.
         email: cliente.email || null,
+        // Coluna herdada da tabela de marketing que já existia em produção
+        // (ver migração 20260811130000). Era `not null` sem default e sem
+        // ninguém preenchendo, o que fazia TODO insert de lead ser recusado
+        // — em silêncio, porque esta gravação não bloqueia o visitante.
+        //
+        // Agora é nulável, e preenchemos quando o cliente mandou o id do
+        // evento: é o mesmo que vai para a CAPI do Meta, então o lead passa
+        // a dar para cruzar com `capi_meta_*` na mesma linha.
+        event_id: body.eventId || null,
       });
 
       if (erroLead) {
