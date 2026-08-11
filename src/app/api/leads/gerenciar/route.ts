@@ -62,7 +62,28 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ leads });
+    // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
+    // rota nova porque `/api/users` exige Admin — e quem atende lead é
+    // Comercial, que precisa escolher o responsável e não pode listar
+    // usuários. Aqui a permissão já foi checada acima.
+    //
+    // `responsavel` na tabela é TEXTO, não FK (ver migração 20260807210000):
+    // o consultor pode sair da empresa e o histórico do lead continua legível.
+    // Esta lista serve para escolher sem erro de digitação, não para virar
+    // chave estrangeira.
+    let atendentes: { nome: string }[] = [];
+    const { data: perfis } = await supabase
+      .from("profiles")
+      .select("full_name, role")
+      .in("role", ["admin", "comercial"])
+      .order("full_name");
+    if (perfis) {
+      atendentes = perfis
+        .map((p) => ({ nome: (p.full_name || "").trim() }))
+        .filter((p) => p.nome);
+    }
+
+    return NextResponse.json({ leads, atendentes });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

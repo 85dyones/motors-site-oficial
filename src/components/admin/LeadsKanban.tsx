@@ -1,19 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  SEM_DONO,
+  filtrarPorResponsavel,
+  iniciais,
+  opcoesDeResponsavel,
+} from "../../lib/leadsKanban";
 
 /**
  * Tela A8 do design doc — kanban de leads.
  *
- * Agora tem fonte: a tabela `leads` (migração 20260807210000), alimentada por
+ * Fonte: a tabela `leads` (migração 20260807210000), alimentada por
  * `/api/leads` a cada formulário enviado no site. Antes disso o lead existia
  * só no webhook do n8n — quem não abrisse o n8n não sabia que alguém pediu
- * contato.
+ * contato. (Descobriu-se depois que aquele webhook nunca chegou a existir:
+ * o site publicava em `lead-entrada` e o n8n registrava `leads-entrada`.)
  *
  * Duas diferenças em relação ao desenho:
  *
- * 1. **Botões em vez de arrastar**, como na A3: `dnd` de verdade quebra no
- *    toque e no teclado, e mover com dois cliques resolve o mesmo problema.
+ * 1. **Arrastar E botões.** O desenho pede arrastar; a versão anterior tinha
+ *    só botões porque `dnd` nativo não funciona no toque nem no teclado — e
+ *    esta tela roda no tablet de balcão da loja. As duas formas convivem: o
+ *    mouse arrasta, o resto usa as setas. Tirar as setas quebraria o tablet
+ *    sem ninguém perceber, porque não é erro, é ausência.
  * 2. **Sem SLA colorido por tempo.** O doc mostra "SLA 3 MIN" e "FORA DO
  *    SLA"; nenhum acordo de tempo de resposta foi definido, e pintar de
  *    vermelho um prazo que ninguém combinou é inventar meta. Mostramos o
@@ -28,6 +38,7 @@ interface Lead {
   canal: string | null;
   situacao: string;
   responsavel: string | null;
+  observacoes: string | null;
   /** `created_at`, não `criado_em`: a tabela é preexistente e já usava esse
    *  nome — ver a nota na migração 20260807210000. */
   created_at: string;
@@ -64,10 +75,16 @@ function formatarTelefone(t: string | null): string {
 
 export default function LeadsKanban() {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [atendentes, setAtendentes] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [migracaoPendente, setMigracaoPendente] = useState(false);
   const [agregado, setAgregado] = useState<{ total: number; porSituacao: Record<string, number> } | null>(null);
+
+  const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [colunaAlvo, setColunaAlvo] = useState<string | null>(null);
+  const [anotando, setAnotando] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -82,6 +99,7 @@ export default function LeadsKanban() {
         setAgregado({ total: d.total, porSituacao: d.porSituacao });
       } else {
         setLeads(d.leads ?? []);
+        setAtendentes((d.atendentes ?? []).map((a: { nome: string }) => a.nome));
       }
     } catch (e: any) {
       setErro(e.message);
@@ -94,24 +112,48 @@ export default function LeadsKanban() {
     carregar();
   }, [carregar]);
 
-  const mover = async (id: string, situacao: string) => {
-    // Otimista: a lista reordena na hora e volta ao servidor em seguida.
-    setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, situacao } : l)));
-    try {
-      const res = await fetch("/api/leads/gerenciar", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, situacao }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Falha ao mover");
+  /**
+   * Grava um campo do lead. Otimista: a tela reage na hora e recarrega do
+   * servidor se der errado — o inverso (esperar a rede) faz o card "pular"
+   * de volta e parecer que o clique não pegou.
+   */
+  const salvar = useCallback(
+    async (id: string, campos: Partial<Pick<Lead, "situacao" | "responsavel" | "observacoes">>) => {
+      setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, ...campos } : l)));
+      try {
+        const res = await fetch("/api/leads/gerenciar", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, ...campos }),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || "Falha ao salvar");
+        }
+      } catch (e: any) {
+        setErro(e.message);
+        // Recarrega em vez de restaurar um retrato tirado antes da chamada:
+        // com vários consultores mexendo na mesma fila, o retrato local já
+        // pode estar velho, e restaurá-lo desfaria o trabalho de outro.
+        carregar();
       }
-    } catch (e: any) {
-      setErro(e.message);
-      carregar(); // desfaz o otimismo com o estado real
-    }
-  };
+    },
+    [carregar],
+  );
+
+  const mover = (id: string, situacao: string) => salvar(id, { situacao });
+
+  const visiveis = useMemo(
+    () => filtrarPorResponsavel(leads, filtroResponsavel),
+    [leads, filtroResponsavel],
+  );
+
+  const opcoesResponsavel = useMemo(
+    () => opcoesDeResponsavel(atendentes, leads),
+    [atendentes, leads],
+  );
+
+  const semDono = useMemo(() => leads.filter((l) => !l.responsavel).length, [leads]);
 
   if (carregando) {
     return <div className="py-16 text-center text-xs text-mt-neutral-700">Carregando leads…</div>;
@@ -180,90 +222,231 @@ export default function LeadsKanban() {
           </p>
         </div>
       ) : (
-        <div className="flex gap-0.5 overflow-x-auto pb-4">
-          {ETAPAS.map((etapa) => {
-            const daEtapa = leads.filter((l) => l.situacao === etapa.id);
-            return (
-              <div key={etapa.id} className="flex w-[240px] flex-none flex-col">
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              htmlFor="filtro-responsavel"
+              className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
+            >
+              Responsável
+            </label>
+            <select
+              id="filtro-responsavel"
+              value={filtroResponsavel}
+              onChange={(e) => setFiltroResponsavel(e.target.value)}
+              className="mt-foco cursor-pointer border border-mt-regua-fina bg-mt-bg px-3 py-2 text-xs text-mt-ink"
+            >
+              <option value="">Todos ({leads.length})</option>
+              <option value={SEM_DONO}>Sem responsável ({semDono})</option>
+              {opcoesResponsavel.map((n) => (
+                <option key={n} value={n}>
+                  {n} ({leads.filter((l) => l.responsavel === n).length})
+                </option>
+              ))}
+            </select>
+            {filtroResponsavel && (
+              <button
+                onClick={() => setFiltroResponsavel("")}
+                className="mt-foco cursor-pointer text-[11px] text-mt-accent hover:underline"
+              >
+                limpar
+              </button>
+            )}
+            <span className="ml-auto text-[11px] text-mt-neutral-600">
+              Arraste o card ou use as setas
+            </span>
+          </div>
+
+          <div className="flex gap-0.5 overflow-x-auto pb-4">
+            {ETAPAS.map((etapa) => {
+              const daEtapa = visiveis.filter((l) => l.situacao === etapa.id);
+              const alvo = colunaAlvo === etapa.id && arrastando !== null;
+              return (
                 <div
-                  className={`flex items-baseline gap-2 border-b-2 px-3 py-2.5 ${
-                    etapa.id === "novo"
-                      ? "border-mt-accent bg-mt-ink text-mt-bg"
-                      : "border-mt-regua"
-                  }`}
+                  key={etapa.id}
+                  className="flex w-[240px] flex-none flex-col"
+                  // Soltar aqui move o lead. O `preventDefault` no dragOver é
+                  // o que autoriza o drop — sem ele o navegador recusa.
+                  onDragOver={(e) => {
+                    if (!arrastando) return;
+                    e.preventDefault();
+                    setColunaAlvo(etapa.id);
+                  }}
+                  onDragLeave={() => setColunaAlvo((c) => (c === etapa.id ? null : c))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const id = arrastando || e.dataTransfer.getData("text/plain");
+                    const lead = leads.find((l) => l.id === id);
+                    if (lead && lead.situacao !== etapa.id) mover(id, etapa.id);
+                    setArrastando(null);
+                    setColunaAlvo(null);
+                  }}
                 >
-                  <span className="text-[11px] font-extrabold uppercase tracking-[.1em]">
-                    {etapa.rotulo}
-                  </span>
-                  <span
-                    className={`ml-auto text-[11px] tabular-nums ${
-                      etapa.id === "novo" ? "text-mt-neutral-400" : "text-mt-neutral-700"
+                  <div
+                    className={`flex items-baseline gap-2 border-b-2 px-3 py-2.5 ${
+                      etapa.id === "novo"
+                        ? "border-mt-accent bg-mt-ink text-mt-bg"
+                        : "border-mt-regua"
                     }`}
                   >
-                    {daEtapa.length}
-                  </span>
-                </div>
+                    <span className="text-[11px] font-extrabold uppercase tracking-[.1em]">
+                      {etapa.rotulo}
+                    </span>
+                    <span
+                      className={`ml-auto text-[11px] tabular-nums ${
+                        etapa.id === "novo" ? "text-mt-neutral-400" : "text-mt-neutral-700"
+                      }`}
+                    >
+                      {daEtapa.length}
+                    </span>
+                  </div>
 
-                <div className="flex flex-col gap-0.5 p-1">
-                  {daEtapa.map((l) => {
-                    const i = ETAPAS.findIndex((e) => e.id === l.situacao);
-                    return (
-                      <div
-                        key={l.id}
-                        className="border border-mt-regua-fina bg-mt-surface p-3"
-                      >
-                        <div className="text-[13px] font-extrabold tracking-[-.01em]">
-                          {l.nome}
-                        </div>
-                        {l.interesse && (
-                          <div className="mt-1 text-[11px] leading-snug text-mt-neutral-800">
-                            {l.interesse}
+                  <div
+                    className={`flex min-h-[80px] flex-col gap-0.5 p-1 transition-colors ${
+                      alvo ? "bg-mt-accent-100 outline-dashed outline-1 outline-mt-accent" : ""
+                    }`}
+                  >
+                    {daEtapa.map((l) => {
+                      const i = ETAPAS.findIndex((e) => e.id === l.situacao);
+                      return (
+                        <div
+                          key={l.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", l.id);
+                            e.dataTransfer.effectAllowed = "move";
+                            setArrastando(l.id);
+                          }}
+                          onDragEnd={() => {
+                            setArrastando(null);
+                            setColunaAlvo(null);
+                          }}
+                          className={`border border-mt-regua-fina bg-mt-surface p-3 ${
+                            arrastando === l.id ? "opacity-40" : "cursor-grab"
+                          }`}
+                        >
+                          <div className="text-[13px] font-extrabold tracking-[-.01em]">
+                            {l.nome}
                           </div>
-                        )}
-                        {l.telefone && (
-                          <a
-                            href={`https://wa.me/${l.telefone}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-foco mt-1.5 block text-[11px] font-semibold text-mt-accent tabular-nums hover:underline"
-                          >
-                            {formatarTelefone(l.telefone)}
-                          </a>
-                        )}
-                        <div className="mt-2 flex items-center gap-2 border-t border-mt-regua-fina pt-2">
-                          <span className="text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
-                            {l.canal || "site"}
-                          </span>
-                          <span className="ml-auto text-[10px] tabular-nums text-mt-neutral-700">
-                            {espera(l.created_at)}
-                          </span>
+                          {l.interesse && (
+                            <div className="mt-1 text-[11px] leading-snug text-mt-neutral-800">
+                              {l.interesse}
+                            </div>
+                          )}
+                          {l.telefone && (
+                            <a
+                              href={`https://wa.me/${l.telefone}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              // Sem desligar o arrasto no link, o navegador
+                              // arrasta a âncora em vez do card e o drop nunca
+                              // dispara. Falha muda: o card só não se move.
+                              draggable={false}
+                              className="mt-foco mt-1.5 block text-[11px] font-semibold text-mt-accent tabular-nums hover:underline"
+                            >
+                              {formatarTelefone(l.telefone)}
+                            </a>
+                          )}
+
+                          <div className="mt-2 flex items-center gap-2 border-t border-mt-regua-fina pt-2">
+                            <span className="text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
+                              {l.canal || "site"}
+                            </span>
+                            <span className="ml-auto text-[10px] tabular-nums text-mt-neutral-700">
+                              {espera(l.created_at)}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <span
+                              aria-hidden="true"
+                              className={`flex h-5 w-5 shrink-0 items-center justify-center text-[9px] font-extrabold ${
+                                l.responsavel
+                                  ? "bg-mt-ink text-mt-bg"
+                                  : "border border-dashed border-mt-regua text-mt-neutral-500"
+                              }`}
+                            >
+                              {l.responsavel ? iniciais(l.responsavel) : "—"}
+                            </span>
+                            <select
+                              value={l.responsavel ?? ""}
+                              onChange={(e) => salvar(l.id, { responsavel: e.target.value || null })}
+                              aria-label={`Responsável por ${l.nome}`}
+                              className="mt-foco w-full cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink"
+                            >
+                              <option value="">Sem responsável</option>
+                              {opcoesResponsavel.map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {anotando === l.id ? (
+                            <textarea
+                              autoFocus
+                              defaultValue={l.observacoes ?? ""}
+                              rows={3}
+                              placeholder="O que foi combinado…"
+                              // Grava ao sair do campo: salvar a cada tecla
+                              // seria uma requisição por letra.
+                              onBlur={(e) => {
+                                const texto = e.target.value.trim();
+                                if (texto !== (l.observacoes ?? "")) {
+                                  salvar(l.id, { observacoes: texto || null });
+                                }
+                                setAnotando(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setAnotando(null);
+                              }}
+                              className="mt-foco mt-1.5 w-full resize-none border border-mt-regua-fina bg-mt-bg p-1.5 text-[11px] leading-snug text-mt-ink outline-none focus:border-mt-accent"
+                            />
+                          ) : l.observacoes ? (
+                            <button
+                              onClick={() => setAnotando(l.id)}
+                              aria-label={`Editar anotação de ${l.nome}`}
+                              className="mt-foco mt-1.5 w-full cursor-pointer border-l-2 border-mt-regua bg-mt-bg px-2 py-1 text-left text-[11px] leading-snug text-mt-neutral-800 hover:border-mt-accent"
+                            >
+                              {l.observacoes}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setAnotando(l.id)}
+                              className="mt-foco mt-1.5 cursor-pointer text-[10px] text-mt-neutral-600 hover:text-mt-accent"
+                            >
+                              + anotação
+                            </button>
+                          )}
+
+                          <div className="mt-2 flex gap-1">
+                            <button
+                              onClick={() => mover(l.id, ETAPAS[i - 1].id)}
+                              disabled={i <= 0}
+                              aria-label={`Voltar ${l.nome} uma etapa`}
+                              className="mt-foco cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              ←
+                            </button>
+                            <button
+                              onClick={() => mover(l.id, ETAPAS[i + 1].id)}
+                              disabled={i >= ETAPAS.length - 1}
+                              aria-label={`Avançar ${l.nome} uma etapa`}
+                              className="mt-foco flex-1 cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] font-semibold text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              Avançar →
+                            </button>
+                          </div>
                         </div>
-                        <div className="mt-2 flex gap-1">
-                          <button
-                            onClick={() => mover(l.id, ETAPAS[i - 1].id)}
-                            disabled={i <= 0}
-                            aria-label={`Voltar ${l.nome} uma etapa`}
-                            className="mt-foco cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            ←
-                          </button>
-                          <button
-                            onClick={() => mover(l.id, ETAPAS[i + 1].id)}
-                            disabled={i >= ETAPAS.length - 1}
-                            aria-label={`Avançar ${l.nome} uma etapa`}
-                            className="mt-foco flex-1 cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] font-semibold text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            Avançar →
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
