@@ -47,3 +47,14 @@ next-env.d.ts
 # AI agent config
 AGENTS.md
 CLAUDE.md
+
+# Configuração de MCP — carrega token de API em texto claro.
+#
+# Este repositório é PÚBLICO, e `.claude/` não é ignorado por inteiro
+# (`.claude/launch.json` é rastreado de propósito). Sem as linhas abaixo, um
+# `git add -A` publica a credencial do n8n no GitHub. Ignorar por padrão e
+# liberar caso a caso é a ordem certa — o contrário só se descobre depois.
+.mcp.json
+.claude/*.json
+!.claude/launch.json
+.claude/worktrees/
