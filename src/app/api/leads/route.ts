@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { logLeadCaptured } from "../../../lib/telemetry";
-import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
+import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 
@@ -32,7 +32,6 @@ async function verifyTurnstileToken(token: string): Promise<boolean> {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
     const body = await request.json().catch(() => null);
     
     if (!body) {
@@ -61,13 +60,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Load webhook settings from database to get the configured custom URL
-    const { data: webhooksRow } = await supabase
-      .from("site_settings")
-      .select("*")
-      .eq("id", "webhooks")
-      .maybeSingle();
-
-    const webhooks = webhooksRow?.data || {};
+    //
+    // Via `getCachedSettings`, não com o cliente da requisição: este POST vem de
+    // visitante sem sessão, ou seja, papel `anon` — e desde
+    // `20260812120000_rls_leitura_de_site_settings.sql` a linha `webhooks` não
+    // é mais legível por anônimo (ela carrega o `apiSecretToken`). O `select`
+    // daqui voltaria null e o lead sairia para o n8n SEM `Authorization`, em
+    // silêncio, porque o disparo é não-bloqueante de propósito.
+    const { webhooks: webhooksSalvos } = await getCachedSettings();
+    const webhooks = webhooksSalvos || {};
     const dbSecretToken = webhooks.apiSecretToken;
     const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
 

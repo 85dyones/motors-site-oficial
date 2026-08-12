@@ -76,7 +76,7 @@ para colar no SQL Editor do painel — o próprio cabeçalho instrui isso.
 
 | Tabela | Papel | RLS |
 |---|---|---|
-| `site_settings` | Config do site em `jsonb`, chaveada por `id` (`company`, `about`, `webhooks`, `popups`, `quick_tags`, `stock_overrides`) | SELECT público; INSERT/UPDATE admin |
+| `site_settings` | Config do site em `jsonb`, chaveada por `id` (`company`, `about`, `webhooks`, `popups`, `quick_tags`, `stock_overrides`) | SELECT do recorte público para `anon`, completo para `authenticated` (desde `20260812120000`); INSERT/UPDATE admin |
 | `veiculos` | **Inventário.** Ver alerta abaixo | SELECT/INSERT/UPDATE **`USING (true)`** |
 | `profiles` | Usuários **internos**. `role IN ('admin','comercial','financeiro')`, FK para `auth.users` | Própria linha; admin vê todas |
 | `categorias_financeiras` | Categorias de receita/despesa | `has_finance_access()` |
@@ -346,6 +346,73 @@ toca a mesma tabela que o Pacote 1 vai referenciar.
 
 Fora de escopo do Pacote 0. **Registrado como risco de produção, para decisão do dono.**
 Não verificável sem acesso ao banco — produção pode ter sido endurecida à mão.
+
+### 3.4-b ✅ `site_settings` era publicamente gravável — FECHADO em 2026-08-12
+
+O irmão do §3.4 que ficou para trás. `20260808120000` fechou a escrita de `estoque_motors`;
+`site_settings` tem o mesmo defeito e não entrou naquela migração.
+
+Diferente do §3.4, **este não é dedução a partir do arquivo de schema — foi medido contra
+produção**, ao conferir o resultado de `20260812120000`:
+
+```
+[UPDATE] Allow public update access | roles={public} | USING (true) WITH CHECK (true)
+[INSERT] Allow public insert access | roles={public} | WITH CHECK (true)
+```
+
+Prova: `PATCH /rest/v1/site_settings?id=eq.company` com a anon key e nada mais respondeu
+**200** e devolveu a linha. (A prova regravou `updated_at` com o valor que já estava lá —
+nenhum dado foi alterado.)
+
+Por que é pior que o vazamento de leitura que motivou `20260812120000`: ler o
+`apiSecretToken` é ruim, mas **escrever** é controle do site sem login. Reescrever
+`webhooks.webhookUrl` desvia todo lead do site — e o site não acusa, porque o disparo é
+não-bloqueante por projeto. Reescrever `company.whatsappRaw` troca o número em todo botão
+de WhatsApp da loja.
+
+**Corrigido e aplicado em 2026-08-12** por
+`supabase/migrations/20260812150000_rls_escrita_de_site_settings.sql`, em transação e com
+backup das 8 linhas antes (fora do repositório). Estado no ar depois:
+
+```
+[INSERT] Insercao de settings com sessao | roles={authenticated}
+[SELECT] Leitura anonima do recorte publico | roles={anon}
+[SELECT] Leitura completa com sessao | roles={authenticated}
+[UPDATE] Escrita de settings com sessao | roles={authenticated}
+```
+
+Reconferido pelo mesmo caminho da prova: o `PATCH` anônimo agora afeta 0 linhas, e a
+leitura pública segue devolvendo as 6 linhas do recorte. DELETE continua sem policy —
+ausência é negação.
+
+Fechar não quebrou nada porque nada no navegador escreve nesta tabela: o painel salva por
+`/api/settings` POST, que exige sessão e usa o cliente autenticado do usuário.
+
+### 3.4-c 🔴 Seis tabelas sem RLS, e uma `veiculos` órfã (2026-08-12)
+
+Varredura de `pg_policies` e `pg_class` contra produção no mesmo dia:
+
+**Sem RLS nenhuma** (`relrowsecurity = false`), portanto legíveis pelo anônimo:
+`atendimentos`, `ia_classificacoes`, `lead_tags`, `leads_sdr`, `sdr_qualificacao`,
+`tracking_events`. Cinco estão vazias hoje; `tracking_events` tem 5 linhas e o anônimo
+**as lê de fato** (13 colunas, incluindo `ag_uid`, `click_id` e `utm_*`) — é a prova de
+que as outras também sairiam no dia em que forem preenchidas.
+
+Isso contraria `CLAUDE.md` ("RLS é obrigatório em toda tabela com dado de cliente"):
+`leads_sdr` tem `nome`, `telefone`, `email`; `sdr_qualificacao` tem `entrada_disponivel` e
+`forma_pagamento`. Mesmo padrão de [[leads-pii-retencao-indeterminada]] — porta aberta,
+ainda sem nada atrás dela.
+
+**Não corrigido de propósito:** não se sabe quem grava nessas tabelas. Se o fluxo SDR do
+n8n usar a anon key em vez da chave de serviço, ligar RLS quebra a gravação em silêncio.
+Precisa ser confirmado antes.
+
+**`public.veiculos` voltou a existir como TABELA** (`relkind = 'r'`, 0 linhas) com
+`Allow public insert/update access`. É o resíduo que a memória previa: reexecutar o
+baseline `20260803120000` faz `CREATE TABLE IF NOT EXISTS public.veiculos` e recria as
+policies públicas. Ninguém lê essa tabela — `estoque_motors` segue com 88 linhas, intacta.
+Dois efeitos: escrita anônima numa tabela morta, e um futuro `supabase db push` **aborta**
+em `20260804193000` (`DROP VIEW IF EXISTS public.veiculos`), porque agora é table, não view.
 
 ### 3.5 🟡 Não há migrações versionadas
 

@@ -16,6 +16,15 @@ quebra o teste de propósito.
 Tudo vive na linha `webhooks` de `site_settings` (Supabase), editável em
 **Painel → Integrações e webhooks**. Variáveis de ambiente são só fallback.
 
+Desde 2026-08-12 essa linha **não é legível pela chave `anon`** (migração
+`20260812120000_rls_leitura_de_site_settings.sql`). Consequência prática para
+quem mexer aqui: todo caminho de servidor que precise dela tem de ler por
+`getCachedSettings`, que usa `SUPABASE_SERVICE_ROLE_KEY`. Um `select` direto
+com o cliente da requisição num endpoint sem sessão — `/api/leads`,
+`/api/avaliacao`, `/api/financeiro/margens/consulta` — volta `null` e o lead
+sai sem `Authorization`, sem erro nenhum. `tests/settings-leitura-privilegiada.test.ts`
+falha se isso voltar.
+
 | Campo no painel | Env de fallback | Padrão de código |
 |---|---|---|
 | `webhookUrl` | `N8N_WEBHOOK_LEAD_URL` | `https://n8n.v2o5.com.br/webhook/lead-entrada` |
@@ -176,8 +185,35 @@ Isto é o que mais importa para quem depura do outro lado.
 
 ## Pendências conhecidas
 
+- [x] **Fechar a leitura anônima de `site_settings`** — resolvido em 2026-08-12
+      por `supabase/migrations/20260812120000_rls_leitura_de_site_settings.sql`.
+      A tabela inteira respondia à chave `anon`, a mesma que vai no bundle do
+      navegador: `apiSecretToken` saía para qualquer visitante que falasse com
+      o PostgREST direto, pulando o `/api/settings`. Agora o anônimo lê só o
+      recorte que alimenta as páginas públicas; `webhooks`, `stock_overrides` e
+      `bank_balances` exigem sessão ou a chave de serviço.
+- [x] **Fechar a ESCRITA anônima de `site_settings`** — aplicado em produção em
+      2026-08-12 (`20260812150000_rls_escrita_de_site_settings.sql`). Até
+      então, `PATCH` com a anon key respondia 200: qualquer pessoa reescrevia
+      `webhookUrl` e desviava todo lead do site, sem login e sem rastro no
+      painel. Agora INSERT/UPDATE exigem `authenticated`. Detalhes e prova em
+      `AUDITORIA.md §3.4-b`.
 - [ ] Confirmar que `webhookNotificacoesUrl` está preenchido em produção
-- [ ] Decidir se `apiSecretToken` passa a ser obrigatório (hoje a URL sozinha
-      basta para injetar lead)
+- [x] `apiSecretToken` **passou a ser obrigatório em
+      `/api/financeiro/margens/consulta`** (2026-08-12). Só naquela rota, e
+      por um motivo específico: ela agora lê `contas` e `compras_produtos` com
+      a chave de serviço, então a RLS deixou de ser a rede de segurança que
+      segurava o dado financeiro. Sem token configurado (nem no painel nem em
+      `N8N_SECRET_TOKEN`) a rota responde **503**, não 200 aberto.
+      ⚠️ **Antes de subir:** `apiSecretToken` está VAZIO no banco hoje, então
+      a rota depende de `N8N_SECRET_TOKEN` existir na Vercel. Se não existir,
+      a ficha de margem para de responder — de forma visível, não silenciosa.
+- [ ] Decidir se o token vira obrigatório também na captura de lead
+      (`/api/leads`, `/api/avaliacao` — hoje a URL sozinha basta para injetar
+      lead falso). **Agora faz sentido decidir:** enquanto `site_settings` era
+      legível pelo anônimo, tornar o token obrigatório não protegia nada — ele
+      estava à vista junto com a URL. Fechada a leitura, o valor pode voltar
+      para o campo do painel; até 2026-08-12 a recomendação era guardá-lo só
+      em `N8N_SECRET_TOKEN` na Vercel, por causa do vazamento.
 - [ ] Alinhar UTM: aninhado no Formato A, plano no Formato B
 - [ ] Avaliar chave de idempotência para o clique duplo

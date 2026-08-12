@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 const companyPath = path.join(process.cwd(), "src/lib/companySettings.json");
 const aboutPath = path.join(process.cwd(), "src/lib/aboutSettings.json");
@@ -25,9 +26,34 @@ export const getCachedSettings = unstable_cache(
     let areasHome = null;
     let fetchedFromSupabase = false;
 
-    if (supabaseUrl && supabaseAnonKey) {
+    // A chave de SERVIÇO é a primeira opção, não um extra.
+    //
+    // Desde `20260812120000_rls_leitura_de_site_settings.sql` a anon key só
+    // enxerga o recorte público de `site_settings`: `webhooks`,
+    // `stock_overrides` e `bank_balances` ficam de fora, porque a anon key vai
+    // no bundle do navegador e essas linhas guardam `apiSecretToken`,
+    // `preco_compra` e saldos. Esta função roda SEMPRE no servidor (dentro de
+    // `unstable_cache`, sem sessão), então é ela que tem de subir de papel —
+    // quem recorta para o visitante é `recortePublicoDeSettings`, abaixo.
+    const chaveDeLeitura = supabaseServiceKey || supabaseAnonKey;
+
+    if (supabaseUrl && chaveDeLeitura) {
+      if (!supabaseServiceKey) {
+        // Alto de propósito. Sem a chave de serviço o site continua de pé — a
+        // vitrine inteira está no recorte público —, mas `webhooks` volta
+        // vazio e o lead sai para o n8n sem `Authorization`. Esse disparo é
+        // não-bloqueante: sem este aviso, a única pista seria o consultor
+        // parando de receber lead, dias depois.
+        console.warn(
+          "[Settings API] SUPABASE_SERVICE_ROLE_KEY ausente — lendo site_settings com a anon key. " +
+            "webhooks/stockOverrides/bankBalances virão vazios (RLS)."
+        );
+      }
+
       try {
-        const client = createClient(supabaseUrl, supabaseAnonKey);
+        const client = createClient(supabaseUrl, chaveDeLeitura, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
         const { data, error } = await client
           .from("site_settings")
           .select("*");

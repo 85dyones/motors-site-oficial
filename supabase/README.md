@@ -39,6 +39,8 @@ projeto. Ver o passo 4 do runbook abaixo para o motivo.
 | `20260804200000_adicionar_last_seen_at.sql` | Reconciliação com o feed: quem não veio no último sync não é exibido. |
 | `20260807120000_midia_paga_e_auditoria.sql` | Módulo de mídia paga (telas A13/A14) + trilha de auditoria (A17), com RLS. Auditoria é append-only por ausência de policy de UPDATE/DELETE. |
 | `20260807160000_ficha_propria_do_painel.sql` | Ficha própria do painel em `estoque_motors`: `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`. **Nunca entram no mapeamento do sync n8n** — ver contrato abaixo. |
+| `20260812120000_rls_leitura_de_site_settings.sql` | Fecha a leitura anônima de `site_settings`. `anon` passa a ver só o recorte que alimenta páginas públicas; `webhooks` (com `apiSecretToken`), `stock_overrides` (com `preco_compra`) e `bank_balances` exigem sessão ou chave de serviço. Autoconferência vira `anon` e tenta ler. **Aplicada em produção em 2026-08-12.** |
+| `20260812150000_rls_escrita_de_site_settings.sql` | Fecha a **escrita** anônima de `site_settings` — o gêmeo do §3.4 que ficou de fora de `20260808120000`. Até 2026-08-12 um `PATCH` com a anon key respondia 200. INSERT/UPDATE passam a exigir `authenticated`; DELETE segue sem policy. Autoconferência vira `anon` e tenta o UPDATE. **Aplicada em produção em 2026-08-12.** |
 
 ## Runbook — aplicar migração quando `api.supabase.com` falha
 

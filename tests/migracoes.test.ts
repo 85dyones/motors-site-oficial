@@ -224,3 +224,138 @@ describe("RLS de escrita do estoque", () => {
     }
   });
 });
+
+describe("RLS de leitura de site_settings", () => {
+  const sql = sqlExecutavel(
+    join(DIR_MIGRACOES, "20260812120000_rls_leitura_de_site_settings.sql")
+  );
+
+  /** Os ids liberados ao papel `anon` pela policy do recorte público. */
+  const listaLiberada = (): string[] => {
+    const inicio = sql.search(
+      /CREATE POLICY "Leitura anonima do recorte publico"/i
+    );
+    expect(inicio, "policy do recorte público não encontrada").toBeGreaterThan(-1);
+    const trecho = sql.slice(inicio, sql.indexOf(";", inicio));
+    const dentroDoIn = trecho.slice(trecho.search(/USING\s*\(\s*id\s+IN\s*\(/i));
+    // Tira comentário de fim de linha antes de colher os literais, senão uma
+    // frase com apóstrofo entraria na lista como se fosse um id.
+    return [...dentroDoIn.replace(/--[^\n]*/g, "").matchAll(/'([a-z_]+)'/g)].map(
+      (m) => m[1]
+    );
+  };
+
+  it("a leitura anônima é restrita por id — nunca `USING (true)`", () => {
+    // O buraco era exatamente este: `FOR SELECT USING (true)` sem `TO`, que
+    // vale para `public` e portanto para a anon key do bundle.
+    expect(sql).toMatch(/FOR SELECT TO anon/i);
+    const criacoes = sql.match(/CREATE POLICY[\s\S]*?;/gi) ?? [];
+    const anonAberta = criacoes.filter(
+      (c) => /TO anon/i.test(c) && /USING\s*\(\s*true\s*\)/i.test(c)
+    );
+    expect(
+      anonAberta,
+      "Policy de leitura anônima sem predicado:\n" + anonAberta.join("\n")
+    ).toEqual([]);
+  });
+
+  it("as três linhas sensíveis ficam fora do alcance do anônimo", () => {
+    // `webhooks` carrega `apiSecretToken`; `stock_overrides` carrega
+    // `preco_compra`; `bank_balances` carrega os saldos da loja.
+    for (const id of ["webhooks", "stock_overrides", "bank_balances"]) {
+      expect(listaLiberada(), `linha sensível liberada ao anônimo: ${id}`)
+        .not.toContain(id);
+    }
+  });
+
+  it("libera o recorte que as páginas sem sessão precisam", () => {
+    expect(listaLiberada().sort()).toEqual([
+      "about",
+      "areas_home",
+      "carousel_vehicles",
+      "company",
+      "instagram_curadoria",
+      "popups",
+      "procedencia",
+      "quick_tags",
+    ]);
+  });
+
+  it("preserva a leitura completa para quem tem sessão", () => {
+    // Não é conveniência: o painel salva com `upsert`, e sem SELECT para
+    // `authenticated` o `ON CONFLICT DO UPDATE` não enxerga a linha que vai
+    // atualizar — a gravação quebraria até nas linhas públicas.
+    expect(sql).toMatch(/FOR SELECT TO authenticated USING \(true\)/i);
+  });
+
+  it("não mexe nas policies de escrita", () => {
+    // Escrita já era `authenticated` + perfil admin. Um DROP daqui derrubaria
+    // o salvamento do painel sem nada no lugar.
+    const drops = sql.match(/DROP POLICY[^;]*/gi) ?? [];
+    for (const d of drops) {
+      expect(d.toLowerCase(), `DROP suspeito de escrita: ${d}`).not.toMatch(
+        /insert|update|delete|escrita|write/
+      );
+    }
+  });
+
+  it("aborta se o anônimo ainda enxergar linha sensível", () => {
+    // A autoconferência vira `anon` de verdade e tenta ler, em vez de
+    // inspecionar `pg_policies` e torcer. Pega inclusive uma policy `ALL` para
+    // `public`, que o DROP por `cmd = 'SELECT'` deixa passar de propósito.
+    expect(sql).toMatch(/SET LOCAL ROLE anon/i);
+    expect(sql).toMatch(/RAISE EXCEPTION/i);
+    expect(sql).toMatch(/RESET ROLE/i);
+  });
+});
+
+describe("RLS de escrita de site_settings", () => {
+  const sql = sqlExecutavel(
+    join(DIR_MIGRACOES, "20260812150000_rls_escrita_de_site_settings.sql")
+  );
+
+  it("restringe UPDATE e INSERT ao papel authenticated", () => {
+    // Mesmo defeito do §3.4 que `20260808120000` fechou em `estoque_motors`:
+    // policy sem `TO` vale para `public`, e a anon key vai no bundle.
+    expect(sql).toMatch(/FOR UPDATE TO authenticated/i);
+    expect(sql).toMatch(/FOR INSERT TO authenticated/i);
+  });
+
+  it("nenhuma policy de escrita fica sem `TO`", () => {
+    const criacoes = sql.match(/CREATE POLICY[\s\S]*?;/gi) ?? [];
+    const semPapel = criacoes.filter(
+      (c) => /FOR (UPDATE|INSERT|DELETE|ALL)/i.test(c) && !/TO\s+authenticated/i.test(c)
+    );
+    expect(
+      semPapel,
+      "Policy de escrita sem `TO authenticated` — vale para public:\n" + semPapel.join("\n")
+    ).toEqual([]);
+  });
+
+  it("não apaga as policies de leitura criadas em 20260812120000", () => {
+    // O DROP é dinâmico e filtra por `cmd`. Se algum dia passar a varrer
+    // SELECT também, derrubaria o recorte público e a leitura do painel.
+    expect(sql).toMatch(/cmd IN \('INSERT', 'UPDATE', 'DELETE', 'ALL'\)/i);
+    expect(sql).not.toMatch(/cmd\s*=\s*'SELECT'/i);
+  });
+
+  it("não cria policy de DELETE", () => {
+    // Ausência de policy é negação, e é o que se quer: o painel nunca apaga
+    // linha de configuração.
+    const criacoes = sql.match(/CREATE POLICY[\s\S]*?;/gi) ?? [];
+    expect(criacoes.filter((c) => /FOR DELETE/i.test(c))).toEqual([]);
+  });
+
+  it("aborta se o anônimo ainda conseguir escrever", () => {
+    expect(sql).toMatch(/SET LOCAL ROLE anon/i);
+    expect(sql).toMatch(/GET DIAGNOSTICS/i);
+    expect(sql).toMatch(/RAISE EXCEPTION/i);
+    expect(sql).toMatch(/RESET ROLE/i);
+  });
+
+  it("a autoconferência não altera dado", () => {
+    // `SET updated_at = updated_at` regrava o mesmo valor: prova a permissão
+    // sem mexer no conteúdo, caso a policy deixe passar.
+    expect(sql).toMatch(/SET updated_at = updated_at/i);
+  });
+});

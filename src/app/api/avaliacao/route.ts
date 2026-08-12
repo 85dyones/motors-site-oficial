@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { logLeadCaptured, logApiTelemetry } from "../../../lib/telemetry";
-import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
+import { createAdminSupabaseClient } from "../../../lib/supabase-server";
+import { getCachedSettings } from "../../../lib/settings";
 import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,6 @@ async function verifyTurnstileToken(token: string): Promise<boolean> {
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   let requestBody: any = null;
-  const supabase = await createServerSupabaseClient();
 
   const sendResponse = (res: NextResponse, errorDetails?: any) => {
     const durationMs = Date.now() - startTime;
@@ -182,13 +182,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 7. Load webhook settings from database to get the configured custom URL
-    const { data: webhooksRow } = await supabase
-      .from("site_settings")
-      .select("*")
-      .eq("id", "webhooks")
-      .maybeSingle();
-
-    const webhooks = webhooksRow?.data || {};
+    //
+    // Mesma razão de `/api/leads`: quem preenche a avaliação não tem sessão, e
+    // desde `20260812120000_rls_leitura_de_site_settings.sql` a linha
+    // `webhooks` não é legível pelo papel `anon`. `getCachedSettings` lê com a
+    // chave de serviço, que passa por cima do RLS.
+    const { webhooks: webhooksSalvos } = await getCachedSettings();
+    const webhooks = webhooksSalvos || {};
     const dbSecretToken = webhooks.apiSecretToken;
     const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
 

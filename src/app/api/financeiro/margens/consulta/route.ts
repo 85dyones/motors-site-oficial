@@ -1,30 +1,76 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
-import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
+import { createAdminSupabaseClient } from "../../../../../lib/supabase-server";
+import { getCachedSettings } from "../../../../../lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-
     // 1. Load webhook settings from database to check for apiSecretToken
-    const { data: webhooksRow } = await supabase
-      .from("site_settings")
-      .select("*")
-      .eq("id", "webhooks")
-      .maybeSingle();
+    //
+    // Via `getCachedSettings` (chave de serviço), não com o cliente da
+    // requisição. Quem chama esta rota é o n8n, com `Authorization: Bearer`
+    // e SEM cookie de sessão — papel `anon`. Desde
+    // `20260812120000_rls_leitura_de_site_settings.sql` o anônimo não lê a
+    // linha `webhooks`, e o efeito de continuar lendo por aqui seria o pior
+    // possível: `dbSecretToken` viria undefined, cairia no fallback de env e,
+    // com `N8N_SECRET_TOKEN` vazio, o `if` abaixo simplesmente não roda —
+    // fechar a RLS teria ABERTO a ficha de margem para qualquer um.
+    const { webhooks, stockOverrides: overridesSalvos } = await getCachedSettings();
 
-    const dbSecretToken = webhooksRow?.data?.apiSecretToken;
-    const secretToken = dbSecretToken || process.env.N8N_SECRET_TOKEN;
+    const dbSecretToken = webhooks?.apiSecretToken;
+    const secretToken = (dbSecretToken || process.env.N8N_SECRET_TOKEN || "").trim();
 
     const authHeader = request.headers.get("Authorization");
 
-    // Only validate if a secret token is actually registered in database or process.env
-    if (secretToken && secretToken.trim() !== "") {
-      if (authHeader !== `Bearer ${secretToken.trim()}`) {
-        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-      }
+    // O token é OBRIGATÓRIO aqui — não "validado quando existe".
+    //
+    // Até 2026-08-12 a regra era `if (secretToken) { valide }`: com o token
+    // vazio dos dois lados, a rota respondia a qualquer um. O que segurava o
+    // dado não era esta checagem, era a RLS — `contas` e `compras_produtos`
+    // exigem `has_finance_access(auth.uid())` e voltavam vazias para quem não
+    // tem sessão. Agora que a consulta usa a chave de serviço (passo 3), essa
+    // rede sumiu: sem token, isto seria o balanço da loja aberto na internet.
+    //
+    // Falha fechada, e com 503 em vez de 401: o problema não é de quem chamou,
+    // é de configuração nossa. 401 mandaria o n8n tentar outro token para
+    // sempre.
+    if (!secretToken) {
+      console.error(
+        "[Margens/Consulta] Nenhum token configurado (site_settings.webhooks.apiSecretToken " +
+          "nem N8N_SECRET_TOKEN). Rota indisponível até configurar."
+      );
+      return NextResponse.json(
+        { error: "Consulta de margem indisponível: token de integração não configurado." },
+        { status: 503 }
+      );
+    }
+
+    if (authHeader !== `Bearer ${secretToken}`) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    // Chave de serviço, e só DEPOIS do token conferido.
+    //
+    // `contas` e `compras_produtos` têm RLS `has_finance_access(auth.uid())`.
+    // Quem chama esta rota é o n8n, sem cookie de sessão: `auth.uid()` é nulo,
+    // a função devolve false e as duas consultas voltavam VAZIAS — com o
+    // `error` descartado, viravam "zero despesas". O resultado é que a ficha
+    // de margem no WhatsApp mostrava custo total = preço de compra e margem
+    // otimista, discordando em silêncio do painel. Confirmado pelo dono em
+    // 2026-08-12.
+    let supabase;
+    try {
+      supabase = createAdminSupabaseClient();
+    } catch {
+      // Sem chave de serviço a rota voltaria a somar zero em silêncio. Mesma
+      // regra do token: indisponível é melhor que errado.
+      console.error("[Margens/Consulta] SUPABASE_SERVICE_ROLE_KEY ausente — rota indisponível.");
+      return NextResponse.json(
+        { error: "Consulta de margem indisponível: credencial de serviço não configurada." },
+        { status: 503 }
+      );
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -79,27 +125,48 @@ export async function GET(request: NextRequest) {
     // merge the entry price below is always undefined and the margin sheet
     // silently falls back to the transaction sum, disagreeing with the panel.
     // Same merge as /api/financeiro/margens (both branches).
-    const { data: overridesRow } = await supabase
-      .from("site_settings")
-      .select("*")
-      .eq("id", "stock_overrides")
-      .maybeSingle();
-    const stockOverrides = overridesRow?.data?.overrides || {};
+    //
+    // Lido lá em cima junto com `webhooks`: `stock_overrides` também saiu do
+    // alcance do anônimo — é exatamente a linha onde `preco_compra` mora.
+    const stockOverrides = overridesSalvos?.overrides || {};
     veiculo = { ...veiculo, ...(stockOverrides[veiculo.id] || {}) };
 
     // 3. Fetch all accounts (excluding cancelled ones) linked to the vehicle
-    const { data: contas } = await supabase
+    const { data: contas, error: erroContas } = await supabase
       .from("contas")
       .select("*, categoria:categorias_financeiras(*)")
       .eq("veiculo_id", String(veiculo.id))
       .neq("status", "cancelado");
 
     // 4. Fetch all purchases (excluding cancelled ones) linked to the vehicle
-    const { data: compras } = await supabase
+    const { data: compras, error: erroCompras } = await supabase
       .from("compras_produtos")
       .select("*")
       .eq("veiculo_id", String(veiculo.id))
       .neq("status", "cancelado");
+
+    // Erro aqui NÃO pode virar lista vazia.
+    //
+    // Era exatamente assim que a rota mentia: consulta barrada pela RLS,
+    // `error` descartado, `contas || []` devolvendo `[]`, e a ficha saindo com
+    // "Gastos de Preparação: R$ 0,00" como se fosse fato apurado. Melhor
+    // recusar a responder do que mandar um número errado para o WhatsApp de
+    // quem decide preço.
+    if (erroContas || erroCompras) {
+      console.error(
+        "[Margens/Consulta] Falha ao ler lançamentos do veículo:",
+        erroContas?.message || erroCompras?.message
+      );
+      return NextResponse.json(
+        {
+          sucesso: false,
+          mensagem:
+            "⚠️ Não foi possível ler os lançamentos financeiros deste veículo. " +
+            "A margem não foi calculada para não sair errada.",
+        },
+        { status: 502 }
+      );
+    }
 
     // 5. Perform Margin Calculations
     const contasIds = new Set((contas || []).map((c) => c.id));
