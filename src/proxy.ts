@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
+import { papelPadraoPorEmail } from "./lib/papelPadrao";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -137,11 +138,7 @@ export async function proxy(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      const role = profile?.role ?? (
-        (user.email === "motors@motorsstoreoficial.com.br" || user.email?.toLowerCase() === "dyones@gmail.com") 
-          ? "admin" 
-          : "comercial"
-      );
+      const role = profile?.role ?? papelPadraoPorEmail(user.email);
 
       // Admins access everything. Check specific constraints:
       if (role !== "admin") {

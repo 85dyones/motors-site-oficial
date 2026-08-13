@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import SidebarNav from "../../components/admin/SidebarNav";
 import AdminLayoutClientWrapper from "../../components/admin/AdminLayoutClientWrapper";
+import { papelPadraoPorEmail } from "../../lib/papelPadrao";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,7 @@ export default async function AdminLayout({
     console.error("[AdminLayout] Profile fetch error:", profileError.message);
   }
 
-  // Fallback role: default to admin if email matches standard motors email or dyones@gmail.com, else comercial
-  const role = profile?.role ?? (
-    (user.email === "motors@motorsstoreoficial.com.br" || user.email?.toLowerCase() === "dyones@gmail.com") 
-      ? "admin" 
-      : "comercial"
-  );
+  const role = profile?.role ?? papelPadraoPorEmail(user.email);
   const fullName = profile?.full_name ?? user.email?.split("@")[0] ?? "Usuário";
 
   const getRoleLabel = (r: string) => {
