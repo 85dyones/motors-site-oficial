@@ -5,7 +5,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
 import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
-import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp } from "../lib/whatsapp";
@@ -150,7 +150,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
           externalId: uid,
           customData: {
             content_ids: [veiculo.id],
-            content_type: "product",
+            content_type: META_CONTENT_TYPE,
             content_name: `${veiculo.marca} ${veiculo.modelo}`,
             value: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original,
             currency: "BRL"

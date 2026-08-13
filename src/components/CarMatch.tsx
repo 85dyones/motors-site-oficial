@@ -540,7 +540,6 @@ export default function CarMatch() {
   useEffect(() => {
     if (gameState === "loading") {
       const tags = [answers.objective, answers.style, answers.experience, answers.timeline].filter(Boolean);
-      trackCarMatch(tags, 0);
 
       let fetchCompleted = false;
       let animCompleted = false;
@@ -576,9 +575,18 @@ export default function CarMatch() {
             if (data && data.matchedVehicles) {
               setMatchedVehicles(data.matchedVehicles);
               setResultsCount(data.count || data.matchedVehicles.length);
+              // O disparo vive aqui, não no início do loading: antes ele saía
+              // com results_count fixo em 0 e o GA4 registrava toda busca como
+              // busca sem resultado.
+              trackCarMatch(tags, data.count || data.matchedVehicles.length);
+            } else {
+              trackCarMatch(tags, 0);
             }
           })
-          .catch((err) => console.error("Failed to sync match with backend API:", err))
+          .catch((err) => {
+            console.error("Failed to sync match with backend API:", err);
+            trackCarMatch(tags, 0);
+          })
           .finally(() => {
             fetchCompleted = true;
             finishLoading();

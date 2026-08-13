@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { logLeadCaptured } from "../../../lib/telemetry";
+import { logLeadCaptured, META_CONTENT_TYPE } from "../../../lib/telemetry";
 import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
           },
           customData: {
             content_ids: veiculo?.id ? [String(veiculo.id)] : undefined,
-            content_type: "product",
+            content_type: META_CONTENT_TYPE,
             content_name: veiculo ? `${veiculo.marca} ${veiculo.modelo}` : undefined,
             value: veiculo?.preco,
             currency: "BRL",
