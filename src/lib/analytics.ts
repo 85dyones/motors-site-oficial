@@ -197,8 +197,11 @@ export async function resumoDeVisitas(dias = 30): Promise<{
   let catalogo = 0;
   for (const l of linhas) {
     const visitas = l.metricas[0] ?? 0;
-    total += visitas;
     const caminho = l.dimensoes[0] ?? "";
+    // Navegação interna não é visita: o painel (/admin) e as telas de showroom
+    // (/vitrine) registram PageView de quem trabalha na loja, não de cliente.
+    if (caminho.startsWith("/admin") || caminho.startsWith("/vitrine")) continue;
+    total += visitas;
     // O catálogo mora em /estoque e as fichas em /carros/...
     if (caminho.startsWith("/estoque") || caminho.startsWith("/carros")) {
       catalogo += visitas;
