@@ -23,13 +23,18 @@ export async function POST() {
       .eq("id", "webhooks")
       .single();
 
-    const webhookUrl = webhookSettings?.data?.webhookNotificacoesUrl 
-      || webhookSettings?.data?.webhookUrl 
+    const webhookUrl = webhookSettings?.data?.webhookNotificacoesUrl
+      || webhookSettings?.data?.webhookUrl
       || process.env.NEXT_PUBLIC_N8N_WEBHOOK_LEAD_URL;
 
     if (!webhookUrl) {
       return NextResponse.json({ error: "Webhook URL de integrações não configurada" }, { status: 400 });
     }
+
+    // Mesma resolução de token do webhook-dispatcher: campo do painel com a env
+    // como fallback. Antes daqui saía `Bearer ` (token vazio) sempre, mesmo sem
+    // token nenhum — o que, com autenticação ligada no n8n, vira 403.
+    const secretToken = (webhookSettings?.data?.apiSecretToken || process.env.N8N_SECRET_TOKEN || "").trim();
 
     // Check if notifications for overdue accounts (conta_vencida) are enabled
     const eventsConfig = webhookSettings?.data?.events || {};
@@ -48,7 +53,7 @@ export async function POST() {
       .from("contas")
       .select(`
         *,
-        categoria:categorias_financeiras (nome)
+        categoria:categorias_financeiras (nome, icone)
       `)
       .in("status", ["pendente", "vencido"]);
 
@@ -102,30 +107,62 @@ export async function POST() {
           .single();
 
         if (!alreadyNotified) {
-          // Send Webhook to n8n
+          // Envia no Formato C do WEBHOOKS_N8N.md — { event, timestamp, data },
+          // com o mesmo desenho de `data` que o webhook-dispatcher produz para o
+          // prefixo `conta_`. Até 2026-08-12 esta rota mandava uma forma própria
+          // ({ tipo, subtipo, conta, mensagem }), sem `event` nem `data`: o único
+          // consumidor, o workflow adm-motors, rejeitava com "Payload inválido" e
+          // o template de conta_vencida nunca chegava a rodar.
+          //
+          // `mensagem` saiu do corpo de propósito. Quem formata texto de WhatsApp
+          // é o n8n, para os onze eventos. O `message` daqui segue sendo gravado
+          // em `notificacoes_financeiras` como registro do que motivou o aviso.
           try {
             const webhookRes = await fetch(webhookUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${process.env.N8N_SECRET_TOKEN || ""}`
+                "X-Admin-Event": "conta_vencida",
+                ...(secretToken ? { "Authorization": `Bearer ${secretToken}` } : {})
               },
               body: JSON.stringify({
-                tipo: "notificacao_financeira",
-                subtipo: notificationType,
-                conta: {
+                event: "conta_vencida",
+                timestamp: new Date().toISOString(),
+                data: {
+                  id: c.id,
+                  tipo: c.tipo,
                   descricao: c.descricao,
-                  valor: c.valor,
-                  data_vencimento: c.data_vencimento,
-                  categoria: c.categoria?.nome || "Geral",
-                  fornecedor: c.fornecedor || c.cliente || "Geral",
-                  status: c.status
-                },
-                mensagem: message
+                  valor: Number(c.valor),
+                  vencimento: c.data_vencimento,
+                  pagamento: c.data_pagamento || null,
+                  status: c.status,
+                  categoria: c.categoria
+                    ? `${c.categoria.icone || "📁"} ${c.categoria.nome}`
+                    : "Outros",
+                  parceiro: c.tipo === "pagar" ? c.fornecedor : c.cliente,
+                  forma_pagamento: c.forma_pagamento || null,
+                  parcela: c.total_parcelas > 1
+                    ? `${c.parcela_atual} de ${c.total_parcelas}`
+                    : "1 de 1",
+                  // `conta_vencida` cobre os dois lados do vencimento, como diz o
+                  // rótulo do painel. Quem separa é o subtipo; os dois contadores
+                  // são sempre >= 0 para não obrigar o n8n a ler sinal.
+                  subtipo: notificationType,
+                  dias_atraso: Math.max(0, -daysDiff),
+                  dias_para_vencer: Math.max(0, daysDiff)
+                }
               })
             });
 
-            if (webhookRes.ok) {
+            if (!webhookRes.ok) {
+              // Sem este aviso, uma recusa persistente é invisível: o registro
+              // abaixo não é gravado, a rota devolve success com notifiedCount 0
+              // e reprocessa as mesmas contas na execução seguinte, para sempre.
+              const corpo = await webhookRes.text().catch(() => "");
+              console.warn(
+                `[WebhookDispatch] Webhook devolveu ${webhookRes.status} para a conta ${c.id}: ${corpo}`
+              );
+            } else {
               // Register notification success in db
               await supabase
                 .from("notificacoes_financeiras")

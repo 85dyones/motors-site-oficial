@@ -20,6 +20,10 @@ const doc = readFileSync(join(raiz, "WEBHOOKS_N8N.md"), "utf-8");
 const rotaLeads = readFileSync(join(raiz, "src", "app", "api", "leads", "route.ts"), "utf-8");
 const rotaAvaliacao = readFileSync(join(raiz, "src", "app", "api", "avaliacao", "route.ts"), "utf-8");
 const dispatcher = readFileSync(join(raiz, "src", "lib", "webhook-dispatcher.ts"), "utf-8");
+const rotaVencidas = readFileSync(
+  join(raiz, "src", "app", "api", "financeiro", "notificacoes", "processar", "route.ts"),
+  "utf-8"
+);
 
 /**
  * Os campos de topo de um literal `const n8nPayload = { ... }`.
@@ -143,5 +147,62 @@ describe("Formato C — evento administrativo", () => {
     // saia do documento sem que alguém perceba.
     expect(dispatcher).toContain("webhooks.webhookNotificacoesUrl || process.env.N8N_ADMIN_WEBHOOK_URL");
     expect(doc).toContain("não tem padrão de código");
+  });
+});
+
+/**
+ * O Formato C tem duas origens, e só uma passava por aqui.
+ *
+ * `conta_vencida` não sai do dispatcher: quem monta o envelope é a rota de
+ * processamento, à mão. Foi exatamente essa a brecha — enquanto o teste olhava
+ * só para o dispatcher, a rota derivou para uma forma própria sem `event` nem
+ * `data`, e o único consumidor rejeitou calado por meses.
+ */
+describe("Formato C — conta_vencida, a origem que não é o dispatcher", () => {
+  /**
+   * Só o corpo do POST. `mensagem` segue existindo na rota — vai para o insert
+   * em `notificacoes_financeiras`, que é registro interno. O que não pode
+   * voltar é ela no payload: quem formata WhatsApp é o n8n.
+   */
+  const corpoDoWebhook = (() => {
+    const inicio = rotaVencidas.indexOf("const webhookRes = await fetch(webhookUrl");
+    const fim = rotaVencidas.indexOf("if (!webhookRes.ok)");
+    expect(inicio, "chamada do webhook não encontrada").toBeGreaterThan(-1);
+    expect(fim, "checagem de resposta não encontrada").toBeGreaterThan(inicio);
+    return rotaVencidas.slice(inicio, fim);
+  })();
+
+  it("usa o envelope do Formato C, não a forma antiga", () => {
+    expect(rotaVencidas).toContain('event: "conta_vencida"');
+    expect(rotaVencidas).toContain("timestamp: new Date().toISOString(),");
+    expect(rotaVencidas).toContain('"X-Admin-Event": "conta_vencida"');
+
+    // A forma antiga: sem `event`, sem `data`. O nó de tratamento do n8n
+    // rejeita com "Payload inválido".
+    expect(corpoDoWebhook).not.toContain('tipo: "notificacao_financeira"');
+    expect(corpoDoWebhook).not.toContain("mensagem:");
+  });
+
+  it("manda os três campos de vencimento, e o documento os descreve", () => {
+    for (const campo of ["subtipo", "dias_atraso", "dias_para_vencer"]) {
+      expect(corpoDoWebhook, `campo "${campo}" sumiu do payload`).toContain(`${campo}:`);
+      expect(doc, `campo "${campo}" fora de WEBHOOKS_N8N.md`).toContain(`\`${campo}\``);
+    }
+  });
+
+  it("resolve o token como o dispatcher e nunca manda Bearer vazio", () => {
+    // `Bearer ` com token vazio é pior que header nenhum: com autenticação
+    // ligada no n8n vira 403, e esta rota engole o erro.
+    expect(rotaVencidas).toContain("webhookSettings?.data?.apiSecretToken || process.env.N8N_SECRET_TOKEN");
+    expect(rotaVencidas).toContain("...(secretToken ? {");
+    expect(rotaVencidas).not.toMatch(/Bearer \$\{process\.env\.N8N_SECRET_TOKEN \|\| ""\}/);
+  });
+
+  it("reclama alto quando o webhook recusa", () => {
+    // O registro em `notificacoes_financeiras` só é gravado quando responde ok.
+    // Sem o aviso, uma recusa persistente é invisível: a rota devolve success
+    // com notifiedCount 0 e reprocessa as mesmas contas para sempre.
+    expect(rotaVencidas).toContain("if (!webhookRes.ok)");
+    expect(rotaVencidas).toContain("console.warn(");
   });
 });
