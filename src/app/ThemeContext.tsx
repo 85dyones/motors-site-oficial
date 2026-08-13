@@ -254,7 +254,6 @@ interface ThemeContextProps {
   quickTags: QuickTag[];
   updateQuickTags: (tags: QuickTag[]) => Promise<void>;
   stockOverrides: StockOverrides;
-  updateStockOverrides: (overrides: StockOverrides) => Promise<void>;
   carouselVehicleIds: string[];
   updateCarouselVehicleIds: (ids: string[]) => Promise<void>;
   procedencia: ItemProcedencia[];
@@ -537,18 +536,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await postSettings({ quickTags: { quickTags: newQuickTags } });
   };
 
-  const updateStockOverrides = async (newStockOverrides: StockOverrides) => {
-    setStockOverrides(newStockOverrides);
-    if (typeof window !== "undefined") {
-      (window as any).ag_stock_overrides = newStockOverrides;
-      try {
-        localStorage.setItem("ag_stock_overrides", JSON.stringify(newStockOverrides));
-      } catch (e) {
-        console.warn("[ThemeContext] Failed to save stockOverrides to localStorage:", e);
-      }
-    }
-    await postSettings({ stockOverrides: { overrides: newStockOverrides } });
-  };
+  // `updateStockOverrides` saiu em 2026-08-13: a escrita de veículo migrou
+  // inteira para as colunas de `estoque_motors` (2026-08-08) e este era o
+  // último caminho capaz de reintroduzir escrita de veículo no JSON.
 
   const applyThemeProperties = (type: ThemeType) => {
     if (typeof window === "undefined") return;
@@ -643,7 +633,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         quickTags,
         updateQuickTags,
         stockOverrides,
-        updateStockOverrides,
         carouselVehicleIds,
         updateCarouselVehicleIds,
         procedencia,
