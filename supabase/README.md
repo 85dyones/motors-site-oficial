@@ -33,14 +33,19 @@ projeto. Ver o passo 4 do runbook abaixo para o motivo.
 
 | Arquivo | O que faz |
 |---|---|
-| `20260803120000_baseline_inventario.sql` | Versiona a tabela de inventário, que nunca esteve sob controle de versão. Schema **reconstruído**, não verificado. |
+| `20260803120000_baseline_inventario.sql` | Versiona a tabela de inventário, que nunca esteve sob controle de versão. Schema corrigido contra a produção em 2026-08-03 (ver o cabeçalho do próprio arquivo). ⚠️ Reexecutá-lo num banco onde o rename já rodou **recria `public.veiculos` com policies públicas** — foi o que aconteceu em produção (`AUDITORIA.md` §3.4-c). |
 | `20260803120100_renomear_veiculos_para_estoque_motors.sql` | `veiculos` → `estoque_motors` + view de compatibilidade. |
 | `20260804193000_remover_view_compat_veiculos.sql` | Remove a view de compatibilidade após o cutover. |
 | `20260804200000_adicionar_last_seen_at.sql` | Reconciliação com o feed: quem não veio no último sync não é exibido. |
 | `20260807120000_midia_paga_e_auditoria.sql` | Módulo de mídia paga (telas A13/A14) + trilha de auditoria (A17), com RLS. Auditoria é append-only por ausência de policy de UPDATE/DELETE. |
 | `20260807160000_ficha_propria_do_painel.sql` | Ficha própria do painel em `estoque_motors`: `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`. **Nunca entram no mapeamento do sync n8n** — ver contrato abaixo. |
+| `20260807190000_historico_veiculo.sql` | Linha do tempo de alterações por veículo (tela A15). Append-only: SELECT e INSERT `TO authenticated`, sem UPDATE/DELETE. |
+| `20260807210000_leads.sql` | RLS da tabela `leads` (PII): leitura, atualização e exclusão `TO authenticated`; sem policy de INSERT — quem grava é a chave de serviço. |
+| `20260808120000_rls_escrita_autenticada_estoque.sql` | Fecha a escrita anônima de `estoque_motors` (`AUDITORIA.md` §3.4), com autoconferência que aborta se sobrar escrita pública. |
+| `20260811130000_leads_insert_destravado.sql` | `event_id` deixa de ser NOT NULL — era o que fazia todo INSERT de lead do site falhar em silêncio desde 2026-08-07. |
 | `20260812120000_rls_leitura_de_site_settings.sql` | Fecha a leitura anônima de `site_settings`. `anon` passa a ver só o recorte que alimenta páginas públicas; `webhooks` (com `apiSecretToken`), `stock_overrides` (com `preco_compra`) e `bank_balances` exigem sessão ou chave de serviço. Autoconferência vira `anon` e tenta ler. **Aplicada em produção em 2026-08-12.** |
 | `20260812150000_rls_escrita_de_site_settings.sql` | Fecha a **escrita** anônima de `site_settings` — o gêmeo do §3.4 que ficou de fora de `20260808120000`. Até 2026-08-12 um `PATCH` com a anon key respondia 200. INSERT/UPDATE passam a exigir `authenticated`; DELETE segue sem policy. Autoconferência vira `anon` e tenta o UPDATE. **Aplicada em produção em 2026-08-12.** |
+| `20260812160000_notificacoes_admin.sql` | Rastro dos eventos administrativos processados pelo workflow `adm-motors` do n8n. Escrita só pela chave de serviço; leitura `TO authenticated`; sem UPDATE/DELETE. **Aplicada em produção em 2026-08-12.** |
 
 ## Runbook — aplicar migração quando `api.supabase.com` falha
 
@@ -245,9 +250,14 @@ Migrações aplicadas com sucesso. Verificado por consulta direta ao banco
 | View de compatibilidade `veiculos` responde | ✅ mesmas 78 linhas, mesmas colunas |
 | `getEstoque()` da vitrine funciona | ✅ retorna estoque real |
 
-**Passos 3 e 4 continuam pendentes** — o workflow n8n ainda aponta para o nome
-antigo, e é a view de compatibilidade que o mantém funcionando. Enquanto ela
-existir, o cutover parece completo sem estar.
+> **Nota de 2026-08-13:** a tabela acima é a fotografia de 2026-08-03 e o
+> parágrafo que vivia aqui ("passos 3 e 4 continuam pendentes") envelheceu — o
+> passo 4 foi aplicado em 2026-08-04 (ver a seção do passo 4 acima) e o
+> sincronizador corrigido está no repositório. O que restou do passo 3 é a
+> importação no n8n com `SUPABASE_SERVICE_ROLE_KEY` configurada por lá.
+> Atenção: a `public.veiculos` **voltou** a existir em produção como tabela
+> (reexecução do baseline; `AUDITORIA.md` §3.4-c) — removê-la é pré-requisito
+> para qualquer `db push` futuro.
 
 ## Resolvido no cutover
 

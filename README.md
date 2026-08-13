@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# motors-site-oficial
 
-## Getting Started
+Site e plataforma da **Motors Store**, revenda de veículos seminovos em
+Curitiba/PR. Em produção, com usuários e tráfego reais — toda alteração parte
+do que já existe.
 
-First, run the development server:
+O produto tem três camadas:
+
+- **Loja** — vitrine, ficha do veículo (PDP), avaliação de compra, CarMatch e
+  landings de destaque, no design Modernist.
+- **Painel** (`/admin`) — estoque, kanban de leads, financeiro, mídia paga,
+  usuários/permissões e auditoria (telas A1–A17).
+- **Motors Ciclo** — o programa de ciclo de vida do cliente (garantia, revisões
+  em rede, recompra futura). Especificado em `docs/MANUAL_MOTORS_CICLO.md`;
+  implementação ainda no começo.
+
+## Stack
+
+Next.js / React · Supabase (banco + auth, projeto `zwbqmzgnagfeqinqkolp`) ·
+n8n (automação e WhatsApp via Evolution API) · Meta Pixel + CAPI · Vercel.
+O estoque é sincronizado do RevendaMais para a tabela `estoque_motors` por um
+workflow do n8n.
+
+## Rodar
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm test        # vitest — a suíte também trava decisões de projeto
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+As variáveis de ambiente estão descritas em `.env.example`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Onde está cada coisa
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Documento | Assunto |
+|---|---|
+| `docs/MANUAL_MOTORS_CICLO.md` | A especificação de produto do Ciclo — **fonte de verdade** |
+| `docs/MOTORS_CICLO_IMPLEMENTACAO.md` | O plano de implementação em pacotes |
+| `AUDITORIA.md` | Auditoria do Pacote 0 (fotografia de 2026-08-03) + decisões datadas |
+| `supabase/README.md` | Migrações, runbook de aplicação e o contrato do sync de estoque |
+| `WEBHOOKS_N8N.md` | Contrato dos webhooks site → n8n (formatos A, B e C) |
+| `TRACKING_SPEC.md` | Meta Pixel/CAPI e Google — spec em produção |
+| `SETUP_MANUAL.md` | Passo a passo de configuração de contas externas |
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Migrações do banco são **versionadas** em `supabase/migrations/` — nunca altere
+schema direto pelo painel. RLS é obrigatória em toda tabela com dado de
+cliente. Código, tabelas e commits em **português**, seguindo o padrão do
+repositório.
