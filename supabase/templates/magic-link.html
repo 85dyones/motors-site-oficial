@@ -1,0 +1,106 @@
+<!--
+  Template do e-mail de entrada na Caderneta Motors (Supabase Auth → Magic Link).
+
+  Onde colar: painel do Supabase → Authentication → Emails → Magic Link →
+  campo "Message body". O assunto sugerido está em AREA_DO_CLIENTE_AUTH.md.
+
+  Por que é tabela com estilo inline e sem fonte externa: cliente de e-mail não
+  é browser. Gmail remove <style> em parte dos contextos, Outlook renderiza com
+  Word, e nenhum dos dois carrega webfont. A Archivo do site fica só como
+  primeira opção da pilha — quem tiver, vê; quem não tiver, cai em Helvetica e
+  o layout não muda.
+
+  Variável do Supabase usada: {{ .ConfirmationURL }} — o link já carrega o
+  token e o destino. Não acrescente parâmetros à mão.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f2f2;margin:0;padding:32px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background-color:#ffffff;border:1px solid #e2e0e0;">
+
+        <!-- Faixa superior: a régua do sistema Modernist, em versão e-mail -->
+        <tr>
+          <td style="background-color:#201e1d;padding:20px 28px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="width:8px;height:26px;background-color:#c8412f;font-size:0;line-height:0;">&nbsp;</td>
+                <td style="padding-left:10px;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:17px;font-weight:800;letter-spacing:0.02em;color:#f3f2f2;">
+                  MOTORS STORE
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:32px 28px 8px 28px;">
+            <div style="font-family:Archivo,Helvetica,Arial,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#c8412f;padding-bottom:10px;">
+              Caderneta do seu carro
+            </div>
+            <h1 style="margin:0 0 14px 0;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:24px;line-height:1.2;font-weight:800;letter-spacing:-0.015em;color:#201e1d;">
+              Seu acesso está aqui
+            </h1>
+            <p style="margin:0 0 22px 0;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#4a4746;">
+              Toque no botão abaixo para abrir a caderneta de revisões do seu veículo.
+              Não é preciso senha — este link já entra na sua conta.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:0 28px 24px 28px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#c8412f;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:14px 28px;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#ffffff;text-decoration:none;">
+                    Abrir minha caderneta
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:0 28px 28px 28px;">
+            <p style="margin:0 0 6px 0;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#6d6968;">
+              O link vale por 1 hora e só pode ser usado uma vez. Se ele expirar,
+              é só pedir outro na página de entrada.
+            </p>
+            <p style="margin:0;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#6d6968;">
+              Se o botão não funcionar, copie e cole este endereço no navegador:<br>
+              <span style="word-break:break-all;color:#4a4746;">{{ .ConfirmationURL }}</span>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Aviso de segurança: e-mail de acesso sempre precisa dizer o que
+             fazer quando não foi você que pediu. -->
+        <tr>
+          <td style="padding:0 28px 28px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f7f6f6;border-left:3px solid #e2e0e0;">
+              <tr>
+                <td style="padding:14px 16px;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#4a4746;">
+                  <strong style="color:#201e1d;">Não foi você que pediu?</strong><br>
+                  Ignore este e-mail — sem o clique, nada acontece e sua conta segue
+                  intacta. Se isso se repetir, fale com a gente.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="border-top:1px solid #e2e0e0;padding:18px 28px 24px 28px;">
+            <p style="margin:0;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.7;color:#8a8685;">
+              Motors Store · Rua Ernesto Piazzetta, 98 — Bacacheri, Curitiba/PR<br>
+              Este é um e-mail automático de acesso à sua conta. Não responda a esta mensagem.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>

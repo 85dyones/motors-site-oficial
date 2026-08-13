@@ -31,7 +31,20 @@
 > |---|---|---|
 > | §1.4 | O gatilho exige `serie_telemetria >= 6 meses` e não há provedor contratado | **Telemetria adiada.** A fase zero da recompra é a área do cliente com caderneta de revisões ("Caderneta Motors"); o gatilho passa a contar pela série da caderneta — **emenda do manual pendente de publicação pelo dono** (v1.1). A loja valida cada revisão pelo comprovante/nota de serviço; só registro confirmado conta para `conformidade_revisao`. |
 > | §5.6 | Índice Ciclo sem componente de condução | **Ratificado:** o Índice nasce com 3 componentes renormalizados (50 / 31,25 / 18,75) para toda a base, `score_conducao` fica `NULL` — nunca zero. Preserva a regra 2 por construção. |
-> | R1 | Cliente e staff no mesmo pool `auth.users` | **Criar a role `cliente`** — privilégio mínimo, padrão de todo signup; papel de staff só via `app_metadata` (chave de serviço); policies internas passam a exigir `is_staff()`. Migração `20260813120000_role_cliente_e_is_staff.sql`, gates de rota e testes em `tests/role-cliente.test.ts`. |
+> | R1 | Cliente e staff no mesmo pool `auth.users` | **Criar a role `cliente`** — privilégio mínimo, padrão de todo signup; papel de staff só via `app_metadata` (chave de serviço); policies internas passam a exigir `is_staff()`. Migração `20260813120000_role_cliente_e_is_staff.sql`, gates de rota e testes em `tests/role-cliente.test.ts`. **Aplicada em produção em 2026-08-13** — verificado: 17 policies com `is_staff`, zero policies internas em `USING (true)`. |
+> | D3 | Autenticação do cliente | **Link mágico por e-mail** (não OTP por telefone). Custo zero, sem fornecedor novo. Torna o e-mail campo bloqueante no fechamento da venda. Configuração em `docs/AREA_DO_CLIENTE_AUTH.md`. |
+> | D4 | Registro de odômetro pelo cliente | **Aprovado**, opt-in. Dado declarado, nunca verificado; não registrar jamais penaliza. |
+> | D5 | Janelas de revisão | **10.000 km ou 12 meses**, o que ocorrer primeiro; tolerância de 30 dias ou 1.000 km, aplicada à régua que venceu. Calcado na prática publicada de VW, Honda, Toyota e Chevrolet — não em estimativa. Substituível quando houver acordo próprio com a rede parceira. |
+> | D6 | Quem confirma revisão | **Comercial ou Administrador.** |
+> | D9 | Dono operacional da fila de carimbos | **Comercial**, com Administrador como revisor e responsável final — **arranjo transitório**, até existir papel `pos_venda` próprio. Não existe papel SDR no painel: `leads_sdr`/`sdr_qualificacao` são tabelas de fluxo do n8n, e `sdr-captura-lead` é webhook desligado. |
+>
+> Emenda ao manual redigida em `docs/EMENDA_01_MANUAL_CICLO.md` (artigos E1–E7),
+> **aguardando aprovação e data do dono** para virar a v1.1. Enquanto não for
+> aprovada, o texto vigente é o da v1.0 e o gatilho do §1.4 segue inatingível.
+>
+> **Seguem sem decisão:** D7 (qual chave o fluxo SDR do n8n usa — bloqueia
+> fechar a RLS das seis tabelas expostas), D8 (nome público do produto e escopo
+> da fase 1) e a nomeação do dono de pós-venda.
 
 ## Limite de verificação — leia antes de tudo
 
