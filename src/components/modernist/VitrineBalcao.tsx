@@ -77,11 +77,6 @@ export default function VitrineBalcao({
     setPagina(0);
   };
 
-  // O botão CHAMAR CONSULTOR abaixava a música do showroom antes de abrir o
-  // WhatsApp. O projeto de música foi abortado em 2026-08-11 e removido do
-  // repositório; o botão continua fazendo o que importa, que é abrir a
-  // conversa.
-
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-mt-bg font-modernist text-mt-ink">
       {/* ─── Barra superior ─── */}
