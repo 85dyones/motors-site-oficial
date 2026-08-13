@@ -1238,7 +1238,7 @@ export default function ConfiguracoesClientWrapper() {
                 TOKEN DE AUTENTICAÇÃO DA API (HEADERS)
               </h2>
               <p className="text-xs text-mt-neutral-700 mb-4 font-normal leading-relaxed">
-                Configure um token de segurança para proteger o endpoint de consulta de margens por WhatsApp (<code>/api/financeiro/margens/consulta</code>). Se configurado, as consultas feitas a este link exigirão o cabeçalho <code>Authorization: Bearer [Token]</code>.
+                Token exigido pelo endpoint de consulta de margens por WhatsApp (<code>/api/financeiro/margens/consulta</code>): toda consulta precisa do cabeçalho <code>Authorization: Bearer [Token]</code>. Sem token configurado em lugar nenhum, o endpoint responde 503 — ele não abre sem autenticação.
               </p>
 
               <div className="flex flex-col gap-3.5">
@@ -1255,7 +1255,7 @@ export default function ConfiguracoesClientWrapper() {
                     className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent font-mono transition-all"
                   />
                   <p className="text-[9px] text-mt-neutral-500 leading-relaxed font-normal">
-                    * Opcional. Se deixado em branco, a API de consulta aceitará requisições sem exigir cabeçalhos de segurança (não obrigatório, se não houver cadastro do token, não envia os headers).
+                    * Deixe este campo em branco: a fonte oficial do token é a variável <code>N8N_SECRET_TOKEN</code> na Vercel (decisão de 2026-08-12 — uma fonte só, e é a env). Preencher aqui cria uma segunda fonte que passa a valer na frente da env.
                   </p>
                 </div>
 
