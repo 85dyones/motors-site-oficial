@@ -261,11 +261,13 @@ export default function Catalogo({
                         type="checkbox"
                         checked={marcado}
                         onChange={() => alternar(grupo.chave, opcao.valor)}
-                        className="sr-only"
+                        className="peer sr-only"
                       />
+                      {/* O input real é sr-only: o anel de foco tem que vir do
+                          `peer`, senão o teclado percorre os filtros às cegas. */}
                       <span
                         aria-hidden="true"
-                        className={`h-3.5 w-3.5 shrink-0 border-[1.5px] ${
+                        className={`h-3.5 w-3.5 shrink-0 border-[1.5px] outline-mt-accent peer-focus-visible:outline-2 peer-focus-visible:outline-solid peer-focus-visible:outline-offset-2 ${
                           marcado
                             ? "border-mt-accent bg-mt-accent"
                             : "border-mt-regua bg-mt-bg"
