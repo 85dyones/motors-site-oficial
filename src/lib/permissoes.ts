@@ -17,6 +17,17 @@
 export const PERFIS = ["admin", "marketing", "comercial", "financeiro"] as const;
 export type Perfil = (typeof PERFIS)[number];
 
+/**
+ * Papel de painel? A role `cliente` (2026-08-13, Caderneta) é `authenticated`
+ * no Supabase mas NUNCA entra na matriz: cliente pertence à área do cliente.
+ * Todo gate de painel ou de API interna pergunta aqui ANTES de
+ * `normalizarPerfil` — normalizar um papel que não é de staff o promoveria a
+ * "comercial".
+ */
+export function ehStaff(role: string | null | undefined): boolean {
+  return (PERFIS as readonly string[]).includes(role ?? "");
+}
+
 export type Permissao = "faz" | "revisao" | "nao_ve";
 
 export const ROTULO_DO_PERFIL: Record<Perfil, string> = {
@@ -200,6 +211,9 @@ export function podeGravarCampo(perfil: Perfil, campo: string): boolean {
  * Papel legado → perfil. `role` em `profiles` é texto livre validado no app;
  * qualquer valor fora do vocabulário cai em `comercial`, o perfil de menor
  * alcance financeiro — errar para baixo, nunca para cima.
+ *
+ * Pressupõe staff: chame `ehStaff` ANTES. Para "cliente" não existe "para
+ * baixo" dentro do painel — qualquer normalização seria promoção.
  */
 export function normalizarPerfil(role: string | null | undefined): Perfil {
   return (PERFIS as readonly string[]).includes(role ?? "")

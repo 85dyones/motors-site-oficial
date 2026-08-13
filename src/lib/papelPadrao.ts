@@ -3,14 +3,16 @@
  * leitura falha. A regra vive num módulo só: o proxy e o layout do admin
  * carregavam duas cópias idênticas dela, e cópias divergem em silêncio.
  *
- * Admin de fábrica só para os dois e-mails fundadores; qualquer outro usuário
- * autenticado cai em "comercial", o perfil de menor privilégio do painel.
+ * Desde a role `cliente` (2026-08-13, Caderneta), o padrão para quem não é
+ * fundador é **cliente**, não mais "comercial": usuário sem perfil legível não
+ * é tratado como staff (fail-closed). Staff de verdade sempre tem linha em
+ * `profiles` — o trigger `handle_new_user` a cria no cadastro.
  */
-export function papelPadraoPorEmail(email: string | null | undefined): "admin" | "comercial" {
-  if (!email) return "comercial";
+export function papelPadraoPorEmail(email: string | null | undefined): "admin" | "cliente" {
+  if (!email) return "cliente";
   const normalizado = email.toLowerCase();
   return normalizado === "motors@motorsstoreoficial.com.br" ||
     normalizado === "dyones@gmail.com"
     ? "admin"
-    : "comercial";
+    : "cliente";
 }

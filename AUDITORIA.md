@@ -25,6 +25,14 @@
 > testar policy de RLS ainda exige uma instância Supabase de teste — decisão de infra
 > em aberto.
 
+> ## 📌 Decisões tomadas — 2026-08-13 (Ciclo sem telemetria)
+>
+> | # | Questão | Decisão |
+> |---|---|---|
+> | §1.4 | O gatilho exige `serie_telemetria >= 6 meses` e não há provedor contratado | **Telemetria adiada.** A fase zero da recompra é a área do cliente com caderneta de revisões ("Caderneta Motors"); o gatilho passa a contar pela série da caderneta — **emenda do manual pendente de publicação pelo dono** (v1.1). A loja valida cada revisão pelo comprovante/nota de serviço; só registro confirmado conta para `conformidade_revisao`. |
+> | §5.6 | Índice Ciclo sem componente de condução | **Ratificado:** o Índice nasce com 3 componentes renormalizados (50 / 31,25 / 18,75) para toda a base, `score_conducao` fica `NULL` — nunca zero. Preserva a regra 2 por construção. |
+> | R1 | Cliente e staff no mesmo pool `auth.users` | **Criar a role `cliente`** — privilégio mínimo, padrão de todo signup; papel de staff só via `app_metadata` (chave de serviço); policies internas passam a exigir `is_staff()`. Migração `20260813120000_role_cliente_e_is_staff.sql`, gates de rota e testes em `tests/role-cliente.test.ts`. |
+
 ## Limite de verificação — leia antes de tudo
 
 **O banco em produção não foi inspecionado.** Duas vias falharam:

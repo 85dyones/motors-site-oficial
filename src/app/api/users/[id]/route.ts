@@ -41,7 +41,10 @@ export async function PUT(
 
       // 1. Update auth.users metadata
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
-        user_metadata: { full_name, role }
+        user_metadata: { full_name, role },
+        // Espelho em app_metadata: é de onde o trigger e os checks de papel
+        // leem — user_metadata é gravável pelo próprio usuário.
+        app_metadata: { role }
       });
 
       if (authError) {

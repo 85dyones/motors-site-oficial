@@ -4,6 +4,8 @@ import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { unstable_cache, revalidateTag } from "next/cache";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
+import { ehStaff } from "../../../lib/permissoes";
+import { papelPadraoPorEmail } from "../../../lib/papelPadrao";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -39,23 +41,33 @@ import { getCachedSettings, recortePublicoDeSettings } from "../../../lib/settin
  * e `apiSecretToken` vinham no envelope e estavam vazios só por acaso: no dia em
  * que fossem preenchidos pelo painel, nasceriam públicos.
  *
- * Visitante anônimo recebe o recorte público; sessão válida recebe o payload
- * completo, que é o que o painel admin consome. O POST já era autenticado.
+ * Visitante anônimo — e cliente logado da Caderneta — recebe o recorte
+ * público; só sessão de STAFF recebe o payload completo, que é o que o painel
+ * admin consome. O POST também exige staff.
  */
 export async function GET() {
   const completo = await getCachedSettings();
 
-  let autenticado = false;
+  let deStaff = false;
   try {
     const client = await createServerSupabaseClient();
     const { data } = await client.auth.getUser();
-    autenticado = !!data?.user;
+    if (data?.user) {
+      // Sessão não basta mais: cliente da Caderneta também é `authenticated`.
+      // O payload completo carrega token, saldos e preco_compra — só staff vê.
+      const { data: perfil } = await client
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+      deStaff = ehStaff(perfil?.role ?? papelPadraoPorEmail(data.user.email));
+    }
   } catch (err: any) {
     // Sem sessão utilizável — segue como anônimo, que é o caminho seguro.
     console.warn("[Settings API] Checagem de sessão no GET falhou:", err?.message);
   }
 
-  const corpo = autenticado ? completo : recortePublicoDeSettings(completo);
+  const corpo = deStaff ? completo : recortePublicoDeSettings(completo);
 
   return NextResponse.json(corpo, {
     headers: {
@@ -132,6 +144,17 @@ export async function POST(request: Request) {
       if (!user) {
         console.warn("[Settings API] Write blocked: unauthorized request", authError?.message);
         return NextResponse.json({ error: "Sessão inválida ou ausente. Faça login novamente." }, { status: 401 });
+      }
+
+      // Só staff mexe em settings. A RLS (is_staff) já barraria os upserts,
+      // mas a gravação nos JSON locais abaixo não passa pelo banco.
+      const { data: perfilRow } = await requestSupabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (!ehStaff(perfilRow?.role ?? papelPadraoPorEmail(user.email))) {
+        return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
       }
 
       // 3. Write to Supabase using the authenticated client

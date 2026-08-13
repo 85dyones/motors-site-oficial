@@ -83,6 +83,9 @@ export async function POST(request: NextRequest) {
           full_name,
           role,
         },
+        // O papel viaja em app_metadata: é o que handle_new_user lê desde a
+        // migração da role cliente — user_metadata é gravável pelo usuário.
+        app_metadata: { role },
       });
 
       if (error) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { campoNegadoAoPerfil, normalizarPerfil } from "../../../../lib/permissoes";
+import { campoNegadoAoPerfil, ehStaff, normalizarPerfil } from "../../../../lib/permissoes";
 import { aplicarNosVeiculos, extrairCamposNossos } from "../../../../lib/estoqueEscrita";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
       .select("role, full_name")
       .eq("id", user.id)
       .single();
+    if (!ehStaff(profile?.role)) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
     const perfil = normalizarPerfil(profile?.role);
 
     const body = await request.json();

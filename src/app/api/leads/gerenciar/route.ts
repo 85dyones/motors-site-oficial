@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +30,11 @@ export async function GET(request: NextRequest) {
       .select("role")
       .eq("id", user.id)
       .single();
+    // Cliente da Caderneta é authenticated sem ser staff; normalizar sem
+    // barrar o promoveria a "comercial".
+    if (!ehStaff(profile?.role)) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
     const perfil = normalizarPerfil(profile?.role);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
 
@@ -103,6 +108,9 @@ export async function PATCH(request: NextRequest) {
       .select("role")
       .eq("id", user.id)
       .single();
+    if (!ehStaff(profile?.role)) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
     if (podeFazer(normalizarPerfil(profile?.role), "Ver e mover leads no kanban") !== "faz") {
       return NextResponse.json({ error: "Seu perfil não move leads" }, { status: 403 });
     }
@@ -150,7 +158,7 @@ export async function DELETE(request: NextRequest) {
       .select("role")
       .eq("id", user.id)
       .single();
-    if (normalizarPerfil(profile?.role) !== "admin") {
+    if (!ehStaff(profile?.role) || normalizarPerfil(profile?.role) !== "admin") {
       return NextResponse.json(
         { error: "Só o Administrador exclui lead (pedido de titular)" },
         { status: 403 },

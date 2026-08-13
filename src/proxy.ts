@@ -4,6 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { papelPadraoPorEmail } from "./lib/papelPadrao";
+import { ehStaff } from "./lib/permissoes";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -139,6 +140,18 @@ export async function proxy(request: NextRequest) {
         .single();
 
       const role = profile?.role ?? papelPadraoPorEmail(user.email);
+
+      // Papel `cliente` (Caderneta, 2026-08-13) nunca entra no painel: as
+      // regras abaixo pressupõem staff — sem este bloqueio, cliente herdaria
+      // os acessos de `comercial`.
+      if (!ehStaff(role)) {
+        if (isAdminPath) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/";
+          return NextResponse.redirect(url);
+        }
+        return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+      }
 
       // Admins access everything. Check specific constraints:
       if (role !== "admin") {
