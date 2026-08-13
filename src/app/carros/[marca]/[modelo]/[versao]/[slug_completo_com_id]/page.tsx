@@ -201,14 +201,15 @@ export default async function CarDetailsPage({ params }: PageProps) {
         "item": "https://motors-site-oficial.vercel.app/"
       },
       {
-        // `/?marca=X`, não `/carros/{marca}`: essa rota intermediária NÃO
+        // `/estoque?marca=X`, não `/carros/{marca}`: essa rota intermediária NÃO
         // existe (a pasta [marca] só contém [modelo]), então o breadcrumb rico
         // do Google apontava para um 404 — markup desperdiçado e erro no Search
-        // Console. A home com o filtro de marca é a página real equivalente.
+        // Console. Quem lê `?marca=` é o Catálogo, em /estoque — a home ignora
+        // o parâmetro.
         "@type": "ListItem",
         "position": 2,
         "name": veiculo.marca,
-        "item": `https://motors-site-oficial.vercel.app/?marca=${encodeURIComponent(veiculo.marca)}`
+        "item": `https://motors-site-oficial.vercel.app/estoque?marca=${encodeURIComponent(veiculo.marca)}`
       },
       {
         "@type": "ListItem",
