@@ -2,8 +2,15 @@
 
 **Ao:** `MANUAL_MOTORS_CICLO.md`, Versão 1.0 — Agosto 2026
 **Data da proposta:** 2026-08-13
-**Status:** ⬜ proposta · ⬜ aprovada · ⬜ publicada como v1.1
+**Status:** ✅ **aprovada e publicada como v1.1 em 2026-08-13**
+**Aprovada por:** Dyones — 13/08/2026
 **Origem:** decisão do dono em 2026-08-13 — adiar telemetria e abrir o programa pela área do cliente.
+
+> Os artigos E1–E7 foram incorporados ao corpo do `MANUAL_MOTORS_CICLO.md`, que
+> passou à **Versão 1.1**. Este arquivo permanece como registro do que mudou e
+> por quê. Duas alterações entraram na aprovação, sobre o texto proposto: a
+> **etiqueta de troca de óleo como prova do carimbo** (E4) e o **KM de saída na
+> compra como primeira notação de odômetro** (E3).
 
 > Redigida porque o manual é a fonte de verdade do projeto e divergência entre
 > manual e realidade não se resolve no código. Cada artigo abaixo indica o que
@@ -118,12 +125,20 @@ em ordem de precedência:
 
 | Ordem | Fonte | Verificação |
 |---|---|---|
-| 1 | Revisão confirmada pela loja (carimbo) | Nota de serviço anexada |
-| 2 | Vistoria de entrada ou de avaliação | Registro interno |
-| 3 | Leitura declarada pelo cliente (E4) | Declarada, não verificada |
+| 1 | Revisão confirmada pela loja (carimbo) | Etiquetas de óleo fotografadas (E4) |
+| 2 | **KM de saída na compra** | Registrado pela loja na entrega |
+| 3 | Vistoria de entrada ou de avaliação | Registro interno |
+| 4 | Leitura declarada pelo cliente (E4) | Declarada, não verificada |
+
+**A primeira notação de KM é o KM de saída na compra do carro na loja**
+(decisão do dono, 2026-08-13). É o `km_na_venda` que o §3.1 já exige, e ele
+passa a ter três funções: marco zero do plano de revisões, primeira linha de
+`leituras_odometro`, e — o mais importante — **o ponto de referência da primeira
+revisão, que não tem etiqueta anterior para comparar** (ver E4).
 
 O padrão de 1.100 km/mês até o primeiro registro **permanece** — é o número da
-v1.0 e não está sendo revisado aqui.
+v1.0 e não está sendo revisado aqui. Ele só vale entre a entrega e a primeira
+revisão, porque a partir daí há dois pontos reais para calcular a média.
 
 Toda exibição de KM ao cliente indica a origem e a data. KM declarado aparece
 como declarado; nunca é apresentado com o mesmo peso de um carimbo.
@@ -141,14 +156,16 @@ Uma linha por revisão prevista, com número, KM previsto, início e fim da jane
 e o vínculo com a `manutencoes` que a cumpriu. Sem ela, `dentro_da_janela` não
 tem contra o que ser calculada.
 
-**b) O carimbo, em `manutencoes`** — quatro campos:
+**b) O carimbo, em `manutencoes`** — seis campos:
 
 | Campo | Para quê |
 |---|---|
 | `origem_registro` | `loja`, `parceiro` ou `cliente` |
 | `confirmada_em` | Nulo = registrado, sem carimbo |
 | `confirmada_por` | Quem da equipe validou |
-| `url_comprovante` | A nota de serviço |
+| `url_etiqueta_anterior` | Foto da etiqueta que estava no vidro |
+| `url_etiqueta_atual` | Foto da etiqueta nova, com o KM legível |
+| `url_nota_servico` | Complementar, quando houver |
 
 **Regra que define o programa inteiro:** registro do cliente nasce **sem
 carimbo e não conta** para `conformidade_revisao`. Só conta revisão com
@@ -156,8 +173,33 @@ carimbo e não conta** para `conformidade_revisao`. Só conta revisão com
 §1.4, que exige revisão "feita na rede dentro da janela contratada" — e é
 também o que neutraliza fraude: registrar não é o ativo, o carimbo é.
 
-**A loja valida contra a nota de serviço** (decisão do dono, 2026-08-13). Sem
-comprovante legível, o registro fica pendente e não entra na conformidade.
+### Como a loja valida (decisão do dono, 2026-08-13)
+
+A revisão programada do Ciclo tem a **troca de óleo no prazo** como item
+obrigatório, e é ela que a prova atesta. Para confirmar o registro, a loja
+exige **duas fotos**:
+
+1. **A etiqueta anterior** — a que estava no vidro, com o KM da troca passada e
+   o KM previsto para a seguinte.
+2. **A etiqueta nova** — com o KM do carro no momento da troca.
+
+A conferência é objetiva e qualquer pessoa da equipe faz em segundos: o KM da
+etiqueta nova tem que bater com `km_registrado`, ser maior que o da anterior, e
+cair dentro da janela (E6).
+
+**Por que a etiqueta, e não só a nota de serviço:** a etiqueta é o único
+artefato que toda oficina do país produz, que fica no carro, e que carrega o KM
+do odômetro no momento do serviço — que é exatamente o dado que o programa
+precisa e que a nota fiscal muitas vezes não traz. A nota de serviço continua
+sendo aceita como prova complementar, mas não substitui a foto da etiqueta.
+
+**A primeira revisão não tem etiqueta anterior.** É por isso que o KM de saída
+na compra (E3) é registrado pela loja na entrega: ele é o marco contra o qual a
+primeira etiqueta é conferida. Sem esse registro, a primeira revisão do cliente
+não teria como ser validada.
+
+Sem foto legível da etiqueta nova, o registro fica **pendente** — não é
+recusado, e não entra na conformidade enquanto pendente.
 
 **c) `leituras_odometro`** — KM declarado pelo cliente entre revisões, opt-in
 (decisão D4, aprovada em 2026-08-13). Dado pessoal não previsto na v1.0, por
@@ -254,6 +296,14 @@ O contrato do Ciclo é de 36 meses (§0), o que gera **3 revisões por calendár
 e mais, se a rodagem antecipar. O `plano_revisoes` é gerado inteiro no
 fechamento da venda e reprojetado a cada carimbo.
 
+### Conflito reconciliado no corpo do manual
+
+O §4.2 da v1.0, gatilho 1, condicionava a revisão a "KM estimado ≥ próxima
+faixa, **ou 6 meses da última**" — prazo incompatível com os 12 meses fixados
+aqui. Na v1.1 o gatilho passa a dizer **12 meses**, alinhado a este artigo e à
+prática das montadoras. O gatilho 7 ("revisão atrasada > 30 dias") já
+coincidia com a tolerância adotada e **não muda**.
+
 > **Este artigo é o mais provável de precisar de ajuste.** Ele foi construído
 > sobre a prática de mercado porque não havia número interno definido; assim que
 > a Motors tiver acordo próprio com a rede parceira, os intervalos passam a vir
@@ -321,8 +371,9 @@ Explicitamente, para não haver leitura por omissão:
 | D1 | Gatilho §1.4 sem telemetria | Série da caderneta; loja valida pela nota de serviço | E1 |
 | D2 | Índice sem componente de condução | 3 componentes renormalizados, `score_conducao NULL` | E2 |
 | D3 | Autenticação do cliente | Link mágico por e-mail | E5 |
-| D4 | Leitura de odômetro declarada | Aprovada, opt-in | E4 |
+| D4 | Leitura de odômetro declarada | Aprovada, opt-in; primeira notação é o KM de saída na compra | E3, E4 |
 | D5 | Janelas de revisão | 10.000 km ou 12 meses; tolerância 30 dias / 1.000 km | E6 |
+| D5-b | Prova do carimbo | Foto da etiqueta de óleo anterior e da nova, com o KM legível | E4 |
 | D6 | Quem carimba | Comercial ou Administrador | E7 |
 | D9 | Dono operacional | Comercial, com Admin como revisor — transitório | E7 |
 | — | Risco de auth compartilhado | Papel `cliente` + `is_staff()` — aplicado em produção | E7 |
@@ -335,12 +386,11 @@ Dossiê de Procedência entra na fase 1), e a nomeação do dono de pós-venda.
 
 ## Vigência
 
-Esta emenda entra em vigor quando o dono a aprovar e datar abaixo, momento em
-que o `MANUAL_MOTORS_CICLO.md` passa a **Versão 1.1** com os artigos E1–E7
-incorporados ao corpo, e este arquivo permanece como registro do que mudou e
-por quê.
+**Em vigor desde 2026-08-13.** O `MANUAL_MOTORS_CICLO.md` passou à **Versão
+1.1** com os artigos E1–E7 incorporados ao corpo; este arquivo permanece como
+registro do que mudou e por quê.
 
-**Aprovada por:** _______________________  **Data:** ____/____/______
+**Aprovada por:** Dyones  **Data:** 13/08/2026
 
 ---
 
