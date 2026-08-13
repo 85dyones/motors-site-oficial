@@ -34,7 +34,15 @@ describe("destino de entrada no painel", () => {
   });
 
   it("o callback de autenticação usa a Visão geral como padrão", () => {
-    expect(arquivos["auth/callback"]).toContain('searchParams.get("next") ?? "/admin"');
+    expect(arquivos["auth/callback"]).toContain(': "/admin"');
+  });
+
+  it("o callback só redireciona para caminho interno", () => {
+    // `//host` e `/\host` são normalizados pelo browser para origem externa —
+    // aceitar qualquer `?next=` era o padrão clássico de open redirect.
+    expect(arquivos["auth/callback"]).toContain('rawNext.startsWith("/")');
+    expect(arquivos["auth/callback"]).toContain('!rawNext.startsWith("//")');
+    expect(arquivos["auth/callback"]).toContain('!rawNext.startsWith("/\\\\")');
   });
 
   it("o desvio de acesso negado não joga ninguém em Configurações", () => {
