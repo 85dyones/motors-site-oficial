@@ -58,6 +58,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       items: [
         { name: "Registrar venda", href: "/admin/ciclo/vendas/nova" },
         { name: "Fila de carimbos", href: "/admin/ciclo/carimbos" },
+        { name: "Conformidade", href: "/admin/ciclo/conformidade" },
       ],
     },
     {

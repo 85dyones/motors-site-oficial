@@ -152,6 +152,11 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "nao_ve", "faz", "nao_ve"],
     "O Comercial é dono da fila; o Admin revisa recusa",
   ),
+  linha(
+    "Acompanhar a conformidade do Ciclo",
+    ["faz", "nao_ve", "faz", "nao_ve"],
+    "O indicador que destrava a recompra — a diretoria acompanha",
+  ),
 ];
 
 /** Consulta pontual da matriz; ação desconhecida nega por padrão. */
