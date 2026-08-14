@@ -55,7 +55,10 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       // pacotes entram — fila de carimbos e conformidade vêm em seguida.
       title: "Ciclo",
       roles: ["admin", "comercial"],
-      items: [{ name: "Registrar venda", href: "/admin/ciclo/vendas/nova" }],
+      items: [
+        { name: "Registrar venda", href: "/admin/ciclo/vendas/nova" },
+        { name: "Fila de carimbos", href: "/admin/ciclo/carimbos" },
+      ],
     },
     {
       // "Gerenciar campanhas de mídia paga": Admin e Marketing, pela matriz
