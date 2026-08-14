@@ -50,6 +50,14 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       items: [{ name: "Veículos", href: "/admin/estoque" }],
     },
     {
+      // Motors Ciclo. Só Admin e Comercial pela matriz A17 ("Fechar venda do
+      // Ciclo"), acrescentada em 2026-08-14. O grupo cresce conforme os
+      // pacotes entram — fila de carimbos e conformidade vêm em seguida.
+      title: "Ciclo",
+      roles: ["admin", "comercial"],
+      items: [{ name: "Registrar venda", href: "/admin/ciclo/vendas/nova" }],
+    },
+    {
       // "Gerenciar campanhas de mídia paga": Admin e Marketing, pela matriz
       // A17 — Comercial e Financeiro nem veem o grupo ("o que for negado
       // some da interface, não fica cinza").

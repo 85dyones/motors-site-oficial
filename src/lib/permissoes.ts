@@ -139,6 +139,19 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     "Financeiro vê o total investido",
   ),
   linha("Convidar usuário e trocar perfil", ["faz", "nao_ve", "nao_ve", "nao_ve"], "Somente Admin"),
+  // Linhas do Motors Ciclo, acrescentadas em 2026-08-14 (Pacote 2). O A17 é de
+  // antes do programa existir; quem fecha venda e quem carimba revisão foi
+  // decidido pelo dono em 2026-08-13 — ver EMENDA_01_MANUAL_CICLO.md, E7.
+  linha(
+    "Fechar venda do Ciclo",
+    ["faz", "nao_ve", "faz", "nao_ve"],
+    "Registro do par cliente-veículo — sem ele não há programa",
+  ),
+  linha(
+    "Confirmar revisão da caderneta",
+    ["faz", "nao_ve", "faz", "nao_ve"],
+    "O Comercial é dono da fila; o Admin revisa recusa",
+  ),
 ];
 
 /** Consulta pontual da matriz; ação desconhecida nega por padrão. */
