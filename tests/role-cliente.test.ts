@@ -41,7 +41,14 @@ describe("as funções de papel", () => {
     // Antes o padrão era "comercial": leitura de profiles falhando dava painel
     // a qualquer autenticado. Staff de verdade sempre tem linha (trigger).
     expect(papelPadraoPorEmail("dyones@gmail.com")).toBe("admin");
+    // O endereço novo (mesmo domínio do site) e o antigo, que fica durante a
+    // migração da conta no Supabase Auth — ver docs/VIRADA_DE_DOMINIO.md.
+    expect(papelPadraoPorEmail("motors@motorsstore.com.br")).toBe("admin");
     expect(papelPadraoPorEmail("motors@motorsstoreoficial.com.br")).toBe("admin");
+    // Caixa alta não muda o veredito.
+    expect(papelPadraoPorEmail("MOTORS@MOTORSSTORE.COM.BR")).toBe("admin");
+    // Domínio parecido não entra: "motorsstore" não é "motorsstoreoficial".
+    expect(papelPadraoPorEmail("qualquer@motorsstore.com.br")).toBe("cliente");
     expect(papelPadraoPorEmail("qualquer@exemplo.com")).toBe("cliente");
     expect(papelPadraoPorEmail(null)).toBe("cliente");
   });

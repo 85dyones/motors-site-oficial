@@ -1,11 +1,8 @@
 # Virada de domínio — para `motorsstore.com.br`
 
-Decisão do dono em 2026-08-14: o site passa a responder por
-**`motorsstore.com.br`**.
-
-> ⚠️ Não confunda com o e-mail da loja, que é **`@motorsstoreoficial.com.br`**
-> (com "oficial"). São endereços diferentes, e o e-mail aparece no fallback de
-> papel em `src/lib/papelPadrao.ts` — que **não** muda com esta virada.
+Decisão do dono em 2026-08-14: **site e e-mail** passam a usar
+**`motorsstore.com.br`**. O endereço antigo `@motorsstoreoficial.com.br`
+(com "oficial") sai de cena — mas não de uma vez: ver "A conta do painel".
 
 ## O que já está pronto
 
@@ -49,9 +46,39 @@ A ordem importa: o passo 3 depende do 2, e o 4 do 3.
    mágico que já está na caixa de entrada de alguém aponta para o endereço
    antigo, e removê-lo cedo quebra o login dessas pessoas.
 
-5. **SMTP:** o remetente do e-mail de acesso deve sair de um domínio da loja.
-   Com SPF/DKIM configurados — e-mail de acesso que cai em spam é login que não
-   acontece.
+5. **SMTP:** o remetente do e-mail de acesso passa a ser
+   `@motorsstore.com.br`, com SPF/DKIM configurados no domínio novo. E-mail de
+   acesso que cai em spam é login que não acontece.
+
+## A conta do painel — onde isso pode trancar você do lado de fora
+
+O e-mail fundador aparece em `src/lib/papelPadrao.ts`, na lista que concede
+`admin` a quem **não tem linha em `profiles`**. Desde 2026-08-14 ela aceita os
+dois endereços, o novo e o antigo, exatamente para a migração não virar um
+bloqueio.
+
+Duas coisas que valem saber antes de mexer na conta:
+
+1. **A lista de e-mails é rede de segurança, não o mecanismo.** Quem manda é a
+   coluna `role` em `profiles`. Hoje há três contas de equipe em produção, e
+   todas têm linha lá — então o fallback nem chega a ser consultado.
+
+2. **Criar uma conta nova com o e-mail novo NÃO dá admin sozinho.** O trigger
+   `handle_new_user` grava `role = 'cliente'` por padrão (é a trava da role
+   `cliente`, de 2026-08-13), e com uma linha existente o fallback por e-mail
+   não roda. O caminho certo é um dos dois:
+   - trocar o e-mail da conta existente no Supabase Auth, mantendo o mesmo
+     `id` — a linha em `profiles` continua valendo e o papel se preserva; **ou**
+   - criar a conta nova e, logo em seguida, promover o papel pelo painel de
+     usuários (tela A17) ou direto em `profiles`.
+
+Só depois de confirmar que a conta nova entra no `/admin` é que vale remover
+`@motorsstoreoficial.com.br` da lista em `papelPadrao.ts`.
+
+> O e-mail antigo também aparece em `supabase_schema.sql`, em policies de
+> `site_settings`. **Não atualize aquele arquivo**: ele está obsoleto e é
+> perigoso — recria policies públicas que as migrações fecharam. A produção usa
+> `is_staff()`, não e-mail. Ver a nota em `supabase/README.md`.
 
 ## O que NÃO muda
 
@@ -61,8 +88,6 @@ A ordem importa: o passo 3 depende do 2, e o 4 do 3.
   requisição como reserva. Nada a fazer — mas vale reprocessar o catálogo no
   Meta e no Google Merchant depois da virada, para as URLs dos anúncios
   acompanharem.
-- **`papelPadrao.ts`:** o e-mail fundador é `@motorsstoreoficial.com.br` e
-  continua como está.
 - **Nada no banco.** Nenhuma tabela guarda o domínio.
 
 ## Depois da virada

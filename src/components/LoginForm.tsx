@@ -33,11 +33,12 @@ export default function LoginForm() {
       const result = await loginAction(formData);
 
       if (result.error) {
-        if (email === "motors@motorsstoreoficial.com.br" && password === "test123456") {
-          setAuthError("O fallback local foi descontinuado. Cadastre este usuário no painel do Supabase Auth.");
-        } else {
-          setAuthError(result.error);
-        }
+        // Havia aqui uma checagem de e-mail e senha de desenvolvimento, só
+        // para trocar a mensagem quando alguém tentava o antigo fallback
+        // local. Não concedia acesso — mas guardava credencial no bundle do
+        // navegador, e o endereço citado deixou de existir com a troca de
+        // domínio (2026-08-14). Quem não tem conta cadastrada vê o erro real.
+        setAuthError(result.error);
       } else {
         // Use full page load to ensure cookies are sent with the next request
         window.location.href = "/admin";

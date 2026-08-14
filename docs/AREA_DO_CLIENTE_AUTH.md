@@ -115,7 +115,9 @@ link — e o erro não aparece para eles, some no log.
 Antes de abrir a Garagem Motors para clientes de verdade: Project Settings → Auth →
 **SMTP Settings**, apontando para um provedor próprio (Resend, SendGrid,
 Amazon SES ou o SMTP do e-mail da loja), com remetente no domínio
-`motorsstoreoficial.com.br`.
+**`motorsstore.com.br`** — o mesmo do site, desde a decisão de 2026-08-14.
+Configure SPF e DKIM no domínio novo antes do primeiro envio real: e-mail de
+acesso que cai em spam é login que não acontece.
 
 Vale conferir também o limite de e-mails em Authentication → Rate Limits, que é
 separado do SMTP.
