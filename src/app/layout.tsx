@@ -9,6 +9,7 @@ import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import { ThemeProvider } from "./ThemeContext";
+import { SITE_URL } from "../lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -65,7 +66,7 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 
   return {
-    metadataBase: new URL("https://motors-site-oficial.vercel.app"),
+    metadataBase: new URL(SITE_URL),
     title: tabTitle,
     description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados em Curitiba. Facilidade no financiamento sem entrada.",
     alternates: {

@@ -171,10 +171,12 @@ export default function VitrineTV({
                 </div>
               </div>
               {/* O design doc põe um QR aqui ("APONTE A CÂMERA"). O projeto
-                  não tem biblioteca de QR nem domínio próprio configurado —
-                  o site responde por `motors-site-oficial.vercel.app` —, e
-                  imprimir um endereço inventado numa TV de showroom manda o
-                  cliente para lugar nenhum. Até essas duas decisões, a célula
+                  não tem biblioteca de QR, e o domínio próprio
+                  (motorsstore.com.br, decidido em 2026-08-14) ainda não está
+                  no ar — imprimir endereço que não resolve numa TV de
+                  showroom manda o cliente para lugar nenhum. Quando as duas
+                  coisas existirem, o endereço sai de `lib/site.ts`. Até lá, a
+                  célula
                   mostra o código do veículo, que é dado real e é por ele que
                   o consultor acha o carro. */}
               <div className="ml-auto flex flex-none items-center border-l border-[rgba(243,242,242,.25)] pl-[1.25vw]">

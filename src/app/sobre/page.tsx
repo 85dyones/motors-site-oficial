@@ -3,6 +3,7 @@ import SobreClientWrapper from "../../components/SobreClientWrapper";
 import { getEstoque } from "../../lib/supabase";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
+import { SITE_URL } from "../../lib/site";
 
 export const revalidate = 60;
 
@@ -36,13 +37,13 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       "position": 1,
       "name": "Home",
-      "item": "https://motors-site-oficial.vercel.app/"
+      "item": `${SITE_URL}/`
     },
     {
       "@type": "ListItem",
       "position": 2,
       "name": "Quem Somos",
-      "item": "https://motors-site-oficial.vercel.app/sobre"
+      "item": `${SITE_URL}/sobre`
     }
   ]
 };

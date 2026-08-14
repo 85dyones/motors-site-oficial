@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import ContatoClientWrapper from "../../components/ContatoClientWrapper";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
+import { SITE_URL } from "../../lib/site";
 
 const DESCRICAO =
   "Entre em contato com a Motors Store Oficial. Envie sua mensagem diretamente para nossa equipe em Curitiba para agendamentos e propostas.";
@@ -32,13 +33,13 @@ export default function ContatoPage() {
         "@type": "ListItem",
         "position": 1,
         "name": "Home",
-        "item": "https://motors-site-oficial.vercel.app/"
+        "item": `${SITE_URL}/`
       },
       {
         "@type": "ListItem",
         "position": 2,
         "name": "Contato",
-        "item": "https://motors-site-oficial.vercel.app/contato"
+        "item": `${SITE_URL}/contato`
       }
     ]
   };

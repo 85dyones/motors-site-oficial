@@ -32,12 +32,11 @@ import type {
  * repetida no site inteiro é aceitável; título repetido não é.
  */
 
-// Sem constante de domínio aqui de propósito. `sitemap.ts`, `robots.ts` e
-// `page.tsx` já têm cada um a sua cópia de
-// "https://motors-site-oficial.vercel.app"; uma quarta pioraria o problema em
-// vez de resolvê-lo. As URLs deste módulo saem relativas e o Next as resolve
-// contra o `metadataBase` do layout, que é o único lugar a trocar no dia em
-// que a loja mudar de domínio.
+// Sem constante de domínio aqui de propósito, e agora por um motivo melhor: o
+// endereço do site vive em `lib/site.ts` desde 2026-08-14. As URLs deste
+// módulo continuam saindo RELATIVAS, e o Next as resolve contra o
+// `metadataBase` do layout — que já lê de lá. Não há o que trocar aqui no dia
+// em que a loja mudar de domínio.
 
 /**
  * As páginas que a loja customiza no painel.

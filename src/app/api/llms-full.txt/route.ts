@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEstoque, Veiculo, getVeiculoPdpUrl } from "../../../lib/supabase";
 import { unstable_cache } from "next/cache";
+import { SITE_HOST } from "../../../lib/site";
 
 // Format helper for BRL currency
 function formatPrice(value: number): string {
@@ -60,7 +61,7 @@ const getCachedInventoryDump = unstable_cache(
 
 export async function GET(request: Request) {
   try {
-    const host = request.headers.get("host") || "motors-site-oficial.vercel.app";
+    const host = request.headers.get("host") || SITE_HOST;
     const markdownDump = await getCachedInventoryDump(host);
 
     return new NextResponse(markdownDump, {

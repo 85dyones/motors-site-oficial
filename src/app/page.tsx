@@ -35,6 +35,7 @@ import {
 // anterior a esta rodada: o nome da loja nunca chegou ao structured data.
 import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
 import { linkWhatsApp } from "../lib/whatsapp";
+import { SITE_URL } from "../lib/site";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -124,7 +125,7 @@ const PASSOS_PROFILER = [
 ];
 
 export default async function Home() {
-  const SITE_URL = "https://motors-site-oficial.vercel.app";
+  // SITE_URL vem de `lib/site` — endereço do site num lugar só.
 
   const [estoque, settings, reputacao] = await Promise.all([
     getEstoque(),

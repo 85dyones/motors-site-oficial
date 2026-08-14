@@ -8,7 +8,7 @@ import {
   resolverDestaques,
 } from "../lib/destaquesRapidos";
 
-const SITE_URL = "https://motors-site-oficial.vercel.app";
+import { SITE_URL } from "../lib/site";
 
 /**
  * Slugs das landings de destaque que realmente existem.

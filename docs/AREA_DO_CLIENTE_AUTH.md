@@ -79,9 +79,13 @@ vira um verificador de quem é cliente da loja.
 
 Authentication → URL Configuration:
 
-- **Site URL:** `https://motors-site-oficial.vercel.app`
-- **Redirect URLs:** acrescente `https://motors-site-oficial.vercel.app/api/auth/callback`
-  e, para desenvolvimento, `http://localhost:3000/api/auth/callback`
+- **Site URL:** `https://motorsstore.com.br` quando o domínio estiver no ar; até
+  lá, `https://motors-site-oficial.vercel.app`
+- **Redirect URLs:** acrescente **os dois**, para a virada de domínio não
+  derrubar o login de quem já tem link na caixa de entrada:
+  - `https://motorsstore.com.br/api/auth/callback`
+  - `https://motors-site-oficial.vercel.app/api/auth/callback`
+  - `http://localhost:3000/api/auth/callback` (desenvolvimento)
 
 A rota de callback já existe e já valida o destino: desde 2026-08-13 ela só
 redireciona para caminho interno (`src/app/api/auth/callback/route.ts`). A lista

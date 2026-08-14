@@ -4,6 +4,7 @@ import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { LinkRegua, Rotulo } from "../../components/modernist/primitivos";
 import type { CompanySettings } from "../../types";
+import { SITE_URL } from "../../lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { companySettings } = await getCachedSettings();
@@ -31,13 +32,13 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 1,
       name: "Home",
-      item: "https://motors-site-oficial.vercel.app/",
+      item: `${SITE_URL}/`,
     },
     {
       "@type": "ListItem",
       position: 2,
       name: "Política de Privacidade",
-      item: "https://motors-site-oficial.vercel.app/privacidade",
+      item: `${SITE_URL}/privacidade`,
     },
   ],
 };

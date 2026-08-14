@@ -18,6 +18,7 @@ import {
   nomeEmMinuscula,
 } from '../../../lib/tagUtils';
 import { QuickTag } from '../../../types';
+import { SITE_URL } from "../../../lib/site";
 
 const STATIC_QUICK_TAGS: QuickTag[] = [
   { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
@@ -71,13 +72,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const nome = nomeEmMinuscula(tagName);
   const title = `Carros ${nome} em Curitiba | Motors Store`;
   const description = `Confira nossa seleção exclusiva de veículos na categoria ${nome}. As melhores condições, procedência garantida e atendimento premium na Motors Store.`;
-  const url = `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(cleanSlug)}`;
+  const url = `${SITE_URL}/destaques/${cleanSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(cleanSlug)}`;
 
   return {
     title,
     description,
     alternates: {
-      canonical: `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}`,
+      canonical: `${SITE_URL}/destaques/${cleanSlug}`,
     },
     robots: {
       index: true,
@@ -120,7 +121,7 @@ export default async function DestaquesPage({ params }: PageProps) {
           "@type": "WebPage",
           // Depois de dois-pontos o nome abre a própria frase.
           "name": `Catálogo de Veículos: ${nomeEmFrase(tagName)}`,
-          "url": `https://motors-site-oficial.vercel.app/destaques/${cleanSlug}`
+          "url": `${SITE_URL}/destaques/${cleanSlug}`
         }
       }
     ]

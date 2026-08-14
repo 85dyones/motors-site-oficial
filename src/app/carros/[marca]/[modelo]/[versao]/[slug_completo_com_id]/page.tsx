@@ -7,6 +7,7 @@ import { getCachedSettings } from "../../../../../../lib/settings";
 import { montarCompartilhamento } from "../../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../../lib/similares";
+import { SITE_URL } from "../../../../../../lib/site";
 
 // Incremental Static Regeneration (ISR) configuration
 export const revalidate = 3600; // Revalidate every 1 hour
@@ -185,7 +186,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
       "priceCurrency": "BRL",
       "availability": veiculo.vendido ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
       "itemCondition": "https://schema.org/UsedCondition",
-      "url": `https://motors-site-oficial.vercel.app${pdpUrl}`
+      "url": `${SITE_URL}${pdpUrl}`
     }
   };
 
@@ -198,7 +199,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
         "@type": "ListItem",
         "position": 1,
         "name": "Home",
-        "item": "https://motors-site-oficial.vercel.app/"
+        "item": `${SITE_URL}/`
       },
       {
         // `/estoque?marca=X`, não `/carros/{marca}`: essa rota intermediária NÃO
@@ -209,13 +210,13 @@ export default async function CarDetailsPage({ params }: PageProps) {
         "@type": "ListItem",
         "position": 2,
         "name": veiculo.marca,
-        "item": `https://motors-site-oficial.vercel.app/estoque?marca=${encodeURIComponent(veiculo.marca)}`
+        "item": `${SITE_URL}/estoque?marca=${encodeURIComponent(veiculo.marca)}`
       },
       {
         "@type": "ListItem",
         "position": 3,
         "name": `${veiculo.marca} ${veiculo.modelo}`,
-        "item": `https://motors-site-oficial.vercel.app${pdpUrl}`
+        "item": `${SITE_URL}${pdpUrl}`
       }
     ]
   };
