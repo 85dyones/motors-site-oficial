@@ -1,24 +1,7 @@
-<!--
-  Template do e-mail de entrada na Garagem Motors (Supabase Auth → Magic Link).
-
-  Onde colar: painel do Supabase → Authentication → Emails → Magic Link →
-  campo "Message body". O assunto sugerido está em AREA_DO_CLIENTE_AUTH.md.
-
-  Por que é tabela com estilo inline e sem fonte externa: cliente de e-mail não
-  é browser. Gmail remove <style> em parte dos contextos, Outlook renderiza com
-  Word, e nenhum dos dois carrega webfont. A Archivo do site fica só como
-  primeira opção da pilha — quem tiver, vê; quem não tiver, cai em Helvetica e
-  o layout não muda.
-
-  Variável do Supabase usada: {{ .ConfirmationURL }} — o link já carrega o
-  token e o destino. Não acrescente parâmetros à mão.
--->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f2f2;margin:0;padding:32px 12px;">
   <tr>
     <td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background-color:#ffffff;border:1px solid #e2e0e0;">
-
-        <!-- Faixa superior: a régua do sistema Modernist, em versão e-mail -->
         <tr>
           <td style="background-color:#201e1d;padding:20px 28px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
@@ -31,7 +14,6 @@
             </table>
           </td>
         </tr>
-
         <tr>
           <td style="padding:32px 28px 8px 28px;">
             <div style="font-family:Archivo,Helvetica,Arial,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#c8412f;padding-bottom:10px;">
@@ -47,14 +29,12 @@
             </p>
           </td>
         </tr>
-
         <tr>
           <td style="padding:0 28px 24px 28px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="background-color:#c8412f;">
-                  <a href="{{ .ConfirmationURL }}"
-                     style="display:inline-block;padding:14px 28px;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#ffffff;text-decoration:none;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#ffffff;text-decoration:none;">
                     Abrir minha garagem
                   </a>
                 </td>
@@ -62,7 +42,6 @@
             </table>
           </td>
         </tr>
-
         <tr>
           <td style="padding:0 28px 28px 28px;">
             <p style="margin:0 0 6px 0;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#6d6968;">
@@ -75,9 +54,6 @@
             </p>
           </td>
         </tr>
-
-        <!-- Aviso de segurança: e-mail de acesso sempre precisa dizer o que
-             fazer quando não foi você que pediu. -->
         <tr>
           <td style="padding:0 28px 28px 28px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f7f6f6;border-left:3px solid #e2e0e0;">
@@ -91,7 +67,6 @@
             </table>
           </td>
         </tr>
-
         <tr>
           <td style="border-top:1px solid #e2e0e0;padding:18px 28px 24px 28px;">
             <p style="margin:0;font-family:Archivo,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.7;color:#8a8685;">
@@ -100,7 +75,6 @@
             </p>
           </td>
         </tr>
-
       </table>
     </td>
   </tr>

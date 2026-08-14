@@ -14,9 +14,30 @@ mesmo. **Nada aqui foi aplicado por mim — não tenho acesso ao painel.**
 
 Arquivo pronto: [`supabase/templates/magic-link.html`](../supabase/templates/magic-link.html)
 
+**Não existe "importar".** O painel do Supabase não tem upload de arquivo para
+template de e-mail: o campo *Message body* é uma caixa de texto e o fluxo é
+selecionar tudo no arquivo e colar. O arquivo é HTML puro, sem comentário
+nenhum, exatamente para isso — o que estiver nele é o que o cliente recebe.
+
 **Onde colar:** Authentication → Emails → template **Magic Link** → campo
-*Message body*. Cole o arquivo inteiro (pode manter os comentários HTML; eles
-não aparecem para quem recebe).
+*Message body*.
+
+> Existe um segundo caminho, por `supabase/config.toml` com
+> `[auth.email.template.magic_link] content_path = "./templates/magic-link.html"`
+> e `supabase config push`. **Ele não funciona neste projeto**: exige
+> `supabase link`, e o link falha em `api.supabase.com` — é o mesmo bloqueio
+> documentado no runbook de `supabase/README.md`. Enquanto o projeto não for
+> linkado, colar no painel é o caminho.
+
+**Por que o HTML é feito de tabela, com estilo inline e sem fonte externa:**
+cliente de e-mail não é browser. O Gmail remove `<style>` em parte dos
+contextos, o Outlook renderiza com o motor do Word, e nenhum dos dois carrega
+webfont. A Archivo do site entra só como primeira opção da pilha — quem tiver,
+vê; quem não tiver, cai em Helvetica e o layout não muda.
+
+**A variável do Supabase é `{{ .ConfirmationURL }}`**, e ela aparece duas vezes:
+no botão e no endereço em texto, para quem usa cliente que bloqueia botão. O
+link já carrega token e destino — não acrescente parâmetros à mão.
 
 **Assunto sugerido:**
 
