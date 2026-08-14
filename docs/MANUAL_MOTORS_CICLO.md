@@ -1,10 +1,10 @@
-# Manual Motors Ciclo
+﻿# Manual Motors Ciclo
 ### Alinhamento do site, da base de dados e da automação
 
 **Versão 1.1 — Agosto 2026**
 Documento de referência para desenvolvimento. Toda decisão de produto, site ou automação deve ser verificável contra este documento.
 
-> **v1.1 (2026-08-13)** — incorpora a [Emenda 01](EMENDA_01_MANUAL_CICLO.md), aprovada pelo dono em 13/08/2026: o programa passa a operar **sem telemetria embarcada**, e a conformidade de revisão nasce da caderneta digital do cliente, validada pela loja contra a etiqueta de troca de óleo. Alterou §1.4, §1.5 (novo), §2.1, §3.1, §4.2, §5.2, §5.6, §5.7 e §6.3. O registro do que mudou e por quê está na emenda; este documento traz o texto vigente.
+> **v1.1 (2026-08-13)** — incorpora a [Emenda 01](EMENDA_01_MANUAL_CICLO.md), aprovada pelo dono em 13/08/2026: o programa passa a operar **sem telemetria embarcada**, e a conformidade de revisão nasce da Garagem Motors, com diário de bordo, validada pela loja contra a etiqueta de troca de óleo. Alterou §1.4, §1.5 (novo), §2.1, §3.1, §4.2, §5.2, §5.6, §5.7 e §6.3. O registro do que mudou e por quê está na emenda; este documento traz o texto vigente.
 
 ---
 
@@ -64,16 +64,16 @@ Razão técnica: precificar a recompra sobre FIPE contradiz o próprio §5.3 des
 ```
 conformidade_revisao >= 70%   por 3 meses consecutivos
 E veiculos_monitorados >= 150
-E serie_caderneta >= 6 meses
+E serie_procedencia >= 6 meses
 ```
 
 Onde:
 
 - `conformidade_revisao` = % de veículos com Ciclo ativo cuja última revisão programada foi feita na rede dentro da janela contratada.
-- `serie_caderneta` = meses consecutivos com registro diário ininterrupto de `conformidade_diaria`, contados do primeiro veículo com Ciclo ativo. **Dia sem cálculo zera a contagem** — a série precisa ser contínua para servir de base à curva.
-- `veiculos_monitorados` = veículos com Ciclo ativo **e caderneta viva**: ao menos uma revisão confirmada nos últimos 12 meses, ou ainda dentro da janela da primeira revisão.
+- `serie_procedencia` = meses consecutivos com registro diário ininterrupto de `conformidade_diaria`, contados do primeiro veículo com Ciclo ativo. **Dia sem cálculo zera a contagem** — a série precisa ser contínua para servir de base à curva.
+- `veiculos_monitorados` = veículos com Ciclo ativo **e diário de bordo vivo**: ao menos uma revisão confirmada nos últimos 12 meses, ou ainda dentro da janela da primeira revisão.
 
-> **v1.1:** a terceira condição era `serie_telemetria >= 6 meses`. A telemetria embarcada foi adiada (nenhum provedor contratado) e a fonte do KM real passou a ser a caderneta de revisões, com o KM lido pela oficina e fotografado na etiqueta de óleo — dado menos frequente e **mais verificável** que odômetro reportado por rastreador. O que o gatilho protege não mudou: a Motors não escreve opção de venda sem curva de depreciação própria com KM real. Ver §1.5 e Emenda 01, artigo E1.
+> **v1.1:** a terceira condição era `serie_telemetria >= 6 meses`. A telemetria embarcada foi adiada (nenhum provedor contratado) e a fonte do KM real passou a ser a diário de bordo, com o KM lido pela oficina e fotografado na etiqueta de óleo — dado menos frequente e **mais verificável** que odômetro reportado por rastreador. O que o gatilho protege não mudou: a Motors não escreve opção de venda sem curva de depreciação própria com KM real. Ver §1.5 e Emenda 01, artigo E1.
 
 **O `fator_retencao` do §5.5 continua exigindo série histórica própria.** Esta mudança troca a fonte do KM; não dispensa a curva. A recompra permanece desligada até que as duas coisas existam.
 
@@ -87,7 +87,7 @@ Onde:
 
 ### 1.5 Plano de revisões
 
-*Artigo novo na v1.1. É o que a caderneta mede e o que alimenta o §1.4.*
+*Artigo novo na v1.1. É o que o diário de bordo mede e o que alimenta o §1.4.*
 
 **Intervalo: 10.000 km ou 12 meses, o que ocorrer primeiro.**
 
@@ -229,8 +229,8 @@ create table manutencoes (
   dentro_da_janela    boolean,
   itens               jsonb,
   observacoes         text,
-  -- v1.1 — o carimbo. Registro sem `confirmada_em` NÃO conta para a
-  -- conformidade do §1.4: registrar não é o ativo, o carimbo é.
+  -- v1.1 — a verificação. Lançamento sem `confirmada_em` NÃO conta para a
+  -- conformidade do §1.4: registrar não é o ativo, a verificação é.
   origem_registro     text not null default 'loja',  -- loja | parceiro | cliente
   confirmada_em       timestamptz,
   confirmada_por      uuid,
@@ -248,7 +248,7 @@ create table plano_revisoes (
   km_previsto         int,
   janela_inicio       date not null,
   janela_fim          date not null,
-  manutencao_id       uuid references manutencoes(id),  -- preenchida ao carimbar
+  manutencao_id       uuid references manutencoes(id),  -- preenchida ao verificar
   unique (veiculo_vendido_id, numero_revisao)
 );
 
@@ -392,7 +392,7 @@ O ponto de falha mais provável do projeto inteiro. Não é técnico — é comp
 
 > **v1.1 — dois campos ganharam peso.**
 >
-> **`email`** passou a ser bloqueante: é por ele que o cliente entra na área da caderneta, por link mágico (§6.3). Cliente sem e-mail utilizável não perde o programa — a caderneta segue alimentada pela loja e a comunicação segue por WhatsApp —, mas perde o acesso à área logada.
+> **`email`** passou a ser bloqueante: é por ele que o cliente entra na área do diário de bordo, por link mágico (§6.3). Cliente sem e-mail utilizável não perde o programa — o diário de bordo segue alimentada pela loja e a comunicação segue por WhatsApp —, mas perde o acesso à área logada.
 >
 > **`km_na_venda`** é o **KM de saída na compra** e é a primeira notação de odômetro do veículo (§5.2). Ele tem três funções: marco zero do plano de revisões (§1.5), primeira linha de `leituras_odometro`, e o ponto de referência da **primeira revisão, que não tem etiqueta anterior para comparar**. Sem ele, a primeira revisão do cliente não tem como ser validada.
 
@@ -495,14 +495,14 @@ Cada passagem pela rede recalibra a estimativa. **É por isso que a revisão obr
 
 | Ordem | Fonte | Verificação |
 |---|---|---|
-| 1 | Revisão confirmada pela loja (carimbo) | Etiqueta de óleo fotografada, KM legível |
+| 1 | Revisão confirmada pela loja (verificada) | Etiqueta de óleo fotografada, KM legível |
 | 2 | **KM de saída na compra** | Registrado pela loja na entrega (§3.1) |
 | 3 | Vistoria de entrada ou de avaliação | Registro interno |
 | 4 | Leitura declarada pelo cliente | Declarada, **não** verificada |
 
 **A primeira notação de KM é sempre o KM de saída na compra.** O padrão de 1.100 km/mês vale só entre a entrega e a primeira revisão — a partir daí existem dois pontos reais para a média.
 
-Toda exibição de KM ao cliente indica **a origem e a data**. KM declarado aparece como declarado; nunca com o mesmo peso de um carimbo.
+Toda exibição de KM ao cliente indica **a origem e a data**. KM declarado aparece como declarado; nunca com o mesmo peso de uma verificação.
 
 ### 5.3 Valor de mercado
 
@@ -567,7 +567,7 @@ Cada componente normalizado de 0 a 1. Calculado mensalmente, gravado em `indice_
 >
 > Dois efeitos, ambos obrigatórios: `score_conducao` grava **`NULL`, nunca `0`** — a série precisa distinguir "componente inexistente" de "nota zero", que é o que permitirá comparar períodos quando a telemetria entrar; e todo cliente fica matematicamente equivalente a um que recusou e teve o componente redistribuído, o que **preserva a regra de neutralidade por construção**.
 >
-> `aderencia_km_pct` passa a ser apurada sobre os pontos de KM da caderneta e das leituras declaradas — menor granularidade, mesma definição. A volta aos quatro componentes não exige nova emenda.
+> `aderencia_km_pct` passa a ser apurada sobre os pontos de KM do diário de bordo e das leituras declaradas — menor granularidade, mesma definição. A volta aos quatro componentes não exige nova emenda.
 
 **Regra de neutralidade:** se `consentimento_conducao = false`, o componente de condução **não conta como zero — é redistribuído proporcionalmente entre os outros três.** Recusar telemetria de condução nunca pode reduzir o índice. É requisito de LGPD e é o que sustenta a promessa de marketing.
 
@@ -582,9 +582,9 @@ conformidade_revisao = veiculos_com_ultima_revisao_na_janela
 
 Rodar diariamente, exibir em painel desde o dia 1. **É o número que destrava a Fase 2.**
 
-**O que conta no numerador (v1.1):** só revisão com `confirmada_em` preenchido **e** `dentro_da_janela = true`. Registro feito pelo cliente e ainda sem carimbo da loja **não conta** — é a transcrição literal do §1.4, que exige revisão "feita na rede dentro da janela contratada", e é o que neutraliza fraude: registrar não é o ativo, o carimbo é.
+**O que conta no numerador (v1.1):** só revisão com `confirmada_em` preenchido **e** `dentro_da_janela = true`. Registro feito pelo cliente e ainda sem verificação da loja **não conta** — é a transcrição literal do §1.4, que exige revisão "feita na rede dentro da janela contratada", e é o que neutraliza fraude: registrar não é o ativo, a verificação é.
 
-**Gravar todo dia em `conformidade_diaria`, inclusive quando o denominador é zero** (com `pct = NULL`). Os primeiros meses de série serão honestamente vazios — a primeira revisão de um carro vendido hoje só vence daqui a meses. É exatamente o que se quer: a série começa no dia zero, e `serie_caderneta` (§1.4) só corre com registro ininterrupto.
+**Gravar todo dia em `conformidade_diaria`, inclusive quando o denominador é zero** (com `pct = NULL`). Os primeiros meses de série serão honestamente vazios — a primeira revisão de um carro vendido hoje só vence daqui a meses. É exatamente o que se quer: a série começa no dia zero, e `serie_procedencia` (§1.4) só corre com registro ininterrupto.
 
 ### 5.8 Curva de posição de troca
 
@@ -811,7 +811,7 @@ Estender o `TRACKING_SPEC.md` existente com os eventos do ciclo. Cada um vai par
 1. Schema no Supabase e view de estado
 2. Formulário de venda com validação bloqueante — *nada funciona sem isto*
 3. Mutirão de retroalimentação da base histórica
-4. **Caderneta do cliente e fila de carimbos** — é a fonte do dado de conformidade
+4. **Diário de bordo do cliente e fila de verificação** — é a fonte do dado de conformidade
 5. **Painel de conformidade de revisão** — o indicador de gatilho, no ar desde o começo
 6. Gatilhos 1, 2 e 4 (revisão, seguro, IPVA) — os mais simples e os que reabrem o canal
 7. Cálculo mensal do Índice Ciclo, com consentimento granular
@@ -822,7 +822,7 @@ Estender o `TRACKING_SPEC.md` existente com os eventos do ciclo. Cada um vai par
 12. Eventos de ciclo no CAPI e Enhanced Conversions
 — **Adiado, sem data:** integração com provedor de rastreamento e ingestão de `telemetria_resumo`
 
-> **v1.1 — o que mudou de ordem e por quê.** A integração de telemetria saiu da fila (nenhum provedor contratado) e a **caderneta subiu para o 4º lugar**: sem ela não existe fonte de conformidade, e conformidade é o que o passo 5 mede e o que o §1.4 exige. Antes do passo 1, um pré-requisito de segurança que já foi executado em 2026-08-13: separar o público do cliente do público da equipe no Auth, porque os dois dividem o mesmo pool de usuários.
+> **v1.1 — o que mudou de ordem e por quê.** A integração de telemetria saiu da fila (nenhum provedor contratado) e a **diário de bordo subiu para o 4º lugar**: sem ela não existe fonte de conformidade, e conformidade é o que o passo 5 mede e o que o §1.4 exige. Antes do passo 1, um pré-requisito de segurança que já foi executado em 2026-08-13: separar o público do cliente do público da equipe no Auth, porque os dois dividem o mesmo pool de usuários.
 
 ### Bloco B — Recompra *(bloqueado até o gatilho do §1.4 abrir)*
 
@@ -851,4 +851,4 @@ Estender o `TRACKING_SPEC.md` existente com os eventos do ciclo. Cada um vai par
 7. Intervalos de revisão acordados com a rede parceira — hoje o §1.5 usa a prática publicada das montadoras como referência, e ela deve ser substituída pelo contrato quando existir.
 8. Quando contratar provedor de rastreamento? A telemetria não bloqueia mais o programa, mas os pesos do §5.6 e a tabela do §6.3-D voltam a mudar quando ela entrar.
 
-**Fechadas na v1.1** (registro em `EMENDA_01_MANUAL_CICLO.md`): quem valida a revisão — **Comercial ou Administrador**, com o Comercial como dono da fila de carimbos e o Administrador como revisor. É arranjo **transitório**: a resposta definitiva depende da pergunta 6, e a estrutura correta é um papel de pós-venda próprio, dono da fila, dos lembretes e do relacionamento durante os 36 meses.
+**Fechadas na v1.1** (registro em `EMENDA_01_MANUAL_CICLO.md`): quem valida a revisão — **Comercial ou Administrador**, com o Comercial como dono da fila de verificação e o Administrador como revisor. É arranjo **transitório**: a resposta definitiva depende da pergunta 6, e a estrutura correta é um papel de pós-venda próprio, dono da fila, dos lembretes e do relacionamento durante os 36 meses.

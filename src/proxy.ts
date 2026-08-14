@@ -141,7 +141,7 @@ export async function proxy(request: NextRequest) {
 
       const role = profile?.role ?? papelPadraoPorEmail(user.email);
 
-      // Papel `cliente` (Caderneta, 2026-08-13) nunca entra no painel: as
+      // Papel `cliente` (Garagem Motors, 2026-08-13) nunca entra no painel: as
       // regras abaixo pressupõem staff — sem este bloqueio, cliente herdaria
       // os acessos de `comercial`.
       if (!ehStaff(role)) {

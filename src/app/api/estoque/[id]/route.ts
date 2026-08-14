@@ -70,7 +70,7 @@ export async function PATCH(
       .select("role, full_name")
       .eq("id", user.id)
       .single();
-    // Cliente da Caderneta é authenticated sem ser staff; normalizar sem
+    // Cliente da Garagem é authenticated sem ser staff; normalizar sem
     // barrar o promoveria a "comercial".
     if (!ehStaff(profile?.role)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });

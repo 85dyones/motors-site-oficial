@@ -18,7 +18,7 @@ export const PERFIS = ["admin", "marketing", "comercial", "financeiro"] as const
 export type Perfil = (typeof PERFIS)[number];
 
 /**
- * Papel de painel? A role `cliente` (2026-08-13, Caderneta) é `authenticated`
+ * Papel de painel? A role `cliente` (2026-08-13, Garagem Motors) é `authenticated`
  * no Supabase mas NUNCA entra na matriz: cliente pertence à área do cliente.
  * Todo gate de painel ou de API interna pergunta aqui ANTES de
  * `normalizarPerfil` — normalizar um papel que não é de staff o promoveria a
@@ -140,7 +140,7 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   ),
   linha("Convidar usuário e trocar perfil", ["faz", "nao_ve", "nao_ve", "nao_ve"], "Somente Admin"),
   // Linhas do Motors Ciclo, acrescentadas em 2026-08-14 (Pacote 2). O A17 é de
-  // antes do programa existir; quem fecha venda e quem carimba revisão foi
+  // antes do programa existir; quem fecha venda e quem verifica revisão foi
   // decidido pelo dono em 2026-08-13 — ver EMENDA_01_MANUAL_CICLO.md, E7.
   linha(
     "Fechar venda do Ciclo",
@@ -148,7 +148,7 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     "Registro do par cliente-veículo — sem ele não há programa",
   ),
   linha(
-    "Confirmar revisão da caderneta",
+    "Verificar revisão do diário de bordo",
     ["faz", "nao_ve", "faz", "nao_ve"],
     "O Comercial é dono da fila; o Admin revisa recusa",
   ),

@@ -3,7 +3,7 @@
  *
  *   conformidade_revisao >= 70%   por 3 meses consecutivos
  *   E veiculos_monitorados >= 150
- *   E serie_caderneta >= 6 meses
+ *   E serie_procedencia >= 6 meses
  *
  * Este módulo calcula o estado de cada condição a partir da série de
  * `conformidade_diaria`. Os limiares vêm do manual — nenhum é inventado aqui,
@@ -84,7 +84,7 @@ export interface EstadoDaSerie {
 }
 
 /**
- * `serie_caderneta` do §1.4 emendado: meses consecutivos com registro diário
+ * `serie_procedencia` do §1.4 emendado: meses consecutivos com registro diário
  * ininterrupto. A função de cálculo preenche buracos retroativamente, então a
  * série é contínua por construção — mas dias reconstruídos saem marcados, e o
  * painel mostra a fração, porque medição e reconstrução não valem o mesmo aos
@@ -153,14 +153,14 @@ export function estadoDoGatilho(
       atingida: consecutivos >= MESES_CONSECUTIVOS_EXIGIDOS,
     },
     {
-      rotulo: "Veículos monitorados (Ciclo ativo com caderneta viva)",
+      rotulo: "Veículos monitorados (Ciclo ativo com diário de bordo vivo)",
       atual: monitorados,
       alvo: MINIMO_DE_MONITORADOS,
       unidade: "veículos",
       atingida: monitorados >= MINIMO_DE_MONITORADOS,
     },
     {
-      rotulo: "Série da caderneta, contínua",
+      rotulo: "Série de procedência, contínua",
       atual: s.meses,
       alvo: MESES_DE_SERIE_EXIGIDOS,
       unidade: "meses",

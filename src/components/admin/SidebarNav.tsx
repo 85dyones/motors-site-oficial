@@ -51,13 +51,12 @@ export default function SidebarNav({ role }: SidebarNavProps) {
     },
     {
       // Motors Ciclo. Só Admin e Comercial pela matriz A17 ("Fechar venda do
-      // Ciclo"), acrescentada em 2026-08-14. O grupo cresce conforme os
-      // pacotes entram — fila de carimbos e conformidade vêm em seguida.
+      // Ciclo"), acrescentada em 2026-08-14.
       title: "Ciclo",
       roles: ["admin", "comercial"],
       items: [
         { name: "Registrar venda", href: "/admin/ciclo/vendas/nova" },
-        { name: "Fila de carimbos", href: "/admin/ciclo/carimbos" },
+        { name: "Fila de verificação", href: "/admin/ciclo/verificacao" },
         { name: "Conformidade", href: "/admin/ciclo/conformidade" },
       ],
     },

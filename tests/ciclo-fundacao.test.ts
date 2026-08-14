@@ -74,7 +74,7 @@ describe("as tabelas do §2.1", () => {
   });
 });
 
-describe("o carimbo — o que separa registrar de valer", () => {
+describe("a verificação — o que separa lançar de valer", () => {
   it("manutencoes tem os campos da etiqueta e a origem restrita", () => {
     for (const campo of [
       "origem_registro",

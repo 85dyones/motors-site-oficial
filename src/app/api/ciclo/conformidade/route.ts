@@ -58,7 +58,7 @@ export async function GET() {
     return NextResponse.json({ error: "Não foi possível ler a série." }, { status: 502 });
   }
 
-  // ---- veiculos_monitorados (§1.4 emendado): Ciclo ativo E caderneta viva —
+  // ---- veiculos_monitorados (§1.4 emendado): Ciclo ativo E diário vivo —
   // ao menos uma revisão confirmada nos últimos 12 meses, ou a janela da
   // primeira revisão ainda aberta (carro recém-vendido não é penalizado por
   // ainda não ter chegado à primeira revisão).
@@ -92,12 +92,12 @@ export async function GET() {
     }
   }
 
-  const comCadernetaViva = new Set([
+  const comDiarioVivo = new Set([
     ...(vivas.data ?? []).map((m) => m.veiculo_vendido_id),
     ...(primeirasAbertas.data ?? []).map((p) => p.veiculo_vendido_id),
   ]);
   const monitorados = (ativos.data ?? []).filter((c) =>
-    comCadernetaViva.has(c.veiculo_vendido_id),
+    comDiarioVivo.has(c.veiculo_vendido_id),
   ).length;
 
   const dias = (serie ?? []) as DiaDaSerie[];

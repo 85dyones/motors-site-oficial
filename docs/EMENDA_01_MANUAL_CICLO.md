@@ -1,4 +1,4 @@
-# Emenda 01 ao Manual Motors Ciclo
+﻿# Emenda 01 ao Manual Motors Ciclo
 
 **Ao:** `MANUAL_MOTORS_CICLO.md`, Versão 1.0 — Agosto 2026
 **Data da proposta:** 2026-08-13
@@ -9,7 +9,7 @@
 > Os artigos E1–E7 foram incorporados ao corpo do `MANUAL_MOTORS_CICLO.md`, que
 > passou à **Versão 1.1**. Este arquivo permanece como registro do que mudou e
 > por quê. Duas alterações entraram na aprovação, sobre o texto proposto: a
-> **etiqueta de troca de óleo como prova do carimbo** (E4) e o **KM de saída na
+> **etiqueta de troca de óleo como prova da verificação** (E4) e o **KM de saída na
 > compra como primeira notação de odômetro** (E3).
 
 > Redigida porque o manual é a fonte de verdade do projeto e divergência entre
@@ -38,7 +38,7 @@ lido pela oficina no ato da revisão, com nota de serviço anexada, é dado mais
 confiável do que odômetro reportado por telemetria — menos frequente, mais
 verificável, e com documento fiscal por trás.
 
-É isso que a caderneta de revisões passa a produzir.
+É isso que a diário de bordo passa a produzir.
 
 ---
 
@@ -57,16 +57,16 @@ E serie_telemetria >= 6 meses
 ```
 conformidade_revisao >= 70%   por 3 meses consecutivos
 E veiculos_monitorados >= 150
-E serie_caderneta >= 6 meses
+E serie_procedencia >= 6 meses
 ```
 
 Onde:
 
-- **`serie_caderneta`** = meses consecutivos com registro diário ininterrupto de
+- **`serie_procedencia`** = meses consecutivos com registro diário ininterrupto de
   `conformidade_diaria`, contados a partir do primeiro veículo com Ciclo ativo.
   A série não pode ter buraco: dia sem cálculo zera a contagem.
 - **`veiculos_monitorados`** passa a significar veículos com Ciclo ativo **e
-  caderneta viva** — ao menos uma revisão confirmada pela loja nos últimos 12
+  diário de bordo vivo** — ao menos uma revisão confirmada pela loja nos últimos 12
   meses, ou ainda dentro da janela da primeira revisão.
 
 As demais condições, os limiares de 70% e 150 veículos, e o parágrafo
@@ -105,8 +105,8 @@ Regras que a emenda torna explícitas:
    o componente redistribuído. **A regra de neutralidade é preservada por
    construção**, e o teste de aceite que o plano de implementação exige para o
    Pacote 5 continua válido e obrigatório.
-3. `aderencia_km_pct` passa a ser apurada sobre os pontos de KM da caderneta
-   (carimbos) e das leituras declaradas (E4), não sobre série mensal contínua.
+3. `aderencia_km_pct` passa a ser apurada sobre os pontos de KM do diário de bordo
+   (verificações) e das leituras declaradas (E4), não sobre série mensal contínua.
    Menor granularidade, mesma definição.
 
 Quando houver provedor, os pesos voltam a 40 / 25 / 20 / 15 sem nova emenda —
@@ -125,7 +125,7 @@ em ordem de precedência:
 
 | Ordem | Fonte | Verificação |
 |---|---|---|
-| 1 | Revisão confirmada pela loja (carimbo) | Etiquetas de óleo fotografadas (E4) |
+| 1 | Revisão confirmada pela loja (verificada) | Etiquetas de óleo fotografadas (E4) |
 | 2 | **KM de saída na compra** | Registrado pela loja na entrega |
 | 3 | Vistoria de entrada ou de avaliação | Registro interno |
 | 4 | Leitura declarada pelo cliente (E4) | Declarada, não verificada |
@@ -141,7 +141,7 @@ v1.0 e não está sendo revisado aqui. Ele só vale entre a entrega e a primeira
 revisão, porque a partir daí há dois pontos reais para calcular a média.
 
 Toda exibição de KM ao cliente indica a origem e a data. KM declarado aparece
-como declarado; nunca é apresentado com o mesmo peso de um carimbo.
+como declarado; nunca é apresentado com o mesmo peso de uma verificação.
 
 ---
 
@@ -156,22 +156,22 @@ Uma linha por revisão prevista, com número, KM previsto, início e fim da jane
 e o vínculo com a `manutencoes` que a cumpriu. Sem ela, `dentro_da_janela` não
 tem contra o que ser calculada.
 
-**b) O carimbo, em `manutencoes`** — seis campos:
+**b) A verificação, em `manutencoes`** — seis campos:
 
 | Campo | Para quê |
 |---|---|
 | `origem_registro` | `loja`, `parceiro` ou `cliente` |
-| `confirmada_em` | Nulo = registrado, sem carimbo |
+| `confirmada_em` | Nulo = registrado, sem verificação |
 | `confirmada_por` | Quem da equipe validou |
 | `url_etiqueta_anterior` | Foto da etiqueta que estava no vidro |
 | `url_etiqueta_atual` | Foto da etiqueta nova, com o KM legível |
 | `url_nota_servico` | Complementar, quando houver |
 
 **Regra que define o programa inteiro:** registro do cliente nasce **sem
-carimbo e não conta** para `conformidade_revisao`. Só conta revisão com
+verificação e não conta** para `conformidade_revisao`. Só conta revisão com
 `confirmada_em` preenchido e `dentro_da_janela = true`. É a transcrição fiel do
 §1.4, que exige revisão "feita na rede dentro da janela contratada" — e é
-também o que neutraliza fraude: registrar não é o ativo, o carimbo é.
+também o que neutraliza fraude: registrar não é o ativo, a verificação é.
 
 ### Como a loja valida (decisão do dono, 2026-08-13)
 
@@ -230,9 +230,9 @@ Consequências operacionais que a emenda registra:
 1. **O e-mail passa a ser obrigatório no fechamento da venda.** O §0 já exige o
    registro completo do par cliente-veículo; esta emenda torna o e-mail um
    campo bloqueante do formulário de fechamento, e não opcional.
-2. Cliente sem e-mail utilizável não perde o programa: a caderneta continua
+2. Cliente sem e-mail utilizável não perde o programa: o diário de bordo continua
    sendo alimentada pela loja, e a comunicação segue por WhatsApp. Ele perde o
-   acesso à área logada, não o direito ao carimbo.
+   acesso à área logada, não o direito à verificação.
 3. WhatsApp permanece o canal de engajamento (§7.3). O e-mail é porta de
    entrada, não canal de relacionamento.
 
@@ -285,7 +285,7 @@ janela_inicio = data prevista − 30 dias
 janela_fim    = data prevista + 30 dias  (ou km previsto + 1.000)
 ```
 
-A data prevista é **recalculada a cada novo ponto de KM** — carimbo ou leitura
+A data prevista é **recalculada a cada novo ponto de KM** — verificação ou leitura
 declarada. Um cliente que roda 15.000 km/ano (o teto do §1.2) vence pela régua
 de KM em cerca de 8 meses; quem roda pouco vence pelo calendário. O sistema não
 escolhe: aplica o que ocorrer primeiro, como a montadora faz.
@@ -294,7 +294,7 @@ escolhe: aplica o que ocorrer primeiro, como a montadora faz.
 
 O contrato do Ciclo é de 36 meses (§0), o que gera **3 revisões por calendário**
 e mais, se a rodagem antecipar. O `plano_revisoes` é gerado inteiro no
-fechamento da venda e reprojetado a cada carimbo.
+fechamento da venda e reprojetado a cada verificação.
 
 ### Conflito reconciliado no corpo do manual
 
@@ -317,16 +317,16 @@ coincidia com a tolerância adotada e **não muda**.
 **Comercial** ou **Administrador**.
 
 **Decisão operacional (D9), tomada em 2026-08-13:** enquanto não existir
-estrutura de pós-venda, o **dono da fila de carimbos é o Comercial**, com o
+estrutura de pós-venda, o **dono da fila de verificação é o Comercial**, com o
 Administrador como revisor e responsável final. Justificativa: é o papel que já
-opera o kanban de leads e fala com o cliente; a fila de carimbos é a mesma
+opera o kanban de leads e fala com o cliente; a fila de verificação é a mesma
 natureza de trabalho — atender um registro que chegou e dar um desfecho. O
 Administrador entra quando há recusa ou divergência de comprovante, porque
-recusar carimbo tem consequência contratual para o cliente.
+recusar a verificação tem consequência contratual para o cliente.
 
 Isso é **arranjo transitório e está declarado como tal.** Quando o volume
 justificar, a estrutura correta é um papel `pos_venda` próprio, dono da fila de
-carimbos, dos lembretes de revisão e do relacionamento durante os 36 meses. O
+verificações, dos lembretes de revisão e do relacionamento durante os 36 meses. O
 manual deve nomear essa pessoa — é a pergunta do Anexo item 6, ainda sem
 resposta.
 
@@ -368,13 +368,13 @@ Explicitamente, para não haver leitura por omissão:
 
 | # | Questão | Decisão | Artigo |
 |---|---|---|---|
-| D1 | Gatilho §1.4 sem telemetria | Série da caderneta; loja valida pela nota de serviço | E1 |
+| D1 | Gatilho §1.4 sem telemetria | Série do diário de bordo; loja valida pela nota de serviço | E1 |
 | D2 | Índice sem componente de condução | 3 componentes renormalizados, `score_conducao NULL` | E2 |
 | D3 | Autenticação do cliente | Link mágico por e-mail | E5 |
 | D4 | Leitura de odômetro declarada | Aprovada, opt-in; primeira notação é o KM de saída na compra | E3, E4 |
 | D5 | Janelas de revisão | 10.000 km ou 12 meses; tolerância 30 dias / 1.000 km | E6 |
-| D5-b | Prova do carimbo | Foto da etiqueta de óleo anterior e da nova, com o KM legível | E4 |
-| D6 | Quem carimba | Comercial ou Administrador | E7 |
+| D5-b | Prova do verificação | Foto da etiqueta de óleo anterior e da nova, com o KM legível | E4 |
+| D6 | Quem verifica | Comercial ou Administrador | E7 |
 | D9 | Dono operacional | Comercial, com Admin como revisor — transitório | E7 |
 | — | Risco de auth compartilhado | Papel `cliente` + `is_staff()` — aplicado em produção | E7 |
 

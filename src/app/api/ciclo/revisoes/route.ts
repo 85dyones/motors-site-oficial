@@ -6,10 +6,10 @@ import { validarRevisao, type DadosDaRevisao } from "../../../../lib/ciclo/revis
 export const dynamic = "force-dynamic";
 
 /**
- * A caderneta, do lado da loja — fila de carimbos (tela A21) e registro de
- * revisão pela equipe.
+ * O diário de bordo, do lado da loja — fila de verificação (tela A21) e
+ * lançamento de revisão pela equipe.
  *
- * O gate é a linha "Confirmar revisão da caderneta" da matriz A17: Admin e
+ * O gate é a linha "Verificar revisão do diário de bordo" da matriz A17: Admin e
  * Comercial (decisão do dono, 2026-08-13 — o Comercial é o dono da fila).
  */
 
@@ -27,9 +27,12 @@ async function autorizar() {
   if (!ehStaff(profile?.role)) {
     return { erro: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
   }
-  if (podeFazer(normalizarPerfil(profile?.role), "Confirmar revisão da caderneta") !== "faz") {
+  if (podeFazer(normalizarPerfil(profile?.role), "Verificar revisão do diário de bordo") !== "faz") {
     return {
-      erro: NextResponse.json({ error: "Seu perfil não opera a caderneta" }, { status: 403 }),
+      erro: NextResponse.json(
+        { error: "Seu perfil não opera o diário de bordo" },
+        { status: 403 },
+      ),
     };
   }
   return { supabase, user, nome: profile?.full_name ?? user.email };
@@ -70,8 +73,8 @@ export async function GET() {
     .limit(20);
 
   if (erroRecentes) {
-    console.error("[Ciclo/Revisões] Falha ao ler carimbos recentes:", erroRecentes.message);
-    return NextResponse.json({ error: "Não foi possível ler os carimbos." }, { status: 502 });
+    console.error("[Ciclo/Revisões] Falha ao ler verificações recentes:", erroRecentes.message);
+    return NextResponse.json({ error: "Não foi possível ler as verificações." }, { status: 502 });
   }
 
   // Para o formulário de registro: os veículos do programa.
@@ -136,30 +139,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Não foi possível registrar a revisão." }, { status: 500 });
     }
 
-    // Registrar e carimbar no mesmo gesto: o caminho comum quando a própria
+    // Lançar e verificar no mesmo gesto: o caminho comum quando a própria
     // loja fez o serviço e está com as etiquetas na mão.
     if (dados.confirmar) {
-      const { data: carimbo, error: erroCarimbo } = await supabase.rpc("carimbar_revisao", {
+      const { data: verificacao, error: erroVerificacao } = await supabase.rpc("carimbar_revisao", {
         p_manutencao: criada.id,
         p_aceitar: true,
       });
-      if (erroCarimbo) {
+      if (erroVerificacao) {
         // O registro ficou — na fila, como pendente. Melhor que desfazer:
         // o dado existe e a fila é o lugar de resolver.
         return NextResponse.json(
           {
             ok: true,
             id: criada.id,
-            carimbo: null,
-            aviso: "Registrada, mas o carimbo falhou — está na fila como pendente.",
+            verificacao: null,
+            aviso: "Lançada, mas a verificação falhou — está na fila como pendente.",
           },
           { status: 201 },
         );
       }
-      return NextResponse.json({ ok: true, id: criada.id, carimbo }, { status: 201 });
+      return NextResponse.json({ ok: true, id: criada.id, verificacao }, { status: 201 });
     }
 
-    return NextResponse.json({ ok: true, id: criada.id, carimbo: null }, { status: 201 });
+    return NextResponse.json({ ok: true, id: criada.id, verificacao: null }, { status: 201 });
   } catch (err: any) {
     console.error("[Ciclo/Revisões] Erro inesperado:", err?.message);
     return NextResponse.json({ error: "Erro ao processar a revisão." }, { status: 500 });

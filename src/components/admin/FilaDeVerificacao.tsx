@@ -4,14 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { validarRevisao, type DadosDaRevisao } from "../../lib/ciclo/revisao";
 
 /**
- * Tela A21 — fila de carimbos da caderneta (manual v1.1 §5.7, emenda E4/E7).
+ * Tela A21 — fila de verificação do diário de bordo (manual v1.1 §5.7,
+ * emenda E4/E7).
  *
- * A régua da tela é a do programa: registro sem carimbo NÃO conta para a
- * conformidade. A fila mostra o que espera decisão; carimbar exige a foto da
- * etiqueta nova; recusar exige motivo, e o motivo fica no rastro.
+ * A régua da tela é a do programa: registro NÃO verificado não conta para a
+ * conformidade — e é a verificação que converte lançamento em procedência.
+ * A fila mostra o que espera decisão; verificar exige a foto da etiqueta
+ * nova; recusar exige motivo, e o motivo fica no rastro.
  *
  * O Comercial é o dono da fila; o Admin revisa recusa (decisão do dono,
  * 2026-08-13). O gate de perfil está na página e na rota — aqui é só a tela.
+ *
+ * Vocabulário: no banco a função ainda se chama `carimbar_revisao`, de quando
+ * o programa se chamava "caderneta" (renomeado em 2026-08-14). O nome do
+ * objeto de banco não mudou de propósito — migração aplicada é registro
+ * histórico, e nenhum usuário lê o nome da função.
  */
 
 interface VeiculoResumo {
@@ -56,7 +63,7 @@ function Origem({ origem }: { origem: string }) {
   );
 }
 
-export default function FilaDeCarimbos() {
+export default function FilaDeVerificacao() {
   const [pendentes, setPendentes] = useState<Revisao[]>([]);
   const [recentes, setRecentes] = useState<Revisao[]>([]);
   const [veiculos, setVeiculos] = useState<VeiculoResumo[]>([]);
@@ -95,7 +102,7 @@ export default function FilaDeCarimbos() {
     setAviso("");
     setErro("");
     try {
-      const res = await fetch(`/api/ciclo/revisoes/${id}/carimbar`, {
+      const res = await fetch(`/api/ciclo/revisoes/${id}/verificar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aceitar, motivo: motivoRecusa }),
@@ -108,8 +115,8 @@ export default function FilaDeCarimbos() {
       setAviso(
         aceitar
           ? corpo.dentro_da_janela === false
-            ? "Carimbada — fora da janela. Conta no histórico, não na conformidade."
-            : "Carimbada dentro da janela."
+            ? "Verificada — fora da janela. Entra no diário de bordo, não na procedência."
+            : "Verificada dentro da janela. A procedência deste veículo subiu."
           : "Recusada. O motivo ficou no registro.",
       );
       setRecusando(null);
@@ -158,11 +165,11 @@ export default function FilaDeCarimbos() {
       }
       setAviso(
         corpo.aviso ??
-          (corpo.carimbo
-            ? corpo.carimbo.dentro_da_janela === false
-              ? "Registrada e carimbada — fora da janela."
-              : "Registrada e carimbada dentro da janela."
-            : "Registrada. Está na fila para carimbo."),
+          (corpo.verificacao
+            ? corpo.verificacao.dentro_da_janela === false
+              ? "Lançada e verificada — fora da janela."
+              : "Lançada e verificada dentro da janela."
+            : "Lançada no diário de bordo. Está na fila de verificação."),
       );
       setRegistro({
         veiculo_vendido_id: "",
@@ -186,12 +193,12 @@ export default function FilaDeCarimbos() {
       <header className="mb-6">
         <span className="mt-rotulo mt-rotulo-accent">MOTORS CICLO · CADERNETA</span>
         <h1 className="mt-2 text-[24px] font-extrabold tracking-[-.02em] text-mt-ink">
-          Fila de carimbos
+          Fila de verificação
         </h1>
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-mt-neutral-700">
-          Registro sem carimbo não conta para a conformidade. A prova é a foto da etiqueta de
-          troca de óleo — a anterior e a nova, com o KM legível. Recusa exige motivo, e o motivo
-          fica no registro.
+          Lançamento não verificado não vira procedência. A prova é a foto da etiqueta de troca
+          de óleo — a anterior e a nova, com o KM legível. Recusa exige motivo, e o motivo fica
+          no diário de bordo.
         </p>
       </header>
 
@@ -300,10 +307,10 @@ export default function FilaDeCarimbos() {
                       type="button"
                       disabled={decidindo === r.id || !r.url_etiqueta_atual}
                       onClick={() => decidir(r.id, true)}
-                      title={r.url_etiqueta_atual ? undefined : "Sem a foto da etiqueta nova não há carimbo"}
+                      title={r.url_etiqueta_atual ? undefined : "Sem a foto da etiqueta nova não há verificação"}
                       className="mt-foco bg-mt-accent px-4 py-2.5 text-[11px] font-bold uppercase tracking-[.08em] text-mt-inverso disabled:opacity-50"
                     >
-                      {decidindo === r.id ? "Processando…" : "Carimbar"}
+                      {decidindo === r.id ? "Processando…" : "Verificar"}
                     </button>
                     <button
                       type="button"
@@ -324,11 +331,11 @@ export default function FilaDeCarimbos() {
       {/* ---- registro pela loja ---- */}
       <section className="mt-5 border border-mt-regua-fina bg-mt-surface p-6">
         <h2 className="text-[15px] font-extrabold tracking-[-.015em] text-mt-ink">
-          Registrar revisão
+          Lançar revisão no diário de bordo
         </h2>
         <p className="mb-4 mt-1 text-xs text-mt-neutral-700">
-          Para serviço feito pela loja ou pela rede. Com as fotos em mãos, o registro já sai
-          carimbado.
+          Para serviço feito pela loja ou pela rede. Com as fotos em mãos, o lançamento já sai
+          verificado.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5 sm:col-span-2">
@@ -422,7 +429,7 @@ export default function FilaDeCarimbos() {
             onChange={(e) => setRegistro((d) => ({ ...d, confirmar: e.target.checked }))}
             className="mt-foco h-4 w-4 accent-mt-accent"
           />
-          <span className="text-[13px] text-mt-ink">Carimbar já — conferi as etiquetas</span>
+          <span className="text-[13px] text-mt-ink">Verificar já — conferi as etiquetas</span>
         </label>
 
         <div className="mt-4">
@@ -432,14 +439,16 @@ export default function FilaDeCarimbos() {
             disabled={registrando}
             className="mt-foco bg-mt-accent px-5 py-3 text-[12px] font-bold uppercase tracking-[.08em] text-mt-inverso disabled:opacity-50"
           >
-            {registrando ? "Registrando…" : registro.confirmar ? "Registrar e carimbar" : "Registrar"}
+            {registrando ? "Lançando…" : registro.confirmar ? "Lançar e verificar" : "Lançar"}
           </button>
         </div>
       </section>
 
-      {/* ---- os últimos carimbos ---- */}
+      {/* ---- as últimas verificações ---- */}
       <section className="mt-5 border border-mt-regua-fina bg-mt-surface p-6">
-        <h2 className="text-[15px] font-extrabold tracking-[-.015em] text-mt-ink">Últimos carimbos</h2>
+        <h2 className="text-[15px] font-extrabold tracking-[-.015em] text-mt-ink">
+          Últimas verificações
+        </h2>
         {recentes.length === 0 ? (
           <p className="mt-3 text-[13px] text-mt-neutral-700">Nenhum ainda.</p>
         ) : (

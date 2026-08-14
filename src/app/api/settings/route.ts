@@ -41,7 +41,7 @@ import { getCachedSettings, recortePublicoDeSettings } from "../../../lib/settin
  * e `apiSecretToken` vinham no envelope e estavam vazios só por acaso: no dia em
  * que fossem preenchidos pelo painel, nasceriam públicos.
  *
- * Visitante anônimo — e cliente logado da Caderneta — recebe o recorte
+ * Visitante anônimo — e cliente logado da Garagem — recebe o recorte
  * público; só sessão de STAFF recebe o payload completo, que é o que o painel
  * admin consome. O POST também exige staff.
  */
@@ -53,7 +53,7 @@ export async function GET() {
     const client = await createServerSupabaseClient();
     const { data } = await client.auth.getUser();
     if (data?.user) {
-      // Sessão não basta mais: cliente da Caderneta também é `authenticated`.
+      // Sessão não basta mais: cliente da Garagem também é `authenticated`.
       // O payload completo carrega token, saldos e preco_compra — só staff vê.
       const { data: perfil } = await client
         .from("profiles")

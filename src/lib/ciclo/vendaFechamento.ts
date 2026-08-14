@@ -21,8 +21,8 @@ export const CAMPOS_OBRIGATORIOS_DA_VENDA = [
   "nome",
   "telefone_e164",
   // v1.1 §3.1: entrou porque é por ele que o cliente recebe o link mágico da
-  // Caderneta. Sem e-mail, não há área do cliente — e a caderneta é a fonte
-  // do dado de conformidade do §1.4.
+  // Garagem Motors. Sem e-mail, não há área do cliente — e o diário de bordo
+  // é a fonte do dado de conformidade do §1.4.
   "email",
   "chassi",
   "placa",
@@ -183,7 +183,7 @@ export function validarFechamentoDeVenda(dados: DadosDaVenda): Problema[] {
     falta("telefone_e164", "Telefone no formato internacional, com o +55 na frente.");
   }
   if (!vazio(dados.email) && !emailEhPlausivel(String(dados.email))) {
-    falta("email", "E-mail inválido — é por ele que o cliente entra na caderneta.");
+    falta("email", "E-mail inválido — é por ele que o cliente entra na garagem dele.");
   }
 
   const km = numero(dados.km_na_venda);

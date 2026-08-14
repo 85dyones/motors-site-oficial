@@ -9,13 +9,17 @@ import {
 import { TOLERANCIA_KM } from "../src/lib/ciclo/vendaFechamento";
 
 /**
- * A caderneta: o carimbo e a régua da janela (manual v1.1 §1.5 e §5.7).
+ * O diário de bordo: a verificação e a régua da janela (manual v1.1 §1.5 e §5.7).
  *
- * A regra que define o programa: registro sem carimbo NÃO conta para a
- * conformidade. A prova em banco vive na autoconferência da migração
+ * A regra que define o programa: lançamento NÃO verificado não vira
+ * procedência. A prova em banco vive na autoconferência da migração
  * `20260814150000_carimbo_e_conformidade.sql`; aqui ficam a régua da janela
  * — que precisa ser idêntica nas duas camadas — e as decisões que uma edição
  * futura não pode desfazer por descuido.
+ *
+ * O nome da migração e da função de banco (`carimbar_revisao`) é de quando o
+ * programa se chamava "caderneta". Renomeado na interface em 2026-08-14;
+ * migração aplicada é registro histórico e não se reescreve.
  */
 
 const raiz = join(__dirname, "..");
@@ -28,7 +32,7 @@ const rotaFila = readFileSync(
   "utf-8",
 );
 const rotaCarimbo = readFileSync(
-  join(raiz, "src", "app", "api", "ciclo", "revisoes", "[id]", "carimbar", "route.ts"),
+  join(raiz, "src", "app", "api", "ciclo", "revisoes", "[id]", "verificar", "route.ts"),
   "utf-8",
 );
 
@@ -112,13 +116,16 @@ describe("o registro e o carimbo", () => {
     expect(rotaFila).toContain(`dados.origem_registro === "parceiro" ? "parceiro" : "loja"`);
   });
 
-  it("as rotas exigem o perfil da matriz, e o carimbo deixa rastro de auditoria", () => {
+  it("as rotas exigem o perfil da matriz, e a verificação deixa rastro de auditoria", () => {
     for (const rota of [rotaFila, rotaCarimbo]) {
-      expect(rota).toContain('podeFazer(normalizarPerfil(profile?.role), "Confirmar revisão da caderneta")');
+      expect(rota).toContain(
+        'podeFazer(normalizarPerfil(profile?.role), "Verificar revisão do diário de bordo")',
+      );
       expect(rota).toContain("ehStaff(profile?.role)");
     }
     expect(rotaCarimbo).toContain("registrarAcaoSensivel");
-    expect(rotaCarimbo).toContain("Carimbo RECUSADO");
+    // Recusar tem consequência contratual para o cliente — precisa de rastro.
+    expect(rotaCarimbo).toContain("Verificação RECUSADA");
   });
 });
 

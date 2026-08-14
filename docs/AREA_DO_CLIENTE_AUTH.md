@@ -1,4 +1,4 @@
-# Entrada da Caderneta — configuração do Supabase Auth
+﻿# Entrada da Garagem Motors — configuração do Supabase Auth
 
 Decisão D3, 2026-08-13: o cliente entra por **link mágico enviado por e-mail**
 (emenda E5 em `EMENDA_01_MANUAL_CICLO.md`). Este documento é o que precisa ser
@@ -21,7 +21,7 @@ não aparecem para quem recebe).
 **Assunto sugerido:**
 
 ```
-Sua entrada na caderneta do seu carro
+Sua entrada no diário de bordo do seu carro
 ```
 
 Evite "Login", "Verificação" e "Confirme sua conta": e-mail de acesso com
@@ -87,7 +87,7 @@ limite baixo de mensagens por hora e o remetente não é o domínio da loja.
 Com ele, numa manhã de movimento, parte dos clientes simplesmente não recebe o
 link — e o erro não aparece para eles, some no log.
 
-Antes de abrir a Caderneta para clientes de verdade: Project Settings → Auth →
+Antes de abrir a Garagem Motors para clientes de verdade: Project Settings → Auth →
 **SMTP Settings**, apontando para um provedor próprio (Resend, SendGrid,
 Amazon SES ou o SMTP do e-mail da loja), com remetente no domínio
 `motorsstoreoficial.com.br`.

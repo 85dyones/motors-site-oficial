@@ -1,15 +1,15 @@
 import { TOLERANCIA_KM } from "./vendaFechamento";
 
 /**
- * A régua do carimbo — manual v1.1 §1.5 e §5.7.
+ * A régua da verificação — manual v1.1 §1.5 e §5.7.
  *
- * O que decide se uma revisão conta para a conformidade do §1.4 são duas
- * coisas, e as duas precisam ser verdade:
+ * O que decide se uma revisão vira procedência são duas coisas, e as duas
+ * precisam ser verdade:
  *
- *   1. `confirmada_em` preenchido — a loja carimbou, contra a foto da etiqueta;
+ *   1. `confirmada_em` preenchido — a loja verificou, contra a foto da etiqueta;
  *   2. `dentro_da_janela = true` — a revisão caiu no prazo contratado.
  *
- * Registrar não é o ativo. O carimbo é.
+ * Lançar no diário de bordo não é o ativo. A verificação é.
  */
 
 export const ORIGENS_DE_REGISTRO = ["loja", "parceiro", "cliente"] as const;
@@ -56,7 +56,7 @@ export interface DadosDaRevisao {
   parceiro_id?: string | null;
   valor_servico?: number | string | null;
   observacoes?: string | null;
-  /** Só a loja carimba, e só quando registra o que ela própria conferiu. */
+  /** Só a loja verifica, e só quando lança o que ela própria conferiu. */
   confirmar?: boolean;
 }
 
@@ -69,11 +69,11 @@ const vazio = (v: unknown) =>
   v === null || v === undefined || (typeof v === "string" && v.trim() === "");
 
 /**
- * O que impede esta revisão de ser registrada.
+ * O que impede esta revisão de ser lançada no diário de bordo.
  *
- * A foto da etiqueta nova é obrigatória para **carimbar**, não para registrar:
- * a emenda 01 diz que sem foto legível o registro fica *pendente*, e pendente
- * é um estado válido — é justamente o que a fila da A21 existe para resolver.
+ * A foto da etiqueta nova é obrigatória para **verificar**, não para lançar:
+ * a emenda 01 diz que sem foto legível o lançamento fica *pendente*, e
+ * pendente é estado válido — é o que a fila da A21 existe para resolver.
  */
 export function validarRevisao(dados: DadosDaRevisao): ProblemaDaRevisao[] {
   const problemas: ProblemaDaRevisao[] = [];
@@ -91,7 +91,7 @@ export function validarRevisao(dados: DadosDaRevisao): ProblemaDaRevisao[] {
   if (dados.confirmar && vazio(dados.url_etiqueta_atual)) {
     falta(
       "url_etiqueta_atual",
-      "Para carimbar é preciso a foto da etiqueta nova, com o KM legível.",
+      "Para verificar é preciso a foto da etiqueta nova, com o KM legível.",
     );
   }
 

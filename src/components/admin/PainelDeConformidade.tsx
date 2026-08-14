@@ -348,8 +348,9 @@ export default function PainelDeConformidade() {
 
           <p className="text-[11px] text-mt-neutral-500">
             {dados.ciclo_ativos.toLocaleString("pt-BR")} veículo(s) com Ciclo ativo ·{" "}
-            {dados.monitorados.toLocaleString("pt-BR")} com caderneta viva. Telemetria embarcada:
-            adiada por decisão de 2026-08-13 — o gatilho conta pela série da caderneta (Emenda 01).
+            {dados.monitorados.toLocaleString("pt-BR")} com diário de bordo vivo. Telemetria
+            embarcada: adiada por decisão de 2026-08-13 — o gatilho conta pela série de
+            procedência (Emenda 01).
           </p>
         </div>
       ) : null}

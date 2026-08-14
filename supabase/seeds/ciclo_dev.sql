@@ -1,4 +1,4 @@
--- ==========================================================
+﻿-- ==========================================================
 -- Seeds de DESENVOLVIMENTO do Motors Ciclo — Pacote 1
 -- ==========================================================
 --
@@ -55,7 +55,7 @@ insert into public.clientes (id, cpf_cnpj, nome, telefone_e164, email, consentim
   ('5eedc11e-0000-4000-8000-000000000003', 'SEED-00000000003', 'Cliente Sem Acesso',  '+554199990003', null,                         now());
 
 -- `auth_user_id` fica NULL: vincular exige um usuário real do Auth do projeto
--- de dev. Para testar a Caderneta, crie o usuário e rode:
+-- de dev. Para testar a Garagem Motors, crie o usuário e rode:
 --   update public.clientes set auth_user_id = '<uuid do usuário>'
 --    where cpf_cnpj = 'SEED-00000000001';
 
@@ -103,8 +103,8 @@ select vv.id,
  cross join generate_series(1, 3) as n
  where vv.chassi like 'SEED-%';
 
--- ---- a caderneta ----
--- Cliente 1: revisão feita e CARIMBADA, dentro da janela. Conta para a
+-- ---- o diário de bordo ----
+-- Cliente 1: revisão feita e VERIFICADA, dentro da janela. Conta para a
 -- conformidade do §1.4.
 insert into public.manutencoes
   (veiculo_vendido_id, parceiro_id, tipo, numero_revisao, data_servico, km_registrado,
@@ -122,7 +122,7 @@ update public.plano_revisoes set manutencao_id = (
    where veiculo_vendido_id = '5eedca20-0000-4000-8000-000000000001' limit 1)
  where veiculo_vendido_id = '5eedca20-0000-4000-8000-000000000001' and numero_revisao = 1;
 
--- Cliente 2: registrou pelo app e AINDA NÃO foi carimbado. É a fila da tela
+-- Cliente 2: registrou pelo app e AINDA NÃO foi verificado. É a fila da tela
 -- A21 — e não conta para a conformidade enquanto `confirmada_em` for nulo.
 insert into public.manutencoes
   (veiculo_vendido_id, tipo, numero_revisao, data_servico, km_registrado,
@@ -149,5 +149,5 @@ refresh materialized view public.vw_ciclo_estado;
 
 do $$
 begin
-  raise notice 'Seeds do Ciclo aplicados: 3 clientes, 3 veículos, 1 revisão carimbada e 1 na fila.';
+  raise notice 'Seeds do Ciclo aplicados: 3 clientes, 3 veículos, 1 revisão verificada e 1 na fila.';
 end $$;

@@ -33,7 +33,7 @@ export default async function AdminLayout({
 
   const role = profile?.role ?? papelPadraoPorEmail(user.email);
 
-  // Cliente da Caderneta não tem nada no /admin — o proxy já barra, e o
+  // Cliente da Garagem não tem nada no /admin — o proxy já barra, e o
   // layout barra de novo: defesa em profundidade custa uma linha.
   if (!ehStaff(role)) {
     redirect("/");

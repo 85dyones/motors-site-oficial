@@ -168,8 +168,8 @@ export default function FechamentoDeVenda() {
           </h1>
           <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-mt-neutral-700">
             O KM de saída virou a primeira notação de odômetro e as três janelas de revisão já
-            existem. A partir daqui o cliente entra na caderneta e a conformidade dele passa a
-            contar.
+            existem. A partir daqui o cliente entra na Garagem Motors e a procedência do carro
+            dele passa a contar.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <button
@@ -203,7 +203,7 @@ export default function FechamentoDeVenda() {
       </header>
 
       <div className="flex flex-col gap-5">
-        <Secao titulo="Cliente" descricao="É por este e-mail que ele entra na caderneta do carro.">
+        <Secao titulo="Cliente" descricao="É por este e-mail que ele entra na Garagem Motors.">
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo id="cpf_cnpj" rotulo="CPF ou CNPJ *" problema={problemaDe("cpf_cnpj")}>
               <input
@@ -240,7 +240,7 @@ export default function FechamentoDeVenda() {
               id="email"
               rotulo="E-mail *"
               problema={problemaDe("email")}
-              dica="Porta de entrada da caderneta."
+              dica="Porta de entrada da Garagem Motors."
             >
               <input
                 id="email"

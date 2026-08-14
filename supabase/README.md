@@ -1,4 +1,4 @@
-# `supabase/` — migrações versionadas
+﻿# `supabase/` — migrações versionadas
 
 Inaugurado no **Pacote 0.5** (2026-08-03). Até então o projeto não tinha
 migração nenhuma, apesar de `CLAUDE.md:62` exigir: *"Migrações do Supabase são
@@ -49,7 +49,33 @@ projeto. Ver o passo 4 do runbook abaixo para o motivo.
 | `20260813120000_role_cliente_e_is_staff.sql` | O auth passa a ter dois públicos: papel `cliente` (padrão de todo cadastro novo), `is_staff()` como régua única, papel de staff só via `app_metadata`. Re-escopa toda policy interna que dizia `TO authenticated USING (true)`. **Aplicada em produção em 2026-08-13.** |
 | `20260813150000_ciclo_fundacao_de_dados.sql` | Pacote 1 do Motors Ciclo: as 13 tabelas do manual v1.1 §2.1, índices do §2.2, a view de estado do §2.3 e RLS por cliente. Traz autoconferência que **prova o aceite do pacote** contra o banco real — cria dois clientes sintéticos, assume a sessão de um e falha a migração se ele enxergar o outro. **Aplicada em produção em 2026-08-14.** |
 | `20260814120000_fechar_venda_ciclo.sql` | Pacote 2: a função `fechar_venda_ciclo(jsonb)`, que grava a venda inteira em uma transação — cliente, veículo, KM de saída, plano de revisões e, quando houver, financiamento e contrato. Levanta `VENDA_INCOMPLETA` com a lista de campos quando falta obrigatório do §3.1. Autoconferência tenta cinco vendas inválidas e exige que todas falhem. **Aplicada em produção em 2026-08-14.** |
-| `20260814150000_carimbo_e_conformidade.sql` | A caderneta: `carimbar_revisao` (exige a foto da etiqueta nova, casa com a janela do plano pela régua do §1.5, grava o KM como leitura verificada; recusa exige motivo e fica no rastro) e `calcular_conformidade_diaria` (a série do §1.4 — nunca sobrescreve, `pct NULL` com denominador zero, dias preenchidos depois do fato saem com `retroativa = true`). ⏳ **Ainda não aplicada.** |
+| `20260814150000_carimbo_e_conformidade.sql` | O diário de bordo: `carimbar_revisao` (exige a foto da etiqueta nova, casa com a janela do plano pela régua do §1.5, grava o KM como leitura verificada; recusa exige motivo e fica no rastro) e `calcular_conformidade_diaria` (a série do §1.4 — nunca sobrescreve, `pct NULL` com denominador zero, dias preenchidos depois do fato saem com `retroativa = true`). ⏳ **Ainda não aplicada.** |
+
+### Vocabulário: o banco fala mais velho que a interface
+
+O programa se chamava **"caderneta"** até 2026-08-14, quando o dono renomeou
+para **Garagem Motors** (o lugar), **diário de bordo** (o registro) e
+**procedência** (o que ele acumula) — decisão D8, registrada em
+`AUDITORIA.md`. A interface, os documentos e as rotas foram renomeados; **as
+migrações já aplicadas, não.**
+
+Isso é deliberado: migração aplicada é registro histórico, e o arquivo tem
+que continuar sendo exatamente o que rodou no banco. O mapa, para quem for ler
+SQL daqui a um ano:
+
+| No banco | Na interface, hoje |
+|---|---|
+| `carimbar_revisao()` | verificar revisão |
+| `20260814150000_carimbo_e_conformidade.sql` | o pacote do diário de bordo |
+| "carimbo" nos comentários das migrações do Ciclo | verificação |
+
+Nenhum nome de **tabela ou coluna** foi afetado pela renomeação — o schema
+sempre falou `manutencoes`, `confirmada_em`, `plano_revisoes`. Só o nome da
+função e a prosa dos comentários carregam o termo antigo.
+
+Atenção a um falso positivo: "carimbo" em `20260804200000_adicionar_last_seen_at.sql`,
+em `src/lib/supabase.ts` e em `tests/ultimo-sync.test.ts` significa **carimbo de
+tempo** do sync de estoque. Nada a ver com o Ciclo, e não se renomeia.
 
 ## Runbook — aplicar migração quando `api.supabase.com` falha
 
