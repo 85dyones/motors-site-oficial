@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getEstoque, getVeiculoPdpUrl } from '../../../../lib/supabase';
 
-// 3 hours caching for the XML feed (10800 seconds)
-export const revalidate = 10800;
+// Rota dinâmica, e não `revalidate`: o handler lê `request.url` para montar o
+// endereço absoluto de cada item, e isso não pode ser pré-renderizado. Com
+// `revalidate = 10800` o build tentava gerar a rota estaticamente, falhava com
+// DynamicServerError e imprimia "[XML Feed] Error generating catalog feed" em
+// toda compilação — ruído que escondia erro de verdade.
+//
+// O cache das 3 horas não se perde: ele vive no `Cache-Control` da resposta
+// (`s-maxage=10800`), que é quem o CDN obedece.
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
