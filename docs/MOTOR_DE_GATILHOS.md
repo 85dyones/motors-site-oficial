@@ -124,6 +124,11 @@ entra às 6h e o orquestrador continua às 9h.
 
 ## Antes de ligar (nesta ordem)
 
+0. **Deploy do código** — as rotas só existem no ar depois do push do `main`
+   (a Vercel deploya do GitHub). Rodar o orquestrador contra um deploy sem as
+   rotas dá `404` no primeiro nó — foi literalmente o primeiro erro real deste
+   motor, em 2026-08-15, porque o commit estava só local. O guia de leitura:
+   **404 = deploy velho; 503 = env faltando; 401 = token errado.**
 1. **Confirmar as envs na Vercel** — `SUPABASE_SERVICE_ROLE_KEY` e
    `N8N_SECRET_TOKEN`. Sem a primeira, as rotas respondem 503 e o workflow
    para no primeiro nó (alto, como desenhado). É a mesma pendência dos leads.
