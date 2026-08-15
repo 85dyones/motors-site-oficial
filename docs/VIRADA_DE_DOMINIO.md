@@ -49,6 +49,94 @@ variável de ambiente, não um commit.
 > Fica pendente só o **301 de `www` para o apex** (hoje os dois servem 200).
 > Com o canonical correto não há prejuízo de indexação; é acabamento.
 
+## Os registros de e-mail (decisão de 2026-08-15)
+
+**Caixas na Hostinger, envio pelo Resend.** São funções diferentes e é bom que
+sejam separadas: quem recebe `motors@motorsstore.com.br` não precisa ser quem
+envia o link mágico da Garagem. A zona está na **Vercel**
+(`ns1/ns2.vercel-dns.com`), então tudo abaixo entra em
+**Vercel → Domains → motorsstore.com.br → DNS Records**.
+
+Estado de partida, conferido em 2026-08-15: **o domínio não tem nenhum
+registro de e-mail**. O `MX` nulo e o `SPF -all` que o registro.br colocava
+saíram junto com a zona antiga. Começamos do zero, sem nada para desfazer.
+
+### 🔴 A regra que quebra a maioria das configurações
+
+**Só pode existir UM registro TXT de SPF por nome.** Dois registros `v=spf1`
+no mesmo nome não somam — deixam o SPF inválido (`permerror`), e o efeito é
+pior que não ter nenhum: provedores passam a desconfiar de tudo que sai do
+domínio. Se a Hostinger e o Resend pedirem SPF no mesmo nome, **funda os dois
+numa linha só**, com um `include:` para cada.
+
+### 1. Hostinger — receber
+
+A Hostinger tem **dois** produtos de e-mail, e os dois existem no DNS:
+`mx1/mx2.hostinger.com` e `mx1/mx2.titan.email`. Qual vale depende do seu
+plano — **copie os valores da tela da Hostinger**, em E-mails → o domínio →
+Registros DNS / Configuração. Não use os daqui nem os de tutorial: MX errado
+não dá erro, só silencia a caixa.
+
+Você vai precisar de, tipicamente:
+
+| Tipo | Nome | Valor | Prioridade |
+|---|---|---|---|
+| `MX` | `@` | *o que a Hostinger mostrar* | *a que ela mostrar* |
+| `MX` | `@` | *o segundo servidor* | *a segunda prioridade* |
+| `TXT` | `@` | o `include:` de SPF da Hostinger | — |
+| `TXT` | `hostingermail._domainkey` (ou o nome que ela indicar) | a chave DKIM | — |
+
+### 2. Resend — enviar
+
+Ao adicionar o domínio no Resend, ele mostra a lista exata de registros (a
+chave DKIM é única da sua conta — não existe valor "padrão"). **Observe uma
+coisa ao ler essa lista:**
+
+- **Se o Resend pedir um `MX` no apex** (`@`, geralmente
+  `feedback-smtp.<região>.amazonses.com`, para retorno de bounce), ele
+  **conflita com o MX da Hostinger** — dois serviços não podem receber no
+  mesmo nome. Nesse caso, **verifique um subdomínio no Resend**
+  (`send.motorsstore.com.br`): todos os registros dele passam a viver no
+  subdomínio, o apex fica só com a Hostinger, e não há conflito nenhum. O
+  preço é o remetente virar `@send.motorsstore.com.br`.
+- **Se você verificar o apex** e pular o MX de feedback, o remetente fica
+  `garagem@motorsstore.com.br` (mais bonito para o cliente), e aí o SPF do
+  apex precisa conter **os dois** includes:
+
+```
+v=spf1 include:<spf-da-hostinger> include:amazonses.com ~all
+```
+
+> `~all` (softfail) no começo, não `-all`. Enquanto você testa, softfail faz o
+> e-mail suspeito ir para spam; `-all` faz ser **recusado**, e um erro de
+> digitação no include vira "ninguém recebe o link mágico". Aperte para `-all`
+> depois de uma semana sem bounce — foi o que o domínio antigo fez.
+
+### 3. DMARC — este é independente de provedor
+
+| Tipo | Nome | Valor |
+|---|---|---|
+| `TXT` | `_dmarc` | `v=DMARC1; p=none; rua=mailto:SEU-ENDERECO; fo=1` |
+
+`p=none` só observa e **não afeta entrega**: é o modo certo para começar. O
+`rua` recebe os relatórios diários — use um endereço que você leia, e lembre
+que esse registro é público. Depois de semanas de relatório limpo, dá para
+subir para `p=quarantine`.
+
+### 4. Conferir (10 a 30 min depois — o TTL da zona é de 10 min)
+
+```bash
+nslookup -type=MX motorsstore.com.br 8.8.8.8
+nslookup -type=TXT motorsstore.com.br 8.8.8.8
+nslookup -type=TXT _dmarc.motorsstore.com.br 8.8.8.8
+```
+
+O `TXT` do apex tem que voltar **uma única linha** `v=spf1`. Se voltarem duas,
+o SPF está inválido — funda antes de mandar qualquer e-mail real.
+
+O SMTP do Supabase, com os valores do Resend, está em
+[`AREA_DO_CLIENTE_AUTH.md`](AREA_DO_CLIENTE_AUTH.md) §3.
+
 ### Depois da virada, no marketing (fora deste repositório)
 
 Dois itens que não são de código e ninguém avisa quando faltam:

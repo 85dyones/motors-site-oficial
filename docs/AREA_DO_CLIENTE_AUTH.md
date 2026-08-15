@@ -113,14 +113,43 @@ Com ele, numa manhã de movimento, parte dos clientes simplesmente não recebe o
 link — e o erro não aparece para eles, some no log.
 
 Antes de abrir a Garagem Motors para clientes de verdade: Project Settings → Auth →
-**SMTP Settings**, apontando para um provedor próprio (Resend, SendGrid,
-Amazon SES ou o SMTP do e-mail da loja), com remetente no domínio
+**SMTP Settings**, apontando para um provedor próprio, com remetente no domínio
 **`motorsstore.com.br`** — o mesmo do site, desde a decisão de 2026-08-14.
 Configure SPF e DKIM no domínio novo antes do primeiro envio real: e-mail de
 acesso que cai em spam é login que não acontece.
 
 Vale conferir também o limite de e-mails em Authentication → Rate Limits, que é
 separado do SMTP.
+
+### Decisão de 2026-08-15: Resend para envio, Hostinger para as caixas
+
+Duas funções diferentes, dois provedores, e é bom que sejam separados: o que
+**recebe** `motors@motorsstore.com.br` (Hostinger) não precisa ser o que
+**envia** o link mágico (Resend). Os registros de DNS de cada um estão em
+[`VIRADA_DE_DOMINIO.md`](VIRADA_DE_DOMINIO.md) — inclusive a regra de SPF
+único, que é onde este tipo de configuração costuma quebrar.
+
+**No Supabase** (Project Settings → Auth → SMTP Settings), com o domínio já
+verificado no Resend:
+
+| Campo | Valor |
+|---|---|
+| Host | `smtp.resend.com` |
+| Porta | `465` (SSL) ou `587` (STARTTLS) |
+| Usuário | `resend` — é literal, não é o seu e-mail |
+| Senha | a **API key** do Resend (`re_…`), criada em API Keys |
+| Sender email | um endereço do domínio verificado (ex.: `garagem@motorsstore.com.br`) |
+| Sender name | `Motors Store` |
+
+> ⚠️ O *Sender email* **precisa estar no domínio que você verificou no
+> Resend**. Se você verificou um subdomínio (`send.motorsstore.com.br`), o
+> remetente tem de ser `@send.motorsstore.com.br` — usar o apex ali faz o
+> envio ser recusado, e o sintoma é "link mágico não chega" sem erro na tela.
+
+Depois de salvar, mande um link mágico para um endereço seu e confira **três
+coisas**: que chegou, que **não** caiu em spam, e que o link abre em
+`/api/auth/callback` no domínio novo. O painel do Resend mostra cada envio com
+o status — é lá que se vê bounce e rejeição, não no Supabase.
 
 ---
 
