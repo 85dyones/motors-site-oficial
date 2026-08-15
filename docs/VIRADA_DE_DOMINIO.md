@@ -69,6 +69,57 @@ pior que não ter nenhum: provedores passam a desconfiar de tudo que sai do
 domínio. Se a Hostinger e o Resend pedirem SPF no mesmo nome, **funda os dois
 numa linha só**, com um `include:` para cada.
 
+### Fase 1 (2026-08-15): só o Resend, para destravar a Garagem
+
+Decisão do dono: configurar **só o envio** agora. As caixas da Hostinger ficam
+para depois. Isso simplifica tudo — sem MX de caixa no domínio, não há
+conflito nenhum e o SPF tem um `include:` só.
+
+**Verifique o subdomínio `send.motorsstore.com.br` no Resend, não o apex.**
+O motivo é o futuro: quando a Hostinger entrar, ela vai querer o `MX` do apex,
+e o Resend também usa um `MX` (de retorno de bounce). Dois serviços não podem
+receber no mesmo nome. Verificando o subdomínio agora, o apex fica livre para
+a Hostinger e **nunca mais é preciso mexer no que já funciona**. O custo é o
+remetente ser `@send.motorsstore.com.br` — normal em e-mail transacional, e o
+cliente vê "Motors Store" como nome do remetente de qualquer forma.
+
+#### 🔑 A tradução que confunde todo mundo
+
+O Resend mostra o **nome completo** do registro. A Vercel pede só o **prefixo**
+(o pedaço antes de `.motorsstore.com.br`). Ao copiar, corte o final:
+
+| O Resend mostra | Na Vercel, o campo *Name* recebe |
+|---|---|
+| `send.motorsstore.com.br` | `send` |
+| `resend._domainkey.send.motorsstore.com.br` | `resend._domainkey.send` |
+| `_dmarc.motorsstore.com.br` | `_dmarc` |
+
+Colar o nome completo cria `send.motorsstore.com.br.motorsstore.com.br` — que
+não dá erro nenhum, só nunca verifica. Se a verificação do Resend ficar
+teimando em "pendente", **é quase sempre isto.**
+
+#### Os três registros
+
+Na tela do Resend (Domains → Add Domain → `send.motorsstore.com.br`), ele
+lista os registros. Tipicamente são estes três — mas **copie os valores da
+tela**, porque a chave DKIM é única da sua conta e a região do `MX` depende da
+que você escolher:
+
+| # | Type | Name (na Vercel) | Value | Priority |
+|---|---|---|---|---|
+| 1 | `MX` | `send` | `feedback-smtp.<região>.amazonses.com` | `10` |
+| 2 | `TXT` | `send` | `v=spf1 include:amazonses.com ~all` | — |
+| 3 | `TXT` | `resend._domainkey.send` | a chave DKIM (`p=MIGfMA0…`, bem longa) | — |
+
+Depois, clique em **Verify DNS Records** no Resend. Leva de alguns minutos a
+meia hora (o TTL da zona é de 10 min).
+
+#### Quando a Hostinger entrar, depois
+
+Nada do que está acima muda. Você só acrescenta, no **apex**, o `MX`, o SPF e o
+DKIM que a Hostinger mostrar — e como o SPF do apex ainda não existe, também
+não haverá o que fundir. É por isso que o subdomínio vale a pena agora.
+
 ### 1. Hostinger — receber
 
 A Hostinger tem **dois** produtos de e-mail, e os dois existem no DNS:
