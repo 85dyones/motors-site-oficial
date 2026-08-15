@@ -45,18 +45,26 @@ export async function GET() {
 
   const selecaoDeRevisao = `
     id, tipo, numero_revisao, data_servico, km_registrado, origem_registro,
-    confirmada_em, dentro_da_janela, url_etiqueta_anterior, url_etiqueta_atual,
+    confirmada_em, recusada_em, motivo_recusa,
+    dentro_da_janela, url_etiqueta_anterior, url_etiqueta_atual,
     url_nota_servico, observacoes, criada_em,
     veiculo:veiculos_vendidos ( id, placa, marca, modelo, km_na_venda,
       cliente:clientes ( nome ) )
   `;
 
-  // A fila: o que foi registrado e ninguém validou. Mais antigo primeiro —
+  // A fila: o que foi registrado e ninguém resolveu. Mais antigo primeiro —
   // fila é fila.
+  //
+  // Recusado não é pendente. Até `20260814180000_motor_de_gatilhos.sql` os
+  // dois eram o mesmo estado (`confirmada_em is null`), e o item recusado
+  // ficava aqui para sempre — a fila nunca esvaziava, e o aviso de
+  // verificação do motor cobraria a equipe todo dia pelo mesmo item já
+  // resolvido. Ele passa a aparecer em "últimas verificações", com o motivo.
   const { data: pendentes, error: erroPendentes } = await supabase
     .from("manutencoes")
     .select(selecaoDeRevisao)
     .is("confirmada_em", null)
+    .is("recusada_em", null)
     .order("criada_em", { ascending: true })
     .limit(100);
 
@@ -68,8 +76,8 @@ export async function GET() {
   const { data: recentes, error: erroRecentes } = await supabase
     .from("manutencoes")
     .select(selecaoDeRevisao)
-    .not("confirmada_em", "is", null)
-    .order("confirmada_em", { ascending: false })
+    .or("confirmada_em.not.is.null,recusada_em.not.is.null")
+    .order("criada_em", { ascending: false })
     .limit(20);
 
   if (erroRecentes) {

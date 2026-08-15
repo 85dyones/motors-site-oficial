@@ -38,6 +38,8 @@ interface Revisao {
   km_registrado: number;
   origem_registro: string;
   confirmada_em: string | null;
+  recusada_em: string | null;
+  motivo_recusa: string | null;
   dentro_da_janela: boolean | null;
   url_etiqueta_anterior: string | null;
   url_etiqueta_atual: string | null;
@@ -463,15 +465,27 @@ export default function FilaDeVerificacao() {
                   {r.numero_revisao ? `${r.numero_revisao}ª` : "revisão"} · {dataBr(r.data_servico)} ·{" "}
                   <span className="tabular-nums">{r.km_registrado.toLocaleString("pt-BR")} km</span>
                 </span>
-                <span
-                  className={`ml-auto border px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] ${
-                    r.dentro_da_janela
-                      ? "border-mt-ink text-mt-ink"
-                      : "border-mt-accent text-mt-accent"
-                  }`}
-                >
-                  {r.dentro_da_janela ? "NA JANELA" : "FORA DA JANELA"}
-                </span>
+                {/* Recusada não é "fora da janela": é lançamento que a loja
+                    não validou. Mostrar o selo da janela aqui diria que a
+                    revisão existe e chegou atrasada. */}
+                {r.recusada_em ? (
+                  <span
+                    className="ml-auto border border-mt-accent px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] text-mt-accent"
+                    title={r.motivo_recusa ?? undefined}
+                  >
+                    RECUSADA
+                  </span>
+                ) : (
+                  <span
+                    className={`ml-auto border px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] ${
+                      r.dentro_da_janela
+                        ? "border-mt-ink text-mt-ink"
+                        : "border-mt-accent text-mt-accent"
+                    }`}
+                  >
+                    {r.dentro_da_janela ? "NA JANELA" : "FORA DA JANELA"}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
