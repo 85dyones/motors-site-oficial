@@ -20,6 +20,28 @@ escrever o domínio à mão em `src/`.
 **Enquanto a variável não mudar, nada muda de comportamento.** A virada é uma
 variável de ambiente, não um commit.
 
+> ## 🔴 Estado em 2026-08-15, fim do dia: virada PELA METADE
+> 
+> O DNS entrou e o domínio serve o site com certificado válido — mas
+> `NEXT_PUBLIC_SITE_URL` **não foi definida** (ou não houve redeploy depois
+> dela). Medido em produção:
+> 
+> ```
+> https://motorsstore.com.br            → 200, certificado OK
+> https://motorsstore.com.br/robots.txt → Sitemap: …vercel.app/sitemap.xml
+> canonical do apex                     → https://motors-site-oficial.vercel.app
+> ```
+> 
+> **Por que isso é urgente agora e não era ontem:** enquanto o domínio não
+> respondia, ninguém via nada. Agora ele responde 200 e diz ao Google, em toda
+> página, que *a versão oficial é o endereço da Vercel*. O domínio novo serve
+> o site e não indexa; o buscador segue mandando gente para o `.vercel.app`.
+> É o erro descrito no topo deste documento — página 200 com canonical
+> apontando para outro lugar — acontecendo de verdade.
+> 
+> **Conserto:** passos 2 e 3 abaixo (variável + redeploy). Dois cliques e uma
+> espera; nada de código.
+
 ## Passo 0 — o DNS no registro.br (medido em 2026-08-15)
 
 **Estado real hoje**, conferido contra os servidores autoritativos do `.br`:
@@ -29,6 +51,19 @@ variável de ambiente, não um commit.
 | Nameservers | `a.auto.dns.br`, `b.auto.dns.br` | **DNS automático do registro.br** — o domínio NÃO está na Vercel |
 | `A` do apex | não existe | nada responde em `motorsstore.com.br` |
 | `www` | não existe | — |
+
+> **Resolvido no mesmo dia, pelo caminho alternativo.** O dono manteve a zona
+> no registro.br e apontou os registros para a Vercel — o apex responde em
+> `216.198.79.1/.65` e o `www` em `64.29.17.1/.65`, ambos com certificado
+> válido. A tabela acima fica como registro do diagnóstico. **Consequência a
+> lembrar:** com a zona no registro.br, se a Vercel trocar o IP do apex, é
+> preciso trocar à mão — vale conferir de tempos em tempos que o apex ainda
+> responde com o certificado certo.
+>
+> Ponto menor de SEO: apex e `www` servem 200 **sem redirecionar** um para o
+> outro. Com o canonical correto (passo 2) isso deixa de ser problema de
+> indexação, mas o ideal é um 301 do `www` para o apex, configurável na
+> própria Vercel (Domains → o `www` → *Redirect to*).
 | `MX` | *null MX* (`preference 0`, alvo vazio) | padrão do registro.br: "este domínio não recebe e-mail" |
 | `TXT` | `v=spf1 -all` | padrão do registro.br: "ninguém envia e-mail por este domínio" |
 
