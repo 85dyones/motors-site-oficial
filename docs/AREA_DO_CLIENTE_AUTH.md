@@ -129,8 +129,20 @@ Duas funções diferentes, dois provedores, e é bom que sejam separados: o que
 [`VIRADA_DE_DOMINIO.md`](VIRADA_DE_DOMINIO.md) — inclusive a regra de SPF
 único, que é onde este tipo de configuração costuma quebrar.
 
-**No Supabase** (Project Settings → Auth → SMTP Settings), com o domínio já
-verificado no Resend:
+**Caminho curto: use a integração Resend ↔ Supabase.** O Resend tem um
+assistente (Settings → Integrations → Supabase) que verifica o domínio, cria a
+API key e **grava o SMTP no Supabase sozinho**. Ele foi o caminho usado em
+2026-08-15, e é preferível ao preenchimento manual por dois motivos: não há
+como errar host, porta ou o usuário `resend`, e o campo de remetente vem com o
+domínio **travado no que foi verificado** — o que elimina o erro descrito no
+aviso abaixo.
+
+> O assistente configura o SMTP e **nada mais**. Template, cadastro público e
+> Redirect URLs continuam sendo trabalho manual no painel do Supabase — ver
+> §1, §2 e o checklist.
+
+Se preferir preencher à mão (Project Settings → Auth → SMTP Settings), com o
+domínio já verificado no Resend:
 
 | Campo | Valor |
 |---|---|
