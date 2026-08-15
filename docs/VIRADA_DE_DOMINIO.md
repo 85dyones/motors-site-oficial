@@ -20,27 +20,45 @@ escrever o domínio à mão em `src/`.
 **Enquanto a variável não mudar, nada muda de comportamento.** A virada é uma
 variável de ambiente, não um commit.
 
-> ## 🔴 Estado em 2026-08-15, fim do dia: virada PELA METADE
-> 
-> O DNS entrou e o domínio serve o site com certificado válido — mas
-> `NEXT_PUBLIC_SITE_URL` **não foi definida** (ou não houve redeploy depois
-> dela). Medido em produção:
-> 
-> ```
-> https://motorsstore.com.br            → 200, certificado OK
-> https://motorsstore.com.br/robots.txt → Sitemap: …vercel.app/sitemap.xml
-> canonical do apex                     → https://motors-site-oficial.vercel.app
-> ```
-> 
-> **Por que isso é urgente agora e não era ontem:** enquanto o domínio não
-> respondia, ninguém via nada. Agora ele responde 200 e diz ao Google, em toda
-> página, que *a versão oficial é o endereço da Vercel*. O domínio novo serve
-> o site e não indexa; o buscador segue mandando gente para o `.vercel.app`.
-> É o erro descrito no topo deste documento — página 200 com canonical
-> apontando para outro lugar — acontecendo de verdade.
-> 
-> **Conserto:** passos 2 e 3 abaixo (variável + redeploy). Dois cliques e uma
-> espera; nada de código.
+> ## ✅ Virada CONCLUÍDA em 2026-08-15
+>
+> DNS, variável e redeploy, os três feitos no mesmo dia. Conferido em produção
+> depois do deploy — os pontos que o `src/lib/site.ts` centraliza saíram todos
+> no domínio novo:
+>
+> | Conferência | Resultado |
+> |---|---|
+> | `https://motorsstore.com.br` | 200, certificado válido |
+> | `<link rel="canonical">` | `https://motorsstore.com.br` |
+> | `robots.txt` → `Sitemap:` | `https://motorsstore.com.br/sitemap.xml` |
+> | `sitemap.xml` | todas as URLs no domínio novo |
+> | `og:url` da ficha de veículo | domínio novo |
+> | Feed do catálogo (`/api/feed/xml`) | 64 itens, `g:link` no domínio novo |
+> | `/og` (card social) | 200 `image/png`, e fora do `Disallow: /api/` |
+> | `/login`, `/api/auth/callback` | 200 e 307 |
+>
+> **O `g:id` do catálogo não mudou** (é o id do veículo, não a URL): o Meta
+> reaproveita os produtos existentes e só atualiza os links — anúncio ativo
+> não recomeça do zero.
+>
+> **O alias `motors-site-oficial.vercel.app` continua servindo tudo**,
+> inclusive o feed. Os dois workflows do n8n apontam para ele e **não precisam
+> ser alterados**; trocar para o domínio novo é cosmético e mexe em workflow
+> ativo — não vale o risco enquanto o alias existir.
+>
+> Fica pendente só o **301 de `www` para o apex** (hoje os dois servem 200).
+> Com o canonical correto não há prejuízo de indexação; é acabamento.
+
+### Depois da virada, no marketing (fora deste repositório)
+
+Dois itens que não são de código e ninguém avisa quando faltam:
+
+- **Verificação de domínio no Meta Business Manager.** O `motorsstore.com.br`
+  precisa ser verificado lá para a mensuração agregada de eventos continuar
+  atribuindo. O Pixel dispara igual, mas a atribuição pode degradar.
+- **Google Search Console:** adicionar a nova propriedade e reenviar o
+  sitemap. O `.vercel.app` seguirá indexado por um tempo — o canonical novo é
+  o que vai migrar a autoridade.
 
 ## Passo 0 — o DNS no registro.br (medido em 2026-08-15)
 
