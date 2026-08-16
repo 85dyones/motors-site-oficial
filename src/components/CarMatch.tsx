@@ -847,7 +847,7 @@ export default function CarMatch() {
                       value={customMaxBudget}
                       onChange={(e) => setCustomMaxBudget(Number(e.target.value))}
                       aria-label="Limite de investimento"
-                      className="mt-6 h-0.5 w-full cursor-pointer appearance-none bg-mt-inverso-regua accent-[var(--mt-accent)]"
+                      className="mt-range mt-foco mt-6 [--mt-range-trilho:var(--mt-inverso-regua)]"
                     />
                     <button
                       type="button"
