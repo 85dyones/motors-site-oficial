@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Catalogo from "../../components/modernist/Catalogo";
 import { getEstoque } from "../../lib/supabase";
-import { getCachedSettings } from "../../lib/settings";
+import { getCachedSettings, recortePublicoDeSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import {
   DESTAQUES_PADRAO,
@@ -41,7 +41,14 @@ export default async function EstoquePage() {
 
   const disponiveis = estoque.filter((v) => !v.vendido);
   const quickTags = normalizarQuickTags(settings.quickTags);
-  const stockOverrides = normalizarStockOverrides(settings.stockOverrides);
+  // `Catalogo` é client component: esta prop inteira vira payload público da
+  // página. As settings daqui vêm da chave de serviço, então o blob de
+  // overrides carrega `preco_compra` — o recorte público (o mesmo que o GET
+  // /api/settings aplica) fica entre os dois. Foi por faltar esta linha que o
+  // custo de aquisição de um veículo apareceu no HTML de /estoque (2026-08-16).
+  const stockOverrides = normalizarStockOverrides(
+    recortePublicoDeSettings(settings).stockOverrides,
+  );
 
   return (
     // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.

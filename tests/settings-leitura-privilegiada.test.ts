@@ -102,6 +102,49 @@ describe("policy do anônimo × recorte público", () => {
   });
 });
 
+/**
+ * O recorte não vale só para o GET /api/settings: qualquer página que passe
+ * `stockOverrides` como prop de client component publica o objeto inteiro no
+ * payload RSC do HTML. Foi assim que o `preco_compra` de um veículo apareceu
+ * no código-fonte público de /estoque (2026-08-16) — a página lia
+ * `getCachedSettings()` (chave de serviço) e entregava o blob cru ao
+ * `Catalogo`, por fora do recorte que o GET já aplicava.
+ */
+describe("overrides que chegam ao navegador", () => {
+  const fonteEstoque = readFileSync(
+    join(raiz, "src", "app", "estoque", "page.tsx"),
+    "utf-8"
+  );
+
+  it("/estoque passa o blob pelo recorte público antes do client component", () => {
+    expect(fonteEstoque).toContain("recortePublicoDeSettings(settings).stockOverrides");
+    expect(
+      fonteEstoque,
+      "o blob cru de getCachedSettings voltou a ir direto para a prop"
+    ).not.toContain("normalizarStockOverrides(settings.stockOverrides)");
+  });
+
+  it("a whitelist de campos públicos não ganhou campo de custo", () => {
+    const inicio = fonteSettings.indexOf("const CAMPOS_PUBLICOS_DE_OVERRIDE");
+    expect(inicio, "whitelist não encontrada").toBeGreaterThan(-1);
+    const lista = fonteSettings.slice(
+      inicio,
+      fonteSettings.indexOf("] as const", inicio)
+    );
+    expect(lista).not.toContain("preco_compra");
+    expect(lista).not.toMatch(/"preco"/);
+  });
+
+  it("o filtro cobre o blob sem invólucro, não só o { overrides }", () => {
+    // `normalizarStockOverrides` aceita as duas formas do row; se o filtro só
+    // tratasse o invólucro, a forma nua atravessaria crua com `preco_compra`.
+    const inicio = fonteSettings.indexOf("function filtrarOverridesPublicos");
+    expect(inicio, "filtrarOverridesPublicos não encontrada").toBeGreaterThan(-1);
+    const corpo = fonteSettings.slice(inicio, fonteSettings.indexOf("\n}", inicio));
+    expect(corpo).toContain("blob.overrides ?? ");
+  });
+});
+
 describe("getCachedSettings", () => {
   it("prefere a chave de serviço para ler a tabela", () => {
     // Roda sempre no servidor, dentro de `unstable_cache`, sem sessão. Com a

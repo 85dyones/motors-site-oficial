@@ -153,11 +153,17 @@ const CAMPOS_PUBLICOS_DE_OVERRIDE = [
 type Overrides = Record<string, Record<string, unknown>>;
 
 function filtrarOverridesPublicos(bruto: unknown): unknown {
-  const blob = bruto as { overrides?: Overrides } | null;
-  if (!blob?.overrides) return bruto;
+  if (!bruto || typeof bruto !== "object") return bruto;
+
+  // O row já circulou nas duas formas — `{ overrides: {...} }` e o Record
+  // direto (`normalizarStockOverrides` aceita ambas). O filtro cobre as duas:
+  // se só tratasse o invólucro, a forma nua atravessaria crua, com
+  // `preco_compra` e tudo.
+  const blob = bruto as { overrides?: Overrides };
+  const cru = blob.overrides ?? (bruto as Overrides);
 
   const limpos: Overrides = {};
-  for (const [id, campos] of Object.entries(blob.overrides)) {
+  for (const [id, campos] of Object.entries(cru)) {
     if (!campos || typeof campos !== "object") continue;
     const permitidos: Record<string, unknown> = {};
     for (const campo of CAMPOS_PUBLICOS_DE_OVERRIDE) {
@@ -165,7 +171,7 @@ function filtrarOverridesPublicos(bruto: unknown): unknown {
     }
     if (Object.keys(permitidos).length > 0) limpos[id] = permitidos;
   }
-  return { ...blob, overrides: limpos };
+  return blob.overrides ? { ...blob, overrides: limpos } : limpos;
 }
 
 /**
