@@ -253,6 +253,51 @@
   outline: none;
 }
 
+/* — controle deslizante (input[type=range]) —
+   `appearance: none` — necessário para afinar o trilho — descarta o
+   pegador nativo E o `accent-color`, então o pegador é desenhado aqui:
+   o quadrado de 20px do sistema sobre trilho de 2px, numa caixa de 24px
+   de altura para o dedo. Em fundo escuro o trilho troca de cor via
+   `--mt-range-trilho`. Os pares -webkit/-moz ficam em regras separadas
+   de propósito: pseudo-elemento desconhecido invalida a lista inteira. */
+.mt-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.mt-range:disabled {
+  cursor: default;
+}
+.mt-range::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--mt-range-trilho, var(--mt-regua-media));
+}
+.mt-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -9px; /* (2px do trilho − 20px do pegador) / 2 */
+  border: 0;
+  border-radius: 0;
+  background: var(--mt-accent);
+}
+.mt-range::-moz-range-track {
+  height: 2px;
+  background: var(--mt-range-trilho, var(--mt-regua-media));
+}
+.mt-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 0;
+  background: var(--mt-accent);
+}
+
 /* — foco visível —
    Herdado do DS: contorno de acento, sem raio. */
 .mt-foco:focus-visible {

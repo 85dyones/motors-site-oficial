@@ -160,7 +160,7 @@ Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100%
               onChange={(e) => setDownPaymentPercent(Number(e.target.value))}
               disabled={tipoEntrada === "sem_entrada"}
               aria-label="Porcentagem de entrada"
-              className="mt-foco mt-3.5 h-0.5 w-full cursor-pointer appearance-none bg-mt-regua-media accent-mt-accent"
+              className="mt-range mt-foco mt-3.5"
             />
           </div>
 

@@ -301,7 +301,7 @@ export default function Catalogo({
                 setPrecoMax(v >= 1000000 ? null : v);
                 setVisiveis(PAGINA);
               }}
-              className="mt-foco h-0.5 w-full appearance-none bg-mt-regua-media accent-mt-accent"
+              className="mt-range mt-foco"
             />
             <div className="mt-3 flex justify-between text-xs font-semibold">
               <span>R$ 50 mil</span>
