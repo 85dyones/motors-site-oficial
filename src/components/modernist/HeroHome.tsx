@@ -188,8 +188,11 @@ export default function HeroHome({
         />
       </div>
 
-      {/* Rodapé do hero: indicadores à esquerda, placa do destaque à direita */}
-      <div className="mt-auto flex items-end justify-between gap-6 pt-10 lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
+      {/* Rodapé do hero: indicadores à esquerda, placa do destaque à direita.
+          No mobile a linha não cabe (3 indicadores + placa de 280px > 360px),
+          então o rodapé empilha: indicadores em cima, placa embaixo em
+          largura total. */}
+      <div className="mt-auto flex flex-col gap-6 pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
         {slides.length > 1 ? (
           <div className="flex items-center gap-4 lg:gap-[18px]">
             {slides.map((v, i) => (
@@ -222,12 +225,14 @@ export default function HeroHome({
         )}
 
         {destaque && (
-          /* `sm:flex`, não `lg:flex`: abaixo de 1024px a placa não era cortada,
-             ela não existia. No tablet sobram 448px de largura livre ao lado
-             dos indicadores, então os 280px cabem sem disputa. */
+          /* A placa existe em toda largura — ela é o preço E o único link do
+             hero para o PDP; escondê-la no mobile deixava o destaque sem os
+             dois. Abaixo de `sm` ela vai em largura total na linha de baixo
+             (ver rodapé); no tablet sobram 448px ao lado dos indicadores e os
+             280px voltam a caber na mesma linha. */
           <Link
             href={getVeiculoPdpUrl(destaque)}
-            className="mt-foco hidden min-w-[280px] flex-col items-start bg-[rgba(20,18,18,.86)] px-[22px] py-[18px] no-underline sm:flex lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
+            className="mt-foco flex w-full flex-col items-start bg-[rgba(20,18,18,.86)] px-[22px] py-[18px] no-underline sm:w-auto sm:min-w-[280px] lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
           >
             <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent-400">
               EM DESTAQUE

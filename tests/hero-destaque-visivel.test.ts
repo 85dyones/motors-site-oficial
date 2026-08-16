@@ -5,15 +5,17 @@ import { join } from "node:path";
 /**
  * A placa "EM DESTAQUE" do hero da home some sem quebrar nada.
  *
- * Ela já sumiu de duas formas diferentes: escondida por `lg:flex` (invisível
- * em tablet, e ninguém percebe porque não há erro) e empurrada para fora da
- * dobra porque a tipografia fixa em px fazia o hero medir 758px numa janela
- * que só tinha 542px abaixo do header.
+ * Ela já sumiu de três formas diferentes: escondida por `lg:flex` (invisível
+ * em tablet, e ninguém percebe porque não há erro), escondida por
+ * `hidden sm:flex` (invisível no celular — e no celular ela é o preço E o
+ * único link do hero para o PDP), e empurrada para fora da dobra porque a
+ * tipografia fixa em px fazia o hero medir 758px numa janela que só tinha
+ * 542px abaixo do header.
  *
- * Nenhuma das duas aparece em build, lint ou teste de render — só olhando a
+ * Nenhuma das três aparece em build, lint ou teste de render — só olhando a
  * tela na resolução certa. Estas asserções seguram o mecanismo que corrigiu
- * as duas: o breakpoint da placa e o `--hero-cabe` que amarra o ritmo
- * vertical à altura da janela.
+ * todas: placa sem `hidden` em largura nenhuma e o `--hero-cabe` que amarra
+ * o ritmo vertical à altura da janela.
  */
 
 const raiz = join(__dirname, "..", "src", "components", "modernist");
@@ -24,9 +26,15 @@ const primitivos = readFileSync(join(raiz, "primitivos.tsx"), "utf-8");
 const placa = hero.slice(hero.indexOf("getVeiculoPdpUrl(destaque)"));
 
 describe("placa do veículo em destaque", () => {
-  it("aparece a partir do tablet, não só no desktop", () => {
-    expect(placa).toContain("sm:flex");
+  it("existe em toda largura — nenhum breakpoint a esconde", () => {
+    expect(placa).not.toMatch(/\bhidden\b/);
     expect(placa).not.toMatch(/\blg:flex\b/);
+  });
+
+  it("no mobile vai em largura total; do tablet em diante volta aos 280px", () => {
+    expect(placa).toContain("w-full");
+    expect(placa).toContain("sm:w-auto");
+    expect(placa).toContain("sm:min-w-[280px]");
   });
 });
 

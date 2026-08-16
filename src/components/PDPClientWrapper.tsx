@@ -109,16 +109,16 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
       if (e.key === "Escape") {
         setIsLightboxOpen(false);
       } else if (e.key === "ArrowRight") {
-        setLightboxImageIndex((prev) => (prev + 1) % veiculo.web_full_images.length);
+        setLightboxImageIndex((prev) => (prev + 1) % displayImages.length);
       } else if (e.key === "ArrowLeft") {
-        setLightboxImageIndex((prev) => (prev - 1 + veiculo.web_full_images.length) % veiculo.web_full_images.length);
+        setLightboxImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isLightboxOpen, veiculo.web_full_images.length]);
+  }, [isLightboxOpen, displayImages.length]);
 
   // Fetch tracking ID from LocalStorage on mount
   useEffect(() => {
@@ -746,24 +746,27 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
                 ))}
               </div>
 
-              {/* Left and Right navigation arrows */}
+              {/* Setas de navegação. No mobile a galeria tem ~210px de altura
+                  e 48px de seta cobriam o carro; 36px porque ali a seta é
+                  atalho secundário — o gesto primário é o arrasto do próprio
+                  carrossel (snap-x logo acima). */}
               {displayImages.length > 1 && (
                 <>
                   <button
                     onClick={() => scrollCarouselTo((activeImageIndex - 1 + displayImages.length) % displayImages.length)}
- className="mt-foco absolute left-0 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
+ className="mt-foco absolute left-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent sm:h-12 sm:w-12"
                     aria-label="Imagem anterior"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-4 h-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
                     </svg>
                   </button>
                   <button
                     onClick={() => scrollCarouselTo((activeImageIndex + 1) % displayImages.length)}
- className="mt-foco absolute right-0 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
+ className="mt-foco absolute right-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent sm:h-12 sm:w-12"
                     aria-label="Próxima imagem"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-4 h-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                     </svg>
                   </button>
@@ -1157,7 +1160,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
                 {veiculo.marca} {veiculo.modelo}
               </span>
               <span className="text-white/80 text-[10px] sm:text-xs font-bold tracking-widest uppercase bg-white/10 px-2.5 py-0.5  border border-white/15 backdrop-blur-md">
-                {lightboxImageIndex + 1} / {veiculo.web_full_images.length}
+                {lightboxImageIndex + 1} / {displayImages.length}
               </span>
             </div>
 
@@ -1175,10 +1178,14 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
 
           {/* Main Fullscreen Image area: Takes 100% of viewport width and height */}
           <div className="relative w-full h-full flex items-center justify-center overflow-hidden p-0 m-0">
-            {/* Left navigation arrow */}
-            {veiculo.web_full_images.length > 1 && (
+            {/* Left navigation arrow.
+                Sempre `displayImages`, nunca `web_full_images` direto: a
+                galeria e as miniaturas indexam `displayImages` (whatsapp com
+                fallback), e o lightbox lendo o outro array abria a foto errada
+                — ou estourava — quando os dois divergiam. */}
+            {displayImages.length > 1 && (
               <button
-                onClick={() => setLightboxImageIndex((prev) => (prev - 1 + veiculo.web_full_images.length) % veiculo.web_full_images.length)}
+                onClick={() => setLightboxImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length)}
  className="absolute left-3 sm:left-6 z-50 h-11 w-11 sm:h-14 sm:w-14  bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer "
                 aria-label="Imagem anterior"
               >
@@ -1191,7 +1198,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
             {/* Edge-to-Edge Image rendering */}
             <div className="relative w-full h-full max-w-full max-h-full flex items-center justify-center p-0">
               <Image
-                src={veiculo.web_full_images[lightboxImageIndex]}
+                src={displayImages[lightboxImageIndex]}
                 alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ampliada ${lightboxImageIndex + 1}`}
                 fill
  className="object-contain w-full h-full p-2 sm:p-4"
@@ -1201,9 +1208,9 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
             </div>
 
             {/* Right navigation arrow */}
-            {veiculo.web_full_images.length > 1 && (
+            {displayImages.length > 1 && (
               <button
-                onClick={() => setLightboxImageIndex((prev) => (prev + 1) % veiculo.web_full_images.length)}
+                onClick={() => setLightboxImageIndex((prev) => (prev + 1) % displayImages.length)}
  className="absolute right-3 sm:right-6 z-50 h-11 w-11 sm:h-14 sm:w-14  bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer "
                 aria-label="Próxima imagem"
               >
