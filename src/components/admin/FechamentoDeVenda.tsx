@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   validarFechamentoDeVenda,
   planoDeRevisoes,
@@ -10,6 +10,30 @@ import {
   type DadosDaVenda,
   type Problema,
 } from "../../lib/ciclo/vendaFechamento";
+import {
+  consultarCep,
+  cepValido,
+  formatarCep,
+  enderecoEmLinha,
+  type EnderecoDoCep,
+} from "../../lib/ciclo/cep";
+
+/** Um carro do estoque, do jeito que a rota da A19 devolve. */
+interface VeiculoDoEstoque {
+  id: number;
+  marca: string | null;
+  modelo: string | null;
+  versao: string | null;
+  ano: number | null;
+  ano_fabricacao: number | null;
+  quilometragem: number | null;
+  preco: number | null;
+  preco_compra: number | null;
+  cor: string | null;
+  placa: string | null;
+  chassi: string | null;
+  valor_fipe: number | null;
+}
 
 /**
  * Tela A19 — fechamento da venda do Ciclo (manual v1.1 §3).
@@ -41,6 +65,7 @@ const vazioDaVenda: DadosDaVenda = {
   valor_venda: "",
   custo_aquisicao: "",
   vendedor: "",
+  cep: "",
   consentimento_lgpd: false,
   consentimento_canais: { whatsapp: true, email: true, sms: false },
   aderiu_ciclo: true,
@@ -104,6 +129,86 @@ export default function FechamentoDeVenda() {
   const [problemasDoServidor, setProblemasDoServidor] = useState<Problema[]>([]);
   const [concluida, setConcluida] = useState<{ veiculo_vendido_id: string } | null>(null);
   const [tentouEnviar, setTentouEnviar] = useState(false);
+
+  // ---- o estoque, para o seletor ----
+  const [estoque, setEstoque] = useState<VeiculoDoEstoque[]>([]);
+  const [buscaVeiculo, setBuscaVeiculo] = useState("");
+  const [escolhido, setEscolhido] = useState<number | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/ciclo/vendas/estoque")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (vivo && j?.veiculos) setEstoque(j.veiculos as VeiculoDoEstoque[]);
+      })
+      .catch(() => {
+        // Estoque indisponível não trava a venda: o formulário continua
+        // digitável, que é como ele funcionava até 2026-08-17.
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const encontrados = useMemo(() => {
+    const termo = buscaVeiculo.trim().toLowerCase();
+    if (termo.length < 2) return [];
+    return estoque
+      .filter((v) =>
+        [v.marca, v.modelo, v.versao, v.placa, v.id, v.cor]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(termo),
+      )
+      .slice(0, 8);
+  }, [buscaVeiculo, estoque]);
+
+  /**
+   * Preenche o bloco do veículo a partir do estoque — e deixa tudo editável.
+   *
+   * O KM e o valor vêm do anúncio: o KM muda entre anunciar e entregar, e o
+   * valor final é o negociado. Por isso entram como ponto de partida, não como
+   * verdade — quem confere é o vendedor, com o carro na frente.
+   */
+  function usarVeiculo(v: VeiculoDoEstoque) {
+    setEscolhido(v.id);
+    setBuscaVeiculo("");
+    setDados((d) => ({
+      ...d,
+      estoque_id: v.id,
+      chassi: v.chassi ?? d.chassi,
+      placa: v.placa ?? d.placa,
+      marca: v.marca ?? d.marca,
+      modelo: v.modelo ?? d.modelo,
+      versao: v.versao ?? d.versao,
+      ano_fabricacao: v.ano_fabricacao ?? d.ano_fabricacao,
+      ano_modelo: v.ano ?? d.ano_modelo,
+      km_na_venda: v.quilometragem ?? d.km_na_venda,
+      valor_venda: v.preco ?? d.valor_venda,
+      custo_aquisicao: v.preco_compra ?? d.custo_aquisicao,
+    }));
+  }
+
+  // ---- CEP ----
+  const [endereco, setEndereco] = useState<EnderecoDoCep | null>(null);
+  const [cepBuscando, setCepBuscando] = useState(false);
+  const [cepNaoAchado, setCepNaoAchado] = useState(false);
+
+  async function buscarCep(valor: string) {
+    if (!cepValido(valor)) {
+      setEndereco(null);
+      setCepNaoAchado(false);
+      return;
+    }
+    setCepBuscando(true);
+    setCepNaoAchado(false);
+    const achado = await consultarCep(valor);
+    setEndereco(achado);
+    setCepNaoAchado(achado === null);
+    setCepBuscando(false);
+  }
 
   const problemas = useMemo(() => validarFechamentoDeVenda(dados), [dados]);
   const podeFechar = problemas.length === 0;
@@ -250,6 +355,35 @@ export default function FechamentoDeVenda() {
                 onChange={(e) => set("email", e.target.value)}
               />
             </Campo>
+
+            {/* CEP: consulta para CONFERIR. Só o CEP é gravado — o §2.1 prevê
+                `clientes.cep` e não prevê o endereço completo. */}
+            <Campo id="cep" rotulo="CEP" dica="Opcional. Serve para saber a região do cliente.">
+              <input
+                id="cep"
+                inputMode="numeric"
+                className={inputClasse}
+                value={formatarCep(dados.cep)}
+                onChange={(e) => {
+                  set("cep", e.target.value);
+                  setEndereco(null);
+                  setCepNaoAchado(false);
+                }}
+                onBlur={(e) => buscarCep(e.target.value)}
+                placeholder="00000-000"
+              />
+              {cepBuscando && (
+                <p className="text-[11px] text-mt-neutral-700">Consultando…</p>
+              )}
+              {endereco && (
+                <p className="text-[11px] text-mt-ink">{enderecoEmLinha(endereco)}</p>
+              )}
+              {cepNaoAchado && (
+                <p className="text-[11px] font-semibold text-mt-accent">
+                  CEP não encontrado. Confira — ele é gravado do jeito que estiver.
+                </p>
+              )}
+            </Campo>
           </div>
 
           <div className="mt-5 border-t border-mt-regua-fina pt-4">
@@ -299,6 +433,71 @@ export default function FechamentoDeVenda() {
           titulo="Veículo"
           descricao="O KM de saída é a primeira notação do odômetro — é contra ele que a primeira revisão é conferida."
         >
+          {/* ---- o atalho: puxar do estoque ----
+              Chassi e placa vêm do feed da RevendaMais desde 2026-08-17. Eram
+              os dois campos que o vendedor copiava do documento à mão. */}
+          <div className="mb-5 border border-mt-regua-fina bg-mt-bg p-4">
+            <label htmlFor="busca-veiculo" className={rotuloClasse}>
+              Puxar do estoque
+            </label>
+            <input
+              id="busca-veiculo"
+              className={`${inputClasse} mt-1.5`}
+              value={buscaVeiculo}
+              onChange={(e) => setBuscaVeiculo(e.target.value)}
+              placeholder={
+                estoque.length > 0
+                  ? `Marca, modelo, placa ou código — ${estoque.length} carros`
+                  : "Estoque indisponível; preencha à mão abaixo"
+              }
+              autoComplete="off"
+            />
+
+            {encontrados.length > 0 && (
+              <ul className="mt-2 flex list-none flex-col border border-mt-regua-fina bg-mt-surface p-0">
+                {encontrados.map((v) => (
+                  <li key={v.id} className="border-b border-mt-regua-fina last:border-0">
+                    <button
+                      type="button"
+                      onClick={() => usarVeiculo(v)}
+                      className="mt-foco flex w-full flex-wrap items-baseline gap-x-3 gap-y-0.5 p-2.5 text-left text-[12px] hover:bg-mt-bg"
+                    >
+                      <span className="font-semibold text-mt-ink">
+                        {[v.marca, v.modelo, v.versao].filter(Boolean).join(" ")}
+                      </span>
+                      <span className="text-mt-neutral-700">{v.ano ?? "—"}</span>
+                      {v.placa && (
+                        <span className="font-mono text-mt-neutral-700">{v.placa}</span>
+                      )}
+                      <span className="ml-auto text-mt-neutral-600">
+                        {v.quilometragem?.toLocaleString("pt-BR") ?? "—"} km
+                      </span>
+                      {!v.chassi && (
+                        <span className="w-full text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
+                          sem chassi no feed — digite à mão
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {buscaVeiculo.trim().length >= 2 && encontrados.length === 0 && (
+              <p className="mt-2 text-[12px] text-mt-neutral-700">
+                Nenhum carro do estoque com isso. Se o veículo não veio da loja (troca, por
+                exemplo), preencha os campos abaixo.
+              </p>
+            )}
+
+            {escolhido !== null && (
+              <p className="mt-2 text-[12px] text-mt-neutral-700">
+                Preenchido do estoque <strong>#{escolhido}</strong>. Confira o KM de saída e o
+                valor negociado — os dois mudam entre o anúncio e a entrega.
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo id="chassi" rotulo="Chassi *" problema={problemaDe("chassi")}>
               <input

@@ -66,8 +66,9 @@ describe("nomenclatura da tabela de inventário", () => {
     const padrao = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/;
     const comAcesso = arquivos.filter((a) => padrao.test(readFileSync(a, "utf8")));
 
-    // 8 arquivos, 16 pontos de acesso — o inventário atual:
+    // 9 arquivos, 17 pontos de acesso — o inventário atual:
     //   lib/supabase.ts (5), lib/estoqueEscrita.ts (2),
+    //   api/ciclo/vendas/estoque/route.ts (1),
     //   api/estoque/[id]/route.ts (2, sendo 1 em comentário),
     //   api/financeiro/margens/consulta/route.ts (2),
     //   api/financeiro/margens/route.ts (2), lib/webhook-dispatcher.ts (1),
@@ -91,7 +92,13 @@ describe("nomenclatura da tabela de inventário", () => {
     // (id, conteudo_atualizado_em) alimenta o `lastmod` do sitemap. Nenhum
     // arquivo novo entrou na lista — `lib/publicacao.ts`, criado no mesmo dia,
     // lê `veiculos_vendidos`, que é outra tabela.
-    expect(comAcesso.length).toBe(8);
+    //
+    // E o nono arquivo entrou no mesmo dia:
+    // `api/ciclo/vendas/estoque/route.ts`, que serve o seletor de veículo do
+    // fechamento de venda (A19). É a única leitura que devolve `chassi` e
+    // `placa` — documentação interna —, e por isso tem o gate da venda, não o
+    // do estoque público.
+    expect(comAcesso.length).toBe(9);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -99,6 +106,6 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(16);
+    expect(total).toBe(17);
   });
 });

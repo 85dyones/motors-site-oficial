@@ -73,6 +73,12 @@ export interface DadosDaVenda {
   custo_aquisicao?: number | string | null;
   vendedor?: string | null;
   estoque_id?: number | string | null;
+  /**
+   * CEP do cliente — opcional, e só ele. O §2.1 prevê `clientes.cep` e não
+   * prevê logradouro/bairro/cidade: a consulta no formulário serve para o
+   * vendedor conferir que digitou certo, não para guardar o endereço.
+   */
+  cep?: string | null;
   consentimento_lgpd?: boolean | null;
   consentimento_canais?: { whatsapp?: boolean; email?: boolean; sms?: boolean } | null;
   aderiu_ciclo?: boolean | null;
