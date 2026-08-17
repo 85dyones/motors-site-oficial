@@ -64,11 +64,9 @@ Medido no banco, nos 43 veículos:
 - **`laudo_pericia`: 0 de 43 preenchidos.**
 - **`opcionais`: 1 de 43 preenchido.**
 
-O primeiro é grave e não é problema de redação. A promessa nº 1 da loja é *"o laudo de cada carro fica na ficha dele"*, e o campo do laudo está vazio no estoque inteiro. Dá para escrever bom texto sem isso, mas não dá para escrever o texto que a tese da loja pede — e afirmar laudo aprovado sem o dado seria inventar fato, o que este projeto já decidiu não fazer (ver o comentário do selo de perícia em `EditorDeVeiculo.tsx`).
+**Resolvido para o `laudo_pericia` em 2026-08-17:** o dono confirmou que todos os veículos passam por perícia cautelar, e o campo vazio é falha de lançamento no sistema. O texto pode afirmar o exame. O campo continua devendo ser preenchido — a promessa pública é que o laudo fica na ficha do carro, e hoje não fica.
 
-O segundo tira a matéria-prima mais óbvia de diferenciação entre dois carros do mesmo modelo.
-
-**Isto precisa de decisão do dono antes da redação em massa.** Escrever 33 textos agora e reescrever quando os laudos entrarem é trabalho feito duas vezes.
+**`opcionais` segue aberto**, e tira a matéria-prima mais óbvia de diferenciação entre dois carros do mesmo modelo. É o próximo lote (§7).
 
 ## 4. Objetivo
 
@@ -144,12 +142,34 @@ O dado está em `conteudo-seo/estoque.json`, com `estado_do_texto` por veículo.
 
 O trigger `estoque_motors_conteudo_atualizado` move `conteudo_atualizado_em` a cada gravação, então o sitemap avisa os portais sozinho. Nada além de escrever é necessário.
 
-## 7. O que este briefing NÃO responde
+## 7. Respondido pelo dono em 2026-08-17
 
-Aberto de propósito — precisa de pesquisa real ou de decisão do dono, e inventar aqui seria pior que deixar em branco:
+- **Laudo.** Todos os veículos passam por perícia cautelar — o campo vazio é falha de lançamento, não ausência do exame. **O texto pode afirmar.** O campo continua devendo ser preenchido: a promessa pública é que o laudo fica na ficha do carro.
+- **Posicionamento.** "Premium" descartado. Ver `POSICIONAMENTO.md` — o termo é **seleção**, frase-mãe "o carro que passou".
+- **Geografia.** Local: raio de 50 km de Curitiba. Digital: Paraná inteiro e Santa Catarina até Balneário Camboriú.
+- **Motos.** Deixam de ser exceção. Mesma régua de texto e de seleção.
+- **Concorrência.** Pesquisada — resultado em `POSICIONAMENTO.md`.
+- **Aprovação.** Rascunhos sobem direto; marketing ou admin aprovam no painel. Confirmado no código: `descricao_seo` é editável por Admin, Marketing e Comercial (`ACAO_DO_CAMPO_DE_VEICULO` em `src/lib/permissoes.ts`).
 
-- **Concorrência em Curitiba.** Quem já ranqueia para "seminovo Curitiba" e como escrevem. Exige pesquisa de mercado, não leitura de repositório.
-- **Volume de busca** por modelo na região — define a ordem da fila melhor que o preço.
-- **As 4 motos e o "JTZ Chopper"** no estoque: o site inteiro fala "carros", as rotas são `/carros/...`. Moto entra na mesma régua de texto? É decisão de posicionamento.
-- **Raio do "e região"** — Curitiba só, RMC, ou Paraná? Muda quais cidades cabem no texto.
-- **Quem escreve e quem aprova.** 33 textos é volume que precisa de dono.
+### Ainda aberto
+
+- **Volume de busca por modelo na região** — ordenaria a fila melhor que o preço. Precisa de ferramenta de keyword, não de repositório.
+- **Nomenclatura de motos** — o site fala "carros" e as rotas são `/carros/...`. Decidir antes de o volume de motos crescer.
+- **`opcionais`: 1 de 43.** Próximo lote. Preencher exige pesquisa de ficha de fábrica por versão exata, e o risco é afirmar item que aquela unidade não tem — variação de série, pacote opcional, mudança de ano-modelo. Fazer conservador: só o que é inequivocamente de série na versão, e o dono ajusta em cima.
+
+## 8. Estado da execução
+
+**31 rascunhos gravados em produção em 2026-08-17** (`aplicar-rascunhos.js --gravar`). Conferido pelo efeito, simulando a cadeia do feed:
+
+| | antes | depois |
+|---|---|---|
+| Anúncios com texto próprio | 1 distinto em 41 | **41 distintos em 41** |
+| Meta descriptions distintas | — | **41 em 41** |
+| Fonte `descricao_seo` | 0 | 31 |
+| Fonte `descricao` (texto que já era próprio) | — | 10 |
+
+Os 31 tiveram `conteudo_atualizado_em` movido pelo trigger, então o `lastmod` do sitemap já avisa os portais a reprocessar.
+
+**Faltam os 10 com texto próprio** — são distintos entre si e não estão quebrados, mas foram escritos antes do frame de seleção. Revisar contra `POSICIONAMENTO.md`.
+
+Para reverter tudo: `node conteudo-seo/aplicar-rascunhos.js --reverter`.
