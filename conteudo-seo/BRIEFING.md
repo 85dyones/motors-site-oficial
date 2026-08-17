@@ -169,11 +169,20 @@ Isso também respondeu, com dado em vez de palpite, perguntas que eu tinha evita
 
 `extrair-acessorios.js` resolve o presente. **A correção definitiva é acrescentar `ACCESSORIES` ao mapeamento do n8n** — sem isso, todo ciclo de sync continua ignorando o campo, e veículo novo entra sem opcionais de novo.
 
+## 10. Decisões do dono em 2026-08-17 (segunda rodada)
+
+- **FIPE não aparece.** O feed traz `VALOR_FIPE` real, mas exibir foi descartado — não é o ideal para a loja. O campo continua sem uso; a tese de transparência se sustenta no preço no anúncio, sem comparativo.
+- **O laudo não fica na ficha.** Está disponível para consulta mediante solicitação. Consequências: nenhum dos 41 textos promete laudo na ficha (conferido — só afirmam que o veículo passou pela perícia), e o texto **que está no ar** também não promete: `site_settings.about` diz *"Laudo Cautelar 100% Aprovado: Zero histórico de leilão, sinistro ou adulteração"*. Só o fallback `src/lib/aboutSettings.json` do repositório ainda carrega a frase *"O laudo de cada carro fica na ficha dele"* — corrigir para não aparecer numa queda do banco.
+
+### ⚠️ Override de teste no ar
+
+O BMW X4 (`7947766`), o carro mais caro da vitrine, tem override do painel com `descricao` = `<ul><li>Teste de ajuste descritivo supabase</li></ul>`. Está sendo renderizado na PDP. Feed e meta description estão salvos porque agora vêm de `descricao_seo`, mas o corpo da página mostra o texto de teste. Remoção é pelo painel.
+
 ### Outros campos que o feed traz e o sync descarta
 
 | Tag | Conteúdo | Por que importa |
 |---|---|---|
-| `VALOR_FIPE` | valor real (ex.: `109359.00`) | A linha de FIPE foi **removida da PDP em 2026-08-06** porque o dado era inventado. O feed tem o valor de verdade — e preço ao lado da FIPE é exatamente a prova que a tese de transparência pede |
+| ~~`VALOR_FIPE`~~ | valor real (ex.: `109359.00`) | **Descartado pelo dono em 2026-08-17** — exibir FIPE não é o ideal para a loja. Fica registrado que o dado existe, caso a decisão mude |
 | `DOORS` | `4` | Ficha técnica |
 | `HP` | `185` (parcial) | Ficha técnica |
 | `CONDITION` | `USADO` | Já derivado da km, mas é a fonte |
