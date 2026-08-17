@@ -104,6 +104,82 @@ describe("apenasDoUltimoSync", () => {
     expect(visiveis).not.toContain(3);
   });
 
+  it("ciclo pela metade NÃO esconde o inventário — serve os dois ciclos", () => {
+    // O piso de sanidade. O n8n morre no meio da fila e carimba 4 dos 40
+    // veículos: sem o piso, esses 4 viram "o ciclo mais recente" e os outros 36
+    // são declarados fora do feed.
+    //
+    // Isso sempre encolheu a vitrine, e o ciclo seguinte consertava em 6h. Ficou
+    // caro quando sair do feed passou a implicar `noindex` e remoção do
+    // sitemap: a vitrine volta em horas, o índice do Google leva semanas.
+    const parcial = Array.from({ length: 4 }, (_, i) => ({
+      id: i,
+      last_seen_at: em(agora, -i * 200),
+    }));
+    const cicloAnterior = Array.from({ length: 40 }, (_, i) => ({
+      id: 100 + i,
+      last_seen_at: em(agora, -6 * H - i * 200),
+    }));
+    const fantasmas = Array.from({ length: 20 }, (_, i) => ({
+      id: 900 + i,
+      last_seen_at: em(agora, -60 * 24 * H - i * 200),
+    }));
+
+    const visiveis = apenasDoUltimoSync([...parcial, ...cicloAnterior, ...fantasmas]);
+
+    // Os 4 confirmados mais os 40 do último ciclo completo.
+    expect(visiveis).toHaveLength(44);
+    // E NÃO a tabela inteira: alargar até o ciclo anterior é diferente de
+    // desistir de filtrar. Os fantasmas de dois meses continuam fora — eles são
+    // o problema que este filtro existe para resolver.
+    expect(visiveis.some((l) => l.id >= 900)).toBe(false);
+  });
+
+  it("queda normal entre ciclos passa sem alarme", () => {
+    // Contraprova: sem isto, o piso poderia estar sempre ligado e o teste acima
+    // passaria por acidente. Ciclo a ciclo a variação real é de poucos veículos
+    // — 45 em 2026-08-04, 43 em 2026-08-17 —, e essa queda TEM de filtrar.
+    const atual = Array.from({ length: 24 }, (_, i) => ({
+      id: i,
+      last_seen_at: em(agora, -i * 200),
+    }));
+    const anterior = Array.from({ length: 40 }, (_, i) => ({
+      id: 100 + i,
+      last_seen_at: em(agora, -6 * H - i * 200),
+    }));
+
+    const visiveis = apenasDoUltimoSync([...atual, ...anterior]);
+    // 24 é 60% de 40: acima do piso, então o ciclo é aceito e o anterior sai.
+    expect(visiveis).toHaveLength(24);
+    expect(visiveis.every((l) => l.id < 24)).toBe(true);
+  });
+
+  it("o piso não dispara no primeiro sync, quando não há ciclo anterior", () => {
+    // Só existe um ciclo: não há com o que comparar, e inventar uma referência
+    // travaria o estoque novo na primeira coleta.
+    const primeiro = Array.from({ length: 3 }, (_, i) => ({
+      id: i,
+      last_seen_at: em(agora, -i * 200),
+    }));
+    expect(apenasDoUltimoSync(primeiro)).toHaveLength(3);
+  });
+
+  it("uma loja que encolhe de verdade aparece encolhida no ciclo seguinte", () => {
+    // O piso atrasa, não congela. Depois que o ciclo pequeno vira o "anterior",
+    // o próximo ciclo do mesmo tamanho passa no teste e a vitrine acompanha.
+    const atual = Array.from({ length: 5 }, (_, i) => ({
+      id: i,
+      last_seen_at: em(agora, -i * 200),
+    }));
+    const anteriorTambemPequeno = Array.from({ length: 6 }, (_, i) => ({
+      id: 100 + i,
+      last_seen_at: em(agora, -6 * H - i * 200),
+    }));
+
+    const visiveis = apenasDoUltimoSync([...atual, ...anteriorTambemPequeno]);
+    expect(visiveis).toHaveLength(5);
+  });
+
   it("reproduz o caso real de 2026-08-04: 88 linhas, 45 no feed", () => {
     const doFeed = Array.from({ length: 45 }, (_, i) => ({
       id: i,

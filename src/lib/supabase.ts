@@ -483,6 +483,21 @@ export function textoUtil(bruto: unknown): string {
 const JANELA_MESMO_SYNC_MS = 30 * 60 * 1000;
 
 /**
+ * Quão menor que o ciclo anterior um ciclo pode ser antes de virar suspeito.
+ *
+ * Metade é folgado de propósito. A variação real entre ciclos é de poucos
+ * veículos (45 em 2026-08-04, 43 em 2026-08-17), então qualquer coisa acima
+ * deste piso passa sem atrito; e uma coleta que morre no meio costuma trazer
+ * uma fração muito menor, não 49%. O limiar existe para separar catástrofe de
+ * rotina, não para auditar o tamanho do estoque.
+ *
+ * Errar aqui para o lado permissivo é barato: o pior caso é a vitrine mostrar
+ * por algumas horas um carro que já saiu. Errar para o lado severo tira do
+ * índice do Google carros que estão à venda, e isso não volta em horas.
+ */
+const FRACAO_MINIMA_DO_CICLO = 0.5;
+
+/**
  * Descarta veículos que não vieram no ciclo de sync mais recente.
  *
  * O feed do RevendaMais é a fonte da verdade sobre o que está à venda, e o sync
@@ -506,7 +521,48 @@ export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(l
   if (carimbos.length === 0) return linhas;
 
   const maisRecente = Math.max(...carimbos);
-  const corte = maisRecente - JANELA_MESMO_SYNC_MS;
+  let corte = maisRecente - JANELA_MESMO_SYNC_MS;
+
+  // ----------------------------------------------------------
+  // Piso de sanidade: ciclo que chegou pela metade não vira verdade
+  // ----------------------------------------------------------
+  // A válvula que já existia protege do zero absoluto (`getEstoque` serve tudo
+  // se o filtro descartar todas as linhas). Não protegia do caso intermediário:
+  // o n8n morrer no meio da fila e carimbar 5 dos 43 veículos. Esses 5 viram o
+  // "ciclo mais recente" e os outros 38 caem fora da janela.
+  //
+  // Isso sempre encolheu a vitrine — recuperável no ciclo seguinte, 6h depois.
+  // Passou a custar caro quando a saída do feed passou a implicar `noindex` e
+  // remoção do sitemap: a vitrine volta em 6h, o índice do Google leva semanas.
+  // O erro deixou de ser simétrico, então o filtro precisa desconfiar.
+  //
+  // A comparação é entre CICLOS, não entre contagens visíveis. Ciclo a ciclo, a
+  // variação real é pequena: em 2026-08-04 o feed trouxe 45 veículos e em
+  // 2026-08-17 trouxe 43. Uma queda para menos da metade não é a loja vendendo,
+  // é a coleta falhando.
+  const anteriores = carimbos.filter((t) => t < corte);
+  if (anteriores.length > 0) {
+    const noUltimoCiclo = carimbos.length - anteriores.length;
+    const ancoraAnterior = Math.max(...anteriores);
+    const corteAnterior = ancoraAnterior - JANELA_MESMO_SYNC_MS;
+    const noCicloAnterior = anteriores.filter((t) => t >= corteAnterior).length;
+
+    if (noUltimoCiclo < FRACAO_MINIMA_DO_CICLO * noCicloAnterior) {
+      // Alarga o corte até abraçar o ciclo anterior, em vez de servir a tabela
+      // inteira: servir tudo traria de volta os fantasmas de meses atrás, que é
+      // o problema que este filtro existe para resolver. Assim a vitrine mostra
+      // o último inventário completo mais o que o ciclo parcial já confirmou —
+      // no máximo algumas horas de atraso, nunca um catálogo inventado.
+      console.warn(
+        "[Supabase] Ciclo de sync suspeito: %d veículos contra %d do ciclo anterior. " +
+          "Servindo os dois ciclos até a próxima coleta — nenhum veículo será " +
+          "declarado fora do feed por causa disto.",
+        noUltimoCiclo,
+        noCicloAnterior
+      );
+      corte = corteAnterior;
+    }
+  }
 
   // Linha sem carimbo é mantida: pode ter sido inserida à mão pelo painel, e
   // sumir do site em silêncio seria pior que aparecer indevidamente.
