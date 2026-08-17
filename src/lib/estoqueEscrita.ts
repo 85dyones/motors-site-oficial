@@ -22,6 +22,9 @@ export const CAMPOS_NOSSOS = [
   "garantia_fabrica",
   "preco_compra",
   "descricao",
+  // Migração 20260817130000. Campo do painel, como os de cima: o sync não o
+  // conhece, então o texto escrito aqui sobrevive a todo ciclo do RevendaMais.
+  "descricao_seo",
   "laudo_pericia",
   "opcionais",
   "status_tag",
@@ -99,9 +102,13 @@ export async function aplicarNosVeiculos(
   if (error) {
     if (ehTabelaOuColunaAusente(error)) {
       return {
+        // A mensagem não cita mais um arquivo só. Citava
+        // `20260807160000_ficha_propria_do_painel.sql`, e desde que
+        // `descricao_seo` entrou em CAMPOS_NOSSOS (20260817130000) esse nome
+        // manda quem lê aplicar a migração errada — pior que não sugerir nada.
         erro:
-          "Campo da ficha própria ainda não existe no banco. Aplique a migração " +
-          "20260807160000_ficha_propria_do_painel.sql.",
+          "Campo da ficha própria ainda não existe no banco. Aplique as migrações " +
+          "pendentes de supabase/migrations e recarregue.",
         status: 500,
         camposSalvos: [],
         mudancasRegistradas: 0,

@@ -190,6 +190,10 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   status_tag: "Editar opcionais e destaques rápidos",
   status_tag_color: "Editar opcionais e destaques rápidos",
   descricao: "Editar opcionais e destaques rápidos",
+  // Mesma linha da descrição editorial: as duas são texto de anúncio, e quem
+  // escreve uma escreve a outra. `descricao_seo` entrou em 20260817130000 —
+  // é o texto que vai para os portais e para a busca.
+  descricao_seo: "Editar opcionais e destaques rápidos",
   laudo_pericia: "Editar opcionais e destaques rápidos",
   opcionais: "Editar opcionais e destaques rápidos",
 };

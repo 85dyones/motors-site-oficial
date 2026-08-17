@@ -43,6 +43,7 @@ interface VeiculoDb {
   whatsapp_images: string[] | null;
   pericia: string | null;
   descricao: string | null;
+  descricao_seo: string | null;
   laudo_pericia: string | null;
   opcionais: string | null;
   tipo: string | null;
@@ -80,6 +81,7 @@ const NOME_DO_CAMPO: Record<string, string> = {
   garantia_fabrica: "Garantia de fábrica",
   preco_compra: "Preço de compra",
   descricao: "Descrição",
+  descricao_seo: "Descrição para portais",
   laudo_pericia: "Laudo cautelar",
   opcionais: "Opcionais",
   status_tag: "Tag de destaque",
@@ -235,6 +237,7 @@ export default function EditorDeVeiculo({
         garantia_fabrica: v.garantia_fabrica,
         preco_compra: v.preco_compra,
         descricao: v.descricao,
+        descricao_seo: v.descricao_seo,
         laudo_pericia: v.laudo_pericia,
         opcionais: v.opcionais,
         status_tag: v.status_tag,
@@ -691,6 +694,21 @@ export default function EditorDeVeiculo({
                 placeholder="Texto que abre a página do veículo."
                 className="mt-campo-caixa mt-foco resize-y leading-relaxed"
               />
+              <div className="mt-rotulo mb-3 mt-6">Descrição para portais e busca</div>
+              <textarea
+                rows={3}
+                value={v.descricao_seo ?? ""}
+                onChange={(e) => set("descricao_seo", e.target.value)}
+                placeholder="Frase curta do anúncio: o que diferencia este carro, sem depender do contexto da página."
+                className="mt-campo-caixa mt-foco resize-y leading-relaxed"
+              />
+              <p className="mt-3 text-[11px] leading-relaxed text-mt-neutral-700">
+                Vai para o feed dos portais e para a descrição que aparece na busca do Google.
+                Vazio, o site usa a descrição editorial acima — e só na falta das duas cai numa
+                frase genérica. O Google mostra cerca de 155 caracteres.
+                {v.descricao_seo ? ` Atual: ${v.descricao_seo.length}.` : ""}
+              </p>
+
               <div className="mt-rotulo mb-3 mt-6">Laudo cautelar</div>
               <textarea
                 rows={5}

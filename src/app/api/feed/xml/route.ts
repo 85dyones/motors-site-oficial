@@ -46,7 +46,31 @@ export async function GET(request: Request) {
       
       // Safe XML string escaping
       const title = `${car.marca} ${car.modelo} ${car.versao}`.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const description = (car.descricao_seo || `Aproveite as melhores condições para comprar seu ${car.marca} ${car.modelo}. Veículo periciado e com garantia.`).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Cadeia de três, e o degrau do meio é o que faltava.
+      //
+      // `descricao_seo` só passou a existir na migração 20260817130000 — antes
+      // dela a propriedade era `undefined` dentro de um `select("*")`, sem erro
+      // nenhum, e TODO anúncio caía no texto genérico. Medido em 2026-08-17: os
+      // 41 veículos do feed saíam com a mesma frase, mudando só marca e modelo.
+      //
+      // `descricao` entra como segundo degrau porque o texto real já existia e
+      // já estava preenchido: enquanto ninguém escrever a versão curta no
+      // painel, o portal recebe conteúdo de verdade em vez de catálogo. O
+      // genérico fica onde deveria estar desde sempre — no último recurso, para
+      // o carro que chegou sem texto algum.
+      const descricaoDoAnuncio =
+        car.descricao_seo ||
+        car.descricao ||
+        `Aproveite as melhores condições para comprar seu ${car.marca} ${car.modelo}. Veículo periciado e com garantia.`;
+
+      // O texto editorial da PDP pode vir com HTML do painel; o feed é XML e
+      // não renderiza marcação. Tirar as tags aqui evita mandar `<p>` como se
+      // fosse parte da frase do anúncio.
+      const description = descricaoDoAnuncio
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const brand = car.marca.replace(/&/g, '&amp;');
 
       xml += `
