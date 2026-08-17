@@ -30,9 +30,20 @@ const env = Object.fromEntries(
     .map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1).replace(/^["']|["']$/g, "")]; })
 );
 
-const { textos } = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "rascunhos.json"), "utf8")
-);
+// Aceita um arquivo especifico; sem argumento, junta todos os lotes. A
+// checagem de abertura repetida so vale se ela enxergar os lotes JUNTOS —
+// conferir um lote por vez deixaria passar dois carros abrindo igual.
+const arquivos = process.argv.filter((a) => a.endsWith(".json"));
+const lotes = arquivos.length > 0 ? arquivos.map((a) => path.resolve(a))
+  : fs.readdirSync(__dirname)
+      .filter((f) => f.startsWith("rascunhos") && f.endsWith(".json"))
+      .map((f) => path.join(__dirname, f));
+
+const textos = {};
+for (const lote of lotes) {
+  Object.assign(textos, JSON.parse(fs.readFileSync(lote, "utf8")).textos);
+}
+console.log(`lotes: ${lotes.map((l) => path.basename(l)).join(", ")}`);
 
 // ---- conferência que não precisa de banco ----
 let problemas = 0;

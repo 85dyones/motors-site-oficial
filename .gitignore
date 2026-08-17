@@ -58,3 +58,4 @@ CLAUDE.md
 .claude/*.json
 !.claude/launch.json
 .claude/worktrees/
+conteudo-seo/feed-bruto.xml

@@ -155,7 +155,30 @@ O trigger `estoque_motors_conteudo_atualizado` move `conteudo_atualizado_em` a c
 
 - **Volume de busca por modelo na região** — ordenaria a fila melhor que o preço. Precisa de ferramenta de keyword, não de repositório.
 - **Nomenclatura de motos** — o site fala "carros" e as rotas são `/carros/...`. Decidir antes de o volume de motos crescer.
-- **`opcionais`: 1 de 43.** Próximo lote. Preencher exige pesquisa de ficha de fábrica por versão exata, e o risco é afirmar item que aquela unidade não tem — variação de série, pacote opcional, mudança de ano-modelo. Fazer conservador: só o que é inequivocamente de série na versão, e o dono ajusta em cima.
+## 9. Opcionais — o dado sempre existiu
+
+**A pesquisa de ficha de fábrica não foi necessária, e teria sido pior.** O feed do RevendaMais traz `<ACCESSORIES>` por veículo, com os itens que a própria loja cadastrou — em formato de lista separada por vírgula, exatamente o que a PDP espera (`veiculo.opcionais.split(",")`).
+
+O workflow n8n lê **21 tags** do XML e `ACCESSORIES` não é uma delas. Por isso `opcionais` estava em 1 de 43: não porque a loja não tem o dado, mas porque ele se perdia no caminho.
+
+Extraído e gravado em 2026-08-17: **21 dos 43 veículos** têm acessórios declarados, de 1 a 44 itens cada. Os outros 22 estão vazios no próprio RevendaMais — é cadastro que falta lá, não aqui.
+
+Isso também respondeu, com dado em vez de palpite, perguntas que eu tinha evitado nos textos: "7 lugares" aparece declarado onde existe.
+
+### ⚠️ Isto é correção de uma vez só
+
+`extrair-acessorios.js` resolve o presente. **A correção definitiva é acrescentar `ACCESSORIES` ao mapeamento do n8n** — sem isso, todo ciclo de sync continua ignorando o campo, e veículo novo entra sem opcionais de novo.
+
+### Outros campos que o feed traz e o sync descarta
+
+| Tag | Conteúdo | Por que importa |
+|---|---|---|
+| `VALOR_FIPE` | valor real (ex.: `109359.00`) | A linha de FIPE foi **removida da PDP em 2026-08-06** porque o dado era inventado. O feed tem o valor de verdade — e preço ao lado da FIPE é exatamente a prova que a tese de transparência pede |
+| `DOORS` | `4` | Ficha técnica |
+| `HP` | `185` (parcial) | Ficha técnica |
+| `CONDITION` | `USADO` | Já derivado da km, mas é a fonte |
+| `VIDEO` | — | Mídia na PDP |
+| `CHASSI`, `PLATE` | — | **Internos.** Nunca no mapper público — ver a nota de `placa` em `supabase.ts` |
 
 ## 8. Estado da execução
 
