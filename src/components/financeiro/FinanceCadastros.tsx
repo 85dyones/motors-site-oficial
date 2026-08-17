@@ -89,7 +89,6 @@ export default function FinanceCadastros() {
 
     try {
       const payload = {
-        id: selectedParceiro ? selectedParceiro.id : undefined,
         nome: partNome.trim(),
         tipo: partTipo,
         documento: partDoc.trim() || undefined,
@@ -97,11 +96,15 @@ export default function FinanceCadastros() {
         email: partEmail.trim() || undefined,
       };
 
-      const res = await fetch("/api/financeiro/parceiros", {
-        method: selectedParceiro ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      // Edição vive em /parceiros/[id]; a coleção só aceita GET e POST.
+      const res = await fetch(
+        selectedParceiro ? `/api/financeiro/parceiros/${selectedParceiro.id}` : "/api/financeiro/parceiros",
+        {
+          method: selectedParceiro ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (res.ok) {
         setSuccess(selectedParceiro ? "Parceiro atualizado com sucesso!" : "Parceiro cadastrado com sucesso!");
@@ -129,13 +132,14 @@ export default function FinanceCadastros() {
     if (!isConfirmed) return;
 
     try {
-      const res = await fetch(`/api/financeiro/parceiros?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/financeiro/parceiros/${id}`, { method: "DELETE" });
       if (res.ok) {
         setSuccess("Parceiro removido com sucesso!");
         fetchParceiros();
         setTimeout(() => setSuccess(""), 4000);
       } else {
-        setError("Erro ao excluir parceiro.");
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.error || "Erro ao excluir parceiro.");
       }
     } catch (err: any) {
       setError(`Erro de rede: ${err.message}`);
