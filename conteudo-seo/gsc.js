@@ -47,15 +47,52 @@ const crypto = require("crypto");
 
 const CHAVE = process.env.GSC_CHAVE;
 const SITE = process.env.GSC_SITE;
+const REFRESH = process.env.GSC_REFRESH_TOKEN;
 const DIAS = Number((process.argv.find((a) => a === "--dias") && process.argv[process.argv.indexOf("--dias") + 1]) || 90);
 const POR_PAGINA = process.argv.includes("--paginas");
 const SO_VEICULOS = process.argv.includes("--veiculos");
 
-if (!CHAVE || !SITE) {
+// `--conferir` só diz QUE TIPO de credencial é a sua e o que falta. Não
+// imprime client_id, secret nem chave — só nomes de campo.
+if (process.argv.includes("--conferir")) {
+  if (!CHAVE) {
+    console.error("Defina GSC_CHAVE com o caminho do JSON baixado do Google Cloud.");
+    process.exit(1);
+  }
+  const bruto = fs.readFileSync(CHAVE, "utf8");
+  const j = JSON.parse(bruto);
+  const campos = Object.keys(j.installed || j.web || j);
+
+  console.log(`arquivo: ${CHAVE}`);
+  console.log(`campos presentes: ${campos.join(", ")}`);
+
+  if (j.type === "service_account" && j.private_key) {
+    console.log("\n✔ CONTA DE SERVIÇO — é a que roda sozinha.");
+    console.log(`  Adicione este e-mail como usuário no Search Console:\n    ${j.client_email}`);
+    console.log(`  Falta só: GSC_SITE=${SITE ? "(definido)" : "sc-domain:motorsstore.com.br"}`);
+  } else if ((j.installed || j.web || j).client_secret) {
+    console.log("\n⚠ ID DO CLIENTE OAUTH — precisa de um consentimento no navegador.");
+    console.log("  Para uso automático, o melhor é criar uma conta de serviço.");
+    console.log(`  Se quiser seguir com este: falta GSC_REFRESH_TOKEN ${REFRESH ? "(definido)" : "(AUSENTE)"}`);
+  } else {
+    console.log("\n✖ Não reconheci o formato.");
+  }
+  process.exit(0);
+}
+
+const TEM_ENVS = process.env.GSC_CLIENT_EMAIL && process.env.GSC_PRIVATE_KEY;
+
+if ((!CHAVE && !TEM_ENVS) || !SITE) {
   console.error(
-    "Faltam as variáveis. Veja o cabeçalho deste arquivo para os 4 passos.\n\n" +
-      "  GSC_CHAVE=caminho/para/chave.json\n" +
-      "  GSC_SITE=sc-domain:motorsstore.com.br\n"
+    "Faltam variáveis. Duas formas de configurar:\n\n" +
+      "  A) Convenção do projeto (funciona na Vercel — mesma forma do GA4):\n" +
+      "       GSC_CLIENT_EMAIL=algo@projeto.iam.gserviceaccount.com\n" +
+      '       GSC_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\nMIIE...\\n-----END PRIVATE KEY-----\\n"\n\n' +
+      "  B) Só para uso local, apontando o JSON baixado:\n" +
+      "       GSC_CHAVE=C:/caminho/para/chave.json\n\n" +
+      "  Em ambas: GSC_SITE=sc-domain:motorsstore.com.br\n\n" +
+      "Rode `node conteudo-seo/gsc.js --conferir` para ver que tipo de\n" +
+      "credencial você tem e o que ainda falta."
   );
   process.exit(1);
 }
@@ -63,14 +100,99 @@ if (!CHAVE || !SITE) {
 const b64url = (b) => Buffer.from(b).toString("base64")
   .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-/** Troca a chave da conta de serviço por um access token de leitura. */
-async function token() {
-  const chave = JSON.parse(fs.readFileSync(CHAVE, "utf8"));
-  const agora = Math.floor(Date.now() / 1000);
+/**
+ * O Google Cloud entrega DOIS JSONs diferentes, e só um roda sem navegador.
+ * Esta função identifica qual chegou pelos NOMES dos campos — nunca imprime
+ * valor nenhum.
+ *
+ *   conta de serviço ..... tem `"type": "service_account"`, `client_email` e
+ *                          `private_key`. Autentica sozinha, para sempre.
+ *   ID do cliente OAuth .. vem embrulhado em `"installed"` ou `"web"`, com
+ *                          `client_secret` e `redirect_uris`, e SEM
+ *                          `private_key`. Exige um consentimento no navegador
+ *                          uma vez, que devolve o refresh token.
+ */
+function identificar(bruto) {
+  const j = JSON.parse(bruto);
+  if (j.type === "service_account" && j.private_key) return { tipo: "servico", j };
+  const oauth = j.installed || j.web || j;
+  if (oauth.client_id && oauth.client_secret) {
+    return { tipo: "oauth", j: oauth };
+  }
+  return { tipo: "desconhecido", j };
+}
 
+/** Access token de leitura, pelo caminho que a credencial permitir. */
+async function token() {
+  // Convenção do projeto primeiro: `src/lib/analytics.ts` já autentica no
+  // Google por conta de serviço usando duas envs soltas, e não um arquivo —
+  // porque a Vercel guarda variável, não arquivo. Mesma forma aqui, para uma
+  // credencial só servir aos dois usos.
+  if (process.env.GSC_CLIENT_EMAIL && process.env.GSC_PRIVATE_KEY) {
+    return tokenDeContaDeServico({
+      client_email: process.env.GSC_CLIENT_EMAIL,
+      // O `\n` chega escapado quando a chave viaja dentro de uma env.
+      private_key: process.env.GSC_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    });
+  }
+
+  const { tipo, j: cred } = identificar(fs.readFileSync(CHAVE, "utf8"));
+
+  if (tipo === "desconhecido") {
+    throw new Error(
+      "O JSON não parece nem conta de serviço nem ID do cliente OAuth.\n" +
+      "Conta de serviço tem `type: service_account` e `private_key`.\n" +
+      "ID do cliente tem `client_secret` dentro de `installed` ou `web`."
+    );
+  }
+
+  if (tipo === "oauth") {
+    // Sem refresh token não há como seguir: o fluxo OAuth exige um
+    // consentimento humano no navegador, e isso é uma vez só.
+    if (!REFRESH) {
+      throw new Error(
+        "Este é um ID do cliente OAuth, e falta GSC_REFRESH_TOKEN.\n\n" +
+        "Duas saídas:\n\n" +
+        "  A) RECOMENDADA — crie uma CONTA DE SERVIÇO em vez disto.\n" +
+        "     Google Cloud → Credenciais → Criar → Conta de serviço.\n" +
+        "     Baixe a chave JSON e adicione o e-mail dela como usuário no\n" +
+        "     Search Console. Autentica sozinha, sem navegador, sem expirar.\n\n" +
+        "  B) Obtenha o refresh token uma vez pelo OAuth Playground:\n" +
+        "     https://developers.google.com/oauthplayground\n" +
+        "     Engrenagem → marque 'Use your own OAuth credentials' → cole seu\n" +
+        "     Client ID e Secret. No passo 1 use o escopo\n" +
+        "     https://www.googleapis.com/auth/webmasters.readonly\n" +
+        "     Autorize, troque pelo token e guarde o refresh token em\n" +
+        "     GSC_REFRESH_TOKEN. Antes disso, adicione\n" +
+        "     https://developers.google.com/oauthplayground como URI de\n" +
+        "     redirecionamento autorizado no seu ID do cliente."
+      );
+    }
+
+    const r = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: cred.client_id,
+        client_secret: cred.client_secret,
+        refresh_token: REFRESH,
+      }),
+    });
+    const j = await r.json();
+    if (!j.access_token) throw new Error(`refresh recusado: ${j.error_description || j.error}`);
+    return j.access_token;
+  }
+
+  return tokenDeContaDeServico(cred);
+}
+
+/** JWT assinado, trocado por access token. Sem navegador, sem expirar. */
+async function tokenDeContaDeServico(cred) {
+  const agora = Math.floor(Date.now() / 1000);
   const cabecalho = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const corpo = b64url(JSON.stringify({
-    iss: chave.client_email,
+    iss: cred.client_email,
     scope: "https://www.googleapis.com/auth/webmasters.readonly",
     aud: "https://oauth2.googleapis.com/token",
     exp: agora + 3600,
@@ -78,7 +200,7 @@ async function token() {
   }));
 
   const assinatura = b64url(
-    crypto.createSign("RSA-SHA256").update(`${cabecalho}.${corpo}`).sign(chave.private_key)
+    crypto.createSign("RSA-SHA256").update(`${cabecalho}.${corpo}`).sign(cred.private_key)
   );
 
   const r = await fetch("https://oauth2.googleapis.com/token", {
@@ -91,7 +213,7 @@ async function token() {
   });
 
   const j = await r.json();
-  if (!j.access_token) throw new Error(`token negado: ${JSON.stringify(j)}`);
+  if (!j.access_token) throw new Error(`token negado: ${j.error_description || JSON.stringify(j)}`);
   return j.access_token;
 }
 
