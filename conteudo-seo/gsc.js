@@ -229,10 +229,25 @@ const iso = (d) => d.toISOString().slice(0, 10);
   // comum — são registros separados no Search Console, com permissões
   // separadas.
   if (process.argv.includes("--sites")) {
-    const r = await fetch("https://www.googleapis.com/webmasters/v3/sites", {
-      headers: { Authorization: `Bearer ${acesso}` },
-    });
-    const j = await r.json();
+    // Dois hosts servem a mesma v3. Consultar os dois separa "a conta não tem
+    // propriedade" de "este host respondeu diferente" — e `--raw` mostra o
+    // corpo cru, para eu não ficar afirmando ausência com base na minha
+    // própria interpretação da resposta.
+    const hosts = [
+      "https://www.googleapis.com/webmasters/v3/sites",
+      "https://searchconsole.googleapis.com/webmasters/v3/sites",
+    ];
+    let j = null;
+    for (const url of hosts) {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${acesso}` } });
+      const texto = await r.text();
+      if (process.argv.includes("--raw")) {
+        console.log(`${url}\n  HTTP ${r.status} -> ${texto.slice(0, 400)}\n`);
+      }
+      const parcial = JSON.parse(texto);
+      if (parcial.siteEntry && parcial.siteEntry.length) { j = parcial; break; }
+      if (!j) j = parcial;
+    }
     if (j.error) throw new Error(`${j.error.code}: ${j.error.message}`);
 
     const sites = j.siteEntry || [];
