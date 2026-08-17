@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: ["GPTBot", "ClaudeBot", "Google-Extended"],
         allow: ["/llms.txt", "/api/llms-full.txt"],
-        disallow: ["/configuracoes", "/admin/", "/login"],
+        disallow: ["/configuracoes", "/admin/", "/login", "/garagem"],
       },
       {
         userAgent: "*",
@@ -17,7 +17,8 @@ export default function robots(): MetadataRoute.Robots {
         // (contas a pagar, margens, compras) estava crawleável e indexável.
         // O acesso já exige sessão (src/app/admin/layout.tsx redireciona), mas
         // sem isto a estrutura de URLs do painel aparecia em busca.
-        disallow: ["/configuracoes", "/admin/", "/login", "/api/", "/test"],
+        // `/garagem` (2026-08-15) pela mesma razão: área logada de cliente.
+        disallow: ["/configuracoes", "/admin/", "/login", "/garagem", "/api/", "/test"],
       }
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

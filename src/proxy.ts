@@ -87,6 +87,37 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // 1.7. Garagem do cliente: só renovação de sessão, sem gate de papel.
+  //
+  // A página decide o que mostrar (deslogado vê a entrada, staff é mandado ao
+  // painel) — o middleware NÃO redireciona. Mas ele precisa passar por aqui:
+  // Server Component não consegue gravar cookie, então sem esta parada o
+  // refresh do token renovaria a cada request sem persistir e, com a rotação
+  // de refresh token do Supabase, a sessão do cliente morreria em ~1 hora.
+  if (path.startsWith("/garagem") || path.startsWith("/api/garagem")) {
+    let response = NextResponse.next({ request: { headers: request.headers } });
+    const supabaseClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            response = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+    await supabaseClient.auth.getUser();
+    return response;
+  }
+
   // 2. Auth protection for admin panel and protected API routes
   const isAdminPath = path.startsWith("/admin");
   const isProtectedApi = path.startsWith("/api/financeiro") || path.startsWith("/api/users");
@@ -214,5 +245,8 @@ export const config = {
     "/admin/:path*",
     "/api/financeiro/:path*",
     "/api/users/:path*",
+    "/garagem/:path*",
+    "/garagem",
+    "/api/garagem/:path*",
   ],
 };

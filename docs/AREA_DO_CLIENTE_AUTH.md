@@ -35,9 +35,26 @@ contextos, o Outlook renderiza com o motor do Word, e nenhum dos dois carrega
 webfont. A Archivo do site entra só como primeira opção da pilha — quem tiver,
 vê; quem não tiver, cai em Helvetica e o layout não muda.
 
-**A variável do Supabase é `{{ .ConfirmationURL }}`**, e ela aparece duas vezes:
-no botão e no endereço em texto, para quem usa cliente que bloqueia botão. O
-link já carrega token e destino — não acrescente parâmetros à mão.
+**O link do template aponta para `/api/auth/confirm`, com `{{ .TokenHash }}`**
+— duas vezes: no botão e no endereço em texto, para quem usa cliente que
+bloqueia botão. Formato:
+
+```
+https://motorsstore.com.br/api/auth/confirm?token_hash={{ .TokenHash }}&type=email
+```
+
+> **Por que não `{{ .ConfirmationURL }}`** (que era o formato até 2026-08-15):
+> aquele link depende do fluxo que PEDIU o acesso. Fora do PKCE, o token volta
+> no **fragmento** da URL (`#access_token`) — que o servidor nunca recebe — e
+> o cliente quicava de volta para a entrada; foi o primeiro sintoma real do
+> link mágico. E mesmo no PKCE, o clique precisa acontecer no MESMO navegador
+> que pediu o link, o que e-mail não garante (pede no notebook, abre no
+> celular). `token_hash` é verificado no servidor por `/api/auth/confirm`,
+> funciona em qualquer navegador e continua de uso único. O destino pós-login
+> é decidido pelo papel: cliente → `/garagem`, staff → `/admin`.
+>
+> ⚠️ **Se o template do painel ainda estiver com `{{ .ConfirmationURL }}`,
+> recole-o** — o arquivo deste repositório é a fonte.
 
 **Assunto sugerido:**
 
@@ -164,6 +181,78 @@ coisas**: que chegou, que **não** caiu em spam, e que o link abre em
 o status — é lá que se vê bounce e rejeição, não no Supabase.
 
 ---
+
+## 3-b. A foto da etiqueta (fase 2, 2026-08-15)
+
+A prova do carimbo passou a morar no projeto, em vez de num link de WhatsApp:
+bucket **privado** `diario-de-bordo`, migração
+`20260815210000_storage_do_diario_de_bordo.sql`.
+
+- **Caminho:** `{veiculo_vendido_id}/{atual|anterior|nota}-{carimbo}-{sorteio}.{ext}`.
+  O primeiro segmento não é organização — é o que a RLS de `storage.objects`
+  lê para decidir de quem é a pasta. **Mudar o formato sem mudar a policy abre
+  ou tranca o acesso de todo mundo.**
+- **Upload direto do navegador**, com a sessão do cliente. Não passa pela rota
+  porque função serverless da Vercel recusa corpo acima de ~4,5 MB — e foto de
+  celular passa disso. Antes de subir, a imagem é reduzida a 1600px no lado
+  maior (`src/lib/ciclo/foto.ts`), respeitando a orientação do EXIF.
+- **Leitura por URL assinada de 5 minutos**, via `GET /api/ciclo/foto?caminho=…`,
+  que assina com a sessão de quem pede — a RLS é a autoridade, não um `if`.
+  Sem direito, responde **404** (e não 403) de propósito: distinguir "não é
+  seu" de "não existe" contaria a um estranho que aquele veículo tem foto.
+- **Duas origens convivem na mesma coluna:** valor que começa com `http` é URL
+  externa colada à mão pela equipe (o jeito antigo, que continua valendo);
+  qualquer outra coisa é caminho no bucket. Quem resolve as duas é
+  `urlDaFoto()` — use sempre, nunca o valor cru num `href`.
+- **Cliente não apaga nem sobrescreve** foto, pela mesma razão de
+  `manutencoes`: prova enviada não se reescreve. Foto ilegível se resolve com
+  registro novo, e o anterior fica no rastro com o motivo da recusa.
+
+## 3-c. Meus dados e consentimento (fase 2, 2026-08-15)
+
+O §6.3-D dá ao cliente uma chave por categoria. **Duas existem hoje** —
+WhatsApp e e-mail — e as outras não viram botão de propósito:
+
+| Categoria do §6.3-D | Está na tela? | Por quê |
+|---|---|---|
+| Comunicação por WhatsApp / e-mail | ✅ chave | tem efeito imediato no motor |
+| Histórico de manutenção | informação | sempre ativo; sustenta a procedência |
+| Registro de KM entre revisões | ❌ | controla um lembrete mensal que o motor ainda não tem |
+| Localização / telemetria de condução | ❌ | v1.1 manda esconder sem provedor — "chave que não liga nada é ruído" |
+
+**A escrita é por função, não por policy.** `atualizar_consentimento_canais`
+(`security definer`, migração `20260815230000`) grava UMA coluna da linha de
+quem chamou. Uma policy de UPDATE para o cliente abriria `cpf_cnpj` e
+`auth_user_id` junto, porque o grant de `clientes` é para todas as colunas e
+para o papel `authenticated` — o mesmo da equipe. Restringir por coluna
+tiraria a edição da equipe no mesmo gesto.
+
+**Desligar tudo é válido e não penaliza:** o motor suprime com
+`sem_canal_consentido` e nenhum cálculo de conformidade, índice ou
+elegibilidade lê o campo (regra 2). Provado ponta a ponta em 2026-08-15: o
+cliente desligou os canais na Garagem e os três gatilhos passaram a sair
+suprimidos com esse motivo.
+
+**A escolha fica datada** dentro do próprio jsonb (`atualizado_em`,
+`atualizado_por`) — prova de consentimento sem tabela nova. Chave extra não
+atrapalha o motor, que lê só `whatsapp` e `email`.
+
+### A exportação (§6.3-D e §6.3-E)
+
+`/garagem/meus-dados` é uma página **feita para imprimir**, não um gerador de
+PDF: o navegador já imprime em PDF em toda plataforma, e uma biblioteca custaria
+dependência e um segundo layout para manter em sincronia. Um teste barra a
+entrada de `pdfkit`, `puppeteer`, `jspdf` e afins.
+
+O documento é inteiro e legível fora de contexto — com data de emissão, porque
+o §6.3-E quer que o cliente possa **mostrar a quem for comprar o carro dele**.
+Traz o cadastro, os veículos, o diário de bordo com a situação de cada
+lançamento e a série de KM. E diz o que a loja **não** tem: "não guarda
+traçado de localização nem dado de telemetria" — a prova de que nada está
+escondido.
+
+> Na Garagem o documento aparece **mascarado** (`123.***.***-09`); inteiro só
+> na exportação, que é o titular pedindo os próprios dados.
 
 ## 4. Validade do link
 

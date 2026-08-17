@@ -40,6 +40,15 @@ export default async function LoginPage() {
         </div>
 
         <LoginForm />
+
+        {/* Cliente que caiu aqui por hábito: a área dele é outra, sem senha. */}
+        <p className="m-0 border-t border-mt-regua-fina pt-4 text-[12px] leading-relaxed text-mt-neutral-600">
+          Cliente Motors? O seu acesso é pela{" "}
+          <a href="/garagem" className="font-semibold text-mt-ink underline underline-offset-2">
+            Garagem
+          </a>
+          , com link por e-mail — sem senha.
+        </p>
       </div>
     </div>
   );
