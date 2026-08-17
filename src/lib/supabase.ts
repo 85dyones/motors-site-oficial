@@ -361,7 +361,15 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     laudo_pericia: dbItem.laudo_pericia || "",
     tipo: resolveTipo(dbItem),
     perfil_uso: resolvePerfilUso(dbItem),
-    descricao: dbItem.descricao || dbItem.laudo_pericia || "",
+    // `textoUtil` e não `||` cru: o feed manda "Sem descrição informada" em vez
+    // de deixar vazio, e esse marcador vazava para a página e para o anúncio.
+    descricao: textoUtil(dbItem.descricao) || textoUtil(dbItem.laudo_pericia),
+    // Sem `|| descricao` aqui de propósito: o mapper devolve o campo como ele
+    // é no banco, e quem decide a cadeia de fallback é cada consumidor — o
+    // feed e a meta description querem textos de tamanhos diferentes. Até a
+    // migração 20260817130000 esta coluna não existia e o valor era `undefined`
+    // em silêncio, que é como todo anúncio do feed acabou com a mesma frase.
+    descricao_seo: textoUtil(dbItem.descricao_seo),
     cabine_premium: hasCabinePremium,
     tecnologia_embarcada: hasTech,
     conducao_dinamica: hasConducaoDinamica,
@@ -442,6 +450,29 @@ function applyLocalOverridesToSingle(v: Veiculo | null): Veiculo | null {
 }
 
 /**
+ * Marcadores de "campo não preenchido" que chegam do feed como se fossem texto.
+ *
+ * O RevendaMais manda "Sem descrição informada" no lugar de deixar a coluna
+ * vazia. Medido em 2026-08-17: 3 dos 41 veículos do feed. Enquanto o único
+ * consumidor era a PDP isso passava por texto ruim; virou publicação de anúncio
+ * quando o feed XML passou a usar `descricao` como fallback, e um anúncio que
+ * diz "sem descrição informada" é pior que a frase genérica que ele substituiu.
+ *
+ * Lista curta e literal de propósito: heurística mais esperta (procurar "sem
+ * "…, medir tamanho mínimo) descartaria descrição legítima. Quando o painel
+ * assumir os textos, isto aqui pode sair — e o teste que o cobre vai avisar.
+ */
+const TEXTOS_QUE_SIGNIFICAM_VAZIO = ["sem descrição informada", "sem descricao informada"];
+
+/** O texto tem conteúdo, ou é marcador de campo vazio disfarçado? */
+export function textoUtil(bruto: unknown): string {
+  if (typeof bruto !== "string") return "";
+  const limpo = bruto.trim();
+  if (!limpo) return "";
+  return TEXTOS_QUE_SIGNIFICAM_VAZIO.includes(limpo.toLowerCase()) ? "" : limpo;
+}
+
+/**
  * Tolerância para agrupar linhas de um mesmo ciclo de sync.
  *
  * O n8n grava um veículo por requisição, então os carimbos de um mesmo ciclo
@@ -483,6 +514,96 @@ export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(l
     if (!l.last_seen_at) return true;
     return new Date(l.last_seen_at).getTime() >= corte;
   });
+}
+
+/**
+ * Este veículo ficou de fora do ciclo de sync mais recente?
+ *
+ * `getVeiculoById` consulta por id e NÃO passa por `apenasDoUltimoSync` — e
+ * isso é proposital: a PDP precisa continuar resolvendo o carro para poder
+ * dizer que ele não está mais disponível. O efeito colateral era o veículo
+ * fora do feed responder 200 com a página normal, `schema.org/InStock` e o
+ * botão de WhatsApp abrindo negociação de um carro que a loja não tem. Quem
+ * responde essa pergunta agora é esta função.
+ *
+ * Consulta só `id, last_seen_at`: é a mesma decisão de janela que a vitrine
+ * usa, sem arrastar o estoque inteiro para resolver um booleano.
+ *
+ * Falha SEMPRE para `false`. Banco fora do ar, tabela vazia ou filtro que
+ * zerou tudo devolvem "está no feed" — declarar um carro indisponível por
+ * causa de um soluço do Supabase é pior que o 200 enganoso que esta função
+ * existe para corrigir.
+ */
+export async function getSinaisDeEstoque(
+  id: string
+): Promise<{ foraDoFeed: boolean; ultimaPresenca: string | null }> {
+  const nadaSabido = { foraDoFeed: false, ultimaPresenca: null };
+  if (!isSupabaseConfigured || !supabase) return nadaSabido;
+
+  try {
+    const { data, error } = await supabase
+      .from("estoque_motors")
+      .select("id, last_seen_at");
+
+    if (error || !data || data.length === 0) return nadaSabido;
+
+    const visiveis = apenasDoUltimoSync(data);
+    // Mesma válvula de segurança do `getEstoque`: se o filtro descartou tudo,
+    // o carimbo é que está errado — ninguém é declarado fora do feed.
+    if (visiveis.length === 0) return nadaSabido;
+
+    const propria = data.find((linha: any) => String(linha.id) === String(id));
+
+    return {
+      foraDoFeed: !visiveis.some((linha: any) => String(linha.id) === String(id)),
+      ultimaPresenca: propria?.last_seen_at ?? null,
+    };
+  } catch (err) {
+    console.warn(`[Supabase] Falha ao checar o feed do veículo ${id}:`, err);
+    return nadaSabido;
+  }
+}
+
+/**
+ * `id -> conteudo_atualizado_em` para o `lastmod` do sitemap.
+ *
+ * Carrega só as duas colunas: a pergunta é "quando cada anúncio mudou", e o
+ * resto da linha não ajuda a respondê-la.
+ *
+ * O `catch` aqui não é decoração. Enquanto a migração 20260817120000 não
+ * estiver aplicada, a coluna não existe, e o PostgREST rejeita a query INTEIRA
+ * com 42703 em vez de ignorar o campo desconhecido — foi assim que o painel de
+ * margens ficou morto por semanas. Sem carimbo, o sitemap OMITE o `lastmod` em
+ * vez de inventar um: não declarar nada é honesto, declarar "mudou agora" é a
+ * mentira que esta mudança veio desfazer.
+ */
+export async function getCarimbosDeConteudo(): Promise<Record<string, string>> {
+  if (!isSupabaseConfigured || !supabase) return {};
+
+  try {
+    const { data, error } = await supabase
+      .from("estoque_motors")
+      .select("id, conteudo_atualizado_em");
+
+    if (error || !data) {
+      console.warn(
+        "[Supabase] Sem carimbos de conteúdo (%s) — o sitemap sai sem lastmod.",
+        error?.message ?? "resposta vazia"
+      );
+      return {};
+    }
+
+    const mapa: Record<string, string> = {};
+    for (const linha of data as any[]) {
+      if (linha.conteudo_atualizado_em) {
+        mapa[String(linha.id)] = linha.conteudo_atualizado_em;
+      }
+    }
+    return mapa;
+  } catch (err) {
+    console.warn("[Supabase] Erro inesperado ao ler carimbos de conteúdo:", err);
+    return {};
+  }
 }
 
 /**

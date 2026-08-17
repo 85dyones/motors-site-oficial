@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../../lib/supabase";
+import { getEstoque, getSinaisDeEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../../lib/supabase";
+import { decidirPublicacao, getDatasDeVenda } from "../../../../../../lib/publicacao";
 import PDPClientWrapper from "../../../../../../components/PDPClientWrapper";
 import FaixaProcedencia from "../../../../../../components/modernist/FaixaProcedencia";
 import { getCachedSettings } from "../../../../../../lib/settings";
@@ -39,6 +40,29 @@ export async function generateStaticParams() {
   });
 }
 
+/**
+ * Como este veículo se apresenta: disponível, vendido ou indisponível, e se
+ * continua no índice de busca. A regra vive em `lib/publicacao.ts`; aqui só se
+ * junta o que o banco sabe.
+ *
+ * Chamada duas vezes por render — uma no `generateMetadata`, outra na página.
+ * As duas consultas são leves (`getDatasDeVenda` é cacheada, e a de estoque lê
+ * só id e carimbo), e a PDP renderiza no máximo uma vez por hora sob o ISR.
+ */
+async function publicacaoDoVeiculo(veiculo: { id: string; vendido?: boolean }) {
+  const [sinais, datasDeVenda] = await Promise.all([
+    getSinaisDeEstoque(veiculo.id),
+    getDatasDeVenda(),
+  ]);
+
+  return decidirPublicacao({
+    vendido: veiculo.vendido,
+    foraDoFeed: sinais.foraDoFeed,
+    ultimaPresenca: sinais.ultimaPresenca,
+    dataVenda: datasDeVenda[String(veiculo.id)],
+  });
+}
+
 // Generate dynamic meta tags for Google Index SEO (High Performance indexation)
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
@@ -74,14 +98,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           maximumFractionDigits: 0
         });
 
-  const cleanDescription = veiculo.descricao ? veiculo.descricao.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim() : "";
+  // `descricao_seo` primeiro: é o campo escrito para este uso — curto, sem
+  // depender do contexto da página. Cai em `descricao`, o texto editorial, e só
+  // então na frase montada. Mesma cadeia do feed XML, pela mesma razão.
+  const textoParaMeta = veiculo.descricao_seo || veiculo.descricao || "";
+  const cleanDescription = textoParaMeta ? textoParaMeta.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim() : "";
   const seoDescription = cleanDescription
     ? truncateString(cleanDescription, 155)
     : `Oferta Exclusiva: compre seu ${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} cor ${veiculo.cor} com laudo pericial cautelar aprovado e garantia. Preço: ${priceText}. Financie com facilidade!`;
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
-  const { companySettings } = await getCachedSettings();
+  const [{ companySettings }, publicacao] = await Promise.all([
+    getCachedSettings(),
+    publicacaoDoVeiculo(veiculo),
+  ]);
 
   /**
    * Nome do veículo sem repetir a versão.
@@ -117,6 +148,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     alternates: {
       canonical: pdpUrl,
     },
+    // Carro que não está à venda sai do índice, mas a página continua de pé.
+    //
+    // Sair do sitemap não desindexa nada por si: as 53 URLs órfãs medidas em
+    // 2026-08-17 seguiriam ranqueando e mandando gente para um anúncio que a
+    // loja não honra. `index: false` tira da busca; `follow: true` mantém os
+    // links internos — inclusive os similares — sendo rastreados, para a
+    // página virar porta de entrada em vez de beco sem saída.
+    //
+    // Quando isso vale para o vendido é a carência de `lib/publicacao.ts`.
+    ...(publicacao.noindex ? { robots: { index: false, follow: true } } : {}),
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "pdp",
@@ -148,7 +189,11 @@ export default async function CarDetailsPage({ params }: PageProps) {
     notFound();
   }
 
-  const [estoqueCompleto, settings] = await Promise.all([getEstoque(), getCachedSettings()]);
+  const [estoqueCompleto, settings, publicacao] = await Promise.all([
+    getEstoque(),
+    getCachedSettings(),
+    publicacaoDoVeiculo(veiculo),
+  ]);
   const itensProcedencia = normalizarProcedencia(settings.procedencia);
 
   // "Também no seu perfil" — regra e limites em `lib/similares.ts`.
@@ -184,7 +229,10 @@ export default async function CarDetailsPage({ params }: PageProps) {
       "@type": "Offer",
       "price": finalPrice,
       "priceCurrency": "BRL",
-      "availability": veiculo.vendido ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      // Fora do feed conta como fora de estoque. Antes daqui, o carro que saiu
+      // do feed continuava com `vendido = false` no banco e a PDP declarava
+      // `InStock` com preço — o Google mostrava a oferta como válida.
+      "availability": publicacao.indisponivel ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
       "itemCondition": "https://schema.org/UsedCondition",
       "url": `${SITE_URL}${pdpUrl}`
     }
@@ -233,7 +281,12 @@ export default async function CarDetailsPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <PDPClientWrapper veiculo={veiculo} similares={similares} />
+      <PDPClientWrapper
+        veiculo={veiculo}
+        similares={similares}
+        indisponivel={publicacao.indisponivel}
+        rotuloIndisponivel={publicacao.rotulo}
+      />
       <FaixaProcedencia itens={itensProcedencia} />
     </div>
   );

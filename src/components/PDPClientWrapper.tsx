@@ -17,6 +17,23 @@ interface PDPClientWrapperProps {
   veiculo: Veiculo;
   /** Três veículos próximos deste, resolvidos no servidor. */
   similares?: Veiculo[];
+  /**
+   * O carro não está à venda: vendido, ou fora do feed do último sync.
+   *
+   * Decidido no servidor por `lib/publicacao.ts` e recebido pronto. O
+   * componente não recalcula estado de disponibilidade — a mesma regra
+   * governa o selo, o `schema.org` e o `noindex`, e ela mora num lugar só.
+   */
+  indisponivel?: boolean;
+  /**
+   * O que o selo escreve.
+   *
+   * "VENDIDO" e "INDISPONÍVEL" não são sinônimos, e a diferença é de honestidade:
+   * o feed do RevendaMais some com o carro sem dizer por quê — pode ter ido a
+   * repasse, estar reservado ou ter tido o anúncio expirado. Afirmar a venda
+   * sem saber é inventar um fato.
+   */
+  rotuloIndisponivel?: "VENDIDO" | "INDISPONÍVEL" | null;
 }
 
 function formatPrice(value: number): string {
@@ -42,7 +59,12 @@ function getShortVehicleId(id: string): string {
   return id.substring(0, 8).toUpperCase();
 }
 
-export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = [] }: PDPClientWrapperProps) {
+export default function PDPClientWrapper({
+  veiculo: initialVeiculo,
+  similares = [],
+  indisponivel: indisponivelDoServidor = false,
+  rotuloIndisponivel: rotuloDoServidor = null,
+}: PDPClientWrapperProps) {
   const { companySettings, stockOverrides } = useTheme();
 
   /**
@@ -58,6 +80,14 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
     const itemOverrides = stockOverrides?.[initialVeiculo.id];
     return itemOverrides ? { ...initialVeiculo, ...itemOverrides } : initialVeiculo;
   }, [initialVeiculo, stockOverrides]);
+
+  /**
+   * A decisão vem do servidor, mas o override do painel ainda pode chegar
+   * depois — `stockOverrides` marca venda no cliente sem que o feed tenha
+   * mudado. Por isso o `||`: o servidor manda, e o override só acrescenta.
+   */
+  const indisponivel = indisponivelDoServidor || veiculo.vendido;
+  const rotuloIndisponivel = veiculo.vendido ? "VENDIDO" : rotuloDoServidor ?? "INDISPONÍVEL";
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [opcionaisOpen, setOpcionaisOpen] = useState(true);
@@ -218,7 +248,12 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
       setActiveChannel("WhatsApp Proposta");
       const msg = veiculo.vendido
         ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} que foi vendido. Gostaria de saber se possuem modelos semelhantes disponíveis. (Ref: ${agUid})`
-        : `Olá! Vi o anúncio no site e gostaria de saber mais sobre o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
+        : indisponivel
+          // "não está mais disponível", e não "foi vendido": a saída do feed
+          // não diz o motivo, e o consultor não pode receber o cliente com uma
+          // venda que talvez não tenha acontecido.
+          ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}, que não está mais disponível. Gostaria de saber se possuem modelos semelhantes. (Ref: ${agUid})`
+          : `Olá! Vi o anúncio no site e gostaria de saber mais sobre o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
       
       setActiveMessage(msg);
       setActiveSimulacao(null);
@@ -554,7 +589,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-[19px] w-[19px]" aria-hidden="true">
               <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-4.2-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
             </svg>
-            {veiculo.vendido ? "CONSULTAR SIMILARES" : "FALAR COM O CONSULTOR"}
+            {indisponivel ? "CONSULTAR SIMILARES" : "FALAR COM O CONSULTOR"}
           </button>
           <button
             type="button"
@@ -739,7 +774,7 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
                       fill
                       priority={index === 0}
                       fetchPriority={index === 0 ? "high" : "auto"}
- className={`object-cover w-full h-full border-none p-0 m-0 ${veiculo.vendido ? "filter grayscale-[30%] opacity-75" : ""}`}
+ className={`object-cover w-full h-full border-none p-0 m-0 ${indisponivel ? "filter grayscale-[30%] opacity-75" : ""}`}
                       sizes="(max-width: 1024px) 100vw, 900px"
                     />
                   </div>
@@ -804,13 +839,13 @@ export default function PDPClientWrapper({ veiculo: initialVeiculo, similares = 
                 </svg>
               </button>
 
-              {/* Sold overlay */}
-              {veiculo.vendido && (
+              {/* Selo de indisponibilidade — "VENDIDO" ou "INDISPONÍVEL" */}
+              {indisponivel && (
                 <div className="absolute inset-0 bg-zinc-950/45 flex items-center justify-center z-20 backdrop-blur-[0.5px] pointer-events-none">
                   <div className="bg-black/80 backdrop-blur-md border border-red-500/30 px-6 py-3   flex items-center gap-2">
                     <span className="h-2 w-2  bg-red-500 animate-pulse" />
                     <span className="text-[11px] font-black tracking-[0.25em] text-white uppercase">
-                      VENDIDO
+                      {rotuloIndisponivel}
                     </span>
                   </div>
                 </div>

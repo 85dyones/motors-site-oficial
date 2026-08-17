@@ -66,8 +66,8 @@ describe("nomenclatura da tabela de inventário", () => {
     const padrao = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/;
     const comAcesso = arquivos.filter((a) => padrao.test(readFileSync(a, "utf8")));
 
-    // 8 arquivos, 14 pontos de acesso — o inventário atual:
-    //   lib/supabase.ts (3), lib/estoqueEscrita.ts (2),
+    // 8 arquivos, 16 pontos de acesso — o inventário atual:
+    //   lib/supabase.ts (5), lib/estoqueEscrita.ts (2),
     //   api/estoque/[id]/route.ts (2, sendo 1 em comentário),
     //   api/financeiro/margens/consulta/route.ts (2),
     //   api/financeiro/margens/route.ts (2), lib/webhook-dispatcher.ts (1),
@@ -84,6 +84,13 @@ describe("nomenclatura da tabela de inventário", () => {
     // era o `.update()` do lado do cliente com a anon key que `AUDITORIA.md
     // §3.4` registra como risco. Se ele reaparecer nesta lista, a escrita
     // direta voltou.
+    //
+    // Em 2026-08-17 `lib/supabase.ts` ganhou dois acessos, os dois lendo duas
+    // colunas só: `getSinaisDeEstoque` (id, last_seen_at) decide se a PDP
+    // anuncia o carro ou o marca como indisponível, e `getCarimbosDeConteudo`
+    // (id, conteudo_atualizado_em) alimenta o `lastmod` do sitemap. Nenhum
+    // arquivo novo entrou na lista — `lib/publicacao.ts`, criado no mesmo dia,
+    // lê `veiculos_vendidos`, que é outra tabela.
     expect(comAcesso.length).toBe(8);
 
     const total = arquivos.reduce((soma, a) => {
@@ -92,6 +99,6 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(14);
+    expect(total).toBe(16);
   });
 });
