@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Rotulo } from "../modernist/primitivos";
+import { createBrowserSupabaseClient } from "../../lib/supabase-browser";
+import {
+  BUCKET_DO_DIARIO,
+  caminhoDaFoto,
+  prepararFoto,
+  urlDaFoto,
+  validarFoto,
+} from "../../lib/ciclo/foto";
 
 /**
  * Um veículo na Garagem — o recorte da fase 1 do §6.3-A:
@@ -47,6 +55,7 @@ export interface VeiculoDaGaragem {
     recusada_em: string | null;
     motivo_recusa: string | null;
     dentro_da_janela: boolean | null;
+    url_etiqueta_atual: string | null;
     criada_em: string;
   }[];
   leituras_odometro: {
@@ -187,6 +196,19 @@ export default function GaragemVeiculo({ veiculo }: { veiculo: VeiculoDaGaragem 
                   {m.numero_revisao ? `${m.numero_revisao}ª revisão` : "revisão"} ·{" "}
                   {dataBr(m.data_servico)} ·{" "}
                   <span className="tabular-nums">{kmBr(m.km_registrado)}</span>
+                  {urlDaFoto(m.url_etiqueta_atual) ? (
+                    <>
+                      {" · "}
+                      <a
+                        href={urlDaFoto(m.url_etiqueta_atual)!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-foco font-semibold text-mt-ink underline underline-offset-2"
+                      >
+                        ver a foto
+                      </a>
+                    </>
+                  ) : null}
                 </span>
                 {m.confirmada_em ? (
                   <span className="ml-auto border border-mt-ink px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] text-mt-ink">
@@ -227,9 +249,39 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
   const [dataServico, setDataServico] = useState("");
   const [kmRevisao, setKmRevisao] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [progresso, setProgresso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+
+  /**
+   * Sobe a foto DIRETO para o bucket privado, com a sessão do cliente — a RLS
+   * do storage decide se a pasta é dele. Devolve o caminho, que é o que a
+   * rota grava. Não passa pelo servidor Next de propósito: o limite de corpo
+   * da Vercel (~4,5 MB) barraria justamente a foto de celular.
+   */
+  async function subirFoto(arquivo: File): Promise<string> {
+    const problema = validarFoto(arquivo);
+    if (problema) throw new Error(problema.mensagem);
+
+    setProgresso("Preparando a foto…");
+    const preparada = await prepararFoto(arquivo);
+
+    setProgresso("Enviando a foto…");
+    const supabase = createBrowserSupabaseClient();
+    const caminho = caminhoDaFoto(veiculoId, "atual", preparada.name);
+    const { error } = await supabase.storage
+      .from(BUCKET_DO_DIARIO)
+      .upload(caminho, preparada, { contentType: preparada.type, upsert: false });
+
+    if (error) {
+      throw new Error(
+        "Não deu para enviar a foto. Tente de novo — se persistir, mande pelo WhatsApp da loja.",
+      );
+    }
+    return caminho;
+  }
 
   async function enviar(url: string, corpo: Record<string, unknown>, sucesso: string) {
     setEnviando(true);
@@ -251,9 +303,11 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
       setDataServico("");
       setKmRevisao("");
       setObservacoes("");
+      setFoto(null);
       router.refresh();
     } finally {
       setEnviando(false);
+      setProgresso(null);
     }
   }
 
@@ -333,16 +387,33 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
       {aberto === "revisao" && (
         <form
           className="flex flex-col gap-3"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
+            setErro(null);
+            let caminho: string | null = null;
+            if (foto) {
+              setEnviando(true);
+              try {
+                caminho = await subirFoto(foto);
+              } catch (falha: any) {
+                setErro(falha?.message ?? "Não deu para enviar a foto.");
+                setEnviando(false);
+                setProgresso(null);
+                return;
+              }
+              setEnviando(false);
+            }
             enviar(
               "/api/garagem/revisoes",
               {
                 data_servico: dataServico,
                 km_registrado: Number(kmRevisao),
                 observacoes: observacoes.trim() || null,
+                url_etiqueta_atual: caminho,
               },
-              "Revisão lançada no diário — está na fila de verificação da loja. Guarde a foto da etiqueta de troca de óleo (a nova, com o KM legível): é ela que valida o lançamento.",
+              caminho
+                ? "Revisão lançada com a foto — está na fila de verificação da loja. Quando a equipe conferir a etiqueta, ela vira procedência do carro."
+                : "Revisão lançada no diário — está na fila de verificação da loja. Sem a foto da etiqueta a equipe vai precisar pedir a prova; dá para anexar num registro novo.",
             );
           }}
         >
@@ -391,13 +462,38 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
               className={inputClasse}
             />
           </div>
-          <div className="flex gap-3">
+
+          {/* A prova. `capture` abre a câmera direto no celular, que é onde a
+              etiqueta é fotografada — de pé, ao lado do carro. */}
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor={`foto-${veiculoId}`}
+              className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
+            >
+              Foto da etiqueta de troca de óleo
+            </label>
+            <input
+              id={`foto-${veiculoId}`}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+              className="w-full border border-mt-regua-fina bg-mt-bg p-2.5 text-[12px] text-mt-ink file:mr-3 file:border-0 file:bg-mt-ink file:px-3 file:py-1.5 file:text-[11px] file:font-semibold file:uppercase file:tracking-[.08em] file:text-mt-inverso"
+            />
+            <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-600">
+              A etiqueta nova, com o <strong>KM legível</strong> — é ela que valida o
+              lançamento. Dá para lançar sem a foto, mas aí a verificação fica parada
+              até a prova chegar.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
             <button
               type="submit"
               disabled={enviando}
               className="mt-foco bg-mt-accent px-5 py-2.5 text-[11px] font-bold uppercase tracking-[.08em] text-mt-inverso disabled:opacity-50"
             >
-              {enviando ? "Lançando…" : "Lançar no diário"}
+              {enviando ? progresso ?? "Lançando…" : "Lançar no diário"}
             </button>
             <button type="button" className={rotuloBotao} onClick={() => setAberto(null)}>
               Cancelar

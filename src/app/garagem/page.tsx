@@ -102,7 +102,7 @@ export default async function GaragemPage({
        plano_revisoes ( numero_revisao, km_previsto, janela_inicio, janela_fim, manutencao_id ),
        manutencoes ( id, tipo, numero_revisao, data_servico, km_registrado,
                      origem_registro, confirmada_em, recusada_em, motivo_recusa,
-                     dentro_da_janela, criada_em ),
+                     dentro_da_janela, url_etiqueta_atual, criada_em ),
        leituras_odometro ( km, origem, registrada_em )`,
     )
     .eq("cliente_id", cliente.id)

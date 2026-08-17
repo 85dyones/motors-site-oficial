@@ -182,6 +182,32 @@ o status — é lá que se vê bounce e rejeição, não no Supabase.
 
 ---
 
+## 3-b. A foto da etiqueta (fase 2, 2026-08-15)
+
+A prova do carimbo passou a morar no projeto, em vez de num link de WhatsApp:
+bucket **privado** `diario-de-bordo`, migração
+`20260815210000_storage_do_diario_de_bordo.sql`.
+
+- **Caminho:** `{veiculo_vendido_id}/{atual|anterior|nota}-{carimbo}-{sorteio}.{ext}`.
+  O primeiro segmento não é organização — é o que a RLS de `storage.objects`
+  lê para decidir de quem é a pasta. **Mudar o formato sem mudar a policy abre
+  ou tranca o acesso de todo mundo.**
+- **Upload direto do navegador**, com a sessão do cliente. Não passa pela rota
+  porque função serverless da Vercel recusa corpo acima de ~4,5 MB — e foto de
+  celular passa disso. Antes de subir, a imagem é reduzida a 1600px no lado
+  maior (`src/lib/ciclo/foto.ts`), respeitando a orientação do EXIF.
+- **Leitura por URL assinada de 5 minutos**, via `GET /api/ciclo/foto?caminho=…`,
+  que assina com a sessão de quem pede — a RLS é a autoridade, não um `if`.
+  Sem direito, responde **404** (e não 403) de propósito: distinguir "não é
+  seu" de "não existe" contaria a um estranho que aquele veículo tem foto.
+- **Duas origens convivem na mesma coluna:** valor que começa com `http` é URL
+  externa colada à mão pela equipe (o jeito antigo, que continua valendo);
+  qualquer outra coisa é caminho no bucket. Quem resolve as duas é
+  `urlDaFoto()` — use sempre, nunca o valor cru num `href`.
+- **Cliente não apaga nem sobrescreve** foto, pela mesma razão de
+  `manutencoes`: prova enviada não se reescreve. Foto ilegível se resolve com
+  registro novo, e o anterior fica no rastro com o motivo da recusa.
+
 ## 4. Validade do link
 
 O padrão do Supabase para link mágico é **1 hora**, e é o que o template diz ao

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { validarRevisao } from "../../../../lib/ciclo/revisao";
+import { ehCaminhoDoBucket } from "../../../../lib/ciclo/foto";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,23 @@ export async function POST(request: Request) {
 
   const observacoes = String(corpo?.observacoes ?? "").trim().slice(0, 500) || null;
 
+  // A foto já subiu, direto do navegador para o bucket privado, sob RLS — aqui
+  // chega só o CAMINHO dela. Aceitar URL externa neste endpoint seria deixar
+  // o cliente apontar a prova para um servidor que ele controla; quando a
+  // equipe cola link de WhatsApp, é pela tela da loja, com gente vendo.
+  const caminhoFoto = String(corpo?.url_etiqueta_atual ?? "").trim();
+  if (caminhoFoto && !ehCaminhoDoBucket(caminhoFoto)) {
+    return NextResponse.json(
+      { error: "Envie a foto pelo próprio formulário." },
+      { status: 422 },
+    );
+  }
+  // E o caminho precisa começar pela pasta DESTE veículo — a RLS do storage já
+  // barrou o upload noutra pasta, mas o campo é texto e chega pelo corpo.
+  if (caminhoFoto && !caminhoFoto.startsWith(`${dados.veiculo_vendido_id}/`)) {
+    return NextResponse.json({ error: "Foto não confere com o veículo." }, { status: 422 });
+  }
+
   const { data: criada, error } = await supabase
     .from("manutencoes")
     .insert({
@@ -58,6 +76,7 @@ export async function POST(request: Request) {
       data_servico: dados.data_servico,
       km_registrado: Number(dados.km_registrado),
       origem_registro: "cliente",
+      url_etiqueta_atual: caminhoFoto || null,
       observacoes,
     })
     .select("id")

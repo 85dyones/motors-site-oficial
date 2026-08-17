@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { validarRevisao, type DadosDaRevisao } from "../../lib/ciclo/revisao";
+import { urlDaFoto } from "../../lib/ciclo/foto";
 
 /**
  * Tela A21 — fila de verificação do diário de bordo (manual v1.1 §5.7,
@@ -250,21 +251,25 @@ export default function FilaDeVerificacao() {
                   {r.numero_revisao ? <span>{r.numero_revisao}ª revisão</span> : null}
                   <span>Registrado em {dataBr(r.criada_em)}</span>
                 </div>
+                {/* `urlDaFoto` resolve as duas origens que convivem na mesma
+                    coluna: URL externa colada à mão (o jeito antigo, de quando
+                    a foto vinha por WhatsApp) e caminho do bucket privado, que
+                    só abre por URL assinada. */}
                 <div className="mt-2 flex flex-wrap gap-4 text-[12px]">
-                  {r.url_etiqueta_atual ? (
-                    <a className="mt-foco font-semibold text-mt-accent underline" href={r.url_etiqueta_atual} target="_blank" rel="noreferrer">
+                  {urlDaFoto(r.url_etiqueta_atual) ? (
+                    <a className="mt-foco font-semibold text-mt-accent underline" href={urlDaFoto(r.url_etiqueta_atual)!} target="_blank" rel="noreferrer">
                       Etiqueta nova
                     </a>
                   ) : (
                     <span className="font-semibold text-mt-accent">Sem foto da etiqueta nova</span>
                   )}
-                  {r.url_etiqueta_anterior ? (
-                    <a className="mt-foco text-mt-neutral-700 underline" href={r.url_etiqueta_anterior} target="_blank" rel="noreferrer">
+                  {urlDaFoto(r.url_etiqueta_anterior) ? (
+                    <a className="mt-foco text-mt-neutral-700 underline" href={urlDaFoto(r.url_etiqueta_anterior)!} target="_blank" rel="noreferrer">
                       Etiqueta anterior
                     </a>
                   ) : null}
-                  {r.url_nota_servico ? (
-                    <a className="mt-foco text-mt-neutral-700 underline" href={r.url_nota_servico} target="_blank" rel="noreferrer">
+                  {urlDaFoto(r.url_nota_servico) ? (
+                    <a className="mt-foco text-mt-neutral-700 underline" href={urlDaFoto(r.url_nota_servico)!} target="_blank" rel="noreferrer">
                       Nota de serviço
                     </a>
                   ) : null}
