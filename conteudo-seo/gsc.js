@@ -265,6 +265,35 @@ const iso = (d) => d.toISOString().slice(0, 10);
     return;
   }
 
+  // `--sondar` bate em `sites.get` para cada forma que a propriedade pode ter.
+  // A lista vazia de `--sites` não distingue os casos; o código de cada
+  // resposta sim: 403 é "existe e você não tem acesso", 404 é "não existe com
+  // esse identificador". Descobre também se o acesso foi dado à variante de
+  // prefixo de URL em vez da de domínio.
+  if (process.argv.includes("--sondar")) {
+    const formas = [
+      "sc-domain:motorsstore.com.br",
+      "https://motorsstore.com.br/",
+      "https://www.motorsstore.com.br/",
+      "http://motorsstore.com.br/",
+    ];
+    console.log("sondando cada identificador possível:\n");
+    for (const forma of formas) {
+      const r = await fetch(
+        `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(forma)}`,
+        { headers: { Authorization: `Bearer ${acesso}` } }
+      );
+      const texto = await r.text();
+      let nota = "";
+      if (r.status === 200) nota = "  ← ACESSO OK";
+      else if (r.status === 403) nota = "  (existe, sem permissão para esta conta)";
+      else if (r.status === 404) nota = "  (não existe com este identificador)";
+      console.log(`  HTTP ${r.status}  ${forma}${nota}`);
+      if (r.status === 200) console.log(`         ${texto.slice(0, 120)}`);
+    }
+    return;
+  }
+
   const fim = new Date(Date.now() - 2 * 86400000); // GSC atrasa ~2 dias
   const inicio = new Date(fim.getTime() - DIAS * 86400000);
 
