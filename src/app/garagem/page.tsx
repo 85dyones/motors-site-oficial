@@ -4,6 +4,7 @@ import { ehStaff } from "../../lib/permissoes";
 import { Rotulo } from "../../components/modernist/primitivos";
 import GaragemEntrada from "../../components/garagem/GaragemEntrada";
 import GaragemVeiculo, { type VeiculoDaGaragem } from "../../components/garagem/GaragemVeiculo";
+import MeusDados from "../../components/garagem/MeusDados";
 import BotaoSair from "../../components/garagem/BotaoSair";
 
 export const dynamic = "force-dynamic";
@@ -57,9 +58,11 @@ export default async function GaragemPage({
   }
 
   // ---- o cliente da sessão ----------------------------------------------
+  const camposDoCliente = "id, nome, email, telefone_e164, cpf_cnpj, consentimento_canais";
+
   let { data: cliente } = await supabase
     .from("clientes")
-    .select("id, nome, email")
+    .select(camposDoCliente)
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -69,7 +72,7 @@ export default async function GaragemPage({
     await supabase.rpc("reivindicar_garagem");
     ({ data: cliente } = await supabase
       .from("clientes")
-      .select("id, nome, email")
+      .select(camposDoCliente)
       .eq("auth_user_id", user.id)
       .maybeSingle());
   }
@@ -131,6 +134,16 @@ export default async function GaragemPage({
       ) : (
         lista.map((v) => <GaragemVeiculo key={v.id} veiculo={v} />)
       )}
+
+      <MeusDados
+        cliente={{
+          nome: cliente.nome,
+          email: cliente.email,
+          telefone_e164: cliente.telefone_e164,
+          cpf_cnpj: cliente.cpf_cnpj,
+          consentimento_canais: cliente.consentimento_canais,
+        }}
+      />
     </Moldura>
   );
 }

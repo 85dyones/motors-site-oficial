@@ -208,6 +208,52 @@ bucket **privado** `diario-de-bordo`, migração
   `manutencoes`: prova enviada não se reescreve. Foto ilegível se resolve com
   registro novo, e o anterior fica no rastro com o motivo da recusa.
 
+## 3-c. Meus dados e consentimento (fase 2, 2026-08-15)
+
+O §6.3-D dá ao cliente uma chave por categoria. **Duas existem hoje** —
+WhatsApp e e-mail — e as outras não viram botão de propósito:
+
+| Categoria do §6.3-D | Está na tela? | Por quê |
+|---|---|---|
+| Comunicação por WhatsApp / e-mail | ✅ chave | tem efeito imediato no motor |
+| Histórico de manutenção | informação | sempre ativo; sustenta a procedência |
+| Registro de KM entre revisões | ❌ | controla um lembrete mensal que o motor ainda não tem |
+| Localização / telemetria de condução | ❌ | v1.1 manda esconder sem provedor — "chave que não liga nada é ruído" |
+
+**A escrita é por função, não por policy.** `atualizar_consentimento_canais`
+(`security definer`, migração `20260815230000`) grava UMA coluna da linha de
+quem chamou. Uma policy de UPDATE para o cliente abriria `cpf_cnpj` e
+`auth_user_id` junto, porque o grant de `clientes` é para todas as colunas e
+para o papel `authenticated` — o mesmo da equipe. Restringir por coluna
+tiraria a edição da equipe no mesmo gesto.
+
+**Desligar tudo é válido e não penaliza:** o motor suprime com
+`sem_canal_consentido` e nenhum cálculo de conformidade, índice ou
+elegibilidade lê o campo (regra 2). Provado ponta a ponta em 2026-08-15: o
+cliente desligou os canais na Garagem e os três gatilhos passaram a sair
+suprimidos com esse motivo.
+
+**A escolha fica datada** dentro do próprio jsonb (`atualizado_em`,
+`atualizado_por`) — prova de consentimento sem tabela nova. Chave extra não
+atrapalha o motor, que lê só `whatsapp` e `email`.
+
+### A exportação (§6.3-D e §6.3-E)
+
+`/garagem/meus-dados` é uma página **feita para imprimir**, não um gerador de
+PDF: o navegador já imprime em PDF em toda plataforma, e uma biblioteca custaria
+dependência e um segundo layout para manter em sincronia. Um teste barra a
+entrada de `pdfkit`, `puppeteer`, `jspdf` e afins.
+
+O documento é inteiro e legível fora de contexto — com data de emissão, porque
+o §6.3-E quer que o cliente possa **mostrar a quem for comprar o carro dele**.
+Traz o cadastro, os veículos, o diário de bordo com a situação de cada
+lançamento e a série de KM. E diz o que a loja **não** tem: "não guarda
+traçado de localização nem dado de telemetria" — a prova de que nada está
+escondido.
+
+> Na Garagem o documento aparece **mascarado** (`123.***.***-09`); inteiro só
+> na exportação, que é o titular pedindo os próprios dados.
+
 ## 4. Validade do link
 
 O padrão do Supabase para link mágico é **1 hora**, e é o que o template diz ao
