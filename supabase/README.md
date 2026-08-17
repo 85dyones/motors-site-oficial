@@ -174,9 +174,12 @@ alto: o estoque simplesmente para de atualizar, e o site segue servindo dados
 cada vez mais velhos até alguém notar.
 
 > **Correção de 2026-08-04:** este documento afirmava que o sync roda a cada 6
-> horas. O workflow ao vivo tem **só um `manualTrigger`** e está `active: false`
-> — não há agendamento nenhum. O "a cada 6h" vinha de uma cópia versionada que
-> não corresponde ao que roda. Ver passo 3.
+> horas. O workflow ao vivo tinha **só um `manualTrigger`** e estava
+> `active: false` — não havia agendamento nenhum. O "a cada 6h" vinha de uma
+> cópia versionada que não correspondia ao que rodava.
+>
+> **2026-08-17:** agora corresponde. O agendamento de 6h existe de verdade no
+> workflow ao vivo, e ele está ativo. Ver passo 3.
 
 A view de compatibilidade criada no passo 2 existe exatamente para cobrir a
 janela entre os passos 2 e 3.
@@ -211,12 +214,70 @@ WHERE relname IN ('veiculos', 'estoque_motors');
 -- esperado: estoque_motors = 'r' (tabela), veiculos = 'v' (view)
 ```
 
-### Passo 3 — atualizar o workflow n8n 🔧 MANUAL, **PENDENTE**
+### Passo 3 — atualizar o workflow n8n ✅ APLICADO 2026-08-17
 
-> 🔴 **Os passos 3 e 4 foram executados fora de ordem.** O passo 4 foi aplicado
-> em 2026-08-04 sem o passo 3. A view não existe mais e o workflow ao vivo
-> ainda apontava para o nome antigo: **o sync está quebrado agora**, e só volta
-> quando o workflow corrigido for importado.
+> Os passos 3 e 4 foram executados fora de ordem: o passo 4 saiu em 2026-08-04
+> sem o passo 3, e o sync ficou quebrado por 13 dias. Fechado em 2026-08-17 —
+> ver "O que foi aplicado" abaixo.
+
+**Estado atual do workflow `wfYIjBaxaFFnvAYa`** (n8n.v2o5.com.br): `active: true`,
+`scheduleTrigger` a cada 6h (`0 */6 * * *`, fuso `America/Sao_Paulo`), gatilho
+manual preservado ao lado.
+
+#### O que foi aplicado em 2026-08-17
+
+A auditoria de 2026-08-16 partiu de uma foto de 2026-08-04. Entre uma coisa e
+outra o workflow **foi editado ao vivo em 2026-08-10, sem registro em lugar
+nenhum**: já apontava para `estoque_motors` e já tinha `combustivel`. O que
+ainda o mantinha inútil eram três coisas, e são elas que esta rodada corrigiu:
+
+| Problema | Correção |
+|---|---|
+| O corpo do upsert **não gravava `last_seen_at`** — sem carimbo novo, a régua de `apenasDoUltimoSync` nunca esconderia quem saiu do feed | Corpo do arquivo versionado, que grava `last_seen_at: new Date().toISOString()` |
+| `service_role` **inline nos headers**, em texto puro (sai junto em qualquer export, e este repositório é público) | `authentication: predefinedCredentialType` + `nodeCredentialType: supabaseApi`, apontando para a credencial `Uy7b6KS9QdqqXnje` ("Supabase Motors (zwbqmzgnagfeqinqkolp)"), que injeta `apikey` e `Authorization` sozinha |
+| Só `manualTrigger`, `active: false` — o sync só acontecia se alguém clicasse | `scheduleTrigger` v1.2 a cada 6h, e o workflow ativado |
+
+A credencial substitui também o `{{ $env.SUPABASE_SERVICE_ROLE_KEY }}` que o
+arquivo da raiz usava: **a API pública do n8n não cria variável de ambiente**, e
+a credencial já existia e já estava provada em execução real. Nenhum segredo
+passou pelo repositório nem pelo corpo do `PUT`.
+
+Duas armadilhas da API do n8n, ambas já documentadas e ambas encontradas de novo:
+`settings` precisa ir filtrado às oito chaves que o schema público aceita (as
+demais — `binaryMode`, `availableInMCP` — sobrevivem à gravação), e o nó
+`httpRequest` typeVersion 4.x exige `specifyHeaders: "keypair"` ou os cabeçalhos
+manuais não são enviados.
+
+#### O primeiro ciclo real — execução 20384, 2026-08-17
+
+Disparado por cron temporário sob supervisão, depois restaurado para 6h.
+43 itens entraram, 43 saíram, zero erros. Medido no banco, não na cor da
+execução:
+
+| | antes | depois |
+|---|---|---|
+| linhas em `estoque_motors` | 88 | 94 (6 do feed que faltavam) |
+| carimbos `last_seen_at` distintos | 1 (todos `2026-08-04 20:10:16.760207`) | 44 (43 do ciclo + o antigo) |
+| dentro da janela de 30 min | — | 43 |
+| visíveis no site | 64 | **41** (43 do feed − 2 marcados `vendido`) |
+| `vendido = true` (do painel) | 24 | 24 — intactos |
+
+Os 29 fantasmas saíram da vitrine **sozinhos, sem `DELETE`**: continuam na
+tabela com o carimbo velho, fora da janela. É reversível e não perde dado.
+O contrato do painel foi respeitado — `placa`, `preco_compra`, `laudo_pericia`,
+`opcionais` e companhia sobreviveram ao upsert, porque não estão no mapeamento.
+Conferido no ciclo novo: nenhum preço zerado, nenhum `combustivel` vazio,
+nenhuma lista de fotos vazia.
+
+#### Pendência que este passo revelou
+
+O `sitemap.xml` de produção ainda anuncia **88 veículos** — é estático, gerado
+no build, e não acompanha o sync. Depois deste ciclo, **53 dessas URLs apontam
+para veículos fora da vitrine**, e todas respondem 200 (PDPs pré-renderizadas).
+Não é regressão do sync: o descompasso já existia (88 no sitemap contra 64
+visíveis). Mas agora é maior, e o próximo deploy vai encolher o sitemap de
+uma vez. Decidir se as PDPs de veículo fora do feed devem 404, redirecionar
+para a vitrine, ou seguir vivas com aviso.
 
 A cópia exportada em 2026-08-04 revelou que **o workflow ao vivo não é o que
 estava versionado aqui**. Diferenças que importam:
@@ -233,11 +294,17 @@ Resolve AUDITORIA §5.9 e §1.4: o insert-sem-upsert já estava resolvido ao viv
 o `"active": false` é real e o agendamento de 6h **não existe** no workflow que
 roda — o sync só acontece quando alguém clica.
 
-`Antigravity - Sincronizador de Estoque (estoque_motors).json` neste repositório
-é a versão corrigida (alvo `estoque_motors`, campo `combustivel` restaurado),
-com o JWT trocado por `{{ $env.SUPABASE_SERVICE_ROLE_KEY }}` — **este repositório
-é público e não pode conter a chave**. Importar exige configurar essa variável
-no n8n.
+`Antigravity - Sincronizador de Estoque (estoque_motors).json` na raiz deste
+repositório é a versão corrigida (alvo `estoque_motors`, campo `combustivel`
+restaurado, `last_seen_at` no corpo), com o JWT trocado por
+`{{ $env.SUPABASE_SERVICE_ROLE_KEY }}` — **este repositório é público e não pode
+conter a chave**.
+
+> ⚠️ O arquivo está **um passo atrás do que roda** desde 2026-08-17: ao vivo, a
+> autenticação não é mais por `$env`, e sim pela credencial `supabaseApi` do
+> próprio n8n (ver passo 3). Se for reimportá-lo, troque a autenticação de novo
+> — ou exporte o workflow ao vivo por cima deste arquivo. Nunca exporte com a
+> chave inline.
 
 ### Passo 4 — remover a view de compatibilidade ✅ APLICADO 2026-08-04
 
@@ -282,9 +349,9 @@ Migrações aplicadas com sucesso. Verificado por consulta direta ao banco
 
 > **Nota de 2026-08-13:** a tabela acima é a fotografia de 2026-08-03 e o
 > parágrafo que vivia aqui ("passos 3 e 4 continuam pendentes") envelheceu — o
-> passo 4 foi aplicado em 2026-08-04 (ver a seção do passo 4 acima) e o
-> sincronizador corrigido está no repositório. O que restou do passo 3 é a
-> importação no n8n com `SUPABASE_SERVICE_ROLE_KEY` configurada por lá.
+> passo 4 foi aplicado em 2026-08-04 (ver a seção do passo 4 acima).
+> **O passo 3 fechou em 2026-08-17**: o cutover inteiro está completo e o sync
+> voltou a rodar sozinho.
 > Atenção: a `public.veiculos` **voltou** a existir em produção como tabela
 > (reexecução do baseline; `AUDITORIA.md` §3.4-c) — removê-la é pré-requisito
 > para qualquer `db push` futuro.
