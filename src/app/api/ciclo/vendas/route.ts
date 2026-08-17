@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import {
+  createServerSupabaseClient,
+  createAdminSupabaseClient,
+} from "../../../../lib/supabase-server";
 import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
 import { registrarAcaoSensivel } from "../../../../lib/auditoria";
 import {
@@ -109,7 +112,53 @@ export async function POST(request: Request) {
       { id: user.id, nome: profile?.full_name ?? user.email },
     );
 
-    return NextResponse.json({ ok: true, ...(data ?? {}) }, { status: 201 });
+    // A conta da Garagem nasce AQUI (§6.3: "no fechamento da venda, não no
+    // formulário de entrada" — o cadastro público está fechado). Depois da
+    // transação da venda, de propósito: um soluço do Auth não pode desfazer
+    // uma venda já gravada. Se este bloco falhar, `reivindicar_garagem()`
+    // liga o vínculo no primeiro login — mas o resultado vai na resposta,
+    // porque falha silenciosa aqui viraria "cliente diz que não tem acesso"
+    // semanas depois, sem rastro.
+    const clienteId = (data as { cliente_id?: string } | null)?.cliente_id ?? null;
+    let garagem = "sem_vinculo";
+    try {
+      const admin = createAdminSupabaseClient();
+      const email = String(dados.email ?? "").trim().toLowerCase();
+
+      // `email_confirm`: o e-mail é a porta da Garagem e veio conferido pelo
+      // vendedor no ato (§3.1) — sem isso o Supabase mandaria um "confirme
+      // seu e-mail" ANTES do primeiro link mágico, e o cliente veria dois
+      // e-mails estranhos no mesmo dia.
+      const { data: criado, error: erroCriar } = await admin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+      });
+
+      if (!erroCriar && criado?.user) {
+        if (clienteId) {
+          await admin
+            .from("clientes")
+            .update({ auth_user_id: criado.user.id })
+            .eq("id", clienteId)
+            .is("auth_user_id", null);
+        }
+        garagem = "conta_criada";
+      } else if (clienteId) {
+        // E-mail já tem conta — segundo carro, ou funcionário comprando. O
+        // vínculo sai pelo banco, que acha o usuário pelo e-mail.
+        const { data: vinculo } = await admin.rpc("vincular_auth_por_email", {
+          p_cliente: clienteId,
+        });
+        garagem = (vinculo as { vinculado?: boolean } | null)?.vinculado
+          ? "conta_existente_vinculada"
+          : "sem_vinculo";
+      }
+    } catch (erroGaragem: any) {
+      console.error("[Ciclo/Vendas] Venda ok, mas a conta da Garagem falhou:", erroGaragem?.message);
+      garagem = "falhou";
+    }
+
+    return NextResponse.json({ ok: true, garagem, ...(data ?? {}) }, { status: 201 });
   } catch (err: any) {
     console.error("[Ciclo/Vendas] Erro inesperado:", err?.message);
     return NextResponse.json({ error: "Erro ao processar a venda." }, { status: 500 });

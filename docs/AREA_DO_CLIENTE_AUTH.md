@@ -35,9 +35,26 @@ contextos, o Outlook renderiza com o motor do Word, e nenhum dos dois carrega
 webfont. A Archivo do site entra só como primeira opção da pilha — quem tiver,
 vê; quem não tiver, cai em Helvetica e o layout não muda.
 
-**A variável do Supabase é `{{ .ConfirmationURL }}`**, e ela aparece duas vezes:
-no botão e no endereço em texto, para quem usa cliente que bloqueia botão. O
-link já carrega token e destino — não acrescente parâmetros à mão.
+**O link do template aponta para `/api/auth/confirm`, com `{{ .TokenHash }}`**
+— duas vezes: no botão e no endereço em texto, para quem usa cliente que
+bloqueia botão. Formato:
+
+```
+https://motorsstore.com.br/api/auth/confirm?token_hash={{ .TokenHash }}&type=email
+```
+
+> **Por que não `{{ .ConfirmationURL }}`** (que era o formato até 2026-08-15):
+> aquele link depende do fluxo que PEDIU o acesso. Fora do PKCE, o token volta
+> no **fragmento** da URL (`#access_token`) — que o servidor nunca recebe — e
+> o cliente quicava de volta para a entrada; foi o primeiro sintoma real do
+> link mágico. E mesmo no PKCE, o clique precisa acontecer no MESMO navegador
+> que pediu o link, o que e-mail não garante (pede no notebook, abre no
+> celular). `token_hash` é verificado no servidor por `/api/auth/confirm`,
+> funciona em qualquer navegador e continua de uso único. O destino pós-login
+> é decidido pelo papel: cliente → `/garagem`, staff → `/admin`.
+>
+> ⚠️ **Se o template do painel ainda estiver com `{{ .ConfirmationURL }}`,
+> recole-o** — o arquivo deste repositório é a fonte.
 
 **Assunto sugerido:**
 
