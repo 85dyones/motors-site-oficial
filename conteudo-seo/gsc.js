@@ -222,6 +222,34 @@ const iso = (d) => d.toISOString().slice(0, 10);
 (async () => {
   const acesso = await token();
 
+  // `--sites` pergunta à API o que ESTA conta enxerga. É o diagnóstico certo
+  // para o 403: ele não distingue "não tenho permissão" de "essa propriedade
+  // nem existe com esse identificador", e a diferença entre propriedade de
+  // domínio (`sc-domain:`) e de prefixo de URL (`https://.../`) é a causa mais
+  // comum — são registros separados no Search Console, com permissões
+  // separadas.
+  if (process.argv.includes("--sites")) {
+    const r = await fetch("https://www.googleapis.com/webmasters/v3/sites", {
+      headers: { Authorization: `Bearer ${acesso}` },
+    });
+    const j = await r.json();
+    if (j.error) throw new Error(`${j.error.code}: ${j.error.message}`);
+
+    const sites = j.siteEntry || [];
+    if (sites.length === 0) {
+      console.log("A conta de serviço não enxerga NENHUMA propriedade.");
+      console.log("O e-mail dela ainda não foi adicionado, ou foi adicionado");
+      console.log("em outra propriedade que não a desta loja.");
+      return;
+    }
+    console.log(`${sites.length} propriedade(s) visível(is):\n`);
+    for (const s of sites) {
+      console.log(`  ${s.permissionLevel.padEnd(14)} ${s.siteUrl}`);
+    }
+    console.log(`\nUse uma delas em GSC_SITE. O valor atual é: ${SITE}`);
+    return;
+  }
+
   const fim = new Date(Date.now() - 2 * 86400000); // GSC atrasa ~2 dias
   const inicio = new Date(fim.getTime() - DIAS * 86400000);
 
