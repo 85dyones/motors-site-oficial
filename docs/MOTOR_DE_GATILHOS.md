@@ -180,7 +180,12 @@ entra às 6h e o orquestrador continua às 9h.
    (a Vercel deploya do GitHub). Rodar o orquestrador contra um deploy sem as
    rotas dá `404` no primeiro nó — foi literalmente o primeiro erro real deste
    motor, em 2026-08-15, porque o commit estava só local. O guia de leitura:
-   **404 = deploy velho; 503 = env faltando; 401 = token errado.**
+   **404 = deploy velho; 503 = env faltando; 401 = token errado OU deploy
+   velho.** O 401 é ambíguo desde 2026-08-18, quando o token do motor virou
+   `CICLO_MOTOR_TOKEN`: com o código antigo no ar, a credencial NOVA e correta
+   também leva 401 — o servidor ainda espera o segredo antigo. Custou uma tarde
+   de caça a credencial nesse dia. **Antes de mexer em credencial do n8n,
+   confirme em Deployments que o commit no topo é o esperado e está `Ready`.**
 1. **Confirmar as envs na Vercel** — `SUPABASE_SERVICE_ROLE_KEY` e
    `CICLO_MOTOR_TOKEN` (token próprio do motor desde 2026-08-18; gere um
    segredo novo, não copie o `N8N_SECRET_TOKEN`). Sem qualquer uma, as rotas
