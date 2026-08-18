@@ -57,13 +57,40 @@ Autenticação nas três: `Authorization: Bearer <token>` obrigatório, com toke
 2026-08-18 era o mesmo token do sentido site→n8n (achado #9 da revisão): quem
 tivesse a credencial de margens puxava nome, telefone e placa da base do
 Ciclo. Segredo mede acesso — dado de cliente e ficha de margem são acessos
-diferentes, então são segredos diferentes. No n8n, criar uma **credencial
-separada** para o motor (não reaproveitar a de margens — e menos ainda a
-"Motors auth", que já derrubou o manychat-lead). Sem token configurado no
+diferentes, então são segredos diferentes. Sem token configurado no
 servidor a rota responde **503** (problema nosso); token errado leva **401**.
 Falha fechada, como `/api/financeiro/margens/consulta`. As três rotas também
 estão atrás de rate limit no proxy (240/h por IP — folga para a rajada de
 desfechos do lote diário, inviável para força bruta).
+
+#### Onde o token vive do lado do n8n
+
+**Não é credencial.** Mapeado em 2026-08-18, depurando um 401: cada rota do
+motor é chamada por um **nó HTTP Request**, seguido de um **nó Code** que só
+confere a resposta e estoura alto (`Fila indisponível: HTTP <status>`) — é
+por isso que o erro aparece como `VmCodeWrapper` no stack trace, apontando
+para o Code quando o problema está no HTTP acima dele.
+
+O `CICLO_MOTOR_TOKEN` fica no **env da instância do n8n**, e o cabeçalho é
+montado no nó HTTP como `Bearer {{ $env.CICLO_MOTOR_TOKEN }}`.
+
+Três armadilhas, todas com o mesmo sintoma (401 indistinguível de token
+errado):
+
+1. **Variável nova exige recriar o container** — sem isso `$env` vem
+   `undefined` e o header sai `Bearer undefined`. Probe seguro num nó Code:
+   `Boolean($env.CICLO_MOTOR_TOKEN)`, que não imprime o segredo.
+2. **"Specify Headers" precisa estar em *Using Fields Below*** — no HTTP
+   Request v4 o cabeçalho simplesmente não é enviado sem isso.
+3. **O prefixo `Bearer ` faz parte do valor** — o site compara a string
+   inteira.
+
+> ⚠️ **A credencial "Motors — Webhooks do site (Bearer)" é do sentido
+> OPOSTO.** Ela guarda os nós Webhook que *recebem* do site (leads, avaliação,
+> admin) e o valor dela é `Bearer <N8N_SECRET_TOKEN>`. Trocar o valor dela
+> não conserta o motor e **quebra a entrada de leads** — aconteceu em 18/08.
+> E o n8n nunca devolve segredo de credencial pela API: sobrescreveu, o valor
+> antigo só existe na Vercel e no `.env.local`.
 
 ### `POST /api/ciclo/motor/fila`
 
