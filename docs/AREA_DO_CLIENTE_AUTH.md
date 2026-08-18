@@ -66,8 +66,13 @@ Evite "Login", "Verificação" e "Confirme sua conta": e-mail de acesso com
 vocabulário de sistema é o que mais cai em spam e o que menos se parece com a
 Motors. O assunto acima diz o que é, na língua do cliente.
 
-O template usa `{{ .ConfirmationURL }}`, que já carrega token e destino. Não
-acrescente parâmetros à mão.
+O template usa `{{ .TokenHash }}` apontando para `/api/auth/confirm` — ver o
+bloco acima. **Não** use `{{ .ConfirmationURL }}`: ele quebra o login fora do
+PKCE e exige que o clique aconteça no mesmo navegador que pediu o link.
+
+> Até 2026-08-18 este parágrafo dizia o contrário — mandava usar
+> `{{ .ConfirmationURL }}`, trinta linhas depois de explicar por que aquilo
+> não funciona. Quem seguisse o guia até o fim desfazia a correção (D1).
 
 ---
 

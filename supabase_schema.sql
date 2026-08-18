@@ -1,3 +1,34 @@
+-- ===========================================================================
+-- ⛔ ARQUIVO HISTÓRICO — NÃO EXECUTE
+-- ===========================================================================
+--
+-- Bootstrap de 2026-08-03, anterior às migrações versionadas. Ficou obsoleto
+-- e HOSTIL: executá-lo hoje derruba proteções que três migrações puseram de
+-- pé e reabre, entre outras coisas —
+--
+--   * `estoque_motors`: policies "Allow public update/insert access" com
+--     `USING (true)` — ou seja, ESCRITA ANÔNIMA no estoque. Qualquer um com a
+--     chave pública poderia alterar preço de veículo.
+--   * `site_settings`: "Allow public read access" com `USING (true)`, que a
+--     `20260812120000_rls_leitura_de_site_settings.sql` fechou de propósito.
+--   * policies de admin por LISTA DE E-MAIL, substituídas por `is_staff()`.
+--
+-- A fonte de verdade do schema é `supabase/migrations/`, aplicada em ordem.
+-- Para subir um ambiente novo, rode as migrações — não este arquivo.
+--
+-- A guarda abaixo aborta a execução inteira. Se você REALMENTE precisa de um
+-- trecho daqui (os seeds de `site_settings`, por exemplo), copie o trecho
+-- específico em vez de remover a guarda.
+--
+-- Posta em 2026-08-18, depois de a auditoria classificar o arquivo como
+-- "arma carregada" (D3).
+-- ===========================================================================
+
+DO $$
+BEGIN
+  RAISE EXCEPTION 'supabase_schema.sql e ARQUIVO HISTORICO e nao deve ser executado: reabre escrita anonima em estoque_motors e leitura publica em site_settings. Use supabase/migrations/. Ver o cabecalho do arquivo.';
+END $$;
+
 -- ==========================================================
 -- SCRIPT DE SCHEMA PARA DADOS DA EMPRESA E SOBRE (SITE SETTINGS)
 -- ==========================================================

@@ -379,8 +379,13 @@ Só depois de confirmar que a conta nova entra no `/admin` é que vale remover
 
 ## Depois da virada
 
-- Redirecionamento 301 do endereço da Vercel para o domínio novo, para não
-  dividir a autoridade de SEO entre dois endereços.
+- ~~Redirecionamento 301 do endereço da Vercel para o domínio novo.~~
+  **Não é acabamento — tem trava.** Quatro workflows do n8n chamam o alias
+  `motors-site-oficial.vercel.app` (ver `:44-47` e
+  `MOTOR_DE_GATILHOS.md`), e um 301 ingênuo os derruba. Confirmado em
+  2026-08-18 lendo o export do orquestrador: os três nós que falam com o
+  site apontam para o alias. A saída é redirecionar **só as rotas de
+  página**, preservando `/api/*` — ver P4 em `RECOMENDACAO_SEO.md`.
 - Google Search Console: propriedade nova, e o sitemap reenviado.
 - A célula do QR na vitrine de TV (`VitrineTV.tsx`) hoje mostra o código do
   veículo porque não havia domínio para imprimir. Com o domínio no ar, ela

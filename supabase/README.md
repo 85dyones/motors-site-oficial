@@ -9,12 +9,14 @@ versionadas em `supabase/migrations/`. Nunca altere schema direto pelo painel."*
 ```
 supabase/
 ├── migrations/     aplicadas em ordem por `supabase db push`
-├── pendente/       SQL pronto, MAS que não pode ser aplicado ainda
 ├── manutencao/     correção de DADO, pontual — nunca vira migração
+├── seeds/          dados iniciais
+├── templates/      modelos de e-mail do Auth — a fonte dos que vão no painel
 └── README.md
 ```
 
-`pendente/` e `manutencao/` não são a mesma coisa, e a diferença importa:
+Há ainda uma quarta pasta que **não existe hoje** e é criada sob demanda:
+`pendente/`. Ela e `manutencao/` não são a mesma coisa, e a diferença importa:
 
 - **`pendente/`** é antessala de **migração de schema**: o arquivo espera um
   passo manual (um cutover coordenado, por exemplo) e, depois de aplicado,
@@ -27,7 +29,34 @@ supabase/
   para não rodar por copiar-colar distraído.
 
 `pendente/` não é uma convenção do Supabase CLI — é uma salvaguarda deste
-projeto. Ver o passo 4 do runbook abaixo para o motivo.
+projeto. Ver o passo 4 do runbook abaixo para o motivo. Está **vazia desde
+que o cutover do rename foi concluído**, e `tests/migracoes.test.ts` tolera a
+ausência do diretório: se ele voltar a existir, é de propósito, e o teste
+volta a exigir que nada seja esquecido lá dentro.
+
+## ⛔ `supabase_schema.sql` na raiz — arquivo histórico, não execute
+
+Esta é a nota que `docs/VIRADA_DE_DOMINIO.md` manda consultar (e que até
+2026-08-18 não existia).
+
+O `supabase_schema.sql` da raiz do repositório é o bootstrap de 2026-08-03,
+anterior às migrações versionadas. Ele **não** descreve o schema de hoje, e
+executá-lo derruba proteções que três migrações puseram de pé:
+
+| O que ele recria | O que isso desfaz |
+|---|---|
+| `estoque_motors`: `Allow public update/insert access` com `USING (true)` | **Escrita anônima no estoque** — qualquer um com a chave pública alteraria preço de veículo (`20260808120000` fechou) |
+| `site_settings`: `Allow public read access` com `USING (true)` | Leitura anônima de `webhooks`, `stock_overrides` e `bank_balances` (`20260812120000` fechou) |
+| Policies de admin por **lista de e-mail** | A régua é `is_staff()` desde `20260813120000` |
+
+Em 2026-08-18 o arquivo ganhou uma **guarda no topo** — um `RAISE EXCEPTION`
+que aborta a execução inteira antes de qualquer DDL, provado em transação
+revertida contra a produção. Colar o arquivo hoje não faz estrago: falha com
+a explicação.
+
+Se precisar de algum trecho dele (os seeds de `site_settings`, por exemplo),
+**copie o trecho** — não remova a guarda. E não atualize o arquivo para
+refletir mudanças novas: a fonte de verdade é `migrations/`.
 
 ## Migrações
 
@@ -49,7 +78,18 @@ projeto. Ver o passo 4 do runbook abaixo para o motivo.
 | `20260813120000_role_cliente_e_is_staff.sql` | O auth passa a ter dois públicos: papel `cliente` (padrão de todo cadastro novo), `is_staff()` como régua única, papel de staff só via `app_metadata`. Re-escopa toda policy interna que dizia `TO authenticated USING (true)`. **Aplicada em produção em 2026-08-13.** |
 | `20260813150000_ciclo_fundacao_de_dados.sql` | Pacote 1 do Motors Ciclo: as 13 tabelas do manual v1.1 §2.1, índices do §2.2, a view de estado do §2.3 e RLS por cliente. Traz autoconferência que **prova o aceite do pacote** contra o banco real — cria dois clientes sintéticos, assume a sessão de um e falha a migração se ele enxergar o outro. **Aplicada em produção em 2026-08-14.** |
 | `20260814120000_fechar_venda_ciclo.sql` | Pacote 2: a função `fechar_venda_ciclo(jsonb)`, que grava a venda inteira em uma transação — cliente, veículo, KM de saída, plano de revisões e, quando houver, financiamento e contrato. Levanta `VENDA_INCOMPLETA` com a lista de campos quando falta obrigatório do §3.1. Autoconferência tenta cinco vendas inválidas e exige que todas falhem. **Aplicada em produção em 2026-08-14.** |
-| `20260814150000_carimbo_e_conformidade.sql` | O diário de bordo: `carimbar_revisao` (exige a foto da etiqueta nova, casa com a janela do plano pela régua do §1.5, grava o KM como leitura verificada; recusa exige motivo e fica no rastro) e `calcular_conformidade_diaria` (a série do §1.4 — nunca sobrescreve, `pct NULL` com denominador zero, dias preenchidos depois do fato saem com `retroativa = true`). ⏳ **Ainda não aplicada.** |
+| `20260814150000_carimbo_e_conformidade.sql` | O diário de bordo: `carimbar_revisao` (exige a foto da etiqueta nova, casa com a janela do plano pela régua do §1.5, grava o KM como leitura verificada; recusa exige motivo e fica no rastro) e `calcular_conformidade_diaria` (a série do §1.4 — nunca sobrescreve, `pct NULL` com denominador zero, dias preenchidos depois do fato saem com `retroativa = true`). **Aplicada em produção em 2026-08-15.** |
+| `20260814180000_motor_de_gatilhos.sql` | Pacote 3: `montar_fila_de_gatilhos` (a régua de QUEM recebe — §4.3, §4.4 — no servidor, não no workflow) e `registrar_desfecho_ciclo`. A recusa ganha marca própria (`manutencoes.recusada_em`, `motivo_recusa`): sem ela, recusado e pendente eram o mesmo estado e a fila da A21 nunca esvaziava. **Aplicada em produção em 2026-08-15.** |
+| `20260815120000_fechar_superficie_exposta.sql` | Cria o livro-razão `supabase_migrations.schema_migrations` e o semeia com as 19 versões já aplicadas (equivalente ao `migration repair`), e derruba a tabela fantasma `public.veiculos`. **Aplicada em produção em 2026-08-15.** |
+| `20260815180000_garagem_vinculo_do_cliente.sql` | O vínculo cliente↔conta da Garagem: `reivindicar_garagem()` e `vincular_auth_por_email()`. **Aplicada em produção em 2026-08-15.** |
+| `20260815210000_storage_do_diario_de_bordo.sql` | Bucket privado das fotos de etiqueta, com RLS por pasta do veículo. O cliente escreve e lê a própria pasta; a equipe lê tudo; **ninguém apaga** (trigger `protect_delete`). **Aplicada em produção em 2026-08-15.** |
+| `20260815230000_consentimento_do_cliente.sql` | `atualizar_consentimento_canais()` — o cliente liga e desliga canal na área dele. Recusa nunca penaliza (regra 2). **Aplicada em produção em 2026-08-15.** |
+| `20260817120000_conteudo_atualizado_em.sql` | `estoque_motors.conteudo_atualizado_em` + trigger: o `lastmod` do sitemap passa a ser data real de alteração de conteúdo, não `new Date()`. **Aplicada em produção em 2026-08-17.** |
+| `20260817130000_descricao_seo.sql` | `estoque_motors.descricao_seo` — o texto do anúncio, fonte do feed dos portais e da meta description. **Aplicada em produção em 2026-08-17.** |
+| `20260817140000_documento_do_estoque_e_cep.sql` | Documentação interna do veículo (chassi, placa) e `cep` do cliente. **Nunca no mapper público** — ver a nota de `placa` em `supabase.ts`. **Aplicada em produção em 2026-08-17.** |
+| `20260818120000_falha_envio_nao_penaliza.sql` | `boas_vindas` e `revisao_verificada` passam a excluir `falha_envio` da deduplicação — sem isso, quem desligasse o WhatsApp mantendo o e-mail nunca mais receberia a boas-vindas (viola a regra 2). No mesmo arquivo, a montagem **com reserva** passa a ser serializada por `pg_advisory_xact_lock`. **Aplicada em produção em 2026-08-18.** |
+| `20260818130000_vinculo_exige_email_confirmado.sql` | `reivindicar_garagem()` passa a exigir `email_confirmed_at` — antes, a segurança do vínculo dependia do checkbox "cadastro público fechado" no painel. Autoconferência prova a recusa. **Aplicada em produção em 2026-08-18.** |
+| `20260818140000_desfecho_nao_regride.sql` | Desfecho não regride: `desfecho_pode_gravar()` (função pura, autoconferida em 19 transições) impede que um retry rebaixe `convertido` para `sem_resposta`. Sobrescrita recusada volta `sobrescrita_ignorada: true`, nunca erro. **Aplicada em produção em 2026-08-18.** |
 
 ### Vocabulário: o banco fala mais velho que a interface
 
@@ -213,9 +253,14 @@ alto: o estoque simplesmente para de atualizar, e o site segue servindo dados
 cada vez mais velhos até alguém notar.
 
 > **Correção de 2026-08-04:** este documento afirmava que o sync roda a cada 6
-> horas. O workflow ao vivo tem **só um `manualTrigger`** e está `active: false`
-> — não há agendamento nenhum. O "a cada 6h" vinha de uma cópia versionada que
-> não corresponde ao que roda. Ver passo 3.
+> horas. O workflow ao vivo tinha **só um `manualTrigger`** e estava
+> `active: false` — não havia agendamento nenhum. O "a cada 6h" vinha de uma
+> cópia versionada que não correspondia ao que rodava. Ver passo 3.
+>
+> **⚠️ Vencida em 2026-08-17:** o sincronizador **voltou a rodar**, agora com
+> cron de 6 horas de verdade, e o estoque do site convergiu de 64 para 41
+> veículos no primeiro ciclo. Os parágrafos abaixo descrevem o estado de
+> 04/08 e ficam como histórico — não como o presente.
 
 A view de compatibilidade criada no passo 2 existe exatamente para cobrir a
 janela entre os passos 2 e 3.
@@ -269,8 +314,13 @@ estava versionado aqui**. Diferenças que importam:
 | credencial | credencial do n8n | **`service_role` JWT inline nos headers** |
 
 Resolve AUDITORIA §5.9 e §1.4: o insert-sem-upsert já estava resolvido ao vivo;
-o `"active": false` é real e o agendamento de 6h **não existe** no workflow que
-roda — o sync só acontece quando alguém clica.
+o `"active": false` era real e o agendamento de 6h **não existia** no workflow
+que rodava — o sync só acontecia quando alguém clicava.
+
+> **Estado atual (2026-08-17):** o sync está **ativo, com cron de 6 horas**. A
+> tabela acima é o retrato de 04/08 e explica por que a cópia versionada
+> divergiu do que roda — divergência que já apareceu duas vezes. Antes de
+> confiar no JSON deste repositório, **exporte o workflow ao vivo e compare**.
 
 `Antigravity - Sincronizador de Estoque (estoque_motors).json` neste repositório
 é a versão corrigida (alvo `estoque_motors`, campo `combustivel` restaurado),
