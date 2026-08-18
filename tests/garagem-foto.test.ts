@@ -116,6 +116,18 @@ describe("o envio", () => {
     expect(rotaRevisoes).toContain("Foto não confere com o veículo");
   });
 
+  it("POST recusado não faz a foto subir de novo", () => {
+    // Achado #11: a foto sobe ANTES do POST e o bucket recusa DELETE
+    // (protect_delete) — apagar o órfão não é opção. Se o POST falhar, o
+    // reenvio tem que reaproveitar o caminho já subido; sem isso, cada
+    // tentativa largava mais uma cópia órfã no bucket.
+    expect(componente).toContain("fotoSubida");
+    expect(componente).toContain("fotoSubida.arquivo === foto");
+    // E o sucesso limpa a memória, senão a PRÓXIMA revisão reusaria a foto
+    // da anterior.
+    expect(componente).toContain("setFotoSubida(null)");
+  });
+
   it("valida tamanho e tipo antes de tentar", () => {
     expect(validarFoto({ type: "application/pdf", size: 1000 })).not.toBeNull();
     expect(validarFoto({ type: "image/jpeg", size: TAMANHO_MAXIMO_BYTES + 1 })).not.toBeNull();

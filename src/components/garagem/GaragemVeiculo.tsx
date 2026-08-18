@@ -250,6 +250,11 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
   const [kmRevisao, setKmRevisao] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
+  // A foto que JÁ subiu ao bucket, com o caminho dela. Existe porque o upload
+  // acontece antes do POST e o bucket recusa DELETE (protect_delete): se o
+  // POST falhar, apagar o arquivo não é opção — então o reenvio reaproveita
+  // o caminho em vez de subir cópia nova e largar a anterior órfã (achado #11).
+  const [fotoSubida, setFotoSubida] = useState<{ arquivo: File; caminho: string } | null>(null);
   const [progresso, setProgresso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
@@ -304,6 +309,7 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
       setKmRevisao("");
       setObservacoes("");
       setFoto(null);
+      setFotoSubida(null);
       router.refresh();
     } finally {
       setEnviando(false);
@@ -392,16 +398,23 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
             setErro(null);
             let caminho: string | null = null;
             if (foto) {
-              setEnviando(true);
-              try {
-                caminho = await subirFoto(foto);
-              } catch (falha: any) {
-                setErro(falha?.message ?? "Não deu para enviar a foto.");
+              if (fotoSubida && fotoSubida.arquivo === foto) {
+                // Esta foto já está no bucket — foi o POST que recusou da
+                // outra vez. Reaproveita o caminho em vez de subir de novo.
+                caminho = fotoSubida.caminho;
+              } else {
+                setEnviando(true);
+                try {
+                  caminho = await subirFoto(foto);
+                } catch (falha: any) {
+                  setErro(falha?.message ?? "Não deu para enviar a foto.");
+                  setEnviando(false);
+                  setProgresso(null);
+                  return;
+                }
                 setEnviando(false);
-                setProgresso(null);
-                return;
+                setFotoSubida({ arquivo: foto, caminho });
               }
-              setEnviando(false);
             }
             enviar(
               "/api/garagem/revisoes",
