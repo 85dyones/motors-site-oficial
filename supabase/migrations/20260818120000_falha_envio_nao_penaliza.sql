@@ -359,3 +359,12 @@ comment on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[])
   'Monta (e opcionalmente reserva) a fila do motor de gatilhos. Reserva é '
   'serializada por advisory lock de transação. Desfecho falha_envio nunca '
   'conta como contato feito — regra 2 do CLAUDE.md.';
+
+-- ---------------------------------------------------------------------------
+-- Registro no livro-razão. Nenhuma migração se registra sozinha (D6): quem
+-- aplica por psql/pg precisa deste rodapé, senão a versão fica invisível
+-- para o `supabase db push` e para a conferência. Ver supabase/README.md.
+-- ---------------------------------------------------------------------------
+insert into supabase_migrations.schema_migrations (version, name)
+  values ('20260818120000', 'falha_envio_nao_penaliza')
+  on conflict (version) do nothing;

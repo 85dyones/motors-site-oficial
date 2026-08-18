@@ -146,6 +146,45 @@ o que muda é só o transporte. Depois, quando o CLI voltar a funcionar, alinhe
 o histórico com `supabase migration repair --status applied <timestamp>` para
 cada uma aplicada por essa via.
 
+### Alternativa sem CLI: `supabase/manutencao/aplicar-migracao.js`
+
+O transporte que comprovadamente funciona nesta máquina (o CLI não está
+instalado e a API de gerenciamento já falhou antes): node + `pg`, que já está
+em `node_modules`, contra o `SUPABASE_DB_URL` do `.env.local` — a mesma URI de
+session pooler do runbook acima.
+
+```
+node supabase/manutencao/aplicar-migracao.js supabase/migrations/<arquivo>.sql           # ensaio
+node supabase/manutencao/aplicar-migracao.js supabase/migrations/<arquivo>.sql --gravar  # aplica
+```
+
+O ensaio roda a migração **inteira** contra a produção numa transação e
+reverte — sempre ensaiar antes de gravar. Os `RAISE NOTICE` das
+autoconferências aparecem no terminal.
+
+### 🔴 Nenhuma migração se registra sozinha no livro-razão
+
+O livro-razão `supabase_migrations.schema_migrations` foi criado e semeado
+pela `20260815120000` — mas **só o `supabase db push` registra o que aplica**.
+Quem aplica por `aplicar-migracao.js`, psql ou SQL Editor grava o schema e
+deixa o livro-razão para trás. Já aconteceu duas vezes (as migrações de SEO de
+17/08 ficaram fora; correção em
+`manutencao/registrar_migracoes_de_seo_no_livro_razao.sql`).
+
+Por isso, **toda migração termina com o rodapé de auto-registro**, na mesma
+transação do schema:
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+  values ('<timestamp>', '<nome_sem_timestamp>')
+  on conflict (version) do nothing;
+```
+
+O `on conflict do nothing` deixa o rodapé inofensivo sob `db push`, que
+registra por conta própria. Migração sem esse rodapé não passa em revisão:
+versão fora do livro-razão é o que faz um `db push` futuro tentar **reaplicar
+o histórico** — o cenário do 🔴 acima.
+
 ## ⚠️ Contrato com o sync — campos do painel
 
 Decisão do dono em 2026-08-07: o RevendaMais será descontinuado em breve, e os

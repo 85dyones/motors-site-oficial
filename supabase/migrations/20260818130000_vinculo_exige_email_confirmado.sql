@@ -132,3 +132,12 @@ begin
 
   raise notice 'Aceite verificado: e-mail não confirmado não reivindica garagem.';
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Registro no livro-razão. Nenhuma migração se registra sozinha (D6): quem
+-- aplica por psql/pg precisa deste rodapé, senão a versão fica invisível
+-- para o `supabase db push` e para a conferência. Ver supabase/README.md.
+-- ---------------------------------------------------------------------------
+insert into supabase_migrations.schema_migrations (version, name)
+  values ('20260818130000', 'vinculo_exige_email_confirmado')
+  on conflict (version) do nothing;
