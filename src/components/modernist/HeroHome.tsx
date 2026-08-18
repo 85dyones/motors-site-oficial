@@ -86,7 +86,7 @@ export default function HeroHome({
      * ajuste pontual que fizesse essa composição caber. Então o ritmo vertical
      * inteiro passou a ser `min(valor-do-design, fração de --hero-cabe)`.
      *
-     * `--hero-cabe` é a altura útil abaixo do header (68px em `sm:`+, que é
+     * `--hero-cabe` é a altura útil abaixo do header (68px em `lg:`+, que é
      * onde o hero desktop vive), limitada a 840px. As frações são o valor de
      * design dividido por 840 — logo, sempre que houver 840px de tela o `min()`
      * escolhe o valor de design e o hero fica idêntico ao de hoje. Ele só

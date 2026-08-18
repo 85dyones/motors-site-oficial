@@ -15,6 +15,12 @@ import { linkWhatsApp } from "../lib/whatsapp";
  * seção ativa. O acesso ao painel não aparece no design doc, mas está em
  * produção — fica à direita, reescrito na linguagem do sistema (quadrado,
  * contorno de 1px).
+ *
+ * A barra completa só liga em `lg:` (1024px): logo, quatro links em
+ * `whitespace-nowrap`, painel e CTA de WhatsApp somam ~950px, e como o
+ * globals.css corta `overflow-x` no <html>, o excedente era amputado sem
+ * rolagem — em tablet retrato e celular deitado o WhatsApp e o painel caíam
+ * fora da tela. Abaixo de `lg:` vale o cabeçalho compacto de hambúrguer.
  */
 
 const LOGO_PADRAO = "/motors-store-logo-1.png";
@@ -67,7 +73,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full bg-mt-inverso-fundo text-mt-inverso">
       {/* ─── Desktop ─── */}
-      <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-5 px-6 sm:flex lg:px-10 desktop:gap-9">
+      <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-5 px-10 lg:flex desktop:gap-9">
         <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">
           <span className="h-[26px] w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
           {!usarFallbackTextual ? (
@@ -90,8 +96,8 @@ export default function Header() {
         </Link>
 
         {/* A barra tem 68px e uma linha só de rótulo. Sem `whitespace-nowrap`
-            os três rótulos de duas palavras quebravam em duas linhas entre
-            768 e 1024px — a faixa do tablet da loja. `CONTATO` sai abaixo de
+            os três rótulos de duas palavras quebram em duas linhas na faixa
+            1024–1280px — o tablet de balcão da loja. `CONTATO` sai abaixo de
             1280px inclusive porque é o único item cujo destino já está no rodapé e no
             botão de WhatsApp ao lado, como na tela 09 do design doc. */}
         <nav className="flex items-center gap-4 desktop:gap-7">
@@ -115,9 +121,11 @@ export default function Header() {
 
         <span className="h-[26px] w-px bg-[#444141]" aria-hidden="true" />
 
+        {/* Só a partir de `xl:`: entre 1024 e 1280px o telefone empurrava a
+            barra além do viewport e o CTA de WhatsApp saía da tela. */}
         <a
           href={`tel:${(companySettings?.phone || "").replace(/\D/g, "")}`}
-          className="mt-foco hidden text-[13px] text-mt-neutral-300 no-underline hover:text-mt-inverso lg:block"
+          className="mt-foco hidden text-[13px] text-mt-neutral-300 no-underline hover:text-mt-inverso xl:block"
         >
           {companySettings?.phone}
         </a>
@@ -149,8 +157,8 @@ export default function Header() {
         />
       </div>
 
-      {/* ─── Mobile ─── */}
-      <div className="flex h-[58px] items-center gap-3 px-[18px] sm:hidden">
+      {/* ─── Mobile e tablet (até lg) ─── */}
+      <div className="flex h-[58px] items-center gap-3 px-[18px] lg:hidden">
         <Link href="/" className="mt-foco mr-auto flex items-center gap-2.5">
           <span className="h-[22px] w-1.5 shrink-0 bg-mt-accent" aria-hidden="true" />
           {!usarFallbackTextual ? (
@@ -197,7 +205,7 @@ export default function Header() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="absolute left-0 right-0 top-full flex flex-col bg-mt-inverso-fundo px-[18px] pb-5 sm:hidden">
+        <div className="absolute left-0 right-0 top-full flex flex-col bg-mt-inverso-fundo px-[18px] pb-5 lg:hidden">
           {NAV.map((item) => (
             <Link
               key={item.href}
