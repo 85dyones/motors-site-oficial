@@ -43,7 +43,10 @@ export default async function MeusDadosPage() {
 
   if (!cliente) redirect("/garagem");
 
-  const { data: veiculos } = await supabase
+  // O `error` é lido: numa exportação de LGPD, uma falha de leitura silenciosa
+  // produz um documento que AFIRMA, com a marca da loja, que a Motors não tem
+  // veículo nenhum do titular. Documento errado é pior que documento ausente.
+  const { data: veiculos, error: erroVeiculos } = await supabase
     .from("veiculos_vendidos")
     .select(
       `id, placa, marca, modelo, versao, ano_fabricacao, ano_modelo, chassi,
@@ -55,6 +58,11 @@ export default async function MeusDadosPage() {
     )
     .eq("cliente_id", cliente.id)
     .order("data_venda", { ascending: false });
+
+  if (erroVeiculos) {
+    console.error("[Garagem/MeusDados] Falha ao ler os veículos:", erroVeiculos.message);
+    redirect("/garagem?erro=exportacao");
+  }
 
   const lista = (veiculos ?? []) as any[];
   const emitidoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });

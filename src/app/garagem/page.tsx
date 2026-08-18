@@ -60,21 +60,39 @@ export default async function GaragemPage({
   // ---- o cliente da sessão ----------------------------------------------
   const camposDoCliente = "id, nome, email, telefone_e164, cpf_cnpj, consentimento_canais";
 
-  let { data: cliente } = await supabase
+  // O `error` é lido em toda leitura desta página, e não por preciosismo: a
+  // RLS não devolve erro, devolve vazio — mas uma coluna ausente ou um
+  // relacionamento quebrado derruba a query INTEIRA no PostgREST. Sem checar,
+  // isso vira "você não tem veículo registrado" na cara do cliente, sem log
+  // nenhum. É o mesmo modo de falha que já matou o painel de margens e a
+  // descrição do feed neste projeto.
+  let { data: cliente, error: erroCliente } = await supabase
     .from("clientes")
     .select(camposDoCliente)
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
+  if (erroCliente) {
+    console.error("[Garagem] Falha ao ler o cliente da sessão:", erroCliente.message);
+    return <GaragemIndisponivel />;
+  }
+
   // Vínculo que não nasceu na venda liga aqui, pelo e-mail que o link mágico
   // provou. Idempotente e barato — só roda quando ainda não há vínculo.
   if (!cliente) {
-    await supabase.rpc("reivindicar_garagem");
-    ({ data: cliente } = await supabase
+    const { error: erroVinculo } = await supabase.rpc("reivindicar_garagem");
+    if (erroVinculo) {
+      console.error("[Garagem] Falha ao reivindicar o vínculo:", erroVinculo.message);
+    }
+    ({ data: cliente, error: erroCliente } = await supabase
       .from("clientes")
       .select(camposDoCliente)
       .eq("auth_user_id", user.id)
       .maybeSingle());
+    if (erroCliente) {
+      console.error("[Garagem] Falha ao reler o cliente:", erroCliente.message);
+      return <GaragemIndisponivel />;
+    }
   }
 
   if (!cliente) {
@@ -97,7 +115,7 @@ export default async function GaragemPage({
   }
 
   // ---- os veículos, sob RLS ---------------------------------------------
-  const { data: veiculos } = await supabase
+  const { data: veiculos, error: erroVeiculos } = await supabase
     .from("veiculos_vendidos")
     .select(
       `id, placa, marca, modelo, versao, ano_modelo, data_venda, km_na_venda,
@@ -110,6 +128,14 @@ export default async function GaragemPage({
     )
     .eq("cliente_id", cliente.id)
     .order("data_venda", { ascending: false });
+
+  if (erroVeiculos) {
+    // Nunca dizer "não há veículo" quando o que houve foi uma falha de
+    // leitura: o cliente TEM carro, e mandá-lo falar com a loja por causa de
+    // um erro nosso queima confiança que não se recupera.
+    console.error("[Garagem] Falha ao ler os veículos do cliente:", erroVeiculos.message);
+    return <GaragemIndisponivel />;
+  }
 
   const lista = (veiculos ?? []) as unknown as VeiculoDaGaragem[];
   const primeiroNome = cliente.nome.trim().split(/\s+/)[0] ?? cliente.nome;
@@ -144,6 +170,34 @@ export default async function GaragemPage({
           consentimento_canais: cliente.consentimento_canais,
         }}
       />
+    </Moldura>
+  );
+}
+
+/**
+ * A tela de "não deu para carregar" — deliberadamente diferente da de
+ * "não achamos seu cadastro".
+ *
+ * A distinção importa: dizer "você não tem veículo" para quem TEM, por causa
+ * de uma falha nossa de leitura, manda o cliente ligar para a loja reclamar
+ * de um cadastro que está correto. Aqui a mensagem assume o erro, não o
+ * transfere — e não oferece nenhuma ação que dependa do dado que falhou.
+ */
+function GaragemIndisponivel() {
+  return (
+    <Moldura>
+      <div className="flex flex-col gap-4">
+        <Rotulo accent className="text-[11px] tracking-[.18em]">
+          GARAGEM MOTORS
+        </Rotulo>
+        <h1 className="mt-titulo m-0 text-[28px]">Não conseguimos abrir sua garagem agora</h1>
+        <p className="m-0 text-[14px] leading-relaxed text-mt-neutral-700">
+          A falha é nossa, não do seu cadastro — seu veículo e seu diário de bordo estão
+          guardados. Tente de novo em alguns minutos; se continuar assim, fale com a loja
+          e diga que a garagem não abriu.
+        </p>
+        <BotaoSair />
+      </div>
     </Moldura>
   );
 }

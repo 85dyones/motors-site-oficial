@@ -15,6 +15,15 @@ export const dynamic = "force-dynamic";
  * isso o gate é o mesmo da venda — staff, com a permissão da matriz A17 — e
  * não o `getEstoque()` público, cujo mapper existe justamente para não deixar
  * esses campos saírem.
+ *
+ * ⚠️ E devolve `preco_compra` **só para quem pode ver custo**. Os dois gates
+ * são diferentes de propósito: "Fechar venda do Ciclo" é de Admin e
+ * Comercial, mas "Ver custo de aquisição e margem" exclui o Comercial — a
+ * observação da matriz é literal, *"Comercial vê preço e desconto, não
+ * custo"*. Antes de 2026-08-18 o campo saía sob o primeiro gate, e o
+ * Comercial recebia o custo no JSON e no estado do formulário. É a mesma
+ * classe de vazamento que a prop de client component já causou no /estoque:
+ * o recorte tem que acontecer na fronteira, não na tela.
  */
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -32,12 +41,17 @@ export async function GET() {
   if (!ehStaff(profile?.role)) {
     return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
   }
-  if (podeFazer(normalizarPerfil(profile?.role), "Fechar venda do Ciclo") !== "faz") {
+  const perfil = normalizarPerfil(profile?.role);
+  if (podeFazer(perfil, "Fechar venda do Ciclo") !== "faz") {
     return NextResponse.json(
       { error: "Seu perfil não fecha venda do Ciclo" },
       { status: 403 },
     );
   }
+
+  // O custo nem é buscado quando o perfil não pode vê-lo: o que não sai do
+  // banco não vaza no JSON nem no payload do componente de cliente.
+  const podeVerCusto = podeFazer(perfil, "Ver custo de aquisição e margem") === "faz";
 
   // Só o que ainda não foi vendido. Um carro já marcado como vendido no
   // RevendaMais não deveria estar sendo fechado agora — e se estiver, a busca
@@ -46,7 +60,7 @@ export async function GET() {
     .from("estoque_motors")
     .select(
       `id, marca, modelo, versao, ano, ano_fabricacao, quilometragem,
-       preco, preco_compra, cor, placa, chassi, valor_fipe`,
+       preco, cor, placa, chassi, valor_fipe${podeVerCusto ? ", preco_compra" : ""}`,
     )
     .or("vendido.is.null,vendido.eq.false")
     .order("marca", { ascending: true })

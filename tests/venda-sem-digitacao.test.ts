@@ -40,9 +40,21 @@ describe("o veículo vem do estoque", () => {
 
   it("a rota que serve chassi e placa exige staff com a permissão da venda", () => {
     expect(rotaEstoque).toContain("ehStaff(profile?.role)");
-    expect(rotaEstoque).toContain('podeFazer(normalizarPerfil(profile?.role), "Fechar venda do Ciclo")');
+    expect(rotaEstoque).toContain('podeFazer(perfil, "Fechar venda do Ciclo")');
     expect(rotaEstoque).toContain("status: 401");
     expect(rotaEstoque).toContain("status: 403");
+  });
+
+  it("o custo de aquisição só sai para quem pode ver custo", () => {
+    // Os dois gates são diferentes: "Fechar venda do Ciclo" é de Admin e
+    // Comercial, mas a matriz exclui o Comercial de "Ver custo de aquisição e
+    // margem" — *"Comercial vê preço e desconto, não custo"*. Até 2026-08-18 o
+    // campo saía sob o primeiro gate, e o custo chegava ao estado do
+    // componente de cliente. O recorte tem que ser na fronteira.
+    expect(rotaEstoque).toContain('podeFazer(perfil, "Ver custo de aquisição e margem")');
+    expect(rotaEstoque).toContain('${podeVerCusto ? ", preco_compra" : ""}');
+    // O campo não pode aparecer incondicionalmente no select.
+    expect(rotaEstoque).not.toMatch(/select\([\s\S]{0,200}preco,\s*preco_compra/);
   });
 
   it("o mapper público não conhece chassi — e não espalha a linha", () => {
