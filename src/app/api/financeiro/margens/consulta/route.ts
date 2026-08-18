@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createAdminSupabaseClient } from "../../../../../lib/supabase-server";
 import { getCachedSettings } from "../../../../../lib/settings";
+import { tokenConfere } from "../../../../../lib/comparacaoConstante";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (authHeader !== `Bearer ${secretToken}`) {
+    // Em tempo constante: `!==` desiste no primeiro caractere diferente e
+    // vira oráculo de timing. Ver `lib/comparacaoConstante.ts`.
+    if (!tokenConfere(authHeader, `Bearer ${secretToken}`)) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 

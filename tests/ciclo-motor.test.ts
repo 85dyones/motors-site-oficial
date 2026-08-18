@@ -301,10 +301,22 @@ describe("as rotas que o n8n consome", () => {
     // veio errado (problema de quem chamou).
     expect(autorizacao).toContain("status: 503");
     expect(autorizacao).toContain("status: 401");
-    expect(autorizacao).toContain('request.headers.get("Authorization") !== `Bearer ${secretToken}`');
-    // O token é lido com chave de serviço: com o cliente da requisição a linha
-    // `webhooks` volta vazia e a checagem inteira desapareceria.
-    expect(autorizacao).toContain("getCachedSettings");
+  });
+
+  it("o token do motor é próprio, e não o compartilhado de margens", () => {
+    // Achado #9 (corrigido em 2026-08-18): com N8N_SECRET_TOKEN aceito aqui,
+    // quem tivesse a credencial de margens puxava nome, telefone e placa da
+    // base do Ciclo. Segredo mede acesso — e fallback para o token antigo
+    // manteria a brecha em silêncio, por isso as negações abaixo.
+    expect(autorizacao).toContain("CICLO_MOTOR_TOKEN");
+    expect(autorizacao).not.toContain("N8N_SECRET_TOKEN");
+    expect(autorizacao).not.toContain("apiSecretToken");
+  });
+
+  it("a comparação do Bearer é em tempo constante", () => {
+    // `!==` desiste no primeiro caractere diferente — oráculo de timing.
+    expect(autorizacao).toContain("tokenConfere");
+    expect(autorizacao).not.toContain("!== `Bearer");
   });
 
   it("a fila devolve o suprimido junto com o motivo", () => {

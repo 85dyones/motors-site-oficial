@@ -11,6 +11,7 @@ const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 let ratelimit: Ratelimit | null = null;
 let capiRatelimit: Ratelimit | null = null;
+let motorRatelimit: Ratelimit | null = null;
 
 if (redisUrl && redisToken) {
   try {
@@ -34,6 +35,18 @@ if (redisUrl && redisToken) {
       limiter: Ratelimit.slidingWindow(60, "1 h"), // 60 requests per 1 hour
       analytics: true,
       prefix: "@upstash/ratelimit/capi",
+    });
+
+    // /api/ciclo/motor/* é autenticado por token, mas sem isto era possível
+    // martelar o Bearer sem limite (achado #9). A janela precisa caber o
+    // legítimo: o orquestrador roda 1x ao dia e registra um desfecho por
+    // mensagem, então um lote grande é uma rajada de dezenas de POSTs em
+    // minutos — 240/h dá folga para isso e ainda inviabiliza força bruta.
+    motorRatelimit = new Ratelimit({
+      redis: redis,
+      limiter: Ratelimit.slidingWindow(240, "1 h"),
+      analytics: true,
+      prefix: "@upstash/ratelimit/motor",
     });
     console.log("[Middleware] Rate limiting active with Upstash Redis");
   } catch (e) {
@@ -85,6 +98,37 @@ export async function proxy(request: NextRequest) {
         console.error("[RateLimit] Upstash Redis query failed for /api/capi. Bypassing check:", err);
       }
     }
+  }
+
+  // 1.6. Motor do Ciclo: autenticação é por token na própria rota (o n8n não
+  // tem cookie de sessão) — aqui só o rate limit, e o retorno é explícito
+  // para nunca cair nos gates de sessão abaixo. 429 barulhento de propósito:
+  // o modo de falha conhecido do orquestrador é terminar verde sem enviar
+  // nada, então erro silencioso aqui viraria exatamente isso.
+  if (path.startsWith("/api/ciclo/motor")) {
+    if (motorRatelimit) {
+      try {
+        const ip = (request as any).ip || request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
+        const { success, limit, reset, remaining } = await motorRatelimit.limit(`ratelimit_motor_${ip}`);
+
+        if (!success) {
+          return NextResponse.json(
+            { error: "Muitas requisições ao motor a partir deste IP. Limite de 240 por hora excedido." },
+            {
+              status: 429,
+              headers: {
+                "X-RateLimit-Limit": limit.toString(),
+                "X-RateLimit-Remaining": remaining.toString(),
+                "X-RateLimit-Reset": reset.toString(),
+              },
+            },
+          );
+        }
+      } catch (err) {
+        console.error("[RateLimit] Upstash Redis query failed for /api/ciclo/motor. Bypassing check:", err);
+      }
+    }
+    return NextResponse.next();
   }
 
   // 1.7. Garagem do cliente: só renovação de sessão, sem gate de papel.
@@ -242,6 +286,7 @@ export const config = {
     "/api/leads",
     "/api/avaliacao",
     "/api/capi",
+    "/api/ciclo/motor/:path*",
     "/admin/:path*",
     "/api/financeiro/:path*",
     "/api/users/:path*",

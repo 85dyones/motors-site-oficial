@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCachedSettings } from "../settings";
+import { tokenConfere } from "../comparacaoConstante";
 
 /**
  * A porta de entrada do motor de gatilhos.
@@ -8,36 +8,32 @@ import { getCachedSettings } from "../settings";
  * ali o site é o emissor, aqui ele é o chamado. Quem bate é o n8n, sem cookie
  * de sessão — papel `anon` —, e do outro lado da porta há a fila com nome,
  * telefone e placa de cliente. O token é obrigatório, não "validado quando
- * existe".
+ * existe" — com `if (token) { valide }`, um token vazio dos dois lados abriria
+ * a base de clientes do Ciclo para qualquer um (lição de 2026-08-12).
  *
- * Mesmo desenho de `/api/financeiro/margens/consulta`, e pelo mesmo motivo
- * aprendido em 2026-08-12: com `if (token) { valide }`, um token vazio dos
- * dois lados abre a rota para qualquer um. Aqui isso publicaria a base de
- * clientes do Ciclo.
+ * O token é PRÓPRIO: `CICLO_MOTOR_TOKEN`, e nada de fallback.
  *
- * A leitura do token passa por `getCachedSettings` (chave de serviço) porque
- * desde `20260812120000_rls_leitura_de_site_settings.sql` o papel anônimo não
- * lê a linha `webhooks` — ler com o cliente da requisição devolveria vazio, e
- * o efeito seria exatamente o oposto do pretendido.
+ * Até 2026-08-18 esta porta aceitava o mesmo segredo da consulta de margens
+ * (o token do sentido site→n8n) — quem tivesse a credencial de margens puxava
+ * nome, telefone e placa da base do Ciclo (achado #9 da revisão). Segredo
+ * mede acesso: dado de cliente e ficha de margem são acessos diferentes,
+ * então são segredos diferentes. Um fallback para o token antigo manteria a
+ * brecha em silêncio — por isso ele não existe (e o teste do motor nega os
+ * nomes antigos neste arquivo): sem `CICLO_MOTOR_TOKEN` na Vercel, o motor
+ * fica indisponível até alguém configurar, que é o estado honesto.
+ *
+ * (Pela mesma razão o motor não lê mais a linha `webhooks` de settings: o
+ * campo de token de lá pertence ao outro sentido — e é menos uma leitura com
+ * chave de serviço por request.)
  */
 export async function autorizarMotor(
   request: Request,
 ): Promise<{ erro: NextResponse } | { erro: null }> {
-  let dbSecretToken: string | undefined;
-  try {
-    const { webhooks } = await getCachedSettings();
-    dbSecretToken = webhooks?.apiSecretToken;
-  } catch (e: any) {
-    // Falta de chave de serviço cai aqui. Indisponível é melhor que aberto.
-    console.error("[Ciclo/Motor] Não foi possível ler as configurações:", e?.message);
-  }
-
-  const secretToken = (dbSecretToken || process.env.N8N_SECRET_TOKEN || "").trim();
+  const secretToken = (process.env.CICLO_MOTOR_TOKEN || "").trim();
 
   if (!secretToken) {
     console.error(
-      "[Ciclo/Motor] Nenhum token configurado (site_settings.webhooks.apiSecretToken " +
-        "nem N8N_SECRET_TOKEN). Rota indisponível até configurar.",
+      "[Ciclo/Motor] CICLO_MOTOR_TOKEN não configurado. Rota indisponível até configurar.",
     );
     // 503 e não 401: o problema é de configuração nossa, e 401 mandaria o n8n
     // tentar outro token para sempre.
@@ -49,7 +45,9 @@ export async function autorizarMotor(
     };
   }
 
-  if (request.headers.get("Authorization") !== `Bearer ${secretToken}`) {
+  // Comparação em tempo constante — `!==` desiste no primeiro caractere
+  // diferente e vira oráculo de timing. Ver `lib/comparacaoConstante.ts`.
+  if (!tokenConfere(request.headers.get("Authorization"), `Bearer ${secretToken}`)) {
     return { erro: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
   }
 

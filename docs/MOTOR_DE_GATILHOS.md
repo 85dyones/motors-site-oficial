@@ -52,11 +52,18 @@ em silêncio não se audita.
 
 ## O contrato das rotas
 
-Autenticação nas três: `Authorization: Bearer <token>` obrigatório, mesmo
-token do sentido site→n8n (`N8N_SECRET_TOKEN` na Vercel /
-`site_settings.webhooks.apiSecretToken`). Sem token configurado no servidor a
-rota responde **503** (problema nosso); token errado leva **401**. Falha
-fechada, como `/api/financeiro/margens/consulta`.
+Autenticação nas três: `Authorization: Bearer <token>` obrigatório, com token
+**próprio do motor** — `CICLO_MOTOR_TOKEN` na Vercel, sem fallback. Até
+2026-08-18 era o mesmo token do sentido site→n8n (achado #9 da revisão): quem
+tivesse a credencial de margens puxava nome, telefone e placa da base do
+Ciclo. Segredo mede acesso — dado de cliente e ficha de margem são acessos
+diferentes, então são segredos diferentes. No n8n, criar uma **credencial
+separada** para o motor (não reaproveitar a de margens — e menos ainda a
+"Motors auth", que já derrubou o manychat-lead). Sem token configurado no
+servidor a rota responde **503** (problema nosso); token errado leva **401**.
+Falha fechada, como `/api/financeiro/margens/consulta`. As três rotas também
+estão atrás de rate limit no proxy (240/h por IP — folga para a rajada de
+desfechos do lote diário, inviável para força bruta).
 
 ### `POST /api/ciclo/motor/fila`
 
@@ -130,8 +137,9 @@ entra às 6h e o orquestrador continua às 9h.
    motor, em 2026-08-15, porque o commit estava só local. O guia de leitura:
    **404 = deploy velho; 503 = env faltando; 401 = token errado.**
 1. **Confirmar as envs na Vercel** — `SUPABASE_SERVICE_ROLE_KEY` e
-   `N8N_SECRET_TOKEN`. Sem a primeira, as rotas respondem 503 e o workflow
-   para no primeiro nó (alto, como desenhado). É a mesma pendência dos leads.
+   `CICLO_MOTOR_TOKEN` (token próprio do motor desde 2026-08-18; gere um
+   segredo novo, não copie o `N8N_SECRET_TOKEN`). Sem qualquer uma, as rotas
+   respondem 503 e o workflow para no primeiro nó (alto, como desenhado).
 2. **Rodar o orquestrador uma vez à mão** no n8n (Execute Workflow) e ler a
    execução: com a base vazia, o esperado é fila `total: 0` e nenhum envio.
    Isso prova as duas credenciais em execução real — a regra da casa.
