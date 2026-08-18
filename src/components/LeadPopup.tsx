@@ -197,6 +197,18 @@ export default function LeadPopup() {
     }, 380);
   }, []);
 
+  // ── Lock body scroll while the popup is open (same pattern as the PDP lightbox) ──
+  useEffect(() => {
+    if (isVisible) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isVisible]);
+
   // ── Show popup ──
   const triggerPopup = useCallback((campaign: Campaign, vehicleCtx: VehicleContext | null) => {
     if (hasBeenShownThisSession() || isInCooldownPeriod(settings?.cooldownHours ?? COOLDOWN_HOURS)) {
@@ -490,10 +502,10 @@ export default function LeadPopup() {
         aria-modal="true"
         aria-label="Oferta especial"
       >
-        <div className="pointer-events-auto w-full max-w-[420px] bg-brand-card/95 backdrop-blur-xl border border-brand-card-border rounded-[20px] shadow-[0_12px_60px_rgba(0,0,0,0.25)] overflow-hidden relative">
+        <div className="pointer-events-auto w-full max-w-[420px] max-h-[calc(100dvh-2rem)] flex flex-col bg-brand-card/95 backdrop-blur-xl border border-brand-card-border rounded-[20px] shadow-[0_12px_60px_rgba(0,0,0,0.25)] overflow-hidden relative">
           
           {/* Brand accent bar at the very top */}
-          <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-brand-gold to-brand-primary relative overflow-hidden">
+          <div className="h-1 w-full shrink-0 bg-gradient-to-r from-brand-primary via-brand-gold to-brand-primary relative overflow-hidden">
             {!isExpired && (
               <div
                 className="absolute top-0 right-0 h-full bg-brand-card/60 transition-all duration-1000 ease-linear"
@@ -505,15 +517,15 @@ export default function LeadPopup() {
           {/* Close button */}
           <button
             onClick={handleDismiss}
-            className="absolute top-3.5 right-3.5 h-8 w-8 flex items-center justify-center rounded-full bg-brand-bg/60 hover:bg-brand-border/80 text-brand-text/40 hover:text-brand-text/70 transition-all duration-200 text-xs z-10 cursor-pointer backdrop-blur-sm border border-brand-border/30"
+            className="absolute top-3.5 right-3.5 h-11 w-11 flex items-center justify-center rounded-full bg-brand-bg/60 hover:bg-brand-border/80 text-brand-text/40 hover:text-brand-text/70 transition-all duration-200 text-xs z-10 cursor-pointer backdrop-blur-sm border border-brand-border/30"
             aria-label="Fechar"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
 
-          <div className="px-6 pt-6 pb-5 flex flex-col items-center gap-4 text-center">
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pt-6 pb-5 flex flex-col items-center gap-4 text-center">
 
             {/* Countdown timer display */}
             {!isExpired ? (

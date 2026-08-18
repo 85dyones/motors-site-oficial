@@ -61,9 +61,29 @@ export default function LeadCaptureModal({
     }
   }, [isOpen, initialNome, initialWhatsapp]);
 
+  // Lock body scroll while the modal is open (same pattern as the PDP lightbox)
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const isNameValid = nome.trim().length >= 2;
+
+  // On touch/narrow viewports the virtual keyboard plus the card height push
+  // the submit button out of view — only steal focus where a physical
+  // keyboard is the norm.
+  const shouldAutoFocus =
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: fine)").matches &&
+    window.innerWidth >= 768;
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,11 +125,11 @@ export default function LeadCaptureModal({
     >
       {/* Modal Card - Styled like a premium WhatsApp prompt */}
       <div 
-        className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        className="relative w-full max-w-sm max-h-[calc(100dvh-2rem)] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-y-auto overscroll-contain flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* WhatsApp-Style Header */}
-        <div className="bg-[#075E54] p-4 flex items-center justify-between text-white">
+        <div className="sticky top-0 z-10 bg-[#075E54] p-4 flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             {/* Avatar block */}
             <div className="relative h-10 w-10 rounded-full bg-white/10 flex items-center justify-center overflow-hidden border border-white/10">
@@ -177,7 +197,7 @@ export default function LeadCaptureModal({
                 id="lead-name-input"
                 type="text"
                 required
-                autoFocus
+                autoFocus={shouldAutoFocus}
                 disabled={loading}
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
