@@ -77,7 +77,14 @@ Corpo: `{ "reservar": true|false, "gatilhos": ["..."]? }`.
 
 Resposta: `{ ok, reservado, total, fila: [{ evento_id, veiculo_vendido_id,
 cliente_id, nome, placa, gatilho, passo, canal, numero_whatsapp, email,
-mensagem }], suprimidos: [{ ..., suprimido_por }] }`.
+mensagem }], suprimidos: [{ ..., suprimido_por }],
+desfechos_nao_registrados: [{ evento_id, gatilho }] }`.
+
+`desfechos_nao_registrados` (2026-08-18, achado #8) é sempre presente e
+normalmente vazio: são devoluções de vez que **não gravaram** — eventos
+reservados cuja mensagem não montou E cujo `falha_envio` falhou ao registrar.
+Cada id listado está contando como contato indevidamente; reprocessar pelo
+endpoint de desfecho.
 
 A `mensagem` já vem pronta, no vocabulário da marca (diário de bordo,
 procedência — nunca "caderneta", nunca "recompra"). O n8n não monta texto.
@@ -90,6 +97,17 @@ Corpo: `{ "evento_id": uuid, "desfecho": "convertido|recusado|sem_resposta|agend
 devolve a vez ao cliente — a linha fica de rastro, mas não conta para a janela
 de 21 dias nem para a quarentena. Não existe desfecho "enviado": a linha
 existir já diz isso. Evento inexistente leva 404.
+
+**Desfecho não regride** (2026-08-18, achado #10): retry é operação normal,
+então repetir o mesmo desfecho é idempotente (e pode corrigir
+`valor_gerado`), mas rebaixar — `convertido` → `sem_resposta`, por exemplo —
+é ignorado: a resposta volta `200` com o desfecho que ficou e
+`sobrescrita_ignorada: true`, nunca erro. Subida é permitida (`sem_resposta`
+→ `convertido` é resposta tardia real; `agendado` → `recusado` é progressão)
+e a correção humana entre `convertido` ↔ `recusado` também. `falha_envio` ↮
+`sem_resposta` não se comunicam em nenhum sentido — regra 2. A régua vive em
+`desfecho_pode_gravar()` no banco, autoconferida na migração
+`20260818140000`.
 
 ### `GET /api/ciclo/motor/verificacao`
 

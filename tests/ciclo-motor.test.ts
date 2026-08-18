@@ -37,6 +37,10 @@ const migracaoCarimbo = readFileSync(
   join(raiz, "supabase", "migrations", "20260814150000_carimbo_e_conformidade.sql"),
   "utf-8",
 );
+const migracaoDesfecho = readFileSync(
+  join(raiz, "supabase", "migrations", "20260818140000_desfecho_nao_regride.sql"),
+  "utf-8",
+);
 const rotaFilaMotor = readFileSync(
   join(raiz, "src", "app", "api", "ciclo", "motor", "fila", "route.ts"),
   "utf-8",
@@ -330,6 +334,22 @@ describe("as rotas que o n8n consome", () => {
     expect(rotaFilaMotor).toContain("registrar_desfecho_ciclo");
     expect(rotaFilaMotor).toContain('p_desfecho: "falha_envio"');
     expect(migracao).toContain("coalesce(e.desfecho, '') <> 'falha_envio'");
+  });
+
+  it("um retry não rebaixa desfecho já gravado", () => {
+    // Achado #10: a gravação era incondicional — retry do n8n virava
+    // `convertido` em `sem_resposta`, apagando a conversão e alimentando a
+    // quarentena com um "sem resposta" falso. A régua vive numa função pura
+    // (autoconferida caso a caso na própria migração) e a recusa responde
+    // `sobrescrita_ignorada`, nunca erro: retry é operação normal.
+    expect(migracaoDesfecho).toContain("desfecho_pode_gravar");
+    expect(migracaoDesfecho).toContain("sobrescrita_ignorada");
+    // Ler-e-gravar sem lock reabriria a corrida que a régua fecha.
+    expect(migracaoDesfecho).toContain("for update");
+    // O par da regra 2 é incomunicável nos dois sentidos: falha_envio nunca
+    // vira contato por retry, e contato não vira falha.
+    expect(migracaoDesfecho).toContain("('falha_envio',   'sem_resposta', false)");
+    expect(migracaoDesfecho).toContain("('sem_resposta',  'falha_envio',  false)");
   });
 
   it("devolução de vez que não gravou não passa em silêncio", () => {
