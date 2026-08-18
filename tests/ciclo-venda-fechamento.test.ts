@@ -242,6 +242,19 @@ describe("as regras invioláveis, no fechamento", () => {
     expect(migracao).toContain("insert into public.leituras_odometro");
     expect(migracao).toContain("'venda'");
   });
+
+  it("a resposta só afirma o vínculo da Garagem que gravou", () => {
+    // Achado #7: o update do auth_user_id e o RPC de vínculo rodavam com o
+    // `error` descartado — a resposta dizia "conta_criada" mesmo quando o
+    // vínculo não escreveu, e o cliente descobria a Garagem vazia semanas
+    // depois, sem rastro na auditoria.
+    expect(rota).toContain("erroVinculo");
+    expect(rota).toContain("conta_criada_sem_vinculo");
+    expect(rota).toContain("erroRpc");
+    // Erro do RPC não pode virar "sem_vinculo": resposta desconhecida é
+    // falha, não ausência de conta.
+    expect(rota).toMatch(/erroRpc\)\s*\{[\s\S]*?garagem = "falhou"/);
+  });
 });
 
 describe("a autoconferência do aceite, na migração", () => {

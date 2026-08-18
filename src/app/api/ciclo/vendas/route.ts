@@ -135,23 +135,51 @@ export async function POST(request: Request) {
       });
 
       if (!erroCriar && criado?.user) {
+        // "conta_criada" só depois de o vínculo GRAVAR. Até 2026-08-18 o
+        // update rodava sem conferência (achado #7): se falhasse — ou não
+        // casasse linha nenhuma, caso o cliente já esteja preso a outra
+        // conta — a resposta afirmava sucesso e o cliente descobria a
+        // Garagem vazia semanas depois, sem rastro.
+        garagem = "conta_criada_sem_vinculo";
         if (clienteId) {
-          await admin
+          const { data: vinculado, error: erroVinculo } = await admin
             .from("clientes")
             .update({ auth_user_id: criado.user.id })
             .eq("id", clienteId)
-            .is("auth_user_id", null);
+            .is("auth_user_id", null)
+            .select("id");
+          if (erroVinculo) {
+            console.error(
+              "[Ciclo/Vendas] Conta criada, mas o vínculo NÃO gravou:",
+              erroVinculo.message,
+            );
+          } else if ((vinculado ?? []).length === 0) {
+            console.error(
+              "[Ciclo/Vendas] Conta criada, mas o cliente",
+              clienteId,
+              "já tem auth_user_id — vínculo não sobrescrito.",
+            );
+          } else {
+            garagem = "conta_criada";
+          }
         }
-        garagem = "conta_criada";
       } else if (clienteId) {
         // E-mail já tem conta — segundo carro, ou funcionário comprando. O
         // vínculo sai pelo banco, que acha o usuário pelo e-mail.
-        const { data: vinculo } = await admin.rpc("vincular_auth_por_email", {
+        const { data: vinculo, error: erroRpc } = await admin.rpc("vincular_auth_por_email", {
           p_cliente: clienteId,
         });
-        garagem = (vinculo as { vinculado?: boolean } | null)?.vinculado
-          ? "conta_existente_vinculada"
-          : "sem_vinculo";
+        if (erroRpc) {
+          // Erro não é "sem vínculo": é resposta desconhecida. Reportar como
+          // falha manda quem lê a auditoria conferir, em vez de concluir que
+          // o cliente não tinha conta para vincular.
+          console.error("[Ciclo/Vendas] vincular_auth_por_email falhou:", erroRpc.message);
+          garagem = "falhou";
+        } else {
+          garagem = (vinculo as { vinculado?: boolean } | null)?.vinculado
+            ? "conta_existente_vinculada"
+            : "sem_vinculo";
+        }
       }
     } catch (erroGaragem: any) {
       console.error("[Ciclo/Vendas] Venda ok, mas a conta da Garagem falhou:", erroGaragem?.message);
