@@ -130,6 +130,15 @@ O que fazer:
 
 ## 3. Falta fazer — documentação
 
+> **Atualização de 18/08 — D1 a D5 TODAS fechadas** (commit `c6d2b28`).
+> Uma correção de rota: o D3 era pior do que descrito aqui — o
+> `supabase_schema.sql` não recriava só leitura pública, recriava **escrita
+> anônima** em `estoque_motors` (`update`/`insert` com `USING (true)`).
+> Ganhou uma guarda que aborta a execução inteira, provada em transação
+> revertida, mais a nota prometida no `supabase/README.md`. O texto original
+> segue abaixo.
+
+
 Nada disso foi feito ainda. Ordem por dano:
 
 **D1 — o guia de auth instrui o erro que ele mesmo corrige.**
