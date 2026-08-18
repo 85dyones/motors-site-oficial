@@ -65,6 +65,24 @@ afirmando que a Motors não tem veículo do titular.
 
 ## 2. Falta fazer — código
 
+> **Atualização de 18/08, sessão seguinte — TUDO desta seção resolvido:**
+>
+> - **2.1 e 2.2 feitos.** As duas migrações aplicadas pelo dono e provadas
+>   pelo efeito; livro-razão em 27/27. Toda migração agora termina com rodapé
+>   de auto-registro (convenção no `supabase/README.md`), e o aplicador
+>   node+pg está versionado em `supabase/manutencao/aplicar-migracao.js`.
+> - **2.3 inteiro corrigido**, um commit por achado: #9 `95cb261` (token
+>   próprio `CICLO_MOTOR_TOKEN` + comparação constante + rate limit), #8
+>   `a35387b`, #7 `1309882`, #10 `ca63492` (**migração `20260818140000`
+>   ensaiada, ⏳ aplicação pendente**), #11 `b3b8e47`, #13 `a56e1fb`.
+> - **Pendências novas do dono:** gravar a `20260818140000`; gerar
+>   `CICLO_MOTOR_TOKEN` na Vercel + credencial própria no n8n **antes do
+>   deploy** deste lote (sem ela o motor responde 503 — e há divergência
+>   sobre os 2 workflows estarem ligados ou não: conferir no n8n).
+> - A recomendação de SEO (§6) foi entregue: `docs/RECOMENDACAO_SEO.md`.
+>
+> A seção original segue abaixo como estava.
+
 ### 2.1 Aplicar as duas migrações novas
 
 ```
