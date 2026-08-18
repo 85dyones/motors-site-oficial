@@ -67,7 +67,13 @@ const vazioDaVenda: DadosDaVenda = {
   vendedor: "",
   cep: "",
   consentimento_lgpd: false,
-  consentimento_canais: { whatsapp: true, email: true, sms: false },
+  // Tudo desmarcado de nascença, como o consentimento_lgpd acima (achado
+  // #13): sob a LGPD, consentimento é manifestação AFIRMATIVA — caixa
+  // pré-marcada não prova que o cliente disse sim, prova que o vendedor não
+  // desmarcou. Marcar é gesto do atendimento, na frente do cliente. E canal
+  // nenhum consentido não penaliza (regra 2): o motor suprime com
+  // `sem_canal_consentido` e o cliente liga o que quiser depois, na área dele.
+  consentimento_canais: { whatsapp: false, email: false, sms: false },
   aderiu_ciclo: true,
   financiamento: {
     instituicao: "",

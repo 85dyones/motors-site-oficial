@@ -37,6 +37,10 @@ const rota = readFileSync(
   join(raiz, "src", "app", "api", "ciclo", "vendas", "route.ts"),
   "utf-8",
 );
+const formulario = readFileSync(
+  join(raiz, "src", "components", "admin", "FechamentoDeVenda.tsx"),
+  "utf-8",
+);
 
 /** Uma venda que fecha — a base dos casos negativos. */
 const vendaCompleta = (): DadosDaVenda => ({
@@ -241,6 +245,17 @@ describe("as regras invioláveis, no fechamento", () => {
   it("o KM de saída vira a primeira notação de odômetro", () => {
     expect(migracao).toContain("insert into public.leituras_odometro");
     expect(migracao).toContain("'venda'");
+  });
+
+  it("nenhum consentimento nasce marcado", () => {
+    // Achado #13: whatsapp e e-mail vinham pré-marcados. Sob a LGPD,
+    // consentimento é manifestação afirmativa — caixa pré-marcada prova que
+    // o vendedor não desmarcou, não que o cliente disse sim. E desmarcado
+    // não penaliza (regra 2): o motor suprime por sem_canal_consentido.
+    expect(formulario).toContain(
+      "consentimento_canais: { whatsapp: false, email: false, sms: false }",
+    );
+    expect(formulario).toContain("consentimento_lgpd: false");
   });
 
   it("a resposta só afirma o vínculo da Garagem que gravou", () => {
