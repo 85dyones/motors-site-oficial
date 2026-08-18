@@ -332,6 +332,15 @@ describe("as rotas que o n8n consome", () => {
     expect(migracao).toContain("coalesce(e.desfecho, '') <> 'falha_envio'");
   });
 
+  it("devolução de vez que não gravou não passa em silêncio", () => {
+    // Achado #8: o RPC da devolução era chamado sem conferir o `error` —
+    // se falhasse, o evento ficava com desfecho nulo, que conta como
+    // contato, e a janela queimava sem ninguém saber. Agora a falha é
+    // conferida e sai na resposta, gravada na execução do n8n.
+    expect(rotaFilaMotor).toContain("erroDesfecho");
+    expect(rotaFilaMotor).toContain("desfechos_nao_registrados");
+  });
+
   it("gatilho desconhecido estoura em vez de mandar mensagem vazia", () => {
     expect(() =>
       mensagemDoGatilho({ ...linhaBase, gatilho: "seguro_vencendo" as Gatilho }),

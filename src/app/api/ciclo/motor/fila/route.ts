@@ -86,6 +86,14 @@ export async function POST(request: Request) {
       suprimido_por: l.suprimido_por,
     }));
 
+  // Devoluções de vez que NÃO gravaram. Um evento reservado com desfecho
+  // nulo conta como contato na régua de frequência — se o registrar falhar
+  // em silêncio, a janela de 21 dias do cliente queima por uma mensagem que
+  // nunca existiu (achado #8). A rota não tem como consertar sozinha, mas
+  // tem como não esconder: os ids saem na resposta, que fica gravada na
+  // execução do n8n, e dá para reprocessar pelo endpoint de desfecho.
+  const desfechosNaoRegistrados: { evento_id: string; gatilho: Gatilho }[] = [];
+
   for (const linha of linhas.filter((l) => !l.suprimido_por)) {
     let mensagem: string;
     try {
@@ -95,10 +103,19 @@ export async function POST(request: Request) {
       // cliente em vez de queimar a janela de 21 dias dele por um bug nosso.
       console.error("[Ciclo/Motor] Sem texto para o gatilho:", linha.gatilho, e?.message);
       if (linha.evento_id) {
-        await supabase.rpc("registrar_desfecho_ciclo", {
+        const { error: erroDesfecho } = await supabase.rpc("registrar_desfecho_ciclo", {
           p_evento: linha.evento_id,
           p_desfecho: "falha_envio",
         });
+        if (erroDesfecho) {
+          console.error(
+            "[Ciclo/Motor] A devolução da vez NÃO gravou — evento",
+            linha.evento_id,
+            "segue contando como contato:",
+            erroDesfecho.message,
+          );
+          desfechosNaoRegistrados.push({ evento_id: linha.evento_id, gatilho: linha.gatilho });
+        }
       }
       continue;
     }
@@ -125,5 +142,7 @@ export async function POST(request: Request) {
     total: fila.length,
     fila,
     suprimidos,
+    // Sempre presente, normalmente vazio — contrato estável para o workflow.
+    desfechos_nao_registrados: desfechosNaoRegistrados,
   });
 }
