@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, normalizarPerfil, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 
 export const dynamic = "force-dynamic";
@@ -27,15 +27,15 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, papeis")
       .eq("id", user.id)
       .single();
     // Cliente da Garagem é authenticated sem ser staff; normalizar sem
     // barrar o promoveria a "comercial".
-    if (!ehStaff(profile?.role)) {
+    if (!ehStaff(profile)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
-    const perfil = normalizarPerfil(profile?.role);
+    const perfil = perfisDe(profile);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
 
     // `created_at`, não `criado_em`: a tabela `leads` é preexistente e já
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     let atendentes: { nome: string }[] = [];
     const { data: perfis } = await supabase
       .from("profiles")
-      .select("full_name, role")
+      .select("full_name, role, papeis")
       .in("role", ["admin", "comercial"])
       .order("full_name");
     if (perfis) {
@@ -105,13 +105,13 @@ export async function PATCH(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, papeis")
       .eq("id", user.id)
       .single();
-    if (!ehStaff(profile?.role)) {
+    if (!ehStaff(profile)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
-    if (podeFazer(normalizarPerfil(profile?.role), "Ver e mover leads no kanban") !== "faz") {
+    if (podeFazer(perfisDe(profile), "Ver e mover leads no kanban") !== "faz") {
       return NextResponse.json({ error: "Seu perfil não move leads" }, { status: 403 });
     }
 
@@ -155,10 +155,10 @@ export async function DELETE(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, papeis")
       .eq("id", user.id)
       .single();
-    if (!ehStaff(profile?.role) || normalizarPerfil(profile?.role) !== "admin") {
+    if (!ehStaff(profile) || normalizarPerfil(profile?.role) !== "admin") {
       return NextResponse.json(
         { error: "Só o Administrador exclui lead (pedido de titular)" },
         { status: 403 },

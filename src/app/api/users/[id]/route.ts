@@ -19,7 +19,7 @@ export async function PUT(
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, papeis")
       .eq("id", currentUser.id)
       .single();
 
@@ -111,7 +111,7 @@ export async function DELETE(
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, papeis")
       .eq("id", currentUser.id)
       .single();
 

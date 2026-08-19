@@ -39,7 +39,7 @@ describe("o veículo vem do estoque", () => {
   });
 
   it("a rota que serve chassi e placa exige staff com a permissão da venda", () => {
-    expect(rotaEstoque).toContain("ehStaff(profile?.role)");
+    expect(rotaEstoque).toContain("ehStaff(profile)");
     expect(rotaEstoque).toContain('podeFazer(perfil, "Fechar venda do Ciclo")');
     expect(rotaEstoque).toContain("status: 401");
     expect(rotaEstoque).toContain("status: 403");

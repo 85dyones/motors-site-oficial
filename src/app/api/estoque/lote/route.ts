@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { campoNegadoAoPerfil, ehStaff, normalizarPerfil } from "../../../../lib/permissoes";
+import { campoNegadoAoPerfil, ehStaff, perfisDe } from "../../../../lib/permissoes";
 import { aplicarNosVeiculos, extrairCamposNossos } from "../../../../lib/estoqueEscrita";
 
 export const dynamic = "force-dynamic";
@@ -33,13 +33,13 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, full_name")
+      .select("role, papeis, full_name")
       .eq("id", user.id)
       .single();
-    if (!ehStaff(profile?.role)) {
+    if (!ehStaff(profile)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
-    const perfil = normalizarPerfil(profile?.role);
+    const perfil = perfisDe(profile);
 
     const body = await request.json();
     const ids: unknown = body?.ids;

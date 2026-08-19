@@ -3,7 +3,7 @@ import {
   createServerSupabaseClient,
   createAdminSupabaseClient,
 } from "../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { registrarAcaoSensivel } from "../../../../lib/auditoria";
 import {
   validarFechamentoDeVenda,
@@ -37,14 +37,14 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, full_name")
+      .select("role, papeis, full_name")
       .eq("id", user.id)
       .single();
 
-    if (!ehStaff(profile?.role)) {
+    if (!ehStaff(profile)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
-    const perfil = normalizarPerfil(profile?.role);
+    const perfil = perfisDe(profile);
     if (podeFazer(perfil, "Fechar venda do Ciclo") !== "faz") {
       return NextResponse.json(
         { error: "Seu perfil não fecha venda do Ciclo" },

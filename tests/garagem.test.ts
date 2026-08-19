@@ -109,7 +109,7 @@ describe("o link mágico entra por token_hash", () => {
   });
 
   it("o destino é papel, não parâmetro: cliente vai para a Garagem sempre", () => {
-    expect(rotaConfirm).toContain("ehStaff(profile?.role)");
+    expect(rotaConfirm).toContain("ehStaff(profile)");
     // O redirect do cliente é fixo — sem interpolação de next.
     expect(rotaConfirm).toContain("`${origin}/garagem`");
   });

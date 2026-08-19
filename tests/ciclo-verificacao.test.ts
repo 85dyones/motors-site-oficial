@@ -119,9 +119,9 @@ describe("o registro e o carimbo", () => {
   it("as rotas exigem o perfil da matriz, e a verificação deixa rastro de auditoria", () => {
     for (const rota of [rotaFila, rotaCarimbo]) {
       expect(rota).toContain(
-        'podeFazer(normalizarPerfil(profile?.role), "Verificar revisão do diário de bordo")',
+        'podeFazer(perfisDe(profile), "Verificar revisão do diário de bordo")',
       );
-      expect(rota).toContain("ehStaff(profile?.role)");
+      expect(rota).toContain("ehStaff(profile)");
     }
     expect(rotaCarimbo).toContain("registrarAcaoSensivel");
     // Recusar tem consequência contratual para o cliente — precisa de rastro.

@@ -60,11 +60,11 @@ export async function GET(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user.id)
     .single();
 
-  if (ehStaff(profile?.role)) {
+  if (ehStaff(profile)) {
     return NextResponse.redirect(`${origin}${nextSeguro ?? "/admin"}`);
   }
   return NextResponse.redirect(`${origin}/garagem`);

@@ -42,7 +42,7 @@ export default async function EditorDeVeiculoPage({
   } = await supabase.auth.getUser();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user!.id)
     .single();
 

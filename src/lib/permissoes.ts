@@ -24,8 +24,40 @@ export type Perfil = (typeof PERFIS)[number];
  * `normalizarPerfil` — normalizar um papel que não é de staff o promoveria a
  * "comercial".
  */
-export function ehStaff(role: string | null | undefined): boolean {
-  return (PERFIS as readonly string[]).includes(role ?? "");
+export function ehStaff(
+  origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
+): boolean {
+  return perfisDe(origem).length > 0;
+}
+
+/**
+ * Todos os papéis de painel de alguém — a leitura multi-papel (2026-08-19).
+ *
+ * Aceita a linha inteira de `profiles`, o array `papeis` ou o `role` singular,
+ * porque as três formas convivem: o banco mantém `role` como espelho de
+ * `papeis[1]` para o código que ainda lê a coluna antiga.
+ *
+ * `cliente` NÃO entra na lista: ele não é papel de painel. Um funcionário que
+ * também comprou carro tem `{cliente, comercial}` e é comercial aqui — o que
+ * `cliente` nunca faz é ADICIONAR permissão de painel.
+ */
+export function perfisDe(
+  origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
+): Perfil[] {
+  if (!origem) return [];
+
+  const bruto: string[] =
+    typeof origem === "string"
+      ? [origem]
+      : Array.isArray(origem)
+        ? origem
+        : (origem.papeis && origem.papeis.length > 0
+            ? origem.papeis
+            : origem.role
+              ? [origem.role]
+              : []);
+
+  return (PERFIS as readonly string[]).filter((p) => bruto.includes(p)) as Perfil[];
 }
 
 export type Permissao = "faz" | "revisao" | "nao_ve";
@@ -159,10 +191,27 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   ),
 ];
 
-/** Consulta pontual da matriz; ação desconhecida nega por padrão. */
-export function podeFazer(perfil: Perfil, acao: string): Permissao {
+/** Do mais permissivo para o menos — a ordem que resolve o empate multi-papel. */
+const FORCA: Record<Permissao, number> = { faz: 2, revisao: 1, nao_ve: 0 };
+
+/**
+ * Consulta pontual da matriz; ação desconhecida nega por padrão.
+ *
+ * Com vários papéis, vence o MAIS permissivo: quem é comercial e financeiro
+ * faz o que qualquer um dos dois faz. É a única leitura que não torna o
+ * multi-papel um castigo — a alternativa (interseção) daria a essa pessoa
+ * menos acesso do que ela teria com um papel só, que é o oposto do pedido.
+ *
+ * Lista vazia nega: não é "sem restrição", é "não é da equipe".
+ */
+export function podeFazer(perfil: Perfil | Perfil[], acao: string): Permissao {
   const l = MATRIZ_DE_PERMISSOES.find((m) => m.acao === acao);
-  return l ? l.permissoes[perfil] : "nao_ve";
+  if (!l) return "nao_ve";
+  const perfis = Array.isArray(perfil) ? perfil : [perfil];
+  return perfis.reduce<Permissao>(
+    (melhor, p) => (FORCA[l.permissoes[p]] > FORCA[melhor] ? l.permissoes[p] : melhor),
+    "nao_ve",
+  );
 }
 
 /**
@@ -205,7 +254,7 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
  * exigir decidir de quem ele é.
  */
 export function campoNegadoAoPerfil(
-  perfil: Perfil,
+  perfil: Perfil | Perfil[],
   campos: string[],
 ): { campo: string; acao: string } | null {
   for (const campo of campos) {
@@ -225,7 +274,7 @@ export function campoNegadoAoPerfil(
  * senão salvar um texto levaria junto um campo proibido e o salvamento inteiro
  * voltaria 403.
  */
-export function podeGravarCampo(perfil: Perfil, campo: string): boolean {
+export function podeGravarCampo(perfil: Perfil | Perfil[], campo: string): boolean {
   return campoNegadoAoPerfil(perfil, [campo]) === null;
 }
 

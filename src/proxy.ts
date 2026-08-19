@@ -210,7 +210,7 @@ export async function proxy(request: NextRequest) {
     try {
       const { data: profile } = await supabaseClient
         .from("profiles")
-        .select("role")
+        .select("role, papeis")
         .eq("id", user.id)
         .single();
 

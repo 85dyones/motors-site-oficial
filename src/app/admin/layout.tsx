@@ -23,7 +23,7 @@ export default async function AdminLayout({
   // Fetch profile
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, papeis, full_name")
     .eq("id", user.id)
     .single();
 
@@ -35,7 +35,7 @@ export default async function AdminLayout({
 
   // Cliente da Garagem não tem nada no /admin — o proxy já barra, e o
   // layout barra de novo: defesa em profundidade custa uma linha.
-  if (!ehStaff(role)) {
+  if (!ehStaff(profile?.papeis ?? role)) {
     redirect("/");
   }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +27,13 @@ async function autorizar() {
   }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user.id)
     .single();
-  if (!ehStaff(profile?.role)) {
+  if (!ehStaff(profile)) {
     return { erro: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
   }
-  if (podeFazer(normalizarPerfil(profile?.role), "Fechar venda do Ciclo") !== "faz") {
+  if (podeFazer(perfisDe(profile), "Fechar venda do Ciclo") !== "faz") {
     return {
       erro: NextResponse.json({ error: "Seu perfil não acompanha o registro de vendas" }, { status: 403 }),
     };

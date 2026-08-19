@@ -98,8 +98,8 @@ describe("a migração — banco", () => {
 
 describe("os gates de rota — app", () => {
   it("proxy e layout barram quem não é staff antes de qualquer regra de perfil", () => {
-    expect(proxy).toContain("if (!ehStaff(role))");
-    expect(layout).toContain("if (!ehStaff(role))");
+    expect(proxy).toContain("if (!ehStaff(");
+    expect(layout).toContain("if (!ehStaff(");
   });
 
   it("o GET de settings só entrega o payload completo para staff", () => {
@@ -124,8 +124,13 @@ describe("os gates de rota — app", () => {
       ["src", "app", "api", "leads", "gerenciar", "route.ts"],
     ] as const) {
       const fonte = ler(...arquivo);
-      const gates = fonte.match(/!ehStaff\(profile\?\.role\)/g) ?? [];
-      const normalizacoes = fonte.match(/normalizarPerfil\(profile\?\.role\)/g) ?? [];
+      // Aceita as duas grafias: `profile?.role` (antes do multi-papel) e
+      // `profile` (depois de 2026-08-19). O que este teste guarda é a ORDEM —
+      // staff conferido antes de qualquer regra de perfil —, não a forma da
+      // chamada.
+      const gates = fonte.match(/!ehStaff\(profile(\?\.role)?\)/g) ?? [];
+      const normalizacoes =
+        fonte.match(/(normalizarPerfil|perfisDe)\(profile(\?\.role)?\)/g) ?? [];
       expect(
         gates.length,
         `${arquivo.join("/")} normaliza perfil sem gate de staff`,

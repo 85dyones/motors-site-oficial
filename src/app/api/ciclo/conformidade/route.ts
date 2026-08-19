@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import {
   estadoDoGatilho,
   estadoDaSerie,
@@ -26,13 +26,13 @@ async function autorizar() {
   }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user.id)
     .single();
-  if (!ehStaff(profile?.role)) {
+  if (!ehStaff(profile)) {
     return { erro: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
   }
-  if (podeFazer(normalizarPerfil(profile?.role), "Acompanhar a conformidade do Ciclo") !== "faz") {
+  if (podeFazer(perfisDe(profile), "Acompanhar a conformidade do Ciclo") !== "faz") {
     return {
       erro: NextResponse.json({ error: "Seu perfil não acompanha a conformidade" }, { status: 403 }),
     };

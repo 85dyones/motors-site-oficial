@@ -219,7 +219,7 @@ describe("as três camadas não podem divergir", () => {
   });
 
   it("a rota exige staff e o perfil da matriz", () => {
-    expect(rota).toContain("if (!ehStaff(profile?.role))");
+    expect(rota).toContain("if (!ehStaff(profile))");
     expect(rota).toContain('podeFazer(perfil, "Fechar venda do Ciclo")');
   });
 });

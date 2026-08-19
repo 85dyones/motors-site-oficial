@@ -50,10 +50,10 @@ export default async function GaragemPage({
   // ---- staff não vive aqui ----------------------------------------------
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user.id)
     .single();
-  if (ehStaff(profile?.role)) {
+  if (ehStaff(profile)) {
     redirect("/admin");
   }
 

@@ -57,7 +57,7 @@ export async function GET() {
       // O payload completo carrega token, saldos e preco_compra — só staff vê.
       const { data: perfil } = await client
         .from("profiles")
-        .select("role")
+        .select("role, papeis")
         .eq("id", data.user.id)
         .single();
       deStaff = ehStaff(perfil?.role ?? papelPadraoPorEmail(data.user.email));
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
       // mas a gravação nos JSON locais abaixo não passa pelo banco.
       const { data: perfilRow } = await requestSupabase
         .from("profiles")
-        .select("role")
+        .select("role, papeis")
         .eq("id", user.id)
         .single();
       if (!ehStaff(perfilRow?.role ?? papelPadraoPorEmail(user.email))) {

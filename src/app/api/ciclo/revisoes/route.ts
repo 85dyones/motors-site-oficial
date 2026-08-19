@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { validarRevisao, type DadosDaRevisao } from "../../../../lib/ciclo/revisao";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +21,13 @@ async function autorizar() {
   }
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, papeis, full_name")
     .eq("id", user.id)
     .single();
-  if (!ehStaff(profile?.role)) {
+  if (!ehStaff(profile)) {
     return { erro: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
   }
-  if (podeFazer(normalizarPerfil(profile?.role), "Verificar revisão do diário de bordo") !== "faz") {
+  if (podeFazer(perfisDe(profile), "Verificar revisão do diário de bordo") !== "faz") {
     return {
       erro: NextResponse.json(
         { error: "Seu perfil não opera o diário de bordo" },

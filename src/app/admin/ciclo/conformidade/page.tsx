@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { papelPadraoPorEmail } from "../../../../lib/papelPadrao";
 import PainelDeConformidade from "../../../../components/admin/PainelDeConformidade";
 
@@ -19,13 +19,13 @@ export default async function ConformidadePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user.id)
     .single();
 
   const role = profile?.role ?? papelPadraoPorEmail(user.email);
-  if (!ehStaff(role)) redirect("/");
-  if (podeFazer(normalizarPerfil(role), "Acompanhar a conformidade do Ciclo") !== "faz") {
+  if (!ehStaff(profile?.papeis ?? role)) redirect("/");
+  if (podeFazer(perfisDe(profile?.papeis ?? role), "Acompanhar a conformidade do Ciclo") !== "faz") {
     redirect("/admin");
   }
 

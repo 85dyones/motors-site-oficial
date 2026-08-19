@@ -30,10 +30,10 @@ export default async function MeusDadosPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user.id)
     .single();
-  if (ehStaff(profile?.role)) redirect("/admin");
+  if (ehStaff(profile)) redirect("/admin");
 
   const { data: cliente } = await supabase
     .from("clientes")

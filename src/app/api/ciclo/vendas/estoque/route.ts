@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, podeFazer } from "../../../../../lib/permissoes";
+import { ehStaff, perfisDe, podeFazer } from "../../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -34,14 +34,14 @@ export async function GET() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, papeis")
     .eq("id", user.id)
     .single();
 
-  if (!ehStaff(profile?.role)) {
+  if (!ehStaff(profile)) {
     return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
   }
-  const perfil = normalizarPerfil(profile?.role);
+  const perfil = perfisDe(profile);
   if (podeFazer(perfil, "Fechar venda do Ciclo") !== "faz") {
     return NextResponse.json(
       { error: "Seu perfil não fecha venda do Ciclo" },
