@@ -21,6 +21,10 @@ const migracao = readFileSync(
   join(raiz, "supabase", "migrations", "20260813150000_ciclo_fundacao_de_dados.sql"),
   "utf-8",
 );
+const cronMatview = readFileSync(
+  join(raiz, "supabase", "migrations", "20260819130000_cron_da_matview_do_ciclo.sql"),
+  "utf-8",
+);
 
 /** As 13 tabelas do §2.1 do manual v1.1. */
 const TABELAS = [
@@ -205,5 +209,24 @@ describe("a autoconferência do aceite", () => {
         new RegExp(`delete from public\\.${t}\\s`),
       );
     }
+  });
+});
+
+describe("a matview se atualiza sozinha (Pacote 1)", () => {
+  it("o refresh diário existe, e é concorrente", () => {
+    // O manual §2.3 pede "atualizada diariamente". Sem o job, a view congela
+    // no dia em que nasceu e passa a mentir com cara de dado fresco.
+    expect(cronMatview).toContain("refresh-vw-ciclo-estado");
+    expect(cronMatview).toContain("'0 9 * * *'");
+    // Sem `concurrently` o refresh toma ACCESS EXCLUSIVE e trava todo leitor
+    // — o painel da equipe abrindo de manhã, justamente.
+    expect(cronMatview).toContain("refresh materialized view concurrently public.vw_ciclo_estado");
+  });
+
+  it("a migração se recusa a agendar um refresh bloqueante", () => {
+    // A diferença entre travar o painel e não travar é uma palavra, então a
+    // autoconferência confere a palavra — e o índice único de que ela depende.
+    expect(cronMatview).toContain("not ilike '%concurrently%'");
+    expect(cronMatview).toContain("indexdef ilike 'create unique index%'");
   });
 });
