@@ -66,8 +66,11 @@ describe("a migração — banco", () => {
     // permitia um cadastro se autodeclarar admin.
     expect(migracao).toContain("raw_app_meta_data->>'role'");
     expect(migracao).not.toMatch(/raw_user_meta_data->>'role'/);
-    expect(usersRota).toContain("app_metadata: { role }");
-    expect(usersIdRota).toContain("app_metadata: { role }");
+    // Depois do multi-papel (2026-08-19) o valor gravado é o papel PRIMÁRIO,
+    // mas o que este teste guarda é de onde ele vem: `app_metadata`, nunca
+    // `user_metadata`.
+    expect(usersRota).toMatch(/app_metadata: \{ role/);
+    expect(usersIdRota).toMatch(/app_metadata: \{ role/);
   });
 
   it("as policies internas trocam authenticated cru por is_staff", () => {

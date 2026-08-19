@@ -28,11 +28,39 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { full_name, role, is_active } = body;
+    const { full_name, role, papeis, is_active, telefone_e164 } = body;
 
     if (role !== undefined && !(PERFIS as readonly string[]).includes(role)) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
+
+    // Multi-papel (2026-08-19). Validado aqui além do CHECK do banco para a
+    // mensagem ser legível — o banco recusaria com "violates check
+    // constraint", que não diz qual papel está errado.
+    if (papeis !== undefined) {
+      if (!Array.isArray(papeis) || papeis.length === 0) {
+        return NextResponse.json(
+          { error: "Escolha pelo menos um perfil." },
+          { status: 400 },
+        );
+      }
+      const invalidos = papeis.filter(
+        (p: string) => !(PERFIS as readonly string[]).includes(p) && p !== "cliente",
+      );
+      if (invalidos.length > 0) {
+        return NextResponse.json(
+          { error: `Perfil inválido: ${invalidos.join(", ")}` },
+          { status: 400 },
+        );
+      }
+      if (new Set(papeis).size !== papeis.length) {
+        return NextResponse.json({ error: "Perfil repetido na lista." }, { status: 400 });
+      }
+    }
+
+    // `papeis[1]` é o primário e espelha `role` — o trigger do banco cuida da
+    // sincronia, mas o auth precisa do valor explícito.
+    const papelPrimario = papeis !== undefined ? papeis[0] : role;
 
     const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -41,10 +69,10 @@ export async function PUT(
 
       // 1. Update auth.users metadata
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
-        user_metadata: { full_name, role },
+        user_metadata: { full_name, role: papelPrimario },
         // Espelho em app_metadata: é de onde o trigger e os checks de papel
         // leem — user_metadata é gravável pelo próprio usuário.
-        app_metadata: { role }
+        app_metadata: { role: papelPrimario }
       });
 
       if (authError) {
@@ -56,7 +84,8 @@ export async function PUT(
         .from("profiles")
         .update({
           full_name,
-          role,
+          ...(papeis !== undefined ? { papeis } : role !== undefined ? { role } : {}),
+          ...(telefone_e164 !== undefined ? { telefone_e164 } : {}),
           is_active,
           updated_at: new Date().toISOString()
         })
@@ -72,7 +101,8 @@ export async function PUT(
         .from("profiles")
         .update({
           full_name,
-          role,
+          ...(papeis !== undefined ? { papeis } : role !== undefined ? { role } : {}),
+          ...(telefone_e164 !== undefined ? { telefone_e164 } : {}),
           is_active,
           updated_at: new Date().toISOString()
         })
@@ -86,7 +116,7 @@ export async function PUT(
     await registrarAcaoSensivel(
       supabase,
       "perfil_alterado",
-      `${full_name ?? id} → ${role ?? "sem mudança de perfil"}${is_active === false ? " · desativado" : ""}`,
+      `${full_name ?? id} → ${papeis?.join(", ") ?? role ?? "sem mudança de perfil"}${is_active === false ? " · desativado" : ""}`,
       { id: currentUser.id, nome: currentUser.email },
     );
 

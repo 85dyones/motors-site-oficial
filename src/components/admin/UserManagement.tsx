@@ -28,10 +28,19 @@ interface UserProfile {
   id: string;
   email: string;
   full_name: string;
+  /** Papel primário — espelho de `papeis[1]`, mantido pelo banco. */
   role: string;
+  /** Todos os papéis (2026-08-19). Pode vir ausente de resposta antiga. */
+  papeis?: string[] | null;
+  /** WhatsApp da equipe, em E.164. É por aqui que a rotina noturna avisa. */
+  telefone_e164?: string | null;
   is_active: boolean;
   created_at: string;
 }
+
+/** Os papéis de alguém, tolerando resposta que ainda não traz o array. */
+const papeisDe = (u: { role: string; papeis?: string[] | null }): string[] =>
+  u.papeis && u.papeis.length > 0 ? u.papeis : [u.role];
 
 interface RegistroAuditoria {
   id: string;
@@ -124,7 +133,11 @@ export default function UserManagement() {
 
   const contagemPorPerfil = useMemo(() => {
     const c: Record<Perfil, number> = { admin: 0, marketing: 0, comercial: 0, financeiro: 0 };
-    for (const u of users) c[normalizarPerfil(u.role)] += 1;
+    for (const u of users) {
+      for (const papel of papeisDe(u)) {
+        if (papel in c) c[papel as Perfil] += 1;
+      }
+    }
     return c;
   }, [users]);
 
@@ -174,7 +187,8 @@ export default function UserManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: editingUser.full_name,
-          role: editingUser.role,
+          papeis: papeisDe(editingUser),
+          telefone_e164: (editingUser.telefone_e164 ?? "").trim() || null,
           is_active: editingUser.is_active,
         }),
       });
@@ -418,11 +432,23 @@ export default function UserManagement() {
                           <div className="mt-0.5 text-[11px] text-mt-neutral-700">{u.email}</div>
                         </td>
                         <td>
-                          <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getRoleBadgeClass(u.role)}`}>
-                            {ROTULO_DO_PERFIL[normalizarPerfil(u.role)]}
-                          </span>
+                          {/* Todos os papéis, não só o primário: mostrar um só
+                              faria a lista mentir sobre o que a pessoa acessa. */}
+                          <div className="flex flex-wrap gap-1">
+                            {papeisDe(u).map((papel) => (
+                              <span
+                                key={papel}
+                                className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getRoleBadgeClass(papel)}`}
+                              >
+                                {ROTULO_DO_PERFIL[normalizarPerfil(papel)]}
+                              </span>
+                            ))}
+                          </div>
                         </td>
-                        <td className="mt-num text-mt-neutral-700">{ALCADA_DO_PERFIL[normalizarPerfil(u.role)]}</td>
+                        {/* A alçada é a do papel mais forte que a pessoa tem. */}
+                        <td className="mt-num text-mt-neutral-700">
+                          {ALCADA_DO_PERFIL[normalizarPerfil(papeisDe(u)[0])]}
+                        </td>
                         <td>
                           <span className={`mr-1.5 inline-block h-2 w-2 ${u.is_active ? "bg-mt-ink" : "bg-mt-neutral-500"}`} />
                           <span className="text-mt-neutral-700">{u.is_active ? "Ativo" : "Inativo"}</span>
@@ -521,19 +547,70 @@ export default function UserManagement() {
                     />
                   </div>
 
+                  {/* Multi-papel (2026-08-19): a mesma pessoa vende e cuida do
+                      financeiro. O primeiro marcado é o PRIMÁRIO — é o que
+                      aparece na lista quando só cabe um nome, e o que o código
+                      que ainda lê `role` enxerga. */}
                   <div className="flex flex-col gap-1">
-                    <label className={rotuloCampo}>Perfil</label>
-                    <select
-                      value={normalizarPerfil(editingUser.role)}
-                      onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
-                      className={`${campoCaixa} cursor-pointer`}
-                    >
-                      {PERFIS.map((p) => (
-                        <option key={p} value={p}>{ROTULO_DO_PERFIL[p]}</option>
-                      ))}
-                    </select>
+                    <label className={rotuloCampo}>Perfis</label>
+                    <div className="flex flex-col gap-1.5 border border-mt-regua-fina bg-mt-bg p-3">
+                      {PERFIS.map((p) => {
+                        const atuais = papeisDe(editingUser);
+                        const marcado = atuais.includes(p);
+                        const primario = atuais[0] === p;
+                        return (
+                          <label key={p} className="flex cursor-pointer select-none items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={(e) => {
+                                // Desmarcar o último é recusado aqui, não no
+                                // servidor: perfil sem papel nenhum não é
+                                // estado válido, e descobrir isso só ao salvar
+                                // perderia o resto do formulário.
+                                const novos = e.target.checked
+                                  ? [...atuais, p]
+                                  : atuais.filter((x) => x !== p);
+                                if (novos.length === 0) return;
+                                setEditingUser({ ...editingUser, papeis: novos, role: novos[0] });
+                              }}
+                              className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
+                            />
+                            <span className="text-xs font-semibold text-mt-ink">
+                              {ROTULO_DO_PERFIL[p]}
+                            </span>
+                            <span className="text-[10px] text-mt-neutral-700">
+                              alçada {ALCADA_DO_PERFIL[p]}
+                            </span>
+                            {primario && (
+                              <span className="ml-auto border border-mt-regua px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                                primário
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
                     <span className="pl-1 text-[10px] text-mt-neutral-700">
-                      Alçada: {ALCADA_DO_PERFIL[normalizarPerfil(editingUser.role)]}
+                      Quem tem mais de um perfil faz o que qualquer um deles faz.
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className={rotuloCampo}>WhatsApp</label>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="+5541999998888"
+                      value={editingUser.telefone_e164 ?? ""}
+                      onChange={(e) =>
+                        setEditingUser({ ...editingUser, telefone_e164: e.target.value })
+                      }
+                      className={campoCaixa}
+                    />
+                    <span className="pl-1 text-[10px] text-mt-neutral-700">
+                      Com DDI, no formato +55… — é por aqui que a rotina noturna avisa sobre
+                      registro de venda incompleto. Sem telefone, o vendedor não é avisado.
                     </span>
                   </div>
 
