@@ -38,6 +38,24 @@ interface UserProfile {
   created_at: string;
 }
 
+/**
+ * A alçada de quem tem vários papéis.
+ *
+ * "Sem limite" (Admin) domina qualquer limite específico, então quem é admin
+ * mostra isso e pronto. Fora daí não existe ordem entre "5% no preço" e
+ * "R$ 1.500" — são grandezas diferentes —, então as duas aparecem em vez de
+ * eu inventar qual vence. Perfil sem alçada declarada ("—") não entra.
+ *
+ * ⚠️ Alçada é ESPECIFICAÇÃO da A17, não regra aplicada: nada no código a
+ * consulta hoje. Ela informa quem lê a tela; não bloqueia nada.
+ */
+const alcadaDe = (u: { role: string; papeis?: string[] | null }): string => {
+  const papeis = papeisDe(u).filter((x): x is Perfil => (PERFIS as readonly string[]).includes(x));
+  if (papeis.includes("admin")) return ALCADA_DO_PERFIL.admin;
+  const limites = papeis.map((x) => ALCADA_DO_PERFIL[x]).filter((a) => a && a !== "—");
+  return limites.length > 0 ? Array.from(new Set(limites)).join(" · ") : "—";
+};
+
 /** Os papéis de alguém, tolerando resposta que ainda não traz o array. */
 const papeisDe = (u: { role: string; papeis?: string[] | null }): string[] =>
   u.papeis && u.papeis.length > 0 ? u.papeis : [u.role];
@@ -418,8 +436,13 @@ export default function UserManagement() {
                   <thead>
                     <tr>
                       <th>Pessoa</th>
-                      <th>Perfil</th>
-                      <th>Alçada</th>
+                      <th>Perfis</th>
+                      {/* Alçada é referência de combinado, não trava: nada no
+                          código a consulta. Quem lê a tabela precisa saber
+                          disso, senão confia num limite que não existe. */}
+                      <th title="Quanto a pessoa decide sozinha, pelo combinado da loja. É referência — o sistema não bloqueia por este valor.">
+                        Alçada combinada
+                      </th>
                       <th>Status</th>
                       <th className="text-right">Ações</th>
                     </tr>
@@ -445,10 +468,7 @@ export default function UserManagement() {
                             ))}
                           </div>
                         </td>
-                        {/* A alçada é a do papel mais forte que a pessoa tem. */}
-                        <td className="mt-num text-mt-neutral-700">
-                          {ALCADA_DO_PERFIL[normalizarPerfil(papeisDe(u)[0])]}
-                        </td>
+                        <td className="mt-num text-mt-neutral-700">{alcadaDe(u)}</td>
                         <td>
                           <span className={`mr-1.5 inline-block h-2 w-2 ${u.is_active ? "bg-mt-ink" : "bg-mt-neutral-500"}`} />
                           <span className="text-mt-neutral-700">{u.is_active ? "Ativo" : "Inativo"}</span>
@@ -578,9 +598,6 @@ export default function UserManagement() {
                             />
                             <span className="text-xs font-semibold text-mt-ink">
                               {ROTULO_DO_PERFIL[p]}
-                            </span>
-                            <span className="text-[10px] text-mt-neutral-700">
-                              alçada {ALCADA_DO_PERFIL[p]}
                             </span>
                             {primario && (
                               <span className="ml-auto border border-mt-regua px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
