@@ -107,15 +107,20 @@ não o endereço. Configurar URLs distintas no painel é opcional.
 |---|---|
 | `remoteJid` | `""` quando não há telefone — **não** assuma que sempre existe |
 | `telefone` | só dígitos, com `55` na frente; `""` se o visitante não informou |
-| `canal` | `"N/A"` se ausente. Valores em uso: `WhatsApp Card`, `WhatsApp PDP`, `CarMatch Recommendations`, `Appraisal Chat`, `WhatsApp Proposta`, `WhatsApp Dúvidas` |
+| `canal` | `"N/A"` se ausente. Valores em uso: `WhatsApp Proposta`, `WhatsApp Dúvidas`, `WhatsApp Usado na Troca`, `Agendamento Test-Drive`, `Simulação de Financiamento`, `Appraisal Chat`, `Garagem Match Profiler`, `Lead Popup`, `Formulário Contato`. Históricos que a rota ainda aceita: `WhatsApp Card`, `WhatsApp PDP`, `CarMatch Recommendations` |
 | `tipo` | `"lead_whatsapp"` por padrão |
 | `cliente.nome` | **único campo obrigatório** — a rota rejeita com 400 sem ele |
 | `cliente.email` / `cliente.whatsapp` | podem ser `""` |
 | `veiculo` | objeto do estoque ou `null` |
 | `ag_uid` | `"ag_ref_nao_localizado"` quando não há cookie |
 
-**Captcha:** os canais listados acima exigem token Turnstile válido; sem ele a
-rota devolve 400/403 e **nada é enviado ao n8n**.
+**Captcha:** todo canal que nasce no modal de captura (`LeadCaptureModal`)
+exige token Turnstile válido — ou seja, todos os valores em uso acima, exceto
+`Formulário Contato`, cujo formulário não renderiza Turnstile. Sem token a
+rota devolve 400/403 e **nada é enviado ao n8n** (nem gravado em `leads`).
+Desde 2026-08-19 isso inclui o `Lead Popup`: o clique no CTA da campanha
+deixou de postar lead com nome fixo "Lead Popup" — o visitante confirma o
+nome real no mesmo modal dos outros fluxos, e só então o lead sai.
 
 ---
 

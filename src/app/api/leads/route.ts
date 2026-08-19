@@ -41,7 +41,27 @@ export async function POST(request: NextRequest) {
     const { cliente, veiculo, utm, intencao_busca, agUid, webhookUrl, turnstileToken } = body;
 
     // 1. Verify Turnstile Captcha (only mandatory for user modals that render captcha)
-    const needsCaptcha = ["WhatsApp Card", "WhatsApp PDP", "CarMatch Recommendations", "Appraisal Chat", "WhatsApp Proposta", "WhatsApp Dúvidas"].includes(body.canal);
+    //
+    // A régua: todo canal que nasce no LeadCaptureModal exige o token — o
+    // modal não deixa submeter sem ele, então exigir aqui só espelha o
+    // cliente. Até 2026-08-19 metade dos canais do modal ficava fora da
+    // lista e passava sem validação. "Formulário Contato" segue fora: o
+    // formulário de /contato não renderiza Turnstile.
+    const needsCaptcha = [
+      // canais atuais, todos via LeadCaptureModal
+      "WhatsApp Proposta",
+      "WhatsApp Dúvidas",
+      "WhatsApp Usado na Troca",
+      "Agendamento Test-Drive",
+      "Simulação de Financiamento",
+      "Appraisal Chat",
+      "Garagem Match Profiler",
+      "Lead Popup",
+      // nomes históricos, mantidos caso algum cliente antigo ainda os envie
+      "WhatsApp Card",
+      "WhatsApp PDP",
+      "CarMatch Recommendations",
+    ].includes(body.canal);
 
     if (needsCaptcha) {
       if (!turnstileToken) {

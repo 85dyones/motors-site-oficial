@@ -6,6 +6,7 @@ import { getActiveAgUid, getUtmParameters, refCurta, trackLeadSubmission, trackC
 import { getMatchParams } from "../lib/tracking-identity";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { useTheme } from "../app/ThemeContext";
+import LeadCaptureModal from "./LeadCaptureModal";
 
 // ─── Default Configurations ───
 const COOLDOWN_HOURS = 4;
@@ -54,6 +55,20 @@ interface VehicleContext {
   ano: number;
   preco: number;
   id: string;
+}
+
+/**
+ * O que o clique no CTA deixa armado para o envio de verdade.
+ *
+ * O pop-up se fecha ao abrir o modal de captura, então tudo o que a mensagem
+ * e o payload precisam — campanha, veículo, texto resolvido e o countdown
+ * congelado no clique — fica guardado aqui até o visitante confirmar o nome.
+ */
+interface LeadPendente {
+  campaign: Campaign;
+  vehicle: VehicleContext | null;
+  leadMessage: string;
+  timeRemaining: string;
 }
 
 // ─── Helper: Format price ───
@@ -183,11 +198,11 @@ export default function LeadPopup() {
   const [vehicle, setVehicle] = useState<VehicleContext | null>(null);
   const [countdown, setCountdown] = useState(180);
   const [isExpired, setIsExpired] = useState(false);
+  const [leadPendente, setLeadPendente] = useState<LeadPendente | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const exitIntentRef = useRef<boolean>(false);
-  const hasMountedRef = useRef(false);
   const mountTimestampRef = useRef<number>(0);
 
   // ── Dismiss popup with exit animation ──
@@ -234,11 +249,9 @@ export default function LeadPopup() {
   const handleCtaClick = useCallback(() => {
     if (typeof window === "undefined" || !activeCampaign || !settings) return;
 
-    const agUid = getActiveAgUid();
-    const utmParams = getUtmParameters();
     const timeRemaining = `${formatCountdown(countdown).minutes}:${formatCountdown(countdown).secs}`;
 
-    const ref = refCurta(agUid);
+    const ref = refCurta();
     const carro = vehicle ? `${vehicle.marca} ${vehicle.modelo}` : "";
     const preco = vehicle && vehicle.preco > 0 ? ` (${formatPrice(vehicle.preco)})` : "";
 
@@ -253,72 +266,17 @@ export default function LeadPopup() {
     };
 
     if (activeCampaign.actionType === "whatsapp") {
-      const leadMessage = resolvePlaceholders(activeCampaign.actionTarget);
-
-      // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
-      // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
-      const eventId = trackLeadSubmission(
-        vehicle
-          ? { id: vehicle.id, marca: vehicle.marca, modelo: vehicle.modelo, preco: vehicle.preco }
-          : { marca: "Lead Popup", modelo: activeCampaign.name, preco: 0 },
-        leadMessage,
-        {
-          googleAdsId: companySettings?.googleAdsId,
-          googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
-          email: null,
-          phoneE164: null
-        }
-      );
-      const { fbp, fbc } = getMatchParams();
-
-      // Dispatch to webhook via secure server proxy
-      fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo: "lead_whatsapp",
-          canal: "Lead Popup",
-          campanha: activeCampaign.name,
-          variante: activeCampaign.triggerType,
-          mensagem: leadMessage,
-          countdown_restante: timeRemaining,
-          veiculo: vehicle ? {
-            id: vehicle.id,
-            marca: vehicle.marca,
-            modelo: vehicle.modelo,
-            ano: vehicle.ano,
-            preco: vehicle.preco,
-            veiculo_contexto: {
-              perfil_uso: "CURADORIA EXCLUSIVA",
-              tipo_badge: "OFERTA RELÂMPAGO",
-            },
-          } : null,
-          cliente: { nome: "Lead Popup" },
-          utm: {
-            utm_source: utmParams.utm_source || "lead-popup",
-            utm_medium: utmParams.utm_medium || "organico",
-            utm_campaign: utmParams.utm_campaign || activeCampaign.name,
-            utm_content: utmParams.utm_content,
-          },
-          intencao_busca: { popup_campaign: activeCampaign.name },
-          agUid,
-          eventId,
-          eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
-          fbp,
-          fbc,
-        }),
-      }).catch((err) => console.warn("[Webhook] Lead Popup campaign dispatch failed:", err));
-
-      // O pop-up tinha número próprio e escolhia comparando contra dois
-      // valores mágicos, o que permitia à loja atender em dois números sem
-      // perceber. Agora é o número da empresa, como no resto do site.
-      const whatsappUrl = linkWhatsApp(companySettings, leadMessage);
-      if (whatsappUrl) {
-        trackContactClick("whatsapp", "Lead Popup - Conversão WhatsApp");
-        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-      } else {
-        console.warn("[LeadPopup] Sem número de WhatsApp configurado — nada a abrir.");
-      }
+      // O clique NÃO é lead. Até 2026-08-19 este ramo postava um lead com o
+      // nome fixo "Lead Popup" e disparava o pixel de conversão sem gente por
+      // trás — funil inflado e evento vazio treinando o Meta. Decisão do
+      // dono: nome real antes de qualquer evento, no mesmo modal (com
+      // Turnstile) dos outros fluxos. O envio acontece em handleLeadSubmit.
+      setLeadPendente({
+        campaign: activeCampaign,
+        vehicle,
+        leadMessage: resolvePlaceholders(activeCampaign.actionTarget),
+        timeRemaining,
+      });
 
     } else if (activeCampaign.actionType === "link") {
       const targetUrl = resolvePlaceholders(activeCampaign.actionTarget);
@@ -330,6 +288,125 @@ export default function LeadPopup() {
     console.log(`[Lead Popup] CTA clicked. Campaign: "${activeCampaign.name}", Action: "${activeCampaign.actionType}"`);
     handleDismiss();
   }, [activeCampaign, vehicle, countdown, handleDismiss, settings]);
+
+  // ── Envio de verdade: nome real + Turnstile, no padrão dos outros fluxos ──
+  const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => {
+    if (!leadPendente) return;
+    const { campaign, vehicle: veiculoDaCampanha, leadMessage, timeRemaining } = leadPendente;
+
+    const agUid = getActiveAgUid();
+    const utmParams = getUtmParameters();
+
+    const cleanPhone = leadData.whatsapp;
+    const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
+    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
+
+    // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
+    // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
+    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const eventId = trackLeadSubmission(
+      veiculoDaCampanha
+        ? { id: veiculoDaCampanha.id, marca: veiculoDaCampanha.marca, modelo: veiculoDaCampanha.modelo, preco: veiculoDaCampanha.preco }
+        : { marca: "Lead Popup", modelo: campaign.name, preco: 0 },
+      leadMessage,
+      {
+        googleAdsId: companySettings?.googleAdsId,
+        googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
+        email: leadData.email,
+        phoneE164
+      }
+    );
+    const { fbp, fbc } = getMatchParams();
+
+    // Dispatch lead via secure server proxy api
+    // Wrapped: API failures must NEVER block the client from reaching WhatsApp
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remoteJid,
+          telefone: formattedPhone,
+          tipo: "lead_whatsapp",
+          canal: "Lead Popup",
+          campanha: campaign.name,
+          variante: campaign.triggerType,
+          mensagem: leadMessage,
+          countdown_restante: timeRemaining,
+          veiculo: veiculoDaCampanha ? {
+            id: veiculoDaCampanha.id,
+            marca: veiculoDaCampanha.marca,
+            modelo: veiculoDaCampanha.modelo,
+            ano: veiculoDaCampanha.ano,
+            preco: veiculoDaCampanha.preco,
+            veiculo_contexto: {
+              perfil_uso: "CURADORIA EXCLUSIVA",
+              tipo_badge: "OFERTA RELÂMPAGO",
+            },
+          } : null,
+          cliente: {
+            nome: leadData.nome,
+            email: leadData.email,
+            whatsapp: leadData.whatsapp
+          },
+          utm: {
+            utm_source: utmParams.utm_source || "lead-popup",
+            utm_medium: utmParams.utm_medium || "organico",
+            utm_campaign: utmParams.utm_campaign || campaign.name,
+            utm_content: utmParams.utm_content,
+          },
+          intencao_busca: { popup_campaign: campaign.name },
+          agUid,
+          eventId,
+          eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
+          fbp,
+          fbc,
+          turnstileToken: leadData.turnstileToken,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.warn("[Lead Submit Popup] API returned error (non-blocking):", errorData?.error || response.status);
+      }
+    } catch (fetchError) {
+      console.warn(
+        "[Lead Submit Popup] Network error (non-blocking):",
+        fetchError instanceof Error ? fetchError.message : fetchError,
+      );
+    }
+
+    // Save lead to history
+    try {
+      const rawHistory = localStorage.getItem("ag_leads_history");
+      const history = rawHistory ? JSON.parse(rawHistory) : [];
+      history.push({
+        agUid,
+        timestamp: new Date().toISOString(),
+        tipoLead: "lead_whatsapp_popup",
+        cliente: {
+          nome: leadData.nome,
+          email: leadData.email,
+          whatsapp: leadData.whatsapp
+        },
+        campanha: campaign.name
+      });
+      localStorage.setItem("ag_leads_history", JSON.stringify(history));
+    } catch (e) {
+      console.warn("[Telemetry] Failed to save lead payload to history:", e);
+    }
+
+    // O pop-up tinha número próprio e escolhia comparando contra dois
+    // valores mágicos, o que permitia à loja atender em dois números sem
+    // perceber. Agora é o número da empresa, como no resto do site.
+    const whatsappUrl = linkWhatsApp(companySettings, leadMessage);
+    if (whatsappUrl) {
+      trackContactClick("whatsapp", "Lead Popup - Conversão WhatsApp");
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    } else {
+      console.warn("[LeadPopup] Sem número de WhatsApp configurado — nada a abrir.");
+    }
+  };
 
   // ── Countdown timer ──
   useEffect(() => {
@@ -351,7 +428,16 @@ export default function LeadPopup() {
     };
   }, [isVisible, isExiting]);
 
-  // ── Trigger logic on mount ──
+  // ── Trigger logic ──
+  //
+  // Este efeito ARMA os gatilhos e o cleanup os DESARMA — então ele precisa
+  // re-armar a cada mudança de settings/campanhas. Até 2026-08-19 havia um
+  // `hasMountedRef` retornando cedo na segunda rodada, e a sequência real de
+  // produção era: mount arma com as campanhas DEFAULT → o fetch do banco
+  // chega ~1s depois e troca `campaigns` → o cleanup desarma tudo → a rodada
+  // nova retorna cedo sem re-armar. Resultado: nenhuma campanha do painel
+  // disparava, nunca — nem em produção, nem em dev (lá o StrictMode produzia
+  // o mesmo desarme já no mount duplo).
   useEffect(() => {
     if (!settings || campaigns.length === 0) return;
     if (!settings.enabled) {
@@ -359,11 +445,9 @@ export default function LeadPopup() {
       return;
     }
 
-    if (hasMountedRef.current) return;
-    hasMountedRef.current = true;
-
-    // Record the mount timestamp so we can enforce engagement delay for exit-intent
-    mountTimestampRef.current = Date.now();
+    // O engajamento mínimo do exit-intent conta do PRIMEIRO arme — re-armar
+    // por causa de um refetch de settings não devolve os 5s ao visitante.
+    if (!mountTimestampRef.current) mountTimestampRef.current = Date.now();
 
     if (typeof window === "undefined") return;
     if (hasBeenShownThisSession() || isInCooldownPeriod(settings?.cooldownHours ?? COOLDOWN_HOURS)) {
@@ -465,8 +549,26 @@ export default function LeadPopup() {
     };
   }, [triggerPopup, settings, campaigns]);
 
+  // ── Modal de captura: fora do guard do pop-up de propósito. O clique no
+  // CTA fecha o pop-up (isVisible = false) e o retorno antecipado abaixo
+  // desmontaria o modal junto — o lead pendente morreria sem envio. ──
+  const modalCaptura = (
+    <LeadCaptureModal
+      isOpen={leadPendente !== null}
+      onClose={() => setLeadPendente(null)}
+      onSubmit={handleLeadSubmit}
+      vehicleInfo={
+        // Sem `ano`: o contexto do pop-up chuta o ano corrente, e mostrar
+        // ano errado no modal é pior que não mostrar.
+        leadPendente?.vehicle
+          ? { marca: leadPendente.vehicle.marca, modelo: leadPendente.vehicle.modelo }
+          : undefined
+      }
+    />
+  );
+
   // ── Don't render anything if not visible or settings not loaded ──
-  if (!isVisible || !settings || !activeCampaign) return null;
+  if (!isVisible || !settings || !activeCampaign) return modalCaptura;
 
   const { minutes, secs } = formatCountdown(countdown);
   const progressPercent = (countdown / 180) * 100;
@@ -612,6 +714,7 @@ export default function LeadPopup() {
           </div>
         </div>
       </div>
+      {modalCaptura}
     </>
   );
 }
