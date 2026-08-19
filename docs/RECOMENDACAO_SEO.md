@@ -47,17 +47,23 @@ presença local e processo**.
 
 ## Prioridades, por retorno sobre esforço
 
-> **Atualização de 2026-08-19 — P3 e P4 feitos.**
+> **Atualização de 2026-08-19 — cinco das seis prioridades fechadas.**
 >
-> - **P3**: o `<title>` da PDP passou a usar o nome deduplicado. Canonical e
->   URL não mudaram, então não há reindexação envolvida.
-> - **P4**: o 301 do alias entrou em `next.config.ts`, por host, **excluindo
->   `/api/`** — os workflows do n8n seguem entrando pelo alias. Feito em
->   `redirects()` e não no proxy porque o matcher do proxy não cobre páginas,
->   e ampliá-lo faria o middleware rodar em toda visita.
+> - **P1 ✅** Search Console ligado pelo dono.
+> - **P2 ✅** Perfil da Empresa no Google é da loja ("Motors Store"),
+>   confirmado pelo dono. O que resta ali é processo, não configuração:
+>   pedir avaliação a cada venda.
+> - **P3 ✅** o `<title>` da PDP passou a usar o nome deduplicado.
+>   Canonical e URL não mudaram, então não há reindexação envolvida.
+> - **P4 ✅** o 301 do alias entrou em `next.config.ts`, por host,
+>   **excluindo `/api/`** — os workflows do n8n seguem entrando pelo alias.
+> - **P6 ✅** motos ganharam segmento próprio: `/motos/…`. A rota virou um
+>   segmento dinâmico único, e quem chegar pelo segmento errado leva 308.
+>   Feito com 4 motos no estoque, que é quando custa menos.
 >
-> Falta o resto: **P1** e **P2** são seus (Search Console e Perfil da
-> Empresa), **P5** é processo contínuo e **P6** é decisão.
+> **Falta só o P5**, que é processo contínuo, não uma tarefa: fila de texto
+> no painel, `ACCESSORIES` no mapeamento do n8n e a revisão dos 10 textos
+> antigos.
 
 
 
