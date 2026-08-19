@@ -12,8 +12,30 @@ import { mensagemDoVendedor } from "../src/app/api/ciclo/vendas-incompletas/rout
  */
 
 const raiz = join(__dirname, "..");
+
+/**
+ * Fonte sem comentários.
+ *
+ * Asserção de AUSÊNCIA sobre o arquivo inteiro casa com a própria prosa que
+ * explica a decisão — e aí o teste falha justamente quando alguém documenta
+ * bem. O que interessa é o que o código faz, não o que o comentário menciona.
+ */
+const semComentarios = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const rota = readFileSync(
   join(raiz, "src", "app", "api", "ciclo", "vendas-incompletas", "route.ts"),
+  "utf-8",
+);
+const componente = readFileSync(
+  join(raiz, "src", "components", "admin", "PainelDeCompletude.tsx"),
+  "utf-8",
+);
+const painel = readFileSync(
+  join(raiz, "src", "app", "admin", "ciclo", "completude", "page.tsx"),
+  "utf-8",
+);
+const rotaPainel = readFileSync(
+  join(raiz, "src", "app", "api", "ciclo", "completude", "route.ts"),
   "utf-8",
 );
 const migracao = readFileSync(
@@ -155,5 +177,54 @@ describe("a rotina noturna", () => {
   it("não tem cron próprio — view não precisa de agendamento", () => {
     // Quem acorda é o workflow do n8n. Uma view está sempre fresca.
     expect(rota).not.toContain("cron.schedule");
+  });
+});
+
+describe("o painel (A-completude)", () => {
+  it("o gate é o mesmo da rota — Admin e Comercial", () => {
+    // O vendedor precisa enxergar a própria completude para poder corrigi-la.
+    expect(painel).toContain('"Fechar venda do Ciclo"');
+    expect(rotaPainel).toContain('"Fechar venda do Ciclo"');
+  });
+
+  it("a meta exibida é a do §9, não um número escolhido na tela", () => {
+    expect(componente).toContain("const META = 0.8");
+  });
+
+  it("ranking sem pódio", () => {
+    // Placar com medalha faz gente preencher qualquer coisa para subir.
+    //
+    // Medido SEM comentários: um `not.toMatch` sobre o arquivo inteiro casa
+    // com a própria prosa que explica a decisão, e passa a falhar justamente
+    // quando alguém documenta bem. O que interessa é o que a tela renderiza.
+    expect(semComentarios(componente)).not.toMatch(/🥇|🏆|medalha|pódio|podio|1º lugar/i);
+  });
+
+  it("base pequena é sinalizada em vez de comparada em silêncio", () => {
+    // Com poucas vendas, uma venda incompleta despenca o percentual.
+    expect(componente).toContain("MINIMO_PARA_COMPARAR");
+    expect(componente).toContain("base pequena");
+  });
+
+  it("venda sem vendedor fica fora do ranking, com o motivo escrito", () => {
+    expect(componente).toContain("Vendas sem vendedor atribuído");
+    expect(componente).toContain("cobrar a pessoa errada");
+  });
+
+  it("base vazia explica, em vez de mostrar zero", () => {
+    // Zero diria "todo mundo é péssimo"; a verdade é que não há o que medir.
+    expect(componente).toContain("Nenhuma venda registrada ainda");
+  });
+
+  it("a tela assume o erro em vez de mostrar painel vazio", () => {
+    // Erro de leitura virando "está tudo completo" é o mesmo defeito que a
+    // Garagem tinha ao dizer "não há veículo" quando a consulta falhava.
+    expect(componente).toContain("PAINEL INDISPONÍVEL");
+    expect(componente).toContain("Tentar de novo");
+  });
+
+  it("nome de campo do banco não aparece na tela", () => {
+    expect(componente).toContain("NOME_DA_PENDENCIA");
+    expect(componente).toContain('cep: "CEP"');
   });
 });

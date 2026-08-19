@@ -57,6 +57,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       items: [
         { name: "Registrar venda", href: "/admin/ciclo/vendas/nova" },
         { name: "Fila de verificação", href: "/admin/ciclo/verificacao" },
+        { name: "Completude", href: "/admin/ciclo/completude" },
         { name: "Conformidade", href: "/admin/ciclo/conformidade" },
       ],
     },
