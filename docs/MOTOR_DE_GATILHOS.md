@@ -144,6 +144,30 @@ workflow não manda nada. Pendente = `confirmada_em IS NULL AND recusada_em IS
 NULL`; a recusa ganhou coluna própria nesta migração exatamente para sair da
 fila.
 
+### `GET /api/ciclo/vendas-incompletas`
+
+Não é gatilho de cliente — é a rotina de cadastro do §3.2, e mora aqui porque
+usa a mesma porta (`CICLO_MOTOR_TOKEN`) e o mesmo desenho: **o banco decide, o
+n8n entrega**.
+
+Resposta: `{ ok, total_vendas_incompletas, avisos: [{ vendedor_id,
+vendedor_nome, vendas, campos_pendentes, numero_whatsapp, mensagem }],
+sem_telefone: [...], sem_atribuicao: [...] }`.
+
+A `mensagem` já vem pronta e **não carrega ranking**: cutucar não é cobrar, e
+mandar posição por WhatsApp é como um indicador honesto vira número maquiado.
+O ranking vive no painel (`/admin/ciclo/completude`), para a gestão ver o
+conjunto.
+
+Os dois últimos campos são sempre presentes e normalmente vazios.
+`sem_telefone` é vendedor sem `profiles.telefone_e164` — cadastro faltando na
+A17, não erro de execução. `sem_atribuicao` é venda sem `vendedor_id`: fica
+fora do ranking e de qualquer cobrança, porque atribuí-la a alguém seria
+cobrar a pessoa errada.
+
+**Sem cron no banco.** Uma view está sempre fresca, então agendar um cálculo
+seria agendar nada — quem acorda é o workflow.
+
 ## Os workflows no n8n (criados DESLIGADOS em 2026-08-15)
 
 | id | nome | cron | faz |

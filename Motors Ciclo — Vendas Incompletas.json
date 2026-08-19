@@ -1,0 +1,239 @@
+{
+  "name": "Motors Ciclo — Vendas Incompletas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 11 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Dias úteis, 8h30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        304
+      ],
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "notes": "30 11 UTC = 8h30 em Curitiba, e só de segunda a sexta. O manual §3.2 chama de 'rotina noturna', mas quem recebe é gente: mandar às 3h faz a mensagem ser lida de manhã do mesmo jeito, e sábado ninguém vai completar cadastro. 8h30 entrega a lista no começo do expediente, meia hora antes do orquestrador do cliente (9h)."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://motors-site-oficial.vercel.app/api/ciclo/vendas-incompletas",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "name": "Pedir a lista",
+      "position": [
+        224,
+        304
+      ],
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "gtQsydcfsiaOUHNl",
+          "name": "CICLO_MOTOR_TOKEN"
+        }
+      },
+      "notes": "Mesma credencial do orquestrador — é a mesma porta do Ciclo. `neverError` + `fullResponse` para o nó seguinte poder ler o status e falhar ALTO: sem isso, um 401 viraria execução verde sem aviso nenhum."
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Um item por vendedor a avisar — e falha ALTO quando a lista não veio.\n *\n * Quem decide o que é venda incompleta é o banco (`vw_vendas_incompletas`),\n * e quem monta o texto é o site. Aqui só se entrega.\n *\n * Status fora de 200 estoura em vez de seguir vazio: execução verde com zero\n * envio é o modo de falha que já aconteceu neste projeto, e num aviso de\n * cadastro ele é invisível por semanas.\n */\n\n// >>> PREENCHA: WhatsApp de quem cuida do cadastro, só dígitos com DDI.\n//     Ex.: '5541999998888'. Vazio = o aviso de gestão não é enviado (e sai\n//     registrado no ramo \"Não enviado\"). Deliberadamente uma constante, e não\n//     `$env`: nesta instância o acesso a variável de ambiente em nó Code não\n//     está provado, e se estiver bloqueado a execução inteira estoura.\nconst WHATSAPP_GESTAO = '';\nconst r = $input.first().json;\nconst status = r.statusCode ?? 0;\nconst corpo = r.body ?? {};\nif (status !== 200 || corpo.ok !== true) {\n  throw new Error('Lista indisponível: HTTP ' + status + ' — ' + JSON.stringify(corpo).slice(0, 300));\n}\n\nconst avisos = Array.isArray(corpo.avisos) ? corpo.avisos : [];\nconst semTelefone = Array.isArray(corpo.sem_telefone) ? corpo.sem_telefone : [];\nconst semAtribuicao = Array.isArray(corpo.sem_atribuicao) ? corpo.sem_atribuicao : [];\n\n// Nada a avisar é resultado bom, não erro — e precisa passar sem envio.\nif (avisos.length === 0 && semTelefone.length === 0 && semAtribuicao.length === 0) {\n  return [];\n}\n\nconst itens = avisos.map((a) => ({\n  json: { ...a, tipo: 'vendedor' },\n}));\n\n// O que NÃO dá para avisar vira um aviso para a gestão. Sem isto, vendedor\n// sem telefone e venda sem dono somem em silêncio — e silêncio aqui é o\n// cadastro nunca sendo corrigido.\nif (semTelefone.length > 0 || semAtribuicao.length > 0) {\n  const linhas = [];\n  if (semTelefone.length > 0) {\n    linhas.push('Sem WhatsApp cadastrado (não foram avisados):');\n    for (const s of semTelefone) {\n      linhas.push('• ' + s.vendedor_nome + ' — ' + s.vendas + ' venda(s)');\n    }\n    linhas.push('');\n    linhas.push('O telefone se cadastra no painel, em Usuários.');\n  }\n  if (semAtribuicao.length > 0) {\n    if (linhas.length > 0) linhas.push('');\n    linhas.push('Vendas sem vendedor atribuído (ninguém foi cobrado):');\n    for (const s of semAtribuicao) {\n      linhas.push('• ' + s.cliente_nome + (s.placa ? ' (' + s.placa + ')' : ''));\n    }\n  }\n  itens.push({\n    json: {\n      tipo: 'gestao',\n      vendedor_nome: 'Gestão',\n      numero_whatsapp: WHATSAPP_GESTAO,\n      mensagem: linhas.join('\\n'),\n    },\n  });\n}\n\nreturn itens;"
+      },
+      "name": "Um por vendedor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        304
+      ],
+      "id": "a1000000-0000-4000-8000-000000000003"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "a1000000-0000-4000-8000-000000000010",
+              "leftValue": "={{ $json.numero_whatsapp }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Tem número?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        672,
+        304
+      ],
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "notes": "O aviso de gestão depende da constante WHATSAPP_GESTAO, no topo do nó \"Um por vendedor\". Vazia, o item cai no ramo falso e fica registrado — em vez de sumir."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution.v2o5.com.br/message/sendText/v2o5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"number\": $json.numero_whatsapp, \"text\": $json.mensagem } }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "name": "Enviar WhatsApp (Evolution)",
+      "position": [
+        896,
+        208
+      ],
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bZbVxJ7yeuPQ4IUD",
+          "name": "Evolution — apikey (v2o5)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "/**\n * Fecha o rastro de cada envio.\n *\n * Diferente do orquestrador do cliente, aqui NÃO há desfecho a devolver: o\n * aviso ao vendedor não consome janela de ninguém e não entra em régua de\n * frequência. Se falhar, a venda continua incompleta e a rotina avisa de\n * novo amanhã — que é o comportamento certo para uma cobrança de cadastro.\n *\n * O que importa é o registro ficar legível na execução.\n */\nconst resposta = $json;\nconst original = $('Um por vendedor').item.json;\nconst status = resposta.statusCode ?? 0;\nreturn {\n  json: {\n    tipo: original.tipo,\n    vendedor_nome: original.vendedor_nome,\n    vendas: original.vendas ?? null,\n    campos_pendentes: original.campos_pendentes ?? null,\n    status,\n    enviado: status < 300,\n  },\n};"
+      },
+      "name": "Registrar envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        208
+      ],
+      "id": "a1000000-0000-4000-8000-000000000006"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "/**\n * Quem não tinha número. Não é erro de execução — é cadastro faltando —,\n * mas precisa aparecer, senão o aviso de gestão some justamente quando o\n * telefone da gestão é o que está faltando.\n */\nreturn {\n  json: {\n    tipo: $json.tipo,\n    vendedor_nome: $json.vendedor_nome,\n    enviado: false,\n    motivo: $json.tipo === 'gestao'\n      ? 'WHATSAPP_GESTAO não preenchido no nó \"Um por vendedor\"'\n      : 'vendedor sem telefone em profiles',\n  },\n};"
+      },
+      "name": "Não enviado (sem número)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        432
+      ],
+      "id": "a1000000-0000-4000-8000-000000000007"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Dias úteis, 8h30": {
+      "main": [
+        [
+          {
+            "node": "Pedir a lista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir a lista": {
+      "main": [
+        [
+          {
+            "node": "Um por vendedor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Um por vendedor": {
+      "main": [
+        [
+          {
+            "node": "Tem número?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem número?": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp (Evolution)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Não enviado (sem número)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp (Evolution)": {
+      "main": [
+        [
+          {
+            "node": "Registrar envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "tags": []
+}
