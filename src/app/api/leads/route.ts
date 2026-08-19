@@ -165,6 +165,10 @@ export async function POST(request: NextRequest) {
         telefone: formattedPhone || null,
         interesse,
         canal: body.canal || body.tipo || "site",
+        // `veiculo.id` é o número do anúncio no RevendaMais — `estoque_motors.id`
+        // é integer (baseline 20260803120000), não UUID. `Number` é a conversão
+        // certa; só as fixtures de dev usam slug como id, e nelas o NaN vira
+        // null porque não há estoque real para apontar.
         veiculo_id: veiculo?.id ? Number(veiculo.id) || null : null,
         // `email` já existia na tabela e alguns formulários do site o
         // coletam — aproveitar a coluna evita perder o dado que já chega.
