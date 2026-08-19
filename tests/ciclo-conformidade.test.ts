@@ -26,6 +26,10 @@ const painel = readFileSync(
   join(raiz, "src", "components", "admin", "PainelDeConformidade.tsx"),
   "utf-8",
 );
+const cron = readFileSync(
+  join(raiz, "supabase", "migrations", "20260819120000_cron_da_conformidade.sql"),
+  "utf-8",
+);
 
 /** Gera a série contínua entre duas datas, com pct fixo (ou nulo). */
 function faixa(
@@ -165,5 +169,41 @@ describe("a rota e a tela", () => {
     expect(painel).toContain("Bloco B é a diretoria");
     // Nenhuma escrita em contratos_ciclo a partir do painel.
     expect(painel).not.toContain("recompra_habilitada");
+  });
+});
+
+describe("a série anda sozinha (Pacote 4)", () => {
+  it("o portão do cron é fechado para quem não é equipe", () => {
+    // `rodar_conformidade_diaria` se apresenta como chamador sem JWT, o que
+    // PULA a checagem de staff da função que ela chama. O Postgres concede
+    // EXECUTE a PUBLIC por padrão: sem o revoke, qualquer sessão autenticada
+    // — inclusive papel `cliente` — rodaria o cálculo. É a linha que separa
+    // "entrada do cron" de "escada de privilégio".
+    expect(cron).toContain(
+      "revoke all on function public.rodar_conformidade_diaria() from public, anon, authenticated",
+    );
+    expect(cron).not.toMatch(/grant execute on function public.rodar_conformidade_diaria() to [^;]*authenticated/);
+    // E a migração prova isso contra o banco, não só no texto.
+    expect(cron).toContain("has_function_privilege");
+  });
+
+  it("a data da série é a de Curitiba, não a do servidor", () => {
+    // O banco roda em UTC. Sem isto, `current_date` dentro da função seria a
+    // data UTC e a série do §1.4 — um calendário de loja — andaria trocada.
+    expect(cron).toContain("set timezone = 'America/Sao_Paulo'");
+  });
+
+  it("roda no fim do dia, porque dia gravado nunca é reescrito", () => {
+    // 02:30 UTC = 23h30 em Curitiba. Rodar de manhã congelaria o dia no
+    // estado em que ele amanheceu — e a função não volta para corrigir.
+    expect(cron).toContain("'30 2 * * *'");
+    expect(cron).toContain("conformidade-diaria");
+  });
+
+  it("o agendamento vive no banco, versionado — não num workflow", () => {
+    // A cópia versionada de workflow do n8n já divergiu do que roda duas
+    // vezes neste projeto. Migração não diverge em silêncio.
+    expect(cron).toContain("create extension if not exists pg_cron");
+    expect(cron).toContain("cron.schedule");
   });
 });
