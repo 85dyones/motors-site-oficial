@@ -47,6 +47,20 @@ presença local e processo**.
 
 ## Prioridades, por retorno sobre esforço
 
+> **Atualização de 2026-08-19 — P3 e P4 feitos.**
+>
+> - **P3**: o `<title>` da PDP passou a usar o nome deduplicado. Canonical e
+>   URL não mudaram, então não há reindexação envolvida.
+> - **P4**: o 301 do alias entrou em `next.config.ts`, por host, **excluindo
+>   `/api/`** — os workflows do n8n seguem entrando pelo alias. Feito em
+>   `redirects()` e não no proxy porque o matcher do proxy não cobre páginas,
+>   e ampliá-lo faria o middleware rodar em toda visita.
+>
+> Falta o resto: **P1** e **P2** são seus (Search Console e Perfil da
+> Empresa), **P5** é processo contínuo e **P6** é decisão.
+
+
+
 ### P1 — Search Console: ligar a medição · Dono · ~30 min · R$ 0
 
 O único dado que ordena todo o resto: para que termos a motorsstore.com.br já

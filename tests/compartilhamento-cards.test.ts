@@ -255,6 +255,14 @@ describe("página do veículo", () => {
     expect(pdp).toContain("nomeDoVeiculo");
     expect(pdp).not.toContain("${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} por");
   });
+
+  it("o <title> da busca usa o mesmo nome, sem repetir a versão", () => {
+    // P3 da RECOMENDACAO_SEO (2026-08-19). Medido em produção antes: o X4
+    // ocupava os 60 caracteres do Google só com a repetição, e preço e nome
+    // da loja nunca apareciam no resultado.
+    expect(pdp).toContain("title: `${nomeDoVeiculo} - ${priceText} | Motors Store`");
+    expect(pdp).not.toContain("${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} - ${priceText}");
+  });
 });
 
 describe("card gerado", () => {

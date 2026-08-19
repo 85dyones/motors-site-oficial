@@ -123,9 +123,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
    * estoque em 2026-08-10. Num card de WhatsApp, que corta por volta de 65
    * caracteres, a repetição consome o título inteiro e o preço nunca aparece.
    *
-   * Só o card foi corrigido. O `<title>` da página tem a mesma duplicação e
-   * continua como está: mexer nele é mudança de SEO em produção, e essa é uma
-   * decisão da loja, não desta tarefa.
+   * O `<title>` passou a usar o mesmo nome em 2026-08-19 (P3 da
+   * `RECOMENDACAO_SEO.md`, aprovada pelo dono). Medido em produção antes da
+   * correção, no carro mais caro da vitrine:
+   *
+   *   BMW X4 M40i 3.0 M Sport Edit V6 Turbo Aut m40i 3.0 m sport edit v6
+   *   turbo aut - R$ 318.900 | Motors Store
+   *
+   * O Google corta por volta de 60 caracteres: o que sobrava na busca era só
+   * a repetição — preço e nome da loja nunca apareciam. Canonical e URL não
+   * mudam, então não há risco de reindexação.
    */
   const modeloNormalizado = `${veiculo.marca} ${veiculo.modelo}`.trim();
   const versao = (veiculo.versao || "").trim();
@@ -143,7 +150,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // outra coisa é o mesmo defeito que esticava o logo da home. Sem declaração,
   // Facebook e WhatsApp medem o arquivo sozinhos.
   return {
-    title: `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} - ${priceText} | Motors Store`,
+    title: `${nomeDoVeiculo} - ${priceText} | Motors Store`,
     description: seoDescription,
     alternates: {
       canonical: pdpUrl,
