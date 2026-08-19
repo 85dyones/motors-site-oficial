@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { segmentoDoVeiculo } from "./veiculoUrl";
 import type { Veiculo } from "../types";
 export type { Veiculo };
 
@@ -799,7 +800,18 @@ export function truncateString(str: string, maxLength: number): string {
  * Generates a clean, professional, and SEO-optimized PDP URL for a vehicle.
  * Eliminates duplicates between brand, model, and version slug segments.
  */
-export function getVeiculoPdpUrl(veiculo: { id: string; marca: string; modelo: string; versao: string }): string {
+export function getVeiculoPdpUrl(veiculo: {
+  id: string;
+  marca: string;
+  modelo: string;
+  versao: string;
+  /**
+   * Carroceria. Decide entre os segmentos carros e motos (P6, 2026-08-19).
+   * Opcional porque nem todo chamador histórico a tinha — sem ela o veículo
+   * cai em carros, e a ficha redireciona se o segmento não bater.
+   */
+  tipo?: string | null;
+}): string {
   const brandLower = veiculo.marca.toLowerCase().trim();
   const modelLower = veiculo.modelo.toLowerCase().trim();
   const versionLower = veiculo.versao.toLowerCase().trim();
@@ -837,5 +849,5 @@ export function getVeiculoPdpUrl(veiculo: { id: string; marca: string; modelo: s
   // Create clean, beautiful full slug and URL path
   const slugCompletoComId = `${slugMarca}-${slugModelo}-${slugVersao}-${veiculo.id}`;
   
-  return `/carros/${slugMarca}/${slugModelo}/${slugVersao}/${slugCompletoComId}`;
+  return `/${segmentoDoVeiculo(veiculo)}/${slugMarca}/${slugModelo}/${slugVersao}/${slugCompletoComId}`;
 }

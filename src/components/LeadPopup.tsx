@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { ehCaminhoDePdp } from "../lib/veiculoUrl";
 import { getActiveAgUid, getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { linkWhatsApp } from "../lib/whatsapp";
@@ -88,8 +89,11 @@ function detectPageContext(): { pageType: PopupPageType; vehicle: VehicleContext
 
   const path = window.location.pathname;
 
-  // PDP detection: /carros/[marca]/[modelo]/[versao]/[slug]
-  if (path.startsWith("/carros/")) {
+  // Ficha de veículo: /carros/… ou /motos/… (P6, 2026-08-19).
+  // A régua mora em `lib/veiculoUrl.ts` — quando o segmento de moto
+  // entrou, um `startsWith("/carros/")` aqui teria deixado a moto sem
+  // popup de lead, e ninguém perceberia.
+  if (ehCaminhoDePdp(path)) {
     try {
       const h1 = document.querySelector("h1");
       const segments = path.split("/").filter(Boolean);

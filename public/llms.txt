@@ -6,7 +6,7 @@
 - Home / Catálogo: `/` (Apresenta carrossel principal, ofertas em destaque, marcas/modelos e console de filtros rápidos e avançados)
 - Sobre a Motors: `/sobre` (Nossa história, missão e diferenciais de pátio)
 - Contato: `/contato` (Canais de atendimento, endereço físico, horários de funcionamento e formulário direto)
-- Ficha de Detalhes do Veículo (PDP): `/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]` (Exemplo: `/carros/fiat/titano/volcano-22-16v-4x4-tb-die-aut/8171616.html`)
+- Ficha de Detalhes do Veículo (PDP): `/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]` para automóveis e `/motos/[marca]/[modelo]/[versao]/[slug_completo_com_id]` para motocicletas (Exemplo: `/carros/fiat/titano/volcano-22-16v-4x4-tb-die-aut/8171616.html`). O primeiro segmento acompanha a carroceria; pedir a ficha pelo segmento errado devolve um redirecionamento permanente para o certo.
 
 ## Recursos para Agentes de IA (WebMCP Tools)
 O site oferece ferramentas declarativas WebMCP para que agentes virtuais interajam com as principais ações de negócio:

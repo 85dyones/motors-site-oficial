@@ -1,4 +1,5 @@
 import { createSign } from "node:crypto";
+import { ehCaminhoDePdp, SEGMENTOS_DE_PDP } from "./veiculoUrl";
 
 /**
  * Leitura do Google Analytics 4 — a fonte das "visitas" do painel.
@@ -106,6 +107,8 @@ interface OpcoesRelatorio {
   metricas?: string[];
   /** Filtro por prefixo de caminho de página. */
   caminhoContem?: string;
+  /** Alternativa a `caminhoContem` quando o filtro precisa de alternância. */
+  caminhoRegex?: string;
   limite?: number;
 }
 
@@ -126,11 +129,13 @@ async function rodarRelatorio(opts: OpcoesRelatorio): Promise<LinhaDeRelatorio[]
     limit: opts.limite ?? 100,
   };
 
-  if (opts.caminhoContem) {
+  if (opts.caminhoContem || opts.caminhoRegex) {
     corpo.dimensionFilter = {
       filter: {
         fieldName: "pagePath",
-        stringFilter: { matchType: "CONTAINS", value: opts.caminhoContem },
+        stringFilter: opts.caminhoRegex
+          ? { matchType: "PARTIAL_REGEXP", value: opts.caminhoRegex }
+          : { matchType: "CONTAINS", value: opts.caminhoContem },
       },
     };
   }
@@ -202,8 +207,8 @@ export async function resumoDeVisitas(dias = 30): Promise<{
     // (/vitrine) registram PageView de quem trabalha na loja, não de cliente.
     if (caminho.startsWith("/admin") || caminho.startsWith("/vitrine")) continue;
     total += visitas;
-    // O catálogo mora em /estoque e as fichas em /carros/...
-    if (caminho.startsWith("/estoque") || caminho.startsWith("/carros")) {
+    // O catálogo mora em /estoque e as fichas em /carros/… ou /motos/….
+    if (caminho.startsWith("/estoque") || ehCaminhoDePdp(caminho)) {
       catalogo += visitas;
     }
   }
@@ -219,7 +224,9 @@ export async function paginasMaisVistas(
     dias,
     dimensoes: ["pagePath"],
     metricas: ["screenPageViews"],
-    caminhoContem: "/carros/",
+    // Alternância em vez de "/carros/": com o segmento de motos, um
+    // CONTAINS fixo deixaria as motos fora do relatório em silêncio.
+    caminhoRegex: `^/(${SEGMENTOS_DE_PDP.join("|")})/`,
     limite,
   });
   if (linhas === null) return null;

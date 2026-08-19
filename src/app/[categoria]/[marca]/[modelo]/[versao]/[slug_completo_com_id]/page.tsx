@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getEstoque, getSinaisDeEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../../lib/supabase";
 import { decidirPublicacao, getDatasDeVenda } from "../../../../../../lib/publicacao";
 import PDPClientWrapper from "../../../../../../components/PDPClientWrapper";
@@ -9,6 +9,7 @@ import { montarCompartilhamento } from "../../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../../lib/similares";
 import { SITE_URL } from "../../../../../../lib/site";
+import { ehSegmentoDePdp, segmentoDoVeiculo } from "../../../../../../lib/veiculoUrl";
 
 // Incremental Static Regeneration (ISR) configuration
 export const revalidate = 3600; // Revalidate every 1 hour
@@ -18,6 +19,8 @@ export const dynamicParams = true;
 
 interface PageProps {
   params: Promise<{
+    /** `carros` ou `motos` — ver `lib/veiculoUrl.ts`. */
+    categoria: string;
     marca: string;
     modelo: string;
     versao: string;
@@ -32,6 +35,9 @@ export async function generateStaticParams() {
     const pdpUrl = getVeiculoPdpUrl(veiculo);
     const parts = pdpUrl.split("/");
     return {
+      // `parts[1]` é o segmento (carros/motos): sai da mesma função que
+      // monta a URL, então os dois nunca divergem.
+      categoria: parts[1],
       marca: parts[2],
       modelo: parts[3],
       versao: parts[4],
@@ -182,6 +188,13 @@ export default async function CarDetailsPage({ params }: PageProps) {
   const resolvedParams = await params;
   const slug = resolvedParams.slug_completo_com_id;
 
+  // Segmento desconhecido não é ficha de veículo. Sem esta linha, a rota
+  // — que é dinâmica no primeiro nível — serviria qualquer caminho de
+  // cinco segmentos como se fosse um carro.
+  if (!ehSegmentoDePdp(resolvedParams.categoria)) {
+    notFound();
+  }
+
   // Natively strip `.html` and parse the vehicle unique ID
   const cleanSlug = slug.replace(/\.html$/, "");
   
@@ -194,6 +207,15 @@ export default async function CarDetailsPage({ params }: PageProps) {
   
   if (!veiculo) {
     notFound();
+  }
+
+  // Moto pedida em /carros/ (ou o contrário) vai para o endereço certo,
+  // com 308. As fichas das 4 motos já estavam indexadas sob /carros/ —
+  // sem este desvio elas responderiam 200 nos dois lugares, que é o
+  // conteúdo duplicado que a mudança de segmento existe para evitar.
+  const pdpUrl = getVeiculoPdpUrl(veiculo);
+  if (resolvedParams.categoria !== segmentoDoVeiculo(veiculo)) {
+    permanentRedirect(pdpUrl);
   }
 
   const [estoqueCompleto, settings, publicacao] = await Promise.all([
@@ -210,7 +232,6 @@ export default async function CarDetailsPage({ params }: PageProps) {
   const hasDiscount = veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original;
   const finalPrice = hasDiscount ? veiculo.preco_promocional : veiculo.preco_original;
   const imageUrl = veiculo.web_full_images[0] || veiculo.whatsapp_images[0] || "";
-  const pdpUrl = getVeiculoPdpUrl(veiculo);
 
   const carSchema = {
     "@context": "https://schema.org",

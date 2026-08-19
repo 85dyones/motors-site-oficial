@@ -37,7 +37,7 @@ const layout = ler("src", "app", "layout.tsx");
 const pdp = ler(
   "src",
   "app",
-  "carros",
+  "[categoria]",
   "[marca]",
   "[modelo]",
   "[versao]",

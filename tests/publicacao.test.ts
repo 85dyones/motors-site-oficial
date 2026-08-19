@@ -31,7 +31,7 @@ const raiz = join(__dirname, "..");
 const ler = (caminho: string) => readFileSync(join(raiz, caminho), "utf8");
 
 const SITEMAP = "src/app/sitemap.ts";
-const PDP = "src/app/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx";
+const PDP = "src/app/[categoria]/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx";
 const WRAPPER = "src/components/PDPClientWrapper.tsx";
 
 const AGORA = new Date("2026-08-17T12:00:00Z");
