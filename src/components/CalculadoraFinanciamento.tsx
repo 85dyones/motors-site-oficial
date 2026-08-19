@@ -52,12 +52,28 @@ export default function CalculadoraFinanciamento({
 
   const handleSimulateAction = () => {
     const downPaymentValue = vehiclePrice * (downPaymentPercent / 100);
-    const entradaFormatada = downPaymentValue.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-    const parcelaFormatada = result.parcela_mensal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-    const entradaTexto = tipoEntrada === "sem_entrada" ? "sem entrada" : (tipoEntrada === "dinheiro" ? "em dinheiro" : "como veículo na troca");
-    
-    const msg = `Olá! Tenho interesse no ${vehicleName} e gostaria de ver se aprova um financiamento.
-Fiz uma simulação no site ${tipoEntrada === "sem_entrada" ? "sem entrada (100% financiado)" : `com R$ ${entradaFormatada} de entrada (${entradaTexto})`} e saldo em ${installments}x de R$ ${parcelaFormatada}. Podem me ajudar?`;
+    const dinheiro = (v: number) => v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    // A mensagem leva a simulação INTEIRA — decisão do dono em 2026-08-19: o
+    // consultor responde sem perguntar perfil nem entrada, e o carro na troca
+    // chega anunciado (é o que dispara o fluxo de avaliação do usado).
+    const perfilTexto: Record<OcupacaoType, string> = {
+      clt: "Trabalhador CLT",
+      publico: "Funcionário Público",
+      aposentado: "Aposentado/Pensionista",
+      autonomo: "Autônomo/PJ",
+      outros: "Outro",
+    };
+    const entradaLinha = tipoEntrada === "sem_entrada"
+      ? "sem entrada (100% financiado)"
+      : `R$ ${dinheiro(downPaymentValue)} (${downPaymentPercent}%, ${tipoEntrada === "dinheiro" ? "em dinheiro" : "usando meu carro na troca"})`;
+
+    const msg = `Olá! Tenho interesse no ${vehicleName} e fiz uma simulação de financiamento no site:
+• Veículo: R$ ${dinheiro(vehiclePrice)}
+• Entrada: ${entradaLinha}
+• Saldo: ${installments}x de R$ ${dinheiro(result.parcela_mensal)}
+• Meu perfil: ${perfilTexto[occupation]}
+Consegue verificar se aprova nessas condições?`;
 
     const simulacaoData: SimulacaoData = {
       valor_veiculo: vehiclePrice,

@@ -68,6 +68,35 @@ export function getActiveAgUid(): string {
 }
 
 /**
+ * Forma curta do ag_uid para texto que o CLIENTE lê: os 8 primeiros
+ * caracteres do UUID, em maiúsculas ("0DCB1CDC"). Devolve "" quando não há
+ * rastreio utilizável (ex.: "ag_ref_nao_localizado") — código de erro interno
+ * não é coisa de aparecer em mensagem de WhatsApp.
+ *
+ * A referência visível existe para um caso só: a mensagem chegou no WhatsApp
+ * da loja sem casar com o POST de /api/leads (o envio falhou, ou o cliente
+ * digitou um número no modal e mandou de outro). Oito caracteres bastam para
+ * localizar o visitante de olho — a nota do Chatwoot e a CAPI carregam o
+ * UUID inteiro, que começa por estes mesmos oito.
+ *
+ * O ag_uid COMPLETO segue viajando no JSON do lead (`ag_uid`) e como
+ * `externalId` da CAPI. Encurtar aqui é apresentação, não rastreio.
+ */
+export function refCurta(agUid?: string): string {
+  const uid = agUid ?? getActiveAgUid();
+  return /^[0-9a-f]{8}-/i.test(uid) ? uid.slice(0, 8).toUpperCase() : "";
+}
+
+/**
+ * Sufixo pronto para as mensagens pré-preenchidas: " (Ref: 0DCB1CDC)", ou ""
+ * quando não há referência — a mensagem termina limpa, sem "(Ref: )" órfão.
+ */
+export function sufixoRef(agUid?: string): string {
+  const ref = refCurta(agUid);
+  return ref ? ` (Ref: ${ref})` : "";
+}
+
+/**
  * Logs the initiation of a client-side flow.
  * Format: [Antigravity Tracking] Iniciando fluxo [Nome do Fluxo] para o UID: [ag_uid]
  */

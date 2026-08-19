@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getUtmParameters, sufixoRef, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import Turnstile from "./Turnstile";
@@ -704,8 +704,9 @@ export default function AutoAvaliacao() {
   const handleWhatsappAvaliacaoClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (typeof window !== "undefined") {
-      const vehicleName = vehicleType === "motos" ? "Moto" : (vehicleType === "caminhoes" ? "Caminhão" : "Carro");
-      const leadMessage = `Olá! Enviei a avaliação do meu ${vehicleName} ${step1.marca} ${step1.modelo} no site. Gostaria de falar com um avaliador. (Ref: ${agUid})`;
+      // "da minha moto", não "do meu Moto" — o artigo acompanha o tipo.
+      const posseVeiculo = vehicleType === "motos" ? "da minha moto" : (vehicleType === "caminhoes" ? "do meu caminhão" : "do meu carro");
+      const leadMessage = `Olá! Enviei a avaliação ${posseVeiculo} ${step1.marca} ${step1.modelo} no site. Gostaria de falar com um avaliador.${sufixoRef()}`;
       setActiveMessage(leadMessage);
       setIsLeadModalOpen(true);
     }

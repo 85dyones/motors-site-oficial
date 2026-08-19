@@ -5,7 +5,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
 import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
-import { getUtmParameters, getActiveAgUid, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
+import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp } from "../lib/whatsapp";
@@ -244,16 +244,18 @@ export default function PDPClientWrapper({
   // ir para a mensagem e para o payload do lead.
   const handleWhatsappPDPClick = () => {
     if (typeof window !== "undefined") {
-      const agUid = getActiveAgUid();
+      const ref = sufixoRef();
       setActiveChannel("WhatsApp Proposta");
       const msg = veiculo.vendido
-        ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} que foi vendido. Gostaria de saber se possuem modelos semelhantes disponíveis. (Ref: ${agUid})`
+        ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} que foi vendido. Gostaria de saber se possuem modelos semelhantes disponíveis.${ref}`
         : indisponivel
           // "não está mais disponível", e não "foi vendido": a saída do feed
           // não diz o motivo, e o consultor não pode receber o cliente com uma
           // venda que talvez não tenha acontecido.
-          ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}, que não está mais disponível. Gostaria de saber se possuem modelos semelhantes. (Ref: ${agUid})`
-          : `Olá! Vi o anúncio no site e gostaria de saber mais sobre o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
+          ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}, que não está mais disponível. Gostaria de saber se possuem modelos semelhantes.${ref}`
+          // Termina em pergunta de propósito: declaração recebe "um momento",
+          // pergunta define a primeira resposta do consultor.
+          : `Olá! Vi o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} no site e quero mais informações. Ele ainda está disponível?${ref}`;
       
       setActiveMessage(msg);
       setActiveSimulacao(null);
@@ -263,9 +265,8 @@ export default function PDPClientWrapper({
 
   const handleProposalClick = () => {
     if (typeof window !== "undefined") {
-      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Dúvidas");
-      const msg = `Olá! Gostaria de tirar dúvidas com o vendedor sobre o veículo ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}. (Ref: ${agUid})`;
+      const msg = `Olá! Estou vendo o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} no site e tenho algumas dúvidas. Pode me ajudar?${sufixoRef()}`;
       setActiveMessage(msg);
       setActiveSimulacao(null);
       setIsLeadModalOpen(true);
@@ -274,9 +275,8 @@ export default function PDPClientWrapper({
 
   const handleTradeInClick = () => {
     if (typeof window !== "undefined") {
-      const agUid = getActiveAgUid();
       setActiveChannel("WhatsApp Usado na Troca");
-      const msg = `Olá! Estou analisando o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) no site e gostaria de avaliar meu veículo como entrada na troca! (Ref: ${agUid})`;
+      const msg = `Olá! Estou analisando o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) no site e gostaria de avaliar meu veículo como entrada na troca!${sufixoRef()}`;
       setActiveMessage(msg);
       setActiveSimulacao(null);
       setIsLeadModalOpen(true);
@@ -285,9 +285,8 @@ export default function PDPClientWrapper({
 
   const handleTestDriveClick = () => {
     if (typeof window !== "undefined") {
-      const agUid = getActiveAgUid();
       setActiveChannel("Agendamento Test-Drive");
-      const msg = `Olá! Gostaria de agendar um horário para ver o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) e fazer um test-drive no showroom! (Ref: ${agUid})`;
+      const msg = `Olá! Quero ver o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} de perto e fazer um test-drive. Quais horários vocês têm nos próximos dias?${sufixoRef()}`;
       setActiveMessage(msg);
       setActiveSimulacao(null);
       setIsLeadModalOpen(true);
@@ -1273,7 +1272,7 @@ export default function PDPClientWrapper({
           onSimulateClick={(msg, simulacaoData) => {
             if (typeof window !== "undefined") {
               setActiveChannel("Simulação de Financiamento");
-              setActiveMessage(`${msg} (Ref: ${getActiveAgUid()})`);
+              setActiveMessage(`${msg}${sufixoRef()}`);
               setActiveSimulacao(simulacaoData ? { ...simulacaoData } : null);
               setIsLeadModalOpen(true);
             }

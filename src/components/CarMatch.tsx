@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { getEstoque, getVeiculoPdpUrl, Veiculo } from "../lib/supabase";
 import { precoVigente } from "../lib/regrasEstoque";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getUtmParameters, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
@@ -346,7 +346,10 @@ export default function CarMatch() {
   };
 
   const handleShowResults = () => {
-    const defaultMsg = `Olá! Vi que você montou seu perfil no nosso Match de Garagem buscando um veículo (foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}) até R$ ${formatShort(answers.budgetMax)}. Gostaria de conhecer as opções disponíveis?`;
+    // Voz do CLIENTE: é ele quem envia esta mensagem para a loja. A versão
+    // anterior ("Vi que você montou seu perfil... Separei excelentes opções")
+    // era texto de vendedor saindo da boca do cliente.
+    const defaultMsg = `Olá! Montei meu perfil no Match de Garagem do site: foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}, até R$ ${formatShort(answers.budgetMax)}. Quero conhecer as opções disponíveis!`;
     setActiveMessage(defaultMsg);
     setIsLeadModalOpen(true);
   };
@@ -357,7 +360,8 @@ export default function CarMatch() {
     const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
     const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
 
-    const finalMsg = `Olá! Vi que você montou seu perfil no nosso Match de Garagem buscando um veículo focado em ${formatObjective(answers.objective)} até R$ ${formatShort(answers.budgetMax)}. Separei excelentes opções para o seu perfil. Podemos conversar?`;
+    // Mesma regra do defaultMsg: voz do cliente, que é quem manda o texto.
+    const finalMsg = `Olá! Montei meu perfil no Match de Garagem do site buscando um veículo focado em ${formatObjective(answers.objective)}, até R$ ${formatShort(answers.budgetMax)}. Podem me mostrar as opções que se encaixam?${sufixoRef()}`;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).

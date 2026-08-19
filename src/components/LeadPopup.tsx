@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ehCaminhoDePdp } from "../lib/veiculoUrl";
-import { getActiveAgUid, getUtmParameters, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { getActiveAgUid, getUtmParameters, refCurta, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { useTheme } from "../app/ThemeContext";
@@ -238,15 +238,18 @@ export default function LeadPopup() {
     const utmParams = getUtmParameters();
     const timeRemaining = `${formatCountdown(countdown).minutes}:${formatCountdown(countdown).secs}`;
 
-    const ref = agUid;
+    const ref = refCurta(agUid);
     const carro = vehicle ? `${vehicle.marca} ${vehicle.modelo}` : "";
     const preco = vehicle && vehicle.preco > 0 ? ` (${formatPrice(vehicle.preco)})` : "";
 
+    // Sem referência, o template salvo no painel deixaria um "(Ref: )" órfão
+    // na mensagem — a limpeza final tira o parêntese vazio inteiro.
     const resolvePlaceholders = (text: string) => {
       return text
         .replace(/{carro}/g, carro)
         .replace(/{preco}/g, preco)
-        .replace(/{ref}/g, ref);
+        .replace(/{ref}/g, ref)
+        .replace(/\s*\(Ref:\s*\)/g, "");
     };
 
     if (activeCampaign.actionType === "whatsapp") {
@@ -468,7 +471,7 @@ export default function LeadPopup() {
   const { minutes, secs } = formatCountdown(countdown);
   const progressPercent = (countdown / 180) * 100;
 
-  const ref = getActiveAgUid();
+  const ref = refCurta();
   const carro = vehicle ? `${vehicle.marca} ${vehicle.modelo}` : "veículo";
   const preco = vehicle && vehicle.preco > 0 ? ` (${formatPrice(vehicle.preco)})` : "";
 
@@ -476,7 +479,8 @@ export default function LeadPopup() {
     return text
       .replace(/{carro}/g, carro)
       .replace(/{preco}/g, preco)
-      .replace(/{ref}/g, ref);
+      .replace(/{ref}/g, ref)
+      .replace(/\s*\(Ref:\s*\)/g, "");
   };
 
   const title = resolvePlaceholders(activeCampaign.title);
