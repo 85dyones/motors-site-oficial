@@ -945,7 +945,27 @@ function migracaoViva(funcao: string): string {
 
 const migracao = migracaoViva("fechar_venda_ciclo");
 const gerador = migracaoViva("abrir_proxima_janela");
+
+/**
+ * A migração da FUNDAÇÃO do fechamento de venda — lida por nome, de propósito.
+ *
+ * O `describe("a autoconferência do aceite, na migração")`, mais abaixo neste
+ * arquivo, não fala da função viva: fala de uma migração específica que provou
+ * a si mesma no dia em que foi aplicada. Esse texto é histórico e não muda
+ * mais. Apontá-lo para `migracaoViva` o faria perseguir o `create or replace`
+ * mais recente e cobrar dele uma autoconferência que ele não tem.
+ *
+ * A regra que separa as duas fontes: se a asserção é sobre o que o banco FAZ
+ * hoje, use `migracaoViva`. Se é sobre o que uma migração PROVOU quando rodou,
+ * leia o arquivo dela pelo nome.
+ */
+const migracaoDaFundacao = readFileSync(
+  join(raiz, "supabase", "migrations", "20260814120000_fechar_venda_ciclo.sql"),
+  "utf-8",
+);
 ```
+
+No `describe("a autoconferência do aceite, na migração")` (e **só** nele), trocar as três ocorrências de `migracao` por `migracaoDaFundacao`. E acrescentar, dentro do `it("confere o grafo inteiro da venda que fecha")`, um aviso de duas linhas de que o `"esperava 3"` ali é o comportamento **antigo**, provado à época, e que a régua vitalícia de hoje vive nas autoconferências D2 da `20260820120000` — sem isso, quem ler daqui a seis meses conclui que o sistema ainda gera três.
 
 Trocar o bloco `describe("o plano de revisões (§1.5)")` inteiro por:
 
@@ -987,7 +1007,11 @@ E trocar o teste `it("o banco gera o mesmo plano que a lib")` por:
 ```ts
   it("o banco gera o plano pelo gerador, não por série fixa", () => {
     expect(migracao).toContain("perform public.abrir_proxima_janela(v_veiculo)");
-    expect(migracao).not.toContain("generate_series(1, 3)");
+    // Ancorada na cláusula `from … as n`, não no nome da função: o cabeçalho da
+    // migração cita `generate_series(1, 3)` ao narrar o bug que ela conserta, e
+    // uma asserção sobre o nome nunca poderia passar. O que se prova aqui é que
+    // o CÓDIGO da série fixa sumiu, não que a expressão nunca é mencionada.
+    expect(migracao).not.toContain("from generate_series(1, 3) as n");
   });
 
   it("o gerador do banco usa a mesma régua do §1.5 que a lib", () => {
