@@ -13,7 +13,9 @@ o plano de revisões seca na terceira, e a Garagem Motors é vitalícia.
 
 A mesma direção pede escopo de itens maior que a troca de óleo (correia,
 pastilhas, discos, suspensão, óleo de câmbio). **Isso não entra aqui** — é o
-pacote 2, e está travado numa Emenda 02 do manual que só o dono aprova. Ver §7.
+pacote 2. O dono respondeu as três dúvidas dele em 2026-08-20 (§8), então ele
+deixou de estar travado por falta de decisão; segue dependendo da Emenda 02
+escrita e aprovada, e do levantamento por modelo. Ver §7.
 
 ---
 
@@ -310,51 +312,62 @@ O `--gravar` só com aprovação explícita do dono.
 
 ## 7. Fora de escopo
 
-### Pacote 2 — escopo de itens da revisão (bloqueado)
+### Pacote 2 — escopo de itens da revisão
 
 A direção do dono de 2026-08-20 pede que a revisão cubra correia, pastilhas,
-discos, suspensão e óleo de câmbio, além do óleo de motor. Isso **não entra
-neste pacote** por três motivos, nesta ordem de gravidade:
+discos, suspensão e óleo de câmbio, além do óleo de motor — enquadrados por ele
+como *"plus, algo a mais, que vai poupar a loja e futuros proprietários de
+revisões maiores"*. É posicionamento preventivo, e é a justificativa que a
+Emenda 02 precisa carregar.
 
-1. **Contradiz o manual, que é fonte de verdade.** O §1.5 diz: *"A troca de
-   óleo é o item obrigatório da revisão programada, e é ela que a prova
-   atesta"*. Varredura em `MANUAL_MOTORS_CICLO.md` e `EMENDA_01_MANUAL_CICLO.md`
-   por correia, pastilha, disco, suspensão, câmbio, fluido, vela e arrefecimento
-   retorna **zero ocorrências**. É vocabulário inteiramente novo. Pede uma
-   **Emenda 02 aprovada pelo dono**, como foi a Emenda 01. Esta spec levanta a
-   necessidade e **não** redige a emenda.
+**O que ainda falta.** O §1.5 diz hoje: *"A troca de óleo é o item obrigatório
+da revisão programada, e é ela que a prova atesta"*. Varredura em
+`MANUAL_MOTORS_CICLO.md` e `EMENDA_01_MANUAL_CICLO.md` por correia, pastilha,
+disco, suspensão, câmbio, fluido, vela e arrefecimento retorna **zero
+ocorrências** — vocabulário inteiramente novo, que pede **Emenda 02 aprovada
+pelo dono**, como foi a Emenda 01. Esta spec registra a substância decidida em
+§8; **não** redige a emenda.
 
-2. **A colisão real é na prova, não no modelo de dados.**
-   `manutencoes.url_etiqueta_atual` está documentada como *"prova obrigatória"*
-   e `carimbar_revisao` levanta `CARIMBO_SEM_ETIQUETA` quando ela vem vazia.
-   A Emenda 01 inteira foi construída sobre a etiqueta de óleo porque ela é
-   verificável — foi ela que substituiu a telemetria como fonte de KM real.
-   Uma revisão de correia, pastilhas e suspensão não tem etiqueta de óleo.
-   Ampliar o escopo obriga a decidir **o que passa a provar uma revisão**, e
-   isso é matéria de §5.7 e da Emenda 01.
+**A prova, resolvida (§8.1).** Era a colisão mais funda deste documento:
+`manutencoes.url_etiqueta_atual` é *"prova obrigatória"* e `carimbar_revisao`
+levanta `CARIMBO_SEM_ETIQUETA` sem ela — e correia, pastilhas e suspensão não
+têm etiqueta de óleo. O dono resolveu mantendo o princípio e ampliando o
+artefato: a prova continua **material** — foto da peça velha e da nova, nota
+fiscal, orçamento. O §5.7 fica de pé (registrar não é o ativo, a prova
+verificável é); o que muda é que `CARIMBO_SEM_ETIQUETA` passa a exigir **haver
+prova**, não haver *aquela* prova.
 
-3. **Faltam números, e o precedente proíbe estimá-los.** O §1.5 cita a prática
-   publicada de Volkswagen, Honda, Toyota e Chevrolet, e a tolerância da
-   Toyota. Qualquer intervalo novo precisa de fonte citada do mesmo jeito, ou
-   da palavra do dono.
+**O tamanho real do levantamento por modelo.** O dono mandou procurar as
+recomendações de todos os fabricantes do estoque, sob demanda. Medido no
+estoque em 2026-08-20: **97 veículos, 19 fabricantes, 91 combinações
+marca+modelo distintas, anos de 1976 a 2025, 41 automáticos** — incluindo três
+motos (Suzuki GSX-R 750, Harley-Davidson Dyna Glide, JTZ Chopper) e um Fusca
+1976. Não são 19 consultas: são ~91 planos de anos-modelo diferentes, num
+estoque que gira. Catálogo montado para o estoque de hoje estaria vencido antes
+de ficar pronto.
 
-**Análise que o pacote 2 herda.** Fabricante não publica réguas paralelas por
-peça: publica uma tabela de revisões (10.000, 20.000, 30.000 km) em que cada
-parada tem lista de itens diferente. Correia aos 60.000 não é cronograma
-próprio — é item que cai na revisão dos 60.000. Logo a régua de 10.000 km /
-12 meses do §1.5 sobrevive, `plano_revisoes` mantém a forma, e o que falta é
-**o que cada revisão cobre**, que varia por modelo, motor e câmbio. Triando a
-lista do dono: óleo de motor, correia e óleo de câmbio têm intervalo publicado
-(os dois últimos por motor/câmbio, e há motores de corrente sem troca
-programada); pastilhas, discos e suspensão **não têm intervalo** — são
-inspeção a cada revisão e troca por desgaste medido. Três dos cinco itens
-pedem checklist, não régua nova. **Confirmar com o dono antes de tratar como
-verdade.**
+Daí a leitura de "sob demanda": **o levantamento acompanha a venda, não o
+estoque.** Proposta para a spec do pacote 2 — catálogo que se preenche pelo
+uso: na primeira venda de um modelo, o plano do fabricante é consultado e
+gravado; nas vendas seguintes do mesmo modelo, reaproveitado. Uma consulta por
+modelo vendido, nunca 91 de antemão.
+
+E a régua passa a ter dois níveis, que é o que *"a fabricante tem supremacia"*
+(§8.2) implica: **plano do fabricante quando existe, §1.5 como piso quando não
+existe.** O piso não é opcional — um Fusca 1976 e uma Harley não têm plano
+publicado acessível, e a Garagem não pode ficar sem cronograma por causa disso.
+
+**Cadência por peça continua não sendo o modelo certo.** Fabricante publica uma
+tabela de revisões (10.000, 20.000, 30.000 km) em que cada parada tem lista de
+itens diferente; correia aos 60.000 não é cronograma próprio, é item que cai na
+revisão dos 60.000. `plano_revisoes` mantém a forma; o que falta é **o que cada
+revisão cobre**. O dono confirmou (§8.3) que pastilhas, discos e suspensão
+entram como **inspeção** na revisão que já existe, não como régua nova.
 
 `manutencoes.itens jsonb` já existe desde a fundação, sem comentário, sem
 `check` e sem ninguém que escreva nela. É o gancho natural do pacote 2.
-**Nenhuma coluna é adiantada nesta migração** — criar `itens_previstos` agora
-seria escrever schema para uma emenda que ainda não foi aprovada.
+**Nenhuma coluna é adiantada nesta migração** — o pacote 1 não depende de
+nenhuma delas, e o desenho do catálogo é assunto da spec do pacote 2.
 
 ### Dívidas registradas
 
@@ -366,16 +379,35 @@ seria escrever schema para uma emenda que ainda não foi aprovada.
 - **Lista fechada de `motivo_saida`** (§4.4).
 - **Recompra:** nada. O gatilho do §1.4 não abriu (regra 5 do CLAUDE.md).
 
-## 8. Perguntas abertas — para o dono, sobre o pacote 2
+## 8. Respostas do dono — 2026-08-20
 
-Nenhuma delas trava este pacote.
+As três perguntas do pacote 2 foram respondidas. Ficam registradas aqui porque
+é delas que a Emenda 02 nasce.
 
-1. Com escopo de itens maior que a troca de óleo, **o que prova uma revisão**
-   quando não há etiqueta de óleo para fotografar?
-2. Os intervalos de correia e de óleo de câmbio vêm de fonte publicada — e
-   qual — ou da definição da loja?
-3. Pastilhas, discos e suspensão entram como **itens de inspeção** na revisão
-   já existente, e não como cadência própria — confere?
+**8.1 — O que prova uma revisão sem etiqueta de óleo?**
+> *"Continuamos na mesma linha, prova material: se houve compra e troca de
+> peças, tem como haver foto de peça velha e nova, nota fiscal etc."*
+
+A prova deixa de ser um artefato único e vira um conjunto de artefatos
+materiais. O princípio do §5.7 não muda.
+
+**8.2 — De onde vêm os intervalos?**
+> *"Fonte publicada, a fabricante tem supremacia."*
+
+Nenhum número estimado, nunca. E "supremacia" implica hierarquia: o plano do
+fabricante manda, e o §1.5 é o piso para quando não há plano publicado.
+
+**8.3 — Pastilhas, discos e suspensão são inspeção, não cadência própria?**
+> *"Confere."*
+
+### Uma leitura ainda em aberto
+
+O dono chamou os itens extras de **"plus, algo a mais"**. Falta decidir se isso
+significa que eles entram na régua de conformidade do §5.7 — e portanto no
+gatilho do §1.4 — ou se são valor adicional enquanto só a troca de óleo decide
+procedência. A segunda leitura preserva a cadeia da Emenda 01 intacta e é a que
+esta spec assume até haver decisão. **Não trava o pacote 1**, que não toca em
+item nenhum.
 
 ## 9. Ordem de execução
 
