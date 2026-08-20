@@ -17,7 +17,10 @@ import { join } from "node:path";
  */
 
 const raiz = join(__dirname, "..");
-const ler = (...p: string[]) => readFileSync(join(raiz, ...p), "utf-8");
+// ⚠️ Normaliza CRLF: checkout com core.autocrlf=true (Windows) materializa
+// \r\n, e a assertion que ancora "v_atual\n…" nunca casaria. O repo guarda LF.
+const ler = (...p: string[]) =>
+  readFileSync(join(raiz, ...p), "utf-8").replace(/\r\n/g, "\n");
 
 const migracao = ler("supabase", "migrations", "20260815230000_consentimento_do_cliente.sql");
 const rota = ler("src", "app", "api", "garagem", "consentimento", "route.ts");
