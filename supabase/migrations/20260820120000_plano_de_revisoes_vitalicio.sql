@@ -151,6 +151,701 @@ revoke all on function public.abrir_proxima_janela(uuid) from public, anon;
 grant execute on function public.abrir_proxima_janela(uuid) to authenticated, service_role;
 
 
+create or replace function public.fechar_venda_ciclo(dados jsonb)
+  returns jsonb
+  language plpgsql
+  set search_path = public
+as $$
+declare
+  faltando   text[] := '{}';
+  v_cliente  uuid;
+  v_veiculo  uuid;
+  v_data     date;
+  v_km       int;
+  v_fin      jsonb := dados->'financiamento';
+  tem_fin    boolean := false;
+begin
+  -- ---- quem pode ----
+  if not public.is_staff(auth.uid()) then
+    raise exception 'Fechamento de venda é restrito à equipe.'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  -- ---- os campos que o §3.1 chama de "venda não fecha sem" ----
+  --
+  -- `array_append`, e não o operador `||`: com um literal sem tipo à direita,
+  -- o Postgres resolve `anyarray || anyarray` e tenta ler 'cpf_cnpj' como
+  -- array, falhando com "malformed array literal".
+  if coalesce(trim(dados->>'cpf_cnpj'), '')      = '' then faltando := array_append(faltando, 'cpf_cnpj');      end if;
+  if coalesce(trim(dados->>'nome'), '')          = '' then faltando := array_append(faltando, 'nome');          end if;
+  if coalesce(trim(dados->>'telefone_e164'), '') = '' then faltando := array_append(faltando, 'telefone_e164'); end if;
+  -- v1.1: o e-mail entrou porque é por ele que o cliente recebe o link da
+  -- Caderneta — e a caderneta é a fonte do dado de conformidade do §1.4.
+  if coalesce(trim(dados->>'email'), '')         = '' then faltando := array_append(faltando, 'email');         end if;
+  if coalesce(trim(dados->>'chassi'), '')        = '' then faltando := array_append(faltando, 'chassi');        end if;
+  if coalesce(trim(dados->>'placa'), '')         = '' then faltando := array_append(faltando, 'placa');         end if;
+  if coalesce(trim(dados->>'marca'), '')         = '' then faltando := array_append(faltando, 'marca');         end if;
+  if coalesce(trim(dados->>'modelo'), '')        = '' then faltando := array_append(faltando, 'modelo');        end if;
+  if dados->>'ano_fabricacao' is null                 then faltando := array_append(faltando, 'ano_fabricacao'); end if;
+  if dados->>'ano_modelo'     is null                 then faltando := array_append(faltando, 'ano_modelo');     end if;
+  if dados->>'data_venda'     is null                 then faltando := array_append(faltando, 'data_venda');     end if;
+  if dados->>'km_na_venda'    is null                 then faltando := array_append(faltando, 'km_na_venda');    end if;
+  if dados->>'valor_venda'    is null                 then faltando := array_append(faltando, 'valor_venda');    end if;
+  -- Consentimento não se "preenche": ou foi dado no ato, ou não foi.
+  if coalesce((dados->>'consentimento_lgpd')::boolean, false) is not true then
+    faltando := array_append(faltando, 'consentimento_lgpd');
+  end if;
+
+  -- ---- financiamento: nenhum ou todos ----
+  if v_fin is not null and v_fin <> 'null'::jsonb then
+    tem_fin := (
+      coalesce(trim(v_fin->>'instituicao'), '') <> '' or
+      v_fin->>'valor_financiado' is not null or
+      v_fin->>'taxa_mensal' is not null or
+      v_fin->>'prazo_meses' is not null or
+      v_fin->>'valor_parcela' is not null or
+      v_fin->>'data_primeira_parcela' is not null
+    );
+  end if;
+
+  if tem_fin then
+    if coalesce(trim(v_fin->>'instituicao'), '') = '' then faltando := array_append(faltando, 'instituicao'); end if;
+    if v_fin->>'valor_financiado'      is null then faltando := array_append(faltando, 'valor_financiado');      end if;
+    -- "o campo que mais será omitido e o mais valioso" (§3.1): sem ele não há
+    -- saldo devedor (§5.1) nem equity mining (§5.4).
+    if v_fin->>'taxa_mensal'           is null then faltando := array_append(faltando, 'taxa_mensal');           end if;
+    if v_fin->>'prazo_meses'           is null then faltando := array_append(faltando, 'prazo_meses');           end if;
+    if v_fin->>'valor_parcela'         is null then faltando := array_append(faltando, 'valor_parcela');         end if;
+    if v_fin->>'data_primeira_parcela' is null then faltando := array_append(faltando, 'data_primeira_parcela'); end if;
+  end if;
+
+  if array_length(faltando, 1) > 0 then
+    raise exception 'VENDA_INCOMPLETA: %', array_to_string(faltando, ',')
+      using errcode = 'check_violation';
+  end if;
+
+  v_data := (dados->>'data_venda')::date;
+  v_km   := (dados->>'km_na_venda')::int;
+
+  if v_km < 0 then
+    raise exception 'VENDA_INVALIDA: km_na_venda' using errcode = 'check_violation';
+  end if;
+  if (dados->>'valor_venda')::numeric <= 0 then
+    raise exception 'VENDA_INVALIDA: valor_venda' using errcode = 'check_violation';
+  end if;
+
+  -- ---- o cliente: pode já existir (segundo carro) ----
+  insert into public.clientes
+    (cpf_cnpj, nome, telefone_e164, email, cep, consentimento_lgpd_em,
+     consentimento_canais, origem_primeiro_contato)
+  values (
+    trim(dados->>'cpf_cnpj'),
+    trim(dados->>'nome'),
+    trim(dados->>'telefone_e164'),
+    trim(dados->>'email'),
+    -- CEP entrou em 2026-08-17, junto com a consulta automática do formulário.
+    -- Só dígitos, e string vazia vira NULL para não gravar '' no lugar de nada.
+    nullif(regexp_replace(coalesce(dados->>'cep', ''), '\D', '', 'g'), ''),
+    now(),
+    coalesce(dados->'consentimento_canais',
+             '{"whatsapp":false,"email":false,"sms":false}'::jsonb),
+    coalesce(dados->>'origem_primeiro_contato', 'venda')
+  )
+  on conflict (cpf_cnpj) do update set
+    nome                  = excluded.nome,
+    telefone_e164         = excluded.telefone_e164,
+    email                 = coalesce(excluded.email, public.clientes.email),
+    cep                   = coalesce(excluded.cep, public.clientes.cep),
+    consentimento_lgpd_em = coalesce(public.clientes.consentimento_lgpd_em, excluded.consentimento_lgpd_em),
+    consentimento_canais  = excluded.consentimento_canais
+  returning id into v_cliente;
+
+  -- ---- o veículo ----
+  begin
+    insert into public.veiculos_vendidos
+      (cliente_id, estoque_id, chassi, placa, marca, modelo, versao,
+       ano_fabricacao, ano_modelo, data_venda, km_na_venda, valor_venda,
+       custo_aquisicao, aderiu_ciclo, vendedor)
+    values (
+      v_cliente,
+      nullif(dados->>'estoque_id', '')::int,
+      upper(trim(dados->>'chassi')),
+      upper(trim(dados->>'placa')),
+      trim(dados->>'marca'),
+      trim(dados->>'modelo'),
+      nullif(trim(coalesce(dados->>'versao', '')), ''),
+      (dados->>'ano_fabricacao')::int,
+      (dados->>'ano_modelo')::int,
+      v_data,
+      v_km,
+      (dados->>'valor_venda')::numeric,
+      nullif(dados->>'custo_aquisicao', '')::numeric,
+      coalesce((dados->>'aderiu_ciclo')::boolean, false),
+      nullif(trim(coalesce(dados->>'vendedor', '')), '')
+    )
+    returning id into v_veiculo;
+  exception when unique_violation then
+    raise exception 'CHASSI_JA_REGISTRADO: %', upper(trim(dados->>'chassi'))
+      using errcode = 'unique_violation';
+  end;
+
+  -- ---- a primeira notação de KM é o KM de saída na compra (v1.1 §5.2) ----
+  insert into public.leituras_odometro (veiculo_vendido_id, km, origem, registrada_em)
+  values (v_veiculo, v_km, 'venda', v_data::timestamptz);
+
+  -- ---- a primeira janela de revisão (§1.5) ----
+  -- UMA, não três. As seguintes nascem em `abrir_proxima_janela`, a cada
+  -- revisão confirmada: a Garagem é vitalícia até a próxima venda do carro
+  -- (dono, 2026-08-20), e série fixa secava no ano 3.
+  perform public.abrir_proxima_janela(v_veiculo);
+
+  -- ---- financiamento ----
+  if tem_fin then
+    insert into public.contratos_financiamento
+      (veiculo_vendido_id, instituicao, valor_financiado, valor_entrada,
+       taxa_mensal, prazo_meses, valor_parcela, data_primeira_parcela)
+    values (
+      v_veiculo,
+      trim(v_fin->>'instituicao'),
+      (v_fin->>'valor_financiado')::numeric,
+      nullif(v_fin->>'valor_entrada', '')::numeric,
+      (v_fin->>'taxa_mensal')::numeric,
+      (v_fin->>'prazo_meses')::int,
+      (v_fin->>'valor_parcela')::numeric,
+      (v_fin->>'data_primeira_parcela')::date
+    );
+  end if;
+
+  -- ---- contrato do Ciclo ----
+  -- Os campos `recompra_*` NÃO são preenchidos aqui, nem por parâmetro: o
+  -- gatilho do §1.4 não abriu (regra 5 do CLAUDE.md). Contrato vendido hoje é
+  -- Essencial ou Garantido, sem cláusula de recompra.
+  if coalesce((dados->>'aderiu_ciclo')::boolean, false) then
+    insert into public.contratos_ciclo
+      (veiculo_vendido_id, plano, garantia_meses, garantia_fim, mensalidade)
+    values (
+      v_veiculo,
+      coalesce(nullif(trim(coalesce(dados->>'plano', '')), ''), 'essencial'),
+      coalesce(nullif(dados->>'garantia_meses', '')::int, 12),
+      (v_data + (coalesce(nullif(dados->>'garantia_meses', '')::int, 12) || ' months')::interval)::date,
+      nullif(dados->>'mensalidade', '')::numeric
+    );
+  end if;
+
+  return jsonb_build_object(
+    'cliente_id', v_cliente,
+    'veiculo_vendido_id', v_veiculo,
+    'primeira_revisao', (select numero_revisao from public.plano_revisoes
+                          where veiculo_vendido_id = v_veiculo
+                          order by numero_revisao limit 1)
+  );
+end;
+$$;
+
+revoke all on function public.fechar_venda_ciclo(jsonb) from public, anon;
+grant execute on function public.fechar_venda_ciclo(jsonb) to authenticated, service_role;
+
+
+create or replace function public.carimbar_revisao(p_manutencao uuid, p_aceitar boolean, p_motivo text default null)
+  returns jsonb
+  language plpgsql
+  set search_path = public
+as $$
+declare
+  m          record;
+  janela     record;
+  v_dentro   boolean;
+begin
+  if not public.is_staff(auth.uid()) then
+    raise exception 'Carimbo é restrito à equipe.' using errcode = 'insufficient_privilege';
+  end if;
+
+  select * into m from public.manutencoes where id = p_manutencao for update;
+  if not found then
+    raise exception 'REVISAO_NAO_ENCONTRADA' using errcode = 'no_data_found';
+  end if;
+  if m.confirmada_em is not null then
+    raise exception 'REVISAO_JA_CARIMBADA' using errcode = 'check_violation';
+  end if;
+  if m.recusada_em is not null then
+    raise exception 'REVISAO_JA_RECUSADA' using errcode = 'check_violation';
+  end if;
+
+  -- ---- recusa: fica no rastro, com o motivo, e fora da conformidade ----
+  if not p_aceitar then
+    if coalesce(trim(p_motivo), '') = '' then
+      raise exception 'RECUSA_SEM_MOTIVO' using errcode = 'check_violation';
+    end if;
+    update public.manutencoes
+       set observacoes = coalesce(observacoes || E'\n', '') ||
+                         'RECUSADA em ' || to_char(now(), 'YYYY-MM-DD') || ': ' || trim(p_motivo),
+           recusada_em      = now(),
+           motivo_recusa    = trim(p_motivo),
+           dentro_da_janela = false
+     where id = p_manutencao;
+    return jsonb_build_object('resultado', 'recusada');
+  end if;
+
+  -- ---- carimbo exige a prova: a foto da etiqueta nova, com o KM legível ----
+  if coalesce(trim(m.url_etiqueta_atual), '') = '' then
+    raise exception 'CARIMBO_SEM_ETIQUETA' using errcode = 'check_violation';
+  end if;
+
+  -- ---- casa com a janela do plano, se for revisão programada ----
+  v_dentro := null;
+  if m.tipo = 'revisao_programada' then
+    select pr.* into janela
+      from public.plano_revisoes pr
+     where pr.veiculo_vendido_id = m.veiculo_vendido_id
+       and pr.manutencao_id is null
+       and (m.numero_revisao is null or pr.numero_revisao = m.numero_revisao)
+     order by pr.numero_revisao
+     limit 1;
+
+    if found then
+      v_dentro := (m.data_servico <= janela.janela_fim)
+              and (janela.km_previsto is null or m.km_registrado <= janela.km_previsto + 1000);
+      update public.plano_revisoes
+         set manutencao_id = m.id
+       where id = janela.id;
+    else
+      -- Sem janela não é "atrasou": é "não se aplica". `false` aqui acusava de
+      -- fora da janela quem revisou certo num veículo cujo plano tinha secado
+      -- — o defeito do D2. A conformidade do §5.7 já só conta `true`, então
+      -- `null` não entra no numerador nem inventa atraso.
+      v_dentro := null;
+    end if;
+  end if;
+
+  update public.manutencoes
+     set confirmada_em    = now(),
+         confirmada_por   = auth.uid(),
+         dentro_da_janela = v_dentro,
+         numero_revisao   = coalesce(m.numero_revisao, janela.numero_revisao)
+   where id = p_manutencao;
+
+  insert into public.leituras_odometro (veiculo_vendido_id, km, origem, registrada_em)
+  values (m.veiculo_vendido_id, m.km_registrado, 'revisao', m.data_servico::timestamptz);
+
+  -- O 3º passo do gatilho 7 marca `em_risco` (§7.3), e a mensagem que o
+  -- cliente recebe promete que tem volta. É aqui que ela volta: verificada a
+  -- revisão, e não sobrando nenhuma outra janela vencida em aberto, o status
+  -- retorna. Promessa sem este bloco seria promessa que o sistema não cumpre.
+  update public.contratos_ciclo cc
+     set status_elegibilidade = 'elegivel'
+   where cc.veiculo_vendido_id = m.veiculo_vendido_id
+     and cc.status_elegibilidade = 'em_risco'
+     and not exists (
+           select 1 from public.plano_revisoes pr
+            where pr.veiculo_vendido_id = m.veiculo_vendido_id
+              and pr.manutencao_id is null
+              and pr.janela_fim < current_date);
+
+  -- A próxima janela nasce aqui, e é a ÚLTIMA coisa que a função faz. Se
+  -- nascesse antes do bloco de elegibilidade acima, uma revisão lançada com
+  -- `data_servico` antigo produziria janela já vencida, que bloquearia a volta
+  -- de `em_risco` para `elegivel` — a promessa que a mensagem do §7.3 faz ao
+  -- cliente. Se a janela nova nascer vencida, quem cuida dela é o gatilho 7
+  -- amanhã, que é onde ela pertence.
+  perform public.abrir_proxima_janela(m.veiculo_vendido_id);
+
+  return jsonb_build_object(
+    'resultado', 'carimbada',
+    'dentro_da_janela', v_dentro,
+    'numero_revisao', coalesce(m.numero_revisao, janela.numero_revisao)
+  );
+end;
+$$;
+
+comment on function public.carimbar_revisao(uuid, boolean, text) is
+  'Confirma (ou recusa, com motivo) um registro do diário de bordo. Carimbar '
+  'exige a foto da etiqueta nova, casa a revisão com a janela do plano, '
+  'calcula dentro_da_janela pela régua do §1.5 e grava o KM como leitura '
+  'verificada. Recusa marca recusada_em/motivo_recusa e sai da fila. '
+  'Transacional e restrita a staff.';
+
+revoke all on function public.carimbar_revisao(uuid, boolean, text) from public, anon;
+grant execute on function public.carimbar_revisao(uuid, boolean, text) to authenticated, service_role;
+
+
+create or replace function public.montar_fila_de_gatilhos(
+  p_agora    timestamptz default now(),
+  p_reservar boolean     default false,
+  p_gatilhos text[]      default null
+)
+returns table (
+  evento_id          uuid,
+  veiculo_vendido_id uuid,
+  cliente_id         uuid,
+  nome               text,
+  telefone_e164      text,
+  email              text,
+  placa              text,
+  marca              text,
+  modelo             text,
+  ano_modelo         int,
+  gatilho            text,
+  prioridade         int,
+  passo              int,
+  canal              text,
+  contexto           jsonb,
+  suprimido_por      text
+)
+language plpgsql
+set search_path = public
+as $$
+-- Os nomes da tabela de retorno (veiculo_vendido_id, gatilho, canal…) são os
+-- mesmos das colunas que a consulta lê. Sem esta diretiva, cada um deles vira
+-- "column reference is ambiguous" — e o corpo não referencia variável de saída
+-- em lugar nenhum, porque tudo sai por RETURN QUERY.
+#variable_conflict use_column
+declare
+  v_local  timestamp := p_agora at time zone 'America/Sao_Paulo';
+  v_hoje   date      := (p_agora at time zone 'America/Sao_Paulo')::date;
+  v_relogio text;
+begin
+  -- §4.3: nenhum contato entre 20h e 8h, nem aos domingos. Vale para todo
+  -- gatilho, sem isenção — inclusive os transacionais.
+  if extract(dow from v_local) = 0 then
+    v_relogio := 'domingo';
+  elsif extract(hour from v_local) < 8 or extract(hour from v_local) >= 20 then
+    v_relogio := 'fora_do_horario';
+  end if;
+
+  return query
+  with veic as (
+    select vv.id as vv_id, vv.cliente_id, c.nome, c.telefone_e164, c.email,
+           coalesce(c.consentimento_canais, '{}'::jsonb) as canais,
+           vv.placa, vv.marca, vv.modelo, vv.ano_modelo,
+           vv.km_na_venda, vv.data_venda
+      from public.veiculos_vendidos vv
+      join public.clientes c on c.id = vv.cliente_id
+     where vv.aderiu_ciclo
+       -- Carro que saiu da Garagem não recebe mais nada. Aqui corta os quatro
+       -- gatilhos de uma vez, em vez de repetir a condição em cada um.
+       and vv.saiu_em is null
+  ),
+
+  -- ---- janelas de revisão ainda não cumpridas -------------------------
+  -- `manutencao_id is null` = nenhuma revisão carimbada casou com esta
+  -- janela. A data "prevista" é o meio da janela por construção
+  -- (janela_inicio = prevista − tolerância, janela_fim = prevista + tolerância);
+  -- lê-la do meio faz a cadência continuar certa se a tolerância mudar.
+  janelas as (
+    select v.*, pr.numero_revisao, pr.km_previsto, pr.janela_inicio, pr.janela_fim,
+           (pr.janela_inicio + ((pr.janela_fim - pr.janela_inicio) / 2))::date as prevista
+      from veic v
+      join public.plano_revisoes pr on pr.veiculo_vendido_id = v.vv_id
+     where pr.manutencao_id is null
+  ),
+
+  -- ---- gatilho: boas-vindas (transacional, uma vez por veículo) --------
+  g_boas_vindas as (
+    select v.vv_id, 'boas_vindas'::text as gatilho, 15 as prioridade, 1 as passo,
+           jsonb_build_object(
+             'data_venda',     v.data_venda,
+             'km_na_venda',    v.km_na_venda,
+             'plano',          cc.plano,
+             'garantia_meses', cc.garantia_meses,
+             'garantia_fim',   cc.garantia_fim,
+             'primeira_revisao', (
+               select jsonb_build_object(
+                        'numero',        pr.numero_revisao,
+                        'janela_inicio', pr.janela_inicio,
+                        'janela_fim',    pr.janela_fim,
+                        'km_previsto',   pr.km_previsto)
+                 from public.plano_revisoes pr
+                where pr.veiculo_vendido_id = v.vv_id
+                order by pr.numero_revisao limit 1)
+           ) as contexto
+      from veic v
+      join public.contratos_ciclo cc on cc.veiculo_vendido_id = v.vv_id
+     where not exists (
+             select 1 from public.eventos_ciclo e
+              where e.veiculo_vendido_id = v.vv_id
+                and e.gatilho = 'boas_vindas')
+  ),
+
+  -- ---- gatilho: revisão verificada (transacional, uma vez por revisão) --
+  -- O carimbo é o ativo do programa (§5.7). O cliente precisa saber que o
+  -- dele entrou — é o que transforma "fiz a revisão" em "tenho procedência".
+  g_verificada as (
+    select v.vv_id, 'revisao_verificada'::text, 25, 1,
+           jsonb_build_object(
+             'manutencao_id',    m.id,
+             'numero_revisao',   m.numero_revisao,
+             'data_servico',     m.data_servico,
+             'km_registrado',    m.km_registrado,
+             'dentro_da_janela', m.dentro_da_janela,
+             'confirmada_em',    m.confirmada_em)
+      from veic v
+      join public.manutencoes m on m.veiculo_vendido_id = v.vv_id
+     where m.confirmada_em is not null
+       and m.tipo = 'revisao_programada'
+       and not exists (
+             select 1 from public.eventos_ciclo e
+              where e.gatilho = 'revisao_verificada'
+                and e.payload->>'manutencao_id' = m.id::text)
+  ),
+
+  -- ---- gatilho 1: revisão programada — cadência D−15 · D−3 · D+7 -------
+  -- §7.3. O passo sai da contagem do que já foi disparado para ESTA revisão:
+  -- três passos e encerra, sem estado extra para manter em lugar nenhum.
+  revisao_base as (
+    select j.*,
+           (select count(*) from public.eventos_ciclo e
+             where e.veiculo_vendido_id = j.vv_id
+               and e.gatilho = 'revisao_programada'
+               and coalesce(e.desfecho, '') <> 'falha_envio'
+               and (e.payload->>'numero_revisao') = j.numero_revisao::text
+           )::int + 1 as passo,
+           (select (max(e.enviado_em) at time zone 'America/Sao_Paulo')::date
+              from public.eventos_ciclo e
+             where e.veiculo_vendido_id = j.vv_id
+               and e.gatilho = 'revisao_programada'
+               and coalesce(e.desfecho, '') <> 'falha_envio'
+               and (e.payload->>'numero_revisao') = j.numero_revisao::text
+           ) as ultimo_aviso,
+           public.km_estimado(j.vv_id, v_hoje) as km_hoje
+      from janelas j
+     where j.janela_fim >= v_hoje
+  ),
+  g_revisao as (
+    select r.vv_id, 'revisao_programada'::text, 60, r.passo,
+           jsonb_build_object(
+             'numero_revisao', r.numero_revisao,
+             'janela_inicio',  r.janela_inicio,
+             'janela_fim',     r.janela_fim,
+             'prevista',       r.prevista,
+             'km_previsto',    r.km_previsto,
+             'km_estimado',    r.km_hoje,
+             'dias_para_o_fim', r.janela_fim - v_hoje,
+             'antecipado_por_km', (r.passo = 1 and r.km_previsto is not null
+                                   and r.km_hoje is not null
+                                   and r.km_hoje >= r.km_previsto - 800
+                                   and v_hoje < r.prevista - 15))
+      from revisao_base r
+     where r.passo <= 3
+       and (
+             -- pela data: D−15, D−3, D+7 (§7.3)
+             v_hoje >= (r.prevista - (case r.passo when 1 then 15 when 2 then 3 else -7 end))
+             -- ou pelo odômetro, e só no primeiro aviso: "KM −800" (§4.2)
+             or (r.passo = 1 and r.km_previsto is not null and r.km_hoje is not null
+                 and r.km_hoje >= r.km_previsto - 800)
+           )
+       -- A cadência é uma sequência de INTERVALOS, não de datas soltas. Ver o
+       -- comentário do gatilho 7 abaixo: sem isto, quem entra atrasado recebe
+       -- os três avisos em três dias seguidos.
+       and (r.passo = 1
+            or v_hoje >= r.ultimo_aviso + (case r.passo when 2 then 12 else 10 end))
+  ),
+
+  -- ---- gatilho 7: elegibilidade em risco — imediato · D+7 · D+21 -------
+  -- `janela_fim` já contém a tolerância do §1.5 (prevista + 30 dias). Passar
+  -- dela É a "revisão atrasada > 30 dias" do §4.2. O terceiro passo marca
+  -- `status_elegibilidade = em_risco`, como manda o §7.3.
+  risco_base as (
+    select j.*,
+           (select count(*) from public.eventos_ciclo e
+             where e.veiculo_vendido_id = j.vv_id
+               and e.gatilho = 'elegibilidade_em_risco'
+               and coalesce(e.desfecho, '') <> 'falha_envio'
+               and (e.payload->>'numero_revisao') = j.numero_revisao::text
+           )::int + 1 as passo,
+           (select (max(e.enviado_em) at time zone 'America/Sao_Paulo')::date
+              from public.eventos_ciclo e
+             where e.veiculo_vendido_id = j.vv_id
+               and e.gatilho = 'elegibilidade_em_risco'
+               and coalesce(e.desfecho, '') <> 'falha_envio'
+               and (e.payload->>'numero_revisao') = j.numero_revisao::text
+           ) as ultimo_aviso
+      from janelas j
+     where j.janela_fim < v_hoje
+  ),
+  g_risco as (
+    select r.vv_id, 'elegibilidade_em_risco'::text, 10, r.passo,
+           jsonb_build_object(
+             'numero_revisao', r.numero_revisao,
+             'janela_inicio',  r.janela_inicio,
+             'janela_fim',     r.janela_fim,
+             'km_previsto',    r.km_previsto,
+             'dias_de_atraso', v_hoje - r.janela_fim,
+             'marca_em_risco', (r.passo = 3))
+      from risco_base r
+     where r.passo <= 3
+       and v_hoje >= r.janela_fim + (case r.passo when 1 then 0 when 2 then 7 else 21 end)
+       -- "Imediato · D+7 · D+21" é uma sequência de INTERVALOS, não três datas
+       -- soltas. Um veículo que entra no motor já 35 dias atrasado tem os três
+       -- marcos vencidos ao mesmo tempo — e sem esta linha receberia as três
+       -- mensagens em três dias seguidos. Os intervalos são os do §7.3: 7 dias
+       -- entre o 1º e o 2º, 14 entre o 2º e o 3º.
+       and (r.passo = 1
+            or v_hoje >= r.ultimo_aviso + (case r.passo when 2 then 7 else 14 end))
+  ),
+
+  unidos as (
+    select * from g_boas_vindas
+    union all select * from g_verificada
+    union all select * from g_revisao
+    union all select * from g_risco
+  ),
+  filtrados as (
+    select * from unidos u
+     where p_gatilhos is null or u.gatilho = any(p_gatilhos)
+  ),
+
+  -- ---- canal: opt-in por canal (§6.3 D). Sem consentimento, não sai. ----
+  com_canal as (
+    select f.*, v.cliente_id, v.nome, v.telefone_e164, v.email,
+           v.placa, v.marca, v.modelo, v.ano_modelo,
+           case
+             when coalesce((v.canais->>'whatsapp')::boolean, false)
+                  and coalesce(v.telefone_e164, '') <> '' then 'whatsapp'
+             when coalesce((v.canais->>'email')::boolean, false)
+                  and coalesce(v.email, '') <> ''         then 'email'
+             else null
+           end as canal
+      from filtrados f
+      join veic v on v.vv_id = f.vv_id
+  ),
+
+  classificado as (
+    select c.*,
+           case
+             when v_relogio is not null then v_relogio
+             when c.canal is null       then 'sem_canal_consentido'
+
+             -- §4.3: três gatilhos consecutivos sem resposta → 90 dias parado.
+             when exists (
+               select 1 from (
+                 select e.desfecho, e.enviado_em
+                   from public.eventos_ciclo e
+                   join public.veiculos_vendidos vq on vq.id = e.veiculo_vendido_id
+                  where vq.cliente_id = c.cliente_id
+                    and coalesce(e.desfecho, '') <> 'falha_envio'
+                  order by e.enviado_em desc
+                  limit 3
+               ) tres
+               having count(*) = 3
+                  and count(*) filter (where tres.desfecho = 'sem_resposta') = 3
+                  and max(tres.enviado_em) > p_agora - interval '90 days'
+             ) then 'quarentena'
+
+             -- §4.3: 1 contato por cliente a cada 21 dias, qualquer gatilho.
+             when c.gatilho not in ('elegibilidade_em_risco', 'boas_vindas', 'revisao_verificada')
+              and exists (
+                select 1 from public.eventos_ciclo e
+                  join public.veiculos_vendidos vq on vq.id = e.veiculo_vendido_id
+                 where vq.cliente_id = c.cliente_id
+                   and coalesce(e.desfecho, '') <> 'falha_envio'
+                   and e.enviado_em > p_agora - interval '21 days'
+              ) then 'janela_de_21_dias'
+
+             else null
+           end as suprimido_por
+      from com_canal c
+  ),
+
+  -- §4.4: risco de perder elegibilidade vem antes de oportunidade, sempre.
+  -- Suprimido ordena por último para não gastar o rn de quem pode sair.
+  ordenado as (
+    select cl.*,
+           row_number() over (
+             partition by cl.cliente_id
+             order by (cl.suprimido_por is not null), cl.prioridade, cl.passo desc, cl.vv_id
+           ) as rn
+      from classificado cl
+  ),
+  marcado as (
+    select o.*,
+           coalesce(o.suprimido_por,
+                    case when o.rn > 1 then 'colisao_prioridade' end) as sup
+      from ordenado o
+  ),
+
+  reservado as (
+    insert into public.eventos_ciclo (veiculo_vendido_id, gatilho, canal, payload, enviado_em)
+    select m.vv_id, m.gatilho, m.canal,
+           m.contexto || jsonb_build_object('passo', m.passo),
+           p_agora
+      from marcado m
+     where p_reservar and m.sup is null
+    returning id, veiculo_vendido_id, gatilho
+  ),
+  em_risco as (
+    update public.contratos_ciclo cc
+       set status_elegibilidade = 'em_risco'
+     where p_reservar
+       and cc.status_elegibilidade = 'elegivel'
+       and cc.veiculo_vendido_id in (
+             select m.vv_id from marcado m
+              where m.sup is null
+                and m.gatilho = 'elegibilidade_em_risco'
+                and m.passo = 3)
+    returning cc.veiculo_vendido_id
+  )
+
+  select r.id, m.vv_id, m.cliente_id, m.nome, m.telefone_e164, m.email,
+         m.placa, m.marca, m.modelo, m.ano_modelo,
+         m.gatilho, m.prioridade, m.passo, m.canal,
+         m.contexto || jsonb_build_object(
+           'passo', m.passo,
+           'em_risco_marcado', exists (select 1 from em_risco er where er.veiculo_vendido_id = m.vv_id)
+         ),
+         m.sup
+    from marcado m
+    left join reservado r on r.veiculo_vendido_id = m.vv_id and r.gatilho = m.gatilho
+   order by (m.sup is not null), m.prioridade, m.nome;
+end;
+$$;
+
+comment on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[]) is
+  'A fila do dia, uma linha por cliente, com as regras do §4.3 e a prioridade '
+  'do §4.4 aplicadas no servidor. Devolve também o que foi suprimido e por quê. '
+  'p_reservar grava em eventos_ciclo no mesmo comando — a linha É a reserva, e '
+  'é ela que impede envio em duplicidade.';
+
+revoke all on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[]) from public, anon, authenticated;
+grant execute on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[]) to service_role;
+
+
+-- ---------------------------------------------------------------------------
+-- 4. O ex-dono lê o diário, mas não escreve mais nele
+-- ---------------------------------------------------------------------------
+-- As policies de SELECT NÃO mudam: o histórico é dado do cliente, e o §6.3 não
+-- prevê apagá-lo porque o carro trocou de mãos.
+
+drop policy if exists manutencoes_cliente_registra on public.manutencoes;
+create policy manutencoes_cliente_registra on public.manutencoes
+  for insert to authenticated
+  with check (
+    public.e_veiculo_do_cliente(veiculo_vendido_id)
+    -- Não pode se declarar loja nem parceiro.
+    and origem_registro = 'cliente'
+    -- Não pode nascer carimbado. O carimbo é da loja, e é o que separa
+    -- "registrei" de "vale para a conformidade".
+    and confirmada_em is null
+    and confirmada_por is null
+    -- Nem pode se declarar dentro da janela: quem calcula é a loja.
+    and dentro_da_janela is null
+    -- E não escreve em carro que já saiu da Garagem.
+    and not exists (
+          select 1 from public.veiculos_vendidos vv
+           where vv.id = veiculo_vendido_id and vv.saiu_em is not null)
+  );
+
+drop policy if exists leituras_odometro_cliente_registra on public.leituras_odometro;
+create policy leituras_odometro_cliente_registra on public.leituras_odometro
+  for insert to authenticated
+  with check (
+    public.e_veiculo_do_cliente(veiculo_vendido_id)
+    and origem = 'cliente'
+    and not exists (
+          select 1 from public.veiculos_vendidos vv
+           where vv.id = veiculo_vendido_id and vv.saiu_em is not null)
+  );
+
+
 -- ---------------------------------------------------------------------------
 -- Autoconferência 1 — o gerador
 -- ---------------------------------------------------------------------------
@@ -221,4 +916,188 @@ begin
   delete from public.clientes          where id = v_cli;
 
   raise notice 'Autoconferência D2/gerador: OK.';
+end $ac$;
+
+
+-- ---------------------------------------------------------------------------
+-- Autoconferência 2 — os chamadores
+-- ---------------------------------------------------------------------------
+do $ac$
+declare
+  uid_staff uuid;
+  r         jsonb;
+  v_vv      uuid;
+  v_cli     uuid;
+  v_m       uuid;
+  v_dentro  boolean;
+  j         record;
+  qtd       int;
+  n         int;
+  v_seg     timestamptz := '2026-08-17 09:00:00-03';  -- segunda, 9h: dentro do §4.3
+begin
+  select id into uid_staff from public.profiles
+   where role in ('admin','comercial','financeiro','marketing') and is_active
+   order by created_at limit 1;
+
+if uid_staff is null then
+  raise notice 'Autoconferência D2/chamadores PULADA: não há usuário de staff neste banco.';
+else
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', uid_staff, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+
+  -- Venda de 13 anos atrás, para caber 12 revisões todas no passado.
+  r := public.fechar_venda_ciclo(jsonb_build_object(
+    'cpf_cnpj','AC-D2-CHAMADORES','nome','Cliente D2','telefone_e164','+554199990003',
+    'email','ac-d2-chamadores@exemplo.invalido',
+    'chassi','AUTOCONF-D2-CHAMADORES','placa','ACD0B02',
+    'marca','Chevrolet','modelo','Onix','ano_fabricacao',2012,'ano_modelo',2013,
+    'data_venda',(current_date - interval '13 years')::date,
+    'km_na_venda',30000,'valor_venda',50000,
+    'consentimento_lgpd',true,'aderiu_ciclo',true,
+    'consentimento_canais', jsonb_build_object('whatsapp',true,'email',true,'sms',false)));
+  v_vv  := (r->>'veiculo_vendido_id')::uuid;
+  v_cli := (r->>'cliente_id')::uuid;
+
+  -- 1. a venda cria UMA janela, número 1
+  select count(*) into qtd from public.plano_revisoes where veiculo_vendido_id = v_vv;
+  if qtd <> 1 then
+    raise exception 'ACEITE FALHOU: a venda criou % janelas (deveria ser 1)', qtd;
+  end if;
+  if (r->>'primeira_revisao')::int <> 1 then
+    raise exception 'ACEITE FALHOU: retorno primeira_revisao = %', r->>'primeira_revisao';
+  end if;
+
+  -- 2. o plano NÃO SECA: doze revisões carimbadas, doze janelas novas
+  for n in 1..12 loop
+    insert into public.manutencoes
+      (veiculo_vendido_id, tipo, data_servico, km_registrado, origem_registro,
+       url_etiqueta_atual)
+    values (v_vv, 'revisao_programada',
+            (current_date - interval '13 years' + (n * interval '12 months'))::date,
+            30000 + (n * 10000), 'loja', 'https://exemplo.invalido/etiqueta.jpg')
+    returning id into v_m;
+    perform public.carimbar_revisao(v_m, true, null);
+  end loop;
+
+  select count(*) into qtd from public.plano_revisoes where veiculo_vendido_id = v_vv;
+  if qtd <> 13 then
+    raise exception 'ACEITE FALHOU: depois de 12 revisões o plano tem % janelas (esperado 13)', qtd;
+  end if;
+
+  select * into j from public.plano_revisoes
+   where veiculo_vendido_id = v_vv and manutencao_id is null;
+  if j.numero_revisao <> 13 then
+    raise exception 'ACEITE FALHOU: a janela aberta é a nº % (esperado 13)', j.numero_revisao;
+  end if;
+
+  -- 3. e ela é ancorada na 12ª revisão, não na venda
+  if j.km_previsto <> 160000 then
+    raise exception 'ACEITE FALHOU: a 13ª janela prevê % km (esperado 150000 + 10000)',
+      j.km_previsto;
+  end if;
+
+  -- 4. recusa não gera janela nova, e a anterior segue aberta
+  insert into public.manutencoes
+    (veiculo_vendido_id, tipo, data_servico, km_registrado, origem_registro,
+     url_etiqueta_atual)
+  values (v_vv, 'revisao_programada', current_date, 165000, 'loja',
+          'https://exemplo.invalido/etiqueta.jpg')
+  returning id into v_m;
+  perform public.carimbar_revisao(v_m, false, 'Etiqueta ilegível');
+
+  select count(*) into qtd from public.plano_revisoes where veiculo_vendido_id = v_vv;
+  if qtd <> 13 then
+    raise exception 'ACEITE FALHOU: recusa gerou janela (plano ficou com %)', qtd;
+  end if;
+
+  -- 5. o gatilho fala do veículo ativo…
+  set local role none;
+  select count(*) into qtd
+    from public.montar_fila_de_gatilhos(v_seg, false)
+   where cliente_id = v_cli;
+  if qtd = 0 then
+    raise exception 'ACEITE FALHOU: veículo ativo com janela aberta não produziu gatilho';
+  end if;
+
+  -- …e cala quando o carro sai da Garagem
+  update public.veiculos_vendidos
+     set saiu_em = current_date, motivo_saida = 'revendido'
+   where id = v_vv;
+  select count(*) into qtd
+    from public.montar_fila_de_gatilhos(v_seg, false)
+   where cliente_id = v_cli;
+  if qtd <> 0 then
+    raise exception 'ACEITE FALHOU: veículo com saiu_em ainda produz % gatilho(s)', qtd;
+  end if;
+
+  -- 6. sem janela aberta, o carimbo não acusa atraso: null, nunca false
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', uid_staff, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+
+  delete from public.plano_revisoes
+   where veiculo_vendido_id = v_vv and manutencao_id is null;
+
+  insert into public.manutencoes
+    (veiculo_vendido_id, tipo, data_servico, km_registrado, origem_registro,
+     url_etiqueta_atual)
+  values (v_vv, 'revisao_programada', current_date, 170000, 'loja',
+          'https://exemplo.invalido/etiqueta.jpg')
+  returning id into v_m;
+  perform public.carimbar_revisao(v_m, true, null);
+
+  select dentro_da_janela into v_dentro from public.manutencoes where id = v_m;
+  if v_dentro is not null then
+    raise exception 'ACEITE FALHOU: revisão sem janela saiu dentro_da_janela = %', v_dentro;
+  end if;
+
+  set local role none;
+
+  delete from public.eventos_ciclo     where veiculo_vendido_id = v_vv;
+  delete from public.leituras_odometro where veiculo_vendido_id = v_vv;
+  delete from public.plano_revisoes    where veiculo_vendido_id = v_vv;
+  delete from public.manutencoes       where veiculo_vendido_id = v_vv;
+  delete from public.contratos_ciclo   where veiculo_vendido_id = v_vv;
+  delete from public.veiculos_vendidos where id = v_vv;
+  delete from public.clientes          where id = v_cli;
+
+  raise notice 'Autoconferência D2/chamadores: OK.';
+end if;
+end $ac$;
+
+
+-- ---------------------------------------------------------------------------
+-- Autoconferência 2b — as policies de escrita do cliente
+-- ---------------------------------------------------------------------------
+-- Fora do portão de staff, porque não depende de usuário nenhum.
+--
+-- ⚠️ Prova pela DEFINIÇÃO da policy, não pelo efeito. Exercer a regra exigiria
+-- um usuário do Auth que NÃO fosse staff: as policies são OR, e a `_staff`
+-- deixaria qualquer membro da equipe passar, tornando o teste vazio. Criar
+-- usuário em `auth.users` dentro da migração é caro e frágil. O que esta
+-- conferência garante é que a migração de fato reescreveu as duas policies com
+-- o guarda — que é o que ela pode falhar em fazer.
+do $ac$
+declare
+  qtd int;
+begin
+  select count(*) into qtd from pg_policies
+   where schemaname = 'public'
+     and policyname in ('manutencoes_cliente_registra', 'leituras_odometro_cliente_registra')
+     and with_check like '%saiu_em%';
+  if qtd <> 2 then
+    raise exception 'ACEITE FALHOU: % de 2 policies de escrita do cliente olham saiu_em', qtd;
+  end if;
+
+  -- E as de LEITURA continuam sem o guarda: o ex-dono não perde o histórico.
+  select count(*) into qtd from pg_policies
+   where schemaname = 'public'
+     and policyname in ('manutencoes_cliente_le', 'leituras_odometro_cliente_le')
+     and coalesce(qual, '') like '%saiu_em%';
+  if qtd <> 0 then
+    raise exception 'ACEITE FALHOU: a saída tirou do cliente a leitura do próprio diário';
+  end if;
+
+  raise notice 'Autoconferência D2/policies: OK.';
 end $ac$;
