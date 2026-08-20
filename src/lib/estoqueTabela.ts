@@ -121,6 +121,46 @@ export function versaoParaExibir(modelo: string, versao: string): string {
 }
 
 /**
+ * Modelo e versão como o par título/linha de baixo das telas da loja.
+ *
+ * Mesmo dado de `versaoParaExibir`, outro sintoma: além do eco, o modelo do
+ * feed carrega a versão inteira na cauda ("x4 m40i 3.0 m sport edit v6 turbo
+ * aut") e o título da ficha saía com três linhas de versão. Quando a cauda do
+ * modelo é exatamente a versão, ela migra do título para a linha de baixo;
+ * nos demais casos vale a regra do eco.
+ *
+ * O corte é por token, não por índice de caractere: `normalizarBusca` remove
+ * acento e muda o comprimento do texto — fatiar o texto cru por um índice
+ * achado no normalizado cortaria no lugar errado.
+ */
+export function modeloEVersaoParaExibir(
+  modelo: string,
+  versao: string,
+): { modelo: string; versao: string } {
+  const m = (modelo ?? "").trim();
+  const v = (versao ?? "").trim();
+  if (!m || !v) return { modelo: m, versao: "" };
+
+  const tokensM = m.split(/\s+/);
+  const tokensV = v.split(/\s+/);
+
+  if (tokensV.length < tokensM.length) {
+    const cauda = tokensM.slice(tokensM.length - tokensV.length);
+    const caudaEhVersao = cauda.every(
+      (token, i) => normalizarBusca(token) === normalizarBusca(tokensV[i]),
+    );
+    if (caudaEhVersao) {
+      return {
+        modelo: tokensM.slice(0, tokensM.length - tokensV.length).join(" "),
+        versao: v,
+      };
+    }
+  }
+
+  return { modelo: m, versao: versaoParaExibir(m, v) };
+}
+
+/**
  * O id do veículo dentro do caminho da PDP.
  *
  * `getVeiculoPdpUrl` monta `/carros/<marca>/<modelo>/<versao>/<slug>-<id>`, e o

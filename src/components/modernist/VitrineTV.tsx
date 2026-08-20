@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Veiculo } from "../../types";
 import { formatarKm, formatarPreco } from "./primitivos";
+import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import { paginaDaFaixa } from "../../lib/faixaVitrine";
 
 /**
@@ -61,6 +62,12 @@ export default function VitrineTV({
 
   const carro = veiculos[atual];
   if (!carro) return null;
+
+  // Título curto + versão na linha de baixo (o feed embute uma na outra).
+  const { modelo: modeloExibido, versao: versaoExibida } = modeloEVersaoParaExibir(
+    carro.modelo,
+    carro.versao,
+  );
 
   // A página da faixa acompanha o rodízio: passou da quarta, vira.
   const {
@@ -138,11 +145,13 @@ export default function VitrineTV({
             {carro.marca}
           </div>
           <div className="mt-[1.3vh] text-[3.96vw] font-extrabold leading-[.96] tracking-[-.035em] [text-wrap:pretty]">
-            {carro.modelo}
+            {modeloExibido}
           </div>
-          <div className="mt-[1.3vh] text-[1.25vw] text-mt-neutral-400">
-            {carro.versao}
-          </div>
+          {versaoExibida && (
+            <div className="mt-[1.3vh] text-[1.25vw] text-mt-neutral-400">
+              {versaoExibida}
+            </div>
+          )}
 
           <div className="mt-[3.7vh] flex border-t-2 border-mt-inverso-regua pt-[2vh]">
             {specs.map((s) => (
@@ -234,7 +243,7 @@ export default function VitrineTV({
                   ativo ? "text-mt-inverso" : "text-mt-neutral-500"
                 }`}
               >
-                {v.modelo}
+                {v.marca} {modeloEVersaoParaExibir(v.modelo, v.versao).modelo}
               </div>
               <div className="flex items-baseline gap-[0.62vw]">
                 <span

@@ -5,6 +5,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import type { Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import { EstatisticasRegua, formatarKm, formatarPreco } from "./primitivos";
+import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 
 /**
  * Hero editorial da home.
@@ -49,6 +50,12 @@ export default function HeroHome({
   }, []);
 
   const destaque = slides[atual];
+
+  // Título curto + versão na linha de baixo (o feed embute uma na outra).
+  const { modelo: modeloDestaque, versao: versaoDestaque } = modeloEVersaoParaExibir(
+    destaque?.modelo ?? "",
+    destaque?.versao ?? "",
+  );
 
   const preco = destaque
     ? destaque.preco_promocional > 0 && destaque.preco_promocional < destaque.preco_original
@@ -238,9 +245,11 @@ export default function HeroHome({
               EM DESTAQUE
             </span>
             <span className="mt-[7px] text-xl font-extrabold tracking-[-.02em] text-mt-inverso lg:text-[length:clamp(15px,calc(var(--hero-cabe)*0.0238),20px)]">
-              {destaque.modelo}
+              {destaque?.marca} {modeloDestaque}
             </span>
-            <span className="mt-0.5 text-xs text-mt-inverso-suave">{destaque.versao}</span>
+            {versaoDestaque && (
+              <span className="mt-0.5 text-xs text-mt-inverso-suave">{versaoDestaque}</span>
+            )}
             <span className="mt-3 flex w-full items-baseline gap-2.5 border-t border-[rgba(243,242,242,.25)] pt-3 lg:mt-[min(12px,calc(var(--hero-cabe)*0.0143))] lg:pt-[min(12px,calc(var(--hero-cabe)*0.0143))]">
               <span className="text-[22px] font-extrabold tracking-[-.03em] text-mt-inverso lg:text-[length:clamp(16px,calc(var(--hero-cabe)*0.0262),22px)]">
                 {formatarPreco(preco)}

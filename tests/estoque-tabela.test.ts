@@ -8,6 +8,7 @@ import {
   contarLeadsPorVeiculo,
   normalizarBusca,
   versaoParaExibir,
+  modeloEVersaoParaExibir,
   type LinhaDeEstoque,
 } from "../src/lib/estoqueTabela";
 
@@ -135,6 +136,48 @@ describe("versaoParaExibir", () => {
 
   it("ignora acento na comparação", () => {
     expect(versaoParaExibir("Citroën C4 Cactus Feel", "feel")).toBe("");
+  });
+});
+
+describe("modeloEVersaoParaExibir", () => {
+  it("a versão na cauda do modelo migra do título para a linha de baixo", () => {
+    // O caso da ficha da BMW: título em três linhas repetindo a versão inteira.
+    expect(
+      modeloEVersaoParaExibir("X4 M40i 3.0 M Sport Edit V6 Turbo Aut", "m40i 3.0 m sport edit v6 turbo aut"),
+    ).toEqual({ modelo: "X4", versao: "m40i 3.0 m sport edit v6 turbo aut" });
+    expect(modeloEVersaoParaExibir("Camaro Ss 6.2 V-8 2p", "ss 6.2 v-8 2p")).toEqual({
+      modelo: "Camaro",
+      versao: "ss 6.2 v-8 2p",
+    });
+  });
+
+  it("sem sobreposição, o par passa intacto", () => {
+    expect(modeloEVersaoParaExibir("Range Rover Evoque", "R-Dynamic SE")).toEqual({
+      modelo: "Range Rover Evoque",
+      versao: "R-Dynamic SE",
+    });
+  });
+
+  it("modelo igual à versão não zera o título", () => {
+    expect(modeloEVersaoParaExibir("208", "208")).toEqual({ modelo: "208", versao: "" });
+  });
+
+  it("versão vazia não vira linha", () => {
+    expect(modeloEVersaoParaExibir("Onix", "")).toEqual({ modelo: "Onix", versao: "" });
+  });
+
+  it("compara a cauda sem acento e sem caixa", () => {
+    expect(modeloEVersaoParaExibir("Citroën C4 Cactus Feel", "feel")).toEqual({
+      modelo: "Citroën C4 Cactus",
+      versao: "feel",
+    });
+  });
+
+  it("eco fora da cauda continua só sumindo, como em versaoParaExibir", () => {
+    expect(modeloEVersaoParaExibir("Feel C4 Cactus", "feel")).toEqual({
+      modelo: "Feel C4 Cactus",
+      versao: "",
+    });
   });
 });
 

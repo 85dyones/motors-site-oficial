@@ -14,6 +14,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Veiculo } from "../../types";
+import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 
 /* ────────────────────────────────────────────────────────────────────────
    Rótulo em versalete — o marcador tipográfico do sistema
@@ -231,6 +232,13 @@ export function CardVeiculo({
   const grande = densidade === "destaque";
   const foto = veiculo.web_full_images?.[0] ?? veiculo.whatsapp_images?.[0];
 
+  // O feed embute a versão na cauda do modelo — sem o corte, o título do
+  // card estoura e a linha de versão vira eco (ver lib/estoqueTabela).
+  const { modelo: modeloExibido, versao: versaoExibida } = modeloEVersaoParaExibir(
+    veiculo.modelo,
+    veiculo.versao,
+  );
+
   const temDesconto =
     veiculo.preco_promocional > 0 &&
     veiculo.preco_promocional < veiculo.preco_original;
@@ -275,13 +283,15 @@ export function CardVeiculo({
             grande ? "text-[22px]" : "text-[19px]"
           }`}
         >
-          {veiculo.modelo}
+          {modeloExibido}
         </div>
-        <div
-          className={`text-mt-neutral-700 ${grande ? "text-[13px]" : "text-xs"}`}
-        >
-          {veiculo.versao}
-        </div>
+        {versaoExibida && (
+          <div
+            className={`text-mt-neutral-700 ${grande ? "text-[13px]" : "text-xs"}`}
+          >
+            {versaoExibida}
+          </div>
+        )}
 
         <div
           className={`mt-2 flex gap-2 border-t border-mt-regua-fina pt-2 tracking-[.05em] text-mt-neutral-600 ${
