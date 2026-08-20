@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { validarRevisao, type DadosDaRevisao } from "../../lib/ciclo/revisao";
 import { urlDaFoto } from "../../lib/ciclo/foto";
+import { seloDaJanela } from "../../lib/ciclo/selo";
 
 /**
  * Tela A21 — fila de verificação do diário de bordo (manual v1.1 §5.7,
@@ -119,7 +120,9 @@ export default function FilaDeVerificacao() {
         aceitar
           ? corpo.dentro_da_janela === false
             ? "Verificada — fora da janela. Entra no diário de bordo, não na procedência."
-            : "Verificada dentro da janela. A procedência deste veículo subiu."
+            : corpo.dentro_da_janela === null
+              ? "Verificada. Não havia janela aberta para este serviço — entra no diário de bordo."
+              : "Verificada dentro da janela. A procedência deste veículo subiu."
           : "Recusada. O motivo ficou no registro.",
       );
       setRecusando(null);
@@ -171,7 +174,9 @@ export default function FilaDeVerificacao() {
           (corpo.verificacao
             ? corpo.verificacao.dentro_da_janela === false
               ? "Lançada e verificada — fora da janela."
-              : "Lançada e verificada dentro da janela."
+              : corpo.verificacao.dentro_da_janela === null
+                ? "Lançada e verificada. Não havia janela aberta para este serviço."
+                : "Lançada e verificada dentro da janela."
             : "Lançada no diário de bordo. Está na fila de verificação."),
       );
       setRegistro({
@@ -483,12 +488,14 @@ export default function FilaDeVerificacao() {
                 ) : (
                   <span
                     className={`ml-auto border px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] ${
-                      r.dentro_da_janela
-                        ? "border-mt-ink text-mt-ink"
-                        : "border-mt-accent text-mt-accent"
+                      {
+                        na: "border-mt-ink text-mt-ink",
+                        fora: "border-mt-accent text-mt-accent",
+                        sem: "border-mt-regua-fina text-mt-neutral-600",
+                      }[seloDaJanela(r.dentro_da_janela).tom]
                     }`}
                   >
-                    {r.dentro_da_janela ? "NA JANELA" : "FORA DA JANELA"}
+                    {seloDaJanela(r.dentro_da_janela).texto}
                   </span>
                 )}
               </li>
