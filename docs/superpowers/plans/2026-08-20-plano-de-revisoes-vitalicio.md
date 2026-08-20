@@ -895,6 +895,7 @@ git commit -m "feat(ciclo): cron diario abre janela para veiculo sem plano"
 
 **Files:**
 - Modify: `src/lib/ciclo/vendaFechamento.ts:248-305`
+- Modify: `src/components/admin/FechamentoDeVenda.tsx:6`, `:242` (só o rename — o texto da tela é da Task 6)
 - Test: `tests/ciclo-venda-fechamento.test.ts`
 
 **Interfaces:**
@@ -1079,18 +1080,36 @@ export function projetarRevisoes(
 
 E no corpo do laço, trocar `km_previsto: kmNaVenda + n * INTERVALO_KM,` por `km_previsto: marcoKm + n * INTERVALO_KM,`.
 
-- [ ] **Step 4: Rodar os testes e confirmar que passam**
+- [ ] **Step 4: Renomear a única outra chamada, no mesmo passo**
 
-```bash
-npm test -- ciclo-venda-fechamento
+`planoDeRevisoes` tem exatamente dois consumidores: o teste (Step 1) e `src/components/admin/FechamentoDeVenda.tsx`. Renomear a exportação sem tocar no segundo deixa a árvore quebrada — a mudança de texto da prévia é da Task 6, mas o **rename é atômico e sai aqui**.
+
+No import do topo de `src/components/admin/FechamentoDeVenda.tsx`, trocar `planoDeRevisoes,` por `projetarRevisoes,`.
+
+E na linha 242, trocar:
+
+```tsx
+    return planoDeRevisoes(dados.data_venda, km);
 ```
 
-Esperado: PASS, incluindo os testes de `CAMPOS_OBRIGATORIOS_DA_VENDA` — que agora leem a migração de 2026-08-20 e continuam encontrando `array_append(faltando, '<campo>')` porque a Task 2 copiou a função inteira.
+por:
 
-- [ ] **Step 5: Commit**
+```tsx
+    return projetarRevisoes(dados.data_venda, km);
+```
+
+- [ ] **Step 5: Rodar a suíte inteira e o typecheck**
 
 ```bash
-git add src/lib/ciclo/vendaFechamento.ts tests/ciclo-venda-fechamento.test.ts
+npm test && npx tsc --noEmit
+```
+
+A suíte **inteira**, não só o arquivo do fechamento: o rename cruza módulos, e `tsc` é quem prova que não sobrou consumidor órfão. Esperado: verde, incluindo os testes de `CAMPOS_OBRIGATORIOS_DA_VENDA` — que agora leem a migração de 2026-08-20 e continuam encontrando `array_append(faltando, '<campo>')` porque a Task 2 copiou a função inteira.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/lib/ciclo/vendaFechamento.ts tests/ciclo-venda-fechamento.test.ts src/components/admin/FechamentoDeVenda.tsx
 git commit -m "refactor(ciclo): projetarRevisoes substitui planoDeRevisoes e o teste acha a migracao viva"
 ```
 
@@ -1278,37 +1297,21 @@ git commit -m "fix(ciclo): sem janela deixa de ser lido como fora da janela"
 ### Task 6: A prévia do fechamento mostra a janela que será criada
 
 **Files:**
-- Modify: `src/components/admin/FechamentoDeVenda.tsx:6`, `:239-243`, `:678-708`
+- Modify: `src/components/admin/FechamentoDeVenda.tsx:239-243`, `:678-708`
 
 **Interfaces:**
-- Consumes: `projetarRevisoes` da Task 4.
+- Consumes: `projetarRevisoes` da Task 4, **já chamada** neste arquivo — a Task 4 fez o rename mecânico. Esta tarefa muda o que a tela diz, não a quem ela chama.
 - Produces: nada para outras tarefas.
 
-- [ ] **Step 1: Trocar o import e o cálculo da prévia**
+- [ ] **Step 1: Explicar por que a prévia agora tem uma linha**
 
-No import do topo, trocar `planoDeRevisoes,` por `projetarRevisoes,`.
-
-Trocar:
-
-```tsx
-  const previa = useMemo(() => {
-    const km = Number(dados.km_na_venda);
-    if (!dados.data_venda || !Number.isFinite(km) || String(dados.km_na_venda).trim() === "") return [];
-    return planoDeRevisoes(dados.data_venda, km);
-  }, [dados.data_venda, dados.km_na_venda]);
-```
-
-por:
+Acrescentar o comentário acima do `useMemo` da prévia, que a Task 4 deixou chamando `projetarRevisoes`:
 
 ```tsx
   // Uma janela, porque é uma que o banco vai criar. As seguintes nascem a cada
   // revisão confirmada, ancoradas no serviço — prometer três aqui seria a tela
   // dizendo o que o banco não faz.
   const previa = useMemo(() => {
-    const km = Number(dados.km_na_venda);
-    if (!dados.data_venda || !Number.isFinite(km) || String(dados.km_na_venda).trim() === "") return [];
-    return projetarRevisoes(dados.data_venda, km);
-  }, [dados.data_venda, dados.km_na_venda]);
 ```
 
 - [ ] **Step 2: Trocar o título e o texto da prévia**
@@ -1341,7 +1344,7 @@ por:
 npx tsc --noEmit && npm test
 ```
 
-Esperado: tudo verde. O import deste arquivo traz `planoDeRevisoes, INTERVALO_KM, INTERVALO_MESES, TOLERANCIA_DIAS` — só o primeiro nome muda; os três constantes continuam em uso no texto da prévia.
+Esperado: tudo verde. `INTERVALO_KM`, `INTERVALO_MESES` e `TOLERANCIA_DIAS` continuam importados e em uso no texto novo da prévia — não remover nenhum dos três.
 
 - [ ] **Step 4: Commit**
 
