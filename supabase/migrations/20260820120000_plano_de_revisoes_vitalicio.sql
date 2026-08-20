@@ -1169,6 +1169,7 @@ declare
   v_vv  uuid;
   qtd   int;
   v_job record;
+  v_pode boolean;
 begin
   insert into public.clientes (cpf_cnpj, nome, telefone_e164, email)
   values ('AC-D2-CRON', 'Autoconferência D2 cron', '+554199990004',
@@ -1223,6 +1224,17 @@ begin
   if not v_job.active then
     raise exception 'ACEITE FALHOU: o job nasceu inativo';
   end if;
+
+  -- O portão NÃO está aberto para quem não é equipe. Esta é a linha que
+  -- impede o pulo da checagem de staff virar escada.
+  for v_pode in
+    select has_function_privilege(r, 'public.rodar_abertura_de_janelas()', 'execute')
+      from unnest(array['anon', 'authenticated']) as r
+  loop
+    if v_pode then
+      raise exception 'ACEITE FALHOU: anon ou authenticated pode executar o portão do cron';
+    end if;
+  end loop;
 
   delete from public.plano_revisoes    where veiculo_vendido_id = v_vv;
   delete from public.leituras_odometro where veiculo_vendido_id = v_vv;
