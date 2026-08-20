@@ -1362,7 +1362,52 @@ por:
               </p>
 ```
 
-- [ ] **Step 3: Rodar o typecheck e a suíte**
+- [ ] **Step 3: Corrigir os três textos que ainda dizem "três"**
+
+Achados na revisão da Task 4. Não estão na prévia — estão espalhados pelo arquivo, e o da linha 281 é **texto que o vendedor lê logo depois de fechar a venda**, afirmando que existem três janelas quando passará a existir uma.
+
+Linha 48, comentário do topo — trocar `o programa mostrando as três datas do que descrevendo a regra.` por `o programa mostrando a próxima data do que descrevendo a regra.`
+
+Linha 281, confirmação pós-venda — trocar:
+
+```tsx
+            O KM de saída virou a primeira notação de odômetro e as três janelas de revisão já
+            existem. A partir daqui o cliente entra na Garagem Motors e a procedência do carro
+            dele passa a contar.
+```
+
+por:
+
+```tsx
+            O KM de saída virou a primeira notação de odômetro e a primeira janela de revisão já
+            existe — as seguintes nascem a cada revisão verificada. A partir daqui o cliente entra
+            na Garagem Motors e a procedência do carro dele passa a contar.
+```
+
+Linha 312, cabeçalho do formulário — trocar:
+
+```tsx
+          programa precisa para funcionar daqui a três anos — e a venda não fecha sem ele.
+```
+
+por:
+
+```tsx
+          programa precisa para funcionar enquanto o carro for do cliente — e a venda não fecha
+          sem ele.
+```
+
+O "daqui a três anos" datava do contrato de 36 meses. A Garagem não acaba em três anos — acaba na próxima venda do carro.
+
+- [ ] **Step 4: Caçar qualquer outro "três" sobrevivente**
+
+```bash
+grep -rn "três revis\|três janelas\|três datas\|três anos\|3 revis" src/
+```
+
+Esperado: nenhuma linha que descreva o plano de revisões como finito. Se aparecer alguma, corrija no mesmo commit — a tela não pode prometer o que o banco não faz, e é esse o defeito que o pacote inteiro existe para consertar.
+
+- [ ] **Step 5: Rodar o typecheck e a suíte**
 
 ```bash
 npx tsc --noEmit && npm test
@@ -1370,7 +1415,7 @@ npx tsc --noEmit && npm test
 
 Esperado: tudo verde. `INTERVALO_KM`, `INTERVALO_MESES` e `TOLERANCIA_DIAS` continuam importados e em uso no texto novo da prévia — não remover nenhum dos três.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/components/admin/FechamentoDeVenda.tsx
