@@ -847,6 +847,63 @@ create policy leituras_odometro_cliente_registra on public.leituras_odometro
 
 
 -- ---------------------------------------------------------------------------
+-- 5. A rede de segurança
+-- ---------------------------------------------------------------------------
+-- Os dois primeiros chamadores cobrem o caminho feliz. Este cobre o resto:
+-- veículo importado, venda registrada por fora, janela apagada à mão. Como
+-- `abrir_proxima_janela` já recusa quem tem janela aberta, rodar todo dia é
+-- barato e idempotente.
+
+create or replace function public.rodar_abertura_de_janelas()
+  returns jsonb
+  language plpgsql
+  set search_path = public
+  set timezone = 'America/Sao_Paulo'
+as $$
+declare
+  v_vv    uuid;
+  abertas int := 0;
+begin
+  perform set_config('request.jwt.claims', '', true);
+
+  for v_vv in
+    select vv.id
+      from public.veiculos_vendidos vv
+     where vv.saiu_em is null
+       and not exists (
+             select 1 from public.plano_revisoes pr
+              where pr.veiculo_vendido_id = vv.id and pr.manutencao_id is null)
+  loop
+    if public.abrir_proxima_janela(v_vv) is not null then
+      abertas := abertas + 1;
+    end if;
+  end loop;
+
+  return jsonb_build_object('abertas', abertas);
+end;
+$$;
+
+comment on function public.rodar_abertura_de_janelas() is
+  'Ponto de entrada do pg_cron para o plano vitalício. Fixa o fuso de Curitiba '
+  'e se apresenta como chamador sem JWT. É um portão que pula a checagem de '
+  'staff: NUNCA conceder execute a authenticated ou anon.';
+
+revoke all on function public.rodar_abertura_de_janelas() from public, anon, authenticated;
+grant execute on function public.rodar_abertura_de_janelas() to service_role;
+
+-- `0 3 * * *` em UTC = **meia-noite em Curitiba**, logo depois de a
+-- conformidade fechar o dia às 23h30 (`conformidade-diaria`, '30 2 * * *').
+-- A ordem importa: janela aberta hoje entra na série de amanhã e nunca altera
+-- um dia já gravado. `cron.schedule` com nome existente ATUALIZA o
+-- agendamento, então reaplicar esta migração não duplica job.
+select cron.schedule(
+  'abertura-de-janelas',
+  '0 3 * * *',
+  $cron$select public.rodar_abertura_de_janelas();$cron$
+);
+
+
+-- ---------------------------------------------------------------------------
 -- Autoconferência 1 — o gerador
 -- ---------------------------------------------------------------------------
 do $ac$
@@ -1101,3 +1158,86 @@ begin
 
   raise notice 'Autoconferência D2/policies: OK.';
 end $ac$;
+
+
+-- ---------------------------------------------------------------------------
+-- Autoconferência 3 — a rede de segurança
+-- ---------------------------------------------------------------------------
+do $ac$
+declare
+  v_cli uuid;
+  v_vv  uuid;
+  qtd   int;
+  v_job record;
+begin
+  insert into public.clientes (cpf_cnpj, nome, telefone_e164, email)
+  values ('AC-D2-CRON', 'Autoconferência D2 cron', '+554199990004',
+          'ac-d2-cron@exemplo.invalido')
+  returning id into v_cli;
+
+  insert into public.veiculos_vendidos
+    (cliente_id, chassi, placa, marca, modelo, ano_fabricacao, ano_modelo,
+     data_venda, km_na_venda, valor_venda, aderiu_ciclo)
+  values (v_cli, 'AUTOCONF-D2-CRON', 'ACD0C03', 'Ford', 'Ka',
+          2019, 2020, (current_date - interval '2 days')::date, 25000, 40000, true)
+  returning id into v_vv;
+
+  -- Veículo sem janela nenhuma — o caso que a rede de segurança existe para
+  -- cobrir: importação, venda antiga, qualquer caminho fora dos dois primeiros.
+  perform public.rodar_abertura_de_janelas();
+
+  select count(*) into qtd
+    from public.plano_revisoes where veiculo_vendido_id = v_vv;
+  if qtd <> 1 then
+    raise exception 'ACEITE FALHOU: o cron abriu % janelas para veículo sem plano', qtd;
+  end if;
+
+  -- Rodar de novo não duplica.
+  perform public.rodar_abertura_de_janelas();
+  select count(*) into qtd
+    from public.plano_revisoes where veiculo_vendido_id = v_vv;
+  if qtd <> 1 then
+    raise exception 'ACEITE FALHOU: o cron duplicou janela (ficaram %)', qtd;
+  end if;
+
+  -- Veículo que saiu não entra na varredura.
+  delete from public.plano_revisoes where veiculo_vendido_id = v_vv;
+  update public.veiculos_vendidos
+     set saiu_em = current_date, motivo_saida = 'perda total'
+   where id = v_vv;
+  perform public.rodar_abertura_de_janelas();
+  select count(*) into qtd
+    from public.plano_revisoes where veiculo_vendido_id = v_vv;
+  if qtd <> 0 then
+    raise exception 'ACEITE FALHOU: o cron abriu janela para veículo com saiu_em';
+  end if;
+
+  -- O job existe, está ativo e com o agendamento esperado.
+  select * into v_job from cron.job where jobname = 'abertura-de-janelas';
+  if not found then
+    raise exception 'ACEITE FALHOU: o job abertura-de-janelas não foi agendado';
+  end if;
+  if v_job.schedule <> '0 3 * * *' then
+    raise exception 'ACEITE FALHOU: o agendamento saiu "%"', v_job.schedule;
+  end if;
+  if not v_job.active then
+    raise exception 'ACEITE FALHOU: o job nasceu inativo';
+  end if;
+
+  delete from public.plano_revisoes    where veiculo_vendido_id = v_vv;
+  delete from public.leituras_odometro where veiculo_vendido_id = v_vv;
+  delete from public.veiculos_vendidos where id = v_vv;
+  delete from public.clientes          where id = v_cli;
+
+  raise notice 'Autoconferência D2/cron: OK.';
+end $ac$;
+
+
+-- ---------------------------------------------------------------------------
+-- Registro no livro-razão. Nenhuma migração se registra sozinha: quem aplica
+-- por psql/pg precisa deste rodapé, senão a versão fica invisível para o
+-- `supabase db push` e para a conferência. Ver supabase/README.md.
+-- ---------------------------------------------------------------------------
+insert into supabase_migrations.schema_migrations (version, name)
+  values ('20260820120000', 'plano_de_revisoes_vitalicio')
+  on conflict (version) do nothing;
