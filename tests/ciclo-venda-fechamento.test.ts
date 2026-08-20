@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   validarFechamentoDeVenda,
   vendaPodeSerFechada,
-  planoDeRevisoes,
+  projetarRevisoes,
   documentoTemTamanhoValido,
   telefoneEhE164,
   CAMPOS_OBRIGATORIOS_DA_VENDA,
@@ -12,7 +12,6 @@ import {
   INTERVALO_KM,
   INTERVALO_MESES,
   TOLERANCIA_DIAS,
-  REVISOES_NO_CONTRATO,
   type DadosDaVenda,
 } from "../src/lib/ciclo/vendaFechamento";
 
@@ -29,7 +28,45 @@ import {
  */
 
 const raiz = join(__dirname, "..");
-const migracao = readFileSync(
+
+/**
+ * A migração VIVA de uma função, não o arquivo que tem o nome dela.
+ *
+ * `fechar_venda_ciclo` já foi redefinida por `create or replace` em migrações
+ * cujo nome não a menciona. Este teste abria a de 2026-08-14 por nome e passou
+ * três dias verde validando código morto — exatamente o que ele existe para
+ * impedir. Quem procura pela definição não erra de novo.
+ */
+function migracaoViva(funcao: string): string {
+  const dir = join(raiz, "supabase", "migrations");
+  const encontradas = readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => readFileSync(join(dir, f), "utf-8"))
+    .filter((texto) => texto.includes(`create or replace function public.${funcao}(`));
+  if (encontradas.length === 0) {
+    throw new Error(`nenhuma migração define ${funcao}`);
+  }
+  return encontradas[encontradas.length - 1];
+}
+
+const migracao = migracaoViva("fechar_venda_ciclo");
+const gerador = migracaoViva("abrir_proxima_janela");
+
+/**
+ * A migração da FUNDAÇÃO do fechamento de venda — lida por nome, de propósito.
+ *
+ * O bloco abaixo não fala da função viva: fala de uma migração específica que
+ * provou a si mesma no dia em que foi aplicada. Esse texto é histórico e não
+ * muda mais. Trocar esta leitura por `migracaoViva` faria o bloco perseguir o
+ * `create or replace` mais recente e cobrar dele uma autoconferência que ele
+ * não tem — foi exatamente o que aconteceu quando tentamos.
+ *
+ * A regra que separa as duas: se a asserção é sobre o que o banco FAZ hoje,
+ * use `migracaoViva`. Se é sobre o que uma migração PROVOU quando rodou, leia
+ * o arquivo dela pelo nome.
+ */
+const migracaoDaFundacao = readFileSync(
   join(raiz, "supabase", "migrations", "20260814120000_fechar_venda_ciclo.sql"),
   "utf-8",
 );
@@ -159,19 +196,18 @@ describe("o financiamento: nenhum ou todos", () => {
 });
 
 describe("o plano de revisões (§1.5)", () => {
-  const plano = planoDeRevisoes("2026-08-14", 32000);
+  const plano = projetarRevisoes("2026-08-14", 32000);
 
-  it("gera as três revisões do contrato de 36 meses", () => {
-    expect(plano).toHaveLength(REVISOES_NO_CONTRATO);
-    expect(REVISOES_NO_CONTRATO).toBe(3);
+  it("projeta uma janela por padrão — o banco materializa uma de cada vez", () => {
+    expect(plano).toHaveLength(1);
   });
 
-  it("o KM previsto sobe de 10.000 em 10.000 a partir do KM de saída", () => {
-    // O marco zero é a entrega, não a fabricação: a 1ª revisão é o KM de
-    // saída + 10.000, e é ela que não tem etiqueta anterior para conferir.
-    expect(plano[0].km_previsto).toBe(32000 + INTERVALO_KM);
-    expect(plano[1].km_previsto).toBe(32000 + 2 * INTERVALO_KM);
-    expect(plano[2].km_previsto).toBe(32000 + 3 * INTERVALO_KM);
+  it("o KM previsto sobe de 10.000 em 10.000 a partir do marco", () => {
+    // O marco é a entrega na primeira, e a última revisão confirmada depois.
+    const tres = projetarRevisoes("2026-08-14", 32000, 3);
+    expect(tres[0].km_previsto).toBe(32000 + INTERVALO_KM);
+    expect(tres[1].km_previsto).toBe(32000 + 2 * INTERVALO_KM);
+    expect(tres[2].km_previsto).toBe(32000 + 3 * INTERVALO_KM);
   });
 
   it("a janela abre 30 dias antes e fecha 30 dias depois do previsto", () => {
@@ -182,9 +218,10 @@ describe("o plano de revisões (§1.5)", () => {
     expect(TOLERANCIA_DIAS).toBe(30);
   });
 
-  it("as janelas não se sobrepõem", () => {
-    for (let i = 1; i < plano.length; i++) {
-      expect(plano[i].janela_inicio > plano[i - 1].janela_fim).toBe(true);
+  it("as janelas projetadas não se sobrepõem", () => {
+    const tres = projetarRevisoes("2026-08-14", 32000, 3);
+    for (let i = 1; i < tres.length; i++) {
+      expect(tres[i].janela_inicio > tres[i - 1].janela_fim).toBe(true);
     }
   });
 });
@@ -206,10 +243,23 @@ describe("as três camadas não podem divergir", () => {
     }
   });
 
-  it("o banco gera o mesmo plano que a lib", () => {
-    expect(migracao).toContain(`v_km + (n * ${INTERVALO_KM})`);
-    expect(migracao).toContain(`(n * interval '${INTERVALO_MESES} months') - interval '${TOLERANCIA_DIAS} days'`);
-    expect(migracao).toContain(`generate_series(1, ${REVISOES_NO_CONTRATO})`);
+  it("o banco gera o plano pelo gerador, não por série fixa", () => {
+    expect(migracao).toContain("perform public.abrir_proxima_janela(v_veiculo)");
+    // Ancorado na cláusula `from ... as n`, não em "generate_series(1, 3)"
+    // sozinho: o cabeçalho desta migração narra o bug histórico e cita esse
+    // literal entre crases. "from generate_series(1, 3) as n" é a forma
+    // sintática exata do bloco removido, e não aparece em comentário nenhum.
+    expect(migracao).not.toContain("from generate_series(1, 3) as n");
+  });
+
+  it("o gerador do banco usa a mesma régua do §1.5 que a lib", () => {
+    expect(gerador).toContain(`v_km + ${INTERVALO_KM}`);
+    expect(gerador).toContain(`interval '${INTERVALO_MESES} months'`);
+    expect(gerador).toContain(`interval '${TOLERANCIA_DIAS} days'`);
+  });
+
+  it("o plano não seca: nada no banco limita o número de revisões", () => {
+    expect(gerador).toContain("coalesce(max(numero_revisao), 0) + 1");
   });
 
   it("a rota traduz a recusa do banco de volta para a tela", () => {
@@ -281,21 +331,26 @@ describe("a autoconferência do aceite, na migração", () => {
       "o mesmo chassi foi vendido duas vezes",
       "quem não é staff fechou uma venda",
     ]) {
-      expect(migracao, `cenário ausente: ${cenario}`).toContain(cenario);
+      expect(migracaoDaFundacao, `cenário ausente: ${cenario}`).toContain(cenario);
     }
   });
 
   it("confere o grafo inteiro da venda que fecha", () => {
-    expect(migracao).toContain("plano de revisões saiu com % linhas, esperava 3");
-    expect(migracao).toContain("KM de saída não virou leitura de odômetro");
-    expect(migracao).toContain("a janela da 1ª revisão não bate com o §1.5");
-    expect(migracao).toContain("contrato do Ciclo nasceu com recompra");
+    // "esperava 3" é o comportamento antigo, provado à época em que esta
+    // migração (2026-08-14) rodou: três revisões por calendário, fixas. A
+    // régua vitalícia de hoje — uma janela por vez, sem secar — é provada
+    // pelas autoconferências D2 de `20260820120000_plano_de_revisoes_vitalicio.sql`,
+    // não aqui.
+    expect(migracaoDaFundacao).toContain("plano de revisões saiu com % linhas, esperava 3");
+    expect(migracaoDaFundacao).toContain("KM de saída não virou leitura de odômetro");
+    expect(migracaoDaFundacao).toContain("a janela da 1ª revisão não bate com o §1.5");
+    expect(migracaoDaFundacao).toContain("contrato do Ciclo nasceu com recompra");
   });
 
   it("limpa o que criou", () => {
     for (const t of ["contratos_financiamento", "contratos_ciclo", "plano_revisoes",
                      "leituras_odometro", "veiculos_vendidos", "clientes"]) {
-      expect(migracao, `autoconferência não apaga ${t}`).toMatch(
+      expect(migracaoDaFundacao, `autoconferência não apaga ${t}`).toMatch(
         new RegExp(`delete from public\\.${t}\\s`),
       );
     }

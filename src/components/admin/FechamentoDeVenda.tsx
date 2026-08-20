@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   validarFechamentoDeVenda,
-  planoDeRevisoes,
+  projetarRevisoes,
   INTERVALO_KM,
   INTERVALO_MESES,
   TOLERANCIA_DIAS,
@@ -239,7 +239,7 @@ export default function FechamentoDeVenda() {
   const previa = useMemo(() => {
     const km = Number(dados.km_na_venda);
     if (!dados.data_venda || !Number.isFinite(km) || String(dados.km_na_venda).trim() === "") return [];
-    return planoDeRevisoes(dados.data_venda, km);
+    return projetarRevisoes(dados.data_venda, km);
   }, [dados.data_venda, dados.km_na_venda]);
 
   const enviar = async () => {
