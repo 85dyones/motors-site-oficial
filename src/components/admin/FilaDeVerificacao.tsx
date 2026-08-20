@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { validarRevisao, type DadosDaRevisao } from "../../lib/ciclo/revisao";
 import { urlDaFoto } from "../../lib/ciclo/foto";
 import { seloDaJanela } from "../../lib/ciclo/selo";
+import { classificarJanela } from "../../lib/ciclo/janela";
 
 /**
  * Tela A21 — fila de verificação do diário de bordo (manual v1.1 §5.7,
@@ -116,11 +117,12 @@ export default function FilaDeVerificacao() {
         setErro(corpo.error ?? "Não foi possível processar.");
         return;
       }
+      const estadoDaJanela = classificarJanela(corpo.dentro_da_janela);
       setAviso(
         aceitar
-          ? corpo.dentro_da_janela === false
+          ? estadoDaJanela === "fora"
             ? "Verificada — fora da janela. Entra no diário de bordo, não na procedência."
-            : corpo.dentro_da_janela === null
+            : estadoDaJanela === "sem"
               ? "Verificada. Não havia janela aberta para este serviço — entra no diário de bordo."
               : "Verificada dentro da janela. A procedência deste veículo subiu."
           : "Recusada. O motivo ficou no registro.",
@@ -169,12 +171,13 @@ export default function FilaDeVerificacao() {
         setErro(corpo.error ?? "Não foi possível registrar.");
         return;
       }
+      const estadoDaJanela = classificarJanela(corpo.verificacao?.dentro_da_janela);
       setAviso(
         corpo.aviso ??
           (corpo.verificacao
-            ? corpo.verificacao.dentro_da_janela === false
+            ? estadoDaJanela === "fora"
               ? "Lançada e verificada — fora da janela."
-              : corpo.verificacao.dentro_da_janela === null
+              : estadoDaJanela === "sem"
                 ? "Lançada e verificada. Não havia janela aberta para este serviço."
                 : "Lançada e verificada dentro da janela."
             : "Lançada no diário de bordo. Está na fila de verificação."),

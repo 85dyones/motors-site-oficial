@@ -227,6 +227,67 @@ describe("o que a mensagem não pode dizer", () => {
   });
 });
 
+describe("a mensagem de revisão verificada — os três estados da janela", () => {
+  // Achado da revisão da Task 5 (ronda 1): esta mensagem vai para o CLIENTE, e
+  // colapsava a tricotomia em binário (`=== false ? … : "Dentro da janela…"`).
+  // Antes das Tasks 1-3, null nunca chegava aqui. Agora chega — revisão sem
+  // janela nenhuma para casar — e o cliente recebia "Dentro da janela do
+  // programa.", que é falso. Espelho do defeito que a própria Task 5 consertou
+  // no selo: em vez de acusar quem não devia, elogiava o que não aconteceu.
+  const contexto = (dentro_da_janela: boolean | null) => ({
+    numero_revisao: 1,
+    data_servico: "2027-08-20",
+    km_registrado: 56800,
+    dentro_da_janela,
+  });
+
+  it("true diz que está dentro da janela do programa", () => {
+    const texto = mensagemDoGatilho({
+      ...linhaBase,
+      gatilho: "revisao_verificada",
+      passo: 1,
+      contexto: contexto(true),
+    });
+    expect(texto).toContain("Dentro da janela do programa.");
+  });
+
+  it("false diz que ficou fora da janela contratada", () => {
+    const texto = mensagemDoGatilho({
+      ...linhaBase,
+      gatilho: "revisao_verificada",
+      passo: 1,
+      contexto: contexto(false),
+    });
+    expect(texto).toContain("Ela ficou fora da janela contratada");
+    expect(texto).not.toContain("Dentro da janela do programa.");
+  });
+
+  it("null não diz 'dentro da janela' — não havia janela para casar com o serviço", () => {
+    const texto = mensagemDoGatilho({
+      ...linhaBase,
+      gatilho: "revisao_verificada",
+      passo: 1,
+      contexto: contexto(null),
+    });
+    expect(texto).toContain("Não havia janela programada para casar com ela");
+    expect(texto).not.toContain("Dentro da janela do programa.");
+    // Nem no ramo do atraso — null não é "fora", é outra coisa.
+    expect(texto).not.toContain("Ela ficou fora da janela contratada");
+  });
+
+  it("os três estados produzem três textos distintos, nenhum se repete", () => {
+    const textos = [true, false, null].map((v) =>
+      mensagemDoGatilho({
+        ...linhaBase,
+        gatilho: "revisao_verificada",
+        passo: 1,
+        contexto: contexto(v),
+      }),
+    );
+    expect(new Set(textos).size).toBe(3);
+  });
+});
+
 describe("prioridade e cadência — o TS e o SQL contam a mesma história", () => {
   it("a prioridade do §4.4 é a mesma nas duas camadas", () => {
     // Ordem do manual: 7 → 6 → 5 → 2 → 3 → 1 → 4. Risco antes de oportunidade.

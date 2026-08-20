@@ -1,3 +1,5 @@
+import { classificarJanela } from "./janela";
+
 /**
  * O motor de gatilhos, do lado do texto — manual v1.1 §4, §7.2 e §7.3.
  *
@@ -236,13 +238,16 @@ function elegibilidadeEmRisco(l: LinhaDaFila): string {
 function revisaoVerificada(l: LinhaDaFila): string {
   const c = l.contexto ?? {};
   const n = c.numero_revisao ? `${c.numero_revisao}ª ` : "";
+  const estadoDaJanela = classificarJanela(c.dentro_da_janela);
 
   return juntar([
     `Conferido, ${primeiroNome(l.nome)}!`,
     `A ${n}revisão do seu ${identificacaoDoVeiculo(l)}, feita em ${dataCurta(c.data_servico)}${c.km_registrado ? ` com ${km(c.km_registrado)}` : ""}, foi verificada pela nossa equipe e entrou no diário de bordo.`,
-    c.dentro_da_janela === false
+    estadoDaJanela === "fora"
       ? "Ela ficou fora da janela contratada, mas está registrada do mesmo jeito: o histórico do carro fica completo."
-      : "Dentro da janela do programa.",
+      : estadoDaJanela === "sem"
+        ? "Não havia janela programada para casar com ela, e está registrada do mesmo jeito: o histórico do carro fica completo."
+        : "Dentro da janela do programa.",
     "É procedência registrada — histórico que fica com o veículo e vale na hora de trocar.",
     SAIDA,
   ]);
