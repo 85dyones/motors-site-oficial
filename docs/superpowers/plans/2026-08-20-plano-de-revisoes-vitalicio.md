@@ -1316,6 +1316,22 @@ git add src/lib/ciclo/selo.ts tests/ciclo-selo-da-janela.test.ts src/components/
 git commit -m "fix(ciclo): sem janela deixa de ser lido como fora da janela"
 ```
 
+#### Emenda à Task 5 — decidida em 2026-08-20, durante a execução
+
+A revisão apontou que os Steps 5 acima espalham a tricotomia: as duas mensagens de aviso comparam `=== false` / `=== null` cru em vez de passar pela lib. O achado é contra código que este plano prescreveu, então foi levado ao dono, **que decidiu que o achado governa**.
+
+O que virou a balança não foi o argumento de estilo. Foi uma **regressão que este pacote introduz** e que nenhuma tarefa cobria: `src/lib/ciclo/motor.ts`, na função `revisaoVerificada` (~linha 243), monta a mensagem de WhatsApp do cliente com `c.dentro_da_janela === false ? "…fora da janela…" : "Dentro da janela do programa."`. Antes das Tasks 1-3, `null` nunca chegava ali. Agora chega — e o cliente cuja revisão não tinha janela nenhuma recebe a afirmação de que ela ficou dentro da janela. É o espelho do defeito que esta tarefa conserta.
+
+Acrescentado à Task 5:
+
+- **`src/lib/ciclo/janela.ts`** (criar) — `classificarJanela(dentro: boolean | null | undefined): "na" | "fora" | "sem"`, com teste próprio. `undefined` cai em `sem` de propósito: o valor chega de `res.json()` em algumas chamadas, e campo ausente não justifica afirmar nada.
+- `selo.ts` passa a usar o classificador; a assinatura pública de `seloDaJanela` não muda, e `tests/ciclo-selo-da-janela.test.ts` continua valendo intacto.
+- As duas mensagens de aviso classificam e ramificam no estado. Os textos não mudam.
+- `revisaoVerificada` ganha o terceiro ramo, com o texto: *"Não havia janela programada para casar com ela, e está registrada do mesmo jeito: o histórico do carro fica completo."* — espelha de propósito a construção do ramo `fora`: mesma garantia ao cliente, motivo diferente.
+- Teste em `tests/ciclo-motor.test.ts` provando que `null` **não** produz "Dentro da janela".
+
+**Deliberadamente fora:** `GaragemVeiculo.tsx:215` e `garagem/meus-dados/page.tsx:177` também colapsam os três estados, mas com `null` produzem "VERIFICADA" e "verificada" — **dizem menos, não dizem falso**. A régua desta correção é consertar quem faz afirmação falsa, não quem se cala; mexer neles mudaria texto que o cliente lê, sem necessidade.
+
 ---
 
 ### Task 6: A prévia do fechamento mostra a janela que será criada
