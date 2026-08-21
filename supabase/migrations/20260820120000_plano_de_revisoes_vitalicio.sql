@@ -1379,12 +1379,29 @@ end $ac$;
 -- texto agregado de DEPOIS encolhe e a conferência morde do mesmo jeito.
 do $ac$
 declare
-  a         record;
-  v_depois  text;
-  marcador  text;
-  antes_n   int;
-  depois_n  int;
+  a           record;
+  v_depois    text;
+  marcador    text;
+  antes_n     int;
+  depois_n    int;
+  v_distintas int;
+  v_faltando  text;
 begin
+  -- Piso: sem isto, `_definicoes_antes` vazia — nome errado no `in (...)` da
+  -- seção 0, ou uma das quatro funções ainda inexistente no banco — faz o
+  -- `for` abaixo iterar ZERO vezes, e a autoconferência imprime OK sem ter
+  -- conferido nada. Falha aberta, não fechada: exige as quatro antes de seguir.
+  select count(distinct proname) into v_distintas from _definicoes_antes;
+  if v_distintas <> 4 then
+    select coalesce(string_agg(f, ', '), '(nenhuma)') into v_faltando
+      from unnest(array['fechar_venda_ciclo', 'carimbar_revisao',
+                         'montar_fila_de_gatilhos', 'calcular_conformidade_diaria']) f
+     where not exists (select 1 from _definicoes_antes d where d.proname = f);
+    raise exception
+      'ACEITE FALHOU (nada-se-perdeu): _definicoes_antes tem % função(ões) distinta(s) (esperado 4) — faltando: %',
+      v_distintas, v_faltando;
+  end if;
+
   for a in
     select proname, string_agg(def, E'\n') as def
       from _definicoes_antes group by proname
@@ -1401,7 +1418,14 @@ begin
     foreach marcador in array array[
       'pg_advisory_xact_lock', 'array_append', 'is_staff', 'unique_violation',
       'CARIMBO_SEM_ETIQUETA', 'suprimido_por', 'consentimento_canais',
-      'em_risco', 'cep', 'dentro_da_janela'
+      -- 'cep' sozinho é substring de 'exception' — casa em qualquer função com
+      -- `raise exception`/`exception when`, inclusive a versão de 14/08 que
+      -- NÃO tem a coluna cep. Esse marcador nunca poderia disparar. O fragmento
+      -- abaixo só existe no upsert de `fechar_venda_ciclo` que trata o cep do
+      -- cliente — presente na definição viva, ausente em
+      -- `20260814120000_fechar_venda_ciclo.sql` (prova em
+      -- .superpowers/sdd/2026-08-20-plano-de-revisoes-vitalicio/guardas-report.md).
+      'coalesce(excluded.cep, public.clientes.cep)', 'em_risco', 'dentro_da_janela'
     ]
     loop
       if position(marcador in a.def) > 0 and position(marcador in v_depois) = 0 then
