@@ -53,6 +53,7 @@ const CADEIA = [
   "20260821150000_alcada_de_aprovacao.sql",
   "20260821180000_papeis_gestor_e_investidor.sql",
   "20260821210000_exclusao_financeira_so_admin.sql",
+  "20260822120000_conciliacao_bancaria.sql",
 ];
 
 /**

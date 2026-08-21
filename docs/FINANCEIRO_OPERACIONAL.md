@@ -36,7 +36,7 @@ investidores, "um painel que mostrasse isso pra eles também".
 | P1 — o que vence no dia | ✅ **Entregue 2026-08-21** | Tela **Pagamentos do Dia** (`/admin/financeiro/dia`): vencidas em aberto, vence hoje, a receber, com baixa em um clique sem sair da tela |
 | P2 — fornecedor ≠ cliente | ✅ **Já existia** | `parceiros.tipo` separa desde o módulo original (Cadastros Auxiliares). O pedido era dor do RevendaMais — aqui já nasce resolvido |
 | P3 — lançamento por carro | ✅ **Já existia** | `contas.veiculo_id` vincula despesa ao carro e alimenta a **Margem por Veículo** (A11); despesa sem carro vai direto ao financeiro |
-| P4 — conciliação bancária | 📋 **Na fila** | Ver §4. Exige extrato bancário (OFX/API) — decisão de fornecedor antes de tela |
+| P4 — conciliação bancária | ✅ **Entregue 2026-08-22** | Tela **Conciliação Bancária** (`/admin/financeiro/conciliacao`): sobe o OFX do banco, casa com o caixa e mostra o que sobrou dos dois lados |
 | P5 — relatório diário | ✅ **Entregue 2026-08-21** | A mesma tela do dia: qualquer data vira o relatório dela — liquidadas, entradas, saídas e movimento do caixa |
 | P6 — investidores | ✅ **Entregue 2026-08-21** | Tela **Investidores** (`/admin/financeiro/investidores`): aportes, retiradas (inclusive em carro de repasse, vinculada ao veículo) e saldo por investidor |
 | Aviso de vencimento no WhatsApp | ✅ **Já existia** | `conta_vencida` no Formato C (`WEBHOOKS_N8N.md`) — 3 dias antes, 1 dia, no dia e 7 dias após |
@@ -155,6 +155,53 @@ então quem tem admin como papel **secundário** não era admin para o banco —
 já valia para as policies de `profiles` e passaria a valer para a exclusão.
 Corrigido na mesma migração.
 
+### Conciliação bancária (`/admin/financeiro/conciliacao`)
+
+O último dos seis pedidos da adm/financeira a sair do RevendaMais.
+
+**A fonte é OFX, e a escolha tem razão.** OFX é um arquivo que o banco já
+entrega hoje pelo internet banking, de graça, sem contrato nem certificação.
+Open Finance dá extrato ao vivo e custa contrato, prazo e fornecedor — decisão
+de negócio que pode acontecer depois sem jogar nada fora: o motor
+(`lib/conciliacao.ts`) não sabe de onde veio a linha, e o schema não fala de
+OFX em lugar nenhum. Trocar a fonte um dia não mexe no resto.
+
+**O extrato é PROVA, não lançamento.** A tabela `extrato_bancario` não entra
+em cálculo de saldo e nenhuma linha dela vira movimentação sozinha. O caixa do
+sistema continua sendo `movimentacoes`, alimentado pela baixa de conta. Isso é
+o oposto de "importar o extrato para dentro do caixa", que parece prático e
+destrói a conciliação: se o extrato virasse lançamento, tudo fecharia sempre —
+e a pergunta que a ferramenta existe para responder ("o que saiu da conta e
+ninguém lançou?") não teria mais como ser feita.
+
+**O que sobra é o resultado, não a falha.** A tentação de um motor de
+conciliação é maximizar o casamento, porque tela limpa parece sucesso. O valor
+está no que não casa: linha no banco sem contraparte é tarifa, juros ou débito
+que ninguém lançou; lançamento sem linha no banco é pagamento registrado que
+nunca compensou. Por isso as duas listas grandes da tela são justamente essas,
+e "conciliado" é uma seção fechada no rodapé.
+
+As regras do motor:
+
+- **Valor exato**, em centavos — conciliação com tolerância de valor não é
+  conciliação: R$ 1.234,56 e R$ 1.234,65 são coisas diferentes, e juntá-las
+  transforma erro de digitação em conta fechada.
+- **Data com folga de 3 dias** — é onde a tolerância é legítima: a data do
+  sistema é a do ATO, a do banco é a da COMPENSAÇÃO, e sexta compensa segunda.
+- **Um para um**, aplicado no motor *e* por índice único no banco.
+- **Empate nunca vira escolha.** Dois candidatos do mesmo valor viram
+  SUGESTÃO para uma pessoa confirmar — escolher sozinho entre dois pagamentos
+  iguais é onde um motor de conciliação erra caro e em silêncio. O vínculo
+  feito por gente é marcado `manual`, e a auditoria separa um do outro.
+- **Determinístico**: a conciliação roda de novo a cada importação, e um motor
+  que muda de ideia entre duas execuções destrói a confiança de quem fecha o
+  mês.
+
+**Reimportar é o fluxo normal**, não exceção: ela baixa "últimos 30 dias" toda
+semana e os arquivos se sobrepõem. O `FITID` — o identificador que o *banco* dá
+à transação — é a chave da idempotência, único por `(conta, fitid)` porque dois
+bancos podem emitir o mesmo número sem relação nenhuma entre as transações.
+
 ### Dois papéis novos: `gestor` e `investidor`
 
 Pedido do dono junto com a mudança da régua: *"precisamos de duas novas roles
@@ -221,20 +268,16 @@ lados.
 
 ## 4. Na fila — em ordem de dor
 
-1. **Conciliação bancária (P4).** Importação de OFX dos bancos usados hoje
-   (Itaú, Bradesco, Stone) casando extrato × `movimentacoes`. Antes de
-   qualquer tela: decidir se entra OFX manual ou Open Finance — custo e
-   prazo muito diferentes.
-2. **Migração RevendaMais → painel.** O importador já existe
+1. **Migração RevendaMais → painel.** O importador já existe
    (`/admin/financeiro/importar`); a virada de chave é operacional: rodar as
    duas pontas em paralelo um mês, conferir DRE contra DRE, e só então
    desligar o lançamento de lá. O usuário de teste da Sinthia é o primeiro
    passo — criar com papel `financeiro` na A17 (multi-papel já funciona).
-3. **Aprovação no cadastro de recorrente.** A geração mensal passa direto de
+2. **Aprovação no cadastro de recorrente.** A geração mensal passa direto de
    propósito (compromisso já assumido) — mas o CADASTRO de uma recorrente
    nova, que é decisão de gasto como qualquer agendamento, hoje também passa.
    Fechar esse flanco quando o fluxo de aprovação estiver rodado na prática.
-4. **Convite de investidor pela A17.** Hoje o Admin cria a conta com papel
+3. **Convite de investidor pela A17.** Hoje o Admin cria a conta com papel
    `investidor` e o vínculo se faz pelo e-mail no primeiro acesso. Falta o
    caminho feliz na tela de usuários: convidar direto do cadastro do
    investidor, sem passar por duas telas.
@@ -247,12 +290,15 @@ lados.
 | Migração (status + trilha da aprovação) | `supabase/migrations/20260821150000_alcada_de_aprovacao.sql` |
 | Migração (papéis gestor e investidor) | `supabase/migrations/20260821180000_papeis_gestor_e_investidor.sql` |
 | Migração (exclusão só do admin) | `supabase/migrations/20260821210000_exclusao_financeira_so_admin.sql` |
+| Migração (conciliação bancária) | `supabase/migrations/20260822120000_conciliacao_bancaria.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
 | Régua de investidores | `src/lib/investidores.ts` · `tests/investidores.test.ts` |
 | Régua da aprovação | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |
+| Leitor de OFX e motor de conciliação | `src/lib/ofx.ts` · `src/lib/conciliacao.ts` · `tests/conciliacao.test.ts` |
 | Os dois papéis novos | `src/lib/permissoes.ts` · `tests/papeis-gestor-investidor.test.ts` |
 | Rotas | `src/app/api/financeiro/dia/` · `src/app/api/financeiro/investidores/` · `src/app/api/financeiro/contas/[id]/aprovar/` |
 | Telas | `src/components/financeiro/DiaOperacional.tsx` · `InvestidoresPainel.tsx` · `AprovacoesPendentes.tsx` |
 | Área do investidor | `src/app/investidor/page.tsx` · `src/components/investidor/` |
+| Tela da conciliação | `src/components/financeiro/ConciliacaoBancaria.tsx` |
 | Eventos novos | `investidor_movimento`, `conta_aguardando_aprovacao`, `conta_aprovada`, `conta_recusada` — contrato em `WEBHOOKS_N8N.md` (Formato C) |
 | Permissão | as linhas "Aprovar agendamento financeiro", "Ver relatórios gerenciais e DRE" e "Controlar aportes e retiradas de investidores" em `src/lib/permissoes.ts` |

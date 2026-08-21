@@ -44,6 +44,7 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
       recorrentes: "DESPESAS RECORRENTES",
       compras: "COMPRAS DE INSUMOS",
       importar: "IMPORTAR REVENDAMAIS",
+      conciliacao: "CONCILIAÇÃO BANCÁRIA",
       relatorios: "RELATÓRIOS E BALANÇO",
       cadastros: "CADASTROS AUXILIARES",
       margens: "MARGEM POR VEÍCULO",

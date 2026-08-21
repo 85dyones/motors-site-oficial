@@ -98,6 +98,10 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         { name: "Despesas recorrentes", href: "/admin/financeiro/recorrentes" },
         { name: "Compras de insumos", href: "/admin/financeiro/compras" },
         { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
+        // P4 do briefing — o último dos seis pedidos da adm/financeira a sair
+        // do RevendaMais. Fica perto do importador porque os dois são a mesma
+        // rotina: trazer para cá o que hoje vive em outro lugar.
+        { name: "Conciliação bancária", href: "/admin/financeiro/conciliacao" },
         { name: "Relatórios e balanço", href: "/admin/financeiro/relatorios" },
         { name: "Cadastros auxiliares", href: "/admin/financeiro/cadastros" },
         { name: "Margem por veículo", href: "/admin/financeiro/margens" },
