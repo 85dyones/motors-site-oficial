@@ -309,6 +309,45 @@ describe("a mensagem de revisão verificada — os três estados da janela", () 
     );
     expect(new Set(textos).size).toBe(3);
   });
+
+  // Segundo achado, na linha seguinte à que a emenda consertou: o fecho da
+  // mensagem afirmava procedência nos três estados, fora do ternário. Mas
+  // procedência tem régua — `confirmada_em` E `dentro_da_janela = true`
+  // (revisao.ts §1.5/§5.7; a conformidade só casa a janela com
+  // `m.confirmada_em is not null and m.dentro_da_janela`). O próprio motor
+  // avisa no D−3 que perder a janela custa exatamente isso, e a loja lê
+  // "não na procedência" na mesma decisão. Prometer o ativo a quem não o
+  // ganhou é o mesmo defeito de sempre: afirmar o que não aconteceu.
+  const afirmaProcedencia = (dentro: boolean | null) =>
+    mensagemDoGatilho({
+      ...linhaBase,
+      gatilho: "revisao_verificada",
+      passo: 1,
+      contexto: contexto(dentro),
+    }).includes("É procedência registrada");
+
+  it("só o estado 'na' afirma procedência ao cliente", () => {
+    expect(afirmaProcedencia(true)).toBe(true);
+    expect(afirmaProcedencia(false)).toBe(false);
+    expect(afirmaProcedencia(null)).toBe(false);
+  });
+
+  it("nenhum dos três estados deixa o cliente sem o valor na troca", () => {
+    // O gradiente é do ativo, não do fecho. Quem não ganhou procedência ainda
+    // ouve por que o registro dele vale — é o que sustenta a continuidade do
+    // programa depois de uma janela perdida, até a hora de trocar de carro.
+    for (const dentro of [true, false, null] as const) {
+      const texto = mensagemDoGatilho({
+        ...linhaBase,
+        gatilho: "revisao_verificada",
+        passo: 1,
+        contexto: contexto(dentro),
+      });
+      expect(texto, `estado ${String(dentro)} sem o fecho de valor`).toContain(
+        "na hora de trocar",
+      );
+    }
+  });
 });
 
 describe("prioridade e cadência — o TS e o SQL contam a mesma história", () => {

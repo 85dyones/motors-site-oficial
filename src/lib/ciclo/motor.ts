@@ -248,7 +248,16 @@ function revisaoVerificada(l: LinhaDaFila): string {
       : estadoDaJanela === "sem"
         ? "Não havia janela programada para casar com ela, e está registrada do mesmo jeito: o histórico do carro fica completo."
         : "Dentro da janela do programa.",
-    "É procedência registrada — histórico que fica com o veículo e vale na hora de trocar.",
+    // O fecho segue a régua, não a cortesia: procedência exige `confirmada_em`
+    // E `dentro_da_janela = true` (§1.5 e §5.7, em `revisao.ts`), e a
+    // conformidade só casa a janela com `m.dentro_da_janela`. Quem ficou fora
+    // — ou nem teve janela — não ganhou o ativo, e o aviso do D−3 já tinha
+    // dito ao cliente que era isso que estava em jogo. Ainda assim ninguém sai
+    // sem o motivo de continuar: o diário registrado é o que sustenta o valor
+    // do carro, e é ele que segura o cliente no programa até a hora de trocar.
+    estadoDaJanela === "na"
+      ? "É procedência registrada — histórico que fica com o veículo e vale na hora de trocar."
+      : "É o diário que sustenta o valor do carro na hora de trocar.",
     SAIDA,
   ]);
 }
