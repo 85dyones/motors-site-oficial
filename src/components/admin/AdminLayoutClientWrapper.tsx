@@ -37,6 +37,7 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
     partes.push("FINANCEIRO");
     const folha = pathname.replace("/admin/financeiro", "").replace("/", "");
     const nomes: Record<string, string> = {
+      dia: "PAGAMENTOS DO DIA",
       "contas-pagar": "CONTAS A PAGAR",
       "contas-receber": "CONTAS A RECEBER",
       recorrentes: "DESPESAS RECORRENTES",
@@ -45,6 +46,7 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
       relatorios: "RELATÓRIOS E BALANÇO",
       cadastros: "CADASTROS AUXILIARES",
       margens: "MARGEM POR VEÍCULO",
+      investidores: "INVESTIDORES",
     };
     partes.push(folha ? nomes[folha] ?? folha.toUpperCase() : "VISÃO GERAL");
   } else if (pathname === "/admin") {

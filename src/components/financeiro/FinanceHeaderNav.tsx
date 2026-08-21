@@ -17,6 +17,7 @@ export default function FinanceHeaderNav() {
 
   const tabs = [
     { name: "Visão Geral", href: "/admin/financeiro" },
+    { name: "Pagamentos do Dia", href: "/admin/financeiro/dia" },
     { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
     { name: "Contas a Pagar", href: "/admin/financeiro/contas-pagar" },
     { name: "Contas a Receber", href: "/admin/financeiro/contas-receber" },
@@ -25,6 +26,7 @@ export default function FinanceHeaderNav() {
     { name: "Relatórios & Balanço", href: "/admin/financeiro/relatorios" },
     { name: "Cadastros Auxiliares", href: "/admin/financeiro/cadastros" },
     { name: "Margem por Veículo", href: "/admin/financeiro/margens" },
+    { name: "Investidores", href: "/admin/financeiro/investidores" },
   ];
 
   return (

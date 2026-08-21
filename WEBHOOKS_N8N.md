@@ -183,10 +183,17 @@ dispatcher resolve ids em nomes legíveis antes de enviar:
 | `recorrente_` | `id, descricao, valor, frequencia, dia_vencimento, categoria, fornecedor, forma_pagamento, ativa` |
 | `compra_` | `id, descricao, valor, data_compra, categoria, fornecedor, veiculo, nota_fiscal, status` |
 | `fornecedor_` | `id, nome, tipo, documento, telefone, email` |
+| `investidor_` | `id, investidor, tipo, valor, data, descricao, forma_pagamento, veiculo, observacoes` |
 | qualquer outro | o payload cru, sem enriquecimento |
 
 `categoria` vem como `"🔧 Peça de Reposição"` (ícone + nome), não como id.
 `veiculo` vem como `"BMW 320i (2022)"`, não como id. `valor` é number.
+
+O evento do prefixo `investidor_` hoje é um só: `investidor_movimento`, emitido
+a cada aporte ou retirada registrado no painel (2026-08-21). `investidor` vem
+como nome, `tipo` é `"aporte"` ou `"retirada"` e `valor` é **sempre positivo** —
+o lado mora em `tipo`, como nos contadores de `conta_vencida`. `veiculo` só vem
+preenchido quando a movimentação é um carro de repasse.
 
 **Liga/desliga por evento:** `webhooks.events[nomeDoEvento] === false` bloqueia
 o disparo. Ausente = habilitado.

@@ -74,6 +74,10 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       roles: ["admin", "financeiro"],
       items: [
         { name: "Visão geral", href: "/admin/financeiro" },
+        // A porta da manhã da operação (briefing 2026-08-21): o que vence
+        // hoje, o que já venceu e o relatório diário — logo abaixo da visão
+        // geral porque é a tela de todo dia.
+        { name: "Pagamentos do dia", href: "/admin/financeiro/dia" },
         { name: "Contas a pagar", href: "/admin/financeiro/contas-pagar" },
         { name: "Contas a receber", href: "/admin/financeiro/contas-receber" },
         { name: "Despesas recorrentes", href: "/admin/financeiro/recorrentes" },
@@ -82,6 +86,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         { name: "Relatórios e balanço", href: "/admin/financeiro/relatorios" },
         { name: "Cadastros auxiliares", href: "/admin/financeiro/cadastros" },
         { name: "Margem por veículo", href: "/admin/financeiro/margens" },
+        { name: "Investidores", href: "/admin/financeiro/investidores" },
       ],
     },
     {

@@ -165,6 +165,15 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "nao_ve", "nao_ve", "faz"],
     "Alçada de R$ 1.500 no gerente",
   ),
+  // Linha ACRESCENTADA em 2026-08-21, briefing do dono com a adm/financeira:
+  // controle de aportes e retiradas dos investidores. Mesma dupla da linha de
+  // contas a pagar — capital de investidor é assunto de quem fecha o caixa,
+  // e de mais ninguém: Comercial e Marketing nem veem o grupo.
+  linha(
+    "Controlar aportes e retiradas de investidores",
+    ["faz", "nao_ve", "nao_ve", "faz"],
+    "Saldo derivado do extrato, nunca digitado",
+  ),
   linha(
     "Gerenciar campanhas de mídia paga",
     ["faz", "faz", "nao_ve", "nao_ve"],
