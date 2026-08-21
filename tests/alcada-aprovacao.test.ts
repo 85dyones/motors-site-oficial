@@ -5,6 +5,7 @@ import {
   ehAgendamento,
   podeAjustarValoresDoNegocio,
   podeDecidirAprovacao,
+  podeExcluirLancamento,
   podeVerRelatorios,
   precisaDeAprovacao,
 } from "../src/lib/alcada";
@@ -126,12 +127,27 @@ describe("quem decide, quem lê, quem ajusta o negócio", () => {
     expect(podeAjustarValoresDoNegocio(["marketing"])).toBe(false);
   });
 
+  it("apagar lançamento é só do Admin — quem aprova não apaga a prova", () => {
+    // Decisão de 2026-08-21, junto com "quem aprova pagamento no dia a dia é
+    // o Gestor": hoje a mesma pessoa que libera um agendamento poderia, em
+    // seguida, apagar a conta, a movimentação de caixa que a baixa gerou e a
+    // trilha da própria decisão — some tudo junto e sem log.
+    expect(podeExcluirLancamento(["admin"])).toBe(true);
+    expect(podeExcluirLancamento(["gestor"])).toBe(false);
+    expect(podeExcluirLancamento(["financeiro"])).toBe(false);
+    expect(podeExcluirLancamento(["gestor", "financeiro"])).toBe(false);
+    expect(podeExcluirLancamento([])).toBe(false);
+    // Admin como papel secundário continua sendo admin — multi-papel soma.
+    expect(podeExcluirLancamento(["comercial", "admin"])).toBe(true);
+  });
+
   it("a resposta sai da matriz, não de uma lista embutida na lib", () => {
     // Se a linha da matriz sumir, `podeFazer` devolve "nao_ve" para todo
     // mundo e NINGUÉM decide — a fila trava, em vez de abrir para todos.
     const acoes = MATRIZ_DE_PERMISSOES.map((l) => l.acao);
     expect(acoes).toContain("Aprovar agendamento financeiro");
     expect(acoes).toContain("Ver relatórios gerenciais e DRE");
+    expect(acoes).toContain("Excluir lançamento financeiro");
   });
 });
 
@@ -185,5 +201,70 @@ describe("migração 20260821150000 — o estado da aprovação", () => {
   it("se registra no livro-razão (D6)", () => {
     expect(sql).toContain("insert into supabase_migrations.schema_migrations");
     expect(sql).toContain("'20260821150000'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A migração da exclusão — a régua também mora na RLS
+// ---------------------------------------------------------------------------
+
+const sqlExclusao = readFileSync(
+  join(__dirname, "..", "supabase", "migrations", "20260821210000_exclusao_financeira_so_admin.sql"),
+  "utf-8",
+)
+  .split("\n")
+  .filter((linha) => !linha.trimStart().startsWith("--"))
+  .join("\n");
+
+describe("migração 20260821210000 — só o admin apaga", () => {
+  it("is_admin passa a olhar `papeis`", () => {
+    // O terceiro gêmeo do bug multi-papel: `role = 'admin'` negava quem tem
+    // admin como papel secundário — e é dele que as policies novas dependem.
+    expect(sqlExclusao).toContain("create or replace function public.is_admin");
+    expect(sqlExclusao).toMatch(/'admin' = any\(papeis\)/);
+    expect(sqlExclusao).not.toMatch(/role = 'admin'/);
+  });
+
+  it("as quatro tabelas de lançamento são fechadas — e só elas", () => {
+    const alvo = sqlExclusao.match(/array\[([^\]]*)\]\s*\n?\s*loop/);
+    expect(alvo).not.toBeNull();
+    const tabelas = [...alvo![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
+    expect(tabelas).toEqual(
+      ["compras_produtos", "contas", "movimentacoes", "movimentacoes_investidor"].sort(),
+    );
+    // Cadastro não é lançamento: apagar um parceiro ou uma categoria não
+    // apaga dinheiro nenhum, e travar isso só criaria atrito.
+    expect(tabelas).not.toContain("parceiros");
+    expect(tabelas).not.toContain("categorias_financeiras");
+    expect(tabelas).not.toContain("despesas_recorrentes");
+  });
+
+  it("DELETE exige is_admin; ler, lançar e corrigir seguem no financeiro", () => {
+    expect(sqlExclusao).toMatch(/for delete using \(public\.is_admin\(auth\.uid\(\)\)\)/);
+    for (const comando of ["for select", "for insert", "for update"]) {
+      expect(sqlExclusao).toContain(comando);
+    }
+  });
+
+  it("a leitura própria do investidor é recriada, não perdida no caminho", () => {
+    // A varredura derruba TODA policy das tabelas alvo — inclusive a que
+    // `20260821180000` criou para o investidor ver o próprio extrato. Sem
+    // recriar aqui, a área dele ficaria vazia sem erro nenhum.
+    expect(sqlExclusao).toContain('create policy "Investidor le o proprio extrato"');
+    expect(sqlExclusao).toContain("i.perfil_id = auth.uid()");
+  });
+
+  it("a autoconferência prova os três lados com sessão assumida", () => {
+    expect(sqlExclusao).toMatch(/ACEITE FALHOU: o financeiro apagou lançamento/);
+    expect(sqlExclusao).toMatch(/ACEITE FALHOU: o gestor apagou o lançamento que ele mesmo aprova/);
+    expect(sqlExclusao).toMatch(/ACEITE FALHOU: o admin não conseguiu apagar/);
+    // E que cancelar continua aberto — senão a alternativa que a decisão
+    // pressupõe não existiria.
+    expect(sqlExclusao).toMatch(/ACEITE FALHOU: o financeiro não conseguiu CANCELAR/);
+  });
+
+  it("se registra no livro-razão (D6)", () => {
+    expect(sqlExclusao).toContain("insert into supabase_migrations.schema_migrations");
+    expect(sqlExclusao).toContain("'20260821210000'");
   });
 });

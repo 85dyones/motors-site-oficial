@@ -127,6 +127,34 @@ O que decide é o **ato**:
 pergunta à linha "Aprovar agendamento financeiro" da A17; dar esse poder a um
 papel novo é uma linha na matriz, não uma edição na lib.
 
+#### Quem aprova não apaga a prova (2026-08-21)
+
+Separação de funções, decidida junto com "quem aprova pagamento no dia a dia
+é o Gestor". O problema concreto: quem libera um agendamento poderia, em
+seguida, apagar a conta, a movimentação de caixa que a baixa gerou e a trilha
+da própria decisão — `aprovacao_decidida_por/em/motivo` mora na linha de
+`contas`. Some tudo junto, sem log, e a conciliação do mês seguinte não tem
+como perceber.
+
+**Excluir lançamento financeiro passa a ser exclusivo do Admin.** Gestor e
+Financeiro **cancelam** (`status = 'cancelado'`, que preserva a linha e o
+rastro) — e a interface troca o botão em vez de deixar um lixo que devolve
+403: o doc manda o negado sumir, não ficar cinza.
+
+O recorte importa: fecham `contas`, `movimentacoes`, `compras_produtos` e
+`movimentacoes_investidor` — registro de dinheiro. Continuam abertos
+`parceiros`, `categorias_financeiras` e `despesas_recorrentes`: são cadastro
+e modelo, e apagar o modelo de uma recorrente não apaga conta nenhuma já
+gerada por ele.
+
+A régua vale nos **dois** lados: a RLS não tem policy de DELETE para o
+financeiro (o Postgres simplesmente não apaga — não existe "quase apagou"), e
+as rotas checam antes para o erro sair legível. No caminho apareceu o
+**terceiro gêmeo** do bug multi-papel: `is_admin` também lia `role = 'admin'`,
+então quem tem admin como papel **secundário** não era admin para o banco —
+já valia para as policies de `profiles` e passaria a valer para a exclusão.
+Corrigido na mesma migração.
+
 ### Dois papéis novos: `gestor` e `investidor`
 
 Pedido do dono junto com a mudança da régua: *"precisamos de duas novas roles
@@ -135,6 +163,13 @@ financeiro, ajustar valores de negócios de carro, entrada e saída, bem como
 acesso aos relatórios"*.
 
 **Eles não são da mesma natureza — e essa é a decisão central do pacote.**
+
+**Quem é o Gestor**, registrado em 2026-08-21 porque a resposta muda o
+desenho: é uma **terceira pessoa, o proprietário da Motors** — não um
+contratado externo. Ele é o orquestrador do negócio de investimento, e por
+isso enxerga e controla os aportes e retiradas dos sócios. Enquanto ele não
+entra, **o dono aprova como `admin`**; no dia a dia, quem libera pagamento é
+o Gestor.
 
 | | `gestor` | `investidor` |
 |---|---|---|
@@ -211,6 +246,7 @@ lados.
 | Migração (função + tabelas + RLS) | `supabase/migrations/20260821120000_financeiro_operacional.sql` |
 | Migração (status + trilha da aprovação) | `supabase/migrations/20260821150000_alcada_de_aprovacao.sql` |
 | Migração (papéis gestor e investidor) | `supabase/migrations/20260821180000_papeis_gestor_e_investidor.sql` |
+| Migração (exclusão só do admin) | `supabase/migrations/20260821210000_exclusao_financeira_so_admin.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
 | Régua de investidores | `src/lib/investidores.ts` · `tests/investidores.test.ts` |
 | Régua da aprovação | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |

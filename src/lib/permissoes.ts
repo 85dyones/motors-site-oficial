@@ -247,6 +247,16 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "nao_ve", "faz"],
     "Leitura consolidada — não dá poder de lançar nem de decidir",
   ),
+  // Separação de funções, decidida em 2026-08-21 junto com "quem aprova
+  // pagamento no dia a dia é o Gestor": quem libera um agendamento não pode
+  // apagar a conta, a movimentação de caixa que a baixa gerou e a trilha da
+  // própria decisão — some tudo junto e sem log. Gestor e Financeiro
+  // CANCELAM (status 'cancelado' preserva a linha); apagar é do Admin.
+  linha(
+    "Excluir lançamento financeiro",
+    ["faz", "nao_ve", "nao_ve", "nao_ve", "nao_ve"],
+    "Quem aprova não apaga a prova — os demais cancelam",
+  ),
   // Linha ACRESCENTADA em 2026-08-21, briefing do dono com a adm/financeira:
   // controle de aportes e retiradas dos investidores. Capital de investidor é
   // assunto de quem fecha o caixa e de quem responde pelo negócio — Comercial

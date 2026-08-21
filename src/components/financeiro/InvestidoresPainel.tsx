@@ -65,7 +65,13 @@ const ROTULO_DA_FORMA: Record<string, string> = {
   veiculo: "Veículo (repasse)",
 };
 
-export default function InvestidoresPainel() {
+/**
+ * `podeExcluir`: extrato de investidor é registro de capital de sócio — só o
+ * Admin apaga (A17, "Excluir lançamento financeiro", 2026-08-21). Aqui não há
+ * "cancelar": lançamento errado é corrigido pelo Admin, e é de propósito que
+ * um extrato de sócio não tenha desfazer de rotina.
+ */
+export default function InvestidoresPainel({ podeExcluir = false }: { podeExcluir?: boolean }) {
   const { confirm } = useConfirm();
   const [investidores, setInvestidores] = useState<ResumoDeInvestidor[]>([]);
   const [consolidado, setConsolidado] = useState<SaldoDoInvestidor | null>(null);
@@ -474,6 +480,7 @@ export default function InvestidoresPainel() {
                               {m.tipo === "aporte" ? "+" : "−"} {formatPrice(m.valor)}
                             </td>
                             <td className="py-3 pr-1 text-right">
+                              {podeExcluir && (
                               <button
                                 onClick={() => handleExcluirMovimentacao(m)}
                                 className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
@@ -483,6 +490,7 @@ export default function InvestidoresPainel() {
                                   <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H3.75a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H14v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 3.75A1.25 1.25 0 0 1 9.25 2.5h2.5A1.25 1.25 0 0 1 13 3.75V4H8v-.25ZM3.5 7.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v7.75A2.75 2.75 0 0 1 13.75 18H6.25A2.75 2.75 0 0 1 3.5 15.25V7.5Zm3.5 2a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11 9.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
                                 </svg>
                               </button>
+                              )}
                             </td>
                           </tr>
                         ))}

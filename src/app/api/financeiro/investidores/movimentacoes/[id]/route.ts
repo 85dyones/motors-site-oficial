@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../../../lib/supabase-server";
+import { podeExcluirLancamento } from "../../../../../../lib/alcada";
+import { perfisDe } from "../../../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,23 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    // Separação de funções (2026-08-21): extrato de investidor é registro de
+    // capital de sócio, e quem opera o financeiro no dia a dia não o apaga.
+    // Aqui não há "cancelar" — o lançamento errado é corrigido pelo Admin. A
+    // RLS também recusa (20260821210000); esta checagem existe para o erro
+    // sair legível em vez de "0 linhas afetadas".
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("role, papeis")
+      .eq("id", user.id)
+      .single();
+    if (!podeExcluirLancamento(perfisDe(perfil))) {
+      return NextResponse.json(
+        { error: "Apenas o administrador exclui movimentação de investidor." },
+        { status: 403 }
+      );
     }
 
     const { id } = await params;

@@ -88,6 +88,18 @@ export function podeVerRelatorios(perfis: Perfil[] | string[]): boolean {
 }
 
 /**
+ * Quem apaga um lançamento financeiro de verdade — só o Admin.
+ *
+ * Os demais cancelam (`status = 'cancelado'`), que preserva a linha e o
+ * rastro. A régua está na RLS também (`20260821210000`): sem policy de
+ * DELETE, o banco não apaga — esta função existe para a interface esconder o
+ * botão e a rota devolver erro legível, não para ser a única barreira.
+ */
+export function podeExcluirLancamento(perfis: Perfil[] | string[]): boolean {
+  return podeFazer(perfis as Perfil[], "Excluir lançamento financeiro") === "faz";
+}
+
+/**
  * Quem ajusta os valores do negócio do carro — a entrada (custo de aquisição)
  * e a saída (preço de venda). O pedido do dono para o Gestor, em uma pergunta
  * só, para as telas não terem que consultar duas linhas.

@@ -19,7 +19,7 @@ interface Bill {
   data_emissao: string;
   data_vencimento: string;
   data_pagamento?: string;
-  status: "pendente" | "pago" | "vencido" | "cancelado";
+  status: "pendente" | "pago" | "vencido" | "cancelado" | "parcial" | "aguardando_aprovacao";
   fornecedor?: string;
   cliente?: string;
   forma_pagamento?: string;
@@ -34,9 +34,17 @@ interface Bill {
 
 interface ContasListProps {
   tipo: "pagar" | "receber";
+  /**
+   * Só o Admin apaga lançamento (A17, "Excluir lançamento financeiro",
+   * 2026-08-21). Chega da página, que é server component e lê os papéis do
+   * banco. Quem não apaga vê "Cancelar" no lugar do lixo: o doc manda o
+   * negado SUMIR da interface, e um botão que sempre devolve 403 é pior que
+   * ausência — some, e a alternativa legítima ocupa o lugar.
+   */
+  podeExcluir?: boolean;
 }
 
-export default function ContasList({ tipo }: ContasListProps) {
+export default function ContasList({ tipo, podeExcluir = false }: ContasListProps) {
   const { confirm } = useConfirm();
   const [contas, setContas] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,6 +121,36 @@ export default function ContasList({ tipo }: ContasListProps) {
         setError(data.error || "Falha ao excluir lançamento.");
       }
     } catch (err) {
+      setError("Erro de rede.");
+    }
+  };
+
+  const handleCancelar = async (c: Bill) => {
+    const isConfirmed = await confirm({
+      title: "Cancelar Lançamento",
+      message: `Cancelar "${c.descricao}"? A conta sai do fluxo de caixa e do dia, mas a linha permanece no histórico com o status "cancelado".`,
+      type: "danger",
+      confirmLabel: "Cancelar lançamento",
+      cancelLabel: "Voltar",
+    });
+    if (!isConfirmed) return;
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const res = await fetch(`/api/financeiro/contas/${c.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelado" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMsg("Lançamento cancelado — o registro fica no histórico.");
+        fetchContas();
+      } else {
+        setError(data.error || "Falha ao cancelar lançamento.");
+      }
+    } catch {
       setError("Erro de rede.");
     }
   };
@@ -352,15 +390,31 @@ export default function ContasList({ tipo }: ContasListProps) {
                                 <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.287.287-.63.502-1.01.633l-3.156 1.262a.75.75 0 0 1-.98-.98Z" />
                               </svg>
                             </button>
-                            <button
-                              onClick={() => handleDelete(c.id)}
-                              className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
-                              title="Excluir"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H3.75a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H14v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 3.75A1.25 1.25 0 0 1 9.25 2.5h2.5A1.25 1.25 0 0 1 13 3.75V4H8v-.25ZM3.5 7.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v7.75A2.75 2.75 0 0 1 13.75 18H6.25A2.75 2.75 0 0 1 3.5 15.25V7.5Zm3.5 2a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11 9.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
-                              </svg>
-                            </button>
+                            {podeExcluir ? (
+                              <button
+                                onClick={() => handleDelete(c.id)}
+                                className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
+                                title="Excluir"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                  <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H3.75a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H14v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 3.75A1.25 1.25 0 0 1 9.25 2.5h2.5A1.25 1.25 0 0 1 13 3.75V4H8v-.25ZM3.5 7.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v7.75A2.75 2.75 0 0 1 13.75 18H6.25A2.75 2.75 0 0 1 3.5 15.25V7.5Zm3.5 2a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11 9.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            ) : (
+                              /* Cancelar só faz sentido enquanto há o que
+                                 cancelar: conta paga já virou movimentação de
+                                 caixa, e desfazer isso é assunto do Admin. */
+                              c.status !== "pago" &&
+                              c.status !== "cancelado" && (
+                                <button
+                                  onClick={() => handleCancelar(c)}
+                                  className="h-7 px-2.5 border border-mt-regua-fina text-mt-neutral-700 hover:border-mt-accent hover:text-mt-accent font-bold text-[9px] uppercase tracking-wider transition-all cursor-pointer"
+                                  title="Cancelar (mantém o registro no histórico)"
+                                >
+                                  Cancelar
+                                </button>
+                              )
+                            )}
                           </div>
                         </td>
                       </tr>

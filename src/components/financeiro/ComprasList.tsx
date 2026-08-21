@@ -19,7 +19,13 @@ interface CompraItem {
   conta_id?: string;
 }
 
-export default function ComprasList() {
+/**
+ * `podeExcluir`: só o Admin apaga registro de dinheiro (A17, "Excluir
+ * lançamento financeiro", 2026-08-21). Chega da página, que lê os papéis do
+ * banco. Compra lançada por engano, para os demais, vira `cancelado` pelo
+ * editor — o status já existe no vocabulário da tabela.
+ */
+export default function ComprasList({ podeExcluir = false }: { podeExcluir?: boolean }) {
   const { confirm } = useConfirm();
   const [compras, setCompras] = useState<CompraItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -208,6 +214,7 @@ export default function ComprasList() {
                               <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.287.287-.63.502-1.01.633l-3.156 1.262a.75.75 0 0 1-.98-.98Z" />
                             </svg>
                           </button>
+                          {podeExcluir && (
                           <button
                             onClick={() => handleDelete(c.id)}
                             className="p-1.5 text-mt-neutral-600 hover:text-mt-accent hover:bg-mt-accent-100 transition-all cursor-pointer"
@@ -217,6 +224,7 @@ export default function ComprasList() {
                               <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H3.75a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H14v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 3.75A1.25 1.25 0 0 1 9.25 2.5h2.5A1.25 1.25 0 0 1 13 3.75V4H8v-.25ZM3.5 7.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v7.75A2.75 2.75 0 0 1 13.75 18H6.25A2.75 2.75 0 0 1 3.5 15.25V7.5Zm3.5 2a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5ZM11 9.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
                             </svg>
                           </button>
+                          )}
                         </div>
                       </td>
                     </tr>
