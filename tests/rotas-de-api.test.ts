@@ -174,6 +174,14 @@ describe("rotas de API chamadas pelo front", () => {
     expect(rotas.size).toBeGreaterThan(8);
     expect(chamadas.length).toBeGreaterThan(10);
     expect([...rotas]).toContain("/api/settings");
+    // Guarda o galho da crase especificamente. As chamadas com aspas simples/
+    // duplas já bastam sozinhas para o `chamadas.length > 10` acima — então
+    // sabotar `reCrase` (ou `resolverCrase`) para nunca casar/nunca resolver
+    // passaria os três testes verdes, descartando em silêncio toda chamada
+    // com interpolação. Só existe caminho com `:param` se o galho da crase
+    // rodou de verdade; sem esta linha essa regressão é exatamente a
+    // cegueira de 2026-08-07 de novo, agora para o formato com crase.
+    expect(chamadas.map((c) => c.caminho)).toContain("/api/ciclo/veiculos/:param/saida");
   });
 
   it("toda chamada aponta para uma rota que existe", () => {
