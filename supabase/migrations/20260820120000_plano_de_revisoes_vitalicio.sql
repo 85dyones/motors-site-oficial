@@ -836,7 +836,99 @@ grant execute on function public.montar_fila_de_gatilhos(timestamptz, boolean, t
 
 
 -- ---------------------------------------------------------------------------
--- 4. O ex-dono lê o diário, mas não escreve mais nele
+-- 4. A conformidade do §1.4 também para de contar o carro que saiu
+-- ---------------------------------------------------------------------------
+-- Copiada da fonte VIVA (`20260814150000_carimbo_e_conformidade.sql`, a única
+-- que define esta função), com uma linha somada ao `where` e nada mais.
+--
+-- Sem isto, o veículo que sai da Garagem deprime para sempre o indicador que
+-- guarda o gatilho do §1.4 — e `conformidade_diaria` grava com
+-- `on conflict (dia) do nothing`, então nenhum dia errado se corrige depois.
+
+create or replace function public.calcular_conformidade_diaria()
+  returns jsonb
+  language plpgsql
+  set search_path = public
+as $$
+declare
+  d          date;
+  inicio     date;
+  v_ativos   int;
+  v_devidas  int;
+  v_em_dia   int;
+  gravadas   int := 0;
+begin
+  if not public.is_staff(auth.uid()) and current_setting('request.jwt.claims', true) is distinct from '' then
+    -- Staff pelo painel, ou a chave de serviço (sem claims) pelo cron futuro.
+    raise exception 'Cálculo de conformidade é restrito à equipe.'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  -- O primeiro dia da série é a primeira venda com Ciclo ativo; sem venda,
+  -- não há série ainda — e isso é um retorno, não um erro.
+  select min(vv.data_venda) into inicio
+    from public.veiculos_vendidos vv
+    join public.contratos_ciclo cc on cc.veiculo_vendido_id = vv.id;
+  if inicio is null then
+    return jsonb_build_object('gravadas', 0, 'motivo', 'nenhum veiculo com Ciclo ativo');
+  end if;
+
+  -- Preenche do último dia gravado (ou do início) até hoje. Dias anteriores a
+  -- hoje entram como retroativa = true: reconstruídos do estado atual.
+  d := greatest(inicio, coalesce((select max(dia) + 1 from public.conformidade_diaria), inicio));
+
+  while d <= current_date loop
+    -- Denominador: veículos com Ciclo ativo cuja alguma janela já venceu em d.
+    select
+      count(distinct vv.id),
+      count(distinct vv.id) filter (where pr_vencida.veiculo_vendido_id is not null),
+      count(distinct vv.id) filter (
+        where pr_vencida.veiculo_vendido_id is not null and pr_aberta.veiculo_vendido_id is null
+      )
+    into v_ativos, v_devidas, v_em_dia
+    from public.veiculos_vendidos vv
+    join public.contratos_ciclo cc on cc.veiculo_vendido_id = vv.id
+    left join lateral (
+      select pr.veiculo_vendido_id from public.plano_revisoes pr
+       where pr.veiculo_vendido_id = vv.id and pr.janela_fim < d
+       limit 1
+    ) pr_vencida on true
+    left join lateral (
+      -- Janela vencida em d e não cumprida por revisão carimbada dentro dela.
+      select pr.veiculo_vendido_id
+        from public.plano_revisoes pr
+        left join public.manutencoes m
+          on m.id = pr.manutencao_id and m.confirmada_em is not null and m.dentro_da_janela
+       where pr.veiculo_vendido_id = vv.id and pr.janela_fim < d and m.id is null
+       limit 1
+    ) pr_aberta on true
+    where vv.data_venda <= d
+      -- Carro que saiu da Garagem sai também da conta. Sem isto, a janela
+      -- aberta que ele deixou para trás nunca é cumprida: ~13 meses depois
+      -- ele entra em `veiculos_com_revisao_devida` e nunca em
+      -- `veiculos_em_dia`, para sempre — e `on conflict (dia) do nothing`
+      -- torna cada dia errado imutável.
+      and vv.saiu_em is null;
+
+    insert into public.conformidade_diaria
+      (dia, veiculos_ciclo_ativo, veiculos_com_revisao_devida, veiculos_em_dia, pct, retroativa)
+    values (
+      d, v_ativos, v_devidas, v_em_dia,
+      case when v_devidas > 0 then round(v_em_dia::numeric * 100 / v_devidas, 2) end,
+      d < current_date
+    )
+    on conflict (dia) do nothing;
+    gravadas := gravadas + 1;
+    d := d + 1;
+  end loop;
+
+  return jsonb_build_object('gravadas', gravadas, 'ate', current_date);
+end;
+$$;
+
+
+-- ---------------------------------------------------------------------------
+-- 5. O ex-dono lê o diário, mas não escreve mais nele
 -- ---------------------------------------------------------------------------
 -- As policies de SELECT NÃO mudam: o histórico é dado do cliente, e o §6.3 não
 -- prevê apagá-lo porque o carro trocou de mãos.
@@ -873,7 +965,7 @@ create policy leituras_odometro_cliente_registra on public.leituras_odometro
 
 
 -- ---------------------------------------------------------------------------
--- 5. A rede de segurança
+-- 6. A rede de segurança
 -- ---------------------------------------------------------------------------
 -- Os dois primeiros chamadores cobrem o caminho feliz. Este cobre o resto:
 -- veículo importado, venda registrada por fora, janela apagada à mão. Como
