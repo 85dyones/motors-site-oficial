@@ -58,7 +58,12 @@ describe("a rota é de staff e não apaga nada", () => {
     // PostgREST devolve `error: null` para um update que casa ZERO linhas. Sem
     // o `.select()`, a tela anunciava "Saída registrada" com o banco intacto —
     // id errado, ou a RLS barrando em silêncio (200 com `[]`, nunca erro).
-    expect(rota).toContain('.select("id")');
+    //
+    // Ancorado na CADEIA de chamada — `.eq("id", id)` seguido de
+    // `.select("id")` no MESMO update — e não numa string solta: essa mesma
+    // string também está no comentário logo acima, e sobreviveria sozinha se
+    // o `.select("id")` saísse da cadeia de verdade.
+    expect(rota).toMatch(/\.eq\(\s*"id",\s*id\s*\)\s*\.select\(\s*"id"\s*\)/);
     expect(rota).toMatch(/\.length === 0/);
     expect(rota).toContain("status: 404");
     expect(rota).toContain("Veículo não encontrado");
@@ -78,7 +83,15 @@ describe("a rota é de staff e não apaga nada", () => {
 
 describe("a tela não deixa remarcar saída às cegas", () => {
   it("a lista de veículos traz saiu_em do servidor", () => {
-    expect(rotaRevisoes).toContain("saiu_em");
+    // Ancorado DENTRO da string do `.select(...)` que lista as colunas do
+    // veículo — não em qualquer canto do arquivo. O comentário deste trecho
+    // também cita "saiu_em", e ele sobreviveria sozinho se o campo saísse do
+    // select de verdade.
+    const selectDeVeiculos = /\.from\(\s*"veiculos_vendidos"\s*\)\s*\.select\(\s*"([^"]*)"\s*\)/.exec(
+      rotaRevisoes,
+    );
+    expect(selectDeVeiculos, "select de veiculos_vendidos não encontrado").not.toBeNull();
+    expect(selectDeVeiculos![1]).toContain("saiu_em");
     expect(tela).toMatch(/saiu_em: string \| null/);
   });
 
