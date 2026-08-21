@@ -409,6 +409,53 @@ procedência. A segunda leitura preserva a cadeia da Emenda 01 intacta e é a qu
 esta spec assume até haver decisão. **Não trava o pacote 1**, que não toca em
 item nenhum.
 
+## 8-b. O cliente que atrasa — política decidida pelo dono em 2026-08-20
+
+A revisão final do branch levantou que, com o plano vitalício, **o cliente que
+pula uma revisão fica travado nela**: o gatilho 1 exige janela futura
+(`janela_fim >= hoje`) e o gatilho 7 para no terceiro passo. Depois de três
+avisos, silêncio — num programa vendido como vitalício. No modelo de três
+janelas isso não acontecia, porque as janelas 2 e 3 já existiam e continuavam
+disparando o gatilho 1. **Este pacote introduz o comportamento.**
+
+Levado ao dono, que decidiu:
+
+> *"Temos que ter uma contingência de tolerância, que já existe, com mensagens
+> mais frequentes. Caso não surta efeito no prazo, cessam as mensagens de aviso,
+> o painel continua ativo, e temos que ter uma forma de resgate por mensagem —
+> mesmo que não 100%, mas uma forma de engajar o cliente no painel dele, pra
+> colocar as revisões em dia e seguir com o plano."*
+
+Confrontando com o código vivo, **três dos quatro pontos já estão no ar**:
+
+| Ponto da decisão | Onde está | Situação |
+|---|---|---|
+| Contingência de tolerância, mais frequente | gatilho 7, `elegibilidade_em_risco` — `imediato · D+7 · D+21` contra o `D−15 · D−3 · D+7` do gatilho 1 | ✅ existe, e é mesmo mais frequente |
+| Cessar os avisos se não surtir efeito | `where r.passo <= 3` no gatilho 7 | ✅ existe — e agora está **confirmado como intencional**, não como esquecimento |
+| O painel continua ativo | a Garagem só encerra por `saiu_em`; nada mais a desliga | ✅ existe |
+| **Forma de resgate por mensagem** | — | ❌ **não existe.** Nem no código, nem no §4.2 do manual |
+
+O silêncio depois do terceiro aviso, portanto, **não é defeito**: é a política.
+O que falta é o que vem depois dele.
+
+### O que o resgate precisa ser — e o número que falta
+
+Um gatilho novo, de **baixa frequência e sem fim**, que não repita a régua do
+aviso: o aviso já falhou três vezes, insistir na mesma cadência queima o canal.
+Ele deve apontar para a Garagem — "suas revisões estão atrasadas, veja o que
+falta no seu painel" — e continuar existindo enquanto o carro for do cliente e
+não tiver `saiu_em`. Segue as mesmas travas dos outros: consentimento por canal
+(§5.6), janela de horário (§4.3) e a janela de 21 dias entre mensagens.
+
+**Falta um número, e ele não é derivável:** de quanto em quanto tempo o resgate
+sai. Trimestral, semestral, anual — cada um é uma política diferente, e o
+manual não tem o conceito de resgate para servir de referência. Pela regra
+"não invente número" do CLAUDE.md, **isto para e pergunta ao dono.**
+
+**Pacote próprio, fora deste.** O pacote atual está correto sob esta decisão:
+ele entrega a tolerância, a cessação e o painel vivo. O resgate é a peça
+seguinte.
+
 ## 9. Ordem de execução
 
 1. Migração `20260820120000`, com autoconferência.
