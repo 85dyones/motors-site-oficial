@@ -41,7 +41,7 @@ investidores, "um painel que mostrasse isso pra eles também".
 | P6 — investidores | ✅ **Entregue 2026-08-21** | Tela **Investidores** (`/admin/financeiro/investidores`): aportes, retiradas (inclusive em carro de repasse, vinculada ao veículo) e saldo por investidor |
 | Aviso de vencimento no WhatsApp | ✅ **Já existia** | `conta_vencida` no Formato C (`WEBHOOKS_N8N.md`) — 3 dias antes, 1 dia, no dia e 7 dias após |
 | Aviso de aporte/retirada | ✅ **Entregue 2026-08-21** | Evento `investidor_movimento` no Formato C, mesmo destino do `adm-motors` |
-| Conta subindo para aprovação | 📋 **Na fila** | Ver §4 — depende do fluxo de alçada (a linha de R$ 1.500 da matriz A17 ainda não tem tela) |
+| Conta subindo para aprovação | ✅ **Entregue 2026-08-21** | Fluxo de alçada (§3): lançamento acima de R$ 1.500 nasce `aguardando_aprovacao`, evento `conta_aguardando_aprovacao` avisa, o Admin decide em **Aprovações** |
 | Painel externo para o investidor | 📋 **Na fila** | Ver §4 — o dado já existe; falta decidir a porta (área logada própria? resumo por WhatsApp?) |
 
 ## 3. O que o pacote de 2026-08-21 entregou
@@ -82,6 +82,37 @@ Tabelas, RLS e CHECKs em `20260821120000_financeiro_operacional.sql`, com
 autoconferência; a lib espelhada por teste (`tests/investidores.test.ts` falha
 se o vocabulário do SQL e o do TypeScript divergirem).
 
+### Aprovação com alçada (`/admin/financeiro/aprovacoes`)
+
+A linha "Lançar e aprovar contas a pagar — alçada de R$ 1.500 no gerente"
+está na matriz A17 desde o design doc; até 2026-08-21 nenhuma tela aplicava.
+Agora:
+
+- Lançamento **a pagar, em aberto**, acima de R$ 1.500, por quem não é Admin,
+  nasce `aguardando_aprovacao` — e a régua olha o valor **total** do
+  lançamento, não a parcela (4x de R$ 1.499 não é porta de evasão). O evento
+  `conta_aguardando_aprovacao` avisa no WhatsApp — o pedido literal do dono.
+- O Admin decide na tela **Aprovações** — o lançamento inteiro de uma vez
+  (parcelas andam juntas). Aprovar → `pendente`; recusar → `cancelado` com
+  **motivo obrigatório**. Quem/quando/por quê fica em
+  `aprovacao_decidida_por/em/motivo`; o instante é carimbado por trigger,
+  mesmo que a rota esqueça.
+- A alçada vale na **edição** também: aumento de valor acima da linha, por
+  quem não é Admin, devolve a conta para aprovação — e quem não é Admin não
+  muda o status de uma conta aguardando (só a rota de decisão muda).
+- Conta aguardando **não** envelhece para `vencido` (não é dívida
+  reconhecida, é pedido em análise) e **não pode ser paga** — a rota de baixa
+  recusa. A autoconferência da migração prova os dois lados.
+- O que passa **direto**, e por quê: Admin (sem limite), a receber (alçada é
+  sobre gasto), registro retroativo de conta já paga (o dinheiro já saiu —
+  travar o registro só esconderia o rastro, e lançar-depois-de-pagar é o
+  fluxo diário atual), importação do RevendaMais e geração de recorrente
+  (compromisso que já existe, não decisão nova — forçá-los criaria avalanche
+  de aprovação na virada).
+
+O número 1.500 tem **uma fonte só**: `ALCADA_DO_FINANCEIRO` deriva do texto
+da matriz (`ALCADA_DO_PERFIL.financeiro`), e o teste quebra se divergirem.
+
 ### A correção que o briefing revelou
 
 `has_finance_access` — a régua de RLS de **todas** as tabelas do módulo
@@ -94,33 +125,34 @@ só existia no bootstrap histórico.
 
 ## 4. Na fila — em ordem de dor
 
-1. **Fluxo de aprovação com alçada + aviso.** A matriz A17 sempre disse
-   "alçada de R$ 1.500" para o Financeiro, mas nenhuma tela aplica. Desenho
-   provável: conta acima da alçada nasce `aguardando_aprovacao`, evento
-   `conta_aprovacao` no Formato C avisa o Admin no WhatsApp, aprovação vira
-   registro (quem, quando). É o "contas que subiram pra aprovação" do dono.
-2. **Conciliação bancária (P4).** Importação de OFX dos bancos usados hoje
+1. **Conciliação bancária (P4).** Importação de OFX dos bancos usados hoje
    (Itaú, Bradesco, Stone) casando extrato × `movimentacoes`. Antes de
    qualquer tela: decidir se entra OFX manual ou Open Finance — custo e
    prazo muito diferentes.
-3. **Painel externo do investidor.** O dado e o evento já existem; falta a
+2. **Painel externo do investidor.** O dado e o evento já existem; falta a
    porta. A infraestrutura da Garagem (área logada de cliente) serve de
    molde — mas investidor **não** é `cliente` da Garagem; seria papel novo,
    e papel novo passa pela matriz A17 primeiro.
-4. **Migração RevendaMais → painel.** O importador já existe
+3. **Migração RevendaMais → painel.** O importador já existe
    (`/admin/financeiro/importar`); a virada de chave é operacional: rodar as
    duas pontas em paralelo um mês, conferir DRE contra DRE, e só então
    desligar o lançamento de lá. O usuário de teste da Sinthia é o primeiro
    passo — criar com papel `financeiro` na A17 (multi-papel já funciona).
+4. **Alçada no cadastro de recorrente.** A geração mensal passa direto de
+   propósito (compromisso já assumido) — mas o CADASTRO de uma recorrente
+   acima da alçada hoje também passa. Fechar esse flanco quando o fluxo de
+   aprovação estiver rodado na prática.
 
 ## 5. Onde está cada coisa
 
 | Peça | Arquivo |
 |---|---|
 | Migração (função + tabelas + RLS) | `supabase/migrations/20260821120000_financeiro_operacional.sql` |
+| Migração (status + trilha da alçada) | `supabase/migrations/20260821150000_alcada_de_aprovacao.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
 | Régua de investidores | `src/lib/investidores.ts` · `tests/investidores.test.ts` |
-| Rotas | `src/app/api/financeiro/dia/` · `src/app/api/financeiro/investidores/` |
-| Telas | `src/components/financeiro/DiaOperacional.tsx` · `InvestidoresPainel.tsx` |
-| Evento novo | `investidor_movimento` — contrato em `WEBHOOKS_N8N.md` (Formato C) |
-| Permissão | linha "Controlar aportes e retiradas de investidores" em `src/lib/permissoes.ts` |
+| Régua da alçada | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |
+| Rotas | `src/app/api/financeiro/dia/` · `src/app/api/financeiro/investidores/` · `src/app/api/financeiro/contas/[id]/aprovar/` |
+| Telas | `src/components/financeiro/DiaOperacional.tsx` · `InvestidoresPainel.tsx` · `AprovacoesPendentes.tsx` |
+| Eventos novos | `investidor_movimento`, `conta_aguardando_aprovacao`, `conta_aprovada`, `conta_recusada` — contrato em `WEBHOOKS_N8N.md` (Formato C) |
+| Permissão | linhas "Controlar aportes e retiradas de investidores" e a alçada de "Lançar e aprovar contas a pagar" em `src/lib/permissoes.ts` |

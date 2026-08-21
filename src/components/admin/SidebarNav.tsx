@@ -79,6 +79,9 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         // geral porque é a tela de todo dia.
         { name: "Pagamentos do dia", href: "/admin/financeiro/dia" },
         { name: "Contas a pagar", href: "/admin/financeiro/contas-pagar" },
+        // A fila da alçada da A17 (R$ 1.500): o Financeiro acompanha, o
+        // Admin decide — os botões somem para quem não decide.
+        { name: "Aprovações", href: "/admin/financeiro/aprovacoes" },
         { name: "Contas a receber", href: "/admin/financeiro/contas-receber" },
         { name: "Despesas recorrentes", href: "/admin/financeiro/recorrentes" },
         { name: "Compras de insumos", href: "/admin/financeiro/compras" },

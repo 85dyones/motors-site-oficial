@@ -39,6 +39,15 @@ export async function POST(
       return NextResponse.json({ error: "Esta conta já foi marcada como paga" }, { status: 400 });
     }
 
+    // Alçada da A17: conta acima de R$ 1.500 lançada pelo gerente espera o
+    // Admin. Pagar antes da decisão tornaria a aprovação decorativa.
+    if (conta.status === "aguardando_aprovacao") {
+      return NextResponse.json(
+        { error: "Esta conta aguarda aprovação do administrador — aprove em Financeiro → Aprovações antes de pagar." },
+        { status: 409 }
+      );
+    }
+
     // 2. Mark account as paid
     const { data: updatedConta, error: updateError } = await supabase
       .from("contas")

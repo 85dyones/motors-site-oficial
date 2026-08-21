@@ -166,11 +166,23 @@ export default function ContasList({ tipo }: ContasListProps) {
         return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent";
       case "cancelado":
         return "bg-mt-surface border border-mt-regua-fina text-mt-neutral-600";
+      case "aguardando_aprovacao":
+        return "bg-mt-surface border border-mt-accent-300 text-mt-accent";
       case "pendente":
       default:
         return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent";
     }
   };
+
+  // O valor do banco é vocabulário técnico; o badge fala com gente.
+  const rotuloDoStatus = (status: string) =>
+    status === "aguardando_aprovacao" ? "aguardando aprovação" : status;
+
+  // Baixa só em conta que ainda espera dinheiro: paga e cancelada não têm o
+  // que baixar, e a aguardando aprovação é decisão do Admin em Aprovações —
+  // pagar antes tornaria a alçada decorativa (a rota também recusa).
+  const podeDarBaixa = (status: string) =>
+    ["pendente", "vencido", "parcial"].includes(status);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl">
@@ -259,6 +271,7 @@ export default function ContasList({ tipo }: ContasListProps) {
               >
                 <option value="">Todos</option>
                 <option value="pendente">Pendente</option>
+                <option value="aguardando_aprovacao">Aguardando aprovação</option>
                 <option value="pago">Pago</option>
                 <option value="vencido">Vencido</option>
                 <option value="cancelado">Cancelado</option>
@@ -310,12 +323,12 @@ export default function ContasList({ tipo }: ContasListProps) {
                         <td className="py-4 font-extrabold text-mt-ink">{formatPrice(c.valor)}</td>
                         <td className="py-4">
                           <span className={`px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getStatusBadge(c.status)}`}>
-                            {c.status}
+                            {rotuloDoStatus(c.status)}
                           </span>
                         </td>
                         <td className="py-4 pr-2 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {c.status !== "pago" && (
+                            {podeDarBaixa(c.status) && (
                               <button
                                 onClick={() => {
                                   setPayingBill(c);

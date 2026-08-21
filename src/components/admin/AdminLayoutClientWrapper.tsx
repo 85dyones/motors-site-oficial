@@ -39,6 +39,7 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
     const nomes: Record<string, string> = {
       dia: "PAGAMENTOS DO DIA",
       "contas-pagar": "CONTAS A PAGAR",
+      aprovacoes: "APROVAÇÕES",
       "contas-receber": "CONTAS A RECEBER",
       recorrentes: "DESPESAS RECORRENTES",
       compras: "COMPRAS DE INSUMOS",

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../../lib/webhook-dispatcher";
+import { precisaDeAprovacao } from "../../../../lib/alcada";
+import { perfisDe } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +80,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
+    // Alçada da A17 ("Lançar e aprovar contas a pagar — R$ 1.500 no
+    // gerente"): a régua olha o valor TOTAL do lançamento, antes de dividir
+    // em parcelas — senão parcelar seria a porta de evasão. Acima da alçada,
+    // TODAS as parcelas nascem aguardando aprovação; o Admin decide o grupo
+    // de uma vez em /contas/[id]/aprovar.
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("role, papeis")
+      .eq("id", user.id)
+      .single();
+    const statusPedido = status || "pendente";
+    const sobeParaAprovacao = precisaDeAprovacao({
+      tipo,
+      valorTotal: parseFloat(valor),
+      status: statusPedido,
+      perfis: perfisDe(perfil),
+    });
+    const statusFinal = sobeParaAprovacao ? "aguardando_aprovacao" : statusPedido;
+
     const numInstallments = parseInt(total_parcelas) || 1;
     const groupUuid = crypto.randomUUID();
     const accountsToInsert = [];
@@ -94,7 +115,7 @@ export async function POST(request: NextRequest) {
         valor: parseFloat((valor / numInstallments).toFixed(2)),
         data_emissao: new Date().toISOString().split("T")[0],
         data_vencimento: vencimentoDate.toISOString().split("T")[0],
-        status: status || "pendente",
+        status: statusFinal,
         categoria_id: categoria_id || null,
         veiculo_id: veiculo_id || null,
         fornecedor: fornecedor || null,
@@ -121,18 +142,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Dispatch admin webhook for newly created accounts
+    // Dispatch admin webhook for newly created accounts. Lançamento acima da
+    // alçada emite `conta_aguardando_aprovacao` no lugar de `conta_criada` —
+    // é o aviso "conta subiu pra aprovação" do briefing, e dois eventos pela
+    // mesma conta virariam ruído no WhatsApp do Admin.
     if (inserted && inserted.length > 0) {
+      const evento = sobeParaAprovacao ? "conta_aguardando_aprovacao" : "conta_criada";
       await Promise.all(
         inserted.map((c) =>
-          dispatchAdminWebhook("conta_criada", c).catch((err) =>
+          dispatchAdminWebhook(evento, c).catch((err) =>
             console.error("[WebhookDispatch] Failed to dispatch account created event:", err.message)
           )
         )
       );
     }
 
-    return NextResponse.json({ contas: inserted });
+    return NextResponse.json({ contas: inserted, aguardandoAprovacao: sobeParaAprovacao });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
