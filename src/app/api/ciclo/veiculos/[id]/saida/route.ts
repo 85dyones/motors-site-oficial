@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../../../lib/permissoes";
 import { validarSaida } from "../../../../../../lib/ciclo/saida";
+import { registrarAcaoSensivel } from "../../../../../../lib/auditoria";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ async function autorizar() {
       ),
     };
   }
-  return { supabase };
+  return { supabase, user, profile };
 }
 
 export async function POST(
@@ -48,7 +49,7 @@ export async function POST(
   const { id } = await params;
   const auth = await autorizar();
   if ("erro" in auth) return auth.erro;
-  const { supabase } = auth;
+  const { supabase, user, profile } = auth;
 
   const corpo = await request.json().catch(() => ({}) as Record<string, unknown>);
   const dados = {
@@ -61,15 +62,39 @@ export async function POST(
     return NextResponse.json({ error: problemas[0].mensagem, problemas }, { status: 422 });
   }
 
-  const { error } = await supabase
+  // `.select("id")` não é enfeite: sem ele, um update que casa ZERO linhas —
+  // id inexistente, ou a RLS barrando em silêncio — devolve `error: null`, e a
+  // tela anuncia "Saída registrada" sem que nada tenha acontecido. Mesmo
+  // padrão do vínculo da venda (`api/ciclo/vendas/route.ts`, achado #7).
+  const { data: marcados, error } = await supabase
     .from("veiculos_vendidos")
     .update({ saiu_em: dados.saiu_em, motivo_saida: dados.motivo_saida })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
   if (error) {
     console.error("[Ciclo/Saída] Falha ao marcar a saída:", error.message);
     return NextResponse.json({ error: "Não foi possível marcar a saída." }, { status: 502 });
   }
+
+  if ((marcados ?? []).length === 0) {
+    console.error("[Ciclo/Saída] Nenhuma linha casou com o veículo", id);
+    return NextResponse.json(
+      { error: "Veículo não encontrado — a saída não foi registrada." },
+      { status: 404 },
+    );
+  }
+
+  // Marcar saída silencia o programa inteiro de um cliente: sem gerador de
+  // janelas, sem os quatro gatilhos, sem escrita nova no diário. Ação assim
+  // precisa de dono e de data — a rota irmã da mesma tela (verificar) já
+  // registra, e a assimetria não era intencional.
+  await registrarAcaoSensivel(
+    supabase,
+    "Marcar saída da Garagem",
+    `Saída do veículo ${id} em ${dados.saiu_em} — motivo: ${dados.motivo_saida}`,
+    { id: user.id, nome: profile?.full_name ?? user.email },
+  );
 
   return NextResponse.json({ ok: true });
 }
