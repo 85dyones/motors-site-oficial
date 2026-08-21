@@ -38,6 +38,7 @@ As variáveis de ambiente estão descritas em `.env.example`.
 |---|---|
 | `docs/MANUAL_MOTORS_CICLO.md` | A especificação de produto do Ciclo — **fonte de verdade** |
 | `docs/MOTORS_CICLO_IMPLEMENTACAO.md` | O plano de implementação em pacotes |
+| `docs/FINANCEIRO_OPERACIONAL.md` | A linha geral do financeiro — briefing de 2026-08-21, o que está entregue e a fila |
 | `AUDITORIA.md` | Auditoria do Pacote 0 (fotografia de 2026-08-03) + decisões datadas |
 | `supabase/README.md` | Migrações, runbook de aplicação e o contrato do sync de estoque |
 | `WEBHOOKS_N8N.md` | Contrato dos webhooks site → n8n (formatos A, B e C) |
