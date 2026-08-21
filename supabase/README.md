@@ -12,6 +12,7 @@ supabase/
 ├── manutencao/     correção de DADO, pontual — nunca vira migração
 ├── seeds/          dados iniciais
 ├── templates/      modelos de e-mail do Auth — a fonte dos que vão no painel
+├── testes/         andaime que faz as migrações rodarem num Postgres local
 └── README.md
 ```
 
@@ -95,9 +96,51 @@ refletir mudanças novas: a fonte de verdade é `migrations/`.
 | `20260819140000_completude_da_venda.sql` | Pacote 2: completude do registro da venda (§3.2 e §9, meta >= 80%). `veiculos_vendidos.vendedor_id` passa a apontar para `profiles` (o texto livre `vendedor` fica para a base histórica), `profiles` ganha `telefone_e164`, e entram `vw_vendas_incompletas` (a rotina noturna lê daqui) e `completude_por_vendedor()`. **Aplicada em produção em 2026-08-21.** |
 | `20260819150000_papeis_multiplos.sql` | Um usuário pode ter mais de um papel: `profiles.papeis` (array validado por `papeis_validos`), `role` vira espelho de `papeis[1]` mantido por trigger nos dois sentidos, `is_staff()` passa a olhar o array e entra `tem_papel()`. Autoconferência prova multi-papel, espelho e as duas recusas. **Aplicada em produção em 2026-08-21.** |
 | `20260821120000_financeiro_operacional.sql` | Briefing 2026-08-21 (ver `docs/FINANCEIRO_OPERACIONAL.md`): **versiona e corrige `has_finance_access`** — ainda lia `role` singular, então quem tem `financeiro` como segundo papel era negado por TODA a RLS do módulo financeiro — e cria `investidores` + `movimentacoes_investidor` (aportes e retiradas, valor sempre positivo, retirada em carro de repasse com `veiculo_id`; FK sem ON DELETE: investidor com movimentação não se apaga, desativa). Autoconferência prova o segundo papel abrindo o financeiro e as recusas da régua do dinheiro. **Aplicada em produção em 2026-08-21.** |
-| `20260821150000_alcada_de_aprovacao.sql` | A linha de R$ 1.500 da A17 ganha estado: `contas.status` aceita `aguardando_aprovacao`, entra a trilha da decisão (`aprovacao_decidida_por/em/motivo`, instante carimbado por trigger) e a autoconferência prova que `atualizar_contas_vencidas()` **não** envelhece conta aguardando. A régua de QUANDO sobe mora em `src/lib/alcada.ts`, e **não é um valor**: o limiar de R$ 1.500 foi desfeito pelo dono no mesmo dia — decide o ato (agendar × registrar). Importação e recorrente passam direto; ver `docs/FINANCEIRO_OPERACIONAL.md` §3. ⏳ **Ainda não aplicada.** |
-| `20260821180000_papeis_gestor_e_investidor.sql` | Dois papéis novos, de naturezas diferentes: `gestor` é de painel (entra em `is_staff` e em `has_finance_access` — aprova agendamento, mexe em preço e custo, lê relatório) e `investidor` fica FORA do painel, como `cliente`. Entra `investidores.perfil_id` (único) com policies de **leitura própria** e `reivindicar_investidor()`, gêmea de `reivindicar_garagem()` — mesma exigência de e-mail confirmado. Autoconferência assume a sessão do investidor e prova que ele lê só o próprio extrato e não grava nada. ⏳ **Ainda não aplicada.** |
-| `20260821210000_exclusao_financeira_so_admin.sql` | Separação de funções: **DELETE** em `contas`, `movimentacoes`, `compras_produtos` e `movimentacoes_investidor` passa a exigir `is_admin` — quem aprova agendamento não apaga a prova do que aprovou; os demais cancelam (`status = 'cancelado'`). A policy `FOR ALL` de cada tabela vira SELECT/INSERT/UPDATE no `has_finance_access` + DELETE no `is_admin`, e a leitura própria do investidor é recriada (a varredura derruba toda policy da tabela). **`is_admin` também é versionada e corrigida aqui**: lia `role = 'admin'`, então admin como papel secundário era negado — o terceiro gêmeo do bug multi-papel. Autoconferência assume as sessões de financeiro, gestor e admin secundário. ⏳ **Ainda não aplicada.** |
+| `20260821150000_alcada_de_aprovacao.sql` | A linha de R$ 1.500 da A17 ganha estado: `contas.status` aceita `aguardando_aprovacao`, entra a trilha da decisão (`aprovacao_decidida_por/em/motivo`, instante carimbado por trigger) e a autoconferência prova que `atualizar_contas_vencidas()` **não** envelhece conta aguardando. A régua de QUANDO sobe mora em `src/lib/alcada.ts`, e **não é um valor**: o limiar de R$ 1.500 foi desfeito pelo dono no mesmo dia — decide o ato (agendar × registrar). Importação e recorrente passam direto; ver `docs/FINANCEIRO_OPERACIONAL.md` §3. **Aplicada em produção em 2026-08-21.** |
+| `20260821180000_papeis_gestor_e_investidor.sql` | Dois papéis novos, de naturezas diferentes: `gestor` é de painel (entra em `is_staff` e em `has_finance_access` — aprova agendamento, mexe em preço e custo, lê relatório) e `investidor` fica FORA do painel, como `cliente`. Entra `investidores.perfil_id` (único) com policies de **leitura própria** e `reivindicar_investidor()`, gêmea de `reivindicar_garagem()` — mesma exigência de e-mail confirmado. Autoconferência assume a sessão do investidor e prova que ele lê só o próprio extrato e não grava nada. **Aplicada em produção em 2026-08-21.** |
+| `20260821210000_exclusao_financeira_so_admin.sql` | Separação de funções: **DELETE** em `contas`, `movimentacoes`, `compras_produtos` e `movimentacoes_investidor` passa a exigir `is_admin` — quem aprova agendamento não apaga a prova do que aprovou; os demais cancelam (`status = 'cancelado'`). A policy `FOR ALL` de cada tabela vira SELECT/INSERT/UPDATE no `has_finance_access` + DELETE no `is_admin`, e a leitura própria do investidor é recriada (a varredura derruba toda policy da tabela). **`is_admin` também é versionada e corrigida aqui**: lia `role = 'admin'`, então admin como papel secundário era negado — o terceiro gêmeo do bug multi-papel. Autoconferência assume as sessões de financeiro, gestor e admin secundário. **Aplicada em produção em 2026-08-21.** |
+
+## `testes/` — as migrações rodam antes de irem para produção
+
+Inaugurado em **2026-08-21**, e é a resposta à pendência §5.7 da auditoria
+("testes de RLS exigem instância Supabase de teste... Docker não está
+instalado nesta máquina"), aberta desde 2026-08-03.
+
+O problema que ela descrevia era real e caro: toda migração séria daqui traz
+**autoconferência** — um `do $$` que levanta exceção se a promessa do arquivo
+não valer contra o banco. Só que ninguém as executava antes de empurrar. O
+aceite só era conhecido quando o `db push` rodava em **produção**: um erro de
+sintaxe dentro do `do $$`, ou uma promessa que o SQL não cumpre, aparecia lá.
+
+Acontece que um **Postgres local basta**. O que faltava era escrever o pedaço
+de Supabase que as migrações pressupõem — `auth.users`, `auth.uid()`,
+`auth.jwt()`, os papéis do PostgREST e os *default privileges* do schema
+`public`. É o `supabase/testes/andaime.sql`.
+
+```bash
+npm test                      # roda tudo; sem Postgres, pula os de migração
+PSQL_TESTE="psql -h localhost -U postgres" npm test   # apontando para outro banco
+```
+
+`tests/migracoes-executam.test.ts` cria um banco descartável, aplica o andaime
+e a cadeia declarada, e **exige que cada migração levante o próprio "Aceite
+verificado"** — não basta não explodir: o aceite tem que ter rodado. Depois
+confere o estado final (quem é staff, quem abre o financeiro, quem apaga).
+
+Duas propriedades deliberadas:
+
+- **Sem Postgres alcançável, os testes são PULADOS, não falham.** Quem só mexe
+  em front-end não precisa de banco, e vermelho por falta de infraestrutura
+  ensina a ignorar vermelho. Um teste que passa dizendo "não rodei" evita que
+  isso vire silêncio.
+- **A cadeia é uma lista explícita** no topo do arquivo de teste, não uma
+  varredura da pasta: o andaime é um recorte, e varrer tudo faria o vermelho
+  ser sobre o andaime, não sobre a migração. Pôr uma migração na lista é o
+  gesto que a coloca sob teste — se ela precisa de uma tabela nova, a tabela
+  entra no andaime junto.
+
+⚠️ O andaime **não** é fonte de verdade de schema. Ele é o menor recorte que
+faz a cadeia rodar; a fonte de verdade continua sendo `migrations/`.
 
 ### Vocabulário: o banco fala mais velho que a interface
 

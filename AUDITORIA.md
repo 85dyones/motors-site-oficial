@@ -653,11 +653,30 @@ Pergunta associada: existe financeira parceira formalizada? O manual §6.1 fala 
 `CLAUDE.md` era documentação obsoleta e foi corrigido. Todas as migrações
 aplicadas até aqui rodaram no projeto certo.
 
-### 5.7 🟡 Qual framework de teste adotar? — bloqueia todos os critérios de aceite
+### 5.7 ✅ Qual framework de teste adotar? — RESPONDIDA (Vitest, 2026-08-03; RLS, 2026-08-21)
 
-Não há nenhum. Vitest é o de menor atrito com Next 16 + TS, mas testar policy de RLS exige
-também instância Supabase de teste (local via CLI, ou branch do projeto) — decisão de infra,
-não só de biblioteca.
+Vitest entrou no Pacote 0.5 e é o runner desde então. A segunda metade da
+pergunta — *"testar policy de RLS exige instância Supabase de teste"* — ficou
+aberta 18 dias porque a resposta assumida era "precisa de Docker", e Docker
+não estava instalado.
+
+**A premissa estava errada.** Um Postgres local basta. O que faltava não era
+infraestrutura, era escrever o pedaço de Supabase que as migrações pressupõem
+— `auth.users`, `auth.uid()`, `auth.jwt()`, os papéis do PostgREST e os
+*default privileges* do schema `public`. São ~190 linhas, em
+`supabase/testes/andaime.sql`.
+
+Com ele, `tests/migracoes-executam.test.ts` aplica a cadeia num banco
+descartável e **cobra o aceite de cada migração** — o `do $$` que já existia em
+todas elas e que, até aqui, só era executado quando o `db push` rodava em
+produção. Sem Postgres alcançável, esses testes são pulados, não falham.
+
+O custo do atraso ficou visível na primeira execução: quatro migrações já
+empurradas passaram, mas o andaime revelou uma dependência implícita que
+ninguém tinha notado — as tabelas novas dependiam dos *default privileges* do
+Supabase para serem acessíveis por `authenticated`. Em produção funcionou; num
+Postgres sem essa configuração, a RLS seria irrelevante porque o acesso morre
+antes, no privilégio.
 
 ### 5.8 🟡 Quem é o provedor de rastreamento? — bloqueia o Pacote 5
 
