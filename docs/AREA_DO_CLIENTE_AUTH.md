@@ -74,44 +74,46 @@ PKCE e exige que o clique aconteça no mesmo navegador que pediu o link.
 > `{{ .ConfirmationURL }}`, trinta linhas depois de explicar por que aquilo
 > não funciona. Quem seguisse o guia até o fim desfazia a correção (D1).
 
-### 1-b. O segundo template: confirmação de conta (2026-08-21)
+### 1-b. O segundo template: confirmação de criação de usuário (2026-08-21)
 
 Arquivo pronto: [`supabase/templates/confirm-signup.html`](../supabase/templates/confirm-signup.html)
+
+Este e-mail **não é o do link mágico** — aquele está resolvido no §1. É o que
+o Supabase manda quando um **usuário é criado** e o e-mail dele precisa ser
+confirmado: usuário criado pelo painel com envio de confirmação, qualquer
+fluxo que use `signUp` — hoje, o fallback de `src/app/api/users/route.ts`
+(tela A17, quando a chave de serviço não está configurada; ele para de
+funcionar quando o cadastro público do §2-a estiver desabilitado). Se um
+desses caminhos disparar com o template padrão, o destinatário recebe um
+e-mail do Supabase em inglês, com `{{ .ConfirmationURL }}` — que quebra fora
+do PKCE, pelo motivo do §1.
 
 **Onde colar:** Authentication → Emails → template **Confirm signup** → campo
 *Message body*. Mesmo fluxo do §1: selecionar tudo no arquivo e colar.
 
-**Por que ele existe, se a venda não manda esse e-mail:** o fechamento da
-venda (tela A19) cria a conta com `email_confirm: true` de propósito — sem
-isso o cliente receberia um "confirme seu e-mail" ANTES do primeiro link
-mágico (ver o comentário em `src/app/api/ciclo/vendas/route.ts`). Mas o
-Supabase manda o e-mail de confirmação por outros caminhos: usuário criado
-pelo painel com envio de confirmação, qualquer fluxo futuro que use `signUp`
-— e o fallback de `signUp` em `src/app/api/users/route.ts` (quando a chave de
-serviço não está configurada), que cria conta de **equipe**, não de cliente,
-e deixa de funcionar quando o cadastro público do §2-a estiver desabilitado.
-Se algum desses caminhos disparar com o template padrão, o destinatário
-recebe um e-mail do Supabase em inglês, com `{{ .ConfirmationURL }}` — que
-quebra fora do PKCE, pelo motivo do §1. Este template é a rede de segurança:
-mesma identidade, mesmo `token_hash`, mesmo destino.
+**Por que a venda não manda esse e-mail:** o fechamento da venda (tela A19)
+cria a conta do cliente com `email_confirm: true` de propósito — sem isso o
+cliente receberia um "confirme seu e-mail" ANTES do primeiro link mágico
+(ver o comentário em `src/app/api/ciclo/vendas/route.ts`). Cliente de compra
+normalmente nunca vê este e-mail; quem vê é conta criada por outro caminho.
 
-O link segue o **mesmo formato do link mágico**, inclusive o `type=email` —
-o `verifyOtp` de `/api/auth/confirm` aceita `email` como tipo genérico, que
-cobre tanto o link mágico quanto a confirmação de cadastro. Confirmou,
-entrou: a rota decide o destino pelo papel, como sempre. Por isso a voz do
-texto é a do cliente, o mesmo público do template do §1 — se quem clicar for
-da equipe (o caso do fallback), o link funciona do mesmo jeito e o papel o
-leva ao painel.
+**A voz do texto é neutra de propósito** — "sua conta foi criada", sem
+prometer garagem nem painel. A mesma caixa do Supabase atende equipe e
+cliente, e quem decide o destino é `/api/auth/confirm`, pelo papel: staff cai
+no painel, cliente na Garagem. O link segue o **mesmo formato do link
+mágico**, inclusive o `type=email` — o `verifyOtp` aceita `email` como tipo
+genérico, que cobre tanto o link mágico quanto a confirmação de cadastro.
+Confirmou, entrou.
 
 **Assunto sugerido:**
 
 ```
-Sua garagem na Motors está pronta
+Sua conta na Motors foi criada
 ```
 
 Mesma régua do §1: nada de "Confirme sua conta" ou "Verificação de e-mail" no
 assunto — vocabulário de sistema é o que mais cai em spam. O corpo pode (e
-deve) falar em confirmar; o assunto diz o que o cliente ganhou.
+deve) falar em confirmar e ativar; o assunto diz o que aconteceu.
 
 ---
 
