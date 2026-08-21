@@ -195,6 +195,46 @@ describe("a página e as rotas da Garagem", () => {
   });
 });
 
+describe("o fim do acompanhamento — o carro que saiu da Garagem", () => {
+  // O bloco "PRÓXIMA REVISÃO" tem TRÊS ramos e a ordem deles é a regra:
+  // `saiu_em` primeiro, `proxima` depois. Invertida, o ex-dono lê
+  // "PRÓXIMA REVISÃO: <data futura>" — o programa prometendo serviço a quem já
+  // saiu — e nada quebra: o componente compila, os outros testes passam, e o
+  // erro só aparece na tela de um cliente que não é mais cliente.
+  const bloco = veiculoComp.slice(veiculoComp.indexOf("PRÓXIMA REVISÃO"));
+
+  it("a saída é testada ANTES da próxima janela", () => {
+    // Sem o `: ` na frente, de propósito: a inversão troca `) : proxima ?` por
+    // `{proxima ?`, e uma busca ancorada nos dois-pontos falharia dizendo que o
+    // ramo "sumiu" em vez de dizer que a ORDEM mudou.
+    const saiu = bloco.indexOf("veiculo.saiu_em ?");
+    const prox = bloco.indexOf("proxima ?");
+    expect(saiu, "o ramo de saiu_em sumiu do bloco da próxima revisão").toBeGreaterThan(-1);
+    expect(prox, "o ramo de proxima sumiu do bloco da próxima revisão").toBeGreaterThan(-1);
+    expect(saiu, "proxima é testada antes de saiu_em — o ex-dono vê data futura").toBeLessThan(
+      prox,
+    );
+  });
+
+  it("os três ramos dizem coisas diferentes, e nenhum promete ao ex-dono", () => {
+    const texto = veiculoComp.replace(/\s+/g, " ");
+    // 1. saiu: encerra e garante o histórico.
+    expect(texto).toContain("Acompanhamento encerrado em");
+    expect(texto).toContain("O diário de bordo abaixo continua seu.");
+    // 2. tem janela aberta: o intervalo, o número e o KM previsto.
+    expect(bloco).toContain("dataBr(proxima.janela_inicio)");
+    expect(bloco).toContain("dataBr(proxima.janela_fim)");
+    expect(texto).toContain("por volta de");
+    // 3. sem janela ainda: nem promessa, nem beco.
+    expect(texto).toContain("Estamos calculando a próxima janela.");
+  });
+
+  it("a promessa de que o histórico fica é a mesma da rota que marca a saída", () => {
+    // A rota não apaga nada, e a tela diz exatamente isso ao cliente.
+    expect(veiculoComp).toContain("continua seu");
+  });
+});
+
 describe("o entorno", () => {
   it("/garagem está fora de busca", () => {
     const disallows = robots.match(/disallow: \[[^\]]*\]/gi) ?? [];
