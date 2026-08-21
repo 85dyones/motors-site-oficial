@@ -31,6 +31,8 @@ interface VeiculoResumo {
   marca: string;
   modelo: string;
   km_na_venda: number;
+  /** Preenchida, o carro já saiu da Garagem — o rótulo do seletor avisa. */
+  saiu_em: string | null;
   cliente: { nome: string } | null;
 }
 
@@ -59,6 +61,15 @@ const inputClasse =
 
 const dataBr = (iso: string | null) =>
   iso ? new Date(iso.length <= 10 ? `${iso}T12:00:00Z` : iso).toLocaleDateString("pt-BR") : "—";
+
+/**
+ * O rótulo do veículo no seletor. Carro que já saiu vem marcado: sem isso, a
+ * loja remarca a saída sem perceber e SOBRESCREVE a data que o cliente vê na
+ * Garagem como fim do acompanhamento.
+ */
+const rotuloDoVeiculo = (v: VeiculoResumo) =>
+  `${v.placa} — ${v.marca} ${v.modelo} · ${v.cliente?.nome ?? ""}` +
+  (v.saiu_em ? ` · já saiu em ${dataBr(v.saiu_em)}` : "");
 
 function Origem({ origem }: { origem: string }) {
   const texto = origem === "cliente" ? "REGISTRO DO CLIENTE" : origem === "parceiro" ? "OFICINA PARCEIRA" : "LOJA";
@@ -210,6 +221,9 @@ export default function FilaDeVerificacao() {
 
   const marcarSaida = async () => {
     setErro("");
+    // Como em `decidir` e `registrar`: sem isto, o aviso da ação anterior fica
+    // na tela ao lado do erro da atual, e a loja lê o sucesso de outra coisa.
+    setAviso("");
     if (!saida.veiculo_vendido_id) {
       setErro("Escolha o veículo que saiu.");
       return;
@@ -525,7 +539,7 @@ export default function FilaDeVerificacao() {
               <option value="">Escolha…</option>
               {veiculos.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.placa} — {v.marca} {v.modelo} · {v.cliente?.nome ?? ""}
+                  {rotuloDoVeiculo(v)}
                 </option>
               ))}
             </select>

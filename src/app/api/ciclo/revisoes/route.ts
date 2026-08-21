@@ -85,10 +85,13 @@ export async function GET() {
     return NextResponse.json({ error: "Não foi possível ler as verificações." }, { status: 502 });
   }
 
-  // Para o formulário de registro: os veículos do programa.
+  // Para o formulário de registro: os veículos do programa. `saiu_em` vem
+  // junto porque a mesma lista alimenta o seletor da saída — sem ele, a loja
+  // remarca um carro já encerrado e sobrescreve a data que o cliente vê na
+  // Garagem como fim do acompanhamento.
   const { data: veiculos, error: erroVeiculos } = await supabase
     .from("veiculos_vendidos")
-    .select("id, placa, marca, modelo, km_na_venda, cliente:clientes ( nome )")
+    .select("id, placa, marca, modelo, km_na_venda, saiu_em, cliente:clientes ( nome )")
     .order("created_at", { ascending: false })
     .limit(300);
 
