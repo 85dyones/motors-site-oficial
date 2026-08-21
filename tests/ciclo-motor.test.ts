@@ -43,6 +43,7 @@ const raiz = join(__dirname, "..");
 const migracao = migracaoViva("montar_fila_de_gatilhos");
 const estimativa = migracaoViva("km_estimado");
 const carimbo = migracaoViva("carimbar_revisao");
+const corpoCarimbo = definicaoViva("carimbar_revisao");
 const conformidade = definicaoViva("calcular_conformidade_diaria");
 
 /**
@@ -544,7 +545,13 @@ describe("a autoconferência da migração", () => {
   it("a régua da janela do §1.5 sobreviveu à recriação de carimbar_revisao", () => {
     expect(carimbo).toContain("m.data_servico <= janela.janela_fim");
     expect(carimbo).toContain("m.km_registrado <= janela.km_previsto + 1000");
-    expect(carimbo).toContain("CARIMBO_SEM_ETIQUETA");
+    // Recortado na FUNÇÃO (`corpoCarimbo`), não no arquivo inteiro: só esta
+    // string se repete mais abaixo, na lista de marcadores da autoconferência
+    // 4 — sobreviveria ali sozinha se o `raise exception` de carimbar_revisao
+    // trocasse de nome. As outras três strings desta asserção aparecem uma
+    // única vez no arquivo inteiro (conferido por grep), então `carimbo` — o
+    // arquivo completo — não corre o mesmo risco de mascarar a mutação.
+    expect(corpoCarimbo).toContain("CARIMBO_SEM_ETIQUETA");
     expect(carimbo).toContain("RECUSA_SEM_MOTIVO");
     expect(carimbo).toContain("REVISAO_JA_CARIMBADA");
   });
