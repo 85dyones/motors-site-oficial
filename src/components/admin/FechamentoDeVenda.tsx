@@ -45,7 +45,7 @@ interface VeiculoDoEstoque {
  *
  * A prévia do plano de revisões existe por um motivo de operação: o vendedor
  * vê, na frente do cliente, as janelas que está criando. É mais fácil explicar
- * o programa mostrando as três datas do que descrevendo a regra.
+ * o programa mostrando a próxima data do que descrevendo a regra.
  */
 
 const vazioDaVenda: DadosDaVenda = {
@@ -236,6 +236,9 @@ export default function FechamentoDeVenda() {
   const setFin = (campo: string, valor: unknown) =>
     setDados((d) => ({ ...d, financiamento: { ...(d.financiamento ?? {}), [campo]: valor } }));
 
+  // Uma janela, porque é uma que o banco vai criar. As seguintes nascem a cada
+  // revisão confirmada, ancoradas no serviço — prometer três aqui seria a tela
+  // dizendo o que o banco não faz.
   const previa = useMemo(() => {
     const km = Number(dados.km_na_venda);
     if (!dados.data_venda || !Number.isFinite(km) || String(dados.km_na_venda).trim() === "") return [];
@@ -278,9 +281,9 @@ export default function FechamentoDeVenda() {
             O par cliente-veículo está no Ciclo
           </h1>
           <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-mt-neutral-700">
-            O KM de saída virou a primeira notação de odômetro e as três janelas de revisão já
-            existem. A partir daqui o cliente entra na Garagem Motors e a procedência do carro
-            dele passa a contar.
+            O KM de saída virou a primeira notação de odômetro e a primeira janela de revisão já
+            existe — as seguintes nascem a cada revisão verificada. A partir daqui o cliente entra
+            na Garagem Motors e a procedência do carro dele passa a contar.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <button
@@ -309,7 +312,8 @@ export default function FechamentoDeVenda() {
         </h1>
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-mt-neutral-700">
           Nenhum campo aqui é opcional por engano. O que está marcado como obrigatório é o que o
-          programa precisa para funcionar daqui a três anos — e a venda não fecha sem ele.
+          programa precisa para funcionar enquanto o carro for do cliente — e a venda não fecha
+          sem ele.
         </p>
       </header>
 
@@ -677,10 +681,12 @@ export default function FechamentoDeVenda() {
 
           {previa.length > 0 ? (
             <div className="mt-5 border-t border-mt-regua-fina pt-4">
-              <div className={rotuloClasse}>Plano de revisões que será criado</div>
+              <div className={rotuloClasse}>Primeira revisão, que será criada agora</div>
               <p className="mb-3 mt-1 text-[11px] text-mt-neutral-500">
                 A cada {INTERVALO_KM.toLocaleString("pt-BR")} km ou {INTERVALO_MESES} meses, o que
-                vier primeiro. Tolerância de {TOLERANCIA_DIAS} dias.
+                vier primeiro, com tolerância de {TOLERANCIA_DIAS} dias —{" "}
+                <strong>enquanto o carro for do cliente</strong>. Cada revisão verificada abre a
+                janela seguinte, a partir da data e do KM do serviço.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-[12px]">
