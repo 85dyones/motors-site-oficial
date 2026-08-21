@@ -129,6 +129,16 @@ values
 
 -- Cliente 3: nada registrado, e a primeira janela ainda nem abriu.
 
+-- ---- reabre o que a semente fechou ----
+-- Em produção quem reabre é `carimbar_revisao`, na mesma transação em que
+-- carimba. A semente fecha revisão por `update` direto, então precisa chamar o
+-- gerador de novo — senão o "Cliente Em Dia" fica sem janela aberta, estado
+-- que a produção não produz. Idempotente: quem ainda tem janela aberta não
+-- ganha outra.
+select public.abrir_proxima_janela(vv.id)
+  from public.veiculos_vendidos vv
+ where vv.chassi like 'SEED-%';
+
 -- ---- leituras declaradas entre revisões ----
 insert into public.leituras_odometro (veiculo_vendido_id, km, origem, registrada_em) values
   ('5eedca20-0000-4000-8000-000000000001', 43500, 'cliente', now() - interval '20 days'),
