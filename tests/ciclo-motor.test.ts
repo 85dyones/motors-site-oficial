@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { arquivoDaMigracaoViva, definicaoViva, migracaoViva } from "./migracaoViva";
 import {
   GATILHOS,
   GATILHOS_ATIVOS,
@@ -29,12 +30,32 @@ import {
  */
 
 const raiz = join(__dirname, "..");
-const migracao = readFileSync(
+
+/**
+ * A régua de QUEM recebe é lida da DEFINIÇÃO VIVA, não do arquivo homônimo.
+ *
+ * Este arquivo lia `20260814180000_motor_de_gatilhos.sql` pelo nome. A função
+ * foi redefinida duas vezes desde então — em 2026-08-18 (advisory lock e os
+ * guardas de `falha_envio`) e em 2026-08-20 (o guarda de `saiu_em`) — e o
+ * teste seguia verde medindo a versão de 14/08. Era a mesma armadilha que
+ * `ciclo-venda-fechamento` já tinha caído uma vez.
+ */
+const migracao = migracaoViva("montar_fila_de_gatilhos");
+const estimativa = migracaoViva("km_estimado");
+const carimbo = migracaoViva("carimbar_revisao");
+const conformidade = definicaoViva("calcular_conformidade_diaria");
+
+/**
+ * A migração do MOTOR, lida por nome de propósito.
+ *
+ * O que se cobra dela não é o que o banco faz hoje: é o que ela PROVOU no dia
+ * em que rodou (a autoconferência) e o backfill que rodou uma vez só. Esse
+ * texto é histórico e não muda mais — trocá-lo por `migracaoViva` faria o
+ * bloco perseguir o `create or replace` mais recente e cobrar dele uma
+ * autoconferência que ele não tem.
+ */
+const migracaoDoMotor = readFileSync(
   join(raiz, "supabase", "migrations", "20260814180000_motor_de_gatilhos.sql"),
-  "utf-8",
-);
-const migracaoCarimbo = readFileSync(
-  join(raiz, "supabase", "migrations", "20260814150000_carimbo_e_conformidade.sql"),
   "utf-8",
 );
 const migracaoDesfecho = readFileSync(
@@ -223,7 +244,8 @@ describe("o que a mensagem não pode dizer", () => {
       contexto: { numero_revisao: 1, janela_fim: "2027-09-13", dias_de_atraso: 21 },
     });
     expect(texto).toContain("tem volta");
-    expect(migracao).toContain("set status_elegibilidade = 'elegivel'");
+    // Quem devolve o status é `carimbar_revisao`, não a montagem da fila.
+    expect(carimbo).toContain("set status_elegibilidade = 'elegivel'");
   });
 });
 
@@ -345,15 +367,17 @@ describe("a estimativa de KM nunca penaliza", () => {
   it("km_estimado não entra em conformidade nem em índice", () => {
     // Regra 2 do CLAUDE.md, aplicada ao registro de KM: não registrar não pode
     // custar nada ao cliente. A estimativa só ANTECIPA lembrete.
-    expect(migracaoCarimbo).not.toContain("km_estimado");
-    expect(migracao).toContain("Serve só para ANTECIPAR o lembrete");
+    // Recorte da FUNÇÃO, não do arquivo: a conformidade viva mora hoje no
+    // mesmo arquivo que `montar_fila_de_gatilhos`, que cita `km_estimado`.
+    expect(conformidade).not.toContain("km_estimado");
+    expect(estimativa).toContain("Serve só para ANTECIPAR o lembrete");
     // Ela aparece só no ramo do lembrete, e só no primeiro passo.
     expect(migracao).toContain("r.passo = 1 and r.km_previsto is not null");
   });
 
   it("sem leitura suficiente, não há projeção inventada", () => {
-    expect(migracao).toContain("when dia_fim <= dia_ini            then km_fim");
-    expect(migracao).toContain("when km_fim  <= km_ini             then km_fim");
+    expect(estimativa).toContain("when dia_fim <= dia_ini            then km_fim");
+    expect(estimativa).toContain("when km_fim  <= km_ini             then km_fim");
   });
 });
 
@@ -468,7 +492,7 @@ describe("o aviso de verificação — o lado da loja", () => {
     expect(rotaRevisoes).toContain('.is("recusada_em", null)');
     // E a recusa continua visível: some da fila, aparece nas últimas.
     expect(rotaRevisoes).toContain('.or("confirmada_em.not.is.null,recusada_em.not.is.null")');
-    expect(migracao).toContain("recusada_em      = now()");
+    expect(carimbo).toContain("recusada_em      = now()");
   });
 });
 
@@ -506,21 +530,47 @@ describe("a autoconferência da migração", () => {
       "registro recusado continua na fila de pendentes",
       "revisão verificada não devolveu a elegibilidade ao normal",
     ]) {
-      expect(migracao, `cenário ausente: ${cenario}`).toContain(cenario);
+      expect(migracaoDoMotor, `cenário ausente: ${cenario}`).toContain(cenario);
     }
   });
 
   it("a base anterior ao motor não é cumprimentada", () => {
     // Ligar o motor sobre a base histórica do §3.3 dispararia boas-vindas para
     // venda de 2023. O que existe antes entra já marcado como suprimido.
-    expect(migracao).toContain("'suprimido_base_anterior'");
+    // Backfill de uma vez só: histórico, lido pelo nome do arquivo.
+    expect(migracaoDoMotor).toContain("'suprimido_base_anterior'");
   });
 
   it("a régua da janela do §1.5 sobreviveu à recriação de carimbar_revisao", () => {
-    expect(migracao).toContain("m.data_servico <= janela.janela_fim");
-    expect(migracao).toContain("m.km_registrado <= janela.km_previsto + 1000");
-    expect(migracao).toContain("CARIMBO_SEM_ETIQUETA");
-    expect(migracao).toContain("RECUSA_SEM_MOTIVO");
-    expect(migracao).toContain("REVISAO_JA_CARIMBADA");
+    expect(carimbo).toContain("m.data_servico <= janela.janela_fim");
+    expect(carimbo).toContain("m.km_registrado <= janela.km_previsto + 1000");
+    expect(carimbo).toContain("CARIMBO_SEM_ETIQUETA");
+    expect(carimbo).toContain("RECUSA_SEM_MOTIVO");
+    expect(carimbo).toContain("REVISAO_JA_CARIMBADA");
+  });
+});
+
+describe("a busca pela definição viva", () => {
+  it("acha `CREATE OR REPLACE` maiúsculo — o caso que a motivou", () => {
+    // `20260818120000_falha_envio_nao_penaliza.sql` extraiu a função do banco
+    // com `pg_get_functiondef` e por isso veio em caixa alta; a correção de
+    // 2026-08-20 copiou esse texto para dentro da migração vitalícia. Com a
+    // busca sensível a maiúsculas, os dois arquivos ficam invisíveis e o
+    // "vivo" devolvido é o de 14/08 — quatro dias e três correções atrás.
+    expect(arquivoDaMigracaoViva("montar_fila_de_gatilhos")).toBe(
+      "20260820120000_plano_de_revisoes_vitalicio.sql",
+    );
+    expect(migracao).toContain("CREATE OR REPLACE FUNCTION public.montar_fila_de_gatilhos");
+    // E o que a busca ingênua devolveria não é a definição viva.
+    expect(migracaoDoMotor).not.toContain("pg_advisory_xact_lock");
+  });
+
+  it("o recorte da função para na própria função", () => {
+    // `definicaoViva` existe para a asserção NEGATIVA: o arquivo vivo da
+    // conformidade hospeda também o motor de gatilhos, que cita km_estimado.
+    expect(migracaoViva("calcular_conformidade_diaria")).toContain("km_estimado");
+    expect(conformidade).not.toContain("km_estimado");
+    expect(conformidade).toContain("calcular_conformidade_diaria");
+    expect(conformidade).not.toContain("montar_fila_de_gatilhos");
   });
 });

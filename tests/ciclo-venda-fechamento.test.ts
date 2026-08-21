@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { migracaoViva } from "./migracaoViva";
 import {
   validarFechamentoDeVenda,
   vendaPodeSerFechada,
@@ -28,27 +29,6 @@ import {
  */
 
 const raiz = join(__dirname, "..");
-
-/**
- * A migração VIVA de uma função, não o arquivo que tem o nome dela.
- *
- * `fechar_venda_ciclo` já foi redefinida por `create or replace` em migrações
- * cujo nome não a menciona. Este teste abria a de 2026-08-14 por nome e passou
- * três dias verde validando código morto — exatamente o que ele existe para
- * impedir. Quem procura pela definição não erra de novo.
- */
-function migracaoViva(funcao: string): string {
-  const dir = join(raiz, "supabase", "migrations");
-  const encontradas = readdirSync(dir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => readFileSync(join(dir, f), "utf-8"))
-    .filter((texto) => texto.includes(`create or replace function public.${funcao}(`));
-  if (encontradas.length === 0) {
-    throw new Error(`nenhuma migração define ${funcao}`);
-  }
-  return encontradas[encontradas.length - 1];
-}
 
 const migracao = migracaoViva("fechar_venda_ciclo");
 const gerador = migracaoViva("abrir_proxima_janela");
