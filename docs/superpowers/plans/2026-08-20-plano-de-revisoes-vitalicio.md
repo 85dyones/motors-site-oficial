@@ -878,7 +878,7 @@ insert into supabase_migrations.schema_migrations (version, name)
 node supabase/manutencao/aplicar-migracao.js supabase/migrations/20260820120000_plano_de_revisoes_vitalicio.sql
 ```
 
-Esperado, nesta ordem: `Autoconferência D2/gerador: OK.`, `Autoconferência D2/chamadores: OK.`, `Autoconferência D2/policies: OK.`, `Autoconferência D2/cron: OK.`, `Ensaio OK (revertido)`.
+Esperado, nesta ordem, CINCO notices: `Autoconferência D2/gerador: OK.`, `Autoconferência D2/chamadores: OK.`, `Autoconferência D2/policies: OK.`, `Autoconferência D2/cron: OK.`, `Autoconferência D2/nada-se-perdeu: OK.`, `Ensaio OK (revertido)`.
 
 **Não rodar `--gravar`.** Gravar exige aprovação explícita do dono.
 

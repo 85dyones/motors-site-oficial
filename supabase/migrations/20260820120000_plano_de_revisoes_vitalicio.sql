@@ -25,6 +25,23 @@
 
 
 -- ---------------------------------------------------------------------------
+-- 0. O retrato do ANTES — a guarda contra reescrita que perde comportamento
+-- ---------------------------------------------------------------------------
+-- Guarda contra reescrita que perde comportamento.
+-- `create or replace` de uma função viva é substituição total, e o repositório
+-- já provou duas coisas: a definição viva pode não estar no arquivo homônimo, e
+-- um grep em minúsculas não acha `CREATE OR REPLACE` maiúsculo vindo de
+-- `pg_get_functiondef`. Esta tabela guarda o que existia ANTES; a conferência
+-- no fim exige que nada tenha sumido.
+create temp table _definicoes_antes on commit drop as
+  select p.proname, pg_get_functiondef(p.oid) as def
+    from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+   where ns.nspname = 'public'
+     and p.proname in ('fechar_venda_ciclo','carimbar_revisao',
+                       'montar_fila_de_gatilhos','calcular_conformidade_diaria');
+
+
+-- ---------------------------------------------------------------------------
 -- 1. O fim do vitalício: "até a próxima venda do carro"
 -- ---------------------------------------------------------------------------
 -- Sem isto, um plano que se regenera para sempre continua lembrando de revisão
@@ -1251,6 +1268,71 @@ begin
   delete from public.clientes          where id = v_cli;
 
   raise notice 'Autoconferência D2/cron: OK.';
+end $ac$;
+
+
+-- ---------------------------------------------------------------------------
+-- Autoconferência 4 — nada se perdeu na reescrita
+-- ---------------------------------------------------------------------------
+-- O par do retrato tirado na seção 0. Cada `create or replace` acima é uma
+-- SUBSTITUIÇÃO TOTAL: o que não foi copiado, sumiu. Esta conferência lê a
+-- definição nova de cada função direto do catálogo e cobra que todo marcador
+-- que existia antes continue existindo.
+--
+-- Ela é a técnica que pegou a versão errada de `montar_fila_de_gatilhos` desta
+-- própria migração — copiada do arquivo homônimo em vez da definição viva, sem
+-- `pg_advisory_xact_lock` e com dois guardas de `falha_envio` a menos.
+--
+-- O agrupamento por `proname` é de propósito: se uma sobrecarga desaparecer, o
+-- texto agregado de DEPOIS encolhe e a conferência morde do mesmo jeito.
+do $ac$
+declare
+  a         record;
+  v_depois  text;
+  marcador  text;
+  antes_n   int;
+  depois_n  int;
+begin
+  for a in
+    select proname, string_agg(def, E'\n') as def
+      from _definicoes_antes group by proname
+  loop
+    select coalesce(string_agg(pg_get_functiondef(p.oid), E'\n'), '') into v_depois
+      from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+     where ns.nspname = 'public' and p.proname = a.proname;
+
+    if coalesce(v_depois, '') = '' then
+      raise exception 'ACEITE FALHOU (nada-se-perdeu): a função % sumiu do schema public.',
+        a.proname;
+    end if;
+
+    foreach marcador in array array[
+      'pg_advisory_xact_lock', 'array_append', 'is_staff', 'unique_violation',
+      'CARIMBO_SEM_ETIQUETA', 'suprimido_por', 'consentimento_canais',
+      'em_risco', 'cep', 'dentro_da_janela'
+    ]
+    loop
+      if position(marcador in a.def) > 0 and position(marcador in v_depois) = 0 then
+        raise exception
+          'ACEITE FALHOU (nada-se-perdeu): a função % perdeu "%" na reescrita.',
+          a.proname, marcador;
+      end if;
+    end loop;
+
+    -- Presença não basta. A versão errada de `montar_fila_de_gatilhos` TAMBÉM
+    -- contém a string 'falha_envio' — só que 6 vezes em vez de 9, porque perdeu
+    -- os guardas de `boas_vindas` e `revisao_verificada`. Quem só olha presença
+    -- deixa passar exatamente o defeito que motivou esta conferência.
+    antes_n  := (length(a.def)   - length(replace(a.def,   'falha_envio', ''))) / length('falha_envio');
+    depois_n := (length(v_depois) - length(replace(v_depois, 'falha_envio', ''))) / length('falha_envio');
+    if depois_n < antes_n then
+      raise exception
+        'ACEITE FALHOU (nada-se-perdeu): a função % caiu de % para % ocorrências de "falha_envio".',
+        a.proname, antes_n, depois_n;
+    end if;
+  end loop;
+
+  raise notice 'Autoconferência D2/nada-se-perdeu: OK.';
 end $ac$;
 
 
