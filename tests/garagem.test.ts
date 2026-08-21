@@ -25,6 +25,7 @@ const migracao = ler("supabase", "migrations", "20260815180000_garagem_vinculo_d
 const rotaConfirm = ler("src", "app", "api", "auth", "confirm", "route.ts");
 const rotaCallback = ler("src", "app", "api", "auth", "callback", "route.ts");
 const template = ler("supabase", "templates", "magic-link.html");
+const templateConfirmacao = ler("supabase", "templates", "confirm-signup.html");
 const rotaVendas = ler("src", "app", "api", "ciclo", "vendas", "route.ts");
 const paginaGaragem = ler("src", "app", "garagem", "page.tsx");
 const entrada = ler("src", "components", "garagem", "GaragemEntrada.tsx");
@@ -118,6 +119,37 @@ describe("o link mágico entra por token_hash", () => {
     for (const rota of [rotaConfirm, rotaCallback]) {
       expect(rota).toContain('rawNext.startsWith("/")');
       expect(rota).toContain('!rawNext.startsWith("//")');
+    }
+  });
+});
+
+describe("o e-mail de confirmação de conta segue o padrão do link mágico", () => {
+  it("aponta para /api/auth/confirm com token_hash, nunca ConfirmationURL", () => {
+    // Mesmo desenho do link mágico: a venda cria a conta com
+    // email_confirm: true e NÃO manda este e-mail — mas o painel e o
+    // fallback de signUp em /api/users (conta de equipe) mandam. Se
+    // dispararem, o link precisa funcionar em qualquer navegador.
+    expect(templateConfirmacao).not.toContain("{{ .ConfirmationURL }}");
+    const ocorrencias = templateConfirmacao.match(
+      /api\/auth\/confirm\?token_hash=\{\{ \.TokenHash \}\}&type=email/g,
+    );
+    expect(ocorrencias, "o link precisa aparecer no botão E no texto de apoio").toHaveLength(2);
+  });
+
+  it("é e-mail de cliente de e-mail: tabela, estilo inline, sem webfont", () => {
+    // Gmail remove <style>, Outlook renderiza com o motor do Word e nenhum
+    // dos dois carrega webfont — regra registrada em AREA_DO_CLIENTE_AUTH.md.
+    for (const conteudo of [template, templateConfirmacao]) {
+      expect(conteudo).not.toContain("<style");
+      expect(conteudo).not.toContain("<link");
+      expect(conteudo).not.toContain("@import");
+      expect(conteudo).toContain('role="presentation"');
+    }
+  });
+
+  it("os dois templates prometem a mesma validade — uma configuração só no painel", () => {
+    for (const conteudo of [template, templateConfirmacao]) {
+      expect(conteudo).toContain("O link vale por 1 hora e só pode ser usado uma vez.");
     }
   });
 });
