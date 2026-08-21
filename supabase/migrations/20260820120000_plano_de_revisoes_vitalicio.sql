@@ -468,32 +468,28 @@ revoke all on function public.carimbar_revisao(uuid, boolean, text) from public,
 grant execute on function public.carimbar_revisao(uuid, boolean, text) to authenticated, service_role;
 
 
-create or replace function public.montar_fila_de_gatilhos(
-  p_agora    timestamptz default now(),
-  p_reservar boolean     default false,
-  p_gatilhos text[]      default null
-)
-returns table (
-  evento_id          uuid,
-  veiculo_vendido_id uuid,
-  cliente_id         uuid,
-  nome               text,
-  telefone_e164      text,
-  email              text,
-  placa              text,
-  marca              text,
-  modelo             text,
-  ano_modelo         int,
-  gatilho            text,
-  prioridade         int,
-  passo              int,
-  canal              text,
-  contexto           jsonb,
-  suprimido_por      text
-)
-language plpgsql
-set search_path = public
-as $$
+-- ---------------------------------------------------------------------------
+-- 3. Os quatro gatilhos calam quando o carro sai da Garagem
+-- ---------------------------------------------------------------------------
+-- ⚠️ O bloco abaixo é a definição VIVA, copiada de
+-- `20260818120000_falha_envio_nao_penaliza.sql` — que a extraiu do banco com
+-- `pg_get_functiondef`, e por isso vem em MAIÚSCULAS. Não normalizar o caso:
+-- a caixa é o rastro de que o texto saiu do banco e não foi redigitado.
+--
+-- Uma versão anterior desta migração copiou a definição de
+-- `20260814180000_motor_de_gatilhos.sql`, que tem o nome da função no arquivo
+-- mas NÃO é a definição viva: aplicá-la teria apagado o `pg_advisory_xact_lock`
+-- (mensagem duplicada sob concorrência) e os dois guardas de `falha_envio` em
+-- `boas_vindas` e `revisao_verificada` (cliente com envio falho nunca mais
+-- receberia nenhuma das duas — regra 2, "a recusa nunca penaliza").
+--
+-- A ÚNICA alteração sobre a fonte é o `and vv.saiu_em is null` na CTE `veic`.
+
+CREATE OR REPLACE FUNCTION public.montar_fila_de_gatilhos(p_agora timestamp with time zone DEFAULT now(), p_reservar boolean DEFAULT false, p_gatilhos text[] DEFAULT NULL::text[])
+ RETURNS TABLE(evento_id uuid, veiculo_vendido_id uuid, cliente_id uuid, nome text, telefone_e164 text, email text, placa text, marca text, modelo text, ano_modelo integer, gatilho text, prioridade integer, passo integer, canal text, contexto jsonb, suprimido_por text)
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
 -- Os nomes da tabela de retorno (veiculo_vendido_id, gatilho, canal…) são os
 -- mesmos das colunas que a consulta lê. Sem esta diretiva, cada um deles vira
 -- "column reference is ambiguous" — e o corpo não referencia variável de saída
@@ -504,6 +500,15 @@ declare
   v_hoje   date      := (p_agora at time zone 'America/Sao_Paulo')::date;
   v_relogio text;
 begin
+  -- Uma montagem por vez. Sem isto, duas execuções sobrepostas (retry do n8n
+  -- após timeout, execução manual durante o cron) avaliam os mesmos
+  -- `not exists` no snapshot de cada transação e reservam o mesmo gatilho
+  -- duas vezes. O lock é de transação: sai sozinho no commit ou no rollback,
+  -- e só morde quando p_reservar = true, que é quando há escrita.
+  if p_reservar then
+    perform pg_advisory_xact_lock(hashtext('motor_de_gatilhos'));
+  end if;
+
   -- §4.3: nenhum contato entre 20h e 8h, nem aos domingos. Vale para todo
   -- gatilho, sem isenção — inclusive os transacionais.
   if extract(dow from v_local) = 0 then
@@ -563,7 +568,10 @@ begin
      where not exists (
              select 1 from public.eventos_ciclo e
               where e.veiculo_vendido_id = v.vv_id
-                and e.gatilho = 'boas_vindas')
+                and e.gatilho = 'boas_vindas'
+                -- 'falha_envio' quer dizer "não consegui entregar", e isso
+                -- nunca pode ser lido como "já avisei" (regra 2).
+                and coalesce(e.desfecho, '') <> 'falha_envio')
   ),
 
   -- ---- gatilho: revisão verificada (transacional, uma vez por revisão) --
@@ -585,7 +593,8 @@ begin
        and not exists (
              select 1 from public.eventos_ciclo e
               where e.gatilho = 'revisao_verificada'
-                and e.payload->>'manutencao_id' = m.id::text)
+                and e.payload->>'manutencao_id' = m.id::text
+                and coalesce(e.desfecho, '') <> 'falha_envio')
   ),
 
   -- ---- gatilho 1: revisão programada — cadência D−15 · D−3 · D+7 -------
@@ -797,13 +806,13 @@ begin
     left join reservado r on r.veiculo_vendido_id = m.vv_id and r.gatilho = m.gatilho
    order by (m.sup is not null), m.prioridade, m.nome;
 end;
-$$;
+$function$
+;
 
 comment on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[]) is
-  'A fila do dia, uma linha por cliente, com as regras do §4.3 e a prioridade '
-  'do §4.4 aplicadas no servidor. Devolve também o que foi suprimido e por quê. '
-  'p_reservar grava em eventos_ciclo no mesmo comando — a linha É a reserva, e '
-  'é ela que impede envio em duplicidade.';
+  'Monta (e opcionalmente reserva) a fila do motor de gatilhos. Reserva é '
+  'serializada por advisory lock de transação. Desfecho falha_envio nunca '
+  'conta como contato feito — regra 2 do CLAUDE.md.';
 
 revoke all on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[]) from public, anon, authenticated;
 grant execute on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[]) to service_role;
