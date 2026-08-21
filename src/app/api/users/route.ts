@@ -34,11 +34,33 @@ export async function GET() {
     }
 
     return NextResponse.json({ users });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const mensagem = err instanceof Error ? err.message : "Erro inesperado";
+    return NextResponse.json({ error: mensagem }, { status: 500 });
   }
 }
 
+/**
+ * Convida alguém para o painel — e NÃO define senha por ele.
+ *
+ * Até 2026-08-21 esta rota criava o usuário com uma "senha provisória"
+ * digitada pelo admin na tela A17. Isso significava: nenhum e-mail saía do
+ * Supabase (`email_confirm: true` mata o envio), a senha viajava por WhatsApp
+ * ou era dita em voz alta, e não havia troca obrigatória na primeira entrada.
+ * Quem cuida do painel conhecia a senha de todo mundo.
+ *
+ * `inviteUserByEmail` inverte isso: cria a conta SEM senha, manda o convite
+ * (template "Invite user") e a pessoa escolhe a própria senha em
+ * `/definir-senha`. O convite não suporta PKCE — a doc do próprio SDK avisa,
+ * pelo mesmo motivo do link mágico: quem convida quase nunca está no navegador
+ * que aceita. Por isso o template aponta para `/api/auth/confirm` com
+ * `token_hash`, e não para `{{ .ConfirmationURL }}`.
+ *
+ * O papel entra em DOIS passos, e não em um: `inviteUserByEmail` só grava
+ * `user_metadata`, e `handle_new_user` lê o papel de `app_metadata` — que
+ * ainda está vazio quando o trigger roda. Sem o segundo passo, todo convidado
+ * nasceria `cliente` e não entraria em lugar nenhum.
+ */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -59,9 +81,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password, full_name, role } = body;
+    const { email, full_name, role } = body;
 
-    if (!email || !password || !full_name || !role) {
+    if (!email || !full_name || !role) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
@@ -71,83 +93,77 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
 
-    const hasAdminKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (hasAdminKey) {
-      const supabaseAdmin = createAdminSupabaseClient();
-      const { data, error } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          full_name,
-          role,
-        },
-        // O papel viaja em app_metadata: é o que handle_new_user lê desde a
-        // migração da role cliente — user_metadata é gravável pelo usuário.
-        app_metadata: { role },
-      });
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      // Trigger admin webhook for new user (non-blocking)
-      if (data.user) {
-        dispatchAdminWebhook("usuario_criado", {
-          id: data.user.id,
-          email: data.user.email,
-          full_name: full_name,
-          role: role
-        }).catch((err) =>
-          console.error("[WebhookDispatch] Failed to dispatch user created event:", err.message)
-        );
-        await registrarAcaoSensivel(supabase, "usuario_criado", `${email} como ${role}`, {
-          id: currentUser.id,
-          nome: profile?.full_name ?? currentUser.email,
-        });
-      }
-
-      return NextResponse.json({ user: data.user });
-    } else {
-      // Fallback: If SUPABASE_SERVICE_ROLE_KEY is not defined, register the user using signUp
-      // through the user client. Since this is run inside the API handler by an Admin,
-      // it won't affect the administrator's front-end session.
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${request.nextUrl.origin}/auth/callback`,
-          data: {
-            full_name,
-            role,
-          }
-        }
-      });
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      // Trigger admin webhook for new user (non-blocking)
-      if (data.user) {
-        dispatchAdminWebhook("usuario_criado", {
-          id: data.user.id,
-          email: data.user.email,
-          full_name: full_name,
-          role: role
-        }).catch((err) =>
-          console.error("[WebhookDispatch] Failed to dispatch user created event (fallback):", err.message)
-        );
-        await registrarAcaoSensivel(supabase, "usuario_criado", `${email} como ${role}`, {
-          id: currentUser.id,
-          nome: profile?.full_name ?? currentUser.email,
-        });
-      }
-
-      return NextResponse.json({ user: data.user });
+    // Convidar é operação de chave de serviço. O fallback por `signUp` que
+    // existia aqui até 2026-08-21 criava usuário QUEBRADO — sem app_metadata,
+    // o trigger o fazia nascer `cliente` — e nem chegava a rodar com o
+    // cadastro público desabilitado, que é como o painel deve ficar
+    // (docs/AREA_DO_CLIENTE_AUTH.md §2-a). Falhar alto é melhor.
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: "SUPABASE_SERVICE_ROLE_KEY não configurada — o convite não pode ser enviado." },
+        { status: 503 },
+      );
     }
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+
+    const supabaseAdmin = createAdminSupabaseClient();
+
+    const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: { full_name, role },
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const convidado = data.user;
+    if (!convidado) {
+      return NextResponse.json({ error: "O convite não retornou usuário." }, { status: 500 });
+    }
+
+    // Segundo passo do papel — ver o cabeçalho. `app_metadata` é a fonte que
+    // `handle_new_user` lê, e o `profiles` já foi criado pelo trigger com
+    // `cliente`, então os dois precisam ser corrigidos aqui.
+    const { error: erroPapelAuth } = await supabaseAdmin.auth.admin.updateUserById(convidado.id, {
+      app_metadata: { role },
+    });
+
+    const { error: erroPapelPerfil } = await supabaseAdmin
+      .from("profiles")
+      .update({ full_name, papeis: [role] })
+      .eq("id", convidado.id);
+
+    const erroDoPapel = erroPapelAuth ?? erroPapelPerfil;
+    if (erroDoPapel) {
+      // O e-mail já saiu — não há como desfazer. Devolver o estado real é
+      // melhor do que apagar o convidado por conta própria: o perfil está na
+      // lista e a própria tela sabe corrigir o papel.
+      return NextResponse.json(
+        {
+          error:
+            `Convite enviado para ${email}, mas o perfil ficou como cliente: ` +
+            `${erroDoPapel.message}. Ajuste o perfil na lista antes de a pessoa entrar.`,
+        },
+        { status: 500 },
+      );
+    }
+
+    // Trigger admin webhook for new user (non-blocking)
+    dispatchAdminWebhook("usuario_criado", {
+      id: convidado.id,
+      email: convidado.email,
+      full_name: full_name,
+      role: role
+    }).catch((err) =>
+      console.error("[WebhookDispatch] Failed to dispatch user created event:", err.message)
+    );
+    await registrarAcaoSensivel(supabase, "usuario_criado", `convite para ${email} como ${role}`, {
+      id: currentUser.id,
+      nome: profile?.full_name ?? currentUser.email,
+    });
+
+    return NextResponse.json({ user: convidado });
+  } catch (err: unknown) {
+    const mensagem = err instanceof Error ? err.message : "Erro inesperado";
+    return NextResponse.json({ error: mensagem }, { status: 500 });
   }
 }

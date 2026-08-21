@@ -74,36 +74,96 @@ PKCE e exige que o clique aconteça no mesmo navegador que pediu o link.
 > `{{ .ConfirmationURL }}`, trinta linhas depois de explicar por que aquilo
 > não funciona. Quem seguisse o guia até o fim desfazia a correção (D1).
 
-### 1-b. O segundo template: confirmação de criação de usuário (2026-08-21)
+### 1-b. Qual template serve qual público (2026-08-21)
+
+O painel do Supabase tem seis caixas de e-mail, e o erro fácil é achar que
+elas são intercambiáveis. Não são: **cada uma dispara com uma chamada de API
+diferente**, e colar o texto certo na caixa errada não faz o e-mail sair.
+
+| Template no painel | Só dispara com | Público | Arquivo aqui |
+|---|---|---|---|
+| **Magic link or OTP** | `auth.signInWithOtp()` | Cliente, na Garagem | [`magic-link.html`](../supabase/templates/magic-link.html) |
+| **Invite user** | `admin.inviteUserByEmail()` | Equipe, investidor — todo acesso ao painel | [`invite-user.html`](../supabase/templates/invite-user.html) |
+| **Confirm sign up** | `auth.signUp()` | Ninguém, hoje — rede de segurança (§1-d) | [`confirm-signup.html`](../supabase/templates/confirm-signup.html) |
+| **Reset password** | `auth.resetPasswordForEmail()` | Equipe que esqueceu a senha | ainda não existe |
+| **Change email address** | `auth.updateUser({email})` | — | ainda não existe |
+| **Reauthentication** | `auth.reauthenticate()` | — | ainda não existe |
+
+As duas últimas linhas só ganham template quando existir tela de perfil: hoje
+seriam e-mails apontando para páginas que ninguém pode abrir. **Reset
+password** é a primeira lacuna que importa — enquanto ela não existir, quem
+esquece a senha depende de um admin, e não há como se recuperar sozinho.
+
+### 1-c. O convite — como o acesso ao painel nasce (2026-08-21)
+
+Arquivo pronto: [`supabase/templates/invite-user.html`](../supabase/templates/invite-user.html)
+
+**Onde colar:** Authentication → Emails → template **Invite user** → campo
+*Message body*. Mesmo fluxo do §1: selecionar tudo e colar.
+
+**Assunto sugerido:**
+
+```
+Seu acesso ao painel da Motors
+```
+
+**O que mudou no código junto com este template.** Até 2026-08-21 a tela A17
+pedia uma *"Senha Provisória"* ao admin e criava a conta com ela
+(`createUser` + `email_confirm: true`). O efeito colateral não era pequeno:
+
+- **nenhum e-mail saía** — `email_confirm: true` mata o envio;
+- a senha do funcionário **viajava por WhatsApp** ou era dita em voz alta;
+- não havia troca obrigatória na primeira entrada;
+- quem cuidava do painel **conhecia a senha de todo mundo**.
+
+Agora `/api/users` chama `inviteUserByEmail`: a conta nasce **sem senha**, o
+convite sai por e-mail e a senha é escolhida em `/definir-senha`, no navegador
+de quem vai usá-la. **Nenhuma rota do projeto recebe senha em corpo de
+requisição** — e o campo de senha sumiu da tela A17.
+
+**O link é `token_hash`, como o do link mágico** — e aqui o motivo é ainda
+mais forte. A doc do próprio SDK avisa que o convite **não suporta PKCE**,
+"porque o navegador que inicia o convite costuma ser diferente do que o
+aceita". É exatamente o quicar de 2026-08-15 (§1), só que garantido: quem
+convida é o admin, na máquina da loja; quem aceita é o convidado, na dele.
+
+```
+https://motorsstore.com.br/api/auth/confirm?token_hash={{ .TokenHash }}&type=invite
+```
+
+> **O papel entra em DOIS passos, e isso não é redundância.**
+> `inviteUserByEmail` só grava `user_metadata`, e `handle_new_user`
+> (migração `20260813120000`) lê o papel de `app_metadata` — que ainda está
+> vazio quando o trigger roda. Por isso a rota, logo depois de convidar,
+> grava `app_metadata` **e** corrige `profiles`. Sem o segundo passo, **todo
+> convidado nasceria `cliente`** e não entraria em lugar nenhum. Se esse
+> segundo passo falhar, a rota devolve o erro dizendo isso — o convite já
+> saiu e o perfil aparece na lista para ser corrigido ali mesmo.
+
+**Validade:** o convite não promete prazo no texto, de propósito. O §4 fixa
+uma hora para o link mágico porque aquele número está no painel; o do convite
+é outra configuração, e prometer o número errado gera chamado. O texto diz o
+que é sempre verdade: vale uma vez só.
+
+> **O limite deste desenho, dito em voz alta:** `/definir-senha` troca a senha
+> de quem já está com a sessão aberta, sem pedir a senha antiga. Quem senta
+> numa máquina com o painel logado consegue trocá-la — mas essa pessoa já
+> teria o painel inteiro de qualquer forma. Fechar isso é ligar *secure
+> password change* no painel do Supabase, que passa a exigir reautenticação
+> (e aí o template **Reauthentication** deixa de ser decorativo).
+
+**Investidor não é um perfil que existe hoje.** `PERFIS` é
+`admin | marketing | comercial | financeiro` (`src/lib/permissoes.ts`) —
+"investidor" no código é conta contábil, não papel. Quando existir, o convite
+dele é este mesmo; o que precisa nascer antes é a linha na matriz A17 e o
+recorte de RLS que ele enxerga.
+
+### 1-d. Confirmação de cadastro — a rede de segurança (2026-08-21)
 
 Arquivo pronto: [`supabase/templates/confirm-signup.html`](../supabase/templates/confirm-signup.html)
 
-Este e-mail **não é o do link mágico** — aquele está resolvido no §1. É o que
-o Supabase manda quando um **usuário é criado** e o e-mail dele precisa ser
-confirmado: usuário criado pelo painel com envio de confirmação, qualquer
-fluxo que use `signUp` — hoje, o fallback de `src/app/api/users/route.ts`
-(tela A17, quando a chave de serviço não está configurada; ele para de
-funcionar quando o cadastro público do §2-a estiver desabilitado). Se um
-desses caminhos disparar com o template padrão, o destinatário recebe um
-e-mail do Supabase em inglês, com `{{ .ConfirmationURL }}` — que quebra fora
-do PKCE, pelo motivo do §1.
-
 **Onde colar:** Authentication → Emails → template **Confirm signup** → campo
-*Message body*. Mesmo fluxo do §1: selecionar tudo no arquivo e colar.
-
-**Por que a venda não manda esse e-mail:** o fechamento da venda (tela A19)
-cria a conta do cliente com `email_confirm: true` de propósito — sem isso o
-cliente receberia um "confirme seu e-mail" ANTES do primeiro link mágico
-(ver o comentário em `src/app/api/ciclo/vendas/route.ts`). Cliente de compra
-normalmente nunca vê este e-mail; quem vê é conta criada por outro caminho.
-
-**A voz do texto é neutra de propósito** — "sua conta foi criada", sem
-prometer garagem nem painel. A mesma caixa do Supabase atende equipe e
-cliente, e quem decide o destino é `/api/auth/confirm`, pelo papel: staff cai
-no painel, cliente na Garagem. O link segue o **mesmo formato do link
-mágico**, inclusive o `type=email` — o `verifyOtp` aceita `email` como tipo
-genérico, que cobre tanto o link mágico quanto a confirmação de cadastro.
-Confirmou, entrou.
+*Message body*.
 
 **Assunto sugerido:**
 
@@ -111,11 +171,15 @@ Confirmou, entrou.
 Sua conta na Motors foi criada
 ```
 
-Mesma régua do §1: nada de "Confirme sua conta" ou "Verificação de e-mail" no
-assunto — vocabulário de sistema é o que mais cai em spam. O corpo pode (e
-deve) falar em confirmar e ativar; o assunto diz o que aconteceu.
+Este e-mail **não deve disparar hoje**: `signUp` é o cadastro espontâneo, que
+o §2-a manda desabilitar, e nenhum caminho do projeto o usa desde que o
+fallback saiu de `/api/users` (§1-c). Ele existe colado no painel para o dia
+em que alguém religar o cadastro público ou criar um usuário pelo painel com
+envio de confirmação — nesse dia, sai o e-mail da Motors e não o do Supabase,
+em inglês e com `{{ .ConfirmationURL }}`, que quebra fora do PKCE.
 
----
+A voz do texto é neutra de propósito: a mesma caixa atende equipe e cliente, e
+quem decide o destino é `/api/auth/confirm`, pelo papel.
 
 ## 2. As três travas que importam
 
@@ -137,6 +201,13 @@ A consequência desejada é: e-mail desconhecido → nenhum link enviado. A tela
 deve responder a mesma mensagem neutra para e-mail conhecido e desconhecido
 ("se este e-mail estiver no seu cadastro, o link chegou"), senão o formulário
 vira um verificador de quem é cliente da loja.
+
+> **Desabilitar o cadastro público não impede convidar.** O toggle fecha o
+> endpoint de `signUp` para quem usa a chave anônima; `inviteUserByEmail` e
+> `createUser` passam pela chave de serviço e continuam funcionando. É por
+> isso que a trava pode ficar ligada o tempo todo: os dois jeitos legítimos de
+> uma conta nascer aqui — o convite (§1-c) e o fechamento da venda — não
+> dependem dela.
 
 ### b) Só o destino certo aceita o link
 
@@ -319,13 +390,18 @@ confirma o e-mail.
 
 ## 5. Checklist
 
-- [ ] Template do Magic Link colado, com o assunto sugerido
-- [ ] Template do Confirm signup colado, com o assunto sugerido (§1-b)
+- [ ] Template do **Magic Link** colado, com o assunto sugerido (§1)
+- [ ] Template do **Invite user** colado, com o assunto sugerido (§1-c)
+- [ ] Template do **Confirm signup** colado, com o assunto sugerido (§1-d)
 - [ ] Cadastro público de novos usuários desabilitado
 - [ ] Site URL e Redirect URLs preenchidas (produção e localhost)
 - [ ] SMTP próprio configurado, com remetente no domínio da loja
 - [ ] E-mail de teste recebido, link abrindo em `/api/auth/callback`
 - [ ] Validade do link conferida contra o texto do template
+- [ ] **Convite testado ponta a ponta**: convidar um endereço seu na A17,
+      receber, abrir em OUTRO navegador, definir senha e cair no painel com o
+      perfil certo — o perfil errado aqui é o sinal de que o segundo passo do
+      papel falhou (§1-c)
 
 Nenhum item espera código: a tela `/garagem` está entregue desde 2026-08-15
 e a lista inteira é trabalho de painel. Até 2026-08-21 este fecho dizia que a
