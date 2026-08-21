@@ -32,6 +32,8 @@ export interface VeiculoDaGaragem {
   ano_modelo: number;
   data_venda: string;
   km_na_venda: number;
+  /** Preenchida, o carro deixou de ser do cliente: sem próxima janela, sem gatilho. */
+  saiu_em: string | null;
   contrato: {
     plano: string;
     garantia_meses: number;
@@ -134,7 +136,12 @@ export default function GaragemVeiculo({ veiculo }: { veiculo: VeiculoDaGaragem 
 
         <div>
           <Rotulo className="text-[10px] tracking-[.14em]">PRÓXIMA REVISÃO</Rotulo>
-          {proxima ? (
+          {veiculo.saiu_em ? (
+            <p className="m-0 mt-1 text-[13px] leading-snug text-mt-neutral-700">
+              Acompanhamento encerrado em {dataBr(veiculo.saiu_em)}. O diário de bordo abaixo
+              continua seu.
+            </p>
+          ) : proxima ? (
             <>
               <p className="m-0 mt-1 text-[15px] font-bold text-mt-ink">
                 {dataBr(proxima.janela_inicio)} a {dataBr(proxima.janela_fim)}
@@ -146,7 +153,7 @@ export default function GaragemVeiculo({ veiculo }: { veiculo: VeiculoDaGaragem 
             </>
           ) : (
             <p className="m-0 mt-1 text-[13px] text-mt-neutral-700">
-              Nenhuma janela em aberto.
+              Estamos calculando a próxima janela. Ela aparece aqui em instantes.
             </p>
           )}
         </div>
