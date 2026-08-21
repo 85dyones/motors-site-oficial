@@ -43,8 +43,9 @@ interface UserProfile {
  *
  * "Sem limite" (Admin) domina qualquer limite específico, então quem é admin
  * mostra isso e pronto. Fora daí não existe ordem entre "5% no preço" e
- * "R$ 1.500" — são grandezas diferentes —, então as duas aparecem em vez de
- * eu inventar qual vence. Perfil sem alçada declarada ("—") não entra.
+ * "Agendamento vai ao Gestor" — são grandezas diferentes —, então as duas
+ * aparecem em vez de eu inventar qual vence. Perfil sem alçada declarada
+ * ("—") não entra.
  *
  * ⚠️ Alçada é ESPECIFICAÇÃO da A17, não regra aplicada: nada no código a
  * consulta hoje. Ela informa quem lê a tela; não bloqueia nada.
@@ -150,7 +151,7 @@ export default function UserManagement() {
   }, [aba, registroCarregado]);
 
   const contagemPorPerfil = useMemo(() => {
-    const c: Record<Perfil, number> = { admin: 0, marketing: 0, comercial: 0, financeiro: 0 };
+    const c = Object.fromEntries(PERFIS.map((p) => [p, 0])) as Record<Perfil, number>;
     for (const u of users) {
       for (const papel of papeisDe(u)) {
         if (papel in c) c[papel as Perfil] += 1;

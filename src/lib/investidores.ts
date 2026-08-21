@@ -120,11 +120,21 @@ export function validarMovimentacao(bruto: {
   };
 }
 
+/**
+ * O mínimo que uma movimentação precisa ter para SOMAR. `investidor_id` não
+ * entra: `saldoDasMovimentacoes` não agrupa nada, e exigi-lo obrigava a área
+ * do investidor a selecionar uma coluna que a RLS já torna redundante (ali
+ * toda linha é dele).
+ */
 export interface MovimentacaoSomavel {
-  investidor_id: string;
   tipo: string;
   valor: number | string;
   [extra: string]: unknown;
+}
+
+/** O que `resumoDeInvestidores` precisa a mais: de quem é a movimentação. */
+export interface MovimentacaoAgrupavel extends MovimentacaoSomavel {
+  investidor_id: string;
 }
 
 export interface SaldoDoInvestidor {
@@ -179,9 +189,9 @@ export type ResumoDeInvestidor = InvestidorResumivel & SaldoDoInvestidor;
  */
 export function resumoDeInvestidores(
   investidores: InvestidorResumivel[],
-  movs: MovimentacaoSomavel[],
+  movs: MovimentacaoAgrupavel[],
 ): { investidores: ResumoDeInvestidor[]; consolidado: SaldoDoInvestidor } {
-  const porInvestidor = new Map<string, MovimentacaoSomavel[]>();
+  const porInvestidor = new Map<string, MovimentacaoAgrupavel[]>();
   for (const m of movs ?? []) {
     const lista = porInvestidor.get(m.investidor_id) ?? [];
     lista.push(m);

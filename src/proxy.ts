@@ -4,7 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { papelPadraoPorEmail } from "./lib/papelPadrao";
-import { ehStaff } from "./lib/permissoes";
+import { ehStaff, perfisDe } from "./lib/permissoes";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -216,10 +216,17 @@ export async function proxy(request: NextRequest) {
 
       const role = profile?.role ?? papelPadraoPorEmail(user.email);
 
-      // Papel `cliente` (Garagem Motors, 2026-08-13) nunca entra no painel: as
-      // regras abaixo pressupõem staff — sem este bloqueio, cliente herdaria
-      // os acessos de `comercial`.
-      if (!ehStaff(role)) {
+      // TODOS os papéis, não o primário. Até 2026-08-21 as regras abaixo
+      // comparavam `role` (espelho de `papeis[1]`) com um nome só: quem tinha
+      // `financeiro` como SEGUNDO papel levava 403 em /api/financeiro e
+      // redirect em /admin/financeiro — o gêmeo, do lado da aplicação, do bug
+      // que `20260821120000` corrigiu no banco.
+      const perfis: string[] = perfisDe(profile ?? role);
+
+      // Papéis fora do painel — `cliente` (Garagem, 2026-08-13) e `investidor`
+      // (2026-08-21) — nunca entram: as regras abaixo pressupõem staff, e sem
+      // este bloqueio eles herdariam os acessos de `comercial`.
+      if (!ehStaff(profile ?? role)) {
         if (isAdminPath) {
           const url = request.nextUrl.clone();
           url.pathname = "/";
@@ -229,7 +236,7 @@ export async function proxy(request: NextRequest) {
       }
 
       // Admins access everything. Check specific constraints:
-      if (role !== "admin") {
+      if (!perfis.includes("admin")) {
         // Users page and APIs restricted to Admin only
         if (path.startsWith("/admin/usuarios") || path.startsWith("/api/users")) {
           if (isAdminPath) {
@@ -244,9 +251,10 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Financeiro area restricted to Admin + Financeiro
+        // Área financeira: Admin, Financeiro e — desde 2026-08-21 — Gestor,
+        // que aprova os agendamentos e lê os relatórios (A17).
         if (path.startsWith("/admin/financeiro") || path.startsWith("/api/financeiro")) {
-          if (role !== "financeiro") {
+          if (!perfis.includes("financeiro") && !perfis.includes("gestor")) {
             if (isAdminPath) {
               const url = request.nextUrl.clone();
               url.pathname = "/admin";
@@ -257,8 +265,13 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Config page restricted to Admin + Comercial (Financeiro cannot access it)
-        if (path.startsWith("/admin/configuracoes") && role === "financeiro") {
+        // Configurações: Admin e Comercial. Financeiro e Gestor não entram —
+        // nenhuma linha da A17 lhes dá conteúdo de site nem credencial.
+        if (
+          path.startsWith("/admin/configuracoes") &&
+          !perfis.includes("comercial") &&
+          !perfis.includes("marketing")
+        ) {
           const url = request.nextUrl.clone();
           url.pathname = "/admin/financeiro";
           return NextResponse.redirect(url);

@@ -80,11 +80,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
-    // Alçada da A17 ("Lançar e aprovar contas a pagar — R$ 1.500 no
-    // gerente"): a régua olha o valor TOTAL do lançamento, antes de dividir
-    // em parcelas — senão parcelar seria a porta de evasão. Acima da alçada,
-    // TODAS as parcelas nascem aguardando aprovação; o Admin decide o grupo
-    // de uma vez em /contas/[id]/aprovar.
+    // Aprovação de agendamento (A17, "Aprovar agendamento financeiro"):
+    // agendar pagamento é decidir que dinheiro vai sair, e vai ao Gestor;
+    // registrar o que já foi pago é escrituração e passa direto. Não há
+    // limite em reais desde 2026-08-21 — ver o cabeçalho de `lib/alcada.ts`.
+    // Quando sobe, TODAS as parcelas nascem aguardando: o Gestor decide o
+    // grupo de uma vez em /contas/[id]/aprovar.
     const { data: perfil } = await supabase
       .from("profiles")
       .select("role, papeis")
@@ -93,7 +94,6 @@ export async function POST(request: NextRequest) {
     const statusPedido = status || "pendente";
     const sobeParaAprovacao = precisaDeAprovacao({
       tipo,
-      valorTotal: parseFloat(valor),
       status: statusPedido,
       perfis: perfisDe(perfil),
     });
@@ -142,10 +142,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Dispatch admin webhook for newly created accounts. Lançamento acima da
-    // alçada emite `conta_aguardando_aprovacao` no lugar de `conta_criada` —
-    // é o aviso "conta subiu pra aprovação" do briefing, e dois eventos pela
-    // mesma conta virariam ruído no WhatsApp do Admin.
+    // Dispatch admin webhook for newly created accounts. Agendamento que sobe
+    // emite `conta_aguardando_aprovacao` no lugar de `conta_criada` — é o
+    // aviso "conta subiu pra aprovação" do briefing, e dois eventos pela
+    // mesma conta virariam ruído no WhatsApp de quem aprova.
     if (inserted && inserted.length > 0) {
       const evento = sobeParaAprovacao ? "conta_aguardando_aprovacao" : "conta_criada";
       await Promise.all(

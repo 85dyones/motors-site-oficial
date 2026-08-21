@@ -8,12 +8,13 @@ import { perfisDe } from "../../../../../../lib/permissoes";
 export const dynamic = "force-dynamic";
 
 /**
- * Decide um lançamento acima da alçada — POST { decisao, motivo? }.
+ * Decide um agendamento financeiro parado na fila — POST { decisao, motivo? }.
  *
- * Só o Admin decide (a coluna de alçada da A17: "sem limite" é dele). A
- * decisão vale para o LANÇAMENTO inteiro: se a conta nasceu parcelada, todas
- * as parcelas do `grupo_parcela` mudam juntas — aprovar a parcela 1 e deixar
- * as outras aguardando não é um estado que exista no mundo.
+ * Quem decide é quem a matriz A17 diz na linha "Aprovar agendamento
+ * financeiro": Admin e Gestor. A decisão vale para o LANÇAMENTO inteiro — se
+ * a conta nasceu parcelada, todas as parcelas do `grupo_parcela` mudam juntas;
+ * aprovar a parcela 1 e deixar as outras aguardando não é um estado que exista
+ * no mundo.
  *
  * Aprovar → `pendente` (a conta entra no fluxo normal e no dia). Recusar →
  * `cancelado`, com motivo obrigatório: recusa sem motivo é conversa de
@@ -39,7 +40,7 @@ export async function POST(
       .single();
     if (!podeDecidirAprovacao(perfisDe(perfil))) {
       return NextResponse.json(
-        { error: "Apenas o administrador decide lançamentos acima da alçada" },
+        { error: "Apenas administrador ou gestor decide agendamento financeiro" },
         { status: 403 }
       );
     }
@@ -66,7 +67,7 @@ export async function POST(
     }
     if (conta.status !== "aguardando_aprovacao") {
       return NextResponse.json(
-        { error: "Esta conta não está aguardando aprovação" },
+        { error: "Este lançamento não está aguardando aprovação" },
         { status: 409 }
       );
     }

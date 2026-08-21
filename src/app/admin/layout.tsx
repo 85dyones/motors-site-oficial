@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "../../lib/supabase-server";
 import SidebarNav from "../../components/admin/SidebarNav";
 import AdminLayoutClientWrapper from "../../components/admin/AdminLayoutClientWrapper";
 import { papelPadraoPorEmail } from "../../lib/papelPadrao";
-import { ehStaff } from "../../lib/permissoes";
+import { ehStaff, perfisDe } from "../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,7 @@ export default async function AdminLayout({
       roleLabel={getRoleLabel(role)}
       sidebarNav={
         <Suspense fallback={<div className="m-5 h-40 animate-pulse bg-mt-inverso-regua-fina" />}>
-          <SidebarNav role={role} />
+          <SidebarNav perfis={perfisDe(profile ?? role)} />
         </Suspense>
       }
     >

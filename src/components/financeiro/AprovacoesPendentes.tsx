@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useConfirm } from "../admin/ConfirmDialog";
-import { ALCADA_DO_FINANCEIRO } from "../../lib/alcada";
 
 /**
- * A fila de aprovação — lançamentos acima da alçada de R$ 1.500 (A17).
+ * A fila de agendamentos financeiros à espera do Gestor (A17, "Aprovar
+ * agendamento financeiro").
  *
  * Briefing 2026-08-21, pedido do dono: aviso de "contas que subiram pra
  * aprovação". O webhook avisa no WhatsApp; esta tela é onde a decisão
@@ -13,8 +13,13 @@ import { ALCADA_DO_FINANCEIRO } from "../../lib/alcada";
  * juntas); aprovar manda para `pendente` — a conta entra no dia e nas
  * contas a pagar —, recusar exige motivo e cancela.
  *
+ * O que chega aqui é AGENDAMENTO — pagamento que ainda vai sair. Registro de
+ * conta já paga nunca entra na fila: o dinheiro saiu, e travar o registro só
+ * esconderia o rastro. Não há limiar em reais desde 2026-08-21; ver o
+ * cabeçalho de `lib/alcada.ts`.
+ *
  * `podeDecidir` chega da página (server component, papéis do banco): o
- * Financeiro vê a própria fila, os botões são do Admin.
+ * Financeiro vê a própria fila, os botões são do Gestor.
  */
 
 interface ContaAguardando {
@@ -98,7 +103,7 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
       if (res.ok) {
         setContas(body.contas || []);
       } else {
-        setError(body.error || "Falha ao carregar a fila de aprovação.");
+        setError(body.error || "Falha ao carregar a fila de agendamentos.");
       }
     } catch {
       setError("Erro ao se conectar com o servidor.");
@@ -125,8 +130,8 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
       if (res.ok) {
         setSuccessMsg(
           decisao === "aprovar"
-            ? `Lançamento aprovado — ${l.contas.length > 1 ? `${l.contas.length} parcelas entram` : "a conta entra"} no contas a pagar.`
-            : "Lançamento recusado e cancelado, com o motivo registrado."
+            ? `Agendamento liberado — ${l.contas.length > 1 ? `${l.contas.length} parcelas entram` : "a conta entra"} no contas a pagar.`
+            : "Agendamento recusado e cancelado, com o motivo registrado."
         );
         setRecusando(null);
         setMotivo("");
@@ -143,8 +148,8 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
 
   const handleAprovar = async (l: Lancamento) => {
     const ok = await confirm({
-      title: "Aprovar Lançamento",
-      message: `Aprovar "${l.descricao}" no total de ${formatPrice(l.total)}${l.contas.length > 1 ? ` (${l.contas.length} parcelas)` : ""}? As contas entram como pendentes.`,
+      title: "Aprovar Agendamento",
+      message: `Liberar "${l.descricao}" no total de ${formatPrice(l.total)}${l.contas.length > 1 ? ` (${l.contas.length} parcelas)` : ""}? As contas entram como pendentes e podem ser pagas.`,
       type: "info",
       confirmLabel: "Aprovar",
       cancelLabel: "Cancelar",
@@ -154,17 +159,20 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
 
   const lancamentos = agruparLancamentos(contas);
   const totalAguardando = lancamentos.reduce((acc, l) => acc + l.total, 0);
+  const proximoVencimento = lancamentos
+    .map((l) => l.contas[0].data_vencimento)
+    .sort()[0];
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-6xl">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 select-none">
         <span className="text-[11px] text-mt-neutral-700 max-w-[520px]">
-          Lançamentos a pagar acima da alçada de {formatPrice(ALCADA_DO_FINANCEIRO)} esperam
-          decisão do administrador. Parcelas do mesmo lançamento são decididas juntas.
+          Pagamentos agendados esperam a liberação do gestor. Registro de conta
+          já paga não entra aqui — parcelas do mesmo lançamento são decididas juntas.
         </span>
         {!podeDecidir && (
           <span className="text-[10px] font-bold uppercase tracking-wider text-mt-neutral-600 border border-mt-regua-fina px-3 py-2">
-            Quem decide é o administrador
+            Quem decide é o gestor
           </span>
         )}
       </div>
@@ -184,7 +192,7 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
         <div className="py-16 text-center text-xs text-mt-neutral-700">Carregando a fila...</div>
       ) : lancamentos.length === 0 ? (
         <div className="bg-mt-surface border border-dashed border-mt-regua-fina p-12 text-center text-xs text-mt-neutral-600 select-none">
-          Nenhum lançamento aguardando aprovação. ✓
+          Nenhum agendamento aguardando liberação. ✓
         </div>
       ) : (
         <>
@@ -192,14 +200,16 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
           <div className="grid select-none grid-cols-1 border-t-2 border-mt-regua sm:grid-cols-2">
             {[
               {
-                rotulo: "Aguardando aprovação",
+                rotulo: "Aguardando liberação",
                 valor: formatPrice(totalAguardando),
-                nota: `${lancamentos.length} lançamento${lancamentos.length === 1 ? "" : "s"}`,
+                nota: `${lancamentos.length} agendamento${lancamentos.length === 1 ? "" : "s"}`,
               },
               {
-                rotulo: "Alçada do gerente",
-                valor: formatPrice(ALCADA_DO_FINANCEIRO),
-                nota: "acima disso, decisão do Admin (A17)",
+                rotulo: "Compromisso mais próximo",
+                valor: proximoVencimento ? formatDate(proximoVencimento) : "—",
+                // Agendamento parado não pode ser pago: se o vencimento
+                // passar na fila, quem perde o prazo é a loja.
+                nota: "vencimento do primeiro da fila",
               },
             ].map((kpi) => (
               <div

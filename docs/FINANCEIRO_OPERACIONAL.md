@@ -41,8 +41,8 @@ investidores, "um painel que mostrasse isso pra eles também".
 | P6 — investidores | ✅ **Entregue 2026-08-21** | Tela **Investidores** (`/admin/financeiro/investidores`): aportes, retiradas (inclusive em carro de repasse, vinculada ao veículo) e saldo por investidor |
 | Aviso de vencimento no WhatsApp | ✅ **Já existia** | `conta_vencida` no Formato C (`WEBHOOKS_N8N.md`) — 3 dias antes, 1 dia, no dia e 7 dias após |
 | Aviso de aporte/retirada | ✅ **Entregue 2026-08-21** | Evento `investidor_movimento` no Formato C, mesmo destino do `adm-motors` |
-| Conta subindo para aprovação | ✅ **Entregue 2026-08-21** | Fluxo de alçada (§3): lançamento acima de R$ 1.500 nasce `aguardando_aprovacao`, evento `conta_aguardando_aprovacao` avisa, o Admin decide em **Aprovações** |
-| Painel externo para o investidor | 📋 **Na fila** | Ver §4 — o dado já existe; falta decidir a porta (área logada própria? resumo por WhatsApp?) |
+| Conta subindo para aprovação | ✅ **Entregue 2026-08-21** | Fluxo de agendamento (§3): agendar pagamento nasce `aguardando_aprovacao`, evento `conta_aguardando_aprovacao` avisa, o **Gestor** decide em **Aprovações** |
+| Painel externo para o investidor | ✅ **Entregue 2026-08-21** | Área `/investidor` (§3), fora do painel: o sócio entra por link mágico e vê o próprio saldo e extrato, sob RLS |
 
 ## 3. O que o pacote de 2026-08-21 entregou
 
@@ -82,36 +82,89 @@ Tabelas, RLS e CHECKs em `20260821120000_financeiro_operacional.sql`, com
 autoconferência; a lib espelhada por teste (`tests/investidores.test.ts` falha
 se o vocabulário do SQL e o do TypeScript divergirem).
 
-### Aprovação com alçada (`/admin/financeiro/aprovacoes`)
+### Aprovação de agendamento (`/admin/financeiro/aprovacoes`)
 
-A linha "Lançar e aprovar contas a pagar — alçada de R$ 1.500 no gerente"
-está na matriz A17 desde o design doc; até 2026-08-21 nenhuma tela aplicava.
-Agora:
+> **A régua mudou no mesmo dia em que nasceu.** A primeira versão aplicava a
+> linha do design doc — "alçada de R$ 1.500 no gerente". O dono desfez, com o
+> pacote já pronto: *"essa regra de 1.500 reais não faz sentido no
+> financeiro"*. O registro fica porque a razão vale para a próxima régua que
+> alguém propuser: **numa revenda, valor não mede risco**. R$ 1.200 de
+> despesa nova recorrente compromete mais caixa que R$ 40.000 de um carro já
+> negociado e coberto pela venda. Qualquer limite em reais ou barra o normal
+> ou libera o perigoso — e obriga alguém a defender um número arbitrário.
 
-- Lançamento **a pagar, em aberto**, acima de R$ 1.500, por quem não é Admin,
-  nasce `aguardando_aprovacao` — e a régua olha o valor **total** do
-  lançamento, não a parcela (4x de R$ 1.499 não é porta de evasão). O evento
-  `conta_aguardando_aprovacao` avisa no WhatsApp — o pedido literal do dono.
-- O Admin decide na tela **Aprovações** — o lançamento inteiro de uma vez
+O que decide é o **ato**:
+
+| Ato | O que é | Vai ao Gestor? |
+|---|---|---|
+| **Agendar** | conta a pagar que fica em aberto — dinheiro que ainda vai sair | **Sim** |
+| **Registrar** | conta a pagar já quitada — escrituração do que aconteceu | Não |
+| Receber | qualquer conta a receber | Não — alçada é sobre gasto |
+
+- Agendamento lançado por quem não aprova nasce `aguardando_aprovacao`, e o
+  evento `conta_aguardando_aprovacao` avisa no WhatsApp — o pedido literal do
+  dono. Registro retroativo passa direto: o dinheiro já saiu, e travar o
+  registro só esconderia o rastro — além de ser o fluxo diário da Sinthia
+  ("faço os lançamentos após os pagamentos serem realizados").
+- O **Gestor** decide na tela **Aprovações** — o lançamento inteiro de uma vez
   (parcelas andam juntas). Aprovar → `pendente`; recusar → `cancelado` com
   **motivo obrigatório**. Quem/quando/por quê fica em
   `aprovacao_decidida_por/em/motivo`; o instante é carimbado por trigger,
   mesmo que a rota esqueça.
-- A alçada vale na **edição** também: aumento de valor acima da linha, por
-  quem não é Admin, devolve a conta para aprovação — e quem não é Admin não
-  muda o status de uma conta aguardando (só a rota de decisão muda).
-- Conta aguardando **não** envelhece para `vencido` (não é dívida
-  reconhecida, é pedido em análise) e **não pode ser paga** — a rota de baixa
+- Quem **pode** aprovar não gera pendência para si mesmo: pedir que o Gestor
+  aprove o próprio agendamento é burocracia sem revisor.
+- Vale na **edição** também: transformar um registro liquidado em agendamento
+  devolve a conta para a fila, e quem não aprova não muda o status de uma
+  conta aguardando (só a rota de decisão muda).
+- Agendamento aguardando **não** envelhece para `vencido` (não é dívida
+  reconhecida, é pedido em análise) e **não pode ser pago** — a rota de baixa
   recusa. A autoconferência da migração prova os dois lados.
-- O que passa **direto**, e por quê: Admin (sem limite), a receber (alçada é
-  sobre gasto), registro retroativo de conta já paga (o dinheiro já saiu —
-  travar o registro só esconderia o rastro, e lançar-depois-de-pagar é o
-  fluxo diário atual), importação do RevendaMais e geração de recorrente
-  (compromisso que já existe, não decisão nova — forçá-los criaria avalanche
-  de aprovação na virada).
+- Importação do RevendaMais e geração de recorrente passam direto: são
+  compromisso que já existe, não decisão nova — forçá-los criaria avalanche
+  de aprovação exatamente na virada que queremos.
 
-O número 1.500 tem **uma fonte só**: `ALCADA_DO_FINANCEIRO` deriva do texto
-da matriz (`ALCADA_DO_PERFIL.financeiro`), e o teste quebra se divergirem.
+**Quem decide sai da matriz, não de uma lista no código.** `podeDecidirAprovacao`
+pergunta à linha "Aprovar agendamento financeiro" da A17; dar esse poder a um
+papel novo é uma linha na matriz, não uma edição na lib.
+
+### Dois papéis novos: `gestor` e `investidor`
+
+Pedido do dono junto com a mudança da régua: *"precisamos de duas novas roles
+também, investidor e gestor, que terá o poder de aprovar os agendamentos
+financeiro, ajustar valores de negócios de carro, entrada e saída, bem como
+acesso aos relatórios"*.
+
+**Eles não são da mesma natureza — e essa é a decisão central do pacote.**
+
+| | `gestor` | `investidor` |
+|---|---|---|
+| Natureza | papel **de painel** | papel **fora do painel**, como `cliente` |
+| `is_staff()` | sim | **não** |
+| Onde vive | `/admin` | `/investidor` (molde da Garagem) |
+| O que faz | aprova agendamento, ajusta entrada e saída do carro, lê relatórios | confere o próprio saldo e extrato — **só leitura** |
+
+Fosse o investidor um perfil de painel, herdaria de uma vez tudo que as telas
+liberam "para quem está logado no /admin". Ele fica fora de `PERFIS`, e é só
+isso que o mantém do lado de fora: `perfisDe` descarta o que não está lá, e
+`ehStaff` responde `false` sem lista de exclusão em lugar nenhum.
+
+O que o **Gestor** ganhou na matriz A17, linha a linha: "Aprovar agendamento
+financeiro" (nova), "Ver relatórios gerenciais e DRE" (nova — relatório nunca
+teve linha própria e vinha de carona no acesso ao módulo), "Alterar preço até
+5%" e "acima de 5%" (a **saída** do negócio, sem revisão: mandá-lo a revisão
+seria negar a própria alçada), "Ver custo de aquisição e margem" (a
+**entrada**), "Lançar e aprovar contas a pagar" e o controle de investidores.
+O que ele **não** ganhou: as três travas do doc (paleta, ficha técnica travada,
+texto legal), conteúdo de site, leads, publicação e convite de usuário —
+nenhuma delas foi pedida, e papel novo herda por decisão, não por inércia.
+
+**A área do investidor** (`/investidor`) segue o desenho da Garagem: entrada
+por link mágico, sem `/login` próprio; leitura **sob a sessão**, nunca com
+chave de serviço (com ela, um filtro errado entregaria o extrato de um sócio
+ao outro, e não haveria segunda barreira); policies `for select` apenas — ele
+confere, não lança; e o vínculo conta↔investidor se faz sozinho pelo e-mail
+via `reivindicar_investidor()`, a gêmea de `reivindicar_garagem()`, **com a
+mesma exigência de e-mail confirmado**.
 
 ### A correção que o briefing revelou
 
@@ -123,36 +176,47 @@ SidebarNav lê `papeis`), abria a tela e recebia lista vazia. A migração
 redefine a função sobre `papeis` — e a versiona pela primeira vez; antes ela
 só existia no bootstrap histórico.
 
+E o banco não estava sozinho: o **`proxy.ts`** e o **`SidebarNav`** liam a
+mesma coluna singular. O proxy comparava `role !== "financeiro"` (403 na API,
+redirect no painel) e o trilho filtrava os grupos por um papel só — então a
+mesma pessoa não via o menu, não abria a rota e não lia a tabela, por três
+motivos independentes. Os dois foram corrigidos para `perfisDe(...)` no
+pacote dos papéis; `tests/papeis-gestor-investidor.test.ts` trava os três
+lados.
+
 ## 4. Na fila — em ordem de dor
 
 1. **Conciliação bancária (P4).** Importação de OFX dos bancos usados hoje
    (Itaú, Bradesco, Stone) casando extrato × `movimentacoes`. Antes de
    qualquer tela: decidir se entra OFX manual ou Open Finance — custo e
    prazo muito diferentes.
-2. **Painel externo do investidor.** O dado e o evento já existem; falta a
-   porta. A infraestrutura da Garagem (área logada de cliente) serve de
-   molde — mas investidor **não** é `cliente` da Garagem; seria papel novo,
-   e papel novo passa pela matriz A17 primeiro.
-3. **Migração RevendaMais → painel.** O importador já existe
+2. **Migração RevendaMais → painel.** O importador já existe
    (`/admin/financeiro/importar`); a virada de chave é operacional: rodar as
    duas pontas em paralelo um mês, conferir DRE contra DRE, e só então
    desligar o lançamento de lá. O usuário de teste da Sinthia é o primeiro
    passo — criar com papel `financeiro` na A17 (multi-papel já funciona).
-4. **Alçada no cadastro de recorrente.** A geração mensal passa direto de
+3. **Aprovação no cadastro de recorrente.** A geração mensal passa direto de
    propósito (compromisso já assumido) — mas o CADASTRO de uma recorrente
-   acima da alçada hoje também passa. Fechar esse flanco quando o fluxo de
-   aprovação estiver rodado na prática.
+   nova, que é decisão de gasto como qualquer agendamento, hoje também passa.
+   Fechar esse flanco quando o fluxo de aprovação estiver rodado na prática.
+4. **Convite de investidor pela A17.** Hoje o Admin cria a conta com papel
+   `investidor` e o vínculo se faz pelo e-mail no primeiro acesso. Falta o
+   caminho feliz na tela de usuários: convidar direto do cadastro do
+   investidor, sem passar por duas telas.
 
 ## 5. Onde está cada coisa
 
 | Peça | Arquivo |
 |---|---|
 | Migração (função + tabelas + RLS) | `supabase/migrations/20260821120000_financeiro_operacional.sql` |
-| Migração (status + trilha da alçada) | `supabase/migrations/20260821150000_alcada_de_aprovacao.sql` |
+| Migração (status + trilha da aprovação) | `supabase/migrations/20260821150000_alcada_de_aprovacao.sql` |
+| Migração (papéis gestor e investidor) | `supabase/migrations/20260821180000_papeis_gestor_e_investidor.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
 | Régua de investidores | `src/lib/investidores.ts` · `tests/investidores.test.ts` |
-| Régua da alçada | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |
+| Régua da aprovação | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |
+| Os dois papéis novos | `src/lib/permissoes.ts` · `tests/papeis-gestor-investidor.test.ts` |
 | Rotas | `src/app/api/financeiro/dia/` · `src/app/api/financeiro/investidores/` · `src/app/api/financeiro/contas/[id]/aprovar/` |
 | Telas | `src/components/financeiro/DiaOperacional.tsx` · `InvestidoresPainel.tsx` · `AprovacoesPendentes.tsx` |
+| Área do investidor | `src/app/investidor/page.tsx` · `src/components/investidor/` |
 | Eventos novos | `investidor_movimento`, `conta_aguardando_aprovacao`, `conta_aprovada`, `conta_recusada` — contrato em `WEBHOOKS_N8N.md` (Formato C) |
-| Permissão | linhas "Controlar aportes e retiradas de investidores" e a alçada de "Lançar e aprovar contas a pagar" em `src/lib/permissoes.ts` |
+| Permissão | as linhas "Aprovar agendamento financeiro", "Ver relatórios gerenciais e DRE" e "Controlar aportes e retiradas de investidores" em `src/lib/permissoes.ts` |

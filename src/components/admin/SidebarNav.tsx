@@ -4,7 +4,15 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 interface SidebarNavProps {
-  role: string;
+  /**
+   * TODOS os papéis de painel de quem está logado, não o primário.
+   *
+   * Era `role: string` até 2026-08-21, e isso reproduzia no trilho o mesmo
+   * bug que `has_finance_access` tinha no banco: quem tem `financeiro` como
+   * SEGUNDO papel carrega `role = 'comercial'` (o espelho de `papeis[1]`) e
+   * o grupo Financeiro sumia do menu — sem erro, sem log, só ausência.
+   */
+  perfis: string[];
 }
 
 /**
@@ -25,7 +33,7 @@ interface SidebarNavProps {
  * que ainda não foram construídas (leads, fotos e mídia, SEO), e link morto
  * no painel é pior que ausência.
  */
-export default function SidebarNav({ role }: SidebarNavProps) {
+export default function SidebarNav({ perfis }: SidebarNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab");
@@ -36,7 +44,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
       // volume agregado de leads — a rota devolve contagem sem nome nem
       // telefone para esse perfil.
       title: "Geral",
-      roles: ["admin", "comercial", "marketing", "financeiro"],
+      roles: ["admin", "gestor", "comercial", "marketing", "financeiro"],
       items: [
         { name: "Visão geral", href: "/admin" },
         { name: "Leads", href: "/admin/leads" },
@@ -45,8 +53,11 @@ export default function SidebarNav({ role }: SidebarNavProps) {
     {
       // Grupo ESTOQUE do doc — a trilha `PAINEL / ESTOQUE / VEÍCULOS`. A
       // tabela A6 é a porta; o editor de um carro (A15) abre a partir dela.
+      // O Gestor entra em 2026-08-21: "ajustar valores de negócios de carro,
+      // entrada e saída" (linhas de preço e de custo de aquisição na A17) só
+      // acontece pelo editor do veículo, e é daqui que se chega nele.
       title: "Estoque",
-      roles: ["admin", "comercial", "marketing"],
+      roles: ["admin", "gestor", "comercial", "marketing"],
       items: [{ name: "Veículos", href: "/admin/estoque" }],
     },
     {
@@ -71,7 +82,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
     },
     {
       title: "Financeiro",
-      roles: ["admin", "financeiro"],
+      roles: ["admin", "gestor", "financeiro"],
       items: [
         { name: "Visão geral", href: "/admin/financeiro" },
         // A porta da manhã da operação (briefing 2026-08-21): o que vence
@@ -79,8 +90,9 @@ export default function SidebarNav({ role }: SidebarNavProps) {
         // geral porque é a tela de todo dia.
         { name: "Pagamentos do dia", href: "/admin/financeiro/dia" },
         { name: "Contas a pagar", href: "/admin/financeiro/contas-pagar" },
-        // A fila da alçada da A17 (R$ 1.500): o Financeiro acompanha, o
-        // Admin decide — os botões somem para quem não decide.
+        // A fila de agendamentos (A17, "Aprovar agendamento financeiro"): o
+        // Financeiro acompanha, o Gestor decide — os botões somem para quem
+        // não decide.
         { name: "Aprovações", href: "/admin/financeiro/aprovacoes" },
         { name: "Contas a receber", href: "/admin/financeiro/contas-receber" },
         { name: "Despesas recorrentes", href: "/admin/financeiro/recorrentes" },
@@ -128,7 +140,11 @@ export default function SidebarNav({ role }: SidebarNavProps) {
     },
   ];
 
-  const allowedGroups = menuGroups.filter((group) => group.roles.includes(role));
+  // Basta UM papel autorizar: multi-papel soma acesso, nunca subtrai — a
+  // mesma leitura de `podeFazer` na matriz.
+  const allowedGroups = menuGroups.filter((group) =>
+    group.roles.some((r) => perfis.includes(r)),
+  );
 
   const isItemActive = (href: string) => {
     if (href.startsWith("/admin/configuracoes")) {

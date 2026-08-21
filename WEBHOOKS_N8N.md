@@ -195,13 +195,17 @@ como nome, `tipo` é `"aporte"` ou `"retirada"` e `valor` é **sempre positivo**
 o lado mora em `tipo`, como nos contadores de `conta_vencida`. `veiculo` só vem
 preenchido quando a movimentação é um carro de repasse.
 
-A alçada de aprovação (2026-08-21) acrescenta três eventos ao prefixo
+A aprovação de agendamento (2026-08-21) acrescenta três eventos ao prefixo
 `conta_`, com o mesmo `data` da tabela: **`conta_aguardando_aprovacao`**
-(lançamento a pagar acima de R$ 1.500 por quem não é Admin — sai NO LUGAR de
-`conta_criada`, nunca junto; é o aviso "conta subiu pra aprovação" do
-briefing), **`conta_aprovada`** e **`conta_recusada`** (a decisão do Admin —
-uma emissão por parcela do lançamento). O `status` dentro de `data` diz o
-estado resultante: `aguardando_aprovacao`, `pendente` ou `cancelado`.
+(agendamento — conta a pagar que fica em aberto — lançado por quem não tem
+poder de aprovar; sai NO LUGAR de `conta_criada`, nunca junto, e é o aviso
+"conta subiu pra aprovação" do briefing), **`conta_aprovada`** e
+**`conta_recusada`** (a decisão do Gestor — uma emissão por parcela do
+lançamento). O `status` dentro de `data` diz o estado resultante:
+`aguardando_aprovacao`, `pendente` ou `cancelado`.
+
+Não há limiar em reais: registro de conta já paga nunca gera esses eventos, e
+agendamento gera sempre — ver `docs/FINANCEIRO_OPERACIONAL.md` §3.
 
 **Liga/desliga por evento:** `webhooks.events[nomeDoEvento] === false` bloqueia
 o disparo. Ausente = habilitado.

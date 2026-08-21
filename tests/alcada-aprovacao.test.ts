@@ -2,111 +2,153 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  ALCADA_DO_FINANCEIRO,
+  ehAgendamento,
+  podeAjustarValoresDoNegocio,
   podeDecidirAprovacao,
+  podeVerRelatorios,
   precisaDeAprovacao,
 } from "../src/lib/alcada";
-import { ALCADA_DO_PERFIL } from "../src/lib/permissoes";
+import { ALCADA_DO_PERFIL, MATRIZ_DE_PERMISSOES } from "../src/lib/permissoes";
 
 /**
- * Alçada de aprovação (briefing 2026-08-21).
+ * Aprovação de agendamento financeiro.
  *
- * A linha "alçada de R$ 1.500 no gerente" existe na matriz A17 desde o
- * design doc e nunca teve efeito. Agora tem — e errar aqui é dos dois lados
- * caro: régua frouxa deixa o gerente comprometer qualquer valor sozinho;
- * régua apertada trava o fluxo diário (o lançar-depois-de-pagar da
- * operação) e sabota a adoção que o briefing quer.
+ * ⚠️ Esta suíte já travou uma régua DIFERENTE. Entre 2026-08-07 e 2026-08-21 a
+ * matriz A17 dizia "alçada de R$ 1.500 no gerente", e no dia 21 o dono
+ * desfez: *"essa regra de 1.500 reais não faz sentido no financeiro"*. O que
+ * decide agora é o ATO — agendar pagamento vai ao Gestor, registrar pagamento
+ * já feito não vai a ninguém.
  *
- * O que está travado:
- *  1. o número vem do TEXTO da matriz — as duas fontes não podem divergir;
- *  2. exatamente na alçada passa, um centavo acima sobe;
- *  3. os isentos continuam isentos: admin, a receber, registro retroativo;
- *  4. quem decide é só o Admin — inclusive no multi-papel;
- *  5. a migração garante o vocabulário, a trilha e que aguardando não
- *     envelhece para vencido.
+ * O que está travado aqui, porque errar é caro dos dois lados (régua frouxa
+ * deixa comprometer caixa sem revisor; régua apertada trava o fluxo diário da
+ * adm/financeira e sabota a adoção):
+ *
+ *  1. nenhum limiar em reais sobrou no código — valor não decide mais nada;
+ *  2. agendamento sobe, registro retroativo passa, a receber nunca sobe;
+ *  3. quem pode aprovar não gera pendência para si mesmo;
+ *  4. quem decide sai da MATRIZ, não de uma lista de papéis embutida.
  */
 
-describe("ALCADA_DO_FINANCEIRO — uma fonte só", () => {
-  it("deriva do texto da matriz A17", () => {
-    // Se alguém mudar a alçada na matriz ("R$ 2.000"), o número acompanha;
-    // se mudar o formato para algo não parseável, o import da lib explode e
-    // a suíte inteira acusa.
-    expect(ALCADA_DO_PERFIL.financeiro).toBe("R$ 1.500");
-    expect(ALCADA_DO_FINANCEIRO).toBe(1500);
+describe("a régua não é mais um valor", () => {
+  it("a alçada do Financeiro deixou de ser um número", () => {
+    // A trava contra reintroduzir o limiar por descuido: se alguém voltar a
+    // escrever "R$ 1.500" (ou qualquer valor) na matriz, este teste cai.
+    expect(ALCADA_DO_PERFIL.financeiro).toBe("Agendamento vai ao Gestor");
+    expect(ALCADA_DO_PERFIL.financeiro).not.toMatch(/\d/);
+  });
+
+  it("nenhuma observação da matriz promete um limite em reais", () => {
+    for (const l of MATRIZ_DE_PERMISSOES) {
+      expect(l.observacao, `linha "${l.acao}" ainda cita um valor`).not.toMatch(/R\$\s*\d/);
+    }
   });
 });
 
-describe("precisaDeAprovacao — a régua", () => {
-  const base = { tipo: "pagar", perfis: ["financeiro"] as string[] };
-
-  it("na alçada passa; um centavo acima sobe", () => {
-    // "Alçada de R$ 1.500" é o que o gerente PODE, inclusive.
-    expect(precisaDeAprovacao({ ...base, valorTotal: 1500 })).toBe(false);
-    expect(precisaDeAprovacao({ ...base, valorTotal: 1500.01 })).toBe(true);
-    expect(precisaDeAprovacao({ ...base, valorTotal: 9000 })).toBe(true);
+describe("ehAgendamento — o que é decisão de gasto", () => {
+  it("a pagar em aberto é agendamento", () => {
+    for (const status of ["pendente", "vencido", "parcial", undefined]) {
+      expect(ehAgendamento("pagar", status), `status ${status}`).toBe(true);
+    }
   });
 
-  it("a régua olha o TOTAL do lançamento, não a parcela", () => {
-    // 4x de R$ 1.499 = R$ 5.996 comprometidos — parcelar não pode ser a
-    // porta de evasão. Quem chama passa o total; este teste documenta o
-    // contrato do nome do campo.
-    expect(precisaDeAprovacao({ ...base, valorTotal: 4 * 1499 })).toBe(true);
+  it("a pagar já liquidada ou cancelada é registro, não agendamento", () => {
+    expect(ehAgendamento("pagar", "pago")).toBe(false);
+    expect(ehAgendamento("pagar", "cancelado")).toBe(false);
   });
 
-  it("admin não tem limite — inclusive no multi-papel", () => {
-    expect(precisaDeAprovacao({ ...base, perfis: ["admin"], valorTotal: 90000 })).toBe(false);
-    expect(
-      precisaDeAprovacao({ ...base, perfis: ["financeiro", "admin"], valorTotal: 90000 }),
-    ).toBe(false);
-  });
-
-  it("a receber nunca sobe — alçada é sobre gasto", () => {
-    expect(precisaDeAprovacao({ ...base, tipo: "receber", valorTotal: 90000 })).toBe(false);
-  });
-
-  it("registro retroativo (pago/cancelado) passa; em aberto sobe", () => {
-    // O fluxo diário da operação é lançar DEPOIS de pagar: o dinheiro já
-    // saiu, travar o registro só esconderia o rastro. `conta_criada` segue
-    // avisando o admin de tudo.
-    expect(precisaDeAprovacao({ ...base, valorTotal: 9000, status: "pago" })).toBe(false);
-    expect(precisaDeAprovacao({ ...base, valorTotal: 9000, status: "cancelado" })).toBe(false);
-    expect(precisaDeAprovacao({ ...base, valorTotal: 9000, status: "pendente" })).toBe(true);
-    // Status ausente é pendente — o padrão do formulário.
-    expect(precisaDeAprovacao({ ...base, valorTotal: 9000 })).toBe(true);
-  });
-
-  it("valor não numérico não sobe nem explode", () => {
-    expect(precisaDeAprovacao({ ...base, valorTotal: NaN })).toBe(false);
+  it("a receber nunca é agendamento — alçada é sobre gasto", () => {
+    expect(ehAgendamento("receber", "pendente")).toBe(false);
   });
 });
 
-describe("podeDecidirAprovacao — só o Admin", () => {
-  it("financeiro não aprova o que não podia lançar", () => {
-    expect(podeDecidirAprovacao(["financeiro"])).toBe(false);
-    expect(podeDecidirAprovacao(["comercial", "financeiro"])).toBe(false);
+describe("precisaDeAprovacao", () => {
+  const financeiro = { perfis: ["financeiro"] as string[] };
+
+  it("o Financeiro agenda e sobe para o Gestor", () => {
+    expect(precisaDeAprovacao({ tipo: "pagar", status: "pendente", ...financeiro })).toBe(true);
+    // Sem status: o padrão do formulário é pendente.
+    expect(precisaDeAprovacao({ tipo: "pagar", ...financeiro })).toBe(true);
+  });
+
+  it("registro retroativo passa direto — é o fluxo diário da operação", () => {
+    // "Faço os lançamentos após os pagamentos serem realizados" (briefing
+    // 2026-08-21). O dinheiro já saiu: travar o registro só esconde o rastro.
+    expect(precisaDeAprovacao({ tipo: "pagar", status: "pago", ...financeiro })).toBe(false);
+    expect(precisaDeAprovacao({ tipo: "pagar", status: "cancelado", ...financeiro })).toBe(false);
+  });
+
+  it("a receber não sobe", () => {
+    expect(precisaDeAprovacao({ tipo: "receber", status: "pendente", ...financeiro })).toBe(false);
+  });
+
+  it("quem aprova não gera pendência para si mesmo", () => {
+    // Pedir que o Gestor aprove o próprio agendamento é burocracia sem
+    // revisor — e deixaria a fila cheia de itens que ninguém precisa olhar.
+    for (const perfis of [["admin"], ["gestor"], ["gestor", "financeiro"]]) {
+      expect(precisaDeAprovacao({ tipo: "pagar", status: "pendente", perfis })).toBe(false);
+    }
+  });
+
+  it("papel nenhum não vira licença para agendar", () => {
+    // Lista vazia é "não é da equipe" — a mesma leitura de `podeFazer`.
+    expect(precisaDeAprovacao({ tipo: "pagar", status: "pendente", perfis: [] })).toBe(true);
+  });
+});
+
+describe("quem decide, quem lê, quem ajusta o negócio", () => {
+  it("aprova agendamento: Admin e Gestor; o Financeiro não aprova o próprio", () => {
     expect(podeDecidirAprovacao(["admin"])).toBe(true);
-    expect(podeDecidirAprovacao(["financeiro", "admin"])).toBe(true);
+    expect(podeDecidirAprovacao(["gestor"])).toBe(true);
+    expect(podeDecidirAprovacao(["financeiro"])).toBe(false);
+    expect(podeDecidirAprovacao(["comercial"])).toBe(false);
+    expect(podeDecidirAprovacao(["marketing"])).toBe(false);
     expect(podeDecidirAprovacao([])).toBe(false);
+    // Multi-papel soma: quem é financeiro E gestor decide.
+    expect(podeDecidirAprovacao(["financeiro", "gestor"])).toBe(true);
+  });
+
+  it("relatórios: Admin, Gestor e Financeiro — o pedido do dono ao Gestor", () => {
+    expect(podeVerRelatorios(["gestor"])).toBe(true);
+    expect(podeVerRelatorios(["financeiro"])).toBe(true);
+    expect(podeVerRelatorios(["admin"])).toBe(true);
+    expect(podeVerRelatorios(["comercial"])).toBe(false);
+    expect(podeVerRelatorios(["marketing"])).toBe(false);
+  });
+
+  it("valores do negócio (entrada e saída): Admin, Gestor e Financeiro", () => {
+    // "Ajustar valores de negócios de carro, entrada e saída" — entrada é o
+    // custo de aquisição, saída é o preço. O Comercial mexe no preço só
+    // dentro dos 5%, então não ajusta o negócio: a função exige as duas.
+    expect(podeAjustarValoresDoNegocio(["gestor"])).toBe(true);
+    expect(podeAjustarValoresDoNegocio(["admin"])).toBe(true);
+    expect(podeAjustarValoresDoNegocio(["financeiro"])).toBe(true);
+    expect(podeAjustarValoresDoNegocio(["comercial"])).toBe(false);
+    expect(podeAjustarValoresDoNegocio(["marketing"])).toBe(false);
+  });
+
+  it("a resposta sai da matriz, não de uma lista embutida na lib", () => {
+    // Se a linha da matriz sumir, `podeFazer` devolve "nao_ve" para todo
+    // mundo e NINGUÉM decide — a fila trava, em vez de abrir para todos.
+    const acoes = MATRIZ_DE_PERMISSOES.map((l) => l.acao);
+    expect(acoes).toContain("Aprovar agendamento financeiro");
+    expect(acoes).toContain("Ver relatórios gerenciais e DRE");
   });
 });
 
 // ---------------------------------------------------------------------------
-// A migração — vocabulário, trilha e o não-envelhecimento
+// A migração do estado — o banco guarda a trilha, não a régua
 // ---------------------------------------------------------------------------
 
-const migracao = readFileSync(
+const sql = readFileSync(
   join(__dirname, "..", "supabase", "migrations", "20260821150000_alcada_de_aprovacao.sql"),
   "utf-8",
-);
-
-/** Só o que o Postgres executa — o padrão de `migracoes.test.ts`. */
-const sql = migracao
+)
   .split("\n")
   .filter((linha) => !linha.trimStart().startsWith("--"))
   .join("\n");
 
-describe("migração 20260821150000 — alçada de aprovação", () => {
-  it("o CHECK de status ganha aguardando_aprovacao sem perder o vocabulário antigo", () => {
+describe("migração 20260821150000 — o estado da aprovação", () => {
+  it("o CHECK de status conhece aguardando_aprovacao", () => {
     const check = sql.match(/contas_status_check\s+check \(status in \(([^)]*)\)\)/);
     expect(check).not.toBeNull();
     const status = [...check![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
@@ -122,18 +164,22 @@ describe("migração 20260821150000 — alçada de aprovação", () => {
     expect(sql).toMatch(/aprovacao_decidida_por uuid references public\.profiles\(id\)/);
   });
 
-  it("o carimbo do instante da decisão é trigger, não confiança na rota", () => {
+  it("o carimbo do instante é trigger, não confiança na rota", () => {
     expect(sql).toContain("create trigger trg_carimbar_decisao_de_alcada");
     expect(sql).toMatch(/old\.status = 'aguardando_aprovacao'/);
   });
 
   it("a autoconferência prova que aguardando não vira vencido", () => {
-    // `atualizar_contas_vencidas()` só toca `pendente`; aguardando aprovação
-    // não é dívida reconhecida — é pedido em análise. A migração roda a
-    // rotina contra uma conta aguardando vencida há 30 dias e exige que o
-    // status fique de pé.
+    // Agendamento parado não é dívida reconhecida — é pedido em análise.
     expect(sql).toContain("perform public.atualizar_contas_vencidas()");
     expect(sql).toMatch(/if v_status <> 'aguardando_aprovacao' then/);
+  });
+
+  it("o banco NÃO guarda limiar de valor — a régua é de aplicação", () => {
+    // Se um limiar voltar, ele tem que voltar em `lib/alcada.ts`, à vista da
+    // matriz — nunca embutido numa constraint que ninguém lê. `\b` protege o
+    // teste do carimbo da própria migração (20260821150000 contém "1500").
+    expect(sql).not.toMatch(/\b1500\b|alcada_valor|valor_limite|limite_de_alcada/);
   });
 
   it("se registra no livro-razão (D6)", () => {

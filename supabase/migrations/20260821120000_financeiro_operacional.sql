@@ -20,9 +20,11 @@
 -- Quem tem `papeis = {comercial, financeiro}` carrega `role = 'comercial'` —
 -- e a função nega. Resultado: TODA tabela do módulo financeiro (contas,
 -- categorias, parceiros, recorrentes, compras, movimentações, notificações)
--- soma RLS que não enxerga o segundo papel. A pessoa vê o menu Financeiro
--- (o SidebarNav lê `papeis`), abre a tela e recebe lista vazia — o mesmo
--- silêncio da família de bugs de `tests/rotas-de-api.test.ts`.
+-- soma RLS que não enxerga o segundo papel. E o banco não estava sozinho: o
+-- `SidebarNav` e o `proxy.ts` liam a mesma coluna singular, então a pessoa
+-- nem via o menu — o mesmo silêncio da família de bugs de
+-- `tests/rotas-de-api.test.ts`. Os dois lados de aplicação foram corrigidos
+-- em 20260821180000; aqui fica o lado do banco.
 --
 -- A correção é a mesma aplicada a `is_staff()` na migração dos papéis:
 -- trocar a coluna singular pelo array. Nenhuma policy muda — todas já
