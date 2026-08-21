@@ -84,15 +84,15 @@ diferente**, e colar o texto certo na caixa errada não faz o e-mail sair.
 |---|---|---|---|
 | **Magic link or OTP** | `auth.signInWithOtp()` | Cliente, na Garagem | [`magic-link.html`](../supabase/templates/magic-link.html) |
 | **Invite user** | `admin.inviteUserByEmail()` | Equipe, investidor — todo acesso ao painel | [`invite-user.html`](../supabase/templates/invite-user.html) |
-| **Confirm sign up** | `auth.signUp()` | Ninguém, hoje — rede de segurança (§1-d) | [`confirm-signup.html`](../supabase/templates/confirm-signup.html) |
-| **Reset password** | `auth.resetPasswordForEmail()` | Equipe que esqueceu a senha | ainda não existe |
+| **Confirm sign up** | `auth.signUp()` | Ninguém, hoje — rede de segurança (§1-e) | [`confirm-signup.html`](../supabase/templates/confirm-signup.html) |
+| **Reset password** | `auth.resetPasswordForEmail()` | Equipe que esqueceu a senha | [`reset-password.html`](../supabase/templates/reset-password.html) |
 | **Change email address** | `auth.updateUser({email})` | — | ainda não existe |
 | **Reauthentication** | `auth.reauthenticate()` | — | ainda não existe |
 
 As duas últimas linhas só ganham template quando existir tela de perfil: hoje
-seriam e-mails apontando para páginas que ninguém pode abrir. **Reset
-password** é a primeira lacuna que importa — enquanto ela não existir, quem
-esquece a senha depende de um admin, e não há como se recuperar sozinho.
+seriam e-mails apontando para páginas que ninguém pode abrir. As quatro
+primeiras estão prontas — e as três de senha (convite, troca e confirmação)
+terminam na mesma tela, `/definir-senha`.
 
 ### 1-c. O convite — como o acesso ao painel nasce (2026-08-21)
 
@@ -158,7 +158,50 @@ que é sempre verdade: vale uma vez só.
 dele é este mesmo; o que precisa nascer antes é a linha na matriz A17 e o
 recorte de RLS que ele enxerga.
 
-### 1-d. Confirmação de cadastro — a rede de segurança (2026-08-21)
+### 1-d. Esqueci minha senha (2026-08-21)
+
+Arquivo pronto: [`supabase/templates/reset-password.html`](../supabase/templates/reset-password.html)
+
+**Onde colar:** Authentication → Emails → template **Reset password** → campo
+*Message body*.
+
+**Assunto sugerido:**
+
+```
+Sua senha nova na Motors
+```
+
+Antes disto, quem esquecia a senha **dependia de um admin** — e o admin, até o
+convite entrar (§1-c), digitava a senha por ele. O fluxo agora fecha sozinho:
+
+1. `/login` traz **"Esqueci minha senha"** → `/recuperar-senha`;
+2. a tela pede o e-mail e chama `resetPasswordForEmail`;
+3. o link chega por `token_hash` com `type=recovery`;
+4. `/api/auth/confirm` verifica e manda para **`/definir-senha`** — a mesma
+   tela do convite.
+
+> **A resposta da tela é NEUTRA**, pelo mesmo motivo do §2-a: e-mail cadastrado
+> e desconhecido terminam na mesma mensagem ("se estiver cadastrado, o link
+> saiu"). Sem isso o formulário vira um **verificador de quem trabalha na
+> Motors** — é o problema da entrada da Garagem, com outro público. O retorno
+> do Supabase nem chega a ser lido: ler o erro seria o primeiro passo para
+> diferenciar.
+
+**O texto diz que a senha atual continua valendo até a troca.** Parece detalhe
+e não é: sem essa frase, quem clica por engano acha que ficou trancado para
+fora e liga para a loja.
+
+**Validade:** aqui o template promete **1 hora**, igual ao link mágico, porque
+os dois saem da mesma configuração (*Email OTP expiration*). Se ela mudar no
+painel, **os dois textos mudam juntos** — um teste trava a frase idêntica nos
+dois arquivos para que ninguém atualize um e esqueça o outro.
+
+**Cliente não usa este caminho.** A Garagem não tem senha; se um cliente pedir
+troca, ele define uma senha que não abre porta nenhuma no painel (o middleware
+barra papel `cliente`) e volta para a Garagem. As duas telas apontam o cliente
+para o lugar certo, mas nada quebra se ele passar por aqui.
+
+### 1-e. Confirmação de cadastro — a rede de segurança (2026-08-21)
 
 Arquivo pronto: [`supabase/templates/confirm-signup.html`](../supabase/templates/confirm-signup.html)
 
@@ -379,10 +422,11 @@ mudar junto** — prometer uma hora e expirar em dez minutos gera chamado.
 
 O link é de uso único. Pedir um novo invalida o anterior.
 
-A validade é **uma configuração só** (Email OTP expiration) para todos os
-e-mails do Auth — link mágico e confirmação de conta envelhecem juntos. Se o
-prazo mudar, são **dois** templates para atualizar: `magic-link.html` e
-`confirm-signup.html`. E link de confirmação vencido não é beco: a página de
+A validade é **uma configuração só** (Email OTP expiration) para os e-mails do
+Auth — link mágico, troca de senha e confirmação de conta envelhecem juntos. Se
+o prazo mudar, são **três** templates para atualizar: `magic-link.html`,
+`reset-password.html` e `confirm-signup.html`. O convite (`invite-user.html`)
+não promete número nenhum, então não entra na conta. E link de confirmação vencido não é beco: a página de
 entrada da Garagem manda um link mágico novo, e o `verifyOtp` dele também
 confirma o e-mail.
 
@@ -392,12 +436,16 @@ confirma o e-mail.
 
 - [ ] Template do **Magic Link** colado, com o assunto sugerido (§1)
 - [ ] Template do **Invite user** colado, com o assunto sugerido (§1-c)
-- [ ] Template do **Confirm signup** colado, com o assunto sugerido (§1-d)
+- [ ] Template do **Reset password** colado, com o assunto sugerido (§1-d)
+- [ ] Template do **Confirm signup** colado, com o assunto sugerido (§1-e)
 - [ ] Cadastro público de novos usuários desabilitado
 - [ ] Site URL e Redirect URLs preenchidas (produção e localhost)
 - [ ] SMTP próprio configurado, com remetente no domínio da loja
 - [ ] E-mail de teste recebido, link abrindo em `/api/auth/callback`
 - [ ] Validade do link conferida contra o texto do template
+- [ ] **Troca de senha testada**: pedir em `/recuperar-senha`, receber, abrir e
+      salvar a senha nova — e conferir que a mensagem da tela é a mesma para um
+      e-mail que não existe
 - [ ] **Convite testado ponta a ponta**: convidar um endereço seu na A17,
       receber, abrir em OUTRO navegador, definir senha e cair no painel com o
       perfil certo — o perfil errado aqui é o sinal de que o segundo passo do

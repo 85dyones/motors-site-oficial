@@ -76,7 +76,7 @@ export default async function DefinirSenhaPage() {
 
         <div className="border-t-2 border-mt-regua pt-6">
           <Rotulo accent className="text-[11px] tracking-[.18em]">
-            PRIMEIRO ACESSO
+            DEFINIR SENHA
           </Rotulo>
           <h1 className="mt-titulo m-0 mt-3 text-[30px]">Escolha sua senha</h1>
         </div>

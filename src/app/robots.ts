@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: ["GPTBot", "ClaudeBot", "Google-Extended"],
         allow: ["/llms.txt", "/api/llms-full.txt"],
-        disallow: ["/configuracoes", "/admin/", "/login", "/garagem", "/definir-senha"],
+        disallow: ["/configuracoes", "/admin/", "/login", "/garagem", "/definir-senha", "/recuperar-senha"],
       },
       {
         userAgent: "*",
@@ -20,7 +20,7 @@ export default function robots(): MetadataRoute.Robots {
         // `/garagem` (2026-08-15) pela mesma razão: área logada de cliente.
         // `/definir-senha` (2026-08-21): tela de primeiro acesso, atrás de
         // convite de uso único — não há nada ali para indexar.
-        disallow: ["/configuracoes", "/admin/", "/login", "/garagem", "/definir-senha", "/api/", "/test"],
+        disallow: ["/configuracoes", "/admin/", "/login", "/garagem", "/definir-senha", "/recuperar-senha", "/api/", "/test"],
       }
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
