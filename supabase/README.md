@@ -286,7 +286,7 @@ o histórico** — o cenário do 🔴 acima.
 
 ### Depois de aplicar: `conferir-estado-do-financeiro.sql`
 
-Cole no SQL Editor e rode. É **somente leitura** e devolve 16 linhas; toda
+Cole no SQL Editor e rode. É **somente leitura** e devolve 18 linhas; toda
 linha tem que sair ✅. Uma linha ❌ aponta o que falta e de qual migração ela
 vem — reaplicar essa migração resolve, porque todas são idempotentes.
 
@@ -301,11 +301,15 @@ dia — inclusive depois de alguém ter mexido pelo painel do Supabase, que é o
 caminho que este projeto proíbe e que nenhuma migração consegue impedir. É
 também o que responde "aplicou mesmo?" sem abrir seis telas.
 
-A conferência foi **falsificada** antes de entrar: com a RLS de
-`extrato_bancario` desligada, o índice único de `(conta, fitid)` derrubado e o
-trigger do carimbo removido, ela acusou exatamente essas três linhas e mais
-nenhuma; reaplicadas as duas migrações, voltou ao verde completo. Conferência que só se
-viu verde não vale nada — não se sabe se ela olha.
+Cada checagem foi **falsificada** antes de entrar — conferência que só se viu
+verde não vale nada, porque não se sabe se ela olha. Duas rodadas:
+
+- RLS de `extrato_bancario` desligada, índice único de `(conta, fitid)`
+  derrubado e trigger do carimbo removido → acusou exatamente essas três
+  linhas e mais nenhuma; reaplicadas as migrações, voltou ao verde.
+- `lancar_do_extrato()` trocada por uma versão `security definer` sem a
+  checagem de porta, e uma policy de DELETE a mais criada em `contas` (como
+  alguém faria pelo painel num aperto) → acusou 17 e 18, e só.
 
 ## ⚠️ Contrato com o sync — campos do painel
 

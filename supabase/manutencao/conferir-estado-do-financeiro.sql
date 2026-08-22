@@ -166,6 +166,34 @@ with conferencias as (
        join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'lancar_do_extrato'),
     '20260822180000'
+
+  union all select
+    17,
+    '17. lancar_do_extrato() é security definer E confere has_finance_access',
+    -- Existir não basta numa função `security definer`: ela roda com os
+    -- poderes do DONO, então as policies das tabelas não a limitam. Quem
+    -- guarda a porta é ela mesma. Uma versão sem essa checagem deixaria
+    -- qualquer usuário autenticado lançar no caixa — inclusive um
+    -- `investidor`, que nem entra no painel.
+    (select count(*) = 1 from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'lancar_do_extrato'
+        and p.prosecdef                                   -- é security definer
+        and pg_get_functiondef(p.oid) like '%has_finance_access%'),
+    '20260822180000'
+
+  union all select
+    18,
+    '18. Nenhuma das 4 tabelas de razão aceita DELETE fora do admin',
+    -- A linha de 21/08 ("quem aprova não apaga a prova") dita em SQL. Vale
+    -- conferir sempre: uma policy de DELETE a mais, criada pelo painel do
+    -- Supabase num aperto, não apareceria em lugar nenhum do repositório.
+    (select count(*) = 0 from pg_policies
+      where schemaname = 'public'
+        and tablename in ('contas','movimentacoes','compras_produtos','movimentacoes_investidor')
+        and cmd in ('DELETE','ALL')
+        and coalesce(qual, '') not like '%is_admin%'),
+    '20260821210000'
 )
 select
   case when ok then '✅' else '❌ FALTA' end as status,
