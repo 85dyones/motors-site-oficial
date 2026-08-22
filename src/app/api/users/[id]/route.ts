@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../../lib/supabase-server";
 import { registrarAcaoSensivel } from "../../../../lib/auditoria";
-import { PERFIS } from "../../../../lib/permissoes";
+import { PERFIS, perfisDe } from "../../../../lib/permissoes";
 
 export async function PUT(
   request: NextRequest,
@@ -23,12 +23,14 @@ export async function PUT(
       .eq("id", currentUser.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // Soma os papéis (multi-papel, 2026-08-19): admin em segundo lugar é admin.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 
     const body = await request.json();
-    const { full_name, role, papeis, is_active, telefone_e164 } = body;
+    const { full_name, role, is_active, telefone_e164 } = body;
+    let { papeis } = body;
 
     if (role !== undefined && !(PERFIS as readonly string[]).includes(role)) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
@@ -56,6 +58,17 @@ export async function PUT(
       if (new Set(papeis).size !== papeis.length) {
         return NextResponse.json({ error: "Perfil repetido na lista." }, { status: 400 });
       }
+
+      // Papel de painel na frente, `cliente` atrás. `papeis[1]` vira o `role`
+      // que os gates antigos (proxy incluído) leem — um staff com primário
+      // `cliente` seria barrado do painel inteiro. A A17 já manda ordenado;
+      // aqui é a garantia para qualquer cliente da rota. O sort do JS é
+      // estável: a ordem relativa escolhida entre os papéis de painel fica.
+      papeis = [...papeis].sort(
+        (a: string, b: string) =>
+          Number((PERFIS as readonly string[]).includes(b)) -
+          Number((PERFIS as readonly string[]).includes(a)),
+      );
     }
 
     // `papeis[1]` é o primário e espelha `role` — o trigger do banco cuida da
@@ -145,7 +158,8 @@ export async function DELETE(
       .eq("id", currentUser.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // Soma os papéis (multi-papel, 2026-08-19): admin em segundo lugar é admin.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 

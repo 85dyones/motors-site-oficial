@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff, normalizarPerfil, perfisDe, podeFazer } from "../../../../lib/permissoes";
+import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 
 export const dynamic = "force-dynamic";
@@ -158,7 +158,8 @@ export async function DELETE(request: NextRequest) {
       .select("role, papeis")
       .eq("id", user.id)
       .single();
-    if (!ehStaff(profile) || normalizarPerfil(profile?.role) !== "admin") {
+    // Soma os papéis (multi-papel, 2026-08-19): admin em segundo lugar é admin.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json(
         { error: "Só o Administrador exclui lead (pedido de titular)" },
         { status: 403 },

@@ -3,7 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../lib/webhook-dispatcher";
 import { registrarAcaoSensivel } from "../../../lib/auditoria";
-import { PERFIS } from "../../../lib/permissoes";
+import { PERFIS, perfisDe } from "../../../lib/permissoes";
 
 export async function GET() {
   try {
@@ -20,7 +20,10 @@ export async function GET() {
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // Todos os papéis, não só o primário: desde o multi-papel (2026-08-19)
+    // quem é admin em segundo lugar é admin — checar `role` sozinho trancava
+    // essa pessoa para fora da tela que a própria matriz lhe dá.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 
@@ -76,7 +79,8 @@ export async function POST(request: NextRequest) {
       .eq("id", currentUser.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // Como no GET: o gate soma os papéis, não olha só o primário.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 

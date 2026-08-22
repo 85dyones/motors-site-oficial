@@ -101,8 +101,14 @@ describe("a migração — banco", () => {
 
 describe("os gates de rota — app", () => {
   it("proxy e layout barram quem não é staff antes de qualquer regra de perfil", () => {
-    expect(proxy).toContain("if (!ehStaff(");
-    expect(layout).toContain("if (!ehStaff(");
+    // Desde 2026-08-22 os dois somam os papéis (`perfisDe`), e a lista vazia
+    // é o "não é da equipe" — cliente e papel desconhecido caem aqui. O que o
+    // teste guarda é o mesmo de sempre: o bloqueio existe e vem de perfisDe,
+    // que descarta `cliente` em vez de promovê-lo.
+    expect(proxy).toContain("const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email))");
+    expect(proxy).toContain("if (perfis.length === 0)");
+    expect(layout).toContain("const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email))");
+    expect(layout).toContain("if (perfis.length === 0)");
   });
 
   it("o GET de settings só entrega o payload completo para staff", () => {
@@ -113,7 +119,9 @@ describe("os gates de rota — app", () => {
   });
 
   it("o POST de settings exige staff, não só sessão", () => {
-    expect(settings).toContain("if (!ehStaff(perfilRow?.role ?? papelPadraoPorEmail(user.email)))");
+    // A linha inteira do perfil, não só `role`: com multi-papel o papel de
+    // equipe pode ser o segundo do array.
+    expect(settings).toContain("if (!ehStaff(perfilRow ?? papelPadraoPorEmail(user.email)))");
   });
 
   it("toda rota que normaliza perfil barra não-staff antes", () => {

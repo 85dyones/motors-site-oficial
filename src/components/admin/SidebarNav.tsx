@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 interface SidebarNavProps {
-  role: string;
+  /** Todos os papéis de painel da pessoa — o trilho mostra a UNIÃO dos grupos. */
+  perfis: string[];
 }
 
 /**
@@ -25,7 +26,7 @@ interface SidebarNavProps {
  * que ainda não foram construídas (leads, fotos e mídia, SEO), e link morto
  * no painel é pior que ausência.
  */
-export default function SidebarNav({ role }: SidebarNavProps) {
+export default function SidebarNav({ perfis }: SidebarNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab");
@@ -120,7 +121,12 @@ export default function SidebarNav({ role }: SidebarNavProps) {
     },
   ];
 
-  const allowedGroups = menuGroups.filter((group) => group.roles.includes(role));
+  // A união dos papéis, não só o primário (multi-papel, 2026-08-19): quem
+  // vende E cuida do financeiro enxerga os dois grupos — era o primário
+  // sozinho que escondia a segunda metade do trabalho.
+  const allowedGroups = menuGroups.filter((group) =>
+    group.roles.some((r) => perfis.includes(r)),
+  );
 
   const isItemActive = (href: string) => {
     if (href.startsWith("/admin/configuracoes")) {

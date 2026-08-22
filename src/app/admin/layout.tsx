@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "../../lib/supabase-server";
 import SidebarNav from "../../components/admin/SidebarNav";
 import AdminLayoutClientWrapper from "../../components/admin/AdminLayoutClientWrapper";
 import { papelPadraoPorEmail } from "../../lib/papelPadrao";
-import { ehStaff } from "../../lib/permissoes";
+import { perfisDe } from "../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -31,13 +31,19 @@ export default async function AdminLayout({
     console.error("[AdminLayout] Profile fetch error:", profileError.message);
   }
 
-  const role = profile?.role ?? papelPadraoPorEmail(user.email);
+  // Todos os papéis de painel (multi-papel, 2026-08-19): o trilho mostra a
+  // união dos grupos. Sem linha em `profiles`, vale o padrão por e-mail.
+  const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email));
 
   // Cliente da Garagem não tem nada no /admin — o proxy já barra, e o
   // layout barra de novo: defesa em profundidade custa uma linha.
-  if (!ehStaff(profile?.papeis ?? role)) {
+  if (perfis.length === 0) {
     redirect("/");
   }
+
+  // O primeiro papel de PAINEL é o que o rodapé exibe — para quem tem
+  // `{cliente, comercial}`, mostrar "cliente" mentiria sobre o acesso.
+  const role = perfis[0];
 
   const fullName = profile?.full_name ?? user.email?.split("@")[0] ?? "Usuário";
 
@@ -58,7 +64,7 @@ export default async function AdminLayout({
       roleLabel={getRoleLabel(role)}
       sidebarNav={
         <Suspense fallback={<div className="m-5 h-40 animate-pulse bg-mt-inverso-regua-fina" />}>
-          <SidebarNav role={role} />
+          <SidebarNav perfis={perfis} />
         </Suspense>
       }
     >

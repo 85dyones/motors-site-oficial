@@ -4,7 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { papelPadraoPorEmail } from "./lib/papelPadrao";
-import { ehStaff } from "./lib/permissoes";
+import { perfisDe } from "./lib/permissoes";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -214,12 +214,16 @@ export async function proxy(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      const role = profile?.role ?? papelPadraoPorEmail(user.email);
+      // Todos os papéis, não só o primário (multi-papel, 2026-08-19): quem
+      // vende E cuida do financeiro precisa das duas áreas, e o primário
+      // sozinho negava a segunda. Sem linha em `profiles`, vale o papel
+      // padrão por e-mail (rede de segurança dos fundadores).
+      const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email));
 
-      // Papel `cliente` (Garagem Motors, 2026-08-13) nunca entra no painel: as
-      // regras abaixo pressupõem staff — sem este bloqueio, cliente herdaria
-      // os acessos de `comercial`.
-      if (!ehStaff(role)) {
+      // Papel `cliente` (Garagem Motors, 2026-08-13) nunca entra no painel:
+      // `perfisDe` o descarta, então lista vazia é "não é da equipe" — sem
+      // este bloqueio, cliente herdaria os acessos de `comercial`.
+      if (perfis.length === 0) {
         if (isAdminPath) {
           const url = request.nextUrl.clone();
           url.pathname = "/";
@@ -229,7 +233,7 @@ export async function proxy(request: NextRequest) {
       }
 
       // Admins access everything. Check specific constraints:
-      if (role !== "admin") {
+      if (!perfis.includes("admin")) {
         // Users page and APIs restricted to Admin only
         if (path.startsWith("/admin/usuarios") || path.startsWith("/api/users")) {
           if (isAdminPath) {
@@ -246,7 +250,7 @@ export async function proxy(request: NextRequest) {
 
         // Financeiro area restricted to Admin + Financeiro
         if (path.startsWith("/admin/financeiro") || path.startsWith("/api/financeiro")) {
-          if (role !== "financeiro") {
+          if (!perfis.includes("financeiro")) {
             if (isAdminPath) {
               const url = request.nextUrl.clone();
               url.pathname = "/admin";
@@ -257,8 +261,9 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Config page restricted to Admin + Comercial (Financeiro cannot access it)
-        if (path.startsWith("/admin/configuracoes") && role === "financeiro") {
+        // Config page restricted to Admin + Comercial/Marketing — quem é SÓ
+        // financeiro é mandado para a área dele.
+        if (path.startsWith("/admin/configuracoes") && perfis.every((p) => p === "financeiro")) {
           const url = request.nextUrl.clone();
           url.pathname = "/admin/financeiro";
           return NextResponse.redirect(url);

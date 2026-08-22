@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import EditorDeVeiculo from "../../../../components/admin/EditorDeVeiculo";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { visitasDaPagina } from "../../../../lib/analytics";
-import { normalizarPerfil } from "../../../../lib/permissoes";
+import { perfisDe } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,10 @@ export default async function EditorDeVeiculoPage({
     <EditorDeVeiculo
       inicial={data}
       visitas30Dias={visitas}
-      perfil={normalizarPerfil(profile?.role)}
+      // Todos os papéis, não `normalizarPerfil(role)`: o primário sozinho
+      // escondia campo que o segundo papel grava — e normalizar um papel
+      // fora do vocabulário o promovia a "comercial" (regra 2-b).
+      perfil={perfisDe(profile)}
     />
   );
 }

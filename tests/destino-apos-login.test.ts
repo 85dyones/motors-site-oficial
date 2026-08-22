@@ -47,9 +47,10 @@ describe("destino de entrada no painel", () => {
 
   it("o desvio de acesso negado não joga ninguém em Configurações", () => {
     // Financeiro não pode ver Configurações: mandá-lo para lá gera um
-    // segundo redirecionamento até /admin/financeiro.
+    // segundo redirecionamento até /admin/financeiro. Desde o multi-papel nos
+    // gates (2026-08-22), a âncora do bloco é a soma dos papéis, não `role`.
     const trecho = arquivos["proxy.ts"].slice(
-      arquivos["proxy.ts"].indexOf('if (role !== "admin")'),
+      arquivos["proxy.ts"].indexOf('if (!perfis.includes("admin"))'),
       arquivos["proxy.ts"].indexOf("Config page restricted")
     );
     expect(trecho).not.toContain('url.pathname = "/admin/configuracoes"');
@@ -57,8 +58,12 @@ describe("destino de entrada no painel", () => {
   });
 
   it("a regra que expulsa o Financeiro de Configurações continua de pé", () => {
-    // Não é o destino que muda a permissão — ela precisa sobreviver.
-    expect(arquivos["proxy.ts"]).toContain('path.startsWith("/admin/configuracoes") && role === "financeiro"');
+    // Não é o destino que muda a permissão — ela precisa sobreviver. `every`
+    // porque a regra vale para quem é SÓ financeiro: quem também tem outro
+    // papel de painel entra em Configurações por esse outro papel.
+    expect(arquivos["proxy.ts"]).toContain(
+      'path.startsWith("/admin/configuracoes") && perfis.every((p) => p === "financeiro")'
+    );
     expect(arquivos["proxy.ts"]).toContain('url.pathname = "/admin/financeiro"');
   });
 });

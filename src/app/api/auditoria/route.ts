@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { registrarAcaoSensivel } from "../../../lib/auditoria";
 import { ehTabelaOuColunaAusente } from "../../../lib/erroDeSchema";
+import { perfisDe } from "../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,8 @@ export async function GET() {
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // Soma os papéis (multi-papel, 2026-08-19): admin em segundo lugar é admin.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 

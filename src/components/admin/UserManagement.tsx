@@ -8,7 +8,6 @@ import {
   MATRIZ_DE_PERMISSOES,
   PERFIS,
   ROTULO_DO_PERFIL,
-  normalizarPerfil,
   type Perfil,
   type Permissao,
 } from "../../lib/permissoes";
@@ -256,9 +255,23 @@ export default function UserManagement() {
     }
   };
 
-  /** Etiquetas na linguagem de tag do doc: acento para Admin, contorno para o resto. */
+  /**
+   * Etiquetas na linguagem de tag do doc: acento para Admin, contorno para o
+   * resto — e papel FORA do painel (cliente, ou algo que o vocabulário não
+   * conhece) aparece como é: tracejado, sem cor de equipe.
+   *
+   * Até 2026-08-22 tudo passava por `normalizarPerfil` antes de virar badge,
+   * e `normalizarPerfil` devolve "comercial" para qualquer papel desconhecido.
+   * Resultado real: um convidado que nasceu `cliente` (convite feito fora da
+   * A17, papel que o trigger não reconheceu) aparecia na lista como
+   * "COMERCIAL" — a tela mentia exatamente para quem precisa corrigir o papel.
+   */
+  const ehPapelDePainel = (r: string) => (PERFIS as readonly string[]).includes(r);
+  const rotuloDoPapel = (r: string) =>
+    ehPapelDePainel(r) ? ROTULO_DO_PERFIL[r as Perfil] : r === "cliente" ? "Cliente" : r;
   const getRoleBadgeClass = (r: string) => {
-    switch (normalizarPerfil(r)) {
+    if (!ehPapelDePainel(r)) return "border border-dashed border-mt-regua text-mt-neutral-600";
+    switch (r as Perfil) {
       case "admin": return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent-800";
       case "financeiro": return "border border-mt-regua text-mt-neutral-800";
       case "marketing": return "border border-mt-regua text-mt-neutral-800";
@@ -462,9 +475,14 @@ export default function UserManagement() {
                             {papeisDe(u).map((papel) => (
                               <span
                                 key={papel}
+                                title={
+                                  ehPapelDePainel(papel)
+                                    ? undefined
+                                    : "Papel sem acesso ao painel — edite a pessoa para atribuir um perfil da equipe."
+                                }
                                 className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getRoleBadgeClass(papel)}`}
                               >
-                                {ROTULO_DO_PERFIL[normalizarPerfil(papel)]}
+                                {rotuloDoPapel(papel)}
                               </span>
                             ))}
                           </div>
@@ -588,13 +606,23 @@ export default function UserManagement() {
                               checked={marcado}
                               onChange={(e) => {
                                 // Desmarcar o último é recusado aqui, não no
-                                // servidor: perfil sem papel nenhum não é
-                                // estado válido, e descobrir isso só ao salvar
-                                // perderia o resto do formulário.
-                                const novos = e.target.checked
-                                  ? [...atuais, p]
-                                  : atuais.filter((x) => x !== p);
-                                if (novos.length === 0) return;
+                                // servidor: perfil sem papel de painel nenhum
+                                // não é estado que esta tela produz, e
+                                // descobrir isso só ao salvar perderia o
+                                // resto do formulário.
+                                const doPainel = atuais.filter((x) => ehPapelDePainel(x));
+                                const foraDoPainel = atuais.filter((x) => !ehPapelDePainel(x));
+                                const novosDoPainel = e.target.checked
+                                  ? [...doPainel, p]
+                                  : doPainel.filter((x) => x !== p);
+                                if (novosDoPainel.length === 0) return;
+                                // Papel de painel na frente: `papeis[1]` vira
+                                // o `role` que os gates antigos leem. Sem esta
+                                // ordem, dar um perfil a quem só tinha
+                                // `cliente` deixava `cliente` como primário —
+                                // e a pessoa, staff no papel, continuava
+                                // barrada do painel inteiro.
+                                const novos = [...novosDoPainel, ...foraDoPainel];
                                 setEditingUser({ ...editingUser, papeis: novos, role: novos[0] });
                               }}
                               className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
@@ -614,6 +642,16 @@ export default function UserManagement() {
                     <span className="pl-1 text-[10px] text-mt-neutral-700">
                       Quem tem mais de um perfil faz o que qualquer um deles faz.
                     </span>
+                    {papeisDe(editingUser).some((x) => !ehPapelDePainel(x)) && (
+                      <span className="pl-1 text-[10px] text-mt-neutral-700">
+                        Também tem papel fora do painel (
+                        {papeisDe(editingUser)
+                          .filter((x) => !ehPapelDePainel(x))
+                          .map(rotuloDoPapel)
+                          .join(", ")}
+                        ) — preservado ao salvar, sem acesso ao painel e nunca primário.
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-1">
