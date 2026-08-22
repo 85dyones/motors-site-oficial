@@ -470,8 +470,9 @@ export default function InvestidoresGestao() {
 
                     {buscaVeiculo.trim().length >= 2 && encontrados.length === 0 && !idSolto && (
                       <span className="mt-1 block pl-1 text-[10px] text-mt-neutral-700">
-                        Nenhum carro encontrado. Digite o número do anúncio para lançar
-                        assim mesmo, ou cadastre o veículo no estoque.
+                        Nenhum carro encontrado. Se o carro é novo, ele entra pelo sync
+                        do RevendaMais — até lá, digite o número do anúncio para lançar
+                        assim mesmo.
                       </span>
                     )}
                   </div>
@@ -483,18 +484,19 @@ export default function InvestidoresGestao() {
                       ? `${veiculos.length} veículo(s) no estoque`
                       : "Estoque indisponível — lance pelo número do anúncio."}
                   </span>
-                  {/* Atalho para o cadastro: o veículo nasce no RevendaMais e
-                      chega aqui pelo sync, então o destino é a tabela de
-                      estoque — de onde se confere se ele já entrou e se abre a
-                      ficha dele. Nova aba para não perder o que já foi
-                      digitado no formulário. */}
+                  {/* Atalho para o estoque. O rótulo NÃO diz "cadastrar": não
+                      existe cadastro manual de veículo no painel — o carro
+                      nasce no RevendaMais e chega pelo sync, e prometer um
+                      botão que não existe do outro lado é pior que não ter
+                      atalho. O que se faz lá é conferir se ele já entrou e
+                      abrir a ficha. Nova aba para não perder o formulário. */}
                   <a
                     href="/admin/estoque"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-foco text-[10px] font-bold uppercase tracking-wider text-mt-accent hover:text-mt-accent-hover"
                   >
-                    Cadastrar / abrir estoque ↗
+                    Conferir no estoque ↗
                   </a>
                 </div>
               </div>
