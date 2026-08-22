@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
+import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
 import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
@@ -88,6 +89,13 @@ export default function PDPClientWrapper({
    */
   const indisponivel = indisponivelDoServidor || veiculo.vendido;
   const rotuloIndisponivel = veiculo.vendido ? "VENDIDO" : rotuloDoServidor ?? "INDISPONÍVEL";
+
+  // O feed grava o modelo com a versão embutida na cauda — sem o corte, o
+  // título sai em três linhas e a linha de baixo repete tudo em caixa baixa.
+  const { modelo: modeloExibido, versao: versaoExibida } = modeloEVersaoParaExibir(
+    veiculo.modelo,
+    veiculo.versao,
+  );
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [opcionaisOpen, setOpcionaisOpen] = useState(true);
@@ -510,20 +518,26 @@ export default function PDPClientWrapper({
           isMobile ? "flex lg:hidden" : "hidden lg:flex"
         }`}
       >
-        {/* Marca, código, modelo e versão */}
+        {/* Código, marca + modelo no título, versão como subtítulo.
+            Padrão alinhado ao da RevendaMais por decisão de 2026-08-20:
+            "marca + modelo, especificações abaixo como subtítulo". A marca
+            saiu do rótulo para não aparecer duas vezes. */}
         <div className="flex flex-col">
-          <span className="text-[11px] font-semibold uppercase tracking-[.18em] text-mt-accent">
-            {veiculo.marca}
-            {veiculo.id && ` · COD. ${veiculo.id}`}
-          </span>
+          {veiculo.id && (
+            <span className="text-[11px] font-semibold uppercase tracking-[.18em] text-mt-accent">
+              {`COD. ${veiculo.id}`}
+            </span>
+          )}
 
           <HeadingTag className="mt-titulo m-0 mt-2.5 text-[30px] leading-none text-mt-ink lg:text-[40px]">
-            {veiculo.modelo}
+            {veiculo.marca} {modeloExibido}
           </HeadingTag>
 
-          <p className="m-0 mt-1 text-sm text-mt-neutral-700">
-            {truncateString(veiculo.versao, 45)}
-          </p>
+          {versaoExibida && (
+            <p className="m-0 mt-1 text-sm text-mt-neutral-700">
+              {truncateString(versaoExibida, 45)}
+            </p>
+          )}
 
           {veiculo.pericia &&
             !veiculo.pericia.toLowerCase().includes("análise") &&
@@ -705,9 +719,9 @@ export default function PDPClientWrapper({
         <div className="flex flex-row justify-between items-end mt-2">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{veiculo.marca}</span>
-            <div className="text-2xl font-bold text-black leading-tight mt-0.5">{veiculo.modelo}</div>
+            <div className="text-2xl font-bold text-black leading-tight mt-0.5">{modeloExibido}</div>
             <p className="text-[10px] text-zinc-600 uppercase tracking-wide mt-1">
-              {veiculo.versao} • Ano {veiculo.ano} • {veiculo.cor}
+              {[versaoExibida, `Ano ${veiculo.ano}`, veiculo.cor].filter(Boolean).join(" • ")}
             </p>
           </div>
           <div className="text-right">

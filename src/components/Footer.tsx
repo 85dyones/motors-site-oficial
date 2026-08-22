@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import { getEstoque, getVeiculoPdpUrl, truncateString, type Veiculo } from "../lib/supabase";
+import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
 import { trackContactClick } from "../lib/telemetry";
 import { linkWhatsApp } from "../lib/whatsapp";
 
@@ -63,7 +64,9 @@ function useVitrineDestaque() {
           .sort((a, b) => (b.preco || 0) - (a.preco || 0))
           .slice(0, MAX_MODELOS)
           .map((v) => ({
-            label: truncateString(`${v.marca} ${v.modelo}`, 26),
+            // Modelo curto: o feed embute a versão na cauda do modelo, e o
+            // rótulo truncado em 26 chars saía só com o começo da versão.
+            label: truncateString(`${v.marca} ${modeloEVersaoParaExibir(v.modelo, v.versao).modelo}`, 26),
             href: getVeiculoPdpUrl(v),
           }));
 
