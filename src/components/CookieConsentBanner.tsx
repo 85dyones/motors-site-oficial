@@ -32,31 +32,26 @@ export default function CookieConsentBanner() {
 
   if (!isVisible) return null;
 
+  // Na linguagem Modernist (2026-08-22), junto com o pop-up de lead e o modal
+  // de captura: as três peças da moldura eram as últimas na casca antiga.
+  // Fica acima do pop-up de propósito (z-9999 vs z-999): consentimento vem
+  // antes de campanha.
   return (
-    <div 
-      className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-[9999] bg-brand-card/95 backdrop-blur-md border border-brand-card-border p-5 shadow-2xl flex flex-col gap-4 rounded-2xl animate-fadeIn"
+    <div
+      className="fixed bottom-4 left-4 right-4 z-[9999] flex flex-col gap-3.5 border-t-4 border-mt-accent bg-mt-bg p-5 shadow-[var(--mt-shadow-lg)] animate-fadeIn md:left-auto md:right-4 md:max-w-md"
       role="dialog"
       aria-live="polite"
       aria-label="Aviso de Privacidade e Cookies"
     >
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <div className="h-5 w-5 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-            <path fillRule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM6.162 5.736a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06Zm10.616 0a.75.75 0 0 1 0 1.06l-1.06 1.06a.75.75 0 1 1-1.06-1.06l1.06-1.06a.75.75 0 0 1 1.06 0ZM12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9ZM2.25 12a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5H3a.75.75 0 0 1-.75-.75Zm15 0a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5H18a.75.75 0 0 1-.75-.75ZM6.162 18.264a.75.75 0 0 1 0-1.06l1.06-1.06a.75.75 0 1 1 1.06 1.06l-1.06 1.06a.75.75 0 0 1-1.06 0Zm10.616 0a.75.75 0 0 1-1.06-1.06l1.06-1.06a.75.75 0 1 1 1.06 1.06l-1.06 1.06a.75.75 0 0 1 0 1.06ZM12 19.5a.75.75 0 0 1 .75.75V21.75a.75.75 0 0 1-1.5 0V20.25a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
-          </svg>
-        </div>
-        <span className="text-[10px] font-bold text-brand-gold uppercase tracking-widest leading-none">
-          Privacidade & Cookies
-        </span>
-      </div>
+      <span className="mt-rotulo mt-rotulo-accent">Privacidade &amp; Cookies</span>
 
       {/* Description */}
-      <p className="text-[11px] text-brand-text/75 leading-relaxed">
+      <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-800">
         A Motors Store utiliza cookies e outras tecnologias semelhantes para melhorar a sua experiência, otimizar a navegação, personalizar publicidade (Google e Meta Pixel) e analisar o tráfego do portal. Ao aceitar, você concorda com o uso dessas tags conforme a nossa{" "}
         <Link
           href="/privacidade"
-          className="text-brand-primary hover:text-brand-primary-hover underline underline-offset-2 font-medium"
+          className="font-semibold text-mt-ink underline decoration-mt-accent decoration-2 underline-offset-2 hover:text-mt-accent"
         >
           Política de Privacidade
         </Link>
@@ -64,16 +59,16 @@ export default function CookieConsentBanner() {
       </p>
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-2.5 pt-1.5">
+      <div className="flex items-center justify-end gap-2 border-t border-mt-regua-fina pt-3">
         <button
           onClick={handleReject}
-          className="text-[9px] font-bold text-brand-text/50 hover:text-brand-text uppercase tracking-widest px-4 py-2 border border-brand-card-border hover:border-brand-text/30 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+          className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[10px] uppercase"
         >
           Rejeitar
         </button>
         <button
           onClick={handleAccept}
-          className="text-[9px] font-bold text-white bg-brand-primary hover:bg-brand-primary-hover uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-md transition-all duration-200 active:scale-95 cursor-pointer"
+          className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[10px] uppercase"
         >
           Aceitar Todos
         </button>
