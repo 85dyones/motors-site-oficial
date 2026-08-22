@@ -60,9 +60,13 @@ describe("a casca antiga não volta", () => {
 });
 
 describe("as peças falam Modernist", () => {
-  it("o card do pop-up é acento e régua, com a sombra que só overlay tem", () => {
-    expect(popup).toContain("border-t-4 border-mt-accent");
-    expect(popup).toContain("shadow-[var(--mt-shadow-lg)]");
+  it("o card do pop-up é superfície do sistema, com a sombra que só overlay tem", () => {
+    // O acento do topo é o TRILHO do countdown, e não uma borda decorativa:
+    // ele encolhe com o tempo, então a única cor forte do card também é
+    // informação. Régua de 2px separa o countdown do conteúdo.
+    expect(popup).toContain("bg-mt-bg text-mt-ink shadow-[var(--mt-shadow-lg)]");
+    expect(popup).toContain("bg-mt-accent transition-all");
+    expect(popup).toContain("border-t-2 border-mt-regua");
     expect(popup).toContain("mt-rotulo");
   });
 

@@ -599,19 +599,15 @@ export default function LeadPopup() {
 
   return (
     <>
-      {/* Backdrop overlay */}
+      {/* Backdrop overlay — véu chapado, sem vidro: o sistema separa por
+          régua e sombra, não por desfoque */}
       <div
-        className={`fixed inset-0 z-[998] bg-mt-inverso-fundo/70 ${isExiting ? "opacity-0 transition-opacity duration-300" : "animate-fadeInBackdrop"}`}
+        className={`fixed inset-0 z-[998] bg-black/50 ${isExiting ? "opacity-0 transition-opacity duration-300" : "animate-fadeInBackdrop"}`}
         onClick={handleDismiss}
         aria-hidden="true"
       />
 
-      {/* Card — central no desktop, folha inferior no mobile.
-          Reescrito na linguagem Modernist (2026-08-22): o pop-up era a última
-          peça do site na casca antiga — vidro, canto redondo, verde de
-          WhatsApp. Aqui valem as regras do sistema: zero raio, régua no lugar
-          de moldura, sombra só porque overlay é a elevação de topo (mesma
-          exceção do dialog do painel) e vermelho no ponto de decisão. */}
+      {/* Pop-up card — centered on desktop, bottom-sheet on mobile */}
       <div
         className={`fixed z-[999] flex justify-center pointer-events-none
           bottom-0 left-0 right-0 px-4 pb-4
@@ -621,87 +617,87 @@ export default function LeadPopup() {
         aria-modal="true"
         aria-label="Oferta especial"
       >
-        <div className="pointer-events-auto relative flex w-full max-w-[440px] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden border-t-4 border-mt-accent bg-mt-bg shadow-[var(--mt-shadow-lg)]">
+        <div className="pointer-events-auto w-full max-w-[420px] max-h-[calc(100dvh-2rem)] flex flex-col bg-mt-bg text-mt-ink shadow-[var(--mt-shadow-lg)] overflow-hidden relative">
 
-          {/* Régua de progresso — o acento encolhe junto com o countdown */}
-          <div className="h-[3px] w-full shrink-0 bg-mt-regua-fina" aria-hidden="true">
+          {/* Trilho do countdown — a barra de acento esvazia com o tempo */}
+          <div className="h-[3px] w-full shrink-0 bg-mt-regua-fina relative overflow-hidden">
             {!isExpired && (
               <div
-                className="h-full bg-mt-accent transition-all duration-1000 ease-linear"
+                className="absolute top-0 left-0 h-full bg-mt-accent transition-all duration-1000 ease-linear"
                 style={{ width: `${progressPercent}%` }}
               />
             )}
           </div>
 
-          {/* Fechar */}
+          {/* Close button */}
           <button
             onClick={handleDismiss}
-            className="mt-foco absolute right-4 top-5 z-10 flex h-11 w-11 cursor-pointer items-center justify-center border border-mt-regua-fina bg-mt-bg text-mt-neutral-600 transition-colors duration-200 hover:bg-mt-surface hover:text-mt-ink"
+            className="absolute top-[3px] right-0 h-11 w-11 flex items-center justify-center text-mt-neutral-600 hover:text-mt-ink hover:bg-black/5 transition-colors duration-150 z-10 cursor-pointer mt-foco"
             aria-label="Fechar"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
 
-          <div className="flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-contain px-7 pb-6 pt-6">
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pt-6 pb-5 sm:px-7 sm:pt-7 sm:pb-6 flex flex-col text-left">
 
-            {/* Countdown */}
+            {/* Countdown — rótulo em versalete e dígitos em tinta; vermelho
+                fica reservado ao CTA e ao trilho, onde há decisão */}
             {!isExpired ? (
-              <div className="flex flex-col gap-2 pr-12">
+              <div className="flex items-baseline justify-between gap-4 pr-12">
                 <span className="mt-rotulo">Condição exclusiva expira em</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="min-w-[46px] border border-mt-regua bg-mt-surface px-2.5 py-1.5 text-center text-2xl font-extrabold tracking-[-.02em] text-mt-ink tabular-nums">
-                    {minutes}
-                  </span>
-                  <span className="text-2xl font-extrabold text-mt-accent">:</span>
-                  <span className="min-w-[46px] border border-mt-regua bg-mt-surface px-2.5 py-1.5 text-center text-2xl font-extrabold tracking-[-.02em] text-mt-ink tabular-nums">
-                    {secs}
-                  </span>
-                </div>
+                <span className="text-[26px] font-extrabold leading-none tracking-[-.03em] tabular-nums">
+                  {minutes}:{secs}
+                </span>
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5 pr-12">
+              <div className="flex items-baseline justify-between gap-4 pr-12">
                 <span className="mt-rotulo mt-rotulo-accent">Tempo esgotado</span>
-                <span className="text-xs text-mt-neutral-700">
-                  Mas você ainda pode garantir sua proposta.
+                <span className="text-[11px] text-mt-neutral-600">
+                  Ainda dá para garantir sua proposta
                 </span>
               </div>
             )}
 
-            {/* Ícone da campanha + título + apoio, separados do countdown por régua */}
-            <div className="flex flex-col gap-2.5 border-t-2 border-mt-regua pt-4">
-              <div className="flex h-11 w-11 items-center justify-center border border-mt-regua-fina bg-mt-surface text-xl">
-                {activeCampaign.icon}
-              </div>
-              <h3 className="m-0 text-[19px] font-extrabold leading-tight tracking-[-.015em] text-mt-ink">
+            <div className="mt-4 border-t-2 border-mt-regua" aria-hidden="true" />
+
+            {/* Icon + Headlines */}
+            <div className="mt-5 flex flex-col gap-2.5">
+              {activeCampaign.icon && (
+                <span className="text-[26px] leading-none" aria-hidden="true">
+                  {activeCampaign.icon}
+                </span>
+              )}
+              <h3 className="m-0 text-[22px] font-extrabold leading-[1.08] tracking-[-.02em] text-mt-ink">
                 {title}
               </h3>
-              <p className="m-0 text-xs leading-relaxed text-mt-neutral-700">
+              <p className="m-0 text-[13px] leading-relaxed text-mt-neutral-700">
                 {subtitle}
               </p>
             </div>
 
-            {/* CTA — vermelho porque é o ponto de decisão; rótulo à esquerda
-                como todo botão do sistema (premissa 04) */}
+            {/* CTA — botão do sistema: acento, zero raio, rótulo à esquerda.
+                O verde de WhatsApp era herança do desenho antigo; na loja
+                Modernist todo CTA de WhatsApp é o primário (BotaoWhatsApp) */}
             <button
               onClick={handleCtaClick}
-              className="mt-btn mt-btn-primario mt-btn-bloco mt-foco cursor-pointer text-xs uppercase"
+              className="mt-btn mt-btn-primario mt-btn-bloco mt-foco mt-6 uppercase"
             >
               {activeCampaign.actionType === "whatsapp" && <IconeWhatsApp size={17} />}
               {activeCampaign.actionType === "link" && <Seta size={16} />}
               {activeCampaign.actionType === "compare" && (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
-                  <path d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
                 </svg>
               )}
               {resolvedCtaText}
             </button>
 
-            {/* Recusa — discreta, na rampa neutra */}
+            {/* Dismiss link */}
             <button
               onClick={handleDismiss}
-              className="mt-foco cursor-pointer self-start text-[11px] font-semibold text-mt-neutral-600 transition-colors duration-200 hover:text-mt-ink"
+              className="mt-3.5 self-start py-1 text-[11px] font-medium text-mt-neutral-600 hover:text-mt-ink transition-colors duration-150 cursor-pointer"
             >
               Não, obrigado. Talvez depois.
             </button>
