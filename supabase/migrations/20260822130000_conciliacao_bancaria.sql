@@ -5,6 +5,24 @@
 -- Era o último dos seis pedidos dela que ainda vivia fora do painel.
 --
 -- ---------------------------------------------------------------------------
+-- RENUMERADA em 2026-08-22: esta migração era `20260822120000`
+-- ---------------------------------------------------------------------------
+-- Duas migrações nasceram com o mesmo número no mesmo dia, em trabalhos
+-- paralelos: esta e `20260822120000_perfil_investidor.sql`. `version` é chave
+-- primária do livro-razão, então o número fica com quem chegou primeiro em
+-- `main` — foi a outra. Esta cedeu.
+--
+-- Não é detalhe de arquivo. Com o número duplicado, um `supabase db push`
+-- veria a versão já registrada e **pularia a outra migração inteira**, sem
+-- erro nenhum: o código dela iria para produção referenciando tabelas que
+-- nunca foram criadas. Colisão de timestamp falha em silêncio, e é por isso
+-- que ela vale um bloco de comentário e não uma linha de changelog.
+--
+-- A produção aplicou ESTA com o número antigo, então o livro-razão de lá
+-- ficou apontando para o arquivo errado. O acerto está em
+-- `supabase/manutencao/acertar_livro_razao_da_colisao.sql`.
+--
+-- ---------------------------------------------------------------------------
 -- A fonte: OFX, e por quê
 -- ---------------------------------------------------------------------------
 -- OFX é um arquivo que o banco já entrega hoje pelo internet banking, de
@@ -222,5 +240,5 @@ end $ac$;
 -- para o `supabase db push` e para a conferência. Ver supabase/README.md.
 -- ---------------------------------------------------------------------------
 insert into supabase_migrations.schema_migrations (version, name)
-  values ('20260822120000', 'conciliacao_bancaria')
+  values ('20260822130000', 'conciliacao_bancaria')
   on conflict (version) do nothing;

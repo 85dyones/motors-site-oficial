@@ -27,10 +27,10 @@ with conferencias as (
   -- a migração inteira passou, autoconferência incluída.
   select
     1 as ordem,
-    '1. Livro-razão: conciliação bancária (20260822120000)' as conferencia,
+    '1. Livro-razão: conciliação bancária (20260822130000)' as conferencia,
     (select count(*) = 1 from supabase_migrations.schema_migrations
-      where version = '20260822120000') as ok,
-    'supabase/migrations/20260822120000_conciliacao_bancaria.sql' as de_onde_vem
+      where version = '20260822130000') as ok,
+    'supabase/migrations/20260822130000_conciliacao_bancaria.sql' as de_onde_vem
 
   union all select
     2,
@@ -47,7 +47,7 @@ with conferencias as (
        join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relname = 'extrato_bancario'
         and c.relkind = 'r'),
-    '20260822120000'
+    '20260822130000'
 
   union all select
     4,
@@ -57,14 +57,14 @@ with conferencias as (
     (select coalesce(bool_and(c.relrowsecurity), false) from pg_class c
        join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relname = 'extrato_bancario'),
-    '20260822120000'
+    '20260822130000'
 
   union all select
     5,
     '5. As 4 policies de extrato_bancario (ler, importar, conciliar, apagar)',
     (select count(*) = 4 from pg_policies
       where schemaname = 'public' and tablename = 'extrato_bancario'),
-    '20260822120000'
+    '20260822130000'
 
   union all select
     6,
@@ -73,7 +73,7 @@ with conferencias as (
     -- os arquivos se sobrepõem. Sem este índice, cada importação duplica.
     (select count(*) = 1 from pg_indexes
       where schemaname = 'public' and indexname = 'idx_extrato_conta_fitid'),
-    '20260822120000'
+    '20260822130000'
 
   union all select
     7,
@@ -82,7 +82,7 @@ with conferencias as (
     -- pessoas conciliando ao mesmo tempo, que o motor não tem como ver.
     (select count(*) = 1 from pg_indexes
       where schemaname = 'public' and indexname = 'idx_extrato_movimentacao'),
-    '20260822120000'
+    '20260822130000'
 
   -- 3. Aprovação do cadastro de recorrente -----------------------------------
   union all select

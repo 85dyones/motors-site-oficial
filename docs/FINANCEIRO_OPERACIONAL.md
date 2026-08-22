@@ -379,7 +379,7 @@ lados.
 | Migração (status + trilha da aprovação) | `supabase/migrations/20260821150000_alcada_de_aprovacao.sql` |
 | Migração (papéis gestor e investidor) | `supabase/migrations/20260821180000_papeis_gestor_e_investidor.sql` |
 | Migração (exclusão só do admin) | `supabase/migrations/20260821210000_exclusao_financeira_so_admin.sql` |
-| Migração (conciliação bancária) | `supabase/migrations/20260822120000_conciliacao_bancaria.sql` |
+| Migração (conciliação bancária) | `supabase/migrations/20260822130000_conciliacao_bancaria.sql` |
 | Migração (aprovação de recorrente) | `supabase/migrations/20260822150000_aprovacao_de_recorrente.sql` |
 | Migração (lançar do extrato atômico) | `supabase/migrations/20260822180000_lancar_do_extrato_atomico.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
