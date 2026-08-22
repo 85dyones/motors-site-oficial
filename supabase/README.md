@@ -286,7 +286,7 @@ o histórico** — o cenário do 🔴 acima.
 
 ### Depois de aplicar: `conferir-estado-do-financeiro.sql`
 
-Cole no SQL Editor e rode. É **somente leitura** e devolve 14 linhas; toda
+Cole no SQL Editor e rode. É **somente leitura** e devolve 16 linhas; toda
 linha tem que sair ✅. Uma linha ❌ aponta o que falta e de qual migração ela
 vem — reaplicar essa migração resolve, porque todas são idempotentes.
 
@@ -304,7 +304,7 @@ também o que responde "aplicou mesmo?" sem abrir seis telas.
 A conferência foi **falsificada** antes de entrar: com a RLS de
 `extrato_bancario` desligada, o índice único de `(conta, fitid)` derrubado e o
 trigger do carimbo removido, ela acusou exatamente essas três linhas e mais
-nenhuma; reaplicadas as duas migrações, voltou a 14 ✅. Conferência que só se
+nenhuma; reaplicadas as duas migrações, voltou ao verde completo. Conferência que só se
 viu verde não vale nada — não se sabe se ela olha.
 
 ## ⚠️ Contrato com o sync — campos do painel

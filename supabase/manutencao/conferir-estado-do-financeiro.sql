@@ -148,6 +148,24 @@ with conferencias as (
        join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'reivindicar_investidor'),
     '20260821180000'
+
+  union all select
+    15,
+    '15. Livro-razão: lançar do extrato atômico (20260822180000)',
+    (select count(*) = 1 from supabase_migrations.schema_migrations
+      where version = '20260822180000'),
+    'supabase/migrations/20260822180000_lancar_do_extrato_atomico.sql'
+
+  union all select
+    16,
+    '16. lancar_do_extrato() existe — sem ela a conciliação deixa órfã',
+    -- Se esta faltar, a tela cai no caminho antigo de três escritas com
+    -- rollback por DELETE, que é no-op silencioso para o financeiro: sobra
+    -- conta paga que a próxima importação lança de novo.
+    (select count(*) = 1 from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'lancar_do_extrato'),
+    '20260822180000'
 )
 select
   case when ok then '✅' else '❌ FALTA' end as status,

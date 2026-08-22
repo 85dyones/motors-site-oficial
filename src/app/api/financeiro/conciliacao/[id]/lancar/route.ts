@@ -15,15 +15,25 @@ export const dynamic = "force-dynamic";
  * e conciliar à mão.
  *
  * ---------------------------------------------------------------------------
- * O que este gesto cria, e por que nesta ordem
+ * Por que isto é UMA chamada e não três
  * ---------------------------------------------------------------------------
- * 1. uma `conta` já **paga** — o dinheiro saiu ou entrou, o extrato é a prova;
- * 2. a `movimentacao` correspondente, que é o caixa de verdade;
- * 3. o vínculo da linha do extrato com essa movimentação.
+ * O gesto cria três coisas — conta paga, movimentação e o vínculo da linha —
+ * e as três só fazem sentido juntas. A primeira versão desta rota fazia as
+ * três escritas em sequência e, se uma falhasse, desfazia as anteriores com
+ * `.delete()`.
  *
- * O passo 3 é o que impede o achado de reaparecer amanhã. Se ele falhar, os
- * dois primeiros são desfeitos — meia conciliação deixaria uma conta paga
- * duplicando o que a próxima importação lançaria de novo.
+ * Estava errado, e de um jeito que só aparecia para quem usa a tela: DELETE
+ * nessas tabelas é do Admin e mais ninguém (20260821210000), e **RLS que
+ * recusa DELETE não levanta erro** — apaga zero linhas e devolve sucesso. O
+ * rollback era um no-op silencioso para a adm/financeira, e o que sobrava era
+ * uma conta paga órfã que a próxima importação do OFX lançaria de novo: o
+ * oposto do que a conciliação existe para fazer.
+ *
+ * A correção não foi abrir permissão de apagar — isso desfaria "quem aprova
+ * não apaga a prova" para consertar um detalhe de implementação. Foi tirar a
+ * necessidade de desfazer: `lancar_do_extrato()` (20260822180000) faz os três
+ * passos numa transação e o Postgres reverte tudo sozinho se qualquer um
+ * falhar. Não existe "meio lançado".
  *
  * ---------------------------------------------------------------------------
  * Categoria é obrigatória aqui, e só aqui
@@ -43,6 +53,19 @@ export const dynamic = "force-dynamic";
  * fila do Gestor pediria que ele aprovasse um fato consumado. É a mesma razão
  * pela qual lançar conta já paga passa direto (ver `lib/alcada.ts`).
  */
+
+/**
+ * Os SQLSTATE que a função usa para dizer o que houve. Traduzir aqui mantém
+ * a mensagem no idioma da tela sem a rota ter que reimplementar as regras.
+ */
+const STATUS_DO_ERRO: Record<string, number> = {
+  "42501": 403, // sem acesso ao financeiro
+  "22023": 400, // categoria faltando
+  P0002: 404, // linha do extrato não existe
+  "23505": 409, // linha já conciliada
+  "40001": 409, // outra pessoa conciliou agora há pouco
+};
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -64,105 +87,39 @@ export async function POST(
       );
     }
 
-    const { data: linha, error: erroLinha } = await supabase
-      .from("extrato_bancario")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const { data: resultado, error } = await supabase.rpc("lancar_do_extrato", {
+      p_extrato_id: id,
+      p_categoria_id: categoriaId,
+      p_descricao: typeof body.descricao === "string" ? body.descricao : null,
+      p_parceiro: typeof body.parceiro === "string" ? body.parceiro : null,
+      p_veiculo_id: typeof body.veiculo_id === "string" ? body.veiculo_id : null,
+    });
 
-    if (erroLinha || !linha) {
+    if (error) {
+      // A função devolve mensagem pronta para a tela; o SQLSTATE só escolhe
+      // o status HTTP. Erro desconhecido vira 500, não 400 — chute otimista
+      // aqui esconderia defeito nosso atrás de "dados inválidos".
       return NextResponse.json(
-        { error: erroLinha?.message || "Linha do extrato não encontrada" },
-        { status: 404 },
+        { error: error.message },
+        { status: STATUS_DO_ERRO[error.code ?? ""] ?? 500 },
       );
     }
-    if (linha.movimentacao_id) {
-      return NextResponse.json(
-        { error: "Esta linha já está conciliada — não há o que lançar." },
-        { status: 409 },
-      );
-    }
 
-    const ehEntrada = linha.tipo === "entrada";
-    const descricao =
-      (typeof body.descricao === "string" && body.descricao.trim()) || linha.descricao;
-    const parceiro = typeof body.parceiro === "string" ? body.parceiro.trim() : "";
-    const veiculoId = typeof body.veiculo_id === "string" && body.veiculo_id.trim()
-      ? body.veiculo_id.trim()
-      : null;
-
-    // 1. A conta, já liquidada. `data_emissao`, `data_vencimento` e
-    // `data_pagamento` são todas a data do extrato: não há o que inventar —
-    // o único fato conhecido é o dia em que o dinheiro se moveu.
-    const { data: conta, error: erroConta } = await supabase
+    // Só depois de a transação ter fechado é que a conta existe para ser lida
+    // e anunciada — antes disso não havia fato nenhum a avisar.
+    const { data: conta } = await supabase
       .from("contas")
-      .insert({
-        tipo: ehEntrada ? "receber" : "pagar",
-        descricao,
-        valor: linha.valor,
-        data_emissao: linha.data,
-        data_vencimento: linha.data,
-        data_pagamento: linha.data,
-        status: "pago",
-        categoria_id: categoriaId,
-        veiculo_id: veiculoId,
-        fornecedor: !ehEntrada ? parceiro || null : null,
-        cliente: ehEntrada ? parceiro || null : null,
-        observacoes: `Lançado a partir do extrato bancário (${linha.conta}) em ${linha.data}.`,
-        created_by: user.id,
-      })
       .select(`*, categoria:categorias_financeiras (nome, icone)`)
+      .eq("id", resultado.conta_id)
       .single();
 
-    if (erroConta) {
-      return NextResponse.json({ error: erroConta.message }, { status: 500 });
+    if (conta) {
+      await dispatchAdminWebhook("conta_criada", conta).catch((err) =>
+        console.error("[WebhookDispatch] Failed to dispatch account created event:", err.message),
+      );
     }
 
-    // 2. O caixa. É esta linha que a conciliação enxerga — a `conta` sozinha
-    // não aparece em `movimentacoes` e o achado continuaria aberto.
-    const { data: movimentacao, error: erroMov } = await supabase
-      .from("movimentacoes")
-      .insert({
-        conta_id: conta.id,
-        tipo: linha.tipo,
-        valor: linha.valor,
-        descricao: `Extrato: ${descricao}`,
-        data_movimentacao: linha.data,
-        created_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (erroMov) {
-      // Sem a movimentação o gesto não serviu para nada: desfaz a conta em
-      // vez de deixar meia conciliação de pé.
-      await supabase.from("contas").delete().eq("id", conta.id);
-      return NextResponse.json({ error: erroMov.message }, { status: 500 });
-    }
-
-    // 3. O vínculo — o passo que impede o achado de reaparecer amanhã.
-    const { error: erroVinculo } = await supabase
-      .from("extrato_bancario")
-      .update({
-        movimentacao_id: movimentacao.id,
-        conciliado_em: new Date().toISOString(),
-        conciliado_por: user.id,
-        conciliado_como: "manual",
-      })
-      .eq("id", id)
-      .is("movimentacao_id", null);
-
-    if (erroVinculo) {
-      await supabase.from("movimentacoes").delete().eq("id", movimentacao.id);
-      await supabase.from("contas").delete().eq("id", conta.id);
-      return NextResponse.json({ error: erroVinculo.message }, { status: 500 });
-    }
-
-    await dispatchAdminWebhook("conta_criada", conta).catch((err) =>
-      console.error("[WebhookDispatch] Failed to dispatch account created event:", err.message),
-    );
-
-    return NextResponse.json({ conta, movimentacao });
+    return NextResponse.json({ conta, movimentacao_id: resultado.movimentacao_id });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

@@ -269,6 +269,29 @@ Duas decisões dentro desse gesto:
   aprovasse fato consumado — a mesma razão pela qual lançar conta já paga passa
   direto (`lib/alcada.ts`).
 
+**O bug que essa entrega teve, e o que ele ensinou.** A primeira versão fazia
+as três escritas em sequência na rota e, se uma falhasse, desfazia as
+anteriores com `.delete()`. Estava errado de um jeito que só aparecia para
+quem usa a tela: DELETE nessas tabelas é do Admin e mais ninguém, e **RLS que
+recusa DELETE não levanta erro** — apaga zero linhas e devolve sucesso. Para a
+adm/financeira o rollback era um no-op silencioso, e o que sobrava era uma
+conta paga órfã que a próxima importação do OFX lançaria de novo: o oposto do
+que a conciliação existe para fazer.
+
+A correção não foi abrir permissão de apagar — isso desfaria "quem aprova não
+apaga a prova" para consertar um detalhe de implementação, e usar chave de
+serviço na rota daria o mesmo poder por outra porta. Foi **tirar a necessidade
+de desfazer**: `lancar_do_extrato()` (`20260822180000`) faz os três passos numa
+transação, e o Postgres reverte tudo sozinho se qualquer um falhar. De quebra
+fechou um buraco que já existia para o Admin também: três viagens HTTP não são
+atômicas, e uma queda no meio deixava a mesma sujeira — ninguém tinha visto
+porque só o Admin conseguia limpar, e limpar já era o plano B.
+
+A lição que vale além deste caso: **num Postgres com RLS, `delete` que a
+policy recusa é indistinguível de `delete` que não achou nada.** Toda limpeza
+compensatória escrita na aplicação carrega essa armadilha; a saída é não
+precisar de compensação.
+
 ### Dois papéis novos: `gestor` e `investidor`
 
 Pedido do dono junto com a mudança da régua: *"precisamos de duas novas roles
@@ -358,13 +381,15 @@ lados.
 | Migração (exclusão só do admin) | `supabase/migrations/20260821210000_exclusao_financeira_so_admin.sql` |
 | Migração (conciliação bancária) | `supabase/migrations/20260822120000_conciliacao_bancaria.sql` |
 | Migração (aprovação de recorrente) | `supabase/migrations/20260822150000_aprovacao_de_recorrente.sql` |
+| Migração (lançar do extrato atômico) | `supabase/migrations/20260822180000_lancar_do_extrato_atomico.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
 | Régua de investidores | `src/lib/investidores.ts` · `tests/investidores.test.ts` |
 | Régua da aprovação | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |
 | Leitor de OFX e motor de conciliação | `src/lib/ofx.ts` · `src/lib/conciliacao.ts` · `tests/conciliacao.test.ts` |
 | Os dois papéis novos | `src/lib/permissoes.ts` · `tests/papeis-gestor-investidor.test.ts` |
 | Rotas | `src/app/api/financeiro/dia/` · `src/app/api/financeiro/investidores/` · `src/app/api/financeiro/contas/[id]/aprovar/` |
-| Lançar a partir do extrato | `src/app/api/financeiro/conciliacao/[id]/lancar/route.ts` |
+| Lançar a partir do extrato | `src/app/api/financeiro/conciliacao/[id]/lancar/route.ts` + `lancar_do_extrato()` em `20260822180000` |
+| Conferência do banco (somente leitura) | `supabase/manutencao/conferir-estado-do-financeiro.sql` |
 | Telas | `src/components/financeiro/DiaOperacional.tsx` · `InvestidoresPainel.tsx` · `AprovacoesPendentes.tsx` |
 | Área do investidor | `src/app/investidor/page.tsx` · `src/components/investidor/` |
 | Tela da conciliação | `src/components/financeiro/ConciliacaoBancaria.tsx` |
