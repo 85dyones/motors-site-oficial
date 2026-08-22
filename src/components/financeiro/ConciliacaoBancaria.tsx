@@ -37,6 +37,13 @@ interface Movimentacao {
   forma_pagamento?: string | null;
 }
 
+interface Categoria {
+  id: string;
+  nome: string;
+  tipo: "receita" | "despesa";
+  icone?: string;
+}
+
 interface Sugestao {
   fitid: string;
   candidatos: { movimentacaoId: string; distanciaEmDias: number }[];
@@ -81,6 +88,13 @@ export default function ConciliacaoBancaria() {
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
 
+  // Lançar a partir do extrato: qual linha, e a classificação que só uma
+  // pessoa sabe dar.
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [lancando, setLancando] = useState<string | null>(null);
+  const [categoriaEscolhida, setCategoriaEscolhida] = useState("");
+  const [parceiro, setParceiro] = useState("");
+
   const hoje = dataDeHoje();
   const [inicio, setInicio] = useState(() => `${hoje.slice(0, 7)}-01`);
   const [fim, setFim] = useState(hoje);
@@ -108,6 +122,21 @@ export default function ConciliacaoBancaria() {
   useEffect(() => {
     carregar(inicio, fim);
   }, [inicio, fim, carregar]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/financeiro/categorias", { cache: "no-store" });
+        if (res.ok) {
+          const body = await res.json();
+          setCategorias(body.categories || body.categorias || []);
+        }
+      } catch {
+        // Sem categorias o botão de lançar fica sem opção e a rota recusa
+        // com mensagem — melhor que derrubar a tela inteira da conciliação.
+      }
+    })();
+  }, []);
 
   /** Importa o OFX e roda o casamento; sem arquivo, só roda o casamento. */
   const enviar = async (conteudo?: string) => {
@@ -179,6 +208,46 @@ export default function ConciliacaoBancaria() {
       }
     } catch {
       setErro("Erro de rede.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const abrirLancamento = (l: LinhaExtrato) => {
+    setLancando(l.id);
+    setCategoriaEscolhida("");
+    // O extrato já traz o texto do banco; quem lança ajusta se quiser.
+    setParceiro("");
+    setErro("");
+    setAviso("");
+  };
+
+  const lancar = async (l: LinhaExtrato) => {
+    setOcupado(true);
+    setErro("");
+    try {
+      const res = await fetch(`/api/financeiro/conciliacao/${l.id}/lancar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoria_id: categoriaEscolhida,
+          parceiro: parceiro || undefined,
+        }),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        setAviso(
+          `Lançado e conciliado: ${l.descricao} · ${formatPrice(l.valor)}. A conta entra no caixa com a data do extrato.`,
+        );
+        setLancando(null);
+        setCategoriaEscolhida("");
+        setParceiro("");
+        carregar(inicio, fim);
+      } else {
+        setErro(body.error || "Falha ao lançar.");
+      }
+    } catch {
+      setErro("Erro ao se conectar com o servidor.");
     } finally {
       setOcupado(false);
     }
@@ -405,24 +474,85 @@ export default function ConciliacaoBancaria() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             <Secao
               titulo="No banco, fora do sistema"
-              descricao="Dinheiro que se moveu na conta e não existe no caixa. Normalmente tarifa, juros ou débito automático que ninguém lançou."
+              descricao="Dinheiro que se moveu na conta e não existe no caixa — tarifa, juros, débito que ninguém lançou. Clique em Lançar: valor, data e descrição já vêm do banco, você só classifica."
               contagem={estado.soNoBanco.length}
               vazio="Tudo que passou pelo banco está lançado. ✓"
             >
               <div className="flex flex-col divide-y divide-mt-regua-fina">
                 {estado.soNoBanco.map((l) => (
-                  <div key={l.id} className="py-3 flex items-start justify-between gap-3">
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[13px] font-bold text-mt-ink truncate">{l.descricao}</span>
-                      <span className="text-[10px] text-mt-neutral-600">{formatDate(l.data)}</span>
+                  <div key={l.id} className="py-3 flex flex-col gap-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-[13px] font-bold text-mt-ink truncate">{l.descricao}</span>
+                        <span className="text-[10px] text-mt-neutral-600">{formatDate(l.data)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`text-[13px] font-extrabold tabular-nums ${
+                            l.tipo === "entrada" ? "text-mt-accent-800" : "text-mt-accent"
+                          }`}
+                        >
+                          {l.tipo === "entrada" ? "+" : "−"} {formatPrice(l.valor)}
+                        </span>
+                        {lancando !== l.id && (
+                          <button
+                            onClick={() => abrirLancamento(l)}
+                            disabled={ocupado}
+                            className="h-7 px-2.5 border border-mt-regua-fina text-mt-neutral-700 hover:border-mt-accent hover:text-mt-accent font-bold text-[9px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-60"
+                            title="Criar o lançamento no caixa com os dados desta linha"
+                          >
+                            Lançar
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span
-                      className={`text-[13px] font-extrabold tabular-nums shrink-0 ${
-                        l.tipo === "entrada" ? "text-mt-accent-800" : "text-mt-accent"
-                      }`}
-                    >
-                      {l.tipo === "entrada" ? "+" : "−"} {formatPrice(l.valor)}
-                    </span>
+
+                    {/* Valor, data e descrição vêm prontos do banco. A
+                        categoria é a única coisa que uma pessoa acrescenta —
+                        e é ela que faz a linha significar algo no DRE. */}
+                    {lancando === l.id && (
+                      <div className="flex flex-col gap-2 border-l-2 border-mt-accent-300 pl-3">
+                        <select
+                          value={categoriaEscolhida}
+                          onChange={(e) => setCategoriaEscolhida(e.target.value)}
+                          autoFocus
+                          className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-9 w-full focus:outline-none focus:border-mt-accent cursor-pointer"
+                        >
+                          <option value="">Categoria (obrigatória)...</option>
+                          {categorias
+                            .filter((c) =>
+                              l.tipo === "entrada" ? c.tipo === "receita" : c.tipo === "despesa",
+                            )
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.icone} {c.nome}
+                              </option>
+                            ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={parceiro}
+                          onChange={(e) => setParceiro(e.target.value)}
+                          placeholder={l.tipo === "entrada" ? "Cliente (opcional)" : "Fornecedor (opcional)"}
+                          className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-9 w-full focus:outline-none focus:border-mt-accent"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setLancando(null)}
+                            className="h-8 px-3 border border-mt-regua-fina text-mt-neutral-700 hover:text-mt-ink text-[9px] font-bold uppercase tracking-wider cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={() => lancar(l)}
+                            disabled={!categoriaEscolhida || ocupado}
+                            className="h-8 px-3 bg-mt-ink hover:bg-mt-neutral-800 text-mt-inverso text-[9px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                          >
+                            {ocupado ? "Lançando..." : "Lançar e conciliar"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

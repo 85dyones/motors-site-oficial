@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConfirm } from "../admin/ConfirmDialog";
 import { dataDeHoje } from "../../lib/financeiroDia";
+import { ACESSO_DO_INVESTIDOR, estadoDeAcessoDoInvestidor } from "../../lib/investidores";
 import type { ResumoDeInvestidor, SaldoDoInvestidor } from "../../lib/investidores";
 
 /**
@@ -86,6 +87,12 @@ export default function InvestidoresPainel({ podeExcluir = false }: { podeExclui
 
   // Painel da direita: cadastro OU lançamento — um por vez, como no ContasList.
   const [painel, setPainel] = useState<"nenhum" | "investidor" | "movimentacao">("nenhum");
+
+  // Quantos ativos ainda não entraram. Inativo não conta: acesso pendente de
+  // quem saiu não é pendência (mesma razão pela qual o selo some no card).
+  const pendentesDeAcesso = investidores.filter(
+    (i) => i.ativo !== false && estadoDeAcessoDoInvestidor(i) !== "com_acesso",
+  ).length;
 
   // Form de investidor
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -347,9 +354,15 @@ export default function InvestidoresPainel({ podeExcluir = false }: { podeExclui
                   Nenhum investidor cadastrado ainda. Comece por “Novo Investidor”.
                 </div>
               ) : (
+                <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {investidores.map((inv) => {
                     const selecionado = filtroInvestidor === inv.id;
+                    // O dono pediu "um painel que mostrasse isso pra eles
+                    // também" — mas o vínculo se faz sozinho, longe desta
+                    // tela, e até aqui ninguém sabia se tinha funcionado.
+                    const acesso = estadoDeAcessoDoInvestidor(inv);
+                    const textoDoAcesso = ACESSO_DO_INVESTIDOR[acesso];
                     return (
                       <button
                         key={inv.id}
@@ -367,6 +380,37 @@ export default function InvestidoresPainel({ podeExcluir = false }: { podeExclui
                               {inv.movimentacoes} movimentaç{inv.movimentacoes === 1 ? "ão" : "ões"}
                               {inv.ativo === false && " · inativo"}
                             </span>
+                            {/* `sem_email` é o único vermelho: não é espera,
+                                é impossibilidade — e a única que a própria
+                                pessoa desta tela pode resolver, editando o
+                                cadastro. Em investidor inativo o selo some:
+                                acesso pendente de quem saiu não é pendência,
+                                e um alerta que ninguém vai resolver ensina a
+                                ignorar os outros. */}
+                            {inv.ativo !== false && (
+                            <span
+                              title={textoDoAcesso.explicacao}
+                              className={`mt-1 inline-flex items-center gap-1 self-start text-[9px] font-bold uppercase tracking-wider ${
+                                acesso === "com_acesso"
+                                  ? "text-mt-accent-800"
+                                  : acesso === "sem_email"
+                                    ? "text-mt-accent"
+                                    : "text-mt-neutral-600"
+                              }`}
+                            >
+                              <span
+                                aria-hidden
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  acesso === "com_acesso"
+                                    ? "bg-mt-accent-800"
+                                    : acesso === "sem_email"
+                                      ? "bg-mt-accent"
+                                      : "bg-mt-neutral-400"
+                                }`}
+                              />
+                              {textoDoAcesso.rotulo}
+                            </span>
+                            )}
                           </div>
                           <span
                             onClick={(e) => {
@@ -405,6 +449,23 @@ export default function InvestidoresPainel({ podeExcluir = false }: { podeExclui
                     );
                   })}
                 </div>
+                {/* O caminho escrito, e só quando há quem percorrer.
+                    O selo do card tem a explicação no `title`, que no celular
+                    não existe — e é no celular que a adm/financeira usa isto.
+                    Some sozinho quando todo mundo já entrou. */}
+                {pendentesDeAcesso > 0 && (
+                  <p className="text-[10px] leading-relaxed text-mt-neutral-600 -mt-2">
+                    {pendentesDeAcesso === 1
+                      ? "1 investidor ativo ainda não acessa o painel dele."
+                      : `${pendentesDeAcesso} investidores ativos ainda não acessam o painel deles.`}{" "}
+                    O acesso se abre em <strong className="font-bold text-mt-neutral-700">Usuários</strong>:
+                    o Admin cria a conta com o papel <strong className="font-bold text-mt-neutral-700">investidor</strong>{" "}
+                    usando o mesmo e-mail do cadastro daqui — o vínculo se faz sozinho no primeiro
+                    acesso, depois que ele confirmar o e-mail. Cadastro sem e-mail não vincula:
+                    preencha o campo antes de pedir a conta.
+                  </p>
+                )}
+                </>
               )}
 
               {/* Extrato */}

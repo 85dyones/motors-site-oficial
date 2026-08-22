@@ -208,3 +208,68 @@ export function resumoDeInvestidores(
     consolidado: saldoDasMovimentacoes(movs ?? []),
   };
 }
+
+/**
+ * Em que pé está o acesso do investidor à área `/investidor`.
+ *
+ * O vínculo conta↔investidor não é feito à mão: `reivindicar_investidor()`
+ * (20260821180000) casa os dois pelo e-mail no primeiro acesso, e só com
+ * e-mail confirmado. Isso é ótimo para quem cadastra — ninguém digita UUID —
+ * e péssimo para quem acompanha, porque o processo inteiro acontece longe da
+ * tela: o financeiro cadastra, o admin cria a conta, e ninguém fica sabendo
+ * se funcionou até o investidor reclamar que não entra.
+ *
+ * Daí os três estados. O que justifica a função é o terceiro:
+ *
+ *   `sem_email` — cadastro sem e-mail NUNCA vai vincular. Não é "ainda não
+ *   entrou", é impossível: a reivindicação casa por e-mail, e não há por onde
+ *   casar. Sem isto na tela, o cadastro fica parecendo pendente para sempre e
+ *   a loja procura o defeito no lugar errado (na conta do Auth, no papel, na
+ *   confirmação) em vez de no campo vazio que ela mesma deixou.
+ *
+ *   `aguardando` — e-mail preenchido, vínculo não feito. Falta a conta com
+ *   papel `investidor` (A17) ou falta o primeiro login dela. As duas coisas
+ *   são de outra pessoa, então a tela aponta o caminho e para por aí.
+ *
+ *   `com_acesso` — `perfil_id` preenchido: entrou, e vê o próprio extrato.
+ *
+ * Conceder a conta continua sendo poder do admin — a matriz de permissões
+ * não muda por causa desta função. Ela só torna visível o que já era verdade.
+ */
+export type EstadoDeAcesso = "com_acesso" | "aguardando" | "sem_email";
+
+export function estadoDeAcessoDoInvestidor(inv: {
+  perfil_id?: unknown;
+  email?: unknown;
+  // O índice existe para o TypeScript aceitar um `ResumoDeInvestidor` inteiro
+  // aqui: sem ele, um tipo só de campos opcionais vira "weak type" e a tela
+  // teria que desmontar o objeto antes de perguntar.
+  [extra: string]: unknown;
+}): EstadoDeAcesso {
+  if (typeof inv?.perfil_id === "string" && inv.perfil_id.trim()) return "com_acesso";
+  if (typeof inv?.email === "string" && inv.email.trim()) return "aguardando";
+  return "sem_email";
+}
+
+/** O rótulo curto que cabe no card, junto do porquê para o `title`. */
+export const ACESSO_DO_INVESTIDOR: Record<EstadoDeAcesso, { rotulo: string; explicacao: string }> = {
+  com_acesso: {
+    rotulo: "acessa o painel",
+    explicacao:
+      "Já entrou pelo menos uma vez e vê o próprio extrato em /investidor. "
+      + "A RLS garante que ele veja só as movimentações dele.",
+  },
+  aguardando: {
+    rotulo: "aguardando acesso",
+    explicacao:
+      "O e-mail está no cadastro, mas o vínculo ainda não se fez. Falta o Admin criar a conta "
+      + "com o papel 'investidor' (Usuários) usando ESTE mesmo e-mail — o vínculo acontece "
+      + "sozinho no primeiro acesso, depois que ele confirmar o e-mail.",
+  },
+  sem_email: {
+    rotulo: "sem e-mail — não vincula",
+    explicacao:
+      "Sem e-mail no cadastro não há como ligar a conta ao investidor: a vinculação casa os dois "
+      + "pelo e-mail. Edite o cadastro e preencha o campo antes de pedir a conta ao Admin.",
+  },
+};

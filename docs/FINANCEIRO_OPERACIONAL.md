@@ -36,13 +36,13 @@ investidores, "um painel que mostrasse isso pra eles também".
 | P1 — o que vence no dia | ✅ **Entregue 2026-08-21** | Tela **Pagamentos do Dia** (`/admin/financeiro/dia`): vencidas em aberto, vence hoje, a receber, com baixa em um clique sem sair da tela |
 | P2 — fornecedor ≠ cliente | ✅ **Já existia** | `parceiros.tipo` separa desde o módulo original (Cadastros Auxiliares). O pedido era dor do RevendaMais — aqui já nasce resolvido |
 | P3 — lançamento por carro | ✅ **Já existia** | `contas.veiculo_id` vincula despesa ao carro e alimenta a **Margem por Veículo** (A11); despesa sem carro vai direto ao financeiro |
-| P4 — conciliação bancária | ✅ **Entregue 2026-08-22** | Tela **Conciliação Bancária** (`/admin/financeiro/conciliacao`): sobe o OFX do banco, casa com o caixa e mostra o que sobrou dos dois lados |
+| P4 — conciliação bancária | ✅ **Entregue 2026-08-22** | Tela **Conciliação Bancária** (`/admin/financeiro/conciliacao`): sobe o OFX do banco, casa com o caixa e mostra o que sobrou dos dois lados — e o que está no banco e fora do sistema vira lançamento ali mesmo, sem redigitar |
 | P5 — relatório diário | ✅ **Entregue 2026-08-21** | A mesma tela do dia: qualquer data vira o relatório dela — liquidadas, entradas, saídas e movimento do caixa |
 | P6 — investidores | ✅ **Entregue 2026-08-21** | Tela **Investidores** (`/admin/financeiro/investidores`): aportes, retiradas (inclusive em carro de repasse, vinculada ao veículo) e saldo por investidor |
 | Aviso de vencimento no WhatsApp | ✅ **Já existia** | `conta_vencida` no Formato C (`WEBHOOKS_N8N.md`) — 3 dias antes, 1 dia, no dia e 7 dias após |
 | Aviso de aporte/retirada | ✅ **Entregue 2026-08-21** | Evento `investidor_movimento` no Formato C, mesmo destino do `adm-motors` |
 | Conta subindo para aprovação | ✅ **Entregue 2026-08-21** | Fluxo de agendamento (§3): agendar pagamento nasce `aguardando_aprovacao`, evento `conta_aguardando_aprovacao` avisa, o **Gestor** decide em **Aprovações** |
-| Painel externo para o investidor | ✅ **Entregue 2026-08-21** | Área `/investidor` (§3), fora do painel: o sócio entra por link mágico e vê o próprio saldo e extrato, sob RLS |
+| Painel externo para o investidor | ✅ **Entregue 2026-08-21** | Área `/investidor` (§3), fora do painel: o sócio entra por link mágico e vê o próprio saldo e extrato, sob RLS. Desde 2026-08-22 o card no painel mostra se ele já acessa, e aponta o que falta quando não |
 
 ## 3. O que o pacote de 2026-08-21 entregou
 
@@ -77,6 +77,24 @@ certinho" do pedido:
   e lançar de novo — não há edição de valor, de propósito.
 - Cada lançamento dispara `investidor_movimento` (Formato C) — o n8n decide
   quem avisa; é o primeiro tijolo do "painel para eles saberem também".
+- **O card diz se o investidor já acessa o painel dele** —
+  `estadoDeAcessoDoInvestidor` (lib pura) devolve três estados, e o terceiro é
+  o que justifica a régua existir:
+  - `com_acesso`: `perfil_id` preenchido — entrou, vê o próprio extrato.
+  - `aguardando`: e-mail no cadastro, vínculo ainda não feito — falta o Admin
+    criar a conta com papel `investidor` (A17) *no mesmo e-mail*, ou falta o
+    primeiro login dele.
+  - `sem_email`: **não é espera, é impossibilidade.** `reivindicar_investidor()`
+    casa conta e investidor pelo e-mail; cadastro sem e-mail não tem por onde
+    casar. Sem isso na tela, o cadastro pareceria pendente para sempre e a loja
+    procuraria o defeito na conta do Auth ou no papel do usuário — quando ele
+    está num campo vazio que ela mesma deixou. É o único selo em vermelho, e o
+    único que a própria pessoa desta tela resolve.
+
+  Em investidor **inativo** o selo some: acesso pendente de quem saiu não é
+  pendência, e alerta que ninguém vai resolver ensina a ignorar os outros.
+  Conceder a conta continua sendo poder do Admin — a matriz A17 não muda por
+  causa disso; a tela só torna visível o que já era verdade.
 
 Tabelas, RLS e CHECKs em `20260821120000_financeiro_operacional.sql`, com
 autoconferência; a lib espelhada por teste (`tests/investidores.test.ts` falha
@@ -228,6 +246,29 @@ semana e os arquivos se sobrepõem. O `FITID` — o identificador que o *banco* 
 à transação — é a chave da idempotência, único por `(conta, fitid)` porque dois
 bancos podem emitir o mesmo número sem relação nenhuma entre as transações.
 
+**Lançar direto do extrato fecha o ciclo.** "No banco e fora do sistema" era um
+achado que a pessoa levava para outra tela e redigitava — valor, data e
+descrição, três chances de errar — e o achado seguia aberto até ela voltar e
+conciliar à mão. Agora a própria linha abre o lançamento
+(`POST /api/financeiro/conciliacao/[id]/lancar`), que cria em sequência a conta
+**já paga**, a movimentação correspondente e o vínculo da linha; se o segundo ou
+o terceiro passo falha, os anteriores são desfeitos — meia conciliação deixaria
+uma conta paga duplicando o que a próxima importação lançaria de novo.
+
+Duas decisões dentro desse gesto:
+
+- **Categoria é obrigatória — e só aqui.** `contas.categoria_id` é nulo em todo
+  o resto do módulo e continua sendo. Mas este é o único caminho em que o
+  lançamento nasce de uma EVIDÊNCIA e não da intenção de alguém: valor, data e
+  descrição vêm prontos do banco, e a classificação é a única coisa que uma
+  pessoa acrescenta. Sem ela o gesto produziria número sem significado — que é
+  como o DRE vira uma pilha de "Outros", exatamente o que o relatório existe
+  para não ser.
+- **Não passa por aprovação, e está certo.** É registro retroativo: o dinheiro
+  já se moveu e o banco atesta. Mandar à fila do Gestor pediria que ele
+  aprovasse fato consumado — a mesma razão pela qual lançar conta já paga passa
+  direto (`lib/alcada.ts`).
+
 ### Dois papéis novos: `gestor` e `investidor`
 
 Pedido do dono junto com a mudança da régua: *"precisamos de duas novas roles
@@ -300,13 +341,12 @@ lados.
    desligar o lançamento de lá. O usuário de teste da Sinthia é o primeiro
    passo — criar com papel `financeiro` na A17 (multi-papel já funciona).
 2. **Atalho de convite do investidor.** O Admin já cria a conta com papel
-   `investidor` na A17 e o vínculo se faz sozinho pelo e-mail no primeiro
-   acesso. Falta só o caminho curto: convidar direto do cadastro do
-   investidor, em vez de passar por duas telas.
-3. **Lançar a partir do extrato.** Na conciliação, "no banco e fora do
-   sistema" hoje é um achado que a pessoa resolve lançando à mão em outra
-   tela. Um botão que abre o lançamento já preenchido com valor, data e
-   descrição do extrato fecharia o ciclo.
+   `investidor` na A17, o vínculo se faz sozinho pelo e-mail no primeiro
+   acesso, e o card do investidor agora **mostra em que pé está esse acesso**
+   (ver abaixo). Falta só o caminho curto: convidar direto do cadastro do
+   investidor, em vez de passar por duas telas. Deixado por último de
+   propósito — criar conta é poder do Admin, e um botão de convite no
+   financeiro convida a afrouxar isso.
 
 ## 5. Onde está cada coisa
 
@@ -324,6 +364,7 @@ lados.
 | Leitor de OFX e motor de conciliação | `src/lib/ofx.ts` · `src/lib/conciliacao.ts` · `tests/conciliacao.test.ts` |
 | Os dois papéis novos | `src/lib/permissoes.ts` · `tests/papeis-gestor-investidor.test.ts` |
 | Rotas | `src/app/api/financeiro/dia/` · `src/app/api/financeiro/investidores/` · `src/app/api/financeiro/contas/[id]/aprovar/` |
+| Lançar a partir do extrato | `src/app/api/financeiro/conciliacao/[id]/lancar/route.ts` |
 | Telas | `src/components/financeiro/DiaOperacional.tsx` · `InvestidoresPainel.tsx` · `AprovacoesPendentes.tsx` |
 | Área do investidor | `src/app/investidor/page.tsx` · `src/components/investidor/` |
 | Tela da conciliação | `src/components/financeiro/ConciliacaoBancaria.tsx` |

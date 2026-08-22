@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  ACESSO_DO_INVESTIDOR,
   FORMAS_DE_MOVIMENTACAO,
   TIPOS_DE_MOVIMENTACAO,
+  estadoDeAcessoDoInvestidor,
   resumoDeInvestidores,
   saldoDasMovimentacoes,
   validarMovimentacao,
@@ -211,5 +213,64 @@ describe("migração 20260821120000 — financeiro operacional", () => {
   it("se registra no livro-razão (D6)", () => {
     expect(sql).toContain("insert into supabase_migrations.schema_migrations");
     expect(sql).toContain("'20260821120000'");
+  });
+});
+
+/**
+ * Estado do acesso — o que o card do investidor mostra sobre `/investidor`.
+ *
+ * O caso que motiva a régua é `sem_email`: cadastro sem e-mail não vincula
+ * NUNCA, porque `reivindicar_investidor()` casa conta e investidor pelo
+ * e-mail. Se a tela chamasse isso de "aguardando", a loja esperaria para
+ * sempre por um vínculo que não tem por onde acontecer.
+ */
+describe("estadoDeAcessoDoInvestidor", () => {
+  it("com perfil_id preenchido, já acessa o painel", () => {
+    expect(estadoDeAcessoDoInvestidor({ perfil_id: "uuid-do-fabiano", email: "f@x.com" })).toBe(
+      "com_acesso",
+    );
+  });
+
+  it("com e-mail e sem vínculo, está aguardando", () => {
+    expect(estadoDeAcessoDoInvestidor({ perfil_id: null, email: "igor.pai@x.com" })).toBe(
+      "aguardando",
+    );
+  });
+
+  it("sem e-mail é um beco sem saída, não uma espera", () => {
+    // A distinção existe para a loja procurar o defeito no campo vazio do
+    // cadastro, e não na conta do Auth ou no papel do usuário.
+    expect(estadoDeAcessoDoInvestidor({ perfil_id: null, email: null })).toBe("sem_email");
+    expect(estadoDeAcessoDoInvestidor({})).toBe("sem_email");
+  });
+
+  it("string em branco não conta como preenchida", () => {
+    // Formulário devolve "" quando a pessoa apaga o campo; o banco guarda o
+    // vazio como está. Tratar "" como e-mail prometeria um vínculo impossível.
+    expect(estadoDeAcessoDoInvestidor({ perfil_id: "   ", email: "  " })).toBe("sem_email");
+    expect(estadoDeAcessoDoInvestidor({ perfil_id: "", email: "a@b.com" })).toBe("aguardando");
+  });
+
+  it("perfil_id vence o e-mail — quem entrou, entrou", () => {
+    // Investidor vinculado que depois teve o e-mail limpo do cadastro
+    // continua acessando: o vínculo já está gravado em perfil_id.
+    expect(estadoDeAcessoDoInvestidor({ perfil_id: "uuid", email: null })).toBe("com_acesso");
+  });
+
+  it("todo estado tem rótulo e explicação para a tela", () => {
+    for (const estado of ["com_acesso", "aguardando", "sem_email"] as const) {
+      const texto = ACESSO_DO_INVESTIDOR[estado];
+      expect(texto.rotulo.length).toBeGreaterThan(0);
+      // A explicação é o que diz à pessoa o que FAZER — um rótulo sozinho
+      // ("aguardando acesso") não ensina o próximo passo.
+      expect(texto.explicacao.length).toBeGreaterThan(40);
+    }
+  });
+
+  it("a explicação de 'aguardando' aponta o caminho: Admin, papel investidor, mesmo e-mail", () => {
+    const t = ACESSO_DO_INVESTIDOR.aguardando.explicacao.toLowerCase();
+    expect(t).toContain("admin");
+    expect(t).toContain("investidor");
+    expect(t).toContain("e-mail");
   });
 });
