@@ -60,7 +60,10 @@ export async function GET() {
         .select("role, papeis")
         .eq("id", data.user.id)
         .single();
-      deStaff = ehStaff(perfil?.role ?? papelPadraoPorEmail(data.user.email));
+      // A linha inteira do perfil, não só `role`: com multi-papel o papel de
+      // equipe pode ser o segundo do array (ex.: {cliente, comercial}), e o
+      // primário sozinho negaria staff de verdade.
+      deStaff = ehStaff(perfil ?? papelPadraoPorEmail(data.user.email));
     }
   } catch (err: any) {
     // Sem sessão utilizável — segue como anônimo, que é o caminho seguro.
@@ -153,7 +156,9 @@ export async function POST(request: Request) {
         .select("role, papeis")
         .eq("id", user.id)
         .single();
-      if (!ehStaff(perfilRow?.role ?? papelPadraoPorEmail(user.email))) {
+      // A linha inteira, não só `role` — mesmo motivo do GET: papel de equipe
+      // pode ser o segundo do array.
+      if (!ehStaff(perfilRow ?? papelPadraoPorEmail(user.email))) {
         return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
       }
 

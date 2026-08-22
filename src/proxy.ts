@@ -4,7 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { papelPadraoPorEmail } from "./lib/papelPadrao";
-import { ehStaff, perfisDe } from "./lib/permissoes";
+import { ehInvestidor, ehStaff, perfisDe } from "./lib/permissoes";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -164,9 +164,13 @@ export async function proxy(request: NextRequest) {
 
   // 2. Auth protection for admin panel and protected API routes
   const isAdminPath = path.startsWith("/admin");
+  // Área do investidor (2026-08-22): terceiro público, como a Garagem do
+  // cliente. Fica aqui, e não numa checagem só na página, para que nem o
+  // primeiro byte da tela saia para quem não é investidor.
+  const isInvestidorPath = path === "/investidor" || path.startsWith("/investidor/");
   const isProtectedApi = path.startsWith("/api/financeiro") || path.startsWith("/api/users");
 
-  if (isAdminPath || isProtectedApi) {
+  if (isAdminPath || isInvestidorPath || isProtectedApi) {
     let response = NextResponse.next({
       request: {
         headers: request.headers,
@@ -197,7 +201,7 @@ export async function proxy(request: NextRequest) {
 
     // Check authentication
     if (!user) {
-      if (isAdminPath) {
+      if (isAdminPath || isInvestidorPath) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
@@ -214,22 +218,41 @@ export async function proxy(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      const role = profile?.role ?? papelPadraoPorEmail(user.email);
+      // TODOS os papéis, não o primário (multi-papel, 2026-08-19). Até
+      // 2026-08-21 as regras abaixo comparavam `role` — espelho de `papeis[1]`
+      // — com um nome só: quem tinha `financeiro` como SEGUNDO papel levava
+      // 403 em /api/financeiro e redirect em /admin/financeiro, o gêmeo (do
+      // lado da aplicação) do bug que `20260821120000` corrigiu no banco.
+      // Sem linha em `profiles`, vale o papel padrão por e-mail — a rede de
+      // segurança dos fundadores.
+      const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email));
+      const investidor = ehInvestidor(profile);
 
-      // TODOS os papéis, não o primário. Até 2026-08-21 as regras abaixo
-      // comparavam `role` (espelho de `papeis[1]`) com um nome só: quem tinha
-      // `financeiro` como SEGUNDO papel levava 403 em /api/financeiro e
-      // redirect em /admin/financeiro — o gêmeo, do lado da aplicação, do bug
-      // que `20260821120000` corrigiu no banco.
-      const perfis: string[] = perfisDe(profile ?? role);
+      // A área do investidor tem porteiro próprio: quem não tem o papel não
+      // entra, nem sendo admin. Ela mostra a posição de QUEM PERGUNTA (a RLS
+      // filtra por `auth.uid()`), então para a equipe ela viria vazia — e
+      // tela vazia se lê como "não há nada", que é pior que a porta fechada.
+      // Quem cuida disso usa a gestão em /admin/financeiro/investidores.
+      if (isInvestidorPath) {
+        if (!investidor) {
+          const url = request.nextUrl.clone();
+          url.pathname = perfis.length > 0 ? "/admin" : "/";
+          return NextResponse.redirect(url);
+        }
+        return response;
+      }
 
       // Papéis fora do painel — `cliente` (Garagem, 2026-08-13) e `investidor`
-      // (2026-08-21) — nunca entram: as regras abaixo pressupõem staff, e sem
-      // este bloqueio eles herdariam os acessos de `comercial`.
-      if (!ehStaff(profile ?? role)) {
+      // (2026-08-22) — nunca entram no painel: as regras abaixo pressupõem
+      // staff, e sem este bloqueio eles herdariam os acessos de `comercial`.
+      // `ehStaff` em vez de `perfis.length === 0`: dá o mesmo resultado, mas
+      // diz o que a linha quer saber em vez de deixar a resposta implícita
+      // num efeito colateral de `perfisDe`.
+      if (!ehStaff(profile ?? papelPadraoPorEmail(user.email))) {
         if (isAdminPath) {
           const url = request.nextUrl.clone();
-          url.pathname = "/";
+          // Investidor tem para onde ir; cliente e desconhecido, não.
+          url.pathname = investidor ? "/investidor" : "/";
           return NextResponse.redirect(url);
         }
         return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
@@ -265,8 +288,11 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Configurações: Admin e Comercial. Financeiro e Gestor não entram —
-        // nenhuma linha da A17 lhes dá conteúdo de site nem credencial.
+        // Configurações: Admin, Comercial e Marketing. Financeiro e Gestor
+        // não entram — nenhuma linha da A17 lhes dá conteúdo de site nem
+        // credencial. A régua é a matriz, e não "quem é SÓ financeiro":
+        // alguém financeiro+gestor não é financeiro puro e também não tem o
+        // que fazer aqui.
         if (
           path.startsWith("/admin/configuracoes") &&
           !perfis.includes("comercial") &&
@@ -306,5 +332,7 @@ export const config = {
     "/garagem/:path*",
     "/garagem",
     "/api/garagem/:path*",
+    "/investidor",
+    "/investidor/:path*",
   ],
 };

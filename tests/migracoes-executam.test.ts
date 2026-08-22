@@ -53,9 +53,15 @@ const CADEIA = [
   "20260821150000_alcada_de_aprovacao.sql",
   "20260821180000_papeis_gestor_e_investidor.sql",
   "20260821210000_exclusao_financeira_so_admin.sql",
+  // A migração paralela: entra na cadeia porque a fusão depende de rodar
+  // DEPOIS dela — e porque foi ela que removeu o gestor de
+  // `has_finance_access` sem querer. Sem ela aqui, o teste não veria o
+  // defeito que a fusão conserta.
+  "20260822120000_perfil_investidor.sql",
   "20260822130000_conciliacao_bancaria.sql",
   "20260822150000_aprovacao_de_recorrente.sql",
   "20260822180000_lancar_do_extrato_atomico.sql",
+  "20260822210000_fundir_investidores.sql",
 ];
 
 /**

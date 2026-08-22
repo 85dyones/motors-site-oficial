@@ -18,41 +18,55 @@ export const PERFIS = ["admin", "gestor", "marketing", "comercial", "financeiro"
 export type Perfil = (typeof PERFIS)[number];
 
 /**
- * Papéis que existem no auth mas NÃO são de painel (2026-08-21).
+/**
+ * Papéis que existem no vocabulário do banco mas NÃO são de painel.
  *
- * `cliente` é a Garagem Motors (2026-08-13); `investidor` é quem aporta
- * capital e acompanha o próprio extrato em `/investidor`. Os dois são
- * `authenticated` no Supabase e nenhum dos dois entra em `PERFIS` — é isso, e
- * só isso, que os mantém fora do painel: `perfisDe` descarta o que não está
- * em `PERFIS`, então `ehStaff` responde `false` sem precisar de lista de
- * exclusão em lugar nenhum.
+ * `cliente` (2026-08-13, Garagem Motors) e `investidor` (2026-08-22) têm área
+ * própria — `/garagem` e `/investidor` — e nenhum acesso ao painel. Eles ficam
+ * FORA de `PERFIS` de propósito: `ehStaff` é a régua de "é gente da loja", e
+ * quem passa por ela recebe o payload completo de `/api/settings` (token de
+ * API, saldos, `preco_compra` de todo o estoque), a escrita de estoque e os
+ * leads. Promover investidor a perfil de painel seria dar tudo isso a quem só
+ * precisa ver a própria posição.
  *
- * A lista existe para o vocabulário do banco e o do app não divergirem —
- * `papeis_validos()` aceita exatamente `PERFIS + PAPEIS_FORA_DO_PAINEL`, e um
- * teste trava os dois lados.
+ * Não há lista de exclusão em lugar nenhum: `perfisDe` descarta o que não
+ * está em `PERFIS`, então `ehStaff` responde `false` sozinho.
  */
-export const PAPEIS_FORA_DO_PAINEL = ["cliente", "investidor"] as const;
-export type PapelForaDoPainel = (typeof PAPEIS_FORA_DO_PAINEL)[number];
-
-/** Todo papel que o banco aceita — a régua de `papeis_validos()`. */
-export const TODOS_OS_PAPEIS = [...PERFIS, ...PAPEIS_FORA_DO_PAINEL] as const;
+export const PAPEIS_SEM_PAINEL = ["cliente", "investidor"] as const;
+export type PapelSemPainel = (typeof PAPEIS_SEM_PAINEL)[number];
 
 /**
- * O que a tela A17 pode CONCEDER a alguém (2026-08-21).
- *
- * É `PERFIS` mais `investidor`, e a diferença em relação a `TODOS_OS_PAPEIS`
- * é uma só: `cliente` fica de fora. Cliente não é concedido, é o padrão de
- * quem se cadastra sozinho na Garagem — oferecê-lo num seletor de admin
- * sugeriria que dar acesso de cliente é um ato administrativo, quando o ato
- * administrativo real é o oposto (fechar o cadastro público).
+ * O que a A17 pode atribuir a alguém — painel e não-painel.
  *
  * `investidor` PRECISA estar aqui: sem ele, `/api/users` recusa o papel e a
  * área `/investidor` fica inalcançável — ninguém consegue criar a conta que
  * ela pressupõe. Foi exatamente o que aconteceu entre a criação do papel e
  * esta constante.
  */
-export const PAPEIS_CONCEDIVEIS = [...PERFIS, "investidor"] as const;
-export type PapelConcedivel = (typeof PAPEIS_CONCEDIVEIS)[number];
+export const PAPEIS_ATRIBUIVEIS = [...PERFIS, ...PAPEIS_SEM_PAINEL] as const;
+export type PapelAtribuivel = (typeof PAPEIS_ATRIBUIVEIS)[number];
+
+/**
+ * Todo papel que o banco aceita — a régua de `papeis_validos()`.
+ *
+ * Hoje coincide com `PAPEIS_ATRIBUIVEIS`, e os dois nomes ficam porque
+ * significam coisas diferentes: este é o que o BANCO aceita, aquele é o que a
+ * TELA oferece. No dia em que existir papel que o banco aceita mas o admin
+ * não concede (ou o contrário), eles se separam sem ninguém ter que caçar
+ * chamadas. Um teste trava este contra o CHECK do SQL.
+ */
+export const TODOS_OS_PAPEIS = [...PERFIS, ...PAPEIS_SEM_PAINEL] as const;
+
+/** Rótulo de exibição de QUALQUER papel conhecido. */
+export const ROTULO_DO_PAPEL: Record<string, string> = {
+  admin: "Administrador",
+  gestor: "Gestor",
+  marketing: "Marketing",
+  comercial: "Comercial",
+  financeiro: "Financeiro",
+  cliente: "Cliente",
+  investidor: "Investidor",
+};
 
 /** Este papel é de painel? Falso para `investidor` e `cliente`. */
 export function ehPapelDePainel(papel: string): boolean {
@@ -77,20 +91,12 @@ export function ehPapelDePainel(papel: string): boolean {
  *    comercial faria esse código enxergar um papel que não existe na matriz.
  *    Quem é SÓ investidor tem `investidor` no primeiro lugar, e está certo:
  *    aí não há papel de equipe para pôr na frente.
- *
- * Não valida conteúdo — `papeis_validos()` no banco e a rota `/api/users`
- * fazem isso. Aqui só se decide a ORDEM, e duplicata é removida porque
- * repetição quebraria o CHECK do banco.
  */
 export function ordenarPapeis(papeis: string[], primario?: string): string[] {
   const unicos = [...new Set(papeis.filter(Boolean))];
-
   const dePainel = unicos.filter(ehPapelDePainel);
   const foraDoPainel = unicos.filter((p) => !ehPapelDePainel(p));
 
-  // Promover só vale para papel de painel, pela garantia 2. Pedir para
-  // promover `investidor` em quem tem papel de equipe é silenciosamente
-  // ignorado — o alvo do pedido não é um estado que `role` saiba representar.
   const promovido =
     primario && dePainel.includes(primario)
       ? [primario, ...dePainel.filter((p) => p !== primario)]
@@ -100,10 +106,10 @@ export function ordenarPapeis(papeis: string[], primario?: string): string[] {
 }
 
 /**
- * Papel de painel? As roles de `PAPEIS_FORA_DO_PAINEL` — `cliente`
- * (2026-08-13, Garagem Motors) e `investidor` (2026-08-21) — são
- * `authenticated` no Supabase mas NUNCA entram na matriz: cada uma pertence à
- * própria área. Todo gate de painel ou de API interna pergunta aqui ANTES de
+ * Papel de painel? As roles de `PAPEIS_SEM_PAINEL` — `cliente` (2026-08-13,
+ * Garagem Motors) e `investidor` (2026-08-22) — são `authenticated` no
+ * Supabase mas NUNCA entram na matriz: cada uma pertence à própria área.
+ * Todo gate de painel ou de API interna pergunta aqui ANTES de
  * `normalizarPerfil` — normalizar um papel que não é de staff o promoveria a
  * "comercial".
  */
@@ -129,20 +135,45 @@ export function ehStaff(
 export function perfisDe(
   origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
 ): Perfil[] {
+  const bruto = papeisBrutos(origem);
+  return (PERFIS as readonly string[]).filter((p) => bruto.includes(p)) as Perfil[];
+}
+
+/**
+ * Os papéis de alguém SEM filtrar pelo painel — inclui `cliente` e
+ * `investidor`.
+ *
+ * `perfisDe` descarta o que não é papel de painel, e é isso que o torna
+ * seguro para gates. Quem precisa saber que a pessoa é investidora não pode
+ * usá-lo: para ela `perfisDe` devolve lista vazia, que é o correto para
+ * "não é da equipe" e inútil para "que área é a dela".
+ */
+export function papeisBrutos(
+  origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
+): string[] {
   if (!origem) return [];
 
-  const bruto: string[] =
-    typeof origem === "string"
-      ? [origem]
-      : Array.isArray(origem)
-        ? origem
-        : (origem.papeis && origem.papeis.length > 0
-            ? origem.papeis
-            : origem.role
-              ? [origem.role]
-              : []);
+  return typeof origem === "string"
+    ? [origem]
+    : Array.isArray(origem)
+      ? origem
+      : (origem.papeis && origem.papeis.length > 0
+          ? origem.papeis
+          : origem.role
+            ? [origem.role]
+            : []);
+}
 
-  return (PERFIS as readonly string[]).filter((p) => bruto.includes(p)) as Perfil[];
+/**
+ * É investidor? Papel de área própria (`/investidor`), nunca de painel.
+ *
+ * Independente de `ehStaff`: alguém pode ser as duas coisas (o sócio que
+ * também trabalha na loja), e nesse caso as duas áreas valem.
+ */
+export function ehInvestidor(
+  origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
+): boolean {
+  return papeisBrutos(origem).includes("investidor");
 }
 
 export type Permissao = "faz" | "revisao" | "nao_ve";

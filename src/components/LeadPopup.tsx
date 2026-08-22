@@ -7,6 +7,7 @@ import { getMatchParams } from "../lib/tracking-identity";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { useTheme } from "../app/ThemeContext";
 import LeadCaptureModal from "./LeadCaptureModal";
+import { IconeWhatsApp, Seta } from "./modernist/primitivos";
 
 // ─── Default Configurations ───
 const COOLDOWN_HOURS = 4;
@@ -243,7 +244,10 @@ export default function LeadPopup() {
     markAsShown();
 
     console.log(`[Lead Popup] Triggered campaign: "${campaign.name}" targetPage: "${campaign.targetPage}"`);
-  }, []);
+    // `settings` nas deps: o disparo acontece segundos depois do arme, e a
+    // checagem de cooldown acima precisa do valor que o admin salvou — com
+    // `[]`, ela rodava para sempre com o default de fábrica.
+  }, [settings]);
 
   // ── CTA Click: Handles actions (whatsapp, link, compare) ──
   const handleCtaClick = useCallback(() => {
@@ -595,9 +599,10 @@ export default function LeadPopup() {
 
   return (
     <>
-      {/* Backdrop overlay */}
+      {/* Backdrop overlay — véu chapado, sem vidro: o sistema separa por
+          régua e sombra, não por desfoque */}
       <div
-        className={`fixed inset-0 z-[998] bg-black/40 backdrop-blur-sm ${isExiting ? "opacity-0 transition-opacity duration-300" : "animate-fadeInBackdrop"}`}
+        className={`fixed inset-0 z-[998] bg-black/50 ${isExiting ? "opacity-0 transition-opacity duration-300" : "animate-fadeInBackdrop"}`}
         onClick={handleDismiss}
         aria-hidden="true"
       />
@@ -612,14 +617,14 @@ export default function LeadPopup() {
         aria-modal="true"
         aria-label="Oferta especial"
       >
-        <div className="pointer-events-auto w-full max-w-[420px] max-h-[calc(100dvh-2rem)] flex flex-col bg-brand-card/95 backdrop-blur-xl border border-brand-card-border rounded-[20px] shadow-[0_12px_60px_rgba(0,0,0,0.25)] overflow-hidden relative">
-          
-          {/* Brand accent bar at the very top */}
-          <div className="h-1 w-full shrink-0 bg-gradient-to-r from-brand-primary via-brand-gold to-brand-primary relative overflow-hidden">
+        <div className="pointer-events-auto w-full max-w-[420px] max-h-[calc(100dvh-2rem)] flex flex-col bg-mt-bg text-mt-ink shadow-[var(--mt-shadow-lg)] overflow-hidden relative">
+
+          {/* Trilho do countdown — a barra de acento esvazia com o tempo */}
+          <div className="h-[3px] w-full shrink-0 bg-mt-regua-fina relative overflow-hidden">
             {!isExpired && (
               <div
-                className="absolute top-0 right-0 h-full bg-brand-card/60 transition-all duration-1000 ease-linear"
-                style={{ width: `${100 - progressPercent}%` }}
+                className="absolute top-0 left-0 h-full bg-mt-accent transition-all duration-1000 ease-linear"
+                style={{ width: `${progressPercent}%` }}
               />
             )}
           </div>
@@ -627,77 +632,62 @@ export default function LeadPopup() {
           {/* Close button */}
           <button
             onClick={handleDismiss}
-            className="absolute top-3.5 right-3.5 h-11 w-11 flex items-center justify-center rounded-full bg-brand-bg/60 hover:bg-brand-border/80 text-brand-text/40 hover:text-brand-text/70 transition-all duration-200 text-xs z-10 cursor-pointer backdrop-blur-sm border border-brand-border/30"
+            className="absolute top-[3px] right-0 h-11 w-11 flex items-center justify-center text-mt-neutral-600 hover:text-mt-ink hover:bg-black/5 transition-colors duration-150 z-10 cursor-pointer mt-foco"
             aria-label="Fechar"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
 
-          <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pt-6 pb-5 flex flex-col items-center gap-4 text-center">
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pt-6 pb-5 sm:px-7 sm:pt-7 sm:pb-6 flex flex-col text-left">
 
-            {/* Countdown timer display */}
+            {/* Countdown — rótulo em versalete e dígitos em tinta; vermelho
+                fica reservado ao CTA e ao trilho, onde há decisão */}
             {!isExpired ? (
-              <div className="flex flex-col items-center gap-1.5">
-                <span className="text-[9px] font-bold text-brand-text/40 uppercase tracking-[0.2em]">
-                  Condição exclusiva expira em
+              <div className="flex items-baseline justify-between gap-4 pr-12">
+                <span className="mt-rotulo">Condição exclusiva expira em</span>
+                <span className="text-[26px] font-extrabold leading-none tracking-[-.03em] tabular-nums">
+                  {minutes}:{secs}
                 </span>
-                <div className="flex items-center gap-1.5">
-                  <div className="bg-brand-bg border border-brand-border rounded-xl px-3 py-2 min-w-[42px] text-center">
-                    <span className="text-xl font-black text-brand-primary tabular-nums">{minutes}</span>
-                  </div>
-                  <span className="text-xl font-black text-brand-text/20 animate-pulse">:</span>
-                  <div className="bg-brand-bg border border-brand-border rounded-xl px-3 py-2 min-w-[42px] text-center">
-                    <span className="text-xl font-black text-brand-primary tabular-nums">{secs}</span>
-                  </div>
-                </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[9px] font-bold text-red-500/80 uppercase tracking-[0.2em]">
-                  Tempo esgotado
-                </span>
-                <span className="text-[11px] text-brand-text/40 font-light">
-                  Mas você ainda pode garantir sua proposta
+              <div className="flex items-baseline justify-between gap-4 pr-12">
+                <span className="mt-rotulo mt-rotulo-accent">Tempo esgotado</span>
+                <span className="text-[11px] text-mt-neutral-600">
+                  Ainda dá para garantir sua proposta
                 </span>
               </div>
             )}
 
+            <div className="mt-4 border-t-2 border-mt-regua" aria-hidden="true" />
+
             {/* Icon + Headlines */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-12 w-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-2xl">
-                {activeCampaign.icon}
-              </div>
-              <h3 className="text-sm font-extrabold text-brand-text uppercase tracking-wide leading-tight max-w-[300px]">
+            <div className="mt-5 flex flex-col gap-2.5">
+              {activeCampaign.icon && (
+                <span className="text-[26px] leading-none" aria-hidden="true">
+                  {activeCampaign.icon}
+                </span>
+              )}
+              <h3 className="m-0 text-[22px] font-extrabold leading-[1.08] tracking-[-.02em] text-mt-ink">
                 {title}
               </h3>
-              <p className="text-[11px] text-brand-text/50 leading-relaxed max-w-[300px] font-light">
+              <p className="m-0 text-[13px] leading-relaxed text-mt-neutral-700">
                 {subtitle}
               </p>
             </div>
 
-            {/* CTA WhatsApp/Action button */}
+            {/* CTA — botão do sistema: acento, zero raio, rótulo à esquerda.
+                O verde de WhatsApp era herança do desenho antigo; na loja
+                Modernist todo CTA de WhatsApp é o primário (BotaoWhatsApp) */}
             <button
               onClick={handleCtaClick}
-              className={`w-full h-[52px] rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 shadow-lg cursor-pointer active:scale-[0.97] ${
-                activeCampaign.actionType === "whatsapp"
-                  ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20"
-                  : "bg-brand-primary hover:bg-brand-primary-hover text-white shadow-brand-primary/20"
-              }`}
+              className="mt-btn mt-btn-primario mt-btn-bloco mt-foco mt-6 uppercase"
             >
-              {activeCampaign.actionType === "whatsapp" && (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-4.5 h-4.5">
-                  <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
-                </svg>
-              )}
-              {activeCampaign.actionType === "link" && (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
-                </svg>
-              )}
+              {activeCampaign.actionType === "whatsapp" && <IconeWhatsApp size={17} />}
+              {activeCampaign.actionType === "link" && <Seta size={16} />}
               {activeCampaign.actionType === "compare" && (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M6 8l-4 4 4 4M18 8l4 4-4 4" />
                 </svg>
               )}
@@ -707,7 +697,7 @@ export default function LeadPopup() {
             {/* Dismiss link */}
             <button
               onClick={handleDismiss}
-              className="text-[10px] text-brand-text/70 hover:text-brand-text transition-colors duration-200 font-medium cursor-pointer py-0.5"
+              className="mt-3.5 self-start py-1 text-[11px] font-medium text-mt-neutral-600 hover:text-mt-ink transition-colors duration-150 cursor-pointer"
             >
               Não, obrigado. Talvez depois.
             </button>

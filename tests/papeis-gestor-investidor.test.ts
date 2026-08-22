@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  PAPEIS_CONCEDIVEIS,
-  PAPEIS_FORA_DO_PAINEL,
+  PAPEIS_ATRIBUIVEIS,
+  PAPEIS_SEM_PAINEL,
   PERFIS,
   TODOS_OS_PAPEIS,
   ehStaff,
@@ -69,8 +69,8 @@ describe("o gestor é papel de painel", () => {
 
 describe("o investidor NÃO é papel de painel", () => {
   it("fica fora de PERFIS, como o cliente", () => {
-    expect(PAPEIS_FORA_DO_PAINEL).toContain("investidor");
-    expect(PAPEIS_FORA_DO_PAINEL).toContain("cliente");
+    expect(PAPEIS_SEM_PAINEL).toContain("investidor");
+    expect(PAPEIS_SEM_PAINEL).toContain("cliente");
     expect(PERFIS as readonly string[]).not.toContain("investidor");
   });
 
@@ -85,7 +85,11 @@ describe("o investidor NÃO é papel de painel", () => {
   });
 
   it("a área dele barra staff e lê sob a sessão, sem chave de serviço", () => {
-    expect(paginaInvestidor).toContain("ehStaff(perfil)");
+    // A fusão de 2026-08-22 trocou a régua por uma mais forte: em vez de
+    // barrar staff, a página só deixa entrar quem TEM o papel. Cobre o mesmo
+    // risco (equipe vendo tela vazia e lendo isso como "não há nada") e mais
+    // um: conta sem papel nenhum também não entra.
+    expect(paginaInvestidor).toContain("ehInvestidor(");
     expect(paginaInvestidor).toContain("createServerSupabaseClient");
     // Chave de serviço aqui entregaria o extrato de um sócio ao outro no
     // primeiro filtro errado — a RLS é a segunda barreira que sobra.
@@ -94,8 +98,16 @@ describe("o investidor NÃO é papel de painel", () => {
 
   it("a área assume o erro em vez de dizer que não há movimentação", () => {
     // A lição de R1 (a Garagem dizia "não há veículo" quando a query falhava).
-    expect(paginaInvestidor).toContain("erroExtrato");
-    expect(paginaInvestidor).toContain("<Indisponivel />");
+    // A variável mudou de nome na fusão (`erroExtrato` -> `erroDeLeitura`), a
+    // intenção não: o erro da consulta é LIDO e mostrado, em vez de virar
+    // "você não tem nada investido" na cara do dono do dinheiro.
+    expect(paginaInvestidor).toContain("erroDeLeitura");
+    // A fusão trocou o componente por um bloco inline, e a régua do teste é o
+    // COMPORTAMENTO: o erro aparece com a mensagem, e a tela diz explicitamente
+    // que os números não mudaram — para o dono do dinheiro não ler falha de
+    // leitura como perda de saldo.
+    expect(paginaInvestidor).toContain("Não foi possível carregar sua posição");
+    expect(paginaInvestidor).toContain("os números não foram alterados");
   });
 });
 
@@ -172,7 +184,10 @@ describe("o multi-papel chega à aplicação", () => {
   it("o proxy lê TODOS os papéis, não o primário", () => {
     // O gêmeo, do lado da aplicação, do bug que `20260821120000` corrigiu no
     // banco: quem tem `financeiro` como segundo papel levava 403 aqui.
-    expect(proxy).toContain("perfisDe(profile ?? role)");
+    // O fallback mudou na fusão: sem linha em `profiles` vale o papel padrão
+    // por e-mail (rede dos fundadores), e não `role`. O que o teste guarda é
+    // o mesmo — o gate soma TODOS os papéis, nunca o primário sozinho.
+    expect(proxy).toContain("perfisDe(profile ?? papelPadraoPorEmail(user.email))");
     expect(proxy).not.toMatch(/role !== "financeiro"/);
     expect(proxy).not.toMatch(/role !== "admin"/);
   });
@@ -257,30 +272,48 @@ describe("a tela A17 deixa trocar o primário e recusa com voz", () => {
   it("desmarcar o último papel explica, em vez de não fazer nada", () => {
     // Antes: `if (novos.length === 0) return;` — o clique morria em silêncio e
     // quem tentava achava que a tela tinha travado.
-    expect(gerenciador).toContain("Todo usuário precisa de pelo menos um perfil");
+    expect(gerenciador).toContain("Todo usuário precisa de pelo menos um papel");
     expect(gerenciador).not.toMatch(/if \(novos\.length === 0\) return;/);
   });
 
   it("o seletor oferece os papéis concedíveis, não só os de painel", () => {
-    expect(gerenciador).toContain("PAPEIS_CONCEDIVEIS.map");
+    // A fusão trocou a lista única por dois grupos rotulados — papel de painel
+    // e papel de área própria não são a mesma espécie, e misturá-los num
+    // bloco só foi o que deixou convidar um investidor como "comercial". O
+    // que importa é que o segundo grupo EXISTA no seletor.
+    expect(gerenciador).toContain("PAPEIS_SEM_PAINEL.map");
+    expect(gerenciador).toContain("Área própria (sem painel)");
     // E o de criação oferece `investidor` num grupo próprio.
-    expect(gerenciador).toContain('<option value="investidor">');
+    // O seletor virou orientado a dados na fusão: acrescentar papel de área
+    // própria não exige mais mexer no JSX. O que o teste guarda é que o grupo
+    // de fora do painel EXISTE — sem ele, o papel vive no banco e não há como
+    // criar a conta, que foi o bug de 2026-08-22.
+    expect(gerenciador).toContain("PAPEIS_SEM_PAINEL.map");
   });
 });
 
 describe("a rota de usuários aceita conceder investidor", () => {
-  it("valida contra PAPEIS_CONCEDIVEIS, não contra PERFIS", () => {
+  it("valida contra PAPEIS_ATRIBUIVEIS, não contra PERFIS", () => {
     // Enquanto validava `PERFIS`, criar conta de investidor devolvia "Perfil
     // inválido: investidor" — e a área /investidor ficava inalcançável.
-    expect(PAPEIS_CONCEDIVEIS).toContain("investidor");
-    expect(rotaUsuarios).toContain("PAPEIS_CONCEDIVEIS");
-    expect(rotaUsuario).toContain("PAPEIS_CONCEDIVEIS");
+    expect(PAPEIS_ATRIBUIVEIS).toContain("investidor");
+    expect(rotaUsuarios).toContain("PAPEIS_ATRIBUIVEIS");
+    expect(rotaUsuario).toContain("PAPEIS_ATRIBUIVEIS");
   });
 
   it("`cliente` não é concedível — é o padrão de quem se cadastra sozinho", () => {
-    expect(PAPEIS_CONCEDIVEIS).not.toContain("cliente");
+    // `cliente` ENTRA, e a decisão mudou em 2026-08-22. Antes ele ficava de
+    // fora porque conceder cliente não é ato administrativo — é o padrão de
+    // quem se cadastra sozinho. Mas o funcionário que também comprou carro
+    // carrega os dois papéis, e recusá-lo na edição fazia a A17 apagar em
+    // silêncio um papel legítimo. Oferecer é menos ruim que apagar.
+    expect(PAPEIS_ATRIBUIVEIS).toContain("cliente");
+    expect(PAPEIS_ATRIBUIVEIS).toContain("investidor");
     // Mas continua aceito na EDIÇÃO: o funcionário que também comprou carro.
-    expect(rotaUsuario).toContain('p !== "cliente"');
+    // A exceção de `cliente` saiu: ele passou a ser atribuível (ver a nota em
+    // "cliente não é concedível" acima). A rota valida contra a lista única, e
+    // é isso que impede papel inventado de entrar por texto livre.
+    expect(rotaUsuario).toContain("PAPEIS_ATRIBUIVEIS as readonly string[]");
   });
 
   it("as duas rotas leem TODOS os papéis — o 4º gêmeo do bug multi-papel", () => {

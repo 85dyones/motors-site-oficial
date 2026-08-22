@@ -6,13 +6,14 @@ import {
   ALCADA_DO_PERFIL,
   DESCRICAO_DO_PERFIL,
   MATRIZ_DE_PERMISSOES,
-  PAPEIS_CONCEDIVEIS,
+  PAPEIS_ATRIBUIVEIS,
+  PAPEIS_SEM_PAINEL,
   PERFIS,
+  ROTULO_DO_PAPEL,
   ROTULO_DO_PERFIL,
   ehPapelDePainel,
-  normalizarPerfil,
   ordenarPapeis,
-  type PapelConcedivel,
+  type PapelAtribuivel,
   type Perfil,
   type Permissao,
 } from "../../lib/permissoes";
@@ -21,11 +22,6 @@ import {
  * Rótulo de qualquer papel concedível — `ROTULO_DO_PERFIL` só conhece os de
  * painel, e `investidor` precisa de nome na tela como os outros.
  */
-const ROTULO_DO_PAPEL: Record<string, string> = {
-  ...ROTULO_DO_PERFIL,
-  investidor: "Investidor",
-  cliente: "Cliente",
-};
 
 /**
  * Tela A17 do design doc — usuários e permissões.
@@ -116,9 +112,8 @@ export default function UserManagement() {
   // Create User Form State
   const [isCreating, setIsCreating] = useState(false);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<PapelConcedivel>("comercial");
+  const [role, setRole] = useState<PapelAtribuivel>("comercial");
   const [isSaving, setIsSaving] = useState(false);
 
   // Edit User State
@@ -184,25 +179,27 @@ export default function UserManagement() {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, full_name: fullName, role }),
+        body: JSON.stringify({ email, full_name: fullName, role }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        setSuccessMsg("Usuário criado com sucesso!");
+        setSuccessMsg(`Convite enviado para ${email} — a senha é escolhida por quem recebe.`);
         setIsCreating(false);
         setEmail("");
-        setPassword("");
         setFullName("");
         setRole("comercial");
         setRegistroCarregado(false);
-        fetchUsers();
       } else {
-        setError(data.error || "Falha ao criar usuário.");
+        setError(data.error || "Falha ao convidar usuário.");
       }
     } catch (err) {
-      setError("Erro ao salvar usuário.");
+      setError("Erro ao convidar usuário.");
     } finally {
+      // Fora do ramo de sucesso de propósito: o convite pode sair e o papel
+      // falhar depois (a rota devolve isso como erro). Nesse caso o convidado
+      // JÁ existe, e precisa aparecer na lista para o papel ser corrigido.
+      fetchUsers();
       setIsSaving(false);
     }
   };
@@ -270,9 +267,22 @@ export default function UserManagement() {
     }
   };
 
-  /** Etiquetas na linguagem de tag do doc: acento para Admin, contorno para o resto. */
+  /**
+   * Etiquetas na linguagem de tag do doc: acento para Admin, contorno para o
+   * resto — e papel FORA do painel (cliente, ou algo que o vocabulário não
+   * conhece) aparece como é: tracejado, sem cor de equipe.
+   *
+   * Até 2026-08-22 tudo passava por `normalizarPerfil` antes de virar badge,
+   * e `normalizarPerfil` devolve "comercial" para qualquer papel desconhecido.
+   * Resultado real: um convidado que nasceu `cliente` (convite feito fora da
+   * A17, papel que o trigger não reconheceu) aparecia na lista como
+   * "COMERCIAL" — a tela mentia exatamente para quem precisa corrigir o papel.
+   */
+  const ehPapelDePainel = (r: string) => (PERFIS as readonly string[]).includes(r);
+  const rotuloDoPapel = (r: string) => ROTULO_DO_PAPEL[r] ?? r;
   const getRoleBadgeClass = (r: string) => {
-    switch (normalizarPerfil(r)) {
+    if (!ehPapelDePainel(r)) return "border border-dashed border-mt-regua text-mt-neutral-600";
+    switch (r as Perfil) {
       case "admin": return "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent-800";
       case "financeiro": return "border border-mt-regua text-mt-neutral-800";
       case "marketing": return "border border-mt-regua text-mt-neutral-800";
@@ -407,6 +417,23 @@ export default function UserManagement() {
             </div>
           </div>
 
+          {/* Quem NÃO está na matriz — e por quê */}
+          <div className="max-w-[720px] border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3.5">
+            <div className="text-sm font-extrabold tracking-[-.01em]">
+              Fora do painel: Cliente e Investidor
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-mt-neutral-800">
+              Os dois têm área própria — <strong>/garagem</strong> e{" "}
+              <strong>/investidor</strong> — e não aparecem nesta matriz porque não
+              executam nenhuma ação do painel. O investidor enxerga só os carros em que
+              entrou na compra e a própria posição (aporte, retiradas e saldo); quem lança
+              esses valores é o Financeiro.
+            </p>
+            <div className="mt-2 text-[10px] font-extrabold tracking-[.12em] text-mt-accent-800">
+              SEM ACESSO AO PAINEL · ENXERGAM SÓ O PRÓPRIO
+            </div>
+          </div>
+
           {/* As três travas */}
           <div className="max-w-[720px]">
             <div className="mt-rotulo mt-rotulo-accent mb-3">Três travas que não caem</div>
@@ -476,9 +503,14 @@ export default function UserManagement() {
                             {papeisDe(u).map((papel) => (
                               <span
                                 key={papel}
+                                title={
+                                  ehPapelDePainel(papel)
+                                    ? undefined
+                                    : "Papel sem acesso ao painel — edite a pessoa para atribuir um perfil da equipe."
+                                }
                                 className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getRoleBadgeClass(papel)}`}
                               >
-                                {ROTULO_DO_PERFIL[normalizarPerfil(papel)]}
+                                {rotuloDoPapel(papel)}
                               </span>
                             ))}
                           </div>
@@ -529,6 +561,13 @@ export default function UserManagement() {
             {isCreating && (
               <div className="flex flex-col gap-4 border border-mt-regua-fina bg-mt-surface p-6">
                 <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink select-none">Convidar usuário</h3>
+                {/* Sem campo de senha desde 2026-08-21: o convite chega por
+                    e-mail e a senha é escolhida por quem vai usá-la, em
+                    /definir-senha. Quem cuida do painel não conhece senha de
+                    ninguém — antes conhecia a de todo mundo. */}
+                <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-700">
+                  A pessoa recebe um convite por e-mail e escolhe a própria senha.
+                </p>
                 <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
                     <label className={rotuloCampo}>Nome Completo</label>
@@ -541,20 +580,16 @@ export default function UserManagement() {
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className={rotuloCampo}>Senha Provisória</label>
-                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 caracteres" minLength={6} className={campoCaixa} />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
                     <label className={rotuloCampo}>Perfil</label>
                     {/* Dois grupos porque são duas naturezas: papel de painel
-                        opera a loja; `investidor` é authenticated e NUNCA entra
-                        no /admin — ele acompanha o próprio extrato em
-                        /investidor. Sem o segundo grupo aqui, o papel existia
-                        no banco e não havia como criar a conta. */}
+                        opera a loja; os de área própria são authenticated e
+                        NUNCA entram no /admin. Sem o segundo grupo aqui o
+                        papel existia no banco e não havia como criar a conta —
+                        foi assim que um investidor acabou convidado como
+                        "comercial" em 2026-08-22. */}
                     <select
                       value={role}
-                      onChange={(e) => setRole(e.target.value as PapelConcedivel)}
+                      onChange={(e) => setRole(e.target.value as PapelAtribuivel)}
                       className={`${campoCaixa} cursor-pointer`}
                     >
                       <optgroup label="Equipe (entra no painel)">
@@ -562,14 +597,18 @@ export default function UserManagement() {
                           <option key={p} value={p}>{ROTULO_DO_PERFIL[p]}</option>
                         ))}
                       </optgroup>
-                      <optgroup label="Fora do painel">
-                        <option value="investidor">Investidor</option>
+                      <optgroup label="Área própria (sem painel)">
+                        {PAPEIS_SEM_PAINEL.map((p) => (
+                          <option key={p} value={p}>{ROTULO_DO_PAPEL[p]}</option>
+                        ))}
                       </optgroup>
                     </select>
                     <span className="pl-1 text-[10px] leading-relaxed text-mt-neutral-700">
                       {ehPapelDePainel(role)
                         ? `Alçada: ${ALCADA_DO_PERFIL[role as Perfil]}`
-                        : "Acompanha o próprio extrato em /investidor. Não entra no painel. O vínculo com o cadastro do investidor se faz sozinho no primeiro acesso, pelo e-mail."}
+                        : role === "investidor"
+                          ? "Sem painel — enxerga a própria posição em /investidor. O vínculo com o cadastro do investidor se faz sozinho no primeiro acesso, pelo e-mail."
+                          : "Sem painel — área do cliente em /garagem."}
                     </span>
                   </div>
 
@@ -578,7 +617,7 @@ export default function UserManagement() {
                       Cancelar
                     </button>
                     <button type="submit" disabled={isSaving} className="mt-foco h-11 flex-1 cursor-pointer bg-mt-accent text-[11px] font-bold uppercase tracking-wider text-mt-inverso hover:bg-mt-accent-hover disabled:opacity-50">
-                      {isSaving ? "Salvando..." : "Criar"}
+                      {isSaving ? "Enviando..." : "Enviar convite"}
                     </button>
                   </div>
                 </form>
@@ -601,99 +640,122 @@ export default function UserManagement() {
                   </div>
 
                   {/* Multi-papel (2026-08-19): a mesma pessoa vende e cuida do
-                      financeiro. `papeis[0]` é o PRIMÁRIO — o que aparece na
-                      lista quando só cabe um nome, e o que o código que ainda
-                      lê `role` enxerga.
-                      
-                      Até 2026-08-21 o primário era refém da ordem em que os
+                      financeiro. O primeiro marcado é o PRIMÁRIO — é o que
+                      aparece na lista quando só cabe um nome, e o que o código
+                      que ainda lê `role` enxerga.
+
+                      Dois grupos: papel de painel e papel de área própria
+                      (cliente, investidor) não são a mesma espécie. Misturá-los
+                      num bloco só foi o que permitiu convidar um investidor
+                      como "comercial" — o papel dele não existia em lugar
+                      nenhum desta tela.
+
+                      E o primário deixou de ser refém da ordem em que os
                       papéis foram marcados: o seletor só sabia ANEXAR no fim,
                       então quem virou admin primeiro seguia admin primário
                       para sempre. `ordenarPapeis` e o botão "tornar primário"
-                      resolvem isso. */}
+                      resolvem isso — o pedido foi literal, *"um adm que perdeu
+                      a função ou foi para o comercial puro"*. */}
                   <div className="flex flex-col gap-1">
-                    <label className={rotuloCampo}>Perfis</label>
-                    <div className="flex flex-col gap-1.5 border border-mt-regua-fina bg-mt-bg p-3">
-                      {PAPEIS_CONCEDIVEIS.map((p) => {
-                        const atuais = papeisDe(editingUser);
-                        const marcado = atuais.includes(p);
-                        const primario = atuais[0] === p;
-                        const trocar = (novos: string[]) =>
-                          setEditingUser({
-                            ...editingUser,
-                            papeis: novos,
-                            role: novos[0],
-                          });
+                    <label className={rotuloCampo}>Papéis</label>
+                    <div className="flex flex-col gap-3 border border-mt-regua-fina bg-mt-bg p-3">
+                      {(
+                        [
+                          ["Equipe (painel)", PERFIS as readonly string[]],
+                          ["Área própria (sem painel)", PAPEIS_SEM_PAINEL as readonly string[]],
+                        ] as const
+                      ).map(([titulo, papeis]) => (
+                        <div key={titulo} className="flex flex-col gap-1.5">
+                          <span className="text-[9px] font-semibold uppercase tracking-[.14em] text-mt-neutral-600">
+                            {titulo}
+                          </span>
+                          {papeis.map((p) => {
+                            const atuais = papeisDe(editingUser);
+                            const marcado = atuais.includes(p);
+                            const primario = atuais[0] === p;
+                            const trocar = (novos: string[]) =>
+                              setEditingUser({ ...editingUser, papeis: novos, role: novos[0] });
 
-                        return (
-                          <div
-                            key={p}
-                            className={`flex select-none items-center gap-2 ${
-                              !ehPapelDePainel(p) ? "mt-1 border-t border-mt-regua-fina pt-2.5" : ""
-                            }`}
-                          >
-                            <label className="flex flex-1 cursor-pointer items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={marcado}
-                                onChange={(e) => {
-                                  if (!e.target.checked && atuais.length === 1) {
-                                    // Recusa EXPLÍCITA. Antes o clique não
-                                    // fazia nada e não dizia por quê — quem
-                                    // tentava tirar o último papel ficava
-                                    // achando que a tela travou.
-                                    setError(
-                                      "Todo usuário precisa de pelo menos um perfil. Marque o novo antes de tirar o atual — ou desative a conta, se a pessoa saiu.",
-                                    );
-                                    return;
-                                  }
-                                  setError("");
-                                  const novos = e.target.checked
-                                    ? ordenarPapeis([...atuais, p], atuais[0])
-                                    : ordenarPapeis(atuais.filter((x) => x !== p));
-                                  trocar(novos);
-                                }}
-                                className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
-                              />
-                              <span className="text-xs font-semibold text-mt-ink">
-                                {ROTULO_DO_PAPEL[p] ?? p}
-                              </span>
-                              {!ehPapelDePainel(p) && (
-                                <span className="text-[10px] text-mt-neutral-600">
-                                  · não entra no painel
-                                </span>
-                              )}
-                            </label>
+                            return (
+                              <div key={p} className="flex select-none items-center gap-2">
+                                <label className="flex flex-1 cursor-pointer items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={marcado}
+                                    onChange={(e) => {
+                                      if (!e.target.checked && atuais.length === 1) {
+                                        // Recusa EXPLÍCITA, e no cliente. Antes
+                                        // o clique não fazia nada e não dizia
+                                        // por quê — quem tentava tirar o último
+                                        // papel achava que a tela travou.
+                                        // Descobrir isso só ao salvar perderia o
+                                        // resto do formulário. A régua é "pelo
+                                        // menos um", não "pelo menos um de
+                                        // painel": investidor puro é gente de
+                                        // verdade.
+                                        setError(
+                                          "Todo usuário precisa de pelo menos um papel. Marque o novo antes de tirar o atual — ou desative a conta, se a pessoa saiu.",
+                                        );
+                                        return;
+                                      }
+                                      const novosBrutos = e.target.checked
+                                        ? [...atuais, p]
+                                        : atuais.filter((x) => x !== p);
+                                      // Papel de painel sempre na frente:
+                                      // marcar `comercial` em quem já tinha
+                                      // `cliente` deixava `cliente` como
+                                      // primário — e a pessoa, staff no papel,
+                                      // continuava barrada do painel inteiro.
+                                      trocar(ordenarPapeis(novosBrutos, primario ? undefined : atuais[0]));
+                                    }}
+                                    className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
+                                  />
+                                  <span className="text-xs font-semibold text-mt-ink">
+                                    {ROTULO_DO_PAPEL[p] ?? p}
+                                  </span>
+                                </label>
 
-                            {/* O selo era decorativo até 2026-08-21: dava para
-                                ver qual era o primário e não para escolher.
-                                Agora ele é o botão que promove. */}
-                            {primario ? (
-                              <span className="border border-mt-regua px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
-                                primário
-                              </span>
-                            ) : (
-                              marcado &&
-                              ehPapelDePainel(p) && (
-                                <button
-                                  type="button"
-                                  onClick={() => trocar(ordenarPapeis(atuais, p))}
-                                  className="mt-foco cursor-pointer border border-dashed border-mt-regua-fina px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-600 hover:border-mt-accent hover:text-mt-accent"
-                                  title="Tornar este o perfil primário"
-                                >
-                                  tornar primário
-                                </button>
-                              )
-                            )}
-                          </div>
-                        );
-                      })}
+                                {/* O selo era decorativo: dava para ver qual
+                                    era o primário e não para escolher. Agora
+                                    ele é o botão que promove. Só papel de
+                                    painel promove — `role` é lido como "o papel
+                                    de equipe" por código que ainda não migrou
+                                    para `papeis`. */}
+                                {primario ? (
+                                  <span className="border border-mt-regua px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                                    primário
+                                  </span>
+                                ) : (
+                                  marcado &&
+                                  ehPapelDePainel(p) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => trocar(ordenarPapeis(atuais, p))}
+                                      className="mt-foco cursor-pointer border border-dashed border-mt-regua-fina px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-600 hover:border-mt-accent hover:text-mt-accent"
+                                      title="Tornar este o papel primário"
+                                    >
+                                      tornar primário
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
                     </div>
                     <span className="pl-1 text-[10px] leading-relaxed text-mt-neutral-700">
-                      Quem tem mais de um perfil faz o que qualquer um deles faz. O{" "}
+                      Quem tem mais de um papel de painel faz o que qualquer um deles faz.
+                      Papel de área própria não dá acesso ao painel. O{" "}
                       <strong>primário</strong> é o que aparece na lista quando só cabe um
-                      nome — mudá-lo não tira nem dá acesso. Para rebaixar alguém (um admin
-                      que virou comercial puro), marque o perfil novo e desmarque o antigo.
+                      nome — mudá-lo não tira nem dá acesso.
                     </span>
+                    {papeisDe(editingUser).includes("investidor") && (
+                      <span className="pl-1 text-[10px] text-mt-neutral-700">
+                        Acompanha a própria posição em <strong>/investidor</strong>. Os carros,
+                        aportes e retiradas são lançados em Financeiro → Investidores.
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-1">

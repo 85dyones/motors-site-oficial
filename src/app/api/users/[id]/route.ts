@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../../lib/supabase-server";
 import { registrarAcaoSensivel } from "../../../../lib/auditoria";
-import { PAPEIS_CONCEDIVEIS, perfisDe } from "../../../../lib/permissoes";
+import { PAPEIS_ATRIBUIVEIS, PERFIS, perfisDe } from "../../../../lib/permissoes";
 
 export async function PUT(
   request: NextRequest,
@@ -23,15 +23,16 @@ export async function PUT(
       .eq("id", currentUser.id)
       .single();
 
-    // Ver a nota em /api/users: multi-papel soma, e `role` é só o primário.
+    // Soma os papéis (multi-papel, 2026-08-19): admin em segundo lugar é admin.
     if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 
     const body = await request.json();
-    const { full_name, role, papeis, is_active, telefone_e164 } = body;
+    const { full_name, role, is_active, telefone_e164 } = body;
+    let { papeis } = body;
 
-    if (role !== undefined && !(PAPEIS_CONCEDIVEIS as readonly string[]).includes(role)) {
+    if (role !== undefined && !(PAPEIS_ATRIBUIVEIS as readonly string[]).includes(role)) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
 
@@ -45,11 +46,11 @@ export async function PUT(
           { status: 400 },
         );
       }
-      // `cliente` continua aceito na EDIÇÃO (o funcionário que também comprou
-      // carro carrega os dois), mas não é oferecido para conceder — ver
-      // `PAPEIS_CONCEDIVEIS`.
+      // `cliente` entra aqui: o funcionário que também comprou carro carrega
+      // os dois papéis, e recusá-lo na edição faria a A17 apagar em silêncio
+      // um papel que o usuário legitimamente tem.
       const invalidos = papeis.filter(
-        (p: string) => !(PAPEIS_CONCEDIVEIS as readonly string[]).includes(p) && p !== "cliente",
+        (p: string) => !(PAPEIS_ATRIBUIVEIS as readonly string[]).includes(p),
       );
       if (invalidos.length > 0) {
         return NextResponse.json(
@@ -60,6 +61,17 @@ export async function PUT(
       if (new Set(papeis).size !== papeis.length) {
         return NextResponse.json({ error: "Perfil repetido na lista." }, { status: 400 });
       }
+
+      // Papel de painel na frente, `cliente` atrás. `papeis[1]` vira o `role`
+      // que os gates antigos (proxy incluído) leem — um staff com primário
+      // `cliente` seria barrado do painel inteiro. A A17 já manda ordenado;
+      // aqui é a garantia para qualquer cliente da rota. O sort do JS é
+      // estável: a ordem relativa escolhida entre os papéis de painel fica.
+      papeis = [...papeis].sort(
+        (a: string, b: string) =>
+          Number((PERFIS as readonly string[]).includes(b)) -
+          Number((PERFIS as readonly string[]).includes(a)),
+      );
     }
 
     // `papeis[1]` é o primário e espelha `role` — o trigger do banco cuida da
@@ -149,7 +161,7 @@ export async function DELETE(
       .eq("id", currentUser.id)
       .single();
 
-    // Ver a nota em /api/users: multi-papel soma, e `role` é só o primário.
+    // Soma os papéis (multi-papel, 2026-08-19): admin em segundo lugar é admin.
     if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }

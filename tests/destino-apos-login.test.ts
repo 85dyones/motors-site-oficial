@@ -53,7 +53,7 @@ describe("destino de entrada no painel", () => {
     // mesma: o desvio leva à Visão geral, nunca a Configurações.
     const trecho = arquivos["proxy.ts"].slice(
       arquivos["proxy.ts"].indexOf('if (!perfis.includes("admin"))'),
-      arquivos["proxy.ts"].indexOf("// Configurações: Admin e Comercial")
+      arquivos["proxy.ts"].indexOf("// Configurações: Admin, Comercial e Marketing")
     );
     expect(trecho).not.toContain('url.pathname = "/admin/configuracoes"');
     expect(trecho.match(/url\.pathname = "\/admin"/g) ?? []).toHaveLength(2);

@@ -5,7 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 interface SidebarNavProps {
   /**
-   * TODOS os papéis de painel de quem está logado, não o primário.
+   * TODOS os papéis de painel de quem está logado, não o primário — o trilho
+   * mostra a UNIÃO dos grupos.
    *
    * Era `role: string` até 2026-08-21, e isso reproduzia no trilho o mesmo
    * bug que `has_finance_access` tinha no banco: quem tem `financeiro` como
@@ -145,7 +146,9 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
   ];
 
   // Basta UM papel autorizar: multi-papel soma acesso, nunca subtrai — a
-  // mesma leitura de `podeFazer` na matriz.
+  // mesma leitura de `podeFazer` na matriz. Quem vende E cuida do financeiro
+  // enxerga os dois grupos; era o primário sozinho que escondia a segunda
+  // metade do trabalho.
   const allowedGroups = menuGroups.filter((group) =>
     group.roles.some((r) => perfis.includes(r)),
   );

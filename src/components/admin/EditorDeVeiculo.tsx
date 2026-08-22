@@ -114,8 +114,10 @@ export default function EditorDeVeiculo({
   inicial: VeiculoDb;
   /** `null` = GA4 não configurado ou indisponível. Nunca confundir com zero. */
   visitas30Dias: number | null;
-  /** Perfil de quem abriu a tela. Governa o que aparece e o que é enviado. */
-  perfil: Perfil;
+  /** TODOS os papéis de quem abriu a tela (multi-papel, 2026-08-19) —
+   *  `podeGravarCampo` soma: quem é comercial E financeiro grava o que
+   *  qualquer um dos dois grava. Governa o que aparece e o que é enviado. */
+  perfil: Perfil[];
 }) {
   /** "Tudo que for negado some da interface, não fica cinza" — regra do doc
    *  A17. Campo que este perfil não grava não é desenhado, e por isso também

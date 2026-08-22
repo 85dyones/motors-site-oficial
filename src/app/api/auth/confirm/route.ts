@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff } from "../../../../lib/permissoes";
+import { ehInvestidor, ehStaff } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,13 @@ export const dynamic = "force-dynamic";
  * Garagem, staff vai para o painel. `?next=` só vale para staff — cliente não
  * tem outra área para ir, e aceitar destino arbitrário para ele seria só
  * superfície de phishing.
+ *
+ * Dois tipos furam essa regra, e é de propósito: `invite` e `recovery` chegam
+ * de alguém que ainda NÃO tem senha utilizável — o convidado nunca teve uma, e
+ * quem pediu recuperação não lembra a dele. Mandá-los ao painel logaria a
+ * sessão e deixaria a conta sem senha própria para a próxima entrada, que é o
+ * beco silencioso: funciona hoje, não funciona amanhã. Os dois vão para
+ * `/definir-senha`, que é a única tela que fecha esse ciclo.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -58,6 +65,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/garagem?erro=link-vencido`);
   }
 
+  // Convite e recuperação terminam na escolha da senha — ver o cabeçalho.
+  if (type === "invite" || type === "recovery") {
+    return NextResponse.redirect(`${origin}/definir-senha`);
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role, papeis")
@@ -66,6 +78,11 @@ export async function GET(request: NextRequest) {
 
   if (ehStaff(profile)) {
     return NextResponse.redirect(`${origin}${nextSeguro ?? "/admin"}`);
+  }
+  // Investidor tem área própria desde 2026-08-22; sem esta linha o convite
+  // dele terminava na Garagem, que a página manda de volta para a home.
+  if (ehInvestidor(profile)) {
+    return NextResponse.redirect(`${origin}/investidor`);
   }
   return NextResponse.redirect(`${origin}/garagem`);
 }

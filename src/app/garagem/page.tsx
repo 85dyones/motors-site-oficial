@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
-import { ehStaff } from "../../lib/permissoes";
+import { ehInvestidor, ehStaff } from "../../lib/permissoes";
 import { Rotulo } from "../../components/modernist/primitivos";
 import GaragemEntrada from "../../components/garagem/GaragemEntrada";
 import GaragemVeiculo, { type VeiculoDaGaragem } from "../../components/garagem/GaragemVeiculo";
@@ -55,6 +55,11 @@ export default async function GaragemPage({
     .single();
   if (ehStaff(profile)) {
     redirect("/admin");
+  }
+  // Investidor também não vive aqui: sem registro de cliente, a Garagem lhe
+  // mostraria a tela de "nenhum veículo" para sempre.
+  if (ehInvestidor(profile)) {
+    redirect("/investidor");
   }
 
   // ---- o cliente da sessão ----------------------------------------------

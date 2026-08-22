@@ -74,7 +74,186 @@ PKCE e exige que o clique aconteça no mesmo navegador que pediu o link.
 > `{{ .ConfirmationURL }}`, trinta linhas depois de explicar por que aquilo
 > não funciona. Quem seguisse o guia até o fim desfazia a correção (D1).
 
----
+### 1-b. Qual template serve qual público (2026-08-21)
+
+O painel do Supabase tem seis caixas de e-mail, e o erro fácil é achar que
+elas são intercambiáveis. Não são: **cada uma dispara com uma chamada de API
+diferente**, e colar o texto certo na caixa errada não faz o e-mail sair.
+
+| Template no painel | Só dispara com | Público | Arquivo aqui |
+|---|---|---|---|
+| **Magic link or OTP** | `auth.signInWithOtp()` | Cliente, na Garagem | [`magic-link.html`](../supabase/templates/magic-link.html) |
+| **Invite user** | `admin.inviteUserByEmail()` | Equipe, investidor — todo acesso ao painel | [`invite-user.html`](../supabase/templates/invite-user.html) |
+| **Confirm sign up** | `auth.signUp()` | Ninguém, hoje — rede de segurança (§1-e) | [`confirm-signup.html`](../supabase/templates/confirm-signup.html) |
+| **Reset password** | `auth.resetPasswordForEmail()` | Equipe que esqueceu a senha | [`reset-password.html`](../supabase/templates/reset-password.html) |
+| **Change email address** | `auth.updateUser({email})` | — | ainda não existe |
+| **Reauthentication** | `auth.reauthenticate()` | — | ainda não existe |
+
+As duas últimas linhas só ganham template quando existir tela de perfil: hoje
+seriam e-mails apontando para páginas que ninguém pode abrir. As quatro
+primeiras estão prontas — e as três de senha (convite, troca e confirmação)
+terminam na mesma tela, `/definir-senha`.
+
+### 1-c. O convite — como o acesso ao painel nasce (2026-08-21)
+
+Arquivo pronto: [`supabase/templates/invite-user.html`](../supabase/templates/invite-user.html)
+
+**Onde colar:** Authentication → Emails → template **Invite user** → campo
+*Message body*. Mesmo fluxo do §1: selecionar tudo e colar.
+
+**Assunto sugerido:**
+
+```
+Seu acesso ao painel da Motors
+```
+
+**O que mudou no código junto com este template.** Até 2026-08-21 a tela A17
+pedia uma *"Senha Provisória"* ao admin e criava a conta com ela
+(`createUser` + `email_confirm: true`). O efeito colateral não era pequeno:
+
+- **nenhum e-mail saía** — `email_confirm: true` mata o envio;
+- a senha do funcionário **viajava por WhatsApp** ou era dita em voz alta;
+- não havia troca obrigatória na primeira entrada;
+- quem cuidava do painel **conhecia a senha de todo mundo**.
+
+Agora `/api/users` chama `inviteUserByEmail`: a conta nasce **sem senha**, o
+convite sai por e-mail e a senha é escolhida em `/definir-senha`, no navegador
+de quem vai usá-la. **Nenhuma rota do projeto recebe senha em corpo de
+requisição** — e o campo de senha sumiu da tela A17.
+
+**O link é `token_hash`, como o do link mágico** — e aqui o motivo é ainda
+mais forte. A doc do próprio SDK avisa que o convite **não suporta PKCE**,
+"porque o navegador que inicia o convite costuma ser diferente do que o
+aceita". É exatamente o quicar de 2026-08-15 (§1), só que garantido: quem
+convida é o admin, na máquina da loja; quem aceita é o convidado, na dele.
+
+```
+https://motorsstore.com.br/api/auth/confirm?token_hash={{ .TokenHash }}&type=invite
+```
+
+> **O papel entra em DOIS passos, e isso não é redundância.**
+> `inviteUserByEmail` só grava `user_metadata`, e `handle_new_user`
+> (migração `20260813120000`) lê o papel de `app_metadata` — que ainda está
+> vazio quando o trigger roda. Por isso a rota, logo depois de convidar,
+> grava `app_metadata` **e** corrige `profiles`. Sem o segundo passo, **todo
+> convidado nasceria `cliente`** e não entraria em lugar nenhum. Se esse
+> segundo passo falhar, a rota devolve o erro dizendo isso — o convite já
+> saiu e o perfil aparece na lista para ser corrigido ali mesmo.
+
+**Validade:** o convite não promete prazo no texto, de propósito. O §4 fixa
+uma hora para o link mágico porque aquele número está no painel; o do convite
+é outra configuração, e prometer o número errado gera chamado. O texto diz o
+que é sempre verdade: vale uma vez só.
+
+> **O limite deste desenho, dito em voz alta:** `/definir-senha` troca a senha
+> de quem já está com a sessão aberta, sem pedir a senha antiga. Quem senta
+> numa máquina com o painel logado consegue trocá-la — mas essa pessoa já
+> teria o painel inteiro de qualquer forma. Fechar isso é ligar *secure
+> password change* no painel do Supabase, que passa a exigir reautenticação
+> (e aí o template **Reauthentication** deixa de ser decorativo).
+
+### 1-c-bis. Investidor (2026-08-22)
+
+**Investidor passou a existir** — e NÃO como quinto perfil de painel. `PERFIS`
+continua sendo `admin | marketing | comercial | financeiro`; investidor entrou
+em `PAPEIS_SEM_PAINEL`, ao lado de `cliente` (`src/lib/permissoes.ts`).
+
+> **Por que não virou perfil de painel.** `ehStaff`/`is_staff` é a régua única
+> de "é gente da loja", e quem passa por ela recebe o payload completo de
+> `/api/settings` — token de API, saldos bancários e o `preco_compra` de todo o
+> estoque —, além da escrita de estoque e dos leads. Um quinto perfil teria
+> dado tudo isso a quem só precisa ver a própria posição. A migração
+> `20260822120000` prova o contrário contra o banco, na autoconferência: o
+> investidor nasce fora do `is_staff` e fora do `has_finance_access`.
+
+**O convite é este mesmo** (§1-c): a A17 agora oferece o papel no seletor, em
+"Área própria (sem painel)". Antes disso não havia como convidá-lo, e o
+resultado real foi um investidor cadastrado como **comercial** — a lista ainda
+por cima o exibia assim, porque `normalizarPerfil` devolve "comercial" para
+qualquer papel que não reconhece.
+
+**Onde ele cai:** `/investidor`, como o cliente cai em `/garagem`. As três
+portas de auth (`/definir-senha`, `/api/auth/confirm` e o proxy) decidem pelo
+papel, nesta ordem: staff → `/admin`, investidor → `/investidor`, resto →
+`/garagem`.
+
+**O que ele enxerga:** os carros em que entrou na compra, o aporte total, o
+total retirado e o saldo investido. Nada de custo da loja ou margem. O recorte
+é da RLS (`investidor_id = auth.uid()`) nas tabelas `investidor_veiculos` e
+`investidor_movimentos`, e a view `investidor_posicao` é `security_invoker`
+para que a soma respeite a mesma régua — sem isso, um investidor leria a
+posição de todos.
+
+**Ele não lança nada.** Aportes, retiradas e participações entram por
+Financeiro → Investidores (`/admin/financeiro/investidores`), sob
+`has_finance_access`. As tabelas não têm policy de escrita para o investidor, e
+ausência de policy é negação.
+
+### 1-d. Esqueci minha senha (2026-08-21)
+
+Arquivo pronto: [`supabase/templates/reset-password.html`](../supabase/templates/reset-password.html)
+
+**Onde colar:** Authentication → Emails → template **Reset password** → campo
+*Message body*.
+
+**Assunto sugerido:**
+
+```
+Sua senha nova na Motors
+```
+
+Antes disto, quem esquecia a senha **dependia de um admin** — e o admin, até o
+convite entrar (§1-c), digitava a senha por ele. O fluxo agora fecha sozinho:
+
+1. `/login` traz **"Esqueci minha senha"** → `/recuperar-senha`;
+2. a tela pede o e-mail e chama `resetPasswordForEmail`;
+3. o link chega por `token_hash` com `type=recovery`;
+4. `/api/auth/confirm` verifica e manda para **`/definir-senha`** — a mesma
+   tela do convite.
+
+> **A resposta da tela é NEUTRA**, pelo mesmo motivo do §2-a: e-mail cadastrado
+> e desconhecido terminam na mesma mensagem ("se estiver cadastrado, o link
+> saiu"). Sem isso o formulário vira um **verificador de quem trabalha na
+> Motors** — é o problema da entrada da Garagem, com outro público. O retorno
+> do Supabase nem chega a ser lido: ler o erro seria o primeiro passo para
+> diferenciar.
+
+**O texto diz que a senha atual continua valendo até a troca.** Parece detalhe
+e não é: sem essa frase, quem clica por engano acha que ficou trancado para
+fora e liga para a loja.
+
+**Validade:** aqui o template promete **1 hora**, igual ao link mágico, porque
+os dois saem da mesma configuração (*Email OTP expiration*). Se ela mudar no
+painel, **os dois textos mudam juntos** — um teste trava a frase idêntica nos
+dois arquivos para que ninguém atualize um e esqueça o outro.
+
+**Cliente não usa este caminho.** A Garagem não tem senha; se um cliente pedir
+troca, ele define uma senha que não abre porta nenhuma no painel (o middleware
+barra papel `cliente`) e volta para a Garagem. As duas telas apontam o cliente
+para o lugar certo, mas nada quebra se ele passar por aqui.
+
+### 1-e. Confirmação de cadastro — a rede de segurança (2026-08-21)
+
+Arquivo pronto: [`supabase/templates/confirm-signup.html`](../supabase/templates/confirm-signup.html)
+
+**Onde colar:** Authentication → Emails → template **Confirm signup** → campo
+*Message body*.
+
+**Assunto sugerido:**
+
+```
+Sua conta na Motors foi criada
+```
+
+Este e-mail **não deve disparar hoje**: `signUp` é o cadastro espontâneo, que
+o §2-a manda desabilitar, e nenhum caminho do projeto o usa desde que o
+fallback saiu de `/api/users` (§1-c). Ele existe colado no painel para o dia
+em que alguém religar o cadastro público ou criar um usuário pelo painel com
+envio de confirmação — nesse dia, sai o e-mail da Motors e não o do Supabase,
+em inglês e com `{{ .ConfirmationURL }}`, que quebra fora do PKCE.
+
+A voz do texto é neutra de propósito: a mesma caixa atende equipe e cliente, e
+quem decide o destino é `/api/auth/confirm`, pelo papel.
 
 ## 2. As três travas que importam
 
@@ -96,6 +275,13 @@ A consequência desejada é: e-mail desconhecido → nenhum link enviado. A tela
 deve responder a mesma mensagem neutra para e-mail conhecido e desconhecido
 ("se este e-mail estiver no seu cadastro, o link chegou"), senão o formulário
 vira um verificador de quem é cliente da loja.
+
+> **Desabilitar o cadastro público não impede convidar.** O toggle fecha o
+> endpoint de `signUp` para quem usa a chave anônima; `inviteUserByEmail` e
+> `createUser` passam pela chave de serviço e continuam funcionando. É por
+> isso que a trava pode ficar ligada o tempo todo: os dois jeitos legítimos de
+> uma conta nascer aqui — o convite (§1-c) e o fechamento da venda — não
+> dependem dela.
 
 ### b) Só o destino certo aceita o link
 
@@ -267,16 +453,36 @@ mudar junto** — prometer uma hora e expirar em dez minutos gera chamado.
 
 O link é de uso único. Pedir um novo invalida o anterior.
 
+A validade é **uma configuração só** (Email OTP expiration) para os e-mails do
+Auth — link mágico, troca de senha e confirmação de conta envelhecem juntos. Se
+o prazo mudar, são **três** templates para atualizar: `magic-link.html`,
+`reset-password.html` e `confirm-signup.html`. O convite (`invite-user.html`)
+não promete número nenhum, então não entra na conta. E link de confirmação vencido não é beco: a página de
+entrada da Garagem manda um link mágico novo, e o `verifyOtp` dele também
+confirma o e-mail.
+
 ---
 
 ## 5. Checklist
 
-- [ ] Template do Magic Link colado, com o assunto sugerido
+- [ ] Template do **Magic Link** colado, com o assunto sugerido (§1)
+- [ ] Template do **Invite user** colado, com o assunto sugerido (§1-c)
+- [ ] Template do **Reset password** colado, com o assunto sugerido (§1-d)
+- [ ] Template do **Confirm signup** colado, com o assunto sugerido (§1-e)
 - [ ] Cadastro público de novos usuários desabilitado
 - [ ] Site URL e Redirect URLs preenchidas (produção e localhost)
 - [ ] SMTP próprio configurado, com remetente no domínio da loja
 - [ ] E-mail de teste recebido, link abrindo em `/api/auth/callback`
 - [ ] Validade do link conferida contra o texto do template
+- [ ] **Troca de senha testada**: pedir em `/recuperar-senha`, receber, abrir e
+      salvar a senha nova — e conferir que a mensagem da tela é a mesma para um
+      e-mail que não existe
+- [ ] **Convite testado ponta a ponta**: convidar um endereço seu na A17,
+      receber, abrir em OUTRO navegador, definir senha e cair no painel com o
+      perfil certo — o perfil errado aqui é o sinal de que o segundo passo do
+      papel falhou (§1-c)
 
-Os dois primeiros itens já podem ser feitos. Os demais fecham junto com a
-entrega da tela `/garagem`, que ainda não existe.
+Nenhum item espera código: a tela `/garagem` está entregue desde 2026-08-15
+e a lista inteira é trabalho de painel. Até 2026-08-21 este fecho dizia que a
+tela "ainda não existe" — era o resto de quando o documento nasceu, antes da
+fase 1 da Garagem.
