@@ -105,7 +105,14 @@ describe("nomenclatura da tabela de inventário", () => {
     // `preco_compra` fica de fora de propósito — o investidor vê o dinheiro
     // dele, não o custo da loja —, e o recorte por pessoa é da RLS de
     // `investidor_veiculos`, não deste `.in()`.
-    expect(comAcesso.length).toBe(10);
+    //
+    // E o décimo primeiro, no mesmo dia:
+    // `api/financeiro/investidores/route.ts`, que serve o seletor de veículo
+    // do lançamento de participação. O recorte é o mesmo da tela de margens
+    // (id, marca, modelo, versao, ano, preco, vendido) — sem `placa`,
+    // `chassi` ou `preco_compra`: escolher um carro numa lista não alarga o
+    // que o perfil enxerga.
+    expect(comAcesso.length).toBe(11);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -113,6 +120,6 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(18);
+    expect(total).toBe(19);
   });
 });

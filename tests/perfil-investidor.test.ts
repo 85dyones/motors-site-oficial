@@ -38,6 +38,7 @@ const migracao = ler("supabase", "migrations", "20260822120000_perfil_investidor
 const proxy = ler("src", "proxy.ts");
 const telaInvestidor = ler("src", "app", "investidor", "page.tsx");
 const rotaGestao = ler("src", "app", "api", "financeiro", "investidores", "route.ts");
+const telaGestao = ler("src", "components", "financeiro", "InvestidoresGestao.tsx");
 const garagem = ler("src", "app", "garagem", "page.tsx");
 const definirSenha = ler("src", "app", "definir-senha", "page.tsx");
 const confirm = ler("src", "app", "api", "auth", "confirm", "route.ts");
@@ -218,5 +219,51 @@ describe("a gestão, do lado do financeiro", () => {
 
   it("normaliza o valor para positivo em vez de estourar o CHECK", () => {
     expect(rotaGestao).toContain("Math.abs(valorBruto)");
+  });
+});
+
+describe("o seletor de veículo", () => {
+  it("o estoque chega com o mesmo recorte que o financeiro já enxerga", () => {
+    // Igual ao da tela de margens. Escolher um carro numa lista não é motivo
+    // para alargar o que o perfil vê: placa e chassi são documentação
+    // interna, e `preco_compra` tem gate próprio na matriz.
+    expect(rotaGestao).toContain('.select("id, marca, modelo, versao, ano, preco, vendido")');
+    const codigo = semComentarios(rotaGestao);
+    expect(codigo).not.toContain("placa");
+    expect(codigo).not.toContain("chassi");
+    expect(codigo).not.toContain("preco_compra");
+  });
+
+  it("estoque fora do ar não derruba a tela inteira", () => {
+    // O extrato e a posição são o essencial; a lista de carros é acessório.
+    expect(rotaGestao).toContain("[Financeiro/Investidores] Estoque indisponível");
+    expect(rotaGestao).toContain("veiculos: veiculosRes.data ?? []");
+  });
+
+  it("é busca de verdade, não um campo de id cru", () => {
+    expect(telaGestao).toContain("busca-veiculo-investidor");
+    expect(telaGestao).toContain("const encontrados = useMemo(");
+    // A régua é a mesma do fechamento de venda (A19).
+    expect(telaGestao).toContain("[v.marca, v.modelo, v.versao, v.ano, v.id]");
+    expect(telaGestao).toContain(".slice(0, 8)");
+  });
+
+  it("aceita carro que ainda não entrou no sync", () => {
+    // Carro recém-comprado não está no feed — e é exatamente quando o aporte
+    // acontece. Travar o lançamento até o anúncio existir seria travar o
+    // registro do dinheiro por causa da vitrine.
+    expect(telaGestao).toContain("const idSolto = useMemo(");
+    expect(telaGestao).toContain("Usar o número {idSolto} mesmo assim");
+  });
+
+  it("tem atalho para o estoque, sem perder o formulário", () => {
+    expect(telaGestao).toContain('href="/admin/estoque"');
+    expect(telaGestao).toContain('target="_blank"');
+    expect(telaGestao).toContain('rel="noopener noreferrer"');
+  });
+
+  it("não envia participação sem veículo escolhido", () => {
+    // O `required` morava no input de id, que deixou de existir.
+    expect(telaGestao).toContain('setErro("Escolha o veículo.")');
   });
 });
