@@ -23,11 +23,17 @@ Há ainda uma quarta pasta que **não existe hoje** e é criada sob demanda:
   passo manual (um cutover coordenado, por exemplo) e, depois de aplicado,
   **move para `migrations/`**. Um arquivo esquecido lá é um passo que ninguém
   deu — `tests/migracoes.test.ts` falha se sobrar algum.
-- **`manutencao/`** é **correção de dado** que roda uma vez e fica arquivada
-  como registro do que foi feito. Não descreve o estado desejado do schema,
-  então nunca vira migração e não entra em `db push`. Cada arquivo traz a
-  conferência antes e a verificação depois; o passo destrutivo fica comentado,
-  para não rodar por copiar-colar distraído.
+- **`manutencao/`** é o que se roda **à mão contra a produção**, e nada dali
+  descreve o estado desejado do schema — então nada dali vira migração nem
+  entra em `db push`. São duas coisas convivendo:
+  - **correção de dado**, que roda uma vez e fica arquivada como registro do
+    que foi feito. Cada arquivo traz a conferência antes e a verificação
+    depois; o passo destrutivo fica comentado, para não rodar por
+    copiar-colar distraído.
+  - **ferramenta**, que fica para sempre e roda quantas vezes for preciso:
+    `aplicar-migracao.js` (aplica uma migração pelo pooler) e
+    `conferir-estado-do-financeiro.sql` (pergunta ao banco, sem escrever
+    nada, se as migrações do financeiro continuam de pé).
 
 `pendente/` não é uma convenção do Supabase CLI — é uma salvaguarda deste
 projeto. Ver o passo 4 do runbook abaixo para o motivo. Está **vazia desde
@@ -277,6 +283,29 @@ O `on conflict do nothing` deixa o rodapé inofensivo sob `db push`, que
 registra por conta própria. Migração sem esse rodapé não passa em revisão:
 versão fora do livro-razão é o que faz um `db push` futuro tentar **reaplicar
 o histórico** — o cenário do 🔴 acima.
+
+### Depois de aplicar: `conferir-estado-do-financeiro.sql`
+
+Cole no SQL Editor e rode. É **somente leitura** e devolve 14 linhas; toda
+linha tem que sair ✅. Uma linha ❌ aponta o que falta e de qual migração ela
+vem — reaplicar essa migração resolve, porque todas são idempotentes.
+
+```
+supabase/manutencao/conferir-estado-do-financeiro.sql
+```
+
+**Por que existe, se as migrações já se autoconferem.** A autoconferência
+prova o estado da migração *no momento em que ela rodou*, e some junto com a
+transação. Esta consulta pergunta ao banco de produção **hoje**, em qualquer
+dia — inclusive depois de alguém ter mexido pelo painel do Supabase, que é o
+caminho que este projeto proíbe e que nenhuma migração consegue impedir. É
+também o que responde "aplicou mesmo?" sem abrir seis telas.
+
+A conferência foi **falsificada** antes de entrar: com a RLS de
+`extrato_bancario` desligada, o índice único de `(conta, fitid)` derrubado e o
+trigger do carimbo removido, ela acusou exatamente essas três linhas e mais
+nenhuma; reaplicadas as duas migrações, voltou a 14 ✅. Conferência que só se
+viu verde não vale nada — não se sabe se ela olha.
 
 ## ⚠️ Contrato com o sync — campos do painel
 
