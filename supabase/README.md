@@ -31,9 +31,11 @@ Há ainda uma quarta pasta que **não existe hoje** e é criada sob demanda:
     depois; o passo destrutivo fica comentado, para não rodar por
     copiar-colar distraído.
   - **ferramenta**, que fica para sempre e roda quantas vezes for preciso:
-    `aplicar-migracao.js` (aplica uma migração pelo pooler) e
+    `aplicar-migracao.js` (aplica uma migração pelo pooler),
     `conferir-estado-do-financeiro.sql` (pergunta ao banco, sem escrever
-    nada, se as migrações do financeiro continuam de pé).
+    nada, se as migrações do financeiro continuam de pé) e
+    `acertar_livro_razao_da_colisao.sql` (diagnóstico + acerto da colisão de
+    timestamp de 2026-08-22 — ver abaixo).
 
 `pendente/` não é uma convenção do Supabase CLI — é uma salvaguarda deste
 projeto. Ver o passo 4 do runbook abaixo para o motivo. Está **vazia desde
@@ -286,6 +288,29 @@ O `on conflict do nothing` deixa o rodapé inofensivo sob `db push`, que
 registra por conta própria. Migração sem esse rodapé não passa em revisão:
 versão fora do livro-razão é o que faz um `db push` futuro tentar **reaplicar
 o histórico** — o cenário do 🔴 acima.
+
+### 🔴 A colisão de timestamp de 2026-08-22, e o que ela ensina
+
+Duas migrações nasceram com o número `20260822120000` no mesmo dia, em
+trabalhos paralelos: `conciliacao_bancaria` e `perfil_investidor`. A
+conciliação cedeu e virou `20260822130000`.
+
+**Por que isso é grave e não cosmético.** `version` é chave primária do
+livro-razão, e todo rodapé de auto-registro daqui usa `on conflict (version)
+do nothing`. A segunda a rodar registra nada e não reclama. Pior: um
+`supabase db push` consulta o livro-razão, vê a versão presente e **pula o
+arquivo inteiro** — o código vai para produção referenciando tabelas que
+nunca foram criadas. Falha em silêncio, dos dois lados.
+
+Foi o que aconteceu: produção aplicou a conciliação sob o número antigo, e
+`perfil_investidor` foi pulada. Diagnóstico e acerto em
+`manutencao/acertar_livro_razao_da_colisao.sql` — a parte 1 é somente leitura
+e diz qual dos cenários é o seu.
+
+**A lição para a próxima migração.** Antes de escolher o número, rode
+`ls supabase/migrations/ | tail` **e** confira `origin/main` — trabalho
+paralelo não aparece na sua árvore. O timestamp não é decorativo: é a chave
+primária de um livro que decide o que roda e o que é pulado.
 
 ### Depois de aplicar: `conferir-estado-do-financeiro.sql`
 
