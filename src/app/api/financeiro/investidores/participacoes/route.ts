@@ -66,7 +66,7 @@ export async function GET() {
 
     const investidores = (perfisInvestidores ?? []).filter((p) => ehInvestidor(p));
 
-    const [posicoesRes, participacoesRes, movimentosRes] = await Promise.all([
+    const [posicoesRes, participacoesRes, movimentosRes, veiculosRes] = await Promise.all([
       supabase!.from("investidor_posicao").select("*"),
       supabase!
         .from("investidor_veiculos")
@@ -76,6 +76,18 @@ export async function GET() {
         .from("investidor_movimentos")
         .select("id, investidor_id, tipo, valor, data, descricao, veiculo_id")
         .order("data", { ascending: false }),
+      // O estoque para o seletor de veículo. O recorte é EXATAMENTE o que a
+      // tela de margens já entrega ao financeiro — sem `placa`, `chassi` ou
+      // `preco_compra`. Escolher um carro numa lista não é motivo para
+      // alargar o que o perfil enxerga.
+      //
+      // Vendidos entram: uma participação pode ser lançada depois da venda,
+      // e omiti-los faria o carro sumir da busca justamente no acerto final.
+      supabase!
+        .from("estoque_motors")
+        .select("id, marca, modelo, versao, ano, preco, vendido")
+        .order("marca", { ascending: true })
+        .limit(500),
     ]);
 
     const erroDeLeitura =
@@ -84,11 +96,19 @@ export async function GET() {
       return NextResponse.json({ error: erroDeLeitura.message }, { status: 500 });
     }
 
+    // A falha do estoque NÃO derruba a tela: sem ele o seletor cai na busca
+    // vazia e o lançamento por id continua possível. Perder o extrato inteiro
+    // porque a lista de carros falhou seria trocar o essencial pelo acessório.
+    if (veiculosRes.error) {
+      console.error("[Financeiro/Investidores] Estoque indisponível:", veiculosRes.error.message);
+    }
+
     return NextResponse.json({
       investidores,
       posicoes: posicoesRes.data ?? [],
       participacoes: participacoesRes.data ?? [],
       movimentos: movimentosRes.data ?? [],
+      veiculos: veiculosRes.data ?? [],
     });
   } catch (err: unknown) {
     const mensagem = err instanceof Error ? err.message : "Erro inesperado";

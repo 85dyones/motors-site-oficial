@@ -39,6 +39,16 @@ interface Participacao {
   observacao: string | null;
 }
 
+interface VeiculoDoEstoque {
+  id: number;
+  marca: string | null;
+  modelo: string | null;
+  versao: string | null;
+  ano: number | null;
+  preco: number | null;
+  vendido: boolean | null;
+}
+
 interface Movimento {
   id: string;
   investidor_id: string;
@@ -63,6 +73,7 @@ export default function InvestidoresGestao() {
   const [posicoes, setPosicoes] = useState<Posicao[]>([]);
   const [participacoes, setParticipacoes] = useState<Participacao[]>([]);
   const [movimentos, setMovimentos] = useState<Movimento[]>([]);
+  const [veiculos, setVeiculos] = useState<VeiculoDoEstoque[]>([]);
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -70,7 +81,11 @@ export default function InvestidoresGestao() {
   const [salvando, setSalvando] = useState(false);
   const [selecionado, setSelecionado] = useState<string>("");
 
-  // Formulário de participação
+  // Formulário de participação. `buscaVeiculo` é o que se digita;
+  // `veiculoId` é o que será enviado — os dois existem porque o carro pode
+  // ser escolhido na lista OU digitado direto por id (ver o comentário do
+  // seletor, abaixo).
+  const [buscaVeiculo, setBuscaVeiculo] = useState("");
   const [veiculoId, setVeiculoId] = useState("");
   const [valorParticipacao, setValorParticipacao] = useState("");
   const [observacao, setObservacao] = useState("");
@@ -97,6 +112,7 @@ export default function InvestidoresGestao() {
       setPosicoes(data.posicoes ?? []);
       setParticipacoes(data.participacoes ?? []);
       setMovimentos(data.movimentos ?? []);
+      setVeiculos(data.veiculos ?? []);
       setSelecionado((atual) => atual || data.investidores?.[0]?.id || "");
     } catch {
       setErro("Erro ao conectar com o servidor.");
@@ -129,6 +145,52 @@ export default function InvestidoresGestao() {
     }),
     [participacoes, movimentos, selecionado],
   );
+
+  /** Como o carro aparece escrito, na lista e depois de escolhido. */
+  const nomeDoVeiculo = (v: VeiculoDoEstoque) =>
+    [v.marca, v.modelo, v.versao].filter(Boolean).join(" ").trim() || `Veículo ${v.id}`;
+
+  /**
+   * A busca do seletor — mesma régua do fechamento de venda (A19): casa
+   * qualquer pedaço de marca, modelo, versão, ano ou id, e mostra no máximo 8.
+   * Filtro no cliente porque a lista inteira já veio junto do payload da tela;
+   * um round-trip por tecla seria pior em todo sentido.
+   */
+  const encontrados = useMemo(() => {
+    const termo = buscaVeiculo.trim().toLowerCase();
+    if (termo.length < 2) return [];
+    return veiculos
+      .filter((v) =>
+        [v.marca, v.modelo, v.versao, v.ano, v.id]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(termo),
+      )
+      .slice(0, 8);
+  }, [buscaVeiculo, veiculos]);
+
+  const veiculoEscolhido = useMemo(
+    () => veiculos.find((v) => String(v.id) === veiculoId) ?? null,
+    [veiculos, veiculoId],
+  );
+
+  /**
+   * O id digitado que NÃO está no estoque.
+   *
+   * Carro recém-comprado ainda não veio no sync do RevendaMais, e é
+   * exatamente nessa hora que o aporte do investidor acontece. Travar o
+   * lançamento até o carro aparecer no feed seria travar o registro do
+   * dinheiro por causa do anúncio. A tabela não tem FK para `estoque_motors`
+   * justamente para permitir isto (ver a migração 20260822120000), e a tela
+   * do investidor sabe exibir participação sem carro correspondente.
+   */
+  const idSolto = useMemo(() => {
+    const termo = buscaVeiculo.trim();
+    if (!/^\d+$/.test(termo)) return null;
+    if (veiculos.some((v) => String(v.id) === termo)) return null;
+    return termo;
+  }, [buscaVeiculo, veiculos]);
 
   const lancar = async (corpo: Record<string, unknown>, ondeLimpar: () => void) => {
     setSalvando(true);
@@ -267,6 +329,14 @@ export default function InvestidoresGestao() {
               className="flex flex-col gap-4 border border-mt-regua-fina bg-mt-surface p-6"
               onSubmit={(e) => {
                 e.preventDefault();
+                // O `required` morava no input de id, que virou seletor. Sem
+                // esta guarda o formulário enviaria veículo vazio e só o
+                // servidor recusaria — depois de perder o resto do que foi
+                // digitado.
+                if (!veiculoId) {
+                  setErro("Escolha o veículo.");
+                  return;
+                }
                 lancar(
                   {
                     recurso: "participacao",
@@ -276,6 +346,7 @@ export default function InvestidoresGestao() {
                   },
                   () => {
                     setVeiculoId("");
+                    setBuscaVeiculo("");
                     setValorParticipacao("");
                     setObservacao("");
                   },
@@ -285,19 +356,149 @@ export default function InvestidoresGestao() {
               <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink">
                 Incluir em um veículo
               </h3>
+              {/* Seletor pesquisável. O campo era um ID cru — o número do
+                  anúncio no RevendaMais —, o que obrigava a abrir outra aba,
+                  achar o carro e copiar o número na mão. Agora se digita o
+                  carro; o id continua sendo o que vai para o banco. */}
               <div className="flex flex-col gap-1">
-                <label className={rotuloCampo}>ID do veículo no estoque</label>
-                <input
-                  required
-                  inputMode="numeric"
-                  value={veiculoId}
-                  onChange={(e) => setVeiculoId(e.target.value)}
-                  placeholder="7950008"
-                  className={campoCaixa}
-                />
-                <span className="pl-1 text-[10px] text-mt-neutral-700">
-                  É o número que aparece no fim da URL da ficha do veículo.
-                </span>
+                <label className={rotuloCampo} htmlFor="busca-veiculo-investidor">
+                  Veículo
+                </label>
+
+                {veiculoEscolhido ? (
+                  <div className="flex items-center gap-3 border border-mt-regua bg-mt-bg px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-extrabold text-mt-ink">
+                        {nomeDoVeiculo(veiculoEscolhido)}
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-mt-neutral-700">
+                        #{veiculoEscolhido.id}
+                        {veiculoEscolhido.ano ? ` · ${veiculoEscolhido.ano}` : ""}
+                        {veiculoEscolhido.vendido ? " · vendido" : ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVeiculoId("");
+                        setBuscaVeiculo("");
+                      }}
+                      className="mt-foco shrink-0 cursor-pointer text-[10px] font-bold uppercase tracking-wider text-mt-neutral-700 hover:text-mt-accent"
+                    >
+                      Trocar
+                    </button>
+                  </div>
+                ) : veiculoId ? (
+                  /* Id lançado à mão: o carro não está no estoque (ainda). */
+                  <div className="flex items-center gap-3 border border-dashed border-mt-regua bg-mt-bg px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-extrabold text-mt-ink">
+                        Veículo #{veiculoId}
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-mt-neutral-700">
+                        Fora do estoque publicado — será reconhecido quando entrar no sync.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVeiculoId("");
+                        setBuscaVeiculo("");
+                      }}
+                      className="mt-foco shrink-0 cursor-pointer text-[10px] font-bold uppercase tracking-wider text-mt-neutral-700 hover:text-mt-accent"
+                    >
+                      Trocar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      id="busca-veiculo-investidor"
+                      autoComplete="off"
+                      value={buscaVeiculo}
+                      onChange={(e) => setBuscaVeiculo(e.target.value)}
+                      placeholder="Marca, modelo, ano ou número do anúncio…"
+                      className={campoCaixa}
+                    />
+
+                    {encontrados.length > 0 && (
+                      <ul className="absolute z-20 mt-1 max-h-64 w-full list-none overflow-y-auto border border-mt-regua bg-mt-bg p-0 shadow-[var(--mt-shadow-lg)]">
+                        {encontrados.map((v) => (
+                          <li key={v.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVeiculoId(String(v.id));
+                                setBuscaVeiculo("");
+                              }}
+                              className="mt-foco flex w-full cursor-pointer flex-col items-start gap-0.5 border-b border-mt-regua-fina px-4 py-2.5 text-left last:border-b-0 hover:bg-mt-surface"
+                            >
+                              <span className="text-xs font-extrabold text-mt-ink">
+                                {nomeDoVeiculo(v)}
+                              </span>
+                              <span className="text-[10px] text-mt-neutral-700">
+                                #{v.id}
+                                {v.ano ? ` · ${v.ano}` : ""}
+                                {v.vendido ? " · vendido" : ""}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/* Carro recém-comprado ainda não veio no sync — e é
+                        justamente quando o aporte acontece. */}
+                    {idSolto && (
+                      <ul className="absolute z-20 mt-1 w-full list-none border border-dashed border-mt-regua bg-mt-bg p-0 shadow-[var(--mt-shadow-lg)]">
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => setVeiculoId(idSolto)}
+                            className="mt-foco flex w-full cursor-pointer flex-col items-start gap-0.5 px-4 py-2.5 text-left hover:bg-mt-surface"
+                          >
+                            <span className="text-xs font-extrabold text-mt-ink">
+                              Usar o número {idSolto} mesmo assim
+                            </span>
+                            <span className="text-[10px] text-mt-neutral-700">
+                              Para carro que ainda não entrou no estoque publicado.
+                            </span>
+                          </button>
+                        </li>
+                      </ul>
+                    )}
+
+                    {buscaVeiculo.trim().length >= 2 && encontrados.length === 0 && !idSolto && (
+                      <span className="mt-1 block pl-1 text-[10px] text-mt-neutral-700">
+                        Nenhum carro encontrado. Se o carro é novo, ele entra pelo sync
+                        do RevendaMais — até lá, digite o número do anúncio para lançar
+                        assim mesmo.
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3 pl-1">
+                  <span className="text-[10px] text-mt-neutral-700">
+                    {veiculos.length > 0
+                      ? `${veiculos.length} veículo(s) no estoque`
+                      : "Estoque indisponível — lance pelo número do anúncio."}
+                  </span>
+                  {/* Atalho para o estoque. O rótulo NÃO diz "cadastrar": não
+                      existe cadastro manual de veículo no painel — o carro
+                      nasce no RevendaMais e chega pelo sync, e prometer um
+                      botão que não existe do outro lado é pior que não ter
+                      atalho. O que se faz lá é conferir se ele já entrou e
+                      abrir a ficha. Nova aba para não perder o formulário. */}
+                  <a
+                    href="/admin/estoque"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-foco text-[10px] font-bold uppercase tracking-wider text-mt-accent hover:text-mt-accent-hover"
+                  >
+                    Conferir no estoque ↗
+                  </a>
+                </div>
               </div>
               <div className="flex flex-col gap-1">
                 <label className={rotuloCampo}>Quanto ele entrou (R$)</label>
