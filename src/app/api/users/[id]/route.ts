@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../../lib/supabase-server";
 import { registrarAcaoSensivel } from "../../../../lib/auditoria";
-import { PERFIS } from "../../../../lib/permissoes";
+import { PAPEIS_CONCEDIVEIS, perfisDe } from "../../../../lib/permissoes";
 
 export async function PUT(
   request: NextRequest,
@@ -23,14 +23,15 @@ export async function PUT(
       .eq("id", currentUser.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // Ver a nota em /api/users: multi-papel soma, e `role` é só o primário.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 
     const body = await request.json();
     const { full_name, role, papeis, is_active, telefone_e164 } = body;
 
-    if (role !== undefined && !(PERFIS as readonly string[]).includes(role)) {
+    if (role !== undefined && !(PAPEIS_CONCEDIVEIS as readonly string[]).includes(role)) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
 
@@ -44,8 +45,11 @@ export async function PUT(
           { status: 400 },
         );
       }
+      // `cliente` continua aceito na EDIÇÃO (o funcionário que também comprou
+      // carro carrega os dois), mas não é oferecido para conceder — ver
+      // `PAPEIS_CONCEDIVEIS`.
       const invalidos = papeis.filter(
-        (p: string) => !(PERFIS as readonly string[]).includes(p) && p !== "cliente",
+        (p: string) => !(PAPEIS_CONCEDIVEIS as readonly string[]).includes(p) && p !== "cliente",
       );
       if (invalidos.length > 0) {
         return NextResponse.json(
@@ -145,7 +149,8 @@ export async function DELETE(
       .eq("id", currentUser.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // Ver a nota em /api/users: multi-papel soma, e `role` é só o primário.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 

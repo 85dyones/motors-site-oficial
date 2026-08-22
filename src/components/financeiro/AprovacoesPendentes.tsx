@@ -37,6 +37,17 @@ interface ContaAguardando {
   categoria?: { nome: string; cor: string; icone: string } | null;
 }
 
+interface RecorrenteAguardando {
+  id: string;
+  descricao: string;
+  valor: number | string;
+  frequencia: string;
+  dia_vencimento: number | null;
+  fornecedor?: string | null;
+  observacoes?: string | null;
+  categoria?: { nome: string; cor: string; icone: string } | null;
+}
+
 interface Lancamento {
   chave: string;
   contaId: string;
@@ -86,6 +97,7 @@ function agruparLancamentos(contas: ContaAguardando[]): Lancamento[] {
 export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: boolean }) {
   const { confirm } = useConfirm();
   const [contas, setContas] = useState<ContaAguardando[]>([]);
+  const [recorrentes, setRecorrentes] = useState<RecorrenteAguardando[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -98,12 +110,23 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
   const fetchFila = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/financeiro/contas?status=aguardando_aprovacao");
-      const body = await res.json();
-      if (res.ok) {
-        setContas(body.contas || []);
+      // Duas filas, uma tela: o Gestor tem UM lugar para olhar. Separá-las em
+      // páginas diferentes faria a segunda ser esquecida.
+      const [resContas, resRecorrentes] = await Promise.all([
+        fetch("/api/financeiro/contas?status=aguardando_aprovacao"),
+        fetch("/api/financeiro/recorrentes"),
+      ]);
+      const corpoContas = await resContas.json();
+      if (resContas.ok) {
+        setContas(corpoContas.contas || []);
       } else {
-        setError(body.error || "Falha ao carregar a fila de agendamentos.");
+        setError(corpoContas.error || "Falha ao carregar a fila de agendamentos.");
+      }
+
+      if (resRecorrentes.ok) {
+        const corpo = await resRecorrentes.json();
+        const lista: RecorrenteAguardando[] = corpo.recurring || corpo.recorrentes || [];
+        setRecorrentes(lista.filter((r: any) => r.aprovacao_status === "aguardando"));
       }
     } catch {
       setError("Erro ao se conectar com o servidor.");
@@ -146,6 +169,51 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
     }
   };
 
+  const decidirRecorrente = async (
+    r: RecorrenteAguardando,
+    decisao: "aprovar" | "recusar",
+    motivoRecusa?: string,
+  ) => {
+    setDecidindo(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch(`/api/financeiro/recorrentes/${r.id}/aprovar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decisao, motivo: motivoRecusa || undefined }),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        setSuccessMsg(
+          decisao === "aprovar"
+            ? "Despesa recorrente liberada — passa a gerar conta todo mês."
+            : "Despesa recorrente recusada e desligada, com o motivo registrado.",
+        );
+        setRecusando(null);
+        setMotivo("");
+        fetchFila();
+      } else {
+        setError(body.error || "Falha ao registrar a decisão.");
+      }
+    } catch {
+      setError("Erro ao se conectar com o servidor.");
+    } finally {
+      setDecidindo(false);
+    }
+  };
+
+  const handleAprovarRecorrente = async (r: RecorrenteAguardando) => {
+    const ok = await confirm({
+      title: "Aprovar Despesa Recorrente",
+      message: `Liberar "${r.descricao}" — ${formatPrice(r.valor)} ${r.frequencia}? A partir daqui ela gera conta a pagar automaticamente.`,
+      type: "info",
+      confirmLabel: "Aprovar",
+      cancelLabel: "Cancelar",
+    });
+    if (ok) decidirRecorrente(r, "aprovar");
+  };
+
   const handleAprovar = async (l: Lancamento) => {
     const ok = await confirm({
       title: "Aprovar Agendamento",
@@ -159,6 +227,7 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
 
   const lancamentos = agruparLancamentos(contas);
   const totalAguardando = lancamentos.reduce((acc, l) => acc + l.total, 0);
+  const nadaNaFila = lancamentos.length === 0 && recorrentes.length === 0;
   const proximoVencimento = lancamentos
     .map((l) => l.contas[0].data_vencimento)
     .sort()[0];
@@ -190,7 +259,7 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
 
       {isLoading ? (
         <div className="py-16 text-center text-xs text-mt-neutral-700">Carregando a fila...</div>
-      ) : lancamentos.length === 0 ? (
+      ) : nadaNaFila ? (
         <div className="bg-mt-surface border border-dashed border-mt-regua-fina p-12 text-center text-xs text-mt-neutral-600 select-none">
           Nenhum agendamento aguardando liberação. ✓
         </div>
@@ -202,7 +271,10 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
               {
                 rotulo: "Aguardando liberação",
                 valor: formatPrice(totalAguardando),
-                nota: `${lancamentos.length} agendamento${lancamentos.length === 1 ? "" : "s"}`,
+                nota:
+                  recorrentes.length > 0
+                    ? `${lancamentos.length} agendamento(s) + ${recorrentes.length} recorrente(s) nova(s)`
+                    : `${lancamentos.length} agendamento${lancamentos.length === 1 ? "" : "s"}`,
               },
               {
                 rotulo: "Compromisso mais próximo",
@@ -225,7 +297,108 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
             ))}
           </div>
 
+          {/* Recorrentes primeiro: cada uma vale muito mais que um agendamento
+              solto — assinar R$ 1.200/mês compromete R$ 14.400 no ano. */}
+          {recorrentes.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-baseline gap-3 select-none">
+                <h2 className="mt-titulo m-0 text-[18px]">Despesas recorrentes novas</h2>
+                <span className="text-[11px] text-mt-neutral-700">
+                  compromete caixa todo mês, não uma vez só
+                </span>
+              </div>
+              {recorrentes.map((r) => (
+                <div key={r.id} className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink">
+                        {r.descricao}
+                      </span>
+                      <span className="text-[11px] text-mt-neutral-700">
+                        {r.categoria?.icone} {r.categoria?.nome || "Outros"}
+                        {r.fornecedor && ` · ${r.fornecedor}`}
+                        {r.dia_vencimento && ` · todo dia ${r.dia_vencimento}`}
+                      </span>
+                      {r.observacoes && (
+                        <span className="text-[11px] text-mt-neutral-600 italic">
+                          “{r.observacoes}”
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-start md:items-end gap-0.5 shrink-0">
+                      <span className="text-2xl font-extrabold tracking-[-.03em] tabular-nums text-mt-accent">
+                        {formatPrice(r.valor)}
+                      </span>
+                      <span className="text-[10px] text-mt-neutral-600">{r.frequencia}</span>
+                    </div>
+                  </div>
+
+                  {podeDecidir && (
+                    <div className="border-t border-mt-regua-fina pt-4">
+                      {recusando === `rec-${r.id}` ? (
+                        <div className="flex flex-col gap-3">
+                          <label className="text-[10px] font-bold uppercase text-mt-neutral-700">
+                            Motivo da recusa (obrigatório — fica no registro)
+                          </label>
+                          <textarea
+                            value={motivo}
+                            onChange={(e) => setMotivo(e.target.value)}
+                            rows={2}
+                            autoFocus
+                            placeholder="Ex: renegociar o contrato antes de assumir a mensalidade"
+                            className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-4 py-3 w-full focus:outline-none focus:border-mt-accent resize-none"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setRecusando(null);
+                                setMotivo("");
+                              }}
+                              className="h-10 px-4 bg-transparent hover:bg-mt-surface text-mt-neutral-700 hover:text-mt-ink border border-mt-regua-fina text-[11px] font-bold uppercase tracking-wider cursor-pointer"
+                            >
+                              Voltar
+                            </button>
+                            <button
+                              disabled={!motivo.trim() || decidindo}
+                              onClick={() => decidirRecorrente(r, "recusar", motivo.trim())}
+                              className="h-10 px-4 bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                            >
+                              {decidindo ? "Registrando..." : "Confirmar Recusa"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            disabled={decidindo}
+                            onClick={() => handleAprovarRecorrente(r)}
+                            className="h-10 px-5 bg-mt-ink hover:bg-mt-neutral-800 text-mt-inverso text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                          >
+                            Aprovar
+                          </button>
+                          <button
+                            disabled={decidindo}
+                            onClick={() => {
+                              setRecusando(`rec-${r.id}`);
+                              setMotivo("");
+                            }}
+                            className="h-10 px-5 bg-transparent hover:bg-mt-accent-100 text-mt-accent border border-mt-accent-300 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                          >
+                            Recusar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-col gap-4">
+            {lancamentos.length > 0 && recorrentes.length > 0 && (
+              <h2 className="mt-titulo m-0 text-[18px] select-none">Pagamentos agendados</h2>
+            )}
             {lancamentos.map((l) => (
               <div key={l.chave} className="bg-mt-surface border border-mt-regua-fina p-6 flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">

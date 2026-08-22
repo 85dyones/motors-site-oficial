@@ -80,6 +80,22 @@ export function podeDecidirAprovacao(perfis: Perfil[] | string[]): boolean {
 }
 
 /**
+ * Cadastrar uma despesa recorrente NOVA precisa de aprovação?
+ *
+ * Sim, pela mesma régua do agendamento — e com mais razão. Assinar uma
+ * recorrente de R$ 1.200/mês compromete R$ 14.400 no ano sem que exista uma
+ * única conta a pagar ainda; é o exemplo que derrubou a alçada por valor.
+ *
+ * O que NÃO passa por aqui é a GERAÇÃO mensal (`/recorrentes/gerar`): o
+ * compromisso já foi assumido quando a recorrente foi aprovada, e mandar cada
+ * parcela à fila criaria uma avalanche de aprovações idênticas todo mês —
+ * o tipo de burocracia que faz a operação parar de usar a ferramenta.
+ */
+export function recorrenteNovaPrecisaDeAprovacao(perfis: Perfil[] | string[]): boolean {
+  return !podeDecidirAprovacao(perfis);
+}
+
+/**
  * Quem enxerga os relatórios gerenciais e o DRE — linha própria na matriz
  * desde 2026-08-21, quando o Gestor ganhou "acesso aos relatórios".
  */

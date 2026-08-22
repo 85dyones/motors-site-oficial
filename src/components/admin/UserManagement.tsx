@@ -6,12 +6,26 @@ import {
   ALCADA_DO_PERFIL,
   DESCRICAO_DO_PERFIL,
   MATRIZ_DE_PERMISSOES,
+  PAPEIS_CONCEDIVEIS,
   PERFIS,
   ROTULO_DO_PERFIL,
+  ehPapelDePainel,
   normalizarPerfil,
+  ordenarPapeis,
+  type PapelConcedivel,
   type Perfil,
   type Permissao,
 } from "../../lib/permissoes";
+
+/**
+ * Rótulo de qualquer papel concedível — `ROTULO_DO_PERFIL` só conhece os de
+ * painel, e `investidor` precisa de nome na tela como os outros.
+ */
+const ROTULO_DO_PAPEL: Record<string, string> = {
+  ...ROTULO_DO_PERFIL,
+  investidor: "Investidor",
+  cliente: "Cliente",
+};
 
 /**
  * Tela A17 do design doc — usuários e permissões.
@@ -104,7 +118,7 @@ export default function UserManagement() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<Perfil>("comercial");
+  const [role, setRole] = useState<PapelConcedivel>("comercial");
   const [isSaving, setIsSaving] = useState(false);
 
   // Edit User State
@@ -329,7 +343,7 @@ export default function UserManagement() {
       {aba === "permissoes" && (
         <>
           {/* Os quatro perfis */}
-          <div className="grid grid-cols-1 gap-6 border-t-2 border-mt-regua pt-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 border-t-2 border-mt-regua pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {PERFIS.map((p) => (
               <div key={p} className="border-r border-mt-regua-fina pr-5 last:border-r-0">
                 <div className="flex items-baseline gap-2">
@@ -533,12 +547,30 @@ export default function UserManagement() {
 
                   <div className="flex flex-col gap-1">
                     <label className={rotuloCampo}>Perfil</label>
-                    <select value={role} onChange={(e) => setRole(e.target.value as Perfil)} className={`${campoCaixa} cursor-pointer`}>
-                      {PERFIS.map((p) => (
-                        <option key={p} value={p}>{ROTULO_DO_PERFIL[p]}</option>
-                      ))}
+                    {/* Dois grupos porque são duas naturezas: papel de painel
+                        opera a loja; `investidor` é authenticated e NUNCA entra
+                        no /admin — ele acompanha o próprio extrato em
+                        /investidor. Sem o segundo grupo aqui, o papel existia
+                        no banco e não havia como criar a conta. */}
+                    <select
+                      value={role}
+                      onChange={(e) => setRole(e.target.value as PapelConcedivel)}
+                      className={`${campoCaixa} cursor-pointer`}
+                    >
+                      <optgroup label="Equipe (entra no painel)">
+                        {PERFIS.map((p) => (
+                          <option key={p} value={p}>{ROTULO_DO_PERFIL[p]}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Fora do painel">
+                        <option value="investidor">Investidor</option>
+                      </optgroup>
                     </select>
-                    <span className="pl-1 text-[10px] text-mt-neutral-700">Alçada: {ALCADA_DO_PERFIL[role]}</span>
+                    <span className="pl-1 text-[10px] leading-relaxed text-mt-neutral-700">
+                      {ehPapelDePainel(role)
+                        ? `Alçada: ${ALCADA_DO_PERFIL[role as Perfil]}`
+                        : "Acompanha o próprio extrato em /investidor. Não entra no painel. O vínculo com o cadastro do investidor se faz sozinho no primeiro acesso, pelo e-mail."}
+                    </span>
                   </div>
 
                   <div className="mt-2 flex items-center gap-2">
@@ -569,48 +601,98 @@ export default function UserManagement() {
                   </div>
 
                   {/* Multi-papel (2026-08-19): a mesma pessoa vende e cuida do
-                      financeiro. O primeiro marcado é o PRIMÁRIO — é o que
-                      aparece na lista quando só cabe um nome, e o que o código
-                      que ainda lê `role` enxerga. */}
+                      financeiro. `papeis[0]` é o PRIMÁRIO — o que aparece na
+                      lista quando só cabe um nome, e o que o código que ainda
+                      lê `role` enxerga.
+                      
+                      Até 2026-08-21 o primário era refém da ordem em que os
+                      papéis foram marcados: o seletor só sabia ANEXAR no fim,
+                      então quem virou admin primeiro seguia admin primário
+                      para sempre. `ordenarPapeis` e o botão "tornar primário"
+                      resolvem isso. */}
                   <div className="flex flex-col gap-1">
                     <label className={rotuloCampo}>Perfis</label>
                     <div className="flex flex-col gap-1.5 border border-mt-regua-fina bg-mt-bg p-3">
-                      {PERFIS.map((p) => {
+                      {PAPEIS_CONCEDIVEIS.map((p) => {
                         const atuais = papeisDe(editingUser);
                         const marcado = atuais.includes(p);
                         const primario = atuais[0] === p;
+                        const trocar = (novos: string[]) =>
+                          setEditingUser({
+                            ...editingUser,
+                            papeis: novos,
+                            role: novos[0],
+                          });
+
                         return (
-                          <label key={p} className="flex cursor-pointer select-none items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={marcado}
-                              onChange={(e) => {
-                                // Desmarcar o último é recusado aqui, não no
-                                // servidor: perfil sem papel nenhum não é
-                                // estado válido, e descobrir isso só ao salvar
-                                // perderia o resto do formulário.
-                                const novos = e.target.checked
-                                  ? [...atuais, p]
-                                  : atuais.filter((x) => x !== p);
-                                if (novos.length === 0) return;
-                                setEditingUser({ ...editingUser, papeis: novos, role: novos[0] });
-                              }}
-                              className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
-                            />
-                            <span className="text-xs font-semibold text-mt-ink">
-                              {ROTULO_DO_PERFIL[p]}
-                            </span>
-                            {primario && (
-                              <span className="ml-auto border border-mt-regua px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                          <div
+                            key={p}
+                            className={`flex select-none items-center gap-2 ${
+                              !ehPapelDePainel(p) ? "mt-1 border-t border-mt-regua-fina pt-2.5" : ""
+                            }`}
+                          >
+                            <label className="flex flex-1 cursor-pointer items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={marcado}
+                                onChange={(e) => {
+                                  if (!e.target.checked && atuais.length === 1) {
+                                    // Recusa EXPLÍCITA. Antes o clique não
+                                    // fazia nada e não dizia por quê — quem
+                                    // tentava tirar o último papel ficava
+                                    // achando que a tela travou.
+                                    setError(
+                                      "Todo usuário precisa de pelo menos um perfil. Marque o novo antes de tirar o atual — ou desative a conta, se a pessoa saiu.",
+                                    );
+                                    return;
+                                  }
+                                  setError("");
+                                  const novos = e.target.checked
+                                    ? ordenarPapeis([...atuais, p], atuais[0])
+                                    : ordenarPapeis(atuais.filter((x) => x !== p));
+                                  trocar(novos);
+                                }}
+                                className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
+                              />
+                              <span className="text-xs font-semibold text-mt-ink">
+                                {ROTULO_DO_PAPEL[p] ?? p}
+                              </span>
+                              {!ehPapelDePainel(p) && (
+                                <span className="text-[10px] text-mt-neutral-600">
+                                  · não entra no painel
+                                </span>
+                              )}
+                            </label>
+
+                            {/* O selo era decorativo até 2026-08-21: dava para
+                                ver qual era o primário e não para escolher.
+                                Agora ele é o botão que promove. */}
+                            {primario ? (
+                              <span className="border border-mt-regua px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
                                 primário
                               </span>
+                            ) : (
+                              marcado &&
+                              ehPapelDePainel(p) && (
+                                <button
+                                  type="button"
+                                  onClick={() => trocar(ordenarPapeis(atuais, p))}
+                                  className="mt-foco cursor-pointer border border-dashed border-mt-regua-fina px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-600 hover:border-mt-accent hover:text-mt-accent"
+                                  title="Tornar este o perfil primário"
+                                >
+                                  tornar primário
+                                </button>
+                              )
                             )}
-                          </label>
+                          </div>
                         );
                       })}
                     </div>
-                    <span className="pl-1 text-[10px] text-mt-neutral-700">
-                      Quem tem mais de um perfil faz o que qualquer um deles faz.
+                    <span className="pl-1 text-[10px] leading-relaxed text-mt-neutral-700">
+                      Quem tem mais de um perfil faz o que qualquer um deles faz. O{" "}
+                      <strong>primário</strong> é o que aparece na lista quando só cabe um
+                      nome — mudá-lo não tira nem dá acesso. Para rebaixar alguém (um admin
+                      que virou comercial puro), marque o perfil novo e desmarque o antigo.
                     </span>
                   </div>
 

@@ -3,7 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../lib/webhook-dispatcher";
 import { registrarAcaoSensivel } from "../../../lib/auditoria";
-import { PERFIS } from "../../../lib/permissoes";
+import { PAPEIS_CONCEDIVEIS, perfisDe } from "../../../lib/permissoes";
 
 export async function GET() {
   try {
@@ -20,7 +20,11 @@ export async function GET() {
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // TODOS os papéis, não o primário: quem tem admin como papel SECUNDÁRIO
+    // carrega `role = 'comercial'` (espelho de `papeis[1]`) e levava 403 aqui
+    // — o mesmo gêmeo do bug multi-papel já corrigido no banco, no proxy e no
+    // trilho.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 
@@ -54,7 +58,11 @@ export async function POST(request: NextRequest) {
       .eq("id", currentUser.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    // TODOS os papéis, não o primário: quem tem admin como papel SECUNDÁRIO
+    // carrega `role = 'comercial'` (espelho de `papeis[1]`) e levava 403 aqui
+    // — o mesmo gêmeo do bug multi-papel já corrigido no banco, no proxy e no
+    // trilho.
+    if (!perfisDe(profile).includes("admin")) {
       return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
     }
 
@@ -65,9 +73,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
-    // O vocabulário de perfis é o da matriz A17 — `role` era texto livre e
+    // O vocabulário do que a A17 concede — `role` era texto livre e
     // um typo aqui criava um usuário que nenhum gate reconhece.
-    if (!(PERFIS as readonly string[]).includes(role)) {
+    // `PAPEIS_CONCEDIVEIS`, não `PERFIS`: `investidor` não é papel de painel
+    // mas PRECISA ser concedível, senão a área /investidor fica inalcançável.
+    if (!(PAPEIS_CONCEDIVEIS as readonly string[]).includes(role)) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
 

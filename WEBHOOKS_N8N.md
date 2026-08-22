@@ -207,6 +207,13 @@ lançamento). O `status` dentro de `data` diz o estado resultante:
 Não há limiar em reais: registro de conta já paga nunca gera esses eventos, e
 agendamento gera sempre — ver `docs/FINANCEIRO_OPERACIONAL.md` §3.
 
+O prefixo `recorrente_` ganha os três equivalentes em 2026-08-22:
+**`recorrente_aguardando_aprovacao`** (cadastro de despesa recorrente nova por
+quem não aprova — sai NO LUGAR de `recorrente_criada`), **`recorrente_aprovada`**
+e **`recorrente_recusada`**. A **geração** mensal continua sem evento de
+aprovação: o compromisso foi assumido quando a recorrente foi aprovada, e um
+aviso por parcela viraria ruído todo mês.
+
 **Liga/desliga por evento:** `webhooks.events[nomeDoEvento] === false` bloqueia
 o disparo. Ausente = habilitado.
 

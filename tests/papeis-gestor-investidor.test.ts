@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  PAPEIS_CONCEDIVEIS,
   PAPEIS_FORA_DO_PAINEL,
   PERFIS,
   TODOS_OS_PAPEIS,
   ehStaff,
+  ordenarPapeis,
   perfisDe,
   podeFazer,
 } from "../src/lib/permissoes";
@@ -178,5 +180,114 @@ describe("o multi-papel chega à aplicação", () => {
   it("o trilho também", () => {
     expect(sidebar).toContain("perfis: string[]");
     expect(sidebar).toContain("group.roles.some((r) => perfis.includes(r))");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Trocar o papel primário, e tirar o papel de origem
+// ---------------------------------------------------------------------------
+
+const gerenciador = ler("src", "components", "admin", "UserManagement.tsx");
+const rotaUsuarios = ler("src", "app", "api", "users", "route.ts");
+const rotaUsuario = ler("src", "app", "api", "users", "[id]", "route.ts");
+
+/**
+ * Pedido do dono em 2026-08-21: *"não é possível alterar o perfil principal ou
+ * de origem, preciso que isso seja possível, um adm que perdeu a função ou foi
+ * para o comercial puro"*.
+ *
+ * A API já aceitava — o buraco era a TELA: o seletor só sabia ANEXAR papel no
+ * fim, então `papeis[0]` (o primário, espelhado em `role`) era refém da ordem
+ * histórica, e o selo "primário" era decorativo.
+ */
+describe("ordenarPapeis — quem é o primário", () => {
+  it("promove o papel escolhido para a frente", () => {
+    // O caso do pedido: o admin virou comercial primário sem perder nada.
+    expect(ordenarPapeis(["admin", "comercial"], "comercial")).toEqual(["comercial", "admin"]);
+  });
+
+  it("sem escolha, preserva a ordem que já existia", () => {
+    expect(ordenarPapeis(["admin", "comercial"])).toEqual(["admin", "comercial"]);
+  });
+
+  it("promover papel que a pessoa não tem não inventa papel", () => {
+    expect(ordenarPapeis(["comercial"], "admin")).toEqual(["comercial"]);
+  });
+
+  it("papel de painel SEMPRE vem antes de papel fora do painel", () => {
+    // `role` é lido como "o papel de equipe" por código que ainda não migrou
+    // para `papeis`. Deixar `investidor` virar primário de quem também é
+    // comercial faria esse código enxergar papel que não existe na matriz.
+    expect(ordenarPapeis(["investidor", "comercial"])).toEqual(["comercial", "investidor"]);
+    expect(ordenarPapeis(["investidor", "comercial"], "investidor")).toEqual([
+      "comercial",
+      "investidor",
+    ]);
+  });
+
+  it("quem é SÓ investidor tem investidor no primeiro lugar", () => {
+    // Aqui não há papel de equipe para pôr na frente — e está certo.
+    expect(ordenarPapeis(["investidor"])).toEqual(["investidor"]);
+    expect(ordenarPapeis(["cliente"])).toEqual(["cliente"]);
+  });
+
+  it("remove duplicata — repetição quebraria o CHECK do banco", () => {
+    expect(ordenarPapeis(["admin", "admin", "comercial"])).toEqual(["admin", "comercial"]);
+  });
+
+  it("rebaixar de verdade: sai do array, não só do primeiro lugar", () => {
+    // "Um adm que perdeu a função": tirar `admin` da lista é o gesto, e o
+    // resultado é um comercial puro.
+    expect(ordenarPapeis(["admin", "comercial"].filter((p) => p !== "admin"))).toEqual([
+      "comercial",
+    ]);
+  });
+
+  it("lista vazia devolve vazia — quem barra o estado inválido é a tela e a rota", () => {
+    expect(ordenarPapeis([])).toEqual([]);
+  });
+});
+
+describe("a tela A17 deixa trocar o primário e recusa com voz", () => {
+  it("o selo `primário` virou botão de promover", () => {
+    expect(gerenciador).toContain("tornar primário");
+    expect(gerenciador).toContain("ordenarPapeis(atuais, p)");
+  });
+
+  it("desmarcar o último papel explica, em vez de não fazer nada", () => {
+    // Antes: `if (novos.length === 0) return;` — o clique morria em silêncio e
+    // quem tentava achava que a tela tinha travado.
+    expect(gerenciador).toContain("Todo usuário precisa de pelo menos um perfil");
+    expect(gerenciador).not.toMatch(/if \(novos\.length === 0\) return;/);
+  });
+
+  it("o seletor oferece os papéis concedíveis, não só os de painel", () => {
+    expect(gerenciador).toContain("PAPEIS_CONCEDIVEIS.map");
+    // E o de criação oferece `investidor` num grupo próprio.
+    expect(gerenciador).toContain('<option value="investidor">');
+  });
+});
+
+describe("a rota de usuários aceita conceder investidor", () => {
+  it("valida contra PAPEIS_CONCEDIVEIS, não contra PERFIS", () => {
+    // Enquanto validava `PERFIS`, criar conta de investidor devolvia "Perfil
+    // inválido: investidor" — e a área /investidor ficava inalcançável.
+    expect(PAPEIS_CONCEDIVEIS).toContain("investidor");
+    expect(rotaUsuarios).toContain("PAPEIS_CONCEDIVEIS");
+    expect(rotaUsuario).toContain("PAPEIS_CONCEDIVEIS");
+  });
+
+  it("`cliente` não é concedível — é o padrão de quem se cadastra sozinho", () => {
+    expect(PAPEIS_CONCEDIVEIS).not.toContain("cliente");
+    // Mas continua aceito na EDIÇÃO: o funcionário que também comprou carro.
+    expect(rotaUsuario).toContain('p !== "cliente"');
+  });
+
+  it("as duas rotas leem TODOS os papéis — o 4º gêmeo do bug multi-papel", () => {
+    // `role !== "admin"` dava 403 em quem tem admin como papel secundário.
+    for (const rota of [rotaUsuarios, rotaUsuario]) {
+      expect(rota).toContain('perfisDe(profile).includes("admin")');
+      expect(rota).not.toMatch(/profile\?\.role !== "admin"/);
+    }
   });
 });

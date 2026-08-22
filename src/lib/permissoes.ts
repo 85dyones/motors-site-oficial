@@ -38,6 +38,68 @@ export type PapelForaDoPainel = (typeof PAPEIS_FORA_DO_PAINEL)[number];
 export const TODOS_OS_PAPEIS = [...PERFIS, ...PAPEIS_FORA_DO_PAINEL] as const;
 
 /**
+ * O que a tela A17 pode CONCEDER a alguém (2026-08-21).
+ *
+ * É `PERFIS` mais `investidor`, e a diferença em relação a `TODOS_OS_PAPEIS`
+ * é uma só: `cliente` fica de fora. Cliente não é concedido, é o padrão de
+ * quem se cadastra sozinho na Garagem — oferecê-lo num seletor de admin
+ * sugeriria que dar acesso de cliente é um ato administrativo, quando o ato
+ * administrativo real é o oposto (fechar o cadastro público).
+ *
+ * `investidor` PRECISA estar aqui: sem ele, `/api/users` recusa o papel e a
+ * área `/investidor` fica inalcançável — ninguém consegue criar a conta que
+ * ela pressupõe. Foi exatamente o que aconteceu entre a criação do papel e
+ * esta constante.
+ */
+export const PAPEIS_CONCEDIVEIS = [...PERFIS, "investidor"] as const;
+export type PapelConcedivel = (typeof PAPEIS_CONCEDIVEIS)[number];
+
+/** Este papel é de painel? Falso para `investidor` e `cliente`. */
+export function ehPapelDePainel(papel: string): boolean {
+  return (PERFIS as readonly string[]).includes(papel);
+}
+
+/**
+ * Põe os papéis na ordem em que o banco vai guardá-los — `papeis[0]` é o
+ * PRIMÁRIO, e é ele que o trigger espelha em `role`.
+ *
+ * Existe porque trocar o primário era impossível pela tela (2026-08-21): o
+ * seletor só sabia ANEXAR papel no fim, então quem virou admin primeiro
+ * continuava admin primário para sempre. O pedido do dono foi direto — *"um
+ * adm que perdeu a função ou foi para o comercial puro"*.
+ *
+ * Duas garantias, nesta ordem:
+ *
+ * 1. **O primário escolhido vem primeiro** — é o gesto que faltava.
+ * 2. **Papel de painel sempre precede papel de fora do painel.** `role` é
+ *    lido como "o papel de equipe" por código antigo que ainda não migrou
+ *    para `papeis`; deixar `investidor` virar primário de alguém que também é
+ *    comercial faria esse código enxergar um papel que não existe na matriz.
+ *    Quem é SÓ investidor tem `investidor` no primeiro lugar, e está certo:
+ *    aí não há papel de equipe para pôr na frente.
+ *
+ * Não valida conteúdo — `papeis_validos()` no banco e a rota `/api/users`
+ * fazem isso. Aqui só se decide a ORDEM, e duplicata é removida porque
+ * repetição quebraria o CHECK do banco.
+ */
+export function ordenarPapeis(papeis: string[], primario?: string): string[] {
+  const unicos = [...new Set(papeis.filter(Boolean))];
+
+  const dePainel = unicos.filter(ehPapelDePainel);
+  const foraDoPainel = unicos.filter((p) => !ehPapelDePainel(p));
+
+  // Promover só vale para papel de painel, pela garantia 2. Pedir para
+  // promover `investidor` em quem tem papel de equipe é silenciosamente
+  // ignorado — o alvo do pedido não é um estado que `role` saiba representar.
+  const promovido =
+    primario && dePainel.includes(primario)
+      ? [primario, ...dePainel.filter((p) => p !== primario)]
+      : dePainel;
+
+  return [...promovido, ...foraDoPainel];
+}
+
+/**
  * Papel de painel? As roles de `PAPEIS_FORA_DO_PAINEL` — `cliente`
  * (2026-08-13, Garagem Motors) e `investidor` (2026-08-21) — são
  * `authenticated` no Supabase mas NUNCA entram na matriz: cada uma pertence à

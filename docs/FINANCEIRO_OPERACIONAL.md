@@ -127,6 +127,32 @@ O que decide é o **ato**:
 pergunta à linha "Aprovar agendamento financeiro" da A17; dar esse poder a um
 papel novo é uma linha na matriz, não uma edição na lib.
 
+#### O cadastro de recorrente também sobe (2026-08-22)
+
+O flanco que a primeira versão deixou aberto de propósito e que esta seção
+registrava como pendência. A **geração** mensal continua passando direto — o
+compromisso já foi assumido, e mandar cada parcela à fila criaria uma
+avalanche de aprovações idênticas todo mês, o tipo de burocracia que faz a
+operação parar de usar a ferramenta. Mas o **cadastro** de uma recorrente nova
+é a decisão de gasto mais pesada do módulo: assinar R$ 1.200/mês compromete
+R$ 14.400 no ano sem que exista uma única conta a pagar ainda. É exatamente o
+exemplo que derrubou a alçada por valor.
+
+Duas colunas de estado, e não uma: `despesas_recorrentes.ativa` é o
+interruptor da operação ("esta recorrente gera conta?"); `aprovacao_status` é
+a decisão do Gestor. Sobrepô-los faria "reativar" virar "aprovar" sem que
+ninguém tivesse decidido nada. A geração exige **as duas**.
+
+O default é `aprovada`, e isso é deliberado: toda recorrente que já existe
+está rodando hoje — aluguel, energia, internet. Nascer `aguardando`
+congelaria o pagamento de tudo até alguém clicar, e a primeira consequência
+da migração seria a loja deixar de pagar contas. Retroatividade aqui é dano,
+não rigor.
+
+A fila de **Aprovações** passa a mostrar os dois tipos na mesma tela, com as
+recorrentes primeiro — o Gestor tem um lugar só para olhar, e separá-las em
+páginas diferentes faria a segunda ser esquecida.
+
 #### Quem aprova não apaga a prova (2026-08-21)
 
 Separação de funções, decidida junto com "quem aprova pagamento no dia a dia
@@ -273,14 +299,14 @@ lados.
    duas pontas em paralelo um mês, conferir DRE contra DRE, e só então
    desligar o lançamento de lá. O usuário de teste da Sinthia é o primeiro
    passo — criar com papel `financeiro` na A17 (multi-papel já funciona).
-2. **Aprovação no cadastro de recorrente.** A geração mensal passa direto de
-   propósito (compromisso já assumido) — mas o CADASTRO de uma recorrente
-   nova, que é decisão de gasto como qualquer agendamento, hoje também passa.
-   Fechar esse flanco quando o fluxo de aprovação estiver rodado na prática.
-3. **Convite de investidor pela A17.** Hoje o Admin cria a conta com papel
-   `investidor` e o vínculo se faz pelo e-mail no primeiro acesso. Falta o
-   caminho feliz na tela de usuários: convidar direto do cadastro do
-   investidor, sem passar por duas telas.
+2. **Atalho de convite do investidor.** O Admin já cria a conta com papel
+   `investidor` na A17 e o vínculo se faz sozinho pelo e-mail no primeiro
+   acesso. Falta só o caminho curto: convidar direto do cadastro do
+   investidor, em vez de passar por duas telas.
+3. **Lançar a partir do extrato.** Na conciliação, "no banco e fora do
+   sistema" hoje é um achado que a pessoa resolve lançando à mão em outra
+   tela. Um botão que abre o lançamento já preenchido com valor, data e
+   descrição do extrato fecharia o ciclo.
 
 ## 5. Onde está cada coisa
 
@@ -291,6 +317,7 @@ lados.
 | Migração (papéis gestor e investidor) | `supabase/migrations/20260821180000_papeis_gestor_e_investidor.sql` |
 | Migração (exclusão só do admin) | `supabase/migrations/20260821210000_exclusao_financeira_so_admin.sql` |
 | Migração (conciliação bancária) | `supabase/migrations/20260822120000_conciliacao_bancaria.sql` |
+| Migração (aprovação de recorrente) | `supabase/migrations/20260822150000_aprovacao_de_recorrente.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
 | Régua de investidores | `src/lib/investidores.ts` · `tests/investidores.test.ts` |
 | Régua da aprovação | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |
