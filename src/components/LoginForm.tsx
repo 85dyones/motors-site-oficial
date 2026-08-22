@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { loginAction } from "../app/actions/auth";
 import { Seta } from "./modernist/primitivos";
 
@@ -116,6 +117,14 @@ export default function LoginForm() {
           disabled={isLoading}
           className={campoClasses(Boolean(password))}
         />
+        {/* Sem esta linha, quem esquece a senha depende de um admin — era o
+            estado até 2026-08-21, quando o admin também DIGITAVA a senha. */}
+        <Link
+          href="/recuperar-senha"
+          className="mt-foco mt-2 inline-block text-[11px] text-mt-neutral-600 underline underline-offset-2 hover:text-mt-ink"
+        >
+          Esqueci minha senha
+        </Link>
       </div>
 
       <button

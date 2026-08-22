@@ -101,7 +101,6 @@ export default function UserManagement() {
   // Create User Form State
   const [isCreating, setIsCreating] = useState(false);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<Perfil>("comercial");
   const [isSaving, setIsSaving] = useState(false);
@@ -169,25 +168,27 @@ export default function UserManagement() {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, full_name: fullName, role }),
+        body: JSON.stringify({ email, full_name: fullName, role }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        setSuccessMsg("Usuário criado com sucesso!");
+        setSuccessMsg(`Convite enviado para ${email} — a senha é escolhida por quem recebe.`);
         setIsCreating(false);
         setEmail("");
-        setPassword("");
         setFullName("");
         setRole("comercial");
         setRegistroCarregado(false);
-        fetchUsers();
       } else {
-        setError(data.error || "Falha ao criar usuário.");
+        setError(data.error || "Falha ao convidar usuário.");
       }
     } catch (err) {
-      setError("Erro ao salvar usuário.");
+      setError("Erro ao convidar usuário.");
     } finally {
+      // Fora do ramo de sucesso de propósito: o convite pode sair e o papel
+      // falhar depois (a rota devolve isso como erro). Nesse caso o convidado
+      // JÁ existe, e precisa aparecer na lista para o papel ser corrigido.
+      fetchUsers();
       setIsSaving(false);
     }
   };
@@ -514,6 +515,13 @@ export default function UserManagement() {
             {isCreating && (
               <div className="flex flex-col gap-4 border border-mt-regua-fina bg-mt-surface p-6">
                 <h3 className="text-[15px] font-extrabold tracking-[-.01em] text-mt-ink select-none">Convidar usuário</h3>
+                {/* Sem campo de senha desde 2026-08-21: o convite chega por
+                    e-mail e a senha é escolhida por quem vai usá-la, em
+                    /definir-senha. Quem cuida do painel não conhece senha de
+                    ninguém — antes conhecia a de todo mundo. */}
+                <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-700">
+                  A pessoa recebe um convite por e-mail e escolhe a própria senha.
+                </p>
                 <form onSubmit={handleCreateUser} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
                     <label className={rotuloCampo}>Nome Completo</label>
@@ -523,11 +531,6 @@ export default function UserManagement() {
                   <div className="flex flex-col gap-1">
                     <label className={rotuloCampo}>E-mail</label>
                     <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="joao@motors.com.br" className={campoCaixa} />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className={rotuloCampo}>Senha Provisória</label>
-                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 caracteres" minLength={6} className={campoCaixa} />
                   </div>
 
                   <div className="flex flex-col gap-1">
@@ -545,7 +548,7 @@ export default function UserManagement() {
                       Cancelar
                     </button>
                     <button type="submit" disabled={isSaving} className="mt-foco h-11 flex-1 cursor-pointer bg-mt-accent text-[11px] font-bold uppercase tracking-wider text-mt-inverso hover:bg-mt-accent-hover disabled:opacity-50">
-                      {isSaving ? "Salvando..." : "Criar"}
+                      {isSaving ? "Enviando..." : "Enviar convite"}
                     </button>
                   </div>
                 </form>
