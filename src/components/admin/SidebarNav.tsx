@@ -83,6 +83,7 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         { name: "Relatórios e balanço", href: "/admin/financeiro/relatorios" },
         { name: "Cadastros auxiliares", href: "/admin/financeiro/cadastros" },
         { name: "Margem por veículo", href: "/admin/financeiro/margens" },
+        { name: "Investidores", href: "/admin/financeiro/investidores" },
       ],
     },
     {

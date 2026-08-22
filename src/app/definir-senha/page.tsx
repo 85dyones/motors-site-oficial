@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
-import { ehStaff } from "../../lib/permissoes";
+import { ehInvestidor, ehStaff } from "../../lib/permissoes";
 import DefinirSenhaForm from "../../components/DefinirSenhaForm";
 import { Rotulo } from "../../components/modernist/primitivos";
 
@@ -62,7 +62,14 @@ export default async function DefinirSenhaPage() {
     .eq("id", user.id)
     .single();
 
-  const destino = ehStaff(profile) ? "/admin" : "/garagem";
+  // Três públicos, três portas (investidor entrou em 2026-08-22). A ordem
+  // importa: quem é staff E investidor trabalha na loja, então o painel vence
+  // — a área do investidor continua a um link de distância.
+  const destino = ehStaff(profile)
+    ? "/admin"
+    : ehInvestidor(profile)
+      ? "/investidor"
+      : "/garagem";
 
   return (
     <div className="flex min-h-[70vh] w-full flex-col items-center justify-center bg-mt-bg px-[18px] py-16 font-modernist text-mt-ink">

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff } from "../../../../lib/permissoes";
+import { ehInvestidor, ehStaff } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +78,11 @@ export async function GET(request: NextRequest) {
 
   if (ehStaff(profile)) {
     return NextResponse.redirect(`${origin}${nextSeguro ?? "/admin"}`);
+  }
+  // Investidor tem área própria desde 2026-08-22; sem esta linha o convite
+  // dele terminava na Garagem, que a página manda de volta para a home.
+  if (ehInvestidor(profile)) {
+    return NextResponse.redirect(`${origin}/investidor`);
   }
   return NextResponse.redirect(`${origin}/garagem`);
 }

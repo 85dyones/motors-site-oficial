@@ -84,8 +84,11 @@ describe("a A17 não mente sobre papel", () => {
 
   it("ao marcar perfis, papel de painel vai para a frente — cliente nunca é primário", () => {
     // `papeis[1]` espelha `role`, e `role` é o que os gates antigos leem: um
-    // staff com primário `cliente` seria barrado do painel inteiro.
-    expect(telaA17).toContain("const novos = [...novosDoPainel, ...foraDoPainel];");
+    // staff com primário `cliente` seria barrado do painel inteiro. Desde
+    // 2026-08-22 a lista tem dois grupos (painel e área própria) e a ordenação
+    // acontece sobre a seleção inteira, mas a regra é a mesma.
+    expect(telaA17).toContain("...novosBrutos.filter((x) => ehPapelDePainel(x)),");
+    expect(telaA17).toContain("...novosBrutos.filter((x) => !ehPapelDePainel(x)),");
   });
 
   it("a rota PUT garante a mesma ordem para qualquer cliente da API", () => {

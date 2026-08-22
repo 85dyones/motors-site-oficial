@@ -98,7 +98,14 @@ describe("nomenclatura da tabela de inventário", () => {
     // fechamento de venda (A19). É a única leitura que devolve `chassi` e
     // `placa` — documentação interna —, e por isso tem o gate da venda, não o
     // do estoque público.
-    expect(comAcesso.length).toBe(9);
+    //
+    // Em 2026-08-22 entrou o décimo: `app/investidor/page.tsx`, a área do
+    // investidor. Ele lê SÓ o cartão de identificação do carro (marca, modelo,
+    // versão, ano, vendido) para os veículos em que a pessoa entrou na compra.
+    // `preco_compra` fica de fora de propósito — o investidor vê o dinheiro
+    // dele, não o custo da loja —, e o recorte por pessoa é da RLS de
+    // `investidor_veiculos`, não deste `.in()`.
+    expect(comAcesso.length).toBe(10);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -106,6 +113,6 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(17);
+    expect(total).toBe(18);
   });
 });

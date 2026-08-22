@@ -152,11 +152,42 @@ que é sempre verdade: vale uma vez só.
 > password change* no painel do Supabase, que passa a exigir reautenticação
 > (e aí o template **Reauthentication** deixa de ser decorativo).
 
-**Investidor não é um perfil que existe hoje.** `PERFIS` é
-`admin | marketing | comercial | financeiro` (`src/lib/permissoes.ts`) —
-"investidor" no código é conta contábil, não papel. Quando existir, o convite
-dele é este mesmo; o que precisa nascer antes é a linha na matriz A17 e o
-recorte de RLS que ele enxerga.
+### 1-c-bis. Investidor (2026-08-22)
+
+**Investidor passou a existir** — e NÃO como quinto perfil de painel. `PERFIS`
+continua sendo `admin | marketing | comercial | financeiro`; investidor entrou
+em `PAPEIS_SEM_PAINEL`, ao lado de `cliente` (`src/lib/permissoes.ts`).
+
+> **Por que não virou perfil de painel.** `ehStaff`/`is_staff` é a régua única
+> de "é gente da loja", e quem passa por ela recebe o payload completo de
+> `/api/settings` — token de API, saldos bancários e o `preco_compra` de todo o
+> estoque —, além da escrita de estoque e dos leads. Um quinto perfil teria
+> dado tudo isso a quem só precisa ver a própria posição. A migração
+> `20260822120000` prova o contrário contra o banco, na autoconferência: o
+> investidor nasce fora do `is_staff` e fora do `has_finance_access`.
+
+**O convite é este mesmo** (§1-c): a A17 agora oferece o papel no seletor, em
+"Área própria (sem painel)". Antes disso não havia como convidá-lo, e o
+resultado real foi um investidor cadastrado como **comercial** — a lista ainda
+por cima o exibia assim, porque `normalizarPerfil` devolve "comercial" para
+qualquer papel que não reconhece.
+
+**Onde ele cai:** `/investidor`, como o cliente cai em `/garagem`. As três
+portas de auth (`/definir-senha`, `/api/auth/confirm` e o proxy) decidem pelo
+papel, nesta ordem: staff → `/admin`, investidor → `/investidor`, resto →
+`/garagem`.
+
+**O que ele enxerga:** os carros em que entrou na compra, o aporte total, o
+total retirado e o saldo investido. Nada de custo da loja ou margem. O recorte
+é da RLS (`investidor_id = auth.uid()`) nas tabelas `investidor_veiculos` e
+`investidor_movimentos`, e a view `investidor_posicao` é `security_invoker`
+para que a soma respeite a mesma régua — sem isso, um investidor leria a
+posição de todos.
+
+**Ele não lança nada.** Aportes, retiradas e participações entram por
+Financeiro → Investidores (`/admin/financeiro/investidores`), sob
+`has_finance_access`. As tabelas não têm policy de escrita para o investidor, e
+ausência de policy é negação.
 
 ### 1-d. Esqueci minha senha (2026-08-21)
 

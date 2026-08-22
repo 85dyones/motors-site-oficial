@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../../lib/supabase-server";
 import { registrarAcaoSensivel } from "../../../../lib/auditoria";
-import { PERFIS, perfisDe } from "../../../../lib/permissoes";
+import { PAPEIS_ATRIBUIVEIS, PERFIS, perfisDe } from "../../../../lib/permissoes";
 
 export async function PUT(
   request: NextRequest,
@@ -32,7 +32,7 @@ export async function PUT(
     const { full_name, role, is_active, telefone_e164 } = body;
     let { papeis } = body;
 
-    if (role !== undefined && !(PERFIS as readonly string[]).includes(role)) {
+    if (role !== undefined && !(PAPEIS_ATRIBUIVEIS as readonly string[]).includes(role)) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
 
@@ -47,7 +47,7 @@ export async function PUT(
         );
       }
       const invalidos = papeis.filter(
-        (p: string) => !(PERFIS as readonly string[]).includes(p) && p !== "cliente",
+        (p: string) => !(PAPEIS_ATRIBUIVEIS as readonly string[]).includes(p),
       );
       if (invalidos.length > 0) {
         return NextResponse.json(

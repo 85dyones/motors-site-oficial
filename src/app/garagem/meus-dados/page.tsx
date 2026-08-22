@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
-import { ehStaff } from "../../../lib/permissoes";
+import { ehInvestidor, ehStaff } from "../../../lib/permissoes";
 import BotaoImprimir from "../../../components/garagem/BotaoImprimir";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,7 @@ export default async function MeusDadosPage() {
     .eq("id", user.id)
     .single();
   if (ehStaff(profile)) redirect("/admin");
+  if (ehInvestidor(profile)) redirect("/investidor");
 
   const { data: cliente } = await supabase
     .from("clientes")

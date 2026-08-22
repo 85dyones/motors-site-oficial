@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "../../lib/supabase-server";
 import SidebarNav from "../../components/admin/SidebarNav";
 import AdminLayoutClientWrapper from "../../components/admin/AdminLayoutClientWrapper";
 import { papelPadraoPorEmail } from "../../lib/papelPadrao";
-import { perfisDe } from "../../lib/permissoes";
+import { ehInvestidor, perfisDe } from "../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,10 @@ export default async function AdminLayout({
   // Cliente da Garagem não tem nada no /admin — o proxy já barra, e o
   // layout barra de novo: defesa em profundidade custa uma linha.
   if (perfis.length === 0) {
-    redirect("/");
+    // Investidor tem para onde ir; cliente e desconhecido, não. Mesmo destino
+    // que o proxy escolhe — as duas camadas precisam concordar, senão o
+    // usuário quica entre elas.
+    redirect(ehInvestidor(profile) ? "/investidor" : "/");
   }
 
   // O primeiro papel de PAINEL é o que o rodapé exibe — para quem tem

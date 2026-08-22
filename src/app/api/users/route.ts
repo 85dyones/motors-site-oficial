@@ -3,7 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient, createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../lib/webhook-dispatcher";
 import { registrarAcaoSensivel } from "../../../lib/auditoria";
-import { PERFIS, perfisDe } from "../../../lib/permissoes";
+import { PAPEIS_ATRIBUIVEIS, perfisDe } from "../../../lib/permissoes";
 
 export async function GET() {
   try {
@@ -91,9 +91,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
-    // O vocabulário de perfis é o da matriz A17 — `role` era texto livre e
-    // um typo aqui criava um usuário que nenhum gate reconhece.
-    if (!(PERFIS as readonly string[]).includes(role)) {
+    // O vocabulário são os papéis atribuíveis — os quatro da matriz A17 mais
+    // os de área própria (`cliente`, `investidor`). `role` era texto livre, e
+    // um typo aqui criava um usuário que nenhum gate reconhece; aceitar só a
+    // matriz, como até 2026-08-22, obrigava a convidar investidor sob um
+    // perfil de painel emprestado — foi assim que um deles virou "comercial".
+    if (!(PAPEIS_ATRIBUIVEIS as readonly string[]).includes(role)) {
       return NextResponse.json({ error: `Perfil inválido: ${role}` }, { status: 400 });
     }
 

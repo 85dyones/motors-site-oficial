@@ -18,6 +18,33 @@ export const PERFIS = ["admin", "marketing", "comercial", "financeiro"] as const
 export type Perfil = (typeof PERFIS)[number];
 
 /**
+ * Papéis que existem no vocabulário do banco mas NÃO são de painel.
+ *
+ * `cliente` (2026-08-13, Garagem Motors) e `investidor` (2026-08-22) têm área
+ * própria — `/garagem` e `/investidor` — e nenhum acesso ao painel. Eles ficam
+ * FORA de `PERFIS` de propósito: `ehStaff` é a régua de "é gente da loja", e
+ * quem passa por ela recebe o payload completo de `/api/settings` (token de
+ * API, saldos, `preco_compra` de todo o estoque), a escrita de estoque e os
+ * leads. Promover investidor a perfil de painel seria dar tudo isso a quem só
+ * precisa ver a própria posição.
+ */
+export const PAPEIS_SEM_PAINEL = ["cliente", "investidor"] as const;
+export type PapelSemPainel = (typeof PAPEIS_SEM_PAINEL)[number];
+
+/** O que a A17 pode atribuir a alguém — painel e não-painel. */
+export const PAPEIS_ATRIBUIVEIS = [...PERFIS, ...PAPEIS_SEM_PAINEL] as const;
+
+/** Rótulo de exibição de QUALQUER papel conhecido. */
+export const ROTULO_DO_PAPEL: Record<string, string> = {
+  admin: "Administrador",
+  marketing: "Marketing",
+  comercial: "Comercial",
+  financeiro: "Financeiro",
+  cliente: "Cliente",
+  investidor: "Investidor",
+};
+
+/**
  * Papel de painel? A role `cliente` (2026-08-13, Garagem Motors) é `authenticated`
  * no Supabase mas NUNCA entra na matriz: cliente pertence à área do cliente.
  * Todo gate de painel ou de API interna pergunta aqui ANTES de
@@ -44,20 +71,45 @@ export function ehStaff(
 export function perfisDe(
   origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
 ): Perfil[] {
+  const bruto = papeisBrutos(origem);
+  return (PERFIS as readonly string[]).filter((p) => bruto.includes(p)) as Perfil[];
+}
+
+/**
+ * Os papéis de alguém SEM filtrar pelo painel — inclui `cliente` e
+ * `investidor`.
+ *
+ * `perfisDe` descarta o que não é papel de painel, e é isso que o torna
+ * seguro para gates. Quem precisa saber que a pessoa é investidora não pode
+ * usá-lo: para ela `perfisDe` devolve lista vazia, que é o correto para
+ * "não é da equipe" e inútil para "que área é a dela".
+ */
+export function papeisBrutos(
+  origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
+): string[] {
   if (!origem) return [];
 
-  const bruto: string[] =
-    typeof origem === "string"
-      ? [origem]
-      : Array.isArray(origem)
-        ? origem
-        : (origem.papeis && origem.papeis.length > 0
-            ? origem.papeis
-            : origem.role
-              ? [origem.role]
-              : []);
+  return typeof origem === "string"
+    ? [origem]
+    : Array.isArray(origem)
+      ? origem
+      : (origem.papeis && origem.papeis.length > 0
+          ? origem.papeis
+          : origem.role
+            ? [origem.role]
+            : []);
+}
 
-  return (PERFIS as readonly string[]).filter((p) => bruto.includes(p)) as Perfil[];
+/**
+ * É investidor? Papel de área própria (`/investidor`), nunca de painel.
+ *
+ * Independente de `ehStaff`: alguém pode ser as duas coisas (o sócio que
+ * também trabalha na loja), e nesse caso as duas áreas valem.
+ */
+export function ehInvestidor(
+  origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
+): boolean {
+  return papeisBrutos(origem).includes("investidor");
 }
 
 export type Permissao = "faz" | "revisao" | "nao_ve";

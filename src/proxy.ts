@@ -4,7 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { papelPadraoPorEmail } from "./lib/papelPadrao";
-import { perfisDe } from "./lib/permissoes";
+import { ehInvestidor, perfisDe } from "./lib/permissoes";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -164,9 +164,13 @@ export async function proxy(request: NextRequest) {
 
   // 2. Auth protection for admin panel and protected API routes
   const isAdminPath = path.startsWith("/admin");
+  // Área do investidor (2026-08-22): terceiro público, como a Garagem do
+  // cliente. Fica aqui, e não numa checagem só na página, para que nem o
+  // primeiro byte da tela saia para quem não é investidor.
+  const isInvestidorPath = path === "/investidor" || path.startsWith("/investidor/");
   const isProtectedApi = path.startsWith("/api/financeiro") || path.startsWith("/api/users");
 
-  if (isAdminPath || isProtectedApi) {
+  if (isAdminPath || isInvestidorPath || isProtectedApi) {
     let response = NextResponse.next({
       request: {
         headers: request.headers,
@@ -197,7 +201,7 @@ export async function proxy(request: NextRequest) {
 
     // Check authentication
     if (!user) {
-      if (isAdminPath) {
+      if (isAdminPath || isInvestidorPath) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
@@ -219,6 +223,21 @@ export async function proxy(request: NextRequest) {
       // sozinho negava a segunda. Sem linha em `profiles`, vale o papel
       // padrão por e-mail (rede de segurança dos fundadores).
       const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email));
+      const investidor = ehInvestidor(profile);
+
+      // A área do investidor tem porteiro próprio: quem não tem o papel não
+      // entra, nem sendo admin. Ela mostra a posição de QUEM PERGUNTA (a RLS
+      // filtra por `auth.uid()`), então para a equipe ela viria vazia — e
+      // tela vazia se lê como "não há nada", que é pior que a porta fechada.
+      // Quem cuida disso usa a gestão em /admin/financeiro/investidores.
+      if (isInvestidorPath) {
+        if (!investidor) {
+          const url = request.nextUrl.clone();
+          url.pathname = perfis.length > 0 ? "/admin" : "/";
+          return NextResponse.redirect(url);
+        }
+        return response;
+      }
 
       // Papel `cliente` (Garagem Motors, 2026-08-13) nunca entra no painel:
       // `perfisDe` o descarta, então lista vazia é "não é da equipe" — sem
@@ -226,7 +245,8 @@ export async function proxy(request: NextRequest) {
       if (perfis.length === 0) {
         if (isAdminPath) {
           const url = request.nextUrl.clone();
-          url.pathname = "/";
+          // Investidor tem para onde ir; cliente e desconhecido, não.
+          url.pathname = investidor ? "/investidor" : "/";
           return NextResponse.redirect(url);
         }
         return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
@@ -298,5 +318,7 @@ export const config = {
     "/garagem/:path*",
     "/garagem",
     "/api/garagem/:path*",
+    "/investidor",
+    "/investidor/:path*",
   ],
 };

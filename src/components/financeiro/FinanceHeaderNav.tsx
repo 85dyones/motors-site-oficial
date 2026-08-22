@@ -25,6 +25,7 @@ export default function FinanceHeaderNav() {
     { name: "Relatórios & Balanço", href: "/admin/financeiro/relatorios" },
     { name: "Cadastros Auxiliares", href: "/admin/financeiro/cadastros" },
     { name: "Margem por Veículo", href: "/admin/financeiro/margens" },
+    { name: "Investidores", href: "/admin/financeiro/investidores" },
   ];
 
   return (
