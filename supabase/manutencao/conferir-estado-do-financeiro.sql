@@ -125,11 +125,16 @@ with conferencias as (
   -- conciliação para de ler sem dar erro nenhum — só volta vazia.
   union all select
     12,
-    '12. has_finance_access() existe e lê `papeis` (multi-papel)',
+    '12. has_finance_access() lê `papeis` E inclui o gestor',
+    -- Perguntar só por `papeis` não bastava: em 2026-08-22 uma migração
+    -- paralela reescreveu esta função a partir do que conhecia, manteve
+    -- `papeis` e DERRUBOU o `gestor`. A checagem antiga saía verde com o
+    -- acesso do Gestor desligado — falso verde no que mais importava.
     (select count(*) = 1 from pg_proc p
        join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'has_finance_access'
-        and pg_get_functiondef(p.oid) like '%papeis%'),
+        and pg_get_functiondef(p.oid) like '%papeis%'
+        and pg_get_functiondef(p.oid) like '%gestor%'),
     '20260821120000 / 20260821180000'
 
   union all select
@@ -181,6 +186,62 @@ with conferencias as (
         and p.prosecdef                                   -- é security definer
         and pg_get_functiondef(p.oid) like '%has_finance_access%'),
     '20260822180000'
+
+  union all select
+    19,
+    '19. Livro-razão: fusão dos investidores (20260822210000)',
+    (select count(*) = 1 from supabase_migrations.schema_migrations
+      where version = '20260822210000'),
+    'supabase/migrations/20260822210000_fundir_investidores.sql'
+
+  union all select
+    20,
+    '20. O gestor existe nas TRÊS réguas do papel',
+    -- As três, juntas. Repor duas e esquecer a terceira deixa o papel meio
+    -- existindo, que é pior que não existir: falha só em alguns caminhos.
+    -- A do CHECK é a mais traiçoeira — quem já é gestor fica com uma linha
+    -- que o CHECK recusa, e nenhum UPDATE no perfil dele funciona.
+    (select
+       -- (a) o CHECK da coluna `role`
+       (select count(*) = 1 from pg_constraint
+         where conname = 'profiles_role_check'
+           and pg_get_constraintdef(oid) like '%gestor%')
+       -- (b) o vocabulário de `papeis`
+       and (select count(*) = 1 from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = 'public' and p.proname = 'papeis_validos'
+               and pg_get_functiondef(p.oid) like '%gestor%')
+       -- (c) a porta do financeiro
+       and (select count(*) = 1 from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = 'public' and p.proname = 'has_finance_access'
+               and pg_get_functiondef(p.oid) like '%gestor%')),
+    '20260822210000'
+
+  union all select
+    21,
+    '21. investidor_posicao soma do razão ÚNICO',
+    -- Se ela ainda somar `investidor_movimentos`, a tela do sócio e o painel
+    -- do financeiro mostram saldos DIFERENTES para a mesma pessoa no mesmo
+    -- dia — duas verdades sobre o dinheiro dele, que é o pior resultado
+    -- possível da fusão.
+    (select count(*) = 1 from pg_views
+      where schemaname = 'public' and viewname = 'investidor_posicao'
+        and definition like '%movimentacoes_investidor%'),
+    '20260822210000'
+
+  union all select
+    22,
+    '22. A participação por veículo aponta para a ficha do investidor',
+    -- `investidor_cadastro_id` é o que liga a participação ao cadastro que
+    -- sobrevive sem login. Só se aplica onde a migração paralela rodou;
+    -- por isso o `or` — tabela ausente não é falha aqui.
+    (select to_regclass('public.investidor_veiculos') is null
+         or exists (select 1 from information_schema.columns
+                     where table_schema = 'public'
+                       and table_name = 'investidor_veiculos'
+                       and column_name = 'investidor_cadastro_id')),
+    '20260822210000'
 
   union all select
     18,

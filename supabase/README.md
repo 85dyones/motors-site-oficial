@@ -316,7 +316,7 @@ primária de um livro que decide o que roda e o que é pulado.
 
 ### Depois de aplicar: `conferir-estado-do-financeiro.sql`
 
-Cole no SQL Editor e rode. É **somente leitura** e devolve 18 linhas; toda
+Cole no SQL Editor e rode. É **somente leitura** e devolve 22 linhas; toda
 linha tem que sair ✅. Uma linha ❌ aponta o que falta e de qual migração ela
 vem — reaplicar essa migração resolve, porque todas são idempotentes.
 
@@ -340,6 +340,11 @@ verde não vale nada, porque não se sabe se ela olha. Duas rodadas:
 - `lancar_do_extrato()` trocada por uma versão `security definer` sem a
   checagem de porta, e uma policy de DELETE a mais criada em `contas` (como
   alguém faria pelo painel num aperto) → acusou 17 e 18, e só.
+- a cadeia inteira **sem** `20260822210000` (o estado de produção antes da
+  fusão) → acusou 12, 19, 20, 21 e 22. Esta rodada existe porque a checagem
+  12 antiga saía **verde** nesse mesmo banco: ela perguntava se
+  `has_finance_access` lia `papeis`, e a migração paralela manteve `papeis`
+  enquanto derrubava o `gestor`. Falso verde no que mais importava.
 
 ## ⚠️ Contrato com o sync — campos do painel
 
