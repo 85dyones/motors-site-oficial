@@ -1,26 +1,18 @@
-import ComprasList from "../../../../components/financeiro/ComprasList";
-import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { podeExcluirLancamento } from "../../../../lib/alcada";
-import { perfisDe } from "../../../../lib/permissoes";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Compras de Produtos — Motors Showcase",
-  description: "Gerenciamento de compras de peças, acessórios, materiais e ferramentas para a concessionária.",
-};
-
-export default async function ComprasPage() {
-  return <ComprasList podeExcluir={await podeExcluir()} />;
-}
-
-/** Só o Admin apaga registro de dinheiro (A17, 2026-08-21). */
-async function podeExcluir(): Promise<boolean> {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-  const { data: perfil } = await supabase
-    .from("profiles")
-    .select("role, papeis")
-    .eq("id", user.id)
-    .single();
-  return podeExcluirLancamento(perfisDe(perfil));
+/**
+ * Rota mantida viva só para redirecionar (2026-08-24).
+ *
+ * "Compras de insumos" e "Despesas recorrentes" deixaram de ser telas: insumo
+ * virou três campos na conta a pagar, e recorrência virou um check no mesmo
+ * formulário — *"insumo é um tipo de compra, recorrência é um tipo de
+ * vencimento"*, nas palavras do dono.
+ *
+ * O arquivo não é apagado porque link salvo, favorito do navegador e aba
+ * aberta há três dias continuam apontando para cá. Um 404 na cara de quem
+ * tinha o caminho de cor é pior que um redirecionamento silencioso — e quem
+ * chega aqui encontra exatamente o que veio buscar, num lugar só.
+ */
+export default function RotaAposentada() {
+  redirect("/admin/financeiro/contas-pagar");
 }

@@ -244,6 +244,34 @@ with conferencias as (
     '20260822210000'
 
   union all select
+    23,
+    '23. Livro-razão: a conta absorveu o insumo (20260824150000)',
+    (select count(*) = 1 from supabase_migrations.schema_migrations
+      where version = '20260824150000'),
+    'supabase/migrations/20260824150000_conta_absorve_insumo.sql'
+
+  union all select
+    24,
+    '24. contas tem quantidade, valor_unitario e nota_fiscal',
+    -- Sem as três, o formulário grava campo que não existe e o lançamento de
+    -- insumo falha inteiro — depois de a pessoa ter preenchido tudo.
+    (select count(*) = 3 from information_schema.columns
+      where table_schema = 'public' and table_name = 'contas'
+        and column_name in ('quantidade', 'valor_unitario', 'nota_fiscal')),
+    '20260824150000'
+
+  union all select
+    25,
+    '25. Os três campos de insumo são OPCIONAIS',
+    -- A esmagadora maioria das contas não tem unidade. Se qualquer um dos
+    -- três virasse NOT NULL, lançar aluguel passaria a exigir quantidade.
+    (select count(*) = 3 from information_schema.columns
+      where table_schema = 'public' and table_name = 'contas'
+        and column_name in ('quantidade', 'valor_unitario', 'nota_fiscal')
+        and is_nullable = 'YES'),
+    '20260824150000'
+
+  union all select
     18,
     '18. Nenhuma das 4 tabelas de razão aceita DELETE fora do admin',
     -- A linha de 21/08 ("quem aprova não apaga a prova") dita em SQL. Vale

@@ -62,6 +62,7 @@ const CADEIA = [
   "20260822150000_aprovacao_de_recorrente.sql",
   "20260822180000_lancar_do_extrato_atomico.sql",
   "20260822210000_fundir_investidores.sql",
+  "20260824150000_conta_absorve_insumo.sql",
 ];
 
 /**

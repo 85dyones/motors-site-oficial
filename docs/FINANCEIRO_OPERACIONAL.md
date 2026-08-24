@@ -356,6 +356,46 @@ motivos independentes. Os dois foram corrigidos para `perfisDe(...)` no
 pacote dos papéis; `tests/papeis-gestor-investidor.test.ts` trava os três
 lados.
 
+### A unificação de 2026-08-24 — dois menus a menos
+
+Pedido do dono, e ele estava certo: *"insumo é um tipo de compra, recorrência
+é um tipo de vencimento, pode ser um check no cadastro da conta a pagar... o
+painel vai filtrar isso em contas fixas, variáveis"*.
+
+O schema já concordava sem que ninguém tivesse reparado: `compras_produtos`
+sempre teve `conta_id`, e a rota de compras sempre criou uma conta junto. A
+compra nunca foi uma ilha — era um satélite com três campos a mais e um menu
+próprio. Os três campos (`quantidade`, `valor_unitario`, `nota_fiscal`) vieram
+para `contas`, e o menu sumiu.
+
+**O que NÃO veio junto.** `compras_produtos.status` é um eixo de RECEBIMENTO
+("a peça chegou?"), não de pagamento ("foi paga?"). O dono foi consultado e
+descartou: *"não uso hoje, provavelmente não irei, são poucos os insumos"*.
+Campo que ninguém preenche não é neutro — vira ruído que faz duvidar do resto
+da tela.
+
+**A recorrente continua em tabela própria, e isso não é inconsistência.** Uma
+regra não é uma dívida: `despesas_recorrentes` não tem vencimento, tem
+frequência. Virar linha em `contas` a faria entrar em toda soma do DRE e em
+todo "o que vence hoje", e seria preciso um flag para excluí-la de tudo — pior
+que a tabela separada. O que sumiu foi a TELA; o motor ficou. O check no
+formulário cria a regra por trás e a manda para a fila do Gestor.
+
+**O filtro deriva, não etiqueta.** "Fixa" sai de `recorrencia_id is not null`,
+"compra de item" sai de `quantidade is not null`. Derivar de coluna que já
+existe impede o terceiro estado — a conta marcada "fixa" sem recorrência
+nenhuma por trás.
+
+**A margem continua certa.** `compras_produtos` para de receber linha nova mas
+mantém o histórico, e cada compra antiga tem conta vinculada. `FinanceMargens`
+já filtrava por `conta_id` para não contar duas vezes, então lançamento novo
+(só conta) e antigo (compra + conta) convivem sem distorcer o custo do carro.
+
+**As rotas antigas redirecionam.** `/admin/financeiro/compras` e
+`/admin/financeiro/recorrentes` continuam existindo só para mandar quem chega
+a `contas-pagar`. Link salvo, favorito e aba aberta há três dias não podem
+virar 404.
+
 ## 4. Na fila — em ordem de dor
 
 1. **Migração RevendaMais → painel.** O importador já existe
