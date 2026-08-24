@@ -175,3 +175,75 @@ describe("o que a unificação não pode ter quebrado", () => {
     expect(margens).toContain("contasIds.has(cp.conta_id)");
   });
 });
+
+/**
+ * O que o teste do dono revelou em 2026-08-24, depois do módulo no ar.
+ *
+ * *"continua não aparecendo na lista de aprovações o pagamento, quando
+ * lançamos uma compra ou pagamento, ele precisa ser aprovado pelo perfil
+ * gestor. não aparece meu teste. Precisamos ajustar esta questão do
+ * fornecedor também"*.
+ *
+ * Dois defeitos independentes, e o primeiro é o mais grave que apareceu neste
+ * módulo: a régua de aprovação estava **invertida em relação à própria
+ * documentação dela**.
+ */
+const rapido = ler("src", "components", "financeiro", "LancamentoRapidoModal.tsx");
+const alcada = ler("src", "lib", "alcada.ts");
+const matriz = ler("src", "lib", "permissoes.ts");
+
+describe("lançar e aprovar viraram dois atos, sempre", () => {
+  it("a implementação parou de contradizer a matriz", () => {
+    // A matriz sempre disse "Quem agenda não aprova: o Financeiro lança, o
+    // Gestor libera". `precisaDeAprovacao` fazia o oposto — quem PODE aprovar
+    // pulava a fila — e o efeito só aparecia para quem tinha os dois poderes.
+    // O dono é admin, admin aprova, então nenhum lançamento dele passou pela
+    // fila desde que ela existe.
+    expect(matriz).toContain("Quem agenda não aprova");
+    expect(alcada).toContain("return ehAgendamento(l.tipo, l.status);");
+    // A negação sumiu: era ela que anulava a régua.
+    expect(alcada).not.toContain("return !podeDecidirAprovacao(l.perfis);");
+  });
+
+  it("a auto-aprovação é possível e RECONHECÍVEL", () => {
+    // Exigir sempre um segundo par de olhos travaria todo pagamento enquanto
+    // não houver conta de Gestor — régua contábil impecável que impede a luz
+    // de ser paga na segunda. O desenho deixa o gesto possível, separado do
+    // lançamento, e visível na trilha.
+    expect(alcada).toContain("aprovacaoEhDoProprioAutor");
+  });
+});
+
+describe("o fornecedor sai do cadastro, não do teclado", () => {
+  it("o lançamento rápido virou seleção, com cadastrar como ato deliberado", () => {
+    expect(rapido).toContain("/api/financeiro/parceiros");
+    expect(rapido).toContain('value="__novo__"');
+    expect(rapido).toContain("cadastrandoParceiro");
+  });
+
+  it('parou de inventar "Fornecedor Local" quando o campo vem vazio', () => {
+    // O fallback antigo gravava um fornecedor fantasma que nunca existiu, e
+    // ele somava no DRE como se fosse alguém. Vazio agora é `null` — a
+    // ausência registrada como ausência.
+    expect(rapido).not.toContain('|| "Fornecedor Local"');
+    expect(rapido).not.toContain('|| "Cliente Local"');
+    expect(rapido).toContain("(fornecedorCliente || null)");
+  });
+
+  it("filtra por tipo: fornecedor em conta a pagar, cliente em conta a receber", () => {
+    // P2 do briefing — "separar fornecedor de cliente". O cadastro já
+    // separava; faltava a tela respeitar a separação.
+    expect(rapido).toContain('p.tipo === "fornecedor" || p.tipo === "ambos"');
+    expect(rapido).toContain('p.tipo === "cliente" || p.tipo === "ambos"');
+  });
+});
+
+describe("o diagnóstico temporário saiu de produção", () => {
+  it("o formulário não mostra mais contagem de categorias na tela", () => {
+    // Estava marcado "remover após resolver" e foi para produção assim. Sem a
+    // tela que o exibia, o estado também sai: código morto faz o próximo
+    // leitor procurar onde aparece.
+    expect(form).not.toContain("debugInfo");
+    expect(form).not.toContain("Diagnóstico temporário");
+  });
+});

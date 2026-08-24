@@ -76,7 +76,6 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [debugInfo, setDebugInfo] = useState("Carregando categorias...");
 
   useEffect(() => {
     const loadFormData = async () => {
@@ -87,13 +86,10 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           const catData = await catRes.json();
           const cats = catData.categories || [];
           setCategories(cats);
-          setDebugInfo(`✅ ${cats.length} categorias carregadas`);
         } else {
           const errBody = await catRes.text().catch(() => "");
-          setDebugInfo(`❌ API retornou status ${catRes.status}: ${errBody.substring(0, 100)}`);
         }
       } catch (err: any) {
-        setDebugInfo(`❌ Erro de rede: ${err.message}`);
       }
 
       // 2. Fetch partners
@@ -404,10 +400,6 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
           {/* Categoria */}
           <div className="flex flex-col gap-1.5 md:col-span-2">
             <label className="text-[10px] font-bold uppercase text-mt-neutral-700 pl-1">Categoria</label>
-            {/* Diagnóstico temporário - remover após resolver */}
-            <div className={`text-[9px] px-2 py-1 ${debugInfo.startsWith('✅') ? 'bg-mt-surface text-mt-accent-800' : debugInfo.startsWith('❌') ? 'bg-mt-accent-100 text-mt-accent' : 'bg-mt-accent-100 text-mt-accent-800'}`}>
-              {debugInfo} | filtradas: {filteredCategories.length} | total: {categories.length}
-            </div>
             <select
               value={showNewCategoryForm ? "__new_category__" : categoriaId}
               onChange={(e) => {

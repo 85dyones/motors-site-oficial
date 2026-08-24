@@ -8,6 +8,7 @@ import {
   podeExcluirLancamento,
   podeVerRelatorios,
   precisaDeAprovacao,
+  aprovacaoEhDoProprioAutor,
 } from "../src/lib/alcada";
 import { ALCADA_DO_PERFIL, MATRIZ_DE_PERMISSOES } from "../src/lib/permissoes";
 
@@ -82,12 +83,37 @@ describe("precisaDeAprovacao", () => {
     expect(precisaDeAprovacao({ tipo: "receber", status: "pendente", ...financeiro })).toBe(false);
   });
 
-  it("quem aprova não gera pendência para si mesmo", () => {
-    // Pedir que o Gestor aprove o próprio agendamento é burocracia sem
-    // revisor — e deixaria a fila cheia de itens que ninguém precisa olhar.
+  it("QUEM APROVA TAMBÉM SOBE — a regra virou em 2026-08-24", () => {
+    // Este teste afirmava o contrário até hoje, e o contrário estava errado.
+    //
+    // A ideia era poupar burocracia: quem pode aprovar não geraria pendência
+    // para si. Na prática anulava a régua — o dono é admin, admin aprova, e
+    // TODO lançamento dele pulava a fila. Ele lançou um pagamento de teste,
+    // foi procurá-lo em Aprovações, e não estava lá. Nunca estaria.
+    //
+    // A matriz já dizia o certo o tempo todo: a linha "Aprovar agendamento
+    // financeiro" carrega *"Quem agenda não aprova: o Financeiro lança, o
+    // Gestor libera"*. A implementação contradizia a própria documentação, e
+    // ninguém reparou porque o efeito só aparece para quem tem os dois
+    // poderes.
+    //
+    // Agora lançar e aprovar são dois atos, sempre. Quem opera sozinho aprova
+    // o próprio lançamento — e isso fica registrado como tal, em vez de a
+    // revisão simplesmente nunca ter acontecido.
     for (const perfis of [["admin"], ["gestor"], ["gestor", "financeiro"]]) {
-      expect(precisaDeAprovacao({ tipo: "pagar", status: "pendente", perfis })).toBe(false);
+      expect(precisaDeAprovacao({ tipo: "pagar", status: "pendente", perfis })).toBe(true);
     }
+  });
+
+  it("a auto-aprovação é reconhecível, e não bloqueada", () => {
+    // Não é uma trava: é uma descrição. A tela usa isto para dizer "aprovado
+    // pelo próprio autor" em vez de deixar a linha parecer revisada por um
+    // terceiro. Auto-aprovação honesta é a que se declara.
+    expect(aprovacaoEhDoProprioAutor("uuid-a", "uuid-a")).toBe(true);
+    expect(aprovacaoEhDoProprioAutor("uuid-a", "uuid-b")).toBe(false);
+    // Sem um dos dois lados não há o que comparar — e "não sei" não é "sim".
+    expect(aprovacaoEhDoProprioAutor(null, "uuid-a")).toBe(false);
+    expect(aprovacaoEhDoProprioAutor("uuid-a", null)).toBe(false);
   });
 
   it("papel nenhum não vira licença para agendar", () => {
