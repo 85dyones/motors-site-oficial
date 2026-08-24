@@ -96,8 +96,7 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // não decide.
         { name: "Aprovações", href: "/admin/financeiro/aprovacoes" },
         { name: "Contas a receber", href: "/admin/financeiro/contas-receber" },
-        { name: "Despesas recorrentes", href: "/admin/financeiro/recorrentes" },
-        { name: "Compras de insumos", href: "/admin/financeiro/compras" },
+
         { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
         // P4 do briefing — o último dos seis pedidos da adm/financeira a sair
         // do RevendaMais. Fica perto do importador porque os dois são a mesma

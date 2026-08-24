@@ -68,6 +68,7 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
   const [statusFilter, setStatusFilter] = useState(EM_ABERTO);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [natureza, setNatureza] = useState("");
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
 
@@ -91,6 +92,7 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
       if (endDate) params.append("end_date", endDate);
       // Vencimento mais PRÓXIMO primeiro. Ascendente punha julho no topo e o
       // lançamento de hoje no fim de setecentas linhas.
+      if (natureza) params.append("natureza", natureza);
       params.append("ordem", "desc");
       params.append("limite", String(POR_PAGINA));
       params.append("pagina", String(pagina));
@@ -112,11 +114,11 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
 
   useEffect(() => {
     setPagina(1);
-  }, [tipo, statusFilter, startDate, endDate]);
+  }, [tipo, statusFilter, startDate, endDate, natureza]);
 
   useEffect(() => {
     fetchContas();
-  }, [tipo, statusFilter, startDate, endDate, pagina]);
+  }, [tipo, statusFilter, startDate, endDate, natureza, pagina]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,6 +326,21 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
                 className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-8 cursor-pointer"
               />
             </div>
+            {tipo === "pagar" && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase text-mt-neutral-700">Natureza:</span>
+                <select
+                  value={natureza}
+                  onChange={(e) => setNatureza(e.target.value)}
+                  className="h-8 cursor-pointer border border-mt-regua-fina bg-mt-bg px-3 text-xs text-mt-ink"
+                >
+                  <option value="">Todas</option>
+                  <option value="fixa">Fixas (recorrentes)</option>
+                  <option value="variavel">Variáveis</option>
+                  <option value="insumo">Compras de item</option>
+                </select>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-mt-neutral-700 uppercase">Status:</span>
               <select

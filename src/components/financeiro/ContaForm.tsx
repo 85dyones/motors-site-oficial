@@ -38,6 +38,23 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
   const [totalParcelas, setTotalParcelas] = useState("1");
   const [observacoes, setObservacoes] = useState("");
 
+  // Compra de insumo (2026-08-24): era tela própria, virou três campos aqui.
+  // Ficam num bloco que só abre quando a pessoa diz que é compra de item —
+  // aluguel e energia não têm unidade, e três campos vazios em toda conta
+  // seriam ruído que faz duvidar do resto do formulário.
+  const [ehCompraDeItem, setEhCompraDeItem] = useState(false);
+  const [quantidade, setQuantidade] = useState("");
+  const [valorUnitario, setValorUnitario] = useState("");
+  const [notaFiscal, setNotaFiscal] = useState("");
+
+  // Recorrência (2026-08-24): "recorrência é um tipo de vencimento, pode ser
+  // um check no cadastro". O check fica aqui; a REGRA continua em
+  // `despesas_recorrentes`, porque regra não é dívida — uma recorrente não
+  // tem vencimento, tem frequência, e virar linha em `contas` a faria entrar
+  // em toda soma do DRE.
+  const [ehRecorrente, setEhRecorrente] = useState(false);
+  const [frequencia, setFrequencia] = useState("mensal");
+
   const [partners, setPartners] = useState<{ id: string; nome: string; tipo: string }[]>([]);
   const [customFornecedor, setCustomFornecedor] = useState(false);
   const [customCliente, setCustomCliente] = useState(false);
@@ -141,6 +158,10 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
             setFormaPagamento(c.forma_pagamento || "");
             setTotalParcelas(c.total_parcelas?.toString() || "1");
             setObservacoes(c.observacoes || "");
+            setQuantidade(c.quantidade?.toString() || "");
+            setValorUnitario(c.valor_unitario?.toString() || "");
+            setNotaFiscal(c.nota_fiscal || "");
+            setEhCompraDeItem(Boolean(c.quantidade || c.valor_unitario || c.nota_fiscal));
           }
         } catch (err) {
           setError("Falha ao carregar detalhes da conta.");
@@ -260,6 +281,14 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
         forma_pagamento: formaPagamento || null,
         total_parcelas: totalParcelas ? parseInt(totalParcelas) : 1,
         observacoes: observacoes || null,
+        // Só vão quando o bloco está aberto: fechar o bloco e salvar LIMPA os
+        // campos, que é o que a pessoa espera de um check desmarcado.
+        quantidade: ehCompraDeItem && quantidade ? parseInt(quantidade) : null,
+        valor_unitario: ehCompraDeItem && valorUnitario ? parseFloat(valorUnitario) : null,
+        nota_fiscal: ehCompraDeItem && notaFiscal ? notaFiscal : null,
+        // A recorrente é criada pela rota, não aqui: ela precisa passar pela
+        // fila de aprovação do Gestor, e essa régua mora no servidor.
+        recorrencia: ehRecorrente ? { frequencia } : null,
       };
 
       const url = contaId ? `/api/financeiro/contas/${contaId}` : "/api/financeiro/contas";
@@ -440,6 +469,88 @@ export default function ContaForm({ contaId, tipoDefault = "pagar", onClose, onS
               </div>
             )}
           </div>
+
+          {/* Compra de item e recorrência — os dois menus que viraram check.
+              Só aparecem em conta a pagar e só na criação: transformar uma
+              conta existente em recorrente exigiria decidir o que fazer com
+              as parcelas já lançadas, e essa pergunta não tem resposta boa
+              dentro de um formulário. */}
+          {!contaId && tipo === "pagar" && (
+            <div className="flex flex-col gap-3 border border-mt-regua-fina bg-mt-bg p-3">
+              <label className="flex cursor-pointer select-none items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={ehCompraDeItem}
+                  onChange={(e) => setEhCompraDeItem(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
+                />
+                <span className="text-xs font-semibold text-mt-ink">É compra de item (insumo, peça)</span>
+              </label>
+
+              {ehCompraDeItem && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="pl-1 text-[10px] font-bold uppercase text-mt-neutral-700">Quantidade</label>
+                    <input
+                      type="number" min="1" value={quantidade}
+                      onChange={(e) => setQuantidade(e.target.value)}
+                      className="h-11 w-full border border-mt-regua-fina bg-mt-surface px-4 text-xs text-mt-ink focus:border-mt-accent focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="pl-1 text-[10px] font-bold uppercase text-mt-neutral-700">Valor unitário</label>
+                    <input
+                      type="number" step="0.01" min="0.01" value={valorUnitario}
+                      onChange={(e) => setValorUnitario(e.target.value)}
+                      className="h-11 w-full border border-mt-regua-fina bg-mt-surface px-4 text-xs text-mt-ink focus:border-mt-accent focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="pl-1 text-[10px] font-bold uppercase text-mt-neutral-700">Nota fiscal</label>
+                    <input
+                      type="text" value={notaFiscal}
+                      onChange={(e) => setNotaFiscal(e.target.value)}
+                      className="h-11 w-full border border-mt-regua-fina bg-mt-surface px-4 text-xs text-mt-ink focus:border-mt-accent focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <label className="flex cursor-pointer select-none items-center gap-2 border-t border-mt-regua-fina pt-3">
+                <input
+                  type="checkbox"
+                  checked={ehRecorrente}
+                  onChange={(e) => setEhRecorrente(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer border-mt-regua-fina text-mt-accent focus:ring-mt-accent"
+                />
+                <span className="text-xs font-semibold text-mt-ink">Repete — é despesa fixa</span>
+              </label>
+
+              {ehRecorrente && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="pl-1 text-[10px] font-bold uppercase text-mt-neutral-700">A cada</label>
+                  <select
+                    value={frequencia}
+                    onChange={(e) => setFrequencia(e.target.value)}
+                    className="h-11 w-full cursor-pointer border border-mt-regua-fina bg-mt-surface px-4 text-xs text-mt-ink focus:border-mt-accent focus:outline-none"
+                  >
+                    <option value="semanal">Semana</option>
+                    <option value="quinzenal">Quinzena</option>
+                    <option value="mensal">Mês</option>
+                    <option value="bimestral">2 meses</option>
+                    <option value="trimestral">3 meses</option>
+                    <option value="semestral">6 meses</option>
+                    <option value="anual">Ano</option>
+                  </select>
+                  <span className="pl-1 text-[10px] leading-relaxed text-mt-neutral-600">
+                    O dia do vencimento acima vira o dia de todo mês. A recorrência vai ao
+                    Gestor para liberação — assinar uma despesa fixa compromete o ano inteiro,
+                    e é por isso que ela não entra sozinha.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Parcelamento (Only when creating) */}
           {!contaId ? (

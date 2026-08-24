@@ -101,3 +101,77 @@ describe("os outros consumidores da rota continuam inteiros", () => {
     expect(chamada).not.toContain("limite");
   });
 });
+
+/**
+ * A unificação de 2026-08-24: dois menus viraram campos e filtros.
+ *
+ * Pedido do dono: *"insumo é um tipo de compra, recorrência é um tipo de
+ * vencimento, pode ser um check no cadastro da conta a pagar... o painel vai
+ * filtrar isso em contas fixas, variáveis"*.
+ *
+ * O que estes testes guardam é a parte que dá errado silenciosamente numa
+ * unificação: a tela some, e junto some um comportamento que ninguém lembrava
+ * que dependia dela.
+ */
+const form = ler("src", "components", "financeiro", "ContaForm.tsx");
+const trilho = ler("src", "components", "admin", "SidebarNav.tsx");
+const margens = ler("src", "components", "financeiro", "FinanceMargens.tsx");
+
+describe("insumo e recorrência viraram campo, não sumiram", () => {
+  it("o formulário tem os três campos de compra de item", () => {
+    expect(form).toContain("ehCompraDeItem");
+    expect(form).toContain("quantidade");
+    expect(form).toContain("valorUnitario");
+    expect(form).toContain("notaFiscal");
+  });
+
+  it("o formulário tem o check de recorrência com frequência", () => {
+    expect(form).toContain("ehRecorrente");
+    expect(form).toContain("frequencia");
+  });
+
+  it("a recorrência é criada pela ROTA, e passa pela fila do Gestor", () => {
+    // Se a tela criasse a recorrente direto, a régua de aprovação ficaria no
+    // cliente — onde qualquer um a contorna. Assinar despesa fixa compromete
+    // o ano, e é a razão de a fila existir.
+    expect(rota).toContain("recorrenteNovaPrecisaDeAprovacao");
+    expect(rota).toContain('aprovacao_status: sobeRecorrente ? "aguardando" : "aprovada"');
+  });
+
+  it("falhar ao criar a recorrência aborta o gesto inteiro", () => {
+    // Criar só a primeira parcela entregaria metade do que foi pedido, em
+    // silêncio — a pessoa marcou "repete" e ficaria com uma conta avulsa.
+    expect(rota).toContain("Não foi possível criar a recorrência");
+  });
+});
+
+describe("o filtro de natureza deriva, não etiqueta", () => {
+  it("fixa e variável saem de `recorrencia_id`; insumo, de `quantidade`", () => {
+    // Derivar de coluna que já existe impede o terceiro estado: a conta
+    // marcada "fixa" sem recorrência nenhuma por trás.
+    expect(rota).toContain('natureza === "fixa"');
+    expect(rota).toContain('query.not("recorrencia_id", "is", null)');
+    expect(rota).toContain('natureza === "insumo"');
+    expect(rota).toContain('query.not("quantidade", "is", null)');
+  });
+});
+
+describe("o que a unificação não pode ter quebrado", () => {
+  it("o trilho perdeu as duas entradas, e só elas", () => {
+    expect(trilho).not.toContain("/admin/financeiro/compras");
+    expect(trilho).not.toContain("/admin/financeiro/recorrentes");
+    // As que ficam:
+    expect(trilho).toContain("/admin/financeiro/contas-pagar");
+    expect(trilho).toContain("/admin/financeiro/conciliacao");
+    expect(trilho).toContain("/admin/financeiro/investidores");
+    expect(trilho).toContain("/admin/financeiro/aprovacoes");
+  });
+
+  it("a MARGEM continua somando compra antiga sem contar em dobro", () => {
+    // `compras_produtos` para de receber linha nova, mas o histórico fica — e
+    // cada compra antiga tem conta vinculada. Sem este filtro, a margem
+    // contaria os dois e o custo do carro dobraria.
+    expect(margens).toContain("cp.conta_id");
+    expect(margens).toContain("contasIds.has(cp.conta_id)");
+  });
+});

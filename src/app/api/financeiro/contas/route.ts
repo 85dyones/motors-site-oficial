@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../../lib/webhook-dispatcher";
-import { precisaDeAprovacao } from "../../../../lib/alcada";
+import { precisaDeAprovacao, recorrenteNovaPrecisaDeAprovacao } from "../../../../lib/alcada";
 import { perfisDe } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +62,16 @@ export async function GET(request: NextRequest) {
       const estados = status.split(",").map((e) => e.trim()).filter(Boolean);
       query = estados.length > 1 ? query.in("status", estados) : query.eq("status", estados[0]);
     }
+    // A natureza da despesa, que era menu e virou filtro (2026-08-24).
+    // Sai de duas colunas em vez de uma etiqueta: `recorrencia_id` diz que a
+    // conta nasceu de uma regra (fixa), `quantidade` diz que é compra de item.
+    // Derivar em vez de etiquetar impede o terceiro estado — a conta marcada
+    // "fixa" que não tem recorrência nenhuma por trás.
+    const natureza = searchParams.get("natureza");
+    if (natureza === "fixa") query = query.not("recorrencia_id", "is", null);
+    if (natureza === "variavel") query = query.is("recorrencia_id", null);
+    if (natureza === "insumo") query = query.not("quantidade", "is", null);
+
     if (categoriaId) query = query.eq("categoria_id", categoriaId);
     if (veiculoId) query = query.eq("veiculo_id", veiculoId);
     if (startDate) query = query.gte("data_vencimento", startDate);
@@ -118,7 +128,11 @@ export async function POST(request: NextRequest) {
       forma_pagamento,
       total_parcelas,
       observacoes,
-      recorrencia_id
+      recorrencia_id,
+      quantidade,
+      valor_unitario,
+      nota_fiscal,
+      recorrencia
     } = body;
 
     if (!tipo || !descricao || !valor || !data_vencimento) {
@@ -143,6 +157,52 @@ export async function POST(request: NextRequest) {
       perfis: perfisDe(perfil),
     });
     const statusFinal = sobeParaAprovacao ? "aguardando_aprovacao" : statusPedido;
+
+    // ------------------------------------------------------------------
+    // A recorrência, quando a pessoa marcou "repete" no formulário
+    // ------------------------------------------------------------------
+    // A REGRA vive em `despesas_recorrentes`, não aqui: uma recorrente não
+    // tem vencimento, tem frequência, e virar linha em `contas` a faria
+    // entrar em toda soma do DRE e em todo "o que vence hoje". O que nasce
+    // agora é a primeira parcela — uma conta de verdade — apontando para a
+    // regra que gerará as próximas.
+    //
+    // Ela passa pela MESMA fila do agendamento, e com mais razão: assinar
+    // R$ 1.200/mês compromete R$ 14.400 no ano sem que exista uma conta para
+    // alguém olhar. Ver `recorrenteNovaPrecisaDeAprovacao` em lib/alcada.ts.
+    let recorrenciaCriadaId: string | null = null;
+    if (recorrencia && tipo === "pagar") {
+      const sobeRecorrente = recorrenteNovaPrecisaDeAprovacao(perfisDe(perfil));
+      const { data: nova, error: erroRec } = await supabase
+        .from("despesas_recorrentes")
+        .insert({
+          descricao,
+          valor: parseFloat(valor),
+          categoria_id: categoria_id || null,
+          fornecedor: fornecedor || null,
+          frequencia: recorrencia.frequencia || "mensal",
+          // O dia do vencimento da primeira parcela vira o dia de todo mês —
+          // é o que a tela promete, e o que a pessoa espera.
+          dia_vencimento: new Date(data_vencimento + "T12:00:00").getDate(),
+          forma_pagamento: forma_pagamento || null,
+          ativa: true,
+          aprovacao_status: sobeRecorrente ? "aguardando" : "aprovada",
+          observacoes: observacoes || null,
+          created_by: user.id,
+        })
+        .select("id")
+        .single();
+
+      if (erroRec) {
+        // Falhar aqui é falhar o gesto inteiro: a pessoa pediu uma despesa
+        // fixa, e criar só a primeira parcela entregaria metade em silêncio.
+        return NextResponse.json(
+          { error: `Não foi possível criar a recorrência: ${erroRec.message}` },
+          { status: 500 },
+        );
+      }
+      recorrenciaCriadaId = nova?.id ?? null;
+    }
 
     const numInstallments = parseInt(total_parcelas) || 1;
     const groupUuid = crypto.randomUUID();
@@ -169,8 +229,13 @@ export async function POST(request: NextRequest) {
         parcela_atual: i,
         total_parcelas: numInstallments,
         grupo_parcela: numInstallments > 1 ? groupUuid : null,
-        recorrencia_id: recorrencia_id || null,
+        recorrencia_id: recorrencia_id || recorrenciaCriadaId || null,
         observacoes: observacoes || null,
+        // Compra de insumo (2026-08-24): a tela própria virou três campos
+        // aqui. Nulos em conta comum — aluguel não tem unidade.
+        quantidade: quantidade || null,
+        valor_unitario: valor_unitario || null,
+        nota_fiscal: nota_fiscal || null,
         created_by: user.id
       });
     }
