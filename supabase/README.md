@@ -316,7 +316,7 @@ primária de um livro que decide o que roda e o que é pulado.
 
 ### Depois de aplicar: `conferir-estado-do-financeiro.sql`
 
-Cole no SQL Editor e rode. É **somente leitura** e devolve 22 linhas; toda
+Cole no SQL Editor e rode. É **somente leitura** e devolve 25 linhas; toda
 linha tem que sair ✅. Uma linha ❌ aponta o que falta e de qual migração ela
 vem — reaplicar essa migração resolve, porque todas são idempotentes.
 
