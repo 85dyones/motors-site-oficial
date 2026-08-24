@@ -57,15 +57,60 @@ export interface LancamentoParaAprovacao {
 /**
  * Este lançamento precisa subir para aprovação?
  *
- * Sim quando é agendamento e quem lança não tem, ele mesmo, o poder de
- * aprovar: pedir que o Gestor aprove o próprio agendamento seria burocracia
- * sem revisor. Quem responde por isso é a matriz — nenhum papel é citado por
- * nome aqui, então acrescentar um papel novo com poder de aprovação é uma
- * linha na A17, não uma edição nesta função.
+ * **Sim, sempre que for agendamento** — independentemente de quem lança.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a regra mudou em 2026-08-24
+ * ---------------------------------------------------------------------------
+ * Até aqui a resposta era "sim, a menos que quem lança possa aprovar". Parecia
+ * economia de burocracia e era, na prática, a anulação da regra: o dono é
+ * admin, admin aprova, então TODO lançamento dele pulava a fila. Ele lançou um
+ * pagamento de teste e foi procurá-lo em Aprovações; não estava lá, e nunca
+ * estaria.
+ *
+ * Pior: a própria matriz já dizia o contrário. A linha "Aprovar agendamento
+ * financeiro" carrega a nota *"Quem agenda não aprova: o Financeiro lança, o
+ * Gestor libera"* — a implementação contradizia o que ela mesma prometia, e
+ * ninguém tinha reparado porque o efeito só aparece para quem tem os dois
+ * poderes.
+ *
+ * Agora **lançar e aprovar são dois atos, sempre**. Agendar pagamento é
+ * decidir que dinheiro vai sair; que alguém confirme depois é o ponto inteiro
+ * da fila, e "eu mesmo poderia ter aprovado" não é razão para nunca ter
+ * havido revisão.
+ *
+ * ---------------------------------------------------------------------------
+ * E quando só existe uma pessoa?
+ * ---------------------------------------------------------------------------
+ * Ela aprova o próprio lançamento — e isso fica REGISTRADO como tal (ver
+ * `aprovacaoEhDoProprioAutor`). A alternativa, exigir sempre um segundo par de
+ * olhos, travaria todo pagamento enquanto a loja não tivesse conta de Gestor:
+ * uma régua contábil impecável que na segunda-feira impede a luz de ser paga.
+ *
+ * O desenho escolhido não finge que auto-aprovação é revisão. Ele deixa o
+ * gesto possível, separado do lançamento, e visível na trilha — para que no
+ * dia em que o Gestor entrar, a segregação passe a ser real sem trocar uma
+ * linha de código.
+ *
+ * Registrar o que já foi pago continua passando direto: é escrituração de
+ * fato consumado, não decisão sobre o futuro.
  */
 export function precisaDeAprovacao(l: LancamentoParaAprovacao): boolean {
-  if (!ehAgendamento(l.tipo, l.status)) return false;
-  return !podeDecidirAprovacao(l.perfis);
+  return ehAgendamento(l.tipo, l.status);
+}
+
+/**
+ * Quem aprovou é a mesma pessoa que lançou?
+ *
+ * Não bloqueia nada — descreve. A tela e a trilha usam isto para dizer
+ * "aprovado pelo próprio autor" em vez de deixar a linha parecer revisada por
+ * um terceiro. Auto-aprovação honesta é a que se declara.
+ */
+export function aprovacaoEhDoProprioAutor(
+  criadoPor?: string | null,
+  aprovadoPor?: string | null,
+): boolean {
+  return Boolean(criadoPor && aprovadoPor && criadoPor === aprovadoPor);
 }
 
 /**

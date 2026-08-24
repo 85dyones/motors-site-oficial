@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PLANO_DE_CONTAS_REVENDA } from "@/lib/planoContasData";
 
 interface LancamentoRapidoModalProps {
@@ -16,9 +16,33 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
   const [dataVencimento, setDataVencimento] = useState(new Date().toISOString().split("T")[0]);
   const [planoCodigo, setPlanoCodigo] = useState("003.005.006.016"); // Default: PEÇAS E MANUTENÇÃO
   const [fornecedorCliente, setFornecedorCliente] = useState("");
+  // O parceiro vem do CADASTRO, não do teclado (2026-08-24). Era campo livre,
+  // e campo livre em nome de fornecedor produz gêmeo por digitação: "Motors
+  // Peças" e "Motors Pecas" viram dois no DRE, e nenhum dos dois existe no
+  // cadastro. Cadastrar continua possível daqui, mas como ato deliberado —
+  // ver a opção "cadastrar novo".
+  const [parceiros, setParceiros] = useState<{ id: string; nome: string; tipo: string }[]>([]);
+  const [cadastrandoParceiro, setCadastrandoParceiro] = useState(false);
+  const [nomeDoNovoParceiro, setNomeDoNovoParceiro] = useState("");
   const [veiculoPlaca, setVeiculoPlaca] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/financeiro/parceiros", { cache: "no-store" });
+        const data = await res.json();
+        if (res.ok) setParceiros(data.parceiros || []);
+      } catch {
+        // Cadastro indisponível não pode travar o lançamento: a lista fica
+        // vazia e a pessoa cadastra na hora. Silêncio aqui é deliberado —
+        // um erro sobre parceiros no meio de um lançamento de conta assusta
+        // sem ajudar.
+      }
+    })();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -42,8 +66,11 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
         valor: parseFloat(valor.replace(",", ".")),
         data_vencimento: dataVencimento,
         status: "pendente",
-        fornecedor: tipo === "pagar" ? (fornecedorCliente || "Fornecedor Local") : null,
-        cliente: tipo === "receber" ? (fornecedorCliente || "Cliente Local") : null,
+        // Sem inventar nome. O fallback antigo gravava "Fornecedor Local"
+        // quando o campo vinha vazio — um fornecedor fantasma que nunca
+        // existiu, somando no DRE como se fosse alguém.
+        fornecedor: tipo === "pagar" ? (fornecedorCliente || null) : null,
+        cliente: tipo === "receber" ? (fornecedorCliente || null) : null,
         observacoes: `Lançamento Rápido (10s) — Plano: ${planoCodigo} - ${selectedAccount?.nome || 'Geral'}`,
       };
 
@@ -196,14 +223,61 @@ export default function LancamentoRapidoModal({ isOpen, onClose, onSuccess }: La
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Fornecedor / Local</label>
-              <input
-                type="text"
-                placeholder="Ex: Posto Shell, AutoPeças"
-                value={fornecedorCliente}
-                onChange={(e) => setFornecedorCliente(e.target.value)}
-                className="bg-mt-bg border border-mt-regua-fina px-3 h-10 text-xs text-mt-ink outline-none focus:border-mt-accent"
-              />
+              <label className="text-[9px] font-bold uppercase text-mt-neutral-700">
+                {tipo === "pagar" ? "Fornecedor" : "Cliente"}
+              </label>
+              {cadastrandoParceiro ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Nome do novo cadastro"
+                    value={nomeDoNovoParceiro}
+                    onChange={(e) => {
+                      setNomeDoNovoParceiro(e.target.value);
+                      setFornecedorCliente(e.target.value);
+                    }}
+                    className="h-10 flex-1 border border-mt-accent bg-mt-bg px-3 text-xs text-mt-ink outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCadastrandoParceiro(false);
+                      setNomeDoNovoParceiro("");
+                      setFornecedorCliente("");
+                    }}
+                    className="cursor-pointer text-[9px] font-bold uppercase text-mt-neutral-600 hover:text-mt-ink"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={fornecedorCliente}
+                  onChange={(e) => {
+                    if (e.target.value === "__novo__") {
+                      setCadastrandoParceiro(true);
+                      setNomeDoNovoParceiro("");
+                      setFornecedorCliente("");
+                    } else {
+                      setFornecedorCliente(e.target.value);
+                    }
+                  }}
+                  className="h-10 cursor-pointer border border-mt-regua-fina bg-mt-bg px-3 text-xs text-mt-ink outline-none focus:border-mt-accent"
+                >
+                  <option value="">Selecione…</option>
+                  {parceiros
+                    .filter((p) =>
+                      tipo === "pagar"
+                        ? p.tipo === "fornecedor" || p.tipo === "ambos"
+                        : p.tipo === "cliente" || p.tipo === "ambos",
+                    )
+                    .map((p) => (
+                      <option key={p.id} value={p.nome}>{p.nome}</option>
+                    ))}
+                  <option value="__novo__">➕ Cadastrar novo…</option>
+                </select>
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[9px] font-bold uppercase text-mt-neutral-700">Placa Veículo (Opcional)</label>
