@@ -1,10 +1,10 @@
 import FinanceCadastros from "../../../../components/financeiro/FinanceCadastros";
 
 export const metadata = {
-  title: "Cadastros Financeiros — Motors Showcase",
-  description: "Gerenciamento de categorias de receitas/despesas, fornecedores e clientes parceiros.",
+  title: "Plano de contas — Motors Showcase",
+  description: "Estrutura oficial de contas usada nos lançamentos e no DRE.",
 };
 
-export default function FinanceCadastrosPage() {
+export default function PlanoDeContasPage() {
   return <FinanceCadastros />;
 }

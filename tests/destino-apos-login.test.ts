@@ -56,7 +56,18 @@ describe("destino de entrada no painel", () => {
       arquivos["proxy.ts"].indexOf("// Configurações: Admin, Comercial e Marketing")
     );
     expect(trecho).not.toContain('url.pathname = "/admin/configuracoes"');
-    expect(trecho.match(/url\.pathname = "\/admin"/g) ?? []).toHaveLength(2);
+
+    // A asserção olha TODOS os destinos do bloco, não a quantidade deles.
+    // Ela travava o número em 2 e quebrou em 2026-08-24, quando a agenda de
+    // pessoas virou o terceiro portão — mas o número nunca foi a regra, e a
+    // versão antiga tinha um buraco: um desvio para "/admin/estoque" passava
+    // batido, porque só "/admin/configuracoes" era nomeado. Assim cobre os
+    // dois casos e não precisa ser mexida a cada portão novo.
+    const destinos = trecho.match(/url\.pathname = "[^"]*"/g) ?? [];
+    expect(destinos.length).toBeGreaterThanOrEqual(2);
+    for (const destino of destinos) {
+      expect(destino).toBe('url.pathname = "/admin"');
+    }
   });
 
   it("a regra que expulsa o Financeiro de Configurações continua de pé", () => {

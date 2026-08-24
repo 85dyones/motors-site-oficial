@@ -188,3 +188,72 @@ begin
    where status = 'pendente' and data_vencimento < current_date;
 end;
 $$ language plpgsql security definer;
+
+-- ---------------------------------------------------------------------------
+-- Recorte do Ciclo (migração 20260813150000), só o que a agenda de pessoas lê
+-- ---------------------------------------------------------------------------
+-- A migração `20260824190000_agenda_de_pessoas.sql` une três cadastros numa
+-- view. Dois deles nascem na migração do Ciclo, que NÃO está na cadeia de
+-- teste — ela toca treze tabelas e traria para cá metade do programa.
+--
+-- Entram aqui só as duas tabelas que a view lê, com as colunas que ela lê,
+-- copiadas fielmente da migração original. Sem elas a view seria testada na
+-- forma degradada (uma fonte só) e o teste passaria sem ver o que a produção
+-- vê — que é o modo de falha que este projeto vem perseguindo o mês inteiro.
+--
+-- ⚠️ Se a migração do Ciclo entrar na cadeia um dia, estas duas saem daqui:
+-- `create table if not exists` faria a de lá virar no-op e as colunas
+-- divergiriam em silêncio.
+
+-- O `is_staff` do bootstrap de 2026-08-13, na forma anterior ao multi-papel —
+-- a cadeia o substitui por `create or replace` quando
+-- `20260819150000_papeis_multiplos.sql` roda. Ele precisa existir ANTES,
+-- porque as policies abaixo o referenciam na hora de nascer.
+create or replace function public.is_staff(user_id uuid) returns boolean as $$
+  select exists (
+    select 1 from public.profiles
+     where id = user_id
+       and role in ('admin', 'comercial', 'financeiro', 'marketing')
+       and is_active = true
+  );
+$$ language sql security definer set search_path = public;
+
+create table public.clientes (
+  id                uuid primary key default gen_random_uuid(),
+  cpf_cnpj          text unique not null,
+  nome              text not null,
+  telefone_e164     text not null,
+  email             text,
+  data_nascimento   date,
+  cep               text,
+  consentimento_lgpd_em  timestamptz,
+  consentimento_canais   jsonb default '{"whatsapp":false,"email":false,"sms":false}',
+  origem_primeiro_contato text,
+  auth_user_id      uuid unique,
+  created_at        timestamptz default now(),
+  updated_at        timestamptz default now()
+);
+
+create table public.parceiros_ciclo (
+  id            uuid primary key default gen_random_uuid(),
+  tipo          text not null,
+  nome          text not null,
+  cidade        text,
+  comissao_pct  numeric(5,2),
+  ativo         boolean default true,
+  created_at    timestamptz default now()
+);
+
+alter table public.clientes        enable row level security;
+alter table public.parceiros_ciclo enable row level security;
+
+create policy clientes_staff on public.clientes
+  for all to authenticated
+  using (public.is_staff(auth.uid())) with check (public.is_staff(auth.uid()));
+
+create policy parceiros_ciclo_staff on public.parceiros_ciclo
+  for all to authenticated
+  using (public.is_staff(auth.uid())) with check (public.is_staff(auth.uid()));
+
+grant select, insert, update, delete
+  on public.clientes, public.parceiros_ciclo to authenticated, service_role;

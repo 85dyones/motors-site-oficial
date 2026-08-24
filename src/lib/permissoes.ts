@@ -359,6 +359,20 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "nao_ve", "faz"],
     "Saldo derivado do extrato, nunca digitado",
   ),
+  // Linha ACRESCENTADA em 2026-08-24, pedido do dono: *"precisamos ter uma aba
+  // clientes... o revenda tem uma área de clientes sejam internos ou externos,
+  // fornecedores... pra organizar tudo e termos como gerenciar"*.
+  //
+  // Marketing fica de fora e a razão está uma linha acima, em "Ver e mover
+  // leads no kanban": o perfil vê VOLUME, não contato. A agenda é uma lista de
+  // CPF, telefone e e-mail — dar aqui o que o kanban nega seria furar a régua
+  // por uma porta lateral. O Comercial entra porque é quem atende, e o
+  // Financeiro porque metade da agenda é fornecedor dele.
+  linha(
+    "Gerenciar clientes e fornecedores",
+    ["faz", "faz", "nao_ve", "faz", "faz"],
+    "Cadastro único — Marketing vê volume de lead, não contato",
+  ),
   linha(
     "Gerenciar campanhas de mídia paga",
     ["faz", "nao_ve", "faz", "nao_ve", "nao_ve"],

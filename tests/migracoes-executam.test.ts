@@ -63,6 +63,11 @@ const CADEIA = [
   "20260822180000_lancar_do_extrato_atomico.sql",
   "20260822210000_fundir_investidores.sql",
   "20260824150000_conta_absorve_insumo.sql",
+  // A agenda de pessoas une três cadastros numa view. O andaime ganhou o
+  // recorte de `clientes` e `parceiros_ciclo` junto — sem eles a view seria
+  // testada com uma fonte só, que é justamente a forma que não é a de
+  // produção.
+  "20260824190000_agenda_de_pessoas.sql",
 ];
 
 /**
