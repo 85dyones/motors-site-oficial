@@ -303,11 +303,11 @@ arquivo inteiro** — o código vai para produção referenciando tabelas que
 nunca foram criadas. Falha em silêncio, dos dois lados.
 
 Foi o que aconteceu em produção: a conciliação entrou sob o número antigo e
-`perfil_investidor` foi aplicada depois, à mão — então as tabelas dela existem,
-mas o livro-razão continua dizendo `20260822120000 = conciliacao_bancaria`, e
-um `db push` futuro seguiria pulando o arquivo. Diagnóstico e acerto em
-`manutencao/acertar_livro_razao_da_colisao.sql` — a parte 1 é somente leitura
-e confirma o cenário antes de mexer em qualquer coisa.
+`perfil_investidor` foi aplicada depois, à mão. **Resolvido em 2026-08-22** —
+o livro-razão de lá agora diz `20260822120000 = perfil_investidor` e
+`20260822130000 = conciliacao_bancaria`. Diagnóstico e acerto ficam
+arquivados em `manutencao/acertar_livro_razao_da_colisao.sql`; a parte 1 é
+somente leitura e continua servindo se a dúvida voltar.
 
 **A lição para a próxima migração.** Antes de escolher o número, rode
 `ls supabase/migrations/ | tail` **e** confira `origin/main` — trabalho

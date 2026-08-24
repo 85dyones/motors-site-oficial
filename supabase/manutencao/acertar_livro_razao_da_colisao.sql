@@ -1,6 +1,21 @@
 -- ===========================================================================
 -- A colisão de 20260822120000 — diagnóstico e acerto do livro-razão
 -- ===========================================================================
+-- ✅ APLICADO EM PRODUÇÃO em 2026-08-22. O livro-razão de lá agora diz:
+--
+--      20260822120000 | perfil_investidor
+--      20260822130000 | conciliacao_bancaria
+--
+-- Fica arquivado como registro do que foi feito, e porque a parte 1 continua
+-- servindo de diagnóstico se a dúvida voltar. Rodar de novo é inofensivo: a
+-- parte 2 só age enquanto o nome estiver errado.
+--
+-- O estado que ele encontrou em produção NÃO foi o previsto no cenário
+-- original: as DUAS versões já estavam registradas, e era só o nome de
+-- `20260822120000` que estava errado. As condições do UPDATE cobriram isso
+-- sem ajuste — mas vale a nota, porque a parte 1 abaixo ainda descreve
+-- "(nenhum registro)" como o normal para a linha 2, e não foi o caso aqui.
+--
 -- ⚠️ RODE A PARTE 1 PRIMEIRO E LEIA O RESULTADO. A parte 2 está comentada de
 -- propósito: o que ela deve fazer depende do que a parte 1 encontrar.
 --
