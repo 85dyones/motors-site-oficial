@@ -20,16 +20,48 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("end_date");
     const search = searchParams.get("search");
 
+    // ------------------------------------------------------------------
+    // Paginação e ordem — acrescentadas em 2026-08-24, e é opt-in
+    // ------------------------------------------------------------------
+    // Uma conta lançada em produção "sumiu": estava na posição 709 de uma
+    // lista sem paginação, ordenada do vencimento MAIS ANTIGO para o mais
+    // novo. A tela abria em julho e o lançamento de hoje ficava setecentas
+    // linhas abaixo. Ninguém rolaria até lá, e a tela não dava pista nenhuma
+    // de que havia mais — some por omissão, que é o mesmo modo de falha que
+    // o DELETE recusado pela RLS e o rollback que não desfazia.
+    //
+    // `limite` é OPT-IN de propósito. `FinanceRelatorios` chama esta rota
+    // para AGREGAR o balanço; um limite padrão faria o relatório somar em
+    // cima de um recorte e apresentar o resultado como se fosse o total —
+    // exatamente o defeito que esta mudança existe para eliminar. Quem não
+    // pede página continua recebendo tudo.
+    //
+    // `total` volta SEMPRE, com ou sem paginação: é o que permite a tela
+    // dizer "50 de 709" em vez de deixar o usuário adivinhar.
+    const ordem = searchParams.get("ordem") === "desc" ? false : true;
+    const limiteBruto = parseInt(searchParams.get("limite") ?? "", 10);
+    const limite = Number.isFinite(limiteBruto) && limiteBruto > 0
+      ? Math.min(limiteBruto, 200)
+      : null;
+    const paginaBruta = parseInt(searchParams.get("pagina") ?? "", 10);
+    const pagina = Number.isFinite(paginaBruta) && paginaBruta > 0 ? paginaBruta : 1;
+
     let query = supabase
       .from("contas")
       .select(`
         *,
         categoria:categorias_financeiras (nome, cor, icone)
-      `);
+      `, { count: "exact" });
 
     // Apply filters
     if (tipo) query = query.eq("tipo", tipo);
-    if (status) query = query.eq("status", status);
+    // `status` aceita lista separada por vírgula: a tela abre em "em aberto",
+    // que são três estados (pendente, vencido, aguardando_aprovacao). Sem
+    // isso, "o que eu devo" exigiria três consultas ou nenhum filtro.
+    if (status) {
+      const estados = status.split(",").map((e) => e.trim()).filter(Boolean);
+      query = estados.length > 1 ? query.in("status", estados) : query.eq("status", estados[0]);
+    }
     if (categoriaId) query = query.eq("categoria_id", categoriaId);
     if (veiculoId) query = query.eq("veiculo_id", veiculoId);
     if (startDate) query = query.gte("data_vencimento", startDate);
@@ -38,14 +70,27 @@ export async function GET(request: NextRequest) {
       query = query.or(`descricao.ilike.%${search}%,fornecedor.ilike.%${search}%,cliente.ilike.%${search}%`);
     }
 
-    // Order by date
-    const { data: contas, error } = await query.order("data_vencimento", { ascending: true });
+    query = query.order("data_vencimento", { ascending: ordem });
+    if (limite !== null) {
+      const inicio = (pagina - 1) * limite;
+      query = query.range(inicio, inicio + limite - 1);
+    }
+
+    const { data: contas, error, count } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ contas });
+    // `total` é o que a tela usa para dizer "50 de 709". Sem ele, uma lista
+    // paginada é indistinguível de uma lista completa — e a pessoa acredita
+    // que viu tudo.
+    return NextResponse.json({
+      contas,
+      total: count ?? (contas?.length ?? 0),
+      pagina: limite !== null ? pagina : 1,
+      limite,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

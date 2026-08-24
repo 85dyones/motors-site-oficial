@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Os três estados de uma conta que ainda pede ação. `pago` e `cancelado`
+ * ficam de fora: são história, e história no topo da lista foi o que fez um
+ * lançamento novo "sumir" na posição 709 em 2026-08-24.
+ */
+const EM_ABERTO = "pendente,vencido,aguardando_aprovacao";
+const POR_PAGINA = 50;
+
 import { useEffect, useState } from "react";
 import ContaForm from "./ContaForm";
 import { useConfirm } from "../admin/ConfirmDialog";
@@ -53,9 +61,15 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
 
   // Filters State
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  // Abre em "em aberto", não em "todos". Quem entra em Contas a pagar quer
+  // saber o que DEVE — o que já foi pago é histórico e empurra o que importa
+  // para baixo. O seletor mostra o filtro ativo, então não é esconder por
+  // omissão: é começar pela pergunta certa, dizendo qual pergunta é.
+  const [statusFilter, setStatusFilter] = useState(EM_ABERTO);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
 
   // Modal / Form States
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -75,11 +89,17 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
       if (statusFilter) params.append("status", statusFilter);
       if (startDate) params.append("start_date", startDate);
       if (endDate) params.append("end_date", endDate);
+      // Vencimento mais PRÓXIMO primeiro. Ascendente punha julho no topo e o
+      // lançamento de hoje no fim de setecentas linhas.
+      params.append("ordem", "desc");
+      params.append("limite", String(POR_PAGINA));
+      params.append("pagina", String(pagina));
 
       const res = await fetch(`/api/financeiro/contas?${params.toString()}`);
       const data = await res.json();
       if (res.ok) {
         setContas(data.contas || []);
+        setTotal(data.total ?? 0);
       } else {
         setError(data.error || "Falha ao carregar contas.");
       }
@@ -91,8 +111,12 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
   };
 
   useEffect(() => {
-    fetchContas();
+    setPagina(1);
   }, [tipo, statusFilter, startDate, endDate]);
+
+  useEffect(() => {
+    fetchContas();
+  }, [tipo, statusFilter, startDate, endDate, pagina]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -307,6 +331,7 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="bg-mt-bg border border-mt-regua-fina text-xs text-mt-ink px-3 h-8 cursor-pointer"
               >
+                <option value={EM_ABERTO}>Em aberto</option>
                 <option value="">Todos</option>
                 <option value="pendente">Pendente</option>
                 <option value="aguardando_aprovacao">Aguardando aprovação</option>
@@ -421,6 +446,47 @@ export default function ContasList({ tipo, podeExcluir = false }: ContasListProp
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Rodapé de paginação. Ele existe menos para navegar e mais para
+                DIZER que há mais — uma lista cortada sem aviso é
+                indistinguível de uma lista completa, e foi assim que um
+                lançamento novo passou por perdido. */}
+            {!isLoading && total > 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-mt-regua-fina pt-3">
+                <span className="text-[10px] text-mt-neutral-600">
+                  Mostrando{" "}
+                  <strong className="font-bold text-mt-neutral-700">
+                    {(pagina - 1) * POR_PAGINA + 1}–{Math.min(pagina * POR_PAGINA, total)}
+                  </strong>{" "}
+                  de <strong className="font-bold text-mt-neutral-700">{total}</strong>
+                  {statusFilter === EM_ABERTO && " em aberto"}
+                  {" · vencimento mais próximo primeiro"}
+                </span>
+                {total > POR_PAGINA && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                      disabled={pagina <= 1}
+                      className="mt-foco border border-mt-regua-fina px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-mt-neutral-700 disabled:opacity-40 enabled:cursor-pointer enabled:hover:border-mt-accent enabled:hover:text-mt-accent"
+                    >
+                      Anterior
+                    </button>
+                    <span className="text-[10px] tabular-nums text-mt-neutral-600">
+                      {pagina} / {Math.max(1, Math.ceil(total / POR_PAGINA))}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPagina((p) => p + 1)}
+                      disabled={pagina >= Math.ceil(total / POR_PAGINA)}
+                      className="mt-foco border border-mt-regua-fina px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-mt-neutral-700 disabled:opacity-40 enabled:cursor-pointer enabled:hover:border-mt-accent enabled:hover:text-mt-accent"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
