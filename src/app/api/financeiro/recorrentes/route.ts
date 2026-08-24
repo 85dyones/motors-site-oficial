@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../../lib/webhook-dispatcher";
+import { recorrenteNovaPrecisaDeAprovacao } from "../../../../lib/alcada";
+import { perfisDe } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -56,9 +58,21 @@ export async function POST(request: NextRequest) {
       nextGen.setMonth(nextGen.getMonth() + 1); // Set for next month if already passed
     }
 
+    // Cadastro de recorrente é decisão de gasto — a mais pesada do módulo,
+    // porque compromete caixa todo mês sem nenhuma conta existir ainda. Vai
+    // ao Gestor pela mesma régua do agendamento. A GERAÇÃO mensal segue
+    // passando direto: o compromisso já foi assumido aqui.
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("role, papeis")
+      .eq("id", user.id)
+      .single();
+    const sobeParaAprovacao = recorrenteNovaPrecisaDeAprovacao(perfisDe(perfil));
+
     const { data: inserted, error } = await supabase
       .from("despesas_recorrentes")
       .insert({
+        aprovacao_status: sobeParaAprovacao ? "aguardando" : "aprovada",
         descricao,
         valor: parseFloat(valor),
         categoria_id: categoria_id || null,
@@ -80,12 +94,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Dispatch webhook event
-    await dispatchAdminWebhook("recorrente_criada", inserted).catch((err) =>
-      console.error("[WebhookDispatcher] Failed to dispatch recorrente_criada:", err.message)
+    // Um evento OU o outro, nunca os dois: dois avisos pela mesma recorrente
+    // viram ruído no WhatsApp de quem aprova.
+    const evento = sobeParaAprovacao ? "recorrente_aguardando_aprovacao" : "recorrente_criada";
+    await dispatchAdminWebhook(evento, inserted).catch((err) =>
+      console.error(`[WebhookDispatcher] Failed to dispatch ${evento}:`, err.message)
     );
 
-    return NextResponse.json({ recurring: inserted });
+    return NextResponse.json({ recurring: inserted, aguardandoAprovacao: sobeParaAprovacao });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

@@ -46,6 +46,9 @@ export async function PUT(
           { status: 400 },
         );
       }
+      // `cliente` entra aqui: o funcionário que também comprou carro carrega
+      // os dois papéis, e recusá-lo na edição faria a A17 apagar em silêncio
+      // um papel que o usuário legitimamente tem.
       const invalidos = papeis.filter(
         (p: string) => !(PAPEIS_ATRIBUIVEIS as readonly string[]).includes(p),
       );

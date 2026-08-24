@@ -87,8 +87,12 @@ describe("a A17 não mente sobre papel", () => {
     // staff com primário `cliente` seria barrado do painel inteiro. Desde
     // 2026-08-22 a lista tem dois grupos (painel e área própria) e a ordenação
     // acontece sobre a seleção inteira, mas a regra é a mesma.
-    expect(telaA17).toContain("...novosBrutos.filter((x) => ehPapelDePainel(x)),");
-    expect(telaA17).toContain("...novosBrutos.filter((x) => !ehPapelDePainel(x)),");
+    // A fusão de 2026-08-22 trocou o filtro inline por `ordenarPapeis`, que é
+    // a mesma garantia num lugar testável em isolamento (ver
+    // `papeis-gestor-investidor.test.ts`): papel de painel na frente, e o
+    // primário escolhido antes de todos. Guardar a CHAMADA em vez do corpo
+    // evita que este teste quebre de novo na próxima refatoração honesta.
+    expect(telaA17).toContain("ordenarPapeis(novosBrutos");
   });
 
   it("a rota PUT garante a mesma ordem para qualquer cliente da API", () => {

@@ -120,6 +120,36 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
     };
   }
 
+  // Aporte/retirada de investidor (briefing 2026-08-21). `valor` é sempre
+  // positivo — o lado mora em `tipo`, como nos contadores de conta_vencida.
+  if (event.startsWith("investidor_")) {
+    const veiculo = await getVehicleInfo(payload.veiculo_id, payload.veiculo?.marca ? payload.veiculo : undefined);
+    let investidor = payload.investidor?.nome || null;
+    if (!investidor && payload.investidor_id) {
+      try {
+        const { data } = await supabase
+          .from("investidores")
+          .select("nome")
+          .eq("id", payload.investidor_id)
+          .maybeSingle();
+        investidor = data?.nome || null;
+      } catch {
+        investidor = null;
+      }
+    }
+    return {
+      id: payload.id,
+      investidor,
+      tipo: payload.tipo,
+      valor: Number(payload.valor),
+      data: payload.data,
+      descricao: payload.descricao,
+      forma_pagamento: payload.forma_pagamento || null,
+      veiculo,
+      observacoes: payload.observacoes || null
+    };
+  }
+
   return payload;
 }
 

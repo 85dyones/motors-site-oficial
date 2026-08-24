@@ -14,9 +14,10 @@
  * do doc: quem consome `podeFazer()` esconde, não desabilita.
  */
 
-export const PERFIS = ["admin", "marketing", "comercial", "financeiro"] as const;
+export const PERFIS = ["admin", "gestor", "marketing", "comercial", "financeiro"] as const;
 export type Perfil = (typeof PERFIS)[number];
 
+/**
 /**
  * Papéis que existem no vocabulário do banco mas NÃO são de painel.
  *
@@ -27,16 +28,39 @@ export type Perfil = (typeof PERFIS)[number];
  * API, saldos, `preco_compra` de todo o estoque), a escrita de estoque e os
  * leads. Promover investidor a perfil de painel seria dar tudo isso a quem só
  * precisa ver a própria posição.
+ *
+ * Não há lista de exclusão em lugar nenhum: `perfisDe` descarta o que não
+ * está em `PERFIS`, então `ehStaff` responde `false` sozinho.
  */
 export const PAPEIS_SEM_PAINEL = ["cliente", "investidor"] as const;
 export type PapelSemPainel = (typeof PAPEIS_SEM_PAINEL)[number];
 
-/** O que a A17 pode atribuir a alguém — painel e não-painel. */
+/**
+ * O que a A17 pode atribuir a alguém — painel e não-painel.
+ *
+ * `investidor` PRECISA estar aqui: sem ele, `/api/users` recusa o papel e a
+ * área `/investidor` fica inalcançável — ninguém consegue criar a conta que
+ * ela pressupõe. Foi exatamente o que aconteceu entre a criação do papel e
+ * esta constante.
+ */
 export const PAPEIS_ATRIBUIVEIS = [...PERFIS, ...PAPEIS_SEM_PAINEL] as const;
+export type PapelAtribuivel = (typeof PAPEIS_ATRIBUIVEIS)[number];
+
+/**
+ * Todo papel que o banco aceita — a régua de `papeis_validos()`.
+ *
+ * Hoje coincide com `PAPEIS_ATRIBUIVEIS`, e os dois nomes ficam porque
+ * significam coisas diferentes: este é o que o BANCO aceita, aquele é o que a
+ * TELA oferece. No dia em que existir papel que o banco aceita mas o admin
+ * não concede (ou o contrário), eles se separam sem ninguém ter que caçar
+ * chamadas. Um teste trava este contra o CHECK do SQL.
+ */
+export const TODOS_OS_PAPEIS = [...PERFIS, ...PAPEIS_SEM_PAINEL] as const;
 
 /** Rótulo de exibição de QUALQUER papel conhecido. */
 export const ROTULO_DO_PAPEL: Record<string, string> = {
   admin: "Administrador",
+  gestor: "Gestor",
   marketing: "Marketing",
   comercial: "Comercial",
   financeiro: "Financeiro",
@@ -44,9 +68,47 @@ export const ROTULO_DO_PAPEL: Record<string, string> = {
   investidor: "Investidor",
 };
 
+/** Este papel é de painel? Falso para `investidor` e `cliente`. */
+export function ehPapelDePainel(papel: string): boolean {
+  return (PERFIS as readonly string[]).includes(papel);
+}
+
 /**
- * Papel de painel? A role `cliente` (2026-08-13, Garagem Motors) é `authenticated`
- * no Supabase mas NUNCA entra na matriz: cliente pertence à área do cliente.
+ * Põe os papéis na ordem em que o banco vai guardá-los — `papeis[0]` é o
+ * PRIMÁRIO, e é ele que o trigger espelha em `role`.
+ *
+ * Existe porque trocar o primário era impossível pela tela (2026-08-21): o
+ * seletor só sabia ANEXAR papel no fim, então quem virou admin primeiro
+ * continuava admin primário para sempre. O pedido do dono foi direto — *"um
+ * adm que perdeu a função ou foi para o comercial puro"*.
+ *
+ * Duas garantias, nesta ordem:
+ *
+ * 1. **O primário escolhido vem primeiro** — é o gesto que faltava.
+ * 2. **Papel de painel sempre precede papel de fora do painel.** `role` é
+ *    lido como "o papel de equipe" por código antigo que ainda não migrou
+ *    para `papeis`; deixar `investidor` virar primário de alguém que também é
+ *    comercial faria esse código enxergar um papel que não existe na matriz.
+ *    Quem é SÓ investidor tem `investidor` no primeiro lugar, e está certo:
+ *    aí não há papel de equipe para pôr na frente.
+ */
+export function ordenarPapeis(papeis: string[], primario?: string): string[] {
+  const unicos = [...new Set(papeis.filter(Boolean))];
+  const dePainel = unicos.filter(ehPapelDePainel);
+  const foraDoPainel = unicos.filter((p) => !ehPapelDePainel(p));
+
+  const promovido =
+    primario && dePainel.includes(primario)
+      ? [primario, ...dePainel.filter((p) => p !== primario)]
+      : dePainel;
+
+  return [...promovido, ...foraDoPainel];
+}
+
+/**
+ * Papel de painel? As roles de `PAPEIS_SEM_PAINEL` — `cliente` (2026-08-13,
+ * Garagem Motors) e `investidor` (2026-08-22) — são `authenticated` no
+ * Supabase mas NUNCA entram na matriz: cada uma pertence à própria área.
  * Todo gate de painel ou de API interna pergunta aqui ANTES de
  * `normalizarPerfil` — normalizar um papel que não é de staff o promoveria a
  * "comercial".
@@ -64,9 +126,11 @@ export function ehStaff(
  * porque as três formas convivem: o banco mantém `role` como espelho de
  * `papeis[1]` para o código que ainda lê a coluna antiga.
  *
- * `cliente` NÃO entra na lista: ele não é papel de painel. Um funcionário que
- * também comprou carro tem `{cliente, comercial}` e é comercial aqui — o que
- * `cliente` nunca faz é ADICIONAR permissão de painel.
+ * `cliente` e `investidor` NÃO entram na lista: nenhum dos dois é papel de
+ * painel. Um funcionário que também comprou carro tem `{cliente, comercial}` e
+ * é comercial aqui; um sócio que também trabalha na loja tem
+ * `{investidor, gestor}` e é gestor aqui. O que esses papéis nunca fazem é
+ * ADICIONAR permissão de painel.
  */
 export function perfisDe(
   origem: string | string[] | { role?: string | null; papeis?: string[] | null } | null | undefined,
@@ -116,17 +180,30 @@ export type Permissao = "faz" | "revisao" | "nao_ve";
 
 export const ROTULO_DO_PERFIL: Record<Perfil, string> = {
   admin: "Administrador",
+  gestor: "Gestor",
   marketing: "Marketing",
   comercial: "Comercial",
   financeiro: "Financeiro",
 };
 
-/** Alçadas por perfil, como o A17 descreve. */
+/**
+ * Alçadas por perfil, como o A17 descreve.
+ *
+ * A do Financeiro deixou de ser um VALOR em 2026-08-21. O doc dizia
+ * "R$ 1.500", e o dono desfez a régua: *"essa regra de 1.500 reais não faz
+ * sentido no financeiro"*. Limite em reais não descreve o risco de uma
+ * revenda — R$ 1.200 de despesa nova recorrente compromete mais que
+ * R$ 40.000 de um carro já negociado —, e obrigava a arbitrar um número que
+ * ninguém sabia defender. O que passa a valer é o ATO: agendar pagamento é
+ * decisão de gasto e vai ao Gestor; registrar o que já foi pago é
+ * escrituração e não vai a ninguém. Ver `src/lib/alcada.ts`.
+ */
 export const ALCADA_DO_PERFIL: Record<Perfil, string> = {
   admin: "Sem limite",
+  gestor: "Sem limite em preço e agendamento",
   marketing: "—",
   comercial: "5% no preço",
-  financeiro: "R$ 1.500",
+  financeiro: "Agendamento vai ao Gestor",
 };
 
 /** Descrição de cada perfil (cards do topo da A17). */
@@ -135,6 +212,11 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
     descricao:
       "Enxerga tudo e é o único que mexe em paleta, permissões e campos travados de ficha técnica.",
     chave: "Único que altera permissões",
+  },
+  gestor: {
+    descricao:
+      "Aprova os agendamentos do financeiro, ajusta os valores de entrada e saída dos negócios de carro e acompanha os relatórios.",
+    chave: "Aprova agendamento financeiro",
   },
   marketing: {
     descricao:
@@ -161,36 +243,61 @@ export interface LinhaDaMatriz {
 
 const linha = (
   acao: string,
-  [admin, marketing, comercial, financeiro]: [Permissao, Permissao, Permissao, Permissao],
+  [admin, gestor, marketing, comercial, financeiro]: [
+    Permissao,
+    Permissao,
+    Permissao,
+    Permissao,
+    Permissao,
+  ],
   observacao = "",
 ): LinhaDaMatriz => ({
   acao,
-  permissoes: { admin, marketing, comercial, financeiro },
+  permissoes: { admin, gestor, marketing, comercial, financeiro },
   observacao,
 });
 
 /** A matriz do A17, na ordem do doc. */
 export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
-  linha("Alterar preço até 5%", ["faz", "nao_ve", "faz", "faz"], "Registro com autor e horário"),
-  linha("Alterar preço acima de 5%", ["faz", "nao_ve", "revisao", "faz"], "Revisão obrigatória de Admin"),
+  linha(
+    "Alterar preço até 5%",
+    ["faz", "faz", "nao_ve", "faz", "faz"],
+    "Registro com autor e horário",
+  ),
+  // O Gestor entra sem revisão (2026-08-21): "ajustar valores de negócios de
+  // carro, entrada e saída" é a razão de o papel existir — mandá-lo a
+  // revisão seria negar a própria alçada. O Comercial segue em revisão.
+  linha(
+    "Alterar preço acima de 5%",
+    ["faz", "faz", "nao_ve", "revisao", "faz"],
+    "Revisão de Admin — o Gestor decide dentro da alçada dele",
+  ),
   linha(
     "Editar texto legal e condições de financiamento",
-    ["faz", "nao_ve", "nao_ve", "faz"],
+    ["faz", "nao_ve", "nao_ve", "nao_ve", "faz"],
     "Trava de conformidade — some do editor de veículo",
   ),
   linha(
     "Editar paleta, logo e tipografia do site",
-    ["faz", "nao_ve", "nao_ve", "nao_ve"],
+    ["faz", "nao_ve", "nao_ve", "nao_ve", "nao_ve"],
     "Muda a marca inteira de uma vez",
   ),
-  linha("Publicar ou despublicar veículo", ["faz", "revisao", "faz", "nao_ve"], "Exige checklist completo"),
-  linha("Adicionar e reordenar fotos", ["faz", "faz", "faz", "nao_ve"], "Marketing é o dono natural"),
+  linha(
+    "Publicar ou despublicar veículo",
+    ["faz", "nao_ve", "revisao", "faz", "nao_ve"],
+    "Exige checklist completo",
+  ),
+  linha(
+    "Adicionar e reordenar fotos",
+    ["faz", "nao_ve", "faz", "faz", "nao_ve"],
+    "Marketing é o dono natural",
+  ),
   linha(
     "Editar ficha técnica travada (placa)",
-    ["faz", "nao_ve", "nao_ve", "nao_ve"],
+    ["faz", "nao_ve", "nao_ve", "nao_ve", "nao_ve"],
     "Reescreve o histórico do veículo",
   ),
-  linha("Editar opcionais e destaques rápidos", ["faz", "faz", "faz", "nao_ve"]),
+  linha("Editar opcionais e destaques rápidos", ["faz", "nao_ve", "faz", "faz", "nao_ve"]),
   // Linha ACRESCENTADA ao doc, por decisão do dono em 2026-08-08: "a placa é
   // informação interna, precisamos ter todos os campos da documentação padrão
   // — placa, renavam, carroceria". Preencher documento é trabalho de operação,
@@ -199,46 +306,85 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   // modelo, ano e versão.
   linha(
     "Preencher documentação do veículo (placa, renavam)",
-    ["faz", "faz", "faz", "nao_ve"],
+    ["faz", "nao_ve", "faz", "faz", "nao_ve"],
     "Dado interno — nunca aparece no site",
   ),
   linha(
     "Ver e mover leads no kanban",
-    ["faz", "nao_ve", "faz", "nao_ve"],
+    ["faz", "nao_ve", "nao_ve", "faz", "nao_ve"],
     "Marketing vê só o volume agregado",
   ),
   linha(
     "Ver custo de aquisição e margem",
-    ["faz", "nao_ve", "nao_ve", "faz"],
-    "Comercial vê preço e desconto, não custo",
+    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
+    "O custo é a ENTRADA do negócio — Comercial vê preço e desconto, não custo",
   ),
   linha(
     "Lançar e aprovar contas a pagar",
-    ["faz", "nao_ve", "nao_ve", "faz"],
-    "Alçada de R$ 1.500 no gerente",
+    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
+    "Lançar é do Financeiro; agendar exige a linha abaixo",
+  ),
+  // As duas linhas abaixo entram em 2026-08-21 com o papel Gestor, por pedido
+  // do dono: ele "terá o poder de aprovar os agendamentos financeiro... bem
+  // como acesso aos relatórios". São as duas atribuições que o A17 não tinha
+  // como expressar — a primeira porque a aprovação era um limite em reais que
+  // ninguém sabia defender, a segunda porque relatório nunca teve linha
+  // própria e vinha de carona no acesso ao módulo inteiro.
+  linha(
+    "Aprovar agendamento financeiro",
+    ["faz", "faz", "nao_ve", "nao_ve", "nao_ve"],
+    "Quem agenda não aprova: o Financeiro lança, o Gestor libera",
+  ),
+  linha(
+    "Ver relatórios gerenciais e DRE",
+    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
+    "Leitura consolidada — não dá poder de lançar nem de decidir",
+  ),
+  // Separação de funções, decidida em 2026-08-21 junto com "quem aprova
+  // pagamento no dia a dia é o Gestor": quem libera um agendamento não pode
+  // apagar a conta, a movimentação de caixa que a baixa gerou e a trilha da
+  // própria decisão — some tudo junto e sem log. Gestor e Financeiro
+  // CANCELAM (status 'cancelado' preserva a linha); apagar é do Admin.
+  linha(
+    "Excluir lançamento financeiro",
+    ["faz", "nao_ve", "nao_ve", "nao_ve", "nao_ve"],
+    "Quem aprova não apaga a prova — os demais cancelam",
+  ),
+  // Linha ACRESCENTADA em 2026-08-21, briefing do dono com a adm/financeira:
+  // controle de aportes e retiradas dos investidores. Capital de investidor é
+  // assunto de quem fecha o caixa e de quem responde pelo negócio — Comercial
+  // e Marketing nem veem o grupo.
+  linha(
+    "Controlar aportes e retiradas de investidores",
+    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
+    "Saldo derivado do extrato, nunca digitado",
   ),
   linha(
     "Gerenciar campanhas de mídia paga",
-    ["faz", "faz", "nao_ve", "nao_ve"],
+    ["faz", "nao_ve", "faz", "nao_ve", "nao_ve"],
     "Financeiro vê o total investido",
   ),
-  linha("Convidar usuário e trocar perfil", ["faz", "nao_ve", "nao_ve", "nao_ve"], "Somente Admin"),
+  linha(
+    "Convidar usuário e trocar perfil",
+    ["faz", "nao_ve", "nao_ve", "nao_ve", "nao_ve"],
+    "Somente Admin",
+  ),
   // Linhas do Motors Ciclo, acrescentadas em 2026-08-14 (Pacote 2). O A17 é de
   // antes do programa existir; quem fecha venda e quem verifica revisão foi
   // decidido pelo dono em 2026-08-13 — ver EMENDA_01_MANUAL_CICLO.md, E7.
   linha(
     "Fechar venda do Ciclo",
-    ["faz", "nao_ve", "faz", "nao_ve"],
+    ["faz", "nao_ve", "nao_ve", "faz", "nao_ve"],
     "Registro do par cliente-veículo — sem ele não há programa",
   ),
   linha(
     "Verificar revisão do diário de bordo",
-    ["faz", "nao_ve", "faz", "nao_ve"],
+    ["faz", "nao_ve", "nao_ve", "faz", "nao_ve"],
     "O Comercial é dono da fila; o Admin revisa recusa",
   ),
   linha(
     "Acompanhar a conformidade do Ciclo",
-    ["faz", "nao_ve", "faz", "nao_ve"],
+    ["faz", "faz", "nao_ve", "faz", "nao_ve"],
     "O indicador que destrava a recompra — a diretoria acompanha",
   ),
 ];

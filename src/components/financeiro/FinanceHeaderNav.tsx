@@ -17,8 +17,11 @@ export default function FinanceHeaderNav() {
 
   const tabs = [
     { name: "Visão Geral", href: "/admin/financeiro" },
+    { name: "Pagamentos do Dia", href: "/admin/financeiro/dia" },
     { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
+    { name: "Conciliação Bancária", href: "/admin/financeiro/conciliacao" },
     { name: "Contas a Pagar", href: "/admin/financeiro/contas-pagar" },
+    { name: "Aprovações", href: "/admin/financeiro/aprovacoes" },
     { name: "Contas a Receber", href: "/admin/financeiro/contas-receber" },
     { name: "Despesas Recorrentes", href: "/admin/financeiro/recorrentes" },
     { name: "Compras de Insumos", href: "/admin/financeiro/compras" },

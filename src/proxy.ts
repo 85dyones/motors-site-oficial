@@ -4,7 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { papelPadraoPorEmail } from "./lib/papelPadrao";
-import { ehInvestidor, perfisDe } from "./lib/permissoes";
+import { ehInvestidor, ehStaff, perfisDe } from "./lib/permissoes";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -218,10 +218,13 @@ export async function proxy(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      // Todos os papéis, não só o primário (multi-papel, 2026-08-19): quem
-      // vende E cuida do financeiro precisa das duas áreas, e o primário
-      // sozinho negava a segunda. Sem linha em `profiles`, vale o papel
-      // padrão por e-mail (rede de segurança dos fundadores).
+      // TODOS os papéis, não o primário (multi-papel, 2026-08-19). Até
+      // 2026-08-21 as regras abaixo comparavam `role` — espelho de `papeis[1]`
+      // — com um nome só: quem tinha `financeiro` como SEGUNDO papel levava
+      // 403 em /api/financeiro e redirect em /admin/financeiro, o gêmeo (do
+      // lado da aplicação) do bug que `20260821120000` corrigiu no banco.
+      // Sem linha em `profiles`, vale o papel padrão por e-mail — a rede de
+      // segurança dos fundadores.
       const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email));
       const investidor = ehInvestidor(profile);
 
@@ -239,10 +242,13 @@ export async function proxy(request: NextRequest) {
         return response;
       }
 
-      // Papel `cliente` (Garagem Motors, 2026-08-13) nunca entra no painel:
-      // `perfisDe` o descarta, então lista vazia é "não é da equipe" — sem
-      // este bloqueio, cliente herdaria os acessos de `comercial`.
-      if (perfis.length === 0) {
+      // Papéis fora do painel — `cliente` (Garagem, 2026-08-13) e `investidor`
+      // (2026-08-22) — nunca entram no painel: as regras abaixo pressupõem
+      // staff, e sem este bloqueio eles herdariam os acessos de `comercial`.
+      // `ehStaff` em vez de `perfis.length === 0`: dá o mesmo resultado, mas
+      // diz o que a linha quer saber em vez de deixar a resposta implícita
+      // num efeito colateral de `perfisDe`.
+      if (!ehStaff(profile ?? papelPadraoPorEmail(user.email))) {
         if (isAdminPath) {
           const url = request.nextUrl.clone();
           // Investidor tem para onde ir; cliente e desconhecido, não.
@@ -268,9 +274,10 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Financeiro area restricted to Admin + Financeiro
+        // Área financeira: Admin, Financeiro e — desde 2026-08-21 — Gestor,
+        // que aprova os agendamentos e lê os relatórios (A17).
         if (path.startsWith("/admin/financeiro") || path.startsWith("/api/financeiro")) {
-          if (!perfis.includes("financeiro")) {
+          if (!perfis.includes("financeiro") && !perfis.includes("gestor")) {
             if (isAdminPath) {
               const url = request.nextUrl.clone();
               url.pathname = "/admin";
@@ -281,9 +288,16 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Config page restricted to Admin + Comercial/Marketing — quem é SÓ
-        // financeiro é mandado para a área dele.
-        if (path.startsWith("/admin/configuracoes") && perfis.every((p) => p === "financeiro")) {
+        // Configurações: Admin, Comercial e Marketing. Financeiro e Gestor
+        // não entram — nenhuma linha da A17 lhes dá conteúdo de site nem
+        // credencial. A régua é a matriz, e não "quem é SÓ financeiro":
+        // alguém financeiro+gestor não é financeiro puro e também não tem o
+        // que fazer aqui.
+        if (
+          path.startsWith("/admin/configuracoes") &&
+          !perfis.includes("comercial") &&
+          !perfis.includes("marketing")
+        ) {
           const url = request.nextUrl.clone();
           url.pathname = "/admin/financeiro";
           return NextResponse.redirect(url);

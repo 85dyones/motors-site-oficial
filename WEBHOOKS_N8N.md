@@ -183,10 +183,36 @@ dispatcher resolve ids em nomes legíveis antes de enviar:
 | `recorrente_` | `id, descricao, valor, frequencia, dia_vencimento, categoria, fornecedor, forma_pagamento, ativa` |
 | `compra_` | `id, descricao, valor, data_compra, categoria, fornecedor, veiculo, nota_fiscal, status` |
 | `fornecedor_` | `id, nome, tipo, documento, telefone, email` |
+| `investidor_` | `id, investidor, tipo, valor, data, descricao, forma_pagamento, veiculo, observacoes` |
 | qualquer outro | o payload cru, sem enriquecimento |
 
 `categoria` vem como `"🔧 Peça de Reposição"` (ícone + nome), não como id.
 `veiculo` vem como `"BMW 320i (2022)"`, não como id. `valor` é number.
+
+O evento do prefixo `investidor_` hoje é um só: `investidor_movimento`, emitido
+a cada aporte ou retirada registrado no painel (2026-08-21). `investidor` vem
+como nome, `tipo` é `"aporte"` ou `"retirada"` e `valor` é **sempre positivo** —
+o lado mora em `tipo`, como nos contadores de `conta_vencida`. `veiculo` só vem
+preenchido quando a movimentação é um carro de repasse.
+
+A aprovação de agendamento (2026-08-21) acrescenta três eventos ao prefixo
+`conta_`, com o mesmo `data` da tabela: **`conta_aguardando_aprovacao`**
+(agendamento — conta a pagar que fica em aberto — lançado por quem não tem
+poder de aprovar; sai NO LUGAR de `conta_criada`, nunca junto, e é o aviso
+"conta subiu pra aprovação" do briefing), **`conta_aprovada`** e
+**`conta_recusada`** (a decisão do Gestor — uma emissão por parcela do
+lançamento). O `status` dentro de `data` diz o estado resultante:
+`aguardando_aprovacao`, `pendente` ou `cancelado`.
+
+Não há limiar em reais: registro de conta já paga nunca gera esses eventos, e
+agendamento gera sempre — ver `docs/FINANCEIRO_OPERACIONAL.md` §3.
+
+O prefixo `recorrente_` ganha os três equivalentes em 2026-08-22:
+**`recorrente_aguardando_aprovacao`** (cadastro de despesa recorrente nova por
+quem não aprova — sai NO LUGAR de `recorrente_criada`), **`recorrente_aprovada`**
+e **`recorrente_recusada`**. A **geração** mensal continua sem evento de
+aprovação: o compromisso foi assumido quando a recorrente foi aprovada, e um
+aviso por parcela viraria ruído todo mês.
 
 **Liga/desliga por evento:** `webhooks.events[nomeDoEvento] === false` bloqueia
 o disparo. Ausente = habilitado.

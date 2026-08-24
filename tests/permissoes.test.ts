@@ -20,7 +20,7 @@ import { CAMPOS_NOSSOS } from "../src/lib/estoqueEscrita";
  */
 
 describe("MATRIZ_DE_PERMISSOES", () => {
-  it("toda linha cobre os quatro perfis", () => {
+  it("toda linha cobre todos os perfis", () => {
     for (const l of MATRIZ_DE_PERMISSOES) {
       for (const p of PERFIS) {
         expect(["faz", "revisao", "nao_ve"]).toContain(l.permissoes[p]);
@@ -31,9 +31,12 @@ describe("MATRIZ_DE_PERMISSOES", () => {
   it("as três travas do doc não caem", () => {
     // Paleta: somente Admin.
     expect(podeFazer("admin", "Editar paleta, logo e tipografia do site")).toBe("faz");
-    expect(podeFazer("marketing", "Editar paleta, logo e tipografia do site")).toBe("nao_ve");
-    expect(podeFazer("comercial", "Editar paleta, logo e tipografia do site")).toBe("nao_ve");
-    expect(podeFazer("financeiro", "Editar paleta, logo e tipografia do site")).toBe("nao_ve");
+    // Todo perfil que não é Admin, sem exceção — derivado de PERFIS para que
+    // um papel novo (o `gestor` de 2026-08-21 foi o primeiro) entre na trava
+    // sozinho, em vez de ficar de fora por esquecimento na lista.
+    for (const p of PERFIS.filter((x) => x !== "admin")) {
+      expect(podeFazer(p, "Editar paleta, logo e tipografia do site")).toBe("nao_ve");
+    }
 
     // Texto legal: Financeiro e Admin.
     expect(podeFazer("financeiro", "Editar texto legal e condições de financiamento")).toBe("faz");
@@ -47,7 +50,7 @@ describe("MATRIZ_DE_PERMISSOES", () => {
 
   it("permissões e convites são exclusivos do Admin", () => {
     expect(podeFazer("admin", "Convidar usuário e trocar perfil")).toBe("faz");
-    for (const p of ["marketing", "comercial", "financeiro"] as const) {
+    for (const p of ["gestor", "marketing", "comercial", "financeiro"] as const) {
       expect(podeFazer(p, "Convidar usuário e trocar perfil")).toBe("nao_ve");
     }
   });
@@ -73,7 +76,16 @@ describe("ALCADA_DO_PERFIL", () => {
   it("mantém as alçadas que o doc imprime", () => {
     expect(ALCADA_DO_PERFIL.admin).toBe("Sem limite");
     expect(ALCADA_DO_PERFIL.comercial).toBe("5% no preço");
-    expect(ALCADA_DO_PERFIL.financeiro).toBe("R$ 1.500");
+  });
+
+  it("a do Financeiro é um ATO, não um valor — decisão do dono em 2026-08-21", () => {
+    // Esta asserção dizia `"R$ 1.500"`, transcrito do design doc. O dono
+    // desfez a régua: "essa regra de 1.500 reais não faz sentido no
+    // financeiro". Valor não mede risco numa revenda — R$ 1.200 de despesa
+    // nova recorrente compromete mais caixa que R$ 40.000 de um carro já
+    // negociado. O que decide agora é agendar × registrar (`lib/alcada.ts`).
+    expect(ALCADA_DO_PERFIL.financeiro).toBe("Agendamento vai ao Gestor");
+    expect(ALCADA_DO_PERFIL.gestor).toBe("Sem limite em preço e agendamento");
   });
 });
 

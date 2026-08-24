@@ -37,7 +37,13 @@ const semComentarios = (s: string) =>
 const migracao = ler("supabase", "migrations", "20260822120000_perfil_investidor.sql");
 const proxy = ler("src", "proxy.ts");
 const telaInvestidor = ler("src", "app", "investidor", "page.tsx");
-const rotaGestao = ler("src", "app", "api", "financeiro", "investidores", "route.ts");
+// A rota mudou de endereço na fusão de 2026-08-22: dois trabalhos paralelos
+// entregaram módulo de investidor no mesmo caminho, e a participação por
+// veículo — que é o que este teste guarda — foi para `participacoes/`. O
+// cadastro e o razão ficaram com `/api/financeiro/investidores`.
+const rotaGestao = ler(
+  "src", "app", "api", "financeiro", "investidores", "participacoes", "route.ts",
+);
 const telaGestao = ler("src", "components", "financeiro", "InvestidoresGestao.tsx");
 const garagem = ler("src", "app", "garagem", "page.tsx");
 const definirSenha = ler("src", "app", "definir-senha", "page.tsx");

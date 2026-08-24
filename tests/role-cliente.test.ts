@@ -101,12 +101,19 @@ describe("a migração — banco", () => {
 
 describe("os gates de rota — app", () => {
   it("proxy e layout barram quem não é staff antes de qualquer regra de perfil", () => {
-    // Desde 2026-08-22 os dois somam os papéis (`perfisDe`), e a lista vazia
-    // é o "não é da equipe" — cliente e papel desconhecido caem aqui. O que o
-    // teste guarda é o mesmo de sempre: o bloqueio existe e vem de perfisDe,
-    // que descarta `cliente` em vez de promovê-lo.
+    // Desde 2026-08-22 os dois somam os papéis (`perfisDe`), e quem não tem
+    // papel de painel é o "não é da equipe" — cliente, investidor e papel
+    // desconhecido caem aqui. O que o teste guarda é o mesmo de sempre: o
+    // bloqueio existe e nasce de `perfisDe`, que DESCARTA os papéis de fora
+    // do painel em vez de promovê-los a "comercial".
+    //
+    // No proxy a pergunta virou `ehStaff` na fusão de 2026-08-22 —
+    // exatamente equivalente a `perfis.length === 0` (as duas leem `PERFIS`),
+    // e diz o que a linha quer saber em vez de deixar a resposta implícita
+    // num efeito colateral. O layout ainda usa a forma antiga, e tudo bem:
+    // o que precisa ser igual é o resultado, não a redação.
     expect(proxy).toContain("const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email))");
-    expect(proxy).toContain("if (perfis.length === 0)");
+    expect(proxy).toContain("if (!ehStaff(profile ?? papelPadraoPorEmail(user.email)))");
     expect(layout).toContain("const perfis = perfisDe(profile ?? papelPadraoPorEmail(user.email))");
     expect(layout).toContain("if (perfis.length === 0)");
   });

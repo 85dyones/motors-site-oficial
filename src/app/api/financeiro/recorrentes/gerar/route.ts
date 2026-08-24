@@ -14,11 +14,15 @@ export async function POST() {
 
     const todayStr = new Date().toISOString().split("T")[0];
 
-    // Fetch recurring items due for billing generation
+    // A régua da geração são DUAS condições, não uma (2026-08-22): `ativa` é o
+    // interruptor da operação, `aprovacao_status` é a decisão do Gestor.
+    // Recorrente esperando aprovação não gera conta — senão a aprovação seria
+    // decorativa, já que a conta apareceria no contas a pagar de qualquer jeito.
     const { data: items, error: fetchError } = await supabase
       .from("despesas_recorrentes")
       .select("*")
       .eq("ativa", true)
+      .eq("aprovacao_status", "aprovada")
       .lte("proxima_geracao", todayStr);
 
     if (fetchError) {

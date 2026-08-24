@@ -47,23 +47,27 @@ describe("destino de entrada no painel", () => {
 
   it("o desvio de acesso negado não joga ninguém em Configurações", () => {
     // Financeiro não pode ver Configurações: mandá-lo para lá gera um
-    // segundo redirecionamento até /admin/financeiro. Desde o multi-papel nos
-    // gates (2026-08-22), a âncora do bloco é a soma dos papéis, não `role`.
+    // segundo redirecionamento até /admin/financeiro.
+    // Os âncoras mudaram em 2026-08-21, quando o proxy passou a ler TODOS os
+    // papéis (`perfisDe`) em vez do primário — a intenção do teste é a
+    // mesma: o desvio leva à Visão geral, nunca a Configurações.
     const trecho = arquivos["proxy.ts"].slice(
       arquivos["proxy.ts"].indexOf('if (!perfis.includes("admin"))'),
-      arquivos["proxy.ts"].indexOf("Config page restricted")
+      arquivos["proxy.ts"].indexOf("// Configurações: Admin, Comercial e Marketing")
     );
     expect(trecho).not.toContain('url.pathname = "/admin/configuracoes"');
     expect(trecho.match(/url\.pathname = "\/admin"/g) ?? []).toHaveLength(2);
   });
 
   it("a regra que expulsa o Financeiro de Configurações continua de pé", () => {
-    // Não é o destino que muda a permissão — ela precisa sobreviver. `every`
-    // porque a regra vale para quem é SÓ financeiro: quem também tem outro
-    // papel de painel entra em Configurações por esse outro papel.
-    expect(arquivos["proxy.ts"]).toContain(
-      'path.startsWith("/admin/configuracoes") && perfis.every((p) => p === "financeiro")'
-    );
+    // Não é o destino que muda a permissão — ela precisa sobreviver. Desde
+    // 2026-08-21 a regra é escrita pelo lado de quem PODE entrar (Comercial e
+    // Marketing), e não pelo nome de quem não pode: assim o `gestor`, que
+    // também não tem conteúdo de site na A17, já nasce barrado sem que
+    // ninguém precise lembrar de acrescentá-lo aqui.
+    expect(arquivos["proxy.ts"]).toContain('path.startsWith("/admin/configuracoes")');
+    expect(arquivos["proxy.ts"]).toContain('!perfis.includes("comercial")');
+    expect(arquivos["proxy.ts"]).toContain('!perfis.includes("marketing")');
     expect(arquivos["proxy.ts"]).toContain('url.pathname = "/admin/financeiro"');
   });
 });

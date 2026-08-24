@@ -12,6 +12,7 @@ supabase/
 ├── manutencao/     correção de DADO, pontual — nunca vira migração
 ├── seeds/          dados iniciais
 ├── templates/      modelos de e-mail do Auth — a fonte dos que vão no painel
+├── testes/         andaime que faz as migrações rodarem num Postgres local
 └── README.md
 ```
 
@@ -22,11 +23,19 @@ Há ainda uma quarta pasta que **não existe hoje** e é criada sob demanda:
   passo manual (um cutover coordenado, por exemplo) e, depois de aplicado,
   **move para `migrations/`**. Um arquivo esquecido lá é um passo que ninguém
   deu — `tests/migracoes.test.ts` falha se sobrar algum.
-- **`manutencao/`** é **correção de dado** que roda uma vez e fica arquivada
-  como registro do que foi feito. Não descreve o estado desejado do schema,
-  então nunca vira migração e não entra em `db push`. Cada arquivo traz a
-  conferência antes e a verificação depois; o passo destrutivo fica comentado,
-  para não rodar por copiar-colar distraído.
+- **`manutencao/`** é o que se roda **à mão contra a produção**, e nada dali
+  descreve o estado desejado do schema — então nada dali vira migração nem
+  entra em `db push`. São duas coisas convivendo:
+  - **correção de dado**, que roda uma vez e fica arquivada como registro do
+    que foi feito. Cada arquivo traz a conferência antes e a verificação
+    depois; o passo destrutivo fica comentado, para não rodar por
+    copiar-colar distraído.
+  - **ferramenta**, que fica para sempre e roda quantas vezes for preciso:
+    `aplicar-migracao.js` (aplica uma migração pelo pooler),
+    `conferir-estado-do-financeiro.sql` (pergunta ao banco, sem escrever
+    nada, se as migrações do financeiro continuam de pé) e
+    `acertar_livro_razao_da_colisao.sql` (diagnóstico + acerto da colisão de
+    timestamp de 2026-08-22 — ver abaixo).
 
 `pendente/` não é uma convenção do Supabase CLI — é uma salvaguarda deste
 projeto. Ver o passo 4 do runbook abaixo para o motivo. Está **vazia desde
@@ -91,10 +100,60 @@ refletir mudanças novas: a fonte de verdade é `migrations/`.
 | `20260818130000_vinculo_exige_email_confirmado.sql` | `reivindicar_garagem()` passa a exigir `email_confirmed_at` — antes, a segurança do vínculo dependia do checkbox "cadastro público fechado" no painel. Autoconferência prova a recusa. **Aplicada em produção em 2026-08-18.** |
 | `20260818140000_desfecho_nao_regride.sql` | Desfecho não regride: `desfecho_pode_gravar()` (função pura, autoconferida em 19 transições) impede que um retry rebaixe `convertido` para `sem_resposta`. Sobrescrita recusada volta `sobrescrita_ignorada: true`, nunca erro. **Aplicada em produção em 2026-08-18.** |
 | `20260819120000_cron_da_conformidade.sql` | Pacote 4: a série do §1.4 passa a andar sozinha por `pg_cron`, às 23h30 de Curitiba (`30 2 * * *` UTC — fim do dia, porque dia gravado nunca é reescrito). Entra o portão `rodar_conformidade_diaria()`, que fixa o fuso e se apresenta como chamador sem JWT — **e por isso é revogado de `anon` e `authenticated`**, senão viraria escada de privilégio. Autoconferência prova o agendamento, o portão fechado e o caminho do cron. **Aplicada em produção em 2026-08-19.** |
-| `20260819130000_cron_da_matview_do_ciclo.sql` | Pacote 1: `vw_ciclo_estado` passa a se atualizar sozinha às 6h de Curitiba (`0 9 * * *` UTC), com `refresh materialized view **concurrently**` — sem o `concurrently` o refresh toma ACCESS EXCLUSIVE e trava o painel da equipe. Depende do índice único `idx_vce_veiculo`, criado junto com a view; a autoconferência exige os dois. ⏳ **Ainda não aplicada.** |
-| `20260819140000_completude_da_venda.sql` | Pacote 2: `veiculos_vendidos.vendedor_id` aponta para `profiles` — o vendedor deixa de ser texto livre (onde "João" e "joão" viravam duas pessoas) e passa a ser observado de quem fecha a venda na A19. Base a lote das vendas com registro incompleto e do indicador de completude por vendedor. ⏳ **Confirmar se já foi aplicada.** |
-| `20260819150000_papeis_multiplos.sql` | `profiles.papeis text[]` — a mesma pessoa vende e cuida do financeiro. `role` sobrevive como papel PRIMÁRIO, espelho de `papeis[1]` mantido por trigger nos dois sentidos, para o código antigo não quebrar num deploy separado do banco. `is_staff` passa a olhar todos os papéis. ⏳ **Confirmar se já foi aplicada.** |
+| `20260819130000_cron_da_matview_do_ciclo.sql` | Pacote 1: `vw_ciclo_estado` passa a se atualizar sozinha às 6h de Curitiba (`0 9 * * *` UTC), com `refresh materialized view **concurrently**` — sem o `concurrently` o refresh toma ACCESS EXCLUSIVE e trava o painel da equipe. Depende do índice único `idx_vce_veiculo`, criado junto com a view; a autoconferência exige os dois. **Aplicada em produção em 2026-08-21.** |
+| `20260819140000_completude_da_venda.sql` | Pacote 2: completude do registro da venda (§3.2 e §9, meta >= 80%). `veiculos_vendidos.vendedor_id` passa a apontar para `profiles` (o texto livre `vendedor` fica para a base histórica), `profiles` ganha `telefone_e164`, e entram `vw_vendas_incompletas` (a rotina noturna lê daqui) e `completude_por_vendedor()`. **Aplicada em produção em 2026-08-21.** |
+| `20260819150000_papeis_multiplos.sql` | Um usuário pode ter mais de um papel: `profiles.papeis` (array validado por `papeis_validos`), `role` vira espelho de `papeis[1]` mantido por trigger nos dois sentidos, `is_staff()` passa a olhar o array e entra `tem_papel()`. Autoconferência prova multi-papel, espelho e as duas recusas. **Aplicada em produção em 2026-08-21.** |
+| `20260821120000_financeiro_operacional.sql` | Briefing 2026-08-21 (ver `docs/FINANCEIRO_OPERACIONAL.md`): **versiona e corrige `has_finance_access`** — ainda lia `role` singular, então quem tem `financeiro` como segundo papel era negado por TODA a RLS do módulo financeiro — e cria `investidores` + `movimentacoes_investidor` (aportes e retiradas, valor sempre positivo, retirada em carro de repasse com `veiculo_id`; FK sem ON DELETE: investidor com movimentação não se apaga, desativa). Autoconferência prova o segundo papel abrindo o financeiro e as recusas da régua do dinheiro. **Aplicada em produção em 2026-08-21.** |
+| `20260821150000_alcada_de_aprovacao.sql` | A linha de R$ 1.500 da A17 ganha estado: `contas.status` aceita `aguardando_aprovacao`, entra a trilha da decisão (`aprovacao_decidida_por/em/motivo`, instante carimbado por trigger) e a autoconferência prova que `atualizar_contas_vencidas()` **não** envelhece conta aguardando. A régua de QUANDO sobe mora em `src/lib/alcada.ts`, e **não é um valor**: o limiar de R$ 1.500 foi desfeito pelo dono no mesmo dia — decide o ato (agendar × registrar). Importação e recorrente passam direto; ver `docs/FINANCEIRO_OPERACIONAL.md` §3. **Aplicada em produção em 2026-08-21.** |
+| `20260821180000_papeis_gestor_e_investidor.sql` | Dois papéis novos, de naturezas diferentes: `gestor` é de painel (entra em `is_staff` e em `has_finance_access` — aprova agendamento, mexe em preço e custo, lê relatório) e `investidor` fica FORA do painel, como `cliente`. Entra `investidores.perfil_id` (único) com policies de **leitura própria** e `reivindicar_investidor()`, gêmea de `reivindicar_garagem()` — mesma exigência de e-mail confirmado. Autoconferência assume a sessão do investidor e prova que ele lê só o próprio extrato e não grava nada. **Aplicada em produção em 2026-08-21.** |
+| `20260821210000_exclusao_financeira_so_admin.sql` | Separação de funções: **DELETE** em `contas`, `movimentacoes`, `compras_produtos` e `movimentacoes_investidor` passa a exigir `is_admin` — quem aprova agendamento não apaga a prova do que aprovou; os demais cancelam (`status = 'cancelado'`). A policy `FOR ALL` de cada tabela vira SELECT/INSERT/UPDATE no `has_finance_access` + DELETE no `is_admin`, e a leitura própria do investidor é recriada (a varredura derruba toda policy da tabela). **`is_admin` também é versionada e corrigida aqui**: lia `role = 'admin'`, então admin como papel secundário era negado — o terceiro gêmeo do bug multi-papel. Autoconferência assume as sessões de financeiro, gestor e admin secundário. **Aplicada em produção em 2026-08-21.** |
 | `20260822120000_perfil_investidor.sql` | Perfil **Investidor**: `investidor_veiculos` (participação na compra) e `investidor_movimentos` (aportes e retiradas, valor sempre positivo — o sinal mora em `tipo`), com RLS por `investidor_id = auth.uid()` e a view `investidor_posicao` em `security_invoker`. Investidor **não é staff** de propósito — a autoconferência prova que ele fica fora de `is_staff` e de `has_finance_access`, que passa a somar `papeis` em vez de ler só o primário. **Aplicada em produção em 2026-08-22.** |
+| `20260822130000_conciliacao_bancaria.sql` | Conciliação bancária (P4): a tabela `extrato_bancario`, que guarda a linha do banco como **prova, não lançamento** — não entra em cálculo de saldo e nunca vira movimentação sozinha. Idempotência por `(conta, fitid)`, porque reimportar extrato sobreposto é o fluxo normal; `movimentacao_id` único garante o um-para-um; `ON DELETE SET NULL` faz apagar a movimentação desfazer o vínculo sem apagar a prova. RLS na régua do módulo, com exclusão só do admin. Autoconferência prova os cinco. ✅ Aplicada 2026-08-22 — **com o número antigo `20260822120000`**, que depois foi cedido a `perfil_investidor` numa colisão de timestamp; o acerto do livro-razão está em `manutencao/acertar_livro_razao_da_colisao.sql`. |
+| `20260822150000_aprovacao_de_recorrente.sql` | O cadastro de despesa recorrente passa pelo Gestor — o flanco que `20260821150000` deixou aberto. `aprovacao_status` é coluna SEPARADA de `ativa`: desligada pela operação e esperando aprovação são estados diferentes, e sobrepô-los faria "reativar" virar "aprovar". A geração exige as duas (`ativa and aprovada`). Default `aprovada` de propósito: toda recorrente existente está rodando hoje, e nascer `aguardando` faria a loja parar de pagar aluguel e energia. Carimbo da decisão por trigger, gêmeo do de `contas`. ⏳ **Ainda não aplicada.** |
+| `20260822180000_lancar_do_extrato_atomico.sql` | `lancar_do_extrato()`: conta paga + movimentação + vínculo numa transação só. Existe porque a rota fazia as três escritas em sequência e desfazia com `.delete()` se uma falhasse — e **RLS que recusa DELETE não levanta erro**, apaga zero linhas e devolve sucesso. Para o financeiro (que não apaga, desde `20260821210000`) o rollback era no-op silencioso, e sobrava conta paga órfã que a próxima importação do OFX lançaria de novo. A correção não foi abrir DELETE: foi tirar a necessidade de desfazer. ⏳ **Ainda não aplicada.** |
+| `20260822210000_fundir_investidores.sql` | Funde os dois módulos de investidor que 21 e 22/08 produziram em paralelo, e **repõe o `gestor` nas três réguas** que `perfil_investidor` reescreveu sem ele: o CHECK de `role`, `papeis_validos()` e `has_finance_access()`. O estrago do CHECK era o pior — quem já era gestor tinha uma linha que o CHECK novo recusa, então qualquer UPDATE nesse perfil falhava. Na fusão, `investidores` (a ficha) vence como identidade porque o sócio pode aportar sem nunca ter login; `investidor_veiculos` ganha `investidor_cadastro_id`; `investidor_movimentos` é COPIADO para o razão único e nada é apagado; `investidor_posicao` passa a somar do razão único, senão a tela do sócio e o painel do financeiro mostrariam saldos diferentes. Defensiva: cada passo checa se a tabela existe, porque a colisão de timestamp pode ter feito o `db push` pular `perfil_investidor` inteira. ⏳ **Ainda não aplicada.** |
+
+## `testes/` — as migrações rodam antes de irem para produção
+
+Inaugurado em **2026-08-21**, e é a resposta à pendência §5.7 da auditoria
+("testes de RLS exigem instância Supabase de teste... Docker não está
+instalado nesta máquina"), aberta desde 2026-08-03.
+
+O problema que ela descrevia era real e caro: toda migração séria daqui traz
+**autoconferência** — um `do $$` que levanta exceção se a promessa do arquivo
+não valer contra o banco. Só que ninguém as executava antes de empurrar. O
+aceite só era conhecido quando o `db push` rodava em **produção**: um erro de
+sintaxe dentro do `do $$`, ou uma promessa que o SQL não cumpre, aparecia lá.
+
+Acontece que um **Postgres local basta**. O que faltava era escrever o pedaço
+de Supabase que as migrações pressupõem — `auth.users`, `auth.uid()`,
+`auth.jwt()`, os papéis do PostgREST e os *default privileges* do schema
+`public`. É o `supabase/testes/andaime.sql`.
+
+```bash
+npm test                      # roda tudo; sem Postgres, pula os de migração
+PSQL_TESTE="psql -h localhost -U postgres" npm test   # apontando para outro banco
+```
+
+`tests/migracoes-executam.test.ts` cria um banco descartável, aplica o andaime
+e a cadeia declarada, e **exige que cada migração levante o próprio "Aceite
+verificado"** — não basta não explodir: o aceite tem que ter rodado. Depois
+confere o estado final (quem é staff, quem abre o financeiro, quem apaga).
+
+Duas propriedades deliberadas:
+
+- **Sem Postgres alcançável, os testes são PULADOS, não falham.** Quem só mexe
+  em front-end não precisa de banco, e vermelho por falta de infraestrutura
+  ensina a ignorar vermelho. Um teste que passa dizendo "não rodei" evita que
+  isso vire silêncio.
+- **A cadeia é uma lista explícita** no topo do arquivo de teste, não uma
+  varredura da pasta: o andaime é um recorte, e varrer tudo faria o vermelho
+  ser sobre o andaime, não sobre a migração. Pôr uma migração na lista é o
+  gesto que a coloca sob teste — se ela precisa de uma tabela nova, a tabela
+  entra no andaime junto.
+
+⚠️ O andaime **não** é fonte de verdade de schema. Ele é o menor recorte que
+faz a cadeia rodar; a fonte de verdade continua sendo `migrations/`.
 
 ### Vocabulário: o banco fala mais velho que a interface
 
@@ -229,6 +288,63 @@ O `on conflict do nothing` deixa o rodapé inofensivo sob `db push`, que
 registra por conta própria. Migração sem esse rodapé não passa em revisão:
 versão fora do livro-razão é o que faz um `db push` futuro tentar **reaplicar
 o histórico** — o cenário do 🔴 acima.
+
+### 🔴 A colisão de timestamp de 2026-08-22, e o que ela ensina
+
+Duas migrações nasceram com o número `20260822120000` no mesmo dia, em
+trabalhos paralelos: `conciliacao_bancaria` e `perfil_investidor`. A
+conciliação cedeu e virou `20260822130000`.
+
+**Por que isso é grave e não cosmético.** `version` é chave primária do
+livro-razão, e todo rodapé de auto-registro daqui usa `on conflict (version)
+do nothing`. A segunda a rodar registra nada e não reclama. Pior: um
+`supabase db push` consulta o livro-razão, vê a versão presente e **pula o
+arquivo inteiro** — o código vai para produção referenciando tabelas que
+nunca foram criadas. Falha em silêncio, dos dois lados.
+
+Foi o que aconteceu em produção: a conciliação entrou sob o número antigo e
+`perfil_investidor` foi aplicada depois, à mão. **Resolvido em 2026-08-22** —
+o livro-razão de lá agora diz `20260822120000 = perfil_investidor` e
+`20260822130000 = conciliacao_bancaria`. Diagnóstico e acerto ficam
+arquivados em `manutencao/acertar_livro_razao_da_colisao.sql`; a parte 1 é
+somente leitura e continua servindo se a dúvida voltar.
+
+**A lição para a próxima migração.** Antes de escolher o número, rode
+`ls supabase/migrations/ | tail` **e** confira `origin/main` — trabalho
+paralelo não aparece na sua árvore. O timestamp não é decorativo: é a chave
+primária de um livro que decide o que roda e o que é pulado.
+
+### Depois de aplicar: `conferir-estado-do-financeiro.sql`
+
+Cole no SQL Editor e rode. É **somente leitura** e devolve 22 linhas; toda
+linha tem que sair ✅. Uma linha ❌ aponta o que falta e de qual migração ela
+vem — reaplicar essa migração resolve, porque todas são idempotentes.
+
+```
+supabase/manutencao/conferir-estado-do-financeiro.sql
+```
+
+**Por que existe, se as migrações já se autoconferem.** A autoconferência
+prova o estado da migração *no momento em que ela rodou*, e some junto com a
+transação. Esta consulta pergunta ao banco de produção **hoje**, em qualquer
+dia — inclusive depois de alguém ter mexido pelo painel do Supabase, que é o
+caminho que este projeto proíbe e que nenhuma migração consegue impedir. É
+também o que responde "aplicou mesmo?" sem abrir seis telas.
+
+Cada checagem foi **falsificada** antes de entrar — conferência que só se viu
+verde não vale nada, porque não se sabe se ela olha. Duas rodadas:
+
+- RLS de `extrato_bancario` desligada, índice único de `(conta, fitid)`
+  derrubado e trigger do carimbo removido → acusou exatamente essas três
+  linhas e mais nenhuma; reaplicadas as migrações, voltou ao verde.
+- `lancar_do_extrato()` trocada por uma versão `security definer` sem a
+  checagem de porta, e uma policy de DELETE a mais criada em `contas` (como
+  alguém faria pelo painel num aperto) → acusou 17 e 18, e só.
+- a cadeia inteira **sem** `20260822210000` (o estado de produção antes da
+  fusão) → acusou 12, 19, 20, 21 e 22. Esta rodada existe porque a checagem
+  12 antiga saía **verde** nesse mesmo banco: ela perguntava se
+  `has_finance_access` lia `papeis`, e a migração paralela manteve `papeis`
+  enquanto derrubava o `gestor`. Falso verde no que mais importava.
 
 ## ⚠️ Contrato com o sync — campos do painel
 

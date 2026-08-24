@@ -27,7 +27,13 @@ interface Movimento {
   valor: number;
   data: string;
   descricao: string | null;
-  veiculo_id: number | null;
+  // `text`, e não `number` como na participação: no razão único o código do
+  // veículo é o do RevendaMais, que é a chave usada em todo o módulo
+  // financeiro (`contas.veiculo_id`). A participação por veículo veio do outro
+  // trabalho e usa o `bigint` de `estoque_motors`. A fusão de 2026-08-22
+  // converteu os valores importados com `::text` — o número sobrevive, e quem
+  // lê sabe qual carro.
+  veiculo_id: string | null;
 }
 
 interface VeiculoResumo {
@@ -95,8 +101,13 @@ export default async function InvestidorPage() {
       .select("id, veiculo_id, valor_investido, data_entrada, observacao")
       .order("data_entrada", { ascending: false }),
     supabase
-      .from("investidor_movimentos")
-      .select("id, tipo, valor, data, descricao, veiculo_id")
+      // Razão ÚNICO desde a fusão de 2026-08-22. Era `investidor_movimentos`,
+      // que virou histórico: manter a leitura ali faria esta tela e o painel
+      // do financeiro mostrarem saldos diferentes para a mesma pessoa.
+      // `investidores!inner` amarra a linha à ficha do sócio, e a RLS de
+      // `movimentacoes_investidor` já filtra por `perfil_id = auth.uid()`.
+      .from("movimentacoes_investidor")
+      .select("id, tipo, valor, data, descricao, veiculo_id, investidores!inner(perfil_id)")
       .order("data", { ascending: false }),
   ]);
 

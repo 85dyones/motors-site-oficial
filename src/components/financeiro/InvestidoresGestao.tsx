@@ -102,7 +102,7 @@ export default function InvestidoresGestao() {
     // é render em cascata). Nas recargas depois de um lançamento a tabela
     // continua visível, que é melhor do que piscar para "Carregando…".
     try {
-      const res = await fetch("/api/financeiro/investidores");
+      const res = await fetch("/api/financeiro/investidores/participacoes");
       const data = await res.json();
       if (!res.ok) {
         setErro(data.error || "Falha ao carregar investidores.");
@@ -197,7 +197,7 @@ export default function InvestidoresGestao() {
     setErro("");
     setSucesso("");
     try {
-      const res = await fetch("/api/financeiro/investidores", {
+      const res = await fetch("/api/financeiro/investidores/participacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...corpo, investidor_id: selecionado }),
@@ -232,7 +232,7 @@ export default function InvestidoresGestao() {
     setSucesso("");
     try {
       const res = await fetch(
-        `/api/financeiro/investidores?recurso=${recurso}&id=${id}`,
+        `/api/financeiro/investidores/participacoes?recurso=${recurso}&id=${id}`,
         { method: "DELETE" },
       );
       const data = await res.json();

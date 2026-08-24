@@ -39,6 +39,15 @@ export async function POST(
       return NextResponse.json({ error: "Esta conta já foi marcada como paga" }, { status: 400 });
     }
 
+    // Agendamento parado na fila espera o Gestor (A17, "Aprovar agendamento
+    // financeiro"). Pagar antes da decisão tornaria a aprovação decorativa.
+    if (conta.status === "aguardando_aprovacao") {
+      return NextResponse.json(
+        { error: "Este agendamento aguarda aprovação do gestor — decida em Financeiro → Aprovações antes de pagar." },
+        { status: 409 }
+      );
+    }
+
     // 2. Mark account as paid
     const { data: updatedConta, error: updateError } = await supabase
       .from("contas")

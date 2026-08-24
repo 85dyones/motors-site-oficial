@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
+import { podeExcluirLancamento } from "../../../../../lib/alcada";
+import { perfisDe } from "../../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +58,22 @@ export async function DELETE(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    // Separação de funções (2026-08-21): quem opera o financeiro não apaga
+    // registro de dinheiro. Compra lançada por engano vira `cancelado`, que
+    // preserva a linha e o rastro. A RLS também recusa (20260821210000); esta
+    // checagem existe para o erro sair legível em vez de "0 linhas afetadas".
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("role, papeis")
+      .eq("id", user.id)
+      .single();
+    if (!podeExcluirLancamento(perfisDe(perfil))) {
+      return NextResponse.json(
+        { error: "Apenas o administrador exclui compra lançada — cancele a compra para manter o registro." },
+        { status: 403 }
+      );
     }
 
     const { error } = await supabase
