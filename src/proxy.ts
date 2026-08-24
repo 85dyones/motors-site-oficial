@@ -168,7 +168,13 @@ export async function proxy(request: NextRequest) {
   // cliente. Fica aqui, e não numa checagem só na página, para que nem o
   // primeiro byte da tela saia para quem não é investidor.
   const isInvestidorPath = path === "/investidor" || path.startsWith("/investidor/");
-  const isProtectedApi = path.startsWith("/api/financeiro") || path.startsWith("/api/users");
+  const isProtectedApi =
+    path.startsWith("/api/financeiro") ||
+    path.startsWith("/api/users") ||
+    // A agenda de pessoas (2026-08-24) devolve CPF, telefone e e-mail de
+    // cliente. Ela entra aqui pelo mesmo motivo que o financeiro: a RLS
+    // já barra no banco, e esta é a segunda tranca, na porta.
+    path.startsWith("/api/pessoas");
 
   if (isAdminPath || isInvestidorPath || isProtectedApi) {
     let response = NextResponse.next({
@@ -288,6 +294,28 @@ export async function proxy(request: NextRequest) {
           }
         }
 
+        // Agenda de pessoas (2026-08-24): Admin, Gestor, Comercial e
+        // Financeiro. Marketing fica de fora com apoio na matriz A17 — a
+        // linha "Ver e mover leads no kanban" já lhe nega o contato
+        // individual ("Marketing vê só o volume agregado"), e a agenda é uma
+        // lista de CPF, telefone e e-mail. Dar aqui o que o kanban nega seria
+        // furar a própria régua por uma porta lateral.
+        if (path.startsWith("/admin/clientes") || path.startsWith("/api/pessoas")) {
+          if (
+            !perfis.includes("gestor") &&
+            !perfis.includes("comercial") &&
+            !perfis.includes("financeiro")
+          ) {
+            if (isAdminPath) {
+              const url = request.nextUrl.clone();
+              url.pathname = "/admin";
+              return NextResponse.redirect(url);
+            } else {
+              return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
+            }
+          }
+        }
+
         // Configurações: Admin, Comercial e Marketing. Financeiro e Gestor
         // não entram — nenhuma linha da A17 lhes dá conteúdo de site nem
         // credencial. A régua é a matriz, e não "quem é SÓ financeiro":
@@ -329,6 +357,11 @@ export const config = {
     "/admin/:path*",
     "/api/financeiro/:path*",
     "/api/users/:path*",
+    // As duas formas: `:path*` casa zero segmentos, mas depender disso
+    // para a raiz da coleção é apostar num detalhe do matcher. A rota
+    // que devolve a lista inteira é justamente a que não pode escapar.
+    "/api/pessoas",
+    "/api/pessoas/:path*",
     "/garagem/:path*",
     "/garagem",
     "/api/garagem/:path*",

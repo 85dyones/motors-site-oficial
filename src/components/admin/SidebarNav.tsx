@@ -49,6 +49,21 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       items: [
         { name: "Visão geral", href: "/admin" },
         { name: "Leads", href: "/admin/leads" },
+        // A agenda de pessoas (2026-08-24). Ela mora em GERAL, e não dentro
+        // de Financeiro, porque o dono a pediu como área própria: *"o revenda
+        // tem uma área de clientes sejam internos ou externos,
+        // fornecedores"*. Quem vende usa a mesma lista que quem paga.
+        //
+        // `roles` no ITEM estreita o grupo: Marketing enxerga o grupo Geral
+        // (a Visão geral e o volume de leads são dele), mas não esta lista —
+        // ela é CPF, telefone e e-mail, e a linha "Ver e mover leads no
+        // kanban" da A17 já lhe nega o contato individual. O proxy repete a
+        // mesma régua; as duas camadas precisam concordar.
+        {
+          name: "Clientes e fornecedores",
+          href: "/admin/clientes",
+          roles: ["admin", "gestor", "comercial", "financeiro"],
+        },
       ],
     },
     {
@@ -103,7 +118,11 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // rotina: trazer para cá o que hoje vive em outro lugar.
         { name: "Conciliação bancária", href: "/admin/financeiro/conciliacao" },
         { name: "Relatórios e balanço", href: "/admin/financeiro/relatorios" },
-        { name: "Cadastros auxiliares", href: "/admin/financeiro/cadastros" },
+        // Era "Cadastros auxiliares" e guardava duas coisas sem parentesco:
+        // o plano de contas e a lista de parceiros. Os parceiros mudaram
+        // para Clientes e fornecedores em 2026-08-24; sobrou o plano, e o
+        // item passou a se chamar pelo que ele é.
+        { name: "Plano de contas", href: "/admin/financeiro/cadastros" },
         { name: "Margem por veículo", href: "/admin/financeiro/margens" },
         { name: "Investidores", href: "/admin/financeiro/investidores" },
       ],
@@ -148,9 +167,20 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
   // mesma leitura de `podeFazer` na matriz. Quem vende E cuida do financeiro
   // enxerga os dois grupos; era o primário sozinho que escondia a segunda
   // metade do trabalho.
-  const allowedGroups = menuGroups.filter((group) =>
-    group.roles.some((r) => perfis.includes(r)),
-  );
+  const allowedGroups = menuGroups
+    .filter((group) => group.roles.some((r) => perfis.includes(r)))
+    // Um item pode ser mais restrito que o grupo. Sem `roles` próprio ele
+    // herda o do grupo, que é como todos os itens sempre funcionaram.
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          !("roles" in item) ||
+          (item as { roles?: string[] }).roles?.some((r) => perfis.includes(r)),
+      ),
+    }))
+    // Grupo que ficou sem item nenhum não vira um título solto no trilho.
+    .filter((group) => group.items.length > 0);
 
   const isItemActive = (href: string) => {
     if (href.startsWith("/admin/configuracoes")) {

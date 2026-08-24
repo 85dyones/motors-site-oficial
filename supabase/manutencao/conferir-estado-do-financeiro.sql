@@ -272,6 +272,61 @@ with conferencias as (
     '20260824150000'
 
   union all select
+    26,
+    '26. Livro-razão: a agenda de pessoas (20260824190000)',
+    (select count(*) = 1 from supabase_migrations.schema_migrations
+      where version = '20260824190000'),
+    'supabase/migrations/20260824190000_agenda_de_pessoas.sql'
+
+  union all select
+    27,
+    '27. A view agenda_de_pessoas existe',
+    -- Sem ela a tela /admin/clientes abre e não lista nada: o PostgREST
+    -- devolve 404 da relação e o componente mostra "nenhum cadastro para
+    -- estes filtros" — indistinguível de uma base vazia.
+    (select to_regclass('public.agenda_de_pessoas') is not null),
+    '20260824190000'
+
+  union all select
+    28,
+    '28. A agenda respeita RLS (security_invoker LIGADO)',
+    -- ESTA É A CONFERÊNCIA QUE NÃO PODE FALHAR. Sem a opção, a view roda com
+    -- os privilégios de quem a criou (o dono do banco, que ignora RLS) e vira
+    -- um cano que despeja a base inteira de CPFs para qualquer usuário
+    -- autenticado — inclusive o cliente da Garagem, que é `authenticated` e
+    -- não é staff. Se der ❌, a tela de clientes precisa sair do ar até a
+    -- migração ser reaplicada.
+    (select coalesce(
+              (select option_value = 'true'
+                 from pg_class c
+                 join pg_namespace n on n.oid = c.relnamespace,
+                      pg_options_to_table(c.reloptions)
+                where n.nspname = 'public'
+                  and c.relname = 'agenda_de_pessoas'
+                  and option_name = 'security_invoker'),
+              false)),
+    '20260824190000'
+
+  union all select
+    29,
+    '29. anon NÃO alcança a agenda de pessoas',
+    -- O bootstrap do Supabase dá `grant all` por default privilege a todo
+    -- mundo, `anon` incluído. A migração revoga; se alguém recriar a view à
+    -- mão sem revogar, o privilégio volta sozinho.
+    (select not has_table_privilege('anon', 'public.agenda_de_pessoas', 'select')),
+    '20260824190000'
+
+  union all select
+    30,
+    '30. parceiros tem ativo, cidade e observacoes',
+    -- Sem `ativo`, desativar fornecedor vira excluir — e fornecedor com conta
+    -- paga no passado não pode sumir do histórico.
+    (select count(*) = 3 from information_schema.columns
+      where table_schema = 'public' and table_name = 'parceiros'
+        and column_name in ('ativo', 'cidade', 'observacoes')),
+    '20260824190000'
+
+  union all select
     18,
     '18. Nenhuma das 4 tabelas de razão aceita DELETE fora do admin',
     -- A linha de 21/08 ("quem aprova não apaga a prova") dita em SQL. Vale

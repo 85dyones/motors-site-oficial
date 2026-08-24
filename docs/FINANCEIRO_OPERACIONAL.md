@@ -34,7 +34,7 @@ investidores, "um painel que mostrasse isso pra eles também".
 | Pedido | Estado | Onde |
 |---|---|---|
 | P1 — o que vence no dia | ✅ **Entregue 2026-08-21** | Tela **Pagamentos do Dia** (`/admin/financeiro/dia`): vencidas em aberto, vence hoje, a receber, com baixa em um clique sem sair da tela |
-| P2 — fornecedor ≠ cliente | ✅ **Já existia** | `parceiros.tipo` separa desde o módulo original (Cadastros Auxiliares). O pedido era dor do RevendaMais — aqui já nasce resolvido |
+| P2 — fornecedor ≠ cliente | ✅ **Já existia**, ampliado em 2026-08-24 | `parceiros.tipo` separa desde o módulo original. Desde 24/08 os quatro cadastros de gente da casa (financeiro, Ciclo, rede de serviço e investidores) aparecem juntos em **Clientes e fornecedores** (`/admin/clientes`) — ver §3 |
 | P3 — lançamento por carro | ✅ **Já existia** | `contas.veiculo_id` vincula despesa ao carro e alimenta a **Margem por Veículo** (A11); despesa sem carro vai direto ao financeiro |
 | P4 — conciliação bancária | ✅ **Entregue 2026-08-22** | Tela **Conciliação Bancária** (`/admin/financeiro/conciliacao`): sobe o OFX do banco, casa com o caixa e mostra o que sobrou dos dois lados — e o que está no banco e fora do sistema vira lançamento ali mesmo, sem redigitar |
 | P5 — relatório diário | ✅ **Entregue 2026-08-21** | A mesma tela do dia: qualquer data vira o relatório dela — liquidadas, entradas, saídas e movimento do caixa |
@@ -396,6 +396,70 @@ já filtrava por `conta_id` para não contar duas vezes, então lançamento novo
 a `contas-pagar`. Link salvo, favorito e aba aberta há três dias não podem
 virar 404.
 
+### A agenda de pessoas — quatro cadastros, uma tela (2026-08-24)
+
+*"Precisamos ter uma aba clientes, hoje temos os cadastros auxiliares, mas não
+tá legal, o revenda tem uma área de clientes sejam internos ou externos,
+fornecedores... pra organizar tudo e termos como gerenciar."*
+
+**O diagnóstico: quatro agendas que ninguém sabia que eram quatro.** A pergunta
+*"quem é essa pessoa e o que ela tem comigo?"* era respondida por quatro
+tabelas que nunca se falaram — `clientes` (quem comprou um carro, com CPF único
+e consentimento de LGPD), `parceiros` (quem recebe ou paga no financeiro),
+`parceiros_ciclo` (a rede de oficina, seguradora, despachante) e `investidores`
+(quem aporta capital). O mesmo CNPJ podia estar em duas delas com grafias
+diferentes, e a única porta era a aba "Parceiros" dos cadastros auxiliares, que
+via um quarto do universo e se chamava "auxiliar".
+
+**A decisão: unir a VISTA, não as TABELAS.** A tentação era fundir tudo em
+`pessoas` e migrar dados. Três razões concretas dizem que não:
+
+1. `clientes.cpf_cnpj` é UNIQUE e `parceiros.documento` não é — há parceiro sem
+   documento. Fundir exigiria inventar chave para quem não tem, ou perder linha.
+2. `clientes` carrega `consentimento_lgpd_em`. Consentimento não se copia entre
+   tabelas: quem consentiu, consentiu naquele registro. É risco jurídico, não
+   técnico.
+3. `clientes.id` é destino de FK em seis tabelas do Ciclo, com contrato de 36
+   meses atrás. Renumerar é reescrever história de veículo vendido.
+
+O dono não pediu uma tabela. Pediu **um lugar para gerenciar**. A view
+`agenda_de_pessoas` faz isso hoje, sem tocar num byte, e deixa a fusão física
+para o dia em que alguém sentir falta dela.
+
+**A trava que essa view não pode perder: `security_invoker`.** View no Postgres
+roda, por padrão, com os privilégios de quem a criou — e quem cria migração aqui
+é o dono do banco, que ignora RLS. Uma view comum sobre `clientes` seria um cano
+que despeja a base inteira de CPFs para qualquer `authenticated`, inclusive o
+cliente da Garagem. A autoconferência da migração checa isso de duas formas: lê
+o *reloption* e, além disso, **veste a pele de um não-staff e tenta ler** —
+falsificar a opção deixa a segunda checagem vermelha com "quem não é staff leu 1
+linha(s) de cliente pela agenda".
+
+**Marketing fica de fora.** A linha vizinha da A17 ("Ver e mover leads no
+kanban") já lhe nega o contato individual: *"Marketing vê só o volume
+agregado"*. Uma agenda de CPF, telefone e e-mail não pode ser a porta lateral
+que devolve o que o kanban nega. A régua está em três lugares que precisam
+concordar — a matriz, o item do trilho e o gate do proxy — e há teste de
+fronteira para cada um.
+
+**A conferência de repetidos.** Botão "Procurar cadastros repetidos" varre os
+quatro cadastros e separa **prova** (mesmo documento) de **suspeita** (mesmo
+nome) — existem dois "João da Silva", e alerta que erra vira alerta ignorado. A
+varredura é do CONJUNTO, em páginas, com teto: quando estoura, a resposta diz
+`completo: false` e a tela avisa que a análise foi parcial. Analisar uma fatia e
+apresentá-la como o todo é o defeito que enterrou um lançamento na posição 709.
+
+**O que mudou de casa.** "Cadastros auxiliares" virou **Plano de contas** — só a
+árvore contábil, que é dado fixo versionado em código. Os parceiros foram para
+**Clientes e fornecedores** (`/admin/clientes`), e a tela antiga carrega um aviso
+apontando para lá.
+
+**Um resto encontrado no caminho.** A régua horizontal do financeiro
+(`FinanceHeaderNav`) ainda listava "Compras de Insumos" e "Despesas
+Recorrentes", cujas páginas viraram redirecionamento em 24/08. O trilho lateral
+tinha sido limpo; a régua ficou para trás. Item de menu que pula para outro
+lugar é pior que item a menos.
+
 ## 4. Na fila — em ordem de dor
 
 1. **Migração RevendaMais → painel.** O importador já existe
@@ -422,9 +486,12 @@ virar 404.
 | Migração (conciliação bancária) | `supabase/migrations/20260822130000_conciliacao_bancaria.sql` |
 | Migração (aprovação de recorrente) | `supabase/migrations/20260822150000_aprovacao_de_recorrente.sql` |
 | Migração (lançar do extrato atômico) | `supabase/migrations/20260822180000_lancar_do_extrato_atomico.sql` |
+| Migração (conta absorve o insumo) | `supabase/migrations/20260824150000_conta_absorve_insumo.sql` |
+| Migração (agenda de pessoas) | `supabase/migrations/20260824190000_agenda_de_pessoas.sql` |
 | Régua do dia | `src/lib/financeiroDia.ts` · `tests/financeiro-dia.test.ts` |
 | Régua de investidores | `src/lib/investidores.ts` · `tests/investidores.test.ts` |
 | Régua da aprovação | `src/lib/alcada.ts` · `tests/alcada-aprovacao.test.ts` |
+| Régua da agenda de pessoas | `src/lib/agenda.ts` · `tests/agenda.test.ts` |
 | Leitor de OFX e motor de conciliação | `src/lib/ofx.ts` · `src/lib/conciliacao.ts` · `tests/conciliacao.test.ts` |
 | Os dois papéis novos | `src/lib/permissoes.ts` · `tests/papeis-gestor-investidor.test.ts` |
 | Rotas | `src/app/api/financeiro/dia/` · `src/app/api/financeiro/investidores/` · `src/app/api/financeiro/contas/[id]/aprovar/` |
@@ -433,5 +500,7 @@ virar 404.
 | Telas | `src/components/financeiro/DiaOperacional.tsx` · `InvestidoresPainel.tsx` · `AprovacoesPendentes.tsx` |
 | Área do investidor | `src/app/investidor/page.tsx` · `src/components/investidor/` |
 | Tela da conciliação | `src/components/financeiro/ConciliacaoBancaria.tsx` |
+| Tela da agenda de pessoas | `src/app/admin/clientes/page.tsx` · `src/components/admin/AgendaDePessoas.tsx` |
+| Rotas da agenda | `src/app/api/pessoas/` (lista, `[id]` roteado por origem, `duplicatas`) |
 | Eventos novos | `investidor_movimento`, `conta_aguardando_aprovacao`, `conta_aprovada`, `conta_recusada` — contrato em `WEBHOOKS_N8N.md` (Formato C) |
-| Permissão | as linhas "Aprovar agendamento financeiro", "Ver relatórios gerenciais e DRE" e "Controlar aportes e retiradas de investidores" em `src/lib/permissoes.ts` |
+| Permissão | as linhas "Aprovar agendamento financeiro", "Ver relatórios gerenciais e DRE", "Controlar aportes e retiradas de investidores" e "Gerenciar clientes e fornecedores" em `src/lib/permissoes.ts` |

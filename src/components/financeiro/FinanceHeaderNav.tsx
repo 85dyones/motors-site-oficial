@@ -11,6 +11,11 @@ import { usePathname } from "next/navigation";
  *
  * Ela repete os itens do trilho lateral de propósito: no mobile o trilho vira
  * gaveta, e esta régua é o caminho de um clique entre as telas do módulo.
+ *
+ * "Despesas Recorrentes" e "Compras de Insumos" saíram em 2026-08-24 junto com
+ * as telas: as rotas continuam vivas só para redirecionar quem tinha o link
+ * salvo, mas um item de menu que pula para outro lugar é pior que um item a
+ * menos — o trilho lateral já tinha sido limpo, esta régua ficou para trás.
  */
 export default function FinanceHeaderNav() {
   const pathname = usePathname();
@@ -23,10 +28,9 @@ export default function FinanceHeaderNav() {
     { name: "Contas a Pagar", href: "/admin/financeiro/contas-pagar" },
     { name: "Aprovações", href: "/admin/financeiro/aprovacoes" },
     { name: "Contas a Receber", href: "/admin/financeiro/contas-receber" },
-    { name: "Despesas Recorrentes", href: "/admin/financeiro/recorrentes" },
-    { name: "Compras de Insumos", href: "/admin/financeiro/compras" },
     { name: "Relatórios & Balanço", href: "/admin/financeiro/relatorios" },
-    { name: "Cadastros Auxiliares", href: "/admin/financeiro/cadastros" },
+    { name: "Clientes & Fornecedores", href: "/admin/clientes" },
+    { name: "Plano de Contas", href: "/admin/financeiro/cadastros" },
     { name: "Margem por Veículo", href: "/admin/financeiro/margens" },
     { name: "Investidores", href: "/admin/financeiro/investidores" },
   ];
