@@ -21,6 +21,18 @@
 --
 -- Se você quiser zerar também as fichas de investidor, a linha está lá
 -- embaixo, separada e comentada — é uma decisão diferente desta.
+--
+-- ---------------------------------------------------------------------------
+-- Emenda de 2026-08-24: duas tabelas tinham escapado
+-- ---------------------------------------------------------------------------
+-- A primeira rodada desta limpeza zerou o razão e a área do investidor
+-- continuou mostrando "1 carro · R$ 100.000 alocados". O motivo: participação
+-- em veículo NÃO é movimento — mora em `investidor_veiculos`, e este script
+-- só listava as tabelas de movimento. `investidor_movimentos` (o razão legado
+-- de antes da fusão de 22/08, que a gestão de participações ainda lê) tinha
+-- ficado de fora pelo mesmo raciocínio. As duas entram agora, nas duas
+-- partes. O sintoma clássico deste projeto: ausência de erro não é prova de
+-- limpeza completa — a prova é a contagem no fim.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
@@ -32,6 +44,8 @@ union all select 'compras_produtos',       count(*) from public.compras_produtos
 union all select 'despesas_recorrentes',   count(*) from public.despesas_recorrentes
 union all select 'extrato_bancario',       count(*) from public.extrato_bancario
 union all select 'movimentacoes_investidor', count(*) from public.movimentacoes_investidor
+union all select 'investidor_veiculos',     count(*) from public.investidor_veiculos
+union all select 'investidor_movimentos',   count(*) from public.investidor_movimentos
 union all select 'investidores (FICA)',    count(*) from public.investidores
 union all select 'categorias (FICA)',      count(*) from public.categorias_financeiras
 order by tabela;
@@ -52,6 +66,8 @@ order by tabela;
 --   delete from public.extrato_bancario;          -- prova bancária importada
 --   delete from public.compras_produtos;          -- compras de insumo
 --   delete from public.movimentacoes_investidor;  -- razão dos sócios
+--   delete from public.investidor_veiculos;       -- participação por carro (o "seus carros")
+--   delete from public.investidor_movimentos;     -- razão LEGADO (pré-fusão de 22/08)
 --   delete from public.movimentacoes;             -- o caixa
 --
 --   -- Depois o razão principal e as regras que o alimentam.
@@ -69,7 +85,9 @@ order by tabela;
 --   union all select 'compras_produtos', count(*) from public.compras_produtos
 --   union all select 'despesas_recorrentes', count(*) from public.despesas_recorrentes
 --   union all select 'extrato_bancario', count(*) from public.extrato_bancario
---   union all select 'movimentacoes_investidor', count(*) from public.movimentacoes_investidor;
+--   union all select 'movimentacoes_investidor', count(*) from public.movimentacoes_investidor
+--   union all select 'investidor_veiculos', count(*) from public.investidor_veiculos
+--   union all select 'investidor_movimentos', count(*) from public.investidor_movimentos;
 --
 -- commit;   -- ou `rollback;` se algo não bateu
 --
