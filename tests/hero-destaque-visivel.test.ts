@@ -63,13 +63,34 @@ describe("--hero-cabe", () => {
 describe("EstatisticasRegua", () => {
   it("aceita o ajuste do hero por variável", () => {
     expect(primitivos).toContain("pt-[var(--regua-pt,16px)]");
-    expect(primitivos).toContain("text-[length:var(--regua-valor,34px)]");
+    expect(primitivos).toContain(
+      "text-[length:var(--regua-valor,clamp(19px,5.2vw,34px))]"
+    );
   });
 
-  it("mantém o valor do design como fallback para quem não define nada", () => {
+  it("mantém o valor do design como teto para quem não define nada", () => {
     // A régua também vive em /sobre, fora do alcance do hero. Sem fallback,
     // os números apareceriam no tamanho herdado do texto corrido.
+    //
+    // O fallback é um `clamp`, e não os 34px crus, porque em /sobre a régua
+    // ocupa a largura inteira do telefone: em 375px cada coluna fica com
+    // ~100px e "6 MESES" a 34px pede 165px. O número vazava na coluna
+    // vizinha e a régua lia "100%FIPE". Os 34px do design seguem sendo o
+    // teto — alcançado a partir de ~654px de viewport —, então no desktop
+    // nada muda; o piso só age onde encolher é o que faz o texto caber.
     expect(primitivos).toMatch(/--regua-pt,\s*16px/);
-    expect(primitivos).toMatch(/--regua-valor,\s*34px/);
+    expect(primitivos).toMatch(
+      /--regua-valor,\s*clamp\(\s*19px\s*,\s*5\.2vw\s*,\s*34px\s*\)/
+    );
+  });
+
+  it("separa as colunas — sem respiro os valores se encostam", () => {
+    // Colunas `flex-1` coladas uma na outra faziam "100%" e "FIPE" saírem
+    // grudadas ("100%FIPE") em /sobre no celular. Aqui não há régua vertical
+    // entre as colunas para disfarçar a falta de espaço: o gap é o respiro.
+    expect(primitivos).toMatch(/flex\s+gap-x-\d/);
+    // `min-w-0` deixa a coluna encolher abaixo do conteúdo em vez de
+    // empurrar a vizinha para fora da régua.
+    expect(primitivos).toContain('className="min-w-0 flex-1"');
   });
 });

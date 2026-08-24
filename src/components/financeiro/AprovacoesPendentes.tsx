@@ -286,7 +286,7 @@ export default function AprovacoesPendentes({ podeDecidir }: { podeDecidir: bool
             ].map((kpi) => (
               <div
                 key={kpi.rotulo}
-                className="flex flex-col gap-2 border-b border-mt-regua-fina px-0 py-4 pr-5 sm:border-b-0 sm:border-r sm:last:border-r-0"
+                className="flex flex-col gap-2 border-b border-mt-regua-fina py-4 pr-5 sm:border-b-0 sm:border-r sm:pl-5 sm:first:pl-0 sm:last:border-r-0 sm:last:pr-0"
               >
                 <span className="mt-rotulo">{kpi.rotulo}</span>
                 <span className="text-2xl font-extrabold tracking-[-.03em] tabular-nums text-mt-accent">

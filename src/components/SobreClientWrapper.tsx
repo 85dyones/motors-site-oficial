@@ -124,7 +124,7 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
             {valores.map((valor, i) => (
               <div
                 key={i}
-                className="flex-1 border-b border-mt-regua-fina py-5 lg:border-b-0 lg:border-r lg:border-mt-regua-media lg:pr-6 lg:last:border-r-0"
+                className="flex-1 border-b border-mt-regua-fina py-5 lg:border-b-0 lg:border-r lg:border-mt-regua-media lg:pl-6 lg:pr-6 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"
               >
                 <div className="mb-2.5 text-[11px] font-extrabold tracking-[.12em] text-mt-accent">
                   {String(i + 1).padStart(2, "0")}
