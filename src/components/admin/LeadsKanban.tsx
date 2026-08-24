@@ -201,7 +201,7 @@ export default function LeadsKanban() {
           <div className="mt-rotulo mb-3">Volume por etapa</div>
           <div className="grid grid-cols-2 border-t-2 border-mt-regua lg:grid-cols-7">
             {ETAPAS.map((e) => (
-              <div key={e.id} className="border-b border-mt-regua-fina py-4 pr-4 lg:border-b-0 lg:border-r lg:last:border-r-0">
+              <div key={e.id} className="border-b border-mt-regua-fina py-4 pr-4 lg:border-b-0 lg:border-r lg:pl-4 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0">
                 <div className="mt-rotulo">{e.rotulo}</div>
                 <div className="mt-2 text-2xl font-extrabold tabular-nums">
                   {agregado.porSituacao[e.id] ?? 0}

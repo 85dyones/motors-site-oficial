@@ -285,7 +285,7 @@ export default function DiaOperacional() {
             {kpis.map((kpi) => (
               <div
                 key={kpi.rotulo}
-                className="flex flex-col gap-2 border-b border-mt-regua-fina px-0 py-4 pr-5 lg:border-b-0 lg:border-r lg:last:border-r-0"
+                className="flex flex-col gap-2 border-b border-mt-regua-fina py-4 pr-5 lg:border-b-0 lg:border-r lg:pl-5 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"
               >
                 <span className="mt-rotulo">{kpi.rotulo}</span>
                 <span className={`text-2xl font-extrabold tracking-[-.03em] tabular-nums ${kpi.cor}`}>

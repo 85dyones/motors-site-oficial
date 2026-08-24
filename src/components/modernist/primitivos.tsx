@@ -164,17 +164,29 @@ export function EstatisticasRegua({
   /* `--regua-pt` e `--regua-valor` são pontos de ajuste opcionais: quem monta
      a régua num espaço apertado (o hero da home, que precisa caber na altura
      da janela) define as vars num ancestral e elas chegam aqui por herança.
-     Sem ninguém definindo, o fallback é o valor do design. */
+     Sem ninguém definindo, valem os fallbacks abaixo.
+
+     O fallback do valor é um `clamp`, e não os 34px do design, porque quem
+     não define a var é a régua de /sobre, que roda na largura toda do
+     telefone: em 375px cada coluna fica com ~100px e "6 MESES" a 34px pede
+     165px. O número vazava na coluna vizinha e a régua lia "100%FIPE". O
+     `clamp` chega nos 34px do design a partir de ~654px de viewport, então
+     no desktop nada muda; ele só encolhe onde encolher é o que faz o texto
+     caber. Quem define a var (o hero) não é afetado.
+
+     O `gap-x` é o respiro entre colunas. Sem ele as colunas são `flex-1`
+     coladas uma na outra e os valores se encostam — mesmo problema das
+     réguas com regra vertical, aqui sem a regra para disfarçar. */
   return (
     <div
-      className={`flex border-t-2 pt-[var(--regua-pt,16px)] ${
+      className={`flex gap-x-4 border-t-2 pt-[var(--regua-pt,16px)] ${
         inverso ? "border-mt-inverso-regua" : "border-mt-regua"
       } ${className}`}
     >
       {itens.map((item) => (
-        <div key={item.rotulo} className="flex-1">
+        <div key={item.rotulo} className="min-w-0 flex-1">
           <div
-            className={`text-[length:var(--regua-valor,34px)] font-extrabold leading-none ${
+            className={`text-[length:var(--regua-valor,clamp(19px,5.2vw,34px))] font-extrabold leading-none ${
               item.accent
                 ? "text-mt-accent"
                 : inverso

@@ -314,7 +314,7 @@ export default function InvestidoresGestao() {
               { r: "Já retirado", v: posicao.retirado_total, cor: "text-mt-neutral-700" },
               { r: "Saldo investido", v: posicao.saldo_investido, cor: "text-mt-accent" },
             ].map((n) => (
-              <div key={n.r} className="border-r border-mt-regua-fina pr-5 last:border-r-0">
+              <div key={n.r} className="sm:border-r sm:border-mt-regua-fina sm:pr-5 sm:last:border-r-0">
                 <div className="mt-rotulo">{n.r}</div>
                 <div className={`mt-2 text-[26px] font-extrabold leading-none tracking-[-.03em] tabular-nums ${n.cor}`}>
                   {formatarPreco(Number(n.v))}

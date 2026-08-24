@@ -282,7 +282,7 @@ export default async function Home() {
           do nosso estoque.
         </p>
         <div className="mt-7 flex max-w-[420px] border-t-2 border-mt-regua">
-          <div className="flex-1 border-r border-mt-regua-media pt-3.5">
+          <div className="flex-1 border-r border-mt-regua-media pr-4 pt-3.5">
             <div className="text-[26px] font-extrabold">10 min</div>
             <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
               RESPOSTA
