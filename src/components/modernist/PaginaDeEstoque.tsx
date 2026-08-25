@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Veiculo } from "../../types";
-import { getVeiculoPdpUrl } from "../../lib/supabase";
 import { resumirSelecao } from "../../lib/destaquesRapidos";
-import { CardVeiculo, formatarKm, formatarPreco } from "./primitivos";
+import GradeDeVeiculos from "./GradeDeVeiculos";
+import { formatarKm, formatarPreco } from "./primitivos";
 
 /**
  * A página de listagem que hubs e páginas de bairro compartilham.
@@ -51,6 +51,20 @@ export interface PaginaDeEstoqueProps {
   faq?: PerguntaFrequente[];
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
   acao?: ReactNode;
+  /**
+   * O `<h1>` traz a contagem ao lado do título.
+   *
+   * Vale para vitrine — "Jeep seminovos em Curitiba 4", e o zero de um hub sem
+   * estoque é informação honesta. Não vale para página que não é listagem:
+   * "Garantia do seminovo 0" não quer dizer nada.
+   */
+  contagem?: boolean;
+  /**
+   * Bloco livre entre a grade e os links — hoje o simulador de `/financiamento`
+   * e a régua de procedência de `/garantia`. Entra depois da grade porque
+   * nessas páginas o estoque é ilustração do argumento, não o argumento.
+   */
+  conteudo?: ReactNode;
 }
 
 export default function PaginaDeEstoque({
@@ -62,6 +76,8 @@ export default function PaginaDeEstoque({
   blocos = [],
   faq = [],
   acao,
+  contagem = true,
+  conteudo,
 }: PaginaDeEstoqueProps) {
   const resumo = resumirSelecao(veiculos);
   const temResumo = veiculos.length > 0;
@@ -96,7 +112,8 @@ export default function PaginaDeEstoque({
         <div className="flex flex-col gap-8 border-b-2 border-mt-regua pb-6 pt-4 lg:flex-row lg:items-end lg:gap-11">
           <div className="flex-1">
             <h1 className="mt-titulo m-0 text-[34px] lg:text-[56px] lg:leading-[.95]">
-              {titulo} <span className="text-mt-accent">{veiculos.length}</span>
+              {titulo}
+              {contagem && <span className="text-mt-accent"> {veiculos.length}</span>}
             </h1>
             {introducao.map((paragrafo, i) => (
               <p
@@ -161,16 +178,8 @@ export default function PaginaDeEstoque({
         </div>
 
         {veiculos.length > 0 ? (
-          <div className="grid grid-cols-1 gap-x-7 gap-y-10 py-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-y-11">
-            {veiculos.map((v, i) => (
-              <CardVeiculo
-                key={v.id}
-                veiculo={v}
-                href={getVeiculoPdpUrl(v)}
-                etiqueta={v.status_tag || undefined}
-                prioridade={i < 3}
-              />
-            ))}
+          <div className="py-8">
+            <GradeDeVeiculos veiculos={veiculos} />
           </div>
         ) : (
           /* Grade vazia não é erro: o hub é perene e volta a encher quando o
@@ -186,6 +195,8 @@ export default function PaginaDeEstoque({
             </Link>
           </div>
         )}
+
+        {conteudo && <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>}
 
         {blocos.map((bloco) => (
           <section key={bloco.titulo} className="border-t-2 border-mt-regua py-6">

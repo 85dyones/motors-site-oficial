@@ -120,6 +120,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     {
+      // Destino da campanha de financiamento: a grade e o simulador acompanham
+      // o estoque, então o carimbo é o do inventário, não o institucional.
+      url: `${SITE_URL}/financiamento`,
+      lastModified: inventarioMudouEm,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/garantia`,
+      lastModified: ATUALIZACAO_INSTITUCIONAL,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    },
+    {
       url: `${SITE_URL}/sobre`,
       lastModified: ATUALIZACAO_INSTITUCIONAL,
       changeFrequency: "weekly" as const,

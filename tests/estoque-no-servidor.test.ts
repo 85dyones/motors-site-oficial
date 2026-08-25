@@ -73,7 +73,9 @@ describe("os hubs e as páginas de bairro nascem servidos", () => {
   it.each([
     "src/app/[categoria]/[marca]/page.tsx",
     "src/app/[categoria]/[marca]/[modelo]/page.tsx",
-    "src/app/estoque/[carroceria]/page.tsx",
+    "src/app/estoque/[recorte]/page.tsx",
+    "src/app/financiamento/page.tsx",
+    "src/app/garantia/page.tsx",
     "src/app/seminovos-curitiba/page.tsx",
     "src/app/seminovos-bacacheri/page.tsx",
   ])("%s não é client component", (arquivo) => {
@@ -83,6 +85,10 @@ describe("os hubs e as páginas de bairro nascem servidos", () => {
   it("a listagem compartilhada renderiza os cards no servidor", () => {
     const fonte = ler("src/components/modernist/PaginaDeEstoque.tsx");
     expect(fonte.trimStart().startsWith('"use client"')).toBe(false);
-    expect(fonte).toMatch(/<CardVeiculo/);
+    // A grade em si vive em `GradeDeVeiculos` desde 2026-08-25: ela é a mesma
+    // que `/estoque` usa como fallback do Suspense, e uma cópia da marcação em
+    // cada página era a receita para os cards divergirem entre elas.
+    expect(fonte).toMatch(/<GradeDeVeiculos/);
+    expect(ler("src/components/modernist/GradeDeVeiculos.tsx")).toMatch(/<CardVeiculo/);
   });
 });

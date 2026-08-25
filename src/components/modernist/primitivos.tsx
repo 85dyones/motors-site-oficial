@@ -11,6 +11,7 @@
  * · vermelho só onde há decisão
  */
 
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Veiculo } from "../../types";
@@ -249,13 +250,30 @@ export function CardVeiculo({
       <div className="relative aspect-[4/3] bg-mt-neutral-300">
         {foto ? (
           /* Foto sem moldura e em cores — exceção deliberada ao P&B do
-             sistema, porque cor é argumento de venda em carro. */
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+             sistema, porque cor é argumento de venda em carro.
+
+             `next/image` desde 2026-08-25. Era um `<img>` cru com
+             `eslint-disable`: sem WebP/AVIF, sem `srcset` e sem `sizes`, com o
+             arquivo vindo do S3 do RevendaMais em tamanho cheio. Cada card
+             baixava a foto de desktop mesmo no celular, e o §2.2.5 do plano de
+             aquisição é direto sobre isso — "em site de estoque, o vilão do LCP
+             é sempre a galeria de fotos". A ficha já usava `next/image`; só o
+             card tinha ficado de fora, e ele aparece na home, no catálogo, nas
+             landings, nos hubs e nas páginas de bairro.
+
+             O `sizes` é o que faz a otimização valer: sem ele o Next serve o
+             maior candidato do srcset em qualquer viewport, e o ganho vira
+             zero. As três medidas são as grades reais em que este card vive —
+             uma coluna no celular, duas no tablet, três no desktop. */
+          <Image
             src={foto}
             alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            priority={prioridade}
+            fetchPriority={prioridade ? "high" : "auto"}
             loading={prioridade ? "eager" : "lazy"}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="object-cover"
           />
         ) : null}
         {etiqueta && (

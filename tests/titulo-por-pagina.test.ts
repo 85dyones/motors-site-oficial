@@ -60,7 +60,10 @@ describe("o catálogo e os hubs dizem o que vendem e onde", () => {
     ["src/app/estoque/page.tsx", /title:\s*`Carros Seminovos em Curitiba/],
     ["src/app/[categoria]/[marca]/page.tsx", /Seminovo em Curitiba/],
     ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /Seminovo em Curitiba/],
-    ["src/app/estoque/[carroceria]/page.tsx", /Seminovas em Curitiba/],
+    ["src/app/estoque/[recorte]/page.tsx", /Seminovas em Curitiba/],
+    ["src/app/estoque/[recorte]/page.tsx", /Seminovos \$\{faixa\.nome\} em Curitiba/],
+    ["src/app/financiamento/page.tsx", /Financiamento de Carro Seminovo em Curitiba/],
+    ["src/app/garantia/page.tsx", /Garantia do Seminovo em Curitiba/],
   ])("%s", (arquivo, esperado) => {
     expect(ler(arquivo)).toMatch(esperado);
   });

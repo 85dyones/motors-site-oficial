@@ -1,6 +1,10 @@
 import type { Veiculo } from "../types";
 import { getEstoque } from "./supabase";
 import { CARROCERIAS } from "./classificacaoVeiculo";
+// O preço vigente já vive em `regrasEstoque` — é o mesmo que a vitrine, os
+// destaques e o feed usam. Duas versões dessa regra é como o filtro de preço
+// e a etiqueta de promoção acabam discordando na mesma tela.
+import { precoVigente } from "./regrasEstoque";
 import {
   SEGMENTOS_DE_PDP,
   segmentoDoVeiculo,
@@ -277,6 +281,11 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
     caminhos.push(`/estoque/${carroceria.slug}`);
   }
 
+  // As faixas entram sempre: a lista é fechada e a página existe mesmo vazia.
+  for (const faixa of FAIXAS_DE_PRECO) {
+    caminhos.push(`/estoque/${faixa.slug}`);
+  }
+
   return caminhos;
 }
 
@@ -299,4 +308,89 @@ export async function recortesDoEstoque(): Promise<{
     getEstoque(),
   ]);
   return { historico, disponiveis: disponiveisDe(vivos) };
+}
+
+/**
+ * As faixas de preço que viram `/estoque/{faixa}`.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que estes cortes, e não os do plano
+ * ---------------------------------------------------------------------------
+ * O plano de aquisição sugere `até 100 mil`, `100 a 200 mil` e `acima de 200
+ * mil`. Medido no feed de produção em 2026-08-25, sobre os 39 veículos (de
+ * R$ 23.900 a R$ 318.900, mediana R$ 65.900), aqueles cortes jogariam **32 dos
+ * 39** numa página só — um recorte que não recorta nada.
+ *
+ * Os cortes abaixo dividem o estoque real em três terços utilizáveis (17 / 15 /
+ * 7) e batem com a mediana da casa. Se o mix subir de patamar, é aqui que se
+ * mexe — e o `slug` faz parte da URL, então mudar um corte é renomear uma
+ * página indexada: vale conferir a distribuição antes.
+ *
+ * Diferente de marca e modelo, a faixa **não depende do histórico**: a lista é
+ * fechada e pequena, então a página existe sempre, mesmo com a grade vazia.
+ * Não há espaço de URL infinito a proteger aqui.
+ */
+export interface FaixaDePreco {
+  slug: string;
+  /** Como entra no meio da frase: "Seminovos {nome} em Curitiba". */
+  nome: string;
+  /** Inclusivo. */
+  min: number;
+  /** Exclusivo. `Infinity` no topo. */
+  max: number;
+}
+
+export const FAIXAS_DE_PRECO: FaixaDePreco[] = [
+  { slug: "ate-60-mil", nome: "até R$ 60 mil", min: 0, max: 60000 },
+  { slug: "60-a-100-mil", nome: "de R$ 60 mil a R$ 100 mil", min: 60000, max: 100000 },
+  { slug: "acima-100-mil", nome: "acima de R$ 100 mil", min: 100000, max: Infinity },
+];
+
+export interface HubDeFaixa extends FaixaDePreco {
+  veiculos: Veiculo[];
+}
+
+export function hubsDeFaixa(disponiveis: Veiculo[]): HubDeFaixa[] {
+  return FAIXAS_DE_PRECO.map((faixa) => ({
+    ...faixa,
+    veiculos: disponiveis.filter((v) => {
+      const preco = precoVigente(v);
+      return preco > 0 && preco >= faixa.min && preco < faixa.max;
+    }),
+  }));
+}
+
+export function acharHubDeFaixa(disponiveis: Veiculo[], slug: string): HubDeFaixa | null {
+  return hubsDeFaixa(disponiveis).find((f) => f.slug === slug) ?? null;
+}
+
+/**
+ * Para onde vai a URL de um veículo cujo ciclo terminou.
+ *
+ * A cascata do §2.2.2 do plano de aquisição, com uma regra que não se
+ * negocia: **nunca para a home**. Redirecionar uma ficha para a raiz é o padrão
+ * que o Google trata como soft-404 — ele descarta o sinal em vez de transferi-lo,
+ * que é o oposto do motivo de existir do redirecionamento.
+ *
+ * Modelo → marca → `/estoque`. O hub do modelo é o destino natural: quem
+ * procurava "renegade usado curitiba" e caiu num Renegade vendido continua
+ * querendo um Renegade. Só desce um degrau quando o de cima não existe — e
+ * como os hubs são perenes, na prática o destino quase sempre é o modelo.
+ */
+export function destinoDoVeiculoArquivado(
+  veiculo: Veiculo,
+  historico: Veiculo[],
+  disponiveis: Veiculo[],
+): string {
+  const segmento = segmentoDoVeiculo(veiculo);
+  const slugMarca = slugDeMarca(veiculo.marca);
+  const slugModelo = slugDeModelo(veiculo.marca, veiculo.modelo, veiculo.versao);
+
+  if (acharHubDeModelo(historico, disponiveis, segmento, slugMarca, slugModelo)) {
+    return `/${segmento}/${slugMarca}/${slugModelo}`;
+  }
+  if (acharHubDeMarca(historico, disponiveis, segmento, slugMarca)) {
+    return `/${segmento}/${slugMarca}`;
+  }
+  return "/estoque";
 }

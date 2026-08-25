@@ -1,4 +1,5 @@
 import type { CompanySettings, Veiculo } from "../types";
+import { precoVigente } from "./regrasEstoque";
 import { SITE_URL } from "./site";
 
 /**
@@ -115,11 +116,7 @@ export function enderecoDoSchema(endereco: string) {
  */
 export function faixaDePreco(disponiveis: Pick<Veiculo, "preco_original" | "preco_promocional">[]): string | undefined {
   const precos = (disponiveis ?? [])
-    .map((v) =>
-      v.preco_promocional > 0 && v.preco_promocional < v.preco_original
-        ? v.preco_promocional
-        : v.preco_original,
-    )
+    .map(precoVigente)
     .filter((p) => Number.isFinite(p) && p > 0);
 
   if (precos.length === 0) return undefined;

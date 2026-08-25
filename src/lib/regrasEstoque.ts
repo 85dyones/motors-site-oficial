@@ -20,8 +20,15 @@ export function resolveTipoCombustivel(car: Veiculo): string {
   return car.combustivel || "Flex";
 }
 
-/** Preço vigente: promocional quando existe e é menor que o original. */
-export function precoVigente(car: Veiculo): number {
+/**
+ * Preço vigente: promocional quando existe e é menor que o original.
+ *
+ * O parâmetro é o recorte de dois campos, e não `Veiculo` inteiro, porque desde
+ * 2026-08-25 o `priceRange` do `AutoDealer` e as faixas de preço chamam daqui —
+ * e o que eles têm em mãos nem sempre é a linha completa do estoque. Nenhum
+ * chamador existente muda: `Veiculo` satisfaz o recorte.
+ */
+export function precoVigente(car: Pick<Veiculo, "preco_original" | "preco_promocional">): number {
   return car.preco_promocional > 0 && car.preco_promocional < car.preco_original
     ? car.preco_promocional
     : car.preco_original;

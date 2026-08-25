@@ -8,9 +8,14 @@ import {
   hubsDeCarroceria,
   recortesDoEstoque,
 } from "../../../lib/hubsDeEstoque";
-import { blocoJsonLd, schemaDeListagem, schemaDeTrilha } from "../../../lib/schemaListagem";
+import {
+  blocoJsonLd,
+  schemaDeListagem,
+  schemaDePerguntas,
+  schemaDeTrilha,
+} from "../../../lib/schemaListagem";
 import { schemaDaLoja } from "../../../lib/schemaLoja";
-import { textoDeMarca } from "../../../lib/textoDosHubs";
+import { perguntasDeCategoria, textoDeMarca } from "../../../lib/textoDosHubs";
 import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../lib/veiculoUrl";
 
 /**
@@ -89,6 +94,8 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
   const caminho = `/${hub.segmento}/${hub.slug}`;
   const rotuloDoSegmento = hub.segmento === "motos" ? "Motos" : "Carros";
 
+  const perguntas = perguntasDeCategoria(`${hub.nome} seminovos`);
+
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
       { nome: "Home", caminho: "/" },
@@ -96,6 +103,7 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
       { nome: hub.nome, caminho },
     ]),
     schemaDeListagem(`${hub.nome} seminovos em Curitiba`, hub.veiculos),
+    schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
   ]);
 
@@ -133,6 +141,7 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
             })),
           },
         ]}
+        faq={perguntas}
       />
     </div>
   );

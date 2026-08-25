@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import Catalogo from "../../components/modernist/Catalogo";
+import GradeDeVeiculos from "../../components/modernist/GradeDeVeiculos";
 import { getEstoque } from "../../lib/supabase";
 import { getCachedSettings, recortePublicoDeSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
@@ -12,10 +13,26 @@ import {
 } from "../../lib/destaquesRapidos";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
-import { blocoJsonLd, schemaDeListagem, schemaDeTrilha } from "../../lib/schemaListagem";
+import {
+  blocoJsonLd,
+  schemaDeListagem,
+  schemaDePerguntas,
+  schemaDeTrilha,
+} from "../../lib/schemaListagem";
+import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja } from "../../lib/schemaLoja";
 
 export const revalidate = 60;
+
+/**
+ * Quantos veículos a grade do servidor entrega antes do JavaScript.
+ *
+ * Igual ao `PAGINA` do `Catalogo` (9): o fallback e a primeira tela do catálogo
+ * mostram exatamente a mesma coisa, então a troca na hidratação não move nada
+ * na tela. As demais URLs de ficha chegam ao rastreador pelo `ItemList` logo
+ * abaixo, que lista o estoque inteiro.
+ */
+const PRIMEIRA_LEVA = 9;
 
 export async function generateMetadata(): Promise<Metadata> {
   const [estoque, { companySettings }] = await Promise.all([
@@ -60,12 +77,15 @@ export default async function EstoquePage() {
   const marcas = hubsDeMarca(historico, disponiveis, "carros").filter((m) => m.veiculos.length > 0);
   const carrocerias = hubsDeCarroceria(historico, disponiveis).filter((c) => c.veiculos.length > 0);
 
+  const perguntas = perguntasDeCategoria("carros seminovos");
+
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
       { nome: "Home", caminho: "/" },
       { nome: "Estoque", caminho: "/estoque" },
     ]),
     schemaDeListagem("Carros seminovos em Curitiba", disponiveis),
+    schemaDePerguntas(perguntas),
     schemaDaLoja(settings.companySettings, { disponiveis }),
   ]);
 
@@ -111,7 +131,41 @@ export default async function EstoquePage() {
         </p>
       </div>
 
-      <Suspense fallback={<div className="min-h-[60vh]" />}>
+      {/* O fallback é a grade de verdade, não um retângulo vazio.
+          `Catalogo` usa `useSearchParams()`: dentro de um <Suspense>, o que o
+          servidor renderiza é o FALLBACK — a árvore do cliente só aparece
+          depois do JavaScript. Era assim que /estoque saía sem um único link de
+          veículo no HTML. Colocando a grade aqui, quem lê sem executar JS vê a
+          vitrine, e quem executa vê o Catálogo assumir com filtro e ordenação.
+          Os dois veem a mesma grade, com o mesmo card. */}
+      <Suspense
+        fallback={
+          /* A moldura repete a do `Catalogo` — barra de ordenação em cima e a
+             coluna de 290px do filtro à esquerda — porque o fallback vira o
+             conteúdo real do HTML e some na hidratação. Sem reservar a coluna,
+             a grade nasceria em largura cheia e pularia para dentro quando o
+             filtro aparecesse, na tela mais usada do site. */
+          <>
+            <div className="border-b-2 border-mt-regua px-[18px] pb-5 pt-6 lg:px-10 lg:pt-7">
+              <div className="flex items-baseline gap-2">
+                <span className="mt-titulo text-[26px] lg:text-[32px]">{disponiveis.length}</span>
+                <span className="text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
+                  {disponiveis.length === 1 ? "VEÍCULO NA SELEÇÃO" : "VEÍCULOS NA SELEÇÃO"}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col lg:flex-row lg:items-stretch">
+              <div
+                aria-hidden="true"
+                className="hidden shrink-0 lg:block lg:w-[290px] lg:border-r-2 lg:border-mt-regua"
+              />
+              <div className="min-w-0 flex-1 px-[18px] py-8 lg:px-7">
+                <GradeDeVeiculos veiculos={disponiveis.slice(0, PRIMEIRA_LEVA)} />
+              </div>
+            </div>
+          </>
+        }
+      >
         <Catalogo
           estoque={disponiveis}
           quickTags={quickTags.length > 0 ? quickTags : DESTAQUES_PADRAO}
@@ -167,6 +221,28 @@ export default async function EstoquePage() {
           </section>
         )}
       </nav>
+
+      {/* Fora do <nav>: pergunta frequente não é navegação, e landmark com
+          conteúdo que não é link atrapalha quem navega por leitor de tela.
+
+          As perguntas precisam existir na PÁGINA, não só no JSON-LD: markup de
+          `FAQPage` que não bate com o conteúdo visível é o caminho curto para
+          uma ação manual no Search Console. */}
+      <div className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
+        <section>
+          <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Perguntas frequentes</h2>
+          <dl className="m-0 mt-4 max-w-[720px]">
+            {perguntas.map((item) => (
+              <div key={item.pergunta} className="border-b border-mt-regua-fina py-4">
+                <dt className="text-[14px] font-extrabold text-mt-ink">{item.pergunta}</dt>
+                <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
+                  {item.resposta}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      </div>
     </div>
   );
 }

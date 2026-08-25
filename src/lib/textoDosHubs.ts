@@ -184,6 +184,40 @@ export function textoDeCarroceria(carroceria: string, veiculos: Veiculo[]): stri
   return paragrafos;
 }
 
+/** Texto do hub de faixa de preço. */
+export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[] {
+  const r = resumir(veiculos);
+  const paragrafos: string[] = [];
+
+  if (r.total === 0) {
+    paragrafos.push(
+      `Sem veículos ${faixa} em estoque neste momento. Esta faixa faz parte do que a loja ` +
+        "compra e volta a encher — o giro é semanal.",
+    );
+  } else {
+    const anos = trechoDeAnos(r);
+    const marcas = enumerar([...new Set(veiculos.map((v) => v.marca))].slice(0, 6));
+    const carrocerias = enumerar(
+      [...new Set(veiculos.map((v) => (v.tipo ?? "").trim()).filter(Boolean))].slice(0, 4),
+    );
+    paragrafos.push(
+      `${r.total} ${r.total === 1 ? "veículo" : "veículos"} ${faixa} em ${CIDADE_DA_LOJA}` +
+        `${anos ? `, ${anos}` : ""}.` +
+        (marcas ? ` Marcas nesta faixa: ${marcas}.` : "") +
+        (carrocerias ? ` Carrocerias: ${carrocerias}.` : ""),
+    );
+  }
+
+  paragrafos.push(
+    "A faixa de preço é o recorte, não o critério de entrada: o carro de R$ 30 mil passa pela " +
+      "mesma perícia cautelar independente que o mais caro da vitrine. É o que permite " +
+      "escalar para baixo sem baixar o crivo — de cada dez avaliados, três entram, em qualquer faixa.",
+  );
+
+  paragrafos.push(paragrafoDaSelecao());
+  return paragrafos;
+}
+
 /**
  * Perguntas de página de categoria.
  *

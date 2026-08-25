@@ -49,6 +49,7 @@ describe("decidirPublicacao — carro à venda", () => {
       indisponivel: false,
       rotulo: null,
       noindex: false,
+      arquivar: false,
     });
   });
 });
@@ -64,6 +65,9 @@ describe("decidirPublicacao — fora do feed", () => {
       indisponivel: true,
       rotulo: "INDISPONÍVEL",
       noindex: true,
+      // Fora do feed NÃO arquiva: o motivo da saída é desconhecido e o carro
+      // pode voltar. Só venda consumada recicla a URL.
+      arquivar: false,
     });
   });
 
@@ -80,7 +84,7 @@ describe("decidirPublicacao — carência do vendido", () => {
     // A parte boa do tráfego: quem busca o modelo na semana seguinte à venda é
     // comprador daquele perfil, e a página já oferece similares.
     const r = decidirPublicacao({ ...vendido, dataVenda: haDias(10) }, AGORA);
-    expect(r).toEqual({ indisponivel: true, rotulo: "VENDIDO", noindex: false });
+    expect(r).toEqual({ indisponivel: true, rotulo: "VENDIDO", noindex: false, arquivar: false });
   });
 
   it("venda antiga sai do índice", () => {

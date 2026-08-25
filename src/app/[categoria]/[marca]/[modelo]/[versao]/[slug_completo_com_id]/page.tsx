@@ -8,7 +8,6 @@ import { getCachedSettings } from "../../../../../../lib/settings";
 import { montarCompartilhamento } from "../../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../../lib/similares";
-import { SITE_URL } from "../../../../../../lib/site";
 import {
   ehSegmentoDePdp,
   segmentoDoVeiculo,
@@ -18,6 +17,10 @@ import {
 import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../../lib/nomeDoVeiculo";
 import { schemaDoVeiculo } from "../../../../../../lib/schemaVeiculo";
 import { blocoJsonLd, schemaDeTrilha } from "../../../../../../lib/schemaListagem";
+import {
+  destinoDoVeiculoArquivado,
+  recortesDoEstoque,
+} from "../../../../../../lib/hubsDeEstoque";
 
 // Incremental Static Regeneration (ISR) configuration
 export const revalidate = 3600; // Revalidate every 1 hour
@@ -210,15 +213,37 @@ export default async function CarDetailsPage({ params }: PageProps) {
     permanentRedirect(pdpUrl);
   }
 
-  const [estoqueCompleto, settings, publicacao] = await Promise.all([
-    getEstoque(),
+  const [{ historico, disponiveis }, settings, publicacao] = await Promise.all([
+    recortesDoEstoque(),
     getCachedSettings(),
     publicacaoDoVeiculo(veiculo),
   ]);
+
+  /**
+   * Fim do ciclo: a URL vira 301 para o hub do modelo.
+   *
+   * Até 2026-08-25 a ficha vendida ficava para sempre no ar com `noindex`, e
+   * todo o sinal que ela acumulou — link de portal, compartilhamento de
+   * WhatsApp, link interno — era descartado. Com giro de ~45 dias sobre 39
+   * vagas, são da ordem de 300 URLs por ano indo para o lixo. Não havia o que
+   * fazer diferente: o hub do modelo não existia. Agora existe.
+   *
+   * A carência de 90 dias (`CARENCIA_VENDIDO_DIAS`) não muda — é decisão do
+   * dono de 17/08, e o redirecionamento entra no MESMO momento em que a página
+   * já saía do índice. Nos primeiros 90 dias ela continua de pé com o selo e os
+   * similares, que é onde ela ainda converte.
+   *
+   * `arquivar` é falso para "fora do feed": ali o motivo da saída é
+   * desconhecido e o carro pode voltar (ver `lib/publicacao.ts`).
+   */
+  if (publicacao.arquivar) {
+    permanentRedirect(destinoDoVeiculoArquivado(veiculo, historico, disponiveis));
+  }
+
   const itensProcedencia = normalizarProcedencia(settings.procedencia);
 
   // "Também no seu perfil" — regra e limites em `lib/similares.ts`.
-  const similares = escolherSimilares(veiculo, estoqueCompleto);
+  const similares = escolherSimilares(veiculo, disponiveis);
 
   // O `Car` completo mora em `lib/schemaVeiculo.ts`. Ficava aqui, montado à
   // mão, e era onde faltavam `sku`, `bodyType`, `itemCondition` na raiz,

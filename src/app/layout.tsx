@@ -11,6 +11,7 @@ import IntegrationsTracker from "../components/IntegrationsTracker";
 import CamadaDeDados from "../components/CamadaDeDados";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
+import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -93,6 +94,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Marcas e modelos do rodapé, resolvidos aqui porque o rodapé é client
+  // component e não pode consultar o banco sem virar `useEffect` — que foi
+  // exatamente o que manteve esses links fora do HTML servido até 2026-08-25.
+  // A leitura passa por `unstable_cache` (1h): o layout roda em toda rota,
+  // inclusive nas do painel, e nenhuma delas pode pagar consulta por visita.
+  const navegacaoDoRodape = await getNavegacaoDoRodape();
+
   return (
     <html
       lang="pt-BR"
@@ -171,7 +179,7 @@ export default async function RootLayout({
             {children}
           </main>
           <MolduraDoSite>
-            <Footer />
+            <Footer navegacao={navegacaoDoRodape} />
             <LeadPopup />
             <CookieConsentBanner />
           </MolduraDoSite>

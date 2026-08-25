@@ -43,6 +43,7 @@ As variáveis de ambiente estão descritas em `.env.example`.
 | `supabase/README.md` | Migrações, runbook de aplicação e o contrato do sync de estoque |
 | `WEBHOOKS_N8N.md` | Contrato dos webhooks site → n8n (formatos A, B e C) |
 | `TRACKING_SPEC.md` | Meta Pixel/CAPI e Google — spec em produção |
+| `docs/GTM_CONFIGURACAO.md` | Variáveis, tags, gatilhos e conversões do GTM, prontos para copiar |
 | `SETUP_MANUAL.md` | Passo a passo de configuração de contas externas |
 
 Migrações do banco são **versionadas** em `supabase/migrations/` — nunca altere
