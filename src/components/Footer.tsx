@@ -6,7 +6,7 @@ import { useTheme } from "../app/ThemeContext";
 import { getEstoque, getVeiculoPdpUrl, truncateString, type Veiculo } from "../lib/supabase";
 import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
 import { trackContactClick } from "../lib/telemetry";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
 
 /**
  * Rodapé Modernist (redesign 2026).
@@ -108,7 +108,12 @@ export default function Footer() {
           contato: "phone",
         },
         {
-          rotulo: `WhatsApp ${companySettings.whatsapp}`,
+          // Rótulo e link saem do MESMO campo (`lib/whatsapp.ts`). Vinham de
+          // dois: o texto de `companySettings.whatsapp`, o href de
+          // `whatsappRaw`. Em 2026-08-25 o HTML servido da home mostrava
+          // "(41) 99842-6127" com um wa.me para 5541997372165 — número na tela
+          // diferente do número que o botão abre.
+          rotulo: `WhatsApp ${telefoneVisivel(companySettings)}`,
           href: linkWhatsApp(companySettings),
           contato: "whatsapp",
         },

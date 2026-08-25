@@ -24,12 +24,29 @@ function sanitizeGtmId(raw: string): string {
 export default function IntegrationsTracker() {
   const { companySettings } = useTheme();
   const pathname = usePathname();
-  const ga4Id = companySettings?.ga4Id || "G-CZ4B4RYF61";
+  /**
+   * O ID do GA4 vem das configurações — e de mais lugar nenhum.
+   *
+   * Havia aqui um segundo padrão escrito à mão, `"G-CZ4B4RYF61"`, diferente do
+   * que `lib/companySettings.json` e a produção usam (`G-KBL1MFN9E3`). Como o
+   * `ThemeContext` começa com o JSON e só depois busca `/api/settings`, e como
+   * a inicialização abaixo só acontecia uma vez, o site abria a propriedade
+   * errada e nunca corrigia: os eventos iam para uma propriedade que ninguém
+   * abre. É a explicação mais provável para a auditoria de 24/08/2026 ter
+   * concluído que "o GA4 instalado não recebe nenhum evento que importa".
+   *
+   * Um padrão só, num arquivo só. Se o ID mudar, muda no painel.
+   */
+  const ga4Id = companySettings?.ga4Id || "";
   const gtmId = sanitizeGtmId(companySettings?.gtmId || "");
   const metaPixelId = companySettings?.metaPixelId || "";
   const googleAdsId = companySettings?.googleAdsId || "";
 
-  const initializedGA4 = useRef(false);
+  // Guarda QUAL id foi inicializado, não apenas "se" foi. Um booleano fazia o
+  // componente ignorar para sempre o ID verdadeiro que chegava depois das
+  // configurações — ver a nota acima.
+  const idGA4Inicializado = useRef<string | null>(null);
+  const bibliotecaGtagCarregada = useRef(false);
   const initializedGTM = useRef(false);
   const initializedMeta = useRef(false);
   const initializedGAds = useRef(false);
@@ -63,27 +80,37 @@ export default function IntegrationsTracker() {
       }
 
       // 1. Google Analytics 4 (GA4) Initialization
-      if (ga4Id && !initializedGA4.current) {
+      if (ga4Id && idGA4Inicializado.current !== ga4Id) {
         try {
+          if (idGA4Inicializado.current) {
+            console.warn(
+              `[IntegrationsTracker] ID do GA4 mudou de ${idGA4Inicializado.current} para ${ga4Id}. ` +
+                "Configurando o novo; o anterior continua recebendo nesta sessão.",
+            );
+          }
           console.log(`[IntegrationsTracker] Initializing GA4 with ID: ${ga4Id}`);
-          
-          const script1 = document.createElement("script");
-          script1.async = true;
-          script1.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id}`;
-          document.head.appendChild(script1);
+
+          // A biblioteca entra uma vez só; o `config` é por propriedade.
+          if (!bibliotecaGtagCarregada.current) {
+            const script1 = document.createElement("script");
+            script1.async = true;
+            script1.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id}`;
+            document.head.appendChild(script1);
+            bibliotecaGtagCarregada.current = true;
+          }
 
           const script2 = document.createElement("script");
           script2.innerHTML = `
             window.dataLayer = window.dataLayer || [];
             function gtag(){window.dataLayer.push(arguments);}
-            window.gtag = gtag;
-            gtag('js', new Date());
-            gtag('config', '${ga4Id}', {
+            window.gtag = window.gtag || gtag;
+            window.gtag('js', new Date());
+            window.gtag('config', '${ga4Id}', {
               page_path: window.location.pathname,
             });
           `;
           document.head.appendChild(script2);
-          initializedGA4.current = true;
+          idGA4Inicializado.current = ga4Id;
         } catch (e) {
           console.error("[IntegrationsTracker] Failed to initialize GA4:", e);
         }

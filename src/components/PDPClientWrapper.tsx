@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
 import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
@@ -9,7 +10,7 @@ import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -35,6 +36,18 @@ interface PDPClientWrapperProps {
    * sem saber é inventar um fato.
    */
   rotuloIndisponivel?: "VENDIDO" | "INDISPONÍVEL" | null;
+  /**
+   * Caminhos dos hubs perenes desta marca e deste modelo, resolvidos no
+   * servidor pelo mesmo slug que monta a URL da ficha.
+   *
+   * Existem desde 2026-08-25. Antes deles a ficha era um beco: o visitante que
+   * quisesse "outro Renegade" só tinha o catálogo inteiro, e o rastreador não
+   * tinha caminho da ficha efêmera para uma página que sobrevive à venda do
+   * carro. São 39 fichas apontando para os hubs — o link interno que faz a
+   * página perene existir na navegação, e não só no sitemap.
+   */
+  caminhoDaMarca?: string;
+  caminhoDoModelo?: string;
 }
 
 function formatPrice(value: number): string {
@@ -65,6 +78,8 @@ export default function PDPClientWrapper({
   similares = [],
   indisponivel: indisponivelDoServidor = false,
   rotuloIndisponivel: rotuloDoServidor = null,
+  caminhoDaMarca,
+  caminhoDoModelo,
 }: PDPClientWrapperProps) {
   const { companySettings, stockOverrides } = useTheme();
 
@@ -500,6 +515,20 @@ export default function PDPClientWrapper({
     // custa menos que descobrir pela PDP que a normalização mudou.
   ].filter((spec) => spec.value && spec.value.trim() !== "");
 
+  /**
+   * "S T270 1.3 Tb 4x4 Flex Aut · 2022 · Curitiba".
+   *
+   * Sai do mesmo `versaoExibida` que a tela já mostrava — não de `veiculo.versao`
+   * cru — para o heading e o card do catálogo continuarem falando a mesma coisa.
+   */
+  const complementoDoTitulo = [
+    versaoExibida ? truncateString(versaoExibida, 45) : "",
+    veiculo.ano ? String(veiculo.ano) : "",
+    "Curitiba",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const renderSidebar = (isMobile: boolean) => {
     // SEO: Only the mobile sidebar renders an <h1> (appears first in DOM).
     // The desktop sidebar uses <h2> with identical styling to avoid duplicate H1s.
@@ -529,15 +558,26 @@ export default function PDPClientWrapper({
             </span>
           )}
 
-          <HeadingTag className="mt-titulo m-0 mt-2.5 text-[30px] leading-none text-mt-ink lg:text-[40px]">
-            {veiculo.marca} {modeloExibido}
-          </HeadingTag>
+          {/* Versão, ano e cidade entraram DENTRO do heading em 2026-08-25.
+              O <h1> era só "Jeep Renegade" — sem versão, sem ano, sem praça —
+              enquanto a linha de versão vivia num <p> logo abaixo, fora dele
+              (§0.5.5 item 1 do plano de aquisição). O heading é o segundo campo
+              de maior peso on-page depois do <title>, e a busca desta praça é
+              geográfica: "renegade usado curitiba", não "renegade".
 
-          {versaoExibida && (
-            <p className="m-0 mt-1 text-sm text-mt-neutral-700">
-              {truncateString(versaoExibida, 45)}
-            </p>
-          )}
+              O desenho da tela não mudou — o subtítulo continua na mesma
+              posição, no mesmo tamanho. Mudou só de elemento, e ganhou o ano e
+              a cidade, que o visitante também quer ler. */}
+          <HeadingTag className="mt-titulo m-0 mt-2.5 text-[30px] leading-none text-mt-ink lg:text-[40px]">
+            <span className="block">
+              {veiculo.marca} {modeloExibido}
+            </span>
+            {complementoDoTitulo && (
+              <span className="mt-1.5 block text-sm font-normal leading-snug tracking-normal text-mt-neutral-700">
+                {complementoDoTitulo}
+              </span>
+            )}
+          </HeadingTag>
 
           {veiculo.pericia &&
             !veiculo.pericia.toLowerCase().includes("análise") &&
@@ -754,6 +794,49 @@ export default function PDPClientWrapper({
           </div>
         )}
       </div>
+
+      {/* Trilha até os hubs perenes.
+          Não é enfeite: é o caminho de volta que a ficha nunca teve. Quem chega
+          por busca num Renegade específico e quer ver os outros só tinha o
+          catálogo inteiro; e o rastreador não tinha ligação nenhuma entre uma
+          URL que morre na venda e uma página que sobrevive a ela. O
+          `BreadcrumbList` da página declara exatamente estes mesmos degraus. */}
+      {caminhoDaMarca && (
+        <nav
+          aria-label="Trilha"
+          className="mx-auto w-full max-w-[1600px] px-4 pt-4 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 md:px-8 print:hidden"
+        >
+          <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
+            HOME
+          </Link>{" "}
+          /{" "}
+          <Link
+            href="/estoque"
+            className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink"
+          >
+            ESTOQUE
+          </Link>{" "}
+          /{" "}
+          <Link
+            href={caminhoDaMarca}
+            className="mt-foco uppercase text-mt-neutral-600 no-underline hover:text-mt-ink"
+          >
+            {veiculo.marca}
+          </Link>
+          {caminhoDoModelo && (
+            <>
+              {" "}
+              /{" "}
+              <Link
+                href={caminhoDoModelo}
+                className="mt-foco uppercase text-mt-ink no-underline hover:text-mt-accent"
+              >
+                {modeloExibido}
+              </Link>
+            </>
+          )}
+        </nav>
+      )}
 
       {/* SINGLE MAIN GRID CONTAINER FOR LAYOUT (Gallery, Sidebar, Description, Accordions, Matriz) */}
       <div className="w-full mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start print:grid-cols-1 print:gap-6 print:px-0 print:mt-0">
@@ -1342,7 +1425,7 @@ export default function PDPClientWrapper({
         </div>
         <div className="text-right text-[9px] text-zinc-500 leading-normal">
           <span className="font-bold text-zinc-700 block uppercase tracking-wider mb-0.5">Contato & Atendimento</span>
-          <span>Tel: {companySettings.phone} • WhatsApp: {companySettings.whatsapp}</span>
+          <span>Tel: {companySettings.phone} • WhatsApp: {telefoneVisivel(companySettings)}</span>
           <span className="block mt-0.5">{companySettings.hours.replace(/\n/g, " | ")}</span>
         </div>
       </div>

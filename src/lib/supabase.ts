@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { segmentoDoVeiculo } from "./veiculoUrl";
+import { limparModelo, segmentoDoVeiculo, slugificar } from "./veiculoUrl";
 import type { Veiculo } from "../types";
 export type { Veiculo };
 
@@ -816,16 +816,11 @@ export function getVeiculoPdpUrl(veiculo: {
   const modelLower = veiculo.modelo.toLowerCase().trim();
   const versionLower = veiculo.versao.toLowerCase().trim();
 
-  // 1. Clean model to remove duplicate brand prefix (e.g., "Chevrolet Cruze" -> "Cruze")
-  let cleanModel = modelLower;
-  if (cleanModel.startsWith(brandLower)) {
-    cleanModel = cleanModel.slice(brandLower.length).trim();
-  }
-
-  // 2. Clean model to remove duplicate version suffix (e.g., if model is "cruze ltz 1.4 ..." and version is "ltz 1.4 ...")
-  if (cleanModel.endsWith(versionLower)) {
-    cleanModel = cleanModel.slice(0, cleanModel.length - versionLower.length).trim();
-  }
+  // Limpezas 1 e 2 (prefixo de marca e sufixo de versão dentro do modelo) vivem
+  // em `lib/veiculoUrl.ts` desde que os hubs de marca/modelo passaram a existir:
+  // `/carros/jeep/renegade` tem que gerar o MESMO segmento que a ficha, senão o
+  // hub lista veículos cuja URL não bate com a sua.
+  const cleanModel = limparModelo(veiculo.marca, veiculo.modelo, veiculo.versao);
 
   // 3. Clean version to remove duplicate brand or model prefix
   let cleanVersion = versionLower;
@@ -842,9 +837,9 @@ export function getVeiculoPdpUrl(veiculo: {
   const finalVersion = cleanVersion || versionLower || "padrao";
 
   // Slugify each segment
-  const slugMarca = finalBrand.replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
-  const slugModelo = finalModel.replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
-  const slugVersao = finalVersion.replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
+  const slugMarca = slugificar(finalBrand);
+  const slugModelo = slugificar(finalModel);
+  const slugVersao = slugificar(finalVersion);
 
   // Create clean, beautiful full slug and URL path
   const slugCompletoComId = `${slugMarca}-${slugModelo}-${slugVersao}-${veiculo.id}`;

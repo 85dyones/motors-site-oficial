@@ -2155,6 +2155,40 @@ export default function ConfiguracoesClientWrapper() {
                     />
                   </div>
 
+                  {/* Coordenadas do pin — alimentam o `geo` do AutoDealer.
+                      Em branco o campo não é publicado: coordenada aproximada
+                      diverge do pin do Perfil da Empresa, e divergência conta
+                      contra o ranqueamento local. Ver `lib/schemaLoja.ts`. */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                      Latitude do pin (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.latitude || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, latitude: e.target.value.trim() })}
+                      placeholder="-25.3921"
+                      className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all"
+                    />
+                    <p className="text-[10px] leading-relaxed text-mt-neutral-600">
+                      No Google Maps, clique com o botão direito sobre a entrada da loja e
+                      copie as coordenadas. Só publique as reais — aproximação atrapalha.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                      Longitude do pin (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.longitude || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, longitude: e.target.value.trim() })}
+                      placeholder="-49.2280"
+                      className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all"
+                    />
+                  </div>
+
                   {/* Business Hours */}
                   <div className="flex flex-col gap-1.5 col-span-2">
                     <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">

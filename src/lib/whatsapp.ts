@@ -50,3 +50,35 @@ export function linkWhatsApp(
   const texto = mensagem?.trim() ? `?text=${encodeURIComponent(mensagem)}` : "";
   return `https://wa.me/${numero}${texto}`;
 }
+
+/**
+ * O número da loja escrito para o cliente LER — "(41) 99737-2165".
+ *
+ * Existe porque rótulo e link estavam saindo de campos diferentes. No rodapé,
+ * o texto vinha de `companySettings.whatsapp` (o campo digitado à mão) e o
+ * `href` de `linkWhatsApp()`, que usa `whatsappRaw`. Enquanto os dois campos
+ * concordam ninguém percebe; quando divergem — e divergiram: em 2026-08-25 o
+ * HTML servido da home exibia "(41) 99842-6127" ao lado de um `wa.me` para
+ * outro número — o visitante que anota o número da tela liga para uma linha e
+ * o botão abre outra. É a divergência de NAP que o §0.5.6 do plano de
+ * aquisição encontrou, vista de dentro do site.
+ *
+ * Formatando a partir de `whatsappRaw` (a mesma fonte do link), rótulo e
+ * destino não têm mais como discordar. Número em formato inesperado volta como
+ * o campo de leitura já traz — apresentação nunca deve engolir o dado.
+ */
+export function telefoneVisivel(
+  company: Pick<CompanySettings, "whatsappRaw" | "whatsapp"> | null | undefined
+): string {
+  const numero = numeroDaLoja(company);
+
+  // Brasil com DDI: 55 + DDD (2) + 8 ou 9 dígitos.
+  const comDdi = numero.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  if (comDdi) return `(${comDdi[1]}) ${comDdi[2]}-${comDdi[3]}`;
+
+  // Sem DDI, como às vezes o painel grava.
+  const semDdi = numero.match(/^(\d{2})(\d{4,5})(\d{4})$/);
+  if (semDdi) return `(${semDdi[1]}) ${semDdi[2]}-${semDdi[3]}`;
+
+  return (company?.whatsapp ?? "").trim() || numero;
+}
