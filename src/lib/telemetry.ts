@@ -1,4 +1,12 @@
 import { generateEventId, getMatchParams } from "./tracking-identity";
+import {
+  pushCliqueTelefone,
+  pushCliqueWhatsApp,
+  pushLead,
+  pushVeiculo,
+  type ContextoDeContato,
+  type TipoDeLead,
+} from "./dataLayer";
 
 // Vertical do catálogo Meta Commerce Manager usado pela Motors Store.
 // Trocar para "vehicle" se o catálogo migrar de vertical (decisão em aberto).
@@ -247,6 +255,13 @@ export interface TrackLeadOptions {
   googleAdsConversionLabel?: string | null;
   email?: string | null;
   phoneE164?: string | null; // formato +5541999998888 (COM o "+" — diferente do Meta)
+  /**
+   * Que formulário gerou o lead. Vai só para o `dataLayer`: é o que permite
+   * criar uma conversão por tipo no Ads (proposta vale mais que dúvida) sem
+   * inventar um evento novo para cada um.
+   */
+  tipoDeLead?: TipoDeLead;
+  formId?: string;
 }
 
 export function trackLeadSubmission(
@@ -257,6 +272,13 @@ export function trackLeadSubmission(
   if (typeof window === "undefined") return null;
 
   try {
+    pushLead(options?.tipoDeLead ?? "proposta", {
+      vehicle_id: vehicle.id,
+      vehicle_name: `${vehicle.marca} ${vehicle.modelo}`,
+      vehicle_price: vehicle.preco,
+      form_id: options?.formId,
+    });
+
     const consent = localStorage.getItem("ag_cookie_consent");
     if (consent !== "accepted") return null;
 
@@ -306,10 +328,45 @@ export function trackLeadSubmission(
   }
 }
 
-export function trackVehicleView(vehicle: { id: string; marca: string; modelo: string; preco: number }): string | null {
+export function trackVehicleView(
+  vehicle: {
+    id: string;
+    marca: string;
+    modelo: string;
+    preco: number;
+    /** Campos extras alimentam só o `dataLayer`; o pixel continua com o que já mandava. */
+    versao?: string | null;
+    ano?: number | string | null;
+    quilometragem?: number | null;
+    cambio?: string | null;
+    combustivel?: string | null;
+    tipo?: string | null;
+    cor?: string | null;
+    nome?: string;
+  },
+): string | null {
   if (typeof window === "undefined") return null;
 
   try {
+    // A camada de dados é publicada ANTES do gate de consentimento, e só ela:
+    // escrever num array em memória não envia nada. Quem envia é o GTM, que só
+    // carrega depois do aceite — e processa a fila que já estiver aqui. Ver a
+    // nota de consentimento em `lib/dataLayer.ts`.
+    pushVeiculo({
+      id: vehicle.id,
+      marca: vehicle.marca,
+      modelo: vehicle.modelo,
+      versao: vehicle.versao,
+      ano: vehicle.ano,
+      preco: vehicle.preco,
+      quilometragem: vehicle.quilometragem,
+      cambio: vehicle.cambio,
+      combustivel: vehicle.combustivel,
+      tipo: vehicle.tipo,
+      cor: vehicle.cor,
+      nome: vehicle.nome || `${vehicle.marca} ${vehicle.modelo}`,
+    });
+
     const consent = localStorage.getItem("ag_cookie_consent");
     if (consent !== "accepted") return null;
 
@@ -351,6 +408,11 @@ export function trackAppraisalSubmit(category: string, brand: string, model: str
   if (typeof window === "undefined") return null;
 
   try {
+    // A avaliação é a outra ponta do negócio (§1.4b): alimenta captação de
+    // estoque e costuma ter CPL menor que a landing de venda. Ela precisa ser
+    // uma conversão distinta no Ads, e é o `lead_type` que separa as duas.
+    pushLead("avaliacao");
+
     const consent = localStorage.getItem("ag_cookie_consent");
     if (consent !== "accepted") return null;
 
@@ -428,10 +490,25 @@ export function trackCarMatch(tags: string[], resultsCount: number): string | nu
   }
 }
 
-export function trackContactClick(method: "whatsapp" | "phone", label: string = ""): string | null {
+export function trackContactClick(
+  method: "whatsapp" | "phone",
+  label: string = "",
+  /** Veículo de onde partiu o clique, quando houver — a ficha sabe, o rodapé não. */
+  contexto: ContextoDeContato = {},
+): string | null {
   if (typeof window === "undefined") return null;
 
   try {
+    // Todo CTA de WhatsApp e de telefone do site já passa por aqui (é o que a
+    // regra 7 garantiu quando o redesign moveu os botões). Pendurar o push
+    // neste ponto cobre header, rodapé, ficha, pop-up e curadoria de uma vez,
+    // sem tocar em cada chamada — e sem mexer no que já era disparado.
+    if (method === "whatsapp") {
+      pushCliqueWhatsApp(label || "desconhecido", contexto);
+    } else {
+      pushCliqueTelefone(label || "desconhecido", contexto);
+    }
+
     const consent = localStorage.getItem("ag_cookie_consent");
     if (consent !== "accepted") return null;
 

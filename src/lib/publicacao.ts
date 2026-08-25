@@ -60,6 +60,17 @@ export type Publicacao = {
   rotulo: "VENDIDO" | "INDISPONÍVEL" | null;
   /** Sai do índice de busca e do sitemap. */
   noindex: boolean;
+  /**
+   * A URL cumpriu o ciclo e deve redirecionar para o hub do modelo (301).
+   *
+   * **Só para veículo VENDIDO com a carência vencida** — e a distinção não é
+   * detalhe. "Fora do feed" também sai do índice, mas na hora e sem saber o
+   * motivo: pode ser repasse, reserva ou anúncio expirado, e o carro pode
+   * voltar. Redirecionar essa URL apagaria uma página que talvez volte a valer.
+   * Venda é fato consumado; passados os 90 dias, o que sobra ali é sinal a ser
+   * reciclado, não oferta a ser mantida.
+   */
+  arquivar: boolean;
 };
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -87,10 +98,15 @@ export function decidirPublicacao(sinais: SinaisDoVeiculo, agora: Date = new Dat
     const referencia = sinais.dataVenda ?? sinais.ultimaPresenca;
     const dias = diasDesde(referencia, agora);
 
+    const carenciaVenceu = dias !== null && dias > CARENCIA_VENDIDO_DIAS;
+
     return {
       indisponivel: true,
       rotulo: "VENDIDO",
-      noindex: dias !== null && dias > CARENCIA_VENDIDO_DIAS,
+      noindex: carenciaVenceu,
+      // Mesmo momento: enquanto a página vale a pena no índice, ela fica de pé
+      // com os similares. Quando não vale mais, o sinal vai para o hub.
+      arquivar: carenciaVenceu,
     };
   }
 
@@ -98,10 +114,10 @@ export function decidirPublicacao(sinais: SinaisDoVeiculo, agora: Date = new Dat
     // Sem carência aqui: o motivo da saída é desconhecido (repasse, reserva,
     // anúncio expirado) e a página não pode sustentar uma oferta que ninguém
     // confirmou. Sai do índice de imediato; a página segue viva com similares.
-    return { indisponivel: true, rotulo: "INDISPONÍVEL", noindex: true };
+    return { indisponivel: true, rotulo: "INDISPONÍVEL", noindex: true, arquivar: false };
   }
 
-  return { indisponivel: false, rotulo: null, noindex: false };
+  return { indisponivel: false, rotulo: null, noindex: false, arquivar: false };
 }
 
 /**

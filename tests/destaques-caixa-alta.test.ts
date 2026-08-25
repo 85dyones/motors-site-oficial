@@ -66,7 +66,10 @@ describe("caixa dos textos de SEO", () => {
     // nome cai no meio da frase ("Carros ___ em Curitiba").
     expect(rota).toContain("const nome = nomeEmMinuscula(tagName);");
     expect(rota).toContain("`Carros ${nome} em Curitiba | Motors Store`");
-    expect(rota).toContain("na categoria ${nome}");
+    // O que importa é que o nome em minúscula caia no meio da frase — a
+    // redação da description mudou em 2026-08-25 (vocabulário), o invariante
+    // de caixa não.
+    expect(rota).toMatch(/description = `[^`]*\$\{nome\}/);
     expect(rota).not.toMatch(/tagName\)?\.toUpperCase\(\)/);
   });
 

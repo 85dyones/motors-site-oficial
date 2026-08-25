@@ -56,6 +56,17 @@ export interface CompanySettings {
   whatsapp: string;
   whatsappRaw: string;
   address: string;
+  /**
+   * Coordenadas da entrada da loja, como o Google Maps entrega (clique com o
+   * botão direito no pin → copiar coordenadas). Alimentam o `geo` do
+   * `AutoDealer` (`lib/schemaLoja.ts`).
+   *
+   * Opcionais e sem padrão de propósito: coordenada aproximada diverge do pin
+   * do Perfil da Empresa, e divergência é sinal negativo de SEO local — pior
+   * que campo ausente. Em branco, o `geo` não é publicado.
+   */
+  latitude?: string;
+  longitude?: string;
   hours: string;
   instagram: string;
   facebook: string;

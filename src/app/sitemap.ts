@@ -10,6 +10,8 @@ import {
 } from "../lib/destaquesRapidos";
 
 import { SITE_URL } from "../lib/site";
+import { caminhosDosHubs, recortesDoEstoque } from "../lib/hubsDeEstoque";
+import { CAMINHOS_GEO } from "../lib/paginasGeo";
 
 /**
  * O sitemap acompanha o banco, não o build.
@@ -65,12 +67,13 @@ async function destaquesParaSitemap(): Promise<string[]> {
 const ATUALIZACAO_INSTITUCIONAL = new Date("2026-08-15T00:00:00Z");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // As três leituras que alimentam o `lastmod` e a carência. Independentes
-  // entre si, então vão juntas.
-  const [carimbos, datasDeVenda, destaques] = await Promise.all([
+  // As leituras que alimentam o `lastmod`, a carência e as páginas perenes.
+  // Independentes entre si, então vão juntas.
+  const [carimbos, datasDeVenda, destaques, recortes] = await Promise.all([
     getCarimbosDeConteudo(),
     getDatasDeVenda(),
     destaquesParaSitemap(),
+    recortesDoEstoque(),
   ]);
 
   /** Carimbo do veículo, ou nada. Sem invenção — ver `getCarimbosDeConteudo`. */
@@ -117,6 +120,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     {
+      // Destino da campanha de financiamento: a grade e o simulador acompanham
+      // o estoque, então o carimbo é o do inventário, não o institucional.
+      url: `${SITE_URL}/financiamento`,
+      lastModified: inventarioMudouEm,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/garantia`,
+      lastModified: ATUALIZACAO_INSTITUCIONAL,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    },
+    {
       url: `${SITE_URL}/sobre`,
       lastModified: ATUALIZACAO_INSTITUCIONAL,
       changeFrequency: "weekly" as const,
@@ -140,6 +157,40 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: inventarioMudouEm,
       changeFrequency: "weekly" as const,
       priority: 0.9,
+    })),
+    /**
+     * Páginas de bairro e cidade.
+     *
+     * `weekly` e não `daily`: o texto é escrito à mão e não muda com o giro do
+     * estoque — só a grade embaixo dele muda. Anunciar alteração diária num
+     * conteúdo estável é o tipo de exagero que tira a credibilidade do arquivo
+     * inteiro, e é a mesma razão de `ATUALIZACAO_INSTITUCIONAL` existir.
+     */
+    ...CAMINHOS_GEO.map((caminho) => ({
+      url: `${SITE_URL}${caminho}`,
+      lastModified: inventarioMudouEm,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    })),
+    /**
+     * Hubs perenes de marca, modelo e carroceria.
+     *
+     * Prioridade 0.8: acima das institucionais e abaixo das fichas, que são o
+     * que de fato converte. Entram TODOS os hubs que existem — inclusive os de
+     * grade vazia. Um hub que some do sitemap quando o último carro da marca é
+     * vendido volta a ser efêmero, que é exatamente o defeito que ele existe
+     * para corrigir.
+     *
+     * O arquivo continua único, sem índice: o limite de um sitemap é 50.000
+     * URLs e este anda na casa das centenas. Dividir agora seria manutenção
+     * sem ganho — a divisão em `sitemap-estoque.xml`, `sitemap-hubs.xml` e
+     * afins só se paga quando o volume justificar.
+     */
+    ...caminhosDosHubs(recortes.historico, recortes.disponiveis).map((caminho) => ({
+      url: `${SITE_URL}${caminho}`,
+      lastModified: inventarioMudouEm,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
     })),
   ];
 

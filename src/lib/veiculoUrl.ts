@@ -59,3 +59,65 @@ export function ehCaminhoDePdp(caminho: string): boolean {
 export function ehSegmentoDePdp(valor: string): valor is SegmentoDePdp {
   return (SEGMENTOS_DE_PDP as readonly string[]).includes(valor);
 }
+
+/**
+ * A slugificação dos segmentos de URL de veículo, num lugar só.
+ *
+ * Nasceu dentro de `getVeiculoPdpUrl` (`lib/supabase.ts`) e vive aqui desde
+ * que os hubs de marca e modelo passaram a existir: `/carros/jeep/renegade`
+ * precisa gerar exatamente o mesmo segmento que a ficha usa, senão o hub não
+ * casa com a URL do veículo que ele deveria listar — e o link interno cai num
+ * 404 sem ninguém perceber.
+ *
+ * Comportamento preservado do original, defeitos incluídos: caractere
+ * acentuado é REMOVIDO, não transliterado ("citroën" → "citron"). Corrigir
+ * isso agora renomearia URLs de ficha já indexadas, que é exatamente o que a
+ * §2.2.2b do plano manda não fazer. Quem quiser transliterar, faça numa
+ * migração própria, com 301.
+ */
+export function slugificar(bruto: string): string {
+  return bruto
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9\-]/g, "");
+}
+
+/**
+ * O segmento de marca da URL — `jeep` em `/carros/jeep/renegade`.
+ *
+ * Sem fallback silencioso: marca vazia devolve "", e quem chama decide. O
+ * `getVeiculoPdpUrl` mantém o dele ("veiculo"), que é comportamento antigo e
+ * está gravado em URL indexada.
+ */
+export function slugDeMarca(marca: string): string {
+  return slugificar(marca);
+}
+
+/**
+ * O segmento de modelo — `renegade` em `/carros/jeep/renegade`.
+ *
+ * O RevendaMais manda o modelo com a marca na frente ("Chevrolet Cruze") e às
+ * vezes com a versão no fim ("Cruze LTZ 1.4 Turbo"). As duas limpezas são as
+ * mesmas que a ficha aplica; repeti-las aqui é o que garante que hub e ficha
+ * cheguem ao mesmo texto.
+ */
+export function limparModelo(marca: string, modelo: string, versao: string): string {
+  const marcaLower = marca.toLowerCase().trim();
+  const versaoLower = versao.toLowerCase().trim();
+  let limpo = modelo.toLowerCase().trim();
+
+  if (marcaLower && limpo.startsWith(marcaLower)) {
+    limpo = limpo.slice(marcaLower.length).trim();
+  }
+  if (versaoLower && limpo.endsWith(versaoLower)) {
+    limpo = limpo.slice(0, limpo.length - versaoLower.length).trim();
+  }
+
+  return limpo;
+}
+
+/** O mesmo texto de `limparModelo`, já em forma de segmento de URL. */
+export function slugDeModelo(marca: string, modelo: string, versao: string): string {
+  return slugificar(limparModelo(marca, modelo, versao) || modelo);
+}

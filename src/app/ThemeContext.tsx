@@ -362,13 +362,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     loadSettingsFromServer();
   }, []);
 
-  // Global dynamic tab title update
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (companySettings.tabTitle?.trim()) {
-      document.title = companySettings.tabTitle.trim();
-    }
-  }, [companySettings.tabTitle]);
+  /**
+   * Aqui havia um efeito global que fazia `document.title = tabTitle`.
+   *
+   * Ele reescrevia o título de TODA página assim que as configurações chegavam
+   * do `/api/settings` — home, catálogo, avaliação, landings e as 39 fichas.
+   * O HTML servido saía certo (`Jeep Renegade S T270 1.3 Tb 4x4 Flex Aut - R$
+   * 105.900 | Motors Store`), o JavaScript rodava, e o título virava
+   * "Motors Store | Fora da Curva" em todo lugar.
+   *
+   * É a causa do defeito nº 1 da auditoria de 24/08/2026 (§0.5.2 do plano de
+   * aquisição), que reportou o site inteiro com um título só. Quem lê apenas o
+   * HTML não vê o problema; o Google renderiza a página antes de indexar, e vê.
+   * O `<title>` é o campo de maior peso de relevância on-page — com um título
+   * único para 50 páginas, nenhuma tinha chance de ranquear para os termos
+   * comerciais da praça.
+   *
+   * A funcionalidade que o efeito pretendia entregar já existe sem ele: o
+   * layout raiz (`src/app/layout.tsx`) devolve `title: tabTitle` no
+   * `generateMetadata`, então toda página que NÃO declara título próprio herda
+   * o do painel — e as que declaram ficam com o seu. Editar o campo no painel
+   * continua valendo; passa a valer na revalidação, como qualquer outra
+   * configuração, em vez de atropelar o título em tempo de execução.
+   *
+   * Não recriar. Se o tabTitle precisar aparecer numa rota nova, o caminho é
+   * o `generateMetadata` daquela rota.
+   */
 
   // Global dynamic favicon update effect (with anti-distortion logic)
   useEffect(() => {

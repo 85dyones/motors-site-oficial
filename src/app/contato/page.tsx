@@ -75,7 +75,7 @@ export default function ContatoPage() {
             FALE CONOSCO
           </h1>
           <p className="text-xs text-brand-text/60 leading-relaxed font-light">
-            Envie sua mensagem abaixo e nosso time premium em Curitiba fará contato em poucos minutos via WhatsApp para agendar visitas e analisar propostas.
+            Envie sua mensagem abaixo e nosso time em Curitiba fará contato em poucos minutos via WhatsApp para agendar visitas e analisar propostas.
           </p>
         </section>
 

@@ -2155,6 +2155,40 @@ export default function ConfiguracoesClientWrapper() {
                     />
                   </div>
 
+                  {/* Coordenadas do pin — alimentam o `geo` do AutoDealer.
+                      Em branco o campo não é publicado: coordenada aproximada
+                      diverge do pin do Perfil da Empresa, e divergência conta
+                      contra o ranqueamento local. Ver `lib/schemaLoja.ts`. */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                      Latitude do pin (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.latitude || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, latitude: e.target.value.trim() })}
+                      placeholder="-25.3921"
+                      className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all"
+                    />
+                    <p className="text-[10px] leading-relaxed text-mt-neutral-600">
+                      No Google Maps, clique com o botão direito sobre a entrada da loja e
+                      copie as coordenadas. Só publique as reais — aproximação atrapalha.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                      Longitude do pin (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyForm.longitude || ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, longitude: e.target.value.trim() })}
+                      placeholder="-49.2280"
+                      className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all"
+                    />
+                  </div>
+
                   {/* Business Hours */}
                   <div className="flex flex-col gap-1.5 col-span-2">
                     <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
@@ -2207,7 +2241,7 @@ export default function ConfiguracoesClientWrapper() {
                       type="text"
                       value={companyForm.tabTitle || ""}
                       onChange={(e) => setCompanyForm({ ...companyForm, tabTitle: e.target.value })}
-                      placeholder="Ex: Motors Store | Encontre seu Veículo Premium dos Sonhos"
+                      placeholder="Ex: Motors Store | Seminovos Selecionados em Curitiba"
                       className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all font-mono"
                     />
                     <span className="text-[9px] text-mt-neutral-600 ml-1">
@@ -2505,7 +2539,7 @@ export default function ConfiguracoesClientWrapper() {
                 PÁGINA QUEM SOMOS
               </h2>
               <p className="text-xs text-mt-neutral-700 mb-6 font-normal leading-relaxed">
-                Personalize o conteúdo da página "Quem Somos" (/sobre). Digite as informações em caixa alta nos títulos se desejar seguir a estética premium do site.
+                Personalize o conteúdo da página "Quem Somos" (/sobre). Digite as informações em caixa alta nos títulos se desejar seguir a estética do site.
               </p>
               <p className="text-xs text-mt-neutral-700 mb-6 font-normal leading-relaxed">
                 Nenhum campo é obrigatório: o que ficar em branco simplesmente não aparece
@@ -2528,7 +2562,7 @@ export default function ConfiguracoesClientWrapper() {
                         type="text"
                         value={aboutForm.heroTitle}
                         onChange={(e) => setAboutForm({ ...aboutForm, heroTitle: e.target.value })}
-                        placeholder="MOLDANDO A CURADORIA PREMIUM"
+                        placeholder="3 DE CADA 10 ENTRAM"
                         className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all"
                       />
                     </div>

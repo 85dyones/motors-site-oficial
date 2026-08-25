@@ -8,8 +8,21 @@ import { getCachedSettings } from "../../../../../../lib/settings";
 import { montarCompartilhamento } from "../../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../../lib/similares";
-import { SITE_URL } from "../../../../../../lib/site";
-import { ehSegmentoDePdp, segmentoDoVeiculo } from "../../../../../../lib/veiculoUrl";
+import {
+  ehSegmentoDePdp,
+  segmentoDoVeiculo,
+  slugDeMarca,
+  slugDeModelo,
+} from "../../../../../../lib/veiculoUrl";
+import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../../lib/nomeDoVeiculo";
+import { schemaDoVeiculo } from "../../../../../../lib/schemaVeiculo";
+import { blocoJsonLd, schemaDeTrilha } from "../../../../../../lib/schemaListagem";
+import {
+  destinoDoVeiculoArquivado,
+  recortesDoEstoque,
+  rotuloDoModelo,
+} from "../../../../../../lib/hubsDeEstoque";
+import { generoDeModelo, seu } from "../../../../../../lib/generoDoVeiculo";
 
 // Incremental Static Regeneration (ISR) configuration
 export const revalidate = 3600; // Revalidate every 1 hour
@@ -109,9 +122,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // então na frase montada. Mesma cadeia do feed XML, pela mesma razão.
   const textoParaMeta = veiculo.descricao_seo || veiculo.descricao || "";
   const cleanDescription = textoParaMeta ? textoParaMeta.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim() : "";
+  // A frase de último recurso, quando o veículo chega sem nenhum texto.
+  //
+  // Dizia "Oferta Exclusiva: compre **seu** {marca} {modelo}" — duas coisas
+  // erradas na mesma linha. "Exclusiva" está na coluna *Evitar* de
+  // `conteudo-seo/POSICIONAMENTO.md`, e o possessivo cravado no masculino
+  // escrevia "compre seu Volkswagen Saveiro". O gênero agora vem do modelo,
+  // com a carroceria do próprio veículo decidindo.
+  const generoDoModelo = generoDeModelo(rotuloDoModelo(veiculo.marca, veiculo.modelo, veiculo.versao), {
+    segmento: segmentoDoVeiculo(veiculo),
+    tipo: veiculo.tipo,
+  });
   const seoDescription = cleanDescription
     ? truncateString(cleanDescription, 155)
-    : `Oferta Exclusiva: compre seu ${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} cor ${veiculo.cor} com laudo pericial cautelar aprovado e garantia. Preço: ${priceText}. Financie com facilidade!`;
+    : `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ${veiculo.ano}, cor ${veiculo.cor}, ` +
+      `${seu(generoDoModelo)} por ${priceText}. Perícia cautelar independente com laudo na ficha, ` +
+      "garantia e financiamento. Motors Store, Bacacheri, Curitiba.";
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
@@ -123,29 +149,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   /**
    * Nome do veículo sem repetir a versão.
    *
-   * O RevendaMais já manda a versão embutida no modelo em boa parte do
-   * estoque, então `marca + modelo + versao` produzia "BMW X4 M40i 3.0 M Sport
-   * Edit V6 Turbo Aut m40i 3.0 m sport edit v6 turbo aut" — verificado no
-   * estoque em 2026-08-10. Num card de WhatsApp, que corta por volta de 65
-   * caracteres, a repetição consome o título inteiro e o preço nunca aparece.
-   *
-   * O `<title>` passou a usar o mesmo nome em 2026-08-19 (P3 da
-   * `RECOMENDACAO_SEO.md`, aprovada pelo dono). Medido em produção antes da
-   * correção, no carro mais caro da vitrine:
-   *
-   *   BMW X4 M40i 3.0 M Sport Edit V6 Turbo Aut m40i 3.0 m sport edit v6
-   *   turbo aut - R$ 318.900 | Motors Store
-   *
-   * O Google corta por volta de 60 caracteres: o que sobrava na busca era só
-   * a repetição — preço e nome da loja nunca apareciam. Canonical e URL não
-   * mudam, então não há risco de reindexação.
+   * A regra e a história dela vivem em `lib/nomeDoVeiculo.ts` desde 2026-08-25.
+   * Estavam aqui, dentro do `generateMetadata`, e por isso o `<title>` e o card
+   * de WhatsApp deduplicavam enquanto o `Car` do JSON-LD, logo abaixo nesta
+   * mesma página, publicava a versão em dobro — que é o defeito nº 2 da lista
+   * de achados do plano de aquisição.
    */
-  const modeloNormalizado = `${veiculo.marca} ${veiculo.modelo}`.trim();
-  const versao = (veiculo.versao || "").trim();
-  const nomeDoVeiculo =
-    versao && !modeloNormalizado.toLowerCase().includes(versao.toLowerCase())
-      ? `${modeloNormalizado} ${versao}`
-      : modeloNormalizado;
+  const nomeDoVeiculo = montarNomeDoVeiculo(veiculo);
 
   // A foto vence qualquer arte do painel: é o próprio produto. Quando o
   // veículo chega sem foto utilizável, `montarCompartilhamento` desce para o
@@ -218,102 +228,85 @@ export default async function CarDetailsPage({ params }: PageProps) {
     permanentRedirect(pdpUrl);
   }
 
-  const [estoqueCompleto, settings, publicacao] = await Promise.all([
-    getEstoque(),
+  const [{ historico, disponiveis }, settings, publicacao] = await Promise.all([
+    recortesDoEstoque(),
     getCachedSettings(),
     publicacaoDoVeiculo(veiculo),
   ]);
+
+  /**
+   * Fim do ciclo: a URL vira 301 para o hub do modelo.
+   *
+   * Até 2026-08-25 a ficha vendida ficava para sempre no ar com `noindex`, e
+   * todo o sinal que ela acumulou — link de portal, compartilhamento de
+   * WhatsApp, link interno — era descartado. Com giro de ~45 dias sobre 39
+   * vagas, são da ordem de 300 URLs por ano indo para o lixo. Não havia o que
+   * fazer diferente: o hub do modelo não existia. Agora existe.
+   *
+   * A carência de 90 dias (`CARENCIA_VENDIDO_DIAS`) não muda — é decisão do
+   * dono de 17/08, e o redirecionamento entra no MESMO momento em que a página
+   * já saía do índice. Nos primeiros 90 dias ela continua de pé com o selo e os
+   * similares, que é onde ela ainda converte.
+   *
+   * `arquivar` é falso para "fora do feed": ali o motivo da saída é
+   * desconhecido e o carro pode voltar (ver `lib/publicacao.ts`).
+   */
+  if (publicacao.arquivar) {
+    permanentRedirect(destinoDoVeiculoArquivado(veiculo, historico, disponiveis));
+  }
+
   const itensProcedencia = normalizarProcedencia(settings.procedencia);
 
   // "Também no seu perfil" — regra e limites em `lib/similares.ts`.
-  const similares = escolherSimilares(veiculo, estoqueCompleto);
+  const similares = escolherSimilares(veiculo, disponiveis);
 
-  // Construct JSON-LD Structured Data for the vehicle (Car schema)
-  const hasDiscount = veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original;
-  const finalPrice = hasDiscount ? veiculo.preco_promocional : veiculo.preco_original;
-  const imageUrl = veiculo.web_full_images[0] || veiculo.whatsapp_images[0] || "";
+  // O `Car` completo mora em `lib/schemaVeiculo.ts`. Ficava aqui, montado à
+  // mão, e era onde faltavam `sku`, `bodyType`, `itemCondition` na raiz,
+  // `numberOfPreviousOwners` e — o mais caro — `offers.seller`: a oferta não
+  // dizia quem vende nem de onde se retira, então nada ligava as 39 fichas à
+  // loja física que o `AutoDealer` descreve.
+  const carSchema = schemaDoVeiculo(veiculo, {
+    caminho: pdpUrl,
+    indisponivel: publicacao.indisponivel,
+  });
 
-  const carSchema = {
-    "@context": "https://schema.org",
-    "@type": "Car",
-    "name": `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`,
-    "image": imageUrl,
-    "description": veiculo.descricao || `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} em excelente estado.`,
-    "brand": {
-      "@type": "Brand",
-      "name": veiculo.marca
-    },
-    "model": veiculo.modelo,
-    "vehicleModelDate": veiculo.ano,
-    "mileageFromOdometer": {
-      "@type": "QuantitativeValue",
-      "value": veiculo.quilometragem,
-      "unitCode": "KMT"
-    },
-    "vehicleTransmission": veiculo.cambio,
-    "fuelType": veiculo.combustivel,
-    "color": veiculo.cor,
-    "offers": {
-      "@type": "Offer",
-      "price": finalPrice,
-      "priceCurrency": "BRL",
-      // Fora do feed conta como fora de estoque. Antes daqui, o carro que saiu
-      // do feed continuava com `vendido = false` no banco e a PDP declarava
-      // `InStock` com preço — o Google mostrava a oferta como válida.
-      "availability": publicacao.indisponivel ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
-      "itemCondition": "https://schema.org/UsedCondition",
-      "url": `${SITE_URL}${pdpUrl}`
-    }
-  };
+  /**
+   * Trilha com os hubs de marca e de modelo.
+   *
+   * Até 2026-08-25 a posição 2 apontava para `/estoque?marca=X` — e havia um
+   * comentário aqui explicando por quê: `/carros/{marca}` respondia 404, e
+   * breadcrumb que aponta para 404 é markup desperdiçado que ainda vira erro no
+   * Search Console. Agora os dois hubs existem (`[marca]/page.tsx` e
+   * `[marca]/[modelo]/page.tsx`), então a trilha passa a apontar para páginas
+   * perenes: é o que faz o Google exibir `Estoque › Jeep › Renegade` no
+   * resultado e o que dá destino ao sinal que hoje morre com a ficha vendida.
+   */
+  const segmento = segmentoDoVeiculo(veiculo);
+  const caminhoDaMarca = `/${segmento}/${slugDeMarca(veiculo.marca)}`;
+  const caminhoDoModelo = `${caminhoDaMarca}/${slugDeModelo(veiculo.marca, veiculo.modelo, veiculo.versao)}`;
 
-  // Construct BreadcrumbList JSON-LD for rich breadcrumbs in Google search results
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      {
-        "@type": "ListItem",
-        "position": 1,
-        "name": "Home",
-        "item": `${SITE_URL}/`
-      },
-      {
-        // `/estoque?marca=X`, não `/carros/{marca}`: essa rota intermediária NÃO
-        // existe (a pasta [marca] só contém [modelo]), então o breadcrumb rico
-        // do Google apontava para um 404 — markup desperdiçado e erro no Search
-        // Console. Quem lê `?marca=` é o Catálogo, em /estoque — a home ignora
-        // o parâmetro.
-        "@type": "ListItem",
-        "position": 2,
-        "name": veiculo.marca,
-        "item": `${SITE_URL}/estoque?marca=${encodeURIComponent(veiculo.marca)}`
-      },
-      {
-        "@type": "ListItem",
-        "position": 3,
-        "name": `${veiculo.marca} ${veiculo.modelo}`,
-        "item": `${SITE_URL}${pdpUrl}`
-      }
-    ]
-  };
+  const breadcrumbSchema = schemaDeTrilha([
+    { nome: "Home", caminho: "/" },
+    { nome: "Estoque", caminho: "/estoque" },
+    { nome: veiculo.marca, caminho: caminhoDaMarca },
+    { nome: `${veiculo.marca} ${veiculo.modelo}`, caminho: caminhoDoModelo },
+  ]);
 
   return (
     <div className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
-      {/* Dynamic JSON-LD Structured Data Schema for search engines (Rich Results) */}
+      {/* `Car` e `BreadcrumbList` no mesmo bloco: array de nós é JSON-LD válido
+          e poupa um <script> em toda ficha. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(carSchema) }}
-      />
-      {/* BreadcrumbList JSON-LD for Google Rich Breadcrumbs */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        dangerouslySetInnerHTML={{ __html: blocoJsonLd([carSchema, breadcrumbSchema]) }}
       />
       <PDPClientWrapper
         veiculo={veiculo}
         similares={similares}
         indisponivel={publicacao.indisponivel}
         rotuloIndisponivel={publicacao.rotulo}
+        caminhoDaMarca={caminhoDaMarca}
+        caminhoDoModelo={caminhoDoModelo}
       />
       <FaixaProcedencia itens={itensProcedencia} />
     </div>

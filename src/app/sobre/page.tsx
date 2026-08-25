@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const { companySettings } = await getCachedSettings();
 
   return {
-    title: "Quem Somos | Motors Store - Tradição e Tecnologia Premium",
+    title: "Quem Somos | Motors Store — a seleção que sustenta a vitrine",
     description: DESCRICAO,
     alternates: {
       canonical: "/sobre",

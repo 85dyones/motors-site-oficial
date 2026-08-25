@@ -730,7 +730,15 @@ export default function AutoAvaliacao() {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         email: leadData.email,
-        phoneE164
+        phoneE164,
+        // `contato`, e não `avaliacao`: o lead da avaliação já foi contado no
+        // `trackAppraisalSubmit`, quando o formulário com nome e telefone foi
+        // enviado. Este modal é o passo seguinte, opcional — quem clicou em
+        // "falar com um avaliador" depois de já ter enviado. Marcar os dois
+        // como `avaliacao` inflaria a conversão de captação, que é justamente a
+        // que a loja usa para decidir verba de compra de estoque.
+        tipoDeLead: "contato",
+        formId: "form-avaliacao-falar-com-avaliador",
       }
     );
     const { fbp, fbc } = getMatchParams();
@@ -816,7 +824,8 @@ export default function AutoAvaliacao() {
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = linkWhatsApp(companySettings, activeMessage);
-    trackContactClick("whatsapp", "Avaliação - Conversão WhatsApp");
+    // Consequência do lead recém-registrado — ver `pos_lead` em `lib/dataLayer.ts`.
+    trackContactClick("whatsapp", "Avaliação - Conversão WhatsApp", { pos_lead: true });
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

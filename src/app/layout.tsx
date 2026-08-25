@@ -8,8 +8,10 @@ import LeadPopup from "../components/LeadPopup";
 import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
+import CamadaDeDados from "../components/CamadaDeDados";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
+import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,7 +38,7 @@ import { getCachedSettings } from "../lib/settings";
 import { montarCompartilhamento } from "../lib/compartilhamento";
 
 export async function generateMetadata(): Promise<Metadata> {
-  let tabTitle = "Motors Store | Encontre seu Veículo Premium dos Sonhos";
+  let tabTitle = "Motors Store | Seminovos Selecionados em Curitiba";
   let empresa = null;
   try {
     const { companySettings } = await getCachedSettings();
@@ -49,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 
   const descricaoPadrao =
-    "A melhor revenda e avaliação de carros premium e seminovos selecionados. Facilidade no financiamento sem entrada.";
+    "Seminovos que passaram pela perícia cautelar independente, em Curitiba. Avaliação do seu usado e financiamento.";
 
   // Card herdado por quem não declara o próprio — hoje só /login, /test e as
   // rotas de /admin, que ninguém compartilha. As páginas públicas montam o
@@ -68,7 +70,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(SITE_URL),
     title: tabTitle,
-    description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados em Curitiba. Facilidade no financiamento sem entrada.",
+    description:
+      "Motors Store — seminovos selecionados em Curitiba, com perícia cautelar independente. Avaliação do seu usado e financiamento.",
     alternates: {
       // Sem `canonical` aqui de propósito. No layout raiz ele é HERDADO por
       // toda página que não declare o seu — /login, /test e as rotas de /admin
@@ -92,6 +95,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Marcas e modelos do rodapé, resolvidos aqui porque o rodapé é client
+  // component e não pode consultar o banco sem virar `useEffect` — que foi
+  // exatamente o que manteve esses links fora do HTML servido até 2026-08-25.
+  // A leitura passa por `unstable_cache` (1h): o layout roda em toda rota,
+  // inclusive nas do painel, e nenhuma delas pode pagar consulta por visita.
+  const navegacaoDoRodape = await getNavegacaoDoRodape();
+
   return (
     <html
       lang="pt-BR"
@@ -158,6 +168,9 @@ export default async function RootLayout({
           }}
         />
         <ThemeProvider>
+          {/* A camada de dados vem ANTES do carregador de tags: o contexto da
+              página precisa estar no `dataLayer` quando o GTM inicializar. */}
+          <CamadaDeDados />
           <IntegrationsTracker />
           <AntigravityTracker />
           <MolduraDoSite>
@@ -167,7 +180,7 @@ export default async function RootLayout({
             {children}
           </main>
           <MolduraDoSite>
-            <Footer />
+            <Footer navegacao={navegacaoDoRodape} />
             <LeadPopup />
             <CookieConsentBanner />
           </MolduraDoSite>

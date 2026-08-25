@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getEstoque, getVeiculoPdpUrl } from '../../../../lib/supabase';
+import { nomeDoVeiculo } from '../../../../lib/nomeDoVeiculo';
+import { rotuloDoModelo } from '../../../../lib/hubsDeEstoque';
+import { segmentoDoVeiculo } from '../../../../lib/veiculoUrl';
+import { concordar, generoDeModelo } from '../../../../lib/generoDoVeiculo';
 
 // Rota dinâmica, e não `revalidate`: o handler lê `request.url` para montar o
 // endereço absoluto de cada item, e isso não pode ser pré-renderizado. Com
@@ -44,8 +48,16 @@ export async function GET(request: Request) {
 
       const price = car.preco_promocional > 0 ? car.preco_promocional : car.preco_original;
       
-      // Safe XML string escaping
-      const title = `${car.marca} ${car.modelo} ${car.versao}`.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // O mesmo nome deduplicado do `<title>` da ficha e do `Car.name`
+      // (`lib/nomeDoVeiculo.ts`). Medido no feed em produção em 2026-08-25:
+      //
+      //   BMW X4 M40i 3.0 M Sport Edit V6 Turbo Aut m40i 3.0 m sport edit v6 turbo aut
+      //
+      // O RevendaMais embute a versão no modelo, e concatenar os três a
+      // repetia. Título de anúncio é cortado por volta de 65 caracteres em
+      // qualquer portal: o que sobrava era só a repetição. `g:id` continua o
+      // mesmo, então o catálogo do Meta não perde correspondência.
+      const title = nomeDoVeiculo(car).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       // Cadeia de três, e o degrau do meio é o que faltava.
       //
       // `descricao_seo` só passou a existir na migração 20260817130000 — antes
@@ -58,10 +70,19 @@ export async function GET(request: Request) {
       // painel, o portal recebe conteúdo de verdade em vez de catálogo. O
       // genérico fica onde deveria estar desde sempre — no último recurso, para
       // o carro que chegou sem texto algum.
+      //
+      // O último degrau também concorda: dizia "comprar **seu** {marca}
+      // {modelo}" e escrevia "comprar seu Volkswagen Saveiro". E "melhores
+      // condições" está na coluna *Evitar* de `conteudo-seo/POSICIONAMENTO.md`.
+      const generoDoCarro = generoDeModelo(
+        rotuloDoModelo(car.marca, car.modelo, car.versao),
+        { segmento: segmentoDoVeiculo(car), tipo: car.tipo },
+      );
       const descricaoDoAnuncio =
         car.descricao_seo ||
         car.descricao ||
-        `Aproveite as melhores condições para comprar seu ${car.marca} ${car.modelo}. Veículo periciado e com garantia.`;
+        `${car.marca} ${car.modelo} ${car.ano} com perícia cautelar independente e laudo na ficha. ` +
+          `Leve ${concordar(generoDoCarro, "o seu", "a sua")} com garantia e financiamento, em Curitiba.`;
 
       // O texto editorial da PDP pode vir com HTML do painel; o feed é XML e
       // não renderiza marcação. Tirar as tags aqui evita mandar `<p>` como se

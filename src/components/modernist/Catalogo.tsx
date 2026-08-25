@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { QuickTag, StockOverrides, Veiculo } from "../../types";
@@ -192,19 +191,24 @@ export default function Catalogo({
 
   return (
     <div className="font-modernist">
-      {/* Cabeçalho da página */}
-      <div className="border-b-2 border-mt-regua px-[18px] pb-5 pt-8 lg:px-10 lg:pb-5 lg:pt-11">
+      {/* Barra de controle.
+          A trilha e o <h1> saíram daqui em 2026-08-25 e passaram para
+          `src/app/estoque/page.tsx`, que é server component. Este arquivo usa
+          `useSearchParams()` dentro de um <Suspense>: o servidor entrega só o
+          fallback, e o HTML de /estoque saía sem <h1> e sem um único link de
+          veículo — medido em produção. Título e trilha são conteúdo, não
+          interação; não podiam depender do JavaScript rodar.
+
+          O que ficou aqui é o que de fato reage ao usuário: a contagem
+          FILTRADA (que muda a cada caixa marcada, e por isso nunca poderia ser
+          o <h1>) e a ordenação. */}
+      <div className="border-b-2 border-mt-regua px-[18px] pb-5 pt-6 lg:px-10 lg:pb-5 lg:pt-7">
         <div className="flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <nav aria-label="Trilha" className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600">
-              <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
-                HOME
-              </Link>{" "}
-              / <span className="text-mt-ink">ESTOQUE</span>
-            </nav>
-            <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">
-              Estoque <span className="text-mt-accent">{totalFiltrado}</span>
-            </h1>
+          <div className="flex items-baseline gap-2">
+            <span className="mt-titulo text-[26px] lg:text-[32px]">{totalFiltrado}</span>
+            <span className="text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
+              {totalFiltrado === 1 ? "VEÍCULO NA SELEÇÃO" : "VEÍCULOS NA SELEÇÃO"}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-xs font-semibold tracking-[.1em]">

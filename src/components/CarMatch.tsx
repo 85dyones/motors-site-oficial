@@ -75,7 +75,7 @@ const OPCOES_ESTILO = [
   { id: "suv", letra: "A", titulo: "SUVs Imponentes", desc: "", resumo: "SUV" },
   { id: "sedan", letra: "B", titulo: "Sedans Elegantes", desc: "", resumo: "Sedã" },
   { id: "sport", letra: "C", titulo: "Esportivos / Coupés", desc: "", resumo: "Esportivo" },
-  { id: "pickup", letra: "D", titulo: "Picapes Premium", desc: "", resumo: "Picape" },
+  { id: "pickup", letra: "D", titulo: "Picapes", desc: "", resumo: "Picape" },
   { id: "open", letra: "E", titulo: "Aberto a Sugestões", desc: "", resumo: "Sem preferência" },
 ] as const;
 
@@ -324,7 +324,7 @@ export default function CarMatch() {
       case "suv": return "SUVs Imponentes";
       case "sedan": return "Sedans Elegantes";
       case "sport": return "Esportivos / Coupés";
-      case "pickup": return "Picapes Premium";
+      case "pickup": return "Picapes";
       case "open": return "Sem preferência (Aberto a sugestões)";
       default: return "Não definido";
     }
@@ -374,7 +374,9 @@ export default function CarMatch() {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         email: leadData.email,
-        phoneE164
+        phoneE164,
+        tipoDeLead: "curadoria",
+        formId: "form-garagem-profiler",
       }
     );
     const { fbp, fbc } = getMatchParams();
@@ -450,7 +452,8 @@ export default function CarMatch() {
     }
 
     const whatsappUrl = linkWhatsApp(companySettings, finalMsg);
-    trackContactClick("whatsapp", "CarMatch - Conversão WhatsApp");
+    // Consequência do lead recém-registrado — ver `pos_lead` em `lib/dataLayer.ts`.
+    trackContactClick("whatsapp", "CarMatch - Conversão WhatsApp", { pos_lead: true });
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

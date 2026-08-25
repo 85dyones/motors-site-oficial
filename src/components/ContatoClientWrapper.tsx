@@ -77,7 +77,9 @@ export default function ContatoClientWrapper() {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         email,
-        phoneE164
+        phoneE164,
+        tipoDeLead: "contato",
+        formId: "form-contato",
       });
 
       setStatus("success");

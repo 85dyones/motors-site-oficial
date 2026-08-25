@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
 import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
@@ -9,7 +10,9 @@ import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
+import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
+import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -35,6 +38,18 @@ interface PDPClientWrapperProps {
    * sem saber é inventar um fato.
    */
   rotuloIndisponivel?: "VENDIDO" | "INDISPONÍVEL" | null;
+  /**
+   * Caminhos dos hubs perenes desta marca e deste modelo, resolvidos no
+   * servidor pelo mesmo slug que monta a URL da ficha.
+   *
+   * Existem desde 2026-08-25. Antes deles a ficha era um beco: o visitante que
+   * quisesse "outro Renegade" só tinha o catálogo inteiro, e o rastreador não
+   * tinha caminho da ficha efêmera para uma página que sobrevive à venda do
+   * carro. São 39 fichas apontando para os hubs — o link interno que faz a
+   * página perene existir na navegação, e não só no sitemap.
+   */
+  caminhoDaMarca?: string;
+  caminhoDoModelo?: string;
 }
 
 function formatPrice(value: number): string {
@@ -65,6 +80,8 @@ export default function PDPClientWrapper({
   similares = [],
   indisponivel: indisponivelDoServidor = false,
   rotuloIndisponivel: rotuloDoServidor = null,
+  caminhoDaMarca,
+  caminhoDoModelo,
 }: PDPClientWrapperProps) {
   const { companySettings, stockOverrides } = useTheme();
 
@@ -166,11 +183,23 @@ export default function PDPClientWrapper({
     console.log(`[Antigravity Log] PageView iniciada para o veículo: ${veiculo.marca} ${veiculo.modelo} ID: ${veiculo.id}`);
 
     // Dispara telemetria de visualização do item no GA4/Meta Pixel
+    // Os campos além de id/marca/modelo/preço alimentam só o `dataLayer`
+    // (`view_vehicle` + espelho de e-commerce): são eles que permitem público
+    // de remarketing por carroceria, faixa de preço e câmbio sem novo deploy.
+    // O que vai para o GA4 e para o Pixel não mudou.
     const viewEventId = trackVehicleView({
       id: veiculo.id,
       marca: veiculo.marca,
       modelo: veiculo.modelo,
-      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original
+      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original,
+      versao: veiculo.versao,
+      ano: veiculo.ano,
+      quilometragem: veiculo.quilometragem,
+      cambio: veiculo.cambio,
+      combustivel: veiculo.combustivel,
+      tipo: veiculo.tipo,
+      cor: veiculo.cor,
+      nome: nomeDoVeiculo(veiculo),
     });
 
     // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)
@@ -322,7 +351,9 @@ export default function PDPClientWrapper({
       googleAdsId: companySettings?.googleAdsId,
       googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
       email: leadData.email,
-      phoneE164
+      phoneE164,
+      tipoDeLead: "proposta",
+      formId: "form-proposta-veiculo",
     });
     const { fbp, fbc } = getMatchParams();
 
@@ -414,7 +445,15 @@ export default function PDPClientWrapper({
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = linkWhatsApp(companySettings, activeMessage);
-    trackContactClick("whatsapp", "PDP - Conversão WhatsApp");
+    // `pos_lead`: este clique é a CONSEQUÊNCIA do lead que acabou de ser
+    // registrado, não uma intenção nova. Sem a marca, o mesmo envio contaria
+    // duas vezes no Ads e o CPA apareceria pela metade.
+    trackContactClick("whatsapp", "PDP - Conversão WhatsApp", {
+      vehicle_id: veiculo.id,
+      vehicle_name: nomeDoVeiculo(veiculo),
+      vehicle_price: finalPrice,
+      pos_lead: true,
+    });
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -500,6 +539,60 @@ export default function PDPClientWrapper({
     // custa menos que descobrir pela PDP que a normalização mudou.
   ].filter((spec) => spec.value && spec.value.trim() !== "");
 
+  /**
+   * Abre a galeria em tela cheia e registra a interação.
+   *
+   * Os três gatilhos de lightbox (foto do carrossel, botão de tela cheia e
+   * "ver todas") passavam a mesma dupla de `setState` copiada. Concentrar aqui
+   * é o que garante que `view_gallery` saia dos três — e não do que alguém
+   * lembrar de instrumentar depois.
+   */
+  const abrirGaleria = (indice: number) => {
+    setLightboxImageIndex(indice);
+    setIsLightboxOpen(true);
+    pushGaleria(veiculo.id, indice + 1);
+  };
+
+  /**
+   * `form_start` — o sinal de abandono de formulário.
+   *
+   * Preso à abertura do modal e não aos cinco botões que a disparam
+   * (informações, dúvidas, troca, test-drive, indisponível): o que interessa
+   * medir é a intenção declarada, e ela é a mesma nos cinco.
+   */
+  const formularioJaAnunciado = useRef(false);
+  useEffect(() => {
+    if (!isLeadModalOpen) {
+      formularioJaAnunciado.current = false;
+      return;
+    }
+    // O `veiculo` é derivado dos overrides do painel, que chegam depois do
+    // primeiro render: sem esta trava, o modal aberto quando eles chegassem
+    // anunciaria `form_start` duas vezes para a mesma intenção.
+    if (formularioJaAnunciado.current) return;
+    formularioJaAnunciado.current = true;
+
+    pushInicioDeFormulario("form-proposta-veiculo", {
+      vehicle_id: veiculo.id,
+      vehicle_name: nomeDoVeiculo(veiculo),
+      vehicle_price: finalPrice,
+    });
+  }, [isLeadModalOpen, veiculo, finalPrice]);
+
+  /**
+   * "S T270 1.3 Tb 4x4 Flex Aut · 2022 · Curitiba".
+   *
+   * Sai do mesmo `versaoExibida` que a tela já mostrava — não de `veiculo.versao`
+   * cru — para o heading e o card do catálogo continuarem falando a mesma coisa.
+   */
+  const complementoDoTitulo = [
+    versaoExibida ? truncateString(versaoExibida, 45) : "",
+    veiculo.ano ? String(veiculo.ano) : "",
+    "Curitiba",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const renderSidebar = (isMobile: boolean) => {
     // SEO: Only the mobile sidebar renders an <h1> (appears first in DOM).
     // The desktop sidebar uses <h2> with identical styling to avoid duplicate H1s.
@@ -529,15 +622,26 @@ export default function PDPClientWrapper({
             </span>
           )}
 
-          <HeadingTag className="mt-titulo m-0 mt-2.5 text-[30px] leading-none text-mt-ink lg:text-[40px]">
-            {veiculo.marca} {modeloExibido}
-          </HeadingTag>
+          {/* Versão, ano e cidade entraram DENTRO do heading em 2026-08-25.
+              O <h1> era só "Jeep Renegade" — sem versão, sem ano, sem praça —
+              enquanto a linha de versão vivia num <p> logo abaixo, fora dele
+              (§0.5.5 item 1 do plano de aquisição). O heading é o segundo campo
+              de maior peso on-page depois do <title>, e a busca desta praça é
+              geográfica: "renegade usado curitiba", não "renegade".
 
-          {versaoExibida && (
-            <p className="m-0 mt-1 text-sm text-mt-neutral-700">
-              {truncateString(versaoExibida, 45)}
-            </p>
-          )}
+              O desenho da tela não mudou — o subtítulo continua na mesma
+              posição, no mesmo tamanho. Mudou só de elemento, e ganhou o ano e
+              a cidade, que o visitante também quer ler. */}
+          <HeadingTag className="mt-titulo m-0 mt-2.5 text-[30px] leading-none text-mt-ink lg:text-[40px]">
+            <span className="block">
+              {veiculo.marca} {modeloExibido}
+            </span>
+            {complementoDoTitulo && (
+              <span className="mt-1.5 block text-sm font-normal leading-snug tracking-normal text-mt-neutral-700">
+                {complementoDoTitulo}
+              </span>
+            )}
+          </HeadingTag>
 
           {veiculo.pericia &&
             !veiculo.pericia.toLowerCase().includes("análise") &&
@@ -755,6 +859,49 @@ export default function PDPClientWrapper({
         )}
       </div>
 
+      {/* Trilha até os hubs perenes.
+          Não é enfeite: é o caminho de volta que a ficha nunca teve. Quem chega
+          por busca num Renegade específico e quer ver os outros só tinha o
+          catálogo inteiro; e o rastreador não tinha ligação nenhuma entre uma
+          URL que morre na venda e uma página que sobrevive a ela. O
+          `BreadcrumbList` da página declara exatamente estes mesmos degraus. */}
+      {caminhoDaMarca && (
+        <nav
+          aria-label="Trilha"
+          className="mx-auto w-full max-w-[1600px] px-4 pt-4 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 md:px-8 print:hidden"
+        >
+          <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
+            HOME
+          </Link>{" "}
+          /{" "}
+          <Link
+            href="/estoque"
+            className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink"
+          >
+            ESTOQUE
+          </Link>{" "}
+          /{" "}
+          <Link
+            href={caminhoDaMarca}
+            className="mt-foco uppercase text-mt-neutral-600 no-underline hover:text-mt-ink"
+          >
+            {veiculo.marca}
+          </Link>
+          {caminhoDoModelo && (
+            <>
+              {" "}
+              /{" "}
+              <Link
+                href={caminhoDoModelo}
+                className="mt-foco uppercase text-mt-ink no-underline hover:text-mt-accent"
+              >
+                {modeloExibido}
+              </Link>
+            </>
+          )}
+        </nav>
+      )}
+
       {/* SINGLE MAIN GRID CONTAINER FOR LAYOUT (Gallery, Sidebar, Description, Accordions, Matriz) */}
       <div className="w-full mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start print:grid-cols-1 print:gap-6 print:px-0 print:mt-0">
         
@@ -775,10 +922,7 @@ export default function PDPClientWrapper({
                 {displayImages.map((imgUrl, index) => (
                   <div
                     key={index}
-                    onClick={() => {
-                      setLightboxImageIndex(index);
-                      setIsLightboxOpen(true);
-                    }}
+                    onClick={() => abrirGaleria(index)}
  className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
                   >
                     <Image
@@ -839,10 +983,7 @@ export default function PDPClientWrapper({
 
               {/* Fullscreen Trigger Button */}
               <button
-                onClick={() => {
-                  setLightboxImageIndex(activeImageIndex);
-                  setIsLightboxOpen(true);
-                }}
+                onClick={() => abrirGaleria(activeImageIndex)}
  className="mt-foco absolute right-0 top-0 z-30 flex h-11 w-11 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
                 title="Visualizar em tela cheia"
                 aria-label="Visualizar fotos do veículo em tela cheia"
@@ -896,10 +1037,7 @@ export default function PDPClientWrapper({
                   );
                 })}
                 <button
-                  onClick={() => {
-                    setLightboxImageIndex(0);
-                    setIsLightboxOpen(true);
-                  }}
+                  onClick={() => abrirGaleria(0)}
  className="mt-foco grid aspect-[4/3] flex-1 cursor-pointer place-items-center bg-mt-inverso-fundo text-mt-inverso"
                   aria-label="Ver todas as fotos do veículo"
                 >
@@ -960,7 +1098,10 @@ export default function PDPClientWrapper({
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
               <button
-                onClick={() => setOpcionaisOpen(!opcionaisOpen)}
+                onClick={() => {
+                  if (!opcionaisOpen) pushFichaTecnica(veiculo.id);
+                  setOpcionaisOpen(!opcionaisOpen);
+                }}
  className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
                 aria-expanded={opcionaisOpen}
               >
@@ -1008,7 +1149,10 @@ export default function PDPClientWrapper({
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
               <button
-                onClick={() => setPericiaOpen(!periciaOpen)}
+                onClick={() => {
+                  if (!periciaOpen) pushFichaTecnica(veiculo.id);
+                  setPericiaOpen(!periciaOpen);
+                }}
  className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
                 aria-expanded={periciaOpen}
               >
@@ -1280,6 +1424,7 @@ export default function PDPClientWrapper({
         className="mx-auto mt-16 w-full max-w-[1600px] px-[18px] font-modernist md:px-8 print:hidden"
       >
         <CalculadoraFinanciamento
+          vehicleId={veiculo.id}
           vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
           vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
           vehicleName={`${veiculo.marca} ${veiculo.modelo}`}
@@ -1342,7 +1487,7 @@ export default function PDPClientWrapper({
         </div>
         <div className="text-right text-[9px] text-zinc-500 leading-normal">
           <span className="font-bold text-zinc-700 block uppercase tracking-wider mb-0.5">Contato & Atendimento</span>
-          <span>Tel: {companySettings.phone} • WhatsApp: {companySettings.whatsapp}</span>
+          <span>Tel: {companySettings.phone} • WhatsApp: {telefoneVisivel(companySettings)}</span>
           <span className="block mt-0.5">{companySettings.hours.replace(/\n/g, " | ")}</span>
         </div>
       </div>

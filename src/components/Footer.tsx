@@ -1,90 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
-import { getEstoque, getVeiculoPdpUrl, truncateString, type Veiculo } from "../lib/supabase";
-import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
+import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 import { trackContactClick } from "../lib/telemetry";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
 
 /**
  * Rodapé Modernist (redesign 2026).
  *
  * Bloco escuro, três colunas ruled e a barra legal embaixo. O bloco de
  * marcas e modelos não está no design doc, mas é link interno de SEO que já
- * estava em produção — fica, reescrito na linguagem do sistema e alimentado
- * pelo estoque real (ver `useVitrineDestaque` abaixo).
+ * estava em produção — fica, reescrito na linguagem do sistema.
+ *
+ * A lista vem PRONTA do servidor, por prop. Até 2026-08-25 ela era buscada aqui
+ * mesmo, num `useEffect` — e por isso não existia no HTML servido: o link
+ * interno mais repetido do site não era rastreável. A regra e a história estão
+ * em `lib/navegacaoDoRodape.ts`.
  */
 
-const MAX_MARCAS = 8;
-const MAX_MODELOS = 5;
-
-/**
- * Marcas e modelos reais do estoque, não uma lista fixa.
- *
- * Até 2026-08-04 esta seção listava BMW/BYD/Land Rover/Porsche/Toyota e
- * 911 Carrera S/Defender 110/Dolphin/Hilux/X5 como constantes — nem sempre
- * correspondiam ao que estava à venda, e o link de modelo (`?modelo=`) exige
- * igualdade exata com o campo `modelo` do banco (hoje em `Catalogo.tsx`), que
- * é a string completa do RevendaMais — nunca ia bater com um nome de exibição
- * inventado. Os links de marca funcionavam por coincidência: o mecanismo é
- * real, só os valores eram fictícios.
- *
- * O redesign de 2026 reintroduziu a lista fixa por engano ao reescrever o
- * rodapé; esta versão é a da `main`, com o catálogo agora em `/estoque`.
- *
- * O feed não tem um campo de "nome de modelo" limpo — `modelo` já vem com
- * versão e motorização embutidas (ex.: "corolla cross xre 2.0 16v flex aut").
- * Por isso os modelos linkam para a página do veículo (rota estável, sempre
- * resolve), e a marca continua linkando para o filtro (`?marca=`), que já é
- * exato por natureza — é a mesma lista usada no seletor de marca do Hero.
- */
-function useVitrineDestaque() {
-  const [marcas, setMarcas] = useState<string[]>([]);
-  const [modelos, setModelos] = useState<{ label: string; href: string }[]>([]);
-
-  useEffect(() => {
-    let ativo = true;
-    getEstoque()
-      .then((estoque: Veiculo[]) => {
-        if (!ativo) return;
-        const disponiveis = estoque.filter((v) => !v.vendido);
-
-        const contagem = new Map<string, number>();
-        for (const v of disponiveis) {
-          contagem.set(v.marca, (contagem.get(v.marca) || 0) + 1);
-        }
-        const marcasOrdenadas = [...contagem.entries()]
-          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-          .map(([marca]) => marca)
-          .slice(0, MAX_MARCAS);
-
-        const destaques = [...disponiveis]
-          .sort((a, b) => (b.preco || 0) - (a.preco || 0))
-          .slice(0, MAX_MODELOS)
-          .map((v) => ({
-            // Modelo curto: o feed embute a versão na cauda do modelo, e o
-            // rótulo truncado em 26 chars saía só com o começo da versão.
-            label: truncateString(`${v.marca} ${modeloEVersaoParaExibir(v.modelo, v.versao).modelo}`, 26),
-            href: getVeiculoPdpUrl(v),
-          }));
-
-        setMarcas(marcasOrdenadas);
-        setModelos(destaques);
-      })
-      .catch((err) => console.warn("[Footer] Falha ao carregar vitrine:", err));
-    return () => {
-      ativo = false;
-    };
-  }, []);
-
-  return { marcas, modelos };
-}
-
-export default function Footer() {
+export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape }) {
   const { companySettings } = useTheme();
-  const { marcas, modelos } = useVitrineDestaque();
+  const marcas = navegacao?.marcas ?? [];
+  const modelos = navegacao?.modelos ?? [];
 
   const colunas: {
     titulo: string;
@@ -96,6 +34,8 @@ export default function Footer() {
         { rotulo: "Quem somos", href: "/sobre" },
         { rotulo: "Garagem Profiler", href: "/carro-perfeito" },
         { rotulo: "Avaliação Express", href: "/avaliacao" },
+        { rotulo: "Financiamento", href: "/financiamento" },
+        { rotulo: "Garantia", href: "/garantia" },
         { rotulo: "Privacidade & LGPD", href: "/privacidade" },
       ],
     },
@@ -108,7 +48,12 @@ export default function Footer() {
           contato: "phone",
         },
         {
-          rotulo: `WhatsApp ${companySettings.whatsapp}`,
+          // Rótulo e link saem do MESMO campo (`lib/whatsapp.ts`). Vinham de
+          // dois: o texto de `companySettings.whatsapp`, o href de
+          // `whatsappRaw`. Em 2026-08-25 o HTML servido da home mostrava
+          // "(41) 99842-6127" com um wa.me para 5541997372165 — número na tela
+          // diferente do número que o botão abre.
+          rotulo: `WhatsApp ${telefoneVisivel(companySettings)}`,
           href: linkWhatsApp(companySettings),
           contato: "whatsapp",
         },
@@ -136,8 +81,8 @@ export default function Footer() {
               </span>
             </div>
             <p className="m-0 max-w-[300px] text-[13px] leading-relaxed">
-              Compra, venda e troca de veículos premium selecionados. Procedência,
-              garantia e transparência.
+              Compra, venda e troca de seminovos selecionados. De cada dez
+              avaliados, três entram.
             </p>
           </div>
 
@@ -195,11 +140,11 @@ export default function Footer() {
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
                   {marcas.map((marca) => (
                     <Link
-                      key={marca}
-                      href={`/estoque?marca=${encodeURIComponent(marca)}`}
+                      key={marca.href}
+                      href={marca.href}
                       className="mt-foco font-medium uppercase tracking-wider no-underline hover:text-mt-accent-400"
                     >
-                      {marca}
+                      {marca.rotulo}
                     </Link>
                   ))}
                 </div>
@@ -218,7 +163,7 @@ export default function Footer() {
                       href={modelo.href}
                       className="mt-foco font-medium uppercase tracking-wider no-underline hover:text-mt-accent-400"
                     >
-                      {modelo.label}
+                      {modelo.rotulo}
                     </Link>
                   ))}
                 </div>

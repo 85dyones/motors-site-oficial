@@ -35,7 +35,7 @@ import {
 // anterior a esta rodada: o nome da loja nunca chegou ao structured data.
 import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
 import { linkWhatsApp } from "../lib/whatsapp";
-import { SITE_URL } from "../lib/site";
+import { schemaDaLoja } from "../lib/schemaLoja";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -49,58 +49,38 @@ export async function generateMetadata(): Promise<Metadata> {
   const tabTitle = companySettings?.tabTitle?.trim();
 
   return {
+    /**
+     * O `<title>` da home é dela, não do campo `tabTitle`.
+     *
+     * Até 2026-08-25 a home não declarava título nenhum e herdava o do layout
+     * raiz, que serve `companySettings.tabTitle` — em produção, "Motors Store |
+     * Fora da Curva". A frase é a marca, e como marca ela é boa; como título de
+     * busca, não: a página mais importante do site não dizia "seminovos", nem
+     * "carros usados", nem "Curitiba". Era a única página do site com o título
+     * quebrado (as fichas, o catálogo, a avaliação e as landings já montam o
+     * seu desde o P3 da `docs/RECOMENDACAO_SEO.md`).
+     *
+     * `tabTitle` continua valendo em dois lugares, de propósito: no layout raiz,
+     * para as rotas que ninguém busca (/login, /admin), e logo abaixo, como
+     * título do card de compartilhamento — onde a frase de marca é justamente o
+     * que faz clicar.
+     */
+    title: "Seminovos Selecionados em Curitiba | Motors Store",
+    // Vocabulário de `conteudo-seo/POSICIONAMENTO.md`: "seleção", não
+    // "premium"; e o diferencial é o que a loja RECUSA — 3 de cada 10 entram —
+    // porque garantia e perícia todo concorrente também alega.
+    description:
+      "Carros seminovos em Curitiba com perícia cautelar independente: de cada dez " +
+      "avaliados, três entram no estoque. Loja no Bacacheri, troca e financiamento.",
     alternates: { canonical: "/" },
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "home",
-      tituloPadrao: tabTitle || "Motors Store | Seminovos premium em Curitiba",
+      tituloPadrao: tabTitle || "Motors Store | Seminovos Selecionados em Curitiba",
       descricaoPadrao:
-        "Veículos premium selecionados com laudo cautelar, procedência auditada e garantia. Financiamento sem entrada.",
+        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha e preço no anúncio.",
       caminho: "/",
     }),
-  };
-}
-
-/**
- * Endereço da loja para o schema.org, derivado do endereço em vigor — o mesmo
- * que alimenta o rodapé e a ficha impressa.
- *
- * Até 2026-08-06 este schema declarava "Av. Europa, 1000, São Paulo-SP" e o
- * telefone +55 11 4003-0000, ambos fictícios: a loja é em Curitiba. O Google
- * recebia um NAP (nome/endereço/telefone) que contradizia o rodapé e o title
- * das landings, o que anula SEO local e derruba a confiança no structured data
- * do domínio. Derivar da mesma fonte impede que as duas divirjam de novo.
- *
- * Recebe o endereço por parâmetro (e não lê o JSON direto) porque a home passou
- * a resolver as configurações no servidor: o que vale é o que está no painel,
- * com o JSON apenas como fallback.
- */
-function enderecoDoSchema(endereco: string) {
-  // Formato esperado, o que o painel grava hoje:
-  // "Rua Ernesto Piazzetta, 98 - Bacacheri, Curitiba - PR, 82510-350"
-  //  └─ logradouro ──────┘   └ bairro ┘  └ cidade ┘  └UF┘ └─ CEP ─┘
-  const bruto = (endereco || "").trim();
-
-  const logradouro = bruto.split(" - ")[0]?.trim() || "";
-  const miolo = bruto.split(" - ")[1] || "";
-  const bairro = miolo.split(",")[0]?.trim() || "";
-  const cidade = miolo.split(",")[1]?.trim() || "";
-  const uf = (bruto.match(/\b([A-Z]{2})\b(?=\s*,|\s*\d{5})/) || [])[1] || "";
-  const cep = (bruto.match(/\d{5}-?\d{3}/) || [""])[0];
-
-  // Falha segura: endereço parcial no schema.org é pior que endereço nenhum —
-  // o Google trata NAP inconsistente como sinal de baixa confiança. Se o dono
-  // reescrever o endereço no painel num formato que este parse não entenda,
-  // preferimos omitir o campo a publicar um endereço truncado ou errado.
-  if (!logradouro || !cidade || !uf) return undefined;
-
-  return {
-    "@type": "PostalAddress",
-    streetAddress: [logradouro, bairro].filter(Boolean).join(" - "),
-    addressLocality: cidade,
-    addressRegion: uf,
-    postalCode: cep || undefined,
-    addressCountry: "BR",
   };
 }
 
@@ -125,8 +105,6 @@ const PASSOS_PROFILER = [
 ];
 
 export default async function Home() {
-  // SITE_URL vem de `lib/site` — endereço do site num lugar só.
-
   const [estoque, settings, reputacao] = await Promise.all([
     getEstoque(),
     getCachedSettings(),
@@ -162,33 +140,12 @@ export default async function Home() {
 
   const whatsappHref = linkWhatsApp(empresa);
 
-  const autoDealerSchema = {
-    "@context": "https://schema.org",
-    "@type": "AutoDealer",
-    "name": empresa.name,
-    "image": `${SITE_URL}/logo.png`,
-    "url": SITE_URL,
-    // `whatsappRaw` é o número da loja em formato discável, o mesmo que
-    // alimenta todo botão de WhatsApp do site (`lib/whatsapp.ts`).
-    "telephone": empresa.whatsappRaw ? `+${empresa.whatsappRaw}` : undefined,
-    "address": enderecoDoSchema(empresa.address),
-    "sameAs": [empresa.instagram, empresa.facebook].filter(Boolean),
-    // Horário real da loja: Seg-Sex 08h30-18h30, Sáb 08h30-15h.
-    "openingHoursSpecification": [
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "opens": "08:30",
-        "closes": "18:30"
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Saturday"],
-        "opens": "08:30",
-        "closes": "15:00"
-      }
-    ]
-  };
+  // O nó da loja vive em `lib/schemaLoja.ts` desde 2026-08-25: ele passou a ter
+  // `@id`, e a ficha do veículo referencia esse id em `offers.seller` para
+  // ligar cada oferta à loja física. Bloco duplicado aqui reabriria a chance de
+  // as duas versões divergirem — que é o defeito que o NAP fictício de agosto
+  // já custou uma vez.
+  const autoDealerSchema = schemaDaLoja(empresa, { disponiveis });
 
   /**
    * As seções da home, indexadas pelo id do catálogo (`lib/areasDoSite.ts`).

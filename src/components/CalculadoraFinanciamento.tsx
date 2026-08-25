@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { pushSimulacaoDeFinanciamento } from "../lib/dataLayer";
 import { calculateFinancing, SimulationResult } from "../lib/finance-calculator";
 
 export interface SimulacaoData {
@@ -14,6 +15,8 @@ export interface SimulacaoData {
 }
 
 interface CalculadoraProps {
+  /** ID do estoque — o mesmo do `sku` do JSON-LD e do feed dinâmico. */
+  vehicleId?: string;
   vehiclePrice: number;
   vehicleYear: number;
   vehicleName: string;
@@ -24,6 +27,7 @@ type OcupacaoType = "publico" | "aposentado" | "clt" | "autonomo" | "outros";
 type TipoEntradaType = "dinheiro" | "veiculo_troca" | "sem_entrada";
 
 export default function CalculadoraFinanciamento({
+  vehicleId,
   vehiclePrice,
   vehicleYear,
   vehicleName,
@@ -84,6 +88,16 @@ Consegue verificar se aprova nessas condições?`;
       valor_parcela: result.parcela_mensal,
       ocupacao: occupation
     };
+
+    // `financing_simulation` é micro-conversão (§4.4 do plano): entra no GA4 e
+    // como conversão SECUNDÁRIA no Ads, nunca principal. Quem simula está no
+    // meio do funil — otimizar por ele compra visita, não venda. O disparo é
+    // aqui, no envio da simulação ao consultor, e não a cada toque no slider.
+    pushSimulacaoDeFinanciamento({
+      vehicle_id: vehicleId,
+      down_payment: Math.round(downPaymentValue),
+      installments,
+    });
 
     onSimulateClick(msg, simulacaoData);
   };

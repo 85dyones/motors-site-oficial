@@ -33,6 +33,7 @@ const ler = (caminho: string) => readFileSync(join(raiz, caminho), "utf8");
 const SITEMAP = "src/app/sitemap.ts";
 const PDP = "src/app/[categoria]/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx";
 const WRAPPER = "src/components/PDPClientWrapper.tsx";
+const SCHEMA_DO_VEICULO = "src/lib/schemaVeiculo.ts";
 
 const AGORA = new Date("2026-08-17T12:00:00Z");
 const DIA = 24 * 60 * 60 * 1000;
@@ -48,6 +49,7 @@ describe("decidirPublicacao — carro à venda", () => {
       indisponivel: false,
       rotulo: null,
       noindex: false,
+      arquivar: false,
     });
   });
 });
@@ -63,6 +65,9 @@ describe("decidirPublicacao — fora do feed", () => {
       indisponivel: true,
       rotulo: "INDISPONÍVEL",
       noindex: true,
+      // Fora do feed NÃO arquiva: o motivo da saída é desconhecido e o carro
+      // pode voltar. Só venda consumada recicla a URL.
+      arquivar: false,
     });
   });
 
@@ -79,7 +84,7 @@ describe("decidirPublicacao — carência do vendido", () => {
     // A parte boa do tráfego: quem busca o modelo na semana seguinte à venda é
     // comprador daquele perfil, e a página já oferece similares.
     const r = decidirPublicacao({ ...vendido, dataVenda: haDias(10) }, AGORA);
-    expect(r).toEqual({ indisponivel: true, rotulo: "VENDIDO", noindex: false });
+    expect(r).toEqual({ indisponivel: true, rotulo: "VENDIDO", noindex: false, arquivar: false });
   });
 
   it("venda antiga sai do índice", () => {
@@ -221,8 +226,13 @@ describe("PDP fora de venda", () => {
   });
 
   it("declara OutOfStock pela mesma decisão que governa o selo", () => {
-    expect(ler(PDP)).toMatch(
-      /availability["\s:]+publicacao\.indisponivel\s*\?\s*["']https:\/\/schema\.org\/OutOfStock/
+    // O `Car` saiu da página para `lib/schemaVeiculo.ts` em 2026-08-25, quando
+    // ganhou os campos que faltavam (sku, bodyType, seller…). A decisão não
+    // mudou de dono: a página continua passando `publicacao.indisponivel`
+    // pronto, e é ele — não `veiculo.vendido` — que define a disponibilidade.
+    expect(ler(PDP)).toMatch(/indisponivel:\s*publicacao\.indisponivel/);
+    expect(ler(SCHEMA_DO_VEICULO)).toMatch(
+      /availability:\s*opcoes\.indisponivel\s*\?\s*["']https:\/\/schema\.org\/OutOfStock/
     );
   });
 

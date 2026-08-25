@@ -8,7 +8,8 @@ import { textoUtil } from "../src/lib/supabase";
  * `descricao_seo` — o campo que o código usava sem existir.
  *
  * `src/app/api/feed/xml/route.ts` montava a descrição de cada anúncio com
- * `car.descricao_seo || "Aproveite as melhores condições..."`. A propriedade
+ * `car.descricao_seo || "Aproveite as melhores condições..."` (frase trocada
+ * em 2026-08-25, por vocabulário e concordância). A propriedade
  * nunca chegava: não era coluna de `estoque_motors`, o mapper não a definia, e
  * `select("*")` não reclama de campo inexistente — só devolve `undefined`.
  *
@@ -82,7 +83,12 @@ describe("cadeia de fallback do texto", () => {
     );
     // O degrau do meio é o que faltava: enquanto ninguém escrever a versão
     // curta, o portal já recebe texto real em vez de catálogo.
-    expect(fonte).toMatch(/Aproveite as melhores condições/);
+    //
+    // O último degrau existe e é genérico — o que mudou em 2026-08-25 foi a
+    // frase: "Aproveite as melhores condições para comprar **seu** {marca}
+    // {modelo}" cravava o masculino e usava um termo da coluna *Evitar* do
+    // POSICIONAMENTO. O teste prende o degrau, não as palavras dele.
+    expect(fonte).toMatch(/perícia cautelar independente e laudo na ficha/);
   });
 
   it("a meta description da PDP usa a mesma ordem", () => {
