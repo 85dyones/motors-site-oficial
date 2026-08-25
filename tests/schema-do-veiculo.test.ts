@@ -69,6 +69,18 @@ describe("o nome não repete a versão", () => {
     );
   });
 
+  it("o feed de anúncios usa o mesmo nome", async () => {
+    // Medido no feed em produção em 2026-08-25, no carro mais caro da vitrine:
+    //   "BMW X4 M40i 3.0 M Sport Edit V6 Turbo Aut m40i 3.0 m sport edit v6 turbo aut"
+    // Título de anúncio é cortado por volta de 65 caracteres em qualquer
+    // portal: o que sobrava era só a repetição.
+    const { ler } = await import("./fonte");
+    const feed = ler("src/app/api/feed/xml/route.ts");
+
+    expect(feed).toMatch(/const title = nomeDoVeiculo\(car\)/);
+    expect(feed).not.toMatch(/\$\{car\.marca\} \$\{car\.modelo\} \$\{car\.versao\}/);
+  });
+
   it("é o mesmo nome que vai para o `Car.name`, com o ano", () => {
     expect(schemaDoVeiculo(RENEGADE, { caminho: CAMINHO, indisponivel: false }).name).toBe(
       nomeComAno(RENEGADE),

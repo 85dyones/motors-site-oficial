@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getEstoque, getVeiculoPdpUrl } from '../../../../lib/supabase';
+import { nomeDoVeiculo } from '../../../../lib/nomeDoVeiculo';
 
 // Rota dinâmica, e não `revalidate`: o handler lê `request.url` para montar o
 // endereço absoluto de cada item, e isso não pode ser pré-renderizado. Com
@@ -44,8 +45,16 @@ export async function GET(request: Request) {
 
       const price = car.preco_promocional > 0 ? car.preco_promocional : car.preco_original;
       
-      // Safe XML string escaping
-      const title = `${car.marca} ${car.modelo} ${car.versao}`.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // O mesmo nome deduplicado do `<title>` da ficha e do `Car.name`
+      // (`lib/nomeDoVeiculo.ts`). Medido no feed em produção em 2026-08-25:
+      //
+      //   BMW X4 M40i 3.0 M Sport Edit V6 Turbo Aut m40i 3.0 m sport edit v6 turbo aut
+      //
+      // O RevendaMais embute a versão no modelo, e concatenar os três a
+      // repetia. Título de anúncio é cortado por volta de 65 caracteres em
+      // qualquer portal: o que sobrava era só a repetição. `g:id` continua o
+      // mesmo, então o catálogo do Meta não perde correspondência.
+      const title = nomeDoVeiculo(car).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       // Cadeia de três, e o degrau do meio é o que faltava.
       //
       // `descricao_seo` só passou a existir na migração 20260817130000 — antes

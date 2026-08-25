@@ -98,9 +98,9 @@ export default function PaginaDeEstoque({
             <h1 className="mt-titulo m-0 text-[34px] lg:text-[56px] lg:leading-[.95]">
               {titulo} <span className="text-mt-accent">{veiculos.length}</span>
             </h1>
-            {introducao.map((paragrafo) => (
+            {introducao.map((paragrafo, i) => (
               <p
-                key={paragrafo.slice(0, 40)}
+                key={i}
                 className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]"
               >
                 {paragrafo}

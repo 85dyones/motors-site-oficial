@@ -556,8 +556,18 @@ export default function PDPClientWrapper({
    * (informações, dúvidas, troca, test-drive, indisponível): o que interessa
    * medir é a intenção declarada, e ela é a mesma nos cinco.
    */
+  const formularioJaAnunciado = useRef(false);
   useEffect(() => {
-    if (!isLeadModalOpen) return;
+    if (!isLeadModalOpen) {
+      formularioJaAnunciado.current = false;
+      return;
+    }
+    // O `veiculo` é derivado dos overrides do painel, que chegam depois do
+    // primeiro render: sem esta trava, o modal aberto quando eles chegassem
+    // anunciaria `form_start` duas vezes para a mesma intenção.
+    if (formularioJaAnunciado.current) return;
+    formularioJaAnunciado.current = true;
+
     pushInicioDeFormulario("form-proposta-veiculo", {
       vehicle_id: veiculo.id,
       vehicle_name: nomeDoVeiculo(veiculo),

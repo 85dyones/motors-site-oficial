@@ -87,6 +87,39 @@ describe("o slug do hub é o mesmo segmento que a ficha usa", () => {
   });
 });
 
+describe("a URL da ficha não mudou ao extrair a slugificação", () => {
+  /**
+   * `getVeiculoPdpUrl` passou a chamar `limparModelo` e `slugificar` em vez de
+   * repetir as regex. É refatoração pura: qualquer diferença renomeia URL já
+   * indexada, que é o custo que a §2.2.2b do plano manda não pagar. Os casos
+   * abaixo cobrem o que o feed do RevendaMais realmente manda.
+   */
+  it.each([
+    [
+      veiculo({ id: "7977579", marca: "Jeep", modelo: "Renegade S T270 1.3 Tb 4x4 Flex Aut", versao: "S T270 1.3 Tb 4x4 Flex Aut" }),
+      "/carros/jeep/renegade/s-t270-13-tb-4x4-flex-aut/jeep-renegade-s-t270-13-tb-4x4-flex-aut-7977579",
+    ],
+    [
+      // Marca embutida no modelo, versão repetida na cauda.
+      veiculo({ id: "42", marca: "Chevrolet", modelo: "Chevrolet Cruze LTZ 1.4 Turbo", versao: "LTZ 1.4 Turbo" }),
+      "/carros/chevrolet/cruze/ltz-14-turbo/chevrolet-cruze-ltz-14-turbo-42",
+    ],
+    [
+      // Acento some em vez de virar "e" — comportamento antigo, preservado de
+      // propósito: transliterar agora renomearia URL viva.
+      veiculo({ id: "7", marca: "Citroën", modelo: "C4 Cactus", versao: "Feel 1.6" }),
+      "/carros/citron/c4-cactus/feel-16/citron-c4-cactus-feel-16-7",
+    ],
+    [
+      // Campos vazios caem nos mesmos fallbacks de antes.
+      veiculo({ id: "9", marca: "", modelo: "", versao: "" }),
+      "/carros/veiculo/padrao/padrao/veiculo-padrao-padrao-9",
+    ],
+  ])("%#", (v, esperado) => {
+    expect(getVeiculoPdpUrl(v)).toBe(esperado);
+  });
+});
+
 describe("o hub é perene: existe pelo histórico, não pelo estoque de hoje", () => {
   /**
    * O ponto inteiro da camada. Um hub que some quando o último carro da marca
