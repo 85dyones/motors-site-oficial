@@ -658,9 +658,73 @@ separada da decisão de fila acima.
 | Meta Business ID | `1318713333562215` |
 | Ad Account ID | `802008949148808` |
 | Página Facebook | `783652398162743` |
-| GA4 (fallback no código) | `G-CZ4B4RYF61` |
-| GA4 (em uso, via `site_settings`) | `G-KBL1MFN9E3` |
+| GA4 (em uso, via `site_settings` **e** padrão do código) | `G-KBL1MFN9E3` |
 | Google Ads ID | **não cadastrado** — ver Fase 3 |
 | Label de conversão do Google Ads | **não cadastrado** — ver Fase 3 |
 
 > **Pendência conhecida no catálogo:** existem 3 feeds primários no mesmo catálogo (`Estoque_140726`, `estoque atualizado Motors`, `Novo feed de dados para Estoque Motors Store`) e o diagnóstico acusa erro de upload. Consolidar em um único feed primário apontando para `api/feed/xml` com atualização agendada. Não faz parte desta spec, mas afeta o resultado final.
+
+
+---
+
+## Camada de dados (`dataLayer`) — 2026-08-25
+
+> Acrescentada pelo pacote de melhorias estruturais pedido no *Plano de
+> Aquisição Digital* (§4.2). **Nada foi removido nem renomeado** — a regra 7
+> continua valendo, e todo evento descrito acima segue sendo disparado do mesmo
+> jeito. O `dataLayer` roda ao lado.
+
+### O que ela resolve
+
+O site mede, mas cada ajuste de mensuração era um ticket de desenvolvimento: os
+eventos são disparados direto no `gtag`/`fbq`, dentro do código. Com a camada
+publicada, o marketing cria tag, gatilho e conversão dentro do GTM — cujo
+container `IntegrationsTracker` já sabe carregar, bastando preencher o ID em
+**Configurações → Dados da concessionária → GTM**.
+
+### Regras
+
+1. **O push NÃO espera o consentimento.** Escrever num array em memória não
+   envia nada; quem envia é o GTM, que só carrega depois do aceite — e processa
+   a fila já existente ao inicializar. Com o gate no push, o contexto anterior
+   ao aceite se perderia.
+2. **Nenhum dado pessoal na camada.** Nome, e-mail, telefone e CPF ficam fora:
+   o `dataLayer` é legível por qualquer script da página. Identidade continua
+   indo pelo caminho servidor (CAPI e conversões otimizadas), com hash.
+3. **`item_id` = `sku` do JSON-LD = ID no fim da URL = ID do feed.** Divergência
+   entre os quatro é anúncio dinâmico em branco.
+4. **Push com `event` aciona gatilho; push sem `event` só atualiza variável.**
+   `stock_count` é do segundo tipo — de propósito.
+
+### Camada global (toda página)
+
+| Chave | Valores |
+|---|---|
+| `page_type` | `home` · `inventory` · `brand` · `model` · `bodytype` · `highlight` · `vehicle_detail` · `appraisal` · `advisor` · `geo` · `contact` · `institutional` · `internal` · `other` |
+| `store_city` | `Curitiba` |
+| `stock_count` | número, só nas páginas de listagem. Limpado (`null`) a cada troca de página |
+
+Sem `store_id`: a operação é **uma loja só** (Rua Ernesto Piazzetta, confirmado
+pelo dono em 2026-08-25).
+
+### Eventos
+
+| Evento | Onde nasce | Campos |
+|---|---|---|
+| `page_context` | toda navegação | `page_type`, `store_city` |
+| `view_vehicle` | ficha do veículo | `vehicle{...}` + espelho `ecommerce` do GA4 |
+| `click_whatsapp` | todo CTA de WhatsApp | `whatsapp_location`, `vehicle_*` quando houver |
+| `click_to_call` | rodapé e ficha | `call_location` |
+| `generate_lead` | os cinco formulários | `lead_type` (`proposta` · `avaliacao` · `contato` · `curadoria` · `financiamento`), `form_id`, `vehicle_*` |
+| `financing_simulation` | "Monte sua parcela" | `vehicle_id`, `down_payment`, `installments` |
+| `form_start` | abertura do modal de lead | `form_id`, `vehicle_*` |
+| `view_gallery` | galeria em tela cheia | `vehicle_id`, `images_viewed` |
+| `view_specs` | acordeões da ficha | `vehicle_id` |
+| `click_directions` | "Como chegar" das páginas de bairro | `directions_source` |
+
+**Só `click_whatsapp`, `generate_lead` e `click_to_call` devem virar conversão
+PRINCIPAL no Google Ads.** `financing_simulation` e `click_directions` entram
+como secundárias; o resto é comportamento. Marcar `view_vehicle` como conversão
+ensina o algoritmo a comprar curioso.
+
+Implementação em `src/lib/dataLayer.ts`; travada por `tests/camada-de-dados.test.ts`.

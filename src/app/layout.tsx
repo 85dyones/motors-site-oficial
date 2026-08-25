@@ -8,6 +8,7 @@ import LeadPopup from "../components/LeadPopup";
 import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
+import CamadaDeDados from "../components/CamadaDeDados";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 
@@ -158,6 +159,9 @@ export default async function RootLayout({
           }}
         />
         <ThemeProvider>
+          {/* A camada de dados vem ANTES do carregador de tags: o contexto da
+              página precisa estar no `dataLayer` quando o GTM inicializar. */}
+          <CamadaDeDados />
           <IntegrationsTracker />
           <AntigravityTracker />
           <MolduraDoSite>

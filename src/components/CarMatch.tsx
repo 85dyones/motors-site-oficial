@@ -374,7 +374,9 @@ export default function CarMatch() {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         email: leadData.email,
-        phoneE164
+        phoneE164,
+        tipoDeLead: "curadoria",
+        formId: "form-garagem-profiler",
       }
     );
     const { fbp, fbc } = getMatchParams();

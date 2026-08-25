@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
@@ -48,6 +49,8 @@ export interface PaginaDeEstoqueProps {
   textoSemEstoque?: string;
   blocos?: BlocoDeLinks[];
   faq?: PerguntaFrequente[];
+  /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
+  acao?: ReactNode;
 }
 
 export default function PaginaDeEstoque({
@@ -58,6 +61,7 @@ export default function PaginaDeEstoque({
   textoSemEstoque,
   blocos = [],
   faq = [],
+  acao,
 }: PaginaDeEstoqueProps) {
   const resumo = resumirSelecao(veiculos);
   const temResumo = veiculos.length > 0;
@@ -102,6 +106,7 @@ export default function PaginaDeEstoque({
                 {paragrafo}
               </p>
             ))}
+            {acao && <div className="mt-6">{acao}</div>}
           </div>
 
           {temResumo && (

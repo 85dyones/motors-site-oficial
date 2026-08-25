@@ -730,7 +730,9 @@ export default function AutoAvaliacao() {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         email: leadData.email,
-        phoneE164
+        phoneE164,
+        tipoDeLead: "avaliacao",
+        formId: "form-avaliacao-express",
       }
     );
     const { fbp, fbc } = getMatchParams();

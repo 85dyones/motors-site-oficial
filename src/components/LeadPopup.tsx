@@ -317,7 +317,9 @@ export default function LeadPopup() {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         email: leadData.email,
-        phoneE164
+        phoneE164,
+        tipoDeLead: "contato",
+        formId: "form-popup-lead",
       }
     );
     const { fbp, fbc } = getMatchParams();

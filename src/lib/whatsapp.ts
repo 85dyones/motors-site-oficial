@@ -72,12 +72,14 @@ export function telefoneVisivel(
 ): string {
   const numero = numeroDaLoja(company);
 
-  // Brasil com DDI: 55 + DDD (2) + 8 ou 9 dígitos.
-  const comDdi = numero.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  // DDD brasileiro: dois dígitos, nenhum deles zero. A restrição não é
+  // preciosismo — sem ela um 0800 (11 dígitos, como um celular com DDD) sai
+  // formatado como "(08) 00000-0000", que é um número que não existe.
+  const comDdi = numero.match(/^55([1-9][1-9])(\d{4,5})(\d{4})$/);
   if (comDdi) return `(${comDdi[1]}) ${comDdi[2]}-${comDdi[3]}`;
 
   // Sem DDI, como às vezes o painel grava.
-  const semDdi = numero.match(/^(\d{2})(\d{4,5})(\d{4})$/);
+  const semDdi = numero.match(/^([1-9][1-9])(\d{4,5})(\d{4})$/);
   if (semDdi) return `(${semDdi[1]}) ${semDdi[2]}-${semDdi[3]}`;
 
   return (company?.whatsapp ?? "").trim() || numero;

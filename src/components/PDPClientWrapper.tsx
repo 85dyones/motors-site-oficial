@@ -11,6 +11,8 @@ import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLea
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
+import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
+import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -181,11 +183,23 @@ export default function PDPClientWrapper({
     console.log(`[Antigravity Log] PageView iniciada para o veículo: ${veiculo.marca} ${veiculo.modelo} ID: ${veiculo.id}`);
 
     // Dispara telemetria de visualização do item no GA4/Meta Pixel
+    // Os campos além de id/marca/modelo/preço alimentam só o `dataLayer`
+    // (`view_vehicle` + espelho de e-commerce): são eles que permitem público
+    // de remarketing por carroceria, faixa de preço e câmbio sem novo deploy.
+    // O que vai para o GA4 e para o Pixel não mudou.
     const viewEventId = trackVehicleView({
       id: veiculo.id,
       marca: veiculo.marca,
       modelo: veiculo.modelo,
-      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original
+      preco: veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original,
+      versao: veiculo.versao,
+      ano: veiculo.ano,
+      quilometragem: veiculo.quilometragem,
+      cambio: veiculo.cambio,
+      combustivel: veiculo.combustivel,
+      tipo: veiculo.tipo,
+      cor: veiculo.cor,
+      nome: nomeDoVeiculo(veiculo),
     });
 
     // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)
@@ -337,7 +351,9 @@ export default function PDPClientWrapper({
       googleAdsId: companySettings?.googleAdsId,
       googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
       email: leadData.email,
-      phoneE164
+      phoneE164,
+      tipoDeLead: "proposta",
+      formId: "form-proposta-veiculo",
     });
     const { fbp, fbc } = getMatchParams();
 
@@ -429,7 +445,11 @@ export default function PDPClientWrapper({
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = linkWhatsApp(companySettings, activeMessage);
-    trackContactClick("whatsapp", "PDP - Conversão WhatsApp");
+    trackContactClick("whatsapp", "PDP - Conversão WhatsApp", {
+      vehicle_id: veiculo.id,
+      vehicle_name: nomeDoVeiculo(veiculo),
+      vehicle_price: finalPrice,
+    });
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -514,6 +534,36 @@ export default function PDPClientWrapper({
     // cinto e suspensório: este filtro é a última barreira antes da tela, e
     // custa menos que descobrir pela PDP que a normalização mudou.
   ].filter((spec) => spec.value && spec.value.trim() !== "");
+
+  /**
+   * Abre a galeria em tela cheia e registra a interação.
+   *
+   * Os três gatilhos de lightbox (foto do carrossel, botão de tela cheia e
+   * "ver todas") passavam a mesma dupla de `setState` copiada. Concentrar aqui
+   * é o que garante que `view_gallery` saia dos três — e não do que alguém
+   * lembrar de instrumentar depois.
+   */
+  const abrirGaleria = (indice: number) => {
+    setLightboxImageIndex(indice);
+    setIsLightboxOpen(true);
+    pushGaleria(veiculo.id, indice + 1);
+  };
+
+  /**
+   * `form_start` — o sinal de abandono de formulário.
+   *
+   * Preso à abertura do modal e não aos cinco botões que a disparam
+   * (informações, dúvidas, troca, test-drive, indisponível): o que interessa
+   * medir é a intenção declarada, e ela é a mesma nos cinco.
+   */
+  useEffect(() => {
+    if (!isLeadModalOpen) return;
+    pushInicioDeFormulario("form-proposta-veiculo", {
+      vehicle_id: veiculo.id,
+      vehicle_name: nomeDoVeiculo(veiculo),
+      vehicle_price: finalPrice,
+    });
+  }, [isLeadModalOpen, veiculo, finalPrice]);
 
   /**
    * "S T270 1.3 Tb 4x4 Flex Aut · 2022 · Curitiba".
@@ -858,10 +908,7 @@ export default function PDPClientWrapper({
                 {displayImages.map((imgUrl, index) => (
                   <div
                     key={index}
-                    onClick={() => {
-                      setLightboxImageIndex(index);
-                      setIsLightboxOpen(true);
-                    }}
+                    onClick={() => abrirGaleria(index)}
  className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
                   >
                     <Image
@@ -922,10 +969,7 @@ export default function PDPClientWrapper({
 
               {/* Fullscreen Trigger Button */}
               <button
-                onClick={() => {
-                  setLightboxImageIndex(activeImageIndex);
-                  setIsLightboxOpen(true);
-                }}
+                onClick={() => abrirGaleria(activeImageIndex)}
  className="mt-foco absolute right-0 top-0 z-30 flex h-11 w-11 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
                 title="Visualizar em tela cheia"
                 aria-label="Visualizar fotos do veículo em tela cheia"
@@ -979,10 +1023,7 @@ export default function PDPClientWrapper({
                   );
                 })}
                 <button
-                  onClick={() => {
-                    setLightboxImageIndex(0);
-                    setIsLightboxOpen(true);
-                  }}
+                  onClick={() => abrirGaleria(0)}
  className="mt-foco grid aspect-[4/3] flex-1 cursor-pointer place-items-center bg-mt-inverso-fundo text-mt-inverso"
                   aria-label="Ver todas as fotos do veículo"
                 >
@@ -1043,7 +1084,10 @@ export default function PDPClientWrapper({
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
               <button
-                onClick={() => setOpcionaisOpen(!opcionaisOpen)}
+                onClick={() => {
+                  if (!opcionaisOpen) pushFichaTecnica(veiculo.id);
+                  setOpcionaisOpen(!opcionaisOpen);
+                }}
  className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
                 aria-expanded={opcionaisOpen}
               >
@@ -1091,7 +1135,10 @@ export default function PDPClientWrapper({
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
               <button
-                onClick={() => setPericiaOpen(!periciaOpen)}
+                onClick={() => {
+                  if (!periciaOpen) pushFichaTecnica(veiculo.id);
+                  setPericiaOpen(!periciaOpen);
+                }}
  className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
                 aria-expanded={periciaOpen}
               >
@@ -1363,6 +1410,7 @@ export default function PDPClientWrapper({
         className="mx-auto mt-16 w-full max-w-[1600px] px-[18px] font-modernist md:px-8 print:hidden"
       >
         <CalculadoraFinanciamento
+          vehicleId={veiculo.id}
           vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
           vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
           vehicleName={`${veiculo.marca} ${veiculo.modelo}`}

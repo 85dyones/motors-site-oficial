@@ -65,6 +65,34 @@ presença local e processo**.
 > no painel, `ACCESSORIES` no mapeamento do n8n e a revisão dos 10 textos
 > antigos.
 
+> **Atualização de 2026-08-25 — o P3 estava incompleto, e a causa era outra.**
+>
+> A auditoria externa de 24/08 reportou o site inteiro devolvendo o mesmo
+> `<title>`: `Motors Store | Fora da Curva`. À primeira vista parecia engano —
+> o HTML servido traz o título certo desde o P3. Não era: o `ThemeContext`
+> tinha um efeito global que fazia `document.title = tabTitle` assim que as
+> configurações chegavam do `/api/settings`. Quem lê só o HTML não vê; o Google
+> renderiza a página antes de indexar, e via. Cinquenta páginas com um título
+> só, no campo de maior peso de relevância on-page.
+>
+> O efeito foi removido (o layout raiz já serve o `tabTitle` como título
+> herdado, então nada se perdeu) e a home — a única página que não declarava
+> título próprio — ganhou o seu. Travado em `tests/titulo-por-pagina.test.ts`.
+>
+> Na mesma rodada, e pela mesma lógica de "o que o rastreador vê":
+>
+> - **`/estoque` era servido sem conteúdo.** 178 KB de HTML com zero link de
+>   veículo e nenhum `<h1>`, porque o catálogo é client component com
+>   `useSearchParams()` dentro de um `<Suspense>`. Título, trilha, `ItemList` e
+>   um índice de marcas passaram para o servidor.
+> - **Nasceram os hubs perenes** de marca, modelo e carroceria — `/carros/jeep`
+>   e `/carros/jeep/renegade` respondiam 404. É a camada que sobrevive à venda
+>   do carro, e é o destino que faltava para o 301 da ficha vendida (ainda não
+>   implementado: merece deploy próprio, depois de os hubs indexarem).
+> - **O ID do GA4 tinha dois padrões** — o do painel e um escrito à mão no
+>   `IntegrationsTracker`, diferentes entre si. Como a inicialização acontecia
+>   uma vez só, o site abria a propriedade errada e nunca corrigia.
+
 
 
 ### P1 — Search Console: ligar a medição · Dono · ~30 min · R$ 0
@@ -171,6 +199,12 @@ crescer primeiro e a decisão vir depois.
 - **Não criar páginas-cidade** ("seminovos em São José dos Pinhais") com o
   mesmo estoque de 41 carros — conteúdo raso aos olhos do Google; o raio de
   50 km se resolve melhor no Perfil da Empresa e no texto dos veículos.
+  → **Emenda de 2026-08-25:** vale para páginas em SÉRIE, uma por cidade do
+  raio, com o mesmo texto trocando o nome. **Duas** páginas — `/seminovos-curitiba`
+  e `/seminovos-bacacheri` — foram criadas com conteúdo genuinamente diferente
+  (rota de acesso, referências do bairro, perguntas próprias), por decisão do
+  dono. O limite é esse: uma terceira só entra se alguém escrever o texto dela.
+  Nada de gerador de bairros — ver a nota em `src/lib/paginasGeo.ts`.
 - **Não exibir FIPE** — decisão do dono em 17/08.
 - **Não filtrar a vitrine** em nome de SEO — regra 6: ordena, nunca esconde.
 - **Não renomear ou remover eventos de tracking** — regra 7.

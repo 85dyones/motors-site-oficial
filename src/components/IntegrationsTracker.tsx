@@ -8,7 +8,8 @@ declare global {
   interface Window {
     gtag?: (...args: any[]) => void;
     fbq?: (...args: any[]) => void;
-    dataLayer?: any[];
+    // `dataLayer` é declarado em `lib/dataLayer.ts`, que é quem escreve nele.
+    // Repetir aqui com outro tipo faz o TypeScript recusar as duas declarações.
     _fbq?: any;
   }
 }

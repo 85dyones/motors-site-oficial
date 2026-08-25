@@ -11,6 +11,7 @@ import {
   normalizarStockOverrides,
 } from "../../lib/destaquesRapidos";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
+import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDeTrilha } from "../../lib/schemaListagem";
 import { schemaDaLoja } from "../../lib/schemaLoja";
 
@@ -87,6 +88,7 @@ export default async function EstoquePage() {
        * lugar dele.
        */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
+      <ContagemDeEstoque total={disponiveis.length} />
 
       <div className="px-[18px] pt-8 lg:px-10 lg:pt-11">
         <nav
