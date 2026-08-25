@@ -50,6 +50,17 @@ describe("tipo da página", () => {
     ["/", "home"],
     ["/estoque", "inventory"],
     ["/estoque/suv", "bodytype"],
+    // Faixa de preço e carroceria dividem `/estoque/[recorte]` e são recortes
+    // diferentes: "SUV" fala de produto, "até 60 mil" fala de orçamento, e a
+    // campanha que traz um não é a que traz o outro. As duas caíam em
+    // `bodytype` até 2026-08-25, junto com `/financiamento` e `/garantia`
+    // caindo em `other` — as três paginas foram criadas na mesma rodada em que
+    // o classificador ficou para trás.
+    ["/estoque/ate-60-mil", "pricerange"],
+    ["/estoque/60-a-100-mil", "pricerange"],
+    ["/estoque/acima-100-mil", "pricerange"],
+    ["/financiamento", "financing"],
+    ["/garantia", "institutional"],
     ["/carros/jeep", "brand"],
     ["/motos/harley-davidson", "brand"],
     ["/carros/jeep/renegade", "model"],
@@ -70,6 +81,24 @@ describe("tipo da página", () => {
   it("ignora barra final e query", () => {
     expect(tipoDaPagina("/estoque/")).toBe("inventory");
     expect(tipoDaPagina("/estoque?marca=jeep")).toBe("inventory");
+  });
+});
+
+describe("a camada roda no navegador — e não pode arrastar o servidor junto", () => {
+  it("`dataLayer` só importa módulos sem dependência", async () => {
+    const { lerCodigo: lerFonte } = await import("./fonte");
+    const fonte = lerFonte("src/lib/dataLayer.ts");
+    const importes = [...fonte.matchAll(/from "\.\/([\w-]+)"/g)].map((m) => m[1]);
+
+    // A lista de faixas vive em `faixasDePreco.ts`, e não em `hubsDeEstoque`,
+    // por um motivo só: `hubsDeEstoque` importa `./supabase`, e ler de lá
+    // traria o cliente do banco para o bundle do navegador.
+    expect(importes).not.toContain("hubsDeEstoque");
+    expect(importes).not.toContain("supabase");
+
+    for (const modulo of importes) {
+      expect(lerFonte(`src/lib/${modulo}.ts`)).not.toMatch(/^import .*from "\.\/supabase"/m);
+    }
   });
 });
 

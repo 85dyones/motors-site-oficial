@@ -161,10 +161,12 @@ function () {
     brand: "searchresults",
     model: "searchresults",
     bodytype: "searchresults",
+    pricerange: "searchresults",
     highlight: "searchresults",
     geo: "searchresults",
     vehicle_detail: "offerdetail",
     appraisal: "conversionintent",
+    financing: "conversionintent",
     advisor: "conversionintent",
     contact: "conversionintent"
   };

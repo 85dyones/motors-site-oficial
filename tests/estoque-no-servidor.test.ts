@@ -69,6 +69,18 @@ describe("o catálogo cliente não guarda mais o que é conteúdo", () => {
   });
 });
 
+describe("blocos de navegação sem link não aparecem", () => {
+  it("a listagem compartilhada filtra bloco vazio", () => {
+    // Visto na screenshot de /financiamento e /garantia: "Por carroceria" com
+    // título e nenhum chip embaixo, porque o estoque ainda não tem `tipo`
+    // classificado. Cabeçalho seguido de nada é ruído para quem lê e landmark
+    // vazio para quem usa leitor de tela.
+    expect(lerCodigo("src/components/modernist/PaginaDeEstoque.tsx")).toMatch(
+      /\.filter\(\(bloco\) => bloco\.links\.length > 0\)/,
+    );
+  });
+});
+
 describe("os hubs e as páginas de bairro nascem servidos", () => {
   it.each([
     "src/app/[categoria]/[marca]/page.tsx",

@@ -198,7 +198,14 @@ export default function PaginaDeEstoque({
 
         {conteudo && <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>}
 
-        {blocos.map((bloco) => (
+        {/* Bloco sem link nenhum não entra: cabeçalho seguido de nada é ruído
+            para quem lê e landmark vazio para quem navega por leitor de tela.
+            Acontece de verdade — "Por carroceria" numa loja que ainda não
+            classificou o estoque, "Modelos" numa marca recém-chegada. Mesma
+            regra que a home já aplica às faixas de reputação e Instagram. */}
+        {blocos
+          .filter((bloco) => bloco.links.length > 0)
+          .map((bloco) => (
           <section key={bloco.titulo} className="border-t-2 border-mt-regua py-6">
             <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">{bloco.titulo}</h2>
             <div className="mt-4 flex flex-wrap gap-1.5">
@@ -216,7 +223,7 @@ export default function PaginaDeEstoque({
               ))}
             </div>
           </section>
-        ))}
+          ))}
 
         {faq.length > 0 && (
           <section className="border-t-2 border-mt-regua py-6">

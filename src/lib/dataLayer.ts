@@ -1,3 +1,6 @@
+// Os dois módulos abaixo não importam nada — é o que permite lê-los daqui,
+// que roda no navegador, sem arrastar o cliente do Supabase para o bundle.
+import { ehSlugDeFaixa } from "./faixasDePreco";
 import { SEGMENTOS_DE_PDP } from "./veiculoUrl";
 
 /**
@@ -56,9 +59,11 @@ export type TipoDePagina =
   | "brand"
   | "model"
   | "bodytype"
+  | "pricerange"
   | "highlight"
   | "vehicle_detail"
   | "appraisal"
+  | "financing"
   | "advisor"
   | "geo"
   | "contact"
@@ -96,12 +101,22 @@ export function tipoDaPagina(caminho: string): TipoDePagina {
     return "internal";
   }
 
-  if (primeiro === "estoque") return partes.length > 1 ? "bodytype" : "inventory";
+  if (primeiro === "estoque") {
+    if (partes.length === 1) return "inventory";
+    // Faixa de preço e carroceria dividem a rota `/estoque/[recorte]` mas são
+    // recortes diferentes, e quem lê o relatório precisa separá-los: "SUV" fala
+    // de produto, "até 60 mil" fala de orçamento, e a campanha que traz um não
+    // é a que traz o outro. Reconhecida pela LISTA, não por padrão de slug.
+    return ehSlugDeFaixa(partes[1]) ? "pricerange" : "bodytype";
+  }
   if (primeiro === "destaques") return "highlight";
   if (primeiro === "avaliacao") return "appraisal";
+  if (primeiro === "financiamento") return "financing";
   if (primeiro === "carro-perfeito") return "advisor";
   if (primeiro === "contato") return "contact";
-  if (primeiro === "sobre" || primeiro === "privacidade") return "institutional";
+  if (primeiro === "sobre" || primeiro === "privacidade" || primeiro === "garantia") {
+    return "institutional";
+  }
   if (primeiro.startsWith("seminovos-")) return "geo";
 
   if ((SEGMENTOS_DE_PDP as readonly string[]).includes(primeiro)) {

@@ -5,6 +5,7 @@ import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/hubsDeEstoque";
+import { precoVigente } from "../../lib/regrasEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDePerguntas, schemaDeTrilha } from "../../lib/schemaListagem";
 import { schemaDaLoja } from "../../lib/schemaLoja";
 import { PERGUNTAS_DE_FINANCIAMENTO, TEXTO_DE_FINANCIAMENTO } from "../../lib/paginasInstitucionais";
@@ -63,9 +64,11 @@ export default async function FinanciamentoPage() {
   const faixaDeEntrada = FAIXAS_DE_PRECO[0];
   const paraGrade = disponiveis
     .filter((v) => {
-      const preco = v.preco_promocional > 0 && v.preco_promocional < v.preco_original
-        ? v.preco_promocional
-        : v.preco_original;
+      // `precoVigente` e não o ternário à mão: é a mesma regra que a vitrine, o
+      // filtro de preço e o `priceRange` do schema usam. Duas cópias dela é
+      // como esta grade e `/estoque/ate-60-mil` acabam discordando sobre qual
+      // carro cabe na faixa.
+      const preco = precoVigente(v);
       return preco > 0 && preco < faixaDeEntrada.max;
     })
     .slice(0, 6);

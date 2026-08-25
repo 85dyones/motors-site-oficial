@@ -1,5 +1,4 @@
 import { unstable_cache } from "next/cache";
-import { modeloEVersaoParaExibir } from "./estoqueTabela";
 import { hubsDeMarca, recortesDoEstoque } from "./hubsDeEstoque";
 import { truncateString } from "./supabase";
 import type { Veiculo } from "../types";
@@ -78,12 +77,12 @@ export function montarNavegacaoDoRodape(
     .sort((a, b) => b.veiculos.length - a.veiculos.length || a.nome.localeCompare(b.nome, "pt-BR"))
     .slice(0, MAX_MODELOS)
     .map((m) => ({
-      // O nome do hub já vem sem a versão embutida (`rotuloDoModelo`); o
-      // truncate fica como cinto e suspensório para modelo de nome longo.
-      rotulo: truncateString(
-        `${m.marca} ${modeloEVersaoParaExibir(m.nome, "").modelo}`.trim(),
-        26,
-      ),
+      // `m.nome` já vem sem a versão embutida, de `rotuloDoModelo`. Havia aqui
+      // uma passagem por `modeloEVersaoParaExibir(m.nome, "")` — que com versão
+      // vazia devolve o texto intacto (`estoqueTabela.ts:142`). Chamada morta
+      // que fingia um recorte, e quem lesse depois suporia que ele acontece.
+      // O truncate fica: nome de modelo longo estoura a régua do rodapé.
+      rotulo: truncateString(`${m.marca} ${m.nome}`.trim(), 26),
       href: `/carros/${m.slugMarca}/${m.slug}`,
     }));
 

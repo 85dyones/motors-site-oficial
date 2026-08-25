@@ -5,6 +5,7 @@ import { CARROCERIAS } from "./classificacaoVeiculo";
 // destaques e o feed usam. Duas versões dessa regra é como o filtro de preço
 // e a etiqueta de promoção acabam discordando na mesma tela.
 import { precoVigente } from "./regrasEstoque";
+import { FAIXAS_DE_PRECO, type FaixaDePreco } from "./faixasDePreco";
 import {
   SEGMENTOS_DE_PDP,
   segmentoDoVeiculo,
@@ -311,40 +312,14 @@ export async function recortesDoEstoque(): Promise<{
 }
 
 /**
- * As faixas de preço que viram `/estoque/{faixa}`.
+ * Os hubs de faixa de preço.
  *
- * ---------------------------------------------------------------------------
- * Por que estes cortes, e não os do plano
- * ---------------------------------------------------------------------------
- * O plano de aquisição sugere `até 100 mil`, `100 a 200 mil` e `acima de 200
- * mil`. Medido no feed de produção em 2026-08-25, sobre os 39 veículos (de
- * R$ 23.900 a R$ 318.900, mediana R$ 65.900), aqueles cortes jogariam **32 dos
- * 39** numa página só — um recorte que não recorta nada.
- *
- * Os cortes abaixo dividem o estoque real em três terços utilizáveis (17 / 15 /
- * 7) e batem com a mediana da casa. Se o mix subir de patamar, é aqui que se
- * mexe — e o `slug` faz parte da URL, então mudar um corte é renomear uma
- * página indexada: vale conferir a distribuição antes.
- *
- * Diferente de marca e modelo, a faixa **não depende do histórico**: a lista é
- * fechada e pequena, então a página existe sempre, mesmo com a grade vazia.
- * Não há espaço de URL infinito a proteger aqui.
+ * A lista em si vive em `lib/faixasDePreco.ts`, sem nenhum import: ela também é
+ * lida por `lib/dataLayer.ts`, que roda no cliente, e este arquivo importa o
+ * Supabase. A nota de lá explica os cortes escolhidos e por que não são os do
+ * plano de aquisição.
  */
-export interface FaixaDePreco {
-  slug: string;
-  /** Como entra no meio da frase: "Seminovos {nome} em Curitiba". */
-  nome: string;
-  /** Inclusivo. */
-  min: number;
-  /** Exclusivo. `Infinity` no topo. */
-  max: number;
-}
-
-export const FAIXAS_DE_PRECO: FaixaDePreco[] = [
-  { slug: "ate-60-mil", nome: "até R$ 60 mil", min: 0, max: 60000 },
-  { slug: "60-a-100-mil", nome: "de R$ 60 mil a R$ 100 mil", min: 60000, max: 100000 },
-  { slug: "acima-100-mil", nome: "acima de R$ 100 mil", min: 100000, max: Infinity },
-];
+export { FAIXAS_DE_PRECO, type FaixaDePreco };
 
 export interface HubDeFaixa extends FaixaDePreco {
   veiculos: Veiculo[];

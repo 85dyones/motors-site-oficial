@@ -700,7 +700,7 @@ container `IntegrationsTracker` já sabe carregar, bastando preencher o ID em
 
 | Chave | Valores |
 |---|---|
-| `page_type` | `home` · `inventory` · `brand` · `model` · `bodytype` · `highlight` · `vehicle_detail` · `appraisal` · `advisor` · `geo` · `contact` · `institutional` · `internal` · `other` |
+| `page_type` | `home` · `inventory` · `brand` · `model` · `bodytype` · `pricerange` · `highlight` · `vehicle_detail` · `appraisal` · `financing` · `advisor` · `geo` · `contact` · `institutional` · `internal` · `other` |
 | `store_city` | `Curitiba` |
 | `stock_count` | número, só nas páginas de listagem. Limpado (`null`) a cada troca de página |
 
