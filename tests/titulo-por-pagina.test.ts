@@ -57,10 +57,17 @@ describe("as páginas públicas declaram título próprio", () => {
 
 describe("o catálogo e os hubs dizem o que vendem e onde", () => {
   it.each([
-    ["src/app/estoque/page.tsx", /title:\s*`Carros Seminovos em Curitiba/],
-    ["src/app/[categoria]/[marca]/page.tsx", /Seminovo em Curitiba/],
-    ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /Seminovo em Curitiba/],
-    ["src/app/estoque/[recorte]/page.tsx", /Seminovas em Curitiba/],
+    // O título do catálogo agora tem duas formas — com e sem a contagem —
+    // porque "— 0 Ofertas" é o mesmo defeito do "0" no `<h1>` das faixas.
+    ["src/app/estoque/page.tsx", /`Carros Seminovos em Curitiba — \$\{total\} Ofertas/],
+    ["src/app/estoque/page.tsx", /"Carros Seminovos em Curitiba \| Motors Store"/],
+    // Os três hubs não trazem mais "Seminovo" cravado: a palavra concorda com
+    // o gênero do que a página vende — "Saveiro Seminova", "SUVs Seminovos".
+    // O que o teste prende é que "em Curitiba" continua no título e que a
+    // forma vem do helper, não de uma string fixa.
+    ["src/app/[categoria]/[marca]/page.tsx", /\$\{Novo\} em Curitiba/],
+    ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /\$\{Novo\} em Curitiba/],
+    ["src/app/estoque/[recorte]/page.tsx", /\$\{Novas\} em Curitiba/],
     ["src/app/estoque/[recorte]/page.tsx", /Seminovos \$\{faixa\.nome\} em Curitiba/],
     ["src/app/financiamento/page.tsx", /Financiamento de Carro Seminovo em Curitiba/],
     ["src/app/garantia/page.tsx", /Garantia do Seminovo em Curitiba/],

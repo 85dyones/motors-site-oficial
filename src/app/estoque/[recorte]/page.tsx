@@ -24,6 +24,7 @@ import {
   textoDeCarroceria,
   textoDeFaixaDePreco,
 } from "../../../lib/textoDosHubs";
+import { avaliados, seminovo, type Genero } from "../../../lib/generoDoVeiculo";
 import type { Veiculo } from "../../../types";
 
 /**
@@ -52,7 +53,7 @@ interface PageProps {
 }
 
 interface RecorteResolvido {
-  /** Título e `<h1>`: "SUVs seminovas em Curitiba", "Seminovos até R$ 60 mil…". */
+  /** Título e `<h1>`: "SUVs seminovos em Curitiba", "Seminovos até R$ 60 mil…". */
   titulo: string;
   /** Como entra no `<title>`, mais curto. */
   tituloSeo: string;
@@ -63,6 +64,8 @@ interface RecorteResolvido {
   introducao: string[];
   /** Rótulo no plural para as perguntas: "SUVs", "carros até R$ 60 mil". */
   rotuloNasPerguntas: string;
+  /** Concorda com `rotuloNasPerguntas`: "As picapes", "Os SUVs". */
+  genero: Genero;
 }
 
 async function resolver(slug: string) {
@@ -70,17 +73,23 @@ async function resolver(slug: string) {
 
   const carroceria = acharHubDeCarroceria(historico, disponiveis, slug);
   if (carroceria) {
-    const plural = `${carroceria.nome}s`;
+    // O plural e o gênero vêm do hub. Aqui estavam cravados no FEMININO
+    // ("seminovas", "de cada dez avaliadas"), e o plural era `nome + "s"`: só
+    // Picape acertava, e a sigla de SUV virava "suvs" no `<h1>` e no `<title>`.
+    const { plural, genero } = carroceria;
+    const novas = seminovo(genero, true);
+    const Novas = novas.charAt(0).toUpperCase() + novas.slice(1);
     const recorte: RecorteResolvido = {
-      titulo: `${plural} seminovas em Curitiba`,
-      tituloSeo: `${plural} Seminovas em Curitiba — ${carroceria.veiculos.length} no estoque`,
+      titulo: `${plural} ${novas} em Curitiba`,
+      tituloSeo: `${plural} ${Novas} em Curitiba — ${carroceria.veiculos.length} no estoque`,
       descricao:
-        `${plural} seminovas em Curitiba com perícia cautelar independente: de cada dez ` +
-        "avaliadas, três entram. Troca, financiamento e loja no Bacacheri.",
+        `${plural} ${novas} em Curitiba com perícia cautelar independente: de cada dez ` +
+        `${avaliados(genero)}, três entram. Troca, financiamento e loja no Bacacheri.`,
       rotulo: carroceria.nome,
       veiculos: carroceria.veiculos,
-      introducao: textoDeCarroceria(carroceria.nome, carroceria.veiculos),
-      rotuloNasPerguntas: plural.toLowerCase(),
+      introducao: textoDeCarroceria(carroceria.nome, carroceria.veiculos, plural, genero),
+      rotuloNasPerguntas: plural,
+      genero,
     };
     return { recorte, historico, disponiveis };
   }
@@ -97,6 +106,8 @@ async function resolver(slug: string) {
       veiculos: faixa.veiculos,
       introducao: textoDeFaixaDePreco(faixa.nome, faixa.veiculos),
       rotuloNasPerguntas: `carros ${faixa.nome}`,
+      // "carros" é o substantivo desta página, e é masculino em qualquer faixa.
+      genero: "m",
     };
     return { recorte, historico, disponiveis };
   }
@@ -145,7 +156,7 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
   const { recorte, historico, disponiveis } = dados;
   const { companySettings } = await getCachedSettings();
   const caminho = `/estoque/${slug}`;
-  const perguntas = perguntasDeCategoria(recorte.rotuloNasPerguntas);
+  const perguntas = perguntasDeCategoria(recorte.rotuloNasPerguntas, recorte.genero);
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([

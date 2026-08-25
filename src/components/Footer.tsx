@@ -81,8 +81,8 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
               </span>
             </div>
             <p className="m-0 max-w-[300px] text-[13px] leading-relaxed">
-              Compra, venda e troca de veículos premium selecionados. Procedência,
-              garantia e transparência.
+              Compra, venda e troca de seminovos selecionados. De cada dez
+              avaliados, três entram.
             </p>
           </div>
 

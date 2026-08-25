@@ -71,7 +71,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // ela o título depende de como a loja digitou.
   const nome = nomeEmMinuscula(tagName);
   const title = `Carros ${nome} em Curitiba | Motors Store`;
-  const description = `Confira nossa seleção exclusiva de veículos na categoria ${nome}. As melhores condições, procedência garantida e atendimento premium na Motors Store.`;
+  const description = `Veículos ${nome} na Motors Store, em Curitiba. Todos passaram pela perícia cautelar independente, com laudo na ficha e preço no anúncio.`;
   const url = `${SITE_URL}/destaques/${cleanSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(cleanSlug)}`;
 
   return {

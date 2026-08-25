@@ -54,9 +54,12 @@ export interface PaginaDeEstoqueProps {
   /**
    * O `<h1>` traz a contagem ao lado do título.
    *
-   * Vale para vitrine — "Jeep seminovos em Curitiba 4", e o zero de um hub sem
-   * estoque é informação honesta. Não vale para página que não é listagem:
-   * "Garantia do seminovo 0" não quer dizer nada.
+   * Vale para vitrine — "Jeep seminovos em Curitiba 4". Não vale para página
+   * que não é listagem: "Garantia do seminovo 0" não quer dizer nada.
+   *
+   * O zero não é impresso nem quando isto é `true`: o hub perene sem estoque
+   * explica a situação em `textoSemEstoque`, e um "0" pendurado no cabeçalho
+   * só parece defeito.
    */
   contagem?: boolean;
   /**
@@ -111,9 +114,25 @@ export default function PaginaDeEstoque({
 
         <div className="flex flex-col gap-8 border-b-2 border-mt-regua pb-6 pt-4 lg:flex-row lg:items-end lg:gap-11">
           <div className="flex-1">
+            {/* A contagem segue DENTRO do `<h1>`, e segue inline.
+              *
+              * O que mudou em 2026-08-25 foi só o zero: o `<h1>` servido de uma
+              * faixa vazia saía "Seminovos acima de R$ 100 mil em Curitiba 0",
+              * medido no build. O hub perene sem estoque já explica a situação
+              * em `textoSemEstoque`; um "0" pendurado no cabeçalho só parece
+              * defeito.
+              *
+              * Tirar o número do `<h1>` seria melhor para o rastreador — um
+              * inteiro solto no fim da declaração de assunto é ruído. Mas num
+              * título que quebra linha o número deixaria de seguir a última
+              * palavra e passaria a flutuar ao lado da primeira, e isso não dá
+              * para conferir sem estoque de verdade na tela. Fica como
+              * observação, não como mudança no escuro. */}
             <h1 className="mt-titulo m-0 text-[34px] lg:text-[56px] lg:leading-[.95]">
               {titulo}
-              {contagem && <span className="text-mt-accent"> {veiculos.length}</span>}
+              {contagem && veiculos.length > 0 && (
+                <span className="text-mt-accent"> {veiculos.length}</span>
+              )}
             </h1>
             {introducao.map((paragrafo, i) => (
               <p

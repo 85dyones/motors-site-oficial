@@ -160,7 +160,7 @@ export default function HeroHome({
         <div className="mb-6 flex items-center gap-3 lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
           <span className="h-0.5 w-5 bg-mt-accent lg:w-7" aria-hidden="true" />
           <span className="text-[9px] font-semibold tracking-[.2em] text-mt-accent-300 lg:text-[11px]">
-            CURITIBA · PREMIUM E SELECIONADOS
+            CURITIBA · 3 DE CADA 10 ENTRAM
           </span>
         </div>
 

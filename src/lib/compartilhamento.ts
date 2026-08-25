@@ -45,6 +45,13 @@ import type {
  * prévia da outra quando ninguém subiu arte. Os textos de fábrica moram aqui,
  * e não espalhados pelos `page.tsx`, para que o preview do painel mostre
  * exatamente o que o site publica.
+ *
+ * ⚠️ **Vocabulário.** Estes textos são a cara do site em WhatsApp e Facebook, e
+ * até 2026-08-25 diziam "premium", "procedência garantida" e "melhores
+ * condições" — as três colunas do lado *Evitar* de
+ * `conteudo-seo/POSICIONAMENTO.md`, que o dono decidiu em 2026-08-17. O termo
+ * da casa é **seleção**, e o argumento é o que a loja RECUSA: *de cada dez
+ * avaliados, três entram*. Não reintroduzir.
  */
 export const PAGINAS_COMPARTILHAVEIS = [
   {
@@ -52,18 +59,18 @@ export const PAGINAS_COMPARTILHAVEIS = [
     nome: "Home",
     caminho: "/",
     rotuloCard: "",
-    tituloPadrao: "Motors Store | Seminovos premium em Curitiba",
+    tituloPadrao: "Motors Store | Seminovos Selecionados em Curitiba",
     descricaoPadrao:
-      "Veículos premium selecionados com laudo cautelar, procedência auditada e garantia. Financiamento sem entrada.",
+      "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha e preço no anúncio.",
   },
   {
     id: "estoque",
     nome: "Estoque",
     caminho: "/estoque",
     rotuloCard: "Estoque",
-    tituloPadrao: "Veículos premium em Curitiba",
+    tituloPadrao: "Seminovos selecionados em Curitiba",
     descricaoPadrao:
-      "Seminovos selecionados com laudo cautelar, procedência auditada e garantia.",
+      "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine. O laudo fica na ficha.",
   },
   {
     id: "avaliacao",
@@ -108,7 +115,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Destaque",
     tituloPadrao: "Seleção de destaque em Curitiba",
     descricaoPadrao:
-      "Uma seleção de veículos com as melhores condições, procedência garantida e atendimento premium.",
+      "Um recorte do estoque que passou pela perícia cautelar independente. Procedência e laudo na ficha de cada carro.",
   },
   {
     id: "privacidade",

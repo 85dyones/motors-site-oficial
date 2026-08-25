@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getEstoque, getVeiculoPdpUrl } from '../../../../lib/supabase';
 import { nomeDoVeiculo } from '../../../../lib/nomeDoVeiculo';
+import { rotuloDoModelo } from '../../../../lib/hubsDeEstoque';
+import { segmentoDoVeiculo } from '../../../../lib/veiculoUrl';
+import { concordar, generoDeModelo } from '../../../../lib/generoDoVeiculo';
 
 // Rota dinâmica, e não `revalidate`: o handler lê `request.url` para montar o
 // endereço absoluto de cada item, e isso não pode ser pré-renderizado. Com
@@ -67,10 +70,19 @@ export async function GET(request: Request) {
       // painel, o portal recebe conteúdo de verdade em vez de catálogo. O
       // genérico fica onde deveria estar desde sempre — no último recurso, para
       // o carro que chegou sem texto algum.
+      //
+      // O último degrau também concorda: dizia "comprar **seu** {marca}
+      // {modelo}" e escrevia "comprar seu Volkswagen Saveiro". E "melhores
+      // condições" está na coluna *Evitar* de `conteudo-seo/POSICIONAMENTO.md`.
+      const generoDoCarro = generoDeModelo(
+        rotuloDoModelo(car.marca, car.modelo, car.versao),
+        { segmento: segmentoDoVeiculo(car), tipo: car.tipo },
+      );
       const descricaoDoAnuncio =
         car.descricao_seo ||
         car.descricao ||
-        `Aproveite as melhores condições para comprar seu ${car.marca} ${car.modelo}. Veículo periciado e com garantia.`;
+        `${car.marca} ${car.modelo} ${car.ano} com perícia cautelar independente e laudo na ficha. ` +
+          `Leve ${concordar(generoDoCarro, "o seu", "a sua")} com garantia e financiamento, em Curitiba.`;
 
       // O texto editorial da PDP pode vir com HTML do painel; o feed é XML e
       // não renderiza marcação. Tirar as tags aqui evita mandar `<p>` como se

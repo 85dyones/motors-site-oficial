@@ -75,7 +75,7 @@ const OPCOES_ESTILO = [
   { id: "suv", letra: "A", titulo: "SUVs Imponentes", desc: "", resumo: "SUV" },
   { id: "sedan", letra: "B", titulo: "Sedans Elegantes", desc: "", resumo: "Sedã" },
   { id: "sport", letra: "C", titulo: "Esportivos / Coupés", desc: "", resumo: "Esportivo" },
-  { id: "pickup", letra: "D", titulo: "Picapes Premium", desc: "", resumo: "Picape" },
+  { id: "pickup", letra: "D", titulo: "Picapes", desc: "", resumo: "Picape" },
   { id: "open", letra: "E", titulo: "Aberto a Sugestões", desc: "", resumo: "Sem preferência" },
 ] as const;
 
@@ -324,7 +324,7 @@ export default function CarMatch() {
       case "suv": return "SUVs Imponentes";
       case "sedan": return "Sedans Elegantes";
       case "sport": return "Esportivos / Coupés";
-      case "pickup": return "Picapes Premium";
+      case "pickup": return "Picapes";
       case "open": return "Sem preferência (Aberto a sugestões)";
       default: return "Não definido";
     }

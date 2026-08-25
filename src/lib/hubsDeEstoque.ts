@@ -6,6 +6,14 @@ import { CARROCERIAS } from "./classificacaoVeiculo";
 // e a etiqueta de promoção acabam discordando na mesma tela.
 import { precoVigente } from "./regrasEstoque";
 import { FAIXAS_DE_PRECO, type FaixaDePreco } from "./faixasDePreco";
+// A concordância sai daqui, e é calculada a partir do HISTÓRICO — ver a nota
+// em `generoDeModelo` mais abaixo, no ponto em que o hub é montado.
+import {
+  generoDeCarroceria,
+  generoDeModelo,
+  pluralDeCarroceria,
+  type Genero,
+} from "./generoDoVeiculo";
 import {
   SEGMENTOS_DE_PDP,
   segmentoDoVeiculo,
@@ -57,6 +65,21 @@ export interface HubDeMarca {
 export interface HubDeModelo {
   nome: string;
   slug: string;
+  /**
+   * O gênero gramatical do modelo — "a Saveiro", "o Polo".
+   *
+   * Calculado a partir do **histórico**, nunca de `veiculos`: a lista de
+   * disponíveis fica vazia justamente na página perene sem estoque, que é onde
+   * o texto mais precisa concordar. Mesma regra que rege o módulo inteiro.
+   */
+  genero: Genero;
+  /**
+   * O hub limpo que este duplica, quando o feed colou a versão no modelo.
+   *
+   * `null` na esmagadora maioria. Ver `ehRotuloSujo` para o porquê e para o
+   * que a rota faz com isso.
+   */
+  canonicalDe: string | null;
   marca: string;
   slugMarca: string;
   segmento: SegmentoDePdp;
@@ -66,6 +89,10 @@ export interface HubDeModelo {
 export interface HubDeCarroceria {
   nome: string;
   slug: string;
+  /** "a picape", "o SUV" — de `generoDeCarroceria`. */
+  genero: Genero;
+  /** "SUVs", "Conversíveis" — escrito, não montado com `+ "s"`. */
+  plural: string;
   veiculos: Veiculo[];
 }
 
@@ -91,6 +118,52 @@ export function rotuloDoModelo(marca: string, modelo: string, versao?: string | 
   }
 
   return texto || (modelo ?? "").trim();
+}
+
+/**
+ * Este rótulo ainda carrega a versão colada?
+ *
+ * O RevendaMais manda a versão dentro do modelo em parte do estoque, e quando
+ * o campo `versao` não bate com o fim da string, `rotuloDoModelo` não tem o que
+ * cortar. Medido no sitemap de produção em 2026-08-25, dois casos entre 35:
+ *
+ *   /carros/ford/ka-sedan-10-se-flex-4p      — duplica /carros/ford/ka
+ *   /carros/honda/hr-v-ex-18-flexone-16v-5p-aut
+ *
+ * O `<title>` do primeiro saía "Ka Sedan 1.0 Se Flex 4p Seminovo em Curitiba",
+ * competindo com o hub limpo pela mesma consulta.
+ *
+ * A limpeza NÃO é feita no slug: a URL já está de pé, a trilha da ficha aponta
+ * para ela, e mexer em `slugDeModelo` renomearia página indexada. O hub sujo
+ * continua respondendo e passa a declarar `canonical` para o limpo — decisão do
+ * dono em 2026-08-25.
+ *
+ * Os marcadores são os que a versão traz e o nome de modelo não: cilindrada com
+ * ponto, número de portas, câmbio, combustível, válvulas, turbo.
+ */
+export function rotuloLimpo(rotulo: string): string {
+  const texto = (rotulo ?? "").trim();
+  if (!ehRotuloSujo(texto)) return texto;
+
+  // Corta no primeiro pedaço que traz dígito: é onde a versão começa.
+  // "Ka Sedan 1.0 Se Flex 4p" → "Ka Sedan". "Hr-v Ex 1.8 …" → "Hr-v Ex".
+  // Sem nada antes do corte, devolve o original — nome torto é melhor que
+  // rótulo vazio no `<h1>`.
+  const pedacos = texto.split(/\s+/);
+  const corte = pedacos.findIndex((p) => /\d/.test(p));
+  const limpo = (corte > 0 ? pedacos.slice(0, corte) : pedacos).join(" ");
+  return limpo || texto;
+}
+
+export function ehRotuloSujo(rotulo: string): boolean {
+  const texto = (rotulo ?? "").trim().toLowerCase();
+  if (!texto) return false;
+  return (
+    /\d[.,]\d/.test(texto) ||
+    /\b\d+\s?p\b/.test(texto) ||
+    /\b\d+\s?v\b/.test(texto) ||
+    /\b(aut|mec|flex|tb|turbo|gasolina|diesel|manual)\b/.test(texto)
+  );
 }
 
 /**
@@ -184,9 +257,22 @@ export function hubsDeModelo(
 
   const hubs: HubDeModelo[] = [];
   for (const [slug, linhas] of porSlug) {
+    // O nome EXIBIDO é o limpo; o slug continua sendo o que já está indexado.
+    // Sem isso o `<h1>` do hub do Ka saía "Ford Ka Sedan 1.0 Se Flex 4p".
+    const bruto = grafiaDominante(linhas.map((v) => rotuloDoModelo(v.marca, v.modelo, v.versao)));
+    const nome = rotuloLimpo(bruto);
     hubs.push({
-      nome: grafiaDominante(linhas.map((v) => rotuloDoModelo(v.marca, v.modelo, v.versao))),
+      nome,
       slug,
+      // A carroceria sai do HISTÓRICO, não de `veiculos` — é a mesma regra que
+      // rege o módulo. Um hub perene sem nenhuma unidade à venda continua
+      // sabendo que Saveiro é picape, e por isso continua escrevendo "a
+      // Saveiro" em vez de cair no masculino por falta de dado.
+      genero: generoDeModelo(nome, {
+        segmento,
+        tipo: grafiaDominante(linhas.map((v) => v.tipo ?? "")),
+      }),
+      canonicalDe: null,
       marca: grafiaDominante(linhas.map((v) => v.marca)),
       slugMarca,
       segmento,
@@ -194,6 +280,17 @@ export function hubsDeModelo(
         (v) => slugDeModelo(v.marca, v.modelo, v.versao) === slug && slugDeMarca(v.marca) === slugMarca,
       ),
     });
+  }
+
+  // O hub sujo aponta para o limpo: mesmo prefixo de slug, rótulo sem versão.
+  // Só depois de todos montados, porque um precisa enxergar o outro.
+  // A sujeira é lida do SLUG, não do nome: o nome já foi limpo acima.
+  for (const hub of hubs) {
+    if (!ehRotuloSujo(hub.slug.replace(/-/g, " "))) continue;
+    const limpo = hubs.find(
+      (outro) => outro !== hub && hub.slug.startsWith(`${outro.slug}-`),
+    );
+    if (limpo) hub.canonicalDe = limpo.slug;
   }
 
   return hubs.sort(
@@ -247,6 +344,8 @@ export function hubsDeCarroceria(historico: Veiculo[], disponiveis: Veiculo[]): 
     .map((nome) => ({
       nome,
       slug: slugificar(nome),
+      genero: generoDeCarroceria(nome),
+      plural: pluralDeCarroceria(nome),
       veiculos: disponiveis.filter((v) => slugificar(v.tipo ?? "") === slugificar(nome)),
     }))
     .sort((a, b) => b.veiculos.length - a.veiculos.length || a.nome.localeCompare(b.nome, "pt-BR"));

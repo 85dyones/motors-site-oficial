@@ -16,6 +16,7 @@ import {
 } from "../../../../lib/schemaListagem";
 import { schemaDaLoja } from "../../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeModelo } from "../../../../lib/textoDosHubs";
+import { seminovo, um } from "../../../../lib/generoDoVeiculo";
 import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../../lib/veiculoUrl";
 
 /**
@@ -82,26 +83,36 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   // "a partir de R$ X" só entra quando existe preço real. Faixa inventada em
   // título é o tipo de promessa que o visitante confere no primeiro clique.
+  // "Saveiro Seminova", não "Saveiro Seminovo". O gênero vem do hub, calculado
+  // a partir do histórico — e não é só gramática: quem procura escreve
+  // "saveiro usada curitiba", e o título precisa casar com a consulta.
+  const novo = seminovo(hub.genero);
+  const Novo = novo.charAt(0).toUpperCase() + novo.slice(1);
+
   const title = menor
-    ? `${hub.nome} Seminovo em Curitiba a partir de ${menor}`
-    : `${hub.nome} Seminovo em Curitiba | Motors Store`;
+    ? `${hub.nome} ${Novo} em Curitiba a partir de ${menor}`
+    : `${hub.nome} ${Novo} em Curitiba | Motors Store`;
 
   const description =
     hub.veiculos.length > 0
-      ? `${hub.marca} ${hub.nome} seminovo em Curitiba com perícia cautelar independente. ` +
+      ? `${hub.marca} ${hub.nome} ${novo} em Curitiba com perícia cautelar independente. ` +
         `${hub.veiculos.length} ${hub.veiculos.length === 1 ? "unidade" : "unidades"}, troca e financiamento. Veja fotos e ficha.`
-      : `${hub.marca} ${hub.nome} seminovo em Curitiba na Motors Store. Perícia cautelar ` +
+      : `${hub.marca} ${hub.nome} ${novo} em Curitiba na Motors Store. Perícia cautelar ` +
         "independente, troca e financiamento. Loja no Bacacheri.";
 
   return {
     title,
     description,
-    alternates: { canonical: caminho },
+    // Hub que nasceu com a versão colada no modelo aponta para o limpo, em vez
+    // de disputar a mesma consulta com ele. Ver `ehRotuloSujo`.
+    alternates: {
+      canonical: hub.canonicalDe ? `/${hub.segmento}/${hub.slugMarca}/${hub.canonicalDe}` : caminho,
+    },
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "estoque",
       rotulo: hub.nome,
-      tituloPadrao: `${hub.marca} ${hub.nome} seminovo em Curitiba`,
+      tituloPadrao: `${hub.marca} ${hub.nome} ${novo} em Curitiba`,
       descricaoPadrao: description,
       caminho,
     }),
@@ -117,8 +128,8 @@ export default async function HubDeModeloPage({ params }: PageProps) {
   const { companySettings } = await getCachedSettings();
   const caminhoDaMarca = `/${hub.segmento}/${hub.slugMarca}`;
   const caminho = `${caminhoDaMarca}/${hub.slug}`;
-  const titulo = `${hub.marca} ${hub.nome} seminovo em Curitiba`;
-  const perguntas = perguntasDeCategoria(`${hub.marca} ${hub.nome}`);
+  const titulo = `${hub.marca} ${hub.nome} ${seminovo(hub.genero)} em Curitiba`;
+  const perguntas = perguntasDeCategoria(`${hub.marca} ${hub.nome}`, hub.genero);
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -144,9 +155,9 @@ export default async function HubDeModeloPage({ params }: PageProps) {
           { rotulo: hub.marca, href: caminhoDaMarca },
         ]}
         titulo={titulo}
-        introducao={textoDeModelo(hub.marca, hub.nome, hub.veiculos)}
+        introducao={textoDeModelo(hub.marca, hub.nome, hub.veiculos, hub.genero)}
         veiculos={hub.veiculos}
-        textoSemEstoque={`Sem ${hub.marca} ${hub.nome} disponível neste momento. A página fica no ar — o modelo faz parte do que a loja compra, e quando um passar na perícia entra aqui.`}
+        textoSemEstoque={`Sem ${hub.marca} ${hub.nome} disponível neste momento. A página fica no ar — o modelo faz parte do que a loja compra, e quando ${um(hub.genero)} passar na perícia entra aqui.`}
         blocos={
           irmaos.length > 0
             ? [

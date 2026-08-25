@@ -41,10 +41,17 @@ export async function generateMetadata(): Promise<Metadata> {
   ]);
   const total = estoque.filter((v) => !v.vendido).length;
 
+  // A contagem entra no título só quando existe. Com o estoque zerado — sync
+  // fora do ar, banco inacessível — o título anunciava "— 0 Ofertas", que é o
+  // mesmo defeito do "0" pendurado no `<h1>` das faixas: número honesto no
+  // lugar errado. Medido no build de 2026-08-25.
   return {
-    title: `Carros Seminovos em Curitiba — ${total} Ofertas | Motors Store`,
+    title: total > 0
+      ? `Carros Seminovos em Curitiba — ${total} Ofertas | Motors Store`
+      : "Carros Seminovos em Curitiba | Motors Store",
     description:
-      `${total} veículos com perícia cautelar independente: de cada dez avaliados, três entram. ` +
+      (total > 0 ? `${total} veículos` : "Veículos") +
+      " com perícia cautelar independente: de cada dez avaliados, três entram. " +
       "Filtre por marca, carroceria, câmbio e faixa de preço. Loja no Bacacheri, Curitiba.",
     alternates: { canonical: "/estoque" },
     // O card contava o estoque no título e não tinha imagem — herdava o logo
@@ -52,7 +59,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "estoque",
-      tituloPadrao: `${total} carros seminovos em Curitiba`,
+      tituloPadrao: total > 0 ? `${total} carros seminovos em Curitiba` : "Carros seminovos em Curitiba",
       caminho: "/estoque",
     }),
   };

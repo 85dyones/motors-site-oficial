@@ -397,7 +397,7 @@ export default function AparenciaCores({
                 className="mb-1 text-[9px] font-semibold tracking-[.16em]"
                 style={{ color: ativa["--brand-primary"] }}
               >
-                CURITIBA · PREMIUM
+                CURITIBA · 3 DE CADA 10 ENTRAM
               </div>
               <div
                 className="text-[30px] font-extrabold leading-[.9] tracking-[-.04em]"

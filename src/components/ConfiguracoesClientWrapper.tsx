@@ -2241,7 +2241,7 @@ export default function ConfiguracoesClientWrapper() {
                       type="text"
                       value={companyForm.tabTitle || ""}
                       onChange={(e) => setCompanyForm({ ...companyForm, tabTitle: e.target.value })}
-                      placeholder="Ex: Motors Store | Encontre seu Veículo Premium dos Sonhos"
+                      placeholder="Ex: Motors Store | Seminovos Selecionados em Curitiba"
                       className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all font-mono"
                     />
                     <span className="text-[9px] text-mt-neutral-600 ml-1">
@@ -2539,7 +2539,7 @@ export default function ConfiguracoesClientWrapper() {
                 PÁGINA QUEM SOMOS
               </h2>
               <p className="text-xs text-mt-neutral-700 mb-6 font-normal leading-relaxed">
-                Personalize o conteúdo da página "Quem Somos" (/sobre). Digite as informações em caixa alta nos títulos se desejar seguir a estética premium do site.
+                Personalize o conteúdo da página "Quem Somos" (/sobre). Digite as informações em caixa alta nos títulos se desejar seguir a estética do site.
               </p>
               <p className="text-xs text-mt-neutral-700 mb-6 font-normal leading-relaxed">
                 Nenhum campo é obrigatório: o que ficar em branco simplesmente não aparece
@@ -2562,7 +2562,7 @@ export default function ConfiguracoesClientWrapper() {
                         type="text"
                         value={aboutForm.heroTitle}
                         onChange={(e) => setAboutForm({ ...aboutForm, heroTitle: e.target.value })}
-                        placeholder="MOLDANDO A CURADORIA PREMIUM"
+                        placeholder="3 DE CADA 10 ENTRAM"
                         className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all"
                       />
                     </div>

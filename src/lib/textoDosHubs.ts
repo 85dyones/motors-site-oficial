@@ -1,6 +1,15 @@
 import type { Veiculo } from "../types";
 import { formatarPreco } from "../components/modernist/primitivos";
 import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque";
+import {
+  avaliados,
+  concordar,
+  No,
+  O,
+  um,
+  usado,
+  type Genero,
+} from "./generoDoVeiculo";
 
 /**
  * O texto das páginas perenes — escrito a partir do estoque, não de molde.
@@ -23,6 +32,17 @@ import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque"
  * "vistoriado"; e o diferencial é o que a loja RECUSA — *de cada dez avaliados,
  * três entram* —, porque garantia e laudo todo concorrente do Bacacheri
  * também alega. Nada neste arquivo pode prometer o que a loja não cumpre.
+ *
+ * ---------------------------------------------------------------------------
+ * Concordância
+ * ---------------------------------------------------------------------------
+ * Nenhuma função aqui crava "seminovo", "usado" ou "os". Até 2026-08-25 elas
+ * cravavam o masculino, e o dono apontou o resultado: *"a Volkswagen Saveiro",
+ * não "o Volkswagen Saveiro"*. O gênero chega por parâmetro, vindo de
+ * `lib/generoDoVeiculo.ts`, e quem monta o hub o calcula a partir do histórico.
+ *
+ * ⚠️ Ao escrever frase nova aqui, **não** volte a cravar a forma masculina
+ * porque "a maioria é masculina". Um quarto das páginas perenes não é.
  */
 
 /** Âncora geográfica que toda página perene repete. Fonte: POSICIONAMENTO §Geografia. */
@@ -81,24 +101,36 @@ function enumerar(itens: string[]): string {
 }
 
 /** O parágrafo que toda página perene fecha — a única afirmação que ninguém copia. */
-function paragrafoDaSelecao(): string {
+function paragrafoDaSelecao(genero: Genero = "m"): string {
   return (
     "Todo veículo que entra passa por perícia cautelar independente antes de ir para a " +
-    "vitrine: de cada dez avaliados, três entram. O laudo fica na ficha do carro, o preço " +
+    `vitrine: de cada dez ${avaliados(genero)}, três entram. O laudo fica na ficha do carro, o preço ` +
     `está no anúncio e o showroom fica no ${BAIRRO_DA_LOJA}, em ${CIDADE_DA_LOJA} — dá para ` +
     "ver o carro, dirigir e conferir a documentação no mesmo dia."
   );
 }
 
-/** Texto do hub de marca. */
-export function textoDeMarca(marca: string, veiculos: Veiculo[], modelos: string[]): string[] {
+/**
+ * Texto do hub de marca.
+ *
+ * O gênero aqui é o do **segmento**, não o de um modelo: "Volkswagen" cobre a
+ * Saveiro e o Polo ao mesmo tempo, e o que a página fala é "carros Volkswagen"
+ * ou "motos Honda". Quem chama passa `generoDoSegmento(hub.segmento)`.
+ */
+export function textoDeMarca(
+  marca: string,
+  veiculos: Veiculo[],
+  modelos: string[],
+  genero: Genero = "m",
+): string[] {
   const r = resumir(veiculos);
   const paragrafos: string[] = [];
 
   if (r.total === 0) {
     paragrafos.push(
       `A Motors Store já vendeu ${marca} e volta a receber. Esta página fica no ar mesmo sem ` +
-        `unidade disponível: quando um ${marca} entrar no estoque, é aqui que ele aparece primeiro.`,
+        `unidade disponível: quando ${um(genero)} ${marca} entrar no estoque, é aqui que ` +
+        `${concordar(genero, "ele", "ela")} aparece primeiro.`,
     );
   } else {
     const anos = trechoDeAnos(r);
@@ -120,12 +152,17 @@ export function textoDeMarca(marca: string, veiculos: Veiculo[], modelos: string
     );
   }
 
-  paragrafos.push(paragrafoDaSelecao());
+  paragrafos.push(paragrafoDaSelecao(genero));
   return paragrafos;
 }
 
 /** Texto do hub de modelo. */
-export function textoDeModelo(marca: string, modelo: string, veiculos: Veiculo[]): string[] {
+export function textoDeModelo(
+  marca: string,
+  modelo: string,
+  veiculos: Veiculo[],
+  genero: Genero = "m",
+): string[] {
   const r = resumir(veiculos);
   const nome = `${marca} ${modelo}`.trim();
   const paragrafos: string[] = [];
@@ -133,7 +170,7 @@ export function textoDeModelo(marca: string, modelo: string, veiculos: Veiculo[]
   if (r.total === 0) {
     paragrafos.push(
       `Sem ${nome} disponível neste momento. A página continua no ar porque o modelo faz parte ` +
-        "do que a Motors Store compra: assim que um passar na perícia, entra aqui.",
+        `do que a Motors Store compra: assim que ${um(genero)} passar na perícia, entra aqui.`,
     );
   } else {
     const anos = trechoDeAnos(r);
@@ -149,19 +186,29 @@ export function textoDeModelo(marca: string, modelo: string, veiculos: Veiculo[]
   }
 
   paragrafos.push(
-    `No ${nome} usado, o que a perícia cautelar olha primeiro é o histórico: sinistro, leilão, ` +
+    `${No(genero)} ${nome} ${usado(genero)}, o que a perícia cautelar olha primeiro é o histórico: sinistro, leilão, ` +
       "chassi, quilometragem coerente com o ano e restrição de documento. O laudo de cada " +
       "unidade fica na ficha do veículo — é o mesmo exame para o carro de entrada e para o mais caro da vitrine.",
   );
 
-  paragrafos.push(paragrafoDaSelecao());
+  paragrafos.push(paragrafoDaSelecao(genero));
   return paragrafos;
 }
 
-/** Texto do hub de carroceria. */
-export function textoDeCarroceria(carroceria: string, veiculos: Veiculo[]): string[] {
+/**
+ * Texto do hub de carroceria.
+ *
+ * `plural` e `genero` vêm prontos do hub (`HubDeCarroceria`), não são montados
+ * aqui: o que havia era `` `${nome.toLowerCase()}s` ``, que escrevia
+ * "Conversívels", "Hatchs" e — pior — "suvs", comendo a sigla no meio do `<h1>`.
+ */
+export function textoDeCarroceria(
+  carroceria: string,
+  veiculos: Veiculo[],
+  plural: string,
+  genero: Genero = "m",
+): string[] {
   const r = resumir(veiculos);
-  const plural = `${carroceria.toLowerCase()}s`;
   const paragrafos: string[] = [];
 
   if (r.total === 0) {
@@ -174,13 +221,13 @@ export function textoDeCarroceria(carroceria: string, veiculos: Veiculo[]): stri
     const precos = trechoDePrecos(r);
     const marcas = enumerar([...new Set(veiculos.map((v) => v.marca))].slice(0, 6));
     paragrafos.push(
-      `${r.total} ${r.total === 1 ? carroceria.toLowerCase() : plural} ${anos ? `${anos} ` : ""}` +
+      `${r.total} ${r.total === 1 ? carroceria : plural} ${anos ? `${anos} ` : ""}` +
         `${precos ? `${precos}, ` : ""}em ${CIDADE_DA_LOJA}.` +
         (marcas ? ` Marcas em estoque: ${marcas}.` : ""),
     );
   }
 
-  paragrafos.push(paragrafoDaSelecao());
+  paragrafos.push(paragrafoDaSelecao(genero));
   return paragrafos;
 }
 
@@ -208,10 +255,13 @@ export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[
     );
   }
 
+  // Masculino porque o substantivo desta página é "veículos" em qualquer
+  // faixa — mas passando pelo helper, para que a frase da casa tenha uma
+  // origem só e o teste de fonte possa cobrar isso do arquivo inteiro.
   paragrafos.push(
     "A faixa de preço é o recorte, não o critério de entrada: o carro de R$ 30 mil passa pela " +
       "mesma perícia cautelar independente que o mais caro da vitrine. É o que permite " +
-      "escalar para baixo sem baixar o crivo — de cada dez avaliados, três entram, em qualquer faixa.",
+      `escalar para baixo sem baixar o crivo — de cada dez ${avaliados("m")}, três entram, em qualquer faixa.`,
   );
 
   paragrafos.push(paragrafoDaSelecao());
@@ -224,11 +274,14 @@ export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[
  * São as mesmas que a loja responde no balcão — e precisam continuar
  * verdadeiras depois do próximo giro de estoque, porque `FAQPage` que não bate
  * com a página vira ação manual no Search Console.
+ *
+ * O artigo concorda com `rotulo`: "**As** picapes", "**A** Volkswagen Saveiro",
+ * "**Os** SUVs". Estava cravado em "Os", e ia para o JSON-LD assim.
  */
-export function perguntasDeCategoria(rotulo: string): PerguntaFrequente[] {
+export function perguntasDeCategoria(rotulo: string, genero: Genero = "m"): PerguntaFrequente[] {
   return [
     {
-      pergunta: `Os ${rotulo} da Motors Store têm laudo cautelar?`,
+      pergunta: `${O(genero, true)} ${rotulo} da Motors Store têm laudo cautelar?`,
       resposta:
         "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, " +
         "e o laudo fica disponível na ficha do carro. É o mesmo exame para qualquer faixa de preço.",
@@ -246,7 +299,7 @@ export function perguntasDeCategoria(rotulo: string): PerguntaFrequente[] {
         "As condições dependem de análise de crédito — a simulação do site é estimativa, não proposta.",
     },
     {
-      pergunta: `Onde vejo os ${rotulo} pessoalmente?`,
+      pergunta: `Onde vejo ${O(genero, true).toLowerCase()} ${rotulo} pessoalmente?`,
       resposta:
         `No showroom da Motors Store, na Rua Ernesto Piazzetta, 98 — ${BAIRRO_DA_LOJA}, ` +
         `${CIDADE_DA_LOJA}. De segunda a sexta das 8h30 às 18h30 e aos sábados das 8h30 às 15h.`,

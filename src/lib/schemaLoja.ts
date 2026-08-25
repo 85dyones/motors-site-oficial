@@ -110,7 +110,8 @@ export function enderecoDoSchema(endereco: string) {
  * O schema.org aceita texto livre, e o exemplo que circula em playbook é
  * `"R$$$$"` — um chute sobre quão cara é a loja. A faixa medida é verificável
  * e diz mais: quem lê "R$ 23.900 - R$ 318.900" entende que a loja opera do
- * carro de entrada ao premium, que é o posicionamento real.
+ * carro de entrada ao topo da praça — e que o mesmo filtro vale nos dois
+ * extremos, que é o posicionamento real (`conteudo-seo/POSICIONAMENTO.md`).
  *
  * Sem estoque, devolve `undefined` — campo ausente em vez de faixa inventada.
  */

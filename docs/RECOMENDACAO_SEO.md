@@ -209,6 +209,63 @@ crescer primeiro e a decisão vir depois.
 - **Não filtrar a vitrine** em nome de SEO — regra 6: ordena, nunca esconde.
 - **Não renomear ou remover eventos de tracking** — regra 7.
 - **Não fazer o 301 do alias sem o desvio de `/api/*`** — derruba 4 workflows.
+- **Não cravar gênero em texto gerado** — ver a seção abaixo. O masculino
+  parece seguro e erra em um quarto das páginas perenes.
+- **Não usar "premium", "procedência garantida", "melhores condições" nem
+  "exclusivo"** — coluna *Evitar* de `conteudo-seo/POSICIONAMENTO.md`.
+
+---
+
+## Concordância de gênero no texto perene — 2026-08-25
+
+O dono apontou: **"a Volkswagen Saveiro", não "o Volkswagen Saveiro"**.
+
+Não era uma frase. Todo o texto gerado decidia o gênero na hora de escrever o
+código, e as duas metades erravam para lados opostos:
+
+| Onde | Estava cravado | Errava em |
+|---|---|---|
+| hub de modelo e `textoDosHubs.ts` | masculino | Saveiro, Strada, Titano, Kombi, Parati, Spin + as 4 motos |
+| `/estoque/[recorte]` | feminino | SUV, Sedan, Hatch, Esportivo, Coupé |
+
+Medido contra o estoque real (35 pares marca/modelo no sitemap de produção):
+**10 dos 33 hubs de modelo** e **5 das 8 carrocerias** saíam errados.
+
+E não é só gramática: quem procura escreve *"saveiro usada curitiba"*. O título
+que dizia "Saveiro Seminovo" perdia a correspondência com a consulta que a
+página existe para pegar.
+
+**A solução** é `src/lib/generoDoVeiculo.ts`. Três regras que saem de dado real
+antes de sair de tabela — segmento `motos` → feminino; `tipo === "Picape"` →
+feminino; tabela de exceções para perua e van, que nenhum campo denuncia — e
+default masculino, que era o comportamento anterior. O gênero é calculado no
+`hubsDeEstoque` a partir do **histórico**, porque a lista de disponíveis fica
+vazia justamente na página perene que mais precisa concordar.
+
+Duas coisas que só apareceram lendo a saída real, não em asserção:
+
+- **"Bongo Seminova"** — o feed classifica o Kia Bongo como picape, mas é
+  caminhão leve e ninguém diz "a Bongo". Virou a lista `MODELOS_MASCULINOS`,
+  que vence as regras.
+- **"suvs"**, **"Conversívels"**, **"Hatchs"** — o plural era `nome + "s"`
+  seguido de `.toLowerCase()`, e ia para o `<h1>`, o `<title>` e o `FAQPage`.
+
+### Junto, no mesmo passe
+
+- **O "0" pendurado** — `<h1>` de faixa vazia saía "Seminovos acima de R$ 100
+  mil em Curitiba 0", e o `<title>` do catálogo, "— 0 Ofertas".
+- **Hubs com a versão colada** — `/carros/ford/ka-sedan-10-se-flex-4p` duplicava
+  `/carros/ford/ka`. A URL fica de pé (a trilha da ficha aponta para ela) e
+  passa a declarar `canonical` para o limpo, exibindo o rótulo sem a versão.
+- **Vocabulário** — "premium" saiu de 11 arquivos de texto público, incluindo o
+  `tabTitle` padrão do layout e os cards de compartilhamento. Ficou onde é
+  dado: `perfil_uso`, `cabine_premium`, o payload do n8n.
+
+### Fica em aberto
+
+`/destaques/curadoria` publica "Carros **curadoria exclusiva** em Curitiba" — o
+título vem do valor `CURADORIA EXCLUSIVA` de `perfil_uso`, que `car-match.ts`
+casa por string. Renomear é decisão de dado, no painel, não de código.
 
 ---
 

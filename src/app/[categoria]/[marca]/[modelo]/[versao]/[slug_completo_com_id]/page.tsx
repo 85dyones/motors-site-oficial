@@ -20,7 +20,9 @@ import { blocoJsonLd, schemaDeTrilha } from "../../../../../../lib/schemaListage
 import {
   destinoDoVeiculoArquivado,
   recortesDoEstoque,
+  rotuloDoModelo,
 } from "../../../../../../lib/hubsDeEstoque";
+import { generoDeModelo, seu } from "../../../../../../lib/generoDoVeiculo";
 
 // Incremental Static Regeneration (ISR) configuration
 export const revalidate = 3600; // Revalidate every 1 hour
@@ -120,9 +122,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // então na frase montada. Mesma cadeia do feed XML, pela mesma razão.
   const textoParaMeta = veiculo.descricao_seo || veiculo.descricao || "";
   const cleanDescription = textoParaMeta ? textoParaMeta.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim() : "";
+  // A frase de último recurso, quando o veículo chega sem nenhum texto.
+  //
+  // Dizia "Oferta Exclusiva: compre **seu** {marca} {modelo}" — duas coisas
+  // erradas na mesma linha. "Exclusiva" está na coluna *Evitar* de
+  // `conteudo-seo/POSICIONAMENTO.md`, e o possessivo cravado no masculino
+  // escrevia "compre seu Volkswagen Saveiro". O gênero agora vem do modelo,
+  // com a carroceria do próprio veículo decidindo.
+  const generoDoModelo = generoDeModelo(rotuloDoModelo(veiculo.marca, veiculo.modelo, veiculo.versao), {
+    segmento: segmentoDoVeiculo(veiculo),
+    tipo: veiculo.tipo,
+  });
   const seoDescription = cleanDescription
     ? truncateString(cleanDescription, 155)
-    : `Oferta Exclusiva: compre seu ${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ano ${veiculo.ano} cor ${veiculo.cor} com laudo pericial cautelar aprovado e garantia. Preço: ${priceText}. Financie com facilidade!`;
+    : `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ${veiculo.ano}, cor ${veiculo.cor}, ` +
+      `${seu(generoDoModelo)} por ${priceText}. Perícia cautelar independente com laudo na ficha, ` +
+      "garantia e financiamento. Motors Store, Bacacheri, Curitiba.";
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";

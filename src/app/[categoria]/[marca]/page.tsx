@@ -16,6 +16,7 @@ import {
 } from "../../../lib/schemaListagem";
 import { schemaDaLoja } from "../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeMarca } from "../../../lib/textoDosHubs";
+import { generoDoSegmento, seminovo, um } from "../../../lib/generoDoVeiculo";
 import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../lib/veiculoUrl";
 
 /**
@@ -59,14 +60,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const caminho = `/${hub.segmento}/${hub.slug}`;
   const { companySettings } = await getCachedSettings();
 
+  // O gênero de uma marca é o do SEGMENTO, não o de um modelo: "Volkswagen"
+  // cobre a Saveiro e o Polo ao mesmo tempo. `/motos/honda` fala de motos e
+  // concorda no feminino; `/carros/honda` fala de carros.
+  const genero = generoDoSegmento(hub.segmento);
+  const novo = seminovo(genero);
+  const Novo = novo.charAt(0).toUpperCase() + novo.slice(1);
+
   // Título curto de propósito: o Google corta por volta de 60 caracteres, e o
   // que precisa sobreviver ao corte é "{Marca} seminovo em Curitiba".
-  const title = `${hub.nome} Seminovo em Curitiba | Motors Store`;
+  const title = `${hub.nome} ${Novo} em Curitiba | Motors Store`;
   const description =
     hub.veiculos.length > 0
-      ? `${hub.veiculos.length} ${hub.nome} ${hub.veiculos.length === 1 ? "seminovo" : "seminovos"} em Curitiba, ` +
+      ? `${hub.veiculos.length} ${hub.nome} ${seminovo(genero, hub.veiculos.length !== 1)} em Curitiba, ` +
         "com perícia cautelar independente. Loja no Bacacheri, troca e financiamento."
-      : `${hub.nome} seminovo em Curitiba na Motors Store: perícia cautelar independente, troca ` +
+      : `${hub.nome} ${novo} em Curitiba na Motors Store: perícia cautelar independente, troca ` +
         "e financiamento. Loja no Bacacheri.";
 
   return {
@@ -77,7 +85,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       empresa: companySettings,
       pagina: "estoque",
       rotulo: hub.nome,
-      tituloPadrao: `${hub.nome} seminovo em Curitiba`,
+      tituloPadrao: `${hub.nome} ${novo} em Curitiba`,
       descricaoPadrao: description,
       caminho,
     }),
@@ -93,8 +101,11 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
   const { companySettings } = await getCachedSettings();
   const caminho = `/${hub.segmento}/${hub.slug}`;
   const rotuloDoSegmento = hub.segmento === "motos" ? "Motos" : "Carros";
+  const genero = generoDoSegmento(hub.segmento);
+  const novos = seminovo(genero, true);
+  const tituloDaPagina = `${hub.nome} ${novos} em Curitiba`;
 
-  const perguntas = perguntasDeCategoria(`${hub.nome} seminovos`);
+  const perguntas = perguntasDeCategoria(`${hub.nome} ${novos}`, genero);
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -102,7 +113,7 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
       { nome: "Estoque", caminho: "/estoque" },
       { nome: hub.nome, caminho },
     ]),
-    schemaDeListagem(`${hub.nome} seminovos em Curitiba`, hub.veiculos),
+    schemaDeListagem(tituloDaPagina, hub.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
   ]);
@@ -115,10 +126,10 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
           { rotulo: "Home", href: "/" },
           { rotulo: "Estoque", href: "/estoque" },
         ]}
-        titulo={`${hub.nome} seminovos em Curitiba`}
-        introducao={textoDeMarca(hub.nome, hub.veiculos, hub.modelos.map((m) => m.nome))}
+        titulo={tituloDaPagina}
+        introducao={textoDeMarca(hub.nome, hub.veiculos, hub.modelos.map((m) => m.nome), genero)}
         veiculos={hub.veiculos}
-        textoSemEstoque={`Sem ${hub.nome} disponível neste momento. O estoque gira toda semana e esta página continua no ar — quando entrar um, aparece aqui.`}
+        textoSemEstoque={`Sem ${hub.nome} disponível neste momento. O estoque gira toda semana e esta página continua no ar — quando entrar ${um(genero)}, aparece aqui.`}
         blocos={[
           ...(hub.modelos.length > 0
             ? [

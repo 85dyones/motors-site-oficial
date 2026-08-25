@@ -38,7 +38,7 @@ import { getCachedSettings } from "../lib/settings";
 import { montarCompartilhamento } from "../lib/compartilhamento";
 
 export async function generateMetadata(): Promise<Metadata> {
-  let tabTitle = "Motors Store | Encontre seu Veículo Premium dos Sonhos";
+  let tabTitle = "Motors Store | Seminovos Selecionados em Curitiba";
   let empresa = null;
   try {
     const { companySettings } = await getCachedSettings();
@@ -51,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 
   const descricaoPadrao =
-    "A melhor revenda e avaliação de carros premium e seminovos selecionados. Facilidade no financiamento sem entrada.";
+    "Seminovos que passaram pela perícia cautelar independente, em Curitiba. Avaliação do seu usado e financiamento.";
 
   // Card herdado por quem não declara o próprio — hoje só /login, /test e as
   // rotas de /admin, que ninguém compartilha. As páginas públicas montam o
@@ -70,7 +70,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(SITE_URL),
     title: tabTitle,
-    description: "Motors Store - A melhor revenda e avaliação de carros premium e seminovos selecionados em Curitiba. Facilidade no financiamento sem entrada.",
+    description:
+      "Motors Store — seminovos selecionados em Curitiba, com perícia cautelar independente. Avaliação do seu usado e financiamento.",
     alternates: {
       // Sem `canonical` aqui de propósito. No layout raiz ele é HERDADO por
       // toda página que não declare o seu — /login, /test e as rotas de /admin

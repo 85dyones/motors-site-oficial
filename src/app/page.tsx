@@ -76,9 +76,9 @@ export async function generateMetadata(): Promise<Metadata> {
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "home",
-      tituloPadrao: tabTitle || "Motors Store | Seminovos premium em Curitiba",
+      tituloPadrao: tabTitle || "Motors Store | Seminovos Selecionados em Curitiba",
       descricaoPadrao:
-        "Veículos premium selecionados com laudo cautelar, procedência auditada e garantia. Financiamento sem entrada.",
+        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha e preço no anúncio.",
       caminho: "/",
     }),
   };
