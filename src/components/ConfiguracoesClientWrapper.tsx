@@ -2358,11 +2358,11 @@ export default function ConfiguracoesClientWrapper() {
                       type="text"
                       value={companyForm.ga4Id || ""}
                       onChange={(e) => setCompanyForm({ ...companyForm, ga4Id: e.target.value })}
-                      placeholder="G-CZ4B4RYF61"
+                      placeholder="G-KBL1MFN9E3"
                       className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all font-mono"
                     />
                     <p className="text-[10px] text-mt-neutral-700 font-normal leading-relaxed">
-                      Código da Google Tag (ex: <code className="font-mono text-mt-accent">G-CZ4B4RYF61</code>). O script da Google Tag é injetado automaticamente no &lt;head&gt; de todas as páginas.
+                      Código da Google Tag (ex: <code className="font-mono text-mt-accent">G-KBL1MFN9E3</code>). O script da Google Tag é injetado automaticamente no &lt;head&gt; de todas as páginas.
                     </p>
                   </div>
 

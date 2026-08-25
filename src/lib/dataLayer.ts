@@ -1,6 +1,6 @@
 // Os dois módulos abaixo não importam nada — é o que permite lê-los daqui,
 // que roda no navegador, sem arrastar o cliente do Supabase para o bundle.
-import { ehSlugDeFaixa } from "./faixasDePreco";
+import { ehSlugDeFaixa, faixaDoPreco } from "./faixasDePreco";
 import { SEGMENTOS_DE_PDP } from "./veiculoUrl";
 
 /**
@@ -43,6 +43,46 @@ import { SEGMENTOS_DE_PDP } from "./veiculoUrl";
  * ao aceite não se perde — que é justamente o que se perderia se o gate
  * estivesse aqui.
  */
+
+/**
+ * ---------------------------------------------------------------------------
+ * Quem manda o evento: o código ou o container
+ * ---------------------------------------------------------------------------
+ * Até 2026-08-25 a resposta era "os dois", e isso passou a ser um problema no
+ * dia em que o container `GTM-TB665RN9` ganhou tags GA4 para os mesmos eventos
+ * que `lib/telemetry.ts` já dispara por `gtag`. Publicar assim contaria
+ * `generate_lead` em dobro — e não dá para simplesmente apagar o `gtag`,
+ * porque **quem liga o container é o dono, no painel**, não o deploy: o
+ * `IntegrationsTracker` só injeta o GTM quando `companySettings.gtmId` existe,
+ * e esse valor vem do banco.
+ *
+ * As duas saídas óbvias erram para lados opostos:
+ *
+ *   apagar o `gtag` agora  → GA4 sem `generate_lead` até o dono digitar o ID
+ *   manter os dois         → tudo em dobro a partir do segundo em que digitar
+ *
+ * Daí este sinalizador. O código mede **enquanto o container está ausente** e
+ * sai de cena sozinho quando ele chega. Uma regra só, sem sincronizar deploy
+ * com edição de painel, sem lacuna e sem sobreposição.
+ *
+ * Quem escreve é o `IntegrationsTracker`, que já sabe se vai injetar o GTM.
+ * Quem lê é o `telemetry.ts`, antes de falar com o GA4 ou com o Ads.
+ *
+ * ⚠️ Isto **não** silencia o `dataLayer`: os pushes continuam sempre, porque
+ * são eles que alimentam o container. O que o sinalizador desliga é o caminho
+ * paralelo do `gtag`.
+ */
+let containerAtivo = false;
+
+/** O `IntegrationsTracker` chama isto quando decide injetar (ou não) o GTM. */
+export function marcarContainerAtivo(ativo: boolean): void {
+  containerAtivo = ativo;
+}
+
+/** O container assumiu os eventos? Então o `gtag` do código fica quieto. */
+export function containerAssumeOsEventos(): boolean {
+  return containerAtivo;
+}
 
 type ValorDeDataLayer = string | number | boolean | null | undefined | object;
 
@@ -153,12 +193,19 @@ export interface CamadaGlobal {
  * houver filial de verdade, o campo entra aqui e nos eventos de contato, para
  * saber qual unidade gerou o lead.
  *
- * `stock_count: null` sai junto de propósito. O `dataLayer` é acumulativo: uma
- * variável escrita numa página continua legível na seguinte, então sem esta
- * limpeza o visitante que fosse de /estoque para /sobre levaria consigo a
- * contagem da página anterior — e todo evento disparado em /sobre nasceria
- * com um número que não é dele. Quem sabe a contagem a repõe logo em seguida
- * (`pushContagemDeEstoque`).
+ * `stock_count: null` e `vehicle: null` saem junto de propósito. O `dataLayer`
+ * é acumulativo: uma variável escrita numa página continua legível na seguinte,
+ * então sem esta limpeza o visitante que fosse de /estoque para /sobre levaria
+ * consigo a contagem da página anterior — e todo evento disparado em /sobre
+ * nasceria com um número que não é dele. Quem sabe a contagem a repõe logo em
+ * seguida (`pushContagemDeEstoque`).
+ *
+ * O `vehicle` entrou nesta limpeza em 2026-08-25, quando o container
+ * `GTM-TB665RN9` passou a ler `vehicle.*` em TODA tag GA4. A nota acima já
+ * valia palavra por palavra para ele — só não estava aplicada: quem visitasse
+ * uma ficha e voltasse para a home levava o carro junto, e o clique de WhatsApp
+ * na home reportava o veículo anterior. `pushVeiculo` já fazia o equivalente
+ * para o `ecommerce`; faltava a metade que o container tornou visível.
  */
 export function pushCamadaGlobal(camada: CamadaGlobal): void {
   push({
@@ -166,6 +213,7 @@ export function pushCamadaGlobal(camada: CamadaGlobal): void {
     page_type: camada.page_type,
     store_city: "Curitiba",
     stock_count: null,
+    vehicle: null,
   });
 }
 
@@ -194,6 +242,10 @@ export interface VeiculoDaCamada {
   tipo?: string | null;
   cor?: string | null;
   nome: string;
+  /** Donos anteriores — `owners` do §11.1. */
+  donos?: number | null;
+  /** O laudo da perícia está na ficha? — `has_report` do §11.1. */
+  temLaudo?: boolean;
 }
 
 /**
@@ -226,6 +278,18 @@ export function pushVeiculo(veiculo: VeiculoDaCamada): void {
       fuel: (veiculo.combustivel ?? "") || undefined,
       body_type: (veiculo.tipo ?? "") || undefined,
       color: (veiculo.cor ?? "") || undefined,
+      // Os três do §11.1 do plano de aquisição. `price_range` sai do próprio
+      // preço — o mesmo corte que já nomeia `/estoque/ate-60-mil`, para que
+      // público de remarketing e página perene falem da mesma faixa.
+      price_range: faixaDoPreco(veiculo.preco) ?? undefined,
+      owners: typeof veiculo.donos === "number" ? veiculo.donos : undefined,
+      // ⚠️ `has_report` diz que o DOCUMENTO está na ficha, não que o exame
+      // aconteceu. `conteudo-seo/POSICIONAMENTO.md` registra a confirmação do
+      // dono em 2026-08-17: **todos** os veículos passam por perícia cautelar,
+      // e `laudo_pericia` vazio é falha de lançamento, não ausência do exame.
+      // Publicar `false` como se fosse "não periciado" contradiria o que a
+      // própria página afirma — daí o campo só sair quando há laudo de fato.
+      has_report: veiculo.temLaudo === true ? true : undefined,
     },
     ecommerce: {
       currency: "BRL",
@@ -288,10 +352,16 @@ export type TipoDeLead = "proposta" | "financiamento" | "avaliacao" | "contato" 
  * Dispara no SUCESSO, nunca no clique do botão — um `generate_lead` por
  * tentativa de envio infla a conversão e ensina o algoritmo do Ads a comprar
  * clique de quem desiste no meio.
+ *
+ * `lead_id` é o mesmo identificador que vai no `eventID` do Meta e no
+ * `transaction_id` do Ads. Um id só nas três plataformas é o que torna a
+ * conferência entre elas possível — e é o que o container lê em
+ * `{{dlv - lead_id}}`, que até 2026-08-25 chegava sempre `undefined` porque
+ * ninguém o empurrava.
  */
 export function pushLead(
   tipo: TipoDeLead,
-  dados: ContextoDeVeiculo & { form_id?: string } = {},
+  dados: ContextoDeVeiculo & { form_id?: string; lead_id?: string } = {},
 ): void {
   push({ event: "generate_lead", lead_type: tipo, ...dados });
 }

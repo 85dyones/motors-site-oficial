@@ -52,6 +52,22 @@ export const FAIXAS_DE_PRECO: FaixaDePreco[] = [
   { slug: "acima-100-mil", nome: "acima de R$ 100 mil", min: 100000, max: Infinity },
 ];
 
+/**
+ * Em que faixa este preço cai — o `price_range` da camada de dados.
+ *
+ * Pedido pelo §11.1 do plano de aquisição: sem ele, o remarketing não sabe
+ * separar quem olhou carro de entrada de quem olhou o topo da vitrine, e é a
+ * separação que mais muda o lance. Devolve o `slug`, não o `nome`, porque é o
+ * `slug` que já é URL indexada e o que o GTM usa como chave de público — nome
+ * com "R$" e espaço vira rótulo instável no painel do Ads.
+ *
+ * Preço inválido devolve `null`: faixa inventada é pior que campo ausente.
+ */
+export function faixaDoPreco(preco: number): string | null {
+  if (!Number.isFinite(preco) || preco <= 0) return null;
+  return FAIXAS_DE_PRECO.find((f) => preco >= f.min && preco < f.max)?.slug ?? null;
+}
+
 /** Este segmento de `/estoque/{x}` é uma faixa de preço? */
 export function ehSlugDeFaixa(slug: string): boolean {
   return FAIXAS_DE_PRECO.some((f) => f.slug === slug);
