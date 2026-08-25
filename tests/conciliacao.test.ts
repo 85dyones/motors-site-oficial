@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ErroDeOfx, dataDePosted, lerOfx, valorDeTrnamt } from "../src/lib/ofx";
 import {
+  chaveDaLinha,
   conciliar,
   distanciaEmDias,
   resumirConciliacao,
@@ -335,5 +336,84 @@ describe("distanciaEmDias", () => {
 
   it("data ilegível fica infinitamente longe — nunca casa por acidente", () => {
     expect(distanciaEmDias("lixo", "2026-08-21")).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A identidade da linha é (conta, fitid) — achado 1 de ACHADOS_FINANCEIRO.md
+// ---------------------------------------------------------------------------
+
+describe("conciliar — o FITID é único dentro da conta, não entre contas", () => {
+  it("mesmo FITID em contas diferentes são duas linhas, não uma", () => {
+    // Ela baixa o extrato de dois bancos no mesmo dia. Cada um numera a partir
+    // do seu próprio zero, então o FITID `001` aparece duas vezes. Chaveado só
+    // por fitid, o segundo sobrescrevia o primeiro no mapa de candidatos e a
+    // marca de "resolvida" valia para os dois de uma vez.
+    const r = conciliar(
+      [
+        linha({ conta: "12345-6", fitid: "001", valor: 100, data: "2026-08-21" }),
+        linha({ conta: "99999-9", fitid: "001", valor: 900, data: "2026-08-21" }),
+      ],
+      [mov({ id: "mA", valor: 100, data_movimentacao: "2026-08-21" })],
+    );
+
+    // A de R$ 100 casa com a movimentação de R$ 100. A de R$ 900 não tem par
+    // e tem de sobrar — é a razão de a ferramenta existir.
+    expect(r.casados).toHaveLength(1);
+    expect(r.casados[0]).toMatchObject({ conta: "12345-6", fitid: "001", movimentacaoId: "mA" });
+    expect(r.soNoBanco.map((l) => [l.conta, l.valor])).toEqual([["99999-9", 900]]);
+  });
+
+  it("a linha da outra conta não some do 'só no banco'", () => {
+    // O estrago original: nenhuma casava, mas `linhaResolvida.add(fitid)`
+    // marcava as duas, e a segunda desaparecia do relatório sem erro nenhum.
+    const r = conciliar(
+      [
+        linha({ conta: "A", fitid: "dup", valor: 50, descricao: "tarifa banco A" }),
+        linha({ conta: "B", fitid: "dup", valor: 70, descricao: "tarifa banco B" }),
+      ],
+      [],
+    );
+    expect(r.soNoBanco).toHaveLength(2);
+    expect(resumirConciliacao(r).valorSoNoBanco).toBe(120);
+  });
+
+  it("uma conta não empresta candidato para a outra", () => {
+    // Duas contas, mesmo FITID, mesmo valor: cada linha tem o seu candidato e
+    // nenhuma das duas pode ser casada às cegas contra o da outra.
+    const r = conciliar(
+      [
+        linha({ conta: "A", fitid: "001", valor: 300 }),
+        linha({ conta: "B", fitid: "001", valor: 300 }),
+      ],
+      [mov({ id: "m1", valor: 300 }), mov({ id: "m2", valor: 300 })],
+    );
+    // Duas linhas disputando duas movimentações idênticas: empate não é
+    // escolha, então as duas viram sugestão — e são DUAS, uma por conta.
+    expect(r.casados).toHaveLength(0);
+    expect(r.sugestoes).toHaveLength(2);
+    expect(r.sugestoes.map((s) => s.conta).sort()).toEqual(["A", "B"]);
+  });
+
+  it("o resumo fecha mesmo com FITID repetido entre contas", () => {
+    const linhas = [
+      linha({ conta: "A", fitid: "001", valor: 100 }),
+      linha({ conta: "B", fitid: "001", valor: 200 }),
+      linha({ conta: "B", fitid: "002", valor: 300 }),
+    ];
+    const r = conciliar(linhas, [mov({ id: "m1", valor: 100 })]);
+    const resumo = resumirConciliacao(r);
+    expect(resumo.linhasDoBanco).toBe(3);
+    expect(resumo.conciliadas + resumo.aConfirmar + resumo.soNoBanco).toBe(3);
+  });
+
+  it("chaveDaLinha separa por um caractere que não ocorre em conta nem em FITID", () => {
+    // Um separador que aparece no dado é um separador que se pode forjar:
+    // conta "A|B" + fitid "C" não pode colidir com conta "A" + fitid "B|C".
+    expect(chaveDaLinha({ conta: "A|B", fitid: "C" })).not.toBe(
+      chaveDaLinha({ conta: "A", fitid: "B|C" }),
+    );
+    // Linha sem conta continua tendo identidade estável.
+    expect(chaveDaLinha({ fitid: "f1" })).toBe(chaveDaLinha({ conta: undefined, fitid: "f1" }));
   });
 });

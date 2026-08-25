@@ -47,6 +47,72 @@ async function exigirFinanceiro() {
   return { supabase, user, profile };
 }
 
+type Supa = NonNullable<Awaited<ReturnType<typeof exigirFinanceiro>>["supabase"]>;
+
+/**
+ * A ficha do investidor em `investidores` — a identidade que a fusão elegeu.
+ *
+ * A migração `20260822210000` fez de `movimentacoes_investidor` o razão único
+ * e reconstruiu `investidor_posicao` para somar dele, porque *"duas verdades
+ * sobre o dinheiro do sócio é o pior resultado possível desta fusão"*. Esse
+ * razão é chaveado pela FICHA, não pelo perfil de acesso: o sócio pode aportar
+ * sem nunca abrir o sistema. Quem lança por aqui parte de um `profiles.id`, e
+ * é esta função que faz a travessia.
+ *
+ * Cria a ficha se ainda não houver. A fusão só criou ficha para quem já tinha
+ * lançamento no razão antigo; um investidor marcado depois não tem nenhuma, e
+ * recusar o aporte por isso empurraria para a tela um passo que ela não tem
+ * como executar. `perfil_id` é único, então a corrida de duas abas termina em
+ * 23505 — e aí a ficha que a outra criou é a resposta.
+ */
+async function fichaDoPerfil(
+  supabase: Supa,
+  perfil: { id: string; full_name?: string | null; email?: string | null },
+): Promise<{ id: string } | { erro: string }> {
+  const { data: existente, error } = await supabase
+    .from("investidores")
+    .select("id")
+    .eq("perfil_id", perfil.id)
+    .maybeSingle();
+  if (error) return { erro: error.message };
+  if (existente) return { id: existente.id };
+
+  const { data: criada, error: erroDeCriacao } = await supabase
+    .from("investidores")
+    .insert({
+      nome: perfil.full_name?.trim() || perfil.email || "Investidor sem nome",
+      email: perfil.email ?? null,
+      perfil_id: perfil.id,
+      observacoes: "Ficha criada ao lançar o primeiro movimento pelo painel do financeiro.",
+    })
+    .select("id")
+    .single();
+
+  if (erroDeCriacao) {
+    if (erroDeCriacao.code === "23505") {
+      const { data: deOutraAba } = await supabase
+        .from("investidores")
+        .select("id")
+        .eq("perfil_id", perfil.id)
+        .maybeSingle();
+      if (deOutraAba) return { id: deOutraAba.id };
+    }
+    return { erro: erroDeCriacao.message };
+  }
+
+  return { id: criada!.id };
+}
+
+/**
+ * O `perfil_id` de uma linha embutida — supabase-js devolve a relação ora como
+ * objeto, ora como array de um, conforme o que ele infere da FK.
+ */
+function perfilDaFicha(ficha: unknown): string | null {
+  const linha = Array.isArray(ficha) ? ficha[0] : ficha;
+  const id = (linha as { perfil_id?: unknown } | null)?.perfil_id;
+  return typeof id === "string" ? id : null;
+}
+
 export async function GET() {
   try {
     const { erro, supabase } = await exigirFinanceiro();
@@ -55,9 +121,19 @@ export async function GET() {
     // Quem é investidor sai de `profiles` — a lista precisa mostrar também
     // quem ainda não tem lançamento nenhum, senão o recém-cadastrado some da
     // tela justamente quando é preciso lançar o primeiro aporte dele.
+    //
+    // O recorte é do BANCO, não do JavaScript: sem filtro, todo cliente da
+    // Garagem e todo membro da equipe era serializado do Postgres e trafegado
+    // a cada carga desta tela, para dois nomes sobrarem.
+    //
+    // O `or` cobre as duas formas porque `ehInvestidor` cobre: `papeis` é a
+    // régua desde 2026-08-19, e `role` é o espelho que linha antiga ainda pode
+    // ter sozinho. O filtro em JS fica como última palavra — assim as duas
+    // definições não têm como divergir.
     const { data: perfisInvestidores, error: erroPerfis } = await supabase!
       .from("profiles")
       .select("id, full_name, email, role, papeis, is_active")
+      .or("papeis.cs.{investidor},role.eq.investidor")
       .order("full_name", { ascending: true });
 
     if (erroPerfis) {
@@ -72,9 +148,13 @@ export async function GET() {
         .from("investidor_veiculos")
         .select("id, investidor_id, veiculo_id, valor_investido, data_entrada, observacao")
         .order("data_entrada", { ascending: false }),
+      // Do razão ÚNICO, com a ficha embutida só para trazer o `perfil_id` de
+      // volta: esta tela lista PERFIS, e é por perfil que ela agrupa. Ficha
+      // sem conta de acesso não tem perfil e não aparece aqui — nem poderia,
+      // já que não há linha em `profiles` para selecionar.
       supabase!
-        .from("investidor_movimentos")
-        .select("id, investidor_id, tipo, valor, data, descricao, veiculo_id")
+        .from("movimentacoes_investidor")
+        .select("id, tipo, valor, data, descricao, veiculo_id, investidor:investidores(perfil_id)")
         .order("data", { ascending: false }),
       // O estoque para o seletor de veículo. O recorte é EXATAMENTE o que a
       // tela de margens já entrega ao financeiro — sem `placa`, `chassi` ou
@@ -107,7 +187,12 @@ export async function GET() {
       investidores,
       posicoes: posicoesRes.data ?? [],
       participacoes: participacoesRes.data ?? [],
-      movimentos: movimentosRes.data ?? [],
+      movimentos: (movimentosRes.data ?? [])
+        .map((m) => {
+          const { investidor, ...resto } = m as typeof m & { investidor?: unknown };
+          return { ...resto, investidor_id: perfilDaFicha(investidor) };
+        })
+        .filter((m) => m.investidor_id !== null),
       veiculos: veiculosRes.data ?? [],
     });
   } catch (err: unknown) {
@@ -144,7 +229,7 @@ export async function POST(request: NextRequest) {
     // porque a área dela não é esta.
     const { data: alvo } = await supabase!
       .from("profiles")
-      .select("id, full_name, role, papeis")
+      .select("id, full_name, email, role, papeis")
       .eq("id", investidor_id)
       .single();
 
@@ -209,18 +294,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Para `movimentacoes_investidor`, o razão ÚNICO desde a fusão de
+    // 2026-08-22 — e não para o razão que ela aposentou. Escrever no antigo
+    // fazia o aporte aparecer neste painel, sumir do painel logo acima na
+    // mesma tela (que soma de `investidor_posicao`) e deixar o saldo de
+    // `/investidor` menor do que o sócio pôs.
+    const ficha = await fichaDoPerfil(supabase!, alvo);
+    if ("erro" in ficha) {
+      return NextResponse.json({ error: ficha.erro }, { status: 500 });
+    }
+
     const { data, error } = await supabase!
-      .from("investidor_movimentos")
+      .from("movimentacoes_investidor")
       .insert({
-        investidor_id,
+        investidor_id: ficha.id,
         tipo: body.tipo,
         // Sempre positivo: o sinal mora em `tipo`. `Math.abs` aqui evita que
         // um "-500" digitado no formulário vire um CHECK violation cru na
         // cara de quem lança — a intenção é óbvia e o banco continua trancado.
         valor: Math.abs(valorBruto),
         data: body.data || undefined,
-        descricao: body.descricao || null,
-        veiculo_id: body.veiculo_id ? Number(body.veiculo_id) : null,
+        // `descricao` é NOT NULL no razão único. O rótulo do próprio tipo é o
+        // que a tela já mostra quando o campo vem vazio — melhor isso do que
+        // devolver um NOT NULL violation cru por um campo opcional na tela.
+        descricao:
+          typeof body.descricao === "string" && body.descricao.trim()
+            ? body.descricao.trim()
+            : body.tipo === "aporte"
+              ? "Aporte"
+              : "Retirada",
+        // TEXT aqui, não bigint: o razão único guarda o código RevendaMais.
+        veiculo_id: body.veiculo_id ? String(body.veiculo_id) : null,
         created_by: user!.id,
       })
       .select()
@@ -230,7 +334,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ movimento: data });
+    // De volta em `profiles.id`: é por perfil que esta tela agrupa.
+    return NextResponse.json({ movimento: { ...data, investidor_id } });
   } catch (err: unknown) {
     const mensagem = err instanceof Error ? err.message : "Erro inesperado";
     return NextResponse.json({ error: mensagem }, { status: 500 });
@@ -250,11 +355,13 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
     }
+    // O movimento sai do razão ÚNICO. Apagar do razão aposentado devolvia
+    // `ok: true` sem tocar na linha que a tela acabou de mostrar.
     const tabela =
       recurso === "participacao"
         ? "investidor_veiculos"
         : recurso === "movimento"
-          ? "investidor_movimentos"
+          ? "movimentacoes_investidor"
           : null;
     if (!tabela) {
       return NextResponse.json({ error: "Recurso desconhecido." }, { status: 400 });

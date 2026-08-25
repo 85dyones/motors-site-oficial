@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { STATUS_DA_LISTA_EM_ABERTO, STATUS_EM_ABERTO } from "../src/lib/alcada";
 
 /**
  * A lista de contas não pode esconder lançamento por omissão.
@@ -61,8 +62,36 @@ describe("a tela abre pela pergunta certa", () => {
     // Filtrar por padrão só é honesto se o seletor exibir o filtro ativo —
     // senão é esconder por omissão de novo, com outra roupa.
     expect(lista).toContain("useState(EM_ABERTO)");
-    expect(lista).toContain('const EM_ABERTO = "pendente,vencido,aguardando_aprovacao"');
     expect(lista).toContain("<option value={EM_ABERTO}>Em aberto</option>");
+  });
+
+  it("'em aberto' inclui conta paga pela metade", () => {
+    // O dinheiro que falta continua devido. Este é o filtro que ABRE a tela:
+    // omitir `parcial` aqui era sepultar em silêncio exatamente o tipo de
+    // pendência que a lista existe para mostrar — o mesmo defeito da posição
+    // 709, com outra roupa.
+    expect(STATUS_DA_LISTA_EM_ABERTO).toContain("parcial");
+  });
+
+  it("a lista da tela não é escrita à mão — deriva de lib/alcada", () => {
+    // Duas listas é como uma delas fica para trás, e foi o que aconteceu:
+    // `ehAgendamento`, `financeiroDia.aberta` e `podeDarBaixa` incluíam
+    // `parcial`; só a constante desta tela não incluía.
+    expect(lista).toContain("STATUS_DA_LISTA_EM_ABERTO");
+    expect(lista).toContain("const EM_ABERTO = STATUS_DA_LISTA_EM_ABERTO.join(\",\")");
+    expect(lista).not.toMatch(/const EM_ABERTO = ["\']/);
+  });
+
+  it("a fila de aprovação entra na lista da tela, mas não no compromisso", () => {
+    // São perguntas diferentes: a tela mostra "o que pede ação hoje", e um
+    // pedido parado na fila pede ação de alguém. `ehAgendamento` pergunta se
+    // o pagamento já foi decidido — e um pedido na fila ainda não foi.
+    expect(STATUS_DA_LISTA_EM_ABERTO).toContain("aguardando_aprovacao");
+    expect(STATUS_EM_ABERTO as readonly string[]).not.toContain("aguardando_aprovacao");
+    // Nada se perde na travessia de uma lista para a outra.
+    for (const s of STATUS_EM_ABERTO) {
+      expect(STATUS_DA_LISTA_EM_ABERTO as readonly string[]).toContain(s);
+    }
   });
 
   it("ordena pelo vencimento mais PRÓXIMO, não pelo mais antigo", () => {

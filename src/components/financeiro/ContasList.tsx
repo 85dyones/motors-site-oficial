@@ -1,16 +1,25 @@
 "use client";
 
-/**
- * Os três estados de uma conta que ainda pede ação. `pago` e `cancelado`
- * ficam de fora: são história, e história no topo da lista foi o que fez um
- * lançamento novo "sumir" na posição 709 em 2026-08-24.
- */
-const EM_ABERTO = "pendente,vencido,aguardando_aprovacao";
-const POR_PAGINA = 50;
-
 import { useEffect, useState } from "react";
 import ContaForm from "./ContaForm";
 import { useConfirm } from "../admin/ConfirmDialog";
+import { STATUS_DA_LISTA_EM_ABERTO } from "../../lib/alcada";
+
+/**
+ * Os estados de uma conta que ainda pede ação. `pago` e `cancelado` ficam de
+ * fora: são história, e história no topo da lista foi o que fez um lançamento
+ * novo "sumir" na posição 709 em 2026-08-24.
+ *
+ * A lista vem de `lib/alcada`, não escrita à mão aqui. Escrita à mão ela
+ * omitia `parcial` — e como este é o filtro que ABRE a tela, uma conta paga
+ * pela metade, com dinheiro ainda devido, não aparecia em lugar nenhum para
+ * quem só abriu o contas a pagar. Todas as outras definições de "em aberto"
+ * do módulo (`ehAgendamento`, `financeiroDia.aberta`, o próprio
+ * `podeDarBaixa` aqui embaixo) sempre incluíram `parcial`; era esta a
+ * divergente. Duas listas é como uma delas fica para trás.
+ */
+const EM_ABERTO = STATUS_DA_LISTA_EM_ABERTO.join(",");
+const POR_PAGINA = 50;
 
 interface Category {
   id: string;

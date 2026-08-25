@@ -14,6 +14,8 @@
  * existe para evitar.
  */
 
+import { STATUS_EM_ABERTO } from "./alcada";
+
 /** O recorte de `contas` que o resumo lê. `valor` chega string do PostgREST. */
 export interface ContaResumivel {
   id: string;
@@ -69,9 +71,12 @@ function valorDe(v: number | string): number {
 /**
  * Conta que ainda espera dinheiro. `parcial` conta como aberta — o que falta
  * pagar segue devido; `cancelado` e `pago` saem do radar do dia.
+ *
+ * A lista vem de `lib/alcada`: era a terceira cópia da mesma definição no
+ * módulo, e a quarta (o filtro inicial de `ContasList`) já tinha divergido.
  */
 function aberta(c: ContaResumivel): boolean {
-  return c.status === "pendente" || c.status === "vencido" || c.status === "parcial";
+  return (STATUS_EM_ABERTO as readonly string[]).includes(c.status);
 }
 
 /**

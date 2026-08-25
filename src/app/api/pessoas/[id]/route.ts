@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ORIGENS, rotearEdicao, type OrigemDaAgenda } from "../../../../lib/agenda";
+import { origemConhecida, type OrigemDaAgenda, ORIGENS, rotearEdicao } from "../../../../lib/agenda";
 
 export const dynamic = "force-dynamic";
 
@@ -99,9 +99,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const origem = request.nextUrl.searchParams.get("origem") as OrigemDaAgenda | null;
+    const origem = request.nextUrl.searchParams.get("origem");
 
-    if (!origem || !ORIGENS[origem]) {
+    // `origemConhecida`, não `!ORIGENS[origem]`: o objeto é literal e herda
+    // `Object.prototype`, então `?origem=constructor` devolvia a função nativa
+    // — truthy — e passava por este portão.
+    if (!origemConhecida(origem)) {
       return NextResponse.json(
         { error: "Informe de qual cadastro é a linha (origem)" },
         { status: 400 },

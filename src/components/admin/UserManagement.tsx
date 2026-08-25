@@ -278,7 +278,12 @@ export default function UserManagement() {
    * A17, papel que o trigger não reconheceu) aparecia na lista como
    * "COMERCIAL" — a tela mentia exatamente para quem precisa corrigir o papel.
    */
-  const ehPapelDePainel = (r: string) => (PERFIS as readonly string[]).includes(r);
+  // `ehPapelDePainel` vem de `lib/permissoes` (import no topo). Havia uma
+  // cópia local exatamente aqui, e ela sombreava o import: as quatro chamadas
+  // desta tela resolviam para a cópia e o import ficava morto. `PERFIS`
+  // ganhando um papel — como `gestor` acabou de ganhar — passaria a ter de ser
+  // pensado em dois lugares, e a mudança no helper compartilhado não chegaria
+  // justamente à tela cujo trabalho é exibir essa distinção.
   const rotuloDoPapel = (r: string) => ROTULO_DO_PAPEL[r] ?? r;
   const getRoleBadgeClass = (r: string) => {
     if (!ehPapelDePainel(r)) return "border border-dashed border-mt-regua text-mt-neutral-600";

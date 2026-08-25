@@ -70,35 +70,72 @@ export async function PUT(
 
     // A aprovação vale na edição também, senão editar seria a porta de
     // evasão: registrar como paga (passa direto) e reabrir como agendamento
-    // depois. Para quem não pode aprovar:
-    //   1. conta aguardando aprovação não muda de status por aqui — a decisão
-    //      é de /contas/[id]/aprovar, com trilha;
-    //   2. edição que TRANSFORMA um registro liquidado em agendamento volta
-    //      para a fila. Editar descrição ou vencimento de um agendamento que
-    //      já estava aprovado não mexe em nada: ele já passou pelo Gestor.
+    // depois. São duas regras, e elas alcançam gente diferente.
     let voltouParaAprovacao = false;
     const { data: perfil } = await supabase
       .from("profiles")
       .select("role, papeis")
       .eq("id", user.id)
       .single();
-    if (!podeDecidirAprovacao(perfisDe(perfil))) {
-      const { data: atual } = await supabase
-        .from("contas")
-        .select("status, tipo")
-        .eq("id", id)
-        .single();
+    const { data: atual } = await supabase
+      .from("contas")
+      .select("status, tipo")
+      .eq("id", id)
+      .single();
 
-      if (atual?.status === "aguardando_aprovacao") {
-        delete updateData.status;
-      } else if (
-        atual &&
-        !ehAgendamento(atual.tipo, atual.status) &&
-        ehAgendamento(updateData.tipo ?? atual.tipo, updateData.status ?? atual.status)
-      ) {
-        updateData.status = "aguardando_aprovacao";
-        voltouParaAprovacao = true;
+    // -----------------------------------------------------------------
+    // 1. Conta parada na fila não muda de status por edição
+    // -----------------------------------------------------------------
+    // A decisão é de `/contas/[id]/aprovar`, que grava quem decidiu e quando.
+    //
+    // A exceção é DESISTIR. Cancelar é o botão que a tela oferece a uma conta
+    // na fila (`ContasList`: some só quando a conta está paga ou já
+    // cancelada), e cancelar não é aprovar — é retirar o pedido antes de
+    // alguém decidir. Aqui a rota fazia `delete updateData.status`: o UPDATE
+    // gravava só o `updated_at`, voltava 200, a tela dizia "Lançamento
+    // cancelado — o registro fica no histórico" e o refresh mostrava a conta
+    // ainda aguardando aprovação. Escrita que reporta sucesso sem escrever é
+    // exatamente o defeito que o código ao redor documenta em três lugares.
+    //
+    // O que não é cancelar agora recebe 409 dizendo por quê, em vez de um 200
+    // que mente.
+    if (atual?.status === "aguardando_aprovacao" && !podeDecidirAprovacao(perfisDe(perfil))) {
+      const novoStatus = updateData.status;
+      const mudaDeStatus = novoStatus !== undefined && novoStatus !== atual.status;
+
+      if (mudaDeStatus && novoStatus !== "cancelado") {
+        return NextResponse.json(
+          {
+            error:
+              "Esta conta está aguardando aprovação: o status é decidido em Aprovações, não pela edição. Para desistir do lançamento, cancele-o.",
+          },
+          { status: 409 },
+        );
       }
+    }
+
+    // -----------------------------------------------------------------
+    // 2. Edição que TRANSFORMA um registro liquidado em agendamento
+    // -----------------------------------------------------------------
+    // Volta para a fila — de quem quer que seja. Editar descrição ou
+    // vencimento de um agendamento que já estava aprovado não mexe em nada:
+    // ele já passou pelo Gestor.
+    //
+    // Esta regra morava dentro de `if (!podeDecidirAprovacao(...))`, que é a
+    // régua que `precisaDeAprovacao` abandonou em 2026-08-24 — *"o dono é
+    // admin, admin aprova, então TODO lançamento dele pulava a fila"*. Aqui o
+    // efeito era pior do que pular a fila: o admin lançava `pago`
+    // (escrituração, passa direto), depois fazia PUT `{status:'pendente'}`, e
+    // a conta virava pagamento agendado ATIVO com `aprovacao_decidida_por` e
+    // `aprovacao_decidida_em` nulos — indistinguível, no razão, de um que
+    // ninguém revisou. É a porta de evasão que este bloco existe para fechar.
+    if (
+      atual &&
+      !ehAgendamento(atual.tipo, atual.status) &&
+      ehAgendamento(updateData.tipo ?? atual.tipo, updateData.status ?? atual.status)
+    ) {
+      updateData.status = "aguardando_aprovacao";
+      voltouParaAprovacao = true;
     }
 
     const { data: updated, error } = await supabase

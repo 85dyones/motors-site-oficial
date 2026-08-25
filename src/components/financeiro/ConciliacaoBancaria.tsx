@@ -19,6 +19,8 @@ import { dataDeHoje } from "../../lib/financeiroDia";
 
 interface LinhaExtrato {
   id: string;
+  /** Junto com o fitid, identifica a linha — dois bancos repetem FITID. */
+  conta?: string | null;
   fitid: string;
   data: string;
   valor: number | string;
@@ -45,6 +47,7 @@ interface Categoria {
 }
 
 interface Sugestao {
+  conta?: string | null;
   fitid: string;
   candidatos: { movimentacaoId: string; distanciaEmDias: number }[];
 }
@@ -53,7 +56,7 @@ interface Estado {
   periodo: { inicio: string; fim: string };
   linhas: LinhaExtrato[];
   movimentacoes: Movimentacao[];
-  prontasParaCasar: { fitid: string; movimentacaoId: string }[];
+  prontasParaCasar: { conta?: string | null; fitid: string; movimentacaoId: string }[];
   sugestoes: Sugestao[];
   soNoBanco: LinhaExtrato[];
   soNoSistema: Movimentacao[];
@@ -277,7 +280,11 @@ export default function ConciliacaoBancaria() {
   };
 
   const movPorId = new Map((estado?.movimentacoes ?? []).map((m) => [m.id, m]));
-  const linhaPorFitid = new Map((estado?.linhas ?? []).map((l) => [l.fitid, l]));
+  // Chaveado por `(conta, fitid)`: o FITID é único dentro de UMA conta, e um
+  // mapa por fitid só devolve a linha do outro banco quando os dois colidem.
+  const chaveDaLinha = (l: { conta?: string | null; fitid: string }) =>
+    `${l.conta ?? ""}\u0000${l.fitid}`;
+  const linhaPorChave = new Map((estado?.linhas ?? []).map((l) => [chaveDaLinha(l), l]));
   const conciliadas = (estado?.linhas ?? []).filter((l) => l.movimentacao_id);
 
   return (
@@ -418,10 +425,10 @@ export default function ConciliacaoBancaria() {
             >
               <div className="flex flex-col divide-y divide-mt-regua-fina">
                 {estado.sugestoes.map((s) => {
-                  const linha = linhaPorFitid.get(s.fitid);
+                  const linha = linhaPorChave.get(chaveDaLinha(s));
                   if (!linha) return null;
                   return (
-                    <div key={s.fitid} className="py-4 flex flex-col gap-3">
+                    <div key={chaveDaLinha(s)} className="py-4 flex flex-col gap-3">
                       <div className="flex items-baseline justify-between gap-4">
                         <div className="flex flex-col gap-0.5">
                           <span className="text-[13px] font-bold text-mt-ink">{linha.descricao}</span>

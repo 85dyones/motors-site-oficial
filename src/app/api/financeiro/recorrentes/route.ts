@@ -3,7 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../../lib/webhook-dispatcher";
 import { recorrenteNovaPrecisaDeAprovacao } from "../../../../lib/alcada";
-import { perfisDe } from "../../../../lib/permissoes";
+import { primeiraGeracao } from "../../../../lib/recorrentes";
 
 export const dynamic = "force-dynamic";
 
@@ -51,23 +51,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
-    // Calculate initial next generation date
-    const today = new Date();
-    let nextGen = new Date(today.getFullYear(), today.getMonth(), dia_vencimento);
-    if (nextGen < today) {
-      nextGen.setMonth(nextGen.getMonth() + 1); // Set for next month if already passed
-    }
+    // A primeira geração. O cálculo mora em `lib/recorrentes` desde que um
+    // terceiro chamador (o check "Repete" da ContaForm) passou a criar
+    // recorrente sem ele — e nascia com `proxima_geracao` nulo, que nenhum
+    // `lte` alcança.
+    const proximaGeracao = primeiraGeracao(parseInt(dia_vencimento));
 
     // Cadastro de recorrente é decisão de gasto — a mais pesada do módulo,
     // porque compromete caixa todo mês sem nenhuma conta existir ainda. Vai
-    // ao Gestor pela mesma régua do agendamento. A GERAÇÃO mensal segue
-    // passando direto: o compromisso já foi assumido aqui.
-    const { data: perfil } = await supabase
-      .from("profiles")
-      .select("role, papeis")
-      .eq("id", user.id)
-      .single();
-    const sobeParaAprovacao = recorrenteNovaPrecisaDeAprovacao(perfisDe(perfil));
+    // ao Gestor pela mesma régua do agendamento, e a régua não pergunta quem
+    // está lançando: era essa pergunta que fazia o lançamento do dono pular a
+    // fila. A GERAÇÃO mensal segue passando direto — o compromisso já foi
+    // assumido aqui.
+    const sobeParaAprovacao = recorrenteNovaPrecisaDeAprovacao();
 
     const { data: inserted, error } = await supabase
       .from("despesas_recorrentes")
@@ -80,7 +76,7 @@ export async function POST(request: NextRequest) {
         frequencia,
         dia_vencimento: parseInt(dia_vencimento),
         forma_pagamento: forma_pagamento || null,
-        proxima_geracao: nextGen.toISOString().split("T")[0],
+        proxima_geracao: proximaGeracao,
         observacoes: observacoes || null,
         created_by: user.id
       })

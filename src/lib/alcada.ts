@@ -34,8 +34,33 @@
 import type { Perfil } from "./permissoes";
 import { podeFazer } from "./permissoes";
 
-/** Status em que a conta ainda compromete pagamento futuro. */
-const EM_ABERTO = new Set(["pendente", "vencido", "parcial"]);
+/**
+ * Status em que a conta ainda compromete dinheiro — a definição de "em aberto"
+ * deste módulo, e a única.
+ *
+ * `parcial` está aqui e é o item que se perde quando alguém reescreve a lista
+ * de cabeça: conta paga pela metade ainda deve a outra metade. Era o que
+ * acontecia no filtro inicial de `ContasList`, que abria a tela escondendo
+ * justamente o dinheiro devido.
+ *
+ * `aguardando_aprovacao` NÃO está: por `ehAgendamento` a pergunta é se o
+ * pagamento já foi decidido, e um pedido parado na fila ainda não é
+ * compromisso. As telas que listam "o que pede ação" somam esse status por
+ * fora — ver `STATUS_DA_LISTA_EM_ABERTO`.
+ */
+export const STATUS_EM_ABERTO = ["pendente", "vencido", "parcial"] as const;
+
+/**
+ * O que a lista de contas mostra quando abre: o que deve dinheiro, mais o que
+ * espera decisão. É a tela do "o que pede ação hoje", e um pedido na fila pede
+ * ação de alguém.
+ */
+export const STATUS_DA_LISTA_EM_ABERTO = [
+  ...STATUS_EM_ABERTO,
+  "aguardando_aprovacao",
+] as const;
+
+const EM_ABERTO = new Set<string>(STATUS_EM_ABERTO);
 
 /**
  * É um agendamento financeiro? Conta **a pagar** que fica em aberto — ou
@@ -127,17 +152,35 @@ export function podeDecidirAprovacao(perfis: Perfil[] | string[]): boolean {
 /**
  * Cadastrar uma despesa recorrente NOVA precisa de aprovação?
  *
- * Sim, pela mesma régua do agendamento — e com mais razão. Assinar uma
- * recorrente de R$ 1.200/mês compromete R$ 14.400 no ano sem que exista uma
- * única conta a pagar ainda; é o exemplo que derrubou a alçada por valor.
+ * **Sim, sempre** — pela mesma régua do agendamento, e com mais razão.
+ * Assinar uma recorrente de R$ 1.200/mês compromete R$ 14.400 no ano sem que
+ * exista uma única conta a pagar ainda; é o exemplo que derrubou a alçada por
+ * valor.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que não recebe mais os papéis de quem lança
+ * ---------------------------------------------------------------------------
+ * O corpo era `!podeDecidirAprovacao(perfis)` — a regra de antes de
+ * 2026-08-24, que `precisaDeAprovacao` abandonou naquele dia justamente
+ * porque anulava a fila: o dono é admin, admin aprova, então tudo que ele
+ * lançava pulava a revisão. A recorrente ficou para trás na mesma mudança, e
+ * o efeito era o pior dos dois mundos: o dono marcava "Repete" numa despesa
+ * de R$ 1.200/mês, a linha nascia `aprovada`, sem `aprovacao_decidida_por`,
+ * nada aparecia em Aprovações — enquanto um `pagar` avulso idêntico, do mesmo
+ * usuário, era obrigado a passar pela fila.
+ *
+ * Quem pode aprovar aprova depois, e a trilha registra que foi o próprio
+ * autor (`aprovacaoEhDoProprioAutor`). Lançar e aprovar são dois atos.
  *
  * O que NÃO passa por aqui é a GERAÇÃO mensal (`/recorrentes/gerar`): o
  * compromisso já foi assumido quando a recorrente foi aprovada, e mandar cada
  * parcela à fila criaria uma avalanche de aprovações idênticas todo mês —
  * o tipo de burocracia que faz a operação parar de usar a ferramenta.
  */
-export function recorrenteNovaPrecisaDeAprovacao(perfis: Perfil[] | string[]): boolean {
-  return !podeDecidirAprovacao(perfis);
+export function recorrenteNovaPrecisaDeAprovacao(): boolean {
+  // A régua do agendamento, aplicada ao ato que a recorrente é: uma conta a
+  // pagar que ainda vai vencer, mês após mês.
+  return precisaDeAprovacao({ tipo: "pagar", status: "pendente", perfis: [] });
 }
 
 /**

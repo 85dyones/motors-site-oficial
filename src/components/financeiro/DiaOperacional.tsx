@@ -37,6 +37,13 @@ type Resumo = Omit<ResumoDoDia, "pagarHoje" | "pagarVencidas" | "receberHoje" | 
   pagarVencidas: ContaDoDia[];
   receberHoje: ContaDoDia[];
   liquidadasNoDia: ContaDoDia[];
+  /**
+   * A rota varreu as contas até o fim? O PostgREST devolve no máximo mil
+   * linhas por chamada; ela pagina, mas tem teto. `false` significa que os
+   * totais abaixo são de um recorte — e um total parcial que não se declara é
+   * indistinguível de um exato.
+   */
+  completo?: boolean;
 };
 
 const formatPrice = (value: number | string) => {
@@ -273,6 +280,12 @@ export default function DiaOperacional() {
       {error && (
         <div className="bg-mt-accent-100 border border-mt-accent-300 text-mt-accent text-xs px-4 py-3 select-none">
           {error}
+        </div>
+      )}
+      {resumo?.completo === false && (
+        <div className="bg-mt-surface border border-mt-accent-300 text-mt-accent-800 text-xs px-4 py-3 select-none">
+          Há mais contas em aberto do que esta varredura alcança. Os totais
+          abaixo são de um recorte, não do dia inteiro.
         </div>
       )}
 

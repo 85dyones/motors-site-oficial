@@ -51,12 +51,14 @@ interface VeiculoDoEstoque {
 
 interface Movimento {
   id: string;
+  /** O perfil de acesso — a rota traduz da ficha para cá antes de responder. */
   investidor_id: string;
   tipo: "aporte" | "retirada";
   valor: number;
   data: string;
   descricao: string | null;
-  veiculo_id: number | null;
+  /** TEXT no razão único: é o código RevendaMais, não a chave numérica. */
+  veiculo_id: string | null;
 }
 
 const dataCurta = (iso: string) =>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
+import { avancarPeriodo } from "../../../../../lib/recorrentes";
 
 export const dynamic = "force-dynamic";
 
@@ -55,38 +56,15 @@ export async function POST() {
         }
 
         // 2. Calculate next generation date
-        const currentGenDate = new Date(item.proxima_geracao + "T12:00:00");
-        const nextGenDate = new Date(currentGenDate);
-
-        switch (item.frequencia) {
-          case "semanal":
-            nextGenDate.setDate(nextGenDate.getDate() + 7);
-            break;
-          case "quinzenal":
-            nextGenDate.setDate(nextGenDate.getDate() + 15);
-            break;
-          case "mensal":
-            nextGenDate.setMonth(nextGenDate.getMonth() + 1);
-            break;
-          case "bimestral":
-            nextGenDate.setMonth(nextGenDate.getMonth() + 2);
-            break;
-          case "trimestral":
-            nextGenDate.setMonth(nextGenDate.getMonth() + 3);
-            break;
-          case "semestral":
-            nextGenDate.setMonth(nextGenDate.getMonth() + 6);
-            break;
-          case "anual":
-            nextGenDate.setFullYear(nextGenDate.getFullYear() + 1);
-            break;
-        }
+        // A escada de frequência mora em `lib/recorrentes`: era esta, mais uma
+        // cópia no POST de recorrentes, e um terceiro chamador sem nenhuma.
+        const proximaGeracao = avancarPeriodo(item.proxima_geracao, item.frequencia);
 
         // 3. Update proxima_geracao date
         const { error: updateError } = await supabase
           .from("despesas_recorrentes")
           .update({
-            proxima_geracao: nextGenDate.toISOString().split("T")[0]
+            proxima_geracao: proximaGeracao
           })
           .eq("id", item.id);
 

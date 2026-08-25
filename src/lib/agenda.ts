@@ -221,6 +221,23 @@ export interface EdicaoRoteada {
 }
 
 /**
+ * Esta origem existe mesmo?
+ *
+ * `ORIGENS` e `CAMPOS_EDITAVEIS` são objetos literais, e objeto literal
+ * herda `Object.prototype`. `ORIGENS["constructor"]` não devolve `undefined`
+ * — devolve a função nativa, que é truthy e passa por qualquer `if (!mapa)`.
+ * A origem chega de fora (corpo do PATCH, query string do DELETE), então a
+ * whitelist tinha um buraco do tamanho do protótipo: `?origem=constructor`
+ * atravessava o portão e produzia "Registro de undefined não se apaga".
+ *
+ * `Object.hasOwn` pergunta o que a whitelist realmente quis perguntar — a
+ * chave está NESTE objeto? — em vez de "existe alguma coisa neste nome".
+ */
+export function origemConhecida(origem: unknown): origem is OrigemDaAgenda {
+  return typeof origem === "string" && Object.hasOwn(ORIGENS, origem);
+}
+
+/**
  * Traduz um patch da agenda para um UPDATE numa tabela concreta.
  *
  * Lança se a origem for desconhecida, se nenhum campo aceito sobrar, ou se o
@@ -234,10 +251,10 @@ export function rotearEdicao(
   origem: string,
   patch: Record<string, unknown>,
 ): EdicaoRoteada {
-  const mapa = CAMPOS_EDITAVEIS[origem as OrigemDaAgenda];
-  if (!mapa) {
+  if (!origemConhecida(origem)) {
     throw new Error(`Origem desconhecida: "${origem}"`);
   }
+  const mapa = CAMPOS_EDITAVEIS[origem];
 
   const valores: Record<string, unknown> = {};
   const recusados: string[] = [];
@@ -245,7 +262,15 @@ export function rotearEdicao(
   for (const [campo, valor] of Object.entries(patch)) {
     // `origem` e `id` viajam no corpo para endereçar a linha, não para gravar.
     if (campo === "origem" || campo === "id") continue;
-    const coluna = mapa[campo as keyof typeof mapa];
+    // `Object.hasOwn`, não `mapa[campo]`: `JSON.parse` cria propriedade
+    // PRÓPRIA para qualquer chave, então um corpo `{"toString":"x"}` fazia
+    // `mapa["toString"]` devolver a função nativa herdada. O campo não entrava
+    // em `recusados`, e o UPDATE seguia para o PostgREST com uma função onde
+    // deveria haver nome de coluna — 500 cru, no lugar do 400 deliberado
+    // "Campo não editável" que este bloco existe para produzir.
+    const coluna = Object.hasOwn(mapa, campo)
+      ? mapa[campo as keyof typeof mapa]
+      : undefined;
     if (!coluna) {
       recusados.push(campo);
       continue;
@@ -255,7 +280,7 @@ export function rotearEdicao(
 
   if (recusados.length > 0) {
     throw new Error(
-      `Campo não editável em "${ORIGENS[origem as OrigemDaAgenda].rotulo}": ` +
+      `Campo não editável em "${ORIGENS[origem].rotulo}": ` +
         `${recusados.join(", ")}`,
     );
   }
@@ -263,7 +288,7 @@ export function rotearEdicao(
     throw new Error("Nenhum campo para atualizar");
   }
 
-  return { tabela: ORIGENS[origem as OrigemDaAgenda].tabela, valores };
+  return { tabela: ORIGENS[origem].tabela, valores };
 }
 
 // ---------------------------------------------------------------------------

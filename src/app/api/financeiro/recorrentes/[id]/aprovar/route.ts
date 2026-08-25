@@ -71,10 +71,22 @@ export async function POST(
       .select(`*, categoria:categorias_financeiras (nome, icone)`)
       .single();
 
-    if (error) {
+    // A corrida de duas pessoas na tela de Aprovações: a primeira decide, a
+    // segunda clica na mesma linha e o `.eq('aprovacao_status','aguardando')`
+    // casa ZERO linhas.
+    //
+    // Zero linhas com `.single()` não é `data: null` no supabase-js — é ERRO
+    // `PGRST116` ("JSON object requested, multiple (or no) rows returned").
+    // Então o `if (error)` genérico disparava primeiro e devolvia 500 com a
+    // mensagem crua do PostgREST, e o 409 explicativo logo abaixo nunca
+    // executava. A segunda pessoa via uma falha do sistema onde a resposta
+    // certa era "alguém já decidiu esta".
+    const naoEstavaAguardando = error?.code === "PGRST116";
+
+    if (error && !naoEstavaAguardando) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    if (!recorrente) {
+    if (naoEstavaAguardando || !recorrente) {
       return NextResponse.json(
         { error: "Esta despesa recorrente não está aguardando aprovação" },
         { status: 409 },

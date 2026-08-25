@@ -39,6 +39,13 @@
 
 /** Uma linha do extrato, já lida do OFX e (talvez) já gravada. */
 export interface LinhaDoBanco {
+  /**
+   * O FITID é único dentro do extrato de UMA conta. Dois bancos numeram cada
+   * um a partir do seu próprio zero e colidem à vontade — por isso a conta
+   * entra na identidade da linha, e não é opcional na prática: o índice único
+   * da tabela é `(conta, fitid)` desde a migração `20260822130000`.
+   */
+  conta?: string;
   fitid: string;
   data: string;
   valor: number;
@@ -58,6 +65,8 @@ export interface MovimentacaoDoCaixa {
 }
 
 export interface Casamento {
+  /** Junto com o fitid, identifica a linha: é o par que o banco garante. */
+  conta?: string;
   fitid: string;
   movimentacaoId: string;
   /** Distância em dias entre a data do banco e a do sistema. */
@@ -65,6 +74,8 @@ export interface Casamento {
 }
 
 export interface Sugestao {
+  /** Junto com o fitid, identifica a linha: é o par que o banco garante. */
+  conta?: string;
   fitid: string;
   /** Do mais provável (menor distância de data) para o menos. */
   candidatos: { movimentacaoId: string; distanciaEmDias: number }[];
@@ -85,6 +96,25 @@ export interface ResultadoDaConciliacao {
 function cents(v: number | string): number {
   const n = typeof v === "number" ? v : parseFloat(v);
   return Number.isFinite(n) ? Math.round(n * 100) : NaN;
+}
+
+/**
+ * A identidade de uma linha do extrato — `(conta, fitid)`, nunca o fitid só.
+ *
+ * O FITID é único dentro do extrato de uma conta, não entre contas: dois
+ * bancos numeram cada um a partir do seu zero, e `001` no Itaú e `001` no
+ * Bradesco são transações diferentes. A migração `20260822130000` fez desse
+ * par o índice único da tabela pela mesma razão. Chavear o motor pelo fitid
+ * sozinho faz a linha de uma conta ser casada contra a movimentação de outra
+ * e some com a segunda do relatório de "só no banco" — que é a razão de a
+ * ferramenta existir.
+ *
+ * O separador é `\u0000` porque não ocorre em número de conta nem em FITID:
+ * um separador que aparece no dado é um separador que se pode forjar.
+ */
+export function chaveDaLinha(linha: { conta?: unknown; fitid: string }): string {
+  const conta = typeof linha.conta === "string" ? linha.conta : "";
+  return `${conta}\u0000${linha.fitid}`;
 }
 
 /**
@@ -152,10 +182,10 @@ export function conciliar(
           a.movimentacaoId.localeCompare(b.movimentacaoId),
       );
 
-    candidatosPorLinha.set(linha.fitid, candidatos);
+    candidatosPorLinha.set(chaveDaLinha(linha), candidatos);
     for (const c of candidatos) {
       const lista = linhasPorMovimentacao.get(c.movimentacaoId) ?? [];
-      lista.push(linha.fitid);
+      lista.push(chaveDaLinha(linha));
       linhasPorMovimentacao.set(c.movimentacaoId, lista);
     }
   }
@@ -168,32 +198,33 @@ export function conciliar(
   // Passo 1 — o par inequívoco: a linha tem UM candidato e esse candidato não
   // é disputado por nenhuma outra linha. Só aqui há casamento automático.
   for (const linha of linhas) {
-    const candidatos = candidatosPorLinha.get(linha.fitid) ?? [];
+    const candidatos = candidatosPorLinha.get(chaveDaLinha(linha)) ?? [];
     if (candidatos.length !== 1) continue;
     const unico = candidatos[0];
     if ((linhasPorMovimentacao.get(unico.movimentacaoId) ?? []).length !== 1) continue;
 
     casados.push({
+      conta: linha.conta,
       fitid: linha.fitid,
       movimentacaoId: unico.movimentacaoId,
       distanciaEmDias: unico.distanciaEmDias,
     });
     movimentacaoUsada.add(unico.movimentacaoId);
-    linhaResolvida.add(linha.fitid);
+    linhaResolvida.add(chaveDaLinha(linha));
   }
 
   // Passo 2 — o que sobrou com candidato vira SUGESTÃO. Deliberadamente não há
   // "melhor esforço" automático aqui: escolher sozinho entre dois pagamentos
   // do mesmo valor é onde um motor de conciliação erra caro e em silêncio.
   for (const linha of linhas) {
-    if (linhaResolvida.has(linha.fitid)) continue;
-    const candidatos = (candidatosPorLinha.get(linha.fitid) ?? []).filter(
+    if (linhaResolvida.has(chaveDaLinha(linha))) continue;
+    const candidatos = (candidatosPorLinha.get(chaveDaLinha(linha)) ?? []).filter(
       (c) => !movimentacaoUsada.has(c.movimentacaoId),
     );
     if (candidatos.length === 0) continue;
 
-    sugestoes.push({ fitid: linha.fitid, candidatos });
-    linhaResolvida.add(linha.fitid);
+    sugestoes.push({ conta: linha.conta, fitid: linha.fitid, candidatos });
+    linhaResolvida.add(chaveDaLinha(linha));
   }
 
   const emSugestao = new Set(sugestoes.flatMap((s) => s.candidatos.map((c) => c.movimentacaoId)));
@@ -201,7 +232,7 @@ export function conciliar(
   return {
     casados,
     sugestoes,
-    soNoBanco: linhas.filter((l) => !linhaResolvida.has(l.fitid)),
+    soNoBanco: linhas.filter((l) => !linhaResolvida.has(chaveDaLinha(l))),
     soNoSistema: movimentacoes.filter(
       (m) => !movimentacaoUsada.has(m.id) && !emSugestao.has(m.id),
     ),

@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { dispatchAdminWebhook } from "../../../../lib/webhook-dispatcher";
 import { precisaDeAprovacao, recorrenteNovaPrecisaDeAprovacao } from "../../../../lib/alcada";
+import { geracaoAposParcela } from "../../../../lib/recorrentes";
 import { perfisDe } from "../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest) {
     // alguém olhar. Ver `recorrenteNovaPrecisaDeAprovacao` em lib/alcada.ts.
     let recorrenciaCriadaId: string | null = null;
     if (recorrencia && tipo === "pagar") {
-      const sobeRecorrente = recorrenteNovaPrecisaDeAprovacao(perfisDe(perfil));
+      const sobeRecorrente = recorrenteNovaPrecisaDeAprovacao();
       const { data: nova, error: erroRec } = await supabase
         .from("despesas_recorrentes")
         .insert({
@@ -184,6 +185,18 @@ export async function POST(request: NextRequest) {
           // O dia do vencimento da primeira parcela vira o dia de todo mês —
           // é o que a tela promete, e o que a pessoa espera.
           dia_vencimento: new Date(data_vencimento + "T12:00:00").getDate(),
+          // Sem esta coluna a recorrente nunca gera nada: `/recorrentes/gerar`
+          // filtra por `.lte('proxima_geracao', hoje)` e NULL não satisfaz
+          // `lte`. A linha ficava ativa, aprovada, visível na tela — e mês
+          // após mês zero contas, sem erro em lugar nenhum.
+          //
+          // A data é a do período SEGUINTE, não a desta parcela: a primeira já
+          // está sendo criada como conta logo abaixo, e apontar para ela faria
+          // o gerador duplicá-la no primeiro dia em que rodasse.
+          proxima_geracao: geracaoAposParcela(
+            data_vencimento,
+            recorrencia.frequencia || "mensal",
+          ),
           forma_pagamento: forma_pagamento || null,
           ativa: true,
           aprovacao_status: sobeRecorrente ? "aguardando" : "aprovada",

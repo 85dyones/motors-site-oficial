@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ErroDeOfx, lerOfx } from "../../../../lib/ofx";
 import {
+  chaveDaLinha,
   conciliar,
   resumirConciliacao,
   type LinhaDoBanco,
@@ -223,7 +224,10 @@ export async function POST(request: NextRequest) {
     const agora = new Date().toISOString();
     let casadas = 0;
     for (const c of resultado.casados) {
-      const linha = linhasDoBanco.find((l) => l.fitid === c.fitid);
+      // Pelo par `(conta, fitid)`, nunca pelo fitid só: dois bancos emitem o
+      // mesmo FITID sem se falarem, e um `find` por fitid grava a conciliação
+      // na linha da conta errada.
+      const linha = linhasDoBanco.find((l) => chaveDaLinha(l as { conta?: unknown; fitid: string }) === chaveDaLinha(c));
       if (!linha) continue;
       const { error } = await supabase
         .from("extrato_bancario")

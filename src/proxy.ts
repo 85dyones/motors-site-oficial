@@ -333,7 +333,17 @@ export async function proxy(request: NextRequest) {
       }
     } catch (err) {
       console.error("[Middleware] Role verification failed:", err);
-      if (isAdminPath) {
+      // As duas ÁREAS, não só o painel. `isInvestidorPath` foi acrescentado ao
+      // portão externo e ao redirect de não autenticado quando a área nasceu,
+      // e ficou de fora justamente daqui. O efeito: se o select em `profiles`
+      // falhasse (blip de conexão, erro de schema), o investidor logado
+      // recebia `{"error":"Erro na verificação de autorização"}` como CORPO DA
+      // PÁGINA, com 403 — um blob de JSON onde `/admin` recebe, do mesmo
+      // handler, o redirect para `/login`.
+      //
+      // Falha fechado nos dois casos, e é o certo; o que estava errado era a
+      // forma. JSON cru é resposta de API, e nenhuma destas duas é API.
+      if (isAdminPath || isInvestidorPath) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
