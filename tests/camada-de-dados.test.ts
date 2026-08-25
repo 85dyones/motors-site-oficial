@@ -132,6 +132,32 @@ describe("os eventos que a mídia precisa", () => {
     expect(fila()[1]).toMatchObject({ lead_type: "proposta", form_id: "form-proposta-veiculo" });
   });
 
+  it("marca o clique que é consequência de um lead já enviado", () => {
+    // Na ficha, no pop-up, na curadoria e na avaliação o site abre o WhatsApp
+    // com a mensagem pronta assim que o lead é registrado: o mesmo envio
+    // dispara `generate_lead` e, logo depois, `click_whatsapp`. Sem `pos_lead`,
+    // o gatilho de conversão do Ads conta duas vezes e o CPA aparente cai pela
+    // metade — erro que parece boa notícia.
+    pushCliqueWhatsApp("PDP - Conversão WhatsApp", { vehicle_id: "1", pos_lead: true });
+    pushCliqueWhatsApp("Home - Faixa de contato");
+
+    expect(fila()[0]).toMatchObject({ pos_lead: true });
+    expect(fila()[1]).not.toHaveProperty("pos_lead");
+  });
+
+  it("os quatro fluxos que abrem o WhatsApp depois do envio marcam `pos_lead`", async () => {
+    const { lerCodigo: lerFonte } = await import("./fonte");
+
+    for (const arquivo of [
+      "src/components/PDPClientWrapper.tsx",
+      "src/components/LeadPopup.tsx",
+      "src/components/CarMatch.tsx",
+      "src/components/AutoAvaliacao.tsx",
+    ]) {
+      expect(lerFonte(arquivo)).toMatch(/Conversão WhatsApp"[\s\S]{0,240}?pos_lead: true/);
+    }
+  });
+
   it("simulação de financiamento é evento próprio", () => {
     pushSimulacaoDeFinanciamento({ vehicle_id: "1", down_payment: 30000, installments: 48 });
     expect(fila()[0]).toMatchObject({ event: "financing_simulation", installments: 48 });

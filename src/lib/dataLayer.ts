@@ -240,13 +240,28 @@ export interface ContextoDeVeiculo {
   vehicle_price?: number;
 }
 
+/**
+ * Contexto de um clique de contato.
+ *
+ * `pos_lead` marca o clique que acontece DEPOIS de um formulário enviado — na
+ * ficha, no pop-up e na avaliação, o site abre o WhatsApp já com a mensagem
+ * pronta assim que o lead é registrado. Sem essa marca, o mesmo envio conta
+ * duas vezes no Google Ads (uma como `generate_lead`, outra como
+ * `click_whatsapp`) e o CPA aparente cai pela metade — o pior tipo de erro de
+ * medição, porque parece boa notícia. Com ela, o gatilho de conversão exclui
+ * esses cliques em uma condição só.
+ */
+export interface ContextoDeContato extends ContextoDeVeiculo {
+  pos_lead?: boolean;
+}
+
 /** Clique em WhatsApp — o principal lead desta vertical (§4.4). */
-export function pushCliqueWhatsApp(local: string, contexto: ContextoDeVeiculo = {}): void {
+export function pushCliqueWhatsApp(local: string, contexto: ContextoDeContato = {}): void {
   push({ event: "click_whatsapp", whatsapp_location: local, ...contexto });
 }
 
 /** Clique para ligar. */
-export function pushCliqueTelefone(local: string, contexto: ContextoDeVeiculo = {}): void {
+export function pushCliqueTelefone(local: string, contexto: ContextoDeContato = {}): void {
   push({ event: "click_to_call", call_location: local, ...contexto });
 }
 

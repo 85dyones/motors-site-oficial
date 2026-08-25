@@ -407,7 +407,8 @@ export default function LeadPopup() {
     // perceber. Agora é o número da empresa, como no resto do site.
     const whatsappUrl = linkWhatsApp(companySettings, leadMessage);
     if (whatsappUrl) {
-      trackContactClick("whatsapp", "Lead Popup - Conversão WhatsApp");
+      // Consequência do lead recém-registrado — ver `pos_lead` em `lib/dataLayer.ts`.
+      trackContactClick("whatsapp", "Lead Popup - Conversão WhatsApp", { pos_lead: true });
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
     } else {
       console.warn("[LeadPopup] Sem número de WhatsApp configurado — nada a abrir.");

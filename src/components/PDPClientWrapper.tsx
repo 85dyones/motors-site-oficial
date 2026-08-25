@@ -445,10 +445,14 @@ export default function PDPClientWrapper({
 
     // Redirect to WhatsApp - ALWAYS executes regardless of API outcome
     const whatsappUrl = linkWhatsApp(companySettings, activeMessage);
+    // `pos_lead`: este clique é a CONSEQUÊNCIA do lead que acabou de ser
+    // registrado, não uma intenção nova. Sem a marca, o mesmo envio contaria
+    // duas vezes no Ads e o CPA apareceria pela metade.
     trackContactClick("whatsapp", "PDP - Conversão WhatsApp", {
       vehicle_id: veiculo.id,
       vehicle_name: nomeDoVeiculo(veiculo),
       vehicle_price: finalPrice,
+      pos_lead: true,
     });
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };

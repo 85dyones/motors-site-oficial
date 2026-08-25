@@ -713,7 +713,7 @@ pelo dono em 2026-08-25).
 |---|---|---|
 | `page_context` | toda navegação | `page_type`, `store_city` |
 | `view_vehicle` | ficha do veículo | `vehicle{...}` + espelho `ecommerce` do GA4 |
-| `click_whatsapp` | todo CTA de WhatsApp | `whatsapp_location`, `vehicle_*` quando houver |
+| `click_whatsapp` | todo CTA de WhatsApp | `whatsapp_location`, `pos_lead`, `vehicle_*` quando houver |
 | `click_to_call` | rodapé e ficha | `call_location` |
 | `generate_lead` | os cinco formulários | `lead_type` (`proposta` · `avaliacao` · `contato` · `curadoria` · `financiamento`), `form_id`, `vehicle_*` |
 | `financing_simulation` | "Monte sua parcela" | `vehicle_id`, `down_payment`, `installments` |
@@ -721,6 +721,14 @@ pelo dono em 2026-08-25).
 | `view_gallery` | galeria em tela cheia | `vehicle_id`, `images_viewed` |
 | `view_specs` | acordeões da ficha | `vehicle_id` |
 | `click_directions` | "Como chegar" das páginas de bairro | `directions_source` |
+
+> ⚠️ **`pos_lead: true` marca o clique que é consequência de um formulário já
+> enviado.** Na ficha, no pop-up, na curadoria e na avaliação, o site abre o
+> WhatsApp com a mensagem pronta assim que o lead é registrado — o mesmo envio
+> dispara `generate_lead` e, logo depois, `click_whatsapp`. **O gatilho de
+> conversão de `click_whatsapp` no GTM precisa excluir `pos_lead`**, senão cada
+> lead conta duas vezes e o CPA aparente cai pela metade. É o pior tipo de erro
+> de medição, porque parece boa notícia.
 
 **Só `click_whatsapp`, `generate_lead` e `click_to_call` devem virar conversão
 PRINCIPAL no Google Ads.** `financing_simulation` e `click_directions` entram

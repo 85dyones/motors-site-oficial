@@ -452,7 +452,8 @@ export default function CarMatch() {
     }
 
     const whatsappUrl = linkWhatsApp(companySettings, finalMsg);
-    trackContactClick("whatsapp", "CarMatch - Conversão WhatsApp");
+    // Consequência do lead recém-registrado — ver `pos_lead` em `lib/dataLayer.ts`.
+    trackContactClick("whatsapp", "CarMatch - Conversão WhatsApp", { pos_lead: true });
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 

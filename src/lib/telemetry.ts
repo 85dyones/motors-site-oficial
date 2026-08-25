@@ -4,7 +4,7 @@ import {
   pushCliqueWhatsApp,
   pushLead,
   pushVeiculo,
-  type ContextoDeVeiculo,
+  type ContextoDeContato,
   type TipoDeLead,
 } from "./dataLayer";
 
@@ -494,7 +494,7 @@ export function trackContactClick(
   method: "whatsapp" | "phone",
   label: string = "",
   /** Veículo de onde partiu o clique, quando houver — a ficha sabe, o rodapé não. */
-  contexto: ContextoDeVeiculo = {},
+  contexto: ContextoDeContato = {},
 ): string | null {
   if (typeof window === "undefined") return null;
 
