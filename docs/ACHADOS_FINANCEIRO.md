@@ -1,24 +1,39 @@
 # Achados de revisão — financeiro, investidores e agenda
 
-Levantados em 2026-08-25 por uma revisão de código sobre `main..HEAD`, antes de
-abrir PR do trabalho de SEO. **Nada aqui foi corrigido.**
+Levantados em 2026-08-25 por uma revisão de código feita antes de abrir o PR do
+trabalho de SEO. **Nada aqui foi corrigido.**
 
-## Por que este documento existe
+## O que estes achados são
 
-A branch `claude/site-structural-improvements-oly9rf` não sai do `main`: ela
-está empilhada sobre ~49 commits de financeiro e investidores (PRs #8–#12,
-mergeados na branch anterior). A revisão, portanto, varreu 191 arquivos — bem
-além dos 67 do trabalho de SEO.
+**Código que já está em produção.** Os 13 itens abaixo vivem no trabalho de
+financeiro e investidores dos PRs #8 a #12, mergeados no `main` em 24/08/2026 —
+não são código novo esperando revisão, são defeitos rodando hoje.
 
-Dos 14 achados, **1 era do SEO** (corrigido na mesma rodada) e **13 são deste
-outro trecho**. Decisão do dono em 2026-08-25: corrigir só os do SEO naquela
-branch e registrar estes aqui, para virarem trabalho próprio com teste próprio —
-misturar dois assuntos numa branch de 2.000 linhas é como um deles passa sem ser
-lido.
+Nenhum deles emite erro. **Todos passam na suíte atual**: os 1.120 testes estão
+verdes e o `tsc` está limpo. Cada item é uma lacuna que os testes de hoje não
+cobrem, não uma regressão que alguém quebrou. Os dois primeiros corrompem dado
+de dinheiro em silêncio.
 
-**Todos passam na suíte atual.** Os 1.120 testes estão verdes e o `tsc` está
-limpo: cada item abaixo é uma lacuna que os testes de hoje não cobrem, não uma
-regressão que alguém quebrou.
+## Como eles apareceram
+
+Por acidente de escopo, e vale registrar o mecanismo porque ele se repete.
+
+A revisão foi pedida sobre a diff da branch de SEO, com `git log main..HEAD`.
+Só que `main` ali é o **ref local**, e neste clone ele nunca tinha recebido
+`fetch` — estava parado em `a0240d6`, três semanas atrás. O comando obedeceu:
+comparou contra um `main` que não existe mais em lugar nenhum, e devolveu 54
+commits e 191 arquivos em vez dos 6 commits e 69 arquivos do trabalho de SEO.
+
+A revisão, portanto, varreu quase todo o financeiro junto. Dos 14 achados, **1
+era do SEO** — corrigido na mesma rodada — e **13 são destes**.
+
+> **A lição:** `main..HEAD` mede contra o ref local. Num clone sem `fetch`
+> recente, ele mente com toda a confiança do mundo. Quem manda é
+> `git ls-remote --heads origin`.
+
+O acidente foi de sorte: ninguém estava procurando aqui, e são 13 defeitos
+reais em produção. Ficam registrados para virar trabalho próprio, com teste
+próprio.
 
 > ⚠️ A revisão foi de passe único, autoverificada, sem segunda opinião
 > independente. Antes de corrigir, **reproduza**. Os dois primeiros valem
