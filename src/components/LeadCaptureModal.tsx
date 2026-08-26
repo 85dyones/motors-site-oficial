@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Turnstile from "./Turnstile";
+import { mascararTelefone, normalizarNumero } from "../lib/whatsapp";
 import { IconeWhatsApp } from "./modernist/primitivos";
 
 export interface LeadCaptureModalProps {
@@ -36,7 +37,7 @@ export default function LeadCaptureModal({
   useEffect(() => {
     if (isOpen) {
       setNome(initialNome);
-      setWhatsapp(initialWhatsapp);
+      setWhatsapp(mascararTelefone(initialWhatsapp));
       setEmail("");
       setErrorMsg("");
       setTurnstileToken("");
@@ -51,7 +52,8 @@ export default function LeadCaptureModal({
             const latest = history[history.length - 1];
             if (latest?.cliente) {
               if (!initialNome && latest.cliente.nome) setNome(latest.cliente.nome);
-              if (!initialWhatsapp && latest.cliente.whatsapp) setWhatsapp(latest.cliente.whatsapp);
+              if (!initialWhatsapp && latest.cliente.whatsapp)
+                setWhatsapp(mascararTelefone(latest.cliente.whatsapp));
               if (latest.cliente.email) setEmail(latest.cliente.email);
             }
           }
@@ -78,6 +80,16 @@ export default function LeadCaptureModal({
 
   const isNameValid = nome.trim().length >= 2;
 
+  // Fixo com DDD (10) ou celular (11). A mesma faixa que `telefoneDoLead`
+  // aceita — abaixo dela o lead chegaria ao CRM com `remoteJid` inválido, que
+  // é pior do que chegar sem telefone.
+  const digitosDoTelefone = normalizarNumero(whatsapp);
+  const isPhoneValid = digitosDoTelefone.length === 10 || digitosDoTelefone.length === 11;
+
+  // O e-mail é opcional: só atrapalha se estiver preenchido e torto. Regra
+  // permissiva de propósito — campo opcional que barra envio custa lead.
+  const isEmailValid = !email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+
   // On touch/narrow viewports the virtual keyboard plus the card height push
   // the submit button out of view — only steal focus where a physical
   // keyboard is the norm.
@@ -92,6 +104,16 @@ export default function LeadCaptureModal({
 
     if (!isNameValid) {
       setErrorMsg("Por favor, digite seu nome.");
+      return;
+    }
+
+    if (!isPhoneValid) {
+      setErrorMsg("Informe um WhatsApp com DDD — (41) 90000-0000.");
+      return;
+    }
+
+    if (!isEmailValid) {
+      setErrorMsg("O e-mail parece incompleto. Corrija ou deixe em branco.");
       return;
     }
 
@@ -170,13 +192,14 @@ export default function LeadCaptureModal({
           )}
 
           <p className="m-0 text-xs font-medium leading-relaxed text-mt-neutral-800">
-            Olá! Para iniciar sua conversa com nossos consultores no WhatsApp, por favor informe o seu nome:
+            Olá! Para iniciar sua conversa com nossos consultores no WhatsApp, informe seu nome e
+            o número em que prefere ser atendido:
           </p>
 
           <form
             onSubmit={handleFormSubmit}
             toolname="solicitar_atendimento_whatsapp"
-            tooldescription="Registra o nome do cliente interessado para iniciar o contato direto no WhatsApp com a equipe da Motors Store."
+            tooldescription="Registra nome, WhatsApp e e-mail do cliente interessado para iniciar o contato direto no WhatsApp com a equipe da Motors Store."
             className="flex flex-col gap-4"
           >
             {errorMsg && (
@@ -188,6 +211,17 @@ export default function LeadCaptureModal({
               </div>
             )}
 
+            {/* ⚠️ Os campos ficam `readOnly` durante o envio, NUNCA `disabled`.
+
+                A conversão otimizada do Ads é lida do DOM no instante em que o
+                `generate_lead` entra no dataLayer — e esse instante cai dentro
+                do `onSubmit`, com `loading` já em `true`. Campo `disabled` é
+                exatamente o tipo de coisa que um varredor de formulário
+                descarta, e o formulário de `/contato`, que é o único que
+                comprovadamente entrega hash em produção, não desabilita nada.
+                `readOnly` trava a edição do mesmo jeito e mantém o campo
+                indistinguível de um campo comum para quem lê o DOM. */}
+
             {/* Name Input */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="lead-name-input" className="mt-rotulo pl-1">
@@ -195,15 +229,80 @@ export default function LeadCaptureModal({
               </label>
               <input
                 id="lead-name-input"
+                name="name"
                 type="text"
+                autoComplete="name"
                 required
                 autoFocus={shouldAutoFocus}
-                disabled={loading}
+                readOnly={loading}
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Digite seu nome..."
                 className="h-11 w-full border border-mt-regua-fina bg-mt-surface px-4 text-sm text-mt-ink placeholder:text-mt-neutral-500 outline-none transition-colors duration-200 focus:border-mt-accent"
                 toolparamdescription="Nome completo do cliente interessado para iniciar a negociação."
+              />
+            </div>
+
+            {/* WhatsApp — obrigatório.
+
+                Dois motivos, e o segundo é o que pesa. (1) Sem telefone o lead
+                chega ao CRM com `remoteJid` vazio: se a pessoa fecha o
+                WhatsApp sem mandar a mensagem, a loja fica com um nome e nada
+                para onde responder. (2) As conversões otimizadas do Ads leem o
+                DOM no instante do `generate_lead` — nome sozinho dá match
+                ZERO. O que a detecção automática procura é `type="tel"` e
+                `autocomplete="tel"`; o `id` ela não usa (ver o comentário do
+                bloco de e-mail).
+
+                Sem `aria-label`: o `<label htmlFor>` logo acima já dá o nome
+                acessível, e um `aria-label="Telefone"` por cima dele faria o
+                leitor de tela anunciar uma coisa e a tela mostrar outra. */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="lead-phone-input" className="mt-rotulo pl-1">
+                Seu WhatsApp
+              </label>
+              <input
+                id="lead-phone-input"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                inputMode="numeric"
+                required
+                readOnly={loading}
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(mascararTelefone(e.target.value))}
+                placeholder="(41) 00000-0000"
+                className="h-11 w-full border border-mt-regua-fina bg-mt-surface px-4 text-sm text-mt-ink placeholder:text-mt-neutral-500 outline-none transition-colors duration-200 focus:border-mt-accent"
+                toolparamdescription="Número de WhatsApp com DDD do cliente interessado."
+              />
+            </div>
+
+            {/* E-mail — opcional.
+
+                ⚠️ Os IDs são `lead-phone-input`/`lead-email-input`, e NÃO
+                `phone-input`/`email-input` como o handoff sugeriu: este modal
+                sobe pelo `LeadPopup`, que está montado no layout raiz e
+                portanto aparece em `/contato`, onde aqueles dois IDs já
+                existem. Dois elementos com o mesmo `id` na mesma página fazem
+                `document.querySelector` devolver o primeiro em ordem de
+                documento — ambiguidade justamente no instante da conversão.
+                Não custa nada: a detecção automática do Google casa por
+                `type`/`autocomplete`/`name`, não por `id`. */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="lead-email-input" className="mt-rotulo pl-1">
+                Seu E-mail <span className="font-normal normal-case tracking-normal text-mt-neutral-500">(opcional)</span>
+              </label>
+              <input
+                id="lead-email-input"
+                name="email"
+                type="email"
+                autoComplete="email"
+                readOnly={loading}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                className="h-11 w-full border border-mt-regua-fina bg-mt-surface px-4 text-sm text-mt-ink placeholder:text-mt-neutral-500 outline-none transition-colors duration-200 focus:border-mt-accent"
+                toolparamdescription="E-mail do cliente interessado, opcional."
               />
             </div>
 
@@ -213,7 +312,7 @@ export default function LeadCaptureModal({
             {/* CTA — vermelho porque é o ponto de decisão do diálogo */}
             <button
               type="submit"
-              disabled={loading || !isNameValid || !turnstileToken}
+              disabled={loading || !isNameValid || !isPhoneValid || !isEmailValid || !turnstileToken}
               className={`mt-btn mt-btn-primario mt-btn-bloco mt-foco mt-2 text-xs uppercase ${
                 loading ? "cursor-wait" : "cursor-pointer"
               }`}

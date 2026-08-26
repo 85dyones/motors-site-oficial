@@ -17,11 +17,24 @@ Dados da concessionária → **GTM**. Aceita o ID puro (`GTM-XXXXXXX`) ou o snip
 inteiro colado; o código extrai só o ID (`sanitizeGtmId`, em
 `src/components/IntegrationsTracker.tsx`).
 
-> ⚠️ **Não configure GA4, Google Ads nem Meta Pixel DENTRO do container.**
-> Os três já são carregados pelo `IntegrationsTracker`, no código. Duplicar
+> ⚠️ **Não configure GA4 nem Meta Pixel DENTRO do container.**
+> Os dois já são carregados pelo `IntegrationsTracker`, no código. Duplicar
 > qualquer um deles conta todo `page_view` em dobro e inutiliza a propriedade.
 > O GTM aqui serve para **eventos** e para tags de terceiros — não para
 > reinstalar o que já está instalado.
+
+> ⚠️ **O Google Ads é a exceção, desde 26/08 — e a exceção está no container
+> de propósito.** A regra acima incluía o Ads e partia de uma premissa que o
+> painel nunca cumpriu: o `IntegrationsTracker` tem o código para dar
+> `config` no `AW-`, mas ele é condicionado ao campo `googleAdsId` de
+> `site_settings`, que está **vazio**. Resultado prático: nenhum `config` do
+> `AW-18360613832` existia na página, e o gtag **enfileirava e descartava**
+> todo hit do Ads — remarketing dinâmico e dados de conversões otimizadas
+> incluídos, em silêncio. A tag **`Tag do Google - AW (conversoes
+> otimizadas)`** preenche essa lacuna e não duplica nada.
+> **Não remova essa tag achando que é duplicação, e não preencha
+> `googleAdsId` no painel** — o §5.1 explica o que cada uma das duas coisas
+> quebra.
 
 O container só carrega **depois do aceite de cookies** (LGPD). Os pushes da
 camada acontecem antes, e isso é de propósito: o GTM processa a fila que já
@@ -208,22 +221,39 @@ No GTM:
 
    | Página | Campo | Seletor CSS |
    |---|---|---|
+   | `/contato` | nome | `#name-input` |
    | `/contato` | e-mail | `#email-input` |
    | `/contato` | telefone | `#phone-input` |
+   | `/avaliacao` | nome | `#nome-input` |
    | `/avaliacao` | WhatsApp | `#whatsapp-input` |
+   | modal de lead (ficha, CarMatch, pop-up, avaliação) | nome | `#lead-name-input` |
+   | modal de lead | telefone | `#lead-phone-input` |
+   | modal de lead | e-mail | `#lead-email-input` |
 
    Criar uma variável **Elemento DOM** (método *Seletor CSS*) por campo e
-   referenciá-las na configuração manual. Para cobrir os dois telefones com
-   uma variável só: `#phone-input, #whatsapp-input`.
+   referenciá-las na configuração manual. Para cobrir todos os telefones com
+   uma variável só: `#phone-input, #whatsapp-input, #lead-phone-input`. Para
+   os e-mails: `#email-input, #lead-email-input`.
 
-   ⚠️ **O alcance é menor do que parece.** O formulário de proposta da ficha
-   (`LeadCaptureModal`) captura **só o nome** — o contato acontece direto no
-   WhatsApp, então não há e-mail nem telefone para coletar no fluxo que mais
-   gera lead. As conversões otimizadas vão enriquecer os leads de `/contato`
-   e `/avaliacao`; para o restante, o caminho de longo prazo é o upload de
-   conversões offline (§4.6 do plano), que casa pelo GCLID.
+   ⚠️ **Por que o modal não usa `#phone-input` e `#email-input`.** O handoff
+   de 26/08 pediu esses IDs, e não dá. O `LeadPopup` está montado no layout
+   raiz (`src/app/layout.tsx`), então o modal pode abrir **em cima de
+   `/contato`** — que já tem os dois. Dois elementos com o mesmo `id` na mesma
+   página fazem `document.querySelector` devolver o primeiro em ordem de
+   documento: ambiguidade no exato instante da conversão. A troca não custa
+   nada porque a **detecção automática do Google não usa o `id`** — ela varre
+   por `type`, `autocomplete` e `name`, e os três campos do modal declaram os
+   três. Travado em `tests/conversoes-otimizadas.test.ts`.
 3. **Tags → `Ads - conv_lead` → Inclui dados fornecidos pelo usuário** →
    marcar e escolher `upd - dados do lead`.
+
+   ⚠️ **Este passo 3 não existe nesta versão do GTM** — descoberto testando em
+   produção em 26/08. A tag "Acompanhamento de conversões do Google Ads" não
+   expõe campo para variável de dados do usuário. Duas saídas foram tentadas e
+   as duas são piores que não fazer nada; ver §5.2. Enquanto o campo não
+   aparecer, **quem entrega os dados é a detecção automática**, e a qualidade
+   dela depende inteiramente da marcação do HTML — que é o que o passo 2 acima
+   descreve e o que o teste prende.
 4. **No Google Ads:** Metas → Conversões → `Enviar formulário de lead` →
    Configurações → **Conversões otimizadas** → ativar, escolhendo
    "Gerenciador de tags do Google". Sem este passo o Ads **descarta** o
@@ -450,6 +480,83 @@ O `dynx_itemid` **precisa ser idêntico** ao `<g:id>` do feed
 (`/api/feed/xml`) e ao `sku` do JSON-LD da ficha. Os três saem da mesma coluna
 do estoque; se algum dia divergirem, o anúncio dinâmico sai em branco.
 
+> **26/08:** os três parâmetros acima **não vieram no import do JSON** — a tag
+> ficou publicada com "Parâmetros personalizados: Nenhum" e ninguém percebeu,
+> porque uma tag de remarketing sem parâmetro dispara igual. Foram preenchidos
+> à mão. Se algum dia o contêiner for reimportado de um export, **conferir esta
+> tabela antes de publicar**: é o tipo de perda que não gera erro nenhum.
+
+---
+
+## 5.1 · A Tag do Google do Ads — a exceção à regra do §0
+
+| Campo | Valor |
+|---|---|
+| Nome | `Tag do Google - AW (conversoes otimizadas)` |
+| Tipo | Tag do Google |
+| ID | `AW-18360613832` |
+| Acionamento | `Initialization - All Pages` |
+
+**O que ela conserta.** Sem um comando de configuração para o destino do Ads,
+o gtag **enfileira os hits e não envia**. O Assistente de Tags dizia isso com
+todas as letras — *"Hits adiados — alguns hits não serão enviados até que um
+comando de configuração seja fornecido"* — e o GTM mantinha o aviso *"Uma tag
+do Google ausente foi encontrada"*. Tudo que dependia do `AW-` ia para o lixo
+em silêncio: remarketing dinâmico e dados de conversões otimizadas inclusive.
+Depois da tag, a conversão passou a mostrar *"✅ Uma tag do Google foi
+encontrada neste contêiner"* e nenhum hit novo saiu adiado.
+
+**Por que isso não é a duplicação que o §0 proíbe.** O `IntegrationsTracker`
+carrega GA4 e Meta Pixel de verdade. Para o Ads ele tem código
+(`src/components/IntegrationsTracker.tsx`, bloco "1.5"), mas condicionado ao
+campo `googleAdsId` de `site_settings` — que está vazio. O bloco nunca rodou.
+
+⚠️ **Duas coisas quebram isto, e as duas são um clique no painel:**
+
+1. **Remover a tag** achando que duplica o `IntegrationsTracker`. Volta tudo a
+   ser hit adiado.
+2. **Preencher `googleAdsId`** em "Dados da concessionária". Isso não "liga o
+   Ads" — ele já está ligado pelo contêiner. O que acontece é (a) um segundo
+   `config` para o mesmo destino e, pior, (b) como `gtmAssumeEventos` também é
+   `false`, o `src/lib/telemetry.ts` volta a disparar a conversão de lead por
+   conta própria, **em cima** da tag `Ads - conv_lead`. Dupla contagem e CPA
+   pela metade, sem nenhum aviso na tela. Se um dia for preciso preencher,
+   marcar `gtmAssumeEventos` **na mesma gravação**.
+
+**No Google Ads:** Conversões → Configurações → Conversões otimizadas → método
+**"Google Tag Manager"** (estava em "Tag do Google").
+
+---
+
+## 5.2 · O que foi testado e NÃO funciona
+
+Registrado para ninguém repetir o caminho. As duas tentativas abaixo foram
+feitas em produção em 26/08 e desfeitas.
+
+**1 · `gtag('set', 'user_data', …)` em HTML personalizado**, rodando como tag
+de configuração antes de `Ads - conv_lead`. O `set` aparece certinho no
+`dataLayer`, com e-mail e telefone — e a tag de conversão **ignora**: os hits
+continuaram saindo em `ec_mode: a` (detecção automática). O próprio GTM avisa
+na interface que "os comandos da gtag podem não funcionar da maneira esperada
+em HTML personalizado". O aviso está certo.
+
+**2 · `user_data = {{upd - dados do lead}}` como parâmetro de configuração da
+Tag do Google.** Pior que a primeira: a Tag do Google roda em `Initialization -
+All Pages`, então a variável é lida com o formulário **ainda vazio**. Saiu
+`ec_mode: m` (manual) com `em` e `pn` em branco — o modo manual desligou a
+detecção automática e não entregou nada no lugar.
+
+**Conclusão.** Nesta versão do GTM a tag de conversão do Ads não expõe campo
+para variável de dados do usuário. Enquanto isso não mudar, quem entrega os
+dados é a **detecção automática**, lendo o DOM no instante do `generate_lead` —
+e a qualidade dela depende inteiramente da marcação do HTML. É por isso que
+`tests/conversoes-otimizadas.test.ts` trava atributo por atributo, e por que os
+campos do modal ficam `readOnly` durante o envio em vez de `disabled`: quando o
+push acontece, `loading` já é `true`.
+
+A variável `upd - dados do lead` fica no contêiner **de propósito**, sem
+consumidor. No dia em que o campo nativo aparecer, é ligar e pronto.
+
 ---
 
 ## 6. Checklist antes de publicar o contêiner
@@ -472,6 +579,34 @@ do estoque; se algum dia divergirem, o anúncio dinâmico sai em branco.
 5. **Google Ads → Conversões**: status "Ativa, recebendo conversões" em até 24h.
 6. No dia seguinte, comparar o volume de `page_view` com a média dos 7 dias
    anteriores. Variação maior que ±10% indica duplicação ou perda.
+
+### 6.1 · Conferir as conversões otimizadas depois do deploy
+
+Os critérios são do §6 do handoff de 26/08 e valem para o deploy que colocou
+telefone e e-mail no modal. GTM → **Visualizar** → conectar em
+`motorsstore.com.br` → abrir uma ficha, preencher o formulário **com telefone**
+e enviar. No Assistente de Tags, aba do destino **`AW-18360613832`** → **Hits
+enviados**:
+
+- [ ] Nenhum aviso de **"Hits adiados"** na sessão nova.
+- [ ] Existe hit **`Conversão`** para `AW-18360613832`.
+- [ ] Existe hit **`Dados fornecidos pelo usuário`** (endpoint
+      `google.com/ccm/form-data/18360613832`).
+- [ ] Nesse hit, `em` traz um hash — formato `tv.1~em.<hash>`. Só `tv.1`
+      significa **vazio**.
+- [ ] Nesse hit, `pn` traz um hash. **Este é o item que o deploy destrava**:
+      antes dele a ficha não tinha campo de telefone, e nome sozinho dá match
+      zero.
+- [ ] O parâmetro `emd` indica a origem detectada, algo como
+      `…lINPUT.s%23lead-phone-input`.
+- [ ] Na ficha, `Ads - Remarketing dinamico` dispara **duas vezes** — a
+      primeira com `dynx_itemid` indefinido (em `page_context`), a segunda com
+      o ID e o preço (em `view_vehicle`).
+
+Depois disso, Google Ads → Conversões → Configurações → Conversões otimizadas:
+o status deve evoluir para indicar registro de dados fornecidos pelo usuário.
+Esse indicador leva **algumas horas** para atualizar — não é motivo para mexer
+em nada antes.
 
 ---
 

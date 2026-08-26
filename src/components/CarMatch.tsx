@@ -9,7 +9,7 @@ import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
 
 /**
  * Tela 04 — Garagem Profiler, na linguagem Modernist.
@@ -356,9 +356,14 @@ export default function CarMatch() {
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
     const utmParams = getUtmParameters();
-    const cleanPhone = leadData.whatsapp;
-    const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
-    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
+    // `telefoneDoLead` normaliza o que veio do campo — que agora chega
+    // mascarado, "(41) 99737-2165". As três linhas que estavam aqui tinham um
+    // `cleanPhone` que não limpava nada: com 15 caracteres o teste de
+    // comprimento falhava e o número seguia para o CRM com parênteses dentro
+    // do `remoteJid`. Ver o comentário em `lib/whatsapp.ts`.
+    const telefone = telefoneDoLead(leadData.whatsapp);
+    const formattedPhone = telefone.comDDI ?? "";
+    const remoteJid = telefone.remoteJid;
 
     // Mesma regra do defaultMsg: voz do cliente, que é quem manda o texto.
     const finalMsg = `Olá! Montei meu perfil no Match de Garagem do site buscando um veículo focado em ${formatObjective(answers.objective)}, até R$ ${formatShort(answers.budgetMax)}. Podem me mostrar as opções que se encaixam?${sufixoRef()}`;
@@ -366,7 +371,7 @@ export default function CarMatch() {
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).
     // Sem veículo específico aqui (é uma curadoria), então não há content_ids.
-    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
       { marca: "CarMatch", modelo: "Curadoria Especial", preco: answers.budgetMax },
       finalMsg,

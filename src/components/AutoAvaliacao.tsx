@@ -8,7 +8,7 @@ import Turnstile from "./Turnstile";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
 import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, mascararTelefone, telefoneDoLead } from "../lib/whatsapp";
 
 /**
  * Tela 05 — Avaliação Express, na linguagem Modernist.
@@ -472,18 +472,11 @@ export default function AutoAvaliacao() {
     logFlowInitiated("Auto-Avaliação", uid);
   }, []);
 
-  // Format WhatsApp input reactively as (XX) XXXXX-XXXX
+  // A regra morava aqui e foi para `lib/whatsapp.ts` quando o
+  // `LeadCaptureModal` ganhou campo de telefone: a mesma máscara escrita duas
+  // vezes diverge na primeira correção — e divergiu, no fixo (ver lá).
   const handleWhatsappChange = (value: string) => {
-    const numbersOnly = value.replace(/\D/g, "");
-    let formatted = numbersOnly;
-
-    if (numbersOnly.length > 2) {
-      formatted = `(${numbersOnly.slice(0, 2)}) ${numbersOnly.slice(2)}`;
-    }
-    if (numbersOnly.length > 7) {
-      formatted = `(${numbersOnly.slice(0, 2)}) ${numbersOnly.slice(2, 7)}-${numbersOnly.slice(7, 11)}`;
-    }
-    setStep3((prev) => ({ ...prev, whatsapp: formatted.slice(0, 15) }));
+    setStep3((prev) => ({ ...prev, whatsapp: mascararTelefone(value) }));
   };
 
   // ─── FIPE Cascading Handlers ───
@@ -715,14 +708,19 @@ export default function AutoAvaliacao() {
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => {
     const utmParams = getUtmParameters();
 
-    const cleanPhone = leadData.whatsapp;
-    const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
-    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
+    // `telefoneDoLead` normaliza o que veio do campo — que agora chega
+    // mascarado, "(41) 99737-2165". As três linhas que estavam aqui tinham um
+    // `cleanPhone` que não limpava nada: com 15 caracteres o teste de
+    // comprimento falhava e o número seguia para o CRM com parênteses dentro
+    // do `remoteJid`. Ver o comentário em `lib/whatsapp.ts`.
+    const telefone = telefoneDoLead(leadData.whatsapp);
+    const formattedPhone = telefone.comDDI ?? "";
+    const remoteJid = telefone.remoteJid;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
     const fipeNumericValue = fipeValor ? Number(fipeValor.replace(/[^\d]/g, "")) / 100 : 0;
-    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
       { marca: step1.marca, modelo: step1.modelo, preco: fipeNumericValue },
       activeMessage,
@@ -1144,7 +1142,9 @@ export default function AutoAvaliacao() {
                   </label>
                   <input
                     id="nome-input"
+                    name="name"
                     type="text"
+                    autoComplete="name"
                     required
                     placeholder="Digite seu nome…"
                     value={step3.nome}
@@ -1162,7 +1162,10 @@ export default function AutoAvaliacao() {
                   </label>
                   <input
                     id="whatsapp-input"
+                    name="phone"
                     type="tel"
+                    autoComplete="tel"
+                    inputMode="numeric"
                     required
                     placeholder="(00) 00000-0000"
                     value={step3.whatsapp}
