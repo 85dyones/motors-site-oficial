@@ -43,6 +43,8 @@ As variáveis de ambiente estão descritas em `.env.example`.
 | `docs/ACHADOS_FINANCEIRO.md` | 13 achados de revisão no financeiro/investidores, ainda não corrigidos |
 | `supabase/README.md` | Migrações, runbook de aplicação e o contrato do sync de estoque |
 | `WEBHOOKS_N8N.md` | Contrato dos webhooks site → n8n (formatos A, B e C) |
+| `docs/MOTOR_DE_GATILHOS.md` | O sentido inverso — o n8n chama, o site responde |
+| `docs/ATENDIMENTO_E_TAGS.md` | Atendimento, tags e referência no Chatwoot — o que existe e o que falta |
 | `TRACKING_SPEC.md` | Meta Pixel/CAPI e Google — spec em produção |
 | `docs/GTM_CONFIGURACAO.md` | Variáveis, tags, gatilhos e conversões do GTM, prontos para copiar |
 | `SETUP_MANUAL.md` | Passo a passo de configuração de contas externas |
