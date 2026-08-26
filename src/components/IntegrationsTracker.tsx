@@ -41,6 +41,9 @@ export default function IntegrationsTracker() {
    */
   const ga4Id = companySettings?.ga4Id || "";
   const gtmId = sanitizeGtmId(companySettings?.gtmId || "");
+  // Default `false`: na dúvida, o código continua medindo. Perder evento é
+  // irreversível; contar em dobro por um dia, não.
+  const assumeEventos = companySettings?.gtmAssumeEventos === true;
   const metaPixelId = companySettings?.metaPixelId || "";
   const googleAdsId = companySettings?.googleAdsId || "";
 
@@ -57,17 +60,21 @@ export default function IntegrationsTracker() {
   /**
    * Avisa o `telemetry.ts` de que o container assumiu os eventos.
    *
-   * Fora do portão de consentimento de propósito: sem aceite, nem o GTM nem o
-   * `gtag` enviam coisa alguma, então o sinalizador só precisa estar certo
-   * sobre a ÚNICA variável que diferencia os dois mundos — o `gtmId` existir.
+   * Exige `gtmId` **e** o consentimento explícito `gtmAssumeEventos`. A
+   * primeira versão olhava só o `gtmId`, e isso estava errado: em 2026-08-26 o
+   * container estava configurado e carregando em produção, mas **vazio** —
+   * importado sem as tags. O código cedeu a vez para quem não media nada, e o
+   * `generate_lead` parou de chegar ao GA4.
    *
-   * O efeito roda assim que as configurações chegam, antes de qualquer lead
-   * possível. Ver a nota longa em `lib/dataLayer.ts` para o porquê de o código
-   * medir enquanto o container está ausente e sair de cena quando ele chega.
+   * Container carregando ≠ container medindo. O site não tem como distinguir
+   * os dois de fora, então quem publicou precisa dizer.
+   *
+   * Fora do portão de consentimento de propósito: sem aceite, nem o GTM nem o
+   * `gtag` enviam coisa alguma.
    */
   useEffect(() => {
-    marcarContainerAtivo(Boolean(gtmId));
-  }, [gtmId]);
+    marcarContainerAtivo(Boolean(gtmId) && assumeEventos);
+  }, [gtmId, assumeEventos]);
 
   // Persist _fbc por 90 dias se veio fbclid na URL e o cookie ainda não existe.
   // Independe de consentimento de analytics: é apenas a captura do parâmetro de

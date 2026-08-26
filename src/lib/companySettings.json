@@ -15,6 +15,7 @@
   "privacyContactEmail": "",
   "ga4Id": "G-KBL1MFN9E3",
   "gtmId": "GTM-TB665RN9",
+  "gtmAssumeEventos": false,
   "metaPixelId": "",
   "googleAdsId": "",
   "googleAdsConversionLabel": "",

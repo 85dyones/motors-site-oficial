@@ -65,8 +65,19 @@ import { SEGMENTOS_DE_PDP } from "./veiculoUrl";
  * sai de cena sozinho quando ele chega. Uma regra só, sem sincronizar deploy
  * com edição de painel, sem lacuna e sem sobreposição.
  *
- * Quem escreve é o `IntegrationsTracker`, que já sabe se vai injetar o GTM.
- * Quem lê é o `telemetry.ts`, antes de falar com o GA4 ou com o Ads.
+ * Quem escreve é o `IntegrationsTracker`; quem lê é o `telemetry.ts`, antes de
+ * falar com o GA4 ou com o Ads.
+ *
+ * ⚠️ **O sinal é `gtmAssumeEventos`, não a existência do `gtmId`.** A primeira
+ * versão inferia do `gtmId` e isso quebrou em produção no mesmo dia: o
+ * container `GTM-TB665RN9` estava no painel e carregando, mas **vazio** —
+ * importado sem as tags. O código cedeu a vez para quem não media nada, e o
+ * `generate_lead` parou de chegar ao GA4 até alguém perceber.
+ *
+ * Container carregando e container medindo são coisas diferentes, e de dentro
+ * do site não dá para distinguir: só quem publicou sabe. Daí o campo separado,
+ * com default `false` — na dúvida o código continua medindo, porque perder
+ * evento é irreversível e contar em dobro por um dia não é.
  *
  * ⚠️ Isto **não** silencia o `dataLayer`: os pushes continuam sempre, porque
  * são eles que alimentam o container. O que o sinalizador desliga é o caminho

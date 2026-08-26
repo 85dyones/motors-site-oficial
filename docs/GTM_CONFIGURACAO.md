@@ -121,13 +121,35 @@ no painel do site. Enquanto o campo está vazio o container não é carregado
 (`IntegrationsTracker`), então publicar não muda nada em produção — e o filtro
 do `pos_lead` precisa estar de pé antes do primeiro clique medido.
 
+### ⚠️ O interruptor do handoff — e por que ele é separado do ID
+
+Em **26/08** este passo custou medição. O container estava configurado no
+painel e **carregando** em produção, mas **vazio** — importado sem as tags. O
+código inferia do `gtmId` que podia se recolher, cedeu a vez para quem não
+media nada, e o `generate_lead` parou de chegar ao GA4.
+
+**Container carregando ≠ container medindo**, e de dentro do site não dá para
+distinguir os dois. Só quem publicou sabe.
+
+Por isso o painel tem, além do ID, a caixa **"O container já publica os
+eventos"** (`gtmAssumeEventos`, default desmarcada):
+
+| Estado | Quem manda `generate_lead` e a conversão do Ads |
+|---|---|
+| desmarcada | o site, por `gtag` — como sempre foi |
+| marcada | o container |
+
+**Marcar somente depois** de importar as tags, publicar e conferir no Modo de
+Visualização que os eventos disparam. Preencher o ID sozinho não muda nada além
+de carregar o container.
+
 ### O que o site faz sozinho a partir daí
 
-`src/lib/telemetry.ts` **cede a vez ao container** no instante em que o `gtmId`
-existe: para de mandar `generate_lead` e a conversão do Ads por `gtag`, e deixa
-o `dataLayer` alimentando as tags. Não há deploy a coordenar com a edição do
-painel — a regra vive no código, em `containerAssumeOsEventos()`
-(`src/lib/dataLayer.ts`).
+`src/lib/telemetry.ts` **cede a vez ao container** no instante em que a caixa
+acima é marcada: para de mandar `generate_lead` e a conversão do Ads por
+`gtag`, e deixa o `dataLayer` alimentando as tags. Não há deploy a coordenar
+com a edição do painel — a regra vive no código, em
+`containerAssumeOsEventos()` (`src/lib/dataLayer.ts`).
 
 ⚠️ **Não preencher `googleAdsId` nem `googleAdsConversionLabel` no painel do
 site.** Com o container ligado eles são redundantes; o código os ignora, mas
