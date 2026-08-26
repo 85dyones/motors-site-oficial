@@ -12,6 +12,7 @@ import CamadaDeDados from "../components/CamadaDeDados";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -184,6 +185,7 @@ export default async function RootLayout({
             <LeadPopup />
             <CookieConsentBanner />
           </MolduraDoSite>
+          <SpeedInsights />
         </ThemeProvider>
       </body>
     </html>
