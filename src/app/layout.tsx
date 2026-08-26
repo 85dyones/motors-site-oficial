@@ -9,6 +9,7 @@ import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import CamadaDeDados from "../components/CamadaDeDados";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
@@ -173,6 +174,10 @@ export default async function RootLayout({
           <CamadaDeDados />
           <IntegrationsTracker />
           <AntigravityTracker />
+          {/* Web Vitals reais (LCP, CLS, INP) por rota, no painel da Vercel.
+              Fica fora do portão de consentimento de propósito: não grava
+              cookie nem identifica o visitante — só mede desempenho. */}
+          <SpeedInsights />
           <MolduraDoSite>
             <Header />
           </MolduraDoSite>
