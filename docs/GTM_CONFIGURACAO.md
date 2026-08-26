@@ -41,9 +41,55 @@ se perde.
 > As seções 1 a 5 abaixo descrevem a configuração completa, para referência.
 > Esta seção lista só o que **falta**, na ordem de custo.
 
-### 1 · O filtro do `pos_lead` — sem ele, cada lead conta duas vezes no Ads
+> **Conferido em 26/08 contra a v3 do export** (`gtm-motorsstore-import-v3.json`):
+> os **10 eventos** e os **25 caminhos de variável** batem exatamente com o que
+> `src/lib/dataLayer.ts` publica — nenhum sobrando, nenhum faltando. Os itens 1
+> e 2 abaixo **foram resolvidos na v3**. Restou um, novo, no item 3.
 
-A tag **`Ads - conv_whatsapp`** está no gatilho cru de `click_whatsapp`. Na
+### ~~1 · O filtro do `pos_lead`~~ — RESOLVIDO na v3
+
+O gatilho `ev - click_whatsapp (conversao)` existe, com a condição
+`{{dlv - pos_lead}}` **EQUALS** `true` **negada**, e `Ads - conv_whatsapp`
+passou a disparar nele. O clique pós-lead deixa de virar conversão. ✅
+
+### ~~2 · `curadoria` na tabela de valor~~ — RESOLVIDO na v3
+
+`js - valor do lead` ganhou `curadoria` nas duas tabelas (taxa `0.10`, fallback
+`420`) e passou a cair para o `vehicle_price` plano quando o `vehicle.price`
+não existe. ✅
+
+### ⚠️ 3 · O remarketing dinâmico nunca vai carregar o item
+
+`Ads - Remarketing dinamico` dispara em **`ev - page_context`** e lê
+`dynx_itemid` de `{{dlv - vehicle.id}}`.
+
+`page_context` é o evento que **zera** o veículo — é ele que impede o carro de
+uma ficha de vazar para a página seguinte (ver `pushCamadaGlobal`). Quando a
+tag dispara, `vehicle` acabou de virar `null` no mesmo push. **`dynx_itemid`
+sai sempre vazio**, e sem item não há remarketing dinâmico: só o `dynx_pagetype`
+chega.
+
+Isso não depende de ordem de execução — a limpeza está dentro do próprio evento
+em que a tag dispara.
+
+**Correção, uma tela:** em `Ads - Remarketing dinamico` → Acionamento,
+**acrescentar** `ev - view_vehicle` ao lado de `ev - page_context`. Na ficha a
+tag passa a disparar duas vezes: a primeira com o tipo de página, a segunda já
+com o item. Tag de remarketing não é conversão, então disparar duas vezes não
+distorce nada.
+
+### Uma observação, não um problema
+
+`GA4 - view_vehicle` está com `sendEcommerceData: false` e a variável
+`ecommerce.items` saiu do container. O site continua publicando o espelho de
+e-commerce em `pushVeiculo` — de propósito: é barato e volta a servir no dia em
+que a opção for religada. Enquanto isso, os relatórios de item do GA4 não se
+alimentam do `view_vehicle`. Se o objetivo for tê-los, é só religar a opção na
+tag; o dado já está lá.
+
+### Anexo · como o filtro do `pos_lead` foi montado (histórico)
+
+Até a v2, a tag **`Ads - conv_whatsapp`** estava no gatilho cru de `click_whatsapp`. Na
 ficha, no pop-up e na avaliação o site abre o WhatsApp **assim que o lead é
 registrado**: o mesmo envio dispara `generate_lead` e, logo depois,
 `click_whatsapp`. As duas viram conversão. Ver a seção §2 abaixo para o porquê
