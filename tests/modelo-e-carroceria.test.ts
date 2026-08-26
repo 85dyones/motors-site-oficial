@@ -89,6 +89,31 @@ describe("2 · a leitura resolve o override, num lugar só", () => {
   });
 });
 
+describe("1b · o WHERE de uma migração de correção sai do dado, não do slug", () => {
+  it("o padrão do Ka casa a grafia real, com o \"+\"", () => {
+    // A primeira versão usava `ILIKE 'Ka Sedan%'`, tirado do slug
+    // `ka-sedan-10-se-flex-4p` — mas a slugificação come o "+". O valor da
+    // coluna é "Ka+ Sedan 1.0 Se Flex 4p", o padrão não casou, o UPDATE
+    // afetou zero linhas e não reclamou. Três dos quatro casos entraram; este
+    // ficou para trás sem nenhum sinal.
+    const casa = (padrao: string, valor: string) =>
+      new RegExp(`^${padrao.replace(/%/g, ".*")}$`, "i").test(valor);
+
+    const real = "Ka+ Sedan 1.0 Se Flex 4p";
+    expect(casa("Ka Sedan%", real)).toBe(false);
+    expect(casa("Ka%Sedan%", real)).toBe(true);
+
+    // E não pode alcançar os outros dois Ka, cujo `modelo` é só "Ka".
+    expect(casa("Ka%Sedan%", "Ka")).toBe(false);
+  });
+
+  it("a migração corretiva usa o padrão certo", () => {
+    const sql = ler("supabase/migrations/20260826200000_corrige_where_do_ka.sql");
+    expect(sql).toContain("ILIKE 'Ka%Sedan%'");
+    expect(sql).toContain("modelo_override IS NULL");
+  });
+});
+
 describe("2b · a URL que o override conserta", () => {
   it("modelo = versao triplica o segmento; o override desfaz", async () => {
     // A forma real do defeito, lida da produção: o feed manda `versao` igual
