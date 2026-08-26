@@ -141,7 +141,9 @@ export default function ContatoClientWrapper() {
               </label>
               <input
                 id="name-input"
+                name="name"
                 type="text"
+                autoComplete="name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -157,7 +159,9 @@ export default function ContatoClientWrapper() {
                 </label>
                 <input
                   id="email-input"
+                  name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -171,7 +175,10 @@ export default function ContatoClientWrapper() {
                 </label>
                 <input
                   id="phone-input"
+                  name="phone"
                   type="tel"
+                  autoComplete="tel"
+                  inputMode="numeric"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(41) 00000-0000"

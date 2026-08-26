@@ -165,6 +165,26 @@ export default function IntegrationsTracker() {
       }
 
       // 1.5. Google Ads Initialization
+      //
+      // ⚠️  **Hoje quem dá o `config` do `AW-18360613832` é o contêiner**, pela
+      // tag "Tag do Google - AW (conversoes otimizadas)", criada em 2026-08-26.
+      // O bloco abaixo NUNCA rodou em produção porque `googleAdsId` está vazio
+      // em `site_settings` — e o resultado disso foi caro: sem `config` na
+      // página, o gtag enfileirava os hits do Ads e não mandava. O Assistente de
+      // Tags mostrava "Hits adiados", e remarketing dinâmico e dados de
+      // conversões otimizadas iam para o lixo em silêncio.
+      //
+      // Isso é exceção à regra do §0 de `docs/GTM_CONFIGURACAO.md` ("não
+      // configure o Ads dentro do contêiner"): a regra vale para GA4 e Meta
+      // Pixel, que este arquivo realmente carrega. Para o Ads ela partia de uma
+      // premissa que o painel nunca cumpriu.
+      //
+      // **Não preencha `googleAdsId` no painel sem antes ler o §5 daquele
+      // documento.** Preencher aqui não é "ligar o Ads": é (a) um segundo
+      // `config` para o mesmo destino e (b) — porque `gtmAssumeEventos` também
+      // é `false` — o `telemetry.ts` voltando a disparar a conversão de lead
+      // por conta própria, em cima da tag `Ads - conv_lead` do contêiner. Dupla
+      // contagem, CPA pela metade, e nenhum aviso na tela.
       if (googleAdsId && !initializedGAds.current) {
         try {
           console.log(`[IntegrationsTracker] Initializing Google Ads with ID: ${googleAdsId}`);
