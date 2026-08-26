@@ -429,9 +429,11 @@ Ordem é dependência, não preferência.
 - `tests/busca-por-ref.test.ts` — 26 asserções, incluindo a que segura o
   `ref_curta` como coluna gerada.
 
-⏳ **A migração ainda não foi aplicada em produção** — ver o runbook em
-`supabase/README.md`. Até o `db push`, a busca responde "aplique a migração"
-em vez de 500.
+✅ **Migração aplicada em produção em 2026-08-26** (confirmado pelo dono). Como
+ela carrega autoconferência que estoura em `raise exception`, ter aplicado
+limpo **é** a prova de que as duas colunas existem, que `ref_curta` é gerada de
+verdade (`attgenerated = 's'`), que a expressão devolve `0DCB1CDC` e que o
+índice está no lugar. A busca por referência está no ar.
 
 ### A2 — Vocabulário travado em código 🔴
 
@@ -690,10 +692,28 @@ em texto livre.
 **Chatwoot 4.17.0, Captain liberado na VPS** (confirmado pelo dono em
 2026-08-26). É o que motivou a revisão no topo desta seção.
 
-O que segue em aberto é só o custo corrente: o Captain usa chave própria de
-provedor de IA (BYOK), então o gasto por mensagem é do modelo escolhido e cai
-direto na conta da loja. Vale medir na primeira semana, com volume real, antes
-de abrir o robô para todos os canais.
+**Sem custo adicional** (dono, 2026-08-26): o Captain roda na VPS da loja e o
+provedor de IA já está resolvido ali. O item de custo que eu tinha deixado
+aberto está fechado.
+
+Mas ele fecha e abre outro, que não é de dinheiro e importa mais: **qual modelo
+está atrás do Captain.** As *custom tools* da §9.0 dependem de chamada de
+função — o modelo precisa ler a descrição da ferramenta, decidir sozinho que
+aquele momento pede consultar o estoque, e extrair marca e modelo da frase do
+cliente. Modelo pequeno rodando local faz isso de forma irregular: às vezes
+chama, às vezes responde de cabeça. E responder de cabeça sobre preço é
+exatamente o que a §9.5 existe para impedir.
+
+Então a conferência muda de pergunta, não some:
+
+1. **Que modelo o Captain está usando** — e se ele suporta *function calling*
+   com confiabilidade.
+2. **Um teste de mesa antes de abrir para cliente:** dez perguntas de preço e
+   disponibilidade, incluindo carro que NÃO está no pátio. O aceite é duro —
+   dez em dez consultando a ferramenta, e a resposta sobre o carro ausente
+   sendo "vou verificar e te retorno" com passagem para humano, nunca um preço
+   inventado. Nove em dez não passa: a décima é um cliente recebendo número
+   errado por escrito.
 
 ### 9.5 A trava, seja qual for a ferramenta escolhida
 
@@ -768,7 +788,9 @@ visível no painel, e não silencioso.
 |---|---|
 | 2026-08-26 | As sete decisões (§10). |
 | 2026-08-26 | **C3 revisada** no mesmo dia: Chatwoot 4.17.0 com Captain liberado, e a caixa `11` confirmada como a do WhatsApp. A recomendação passou de agente no n8n para Captain (§9.0). |
-| 2026-08-26 | **Pacote A1 implementado** — `ag_uid`, `ref_curta` gerada, gravação em `/api/leads` e busca no kanban A8. Migração ainda por aplicar. |
+| 2026-08-26 | **Pacote A1 implementado** — `ag_uid`, `ref_curta` gerada, gravação em `/api/leads` e busca no kanban A8. |
+| 2026-08-26 | **Migração do A1 aplicada em produção.** A autoconferência passou junto (ela estoura se não passar), então a busca por referência está no ar. |
+| 2026-08-26 | **Captain sem custo adicional** — roda na VPS. O item de custo da §9.4 fecha; entra no lugar a conferência do modelo e o teste de mesa das dez perguntas. |
 
 ---
 
@@ -813,10 +835,9 @@ Da §8.3 e da §9:
 Documento criado em 2026-08-26; as sete decisões chegaram no mesmo dia e estão
 na §10, com o histórico de revisões na §10.4.
 
-**O pacote A1 saiu do papel** — é a única parte deste documento que virou
-código. O resto (A2 a A7) segue desenho. A migração do A1 **ainda não foi
-aplicada em produção**; até lá a busca por referência responde "aplique a
-migração", não erro.
+**O pacote A1 saiu do papel e está em produção** — é a única parte deste
+documento que virou código, e a única que já roda. O resto (A2 a A7) segue
+desenho.
 
 A §2 é verificável no código de hoje; a §3, por ausência — menos a §3.2, que
 deixou de ser ausência; as §§4 a 7 são desenho; as §§8 e 9 são desenho
