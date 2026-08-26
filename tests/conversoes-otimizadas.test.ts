@@ -60,6 +60,11 @@ function campoComId(fonte: string, id: string): string {
 describe("1 · a marcação que a detecção automática lê", () => {
   // O checklist do §3.1 do handoff, na ordem de força que ele mesmo dá:
   // `type` é o sinal principal, `autocomplete` o segundo, `name` o terceiro.
+  //
+  // Continuam travados mesmo depois de o contêiner migrar para `user_data`
+  // manual, em que quem casa o campo é o seletor da variável: estes atributos
+  // servem teclado e autofill no celular, e são o caminho de volta se o modo
+  // mudar outra vez. Barato de manter, caro de recuperar.
   const esperado: Record<string, [string, string, string]> = {
     // campo                         → [type, autoComplete, name]
     "modal:lead-phone-input": ["tel", "tel", "phone"],
@@ -118,8 +123,11 @@ describe("1 · a marcação que a detecção automática lê", () => {
     // cima de `/contato` — que já tem `#phone-input` e `#email-input`. Dois
     // elementos com o mesmo id fazem `querySelector` devolver o primeiro em
     // ordem de documento: ambiguidade no exato instante da conversão.
-    // Trocar o id não custa nada, porque a varredura casa por
-    // `type`/`autocomplete`/`name` — o id ela não usa.
+    //
+    // Este teste ficou MAIS importante em 26/08, não menos: o contêiner passou
+    // a usar `user_data` manual, e no modo manual o seletor CSS da variável é
+    // o único caminho dos dados — `querySelector` pegando o campo errado não
+    // degrada o match, zera. Ver §6.1 de `docs/GTM_CONFIGURACAO.md`.
     expect(modal).not.toContain('id="phone-input"');
     expect(modal).not.toContain('id="email-input"');
   });

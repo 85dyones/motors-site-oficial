@@ -6,6 +6,12 @@
 **Complementa:** `docs/GTM_CONFIGURACAO.md`, que ganhou os §5.1, §5.2 e §6.1
 nesta rodada.
 
+> **Revisão de 26/08, depois da primeira leitura.** O contêiner passou a usar
+> `user_data` **manual** — `upd - dados do lead` foi ligada na tag de conversão.
+> Isso muda o critério de aceite (§6) e acrescenta um pré-requisito que **não
+> pode ser pulado** (§6.0). Muda também o custo da decisão sobre os `id` (§3.1),
+> que deixou de ser zero. As duas seções estão marcadas.
+
 ---
 
 ## 1. Resumo executivo
@@ -29,8 +35,9 @@ Três coisas para saber, em ordem de importância:
    partia de uma premissa que precisa de um ajuste — §4 —, e a consequência
    prática é que aquele campo virou uma armadilha de dupla contagem.
 
-**O que depende de você:** o critério de aceite do §6 do documento recebido,
-no GTM Preview. Está reproduzido no §6 abaixo.
+**O que depende de você:** **primeiro** alargar o seletor de `upd - dados do
+lead` para alcançar os campos do modal (§6.0 — sem isso os três fluxos de maior
+volume contribuem zero), e **depois** o critério de aceite no GTM Preview (§6).
 
 ---
 
@@ -49,7 +56,7 @@ no GTM Preview. Está reproduzido no §6 abaixo.
 | §3.2 · conferir `/contato` e `/avaliacao` | ✅ conferido, os dois medem antes de limpar; travado por teste | idem |
 | §3.3 · nada de PII no `dataLayer` | ✅ travado por teste | idem |
 | §5 · atualizar o `GTM_CONFIGURACAO.md` | ✅ §0 reescrito, §5.1 e §5.2 novos | `docs/GTM_CONFIGURACAO.md` |
-| §6 · critérios de aceite | ⏳ **depende de você**, no GTM Preview | §6.1 do `GTM_CONFIGURACAO.md` |
+| §6 · critérios de aceite | ⏳ **depende de você** — e agora tem pré-requisito | §6.0 e §6 abaixo |
 | §7 · tabela de seletores | ✅ atualizada, com as linhas do modal | §0.5 do `GTM_CONFIGURACAO.md` |
 
 Nada do documento ficou de fora.
@@ -68,21 +75,35 @@ existe em toda página do site — **inclusive `/contato`**, que já tem
 `#phone-input` e `#email-input`. Com o pop-up aberto ali, a página passaria a
 ter **dois elementos com o mesmo `id`**: HTML inválido, e `querySelector`
 devolvendo o primeiro em ordem de documento. Ambiguidade exatamente no instante
-da conversão — e do tipo que não dá erro nenhum, só um `emd` apontando para o
-campo errado.
+da conversão — e do tipo que não dá erro nenhum, só o hash do campo errado
+saindo no lugar do certo.
 
 **A troca não custa nada** porque a detecção automática do Google **não usa o
 `id`**: ela varre por `type`, `autocomplete` e `name`, e os três campos do modal
 declaram os três. O próprio §2.3 do documento recebido diz que as variáveis
 baseadas em ID estão *"hoje sem consumidor"*.
 
-**O que muda para você:** no dia em que ligar aquelas variáveis, o seletor
-precisa cobrir os dois conjuntos:
+> ⚠️ **Revisto: “não custa nada” valia para a detecção automática, e o
+> contêiner saiu dela.** Com `upd - dados do lead` ligada na tag de conversão, o
+> Google usa o **modo manual** e para de varrer o DOM — quem casa o campo passa
+> a ser o seletor CSS da variável, e só ele. O `type`/`autocomplete`/`name`
+> deixou de ser o que decide.
+>
+> **A decisão continua certa:** a colisão de `id` com `/contato` era real e
+> continua sendo, e ela quebraria o match de qualquer jeito. O que mudou é o
+> custo — de zero para **uma linha de seletor**, que está logo abaixo.
+
+**O que muda para você:** o seletor da variável precisa cobrir os dois
+conjuntos. Isto agora é **pré-requisito da validação**, não um passo futuro:
 
 | Variável | Seletor |
 |---|---|
 | telefone | `#phone-input, #whatsapp-input, #lead-phone-input` |
 | e-mail | `#email-input, #lead-email-input` |
+
+Sem isso, ficha, CarMatch e pop-up — os três fluxos de maior volume —
+contribuem **zero**, e nada acusa: o `em` vem preenchido pelo lead de
+`/contato` e o checklist passa igual.
 
 Está na tabela do §0.5 do `GTM_CONFIGURACAO.md`, e
 `tests/conversoes-otimizadas.test.ts` impede o modal de voltar a usar os IDs
@@ -204,22 +225,40 @@ fixo passa a aparecer. Agora é 4+4 para fixo e 5+4 para celular, num lugar só.
 
 ---
 
+## 6.0 · Antes de validar: alargar o seletor da variável
+
+⚠️ Com o modo manual, `upd - dados do lead` é o **único** caminho dos dados. Ela
+foi criada apontando para `#email-input` e `#phone-input, #whatsapp-input`, e
+nenhum dos dois alcança o modal. Corrigir em **Variáveis → `upd - dados do
+lead`** antes de rodar o checklist:
+
+| Campo | Seletor |
+|---|---|
+| E-mail | `#email-input, #lead-email-input` |
+| Número de telefone | `#phone-input, #whatsapp-input, #lead-phone-input` |
+
+---
+
 ## 6. Como validar — o critério é seu
 
-Reproduzido do §6 do documento recebido, com a linha do `emd` ajustada ao ID
-novo. Cópia versionada no §6.1 do `GTM_CONFIGURACAO.md`.
+> **Corrigido em 26/08.** A versão anterior mandava procurar o hit *Dados
+> fornecidos pelo usuário* e o parâmetro `emd` — os dois são artefatos da
+> **detecção automática**, e o contêiner não está mais nela. No modo manual os
+> dados viajam no próprio hit de **Conversão**.
 
 1. GTM → **Visualizar** → conectar em `motorsstore.com.br`.
 2. Abrir uma ficha de veículo, preencher o formulário **com telefone**, enviar.
 3. Assistente de Tags → aba do destino **`AW-18360613832`** → **Hits enviados**.
 
 - [ ] Nenhum aviso de **"Hits adiados"** na sessão nova.
-- [ ] Existe hit **`Conversão`** para `AW-18360613832`.
-- [ ] Existe hit **`Dados fornecidos pelo usuário`** (endpoint
-      `google.com/ccm/form-data/18360613832`).
-- [ ] Nesse hit, `em` traz hash — formato `tv.1~em.<hash>`. Só `tv.1` é vazio.
-- [ ] Nesse hit, **`pn` traz hash**. *Este é o item que o deploy destrava.*
-- [ ] `emd` indica a origem, algo como `…lINPUT.s%23lead-phone-input`.
+- [ ] Existe hit **`Conversão`** para `AW-18360613832` — é nele que os dados
+      viajam; no modo manual não há hit separado.
+- [ ] Nesse hit, **`ec_mode: m`**. Se vier `a`, a variável não chegou à tag.
+- [ ] Nesse hit, o `em` traz os **dois** segmentos: `em.<hash>` **e**
+      `pn.<hash>`. Só `tv.1`, sem segmento, é vazio.
+- [ ] O `pn` é o item que o deploy destrava.
+- [ ] Repetir por `/contato` **e** por uma ficha. Se só `/contato` trouxer hash,
+      o seletor do §6.0 não foi alargado.
 - [ ] `Ads - Remarketing dinamico` dispara **duas vezes** na ficha.
 
 Depois: Google Ads → Conversões → Configurações → Conversões otimizadas. O
