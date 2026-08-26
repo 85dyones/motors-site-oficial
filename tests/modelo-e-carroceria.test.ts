@@ -144,6 +144,83 @@ describe("2b · a URL que o override conserta", () => {
   });
 });
 
+describe("1c · dois veículos não podem virar o mesmo nome", () => {
+  it("os três Ford Ka geram caminhos descritivos distintos", async () => {
+    // A asserção que descreve o DANO, não a causa.
+    //
+    // A migração 20260826150000 casou `modelo ILIKE 'Ka Sedan%'` achando que
+    // só alcançaria o 8059102. Alcançou também o 8335025 — cujo `modelo` é
+    // "Ka Sedan SE 1.5 12v", não "Ka" como o comentário dela afirmava —, e os
+    // dois passaram a anunciar "Ka Sedan 1.0 SE Flex 4p". Dois carros, o mesmo
+    // nome, o mesmo caminho.
+    //
+    // Os valores abaixo são os reais, lidos do feed servido em 2026-08-26.
+    const { getVeiculoPdpUrl } = await import("../src/lib/supabase");
+
+    const frota = [
+      { id: "7416830", marca: "Ford", modelo: "Ka", versao: "Se Plus 1.0 Ha C" },
+      { id: "8059102", marca: "Ford", modelo: "Ka", versao: "Sedan 1.0 SE Flex 4p" },
+      { id: "8335025", marca: "Ford", modelo: "Ka Sedan SE 1.5 12v", versao: "Sedan SE 1.5 12v" },
+    ];
+
+    // O caminho SEM o id: é ele que precisa distinguir os carros para um
+    // humano. Com o id no fim, duas fichas erradas continuariam "distintas".
+    const caminhos = frota.map((v) =>
+      getVeiculoPdpUrl({ ...v, tipo: "Sedan" }).split("/").slice(0, -1).join("/"),
+    );
+
+    expect(new Set(caminhos).size, `colidiram: ${caminhos.join(" | ")}`).toBe(frota.length);
+  });
+
+  it("os três continuam no mesmo hub de modelo", async () => {
+    // O que a correção NÃO pode desfazer: agrupar os três em /carros/ford/ka
+    // era o objetivo da rodada inteira.
+    const { slugDeModelo } = await import("../src/lib/veiculoUrl");
+    expect(slugDeModelo("Ford", "Ka", "Se Plus 1.0 Ha C")).toBe("ka");
+    expect(slugDeModelo("Ford", "Ka", "Sedan 1.0 SE Flex 4p")).toBe("ka");
+    expect(slugDeModelo("Ford", "Ka Sedan SE 1.5 12v", "Sedan SE 1.5 12v")).toBe("ka");
+  });
+});
+
+describe("1d · correção pontual em migração se faz por id", () => {
+  it("UPDATE de override por ILIKE só passa declarando o valor lido", async () => {
+    // A regra é chata de propósito: o atalho de casar texto tirado do slug,
+    // em vez do valor da coluna, quebrou isto duas vezes seguidas.
+    //
+    // Quando há id legível, use `WHERE id =`. Quando não há — linha histórica,
+    // sem ficha servida —, o comentário imediatamente acima do UPDATE tem de
+    // dizer de onde o valor foi lido.
+    const { readdirSync } = await import("node:fs");
+    const arquivos = readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql"));
+
+    for (const arquivo of arquivos) {
+      const sql = ler(`supabase/migrations/${arquivo}`);
+      if (!sql.includes("_override")) continue;
+
+      // Cada UPDATE com ILIKE, e as ~14 linhas de comentário antes dele.
+      const blocos = sql.split(/\n(?=UPDATE )/).slice(1);
+      for (const bloco of blocos) {
+        const cabeca = bloco.split("\n")[1] ?? "";
+        if (!/ILIKE/i.test(bloco.split(";")[0])) continue;
+        const antes = sql.slice(0, sql.indexOf(bloco));
+        const comentarioProximo = antes.split("\n").slice(-16).join("\n");
+        expect(
+          /lido|lida|conferid|servid|valor real|feed servido|JSON-LD/i.test(comentarioProximo),
+          `${arquivo}: UPDATE com ILIKE sem declarar de onde o valor foi lido — ${cabeca.trim()}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("a migração corretiva alveja o 8335025 por id", () => {
+    const sql = ler("supabase/migrations/20260826210000_desfaz_override_do_ka_15.sql");
+    expect(sql).toMatch(/WHERE\s+id\s*=\s*8335025/);
+    // NULL, não um valor novo: para este carro o feed sempre esteve certo.
+    expect(sql).toContain("modelo_override = NULL");
+    expect(sql).toContain("versao_override = NULL");
+  });
+});
+
 describe("3 · o sitemap não lista quem se canonicaliza embora", () => {
   it("hub com canonicalDe fica de fora", () => {
     const hubs = lerCodigo("src/lib/hubsDeEstoque.ts");
