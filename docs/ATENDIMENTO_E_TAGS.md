@@ -20,10 +20,11 @@ registradas na §10, e as duas que pediam estudo viraram as §8 e §9.
 sai do código e dos documentos deste repositório. Consequências práticas:
 
 - **A instância existe** (decisão C1, 2026-08-26): `app.chat.v2o5.com.br`,
-  conta `3`, caixa de entrada `11` — mesma família de domínio do n8n. Mas ela
-  **não foi aberta neste levantamento**: exige login. Tudo que este documento
-  diz sobre o que há dentro dela é hipótese a conferir, inclusive se a caixa
-  `11` é a do WhatsApp/Evolution.
+  conta `3`, caixa de entrada `11` — a do WhatsApp, confirmada pelo dono, mesma
+  família de domínio do n8n. Versão **4.17.0, com Captain liberado**. Mas ela
+  **não foi aberta neste levantamento**: exige login. O que este documento diz
+  sobre a configuração interna dela (etiquetas já existentes, agentes, times)
+  segue sendo hipótese a conferir.
 - O repositório continua **não tocando o Chatwoot em nenhum ponto**: zero
   variável de ambiente, zero chamada, zero rota. As três menções ao nome
   (`src/lib/telemetry.ts`, `tests/ref-de-atendimento.test.ts`,
@@ -186,7 +187,9 @@ Estado dos fluxos SDR no n8n, conforme `WEBHOOKS_N8N.md`:
 
 ## 3. O que não existe
 
-Nove buracos, cada um com a prova ao lado.
+Nove buracos, cada um com a prova ao lado. **Um deles — o 3.2 — foi fechado em
+2026-08-26**; fica aqui, marcado, porque a razão dele existir explica metade do
+desenho das §§4 e 5, e apagá-la deixaria as duas sem chão.
 
 ### 3.1 🔴 O Chatwoot não está integrado — em nenhum sentido
 
@@ -194,7 +197,7 @@ Nove buracos, cada um com a prova ao lado.
 `CHATWOOT_URL`, sem `CHATWOOT_API_TOKEN`, sem `account_id`, sem inbox mapeada.
 Nada no site cria contato, abre conversa, aplica rótulo ou escreve nota.
 
-### 3.2 🔴 A referência visível não tem par no banco
+### 3.2 ✅ A referência visível não tinha par no banco — RESOLVIDO em 2026-08-26
 
 `/api/leads` insere `nome, telefone, interesse, canal, veiculo_id, email,
 event_id` — **e não insere `ag_uid`**. Nenhuma migração menciona a coluna
@@ -205,8 +208,16 @@ e **não há consulta possível** que devolva o lead correspondente. O código
 curto resolve o caso "casar de olho" e só; o `ag_uid` inteiro existe no payload
 do n8n e no `externalId` da CAPI, dois lugares onde o atendente não vai olhar.
 
-É o furo mais barato de fechar e o que mais compromete a promessa de
-rastreabilidade — está no Pacote A1 abaixo.
+Era o furo mais barato de fechar e o que mais comprometia a promessa de
+rastreabilidade. **Fechado pelo pacote A1** (§7): a migração
+`20260826120000_ag_uid_no_lead.sql` cria `leads.ag_uid` e a coluna gerada
+`leads.ref_curta`, `/api/leads` passa a gravar o rastreio, e o kanban A8 ganhou
+busca pelo código. Coberto por `tests/busca-por-ref.test.ts`.
+
+A cobertura começa na data: lead recebido antes de 2026-08-26 não tem
+referência guardada, e não há backfill possível — o `ag_uid` daquelas linhas
+não existe em lugar nenhum deste banco. A tela diz isso quando a busca não
+acha, para o atendente não concluir que digitou errado.
 
 ### 3.3 🔴 Não há vocabulário de tag
 
@@ -402,14 +413,25 @@ responder "quanto tempo o lead ficou no SDR antes de chegar no comercial", que
 
 Ordem é dependência, não preferência.
 
-### A1 — Fechar o furo da referência 🔴 *pré-requisito de tudo*
+### A1 — Fechar o furo da referência ✅ **feito em 2026-08-26**
 
-- Coluna `ag_uid text` em `leads` + índice em `upper(left(ag_uid,8))`.
-- `/api/leads` passa a gravá-la (já tem o valor resolvido em `resolvedAgUid`).
-- Busca por `Ref` no kanban A8, avisando em caso de prefixo ambíguo.
-- Teste: lead gravado com `ag_uid` é encontrado pelo código curto.
+- `leads.ag_uid` (rastreio inteiro) e `leads.ref_curta` — esta **gerada** como
+  `upper(left(ag_uid,8))` e indexada. Gerada porque o PostgREST não expressa
+  predicado funcional (a busca cairia em `ilike`, sem índice) e porque coluna
+  escrita poderia divergir do `ag_uid`.
+- `/api/leads` grava o rastreio, filtrado pelo **mesmo** `refCurta()` que
+  decide se o cliente vê a referência na mensagem. As duas pontas não podem
+  discordar: se discordassem, voltaria a existir código impresso sem lead
+  correspondente.
+- Busca por referência no kanban A8: aceita `0DCB1CDC`, `0dcb1cdc`,
+  `(Ref: 0DCB1CDC)` e o UUID inteiro colado; avisa quando o prefixo casa com
+  mais de um lead; e distingue "a busca não achou" de "não há lead nenhum".
+- `tests/busca-por-ref.test.ts` — 26 asserções, incluindo a que segura o
+  `ref_curta` como coluna gerada.
 
-Sem A1, tag nenhuma leva a lugar nenhum. É meia migração e um `insert`.
+⏳ **A migração ainda não foi aplicada em produção** — ver o runbook em
+`supabase/README.md`. Até o `db push`, a busca responde "aplique a migração"
+em vez de 500.
 
 ### A2 — Vocabulário travado em código 🔴
 
@@ -583,8 +605,52 @@ mesmo dia para a mesma pessoa. Mais duas próprias do resgate:
 
 Decisão C3. O dono pediu recomendação para verificar.
 
-**Recomendação: agente no n8n, registrado como Agent Bot do Chatwoot.** Não
-Typebot, não respostas rápidas.
+> **Revisada em 2026-08-26**, depois da conferência pedida na §9.4. A instância
+> roda **Chatwoot 4.17.0 com Captain liberado** — e o Captain 4.x tem
+> *custom tools*, que era exatamente a peça cuja ausência tornaria a §9.5
+> impossível. A recomendação mudou de "agente no n8n" para **Captain**; o
+> raciocínio antigo segue abaixo porque continua valendo como plano B, e
+> porque as quatro razões da §9.2 são o que faz o Captain ganhar por margem
+> ainda maior.
+
+**Recomendação: o Captain do próprio Chatwoot.** O agente no n8n é o plano B;
+Typebot e respostas rápidas estão fora.
+
+### 9.0 Por que o Captain, e não o agente no n8n
+
+O que decide é a §9.2 aplicada a ele mesmo: **cada razão para preferir n8n a
+Typebot vale mais forte ainda para preferir Captain a n8n.** Ele é zero
+infraestrutura nova — vive dentro do Chatwoot que a loja já roda e já
+licenciou. Não há workflow que possa ficar desligado em silêncio, que é o modo
+de falha campeão deste projeto. E o handoff deixa de ser algo que a gente
+implementa e passa a ser lógica do produto: o 4.x inclusive pula a passagem
+quando a conversa já não está `pending`.
+
+A objeção que sobrava era a §9.5 — um agente que não consulta o estoque
+inventaria preço. **As *custom tools* resolvem isso nativamente:** define-se um
+endpoint, o esquema dos parâmetros que o Captain deve extrair da conversa, e
+uma descrição de quando usá-lo; ele decide sozinho a hora de chamar.
+Autenticação aceita Bearer, GET e POST, e o teto é de 15 ferramentas por conta
+— folgado para as duas ou três que este caso pede.
+
+**O que o Captain cobra em troca, e é honesto dizer:** a configuração dele
+mora no painel do Chatwoot, **não no git**. Este repositório tem regra
+explícita e cara sobre isso — *"migrações são versionadas; nunca altere schema
+direto pelo painel"* — e o prompt, as ferramentas e os limiares do Captain
+seriam exatamente o tipo de estado que ninguém revisa e ninguém consegue
+reverter. Mitigação obrigatória: **um instantâneo da configuração versionado
+neste repositório a cada mudança**, nem que seja um JSON exportado à mão. Sem
+isso, o dia em que o robô começar a responder errado ninguém saberá o que
+mudou nem quando.
+
+**O pré-requisito que o Captain não dispensa:** `GET /api/estoque` **exige
+sessão de navegador** (`supabase.auth.getUser()`, 401 sem ela) — o Captain não
+tem cookie. Precisa de uma rota de leitura própria, com Bearer, devolvendo só
+o que o robô pode dizer: marca, modelo, versão, ano, km, preço público e
+disponibilidade. Nunca `preco_compra`, nunca placa. Esse trabalho existiria
+igual com o agente no n8n; não é diferença entre os dois, é item do A4.
+
+### 9.0-b O plano B, e o que o resto desta seção ainda vale
 
 ### 9.1 O mecanismo que decide
 
@@ -619,19 +685,28 @@ Se o diálogo fosse formulário rígido de campos fixos, e a edição precisasse
 ser feita por quem não mexe em n8n. Não é o caso: C2 põe o robô no WhatsApp,
 em texto livre.
 
-### 9.4 O que conferir na instância antes de fechar
+### 9.4 A conferência que estava pendente — respondida
 
-**A versão do Chatwoot no `app.chat.v2o5.com.br`.** As versões recentes trazem
-um agente de IA próprio (Captain); se estiver disponível e habilitado, é uma
-quarta opção e merece comparação de custo antes de escrever o agente no n8n.
-Não deu para verificar daqui — a instância exige login.
+**Chatwoot 4.17.0, Captain liberado na VPS** (confirmado pelo dono em
+2026-08-26). É o que motivou a revisão no topo desta seção.
+
+O que segue em aberto é só o custo corrente: o Captain usa chave própria de
+provedor de IA (BYOK), então o gasto por mensagem é do modelo escolhido e cai
+direto na conta da loja. Vale medir na primeira semana, com volume real, antes
+de abrir o robô para todos os canais.
 
 ### 9.5 A trava, seja qual for a ferramenta escolhida
 
 O agente **nunca** afirma preço, disponibilidade ou condição de pagamento que
-não tenha lido de `/api/estoque`. O que não está lá, ele não diz — passa para
-humano. É a mesma regra que o resto do projeto aplica a número que não se
-inventa.
+não tenha lido do estoque. O que não está lá, ele não diz — passa para humano.
+É a mesma regra que o resto do projeto aplica a número que não se inventa.
+
+Com o Captain isso vira uma *custom tool* de leitura, apontada para a rota
+nova da §9.0 e descrita como *"consulta o estoque da loja por marca, modelo ou
+faixa de preço"*. A régua de segurança das ferramentas vale aqui integralmente:
+escopo apertado, e **nenhuma ferramenta de escrita** na primeira linha — um
+robô que agenda, cancela ou promete desconto tem raio de explosão que não se
+confia a quem entrou hoje.
 
 ---
 
@@ -641,7 +716,7 @@ inventa.
 |---|---|---|
 | C1 | Existe instância de Chatwoot? | **Sim.** `app.chat.v2o5.com.br`, conta `3`, caixa de entrada `11` — mesma família de domínio do n8n. Destrava A3. |
 | C2 | Quem é o SDR? | **Robô puro** na primeira linha. Pessoa entra **só no resgate/reativação**. |
-| C3 | Ferramenta do diálogo | Recomendação na §9: **agente no n8n como Agent Bot do Chatwoot**. Aguarda conferência do dono. |
+| C3 | Ferramenta do diálogo | **Captain**, o agente do próprio Chatwoot — instância em 4.17.0 com ele liberado, e as *custom tools* do 4.x resolvem a trava do estoque nativamente (§9.0). Agente no n8n fica como plano B. Duas condições: rota de leitura com Bearer para o robô, e instantâneo da configuração versionado no repositório. |
 | C4 | Régua do resgate | **Três réguas** (§8): alarme interno em 24 h; curto em D+5/12/23/40; longo em D+90 e D+270, só com carro que case. |
 | C5 | Administrativo-financeiro no atendimento | **Criar a função** `time_admin-financeiro`. Pessoas a definir depois. |
 | C6 | Papel de pós-venda | **Sim**, papel próprio no painel. Encerra o arranjo transitório da D9 do `AUDITORIA.md`. |
@@ -687,6 +762,16 @@ visível no painel, e não silencioso.
 
 ---
 
+### 10.4 O que mudou depois de 26/08
+
+| Quando | O quê |
+|---|---|
+| 2026-08-26 | As sete decisões (§10). |
+| 2026-08-26 | **C3 revisada** no mesmo dia: Chatwoot 4.17.0 com Captain liberado, e a caixa `11` confirmada como a do WhatsApp. A recomendação passou de agente no n8n para Captain (§9.0). |
+| 2026-08-26 | **Pacote A1 implementado** — `ag_uid`, `ref_curta` gerada, gravação em `/api/leads` e busca no kanban A8. Migração ainda por aplicar. |
+
+---
+
 ## Fontes
 
 Da §8, na ordem em que aparecem:
@@ -714,16 +799,29 @@ Da §8.3 e da §9:
   — o `pending` → `open` que sustenta a §9.1
 - [How to add labels — documentação do Chatwoot](https://www.chatwoot.com/hc/user-guide/articles/1677496066-how-to-add-labels)
   — a validação de rótulo que impõe o `familia_valor` da §5
+- [Captain Custom Tools](https://www.chatwoot.com/blog/captain-custom-tools) e
+  [Lesson 5: AI Actions](https://www.chatwoot.com/hc/user-guide/articles/1777328078-lesson-5-ai-actions)
+  — as ferramentas que sustentam a §9.0: endpoint, esquema de parâmetros,
+  autenticação Bearer, GET e POST, teto de 15 por conta
+- [How to enable Captain on self-hosted installations](https://www.chatwoot.com/hc/user-guide/articles/1755284287-how-to-enable-captain-on-self_hosted-installations)
+  — o BYOK que define o custo corrente da §9.4
 
 ---
 
 ## Registro
 
-Documento criado em 2026-08-26; as sete decisões chegaram no mesmo dia e
-estão na §10. **Nada aqui está aplicado** — segue sendo levantamento e
-proposta, e nenhuma linha de código ou migração saiu deste documento ainda.
+Documento criado em 2026-08-26; as sete decisões chegaram no mesmo dia e estão
+na §10, com o histórico de revisões na §10.4.
 
-A §2 é verificável no código de hoje; a §3, por ausência; as §§4 a 7 são
-desenho; as §§8 e 9 são desenho fundamentado, com as fontes acima. A próxima
-coisa a fazer é o pacote **A1** — a coluna `ag_uid` em `leads` —, que não
-depende de nenhuma resposta pendente.
+**O pacote A1 saiu do papel** — é a única parte deste documento que virou
+código. O resto (A2 a A7) segue desenho. A migração do A1 **ainda não foi
+aplicada em produção**; até lá a busca por referência responde "aplique a
+migração", não erro.
+
+A §2 é verificável no código de hoje; a §3, por ausência — menos a §3.2, que
+deixou de ser ausência; as §§4 a 7 são desenho; as §§8 e 9 são desenho
+fundamentado, com as fontes acima.
+
+O próximo passo é o **A2**, o vocabulário travado em código — e antes dele,
+ler o esquema da `lead_tags` que já existe vazia no banco, para decidir entre
+reaproveitar e derrubar.

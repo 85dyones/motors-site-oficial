@@ -3,8 +3,34 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
+import { normalizarRef } from "../../../../lib/leadsKanban";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Quem pode receber um lead. Vem junto na resposta do kanban em vez de uma
+ * rota nova porque `/api/users` exige Admin — e quem atende lead é Comercial,
+ * que precisa escolher o responsável e não pode listar usuários. Quem chama
+ * já checou a permissão.
+ *
+ * `responsavel` na tabela é TEXTO, não FK (ver migração 20260807210000): o
+ * consultor pode sair da empresa e o histórico do lead continua legível. Esta
+ * lista serve para escolher sem erro de digitação, não para virar chave
+ * estrangeira.
+ */
+async function listarAtendentes(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+): Promise<{ nome: string }[]> {
+  const { data: perfis } = await supabase
+    .from("profiles")
+    .select("full_name, role, papeis")
+    .in("role", ["admin", "comercial"])
+    .order("full_name");
+  if (!perfis) return [];
+  return perfis
+    .map((p) => ({ nome: (p.full_name || "").trim() }))
+    .filter((p) => p.nome);
+}
 
 /**
  * Leitura e gestão da fila de leads (telas A1 e A8).
@@ -38,6 +64,57 @@ export async function GET(request: NextRequest) {
     const perfil = perfisDe(profile);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
 
+    // ── Busca pela referência que o cliente leu na mensagem ──
+    //
+    // O atendente digita `0DCB1CDC` — os 8 primeiros do `ag_uid`, que é o que
+    // toda mensagem pré-preenchida do site carrega. `ref_curta` é coluna
+    // GERADA (`20260826120000_ag_uid_no_lead.sql`), então isto é `eq` exato
+    // num índice, não varredura.
+    //
+    // Vem ANTES da listagem de propósito: a lista normal para em 500 linhas, e
+    // o caso de uso desta busca é justamente o lead que não está à vista.
+    const refBruta = new URL(request.url).searchParams.get("ref");
+    if (refBruta !== null) {
+      // Consulta de referência devolve nome e telefone — é leitura de PII, e
+      // portanto a mesma régua do kanban. Marketing recebe agregado ali e
+      // recusa aqui, em vez de um agregado de uma linha só, que não agrega
+      // nada e vazaria a existência do lead.
+      if (!podeVer) {
+        return NextResponse.json(
+          { error: "Seu perfil não consulta lead por referência" },
+          { status: 403 },
+        );
+      }
+
+      const ref = normalizarRef(refBruta);
+      if (!ref) {
+        return NextResponse.json(
+          { error: "A referência tem 8 caracteres, como em 0DCB1CDC." },
+          { status: 400 },
+        );
+      }
+
+      const { data: achados, error: erroBusca } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("ref_curta", ref)
+        .order("created_at", { ascending: false })
+        .limit(25);
+
+      if (erroBusca) {
+        if (ehTabelaOuColunaAusente(erroBusca)) {
+          return NextResponse.json({ leads: [], migracaoPendente: true });
+        }
+        return NextResponse.json({ error: erroBusca.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        leads: achados ?? [],
+        atendentes: await listarAtendentes(supabase),
+        busca: { ref, total: (achados ?? []).length },
+      });
+    }
+
     // `created_at`, não `criado_em`: a tabela `leads` é preexistente e já
     // trazia esse nome. Renomear quebraria consumidor externo — ver a nota na
     // migração 20260807210000.
@@ -67,28 +144,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
-    // rota nova porque `/api/users` exige Admin — e quem atende lead é
-    // Comercial, que precisa escolher o responsável e não pode listar
-    // usuários. Aqui a permissão já foi checada acima.
-    //
-    // `responsavel` na tabela é TEXTO, não FK (ver migração 20260807210000):
-    // o consultor pode sair da empresa e o histórico do lead continua legível.
-    // Esta lista serve para escolher sem erro de digitação, não para virar
-    // chave estrangeira.
-    let atendentes: { nome: string }[] = [];
-    const { data: perfis } = await supabase
-      .from("profiles")
-      .select("full_name, role, papeis")
-      .in("role", ["admin", "comercial"])
-      .order("full_name");
-    if (perfis) {
-      atendentes = perfis
-        .map((p) => ({ nome: (p.full_name || "").trim() }))
-        .filter((p) => p.nome);
-    }
-
-    return NextResponse.json({ leads, atendentes });
+    return NextResponse.json({ leads, atendentes: await listarAtendentes(supabase) });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

@@ -59,3 +59,30 @@ export function opcoesDeResponsavel(
   for (const l of leads) if (l.responsavel) nomes.add(l.responsavel);
   return [...nomes].sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
+
+/**
+ * Normaliza o que o atendente digitou na busca por referência.
+ *
+ * O que o cliente lê na mensagem é `(Ref: 0DCB1CDC)`, mas o que chega no
+ * campo pode ser qualquer coisa: com o "Ref:" junto, com parênteses, em
+ * minúsculas, ou o UUID inteiro colado da nota do Chatwoot. Os quatro têm de
+ * levar ao mesmo lead.
+ *
+ * A régua tem dois passos, e a ordem entre eles importa:
+ *
+ * 1. **Tira o rótulo "Ref" do começo.** Precisa vir antes, porque o `e` de
+ *    "Ref" é dígito hexadecimal válido — filtrar hex primeiro transformaria
+ *    `Ref:0DCB1CDC` em `E0DCB1CD` e a busca não acharia nada, sem dizer por
+ *    quê. `R` e `f` sairiam sozinhos; o `e` é a armadilha.
+ * 2. **Joga fora o que não é hex** — hífens, espaços, parênteses —, sobe para
+ *    caixa alta e fica com os 8 primeiros.
+ *
+ * Devolve `""` quando não sobram 8 caracteres. Quem chama trata isso como
+ * "busca incompleta" e diz ao atendente o que falta, em vez de procurar um
+ * prefixo curto e devolver meia dúzia de leads sem relação entre si.
+ */
+export function normalizarRef(entrada: string): string {
+  const semRotulo = (entrada || "").replace(/^\s*\(?\s*ref\s*:?\s*/i, "");
+  const hex = semRotulo.replace(/[^0-9a-fA-F]/g, "").toUpperCase();
+  return hex.length >= 8 ? hex.slice(0, 8) : "";
+}

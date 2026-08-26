@@ -5,6 +5,7 @@ import {
   SEM_DONO,
   filtrarPorResponsavel,
   iniciais,
+  normalizarRef,
   opcoesDeResponsavel,
 } from "../../lib/leadsKanban";
 
@@ -42,6 +43,12 @@ interface Lead {
   /** `created_at`, não `criado_em`: a tabela é preexistente e já usava esse
    *  nome — ver a nota na migração 20260807210000. */
   created_at: string;
+  /** UUID de rastreio. Nulo em lead anterior a 2026-08-26 e em quem chegou
+   *  sem cookie — ver `20260826120000_ag_uid_no_lead.sql`. */
+  ag_uid?: string | null;
+  /** Os 8 primeiros do `ag_uid` em caixa alta: o código que o cliente lê na
+   *  mensagem. Coluna GERADA no banco. */
+  ref_curta?: string | null;
 }
 
 const ETAPAS: Array<{ id: string; rotulo: string }> = [
@@ -82,17 +89,26 @@ export default function LeadsKanban() {
   const [agregado, setAgregado] = useState<{ total: number; porSituacao: Record<string, number> } | null>(null);
 
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  const [ref, setRef] = useState("");
+  const [buscando, setBuscando] = useState(false);
+  /** Resultado da última busca por referência; `null` = nenhuma busca ativa. */
+  const [busca, setBusca] = useState<{ ref: string; total: number } | null>(null);
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<string | null>(null);
   const [anotando, setAnotando] = useState<string | null>(null);
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (refBuscada?: string) => {
     setCarregando(true);
     setErro("");
     try {
-      const res = await fetch("/api/leads/gerenciar");
+      const res = await fetch(
+        refBuscada
+          ? `/api/leads/gerenciar?ref=${encodeURIComponent(refBuscada)}`
+          : "/api/leads/gerenciar",
+      );
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Falha ao carregar leads");
+      setBusca(d.busca ?? null);
       if (d.migracaoPendente) {
         setMigracaoPendente(true);
       } else if (d.somenteAgregado) {
@@ -143,6 +159,37 @@ export default function LeadsKanban() {
 
   const mover = (id: string, situacao: string) => salvar(id, { situacao });
 
+  /**
+   * Busca o lead pelo código que chegou junto da mensagem de WhatsApp.
+   *
+   * Normaliza antes de sair da tela para não gastar viagem com entrada
+   * incompleta — e para dizer o que falta em vez de devolver "nada
+   * encontrado", que faria o atendente achar que o lead não existe quando na
+   * verdade ele digitou seis caracteres.
+   */
+  const buscarPorRef = useCallback(
+    async (entrada: string) => {
+      const normalizada = normalizarRef(entrada);
+      if (!normalizada) {
+        setErro("A referência tem 8 caracteres, como em 0DCB1CDC.");
+        return;
+      }
+      setBuscando(true);
+      // O filtro de responsável some junto: ele foi escolhido para a fila
+      // inteira, e mantê-lo poderia esconder justamente o lead procurado.
+      setFiltroResponsavel("");
+      await carregar(normalizada);
+      setBuscando(false);
+    },
+    [carregar],
+  );
+
+  const limparBusca = useCallback(() => {
+    setRef("");
+    setErro("");
+    carregar();
+  }, [carregar]);
+
   const visiveis = useMemo(
     () => filtrarPorResponsavel(leads, filtroResponsavel),
     [leads, filtroResponsavel],
@@ -171,7 +218,12 @@ export default function LeadsKanban() {
           </p>
         </div>
         <button
-          onClick={carregar}
+          // Envolvido numa seta de propósito: passar `carregar` direto faria o
+          // React entregar o MouseEvent como primeiro argumento, que agora é a
+          // referência buscada — e o botão montaria uma URL com
+          // `ref=[object Object]`. E recarrega o que está na tela: com busca
+          // ativa, refaz a busca; sem ela, a fila.
+          onClick={() => carregar(busca?.ref)}
           className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
         >
           Atualizar
@@ -181,6 +233,67 @@ export default function LeadsKanban() {
       {erro && (
         <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
           {erro}
+        </div>
+      )}
+
+      {/*
+        Busca pela referência que o cliente leu na própria mensagem.
+
+        Fica FORA do bloco condicional de baixo de propósito: quando a busca
+        não acha nada, `leads` fica vazio — e se o campo morasse lá dentro,
+        ele sumiria junto, deixando o atendente sem como desfazer a busca.
+      */}
+      {!migracaoPendente && !agregado && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            buscarPorRef(ref);
+          }}
+          className="flex flex-wrap items-center gap-3 border-b border-mt-regua-fina pb-4"
+        >
+          <label
+            htmlFor="busca-ref"
+            className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
+          >
+            Referência
+          </label>
+          <input
+            id="busca-ref"
+            value={ref}
+            onChange={(e) => setRef(e.target.value)}
+            placeholder="0DCB1CDC"
+            spellCheck={false}
+            autoComplete="off"
+            className="mt-foco w-[150px] border border-mt-regua-fina bg-mt-bg px-3 py-2 text-xs uppercase tracking-[.08em] text-mt-ink tabular-nums placeholder:normal-case placeholder:tracking-normal placeholder:text-mt-neutral-500"
+          />
+          <button
+            type="submit"
+            disabled={buscando}
+            className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2 text-[11px] disabled:cursor-wait"
+          >
+            {buscando ? "Buscando…" : "Buscar"}
+          </button>
+          {busca && (
+            <button
+              type="button"
+              onClick={limparBusca}
+              className="mt-foco cursor-pointer text-[11px] text-mt-accent hover:underline"
+            >
+              voltar para a fila
+            </button>
+          )}
+          <span className="ml-auto max-w-[400px] text-[11px] leading-snug text-mt-neutral-600">
+            O código que vem no fim da mensagem do cliente. Serve para achar o
+            lead quando o WhatsApp chegou de outro número.
+          </span>
+        </form>
+      )}
+
+      {busca && busca.total > 1 && (
+        <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
+          <strong>{busca.total} leads com a referência {busca.ref}.</strong> Oito
+          caracteres podem coincidir — confira o rastreio inteiro no rodapé de cada
+          card antes de responder.
         </div>
       )}
 
@@ -216,10 +329,31 @@ export default function LeadsKanban() {
         </div>
       ) : leads.length === 0 ? (
         <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-10 text-center">
-          <div className="text-[15px] font-extrabold tracking-[-.01em]">Nenhum lead ainda</div>
-          <p className="mx-auto mt-2 max-w-[460px] text-xs leading-relaxed text-mt-neutral-700">
-            Os contatos enviados pelos formulários do site aparecem aqui assim que chegam.
-          </p>
+          {busca ? (
+            <>
+              <div className="text-[15px] font-extrabold tracking-[-.01em]">
+                Nenhum lead com a referência {busca.ref}
+              </div>
+              {/*
+                A ressalva não é rodapé: a referência só passou a ser gravada
+                em 2026-08-26 (migração 20260826120000). Sem dizer isso, o
+                atendente conclui que digitou errado e tenta de novo — quando
+                o lead pode existir e simplesmente ser anterior à coluna.
+              */}
+              <p className="mx-auto mt-2 max-w-[460px] text-xs leading-relaxed text-mt-neutral-700">
+                Confira os oito caracteres. Vale lembrar que lead recebido antes de
+                26/08/2026 não tem referência guardada — nesses, procure pelo nome
+                ou telefone na fila.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-[15px] font-extrabold tracking-[-.01em]">Nenhum lead ainda</div>
+              <p className="mx-auto mt-2 max-w-[460px] text-xs leading-relaxed text-mt-neutral-700">
+                Os contatos enviados pelos formulários do site aparecem aqui assim que chegam.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -356,6 +490,24 @@ export default function LeadsKanban() {
                               {espera(l.created_at)}
                             </span>
                           </div>
+
+                          {/*
+                            O mesmo código que o cliente leu na mensagem. O
+                            `title` carrega o rastreio inteiro, que é o que
+                            desempata quando dois prefixos coincidem.
+                          */}
+                          {l.ref_curta && (
+                            <div
+                              title={l.ag_uid ?? undefined}
+                              className={`mt-1.5 font-mono text-[10px] tracking-[.08em] ${
+                                busca?.ref === l.ref_curta
+                                  ? "font-semibold text-mt-accent"
+                                  : "text-mt-neutral-600"
+                              }`}
+                            >
+                              REF {l.ref_curta}
+                            </div>
+                          )}
 
                           <div className="mt-2 flex items-center gap-1.5">
                             <span

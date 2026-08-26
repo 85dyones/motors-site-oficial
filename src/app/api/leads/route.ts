@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { logLeadCaptured, META_CONTENT_TYPE } from "../../../lib/telemetry";
+import { logLeadCaptured, META_CONTENT_TYPE, refCurta } from "../../../lib/telemetry";
 import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
@@ -202,6 +202,21 @@ export async function POST(request: NextRequest) {
         // evento: é o mesmo que vai para a CAPI do Meta, então o lead passa
         // a dar para cruzar com `capi_meta_*` na mesma linha.
         event_id: body.eventId || null,
+        // O par do "(Ref: 0DCB1CDC)" que o cliente lê na mensagem
+        // pré-preenchida. Sem esta linha o código curto não tinha onde ser
+        // procurado: o `ag_uid` inteiro só existia no webhook do n8n e no
+        // `externalId` da CAPI, dois lugares onde o atendente não vai olhar.
+        //
+        // `refCurta` é o filtro, e é de propósito que seja O MESMO que decide
+        // se o cliente vê a referência: quando ela devolve "" (placeholder
+        // `ag_ref_nao_localizado`, ou qualquer coisa sem cara de UUID), a
+        // mensagem sai sem "(Ref: …)" e a linha nasce sem `ag_uid`. As duas
+        // pontas não podem discordar — se discordassem, existiria código
+        // impresso na mensagem sem lead correspondente, ou o contrário.
+        //
+        // A coluna `ref_curta` do banco é GERADA a partir desta
+        // (`20260826120000_ag_uid_no_lead.sql`); não se escreve aqui.
+        ag_uid: refCurta(resolvedAgUid) ? resolvedAgUid : null,
       });
 
       if (erroLead) {

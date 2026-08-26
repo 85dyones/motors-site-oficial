@@ -148,15 +148,31 @@ describe("a rota", () => {
     expect(rota).toContain('.in("role", ["admin", "comercial"])');
   });
 
-  it("só devolve atendentes depois da checagem de permissão", () => {
+  it("só busca atendentes depois da checagem de permissão", () => {
+    // A consulta virou a função `listarAtendentes` em 2026-08-26, quando dois
+    // caminhos de resposta passaram a precisar dela (a fila e a busca por
+    // referência). A DECLARAÇÃO fica no topo do arquivo — o que importa, e o
+    // que este teste passa a cobrir, é onde ela é CHAMADA: toda chamada
+    // depois do portão. É garantia mais forte que a anterior, que olhava um
+    // ponto só.
     const posPermissao = rota.indexOf("Ver e mover leads no kanban");
-    const posAtendentes = rota.indexOf("let atendentes");
     expect(posPermissao).toBeGreaterThan(-1);
-    expect(posAtendentes).toBeGreaterThan(posPermissao);
+
+    const chamadas = [...rota.matchAll(/await listarAtendentes\(/g)].map((m) => m.index ?? -1);
+    expect(chamadas.length, "nenhuma chamada a listarAtendentes").toBeGreaterThan(0);
+    for (const pos of chamadas) expect(pos).toBeGreaterThan(posPermissao);
   });
 
   it("mantém Marketing no agregado, sem nome de pessoa", () => {
-    const agregado = rota.slice(rota.indexOf("if (!podeVer)"), rota.indexOf("let atendentes"));
+    // `lastIndexOf`: há dois portões `if (!podeVer)` desde a busca por
+    // referência (2026-08-26) — o primeiro recusa a busca, o segundo é este.
+    // O primeiro tem cobertura própria em `busca-por-ref.test.ts`.
+    const inicio = rota.lastIndexOf("if (!podeVer)");
+    const fim = rota.indexOf("return NextResponse.json({ leads, atendentes", inicio);
+    expect(inicio).toBeGreaterThan(-1);
+    expect(fim).toBeGreaterThan(inicio);
+
+    const agregado = rota.slice(inicio, fim);
     expect(agregado).toContain("somenteAgregado");
     expect(agregado).not.toContain("nome");
   });
