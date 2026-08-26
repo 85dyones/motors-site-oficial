@@ -251,8 +251,16 @@ export default function LeadCaptureModal({
                 para onde responder. (2) As conversões otimizadas do Ads leem o
                 DOM no instante do `generate_lead` — nome sozinho dá match
                 ZERO. O que a detecção automática procura é `type="tel"` e
-                `autocomplete="tel"`; o `id` ela não usa (ver o comentário do
-                bloco de e-mail).
+                `autocomplete="tel"`.
+
+                ⚠️ Desde 26/08 o contêiner usa `user_data` MANUAL, e no modo
+                manual o Google não varre o DOM: quem casa o campo é o seletor
+                CSS da variável `upd - dados do lead`. Ou seja, **o `id` daqui
+                é load-bearing** — renomear exige editar a variável no GTM, ou
+                o match some sem erro nenhum. Ver §6.1 de
+                `docs/GTM_CONFIGURACAO.md`. Os atributos acima ficam: servem
+                teclado e autofill no celular, e são o caminho de volta se o
+                modo mudar outra vez.
 
                 Sem `aria-label`: o `<label htmlFor>` logo acima já dá o nome
                 acessível, e um `aria-label="Telefone"` por cima dele faria o
@@ -286,8 +294,10 @@ export default function LeadCaptureModal({
                 existem. Dois elementos com o mesmo `id` na mesma página fazem
                 `document.querySelector` devolver o primeiro em ordem de
                 documento — ambiguidade justamente no instante da conversão.
-                Não custa nada: a detecção automática do Google casa por
-                `type`/`autocomplete`/`name`, não por `id`. */}
+                Custava nada quando a detecção era automática, que casa por
+                `type`/`autocomplete`/`name`. Hoje o custo é uma linha de
+                seletor no GTM — e a troca segue valendo, porque `id` duplicado
+                quebraria o match de qualquer modo. */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="lead-email-input" className="mt-rotulo pl-1">
                 Seu E-mail <span className="font-normal normal-case tracking-normal text-mt-neutral-500">(opcional)</span>
