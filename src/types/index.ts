@@ -234,6 +234,13 @@ export interface Veiculo {
   motor?: string;
   cor_interna?: string;
   donos_anteriores?: number;
+  /**
+   * Quando o veículo apareceu no feed pela primeira vez — a data de chegada.
+   *
+   * `null` nas linhas anteriores à migração `20260826030000`: idade
+   * desconhecida, e quem consome omite o campo em vez de inventar zero.
+   */
+  first_seen_at?: string | null;
   garantia_fabrica?: string;
 }
 

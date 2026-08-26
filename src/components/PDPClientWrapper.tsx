@@ -204,6 +204,7 @@ export default function PDPClientWrapper({
       // O laudo está na ficha — não "o carro foi periciado", que vale para
       // todos. Ver a nota em `pushVeiculo`.
       temLaudo: Boolean((veiculo.laudo_pericia ?? "").trim()),
+      primeiraVez: veiculo.first_seen_at,
     });
 
     // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)

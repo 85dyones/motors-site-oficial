@@ -44,6 +44,15 @@ export interface LinhaDeEstoque {
   divergente: boolean;
   /** Destaques rápidos associados à mão (vivem no JSON, não em coluna). */
   quickTags: string[];
+  /**
+   * Dias desde que o veículo apareceu no feed. `null` quando a data de chegada
+   * não é conhecida — as linhas anteriores à migração `20260826030000`.
+   *
+   * É o número que o §1.2 do plano usa para alocar verba por encalhe. Zero
+   * inventado aqui viraria "acabou de chegar" sobre carro parado há meses, na
+   * mesma tela em que se decide quanto investir nele.
+   */
+  diasEmEstoque: number | null;
 }
 
 /**

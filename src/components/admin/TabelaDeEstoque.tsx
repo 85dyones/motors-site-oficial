@@ -438,7 +438,7 @@ export default function TabelaDeEstoque({
                   className="mt-foco h-3.5 w-3.5 cursor-pointer accent-[var(--mt-accent)]"
                 />
               </th>
-              {["Veículo", "Código", "Ano · KM", "Preço", "Fotos", "Visitas · leads", "Estado", ""].map(
+              {["Veículo", "Código", "Ano · KM", "Preço", "Fotos", "Visitas · leads", "No pátio", "Estado", ""].map(
                 (h) => (
                   <th
                     key={h}
@@ -453,7 +453,7 @@ export default function TabelaDeEstoque({
           <tbody>
             {naTela.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-xs text-mt-neutral-700">
+                <td colSpan={10} className="py-12 text-center text-xs text-mt-neutral-700">
                   Nenhum veículo para este filtro.
                 </td>
               </tr>
@@ -520,6 +520,26 @@ export default function TabelaDeEstoque({
                   <td className="py-2.5 pr-3 text-[11px] tabular-nums text-mt-neutral-800">
                     {l.visitas === null ? "—" : l.visitas}
                     <span className="text-mt-neutral-600"> · {l.leads}</span>
+                  </td>
+
+                  {/* "—" é idade desconhecida (linha anterior à migração
+                      `first_seen_at`), não zero. Acima de 60 dias a cor sobe:
+                      é o dobro do giro de ~45 dias que o plano usa como régua,
+                      e é este número que decide realocação de verba. */}
+                  <td className="py-2.5 pr-3 text-[11px] tabular-nums">
+                    {l.diasEmEstoque === null ? (
+                      <span className="text-mt-neutral-600">—</span>
+                    ) : (
+                      <span
+                        className={
+                          l.diasEmEstoque >= 60
+                            ? "font-bold text-mt-accent"
+                            : "text-mt-neutral-800"
+                        }
+                      >
+                        {l.diasEmEstoque} {l.diasEmEstoque === 1 ? "dia" : "dias"}
+                      </span>
+                    )}
                   </td>
 
                   <td className="py-2.5 pr-3">

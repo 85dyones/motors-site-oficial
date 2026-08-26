@@ -366,6 +366,8 @@ export function trackVehicleView(
     /** Donos anteriores e laudo — `owners` e `has_report` do §11.1 do plano. */
     donos?: number | null;
     temLaudo?: boolean;
+    /** Data de chegada, para o `days_in_stock`. */
+    primeiraVez?: string | null;
   },
 ): string | null {
   if (typeof window === "undefined") return null;
@@ -390,6 +392,7 @@ export function trackVehicleView(
       nome: vehicle.nome || `${vehicle.marca} ${vehicle.modelo}`,
       donos: vehicle.donos,
       temLaudo: vehicle.temLaudo,
+      primeiraVez: vehicle.primeiraVez,
     });
 
     const consent = localStorage.getItem("ag_cookie_consent");

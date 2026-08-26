@@ -11,6 +11,7 @@ import {
   type LinhaDeEstoque,
 } from "../../../lib/estoqueTabela";
 import TabelaDeEstoque from "../../../components/admin/TabelaDeEstoque";
+import { diasEmEstoque } from "../../../lib/dataLayer";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +110,8 @@ export default async function AdminEstoquePage() {
       // grava na coluna e resolve.
       divergente: overrides[id]?.vendido === true && !bruto.vendido,
       quickTags: overrides[id]?.quick_tags ?? [],
+      // Da linha crua: `first_seen_at` é carimbo de banco, não vem do feed.
+      diasEmEstoque: diasEmEstoque(bruto.first_seen_at),
     };
   });
 
