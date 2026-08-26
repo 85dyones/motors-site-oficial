@@ -217,6 +217,18 @@ export interface CamadaGlobal {
  * uma ficha e voltasse para a home levava o carro junto, e o clique de WhatsApp
  * na home reportava o veículo anterior. `pushVeiculo` já fazia o equivalente
  * para o `ecommerce`; faltava a metade que o container tornou visível.
+ *
+ * Os **espelhos planos** entraram em 2026-08-26, e a omissão era pior do que
+ * parecia. Eu limpei o `vehicle` aninhado e deixei `vehicle_id`,
+ * `vehicle_name` e `vehicle_price` passarem — e são justamente esses que o
+ * container lê nos eventos de interação: `GA4 - click_whatsapp` usa
+ * `{{dlv - vehicle_id}}`, `GA4 - generate_lead` usa `{{dlv - vehicle_price}}`.
+ *
+ * O estrago não parava no relatório. `js - valor do lead` calcula
+ * `parseFloat(vehicle.price) || parseFloat(vehicle_price) || 0`: numa avaliação
+ * em `/avaliacao`, o aninhado já estava zerado e o plano não — então o lead ia
+ * para o Google Ads **avaliado pelo preço de um carro que o visitante não está
+ * olhando**, e esse número alimenta o lance.
  */
 export function pushCamadaGlobal(camada: CamadaGlobal): void {
   push({
@@ -225,6 +237,9 @@ export function pushCamadaGlobal(camada: CamadaGlobal): void {
     store_city: "Curitiba",
     stock_count: null,
     vehicle: null,
+    vehicle_id: null,
+    vehicle_name: null,
+    vehicle_price: null,
   });
 }
 
@@ -340,6 +355,28 @@ export interface ContextoDeVeiculo {
  * `click_whatsapp`) e o CPA aparente cai pela metade — o pior tipo de erro de
  * medição, porque parece boa notícia. Com ela, o gatilho de conversão exclui
  * esses cliques em uma condição só.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que ele é emitido SEMPRE, e não só quando é `true`
+ * ---------------------------------------------------------------------------
+ * O `dataLayer` é acumulativo: o que uma linha escreve, a próxima herda. Se o
+ * clique pós-lead escrevesse `pos_lead: true` e o clique orgânico seguinte não
+ * escrevesse nada, o GTM continuaria lendo `true` — e o gatilho de conversão,
+ * que dispara em `pos_lead != true`, **suprimiria uma conversão legítima**:
+ *
+ *     ficha → envia o formulário → click_whatsapp {pos_lead: true}
+ *           → volta e clica no botão flutuante → click_whatsapp {}
+ *                                                 ↑ o GTM ainda lê `true`
+ *
+ * A rodada 5 do plano de aquisição (§12.3) achou o primo deste defeito: o GTM
+ * avalia "não é igual a `true`" como FALSO quando a variável é **indefinida**,
+ * e corrigiram dando valor padrão `false` à variável no container. O valor
+ * padrão resolve o caso "nunca foi definida"; **não resolve** este, em que ela
+ * foi definida e ninguém a reescreveu.
+ *
+ * A regra completa, que vale para qualquer campo que descreve um evento e não
+ * a página: **valor padrão no container é a segunda defesa; a primeira é o
+ * site reescrever o campo em todo evento.**
  */
 export interface ContextoDeContato extends ContextoDeVeiculo {
   pos_lead?: boolean;
@@ -347,12 +384,23 @@ export interface ContextoDeContato extends ContextoDeVeiculo {
 
 /** Clique em WhatsApp — o principal lead desta vertical (§4.4). */
 export function pushCliqueWhatsApp(local: string, contexto: ContextoDeContato = {}): void {
-  push({ event: "click_whatsapp", whatsapp_location: local, ...contexto });
+  push({
+    event: "click_whatsapp",
+    whatsapp_location: local,
+    ...contexto,
+    // SEMPRE presente, mesmo quando o chamador não diz nada. Ver a nota abaixo.
+    pos_lead: contexto.pos_lead === true,
+  });
 }
 
 /** Clique para ligar. */
 export function pushCliqueTelefone(local: string, contexto: ContextoDeContato = {}): void {
-  push({ event: "click_to_call", call_location: local, ...contexto });
+  push({
+    event: "click_to_call",
+    call_location: local,
+    ...contexto,
+    pos_lead: contexto.pos_lead === true,
+  });
 }
 
 export type TipoDeLead = "proposta" | "financiamento" | "avaliacao" | "contato" | "curadoria";

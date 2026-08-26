@@ -171,7 +171,14 @@ describe("os eventos que a mídia precisa", () => {
     pushCliqueWhatsApp("Home - Faixa de contato");
 
     expect(fila()[0]).toMatchObject({ pos_lead: true });
-    expect(fila()[1]).not.toHaveProperty("pos_lead");
+
+    // O clique orgânico declara `pos_lead: false` — não omite o campo.
+    //
+    // Esta asserção era `not.toHaveProperty("pos_lead")` e prendia o defeito:
+    // o `dataLayer` é acumulativo, então omitir fazia o GTM continuar lendo o
+    // `true` do clique anterior e SUPRIMIR uma conversão legítima. Ver a nota
+    // longa em `pushCliqueWhatsApp` e a §12.3 do plano de aquisição.
+    expect(fila()[1]).toMatchObject({ pos_lead: false });
   });
 
   it("os quatro fluxos que abrem o WhatsApp depois do envio marcam `pos_lead`", async () => {

@@ -3,6 +3,7 @@ import {
   containerAssumeOsEventos,
   marcarContainerAtivo,
   pushCamadaGlobal,
+  pushCliqueTelefone,
   pushCliqueWhatsApp,
   pushLead,
   pushVeiculo,
@@ -247,6 +248,55 @@ describe("o veículo não atravessa a navegação", () => {
 
     expect(valorNaCamada("vehicle")).toBeNull();
     expect(valorNaCamada("stock_count")).toBeNull();
+  });
+});
+
+describe("o estado herdado não contamina o evento seguinte", () => {
+  // A §12.3 do plano (rodada 5) achou o primo destes defeitos no container: o
+  // GTM avalia "não é igual a `true`" como FALSO quando a variável é
+  // indefinida. Corrigiram com valor padrão. Estes dois são o que o valor
+  // padrão NÃO alcança — o campo definido antes e não reescrito depois.
+
+  it("o clique orgânico depois do pós-lead volta a converter", () => {
+    // Sequência real: envia o formulário na ficha (o site abre o WhatsApp
+    // sozinho, com `pos_lead: true`), volta, e clica no botão flutuante.
+    pushCamadaGlobal({ page_type: "vehicle_detail" });
+    pushVeiculo(VEICULO);
+    pushCliqueWhatsApp("ficha", { vehicle_id: VEICULO.id, pos_lead: true });
+    pushCliqueWhatsApp("botao_flutuante");
+
+    // O gatilho de conversão do container é `pos_lead != true`. Herdando o
+    // `true` do clique anterior, ele suprimia uma conversão legítima — e o
+    // sintoma no relatório seria "o WhatsApp não converte".
+    expect(valorNaCamada("pos_lead")).toBe(false);
+  });
+
+  it("o pós-lead continua marcado — a correção não afrouxa o filtro", () => {
+    pushCliqueWhatsApp("ficha", { pos_lead: true });
+    expect(valorNaCamada("pos_lead")).toBe(true);
+  });
+
+  it("o clique de telefone também sempre declara o pos_lead", () => {
+    pushCliqueTelefone("rodape");
+    expect(valorNaCamada("pos_lead")).toBe(false);
+  });
+
+  it("os espelhos planos do veículo não atravessam a navegação", () => {
+    // `GA4 - click_whatsapp` lê `{{dlv - vehicle_id}}` e `GA4 - generate_lead`
+    // lê `{{dlv - vehicle_price}}` — os PLANOS, não o objeto. Zerar só o
+    // aninhado deixava o lead numa página institucional ser avaliado pelo preço
+    // do carro visto antes, e esse número vai para o lance do Ads.
+    pushCamadaGlobal({ page_type: "vehicle_detail" });
+    pushVeiculo(VEICULO);
+    pushCliqueWhatsApp("ficha", { vehicle_id: VEICULO.id, vehicle_price: 89900 });
+
+    pushCamadaGlobal({ page_type: "institutional" });
+    pushCliqueWhatsApp("rodape");
+
+    expect(valorNaCamada("vehicle_id")).toBeNull();
+    expect(valorNaCamada("vehicle_price")).toBeNull();
+    expect(valorNaCamada("vehicle_name")).toBeNull();
+    expect(valorNaCamada("vehicle")).toBeNull();
   });
 });
 
