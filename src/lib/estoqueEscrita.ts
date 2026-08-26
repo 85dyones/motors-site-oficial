@@ -32,6 +32,12 @@ export const CAMPOS_NOSSOS = [
   "vendido",
   "tipo",
   "perfil_uso",
+  // Migração 20260826150000. `modelo` e `versao` SÃO colunas do feed — por
+  // isso os overrides existem em vez de edição direta: corrigir a coluna
+  // original seria desfeito no próximo ciclo do n8n, em silêncio. Estes dois
+  // o sync não conhece, e é o que faz a correção durar.
+  "modelo_override",
+  "versao_override",
 ] as const;
 
 export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];

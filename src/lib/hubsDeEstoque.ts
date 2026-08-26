@@ -372,6 +372,17 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
     for (const marca of hubsDeMarca(historico, disponiveis, segmento)) {
       caminhos.push(`/${segmento}/${marca.slug}`);
       for (const modelo of marca.modelos) {
+        // Hub que aponta para outro fica FORA do sitemap. Listar uma URL que
+        // manda o robô para outro endereço é sinal contraditório: o sitemap
+        // diz "indexe isto", o `<link rel="canonical">` da própria página diz
+        // "indexe aquilo".
+        //
+        // Encontrado em 2026-08-26 com `/carros/ford/ka-sedan-10-se-flex-4p`,
+        // que estava no sitemap servido E canonicalizava para
+        // `/carros/ford/ka`. A migração 20260826150000 corrige a origem dos
+        // quatro casos conhecidos; esta regra é para o próximo, porque a
+        // origem é o feed e o feed volta a errar.
+        if (modelo.canonicalDe) continue;
         caminhos.push(`/${segmento}/${marca.slug}/${modelo.slug}`);
       }
     }
