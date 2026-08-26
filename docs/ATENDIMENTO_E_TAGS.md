@@ -8,7 +8,9 @@ que o site **emite**; `MOTOR_DE_GATILHOS.md`, o que o site **responde**. Este
 descreve o que existe **entre os dois** — a conversa — e é, hoje, quase todo
 uma lista do que falta.
 
-Levantado em 2026-08-26 a partir do código deste repositório.
+Levantado em 2026-08-26 a partir do código deste repositório. As sete
+decisões que o travavam foram respondidas pelo dono **no mesmo dia** — estão
+registradas na §10, e as duas que pediam estudo viraram as §8 e §9.
 
 ---
 
@@ -17,11 +19,16 @@ Levantado em 2026-08-26 a partir do código deste repositório.
 **Nem o Chatwoot nem o n8n foram inspecionados neste levantamento.** Tudo aqui
 sai do código e dos documentos deste repositório. Consequências práticas:
 
-- Não está confirmado que existe instância de Chatwoot no ar. O repositório
-  **não a toca em nenhum ponto**: zero variável de ambiente, zero chamada,
-  zero rota. As três menções ao nome (`src/lib/telemetry.ts`,
-  `tests/ref-de-atendimento.test.ts`, `AUDITORIA.md §1.7`) são todas
-  *comentário sobre uma integração que não existe no código*.
+- **A instância existe** (decisão C1, 2026-08-26): `app.chat.v2o5.com.br`,
+  conta `3`, caixa de entrada `11` — mesma família de domínio do n8n. Mas ela
+  **não foi aberta neste levantamento**: exige login. Tudo que este documento
+  diz sobre o que há dentro dela é hipótese a conferir, inclusive se a caixa
+  `11` é a do WhatsApp/Evolution.
+- O repositório continua **não tocando o Chatwoot em nenhum ponto**: zero
+  variável de ambiente, zero chamada, zero rota. As três menções ao nome
+  (`src/lib/telemetry.ts`, `tests/ref-de-atendimento.test.ts`,
+  `AUDITORIA.md §1.7`) são todas *comentário sobre uma integração que não
+  existe no código*.
 - O estado dos workflows do n8n descrito abaixo vem de `WEBHOOKS_N8N.md` e
   `MOTOR_DE_GATILHOS.md`, apurado em 12 e 15/08. Doze dias se passaram. Antes
   de agir, confira no painel do n8n.
@@ -55,12 +62,21 @@ está marcado como tal.
               └──────────────────┘
 ```
 
-Quatro exigências saem daí, e é por elas que o resto do documento se organiza:
+**A linha que separa robô de gente (decisão C2):** a primeira linha é robô
+puro — e ele só responde quem escreveu. O resgate é pessoa. Isso não é
+detalhe de organograma, é o que define o risco do sistema inteiro: robô que
+responde é tráfego de entrada; resgate que dispara sozinho seria tráfego de
+saída em lote, que é o que queima número de WhatsApp (ver o aviso da §8).
+
+Cinco exigências saem daí, e é por elas que o resto do documento se organiza:
 
 1. **Toda conversa carrega uma referência** que casa com o lead do painel.
 2. **Toda conversa carrega tags** que dizem origem, etapa, time e motivo.
 3. **A passagem de bastão é um ato registrado**, não um agente clicando.
 4. **O resgate é uma fila com régua**, não um cron com `IF`.
+5. **A saída de cena do robô é a parte crítica**, não a entrada. Com a
+   primeira linha sozinha, o que decide se o cliente é bem atendido é a hora
+   em que o robô chama gente.
 
 ---
 
@@ -307,6 +323,10 @@ Deriva direto do `canal` do Formato A, sem tradução criativa:
 Uma conversa tem exatamente uma. A troca é o ato de distribuição — e o ato
 gera evento (seção 6).
 
+`time_sdr` é a única sem gente atrás: quem a carrega é o robô da primeira
+linha. As outras quatro são pessoas, e a §10.2 diz quais viram papel no
+painel.
+
 ### 5.3 `etapa_` — em que pé está (uma só, espelha o kanban)
 
 `etapa_novo` · `etapa_em-contato` · `etapa_proposta` · `etapa_visita` ·
@@ -335,6 +355,10 @@ Lista fechada de propósito. Motivo de perda em texto livre não vira relatório
 
 Espelho da régua do banco, para o agente ver o estado sem sair do Chatwoot.
 **Quem manda continua sendo o banco** — a tag é reflexo, nunca comando.
+
+Com as três réguas da §8 no lugar, `resgate_em-curso` não diz qual delas está
+rodando; quem diz é o `custom_attributes.resgate_regua` (`curto` ou `longo`) e
+o passo. Etiqueta é para bater o olho; atributo é para consultar.
 
 ### 5.7 Onde o vocabulário mora
 
@@ -395,7 +419,10 @@ entre reaproveitar e derrubar.
 
 ### A3 — A ponte Chatwoot ↔ site 🔴
 
-- Credenciais no n8n e as envs do lado do site.
+- Coordenadas fechadas pela C1: `CHATWOOT_URL=https://app.chat.v2o5.com.br`,
+  `CHATWOOT_ACCOUNT_ID=3`, `CHATWOOT_INBOX_ID=11`. O **token de API fica em
+  env na Vercel e no n8n, nunca no painel** — mesma decisão de 2026-08-12 que
+  vale para o `N8N_SECRET_TOKEN`: uma fonte só, e é a env.
 - No Formato A: buscar/criar contato por telefone, abrir conversa, aplicar
   `origem_`, `interesse_`, `etapa_novo`, `time_sdr`, gravar
   `custom_attributes`, postar a nota privada.
@@ -410,14 +437,23 @@ entre reaproveitar e derrubar.
 
 ### A4 — O SDR automatizado 🟠
 
-Depende de A3. Decisão pendente de fluxo (seção 8). Escopo mínimo: saudação,
-confirmação do veículo de interesse, três perguntas de qualificação, e
-escalonamento — pelas duas condições que o manual §7.2 já fixou (*"cliente
-pede, ou intenção de compra detectada"*).
+Depende de A3. Robô puro (C2), como Agent Bot do Chatwoot (§9). Escopo
+mínimo: saudação, confirmação do veículo de interesse, três perguntas de
+qualificação, e escalonamento — pelas duas condições que o manual §7.2 já
+fixou (*"cliente pede, ou intenção de compra detectada"*), mais uma terceira
+que o robô puro obriga: **não entendeu, passa**. Robô que insiste em entender
+é pior que robô que desiste rápido.
+
+A trava inegociável: o agente **nunca** afirma preço, disponibilidade ou
+condição de pagamento que não tenha lido de `/api/estoque`. O que não está
+lá, ele não diz — passa para humano.
 
 ### A5 — Distribuição por time 🟠
 
-- Papéis `sdr` e `pos_venda` em `PERFIS`, com linha própria na matriz da A17.
+- Papéis `pos_venda` e `sdr_resgate` em `PERFIS`, com linha própria na
+  matriz da A17. **`sdr` de primeira linha não nasce** — é robô, e robô não é
+  usuário do painel; `admin_financeiro` também não, porque `financeiro` já
+  existe e só ganha a superfície de atendimento (§10.2).
 - Coluna `time` em `leads`, alimentada pela tag `time_`.
 - Régua de roteamento **no servidor**: qualificado → comercial; cliente com
   venda fechada → pós-venda; assunto de pagamento/documentação →
@@ -431,9 +467,14 @@ pede, ou intenção de compra detectada"*).
 - Reaproveita inteiras as supressões que já existem: `domingo`,
   `fora_do_horario`, `sem_canal_consentido`, `quarentena`,
   `janela_de_21_dias`, `colisao_prioridade`.
-- Ancoragem: `leads.atualizado_em` + `situacao` fora de `fechado`/`perdido`.
-- Cadência a definir (seção 8) e desfecho pelo vocabulário do motor, que já
-  existe e já é idempotente.
+- Ancoragem: `leads.atualizado_em` + `situacao`. As **três réguas da §8**
+  (alarme em 24 h; curto em D+5/12/23/40; longo em D+90/D+270 só com carro
+  que case), e desfecho pelo vocabulário do motor, que já existe e já é
+  idempotente.
+- **Fila de trabalho, não disparo** (C2): o banco decide quem entra e monta a
+  mensagem sugerida; quem envia é a pessoa do `time_sdr-resgate`, pelo
+  Chatwoot. É o que mantém a mensagem pertinente — e o que tira o número da
+  loja da rota de disparo em lote.
 - Um workflow só, pelo mesmo motivo do orquestrador diário: a deduplicação
   acontece dentro de **uma** chamada da fila.
 
@@ -445,32 +486,244 @@ pendência.
 
 ---
 
-## 8. Decisões que dependem do dono
+## 8. A régua do resgate
 
-Nenhuma delas é técnica, e todas travam um pacote acima.
+Decisão C4. O dono pediu sistema fundamentado em pesquisa, não número
+inventado — as fontes estão no fim do documento.
 
-1. **Existe instância de Chatwoot no ar?** Qual URL, qual conta, quais inboxes.
-   Trava A3 inteiro.
-2. **Quem é o SDR?** Robô puro, humano com apoio de robô, ou os dois em
-   turnos? Trava A4 — e trava o papel `sdr` da A5.
-3. **Qual ferramenta faz o diálogo?** Typebot (citado no manual §7.1), agente
-   de IA no n8n, ou o próprio Chatwoot com respostas rápidas. Muda o desenho
-   de A4 por inteiro.
-4. **Quantos dias sem movimento até o resgate?** E quantos passos, com que
-   espaçamento? O motor usa 21 dias de janela e 3 passos para pós-venda —
-   lead frio provavelmente pede mais curto. Trava A6.
-5. **Quem responde pelo administrativo-financeiro no atendimento?** Hoje o
-   Formato C avisa a equipe por WhatsApp, mas não abre conversa com cliente.
-6. **O pós-venda ganha papel próprio agora?** A decisão D9 do `AUDITORIA.md`
-   está declarada como transitória desde 13/08. A5 é a hora de resolver.
-7. **Qual é a fonte de verdade da etapa** — o kanban ou o Chatwoot? A proposta
-   da seção 5.3 assume espelho bidirecional com o painel mandando; se for o
-   contrário, A5 muda.
+### 8.1 A evidência, em quatro linhas
+
+| Achado | Fonte | O que muda aqui |
+|---|---|---|
+| Responder em 5 min em vez de 30 multiplica por 21 a chance de qualificar | MIT / InsideSales, 2007, +15 mil leads | Velocidade é problema da **entrada**, não do resgate. Daí a régua 1 cutucar a equipe, não o cliente. |
+| 93% dos leads convertidos são alcançados até a **6ª tentativa** | Velocify, 3,5 milhões de leads | O teto útil de toques é ~6, contando o contato original. Além disso é perseguição, não persistência. |
+| O vendedor médio para na **1,3ª tentativa** | InsideSales | O buraco não é a régua — é ninguém executá-la. Por isso a fila existe. |
+| A maioria das revendas encerra o lead em 30 dias; lead de **90 a 365 dias** converte perto do lead novo *quando a abordagem é pertinente* | prática do setor automotivo | Existe uma segunda janela, meses depois. Ela só funciona com motivo. |
+
+### 8.2 Três réguas, não uma
+
+Um número só para "parado há N dias" trata coisas diferentes como iguais.
+Lead novo parado há um dia é falha de atendimento; lead em negociação parado
+há uma semana é esfriamento; lead perdido há seis meses é base fria. Cada um
+pede resposta diferente.
+
+**Régua 1 — `sem_primeiro_contato`. Não é resgate, é alarme.**
+
+- Entrada: `situacao = novo` sem movimento há **24 h**.
+- Destino: **a equipe**, não o cliente — mesmo desenho de
+  `/api/ciclo/vendas-incompletas`.
+- Por quê: o estudo do MIT mede a janela em minutos. Vinte e quatro horas já
+  está fora de qualquer curva, e mandar mensagem automática ao cliente aqui
+  esconderia o problema em vez de resolvê-lo.
+
+**Régua 2 — `resgate_curto`. Esfriou dentro do ciclo de compra.**
+
+- Entrada: sem movimento há **5 dias**, com `situacao` em `em_contato`,
+  `proposta`, `visita` ou `negociacao`.
+- **Quatro passos: D+5 · D+12 · D+23 · D+40**, contados da última
+  movimentação.
+- Espaçamento **crescente** (5 → 7 → 11 → 17 dias). Persistência que aperta
+  vira perseguição; persistência que afrouxa continua sendo persistência.
+- Somados ao contato original e ao que o comercial já fez, chega aos ~6
+  toques do teto útil da Velocify.
+- Sem resposta nos quatro: `situacao = perdido` com `motivo_sem-resposta`, e
+  o lead passa à régua 3.
+
+**Régua 3 — `resgate_longo`. A base fria — e é a que a pesquisa do setor
+defende.**
+
+- Entrada: `perdido`, ou sem movimento há **90 dias**.
+- **Dois passos, com 180 dias entre eles**: D+90 e D+270 da última
+  movimentação.
+- **Só dispara com motivo.** O lead carrega `intencao_busca` e
+  `interesse_veiculo-*` desde a origem; a régua só o põe na fila quando há
+  carro no pátio que casa com o que aquela pessoa procurava. Sem casamento,
+  não entra. *"Oi, ainda tem interesse?"* seis meses depois é exatamente o
+  que queima uma base.
+- Depois dos dois passos: **quarentena de 365 dias**.
+
+### 8.3 Quem entrega — e por que isso é a decisão mais importante da régua
+
+C2 diz: robô no atendimento, pessoa no resgate. Então o resgate **não é
+disparo automático** — é **fila de trabalho**. O banco decide quem entra e
+quando, o site monta a mensagem sugerida, e a pessoa do `time_sdr-resgate`
+envia pelo Chatwoot. Três ganhos, e o terceiro é grande:
+
+1. a mensagem sai pertinente de verdade, porque quem envia vê o carro que
+   casou;
+2. o desfecho volta pelo vocabulário do motor, que já existe e já é
+   idempotente;
+3. **o número da loja não vira disparador em massa.**
+
+> ⚠️ **O risco que justifica o item 3.** Todo envio deste projeto sai pela
+> Evolution API, que fala com o WhatsApp por protocolo não oficial (Baileys).
+> Ao longo de 2026 o banimento de número nesse regime deixou de ser risco
+> teórico e virou rotina, e **disparo em lote é o gatilho mais citado**. O
+> desenho acima reduz muito a exposição: o robô só responde quem escreveu
+> (tráfego de entrada), e o resgate sai da mão de uma pessoa, no ritmo de uma
+> pessoa. Se um dia o resgate virar automático, ele precisa de **número
+> separado do número principal da loja** — perder o número do atendimento não
+> é perder um canal, é perder o negócio.
+
+### 8.4 O que a fila herda sem reescrever
+
+Todas já implementadas e provadas no motor de gatilhos: nunca domingo, nunca
+entre 20h e 8h, nunca sem consentimento do canal, nunca duas mensagens no
+mesmo dia para a mesma pessoa. Mais duas próprias do resgate:
+
+- **Cliente do Ciclo vence lead frio.** Quem já comprou e tem gatilho de
+  pós-venda no dia não recebe resgate. Ninguém deve ler *"ainda quer aquele
+  Onix?"* no dia em que a revisão do carro dele vence.
+- **Resposta em qualquer passo encerra a régua** e devolve a conversa ao time
+  humano: `time_sdr-resgate` → `time_comercial`.
+
+---
+
+## 9. Quem conduz o diálogo — a recomendação
+
+Decisão C3. O dono pediu recomendação para verificar.
+
+**Recomendação: agente no n8n, registrado como Agent Bot do Chatwoot.** Não
+Typebot, não respostas rápidas.
+
+### 9.1 O mecanismo que decide
+
+O Chatwoot tem estado nativo para isto. Caixa de entrada com agent bot faz
+toda conversa nova nascer em **`pending`**; o bot recebe `message_created` por
+webhook, responde pela API de mensagens, e **passa para humano mudando o
+status para `open`**. O agente devolve ao bot voltando a `pending`.
+
+Ou seja: a passagem de bastão é **estado do Chatwoot, não cola nossa**. Numa
+montagem com Typebot, transferir contexto, pausar o bot e sincronizar estado
+entre as duas ferramentas é código que nós escrevemos e mantemos.
+
+### 9.2 As quatro razões, na ordem em que pesam
+
+1. **Menos peça para quebrar.** O n8n já está no ar, já tem as credenciais
+   provadas (Evolution, Supabase) e já é quem conversa com o site. Typebot
+   seria um quarto serviço para hospedar, atualizar e vigiar — e o modo de
+   falha campeão deste projeto é exatamente *"serviço no ar, mas desligado e
+   em silêncio"*: há cinco assim hoje.
+2. **WhatsApp não tem botão.** A pessoa escreve *"tem esse em preto?"* e
+   *"quanto fica de entrada?"*. Árvore de decisão trava nisso; agente que
+   classifica texto livre, não.
+3. **O handoff é o ponto crítico do robô puro** (exigência 5 da §1). Com o
+   robô sozinho na primeira linha, o que decide se o cliente é bem atendido é
+   a hora de sair de cena. Estado nativo vale mais que editor visual.
+4. **Uma coisa de cada vez.** Adicionar Typebot é adicionar mais uma coisa que
+   pode ficar desligada.
+
+### 9.3 Onde o Typebot ganharia — e por que não aqui
+
+Se o diálogo fosse formulário rígido de campos fixos, e a edição precisasse
+ser feita por quem não mexe em n8n. Não é o caso: C2 põe o robô no WhatsApp,
+em texto livre.
+
+### 9.4 O que conferir na instância antes de fechar
+
+**A versão do Chatwoot no `app.chat.v2o5.com.br`.** As versões recentes trazem
+um agente de IA próprio (Captain); se estiver disponível e habilitado, é uma
+quarta opção e merece comparação de custo antes de escrever o agente no n8n.
+Não deu para verificar daqui — a instância exige login.
+
+### 9.5 A trava, seja qual for a ferramenta escolhida
+
+O agente **nunca** afirma preço, disponibilidade ou condição de pagamento que
+não tenha lido de `/api/estoque`. O que não está lá, ele não diz — passa para
+humano. É a mesma regra que o resto do projeto aplica a número que não se
+inventa.
+
+---
+
+## 10. Decisões tomadas em 2026-08-26
+
+| # | Questão | Decisão do dono |
+|---|---|---|
+| C1 | Existe instância de Chatwoot? | **Sim.** `app.chat.v2o5.com.br`, conta `3`, caixa de entrada `11` — mesma família de domínio do n8n. Destrava A3. |
+| C2 | Quem é o SDR? | **Robô puro** na primeira linha. Pessoa entra **só no resgate/reativação**. |
+| C3 | Ferramenta do diálogo | Recomendação na §9: **agente no n8n como Agent Bot do Chatwoot**. Aguarda conferência do dono. |
+| C4 | Régua do resgate | **Três réguas** (§8): alarme interno em 24 h; curto em D+5/12/23/40; longo em D+90 e D+270, só com carro que case. |
+| C5 | Administrativo-financeiro no atendimento | **Criar a função** `time_admin-financeiro`. Pessoas a definir depois. |
+| C6 | Papel de pós-venda | **Sim**, papel próprio no painel. Encerra o arranjo transitório da D9 do `AUDITORIA.md`. |
+| C7 | Fonte de verdade da etapa | **O kanban manda, a operação é pelo Chatwoot** — escrita passante, §10.1. |
+
+### 10.1 O que "o kanban manda, mas precisa ser operacional" significa
+
+O atendente vive no Chatwoot; é lá que a mão dele está. Mas a verdade sobre o
+lead é uma linha da tabela `leads`. Conciliar os dois sem criar duas verdades
+é **escrita passante**:
+
+1. O atendente troca a etiqueta `etapa_` na conversa — o gesto natural, onde
+   ele já está.
+2. O Chatwoot avisa o n8n, que chama `POST /api/atendimento/evento`.
+3. **O site decide**: valida contra as sete etapas, aplica a régua de
+   não-regressão (mesma ideia do `desfecho_pode_gravar()` que já existe no
+   motor) e grava.
+4. O site **devolve ao Chatwoot a etiqueta que de fato ficou**. Se o atendente
+   tentou algo inválido, o rótulo volta sozinho — correção visível, não
+   divergência silenciosa.
+5. Mover o card no kanban percorre o mesmo caminho ao contrário.
+
+Um valor, um dono, dois controles remotos.
+
+### 10.2 Os papéis que nascem daqui
+
+C2, C5 e C6 juntos dizem quais papéis o painel ganha — e, tão importante
+quanto, quais **não** ganha:
+
+| Papel | Situação |
+|---|---|
+| `pos_venda` | **Novo.** Dono da fila de verificação, dos lembretes de revisão e das conversas `time_pos-venda`. Encerra o arranjo transitório da D9. |
+| `sdr_resgate` | **Novo.** É a pessoa da C2 — opera a fila das réguas 2 e 3. |
+| `sdr` de primeira linha | **Não nasce.** É robô, e robô não é usuário do painel. `time_sdr` existe como etiqueta de conversa, não como papel de gente. |
+| `admin_financeiro` | **Não nasce.** `financeiro` já está em `PERFIS` e só ganha a superfície de atendimento; `time_admin-financeiro` é a etiqueta. Papel novo aqui duplicaria linha da matriz. |
+
+### 10.3 O que ainda falta decidir
+
+Uma coisa só, e ela é da C5: **quem** atende pelo administrativo-financeiro. A
+função está criada; as pessoas o dono resolve depois, como combinado. Até lá
+`time_admin-financeiro` existe e as conversas ficam sem dono nomeado — o que é
+visível no painel, e não silencioso.
+
+---
+
+## Fontes
+
+Da §8, na ordem em que aparecem:
+
+- [Lead Response Time: Every Study (MIT, HBR, Drift)](https://ainora.lt/blog/lead-response-time-statistics-every-study-2026)
+  — compilação dos estudos de tempo de resposta, incluindo o MIT/InsideSales
+  de 2007 (mais de 15 mil leads)
+- [B2B Sales Follow-Up Statistics: Touches, Timing & Reply Data](https://www.cirrusinsight.com/blog/sales-follow-up-statistics)
+  — a cadência de ~6 toques e o dado da Velocify (3,5 milhões de leads)
+- [Follow-Up Statistics That Actually Hold Up](https://conciergr.com/blog/follow-up-statistics-sales)
+  — a 1,3ª tentativa média e o alcance de 80% com 6+ tentativas
+- [Dealership lead reactivation in 2026: the playbook](https://www.useclearline.com/blog/dealership-lead-reactivation-ai-tools-2026)
+  — o corte de 30 dias da revenda média e a conversão do lead de 90–365 dias
+- [Ultimate Guide to CRM Database Reactivation](https://www.visquanta.com/blog/crm-database-reactivation-guide)
+  — os 5 a 8 toques da reativação de base fria
+
+Da §8.3 e da §9:
+
+- [How to Use Evolution API Without Getting Banned on WhatsApp (2026)](https://wasenderapi.com/blog/how-to-use-evolution-api-without-getting-banned-on-whatsapp-2026-guide)
+  e [API Oficial vs Evolution API: o que muda na prática](https://blog.tipefy.com/api-oficial-do-whatsapp-vs-evolution-api-e-baileys-o-que-muda-na-pratica-para-sua-empresa)
+  — o risco de banimento do protocolo não oficial. **Ambos são de fornecedor
+  que vende a alternativa oficial**; o viés é declarado, e é por isso que o
+  aviso da §8.3 recomenda mitigação e não troca de fornecedor.
+- [How to use Agent bots — documentação do Chatwoot](https://www.chatwoot.com/hc/user-guide/articles/1677497472-how-to-use-agent-bots)
+  — o `pending` → `open` que sustenta a §9.1
+- [How to add labels — documentação do Chatwoot](https://www.chatwoot.com/hc/user-guide/articles/1677496066-how-to-add-labels)
+  — a validação de rótulo que impõe o `familia_valor` da §5
 
 ---
 
 ## Registro
 
-Documento criado em 2026-08-26. Nada aqui está aplicado: é levantamento e
-proposta. A seção 2 é verificável no código de hoje; a seção 3 é verificável
-por ausência; as seções 4 a 7 são desenho, e mudam com as respostas da seção 8.
+Documento criado em 2026-08-26; as sete decisões chegaram no mesmo dia e
+estão na §10. **Nada aqui está aplicado** — segue sendo levantamento e
+proposta, e nenhuma linha de código ou migração saiu deste documento ainda.
+
+A §2 é verificável no código de hoje; a §3, por ausência; as §§4 a 7 são
+desenho; as §§8 e 9 são desenho fundamentado, com as fontes acima. A próxima
+coisa a fazer é o pacote **A1** — a coluna `ag_uid` em `leads` —, que não
+depende de nenhuma resposta pendente.
