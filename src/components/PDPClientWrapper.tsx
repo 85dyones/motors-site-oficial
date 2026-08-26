@@ -200,6 +200,10 @@ export default function PDPClientWrapper({
       tipo: veiculo.tipo,
       cor: veiculo.cor,
       nome: nomeDoVeiculo(veiculo),
+      donos: veiculo.donos_anteriores,
+      // O laudo está na ficha — não "o carro foi periciado", que vale para
+      // todos. Ver a nota em `pushVeiculo`.
+      temLaudo: Boolean((veiculo.laudo_pericia ?? "").trim()),
     });
 
     // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)

@@ -1,5 +1,6 @@
 import { generateEventId, getMatchParams } from "./tracking-identity";
 import {
+  containerAssumeOsEventos,
   pushCliqueTelefone,
   pushCliqueWhatsApp,
   pushLead,
@@ -272,20 +273,33 @@ export function trackLeadSubmission(
   if (typeof window === "undefined") return null;
 
   try {
+    // O id sobe para antes do push: ele é o `lead_id` que o container lê, e o
+    // mesmo valor que já viaja no `eventID` do Meta e no `transaction_id` do
+    // Ads. Um id só nas três plataformas é o que permite conferir uma contra a
+    // outra. Estava sendo gerado depois do portão de consentimento, e o push
+    // acontece antes dele — daí chegar sempre vazio no `dataLayer`.
+    const eventId = options?.presetEventId || generateEventId("Lead");
+
     pushLead(options?.tipoDeLead ?? "proposta", {
       vehicle_id: vehicle.id,
       vehicle_name: `${vehicle.marca} ${vehicle.modelo}`,
       vehicle_price: vehicle.preco,
       form_id: options?.formId,
+      lead_id: eventId,
     });
 
     const consent = localStorage.getItem("ag_cookie_consent");
     if (consent !== "accepted") return null;
 
-    const eventId = options?.presetEventId || generateEventId("Lead");
+    // Com o container no ar, quem manda `generate_lead` para o GA4 é a tag 204
+    // — com mais parâmetro do que este `gtag` jamais mandou (`vehicle.*`
+    // inteiro, `lead_id`, valor calculado por tipo de lead). Enviar dos dois
+    // lados contaria cada lead duas vezes, e o GA4 não apaga evento retroativo.
+    // Ver a nota do sinalizador em `lib/dataLayer.ts`.
+    const oContainerAssume = containerAssumeOsEventos();
 
     // Google Analytics 4 Event
-    if (window.gtag) {
+    if (window.gtag && !oContainerAssume) {
       window.gtag("event", "generate_lead", {
         currency: "BRL",
         value: vehicle.preco,
@@ -296,7 +310,13 @@ export function trackLeadSubmission(
 
     // Google Ads Enhanced Conversions — requer "Conversões otimizadas" ativado
     // no painel do Google Ads, senão o user_data é descartado silenciosamente.
-    if (window.gtag && options?.googleAdsId && options?.googleAdsConversionLabel) {
+    //
+    // Também cede a vez ao container: a tag 210 (`Ads - conv_lead`) dispara na
+    // mesma submissão. Hoje este caminho está inerte, porque `googleAdsId` e
+    // `googleAdsConversionLabel` estão vazios no painel — mas preencher os dois
+    // campos com o container ligado ressuscitaria a dupla contagem, e é um
+    // gesto de duas linhas no painel, sem nenhum aviso.
+    if (window.gtag && !oContainerAssume && options?.googleAdsId && options?.googleAdsConversionLabel) {
       window.gtag("set", "user_data", {
         email: options.email || undefined,
         phone_number: options.phoneE164 || undefined,
@@ -343,6 +363,9 @@ export function trackVehicleView(
     tipo?: string | null;
     cor?: string | null;
     nome?: string;
+    /** Donos anteriores e laudo — `owners` e `has_report` do §11.1 do plano. */
+    donos?: number | null;
+    temLaudo?: boolean;
   },
 ): string | null {
   if (typeof window === "undefined") return null;
@@ -365,6 +388,8 @@ export function trackVehicleView(
       tipo: vehicle.tipo,
       cor: vehicle.cor,
       nome: vehicle.nome || `${vehicle.marca} ${vehicle.modelo}`,
+      donos: vehicle.donos,
+      temLaudo: vehicle.temLaudo,
     });
 
     const consent = localStorage.getItem("ag_cookie_consent");
@@ -515,7 +540,17 @@ export function trackContactClick(
     const eventId = generateEventId("Contact");
 
     // Google Analytics 4 Event
-    if (window.gtag) {
+    //
+    // Com o container no ar, quem reporta este clique é a tag 201
+    // (`click_whatsapp`) ou a 202 (`click_to_call`) — cada uma com o nome do
+    // que de fato aconteceu.
+    //
+    // E aqui o container corrige um defeito, não só evita duplicar: um clique
+    // em "chamar no WhatsApp" vinha sendo enviado ao GA4 como `generate_lead`,
+    // o mesmo nome do formulário efetivamente enviado. Os dois na mesma métrica
+    // inflam a contagem de leads com quem só abriu a conversa — e é a métrica
+    // contra a qual o Ads otimiza.
+    if (window.gtag && !containerAssumeOsEventos()) {
       window.gtag("event", "generate_lead", {
         method: method,
         description: label

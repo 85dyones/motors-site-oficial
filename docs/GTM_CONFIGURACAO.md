@@ -30,6 +30,112 @@ se perde.
 
 ---
 
+## 0.5 · O container já existe — o que falta nele
+
+> **Estado em 2026-08-25.** O container **`GTM-TB665RN9`** ("Motors Store -
+> dataLayer + Ads conversions") foi criado com 9 tags GA4, 2 conversões do
+> Google Ads, 9 gatilhos e 13 variáveis. Os **nomes dos 9 eventos batem
+> exatamente** com o que `src/lib/dataLayer.ts` empurra, e `view_vehicle` já
+> chega com `vehicle.*` e `ecommerce.items` no formato certo.
+>
+> As seções 1 a 5 abaixo descrevem a configuração completa, para referência.
+> Esta seção lista só o que **falta**, na ordem de custo.
+
+### 1 · O filtro do `pos_lead` — sem ele, cada lead conta duas vezes no Ads
+
+A tag **`Ads - conv_whatsapp`** está no gatilho cru de `click_whatsapp`. Na
+ficha, no pop-up e na avaliação o site abre o WhatsApp **assim que o lead é
+registrado**: o mesmo envio dispara `generate_lead` e, logo depois,
+`click_whatsapp`. As duas viram conversão. Ver a seção §2 abaixo para o porquê
+isso é o pior tipo de erro de medição.
+
+Três telas no painel do GTM:
+
+1. **Variáveis → Nova → Variável da camada de dados.** Nome `dlv - pos_lead`,
+   nome da variável `pos_lead`, versão 2. Salvar.
+2. **Acionadores → Novo → Evento personalizado.** Nome
+   `ev - click_whatsapp (conversão)`, nome do evento `click_whatsapp`. Marcar
+   *Alguns eventos personalizados* e definir a condição
+   **`dlv - pos_lead` — não é igual a — `true`**. Salvar.
+3. **Tags → `Ads - conv_whatsapp` → Acionamento.** Remover
+   `ev - click_whatsapp` e escolher `ev - click_whatsapp (conversão)`. Salvar.
+
+O gatilho cru continua servindo `GA4 - click_whatsapp`: para relatório de
+comportamento, o clique pós-lead **é** informação. O que ele não pode virar é
+conversão.
+
+### 2 · `curadoria` na tabela de valor
+
+`js - valor do lead` conhece `proposta`, `financiamento`, `avaliacao` e
+`contato`. O site também emite **`curadoria`** (`TipoDeLead`, em
+`src/lib/dataLayer.ts`), que hoje cai no fallback de R$ 100. Acrescentar às duas
+tabelas do script — sugestão: taxa `0.10`, fallback `420`, iguais a `proposta`,
+porque é lead de mesma intenção.
+
+### 3 · Três variáveis novas de veículo (§11.1 do plano)
+
+O `view_vehicle` passou a levar mais três campos. Criar como **Variável da
+camada de dados**, versão 2:
+
+| Nome no GTM | Variável | Para quê |
+|---|---|---|
+| `dlv - vehicle.price_range` | `vehicle.price_range` | Público de remarketing por faixa — devolve o mesmo `slug` de `/estoque/ate-60-mil` |
+| `dlv - vehicle.owners` | `vehicle.owners` | `donos_anteriores` |
+| `dlv - vehicle.has_report` | `vehicle.has_report` | O laudo está na ficha |
+
+`price_range` é o que mais muda lance: sem ele o Ads não separa quem olhou
+carro de entrada de quem olhou o topo da vitrine.
+
+⚠️ **`has_report` diz que o DOCUMENTO está na ficha, não que o exame
+aconteceu.** `conteudo-seo/POSICIONAMENTO.md` registra a confirmação do dono em
+17/08: **todos** os veículos passam por perícia cautelar, e `laudo_pericia`
+vazio é falha de lançamento. Por isso o campo **só sai quando há laudo** — nunca
+como `false`. Não montar público de "sem laudo" com ele.
+
+### 4 · Conversões otimizadas em `Ads - conv_lead` (quando der)
+
+A tag não manda e-mail nem telefone. **Nada se perdeu** — o caminho equivalente
+no código nunca esteve ativo, porque `googleAdsId` e `googleAdsConversionLabel`
+seguem vazios no painel do site —, mas dado de identidade com hash melhora
+bastante o casamento de conversão no Ads. Fica como próximo passo, não como
+pendência.
+
+### O que o §11.1 pediu e NÃO deu para entregar
+
+- **`days_in_stock`** — o mais valioso dos cinco, e o único que depende de dado
+  que não existe. `estoque_motors` tem `last_seen_at` e
+  `conteudo_atualizado_em`, mas nenhum **`first_seen_at`**: não há como saber
+  há quantos dias o veículo entrou. Usar `last_seen_at` daria o oposto (para
+  carro disponível é sempre ~hoje). Precisa de coluna nova e de o sincronizador
+  gravá-la no primeiro encontro — mudança de schema e de n8n, não de front-end.
+  Enquanto não existir, a alocação de verba por encalhe do §1.2 fica sem base.
+- **`store_id`** — fora de propósito. O dono confirmou em 25/08 que a operação
+  é **uma loja só**, na Rua Ernesto Piazzetta. O §10.3 do plano menciona uma
+  segunda unidade sem perfil; a decisão do dono é a que vale. Se um dia houver
+  filial de verdade, o campo entra aqui e nos eventos de contato.
+
+### A ordem de publicar
+
+Aplicar os itens 1 e 2 e **publicar o container ANTES** de preencher o `gtmId`
+no painel do site. Enquanto o campo está vazio o container não é carregado
+(`IntegrationsTracker`), então publicar não muda nada em produção — e o filtro
+do `pos_lead` precisa estar de pé antes do primeiro clique medido.
+
+### O que o site faz sozinho a partir daí
+
+`src/lib/telemetry.ts` **cede a vez ao container** no instante em que o `gtmId`
+existe: para de mandar `generate_lead` e a conversão do Ads por `gtag`, e deixa
+o `dataLayer` alimentando as tags. Não há deploy a coordenar com a edição do
+painel — a regra vive no código, em `containerAssumeOsEventos()`
+(`src/lib/dataLayer.ts`).
+
+⚠️ **Não preencher `googleAdsId` nem `googleAdsConversionLabel` no painel do
+site.** Com o container ligado eles são redundantes; o código os ignora, mas
+são o gesto de duas linhas que reativaria o caminho paralelo se a regra acima
+for removida algum dia.
+
+---
+
 ## 1. Variáveis da camada de dados
 
 Criar todas como **Variável da camada de dados**, versão 2, com o nome exato:
@@ -47,6 +153,10 @@ Criar todas como **Variável da camada de dados**, versão 2, com o nome exato:
 | `dlv - vehicle.body_type` | `vehicle.body_type` |
 | `dlv - vehicle.model_year` | `vehicle.model_year` |
 | `dlv - lead_type` | `lead_type` |
+| `dlv - lead_id` | `lead_id` |
+| `dlv - vehicle.price_range` | `vehicle.price_range` |
+| `dlv - vehicle.owners` | `vehicle.owners` |
+| `dlv - vehicle.has_report` | `vehicle.has_report` |
 | `dlv - form_id` | `form_id` |
 | `dlv - whatsapp_location` | `whatsapp_location` |
 | `dlv - call_location` | `call_location` |
@@ -182,8 +292,13 @@ do estoque; se algum dia divergirem, o anúncio dinâmico sai em branco.
 
 ## 6. Checklist antes de publicar o contêiner
 
-1. **Tag Assistant**: abrir o site e confirmar que existe **uma única** tag do
-   GA4 `G-KBL1MFN9E3` na página. Duas = tudo contado em dobro.
+1. **Tag Assistant**: abrir o site e confirmar que existe **uma única**
+   configuração do GA4 `G-KBL1MFN9E3` na página. Duas = todo `page_view` em
+   dobro.
+   *Não confundir com as 9 tags de evento do container:* elas usam
+   `measurementIdOverride` e não criam uma segunda configuração. A única
+   configuração é a do código (`IntegrationsTracker`, via `gtag('config', …)`),
+   e é ela que manda o `page_view`.
 2. **Modo de visualização**: percorrer home → `/estoque` → ficha → clicar no
    WhatsApp e conferir, na ordem: `page_context` (com o `page_type` certo),
    `stock_count`, `view_vehicle` (com `ecommerce` zerado antes) e
@@ -198,12 +313,38 @@ do estoque; se algum dia divergirem, o anúncio dinâmico sai em branco.
 
 ---
 
-## 7. O que continua fora do GTM, e por quê
+## 7. Quem manda cada evento — atualizado em 2026-08-25
 
-`gtag.js`, o Google Ads e o Meta Pixel seguem carregados pelo código
-(`IntegrationsTracker`), com os eventos de negócio disparados por
-`src/lib/telemetry.ts` e espelhados na CAPI. A migração completa para o GTM é
-possível, mas exige remover as tags do código **no mesmo deploy** em que o
-container assume — janela em que qualquer descompasso zera a medição. Enquanto
-não houver motivo forte, os dois caminhos convivem: o código garante o mínimo,
-o container dá autonomia para o resto.
+> A versão anterior desta seção dizia que os eventos ficavam fora do GTM e que a
+> migração exigiria "remover as tags do código **no mesmo deploy** em que o
+> container assume — janela em que qualquer descompasso zera a medição".
+> O diagnóstico estava certo; a conclusão, não. **A janela não precisa existir.**
+
+O problema real é que **quem liga o container é o dono, no painel** — o
+`IntegrationsTracker` só injeta o GTM quando `companySettings.gtmId` existe, e
+esse valor vem do banco, não do repositório. Um deploy não sabe quando isso vai
+acontecer, então as duas saídas óbvias erram para lados opostos:
+
+| | |
+|---|---|
+| apagar o `gtag` no deploy | GA4 sem `generate_lead` até o dono digitar o ID |
+| manter os dois | tudo em dobro a partir do segundo em que ele digitar |
+
+A saída é o código **medir enquanto o container está ausente e sair de cena
+sozinho quando ele chega** — `containerAssumeOsEventos()`, em
+`src/lib/dataLayer.ts`. Sem lacuna, sem sobreposição, e sem sincronizar deploy
+com edição de painel.
+
+**O container manda** (quando o `gtmId` está preenchido): `generate_lead`,
+`click_whatsapp`, `click_to_call`, `click_directions`, `view_vehicle`,
+`financing_simulation`, `view_specs`, `form_start`, `view_gallery`, e as duas
+conversões do Google Ads.
+
+**O código manda, sempre:** o Meta Pixel e a CAPI, intocados — e três eventos
+GA4 que o container não tem: `view_item`, `complete_registration` e `search`.
+`view_item` fica de propósito: é evento recomendado do GA4 e sustenta relatório
+de item e público de remarketing que `view_vehicle`, sendo nome customizado,
+não sustenta.
+
+**O código manda enquanto o container não estiver ligado:** `generate_lead` e a
+conversão do Ads. É a rede de segurança — e ela se recolhe sozinha.

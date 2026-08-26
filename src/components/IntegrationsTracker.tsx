@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
+import { marcarContainerAtivo } from "../lib/dataLayer";
 
 declare global {
   interface Window {
@@ -52,6 +53,21 @@ export default function IntegrationsTracker() {
   const initializedMeta = useRef(false);
   const initializedGAds = useRef(false);
   const isFirstPathnameRun = useRef(true);
+
+  /**
+   * Avisa o `telemetry.ts` de que o container assumiu os eventos.
+   *
+   * Fora do portão de consentimento de propósito: sem aceite, nem o GTM nem o
+   * `gtag` enviam coisa alguma, então o sinalizador só precisa estar certo
+   * sobre a ÚNICA variável que diferencia os dois mundos — o `gtmId` existir.
+   *
+   * O efeito roda assim que as configurações chegam, antes de qualquer lead
+   * possível. Ver a nota longa em `lib/dataLayer.ts` para o porquê de o código
+   * medir enquanto o container está ausente e sair de cena quando ele chega.
+   */
+  useEffect(() => {
+    marcarContainerAtivo(Boolean(gtmId));
+  }, [gtmId]);
 
   // Persist _fbc por 90 dias se veio fbclid na URL e o cookie ainda não existe.
   // Independe de consentimento de analytics: é apenas a captura do parâmetro de
