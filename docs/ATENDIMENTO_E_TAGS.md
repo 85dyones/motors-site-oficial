@@ -730,6 +730,82 @@ confia a quem entrou hoje.
 
 ---
 
+### 9.6 Trocar o modelo do Captain para o Claude — é possível, e são três campos
+
+Levantado em 2026-08-26, a pedido do dono. O Captain nasce apontado para a
+OpenAI (`gpt-4o-mini` é o padrão), mas o campo de endereço é editável, e a
+Anthropic publica uma camada de compatibilidade com a API da OpenAI. As duas
+pontas se encontram sem gateway, sem proxy e sem uma linha de código.
+
+No **Super Admin Console → Settings → Captain** do Chatwoot auto-hospedado:
+
+| Campo | O que pôr |
+|---|---|
+| OpenAI API Endpoint | `https://api.anthropic.com/v1/` |
+| OpenAI API Key | a chave da Anthropic (o campo se chama "OpenAI", o conteúdo não precisa ser) |
+| OpenAI Model | `claude-opus-5` |
+
+**A parte que importa para este projeto: chamada de ferramenta funciona.** A
+tabela de compatibilidade marca como *fully supported* o `tools[].function`
+inteiro (nome, descrição e `parameters`), o `parallel_tool_calls`, o
+`tool_calls` da resposta e as mensagens de papel `tool` com `tool_call_id`. Ou
+seja, as *custom tools* da §9.0 — e com elas a trava da §9.5 — atravessam a
+camada intactas. Era a única coisa que precisava valer.
+
+#### As quatro ressalvas, em ordem de peso
+
+1. **A Anthropic não vende essa camada como caminho de produção.** O texto
+   dela é explícito: *"primarily intended to test and compare model
+   capabilities, and is not considered a long-term or production-ready
+   solution for most use cases"* — com a promessa de seguir funcional e sem
+   quebra, mas com a prioridade na API nativa. Para um robô que fala com
+   cliente, isso é um risco a assumir de olhos abertos, não uma nota de
+   rodapé.
+2. **`strict` é ignorado.** A camada aceita o campo e não o aplica, então o
+   JSON da chamada de ferramenta **não tem garantia** de seguir o esquema que
+   o Captain declarou. Na prática costuma sair certo; o ponto é que a garantia
+   formal não existe, e o teste de mesa da §9.4 passa a ter de olhar também
+   *a forma* do que chegou na rota, não só se a rota foi chamada.
+3. **Acaba o "sem custo adicional".** Este é o ponto que muda a conta da C3: o
+   Captain na VPS não cobra, mas a API da Anthropic cobra por token. E a
+   camada de compatibilidade **não suporta cache de prompt**, então o prompt de
+   sistema e o material de apoio são cobrados por inteiro a cada mensagem — é
+   o que faz o lado da entrada dominar o gasto.
+4. **Mensagem de sistema no meio da conversa é achatada.** A camada concatena
+   todas as `system`/`developer` numa só, no começo. Não afeta o desenho
+   atual, mas afeta o dia em que alguém quiser injetar instrução no meio do
+   atendimento.
+
+#### A ordem de grandeza do custo
+
+Com preço de tabela em 2026-06 — Opus 5 a US$ 5/US$ 25 por milhão de tokens
+(entrada/saída), Sonnet 5 a US$ 2/US$ 10, Haiku 4.5 a US$ 1/US$ 5 — e uma
+conversa hipotética de dez trocas, com ~3 mil tokens de contexto por vez e
+~150 de resposta:
+
+| Modelo | Por conversa (ordem de grandeza) |
+|---|---|
+| `claude-opus-5` | ~US$ 0,19 |
+| `claude-sonnet-5` | ~US$ 0,08 |
+| `claude-haiku-4-5` | ~US$ 0,04 |
+
+**Estes números são estimativa, não medição** — o multiplicador de verdade é o
+tamanho do prompt de sistema do Captain e o quanto de material de apoio ele
+carrega, e nenhum dos dois existe ainda. Servem para dizer se a conversa é de
+centavos ou de reais; não servem para orçamento. A escolha do modelo é do dono.
+
+#### A recomendação
+
+**Use a camada exatamente para o que ela foi feita: comparar.** O teste das dez
+perguntas da §9.4 é literalmente "test and compare model capabilities" — rode-o
+duas vezes, uma com o modelo atual da VPS e outra apontando para o
+`claude-opus-5`, e decida com o resultado na mão em vez de com suposição sobre
+qualidade de chamada de ferramenta. Se o modelo local passar dez em dez, ele
+ganha por custo e por não depender de rede. Se não passar, aí a conversa sobre
+pagar por token tem base.
+
+---
+
 ## 10. Decisões tomadas em 2026-08-26
 
 | # | Questão | Decisão do dono |
@@ -791,6 +867,7 @@ visível no painel, e não silencioso.
 | 2026-08-26 | **Pacote A1 implementado** — `ag_uid`, `ref_curta` gerada, gravação em `/api/leads` e busca no kanban A8. |
 | 2026-08-26 | **Migração do A1 aplicada em produção.** A autoconferência passou junto (ela estoura se não passar), então a busca por referência está no ar. |
 | 2026-08-26 | **Captain sem custo adicional** — roda na VPS. O item de custo da §9.4 fecha; entra no lugar a conferência do modelo e o teste de mesa das dez perguntas. |
+| 2026-08-26 | **Levantado como apontar o Captain para o Claude** (§9.6): três campos no Super Admin Console, chamada de ferramenta funciona pela camada de compatibilidade, e quatro ressalvas — a maior é que a Anthropic não vende essa camada como caminho de produção. Sem decisão ainda; o teste das dez perguntas é o que decide. |
 
 ---
 
@@ -826,7 +903,11 @@ Da §8.3 e da §9:
   — as ferramentas que sustentam a §9.0: endpoint, esquema de parâmetros,
   autenticação Bearer, GET e POST, teto de 15 por conta
 - [How to enable Captain on self-hosted installations](https://www.chatwoot.com/hc/user-guide/articles/1755284287-how-to-enable-captain-on-self_hosted-installations)
-  — o BYOK que define o custo corrente da §9.4
+  — os campos do Super Admin Console (chave, modelo, endereço) da §9.6
+- [OpenAI SDK compatibility — documentação da Anthropic](https://platform.claude.com/docs/en/api/openai-sdk)
+  — o endereço base, a tabela campo a campo que confirma a chamada de
+  ferramenta, o `strict` ignorado, a ausência de cache de prompt e o aviso de
+  que a camada não é caminho de produção. Tudo da §9.6 sai daqui.
 
 ---
 
