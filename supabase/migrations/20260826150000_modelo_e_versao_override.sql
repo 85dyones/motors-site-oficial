@@ -51,8 +51,26 @@
 -- `NULL` significa "o feed manda" — o comportamento de hoje para a esmagadora
 -- maioria. Por isso sem DEFAULT e sem backfill.
 --
--- A URL antiga não quebra: a rota da ficha já faz `permanentRedirect` para a
--- URL canônica quando o caminho pedido não é o dela.
+-- ----------------------------------------------------------
+-- O que acontece com a URL antiga  (CORRIGIDO em 26/08)
+-- ----------------------------------------------------------
+-- A versão original deste comentário dizia que "a rota da ficha já faz
+-- `permanentRedirect` para a URL canônica quando o caminho pedido não é o
+-- dela". **Está errado**, e a afirmação chegou a sair daqui para o PR e para o
+-- dono antes de alguém ler a rota.
+--
+-- O `permanentRedirect` daquela rota dispara SÓ quando
+-- `categoria !== segmentoDoVeiculo(veiculo)` — o caso carro pedido em /motos/
+-- e vice-versa. Segmento de marca, modelo ou versão desatualizado não
+-- redireciona: a ficha resolve o veículo pelo id do último segmento e serve
+-- **200**.
+--
+-- O que de fato evita conteúdo duplicado é o `<link rel="canonical">`, que a
+-- rota emite apontando para `getVeiculoPdpUrl(veiculo)` — ou seja, para a URL
+-- nova. O Google consolida, mas por canonical, não por 301: mais lento e mais
+-- fraco que um redirecionamento.
+--
+-- Transformar isso em 301 é decisão separada, não tomada aqui.
 -- ==========================================================
 
 ALTER TABLE public.estoque_motors
@@ -100,6 +118,11 @@ UPDATE public.estoque_motors
    SET modelo_override = 'HR-V', versao_override = 'EX 1.8 Flexone 16v 5p Aut'
  WHERE modelo ILIKE 'HR-V Ex%' AND modelo_override IS NULL;
 
+-- Valor da coluna, LIDO no `<title>` do hub servido em 2026-08-26:
+--   "C-180 Cgi Classic 1.8 16v 156cv Aut 2012 Gasolina Seminovo em Curitiba"
+-- Nenhum outro veículo do pátio começa por "C-180" — a Mercedes é uma só, e
+-- está fora do feed (linha histórica), por isso o casamento é por texto.
+--
 -- "Classe C", e não "C-180": aqui não há hub limpo para juntar — nenhum dos
 -- dois merge com nada, então a escolha é de estrutura, não de conserto. O
 -- modelo É a Classe C; "C-180" é a designação de motor. Com "Classe C", um
@@ -110,6 +133,11 @@ UPDATE public.estoque_motors
    SET modelo_override = 'Classe C', versao_override = 'C-180 CGI Classic 1.8 16v 156cv Aut'
  WHERE modelo ILIKE 'C-180%' AND modelo_override IS NULL;
 
+-- Valor da coluna, LIDO no `<title>` do hub servido: "Novo Voyage Seminovo em
+-- Curitiba" — que é `rotuloLimpo` cortando "Novo Voyage 1.0" no primeiro
+-- dígito. O único Voyage à venda tem `modelo` = "Voyage" e não começa por
+-- "Novo", então o padrão não o alcança. Conferido no feed servido.
+--
 -- "Novo Voyage 1.0" é o caso que o `canonicalDe` não alcançava por dois
 -- motivos: `ehRotuloSujo` não vê sujeira em "novo voyage 10" (não há decimal,
 -- nem `Np`, nem `Nv`, nem palavra de transmissão), e o hub limpo `voyage` não é
