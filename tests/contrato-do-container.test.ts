@@ -24,11 +24,13 @@ import { lerCodigo } from "./fonte";
  */
 
 // ---------------------------------------------------------------------------
-// Transcrito de: "Motors Store - dataLayer + Ads conversions", 2026-08-25
+// Transcrito de: "Motors Store - dataLayer + Ads conversions **v3**",
+// exportado em 2026-08-25 18:00. Conferido campo a campo em 26/08.
 // ---------------------------------------------------------------------------
 
-/** Os 9 `customEventFilter` dos gatilhos do container. */
+/** Os 10 `customEventFilter` dos gatilhos do container. */
 const EVENTOS_DO_CONTAINER = [
+  "page_context",
   "view_vehicle",
   "click_whatsapp",
   "click_to_call",
@@ -40,20 +42,44 @@ const EVENTOS_DO_CONTAINER = [
   "view_gallery",
 ] as const;
 
-/** Os caminhos das variáveis de camada de dados que as tags do container leem. */
+/**
+ * Os 25 caminhos de camada de dados que as variáveis do container leem.
+ *
+ * ⚠️ `ecommerce.items` **saiu** na v3: `GA4 - view_vehicle` passou a
+ * `sendEcommerceData: false` e a variável foi removida. O site continua
+ * publicando o espelho em `pushVeiculo` — de propósito, porque é barato e
+ * volta a servir no dia em que a opção for religada —, mas hoje ninguém o lê.
+ * Não é contrato: por isso está fora desta lista.
+ *
+ * `vehicle.transmission` também saiu; a v1 declarava a variável e nenhuma tag
+ * a usava. O site continua publicando `transmission` no objeto.
+ */
 const VARIAVEIS_DO_CONTAINER = [
+  "page_type",
+  "store_city",
+  "stock_count",
   "vehicle.id",
   "vehicle.name",
   "vehicle.brand",
   "vehicle.model",
   "vehicle.price",
   "vehicle.body_type",
-  "vehicle.transmission",
+  "vehicle.model_year",
+  "vehicle.price_range",
+  "vehicle.owners",
+  "vehicle.has_report",
   "lead_type",
   "lead_id",
-  "page_type",
+  "form_id",
   "whatsapp_location",
-  "ecommerce.items",
+  "call_location",
+  "pos_lead",
+  "vehicle_id",
+  "vehicle_price",
+  "installments",
+  "down_payment",
+  "images_viewed",
+  "directions_source",
 ] as const;
 
 function comoNoNavegador() {
@@ -115,12 +141,16 @@ describe("os nomes de evento do container continuam existindo no site", () => {
   it("não há evento a mais empurrado que o container ignore em silêncio", () => {
     const codigo = lerCodigo("src/lib/dataLayer.ts");
     const empurrados = [...codigo.matchAll(/event:\s*"([a-z_]+)"/g)].map((m) => m[1]);
-    // `page_context` é o único que o container não precisa como gatilho: ele
-    // existe para ATUALIZAR `page_type`, que todas as tags leem como parâmetro.
-    const inesperados = empurrados.filter(
-      (e) => e !== "page_context" && !EVENTOS_DO_CONTAINER.includes(e as never),
-    );
+    const inesperados = empurrados.filter((e) => !EVENTOS_DO_CONTAINER.includes(e as never));
     expect(inesperados).toEqual([]);
+  });
+
+  it("os dois lados têm o MESMO conjunto de eventos", () => {
+    // Nem sobra no site nem falta no container: é a checagem que pega tanto um
+    // evento renomeado quanto um gatilho criado sem quem o dispare.
+    const codigo = lerCodigo("src/lib/dataLayer.ts");
+    const empurrados = new Set([...codigo.matchAll(/event:\s*"([a-z_]+)"/g)].map((m) => m[1]));
+    expect([...empurrados].sort()).toEqual([...EVENTOS_DO_CONTAINER].sort());
   });
 });
 
@@ -161,11 +191,15 @@ describe("os caminhos de variável que o container lê chegam preenchidos", () =
   });
 
   it("toda variável do container tem quem a preencha", () => {
-    // Varredura de fonte: prende os nomes ainda que o push more noutro módulo.
-    const codigo = lerCodigo("src/lib/dataLayer.ts");
+    // Varredura de fonte nos dois módulos que escrevem na camada: prende os
+    // nomes ainda que o valor chegue por spread, e não como literal.
+    const codigo =
+      lerCodigo("src/lib/dataLayer.ts") + lerCodigo("src/lib/telemetry.ts");
     for (const caminho of VARIAVEIS_DO_CONTAINER) {
       const folha = caminho.split(".").pop() as string;
-      expect(codigo, `quem preenche ${caminho}?`).toContain(folha);
+      expect(codigo, `quem preenche ${caminho}?`).toMatch(
+        new RegExp(`\\b${folha}\\??\\s*:`),
+      );
     }
   });
 });
