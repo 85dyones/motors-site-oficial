@@ -2381,8 +2381,35 @@ export default function ConfiguracoesClientWrapper() {
                     />
                     <p className="text-[10px] text-mt-neutral-700 font-normal leading-relaxed">
                       Cole apenas o ID (ex: <code className="font-mono text-mt-accent">GTM-TB665RN9</code>) — se colar o snippet inteiro, o ID é extraído automaticamente. O container é injetado no &lt;head&gt; após o aceite de cookies.
+                    </p>
+                  </div>
+
+                  {/* Handoff dos eventos para o container.
+                    *
+                    * Campo separado do ID de propósito: em 26/08 o container
+                    * estava configurado e carregando, mas vazio — importado sem
+                    * as tags. Inferir do ID fez o site parar de medir. */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        id="input-gtm-assume"
+                        type="checkbox"
+                        checked={companyForm.gtmAssumeEventos === true}
+                        onChange={(e) =>
+                          setCompanyForm({ ...companyForm, gtmAssumeEventos: e.target.checked })
+                        }
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-mt-accent"
+                      />
+                      <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                        O container já publica os eventos
+                      </span>
+                    </label>
+                    <p className="text-[10px] text-mt-neutral-700 font-normal leading-relaxed">
+                      Marque <strong>somente depois</strong> de importar as tags no GTM, publicar o container e conferir no Modo de Visualização que os eventos disparam.
                       <br />
-                      <strong className="text-mt-accent-800">Atenção:</strong> GA4, Google Ads e Meta Pixel já são carregados diretamente pelo site. Não recrie essas tags dentro do GTM ou os eventos vão contar em dobro.
+                      Enquanto estiver desmarcado, o site continua enviando <code className="font-mono text-mt-accent">generate_lead</code> e a conversão do Ads por conta própria. Ao marcar, ele cede a vez ao container — se o container estiver vazio, a medição para.
+                      <br />
+                      <strong className="text-mt-accent-800">Atenção:</strong> o Meta Pixel continua sempre no site. Não o recrie dentro do GTM, ou os eventos contam em dobro.
                     </p>
                   </div>
 

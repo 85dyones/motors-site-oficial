@@ -79,6 +79,23 @@ export interface CompanySettings {
   privacyContactEmail?: string;
   ga4Id?: string;
   gtmId?: string;
+  /**
+   * O container do GTM já tem as tags de evento publicadas?
+   *
+   * Enquanto for falso, `lib/telemetry.ts` continua mandando `generate_lead` e
+   * a conversão do Ads por `gtag`. Quando virar verdadeiro, ele cede a vez ao
+   * container.
+   *
+   * ⚠️ **Existir `gtmId` NÃO basta**, e essa confusão custou caro em
+   * 2026-08-26: o container `GTM-TB665RN9` estava configurado no painel e
+   * carregando em produção, mas **vazio** — importado sem as tags. O código
+   * cedeu a vez para quem não media nada, e o `generate_lead` parou de chegar
+   * ao GA4. Container carregando e container medindo são coisas diferentes, e
+   * o site não tem como distinguir sozinho: só quem publicou sabe.
+   *
+   * Ligar **depois** de importar, publicar e conferir no GTM Preview.
+   */
+  gtmAssumeEventos?: boolean;
   metaPixelId?: string;
   googleAdsId?: string;
   googleAdsConversionLabel?: string;

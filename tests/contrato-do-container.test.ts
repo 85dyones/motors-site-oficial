@@ -223,9 +223,20 @@ describe("quem manda o evento: o código ou o container", () => {
     expect(containerAssumeOsEventos()).toBe(true);
   });
 
-  it("o IntegrationsTracker liga o sinalizador a partir do gtmId", () => {
+  it("o handoff exige consentimento explícito, não só um gtmId", () => {
+    // Em 2026-08-26 o container estava configurado e carregando em producao,
+    // mas VAZIO -- importado sem as tags. Inferir do `gtmId` fez o codigo ceder
+    // a vez para quem nao media nada, e o `generate_lead` parou de chegar ao
+    // GA4. Container carregando != container medindo.
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
-    expect(fonte).toContain("marcarContainerAtivo(Boolean(gtmId))");
+    expect(fonte).toContain("marcarContainerAtivo(Boolean(gtmId) && assumeEventos)");
+    expect(fonte).toContain("companySettings?.gtmAssumeEventos === true");
+  });
+
+  it("o default é o código continuar medindo", () => {
+    // Perder evento é irreversível; contar em dobro por um dia, não.
+    const settings = JSON.parse(lerCodigo("src/lib/companySettings.json"));
+    expect(settings.gtmAssumeEventos).toBe(false);
   });
 
   it("os dois gtag que o container duplicaria estão sob o sinalizador", () => {
