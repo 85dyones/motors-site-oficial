@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
+import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -56,6 +57,8 @@ interface VeiculoDb {
   placa: string | null;
   motor: string | null;
   cor_interna: string | null;
+  modelo_override: string | null;
+  versao_override: string | null;
   donos_anteriores: number | null;
   garantia_fabrica: string | null;
   preco_compra: number | null;
@@ -77,6 +80,8 @@ const NOME_DO_CAMPO: Record<string, string> = {
   placa: "Placa",
   motor: "Motor",
   cor_interna: "Cor interna",
+  modelo_override: "Modelo",
+  versao_override: "Versão",
   donos_anteriores: "Donos anteriores",
   garantia_fabrica: "Garantia de fábrica",
   preco_compra: "Preço de compra",
@@ -502,8 +507,6 @@ export default function EditorDeVeiculo({
                 <div className="flex flex-wrap gap-2">
                   {[
                     ["Marca", v.marca],
-                    ["Modelo", v.modelo],
-                    ["Versão", v.versao],
                     ["Ano", v.ano ? String(v.ano) : null],
                     ["KM", v.quilometragem ? v.quilometragem.toLocaleString("pt-BR") : null],
                     ["Câmbio", v.cambio],
@@ -524,16 +527,80 @@ export default function EditorDeVeiculo({
                 </div>
               </div>
 
+              {/* Modelo e versão — os dois únicos campos do feed que dá para
+                  corrigir, e por um caminho próprio.
+
+                  Editar as colunas `modelo` e `versao` seria desfeito no
+                  próximo ciclo do n8n: as duas estão entre as 22 que o
+                  sincronizador manda. `modelo_override` e `versao_override`
+                  (migração 20260826150000) o sync não conhece, e é isso que
+                  faz a correção durar.
+
+                  ⚠️ Mexer aqui MUDA A URL da ficha e o hub de modelo. Não é
+                  cosmético: a rota já responde 301 do endereço antigo para o
+                  novo, mas link externo antigo passa a dar um salto a mais. */}
+              <div className="mt-6 border-t-2 border-mt-regua pt-4">
+                <div className="mt-rotulo mb-1">Nome do veículo · corrige o que o feed erra</div>
+                <p className="m-0 mb-3 max-w-[62ch] text-[11px] leading-relaxed text-mt-neutral-600">
+                  Em branco, vale o que o RevendaMais mandou. Preenchido, vale o
+                  que está aqui — e muda a URL da ficha e o agrupamento do hub
+                  de modelo. Use quando o feed colar a versão inteira no campo
+                  de modelo.
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {[
+                    {
+                      campo: "modelo_override" as const,
+                      l: "Modelo",
+                      doFeed: v.modelo,
+                      ph: "Ka",
+                    },
+                    {
+                      campo: "versao_override" as const,
+                      l: "Versão",
+                      doFeed: v.versao,
+                      ph: "Sedan 1.0 SE Flex 4p",
+                    },
+                  ].filter((c) => podeGravar(c.campo)).map((c) => (
+                    <div key={c.campo} className="flex flex-col gap-1.5">
+                      <label className={rotuloCampo} htmlFor={`f-${c.campo}`}>{c.l}</label>
+                      <input
+                        id={`f-${c.campo}`}
+                        value={(v[c.campo] as string) ?? ""}
+                        placeholder={c.ph}
+                        onChange={(e) => set(c.campo, e.target.value)}
+                        className={campoCaixa}
+                      />
+                      <span className="text-[10px] leading-snug text-mt-neutral-500">
+                        No feed: {c.doFeed || "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-6 grid grid-cols-1 gap-4 border-t-2 border-mt-regua pt-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <label className={rotuloCampo} htmlFor="f-tipo">Carroceria</label>
-                  <input
+                  {/* Lista fechada, não texto livre: era `<input>`, e o feed já
+                      prova o que texto livre vira — "Hatch" em 20 dos 36
+                      veículos, inclusive duas Kombi e um Bongo. Digitar
+                      "Perúa" ou "sedã" criaria carroceria que nenhum hub
+                      conhece. A lista em lote (`TabelaDeEstoque`) sempre foi
+                      um `<select>`; esta tela é que divergia. */}
+                  <select
                     id="f-tipo"
                     value={v.tipo ?? ""}
-                    placeholder="SUV, Sedan, Hatch…"
                     onChange={(e) => set("tipo", e.target.value)}
                     className={campoCaixa}
-                  />
+                  >
+                    <option value="">— sem carroceria —</option>
+                    {CARROCERIAS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className={rotuloCampo} htmlFor="f-perfil">Perfil de uso</label>

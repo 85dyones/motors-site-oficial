@@ -235,6 +235,24 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   const precoOriginal = typeof dbItem.preco_original === "number" ? dbItem.preco_original : (typeof dbItem.preco === "number" ? dbItem.preco : 0);
   const precoPromocional = typeof dbItem.preco_promocional === "number" ? dbItem.preco_promocional : 0;
 
+  // Modelo e versão — o override do painel vence o feed.
+  //
+  // Aqui, e só aqui: daí para cima ninguém sabe que o override existe. A URL
+  // da ficha, os hubs de marca e modelo, o feed XML e o JSON-LD recebem o
+  // objeto já resolvido, e por isso concordam entre si sem combinar nada.
+  //
+  // O que isso conserta (medido no sitemap de 2026-08-26): quatro modelos
+  // chegaram do feed com a VERSÃO inteira na coluna `modelo`, e cada um gerou
+  // um hub próprio — `/carros/ford/ka-sedan-10-se-flex-4p` disputando com
+  // `/carros/ford/ka`, que por isso listava dois dos três Ka.
+  //
+  // Texto em branco não conta como override: string vazia gravada sem querer
+  // apagaria o nome do modelo do site inteiro.
+  const comOverride = (override: unknown, doFeed: string): string => {
+    const escrito = typeof override === "string" ? override.trim() : "";
+    return escrito || doFeed;
+  };
+
   // Carroceria — só o que o feed traz.
   //
   // Até 2026-08-06 este resolvedor caía numa cadeia de `modelo.includes()`
@@ -327,8 +345,14 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   return {
     id: dbItem.id !== undefined && dbItem.id !== null ? String(dbItem.id) : "",
     marca: formatBrand(dbItem.marca),
-    modelo: dbItem.modelo ? capitalizeWords(dbItem.modelo.trim()) : "Sem Modelo",
-    versao: dbItem.versao ? dbItem.versao.trim() : "Padrão",
+    modelo: comOverride(
+      dbItem.modelo_override,
+      dbItem.modelo ? capitalizeWords(dbItem.modelo.trim()) : "Sem Modelo",
+    ),
+    // O override passa por `capitalizeWords`? Não: "HR-V" e "C-180" viram
+    // "Hr-v" e "C-180" nessa moagem, e o ponto de escrever à mão é justamente
+    // poder grafar o nome como ele é. O valor do feed continua normalizado.
+    versao: comOverride(dbItem.versao_override, dbItem.versao ? dbItem.versao.trim() : "Padrão"),
     ano: typeof dbItem.ano === "number" ? dbItem.ano : (Number(dbItem.ano) || new Date().getFullYear()),
     quilometragem: typeof dbItem.quilometragem === "number" ? dbItem.quilometragem : (Number(dbItem.quilometragem) || 0),
     // ⚠️  NADA DE DEFAULT INVENTADO NOS CAMPOS ABAIXO.

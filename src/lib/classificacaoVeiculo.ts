@@ -25,11 +25,35 @@
  * veículo (A15) ofereçam as mesmas opções.
  */
 
+/**
+ * Perua, Van e Utilitário entraram em 2026-08-26.
+ *
+ * Não é preferência de vocabulário: eram três buracos que empurravam veículo
+ * real para a categoria errada, e `generoDoVeiculo.ts` já os documentava —
+ * *"perua, van e furgão não têm valor próprio em `CARROCERIAS` — chegam como
+ * Hatch ou SUV"*.
+ *
+ * Medido contra o estoque servido em 2026-08-26: das 36 unidades com hub de
+ * carroceria, **20 estavam em Hatch** — o feed do RevendaMais usa "Hatch"
+ * como lixeira. Entre elas, duas Kombi, uma Parati e um Bongo, que não são
+ * hatch por nenhuma definição.
+ *
+ * ⚠️ Acrescentar valor aqui obriga a três edições, e o teste cobra as duas
+ * últimas (`tests/genero-e-concordancia.test.ts`):
+ *   1. esta lista — é o dropdown do painel;
+ *   2. `PLURAIS` em `generoDoVeiculo.ts` — escrito, nunca `+ "s"`;
+ *   3. `CARROCERIAS_FEMININAS`, se for feminina.
+ * E `CARROCERIAS_COM_HUB` passa a gerar `/estoque/{slug}` sozinho, assim que
+ * houver um veículo com o valor.
+ */
 export const CARROCERIAS = [
   "SUV",
   "Sedan",
   "Picape",
   "Hatch",
+  "Perua",
+  "Van",
+  "Utilitário",
   "Motocicleta",
   "Esportivo",
   "Conversível",

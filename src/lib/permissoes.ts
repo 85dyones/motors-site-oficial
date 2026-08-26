@@ -457,6 +457,12 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   descricao_seo: "Editar opcionais e destaques rápidos",
   laudo_pericia: "Editar opcionais e destaques rápidos",
   opcionais: "Editar opcionais e destaques rápidos",
+  // Migração 20260826150000. Mesma ação da carroceria, e pelo mesmo motivo:
+  // os três dizem O QUE o veículo é, e é a mesma pessoa que corrige quando o
+  // feed erra. A diferença é o alcance — estes dois mudam a URL da ficha e o
+  // hub de modelo, e por isso o editor avisa na tela antes de deixar salvar.
+  modelo_override: "Editar opcionais e destaques rápidos",
+  versao_override: "Editar opcionais e destaques rápidos",
 };
 
 /**
