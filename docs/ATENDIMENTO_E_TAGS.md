@@ -794,15 +794,48 @@ tamanho do prompt de sistema do Captain e o quanto de material de apoio ele
 carrega, e nenhum dos dois existe ainda. Servem para dizer se a conversa é de
 centavos ou de reais; não servem para orçamento. A escolha do modelo é do dono.
 
-#### A recomendação
+#### A decisão: fica o caminho nativo
 
-**Use a camada exatamente para o que ela foi feita: comparar.** O teste das dez
-perguntas da §9.4 é literalmente "test and compare model capabilities" — rode-o
-duas vezes, uma com o modelo atual da VPS e outra apontando para o
-`claude-opus-5`, e decida com o resultado na mão em vez de com suposição sobre
-qualidade de chamada de ferramenta. Se o modelo local passar dez em dez, ele
-ganha por custo e por não depender de rede. Se não passar, aí a conversa sobre
-pagar por token tem base.
+Não há modelo local (dono, 2026-08-26), então é OpenAI ou Claude, e **há custo
+nos dois**. Some-se isso às ressalvas acima e a resposta é **ficar na OpenAI**,
+o caminho nativo da ferramenta.
+
+Três razões, e a primeira é a que decide:
+
+1. **É a mesma régua que escolheu o Captain.** A §9.0 preferiu o Captain ao
+   agente no n8n porque ele tira uma peça do caminho e um lugar onde a coisa
+   pode falhar em silêncio. A camada de compatibilidade **acrescenta** uma
+   peça — e uma que a própria Anthropic não sustenta como caminho de produção.
+   Escolher o Claude aqui contrariaria o argumento que decidiu a C3 duas
+   seções acima. Régua que muda conforme o gosto não é régua.
+2. **`strict` funciona no caminho nativo.** O Captain declara um esquema de
+   parâmetros por ferramenta; na OpenAI esse esquema é *imposto*, e pela
+   camada de compatibilidade é ignorado (ressalva 2). Isso é a trava da §9.5
+   ficando mais forte de um lado e mais fraca do outro — e ela é o motivo de
+   tudo isto existir.
+3. **Cache de prompt é automático e a camada não o tem.** O prompt de sistema,
+   as definições de ferramenta e o material de apoio se repetem em toda
+   mensagem — é o termo que domina o gasto. Na OpenAI eles entram em cache
+   sozinhos a partir de ~1024 tokens, com desconto substancial no que é
+   reaproveitado. Pela camada, são cobrados por inteiro, sempre.
+
+**O que esta decisão NÃO afirma:** que a OpenAI tem modelo melhor. Não há
+evidência aqui em nenhuma direção sobre o que de fato importa — confiabilidade
+de chamada de ferramenta neste caso de uso —, e é exatamente isso que o teste
+das dez perguntas mede.
+
+#### A ressalva que sobrevive à decisão
+
+**Não abra para cliente no `gpt-4o-mini` sem testar.** Ele é o padrão do
+Captain e é barato, e nenhuma das duas coisas é evidência de que serve: a
+preocupação da §9.4 — modelo pequeno chamando ferramenta de forma irregular —
+vale para ele igual. A ordem é: rodar as dez perguntas no padrão; se não passar
+dez em dez, **subir de modelo dentro da OpenAI** antes de concluir qualquer
+coisa sobre fornecedor.
+
+E vale registrar que a decisão é barata de rever: são três campos num
+formulário. Se um dia o teste apontar o contrário, a §9.6 acima já tem o
+endereço, a chave e o nome do modelo prontos.
 
 ---
 
@@ -812,6 +845,7 @@ pagar por token tem base.
 |---|---|---|
 | C1 | Existe instância de Chatwoot? | **Sim.** `app.chat.v2o5.com.br`, conta `3`, caixa de entrada `11` — mesma família de domínio do n8n. Destrava A3. |
 | C2 | Quem é o SDR? | **Robô puro** na primeira linha. Pessoa entra **só no resgate/reativação**. |
+| C3-b | Modelo por trás do Captain | **OpenAI, o caminho nativo** (§9.6). Sem modelo local e com custo nos dois lados, a camada de compatibilidade da Anthropic acrescentaria uma peça não sustentada como produção, perderia o `strict` e perderia o cache de prompt. Pendente: o teste das dez perguntas, que não sai de cena. |
 | C3 | Ferramenta do diálogo | **Captain**, o agente do próprio Chatwoot — instância em 4.17.0 com ele liberado, e as *custom tools* do 4.x resolvem a trava do estoque nativamente (§9.0). Agente no n8n fica como plano B. Duas condições: rota de leitura com Bearer para o robô, e instantâneo da configuração versionado no repositório. |
 | C4 | Régua do resgate | **Três réguas** (§8): alarme interno em 24 h; curto em D+5/12/23/40; longo em D+90 e D+270, só com carro que case. |
 | C5 | Administrativo-financeiro no atendimento | **Criar a função** `time_admin-financeiro`. Pessoas a definir depois. |
@@ -851,10 +885,16 @@ quanto, quais **não** ganha:
 
 ### 10.3 O que ainda falta decidir
 
-Uma coisa só, e ela é da C5: **quem** atende pelo administrativo-financeiro. A
-função está criada; as pessoas o dono resolve depois, como combinado. Até lá
-`time_admin-financeiro` existe e as conversas ficam sem dono nomeado — o que é
-visível no painel, e não silencioso.
+Duas coisas.
+
+**Quem atende pelo administrativo-financeiro** (da C5). A função está criada; as
+pessoas o dono resolve depois, como combinado. Até lá `time_admin-financeiro`
+existe e as conversas ficam sem dono nomeado — o que é visível no painel, e não
+silencioso.
+
+**Qual modelo da OpenAI** (da C3-b). O padrão do Captain é o `gpt-4o-mini`, e
+ele só fica se passar nas dez perguntas da §9.4. Quem decide é o teste, não o
+preço.
 
 ---
 
@@ -867,6 +907,7 @@ visível no painel, e não silencioso.
 | 2026-08-26 | **Pacote A1 implementado** — `ag_uid`, `ref_curta` gerada, gravação em `/api/leads` e busca no kanban A8. |
 | 2026-08-26 | **Migração do A1 aplicada em produção.** A autoconferência passou junto (ela estoura se não passar), então a busca por referência está no ar. |
 | 2026-08-26 | **Captain sem custo adicional** — roda na VPS. O item de custo da §9.4 fecha; entra no lugar a conferência do modelo e o teste de mesa das dez perguntas. |
+| 2026-08-26 | **C3-b decidida: fica a OpenAI**, o caminho nativo — pela mesma régua que escolheu o Captain, mais o `strict` imposto e o cache automático. A ressalva do modelo pequeno sobrevive: não abrir no `gpt-4o-mini` sem passar nas dez perguntas. |
 | 2026-08-26 | **Levantado como apontar o Captain para o Claude** (§9.6): três campos no Super Admin Console, chamada de ferramenta funciona pela camada de compatibilidade, e quatro ressalvas — a maior é que a Anthropic não vende essa camada como caminho de produção. Sem decisão ainda; o teste das dez perguntas é o que decide. |
 
 ---
@@ -898,6 +939,11 @@ Da §8.3 e da §9:
   — o `pending` → `open` que sustenta a §9.1
 - [How to add labels — documentação do Chatwoot](https://www.chatwoot.com/hc/user-guide/articles/1677496066-how-to-add-labels)
   — a validação de rótulo que impõe o `familia_valor` da §5
+- [Prompt caching — documentação da OpenAI](https://developers.openai.com/api/docs/guides/prompt-caching)
+  e [Prompt Caching in the API](https://openai.com/index/api-prompt-caching/)
+  — o cache automático a partir de ~1024 tokens que sustenta a razão 3 da
+  decisão C3-b. O desconto exato varia por modelo; a decisão não depende do
+  número, e sim de o caminho nativo ter cache e a camada não ter.
 - [Captain Custom Tools](https://www.chatwoot.com/blog/captain-custom-tools) e
   [Lesson 5: AI Actions](https://www.chatwoot.com/hc/user-guide/articles/1777328078-lesson-5-ai-actions)
   — as ferramentas que sustentam a §9.0: endpoint, esquema de parâmetros,
