@@ -91,7 +91,23 @@ página institucional era **avaliado pelo preço do carro visto antes** —
 `js - valor do lead` cai para o `vehicle_price` plano quando o aninhado falta —
 e esse número alimenta o lance do Ads.
 
-### ⚠️ 3 · O remarketing dinâmico nunca vai carregar o item
+### ✅ 3 · Remarketing dinâmico — o passo a passo aprovado (26/08)
+
+O dono aprovou a correção. No GTM:
+
+1. **Tags → `Ads - Remarketing dinamico` → Acionamento.**
+2. Clicar no lápis e **adicionar** `ev - view_vehicle` — mantendo
+   `ev - page_context`. Ficam os dois.
+3. Salvar → **Visualizar**: abrir uma ficha de veículo e conferir, no painel do
+   Preview, que a tag disparou **duas vezes** — a primeira (page_context) com
+   `dynx_itemid` indefinido, a segunda (view_vehicle) com o **id do veículo**
+   e `dynx_totalvalue` com o preço.
+4. **Enviar** (publicar).
+
+Sem o passo 2, `dynx_itemid` sai sempre vazio — a explicação técnica está logo
+abaixo, preservada como registro.
+
+### ⚠️ O porquê — o remarketing dinâmico nunca vai carregar o item
 
 `Ads - Remarketing dinamico` dispara em **`ev - page_context`** e lê
 `dynx_itemid` de `{{dlv - vehicle.id}}`.
@@ -175,13 +191,54 @@ aconteceu.** `conteudo-seo/POSICIONAMENTO.md` registra a confirmação do dono e
 vazio é falha de lançamento. Por isso o campo **só sai quando há laudo** — nunca
 como `false`. Não montar público de "sem laudo" com ele.
 
-### 4 · Conversões otimizadas em `Ads - conv_lead` (quando der)
+### ✅ 4 · Conversões otimizadas — aprovadas em 26/08, pelo caminho certo
 
-A tag não manda e-mail nem telefone. **Nada se perdeu** — o caminho equivalente
-no código nunca esteve ativo, porque `googleAdsId` e `googleAdsConversionLabel`
-seguem vazios no painel do site —, mas dado de identidade com hash melhora
-bastante o casamento de conversão no Ads. Fica como próximo passo, não como
-pendência.
+O §12.6 item 7 atribuía isto a "Dev". **Não é deploy, e não pode ser**: colocar
+e-mail e telefone no `dataLayer` violaria a regra do §0 e de
+`src/lib/dataLayer.ts` — nada de dado pessoal ali, porque qualquer script da
+página lê. O caminho aprovado é a coleta ficar inteira dentro do GTM, que faz o
+hash antes de enviar.
+
+No GTM:
+
+1. **Variáveis → Nova → Dados fornecidos pelo usuário** (User-Provided Data).
+   Nome: `upd - dados do lead`. Tipo: **Configuração manual**.
+2. Em **E-mail** e **Número de telefone**, apontar para os campos reais dos
+   formulários — conferidos no código em 26/08:
+
+   | Página | Campo | Seletor CSS |
+   |---|---|---|
+   | `/contato` | e-mail | `#email-input` |
+   | `/contato` | telefone | `#phone-input` |
+   | `/avaliacao` | WhatsApp | `#whatsapp-input` |
+
+   Criar uma variável **Elemento DOM** (método *Seletor CSS*) por campo e
+   referenciá-las na configuração manual. Para cobrir os dois telefones com
+   uma variável só: `#phone-input, #whatsapp-input`.
+
+   ⚠️ **O alcance é menor do que parece.** O formulário de proposta da ficha
+   (`LeadCaptureModal`) captura **só o nome** — o contato acontece direto no
+   WhatsApp, então não há e-mail nem telefone para coletar no fluxo que mais
+   gera lead. As conversões otimizadas vão enriquecer os leads de `/contato`
+   e `/avaliacao`; para o restante, o caminho de longo prazo é o upload de
+   conversões offline (§4.6 do plano), que casa pelo GCLID.
+3. **Tags → `Ads - conv_lead` → Inclui dados fornecidos pelo usuário** →
+   marcar e escolher `upd - dados do lead`.
+4. **No Google Ads:** Metas → Conversões → `Enviar formulário de lead` →
+   Configurações → **Conversões otimizadas** → ativar, escolhendo
+   "Gerenciador de tags do Google". Sem este passo o Ads **descarta** o
+   `user_data` em silêncio.
+5. **Visualizar**: enviar um lead de teste e conferir no Preview que a tag
+   `Ads - conv_lead` mostra *User-Provided Data* presente (o valor aparece
+   já com hash `tv.1~em...`).
+6. **Enviar** (publicar).
+
+O que o Google faz com isso: aplica SHA-256 no navegador e casa a conversão
+com o clique mesmo quando o cookie se perdeu (iOS, bloqueadores). Em contas
+desta vertical o ganho típico de conversões atribuídas fica na casa de 5–15%.
+
+⚠️ **Não** pedir ao dev para "mandar o e-mail no dataLayer" — é o único jeito
+errado de fazer isto, e é o mais fácil de pedir.
 
 ### O que o §11.1 pediu e NÃO deu para entregar
 

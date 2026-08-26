@@ -378,6 +378,10 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     baixa_km: hasBaixaKm,
     unico_dono: hasUnicoDono,
     oportunidade_patio: hasOportunidadePatio,
+    // Data de chegada. Sem inventar: linha sem carimbo devolve `null`, e o
+    // consumidor decide (a camada de dados omite `days_in_stock`, o painel
+    // mostra "—"). Ver a migração `20260826030000_first_seen_at.sql`.
+    first_seen_at: dbItem.first_seen_at ?? null,
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
     vendido: !!dbItem.vendido,

@@ -255,6 +255,31 @@ export function pushContagemDeEstoque(total: number): void {
   push({ stock_count: total });
 }
 
+/**
+ * Há quantos dias este veículo está no pátio.
+ *
+ * O `days_in_stock` do §11.1, que o §12.6 cobrou de novo: é o número que separa
+ * o carro que entrou ontem do que está encalhado há três meses, e é sobre essa
+ * diferença que o §1.2 do plano quer alocar verba.
+ *
+ * Devolve `null` sem carimbo — as linhas anteriores à migração
+ * `20260826030000` não sabem quando chegaram, e zero ali seria a mentira mais
+ * cara possível: diria "acabou de chegar" justamente sobre o que está parado.
+ *
+ * Recebe o "agora" por parâmetro para ser testável sem congelar relógio.
+ */
+export function diasEmEstoque(
+  primeiraVez: string | null | undefined,
+  agora: number = Date.now(),
+): number | null {
+  if (!primeiraVez) return null;
+  const chegada = new Date(primeiraVez).getTime();
+  if (!Number.isFinite(chegada)) return null;
+  // Carimbo no futuro é relógio errado, não veículo do futuro: melhor omitir.
+  if (chegada > agora) return null;
+  return Math.floor((agora - chegada) / 86_400_000);
+}
+
 export interface VeiculoDaCamada {
   id: string;
   marca: string;
@@ -272,6 +297,8 @@ export interface VeiculoDaCamada {
   donos?: number | null;
   /** O laudo da perícia está na ficha? — `has_report` do §11.1. */
   temLaudo?: boolean;
+  /** Data de chegada, para o `days_in_stock`. */
+  primeiraVez?: string | null;
 }
 
 /**
@@ -316,6 +343,9 @@ export function pushVeiculo(veiculo: VeiculoDaCamada): void {
       // Publicar `false` como se fosse "não periciado" contradiria o que a
       // própria página afirma — daí o campo só sair quando há laudo de fato.
       has_report: veiculo.temLaudo === true ? true : undefined,
+      // O último dos cinco campos do §11.1 — o que mais faltava, segundo o
+      // próprio plano. Ausente quando a data de chegada não é conhecida.
+      days_in_stock: diasEmEstoque(veiculo.primeiraVez) ?? undefined,
     },
     ecommerce: {
       currency: "BRL",

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   containerAssumeOsEventos,
+  diasEmEstoque,
   marcarContainerAtivo,
   pushCamadaGlobal,
   pushCliqueTelefone,
@@ -248,6 +249,42 @@ describe("o veículo não atravessa a navegação", () => {
 
     expect(valorNaCamada("vehicle")).toBeNull();
     expect(valorNaCamada("stock_count")).toBeNull();
+  });
+});
+
+describe("days_in_stock — o último dos cinco campos do §11.1", () => {
+  it("sai do carimbo de chegada, em dias inteiros", () => {
+    const ha80 = new Date(Date.now() - 80 * 86_400_000).toISOString();
+    expect(diasEmEstoque(ha80)).toBe(80);
+    pushVeiculo({ ...VEICULO, primeiraVez: ha80 });
+    expect(valorNaCamada("vehicle.days_in_stock")).toBe(80);
+  });
+
+  it("linha legada (sem carimbo) OMITE o campo — nunca inventa zero", () => {
+    // Zero aqui seria a mentira mais cara possível: diria "acabou de chegar"
+    // justamente sobre o carro parado — na métrica que aloca verba (§1.2).
+    expect(diasEmEstoque(null)).toBeNull();
+    pushVeiculo({ ...VEICULO, primeiraVez: null });
+    expect(valorNaCamada("vehicle.days_in_stock")).toBeUndefined();
+  });
+
+  it("carimbo no futuro ou inválido é relógio errado — omite também", () => {
+    expect(diasEmEstoque(new Date(Date.now() + 86_400_000).toISOString())).toBeNull();
+    expect(diasEmEstoque("nao-e-data")).toBeNull();
+  });
+
+  it("o sincronizador NÃO manda first_seen_at — é o que preserva a data", () => {
+    // O upsert do n8n usa `Prefer: resolution=merge-duplicates` com lista
+    // explícita de colunas: coluna fora do corpo não é tocada no UPDATE, e o
+    // INSERT recebe o DEFAULT now(). Se alguém acrescentar `first_seen_at` ao
+    // payload, todo sync reescreve a chegada com a data de hoje e a idade do
+    // pátio inteiro zera — sem erro nenhum, só um relatório dizendo que nada
+    // encalha. Este teste lê o export do workflow versionado no repositório.
+    const workflow = lerCodigo(
+      "Antigravity - Sincronizador de Estoque (estoque_motors).json",
+    );
+    expect(workflow).toContain("last_seen_at");
+    expect(workflow).not.toContain("first_seen_at");
   });
 });
 
