@@ -58,6 +58,39 @@ passou a disparar nele. O clique pós-lead deixa de virar conversão. ✅
 `420`) e passou a cair para o `vehicle_price` plano quando o `vehicle.price`
 não existe. ✅
 
+### A regra completa sobre valor padrão — §12.3 do plano, e a metade que faltava
+
+A rodada 5 achou um falso negativo silencioso: o GTM avalia *"não é igual a
+`true`"* como **falso** quando a variável é **indefinida**, então o clique
+orgânico no WhatsApp — o que mais importa medir — não convertia. Corrigiram
+dando **valor padrão `false`** a `dlv - pos_lead`. A lição que registraram:
+
+> toda condição negativa sobre variável de camada de dados precisa de valor
+> padrão.
+
+Certa, e **incompleta**. O valor padrão resolve *"nunca foi definida"*. Não
+resolve *"foi definida e ninguém a reescreveu"* — e o `dataLayer` é acumulativo:
+
+```
+ficha → envia o formulário → click_whatsapp {pos_lead: true}
+      → volta e clica no botão flutuante → click_whatsapp {}
+
+    o GTM ainda lê  pos_lead = true      ← herdado
+    "pos_lead != true" → false           ← conversão legítima suprimida
+```
+
+**A regra inteira:** valor padrão no container é a **segunda** defesa; a
+primeira é o site **reescrever o campo em todo evento**. Desde 26/08
+`pushCliqueWhatsApp` e `pushCliqueTelefone` emitem `pos_lead` sempre — `false`
+quando ninguém diz o contrário —, e o valor padrão da variável virou
+redundância, que é onde ele deve estar.
+
+O mesmo raciocínio zerou `vehicle_id`, `vehicle_name` e `vehicle_price` no
+`page_context`, ao lado do `vehicle` que já era zerado. Sem isso, um lead numa
+página institucional era **avaliado pelo preço do carro visto antes** —
+`js - valor do lead` cai para o `vehicle_price` plano quando o aninhado falta —
+e esse número alimenta o lance do Ads.
+
 ### ⚠️ 3 · O remarketing dinâmico nunca vai carregar o item
 
 `Ads - Remarketing dinamico` dispara em **`ev - page_context`** e lê
@@ -71,6 +104,10 @@ chega.
 
 Isso não depende de ordem de execução — a limpeza está dentro do próprio evento
 em que a tag dispara.
+
+> A §12.2 da rodada 5 marca ✅ para "Remarketing dinâmico — dispara em
+> `page_context`". Ele **dispara**; o que ele não carrega é o item. Verificar
+> que a tag disparou não é verificar que ela levou o `dynx_itemid`.
 
 **Correção, uma tela:** em `Ads - Remarketing dinamico` → Acionamento,
 **acrescentar** `ev - view_vehicle` ao lado de `ev - page_context`. Na ficha a
