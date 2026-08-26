@@ -94,13 +94,20 @@ export async function GET(request: Request) {
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const brand = car.marca.replace(/&/g, '&amp;');
 
+      // URLs também são texto de nó XML. As do carro57 não têm query string
+      // hoje, mas basta UM `&` numa URL futura (token, `?w=`, UTM) para o
+      // parser do Meta/Google rejeitar o feed INTEIRO, não só o item. Mesmo
+      // tratamento que título e descrição já recebem.
+      const pdpUrlXml = pdpUrl.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const imageUrlXml = imageUrl.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
       xml += `
     <item>
       <g:id>${car.id}</g:id>
       <g:title>${title}</g:title>
       <g:description>${description}</g:description>
-      <g:link>${pdpUrl}</g:link>
-      <g:image_link>${imageUrl}</g:image_link>
+      <g:link>${pdpUrlXml}</g:link>
+      <g:image_link>${imageUrlXml}</g:image_link>
       <g:brand>${brand}</g:brand>
       <g:condition>${car.quilometragem === 0 ? 'new' : 'used'}</g:condition>
       <g:availability>in_stock</g:availability>

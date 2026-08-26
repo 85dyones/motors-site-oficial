@@ -224,12 +224,25 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   };
 
   // Use array of images from S3 if present, otherwise fallback to url_imagem
-  const whatsappImgs = Array.isArray(dbItem.whatsapp_images) && dbItem.whatsapp_images.length > 0
-    ? dbItem.whatsapp_images
+  //
+  // O `.filter(Boolean)` não é decorativo: quando o anúncio vem sem `<IMAGES>`,
+  // o sincronizador do n8n grava `[""]` — um array de UM elemento vazio, não um
+  // array vazio. `length > 0` aceitava esse `[""]` como foto legítima, o
+  // fallback nunca disparava, e o `""` atravessava até o `src` dos cards
+  // (`??` não socorre: string vazia não é nullish). O veículo ficava sem foto
+  // só nos ciclos em que o feed veio capenga — quebra intermitente clássica.
+  const limparImagens = (valor: unknown): string[] =>
+    Array.isArray(valor) ? valor.filter((u): u is string => typeof u === "string" && u.trim() !== "") : [];
+
+  const whatsappImgsLimpas = limparImagens(dbItem.whatsapp_images);
+  const webFullImgsLimpas = limparImagens(dbItem.web_full_images);
+
+  const whatsappImgs = whatsappImgsLimpas.length > 0
+    ? whatsappImgsLimpas
     : (dbItem.url_imagem ? [dbItem.url_imagem] : ["/logo.png"]);
 
-  const webFullImgs = Array.isArray(dbItem.web_full_images) && dbItem.web_full_images.length > 0
-    ? dbItem.web_full_images
+  const webFullImgs = webFullImgsLimpas.length > 0
+    ? webFullImgsLimpas
     : (dbItem.url_imagem ? [dbItem.url_imagem] : ["/logo.png"]);
 
   const precoOriginal = typeof dbItem.preco_original === "number" ? dbItem.preco_original : (typeof dbItem.preco === "number" ? dbItem.preco : 0);

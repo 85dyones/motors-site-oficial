@@ -2,22 +2,52 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.15.11"],
+  /**
+   * `unoptimized: true` é ESTANCAMENTO, não estado final — contexto completo
+   * em `docs/DIAGNOSTICO_IMAGENS.md`.
+   *
+   * Medido em produção em 2026-08-26: TODA transformação nova do otimizador
+   * responde `402 OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED` — inclusive para
+   * `/logo.png`, arquivo local do próprio deploy. A cota de Image Optimization
+   * do plano Hobby (5.000 transformações/mês) estourou em ~13/08 (todos os
+   * HITs de cache têm `age` apontando para uma janela de 16 minutos daquele
+   * dia). O catálogo gera ~740 fotos × 10 larguras ≈ 7.400+ transformações:
+   * estoura de novo todo mês, em qualquer reset.
+   *
+   * Servir a origem direta é seguro aqui: o S3 do RevendaMais responde atrás
+   * de Cloudflare com `cache-control: max-age=31536000`, e é exatamente o que
+   * o feed XML e o hero (`<img>` cru) sempre fizeram. O custo é peso de página
+   * (foto `_W_` ≈ 190 KB vs ~25 KB otimizada) — a saída definitiva (plano Pro
+   * ou loader custom usando as variantes `_P_/_S_/_M_/_G_/_W_` que o próprio
+   * RevendaMais já serve) está descrita no diagnóstico e é decisão de negócio.
+   */
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
         hostname: "images.unsplash.com",
       },
       {
+        // `pathname` fixo: sem ele, qualquer pessoa pode apontar o NOSSO
+        // otimizador para qualquer objeto desse S3 compartilhado (todas as
+        // revendas RevendaMais moram nele) e queimar a nossa cota.
         protocol: "https",
         hostname: "s3.carro57.com.br",
+        pathname: "/FC/9037/**",
       },
       {
+        // Só o bucket público de branding do NOSSO projeto — `*.supabase.co`
+        // deixava o otimizador aberto para o Storage de qualquer projeto
+        // Supabase do mundo.
         protocol: "https",
-        hostname: "*.supabase.co",
+        hostname: "zwbqmzgnagfeqinqkolp.supabase.co",
+        pathname: "/storage/v1/object/public/**",
       },
     ],
-    dangerouslyAllowSVG: true,
+    // `dangerouslyAllowSVG` saiu: nenhum `<Image>` do projeto serve SVG (os
+    // SVGs são todos inline em JSX), e a flag mantinha o otimizador disposto a
+    // rasterizar SVG de URL colada à mão no painel.
   },
 
   /**

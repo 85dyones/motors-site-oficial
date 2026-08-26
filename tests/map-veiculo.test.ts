@@ -91,6 +91,32 @@ describe("mapVeiculoDbToVeiculo", () => {
     expect(v.whatsapp_images).toEqual(["/logo.png"]);
   });
 
+  it('trata `[""]` do sync como "sem imagem", não como imagem', () => {
+    // Quando o anúncio chega sem `<IMAGES>`, o n8n grava `[carro.IMAGES?.
+    // IMAGE_URL || '']` — array de UM elemento vazio. `length > 0` aceitava
+    // isso como foto legítima, o fallback nunca disparava e o `""` chegava ao
+    // `src` dos cards (`??` não segura: string vazia não é nullish). O veículo
+    // ficava sem foto só nos ciclos em que o feed veio capenga — a quebra
+    // intermitente diagnosticada em docs/DIAGNOSTICO_IMAGENS.md.
+    const soVazias = mapVeiculoDbToVeiculo(
+      linhaDoBanco({ whatsapp_images: [""], web_full_images: [""] })
+    );
+    expect(soVazias.whatsapp_images).toEqual(["/logo.png"]);
+    expect(soVazias.web_full_images).toEqual(["/logo.png"]);
+
+    // Com `url_imagem` presente, é ela quem assume — não o logo.
+    const comUrlSolta = mapVeiculoDbToVeiculo(
+      linhaDoBanco({ whatsapp_images: [""], url_imagem: "https://cdn.exemplo/f.jpg" })
+    );
+    expect(comUrlSolta.whatsapp_images).toEqual(["https://cdn.exemplo/f.jpg"]);
+
+    // E entradas vazias no MEIO do array somem sem levar as boas junto.
+    const misto = mapVeiculoDbToVeiculo(
+      linhaDoBanco({ whatsapp_images: ["https://cdn.exemplo/a.jpg", "", null] })
+    );
+    expect(misto.whatsapp_images).toEqual(["https://cdn.exemplo/a.jpg"]);
+  });
+
   it("marca oportunidade_patio só quando o promocional é menor que o original", () => {
     const comDesconto = mapVeiculoDbToVeiculo(
       linhaDoBanco({ preco_original: 132000, preco_promocional: 125000 })

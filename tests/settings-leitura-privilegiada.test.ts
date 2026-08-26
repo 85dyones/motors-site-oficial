@@ -263,3 +263,62 @@ describe("ficha de margem do n8n", () => {
     expect(posCalculo).toBeGreaterThan(posGuarda);
   });
 });
+
+/**
+ * As credenciais S3 do Storage moram DENTRO de `company` — a granularidade de
+ * linha da RLS e dos dois testes acima não as enxerga. Foi por essa fresta que
+ * um `GET /api/settings` anônimo devolveu `s3AccessKeyId` e
+ * `s3SecretAccessKey` em texto puro até 2026-08-26 (docs/DIAGNOSTICO_IMAGENS.md,
+ * achado nº 2): o recorte entregava `completo.companySettings` inteiro.
+ */
+describe("credenciais S3 dentro de company", () => {
+  it("o recorte público as remove antes de servir o anônimo", async () => {
+    const { recortePublicoDeSettings } = await import("../src/lib/settings");
+
+    const recorte = recortePublicoDeSettings({
+      companySettings: {
+        name: "Motors Store",
+        logoUrl: "https://exemplo.supabase.co/storage/v1/object/public/branding/logo.webp",
+        s3AccessKeyId: "f08aeb-nao-pode-vazar",
+        s3SecretAccessKey: "56370b-nao-pode-vazar",
+      },
+      aboutSettings: null,
+      popups: null,
+      quickTags: [],
+      carouselVehicleIds: [],
+      stockOverrides: {},
+      procedencia: null,
+      instagramCuradoria: null,
+      areasHome: null,
+      webhooks: null,
+      bankBalances: null,
+    } as never);
+
+    const company = recorte.companySettings as Record<string, unknown>;
+    expect(company.s3AccessKeyId).toBeUndefined();
+    expect(company.s3SecretAccessKey).toBeUndefined();
+    // E só as credenciais saem — o resto do objeto segue intacto.
+    expect(company.name).toBe("Motors Store");
+    expect(company.logoUrl).toContain("/branding/logo.webp");
+    // Nenhuma serialização do recorte carrega os valores.
+    expect(JSON.stringify(recorte)).not.toContain("nao-pode-vazar");
+  });
+
+  it("company nulo continua nulo — o recorte não inventa objeto", async () => {
+    const { recortePublicoDeSettings } = await import("../src/lib/settings");
+    const recorte = recortePublicoDeSettings({
+      companySettings: null,
+      aboutSettings: null,
+      popups: null,
+      quickTags: [],
+      carouselVehicleIds: [],
+      stockOverrides: {},
+      procedencia: null,
+      instagramCuradoria: null,
+      areasHome: null,
+      webhooks: null,
+      bankBalances: null,
+    } as never);
+    expect(recorte.companySettings).toBeNull();
+  });
+});
