@@ -20,8 +20,12 @@ import {
 import { QuickTag } from '../../../types';
 import { SITE_URL } from "../../../lib/site";
 
+// `curadoria` saiu em 2026-08-26. A regra dela casava
+// `perfil_uso === "CURADORIA EXCLUSIVA"`, e esse valor estava em ZERO dos 38
+// veículos — a página respondia 200 com a vitrine vazia, que é o pior sinal
+// que uma categoria pode mandar para a busca. A rota é `dynamicParams`, então
+// tirar daqui já a transforma em 404; ela nunca esteve no sitemap.
 const STATIC_QUICK_TAGS: QuickTag[] = [
-  { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
   { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
   { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
   { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" }

@@ -1,6 +1,7 @@
 import type { Veiculo } from "../types";
 import { formatarPreco } from "../components/modernist/primitivos";
 import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque";
+import type { PerfilDeUso } from "./perfisDeUso";
 import {
   avaliados,
   concordar,
@@ -262,6 +263,55 @@ export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[
     "A faixa de preço é o recorte, não o critério de entrada: o carro de R$ 30 mil passa pela " +
       "mesma perícia cautelar independente que o mais caro da vitrine. É o que permite " +
       `escalar para baixo sem baixar o crivo — de cada dez ${avaliados("m")}, três entram, em qualquer faixa.`,
+  );
+
+  paragrafos.push(paragrafoDaSelecao());
+  return paragrafos;
+}
+
+/**
+ * Texto do hub de perfil de uso.
+ *
+ * O argumento aqui é diferente do da carroceria e do da faixa. Carroceria é o
+ * que o carro É, faixa é quanto custa — perfil é **para que serve**, e é a
+ * única das três que a loja atribui à mão. Então o texto fala de recorte
+ * curado, não de inventário.
+ *
+ * `frase` entra no meio da sentença ("quem procura espaço para a família") e
+ * vem escrita de `lib/perfisDeUso.ts`, junto com o título. Montar a partir do
+ * nome produziria "quem procura primeiro carro" em umas e "quem procura
+ * performance" em outras — o mesmo erro dos plurais de carroceria.
+ */
+export function textoDePerfil(perfil: PerfilDeUso, veiculos: Veiculo[]): string[] {
+  const r = resumir(veiculos);
+  const paragrafos: string[] = [];
+
+  if (r.total === 0) {
+    paragrafos.push(
+      `Nenhum veículo marcado para ${perfil.frase} neste momento. O recorte existe e volta a ` +
+        "encher — o giro é semanal.",
+    );
+  } else {
+    const anos = trechoDeAnos(r);
+    const marcas = enumerar([...new Set(veiculos.map((v) => v.marca))].slice(0, 6));
+    const carrocerias = enumerar(
+      [...new Set(veiculos.map((v) => (v.tipo ?? "").trim()).filter(Boolean))].slice(0, 4),
+    );
+    paragrafos.push(
+      `${r.total} ${r.total === 1 ? "veículo" : "veículos"} em ${CIDADE_DA_LOJA} para quem procura ` +
+        `${perfil.frase}${anos ? `, ${anos}` : ""}.` +
+        (carrocerias ? ` Carrocerias: ${carrocerias}.` : "") +
+        (marcas ? ` Marcas: ${marcas}.` : ""),
+    );
+  }
+
+  paragrafos.push(
+    // Sem repetir "de cada dez, três entram": `paragrafoDaSelecao()` logo
+    // abaixo já traz a estatística, e dizê-la duas vezes no mesmo texto
+    // enfraquece as duas.
+    "Este recorte é escolhido a dedo, não calculado: quem atende marca o que cada carro " +
+      "resolve na prática, e o mesmo veículo aparece em mais de um uso quando serve para " +
+      "mais de um. O que não muda é o crivo de entrada, igual para toda a vitrine.",
   );
 
   paragrafos.push(paragrafoDaSelecao());

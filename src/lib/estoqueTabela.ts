@@ -33,7 +33,7 @@ export interface LinhaDeEstoque {
   fotos: number;
   estado: EstadoDoVeiculo;
   tipo: string;
-  perfilUso: string;
+  perfisUso: string[];
   placa: string;
   destacado: boolean;
   /** `null` = GA4 sem credencial de leitura. Nunca 0 por engano. */

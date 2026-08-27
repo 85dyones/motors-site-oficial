@@ -38,6 +38,9 @@ export const CAMPOS_NOSSOS = [
   // o sync não conhece, e é o que faz a correção durar.
   "modelo_override",
   "versao_override",
+  // Migração 20260826230000. `perfil_uso` (singular) continua na lista para
+  // não quebrar quem ainda escreve nele; o painel passou a escrever aqui.
+  "perfis_uso",
 ] as const;
 
 export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];

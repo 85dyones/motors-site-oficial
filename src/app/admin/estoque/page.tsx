@@ -96,7 +96,7 @@ export default async function AdminEstoquePage() {
       fotos,
       estado: classificarEstado(bruto, idsNoUltimoSync.has(id)),
       tipo: v.tipo ?? "",
-      perfilUso: v.perfil_uso ?? "",
+      perfisUso: v.perfis_uso ?? [],
       // Da linha crua, não do objeto mapeado: o mapper deixou de devolver
       // `placa` para não serializá-la no HTML público. Aqui a consulta é
       // direta e autenticada, e a busca da tabela procura por placa.

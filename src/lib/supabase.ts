@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { limparModelo, segmentoDoVeiculo, slugificar } from "./veiculoUrl";
+import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
 import type { Veiculo } from "../types";
 export type { Veiculo };
 
@@ -386,6 +387,17 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     laudo_pericia: dbItem.laudo_pericia || "",
     tipo: resolveTipo(dbItem),
     perfil_uso: resolvePerfilUso(dbItem),
+    // Para que o carro serve — array SEMPRE, mesmo em linha que ainda só tem o
+    // `perfil_uso` singular. A conversão do vocabulário antigo acontece aqui,
+    // na leitura: daí para cima ninguém precisa saber que houve um campo de um
+    // valor só, e o hub, o painel e o motor de regras leem a mesma coisa.
+    //
+    // `perfisValidos` descarta slug fora do vocabulário. O feed não escreve
+    // nesta coluna, mas o painel escreve, e um valor inventado criaria uma
+    // vitrine `/estoque/{slug}` que ninguém pediu.
+    perfis_uso: Array.isArray(dbItem.perfis_uso) && dbItem.perfis_uso.length > 0
+      ? perfisValidos(dbItem.perfis_uso)
+      : perfisDoValorAntigo(dbItem.perfil_uso),
     // `textoUtil` e não `||` cru: o feed manda "Sem descrição informada" em vez
     // de deixar vazio, e esse marcador vazava para a página e para o anúncio.
     descricao: textoUtil(dbItem.descricao) || textoUtil(dbItem.laudo_pericia),
