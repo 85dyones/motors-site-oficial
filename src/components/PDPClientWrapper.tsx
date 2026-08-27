@@ -392,12 +392,14 @@ export default function PDPClientWrapper({
         email: leadData.email,
         whatsapp: leadData.whatsapp
       },
-      utm: {
-        utm_source: utmParams.utm_source,
-        utm_medium: utmParams.utm_medium,
-        utm_campaign: utmParams.utm_campaign,
-        utm_content: utmParams.utm_content
-      },
+      // O objeto INTEIRO, não uma cópia campo a campo.
+      //
+      // Remontá-lo à mão descartava `gclid`, `gbraid`, `wbraid`, `utm_term` e
+      // `fbclid` — e este é um dos dois caminhos de maior volume do site. Sem
+      // o click id, o lead chega ao CRM sem como voltar à palavra-chave que o
+      // gerou, e a conversão offline não tem o que subir. A captura já
+      // existia em `getUtmParameters`; o que faltava era não jogar fora aqui.
+      utm: utmParams,
       intencao_busca: {},
       agUid: agUid,
       eventId,

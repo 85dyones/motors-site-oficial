@@ -7,11 +7,42 @@ import { sendCapiEvent } from "../../../lib/meta-capi";
 
 export const dynamic = "force-dynamic";
 
-// Verify Cloudflare Turnstile token
+/**
+ * Valida o token do Turnstile contra a Cloudflare.
+ *
+ * ---------------------------------------------------------------------------
+ * A chave de teste saiu daqui, e por quê
+ * ---------------------------------------------------------------------------
+ * Até 27/08 esta função caía em `"1x0000000000000000000000000000000AA"` quando
+ * `TURNSTILE_SECRET_KEY` faltava. Essa constante é a chave **"always passes"**
+ * da Cloudflare: sem a variável no ambiente, TODO token era aceito, e o
+ * captcha do site inteiro virava enfeite sem uma linha de log dizendo isso.
+ *
+ * Medido na produção de 27/08 antes de mexer, mandando um token inválido para
+ * `/api/leads`: a resposta foi **403**. Com a chave de teste, teria passado
+ * pela verificação e parado no 400 de "dados de contato ausentes". Ou seja: a
+ * variável ESTÁ configurada, o captcha funciona hoje, e este conserto fecha um
+ * alçapão que só se abriria no dia de um ambiente novo mal provisionado.
+ *
+ * É por isso que dá para falhar fechado sem medo: não há tráfego legítimo
+ * dependendo do fallback. Se um dia a variável sumir, o formulário para de
+ * aceitar lead — visível no mesmo dia — em vez de aceitar bot em silêncio.
+ * Lead falso não é só ruído: vira `generate_lead`, vira conversão no Ads
+ * valendo R$ 420 ou mais, e ensina o algoritmo a comprar o tráfego que o
+ * gerou.
+ */
 async function verifyTurnstileToken(token: string): Promise<boolean> {
   try {
-    const secret = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA"; // Cloudflare Turnstile Test Secret Key
-    
+    const secret = process.env.TURNSTILE_SECRET_KEY;
+    if (!secret) {
+      console.error(
+        "[Leads API] TURNSTILE_SECRET_KEY ausente — recusando o lead. " +
+          "Sem a chave não há como distinguir humano de bot, e aceitar seria " +
+          "envenenar o sinal de conversão do Ads."
+      );
+      return false;
+    }
+
     const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
       method: "POST",
       headers: {
@@ -40,28 +71,28 @@ export async function POST(request: NextRequest) {
 
     const { cliente, veiculo, utm, intencao_busca, agUid, webhookUrl, turnstileToken } = body;
 
-    // 1. Verify Turnstile Captcha (only mandatory for user modals that render captcha)
+    // 1. Captcha — exigido por PADRÃO, com lista de isenções
     //
-    // A régua: todo canal que nasce no LeadCaptureModal exige o token — o
-    // modal não deixa submeter sem ele, então exigir aqui só espelha o
-    // cliente. Até 2026-08-19 metade dos canais do modal ficava fora da
-    // lista e passava sem validação. "Formulário Contato" segue fora: o
-    // formulário de /contato não renderiza Turnstile.
-    const needsCaptcha = [
-      // canais atuais, todos via LeadCaptureModal
-      "WhatsApp Proposta",
-      "WhatsApp Dúvidas",
-      "WhatsApp Usado na Troca",
-      "Agendamento Test-Drive",
-      "Simulação de Financiamento",
-      "Appraisal Chat",
-      "Garagem Match Profiler",
-      "Lead Popup",
-      // nomes históricos, mantidos caso algum cliente antigo ainda os envie
-      "WhatsApp Card",
-      "WhatsApp PDP",
-      "CarMatch Recommendations",
-    ].includes(body.canal);
+    // ---------------------------------------------------------------------
+    // Por que a régua inverteu em 27/08
+    // ---------------------------------------------------------------------
+    // A versão anterior era uma ALLOWLIST de canais que exigiam token, e o
+    // canal vem do CORPO do POST — escrito pelo cliente. Bastava mandar
+    // `canal: "Formulário Contato"`, ou qualquer string fora da lista, para
+    // pular a verificação inteira. A porta estava aberta e não dependia de
+    // adivinhar nada: o nome isento estava no comentário do próprio arquivo.
+    //
+    // O caso pior não era nem o abuso deliberado. `PDPClientWrapper` manda
+    // `canal: activeChannel` — valor dinâmico. Um canal novo na ficha nasceria
+    // fora da lista e sem captcha, em silêncio, para sempre.
+    //
+    // Agora todo lead precisa de token, e a exceção precisa ser escrita. A
+    // lista está VAZIA de propósito: `/contato` passou a renderizar o desafio
+    // na mesma rodada, e era o único que faltava. Se um canal legítimo
+    // precisar entrar aqui um dia, que seja com nome e motivo — não por
+    // omissão.
+    const ISENTOS_DE_CAPTCHA: string[] = [];
+    const needsCaptcha = !ISENTOS_DE_CAPTCHA.includes(body.canal);
 
     if (needsCaptcha) {
       if (!turnstileToken) {

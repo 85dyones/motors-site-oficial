@@ -363,12 +363,37 @@ describe("quem manda o evento: o código ou o container", () => {
   it("os dois gtag que o container duplicaria estão sob o sinalizador", () => {
     const fonte = lerCodigo("src/lib/telemetry.ts");
 
-    // `generate_lead` do formulário e do clique de contato, mais a conversão
-    // do Ads. Sem o gate, publicar o container conta cada lead duas vezes.
+    // `generate_lead` do formulário e a conversão do Ads. Sem o gate,
+    // publicar o container conta cada lead duas vezes.
     expect(fonte).toMatch(/const oContainerAssume = containerAssumeOsEventos\(\);/);
     expect(fonte).toMatch(/if \(window\.gtag && !oContainerAssume\) \{\s*window\.gtag\("event", "generate_lead"/);
     expect(fonte).toMatch(/if \(window\.gtag && !oContainerAssume && options\?\.googleAdsId/);
-    expect(fonte).toMatch(/if \(window\.gtag && !containerAssumeOsEventos\(\)\) \{\s*window\.gtag\("event", "generate_lead"/);
+
+    // O clique de contato também é gated — mas com o NOME do que aconteceu.
+    expect(fonte).toMatch(
+      /if \(window\.gtag && !containerAssumeOsEventos\(\)\) \{\s*window\.gtag\(\s*"event",\s*method === "whatsapp" \? "click_whatsapp" : "click_to_call"/,
+    );
+  });
+
+  it("clique de contato NUNCA volta a se chamar `generate_lead`", () => {
+    // Era o mesmo nome do formulário efetivamente enviado. Os dois na mesma
+    // métrica inflam a contagem de leads com quem só abriu a conversa — e é
+    // essa a métrica contra a qual o Smart Bidding otimiza.
+    //
+    // A nota que morava naquele ramo descrevia o defeito como resolvido pelo
+    // container, enquanto o portão que faria isso valer seguia fechado: a
+    // correção estava escrita, não aplicada. Contar as ocorrências é o que
+    // distingue as duas coisas.
+    const fonte = lerCodigo("src/lib/telemetry.ts");
+    const geraLead = [...fonte.matchAll(/window\.gtag\("event", "generate_lead"/g)];
+    expect(geraLead).toHaveLength(1);
+
+    // E a única que sobra é a do formulário: vem depois de `pushLead`, não
+    // depois de `pushCliqueWhatsApp`.
+    const antesDoUnico = fonte.slice(0, geraLead[0].index);
+    expect(antesDoUnico.lastIndexOf("pushLead")).toBeGreaterThan(
+      antesDoUnico.lastIndexOf("pushCliqueWhatsApp"),
+    );
   });
 
   it("view_item, search e complete_registration continuam SEM gate", () => {

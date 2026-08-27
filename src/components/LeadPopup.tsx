@@ -360,11 +360,15 @@ export default function LeadPopup() {
             email: leadData.email,
             whatsapp: leadData.whatsapp
           },
+          // Spread primeiro, defaults depois: preserva `gclid`, `gbraid`,
+          // `wbraid`, `utm_term` e `fbclid` — que a versão anterior descartava
+          // ao remontar o objeto campo a campo — sem perder a atribuição
+          // própria do pop-up para quem chegou sem UTM nenhum.
           utm: {
+            ...utmParams,
             utm_source: utmParams.utm_source || "lead-popup",
             utm_medium: utmParams.utm_medium || "organico",
             utm_campaign: utmParams.utm_campaign || campaign.name,
-            utm_content: utmParams.utm_content,
           },
           intencao_busca: { popup_campaign: campaign.name },
           agUid,
