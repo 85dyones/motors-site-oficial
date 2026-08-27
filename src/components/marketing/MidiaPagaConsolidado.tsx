@@ -306,7 +306,7 @@ export default function MidiaPagaConsolidado() {
               { rotulo: "Visitas à loja", valor: "—", cor: "text-mt-neutral-500", nota: "depende do kanban de leads" },
               { rotulo: "Vendas atribuídas", valor: "—", cor: "text-mt-neutral-500", nota: "depende do kanban de leads" },
             ].map((kpi) => (
-              <div key={kpi.rotulo} className="flex flex-col gap-2 border-b border-mt-regua-fina py-4 pr-5 lg:border-b-0 lg:border-r lg:last:border-r-0">
+              <div key={kpi.rotulo} className="flex flex-col gap-2 border-b border-mt-regua-fina py-4 pr-5 lg:border-b-0 lg:border-r lg:pl-5 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0">
                 <span className="mt-rotulo">{kpi.rotulo}</span>
                 <span className={`text-2xl font-extrabold tracking-[-.03em] tabular-nums ${kpi.cor}`}>{kpi.valor}</span>
                 <span className="text-[11px] leading-tight text-mt-neutral-700">{kpi.nota}</span>
@@ -338,7 +338,7 @@ export default function MidiaPagaConsolidado() {
                         { l: "R$/lead", v: t.conversas > 0 && cpl !== null ? brlInteiro(cpl) : "—" },
                         { l: "Cliques", v: t.cliques.toLocaleString("pt-BR") },
                       ].map((m) => (
-                        <div key={m.l} className="flex-1 border-r border-mt-regua-fina pr-4 last:border-r-0">
+                        <div key={m.l} className="flex-1 border-r border-mt-regua-fina pl-4 pr-4 first:pl-0 last:border-r-0 last:pr-0">
                           <div className="mt-rotulo">{m.l}</div>
                           <div className="mt-1.5 text-lg font-extrabold tracking-[-.03em] tabular-nums">{m.v}</div>
                         </div>

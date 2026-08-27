@@ -177,7 +177,7 @@ export default async function InvestidorPage() {
 
       {/* Os três números */}
       <div className="grid grid-cols-1 gap-6 border-t-2 border-mt-regua pt-6 sm:grid-cols-3">
-        <div className="border-r border-mt-regua-fina pr-5 last:border-r-0">
+        <div className="sm:border-r sm:border-mt-regua-fina sm:pr-5 sm:last:border-r-0">
           <Rotulo>Aporte total</Rotulo>
           <div className={`mt-2.5 ${numero} text-mt-ink`}>
             {formatarPreco(Number(posicao.aporte_total))}
@@ -186,7 +186,7 @@ export default async function InvestidorPage() {
             Tudo o que você já colocou.
           </p>
         </div>
-        <div className="border-r border-mt-regua-fina pr-5 last:border-r-0">
+        <div className="sm:border-r sm:border-mt-regua-fina sm:pr-5 sm:last:border-r-0">
           <Rotulo>Já retirado</Rotulo>
           <div className={`mt-2.5 ${numero} text-mt-neutral-700`}>
             {formatarPreco(Number(posicao.retirado_total))}

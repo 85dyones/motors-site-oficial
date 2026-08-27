@@ -895,7 +895,7 @@ export default function AutoAvaliacao() {
                   onClick={() => concluido && setStep(numero as 1 | 2 | 3)}
                   disabled={!concluido}
                   aria-current={ativo ? "step" : undefined}
-                  className={`mt-foco flex-1 border-r border-mt-regua-fina py-4 pr-4 text-left last:border-r-0 ${
+                  className={`mt-foco flex-1 border-r border-mt-regua-fina py-4 pl-4 pr-4 text-left first:pl-0 last:border-r-0 last:pr-0 ${
                     concluido ? "cursor-pointer" : "cursor-default"
                   }`}
                 >

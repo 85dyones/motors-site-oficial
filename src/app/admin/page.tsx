@@ -225,7 +225,7 @@ export default async function AdminVisaoGeralPage() {
         {kpis.map((k) => (
           <div
             key={k.rotulo}
-            className="flex flex-col gap-2 border-b border-mt-regua-fina py-4 pr-5 lg:border-b-0 lg:border-r lg:last:border-r-0"
+            className="flex flex-col gap-2 border-b border-mt-regua-fina py-4 pr-5 lg:border-b-0 lg:border-r lg:pl-5 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"
           >
             <span className="mt-rotulo">{k.rotulo}</span>
             <span className={`text-2xl font-extrabold tracking-[-.03em] tabular-nums ${k.cor}`}>
