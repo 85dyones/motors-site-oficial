@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CARROCERIAS, PERFIS_DE_USO } from "../../lib/classificacaoVeiculo";
+import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
+import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
 import {
   contarPorEstado,
   filtrarLinhas,
@@ -210,6 +211,40 @@ export default function TabelaDeEstoque({
     }
   };
 
+  /**
+   * Acrescenta ou tira um perfil dos selecionados, preservando os demais.
+   *
+   * A ordem gravada segue `PERFIS_DE_USO`, não a ordem dos cliques: sem isso,
+   * dois carros com os mesmos perfis gravariam arrays diferentes e o histórico
+   * registraria mudança onde não houve.
+   */
+  const alternarPerfil = async (slug: string, adicionar: boolean) => {
+    if (!slug || selecionadosVisiveis.length === 0) return;
+    const nome = PERFIS_DE_USO.find((p) => p.slug === slug)?.nome ?? slug;
+
+    // Um POST por conjunto de perfis resultante — a rota em lote aplica UMA
+    // atualização a vários ids, e os selecionados podem ter perfis diferentes.
+    const porResultado = new Map<string, string[]>();
+    for (const l of linhas) {
+      if (!selecionadosVisiveis.includes(l.id)) continue;
+      const atuais = l.perfisUso ?? [];
+      const proximos = PERFIS_DE_USO.filter((p) =>
+        p.slug === slug ? adicionar : atuais.includes(p.slug),
+      ).map((p) => p.slug);
+      const chave = proximos.join(",");
+      porResultado.set(chave, [...(porResultado.get(chave) ?? []), l.id]);
+    }
+
+    for (const [chave, ids] of porResultado) {
+      const perfis = chave ? chave.split(",") : [];
+      await aplicarNoBanco(
+        { perfis_uso: perfis },
+        adicionar ? `Marcados como “${nome}”` : `“${nome}” removido`,
+        (l) => (ids.includes(l.id) ? { ...l, perfisUso: perfis } : l),
+      );
+    }
+  };
+
   const semSelecao = selecionadosVisiveis.length === 0 || salvando;
 
   return (
@@ -364,6 +399,10 @@ export default function TabelaDeEstoque({
             ))}
           </select>
 
+          {/* Adicionar/remover, e não "definir": desde 20260826230000 o perfil
+              é uma LISTA, e um carro serve para mais de uma coisa. Mesmo
+              formato que os destaques já usam logo ao lado — foi o padrão
+              pedido. */}
           <select
             disabled={semSelecao}
             defaultValue=""
@@ -371,18 +410,21 @@ export default function TabelaDeEstoque({
               const valor = e.target.value;
               e.target.value = "";
               if (valor === "") return;
-              aplicarNoBanco({ perfil_uso: valor }, `Perfil definido como ${valor}`, (l) => ({
-                ...l,
-                perfilUso: valor,
-              }));
+              const [acao, slug] = valor.split(":");
+              alternarPerfil(slug, acao === "add");
             }}
-            aria-label="Definir perfil de uso dos selecionados"
+            aria-label="Adicionar ou remover perfil de uso dos selecionados"
             className="mt-foco cursor-pointer border border-mt-regua-fina bg-mt-bg px-3 py-2 text-[11px] text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <option value="">Definir perfil de uso…</option>
+            <option value="">Para que serve…</option>
             {PERFIS_DE_USO.map((p) => (
-              <option key={p} value={p}>
-                {p}
+              <option key={`add:${p.slug}`} value={`add:${p.slug}`}>
+                + {p.nome}
+              </option>
+            ))}
+            {PERFIS_DE_USO.map((p) => (
+              <option key={`del:${p.slug}`} value={`del:${p.slug}`}>
+                − {p.nome}
               </option>
             ))}
           </select>
@@ -491,7 +533,14 @@ export default function TabelaDeEstoque({
                         )}
                         <div className="mt-0.5 flex flex-wrap gap-1.5 text-[9px] uppercase tracking-[.08em] text-mt-neutral-600">
                           {l.tipo && <span>{l.tipo}</span>}
-                          {l.perfilUso && <span>· {l.perfilUso}</span>}
+                          {(l.perfisUso ?? []).length > 0 && (
+                            <span>
+                              ·{" "}
+                              {(l.perfisUso ?? [])
+                                .map((s) => PERFIS_DE_USO.find((p) => p.slug === s)?.nome ?? s)
+                                .join(", ")}
+                            </span>
+                          )}
                           {l.destacado && <span className="text-mt-accent">· na home</span>}
                           {l.quickTags.length > 0 && <span>· {l.quickTags.length} destaque(s)</span>}
                         </div>

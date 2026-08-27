@@ -34,7 +34,7 @@ function linha(parcial: Partial<LinhaDeEstoque> = {}): LinhaDeEstoque {
     estado: "publicado",
     diasEmEstoque: null,
     tipo: "SUV",
-    perfilUso: "",
+    perfisUso: [],
     placa: "",
     destacado: false,
     visitas: null,

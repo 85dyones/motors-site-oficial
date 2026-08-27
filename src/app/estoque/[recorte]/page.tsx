@@ -7,6 +7,7 @@ import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import {
   acharHubDeCarroceria,
   acharHubDeFaixa,
+  acharHubDePerfil,
   FAIXAS_DE_PRECO,
   hubsDeCarroceria,
   hubsDeMarca,
@@ -23,6 +24,7 @@ import {
   perguntasDeCategoria,
   textoDeCarroceria,
   textoDeFaixaDePreco,
+  textoDePerfil,
 } from "../../../lib/textoDosHubs";
 import { avaliados, seminovo, type Genero } from "../../../lib/generoDoVeiculo";
 import type { Veiculo } from "../../../types";
@@ -90,6 +92,29 @@ async function resolver(slug: string) {
       introducao: textoDeCarroceria(carroceria.nome, carroceria.veiculos, plural, genero),
       rotuloNasPerguntas: plural,
       genero,
+    };
+    return { recorte, historico, disponiveis };
+  }
+
+  // Perfil antes da faixa e depois da carroceria: os três dividem o mesmo
+  // espaço de URL, e `tests/perfis-de-uso.test.ts` prende que nenhum slug
+  // colide. A ordem só importa se um dia colidirem — e aí o teste falha antes.
+  const perfil = acharHubDePerfil(disponiveis, slug);
+  if (perfil) {
+    const recorte: RecorteResolvido = {
+      titulo: `${perfil.titulo} em Curitiba`,
+      tituloSeo: `${perfil.titulo} em Curitiba — ${perfil.veiculos.length} no estoque`,
+      descricao:
+        `${perfil.titulo} em Curitiba, escolhidos por quem atende: veículos que resolvem ` +
+        `${perfil.frase}. Perícia cautelar independente, troca e financiamento no Bacacheri.`,
+      rotulo: perfil.nome,
+      veiculos: perfil.veiculos,
+      introducao: textoDePerfil(perfil, perfil.veiculos),
+      // "carros" é o substantivo desta página, como nas faixas de preço: o
+      // perfil qualifica o carro, não substitui o substantivo. Nada de
+      // concordar com "Família" ou "Performance".
+      rotuloNasPerguntas: perfil.titulo.toLowerCase(),
+      genero: "m",
     };
     return { recorte, historico, disponiveis };
   }

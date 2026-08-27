@@ -61,15 +61,17 @@ export const CARROCERIAS = [
   "Wagon",
 ] as const;
 
-export const PERFIS_DE_USO = [
-  "Família / Conforto",
-  "Econômico / Diário",
-  "Uso Diário",
-  "Performance / Premium",
-  "Agilidade / Economia",
-  "Trabalho / Robustez",
-  "URBANO & EFICIENTE",
-  "FORÇA & OFF-ROAD",
-  "LINHAGEM ESPORTIVA",
-  "CURADORIA EXCLUSIVA",
-] as const;
+/**
+ * ⚠️ `PERFIS_DE_USO` mudou de casa em 2026-08-26 — vive em `lib/perfisDeUso.ts`.
+ *
+ * A lista antiga tinha dez valores e era UM por veículo. Medida contra os 38
+ * carros servidos, três diziam quase a mesma coisa (19 deles) e quatro
+ * — `URBANO & EFICIENTE`, `FORÇA & OFF-ROAD`, `LINHAGEM ESPORTIVA`,
+ * `CURADORIA EXCLUSIVA` — estavam em ZERO. Esse último mantinha
+ * `/destaques/curadoria` indexado com a vitrine vazia.
+ *
+ * O vocabulário novo tem oito valores ortogonais, é `text[]` no banco
+ * (migração 20260826230000) e cada valor vira `/estoque/{slug}`. Não recrie a
+ * lista aqui: o painel e o hub precisam ler a mesma, e este arquivo importa
+ * `CARROCERIAS` para o servidor.
+ */

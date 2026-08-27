@@ -211,6 +211,14 @@ export interface Veiculo {
   laudo_pericia: string;
   tipo?: string;
   perfil_uso?: string;
+  /**
+   * Para que o carro serve — um ou vários. Vocabulário fechado em
+   * `lib/perfisDeUso.ts`; cada valor vira `/estoque/{slug}`.
+   *
+   * Sempre array depois de `mapDbToVeiculo`, mesmo quando a linha só tem o
+   * `perfil_uso` singular: a resolução acontece na leitura, num lugar só.
+   */
+  perfis_uso?: string[];
   descricao?: string;
   descricao_seo?: string;
   cabine_premium?: boolean;
@@ -250,6 +258,14 @@ export type StockOverrides = Record<string, {
   vendido?: boolean;
   tipo?: string;
   perfil_uso?: string;
+  /**
+   * Para que o carro serve — um ou vários. Vocabulário fechado em
+   * `lib/perfisDeUso.ts`; cada valor vira `/estoque/{slug}`.
+   *
+   * Sempre array depois de `mapDbToVeiculo`, mesmo quando a linha só tem o
+   * `perfil_uso` singular: a resolução acontece na leitura, num lugar só.
+   */
+  perfis_uso?: string[];
   quick_tags?: string[];
 }>;
 

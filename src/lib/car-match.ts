@@ -29,7 +29,16 @@ export function getVehicleTags(veiculo: Veiculo): string[] {
   
   // Safe extraction of dynamic columns from live db mapping
   const tipo = veiculo.tipo?.toLowerCase() || "";
-  const perfilUso = veiculo.perfil_uso?.toLowerCase() || "";
+  // Os perfis do painel MAIS o texto legado, concatenados: as condições abaixo
+  // procuram pedaços de palavra ("premium", "econ", "diário"), e os slugs novos
+  // — `performance`, `economico`, `urbano` — casam os mesmos pedaços.
+  //
+  // Somar em vez de trocar porque `perfil_uso` (singular) continua no banco
+  // para linhas que ainda não passaram pelo backfill de 20260826230000. No dia
+  // em que ele sair, esta linha continua correta sozinha.
+  const perfilUso = [...(veiculo.perfis_uso ?? []), veiculo.perfil_uso ?? ""]
+    .join(" ")
+    .toLowerCase();
 
   // SUV / Offroad tags
   if (

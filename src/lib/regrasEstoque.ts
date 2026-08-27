@@ -65,6 +65,19 @@ export function checkTagMatchesVehicle(
   } else if (tag.field === "combustivel") {
     fieldValue = resolveTipoCombustivel(car);
   } else if (tag.field === "perfil_uso") {
+    // Desde 20260826230000 o perfil é uma LISTA. Uma categoria criada no painel
+    // sobre "Estilo de Vida" tem de casar se QUALQUER perfil do carro bater —
+    // com `equals` contra o campo antigo, todo carro de dois perfis deixaria de
+    // casar no dia da migração, e nada acusaria.
+    const perfis = car.perfis_uso ?? [];
+    if (perfis.length > 0) {
+      const alvo = tag.value.toLowerCase().trim();
+      const casa = perfis.some((p) => {
+        const atual = p.toLowerCase().trim();
+        return tag.operator === "contains" ? atual.includes(alvo) : atual === alvo;
+      });
+      if (tag.operator === "equals" || tag.operator === "contains") return casa;
+    }
     fieldValue = car.perfil_uso || "";
   } else if (tag.field === "tipo") {
     fieldValue = car.tipo || "";

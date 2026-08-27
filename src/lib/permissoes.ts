@@ -463,6 +463,9 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   // hub de modelo, e por isso o editor avisa na tela antes de deixar salvar.
   modelo_override: "Editar opcionais e destaques rápidos",
   versao_override: "Editar opcionais e destaques rápidos",
+  // Mesma ação de `perfil_uso`, que ele substitui: quem classifica carroceria
+  // classifica para que o carro serve.
+  perfis_uso: "Editar opcionais e destaques rápidos",
 };
 
 /**

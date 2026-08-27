@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
 import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
+import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -49,6 +50,7 @@ interface VeiculoDb {
   opcionais: string | null;
   tipo: string | null;
   perfil_uso: string | null;
+  perfis_uso: string[] | null;
   status_tag: string | null;
   status_tag_color: string | null;
   vendido: boolean | null;
@@ -94,6 +96,7 @@ const NOME_DO_CAMPO: Record<string, string> = {
   vendido: "Disponibilidade",
   tipo: "Carroceria",
   perfil_uso: "Perfil de uso",
+  perfis_uso: "Para que serve",
 };
 
 /** Encurta valor longo (descrição, opcionais) para caber na linha. */
@@ -220,8 +223,8 @@ export default function EditorDeVeiculo({
     {
       l: "Carroceria e perfil",
       d: "Alimentam os filtros e a curadoria do site.",
-      ok: Boolean(v.tipo && v.perfil_uso),
-      estado: v.tipo && v.perfil_uso ? "OK" : "PENDENTE",
+      ok: Boolean(v.tipo && (v.perfis_uso ?? []).length > 0),
+      estado: v.tipo && (v.perfis_uso ?? []).length > 0 ? "OK" : "PENDENTE",
     },
   ];
   const concluidos = checklist.filter((c) => c.ok).length;
@@ -251,7 +254,7 @@ export default function EditorDeVeiculo({
         status_tag_color: v.status_tag_color,
         vendido: v.vendido,
         tipo: v.tipo,
-        perfil_uso: v.perfil_uso,
+        perfis_uso: v.perfis_uso,
       };
       const corpo = Object.fromEntries(
         Object.entries(tudo).filter(([campo]) => podeGravar(campo)),
@@ -602,15 +605,52 @@ export default function EditorDeVeiculo({
                     ))}
                   </select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className={rotuloCampo} htmlFor="f-perfil">Perfil de uso</label>
-                  <input
-                    id="f-perfil"
-                    value={v.perfil_uso ?? ""}
-                    placeholder="Família / Conforto…"
-                    onChange={(e) => set("perfil_uso", e.target.value)}
-                    className={campoCaixa}
-                  />
+              </div>
+
+              {/* Para que o carro serve — vários, porque ele é várias coisas.
+
+                  Era um campo de texto com UM valor, e o vocabulário antigo
+                  tinha três rótulos dizendo quase a mesma coisa (19 dos 38
+                  carros) mais quatro que não existiam em veículo nenhum.
+                  Escolher um valor só obrigava a decidir qual verdade contar
+                  sobre um HB20 que é urbano, econômico e primeiro carro.
+
+                  Cada perfil marcado vira uma vitrine `/estoque/{slug}`. */}
+              <div className="mt-6 border-t-2 border-mt-regua pt-4">
+                <div className="mt-rotulo mb-1">Para que este carro serve</div>
+                <p className="m-0 mb-3 max-w-[62ch] text-[11px] leading-relaxed text-mt-neutral-600">
+                  Marque quantos couberem — um carro costuma servir para mais de
+                  uma coisa. Cada marcação coloca o veículo na vitrine daquele
+                  uso.
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                  {PERFIS_DE_USO.map((perfil) => {
+                    const marcado = (v.perfis_uso ?? []).includes(perfil.slug);
+                    return (
+                      <label
+                        key={perfil.slug}
+                        className="mt-foco flex cursor-pointer items-center gap-2 text-[12px] text-mt-ink"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() => {
+                            const atuais = v.perfis_uso ?? [];
+                            // Reordena pela lista canônica em vez de empurrar
+                            // no fim: assim a ordem gravada não depende da
+                            // ordem dos cliques, e o histórico não registra
+                            // mudança quando só a ordem mudou.
+                            const proximos = PERFIS_DE_USO.filter((p) =>
+                              p.slug === perfil.slug ? !marcado : atuais.includes(p.slug),
+                            ).map((p) => p.slug);
+                            set("perfis_uso", proximos as any);
+                          }}
+                          className="h-3.5 w-3.5 accent-mt-accent"
+                        />
+                        {perfil.nome}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             </>

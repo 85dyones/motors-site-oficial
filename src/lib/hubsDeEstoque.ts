@@ -1,6 +1,7 @@
 import type { Veiculo } from "../types";
 import { getEstoque } from "./supabase";
 import { CARROCERIAS } from "./classificacaoVeiculo";
+import { PERFIS_DE_USO, type PerfilDeUso } from "./perfisDeUso";
 // O preço vigente já vive em `regrasEstoque` — é o mesmo que a vitrine, os
 // destaques e o feed usam. Duas versões dessa regra é como o filtro de preço
 // e a etiqueta de promoção acabam discordando na mesma tela.
@@ -83,6 +84,10 @@ export interface HubDeModelo {
   marca: string;
   slugMarca: string;
   segmento: SegmentoDePdp;
+  veiculos: Veiculo[];
+}
+
+export interface HubDePerfil extends PerfilDeUso {
   veiculos: Veiculo[];
 }
 
@@ -351,6 +356,31 @@ export function hubsDeCarroceria(historico: Veiculo[], disponiveis: Veiculo[]): 
     .sort((a, b) => b.veiculos.length - a.veiculos.length || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
+/**
+ * Os hubs de perfil de uso — `/estoque/familia`, `/estoque/trabalho`.
+ *
+ * Diferente da carroceria em dois pontos, e os dois vêm de o perfil ser LISTA:
+ *
+ *   1. O mesmo veículo aparece em vários hubs, de propósito. Um HB20 urbano e
+ *      econômico entra nas duas vitrines — é o motivo de a coluna ser array.
+ *   2. O recorte sai de `disponiveis`, não do histórico. Perfil é decisão do
+ *      painel, não do feed: um perfil que ninguém marcou hoje não descreve o
+ *      pátio de ontem, e uma vitrine perene vazia aqui não teria o que contar.
+ *      Marca e modelo são o contrário — lá o histórico É o argumento.
+ */
+export function hubsDePerfil(disponiveis: Veiculo[]): HubDePerfil[] {
+  return PERFIS_DE_USO.map((perfil) => ({
+    ...perfil,
+    veiculos: disponiveis.filter((v) => (v.perfis_uso ?? []).includes(perfil.slug)),
+  }))
+    .filter((h) => h.veiculos.length > 0)
+    .sort((a, b) => b.veiculos.length - a.veiculos.length || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+export function acharHubDePerfil(disponiveis: Veiculo[], slug: string): HubDePerfil | null {
+  return hubsDePerfil(disponiveis).find((h) => h.slug === slug) ?? null;
+}
+
 export function acharHubDeCarroceria(
   historico: Veiculo[],
   disponiveis: Veiculo[],
@@ -390,6 +420,13 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
 
   for (const carroceria of hubsDeCarroceria(historico, disponiveis)) {
     caminhos.push(`/estoque/${carroceria.slug}`);
+  }
+
+  // Só os perfis com veículo — `hubsDePerfil` já filtra. Vitrine de perfil
+  // vazia não entra: ao contrário da faixa de preço, a lista aqui é decisão do
+  // painel, e um perfil que ninguém marcou não tem história para contar.
+  for (const perfil of hubsDePerfil(disponiveis)) {
+    caminhos.push(`/estoque/${perfil.slug}`);
   }
 
   // As faixas entram sempre: a lista é fechada e a página existe mesmo vazia.
