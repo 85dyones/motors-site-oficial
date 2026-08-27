@@ -767,10 +767,15 @@ export default function AutoAvaliacao() {
         tipo_veiculo: vehicleType,
         fipe_valor: fipeValor,
         fipe_codigo: fipeCodigo,
-        veiculo_contexto: {
-          perfil_uso: vehicleType === "motos" ? "USO URBAN & SPORT" : (vehicleType === "caminhoes" ? "FORÇA & TRANSPORTE" : "PERFORMANCE & CUSTOM"),
-          tipo_badge: "BAIXA KM"
-        }
+        // `veiculo_contexto` saiu em 27/08. Ele mandava dois valores FIXOS no
+        // código — `perfil_uso` derivado só do tipo de veículo e
+        // `tipo_badge: "BAIXA KM"` — para o CRM, em toda avaliação, inclusive
+        // nas de carro com 200.000 km. É afirmação inventada sobre o carro do
+        // cliente, num campo que o consultor lê como se fosse dado.
+        //
+        // O que sobra é o que este canal realmente sabe: marca, modelo, ano e
+        // FIPE. Quilometragem e estado só existem quando o formulário foi
+        // enviado, e aí quem os manda é `POST /api/avaliacao`.
       },
       cliente: {
         nome: leadData.nome,
@@ -1379,16 +1384,37 @@ export default function AutoAvaliacao() {
           </div>
         </div>
 
+        {/* Sem botão aqui, e é decisão de 27/08.
+            ------------------------------------------------------------------
+            Este bloco tinha um "RECEBER PROPOSTA REAL" que, no passo 03,
+            aparecia ao lado do "SOLICITAR PROPOSTA" do formulário. Dois CTAs
+            principais prometendo a mesma coisa na mesma tela — foi assim que o
+            dono notou.
+
+            O problema não era o layout. Aquele botão chamava
+            `handleWhatsappAvaliacaoClick`, que é o botão do PASSO 04, e o
+            `<aside>` renderiza em todos os passos. Quem clicasse antes de
+            enviar:
+
+              · pulava o passo 02 inteiro, e o consultor recebia um lead sem
+                quilometragem — o campo que `isStep2Valid` torna obrigatório
+                justamente porque a faixa de 30% depende do limite de
+                150.000 km;
+              · mandava no WhatsApp "Enviei a avaliação do meu carro X no
+                site", frase que só é verdade depois do envio (e que, nos
+                passos 01–02, saía com a marca vazia no meio);
+              · era contado como `contato` em vez de `avaliacao` — a conversão
+                pela qual a loja decide verba de compra de estoque.
+
+            Tirar o botão daqui conserta os três de uma vez, porque
+            `handleWhatsappAvaliacaoClick` passa a ser alcançável só no passo
+            04, onde a frase e a classificação são verdadeiras. O atalho de
+            WhatsApp continua existindo lá, na coluna da esquerda.
+
+            O parágrafo fica: sem o botão ele explica o processo, em vez de
+            qualificar um CTA. */}
         <div className="mt-8">
-          <button
-            type="button"
-            onClick={handleWhatsappAvaliacaoClick}
-            className="mt-btn mt-btn-primario mt-btn-bloco mt-foco"
-          >
-            <IconeWhatsApp />
-            RECEBER PROPOSTA REAL
-          </button>
-          <p className="m-0 mt-3.5 text-[11px] leading-relaxed text-mt-neutral-500">
+          <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-500">
             Quem envia a avaliação é o consultor, com os dados que você
             informou. A proposta final depende de vistoria presencial em
             Curitiba.
