@@ -365,6 +365,80 @@ Pare, não improvise, e reporte:
 
 ---
 
+> ## ✅ Executado em 27/08 pelo conector Chrome
+>
+> Widget único, sitekey `0x4AAAAAAEQ78TZCxTDNsE3E`, batendo com a variável da
+> Vercel. Bloco G não se aplicou.
+>
+> | Conferência | Resultado |
+> |---|---|
+> | Domínios ANTES | `127.0.0.1`, `localhost`, `motorsstore.com.br`, `www.motorsstore.com.br` |
+> | Domínios DEPOIS | `motors-site-oficial.vercel.app`, `motorsstore.com.br`, `www.motorsstore.com.br` |
+> | `TURNSTILE_HOSTNAMES` | criada em Production |
+> | Chaves de teste | em Preview e Development |
+> | Redeploy | `6oj4h872N`, sem cache, status Ready |
+> | `/contato` em produção | carrega, token de 773 chars, botão destrava |
+>
+> ### As quatro divergências, e o que cada uma significou
+>
+> **1 · `motors-site-oficial.vercel.app` não estava na lista** — embora sirva
+> produção. Todo lead que entrasse por esse endereço seria recusado assim que a
+> conferência de hostname entrasse no ar. O Bloco C virou remover dois e
+> acrescentar um.
+>
+> **2 · A secret de produção estava servindo os deploys de Preview.** As duas
+> variáveis estavam marcadas "Production and Preview". URL de preview costuma
+> ser pública, então a secret real estava exposta a uma superfície que ninguém
+> tinha decidido expor. Preview foi desmarcado das duas e ganhou entradas
+> próprias com as chaves de teste.
+>
+> **3 · Nenhuma das duas existia em Development.** É a explicação de onde vieram
+> os fallbacks que a auditoria achou: sem variável, o código precisava inventar
+> uma chave para o dev local funcionar, e inventou a de teste — que aceita tudo.
+> O fallback resolvia o dev e abria produção. Agora a chave de teste está
+> escrita na variável, e o fallback saiu do código.
+>
+> **4 · Pre-Clearance ligado, em Interactive (high).** Deixado como estava, e
+> ainda em aberto — ver abaixo.
+>
+> ### O achado A.1, confirmado
+>
+> O widget está em **Managed**, e o componente renderizava o desafio dentro de
+> uma `<div class="hidden">`. Confirmado como bug ativo: o visitante que a
+> Cloudflare resolve desafiar não tem como clicar, o token nunca chega, e o
+> botão fica `disabled` sem log nem erro.
+>
+> O teste em `/contato` passou porque o visitante passou sozinho — que é a
+> maioria. O bug só aparece para quem é desafiado, e é exatamente por isso que
+> ninguém tinha notado.
+>
+> **Corrigido no código:** o widget passou a usar `appearance: "interaction-only"`
+> e a `div` perdeu o `hidden`. O widget não ocupa espaço enquanto passa sozinho
+> — o visual de hoje continua igual — e aparece quando o clique for necessário.
+> Nada muda no painel da Cloudflare.
+>
+> ### Ainda em aberto: o Pre-Clearance
+>
+> Pre-Clearance faz sentido quando o site fica **atrás do proxy da Cloudflare**:
+> o desafio resolvido emite um cookie `cf_clearance` que dispensa o visitante de
+> desafios do WAF nas requisições seguintes.
+>
+> Segundo [`VIRADA_DE_DOMINIO.md`](./VIRADA_DE_DOMINIO.md), a zona DNS de
+> `motorsstore.com.br` está na **Vercel** (`ns1/ns2.vercel-dns.com`) — ou seja, o
+> tráfego não passa pela Cloudflare, e não há WAF dela no caminho para o cookie
+> dispensar. Se isso se confirmar, o Pre-Clearance está cobrando fricção de
+> desafio interativo sem entregar o benefício que justifica a fricção.
+>
+> **Não foi mexido, porque não dá para confirmar daqui** — falta conferir os
+> nameservers atuais. Se `dig NS motorsstore.com.br` responder `vercel-dns.com`,
+> a recomendação é desligar. Se responder algo da Cloudflare, manter.
+>
+> Não é urgente: com `interaction-only` no lugar, um desafio interativo agora
+> aparece para o visitante em vez de ficar escondido. O que era perda silenciosa
+> virou, na pior das hipóteses, um clique a mais.
+
+---
+
 ## O que a auditoria achou (contexto)
 
 Levantado em 27/08 sobre a integração atual. O handoff acima destrava os itens

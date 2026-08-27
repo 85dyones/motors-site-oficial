@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Turnstile from "./Turnstile";
+import { useState, useEffect, useRef } from "react";
+import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import { mascararTelefone, normalizarNumero } from "../lib/whatsapp";
 import { IconeWhatsApp } from "./modernist/primitivos";
 
@@ -9,6 +9,14 @@ export interface LeadCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => Promise<void>;
+  /**
+   * A superfície que abriu o modal — `pdp`, `carmatch`, `popup`,
+   * `avaliacao_whatsapp`. Vai para o widget como `action` e volta assinada pela
+   * Cloudflare, para o servidor conferir. Obrigatória de propósito: superfície
+   * nova que esquecer de passar não compila, em vez de nascer sem conferência.
+   * Os valores moram em `lib/turnstile.ts`.
+   */
+  action: string;
   initialNome?: string;
   initialWhatsapp?: string;
   vehicleInfo?: {
@@ -22,6 +30,7 @@ export default function LeadCaptureModal({
   isOpen,
   onClose,
   onSubmit,
+  action,
   initialNome = "",
   initialWhatsapp = "",
   vehicleInfo
@@ -32,6 +41,7 @@ export default function LeadCaptureModal({
   const [turnstileToken, setTurnstileToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   // Sync initial values and load history for background variables (email, phone)
   useEffect(() => {
@@ -132,6 +142,13 @@ export default function LeadCaptureModal({
       });
       onClose();
     } catch (err: any) {
+      // Token do Turnstile é de uso único: o `onSubmit` acima já o gastou no
+      // siteverify, mesmo tendo falhado depois. Sem descartar e pedir outro, o
+      // próximo clique reenviaria o mesmo token queimado, a Cloudflare
+      // responderia `timeout-or-duplicate`, e o visitante ficaria preso num
+      // "Falha na verificação de segurança" que nenhuma tentativa resolve.
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
       setErrorMsg(err.message || "Ocorreu um erro. Tente novamente.");
     } finally {
       setLoading(false);
@@ -317,7 +334,12 @@ export default function LeadCaptureModal({
             </div>
 
             {/* Cloudflare Turnstile Verification */}
-            <Turnstile onSuccess={(token) => setTurnstileToken(token)} />
+            <Turnstile
+              ref={turnstileRef}
+              action={action}
+              onSuccess={(token) => setTurnstileToken(token)}
+              onExpire={() => setTurnstileToken("")}
+            />
 
             {/* CTA — vermelho porque é o ponto de decisão do diálogo */}
             <button

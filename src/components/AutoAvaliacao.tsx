@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { logFlowInitiated, getActiveAgUid, getUtmParameters, sufixoRef, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
-import Turnstile from "./Turnstile";
+import Turnstile, { type TurnstileHandle } from "./Turnstile";
+import { ACOES } from "../lib/turnstile";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
 import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
@@ -333,6 +334,7 @@ export default function AutoAvaliacao() {
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   // Type of vehicle
   const [vehicleType, setVehicleType] = useState<"carros" | "motos" | "caminhoes">("carros");
@@ -619,9 +621,17 @@ export default function AutoAvaliacao() {
           numericValue = Number(fipeValor.replace(/[^\d]/g, "")) / 100;
         }
         trackAppraisalSubmit(vehicleType, step1.marca, step1.modelo, String(step1.ano), numericValue);
+      } else {
+        // Token do Turnstile é de uso único e já foi gasto no siteverify. Sem
+        // pedir outro, uma segunda tentativa reenviaria o mesmo e levaria 403
+        // de novo — sem saída, porque o formulário não recarrega sozinho.
+        setTurnstileToken("");
+        turnstileRef.current?.reset();
       }
     } catch (error) {
       console.error("[Auto-Avaliação] Failed to send lead to backend API:", error);
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
     }
 
     // Simulate premium processing delay
@@ -1251,7 +1261,12 @@ export default function AutoAvaliacao() {
               o botão desabilitado esperando. */}
           {step < 4 && (
             <div className="mt-9 border-t border-mt-regua-fina pt-5">
-              <Turnstile onSuccess={(token) => setTurnstileToken(token)} />
+              <Turnstile
+                ref={turnstileRef}
+                action={ACOES.avaliacao}
+                onSuccess={(token) => setTurnstileToken(token)}
+                onExpire={() => setTurnstileToken("")}
+              />
             </div>
           )}
         </form>
@@ -1361,6 +1376,7 @@ export default function AutoAvaliacao() {
 
       {/* Positive Friction Lead Capture Modal */}
       <LeadCaptureModal
+        action={ACOES.avaliacaoWhatsapp}
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         onSubmit={handleLeadSubmit}

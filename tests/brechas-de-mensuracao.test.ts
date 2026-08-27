@@ -60,25 +60,106 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
 
 describe("A.3 · o captcha", () => {
   const rota = lerCodigo("src/app/api/leads/route.ts");
+  const rotaAvaliacao = lerCodigo("src/app/api/avaliacao/route.ts");
+  const verificacao = lerCodigo("src/lib/turnstile.ts");
+
+  /**
+   * O escopo deste bloco cresceu em 27/08, depois de o conserto anterior ter
+   * passado batido por metade do problema.
+   *
+   * A versão antiga lia só `src/app/api/leads/route.ts`. A função de
+   * verificação, porém, existia DUAS vezes — copiada em `/api/avaliacao` — e
+   * a cópia de lá continuou com a secret de teste "always passes" no fallback
+   * por mais um mês, verde no CI o tempo todo. Teste que vigia um arquivo não
+   * protege o gêmeo dele.
+   *
+   * Agora a verificação mora em `src/lib/turnstile.ts`, uma vez só, e os testes
+   * abaixo cobrem as duas rotas E vigiam a volta da duplicata.
+   */
 
   it("a chave de teste da Cloudflare saiu do código", () => {
-    // `1x0000000000000000000000000000000AA` é a chave "always passes". Como
-    // fallback de `TURNSTILE_SECRET_KEY`, ela fazia o captcha do site inteiro
-    // virar enfeite em qualquer ambiente sem a variável — sem uma linha de log
-    // dizendo isso.
-    expect(rota).not.toContain("1x0000000000000000000000000000000AA");
+    // `1x0000000000000000000000000000000AA` é a secret "always passes" e
+    // `1x00000000000000000000AA` é a sitekey equivalente. Como FALLBACK, elas
+    // faziam o captcha virar enfeite em qualquer ambiente sem a variável — sem
+    // uma linha de log dizendo isso. Como variável de ambiente de Preview,
+    // escritas de propósito, continuam sendo o comportamento certo; o que não
+    // pode é o código cair nelas sozinho.
+    for (const [nome, fonte] of [
+      ["lib/turnstile.ts", verificacao],
+      ["api/leads", rota],
+      ["api/avaliacao", rotaAvaliacao],
+      ["components/Turnstile.tsx", lerCodigo("src/components/Turnstile.tsx")],
+    ] as const) {
+      expect(fonte, nome).not.toContain("1x0000000000000000000000000000000AA");
+      expect(fonte, nome).not.toContain("1x00000000000000000000AA");
+    }
   });
 
   it("sem a chave, RECUSA o lead — não aceita em silêncio", () => {
-    const fn = rota.slice(rota.indexOf("async function verifyTurnstileToken"));
-    const corpo = fn.slice(0, fn.indexOf("\n}"));
+    const fn = verificacao.slice(verificacao.indexOf("export async function verificarTurnstile"));
+    // `\n}\n` e não `\n}`: a assinatura desestrutura o argumento, então o
+    // primeiro `\n}` do texto é o fim da lista de parâmetros — `}: EntradaTurnstile)` —
+    // e cortar ali deixaria o corpo de fora.
+    const corpo = fn.slice(0, fn.indexOf("\n}\n"));
+    expect(corpo.length).toBeGreaterThan(200);
     expect(corpo).toMatch(/if \(!secret\)/);
-    expect(corpo).toMatch(/return false;/);
+    expect(corpo).toMatch(/ok: false/);
     // Falhar fechado só é seguro porque a chave ESTÁ configurada em produção
     // — medido em 27/08 mandando um token inválido e recebendo 403. Se um dia
     // sumir, o formulário para de aceitar lead, visível no mesmo dia, em vez
     // de aceitar bot para sempre.
     expect(corpo).toMatch(/console\.error/);
+  });
+
+  it("as duas rotas protegidas usam a MESMA verificação", () => {
+    // Este é o teste que teria pego o bug original. Enquanto as duas rotas
+    // chamarem a função compartilhada, o próximo conserto vale para as duas.
+    for (const [nome, fonte] of [["api/leads", rota], ["api/avaliacao", rotaAvaliacao]] as const) {
+      expect(fonte, nome).toMatch(/verificarTurnstile\(/);
+      expect(fonte, nome).toMatch(/from "\.\.\/\.\.\/\.\.\/lib\/turnstile"/);
+    }
+  });
+
+  it("nenhuma rota fala com o siteverify por conta própria", () => {
+    // A duplicata volta assim: alguém copia o fetch para "resolver rápido" e a
+    // divergência recomeça. O endereço do siteverify só pode aparecer em um
+    // arquivo do projeto.
+    for (const [nome, fonte] of [["api/leads", rota], ["api/avaliacao", rotaAvaliacao]] as const) {
+      expect(fonte, nome).not.toContain("challenges.cloudflare.com/turnstile/v0/siteverify");
+    }
+    expect(verificacao).toContain("challenges.cloudflare.com/turnstile/v0/siteverify");
+  });
+
+  it("valida hostname e action, não só `success`", () => {
+    // `success: true` diz que o desafio foi resolvido — não diz ONDE nem em
+    // QUAL formulário. Até 27/08 o widget tinha `localhost` e `127.0.0.1` na
+    // lista de domínios: qualquer um subia uma página local com a nossa
+    // sitekey (que é pública), colhia token que a Cloudflare assinava, e
+    // postava na produção. Os dois hosts saíram da lista no mesmo dia; esta
+    // conferência é o que impede a brecha de voltar se alguém reabrir a lista.
+    expect(verificacao).toMatch(/hostsAceitos\.has\(hostname\)/);
+    expect(verificacao).toMatch(/acoesAceitas\.includes\(action\)/);
+  });
+
+  it("em produção, a lista de hostnames é obrigatória", () => {
+    // Fora de produção ela pode faltar — é o que deixa Preview e o dev local
+    // usarem as chaves de teste, cujo hostname nenhuma lista prevê. Em
+    // produção, faltar é recusar: quem decide é `VERCEL_ENV`, que o servidor
+    // injeta, e não um campo do corpo do POST como a régua que saiu em 27/08.
+    expect(verificacao).toMatch(/VERCEL_ENV === "production"/);
+    const guarda = verificacao.slice(verificacao.indexOf("hostsAceitos.size === 0 && estaEmProducao()"));
+    expect(guarda.slice(0, 400)).toMatch(/ok: false/);
+  });
+
+  it("o token é validado antes de sair para a Cloudflare", () => {
+    // O corpo do POST é JSON livre. Sem teto, um campo de 10 MB viraria upload
+    // nosso para a borda da Cloudflare; sem checar o tipo, um número ou objeto
+    // chegaria coagido a string.
+    expect(verificacao).toMatch(/typeof token !== "string"/);
+    expect(verificacao).toMatch(/TAMANHO_MAXIMO_DO_TOKEN/);
+    // Sem timeout, uma chamada pendurada segura a invocação serverless até o
+    // limite da plataforma, com o visitante olhando o botão girar.
+    expect(verificacao).toMatch(/AbortSignal\.timeout/);
   });
 
   it("a régua é de ISENÇÃO, não de exigência", () => {

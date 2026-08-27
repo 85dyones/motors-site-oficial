@@ -101,3 +101,84 @@ describe("estabilidade do widget Turnstile", () => {
     expect(consumidores.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Toda superfície protegida declara a sua `action`.
+ *
+ * A `action` é fixada no navegador, na montagem do widget, e volta assinada
+ * pela Cloudflare na resposta do siteverify — o cliente não troca depois. O
+ * servidor confere contra a lista da rota, então superfície que esquecer de
+ * declarar leva 403 e o lead some. Aqui isso falha no CI, não em produção.
+ */
+/**
+ * Os blocos de atributos de cada uso de `<Nome ... />` no arquivo.
+ *
+ * O lookahead não é firula: sem ele, `<Turnstile` casa dentro de
+ * `useRef<TurnstileHandle>(null)` e o teste acusa um uso que não existe.
+ */
+function usosDoComponente(fonte: string, nome: string): string[] {
+  const normalizado = fonte.replace(/\s+/g, " ");
+  return normalizado
+    .split(new RegExp(`<${nome}(?=[\\s>])`))
+    .slice(1)
+    .map((trecho) => trecho.slice(0, trecho.indexOf("/>")));
+}
+
+describe("a action de cada superfície", () => {
+  const arquivos = arquivosDeCodigo(join(raiz, "src"));
+
+  it("todo <Turnstile> recebe uma action", () => {
+    const usos = arquivos.filter((caminho) => {
+      const fonte = readFileSync(caminho, "utf8");
+      return /<Turnstile[\s>]/.test(fonte) && !caminho.endsWith("Turnstile.tsx");
+    });
+    expect(usos.length).toBeGreaterThan(0);
+
+    for (const caminho of usos) {
+      for (const atributos of usosDoComponente(readFileSync(caminho, "utf8"), "Turnstile")) {
+        expect(atributos, `${caminho}: <Turnstile> sem action`).toMatch(/action=/);
+      }
+    }
+  });
+
+  it("todo <LeadCaptureModal> recebe uma action", () => {
+    const usos = arquivos.filter((caminho) =>
+      /<LeadCaptureModal[\s>]/.test(readFileSync(caminho, "utf8"))
+    );
+    expect(usos.length).toBeGreaterThan(0);
+
+    for (const caminho of usos) {
+      for (const atributos of usosDoComponente(readFileSync(caminho, "utf8"), "LeadCaptureModal")) {
+        expect(atributos, `${caminho}: <LeadCaptureModal> sem action`).toMatch(/action=/);
+      }
+    }
+  });
+
+  it("as actions do código são as que o servidor aceita", () => {
+    // Uma action escrita à mão num consumidor, fora do mapa de `lib/turnstile.ts`,
+    // seria recusada pelo servidor. Passar pelo mapa é o que mantém os dois
+    // lados em sincronia.
+    const usos = arquivos.filter((caminho) => {
+      const fonte = readFileSync(caminho, "utf8");
+      return /<(Turnstile|LeadCaptureModal)[\s>]/.test(fonte) && !caminho.endsWith("Turnstile.tsx");
+    });
+    for (const caminho of usos) {
+      const fonte = readFileSync(caminho, "utf8");
+      for (const nome of ["Turnstile", "LeadCaptureModal"]) {
+        for (const atributos of usosDoComponente(fonte, nome)) {
+          const action = atributos.match(/action=\{([^}]+)\}/);
+          if (!action) continue;
+          expect(action[1].trim(), `${caminho}: action fora do mapa de lib/turnstile.ts`)
+            .toMatch(/^(ACOES\.\w+|action)$/);
+        }
+      }
+    }
+  });
+
+  it("o reset do token gasto está ao alcance dos formulários", () => {
+    // Token do Turnstile é de uso único. Sem um reset exposto, um envio que
+    // falha deixa o formulário reenviando o mesmo token queimado para sempre.
+    expect(fonte).toMatch(/useImperativeHandle/);
+    expect(fonte).toMatch(/reset:/);
+  });
+});

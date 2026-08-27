@@ -4,62 +4,9 @@ import { logLeadCaptured, META_CONTENT_TYPE } from "../../../lib/telemetry";
 import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
+import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Valida o token do Turnstile contra a Cloudflare.
- *
- * ---------------------------------------------------------------------------
- * A chave de teste saiu daqui, e por quê
- * ---------------------------------------------------------------------------
- * Até 27/08 esta função caía em `"1x0000000000000000000000000000000AA"` quando
- * `TURNSTILE_SECRET_KEY` faltava. Essa constante é a chave **"always passes"**
- * da Cloudflare: sem a variável no ambiente, TODO token era aceito, e o
- * captcha do site inteiro virava enfeite sem uma linha de log dizendo isso.
- *
- * Medido na produção de 27/08 antes de mexer, mandando um token inválido para
- * `/api/leads`: a resposta foi **403**. Com a chave de teste, teria passado
- * pela verificação e parado no 400 de "dados de contato ausentes". Ou seja: a
- * variável ESTÁ configurada, o captcha funciona hoje, e este conserto fecha um
- * alçapão que só se abriria no dia de um ambiente novo mal provisionado.
- *
- * É por isso que dá para falhar fechado sem medo: não há tráfego legítimo
- * dependendo do fallback. Se um dia a variável sumir, o formulário para de
- * aceitar lead — visível no mesmo dia — em vez de aceitar bot em silêncio.
- * Lead falso não é só ruído: vira `generate_lead`, vira conversão no Ads
- * valendo R$ 420 ou mais, e ensina o algoritmo a comprar o tráfego que o
- * gerou.
- */
-async function verifyTurnstileToken(token: string): Promise<boolean> {
-  try {
-    const secret = process.env.TURNSTILE_SECRET_KEY;
-    if (!secret) {
-      console.error(
-        "[Leads API] TURNSTILE_SECRET_KEY ausente — recusando o lead. " +
-          "Sem a chave não há como distinguir humano de bot, e aceitar seria " +
-          "envenenar o sinal de conversão do Ads."
-      );
-      return false;
-    }
-
-    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`
-    });
-
-    const data = await response.json();
-    return !!data.success;
-  } catch (error) {
-    console.error("[Leads API] Turnstile validation failed:", error);
-    return false;
-  }
-}
-
-
 
 export async function POST(request: NextRequest) {
   try {
@@ -99,9 +46,24 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Token de segurança captcha ausente." }, { status: 400 });
       }
 
-      const isHuman = await verifyTurnstileToken(turnstileToken);
-      if (!isHuman) {
-        return NextResponse.json({ error: "Falha na verificação de segurança (Anti-Spam)." }, { status: 403 });
+      const veredito = await verificarTurnstile({
+        token: turnstileToken,
+        acoesAceitas: ACOES_DE_LEADS,
+        ip: ipDoVisitante(request),
+        rotulo: "[Leads API]",
+      });
+
+      if (!veredito.ok) {
+        // O motivo fica no log do servidor, não na resposta. Ele nomeia estado
+        // de configuração — `secret-ausente`, `hostnames-ausentes` — e contar
+        // isso a quem apanhou do captcha não ajuda o visitante legítimo em
+        // nada. O formulário também não precisa dele: desde 27/08 ele descarta
+        // o token e pede outro em QUALQUER falha, sem inspecionar a causa.
+        console.warn(`[Leads API] Captcha recusado: ${veredito.motivo}`);
+        return NextResponse.json(
+          { error: "Falha na verificação de segurança (Anti-Spam)." },
+          { status: 403 }
+        );
       }
     }
 
@@ -259,9 +221,7 @@ export async function POST(request: NextRequest) {
             fbp: body.fbp || null,
             fbc: body.fbc || null,
             externalId: resolvedAgUid,
-            clientIpAddress:
-              request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-              request.headers.get("x-real-ip"),
+            clientIpAddress: ipDoVisitante(request),
             clientUserAgent: request.headers.get("user-agent"),
           },
           customData: {

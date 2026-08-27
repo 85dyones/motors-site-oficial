@@ -10,6 +10,7 @@ import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
 import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
+import { ACOES } from "../lib/turnstile";
 
 /**
  * Tela 04 — Garagem Profiler, na linguagem Modernist.
@@ -1131,6 +1132,7 @@ export default function CarMatch() {
 
       {/* Lead Capture Modal */}
       <LeadCaptureModal
+        action={ACOES.carmatch}
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         onSubmit={handleLeadSubmit}
