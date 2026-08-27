@@ -33,6 +33,42 @@ function hasPromptInjection(obj: any): boolean {
 import { getCachedSettings, recortePublicoDeSettings } from "../../../lib/settings";
 
 /**
+ * Tira a chave privada do GA4 do payload de staff.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a chave não volta para a tela
+ * ---------------------------------------------------------------------------
+ * O GET devolve o blob completo para staff — é assim que o painel carrega, e é
+ * assim que `apiSecretToken` já viaja hoje. A chave privada do GA4 é de outra
+ * ordem: assina JWT em nome de uma conta de serviço do Google Cloud, e não há
+ * nada na tela que precise LER o valor. Mandá-la para o navegador de cada
+ * pessoa da equipe, a cada abertura de Configurações, é exposição sem uso.
+ *
+ * O que a tela recebe é `privateKeyConfigurada` — o suficiente para desenhar
+ * "configurada ✓" e um campo para substituir.
+ *
+ * ⚠️ **Isto não faz da chave um segredo perante a equipe.** Quem é staff pode
+ * ler a linha crua falando com o PostgREST direto: a RLS de `site_settings`
+ * libera SELECT para `is_staff` (`20260813120000_role_cliente_e_is_staff.sql`).
+ * A máscara elimina o vazamento ROTINEIRO — toda tela, toda pessoa, todo
+ * cache de navegador — e não o deliberado. Prometer mais que isso seria
+ * mentira confortável.
+ */
+export function mascararGa4<T extends { ga4?: unknown }>(completo: T): T {
+  const ga4 = completo.ga4 as Record<string, unknown> | null | undefined;
+  if (!ga4 || typeof ga4 !== "object") return completo;
+
+  const { privateKey, ...resto } = ga4;
+  return {
+    ...completo,
+    ga4: {
+      ...resto,
+      privateKeyConfigurada: Boolean(typeof privateKey === "string" && privateKey.trim()),
+    },
+  };
+}
+
+/**
  * Settings do site. O corpo da resposta depende de haver sessão.
  *
  * Até 2026-08-06 este GET era aberto e devolvia TUDO a qualquer visitante
@@ -70,7 +106,9 @@ export async function GET() {
     console.warn("[Settings API] Checagem de sessão no GET falhou:", err?.message);
   }
 
-  const corpo = deStaff ? completo : recortePublicoDeSettings(completo);
+  // `mascararGa4` só no ramo de staff: o recorte público é whitelist e nunca
+  // chegou a incluir `ga4`.
+  const corpo = deStaff ? mascararGa4(completo) : recortePublicoDeSettings(completo);
 
   return NextResponse.json(corpo, {
     headers: {
@@ -100,7 +138,8 @@ export async function POST(request: Request) {
       bankBalances,
       procedencia,
       instagramCuradoria,
-      areasHome
+      areasHome,
+      ga4
     } = body;
 
     const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
@@ -190,6 +229,39 @@ export async function POST(request: Request) {
         if (error) {
           console.error("[Settings API] Supabase write error for webhooks:", error.message);
           return NextResponse.json({ error: `Falha ao salvar webhooks: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      if (ga4) {
+        // A tela nunca recebe a chave privada (ver `mascararGa4`), então ela
+        // também nunca volta no corpo do salvamento. Gravar o que veio, cru,
+        // apagaria a credencial toda vez que alguém salvasse o ID da
+        // propriedade — e o sintoma apareceria dias depois, como "o GA4 parou
+        // sozinho", sem nada no log ligando uma coisa à outra.
+        //
+        // Então: chave nova no corpo vence; corpo sem chave preserva a
+        // guardada. Limpar de verdade exige apagar a linha no banco, que é
+        // deliberado o bastante para não acontecer por engano.
+        let paraGravar: Record<string, unknown> = { ...ga4 };
+        delete paraGravar.privateKeyConfigurada; // campo de resposta, não de dado
+
+        if (!String(ga4.privateKey ?? "").trim()) {
+          const { data: atual } = await requestSupabase
+            .from("site_settings")
+            .select("data")
+            .eq("id", "ga4")
+            .maybeSingle();
+          const chaveGuardada = atual?.data?.privateKey;
+          if (chaveGuardada) paraGravar = { ...paraGravar, privateKey: chaveGuardada };
+          else delete paraGravar.privateKey;
+        }
+
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "ga4", data: paraGravar, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for ga4:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar credenciais do GA4: ${error.message}` }, { status: 500 });
         }
       }
 

@@ -163,6 +163,34 @@ export interface Webhooks {
   apiSecretToken?: string;
 }
 
+/**
+ * Credenciais de LEITURA do Google Analytics 4 — as que o painel usa para
+ * mostrar visitas. Nada a ver com a coleta, que roda no navegador com o
+ * `G-...` público (ver `IntegrationsTracker` e TRACKING_SPEC.md).
+ *
+ * Guardadas em `site_settings` (id `ga4`), editáveis pelo painel, com
+ * `process.env.GA4_*` de reserva — mesmo contrato do `apiSecretToken`.
+ */
+export interface Ga4Settings {
+  /** ID NUMÉRICO da propriedade. Não é o "G-KBL1MFN9E3". */
+  propertyId?: string;
+  /** E-mail da conta de serviço do Google Cloud. */
+  clientEmail?: string;
+  /**
+   * Chave privada do JSON da conta de serviço.
+   *
+   * ⚠️ **Só existe no sentido servidor → banco.** O `GET /api/settings` a
+   * substitui por `privateKeyConfigurada` antes de responder; quem vier daqui
+   * para a tela nunca deve encontrá-la preenchida. Ver `mascararGa4`.
+   */
+  privateKey?: string;
+  /**
+   * O que a tela recebe no lugar da chave: "tem uma guardada" ou "não tem".
+   * Nunca é gravado no banco — é um campo de resposta, não de dado.
+   */
+  privateKeyConfigurada?: boolean;
+}
+
 export interface Campaign {
   id: string;
   name: string;

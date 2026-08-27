@@ -22,7 +22,7 @@ Três itens da lista, porém, já não valiam quando fui conferir:
 | § | Item | Estado real |
 |---|---|---|
 | 3 | URL do Ka duplicada | já resolvido — os três Ka agrupados, cada um com caminho próprio |
-| 4 | Credencial do GA4 | o código já existe; faltam três variáveis de ambiente no Vercel |
+| 4 | Credencial do GA4 | o código já existe; falta preencher as três credenciais (agora no painel — ver `docs/GA4_CREDENCIAIS.md`) |
 | 5.2.1 | "Hatch é nosso default" | premissa errada — o site nunca inventa carroceria. O `Hatch` vem do RevendaMais |
 
 ---
@@ -108,8 +108,10 @@ bloquear. Sai com código ≠ 0 quando há achado, para caber em CI depois.
 3. **O câmbio do Onix Plus** — nome, campo e categoria discordam entre si, e só
    quem viu o carro sabe qual está certo.
 4. **Os laudos**, quando der. É o que destrava o item 4 do documento original.
-5. **GA4** — criar a conta de serviço e pôr `GA4_PROPERTY_ID`,
-   `GA4_CLIENT_EMAIL` e `GA4_PRIVATE_KEY` no Vercel.
+5. **GA4** — criar a conta de serviço no Google Cloud e colar as três
+   credenciais em **Configurações → Integração → Google Analytics — leitura**.
+   Não precisa de Vercel nem de deploy. Passo a passo em
+   `docs/GA4_CREDENCIAIS.md`.
 
 ## Fora desta rodada
 
