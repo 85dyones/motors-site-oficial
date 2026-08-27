@@ -116,6 +116,10 @@ describe("estabilidade do widget Turnstile", () => {
  * O lookahead não é firula: sem ele, `<Turnstile` casa dentro de
  * `useRef<TurnstileHandle>(null)` e o teste acusa um uso que não existe.
  */
+function lerFonte(relativo: string): string {
+  return readFileSync(join(raiz, relativo), "utf8");
+}
+
 function usosDoComponente(fonte: string, nome: string): string[] {
   const normalizado = fonte.replace(/\s+/g, " ");
   return normalizado
@@ -180,5 +184,57 @@ describe("a action de cada superfície", () => {
     // falha deixa o formulário reenviando o mesmo token queimado para sempre.
     expect(fonte).toMatch(/useImperativeHandle/);
     expect(fonte).toMatch(/reset:/);
+  });
+});
+
+/**
+ * Nenhum formulário pode morrer no erro do captcha.
+ *
+ * Quando o desafio não completa — extensão de privacidade bloqueando
+ * `challenges.cloudflare.com`, rede filtrando o script, aba aberta desde antes
+ * de um deploy — o botão de enviar fica `disabled` e o visitante não recebe
+ * explicação nenhuma. Quem chegou até ali já digitou nome e telefone.
+ *
+ * A saída é `SaidaDoCaptcha`: explica o que houve e oferece o WhatsApp da loja
+ * (link `wa.me`, resolvido no navegador, que NÃO cria lead — o gate do servidor
+ * continua inteiro). Este teste existe para que a próxima superfície protegida
+ * não nasça sem ela.
+ */
+describe("a saída quando o captcha não passa", () => {
+  const superficies = arquivosDeCodigo(join(raiz, "src")).filter((caminho) => {
+    if (caminho.endsWith("Turnstile.tsx")) return false;
+    return /<Turnstile(?=[\s>])/.test(readFileSync(caminho, "utf8"));
+  });
+
+  it("há superfícies para conferir", () => {
+    expect(superficies.length).toBeGreaterThan(0);
+  });
+
+  it("todo formulário com desafio trata o onError", () => {
+    for (const caminho of superficies) {
+      for (const atributos of usosDoComponente(readFileSync(caminho, "utf8"), "Turnstile")) {
+        expect(atributos, `${caminho}: <Turnstile> sem onError — o desafio pode falhar em silêncio`)
+          .toMatch(/onError=/);
+      }
+    }
+  });
+
+  it("todo formulário com desafio oferece uma saída", () => {
+    for (const caminho of superficies) {
+      const fonte = readFileSync(caminho, "utf8");
+      expect(fonte, `${caminho}: sem <SaidaDoCaptcha> — o visitante fica sem caminho`)
+        .toMatch(/<SaidaDoCaptcha/);
+    }
+  });
+
+  it("a saída não cria lead — só abre conversa", () => {
+    // Se um dia alguém "resolver" a falha do captcha postando o lead assim
+    // mesmo, o gate do servidor vira enfeite. A saída pode abrir o WhatsApp e
+    // pode voltar para a home; não pode chamar as rotas protegidas.
+    const saida = lerFonte("src/components/SaidaDoCaptcha.tsx");
+    expect(saida).not.toMatch(/\/api\/leads/);
+    expect(saida).not.toMatch(/\/api\/avaliacao/);
+    expect(saida).not.toMatch(/fetch\(/);
+    expect(saida).toMatch(/linkWhatsApp/);
   });
 });

@@ -6,6 +6,7 @@ import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import { ACOES } from "../lib/turnstile";
+import SaidaDoCaptcha from "./SaidaDoCaptcha";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
 import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
@@ -335,6 +336,7 @@ export default function AutoAvaliacao() {
   const [activeMessage, setActiveMessage] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileRef = useRef<TurnstileHandle>(null);
+  const [captchaBloqueado, setCaptchaBloqueado] = useState(false);
 
   // Type of vehicle
   const [vehicleType, setVehicleType] = useState<"carros" | "motos" | "caminhoes">("carros");
@@ -701,6 +703,7 @@ export default function AutoAvaliacao() {
     setFipeYears([]);
     setVehicleType("carros");
     setTurnstileToken("");
+    setCaptchaBloqueado(false);
     setStep(1);
   };
 
@@ -1264,9 +1267,28 @@ export default function AutoAvaliacao() {
               <Turnstile
                 ref={turnstileRef}
                 action={ACOES.avaliacao}
-                onSuccess={(token) => setTurnstileToken(token)}
+                onSuccess={(token) => {
+                  setTurnstileToken(token);
+                  setCaptchaBloqueado(false);
+                }}
                 onExpire={() => setTurnstileToken("")}
+                onError={() => setCaptchaBloqueado(true)}
               />
+
+              {captchaBloqueado && (
+                <SaidaDoCaptcha
+                  mensagem={
+                    step1.marca && step1.modelo
+                      ? `Olá! Quero avaliar meu ${step1.marca} ${step1.modelo}${step1.ano ? ` ${step1.ano}` : ""}.`
+                      : undefined
+                  }
+                  onTentarNovamente={() => {
+                    setCaptchaBloqueado(false);
+                    setTurnstileToken("");
+                    turnstileRef.current?.reset();
+                  }}
+                />
+              )}
             </div>
           )}
         </form>

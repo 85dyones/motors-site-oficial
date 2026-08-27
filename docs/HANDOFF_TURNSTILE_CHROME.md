@@ -417,7 +417,7 @@ Pare, não improvise, e reporte:
 > — o visual de hoje continua igual — e aparece quando o clique for necessário.
 > Nada muda no painel da Cloudflare.
 >
-> ### Ainda em aberto: o Pre-Clearance
+> ### Pre-Clearance — resolvido pelo dono em 27/08
 >
 > Pre-Clearance faz sentido quando o site fica **atrás do proxy da Cloudflare**:
 > o desafio resolvido emite um cookie `cf_clearance` que dispensa o visitante de
@@ -429,13 +429,30 @@ Pare, não improvise, e reporte:
 > dispensar. Se isso se confirmar, o Pre-Clearance está cobrando fricção de
 > desafio interativo sem entregar o benefício que justifica a fricção.
 >
-> **Não foi mexido, porque não dá para confirmar daqui** — falta conferir os
-> nameservers atuais. Se `dig NS motorsstore.com.br` responder `vercel-dns.com`,
-> a recomendação é desligar. Se responder algo da Cloudflare, manter.
+> O conector deixou como estava, por não dar para confirmar os nameservers de
+> dentro da sessão. O dono conferiu e resolveu em seguida.
 >
-> Não é urgente: com `interaction-only` no lugar, um desafio interativo agora
-> aparece para o visitante em vez de ficar escondido. O que era perda silenciosa
-> virou, na pior das hipóteses, um clique a mais.
+> **O código não depende de qual foi a decisão.** Com `interaction-only`, um
+> desafio interativo aparece para o visitante em vez de ficar escondido — vale
+> com Pre-Clearance ligado ou desligado. O que era perda silenciosa virou, na
+> pior das hipóteses, um clique a mais.
+
+> ### Depois da ficha: a saída para quem não passa
+>
+> Decidido em 27/08, com o site ainda sem divulgação ampla: em vez de encerrar
+> num 403, quem não completa o desafio recebe um caminho.
+>
+> O 403 vem de um `fetch()`, não de uma navegação — um redirect do servidor
+> seria seguido pelo próprio fetch e devolveria o HTML da home como resposta da
+> API. A saída equivalente é no cliente, e é o que `SaidaDoCaptcha` faz:
+> explica o que houve e abre o WhatsApp da loja levando junto o que a pessoa
+> escreveu.
+>
+> Isso não fura o captcha. O que ele protege é o REGISTRO do lead — a gravação
+> no banco, o disparo para o n8n, a conversão que vai para o Ads. O link é
+> `wa.me`, resolvido no navegador, e não cria lead nenhum: um bot que chegue
+> nessa tela ganha um número de telefone que já está no rodapé de todas as
+> páginas. O gate do servidor continua onde estava.
 
 ---
 

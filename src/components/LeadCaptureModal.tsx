@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import { mascararTelefone, normalizarNumero } from "../lib/whatsapp";
 import { IconeWhatsApp } from "./modernist/primitivos";
+import SaidaDoCaptcha from "./SaidaDoCaptcha";
 
 export interface LeadCaptureModalProps {
   isOpen: boolean;
@@ -42,6 +43,12 @@ export default function LeadCaptureModal({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const turnstileRef = useRef<TurnstileHandle>(null);
+  /**
+   * O beco deste modal não é uma mensagem de erro — é o silêncio. Sem token o
+   * botão de enviar fica `disabled`, e quem tem o desafio bloqueado por
+   * extensão ou rede não recebe explicação nenhuma: só um botão que não clica.
+   */
+  const [captchaBloqueado, setCaptchaBloqueado] = useState(false);
 
   // Sync initial values and load history for background variables (email, phone)
   useEffect(() => {
@@ -51,6 +58,7 @@ export default function LeadCaptureModal({
       setEmail("");
       setErrorMsg("");
       setTurnstileToken("");
+      setCaptchaBloqueado(false);
       setLoading(false);
 
       // Load existing details from history in localStorage to enrich payload where possible
@@ -337,9 +345,28 @@ export default function LeadCaptureModal({
             <Turnstile
               ref={turnstileRef}
               action={action}
-              onSuccess={(token) => setTurnstileToken(token)}
+              onSuccess={(token) => {
+                setTurnstileToken(token);
+                setCaptchaBloqueado(false);
+              }}
               onExpire={() => setTurnstileToken("")}
+              onError={() => setCaptchaBloqueado(true)}
             />
+
+            {captchaBloqueado && (
+              <SaidaDoCaptcha
+                mensagem={
+                  vehicleInfo
+                    ? `Olá! Tenho interesse no ${vehicleInfo.marca} ${vehicleInfo.modelo}${vehicleInfo.ano ? ` ${vehicleInfo.ano}` : ""} anunciado no site.`
+                    : undefined
+                }
+                onTentarNovamente={() => {
+                  setCaptchaBloqueado(false);
+                  setTurnstileToken("");
+                  turnstileRef.current?.reset();
+                }}
+              />
+            )}
 
             {/* CTA — vermelho porque é o ponto de decisão do diálogo */}
             <button
