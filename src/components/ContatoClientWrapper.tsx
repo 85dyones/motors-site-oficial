@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
 import { generateEventId, getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
-import Turnstile from "./Turnstile";
+import Turnstile, { type TurnstileHandle } from "./Turnstile";
+import { ACOES } from "../lib/turnstile";
+import SaidaDoCaptcha from "./SaidaDoCaptcha";
 
 export default function ContatoClientWrapper() {
   const { webhooks, companySettings } = useTheme();
@@ -27,12 +29,27 @@ export default function ContatoClientWrapper() {
    * padrão, e a lista passou a ser de isenções (hoje vazia).
    */
   const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  /**
+   * Separado de `status === "error"` de propósito: erro genérico se resolve
+   * tentando de novo, e a caixa antiga dizia isso. Falha de captcha NÃO se
+   * resolve tentando de novo — se o desafio está bloqueado, continua bloqueado
+   * no segundo clique — então mandar a pessoa repetir é mandá-la bater na
+   * mesma porta. Este estado abre outra.
+   */
+  const [captchaBloqueado, setCaptchaBloqueado] = useState(false);
 
   // Fetch tracking ID on mount
   useEffect(() => {
     const uid = getActiveAgUid();
     setAgUid(uid);
   }, []);
+
+  /** Descarta o token gasto e começa um desafio novo. */
+  const descartarToken = () => {
+    setTurnstileToken("");
+    turnstileRef.current?.reset();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +96,16 @@ export default function ContatoClientWrapper() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.warn("[Contato] API retornou erro:", errorData?.error || response.status);
+        // O token já foi gasto no siteverify — é de uso único. Sem pedir outro,
+        // o "tentar de novo" reenviaria o mesmo e levaria 403 para sempre.
+        descartarToken();
+        // 403 é o servidor dizendo que o captcha não passou. Repetir o envio
+        // não muda nada; o que ajuda é oferecer outro caminho.
+        if (response.status === 403) {
+          setCaptchaBloqueado(true);
+          setStatus("idle");
+          return;
+        }
         setStatus("error");
         return;
       }
@@ -104,6 +131,7 @@ export default function ContatoClientWrapper() {
       setMessage("");
     } catch (error) {
       console.error("[Contato] Falha de conexão ao enviar lead:", error);
+      descartarToken();
       setStatus("error");
     }
   };
@@ -138,6 +166,16 @@ export default function ContatoClientWrapper() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col">
+          {captchaBloqueado && (
+            <SaidaDoCaptcha
+              mensagem={message}
+              onTentarNovamente={() => {
+                setCaptchaBloqueado(false);
+                descartarToken();
+              }}
+            />
+          )}
+
           {status === "error" && (
             <div
               role="alert"
@@ -222,8 +260,16 @@ export default function ContatoClientWrapper() {
               espera o token — sem ele o POST volta 400 do servidor, e o
               usuário veria um erro que não é dele. */}
           <Turnstile
-            onSuccess={(token) => setTurnstileToken(token)}
+            ref={turnstileRef}
+            action={ACOES.contato}
+            onSuccess={(token) => {
+              setTurnstileToken(token);
+              setCaptchaBloqueado(false);
+            }}
             onExpire={() => setTurnstileToken("")}
+            // Script bloqueado por extensão ou rede: sem isto o botão de enviar
+            // ficaria `disabled` para sempre, sem uma palavra de explicação.
+            onError={() => setCaptchaBloqueado(true)}
           />
 
           <button

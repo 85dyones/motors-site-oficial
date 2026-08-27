@@ -8,6 +8,7 @@ import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
 import { useTheme } from "../app/ThemeContext";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { IconeWhatsApp, Seta } from "./modernist/primitivos";
+import { ACOES } from "../lib/turnstile";
 
 // ─── Default Configurations ───
 const COOLDOWN_HOURS = 4;
@@ -570,6 +571,7 @@ export default function LeadPopup() {
   // desmontaria o modal junto — o lead pendente morreria sem envio. ──
   const modalCaptura = (
     <LeadCaptureModal
+      action={ACOES.popup}
       isOpen={leadPendente !== null}
       onClose={() => setLeadPendente(null)}
       onSubmit={handleLeadSubmit}

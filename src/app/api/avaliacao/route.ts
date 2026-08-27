@@ -4,31 +4,9 @@ import { logLeadCaptured, logApiTelemetry } from "../../../lib/telemetry";
 import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
+import { verificarTurnstile, ACOES_DE_AVALIACAO, ipDoVisitante } from "../../../lib/turnstile";
 
 export const dynamic = "force-dynamic";
-
-// Verify Cloudflare Turnstile token
-async function verifyTurnstileToken(token: string): Promise<boolean> {
-  try {
-    const secret = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA"; // Cloudflare Turnstile Test Secret Key
-    
-    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`
-    });
-
-    const data = await response.json();
-    return !!data.success;
-  } catch (error) {
-    console.error("[Avaliacao API] Turnstile validation failed:", error);
-    return false;
-  }
-}
-
-
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -60,11 +38,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isHuman = await verifyTurnstileToken(turnstileToken);
-    if (!isHuman) {
+    const veredito = await verificarTurnstile({
+      token: turnstileToken,
+      acoesAceitas: ACOES_DE_AVALIACAO,
+      ip: ipDoVisitante(request),
+      rotulo: "[Avaliacao API]",
+    });
+
+    if (!veredito.ok) {
+      // O motivo vai só para a telemetria do servidor — segundo argumento de
+      // `sendResponse`. Fora do corpo da resposta de propósito: ele nomeia
+      // estado de configuração (`secret-ausente`, `hostnames-ausentes`), e o
+      // formulário não precisa dele para se recuperar — desde 27/08 ele
+      // descarta o token e pede outro em qualquer falha.
       return sendResponse(
-        NextResponse.json({ error: "Falha na verificação de segurança (Anti-Spam)." }, { status: 403 }),
-        "Falha na verificação de segurança (Anti-Spam)."
+        NextResponse.json(
+          { error: "Falha na verificação de segurança (Anti-Spam)." },
+          { status: 403 }
+        ),
+        `Falha na verificação de segurança (Anti-Spam): ${veredito.motivo}`
       );
     }
 

@@ -13,6 +13,7 @@ import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
 import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
 import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
+import { ACOES } from "../lib/turnstile";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -1480,6 +1481,7 @@ export default function PDPClientWrapper({
 
       {/* Positive Friction Lead Capture Modal */}
       <LeadCaptureModal
+        action={ACOES.pdp}
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         onSubmit={handleLeadSubmit}
