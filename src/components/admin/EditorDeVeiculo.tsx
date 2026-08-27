@@ -5,6 +5,7 @@ import Link from "next/link";
 import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
 import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
+import { bloqueiosDePublicacao, divergenciaDeCarroceria } from "../../lib/coerenciaDoCadastro";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -161,6 +162,13 @@ export default function EditorDeVeiculo({
   const set = <K extends keyof VeiculoDb>(campo: K, valor: VeiculoDb[K]) =>
     setV((atual) => ({ ...atual, [campo]: valor }));
 
+  /* O nome contradiz a carroceria salva? Só diagnóstico — ver
+     `lib/coerenciaDoCadastro.ts`, que nunca escreve. */
+  const divergencia = useMemo(
+    () => divergenciaDeCarroceria({ marca: v.marca, modelo: v.modelo, versao: v.versao, tipo: v.tipo }),
+    [v.marca, v.modelo, v.versao, v.tipo],
+  );
+
   const fotos = useMemo(
     () => (Array.isArray(v.whatsapp_images) ? v.whatsapp_images.filter(Boolean) : []),
     [v.whatsapp_images],
@@ -179,7 +187,7 @@ export default function EditorDeVeiculo({
   /** Checklist de publicação — os itens do doc que temos como verificar. */
   const checklist = [
     {
-      l: "8 fotos obrigatórias",
+      l: "8 fotos — bloqueia a publicação",
       d: "Frente, traseira, laterais, interior, painel e porta-malas.",
       ok: fotos.length >= 8,
       estado: fotos.length >= 8 ? "OK" : `FALTAM ${8 - fotos.length}`,
@@ -191,7 +199,10 @@ export default function EditorDeVeiculo({
       estado: fichaPropriaCompleta ? "OK" : "PENDENTE",
     },
     {
-      l: "Laudo cautelar anexado",
+      l: "Laudo cautelar",
+      // Não diz "bloqueia" porque hoje não bloqueia: 38 das 39 fichas estão com
+      // o campo vazio, e ligar o gate agora tiraria a loja do ar em vez de um
+      // carro. Ver `LAUDO_BLOQUEIA_PUBLICACAO`.
       d: "Texto do laudo exibido na ficha do veículo.",
       ok: Boolean(v.laudo_pericia),
       estado: v.laudo_pericia ? "OK" : "PENDENTE",
@@ -228,6 +239,21 @@ export default function EditorDeVeiculo({
     },
   ];
   const concluidos = checklist.filter((c) => c.ok).length;
+
+  /* O que tira este carro do ar agora. Mesma função que `getEstoque` usa para
+     filtrar, para a tela e o site nunca discordarem sobre o motivo.
+
+     `.filter(bloqueia)` porque a lista traz também a pendência que ainda não
+     tira do ar — dizer "fora da vitrine" para quem só está sem laudo seria a
+     tela mentindo sobre o próprio site. */
+  const bloqueios = useMemo(
+    () =>
+      bloqueiosDePublicacao({
+        laudo_pericia: v.laudo_pericia,
+        whatsapp_images: v.whatsapp_images,
+      }).filter((b) => b.bloqueia),
+    [v.laudo_pericia, v.whatsapp_images],
+  );
 
   const margem =
     v.preco_compra && v.preco_original ? v.preco_original - Number(v.preco_compra) : null;
@@ -604,6 +630,17 @@ export default function EditorDeVeiculo({
                       </option>
                     ))}
                   </select>
+                  {divergencia && (
+                    /* Alerta, nunca bloqueio. O dono conhece o carro; a tabela
+                       conhece o nome. Ele classificou a Saveiro Robust como
+                       Utilitário de propósito, e um detector que reclamasse da
+                       escolha dele seria desligado na primeira semana. */
+                    <p className="m-0 border-l-[3px] border-mt-accent bg-mt-accent-100 px-2.5 py-2 text-[11px] leading-snug text-mt-accent-800">
+                      Está <strong>{divergencia.atual}</strong>, mas o nome diz
+                      que {divergencia.porque}. Esperado:{" "}
+                      <strong>{divergencia.aceitaveis.join(" ou ")}</strong>.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -838,6 +875,23 @@ export default function EditorDeVeiculo({
         {/* Checklist */}
         <div className="w-full flex-none xl:w-[340px]">
           <div className="mt-rotulo mt-rotulo-accent mb-3">Checklist de publicação</div>
+
+          {/* O estado, dito antes dos itens. Desde 2026-08-27 o item de fotos
+              não é conselho: abaixo de 8, o carro sai da vitrine, do feed do
+              Ads e do índice de busca. A ficha continua respondendo — quem tem
+              o link não bate em 404 — e voltar ao ar é só subir as fotos que
+              faltam no RevendaMais. */}
+          {bloqueios.length > 0 && (
+            <div className="mb-3 border-l-[3px] border-mt-accent bg-mt-accent-100 px-3 py-2.5 text-[11px] leading-snug text-mt-accent-800">
+              <strong>Fora da vitrine.</strong> Este veículo não aparece no site
+              nem no feed de anúncios enquanto:
+              <ul className="m-0 mt-1.5 list-disc pl-4">
+                {bloqueios.map((b) => (
+                  <li key={b.id}>{b.texto}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {checklist.map((c) => (
             <div key={c.l} className="flex gap-3 border-b border-mt-regua-fina py-2.5">
               <span

@@ -29,6 +29,20 @@ import { unstable_cache } from "next/cache";
  */
 export const CARENCIA_VENDIDO_DIAS = 90;
 
+/**
+ * ⚠️ O bloqueio de publicação **não mora aqui** — vive em
+ * `lib/coerenciaDoCadastro.ts` (`bloqueiosDePublicacao`, `MINIMO_DE_FOTOS`).
+ *
+ * Este módulo é server-only: usa `unstable_cache` e a chave de serviço. O
+ * editor do painel é componente de cliente e precisa desenhar o estado de
+ * bloqueio, então a regra tem de viver num módulo sem imports — mesma razão
+ * de `lib/perfisDeUso.ts` e `lib/faixasDePreco.ts`.
+ *
+ * Aqui ficam os três estados de APRESENTAÇÃO (à venda, vendido, fora do feed);
+ * lá fica a decisão de o carro poder ir à vitrine.
+ */
+
+
 /** Sinais brutos do banco. Quem os lê é o servidor; quem os julga é a função abaixo. */
 export type SinaisDoVeiculo = {
   /**
@@ -39,6 +53,17 @@ export type SinaisDoVeiculo = {
   vendido?: boolean | null;
   /** Ficou de fora do ciclo de sync mais recente. */
   foraDoFeed: boolean;
+  /**
+   * Faltam fotos — ver `bloqueiosDePublicacao` em `lib/coerenciaDoCadastro.ts`,
+   * que é onde a regra mora (aquele módulo não tem imports e por isso serve
+   * também ao painel, que é cliente).
+   *
+   * A falta de laudo cautelar está listada lá como pendência e **não** entra
+   * aqui hoje: 38 das 39 fichas servidas em 27/08 estão com o campo vazio.
+   *
+   * Opcional: chamador que não sabe do bloqueio se comporta como antes.
+   */
+  bloqueadoParaPublicacao?: boolean;
   /**
    * `estoque_motors.last_seen_at` — última vez que o feed do RevendaMais
    * anunciou este carro. Serve de PROXY da data de saída quando a venda não
@@ -115,6 +140,21 @@ export function decidirPublicacao(sinais: SinaisDoVeiculo, agora: Date = new Dat
     // anúncio expirado) e a página não pode sustentar uma oferta que ninguém
     // confirmou. Sai do índice de imediato; a página segue viva com similares.
     return { indisponivel: true, rotulo: "INDISPONÍVEL", noindex: true, arquivar: false };
+  }
+
+  // Bloqueado para publicação sai do índice, mas a página fica de pé.
+  //
+  // Tirar da vitrine sem tirar da busca seria meia-medida: a URL indexada
+  // continuaria levando gente a um anúncio que a loja decidiu não publicar —
+  // hoje, um anúncio de uma foto. `follow: true` continua valendo pela regra
+  // acima: a ficha vira porta de entrada para os similares em vez de beco sem
+  // saída.
+  //
+  // 404 seria pior: quebra link externo já compartilhado, e o bloqueio é
+  // reversível — subir as fotos que faltam devolve o carro ao índice no ciclo
+  // seguinte.
+  if (sinais.bloqueadoParaPublicacao) {
+    return { indisponivel: false, rotulo: null, noindex: true, arquivar: false };
   }
 
   return { indisponivel: false, rotulo: null, noindex: false, arquivar: false };

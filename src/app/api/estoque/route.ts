@@ -38,7 +38,11 @@ export async function GET() {
     // `incluirPlaca`: a rota é autenticada e a busca por placa da tela de
     // margens depende dela. O mapper não a devolve por padrão — ver a nota em
     // `mapVeiculoDbToVeiculo`.
-    const veiculos = await getEstoque({ incluirForaDoFeed: true, incluirPlaca: true });
+    //
+    // `incluirNaoPublicaveis`: esta rota alimenta as telas internas de estoque
+    // e margem, que precisam do pátio INTEIRO. Um carro sem laudo continua
+    // custando pátio e capital enquanto não é publicável.
+    const veiculos = await getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, incluirNaoPublicaveis: true });
 
     // Só o que os seletores precisam. `getEstoque` já não expõe
     // `preco_compra` (ver o "SECURITY FIX" no mapper), e devolver a linha

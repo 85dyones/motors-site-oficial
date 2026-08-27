@@ -452,7 +452,13 @@ export async function recortesDoEstoque(): Promise<{
   disponiveis: Veiculo[];
 }> {
   const [historico, vivos] = await Promise.all([
-    getEstoque({ incluirForaDoFeed: true }),
+    // `incluirNaoPublicaveis` no HISTÓRICO, e só nele: o papel dele é dizer
+    // quais páginas já tiveram razão de existir. Um carro com fotos faltando
+    // hoje pode ganhá-las amanhã, e um vendido em 2024 pode ser o único
+    // registro de um modelo — filtrar aqui apagaria hub indexado por um
+    // bloqueio reversível. `disponiveis`, que preenche as grades, respeita o
+    // bloqueio porque vem de `getEstoque()` sem opção.
+    getEstoque({ incluirForaDoFeed: true, incluirNaoPublicaveis: true }),
     getEstoque(),
   ]);
   return { historico, disponiveis: disponiveisDe(vivos) };
