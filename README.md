@@ -32,6 +32,25 @@ npm run build
 
 As variáveis de ambiente estão descritas em `.env.example`.
 
+### Scripts de instalação
+
+Do npm 11 em diante, script de instalação de dependência só roda se o pacote
+estiver na lista `allowScripts` do `package.json` — hoje `esbuild`, `sharp` e
+`unrs-resolver`, presos na versão do lockfile. Sem isso o npm bloqueia os três
+e avisa no build. O `fsevents` (só macOS) fica de fora de propósito: já vem com
+binário pronto e o script apenas recompila.
+
+Quando o lockfile subir a versão de um deles, o install volta a avisar que o
+script foi bloqueado. Para liberar a versão nova:
+
+```bash
+npm install-scripts approve <pacote>   # npm 12
+npm approve-scripts <pacote>           # npm 11
+```
+
+Aprovar é deixar o pacote executar código na sua máquina e no build da Vercel —
+olhe o que mudou na versão antes de aprovar.
+
 ## Onde está cada coisa
 
 | Documento | Assunto |
