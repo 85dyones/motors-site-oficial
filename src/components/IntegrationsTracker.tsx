@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import { marcarContainerAtivo } from "../lib/dataLayer";
+import { persistirParametrosDeCampanha } from "../lib/telemetry";
 
 declare global {
   interface Window {
@@ -120,6 +121,19 @@ export default function IntegrationsTracker() {
       }
 
       persistirFbc();
+
+      // Os parâmetros de campanha da URL (`gclid`, `gbraid`, `wbraid`,
+      // `fbclid` e os cinco `utm_*`), pelo mesmo motivo e no mesmo lugar que o
+      // `_fbc`: são identificadores de anúncio, e a política promete não
+      // guardá-los antes do aceite.
+      //
+      // Estar AQUI é o que faz a captura acontecer na ENTRADA. Até 27/08 a
+      // gravação só existia dentro de `getUtmParameters`, que só roda em
+      // handler de envio de formulário — então o parâmetro se perdia em quem
+      // chegava do anúncio, navegava, e só depois enviava. Rodando no mount e
+      // de novo no `ag-cookie-consent-updated`, quem aceita o banner na página
+      // de destino tem o `gclid` capturado direto da URL.
+      persistirParametrosDeCampanha();
 
       // 1. Google Analytics 4 (GA4) Initialization
       if (ga4Id && idGA4Inicializado.current !== ga4Id) {

@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { ler, lerCodigo } from "./fonte";
-import { getUtmParameters } from "../src/lib/telemetry";
+import { getUtmParameters, persistirParametrosDeCampanha } from "../src/lib/telemetry";
 
 /**
  * As brechas do handoff de mensuração de 27/08.
@@ -224,7 +224,7 @@ describe("B.1 · o click id sobrevive até o CRM", () => {
     // do `gclid`, não junto. Sem eles, o upload de conversão offline volta com
     // "click id inválido" justamente no tráfego que a campanha nova compra.
     const fonte = lerCodigo("src/lib/telemetry.ts");
-    const lista = fonte.slice(fonte.indexOf("const keys: (keyof UtmParameters)[]"));
+    const lista = fonte.slice(fonte.indexOf("const CHAVES_DE_CAMPANHA: (keyof UtmParameters)[]"));
     for (const chave of ["gclid", "gbraid", "wbraid", "fbclid", "utm_term"]) {
       expect(lista.slice(0, 300), chave).toContain(`"${chave}"`);
     }
@@ -286,6 +286,116 @@ describe("B.3 · o cookie de anúncio respeita o banner", () => {
     // aceite ainda na landing pega o parâmetro direto da URL. Some só o caso
     // de quem navega para outra página antes de aceitar.
     const fonte = ler("src/components/IntegrationsTracker.tsx");
+    expect(fonte).toContain('window.addEventListener("ag-cookie-consent-updated", checkAndInitTrackors)');
+  });
+});
+
+
+/**
+ * B.4 · o identificador de anúncio também respeita o banner.
+ *
+ * Irmão do B.3. O `_fbc` entrou no portão em 27/08; `gclid`, `gbraid`, `wbraid`
+ * e os `utm_*` continuaram sendo gravados no `localStorage` sem consultar o
+ * aceite, pela mesma política que declara os dois como identificador de
+ * anúncio.
+ *
+ * O que a investigação achou de mais importante não foi o portão que faltava,
+ * e sim que a gravação estava no lugar errado: ela morava dentro de
+ * `getUtmParameters`, chamada só de handler de ENVIO de formulário. Guardava o
+ * parâmetro apenas quando a pessoa enviava algo com ele ainda na URL — e aí o
+ * valor já tinha sido lido da URL na mesma iteração. A jornada que o fallback
+ * aparentava proteger (chegar do anúncio, navegar, enviar depois) nunca esteve
+ * coberta: custo de privacidade sem benefício de atribuição.
+ *
+ * Capturar na entrada, atrás do portão, corrige os dois lados: passa a valer o
+ * texto da política E passa a existir a atribuição que não existia.
+ */
+describe("B.4 · o identificador de anúncio respeita o banner", () => {
+  /** Ambiente de navegador mínimo: só o que estas funções tocam. */
+  function comAmbiente(url: string, consentimento: string | null) {
+    const dados = new Map<string, string>();
+    if (consentimento) dados.set("ag_cookie_consent", consentimento);
+    (globalThis as Record<string, unknown>).window = {
+      location: { search: new URL(url).search },
+    };
+    (globalThis as Record<string, unknown>).localStorage = {
+      getItem: (k: string) => (dados.has(k) ? dados.get(k)! : null),
+      setItem: (k: string, v: string) => void dados.set(k, v),
+      removeItem: (k: string) => void dados.delete(k),
+    };
+    return dados;
+  }
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).window;
+    delete (globalThis as Record<string, unknown>).localStorage;
+  });
+
+  const COM_ANUNCIO = "https://motorsstore.com.br/?gclid=ABC123&utm_source=google&fbclid=XYZ789";
+
+  it("sem aceite, NADA é gravado no dispositivo", () => {
+    const dados = comAmbiente(COM_ANUNCIO, null);
+    persistirParametrosDeCampanha();
+    const gravadas = [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent");
+    expect(gravadas).toEqual([]);
+  });
+
+  it("recusa explícita também não grava", () => {
+    const dados = comAmbiente(COM_ANUNCIO, "rejected");
+    persistirParametrosDeCampanha();
+    expect(dados.get("ag_gclid")).toBeUndefined();
+  });
+
+  it("depois do aceite, grava — é a atribuição que se queria", () => {
+    const dados = comAmbiente(COM_ANUNCIO, "accepted");
+    persistirParametrosDeCampanha();
+    expect(dados.get("ag_gclid")).toBe("ABC123");
+    expect(dados.get("ag_fbclid")).toBe("XYZ789");
+    expect(dados.get("ag_utm_source")).toBe("google");
+  });
+
+  it("a LEITURA continua sem portão — o lead não perde atribuição", () => {
+    // Deliberado: o retorno vai no payload de um formulário que a pessoa está
+    // enviando com nome e telefone. O `gclid` é o dado menos sensível daquele
+    // POST. Barrar aqui quebraria todo lead de quem não aceitou, sem ganho.
+    comAmbiente(COM_ANUNCIO, null);
+    const utm = getUtmParameters();
+    expect(utm.gclid).toBe("ABC123");
+    expect(utm.utm_source).toBe("google");
+  });
+
+  it("`getUtmParameters` não grava sem aceite", () => {
+    // A gravação foi delegada à função com portão; esta é a prova de que a
+    // delegação não deixou passar nada por fora.
+    const dados = comAmbiente(COM_ANUNCIO, null);
+    getUtmParameters();
+    const gravadas = [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent");
+    expect(gravadas).toEqual([]);
+  });
+
+  it("o que foi guardado antes serve de fallback quando a URL não traz nada", () => {
+    const dados = comAmbiente("https://motorsstore.com.br/estoque", "accepted");
+    dados.set("ag_gclid", "DE_UMA_VISITA_ANTERIOR");
+    expect(getUtmParameters().gclid).toBe("DE_UMA_VISITA_ANTERIOR");
+  });
+
+  it("a captura roda na ENTRADA, depois do portão", () => {
+    // É isto que diferencia o conserto de um simples guard: sem a chamada no
+    // tracker, a gravação continuaria só em envio de formulário — que é como
+    // ela nunca protegeu a jornada de quem navega antes de enviar.
+    const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
+    const portao = fonte.indexOf('const consent = localStorage.getItem("ag_cookie_consent")');
+    const chamada = fonte.indexOf("persistirParametrosDeCampanha();");
+    expect(chamada, "o tracker não chama a captura").toBeGreaterThan(-1);
+    expect(chamada, "a captura está antes do portão").toBeGreaterThan(portao);
+  });
+
+  it("e roda de novo quando o consentimento muda", () => {
+    // Quem aceita o banner ainda na página de destino tem o `gclid` capturado
+    // direto da URL. É o mesmo mecanismo do `_fbc`.
+    const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
+    const bloco = fonte.slice(fonte.indexOf("const checkAndInitTrackors"));
+    expect(bloco).toContain("persistirParametrosDeCampanha();");
     expect(fonte).toContain('window.addEventListener("ag-cookie-consent-updated", checkAndInitTrackors)');
   });
 });

@@ -172,6 +172,85 @@ export interface UtmParameters {
  * Parses UTM parameters from URL search query or falls back to localStorage.
  * Automatically persists parameters found in the URL.
  */
+/**
+ * As chaves de campanha — uma lista só.
+ *
+ * A lista É o contrato: chave que não está aqui não é lida da URL nem
+ * persistida, e some sem erro. Foi o que aconteceu com `gbraid`/`wbraid` até
+ * 27/08. Vive fora das funções porque a captura e a leitura precisam concordar;
+ * duas listas divergem na primeira correção.
+ */
+const CHAVES_DE_CAMPANHA: (keyof UtmParameters)[] = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "fbclid",
+];
+
+/**
+ * Guarda os parâmetros de campanha da URL no dispositivo — depois do aceite.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que isto passou a existir em 27/08
+ * ---------------------------------------------------------------------------
+ * A gravação morava dentro de `getUtmParameters`, e `getUtmParameters` só é
+ * chamada de dentro de handler de ENVIO de formulário — nos seis chamadores,
+ * sem exceção. O efeito é que o parâmetro só era guardado se a pessoa enviasse
+ * um formulário com ele ainda na URL; e nesse instante o valor já tinha sido
+ * lido da própria URL, então a gravação não ajudava aquele envio em nada.
+ *
+ * Ou seja: a jornada que o fallback aparentava proteger — chegar de um anúncio,
+ * navegar, enviar depois — nunca esteve coberta. O que existia era o custo de
+ * privacidade (identificador de anúncio gravado no dispositivo antes do aceite,
+ * contrariando o texto da política) sem o benefício de atribuição.
+ *
+ * Capturar na ENTRADA resolve os dois lados de uma vez, e é o mesmo desenho que
+ * o `_fbc` já usa desde 27/08: `IntegrationsTracker` chama esta função no mount
+ * e de novo no evento `ag-cookie-consent-updated`, sempre depois do portão.
+ * Quem aceita o banner na página de destino tem o `gclid` capturado direto da
+ * URL — que é mais atribuição do que se tinha antes, não menos.
+ *
+ * O portão fica AQUI DENTRO, e não só no chamador, de propósito: assim
+ * `getUtmParameters` pode continuar chamando esta função sem repetir a
+ * verificação, e nenhum chamador futuro consegue gravar sem querer.
+ */
+export function persistirParametrosDeCampanha(): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    // A política publicada afirma que "enquanto você não aceitar, nenhuma
+    // ferramenta de análise ou publicidade é carregada", e `gclid`/`fbclid` são
+    // identificadores de clique de anúncio. Gravá-los antes desmente o texto
+    // que o visitante leu. Mesmo argumento que moveu o `_fbc` para dentro do
+    // portão — ver `IntegrationsTracker`.
+    if (localStorage.getItem("ag_cookie_consent") !== "accepted") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    CHAVES_DE_CAMPANHA.forEach((key) => {
+      const val = urlParams.get(key);
+      if (val) localStorage.setItem(`ag_${key}`, val);
+    });
+  } catch (e) {
+    console.warn("[Telemetry] Failed to persist campaign parameters:", e);
+  }
+}
+
+/**
+ * Os parâmetros de campanha desta visita, para irem junto com o lead.
+ *
+ * A LEITURA não tem portão, e é deliberado. O retorno vai no payload de um
+ * formulário que a pessoa está enviando com nome e telefone — o `gclid` é o
+ * dado menos sensível daquele POST, e a base ali é o lead que ela escolheu
+ * mandar, não cookie. Barrar aqui quebraria a atribuição de todo lead de quem
+ * não aceitou, sem ganho nenhum de privacidade.
+ *
+ * Quem tem portão é a GRAVAÇÃO, em `persistirParametrosDeCampanha`.
+ */
 export function getUtmParameters(): UtmParameters {
   const result: UtmParameters = {
     utm_source: null,
@@ -188,25 +267,17 @@ export function getUtmParameters(): UtmParameters {
   if (typeof window === "undefined") return result;
 
   try {
+    // Rede de segurança para quem aceitou e caiu direto num formulário antes de
+    // o tracker montar. Tem portão próprio; aqui não se repete a verificação.
+    persistirParametrosDeCampanha();
+
     const urlParams = new URLSearchParams(window.location.search);
-    // A lista É o contrato: chave que não está aqui não é lida da URL nem
-    // persistida, e some sem erro. Foi o que aconteceu com `gbraid`/`wbraid`
-    // até 27/08.
-    const keys: (keyof UtmParameters)[] = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "gbraid", "wbraid", "fbclid"];
 
-    keys.forEach((key) => {
-      // 1. Try URL context first
-      let val = urlParams.get(key);
-      
-      // 2. If present in URL, persist it in localStorage (prefixed with ag_)
-      if (val) {
-        localStorage.setItem(`ag_${key}`, val);
-      } else {
-        // 3. Fallback to localStorage
-        val = localStorage.getItem(`ag_${key}`) || localStorage.getItem(key);
-      }
-
-      result[key] = val || null;
+    CHAVES_DE_CAMPANHA.forEach((key) => {
+      // URL primeiro: é a visita de agora. Depois o que foi guardado numa
+      // visita anterior — que só existe se houve aceite.
+      result[key] =
+        urlParams.get(key) || localStorage.getItem(`ag_${key}`) || localStorage.getItem(key) || null;
     });
   } catch (e) {
     console.warn("[Telemetry] Failed to parse UTM parameters:", e);
