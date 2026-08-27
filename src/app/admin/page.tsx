@@ -39,7 +39,12 @@ export default async function AdminVisaoGeralPage() {
   const [estoque, settings, visitas] = await Promise.all([
     // `incluirPlaca`: o alerta de ficha própria incompleta conta placa entre
     // os campos. Rota do painel, atrás do guarda de sessão do layout.
-    getEstoque({ incluirForaDoFeed: true, incluirPlaca: true }),
+    //
+    // `incluirNaoPublicaveis`: o carro bloqueado por falta de laudo ou de fotos
+    // sai da vitrine, não do painel — é AQUI que o bloqueio se resolve. Filtrar
+    // nesta chamada esconderia o veículo justamente de quem tem como
+    // desbloqueá-lo, e o contador de pendências desta tela nasceria mentindo.
+    getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, incluirNaoPublicaveis: true }),
     getCachedSettings(),
     // `null` quando o GA4 não tem credencial de leitura — a tela mostra "—".
     resumoDeVisitas(30),

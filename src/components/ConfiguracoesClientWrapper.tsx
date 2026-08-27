@@ -365,7 +365,10 @@ export default function ConfiguracoesClientWrapper() {
         // saíram do feed do RevendaMais. O site público não os mostra, mas é
         // aqui que eles são marcados como vendidos e conferidos na margem;
         // escondê-los deixaria o veículo inalcançável.
-        const data = await getEstoque({ incluirForaDoFeed: true });
+        // `incluirNaoPublicaveis` — mesma razão, outro filtro: o bloqueio por
+        // laudo ou fotos tira o carro da vitrine, e é nesta tela que ele é
+        // desfeito. Painel que não mostra o bloqueado não tem como desbloquear.
+        const data = await getEstoque({ incluirForaDoFeed: true, incluirNaoPublicaveis: true });
         setVehicles(data);
       } catch (err) {
         console.error("Error loading settings panel stock:", err);

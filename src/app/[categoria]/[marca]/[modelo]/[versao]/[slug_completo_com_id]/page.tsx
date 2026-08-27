@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
+import { publicavel } from "../../../../../../lib/coerenciaDoCadastro";
 import { getEstoque, getSinaisDeEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../../lib/supabase";
 import { decidirPublicacao, getDatasDeVenda } from "../../../../../../lib/publicacao";
 import PDPClientWrapper from "../../../../../../components/PDPClientWrapper";
@@ -68,7 +69,12 @@ export async function generateStaticParams() {
  * As duas consultas são leves (`getDatasDeVenda` é cacheada, e a de estoque lê
  * só id e carimbo), e a PDP renderiza no máximo uma vez por hora sob o ISR.
  */
-async function publicacaoDoVeiculo(veiculo: { id: string; vendido?: boolean }) {
+async function publicacaoDoVeiculo(veiculo: {
+  id: string;
+  vendido?: boolean;
+  laudo_pericia?: string | null;
+  whatsapp_images?: unknown;
+}) {
   const [sinais, datasDeVenda] = await Promise.all([
     getSinaisDeEstoque(veiculo.id),
     getDatasDeVenda(),
@@ -79,6 +85,10 @@ async function publicacaoDoVeiculo(veiculo: { id: string; vendido?: boolean }) {
     foraDoFeed: sinais.foraDoFeed,
     ultimaPresenca: sinais.ultimaPresenca,
     dataVenda: datasDeVenda[String(veiculo.id)],
+    // A ficha continua respondendo 200 — `getVeiculoById` não filtra —, mas
+    // sai do índice. Sem isto, o carro sairia da vitrine e seguiria ranqueando:
+    // meia-medida, e a pior metade.
+    bloqueadoParaPublicacao: !publicavel(veiculo),
   });
 }
 

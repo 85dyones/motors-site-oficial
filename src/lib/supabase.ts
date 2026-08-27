@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { limparModelo, segmentoDoVeiculo, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
+import { publicavel } from "./coerenciaDoCadastro";
 import type { Veiculo } from "../types";
 export type { Veiculo };
 
@@ -738,7 +739,25 @@ function estoqueDeContingencia(): Veiculo[] {
 }
 
 export async function getEstoque(
-  opts: { incluirForaDoFeed?: boolean; incluirPlaca?: boolean } = {}
+  opts: {
+    incluirForaDoFeed?: boolean;
+    incluirPlaca?: boolean;
+    /**
+     * Traz também o que está bloqueado para publicação — hoje, quem tem menos
+     * de 8 fotos. Ver `bloqueiosDePublicacao`, que lista as pendências e diz
+     * quais delas tiram o carro do ar.
+     *
+     * ⚠️ **O filtro é o padrão, e é de propósito.** Quem pede esta opção é o
+     * painel, a auditoria e os testes; toda superfície pública chama sem
+     * opção nenhuma e nasce protegida. Uma página nova escrita daqui a seis
+     * meses não precisa saber que a regra existe para respeitá-la — e é essa
+     * a única forma que não depende de alguém lembrar.
+     *
+     * Mesma disciplina de `incluirPlaca`: o dado sensível ou incompleto sai
+     * por pedido explícito, nunca por descuido.
+     */
+    incluirNaoPublicaveis?: boolean;
+  } = {}
 ): Promise<Veiculo[]> {
   /** O mapper não devolve `placa` (ver a nota lá): quem pede, recebe de volta
    *  aqui. Só chame com `incluirPlaca` em contexto autenticado — o resultado
@@ -760,18 +779,40 @@ export async function getEstoque(
         console.warn("[Supabase] Query error:", error.message);
         list = estoqueDeContingencia();
       } else if (data && data.length > 0) {
-        const visiveis = opts.incluirForaDoFeed ? data : apenasDoUltimoSync(data);
-        // O filtro nunca pode zerar a lista e derrubar o site no MOCK_ESTOQUE —
-        // 5 carros ficticios em producao. Se zerou, algo esta errado no carimbo:
-        // serve o que veio do banco e registra.
-        if (visiveis.length === 0) {
+        let noFeed = opts.incluirForaDoFeed ? data : apenasDoUltimoSync(data);
+        // A válvula de segurança é do CARIMBO DE SYNC, e só dele: se o
+        // `last_seen_at` vier torto, o site não pode cair no MOCK_ESTOQUE — 5
+        // carros fictícios em produção. Serve o que veio do banco e registra.
+        if (noFeed.length === 0) {
           console.warn(
             "[Supabase] Filtro de last_seen_at descartou todas as linhas; servindo o estoque completo."
           );
-          list = data.map(mapear);
-        } else {
-          list = visiveis.map(mapear);
+          noFeed = data;
         }
+
+        // Bloqueio de publicação, aplicado sobre a LINHA CRUA: `laudo_pericia`
+        // e `whatsapp_images` são colunas, e filtrar antes de mapear evita
+        // montar objeto de veículo que ninguém vai usar.
+        //
+        // ⚠️ Este filtro NÃO tem válvula: se ele zerar a lista, a vitrine fica
+        // vazia mesmo. Foi decidido assim porque as duas falhas não custam o
+        // mesmo. Vitrine vazia o dono vê no mesmo dia; anúncio publicado sem
+        // as fotos volta a ser exatamente o que ninguém notaria — foi assim
+        // que duas fichas com UMA foto ficaram meses no ar.
+        //
+        // O que impede o gate de esvaziar a vitrine por engano não é uma
+        // válvula aqui, é a medição antes de ligar cada regra: ver
+        // `LAUDO_BLOQUEIA_PUBLICACAO` e a seção 5 de `npm run
+        // auditoria:estoque`.
+        const visiveis = opts.incluirNaoPublicaveis
+          ? noFeed
+          : noFeed.filter((l: any) => publicavel(l));
+        if (visiveis.length === 0) {
+          console.warn(
+            `[Supabase] Bloqueio de publicação descartou as ${noFeed.length} linhas do pátio. Vitrine vazia.`
+          );
+        }
+        list = visiveis.map(mapear);
       } else {
         list = estoqueDeContingencia();
       }
