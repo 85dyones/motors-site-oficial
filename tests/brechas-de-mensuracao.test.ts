@@ -56,6 +56,24 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
     const corpo = bloco.slice(0, bloco.indexOf("}\n"));
     expect(corpo.indexOf("...contexto")).toBeLessThan(corpo.indexOf('lead_type: "contato"'));
   });
+
+  it("`pushLead` também põe o lead_type depois do spread", () => {
+    // Esta função ficou de fora do conserto de 27/08 porque a inversão dela
+    // não causava defeito visível: o tipo de `dados` não tem `lead_type`,
+    // então o TypeScript já barra o chamador. Mas a proteção morava no tipo, e
+    // tipo se afrouxa — um `as any`, ou um campo novo em `ContextoDeVeiculo`,
+    // e o valor forçado volta a ser sobrescrevível sem nada acusar.
+    //
+    // `generate_lead` é o evento que vira conversão de LEAD no Google Ads e
+    // alimenta o lance, então é o pior lugar para deixar a garantia frouxa.
+    const bloco = fonte.slice(fonte.indexOf("export function pushLead"));
+    const corpo = bloco.slice(0, bloco.indexOf("\n}"));
+    const spread = corpo.indexOf("...dados");
+    const forcado = corpo.indexOf("lead_type: tipo");
+    expect(spread, "não achei o spread em pushLead").toBeGreaterThan(-1);
+    expect(forcado, "não achei o lead_type forçado em pushLead").toBeGreaterThan(-1);
+    expect(spread).toBeLessThan(forcado);
+  });
 });
 
 describe("A.3 · o captcha", () => {
