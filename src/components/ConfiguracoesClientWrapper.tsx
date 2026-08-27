@@ -70,6 +70,8 @@ export default function ConfiguracoesClientWrapper() {
     updateAboutSettings,
     webhooks: contextWebhooks,
     updateWebhooks,
+    ga4: contextGa4,
+    updateGa4,
     popups: contextPopups,
     popupSettings: contextPopupSettings,
     updatePopups,
@@ -309,6 +311,13 @@ export default function ConfiguracoesClientWrapper() {
   
 
   // Webhook integration states
+  // GA4 — credenciais de LEITURA do painel. `ga4PrivateKey` começa sempre
+  // vazio e nunca é preenchido a partir do servidor: a chave guardada não volta
+  // (ver `mascararGa4`), e o que a tela sabe é se existe uma.
+  const [ga4PropertyId, setGa4PropertyId] = useState("");
+  const [ga4ClientEmail, setGa4ClientEmail] = useState("");
+  const [ga4PrivateKey, setGa4PrivateKey] = useState("");
+  const [ga4Status, setGa4Status] = useState<"idle" | "saved">("idle");
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookStatus, setWebhookStatus] = useState<"idle" | "saved">("idle");
   const [webhookAvaliacaoUrl, setWebhookAvaliacaoUrl] = useState("");
@@ -413,6 +422,16 @@ export default function ConfiguracoesClientWrapper() {
   }, [contextWebhooks]);
 
   useEffect(() => {
+    if (contextGa4) {
+      setGa4PropertyId(contextGa4.propertyId || "");
+      setGa4ClientEmail(contextGa4.clientEmail || "");
+      // De propósito sem `setGa4PrivateKey`: o campo é de escrita. Copiar o
+      // que veio do servidor o encheria de `undefined`, e copiar o que o
+      // usuário digitou o faria reaparecer depois de salvo.
+    }
+  }, [contextGa4]);
+
+  useEffect(() => {
     if (contextPopupSettings) {
       setPopupSettings(contextPopupSettings);
     }
@@ -448,6 +467,25 @@ export default function ConfiguracoesClientWrapper() {
       setTimeout(() => setWebhookStatus("idle"), 2500);
     } catch (e) {
       console.error("Failed to save custom webhook:", e);
+    }
+  };
+
+  // Save GA4 read credentials
+  const handleSaveGa4 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateGa4({
+        propertyId: ga4PropertyId.trim(),
+        clientEmail: ga4ClientEmail.trim(),
+        // Vazio significa "não mexi na chave" — o servidor preserva a
+        // guardada. Não significa "apague".
+        privateKey: ga4PrivateKey.trim(),
+      });
+      setGa4PrivateKey("");
+      setGa4Status("saved");
+      setTimeout(() => setGa4Status("idle"), 2500);
+    } catch (e) {
+      console.error("Failed to save GA4 credentials:", e);
     }
   };
 
@@ -822,6 +860,106 @@ export default function ConfiguracoesClientWrapper() {
         ) : activeTab === "integracao" ? (
           // WEBHOOK & THEME INTEGRATIONS
           <div className="flex flex-col gap-6">
+
+            {/* GA4 — credenciais de LEITURA das visitas.
+
+                Ficam aqui, e não numa variável de ambiente, pela mesma razão do
+                token do n8n logo abaixo: ligar o recurso passa a ser coisa do
+                dono, não de quem tem acesso à Vercel e sabe redeployar.
+
+                A chave privada é campo de ESCRITA. O servidor nunca a devolve
+                (ver `mascararGa4` em /api/settings), então o campo abre vazio
+                mesmo com uma chave guardada — e salvar vazio preserva a que já
+                está lá. */}
+            <div className="bg-mt-surface border border-mt-regua-fina p-6">
+              <span className="mt-rotulo mt-rotulo-accent">
+                MEDIÇÃO E RELATÓRIO
+              </span>
+              <h2 className="mb-2 text-[17px] font-extrabold tracking-[-.015em] text-mt-ink">
+                GOOGLE ANALYTICS — LEITURA
+              </h2>
+              <p className="text-xs text-mt-neutral-700 mb-4 font-normal leading-relaxed">
+                O site já <strong>coleta</strong> no GA4 sem nenhuma configuração aqui. Estes
+                três campos são o caminho de volta: com eles, o painel mostra visitas na
+                visão geral e por veículo. Sem eles, essas células mostram
+                {" "}<strong>—</strong> em vez de zero.
+              </p>
+
+              <form onSubmit={handleSaveGa4} className="flex flex-col gap-3.5">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="ga4-property" className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                    ID da propriedade (numérico, não o G-…)
+                  </label>
+                  <input
+                    id="ga4-property"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="123456789"
+                    value={ga4PropertyId}
+                    onChange={(e) => setGa4PropertyId(e.target.value)}
+                    className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent font-mono transition-all"
+                  />
+                  <span className="text-[10px] leading-snug text-mt-neutral-700">
+                    GA4 → Admin → Detalhes da propriedade → ID da propriedade.
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="ga4-email" className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                    E-mail da conta de serviço
+                  </label>
+                  <input
+                    id="ga4-email"
+                    type="email"
+                    placeholder="painel@projeto.iam.gserviceaccount.com"
+                    value={ga4ClientEmail}
+                    onChange={(e) => setGa4ClientEmail(e.target.value)}
+                    className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent font-mono transition-all"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="ga4-key" className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                    Chave privada
+                    {contextGa4?.privateKeyConfigurada && (
+                      <span className="ml-2 font-bold text-mt-accent">configurada ✓</span>
+                    )}
+                  </label>
+                  <textarea
+                    id="ga4-key"
+                    rows={3}
+                    placeholder={
+                      contextGa4?.privateKeyConfigurada
+                        ? "Já existe uma chave guardada. Cole outra só para substituir."
+                        : "-----BEGIN PRIVATE KEY-----\n…"
+                    }
+                    value={ga4PrivateKey}
+                    onChange={(e) => setGa4PrivateKey(e.target.value)}
+                    className="w-full resize-y p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent font-mono transition-all"
+                  />
+                  <span className="text-[10px] leading-snug text-mt-neutral-700">
+                    Cole o campo <code>private_key</code> do JSON da conta de serviço, com as
+                    quebras de linha como vieram. Por segurança ela não é exibida de volta —
+                    salvar com o campo vazio mantém a que já está guardada.
+                  </span>
+                </div>
+
+                <div className="border-l-[3px] border-mt-accent bg-mt-bg px-3.5 py-3 text-[11px] leading-relaxed text-mt-neutral-800">
+                  <strong>Os dois passos que costumam faltar:</strong> ativar a
+                  {" "}<em>Google Analytics Data API</em> no projeto do Google Cloud, e
+                  adicionar o e-mail da conta de serviço como <strong>Leitor</strong> em
+                  GA4 → Admin → Gerenciamento de acesso à propriedade. Sem o segundo, a API
+                  responde 403 mesmo com a chave certa.
+                </div>
+
+                <button
+                  type="submit"
+                  className="h-10 w-fit bg-mt-accent hover:bg-mt-accent-hover text-mt-inverso text-[10px] font-bold uppercase tracking-widest px-5 transition-all duration-200 cursor-pointer shrink-0"
+                >
+                  {ga4Status === "saved" ? "CREDENCIAIS SALVAS ✓" : "SALVAR CREDENCIAIS"}
+                </button>
+              </form>
+            </div>
 
             {/* Webhook Settings Section */}
             <div className="bg-mt-surface border border-mt-regua-fina p-6">

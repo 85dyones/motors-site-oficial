@@ -155,6 +155,16 @@ export interface UtmParameters {
   utm_content: string | null;
   utm_term: string | null;
   gclid: string | null;
+  /**
+   * Os dois substitutos do `gclid`, acrescentados em 27/08.
+   *
+   * O Google entrega `gbraid` (tráfego iOS/app) ou `wbraid` (web, boa parte do
+   * inventário de PMax e YouTube) NO LUGAR do `gclid` — não junto dele. Sem
+   * capturá-los, o upload de conversão offline volta com "click id inválido"
+   * justamente no tráfego que a campanha nova vai comprar.
+   */
+  gbraid: string | null;
+  wbraid: string | null;
   fbclid: string | null;
 }
 
@@ -170,6 +180,8 @@ export function getUtmParameters(): UtmParameters {
     utm_content: null,
     utm_term: null,
     gclid: null,
+    gbraid: null,
+    wbraid: null,
     fbclid: null,
   };
 
@@ -177,7 +189,10 @@ export function getUtmParameters(): UtmParameters {
 
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    const keys: (keyof UtmParameters)[] = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"];
+    // A lista É o contrato: chave que não está aqui não é lida da URL nem
+    // persistida, e some sem erro. Foi o que aconteceu com `gbraid`/`wbraid`
+    // até 27/08.
+    const keys: (keyof UtmParameters)[] = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "gbraid", "wbraid", "fbclid"];
 
     keys.forEach((key) => {
       // 1. Try URL context first
@@ -548,15 +563,20 @@ export function trackContactClick(
     // (`click_whatsapp`) ou a 202 (`click_to_call`) — cada uma com o nome do
     // que de fato aconteceu.
     //
-    // E aqui o container corrige um defeito, não só evita duplicar: um clique
-    // em "chamar no WhatsApp" vinha sendo enviado ao GA4 como `generate_lead`,
-    // o mesmo nome do formulário efetivamente enviado. Os dois na mesma métrica
-    // inflam a contagem de leads com quem só abriu a conversa — e é a métrica
-    // contra a qual o Ads otimiza.
+    // ⚠️ Este ramo mandava `generate_lead` — o MESMO nome do formulário
+    // efetivamente enviado — para um clique que só abre a conversa. E a nota
+    // que estava aqui descrevia o defeito como resolvido pelo container,
+    // enquanto o portão que faria isso valer (`gtmAssumeEventos`) segue
+    // fechado. Ou seja: a correção estava escrita, não aplicada.
+    //
+    // Corrigido em 27/08 mandando o nome do que de fato aconteceu, em vez de
+    // apagar o disparo. Apagar dependeria de o container estar publicado e
+    // com as tags 201/202 no ar; com o nome certo, o evento existe nos dois
+    // mundos e nenhum deles infla a contagem de leads.
     if (window.gtag && !containerAssumeOsEventos()) {
-      window.gtag("event", "generate_lead", {
+      window.gtag("event", method === "whatsapp" ? "click_whatsapp" : "click_to_call", {
         method: method,
-        description: label
+        description: label,
       });
     }
 

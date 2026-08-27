@@ -37,7 +37,10 @@ const migracao = readFileSync(
 function chavesPorLinha(): Record<string, string> {
   const idPorVar = new Map<string, string>();
   for (const m of fonteSettings.matchAll(
-    /const (\w+)Row = data\.find\(\(row\) => row\.id === "([a-z_]+)"\)/g
+    // `[a-z0-9_]`, com dígito: o id `ga4` chegou em 27/08 e a classe antiga
+    // não o casava — o teste acusava "variável sem linha correspondente" para
+    // uma linha que existia.
+    /const (\w+)Row = data\.find\(\(row\) => row\.id === "([a-z0-9_]+)"\)/g
   )) {
     idPorVar.set(m[1], m[2]);
   }
@@ -74,7 +77,7 @@ function linhasLiberadasAoAnonimo(): string[] {
   const inicio = migracao.search(/CREATE POLICY "Leitura anonima do recorte publico"/i);
   const trecho = migracao.slice(inicio, migracao.indexOf(";", inicio));
   const dentroDoIn = trecho.slice(trecho.search(/USING\s*\(\s*id\s+IN\s*\(/i));
-  return [...dentroDoIn.replace(/--[^\n]*/g, "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  return [...dentroDoIn.replace(/--[^\n]*/g, "").matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
 }
 
 describe("policy do anônimo × recorte público", () => {

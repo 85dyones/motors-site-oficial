@@ -24,6 +24,7 @@ export const getCachedSettings = unstable_cache(
     let procedencia = null;
     let instagramCuradoria = null;
     let areasHome = null;
+    let ga4 = null;
     let fetchedFromSupabase = false;
 
     // A chave de SERVIÇO é a primeira opção, não um extra.
@@ -70,6 +71,12 @@ export const getCachedSettings = unstable_cache(
           const procedenciaRow = data.find((row) => row.id === "procedencia");
           const instagramRow = data.find((row) => row.id === "instagram_curadoria");
           const areasRow = data.find((row) => row.id === "areas_home");
+          // Credenciais de LEITURA do GA4 (id numérico da propriedade, e-mail
+          // da conta de serviço e chave privada). Mesma casa do
+          // `webhooks.apiSecretToken`: segredo que o painel edita e o servidor
+          // consome, fora da whitelist da RLS anônima e fora do recorte
+          // público. Ver `credenciaisDoGa4` em `lib/analytics.ts`.
+          const ga4Row = data.find((row) => row.id === "ga4");
 
           if (companyRow) companySettings = companyRow.data;
           if (aboutRow) aboutSettings = aboutRow.data;
@@ -82,6 +89,7 @@ export const getCachedSettings = unstable_cache(
           if (procedenciaRow) procedencia = procedenciaRow.data;
           if (instagramRow) instagramCuradoria = instagramRow.data;
           if (areasRow) areasHome = areasRow.data;
+          if (ga4Row) ga4 = ga4Row.data;
           fetchedFromSupabase = true;
           console.log("[Settings API] Loaded settings from Supabase (Cached)");
         }
@@ -114,6 +122,7 @@ export const getCachedSettings = unstable_cache(
       procedencia,
       instagramCuradoria,
       areasHome,
+      ga4,
     };
   },
   ["site-settings"],
@@ -183,6 +192,12 @@ function filtrarOverridesPublicos(bruto: unknown): unknown {
  *    ContatoClientWrapper, AutoAvaliacao, HeroSection, PDPClientWrapper) nunca
  *    leem o valor; o envio de lead passa por `/api/leads`, proxy server-side.
  *  - `bankBalances` — saldos bancários da loja, dado exclusivo do financeiro.
+ *  - `ga4` — credencial de leitura do Analytics, chave privada inclusa. Só o
+ *    servidor a consome (`lib/analytics.ts`); nenhum componente de tela a lê.
+ *
+ * A lista acima é descritiva: o que garante a exclusão é a função ser
+ * WHITELIST. Linha nova de `site_settings` nasce fora do recorte — foi assim
+ * que `ga4` entrou sem precisar de nenhuma linha aqui.
  */
 export function recortePublicoDeSettings(
   completo: Awaited<ReturnType<typeof getCachedSettings>>

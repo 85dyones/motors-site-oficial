@@ -18,7 +18,8 @@ import type {
   QuickTag,
   StockOverrides,
   PopupSettings,
-  ItemProcedencia
+  ItemProcedencia,
+  Ga4Settings
 } from "../types";
 
 export type {
@@ -247,6 +248,13 @@ interface ThemeContextProps {
   updateAboutSettings: (settings: AboutSettings) => void;
   webhooks: Webhooks;
   updateWebhooks: (settings: Webhooks) => Promise<void>;
+  /**
+   * Credenciais de leitura do GA4. `privateKey` chega SEMPRE vazia do
+   * servidor — o que diz se existe uma guardada é `privateKeyConfigurada`
+   * (ver `mascararGa4` em `/api/settings`).
+   */
+  ga4: Ga4Settings;
+  updateGa4: (settings: Ga4Settings) => Promise<void>;
   popups: Campaign[];
   popupSettings: PopupSettings;
   updatePopups: (campaigns: Campaign[]) => Promise<void>;
@@ -270,6 +278,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [companySettings, setCompanySettings] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS);
   const [aboutSettings, setAboutSettings] = useState<AboutSettings>(DEFAULT_ABOUT_SETTINGS);
   const [webhooks, setWebhooks] = useState<Webhooks>(DEFAULT_WEBHOOKS);
+  const [ga4, setGa4] = useState<Ga4Settings>({});
   const [popups, setPopups] = useState<Campaign[]>(DEFAULT_CAMPAIGNS);
   const [popupSettings, setPopupSettings] = useState<PopupSettings>(DEFAULT_POPUP_SETTINGS);
   const [quickTags, setQuickTags] = useState<QuickTag[]>(DEFAULT_QUICK_TAGS);
@@ -315,6 +324,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           if (data.webhooks) {
             setWebhooks(data.webhooks);
             console.log("[ThemeContext] Webhooks loaded from Supabase");
+          }
+          // Só staff recebe `ga4` — o recorte público não o inclui —, e a
+          // chave privada vem mascarada mesmo para staff.
+          if (data.ga4) {
+            setGa4(data.ga4);
           }
           if (data.popups) {
             if (Array.isArray(data.popups.campaigns)) {
@@ -510,6 +524,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await postSettings({ webhooks: newWebhooks });
   };
 
+  const updateGa4 = async (novo: Ga4Settings) => {
+    await postSettings({ ga4: novo });
+    // O estado local volta para a forma MASCARADA, e não para o que acabou de
+    // ser digitado: é o que o servidor devolveria na próxima leitura, e manter
+    // a chave em memória de componente depois de gravada não serve a nada.
+    setGa4({
+      propertyId: novo.propertyId,
+      clientEmail: novo.clientEmail,
+      privateKeyConfigurada:
+        Boolean(String(novo.privateKey ?? "").trim()) || Boolean(ga4.privateKeyConfigurada),
+    });
+  };
+
   const updatePopups = async (newPopups: Campaign[]) => {
     setPopups(newPopups);
     await postSettings({
@@ -645,6 +672,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         updateAboutSettings,
         webhooks,
         updateWebhooks,
+        ga4,
+        updateGa4,
         popups,
         popupSettings,
         updatePopups,

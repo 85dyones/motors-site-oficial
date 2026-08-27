@@ -240,6 +240,18 @@ export function pushCamadaGlobal(camada: CamadaGlobal): void {
     vehicle_id: null,
     vehicle_name: null,
     vehicle_price: null,
+    // `lead_type: null` desde 27/08, e é a mesma disciplina dos campos de
+    // veículo acima — só que este saiu de fora e custou dinheiro.
+    //
+    // O `dataLayer` é ACUMULATIVO: o que um evento escreve fica visível para
+    // todos os seguintes. A variável de valor do container calcula
+    // `preço × 0,08 × taxa[lead_type]`, com taxas de 0,03 (contato) a 0,12
+    // (avaliação) e fallbacks de R$ 120 a R$ 500. Sem zerar aqui, o MESMO
+    // clique no WhatsApp valia R$ 100 para quem chegou direto e R$ 500 para
+    // quem tinha passado pela avaliação na mesma sessão. Spread de ~5,8× no
+    // mesmo evento, sem nenhum erro visível — e é esse número que o Smart
+    // Bidding usa para decidir lance.
+    lead_type: null,
   });
 }
 
@@ -412,23 +424,35 @@ export interface ContextoDeContato extends ContextoDeVeiculo {
   pos_lead?: boolean;
 }
 
-/** Clique em WhatsApp — o principal lead desta vertical (§4.4). */
+/**
+ * Clique em WhatsApp — o principal lead desta vertical (§4.4).
+ *
+ * `lead_type: "contato"` vem DEPOIS do spread, e por isso vence o que o
+ * chamador mandar. É deliberado: um clique é intenção de contato, tenha ele
+ * acontecido na ficha, no rodapé ou depois de uma proposta. Deixar o valor
+ * flutuar segundo o que sobrou no `dataLayer` foi o defeito de A.2.
+ *
+ * O clique posterior a um lead não é contado como conversão no Ads (a tag
+ * exclui `pos_lead`), então forçar "contato" aqui não subavalia nada.
+ */
 export function pushCliqueWhatsApp(local: string, contexto: ContextoDeContato = {}): void {
   push({
     event: "click_whatsapp",
     whatsapp_location: local,
     ...contexto,
-    // SEMPRE presente, mesmo quando o chamador não diz nada. Ver a nota abaixo.
+    // SEMPRE presentes, mesmo quando o chamador não diz nada. Ver a nota acima.
+    lead_type: "contato",
     pos_lead: contexto.pos_lead === true,
   });
 }
 
-/** Clique para ligar. */
+/** Clique para ligar. Mesmo contrato de `pushCliqueWhatsApp`. */
 export function pushCliqueTelefone(local: string, contexto: ContextoDeContato = {}): void {
   push({
     event: "click_to_call",
     call_location: local,
     ...contexto,
+    lead_type: "contato",
     pos_lead: contexto.pos_lead === true,
   });
 }

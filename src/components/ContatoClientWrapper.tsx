@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
 import { generateEventId, getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
+import Turnstile from "./Turnstile";
 
 export default function ContatoClientWrapper() {
   const { webhooks, companySettings } = useTheme();
@@ -14,6 +15,18 @@ export default function ContatoClientWrapper() {
   const [message, setMessage] = useState("");
   
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  /**
+   * O único formulário de lead do site que não tinha captcha, até 27/08.
+   *
+   * A brecha não era a ausência em si: era ela combinada com o servidor
+   * decidindo se exigia token a partir do campo `canal`, que vem no CORPO do
+   * POST. Bastava mandar `canal: "Formulário Contato"` para pular a
+   * verificação de qualquer canal — inclusive dos que renderizam o desafio.
+   *
+   * Com o desafio aqui, `/api/leads` pôde inverter a régua: exige token por
+   * padrão, e a lista passou a ser de isenções (hoje vazia).
+   */
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   // Fetch tracking ID on mount
   useEffect(() => {
@@ -50,7 +63,8 @@ export default function ContatoClientWrapper() {
       eventId,
       eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
       fbp,
-      fbc
+      fbc,
+      turnstileToken
     };
 
     try {
@@ -203,9 +217,18 @@ export default function ContatoClientWrapper() {
             </div>
           </div>
 
+          {/* Invisível: o desafio da Cloudflare resolve sozinho na esmagadora
+              maioria das visitas e só mostra algo quando desconfia. O botão
+              espera o token — sem ele o POST volta 400 do servidor, e o
+              usuário veria um erro que não é dele. */}
+          <Turnstile
+            onSuccess={(token) => setTurnstileToken(token)}
+            onExpire={() => setTurnstileToken("")}
+          />
+
           <button
             type="submit"
-            disabled={status === "sending"}
+            disabled={status === "sending" || !turnstileToken}
             className="mt-btn mt-btn-primario mt-foco mt-7 w-max"
           >
             {status === "sending" ? (
@@ -220,6 +243,17 @@ export default function ContatoClientWrapper() {
               "ENVIAR MENSAGEM"
             )}
           </button>
+
+          {/* Botão desabilitado sem explicação, numa página cuja única função é
+              o formulário, vira chamado de suporte. O desafio resolve em
+              menos de um segundo na maioria das visitas, então esta linha
+              quase nunca aparece — e quando aparece, diz o que está
+              acontecendo em vez de deixar o visitante clicando. */}
+          {!turnstileToken && status !== "sending" && (
+            <p className="mt-2 text-[11px] text-mt-neutral-600">
+              Verificação de segurança em andamento…
+            </p>
+          )}
         </form>
       )}
     </div>

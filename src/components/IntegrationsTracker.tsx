@@ -76,24 +76,40 @@ export default function IntegrationsTracker() {
     marcarContainerAtivo(Boolean(gtmId) && assumeEventos);
   }, [gtmId, assumeEventos]);
 
-  // Persist _fbc por 90 dias se veio fbclid na URL e o cookie ainda não existe.
-  // Independe de consentimento de analytics: é apenas a captura do parâmetro de
-  // clique do próprio anúncio que trouxe a visita, para não perder o dado antes
-  // do usuário aceitar (o evento em si só é enviado depois, já gated por consentimento).
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const fbclid = new URLSearchParams(window.location.search).get("fbclid");
-      if (fbclid && !document.cookie.includes("_fbc=")) {
-        const fbc = `fb.1.${Date.now()}.${fbclid}`;
-        document.cookie = `_fbc=${fbc}; path=/; max-age=7776000; SameSite=Lax`;
+    /**
+     * `_fbc` por 90 dias, quando a visita veio de um anúncio do Meta.
+     *
+     * -----------------------------------------------------------------------
+     * Passou para DENTRO do portão em 27/08
+     * -----------------------------------------------------------------------
+     * A versão anterior gravava o cookie antes do aceite, argumentando que
+     * capturar o parâmetro não é o mesmo que enviar evento. O argumento tem
+     * lógica e mesmo assim não se sustenta: a política publicada afirma, com
+     * essas palavras, que *"enquanto você não aceitar, nenhuma ferramenta de
+     * análise ou publicidade é carregada"* — e a mesma política declara `_fbc`
+     * como cookie de atribuição de anúncio. Escrevê-lo antes do aceite
+     * desmente o texto que o visitante leu.
+     *
+     * Não custa mídia; custa numa reclamação à ANPD, e o conserto é este.
+     *
+     * O que se perde é menos do que parece: esta função roda também no evento
+     * `ag-cookie-consent-updated`, então quem aceita o banner ainda na página
+     * de entrada tem o `fbclid` capturado na hora, direto da URL. Some só o
+     * caso de quem navega para outra página antes de aceitar.
+     */
+    const persistirFbc = () => {
+      try {
+        const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+        if (fbclid && !document.cookie.includes("_fbc=")) {
+          const fbc = `fb.1.${Date.now()}.${fbclid}`;
+          document.cookie = `_fbc=${fbc}; path=/; max-age=7776000; SameSite=Lax`;
+        }
+      } catch (e) {
+        console.warn("[IntegrationsTracker] Failed to persist _fbc cookie:", e);
       }
-    } catch (e) {
-      console.warn("[IntegrationsTracker] Failed to persist _fbc cookie:", e);
-    }
-  }, []);
+    };
 
-  useEffect(() => {
     const checkAndInitTrackors = () => {
       if (typeof window === "undefined") return;
 
@@ -102,6 +118,8 @@ export default function IntegrationsTracker() {
         console.log("[IntegrationsTracker] Tracking disabled. LGPD Cookie consent not accepted yet.");
         return;
       }
+
+      persistirFbc();
 
       // 1. Google Analytics 4 (GA4) Initialization
       if (ga4Id && idGA4Inicializado.current !== ga4Id) {
