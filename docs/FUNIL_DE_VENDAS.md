@@ -158,10 +158,18 @@ a pesquisa aponta na fila round-robin. Carga aberta é a medida honesta de "quem
 consegue atender agora", e a escolha é determinística — a mesma fila, chamada
 duas vezes, escolhe a mesma pessoa.
 
-**Teto de duas transferências.** Na terceira, a fila devolve o lead com
-`rodizio_esgotado` em vez de transferir de novo. Pingue-pongue entre vendedores
-não é distribuição, é um lead que precisa de um olhar humano. É a "escalação
-para a gestão" da literatura, na forma mais simples que resolve.
+**Sem teto de transferências.** A primeira versão parava na terceira troca, por
+medo de pingue-pongue. Decisão do dono em 2026-08-28: *"quantas se fizerem
+necessárias até o atendimento"* — e ele está certo sobre a mecânica. O lead só
+circula enquanto está **parado**; qualquer toque humano reinicia o relógio e o
+tira da fila. Um lead que trocou de dono cinco vezes não é um lead defeituoso:
+são cinco pessoas que não o atenderam, e travá-lo na terceira apenas o
+esconderia — o oposto do que a fila existe para fazer.
+
+O contador `leads.transferencias` continua andando, e o card mostra
+*"5ª transferência"* a partir da segunda. **Visibilidade em vez de bloqueio.**
+A "escalação para a gestão" da literatura vira, aqui, um número no card que
+qualquer um vê ao olhar o quadro.
 
 ### 3.3 O relógio: o que reinicia e o que não reinicia
 
@@ -187,8 +195,8 @@ bênção do sistema.
   das 20h e pular um dia inteiro.
 - **Nada é descartado em silêncio.** O que não sai vem na resposta com o motivo
   (`fora_do_horario`, `vendedor_sem_whatsapp`, `alerta_recente`,
-  `rodizio_esgotado`, `sem_vendedor_disponivel`). Fila que descarta calada é
-  fila que ninguém audita.
+  `sem_vendedor_disponivel`). Fila que descarta calada é fila que ninguém
+  audita.
 
 ### 3.5 Motivos semeados
 
@@ -208,6 +216,33 @@ Duas observações sobre a lista:
   distorcem tudo que vier depois.
 - **No ganho, o motivo é a forma de pagamento.** É o corte que a loja usa para
   planejar caixa e para saber quanto do resultado depende de banco.
+
+### 3.6 O motivo e a observação fazem trabalhos diferentes
+
+Pedido do dono em 2026-08-28: *"deixe um campo de observação adicional além dos
+motivos padrão"*. São dois campos porque são duas perguntas:
+
+| | Motivo | Observação |
+|---|---|---|
+| Formato | lista fechada | texto livre |
+| Obrigatório | **sim** | não |
+| Serve para | agrupar no relatório | dizer o que a lista não previu |
+
+Texto livre não agrupa: *"preço"*, *"Preço"*, *"preco alto"* e *"achou caro"*
+viram quatro fatias do mesmo gráfico. Mas lista sem campo aberto empurra o
+vendedor para o motivo mais próximo e contamina a estatística — *"queria prata,
+só tinha branco"* não é "sem estoque" nem "preço", e sem onde escrever isso ele
+vira um dos dois.
+
+Juntos: **o número diz quanto, a frase diz o quê.** O relatório mostra as
+barras por motivo e, embaixo, as últimas 50 observações escritas — que é onde o
+próximo motivo novo costuma aparecer três vezes antes de alguém cadastrá-lo.
+
+As observações ficam atrás do mesmo gate do recorte por vendedor, e não junto
+dos gráficos: é texto livre, e texto livre escrito por gente cita nome de
+gente. Abri-lo a quem a matriz A17 mantém longe do contato individual
+devolveria, pela porta lateral, o que o resto do relatório toma o cuidado de
+não mostrar.
 
 ---
 
@@ -252,9 +287,26 @@ continua sendo no kanban — `CAMPOS_EDITAVEIS.lead` é `{}` de propósito.
 - **Botão de WhatsApp no card**, com a mensagem já escrita (nome do cliente,
   carro de interesse, nome do vendedor) — e **registrando o contato**, que é o
   que reinicia o relógio.
-- **Ganho/perdido com motivo obrigatório**: a caixa abre antes de gravar, e a
-  rota recusa (422 com `motivo_obrigatorio`) se o motivo não vier. Validar só na
-  tela viraria opcional no dia em que alguém chamasse a rota de outro lugar.
+- **Ganho e perdido são BOTÃO, não coluna.** Segunda rodada com o dono:
+  *"não precisa de uma aba de ganho ou perdido, só um botão para destinar"*. É
+  também o que Pipedrive recomenda por outro caminho — *"nunca crie etapas
+  Fechado"*: uma coluna terminal só cresce, e um quadro com duas colunas que
+  nunca esvaziam deixa de ser um quadro de trabalho. As etapas continuam
+  existindo em `funil_etapas` (é o que `leads.situacao` grava, e a FK exige que
+  existam); o que sumiu foi o lugar delas na tela.
+- **O fechado sai do quadro e ganha endereço.** Uma lista própria, com motivo,
+  observação, valor, quem atendeu e um seletor de volta ao funil. "Sem coluna"
+  não pode virar "o card sumiu" — é a falha muda que este projeto persegue.
+  Reabrir pede a etapa de destino em vez de adivinhar: o gatilho limpa o
+  desfecho, mas não sabe de onde o lead veio, e chutar "Proposta" criaria uma
+  proposta que nunca existiu.
+- **Motivo obrigatório, observação livre ao lado.** A caixa abre antes de
+  gravar, e a rota recusa (422 com `motivo_obrigatorio`) se o motivo não vier.
+  Validar só na tela viraria opcional no dia em que alguém chamasse a rota de
+  outro lugar. O motivo seleciona e o botão confirma: a primeira versão gravava
+  no clique do motivo, o que deixou de servir quando a observação passou a ser
+  um pedido explícito — um campo que só é preenchido por quem lê a letra miúda
+  é um campo vazio.
 - **Cor por estagnação** em quatro níveis, com um *"esfriando"* antes do
   estouro — a hora de agir é antes da cobrança.
 - **Filtro "só os parados"**, que costuma ser a fila do dia.
@@ -263,8 +315,9 @@ continua sendo no kanban — `CAMPOS_EDITAVEIS.lead` é `{}` de propósito.
   pedido de curva de adoção amigável: uma tabela com "estagnação (min)" seria
   correta e não seria usada.
 - `/admin/leads/relatorio` — ganhos e perdas por motivo, vendedor e período,
-  com **as perdas primeiro** (é o dado acionável) e *"sem motivo informado"* à
-  vista como termômetro de confiança do próprio relatório.
+  com **as perdas primeiro** (é o dado acionável), *"sem motivo informado"* à
+  vista como termômetro de confiança do próprio relatório, e as últimas 50
+  **observações** escritas ao fechar.
 
 ### 4.4 As rotas
 
@@ -370,15 +423,32 @@ Nenhuma tela do painel muda de comportamento.
 
 ---
 
-## 8. Para o dono decidir
+## 8. Decidido em 2026-08-28
 
-1. **Os prazos da tabela §3.1 valem?** Especialmente `Novo`: 15 min para avisar
-   e 1 h para transferir é agressivo de propósito — é o que a conversão do setor
-   justifica, e é o que vai gerar mais mensagem no começo.
-2. **Duas transferências é o teto certo**, ou o lead deve poder circular mais?
-3. **A lista de motivos de perda tem 10 itens.** Lista curta funciona melhor que
-   lista completa — motivo que ninguém escolhe vira ruído, motivo demais faz o
-   vendedor clicar no primeiro. Vale cortar para 6 depois do primeiro mês.
-4. **Quem tem WhatsApp cadastrado?** O motor só transfere para quem tem
-   `telefone_e164` preenchido em Usuários e permissões. Hoje, se ninguém tiver,
-   a fila devolve `sem_vendedor_disponivel` para tudo — em voz alta, mas devolve.
+As quatro perguntas em aberto foram respondidas pelo dono na segunda rodada.
+Ficam registradas com a resposta, e não apagadas: quem abrir este arquivo daqui
+a seis meses precisa saber que os números foram escolhidos, não herdados.
+
+1. **Os prazos da tabela §3.1 valem?** — *"ok"*. Seguem como estão, inclusive os
+   15 min / 1 h do `Novo`, que são agressivos de propósito. São editáveis em
+   **Configurar funil** sem deploy.
+2. **Duas transferências é o teto certo?** — *"quantas se fizerem necessárias
+   até o atendimento"*. **O teto foi removido.** Ver §3.2: o lead só circula
+   enquanto está parado, e o atendimento é o freio. O contador vira um selo no
+   card a partir da segunda troca.
+3. **Cortar a lista de motivos de perda para 6 depois do primeiro mês?** —
+   *"concordo"*. Fica para a revisão do primeiro mês; a lista é editável na
+   mesma tela.
+4. **Cadastrar o WhatsApp de cada vendedor?** — *"concordo"*. Pendência de
+   operação: em **Usuários e permissões**, campo WhatsApp. Sem ele o vendedor
+   não recebe aviso e não entra no rodízio, e a fila devolve
+   `vendedor_sem_whatsapp` / `sem_vendedor_disponivel` — em voz alta, mas
+   devolve.
+
+### Ainda em aberto
+
+- **Rever os prazos com um mês de dados.** A tabela §3.1 é um ponto de partida
+  declarado; a primeira leitura do relatório é o que diz se 15 minutos gera
+  ação ou gera ruído.
+- **Ligar o workflow do n8n** (§5) e configurar `FUNIL_MOTOR_TOKEN`. Até lá o
+  funil registra tudo e não avisa ninguém.

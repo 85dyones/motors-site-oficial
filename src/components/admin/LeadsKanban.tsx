@@ -10,14 +10,16 @@ import {
 } from "../../lib/leadsKanban";
 import {
   ETAPAS_PADRAO,
+  destinosDoNegocio,
   espera,
-  etapasVisiveis,
+  etapasDoQuadro,
   formatarPrazo,
   linkDeConversa,
   mensagemParaCliente,
   minutosParado,
   nivelDeEstagnacao,
   ordenarEtapas,
+  seloDeRodizio,
   type EtapaDoFunil,
   type LeadDoFunil,
   type MotivoDoFunil,
@@ -43,9 +45,17 @@ import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
  *    funil errado, e um lead numa coluna que a tela ainda não conhece não tem
  *    onde cair.
  *
- * 2. **Ganho e perdido pedem motivo.** Arrastar para a coluna terminal abre a
- *    caixa de motivos; sem escolha, o card volta. É a única forma de o
- *    relatório de perdas existir — motivo opcional é motivo vazio.
+ * 2. **Ganho e perdido são BOTÃO, não coluna.** Segunda rodada com o dono:
+ *    *"não precisa de uma aba de ganho ou perdido, só um botão para
+ *    destinar"*. É também o que quem opera funil há anos recomenda — *"nunca
+ *    crie etapas Fechado"*: uma coluna terminal só cresce, e um quadro com
+ *    duas colunas que nunca esvaziam deixa de ser um quadro de trabalho. As
+ *    etapas continuam existindo no banco (é o que `leads.situacao` grava);
+ *    o que sumiu foi o lugar delas na tela.
+ *
+ *    Fechar pede motivo, e o motivo abre a caixa. Sem escolha, nada é gravado
+ *    — é a única forma de o relatório de perdas existir, porque motivo
+ *    opcional é motivo vazio.
  *
  * 3. **A navegação ganhou uma barra.** *"uma barra de slide seria ideal além
  *    das setas"*. São três formas de andar pelo funil convivendo: o trilho de
@@ -67,6 +77,11 @@ import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
  * toque nem no teclado, e esta tela roda no tablet de balcão da loja. As duas
  * formas convivem. Tirar as setas quebraria o tablet sem ninguém perceber,
  * porque não é erro, é ausência.
+ *
+ * **E o lead fechado não some.** Ele sai do quadro — é o que "sem coluna"
+ * significa — mas ganha uma lista própria, com o motivo, a observação e um
+ * caminho de volta. Card que desaparece sem deixar endereço é a falha muda que
+ * este projeto persegue desde o primeiro dia.
  */
 
 interface Lead extends LeadDoFunil {
@@ -121,6 +136,7 @@ export default function LeadsKanban() {
   const [colunaAlvo, setColunaAlvo] = useState<string | null>(null);
   const [anotando, setAnotando] = useState<string | null>(null);
   const [fechando, setFechando] = useState<{ lead: Lead; etapa: EtapaDoFunil } | null>(null);
+  const [vendoFechados, setVendoFechados] = useState(false);
 
   const trilho = useRef<HTMLDivElement>(null);
   const colunas = useRef<Record<string, HTMLDivElement | null>>({});
@@ -267,31 +283,70 @@ export default function LeadsKanban() {
     [salvar],
   );
 
+  /** Os que ainda estão em jogo — o quadro é só deles. */
+  const emAberto = useMemo(() => leads.filter((l) => !l.desfecho), [leads]);
+
   const visiveis = useMemo(() => {
-    const porResponsavel = filtrarPorResponsavel(leads, filtroResponsavel);
+    const porResponsavel = filtrarPorResponsavel(emAberto, filtroResponsavel);
     if (!soParados) return porResponsavel;
     return porResponsavel.filter((l) => {
       const n = nivelDeEstagnacao(l, etapas.find((e) => e.chave === l.situacao), agora);
       return n === "estagnado" || n === "transferir";
     });
-  }, [leads, filtroResponsavel, soParados, etapas, agora]);
+  }, [emAberto, filtroResponsavel, soParados, etapas, agora]);
 
-  const colunasVisiveis = useMemo(() => etapasVisiveis(etapas, leads), [etapas, leads]);
+  // As colunas do quadro são só as etapas ABERTAS: ganho e perdido viraram
+  // botão. Passa `emAberto` e não `leads` de propósito — `etapasDoQuadro`
+  // mantém à vista a coluna arquivada que ainda tem card, e um lead fechado
+  // numa etapa arquivada ressuscitaria a coluna sem ninguém entender por quê.
+  const colunasVisiveis = useMemo(() => etapasDoQuadro(etapas, emAberto), [etapas, emAberto]);
+
+  /** Os dois botões do card. */
+  const destinos = useMemo(() => destinosDoNegocio(etapas), [etapas]);
+
+  const fechados = useMemo(
+    () =>
+      filtrarPorResponsavel(leads.filter((l) => l.desfecho), filtroResponsavel).sort(
+        (a, b) =>
+          new Date(b.desfecho_em ?? b.created_at).getTime() -
+          new Date(a.desfecho_em ?? a.created_at).getTime(),
+      ),
+    [leads, filtroResponsavel],
+  );
+
+  const rotuloDoMotivo = useCallback(
+    (chave?: string | null) =>
+      chave ? motivos.find((m) => m.chave === chave)?.rotulo ?? chave : null,
+    [motivos],
+  );
+
+  /**
+   * Devolve o lead ao funil, na etapa que a pessoa escolher.
+   *
+   * A etapa é escolhida e não adivinhada: o gatilho do banco limpa o desfecho
+   * ao sair de uma etapa terminal, mas não sabe de onde o lead veio — isso
+   * está no rastro, e adivinhar errado colocaria um negócio em "Proposta" sem
+   * que proposta nenhuma existisse.
+   */
+  const reabrir = useCallback(
+    (id: string, chave: string) => salvar(id, { situacao: chave }),
+    [salvar],
+  );
 
   const opcoesResponsavel = useMemo(
     () => opcoesDeResponsavel(atendentes, leads),
     [atendentes, leads],
   );
 
-  const semDono = useMemo(() => leads.filter((l) => !l.responsavel).length, [leads]);
+  const semDono = useMemo(() => emAberto.filter((l) => !l.responsavel).length, [emAberto]);
 
   const parados = useMemo(
     () =>
-      leads.filter((l) => {
+      emAberto.filter((l) => {
         const n = nivelDeEstagnacao(l, etapas.find((e) => e.chave === l.situacao), agora);
         return n === "estagnado" || n === "transferir";
       }).length,
-    [leads, etapas, agora],
+    [emAberto, etapas, agora],
   );
 
   // ── a barra de navegação ───────────────────────────────────────────────
@@ -448,11 +503,11 @@ export default function LeadsKanban() {
               onChange={(e) => setFiltroResponsavel(e.target.value)}
               className="mt-foco cursor-pointer border border-mt-regua-fina bg-mt-bg px-3 py-2 text-xs text-mt-ink"
             >
-              <option value="">Todos ({leads.length})</option>
+              <option value="">Todos ({emAberto.length})</option>
               <option value={SEM_DONO}>Sem responsável ({semDono})</option>
               {opcoesResponsavel.map((n) => (
                 <option key={n} value={n}>
-                  {n} ({leads.filter((l) => l.responsavel === n).length})
+                  {n} ({emAberto.filter((l) => l.responsavel === n).length})
                 </option>
               ))}
             </select>
@@ -479,6 +534,22 @@ export default function LeadsKanban() {
               }`}
             >
               Só os parados ({parados})
+            </button>
+
+            {/* Fechar tirou o card do quadro — este é o endereço dele. Não é
+                uma coluna: é uma lista, com o motivo, a observação e a volta.
+                Sem ela, "sem aba de ganho ou perdido" viraria "o lead some". */}
+            <button
+              type="button"
+              onClick={() => setVendoFechados((v) => !v)}
+              aria-pressed={vendoFechados}
+              className={`mt-foco cursor-pointer border px-3 py-2 text-[11px] ${
+                vendoFechados
+                  ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800"
+                  : "border-mt-regua-fina text-mt-neutral-700 hover:border-mt-accent"
+              }`}
+            >
+              Fechados ({fechados.length})
             </button>
 
             <span className="ml-auto text-[11px] text-mt-neutral-600">
@@ -674,6 +745,18 @@ export default function LeadsKanban() {
                             </div>
                           )}
 
+                          {/* O que substituiu o teto de rodízio. Decisão do
+                              dono: o lead circula *"quantas se fizerem
+                              necessárias até o atendimento"* — travar
+                              escondia o problema, contar o expõe. Cinco
+                              transferências não é um lead defeituoso: são
+                              cinco pessoas que não o atenderam. */}
+                          {seloDeRodizio(l.transferencias) && (
+                            <div className="mt-1 text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
+                              {seloDeRodizio(l.transferencias)}
+                            </div>
+                          )}
+
                           <div className="mt-2 flex items-center gap-1.5">
                             <span
                               aria-hidden="true"
@@ -759,20 +842,23 @@ export default function LeadsKanban() {
                           {/* Ganho e perdido saem do fluxo das setas: fechar
                               negócio não é "avançar uma etapa", é um desfecho —
                               e ele custa um clique de qualquer coluna. */}
-                          {etapa.tipo === "aberta" && (
+                          {/* O destino do negócio, em botão. Não é "avançar
+                              uma etapa" — é o fim da conversa, e cabe de
+                              qualquer coluna. Vem de `destinos`, e não das
+                              colunas do quadro: ganho e perdido deixaram de
+                              ser colunas em 2026-08-28. */}
+                          {destinos.length > 0 && (
                             <div className="mt-1 flex gap-1">
-                              {colunasVisiveis
-                                .filter((e) => e.tipo === "ganho" || e.tipo === "perdido")
-                                .map((e) => (
-                                  <button
-                                    key={e.chave}
-                                    onClick={() => mover(l.id, e.chave)}
-                                    aria-label={`Marcar ${l.nome} como ${e.rotulo}`}
-                                    className="mt-foco flex-1 cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink"
-                                  >
-                                    {e.rotulo}
-                                  </button>
-                                ))}
+                              {destinos.map((e) => (
+                                <button
+                                  key={e.chave}
+                                  onClick={() => mover(l.id, e.chave)}
+                                  aria-label={`Marcar ${l.nome} como ${e.rotulo}`}
+                                  className="mt-foco flex-1 cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink"
+                                >
+                                  {e.rotulo}
+                                </button>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -783,6 +869,109 @@ export default function LeadsKanban() {
               );
             })}
           </div>
+
+          {/* ── os fechados ──────────────────────────────────────────────
+              Ganho e perdido saíram do quadro; esta é a lista onde eles
+              moram. Ela mostra o MOTIVO e a OBSERVAÇÃO lado a lado porque
+              foi para isso que os dois campos foram pedidos — o motivo
+              agrupa no relatório, a frase explica o caso. E oferece a volta:
+              fechar por engano é o erro mais fácil de cometer num card. */}
+          {vendoFechados && (
+            <section className="flex flex-col gap-2 border-t-2 border-mt-regua pt-5">
+              <div className="flex items-baseline justify-between">
+                <h2 className="mt-rotulo">Negócios fechados</h2>
+                <span className="text-[11px] text-mt-neutral-600">
+                  {fechados.length} no total
+                </span>
+              </div>
+
+              {fechados.length === 0 ? (
+                <p className="border border-dashed border-mt-regua-fina bg-mt-surface p-6 text-center text-xs text-mt-neutral-700">
+                  Nenhum negócio fechado ainda. Use os botões no rodapé do card.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-[12px]">
+                    <thead>
+                      <tr className="border-b border-mt-regua-fina text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
+                        <th className="py-2 text-left font-semibold">Cliente</th>
+                        <th className="py-2 text-left font-semibold">Desfecho</th>
+                        <th className="py-2 text-left font-semibold">Observação</th>
+                        <th className="py-2 text-left font-semibold">Responsável</th>
+                        <th className="py-2 text-right font-semibold">Quando</th>
+                        <th className="py-2 text-right font-semibold">Reabrir em</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fechados.map((l) => (
+                        <tr key={l.id} className="border-b border-mt-regua-fina align-top">
+                          <td className="py-2.5 pr-3">
+                            <div className="font-semibold text-mt-ink">{l.nome}</div>
+                            {l.interesse && (
+                              <div className="text-[10px] leading-snug text-mt-neutral-700">
+                                {l.interesse}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-3">
+                            <span
+                              className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
+                                l.desfecho === "ganho"
+                                  ? "border-mt-accent-800 text-mt-accent-800"
+                                  : "border-mt-regua-fina text-mt-neutral-700"
+                              }`}
+                            >
+                              {l.desfecho === "ganho" ? "Ganho" : "Perdido"}
+                            </span>
+                            <div className="mt-1 text-[11px] leading-snug text-mt-neutral-800">
+                              {rotuloDoMotivo(l.desfecho_motivo) ?? "—"}
+                            </div>
+                            {l.desfecho_valor ? (
+                              <div className="text-[10px] tabular-nums text-mt-neutral-700">
+                                {Number(l.desfecho_valor).toLocaleString("pt-BR", {
+                                  style: "currency",
+                                  currency: "BRL",
+                                  maximumFractionDigits: 0,
+                                })}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="max-w-[280px] py-2.5 pr-3 text-[11px] leading-snug text-mt-neutral-800">
+                            {l.desfecho_nota || (
+                              <span className="text-mt-neutral-500">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-3 text-[11px] text-mt-neutral-700">
+                            {l.responsavel || "—"}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right text-[11px] tabular-nums text-mt-neutral-700">
+                            {l.desfecho_em
+                              ? new Date(l.desfecho_em).toLocaleDateString("pt-BR")
+                              : "—"}
+                          </td>
+                          <td className="py-2.5 text-right">
+                            <select
+                              value=""
+                              onChange={(e) => e.target.value && reabrir(l.id, e.target.value)}
+                              aria-label={`Reabrir ${l.nome} em uma etapa`}
+                              className="mt-foco cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink"
+                            >
+                              <option value="">reabrir…</option>
+                              {colunasVisiveis.map((e) => (
+                                <option key={e.chave} value={e.chave}>
+                                  {e.rotulo}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
         </>
       )}
 

@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     const [fechados, abertos, config, motivosBanco] = await Promise.all([
       supabase
         .from("leads")
-        .select("id, nome, situacao, responsavel, created_at, desfecho, desfecho_motivo, desfecho_valor, desfecho_em")
+        .select("id, nome, situacao, responsavel, created_at, desfecho, desfecho_motivo, desfecho_valor, desfecho_nota, desfecho_em")
         .not("desfecho", "is", null)
         .gte("desfecho_em", de)
         .lt("desfecho_em", ate)
@@ -117,6 +117,33 @@ export async function GET(request: NextRequest) {
     };
 
     if (vePessoas || veGerencial) {
+      // As observações que os vendedores escreveram ao fechar (2026-08-28,
+      // pedido do dono: *"deixe um campo de observação adicional além dos
+      // motivos padrão"*). O número diz o quê; a frase diz o porquê que a
+      // lista de motivos não previu — *"queria prata, só tinha branco"*.
+      //
+      // Fica atrás do mesmo gate do recorte por vendedor, e não junto dos
+      // gráficos: é texto livre, e texto livre escrito por gente cita nome de
+      // gente. Abri-lo a quem a matriz A17 mantém longe do contato individual
+      // devolveria, pela porta lateral, exatamente o que o resto do relatório
+      // toma o cuidado de não mostrar.
+      resposta.observacoes = leads
+        .filter((l) => (l.desfecho_nota ?? "").trim())
+        .sort(
+          (a, b) =>
+            new Date(b.desfecho_em ?? 0).getTime() - new Date(a.desfecho_em ?? 0).getTime(),
+        )
+        .slice(0, 50)
+        .map((l) => ({
+          desfecho: l.desfecho,
+          motivo: l.desfecho_motivo
+            ? motivos.find((m) => m.chave === l.desfecho_motivo)?.rotulo ?? l.desfecho_motivo
+            : null,
+          nota: (l.desfecho_nota ?? "").trim(),
+          responsavel: l.responsavel ?? null,
+          quando: l.desfecho_em ?? null,
+        }));
+
       const porVendedor = new Map<string, { ganhos: number; perdidos: number; valor: number }>();
       for (const l of leads) {
         const quem = l.responsavel?.trim() || "Sem responsável";

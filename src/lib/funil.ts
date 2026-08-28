@@ -63,7 +63,10 @@ export interface LeadDoFunil {
   desfecho?: TipoDeDesfecho | null;
   desfecho_motivo?: string | null;
   desfecho_valor?: number | string | null;
+  desfecho_nota?: string | null;
   desfecho_em?: string | null;
+  /** Quantas vezes o motor já passou este lead adiante. Ver `seloDeRodizio`. */
+  transferencias?: number | null;
 }
 
 /**
@@ -298,6 +301,38 @@ export function etapasVisiveis(
   return ordenarEtapas(etapas.filter((e) => e.ativa || ocupadas.has(e.chave)));
 }
 
+/**
+ * As colunas do quadro: só as etapas ABERTAS.
+ *
+ * 2026-08-28, segunda rodada com o dono: *"não precisa de uma aba de ganho ou
+ * perdido, só um botão para destinar"*. Ele está certo, e é a mesma conclusão a
+ * que quem opera funil há anos chega por outro caminho — *"nunca crie etapas
+ * Fechado"*: a coluna terminal é onde o card vai morar para sempre, e um quadro
+ * com duas colunas que só crescem deixa de ser um quadro de trabalho.
+ *
+ * As etapas de ganho e perdido continuam existindo em `funil_etapas` — elas são
+ * o que `leads.situacao` grava, e a chave estrangeira exige que existam. O que
+ * muda é que ninguém as desenha: elas viraram os dois botões do card.
+ */
+export function etapasDoQuadro(
+  etapas: EtapaDoFunil[],
+  leads: Pick<LeadDoFunil, "situacao">[],
+): EtapaDoFunil[] {
+  return etapasVisiveis(etapas, leads).filter((e) => e.tipo === "aberta");
+}
+
+/**
+ * Os destinos do negócio — o que os botões do card oferecem.
+ *
+ * Ativos só: uma etapa terminal desativada some do botão, e os leads que já
+ * estão nela continuam alcançáveis pela lista de fechados. Diferente das
+ * colunas, aqui manter a opção viva não custa nada e mantê-la escondida
+ * custaria um card preso.
+ */
+export function destinosDoNegocio(etapas: EtapaDoFunil[]): EtapaDoFunil[] {
+  return ordenarEtapas(etapas.filter((e) => e.ativa && e.tipo !== "aberta"));
+}
+
 /** Índice da etapa na fila visível — o que as setas do card usam. */
 export function indiceDaEtapa(etapas: EtapaDoFunil[], chave: string): number {
   return etapas.findIndex((e) => e.chave === chave);
@@ -459,7 +494,6 @@ export const MOTIVO_DA_SUPRESSAO: Record<string, string> = {
   fora_do_horario: "Fora do horário de atendimento (8h–20h, sem domingo)",
   vendedor_sem_whatsapp: "O responsável não tem WhatsApp cadastrado",
   alerta_recente: "Já foi avisado nas últimas 20 horas",
-  rodizio_esgotado: "Já trocou de vendedor duas vezes — precisa de um olhar humano",
   sem_vendedor_disponivel: "Nenhum vendedor ativo com WhatsApp para receber",
 };
 
@@ -522,6 +556,23 @@ export function agruparPorMotivo(
 export function taxaDeConversao(ganhos: number, perdidos: number): number {
   const fechados = ganhos + perdidos;
   return fechados > 0 ? (ganhos / fechados) * 100 : 0;
+}
+
+/**
+ * "3ª transferência" — o aviso que substituiu o teto de rodízio.
+ *
+ * A primeira versão travava o lead na terceira troca. Decisão do dono em
+ * 2026-08-28: *"quantas se fizerem necessárias até o atendimento"*. Travar
+ * escondia o problema; contar o expõe. Um lead na quinta transferência não é
+ * um lead defeituoso — são cinco pessoas que não o atenderam, e é isso que o
+ * número diz a quem olha o quadro.
+ *
+ * Devolve `null` até a segunda: a primeira troca é o rodízio funcionando, não
+ * uma anomalia, e marcar tudo é o mesmo que não marcar nada.
+ */
+export function seloDeRodizio(transferencias?: number | null): string | null {
+  const n = transferencias ?? 0;
+  return n >= 2 ? `${n}ª transferência` : null;
 }
 
 /** Contagem por etapa, para o cabeçalho das colunas e o modo agregado. */

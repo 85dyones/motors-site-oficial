@@ -172,10 +172,33 @@ describe("a tela", () => {
 
   it("coluna arquivada com lead dentro continua na tela", () => {
     // Desativar uma etapa que ainda guarda cards os faria sumir sem erro
-    // nenhum. `etapasVisiveis` é quem garante isso, e a tela precisa usá-la em
-    // vez de filtrar por `ativa` na mão.
-    expect(codigo).toContain("etapasVisiveis(etapas, leads)");
+    // nenhum. `etapasDoQuadro` (que chama `etapasVisiveis` por dentro) é quem
+    // garante isso, e a tela precisa usá-la em vez de filtrar por `ativa` na
+    // mão.
+    expect(codigo).toContain("etapasDoQuadro(etapas, emAberto)");
     expect(codigo).not.toMatch(/etapas\.filter\(\(e\) => e\.ativa\)/);
+  });
+
+  it("ganho e perdido são BOTÃO, não coluna", () => {
+    // 2026-08-28, segunda rodada: *"não precisa de uma aba de ganho ou
+    // perdido, só um botão para destinar"*. O quadro desenha `colunasVisiveis`
+    // (só etapas abertas) e os botões vêm de `destinos` — se alguém religar as
+    // colunas terminais, o quadro volta a ter duas colunas que só crescem.
+    expect(codigo).toContain("const destinos = useMemo(() => destinosDoNegocio(etapas)");
+    expect(codigo).toContain("{destinos.map((e) => (");
+    // E os botões não podem voltar a sair das colunas do quadro.
+    expect(codigo).not.toMatch(/colunasVisiveis[\s\S]{0,80}tipo === "ganho"/);
+  });
+
+  it("o lead fechado sai do quadro e ganha endereço", () => {
+    // "Sem coluna" não pode virar "o card sumiu": é a falha muda que este
+    // projeto persegue. O quadro filtra por `emAberto`, e a lista de fechados
+    // mostra motivo, observação e o caminho de volta.
+    expect(codigo).toContain("leads.filter((l) => !l.desfecho)");
+    expect(codigo).toContain("Fechados ({fechados.length})");
+    expect(codigo).toContain("const reabrir = useCallback");
+    // A observação que o dono pediu aparece na lista, não só no formulário.
+    expect(codigo).toContain("l.desfecho_nota");
   });
 
   it("autoriza o drop com preventDefault no dragOver", () => {

@@ -2,9 +2,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
+import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
   ETAPAS_PADRAO,
   agruparPorMotivo,
+  destinosDoNegocio,
+  etapasDoQuadro,
   chaveDaEtapa,
   destinatarioDoAviso,
   emMinutos,
@@ -19,6 +22,7 @@ import {
   numeroDiscavel,
   ordenarEtapas,
   paradoDesde,
+  seloDeRodizio,
   separarPrazo,
   taxaDeConversao,
   validarFunil,
@@ -209,6 +213,30 @@ describe("editar o funil sem quebrá-lo", () => {
     // A semente do banco precisa passar na validação da tela. Se não passar, o
     // dono abre a configuração e encontra erro sem ter mexido em nada.
     expect(validarFunil(ETAPAS_PADRAO)).toEqual([]);
+  });
+
+  it("o quadro não desenha ganho nem perdido — eles são botão", () => {
+    // 2026-08-28, segunda rodada com o dono: *"não precisa de uma aba de ganho
+    // ou perdido, só um botão para destinar"*. As etapas continuam no banco
+    // (é o que `leads.situacao` grava, e a FK exige que existam); o que sumiu
+    // foi o lugar delas na tela.
+    const quadro = etapasDoQuadro(ETAPAS_PADRAO, []);
+    expect(quadro.every((e) => e.tipo === "aberta")).toBe(true);
+    expect(quadro.map((e) => e.chave)).not.toContain("fechado");
+    expect(quadro.map((e) => e.chave)).not.toContain("perdido");
+
+    const destinos = destinosDoNegocio(ETAPAS_PADRAO);
+    expect(destinos.map((e) => e.chave)).toEqual(["fechado", "perdido"]);
+  });
+
+  it("destino desativado some do botão", () => {
+    // Diferente da coluna, aqui não há card preso para proteger: quem
+    // desativou "Perdido" não quer o botão. Os leads que já estão nele
+    // continuam na lista de fechados.
+    const semPerda = ETAPAS_PADRAO.map((e) =>
+      e.tipo === "perdido" ? { ...e, ativa: false } : e,
+    );
+    expect(destinosDoNegocio(semPerda).map((e) => e.chave)).toEqual(["fechado"]);
   });
 
   it("etapa arquivada com lead dentro continua visível", () => {
@@ -417,6 +445,36 @@ describe("a tela e o banco calculam a mesma coisa", () => {
     expect(sqlExecutavel).toMatch(
       /lead_id\s+uuid not null references public\.leads\(id\) on delete cascade/,
     );
+  });
+});
+
+describe("o rodízio não tem teto", () => {
+  it("o selo só aparece a partir da segunda transferência", () => {
+    // Decisão do dono em 2026-08-28: *"quantas se fizerem necessárias até o
+    // atendimento"*. A primeira versão travava na terceira troca; travar
+    // escondia o problema, contar o expõe. A primeira troca é o rodízio
+    // funcionando, não uma anomalia — marcar tudo é o mesmo que não marcar.
+    expect(seloDeRodizio(0)).toBeNull();
+    expect(seloDeRodizio(1)).toBeNull();
+    expect(seloDeRodizio(2)).toBe("2ª transferência");
+    expect(seloDeRodizio(7)).toBe("7ª transferência");
+    expect(seloDeRodizio(null)).toBeNull();
+  });
+
+  it("a fila do banco não suprime mais por número de trocas", () => {
+    // Se um teto voltar, ele volta aqui — e volta calado, porque um lead
+    // travado simplesmente para de aparecer na fila.
+    expect(sqlExecutavel).not.toContain("rodizio_esgotado");
+    expect(sqlExecutavel).not.toMatch(/transferencias\s*>=\s*\d/);
+    // E o motivo que sobrou no vocabulário da tela é o que o banco produz.
+    expect(MOTIVO_DA_SUPRESSAO).not.toHaveProperty("rodizio_esgotado");
+  });
+
+  it("quem para a roda é o atendimento", () => {
+    // É a outra metade da decisão: sem teto, o único freio é alguém falar com
+    // o cliente. A função que o botão de WhatsApp chama existe para isso.
+    expect(sqlExecutavel).toContain("registrar_contato_do_lead");
+    expect(sqlExecutavel).toMatch(/set\s+ultimo_contato_em = v_agora/);
   });
 });
 

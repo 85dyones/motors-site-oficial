@@ -844,10 +844,17 @@ create index if not exists idx_leads_nome on public.leads (nome);
 --   3. alerta_recente ......... já foi cutucado nas últimas 20 horas.
 --      Vinte, e não vinte e quatro, para o lembrete diário não escorregar
 --      alguns minutos por dia até bater nas 20h e pular um dia inteiro.
---   4. rodizio_esgotado ....... o lead já trocou de dono duas vezes. A terceira
---      não é rodízio, é pingue-pongue: alguém precisa olhar para esse lead.
---      Ele continua na fila, com o motivo à vista.
---   5. sem_vendedor_disponivel  não há outro vendedor ativo e com WhatsApp.
+--   4. sem_vendedor_disponivel  não há outro vendedor ativo e com WhatsApp.
+--
+-- NÃO HÁ TETO DE TRANSFERÊNCIAS. A primeira versão parava na terceira troca,
+-- por medo de pingue-pongue. Decisão do dono em 2026-08-28: *"quantas se
+-- fizerem necessárias até o atendimento"* — e ele está certo sobre a mecânica.
+-- O lead só circula enquanto está PARADO; qualquer toque humano reinicia o
+-- relógio e o tira da fila. Um lead que trocou de dono cinco vezes não é um
+-- lead defeituoso, é um lead que cinco pessoas não atenderam, e travá-lo na
+-- terceira apenas o esconderia — que é o oposto do que a fila existe para
+-- fazer. `leads.transferencias` continua contando, e o card mostra o número:
+-- visibilidade em vez de bloqueio.
 --
 -- Nada é descartado em silêncio: o que não sai vem na resposta com o motivo.
 -- Fila que descarta calada é fila que ninguém audita.
@@ -979,8 +986,6 @@ begin
         when v_relogio is not null then v_relogio
         when c.aviso in ('atribuicao', 'transferencia') and c.novo_responsavel is null
           then 'sem_vendedor_disponivel'
-        when c.aviso = 'transferencia' and c.transferencias >= 2
-          then 'rodizio_esgotado'
         when c.aviso = 'estagnacao' and c.responsavel_whatsapp is null
           then 'vendedor_sem_whatsapp'
         when c.aviso = 'estagnacao'
@@ -1323,36 +1328,54 @@ begin
       coalesce(f.novo_responsavel, '<nulo>');
   end if;
 
-  -- f.9) TETO DE DUAS TROCAS. A terceira não é rodízio, é pingue-pongue: o
-  --      lead fica na fila com o motivo à vista, esperando um olhar humano.
-  --      Nasce já em `proposta` de propósito — o gatilho reescreve
+  -- f.9) NÃO HÁ TETO DE TRANSFERÊNCIAS, e quem para a roda é o ATENDIMENTO.
+  --
+  --      Decisão do dono em 2026-08-28: *"quantas se fizerem necessárias até o
+  --      atendimento"*. Este bloco prova as duas metades: um lead com cinco
+  --      trocas no currículo continua andando, e basta alguém falar com o
+  --      cliente para ele sair da fila. Se um teto voltar um dia, é aqui que
+  --      ele quebra — e o motivo fica escrito.
+  --
+  --      Nasce já em `proposta` de propósito: o gatilho reescreve
   --      `ultimo_movimento_em` a cada troca de etapa, e é ele quem manda.
   insert into public.leads (nome, telefone, situacao, responsavel, transferencias, ultimo_movimento_em)
-    values ('Aceite Pingue-pongue', '5541999990005', 'proposta', 'Outro Que Saiu',
-            2, v_seg - interval '30 days')
+    values ('Aceite Roda Viva', '5541999990005', 'proposta', 'Outro Que Saiu',
+            5, v_seg - interval '30 days')
     returning id into v_lead5;
 
   select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead5;
-  if f.aviso is distinct from 'transferencia'
-     or f.suprimido_por is distinct from 'rodizio_esgotado' then
+  if f.aviso is distinct from 'transferencia' or f.suprimido_por is not null then
     raise exception
-      'ACEITE FALHOU: lead com duas transferências saiu como "%"/"%", esperado '
-      'transferencia suprimida por rodizio_esgotado.',
+      'ACEITE FALHOU: lead com cinco transferências saiu como "%"/"%" — não há '
+      'teto, ele circula até ser atendido.',
       coalesce(f.aviso, '<nulo>'), coalesce(f.suprimido_por, '<nula>');
   end if;
 
-  -- E o suprimido não pode ser transferido nem gerar aviso no rastro. É a
-  -- asserção que separa "a fila marcou" de "a fila agiu".
   perform public.montar_fila_do_funil(v_seg, true);
   if (select responsavel from public.leads where id = v_lead5)
-       is distinct from 'Outro Que Saiu' then
+       is not distinct from 'Outro Que Saiu' then
     raise exception
-      'ACEITE FALHOU: linha suprimida foi transferida assim mesmo — a supressão '
-      'vira enfeite e o lead circula para sempre.';
+      'ACEITE FALHOU: a sexta transferência não aconteceu — algum teto voltou.';
   end if;
-  if exists (select 1 from public.leads_eventos
-              where lead_id = v_lead5 and tipo = 'alerta') then
-    raise exception 'ACEITE FALHOU: linha suprimida gerou aviso no rastro';
+  if (select transferencias from public.leads where id = v_lead5) <> 6 then
+    raise exception
+      'ACEITE FALHOU: o contador de transferências não andou. Sem teto, ele é '
+      'a única forma de alguém notar um lead que ninguém quer.';
+  end if;
+
+  -- A metade que importa: o atendimento tira o lead da roda.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_vend, 'role', 'authenticated')::text, true);
+  v_contato := public.registrar_contato_do_lead(v_lead5, 'whatsapp');
+  perform set_config('request.jwt.claims', '', true);
+
+  select count(*) into qtd
+    from public.montar_fila_do_funil(v_contato + interval '1 minute', false)
+   where lead_id = v_lead5;
+  if qtd <> 0 then
+    raise exception
+      'ACEITE FALHOU: o lead atendido continuou na roda — "até o atendimento" '
+      'exige que o atendimento seja o fim da linha.';
   end if;
 
   -- f.10) registrar contato para o relógio: o vendedor que acabou de falar com
@@ -1409,8 +1432,8 @@ begin
   raise notice
     'Aceite verificado: o funil aceita etapa nova, a etapa terminal carimba o '
     'desfecho, reabrir limpa, a fila atribui ao menos carregado, avisa, '
-    'transfere, respeita etapa protegida, horário, teto de rodízio e o '
-    'registro de contato.';
+    'transfere sem teto até alguém atender, e respeita etapa protegida, '
+    'horário e o registro de contato.';
 end $aceite$;
 
 

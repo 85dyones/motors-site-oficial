@@ -47,6 +47,13 @@ interface Dados {
     abertos: number;
     taxa_conversao: number;
   }[];
+  observacoes?: {
+    desfecho: "ganho" | "perdido";
+    motivo: string | null;
+    nota: string;
+    responsavel: string | null;
+    quando: string | null;
+  }[];
   migracaoPendente?: boolean;
 }
 
@@ -216,6 +223,41 @@ export default function RelatorioDoFunil() {
                   </tbody>
                 </table>
               </div>
+            </section>
+          )}
+
+          {dados.observacoes && dados.observacoes.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="mt-rotulo border-b border-mt-regua-fina pb-2">
+                O que os vendedores escreveram
+              </h2>
+              <p className="max-w-[620px] text-[11px] leading-relaxed text-mt-neutral-700">
+                As barras acima dizem <em>quanto</em>. Estas linhas dizem <em>o quê</em> — é o
+                que a lista de motivos não tem como prever, e é onde o próximo motivo novo
+                costuma aparecer três vezes antes de alguém cadastrá-lo.
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {dados.observacoes.map((o, i) => (
+                  <li
+                    key={i}
+                    className={`border-l-[3px] bg-mt-surface px-3 py-2 ${
+                      o.desfecho === "ganho" ? "border-mt-accent-800" : "border-mt-accent"
+                    }`}
+                  >
+                    <div className="text-[12px] leading-snug text-mt-ink">{o.nota}</div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
+                      <span>{o.desfecho === "ganho" ? "Ganho" : "Perdido"}</span>
+                      {o.motivo && <span>{o.motivo}</span>}
+                      {o.responsavel && <span>{o.responsavel}</span>}
+                      {o.quando && (
+                        <span className="tabular-nums">
+                          {new Date(o.quando).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 

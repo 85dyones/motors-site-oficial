@@ -87,8 +87,16 @@ function comoFunciona(e: EtapaEditavel): string {
   const alerta = emMinutos(e.alertaValor, e.alertaUnidade);
   const transf = emMinutos(e.transfValor, e.transfUnidade);
 
-  if (e.tipo === "ganho") return "Etapa de fechamento: pede o motivo do ganho e para o relógio.";
-  if (e.tipo === "perdido") return "Etapa de perda: pede o motivo e para o relógio.";
+  // Ganho e perdido deixaram de ser coluna em 2026-08-28 (*"não precisa de uma
+  // aba de ganho ou perdido, só um botão para destinar"*). Dizer isso aqui
+  // evita a pergunta óbvia de quem edita: "por que essa etapa não aparece no
+  // quadro?"
+  if (e.tipo === "ganho") {
+    return "É o botão de fechar do card, não uma coluna do quadro. Pede o motivo e para o relógio.";
+  }
+  if (e.tipo === "perdido") {
+    return "É o botão de perder do card, não uma coluna do quadro. Pede o motivo e para o relógio.";
+  }
   if (!alerta) return "Sem régua de tempo: nada é cobrado nesta etapa.";
 
   const cobra = `Cobra o vendedor no WhatsApp depois de ${formatarPrazo(alerta)} parado`;
@@ -409,6 +417,10 @@ export default function FunilEditor() {
         ))}
 
         <p className="text-[11px] leading-relaxed text-mt-neutral-700">
+          Só as etapas <strong>em andamento</strong> viram coluna do quadro. Ganho e perdido são
+          os dois botões no rodapé do card — o negócio fechado sai do quadro e vai para a lista de
+          fechados, com motivo, observação e caminho de volta.
+          <br />
           Etapa desmarcada some do kanban, mas continua aparecendo enquanto tiver lead dentro —
           nenhum card desaparece sem alguém tirá-lo de lá. Etapas nunca são apagadas: o histórico
           dos leads antigos aponta para elas.
