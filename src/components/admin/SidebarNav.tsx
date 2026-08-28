@@ -113,35 +113,14 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       items: [{ name: "Mídia paga", href: "/admin/marketing/midia-paga" }],
     },
     {
-      title: "Financeiro",
+      // O módulo de caixa (contas, dia, aprovações, conciliação, plano,
+      // margens) foi APOSENTADO em 2026-08-28, por decisão do dono: nada ali
+      // tinha dado real, e o financeiro renasce do zero sobre o razão de
+      // partidas dobradas do handoff (spec 30). Sobrou o que fica: o controle
+      // de investidores (briefing 2026-08-21), que mudou de endereço junto.
+      title: "Investidores",
       roles: ["admin", "gestor", "financeiro"],
-      items: [
-        { name: "Visão geral", href: "/admin/financeiro" },
-        // A porta da manhã da operação (briefing 2026-08-21): o que vence
-        // hoje, o que já venceu e o relatório diário — logo abaixo da visão
-        // geral porque é a tela de todo dia.
-        { name: "Pagamentos do dia", href: "/admin/financeiro/dia" },
-        { name: "Contas a pagar", href: "/admin/financeiro/contas-pagar" },
-        // A fila de agendamentos (A17, "Aprovar agendamento financeiro"): o
-        // Financeiro acompanha, o Gestor decide — os botões somem para quem
-        // não decide.
-        { name: "Aprovações", href: "/admin/financeiro/aprovacoes" },
-        { name: "Contas a receber", href: "/admin/financeiro/contas-receber" },
-
-        { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
-        // P4 do briefing — o último dos seis pedidos da adm/financeira a sair
-        // do RevendaMais. Fica perto do importador porque os dois são a mesma
-        // rotina: trazer para cá o que hoje vive em outro lugar.
-        { name: "Conciliação bancária", href: "/admin/financeiro/conciliacao" },
-        { name: "Relatórios e balanço", href: "/admin/financeiro/relatorios" },
-        // Era "Cadastros auxiliares" e guardava duas coisas sem parentesco:
-        // o plano de contas e a lista de parceiros. Os parceiros mudaram
-        // para Clientes e fornecedores em 2026-08-24; sobrou o plano, e o
-        // item passou a se chamar pelo que ele é.
-        { name: "Plano de contas", href: "/admin/financeiro/cadastros" },
-        { name: "Margem por veículo", href: "/admin/financeiro/margens" },
-        { name: "Investidores", href: "/admin/financeiro/investidores" },
-      ],
+      items: [{ name: "Aportes e participações", href: "/admin/investidores" }],
     },
     {
       // Marketing entra pela matriz A17: fotos, textos, SEO e destaques são
@@ -205,10 +184,6 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       if (pathname !== "/admin/configuracoes") return false;
       if (tabPart) return activeTab === tabPart;
       return !activeTab || activeTab === "destaques"; // aba padrão quando a URL não diz
-    }
-
-    if (href === "/admin/financeiro") {
-      return pathname === "/admin/financeiro";
     }
 
     // O editor de um veículo (/admin/estoque/[id]) continua dentro de

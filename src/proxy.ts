@@ -169,10 +169,12 @@ export async function proxy(request: NextRequest) {
   // primeiro byte da tela saia para quem não é investidor.
   const isInvestidorPath = path === "/investidor" || path.startsWith("/investidor/");
   const isProtectedApi =
-    path.startsWith("/api/financeiro") ||
+    // Gestão de investidores — o que restou do módulo financeiro aposentado
+    // em 2026-08-28, já no endereço novo.
+    path.startsWith("/api/investidores") ||
     path.startsWith("/api/users") ||
     // A agenda de pessoas (2026-08-24) devolve CPF, telefone e e-mail de
-    // cliente. Ela entra aqui pelo mesmo motivo que o financeiro: a RLS
+    // cliente. Ela entra aqui pelo mesmo motivo que os investidores: a RLS
     // já barra no banco, e esta é a segunda tranca, na porta.
     path.startsWith("/api/pessoas");
 
@@ -238,7 +240,7 @@ export async function proxy(request: NextRequest) {
       // entra, nem sendo admin. Ela mostra a posição de QUEM PERGUNTA (a RLS
       // filtra por `auth.uid()`), então para a equipe ela viria vazia — e
       // tela vazia se lê como "não há nada", que é pior que a porta fechada.
-      // Quem cuida disso usa a gestão em /admin/financeiro/investidores.
+      // Quem cuida disso usa a gestão em /admin/investidores.
       if (isInvestidorPath) {
         if (!investidor) {
           const url = request.nextUrl.clone();
@@ -280,9 +282,12 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Área financeira: Admin, Financeiro e — desde 2026-08-21 — Gestor,
-        // que aprova os agendamentos e lê os relatórios (A17).
-        if (path.startsWith("/admin/financeiro") || path.startsWith("/api/financeiro")) {
+        // Gestão de investidores: Admin, Gestor e Financeiro — a linha
+        // "Controlar aportes e retiradas de investidores" da A17. O módulo de
+        // caixa que morava em /admin/financeiro foi aposentado em 2026-08-28
+        // (decisão do dono; o financeiro renasce sobre o razão do handoff), e
+        // esta é a única área dele que ficou, já no endereço novo.
+        if (path.startsWith("/admin/investidores") || path.startsWith("/api/investidores")) {
           if (!perfis.includes("financeiro") && !perfis.includes("gestor")) {
             if (isAdminPath) {
               const url = request.nextUrl.clone();
@@ -327,7 +332,9 @@ export async function proxy(request: NextRequest) {
           !perfis.includes("marketing")
         ) {
           const url = request.nextUrl.clone();
-          url.pathname = "/admin/financeiro";
+          // Visão geral: era /admin/financeiro até a aposentadoria do módulo
+          // de caixa (2026-08-28) — a única tela que todo perfil enxerga.
+          url.pathname = "/admin";
           return NextResponse.redirect(url);
         }
       }
@@ -355,7 +362,7 @@ export const config = {
     "/api/capi",
     "/api/ciclo/motor/:path*",
     "/admin/:path*",
-    "/api/financeiro/:path*",
+    "/api/investidores/:path*",
     "/api/users/:path*",
     // As duas formas: `:path*` casa zero segmentos, mas depender disso
     // para a raiz da coleção é apostar num detalhe do matcher. A rota

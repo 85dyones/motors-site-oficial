@@ -14,10 +14,10 @@ import { join } from "node:path";
  * Isso move o risco de lugar em vez de eliminá-lo. Antes, um `select` com a
  * anon key num caminho sem sessão funcionava; agora devolve null — e nenhum
  * desses caminhos trata null como erro. `/api/leads` mandaria o lead ao n8n sem
- * `Authorization` (disparo não-bloqueante, falha invisível) e
- * `/api/financeiro/margens/consulta` deixaria de validar o token, abrindo a
- * ficha de margem para qualquer um. Os testes abaixo travam as duas pontas: o
- * que a policy libera e quem tem direito de ler o resto.
+ * `Authorization` — disparo não-bloqueante, falha invisível. (A consulta de
+ * margens, que também dependia disso, foi aposentada em 2026-08-28 com o
+ * módulo financeiro.) Os testes abaixo travam as duas pontas: o que a policy
+ * libera e quem tem direito de ler o resto.
  */
 
 const raiz = join(__dirname, "..");
@@ -172,13 +172,19 @@ describe("getCachedSettings", () => {
 describe("caminhos sem sessão", () => {
   /**
    * Rotas que atendem quem não tem cookie de sessão: visitante do site
-   * (`leads`, `avaliacao`) e o n8n com Bearer token (`margens/consulta`).
-   * Nelas, `createServerSupabaseClient()` resolve para o papel `anon`.
+   * (`leads`, `avaliacao`). Nelas, `createServerSupabaseClient()` resolve
+   * para o papel `anon`.
+   *
+   * A terceira rota desta lista — `margens/consulta`, que o n8n chamava com
+   * Bearer token — foi aposentada em 2026-08-28 junto com o módulo de caixa,
+   * levando a suíte "ficha de margem do n8n" que vivia abaixo (token
+   * obrigatório antes do cliente de serviço, erro de leitura nunca vira
+   * despesa zero). As lições valem para qualquer rota nova que sirva o n8n
+   * com a chave de serviço; o texto completo está no git.
    */
   const rotas = [
     ["leads", join("src", "app", "api", "leads", "route.ts")],
     ["avaliacao", join("src", "app", "api", "avaliacao", "route.ts")],
-    ["margens/consulta", join("src", "app", "api", "financeiro", "margens", "consulta", "route.ts")],
   ] as const;
 
   for (const [nome, caminho] of rotas) {
@@ -192,77 +198,4 @@ describe("caminhos sem sessão", () => {
       expect(fonte).toContain("getCachedSettings()");
     });
   }
-
-  it("margens/consulta continua exigindo o token antes de responder", () => {
-    // O modo de falha que esta migração podia criar: token não lido → fallback
-    // de env vazio → `if` não roda → rota aberta. A ordem importa tanto quanto
-    // a leitura, então o teste cobra que a validação venha antes da consulta.
-    const fonte = readFileSync(join(raiz, rotas[2][1]), "utf-8");
-    const posToken = fonte.indexOf("const secretToken =");
-    const posValidacao = fonte.indexOf('return NextResponse.json({ error: "Não autorizado" }');
-    const posConsulta = fonte.indexOf('.from("estoque_motors")');
-
-    expect(posToken).toBeGreaterThan(-1);
-    expect(posValidacao).toBeGreaterThan(posToken);
-    expect(posConsulta).toBeGreaterThan(posValidacao);
-  });
-});
-
-/**
- * `/api/financeiro/margens/consulta` — a rota que o n8n chama para montar a
- * ficha de margem no WhatsApp.
- *
- * Ela mudou de regime em 2026-08-12. Antes, quem protegia o dado financeiro
- * não era a checagem de token — era a RLS: `contas` e `compras_produtos`
- * exigem `has_finance_access(auth.uid())`, e o n8n chega sem sessão, então as
- * consultas voltavam vazias. Isso "protegia" ao custo de mentir: a ficha saía
- * com zero despesas de preparação e margem otimista, discordando do painel.
- *
- * Agora a rota lê com a chave de serviço — os números ficam certos, e em troca
- * a RLS deixou de ser rede de segurança. O token passou a ser a única porta, e
- * por isso virou obrigatório.
- */
-describe("ficha de margem do n8n", () => {
-  const fonte = readFileSync(
-    join(raiz, "src", "app", "api", "financeiro", "margens", "consulta", "route.ts"),
-    "utf-8"
-  );
-
-  it("sem token configurado, recusa — não responde aberta", () => {
-    // A regressão que este teste existe para impedir: voltar ao
-    // `if (secretToken) { valide }`, que com token vazio dos dois lados
-    // entregava o balanço da loja a qualquer um que soubesse a URL.
-    expect(fonte).toMatch(/if \(!secretToken\)/);
-    expect(fonte).toContain("status: 503");
-    expect(
-      fonte,
-      "validação condicional de volta — token vazio deixaria a rota aberta"
-    ).not.toMatch(/if \(secretToken && secretToken\.trim\(\) !== ""\)/);
-  });
-
-  it("só cria o cliente de serviço depois de conferir o token", () => {
-    // Ordem é a defesa inteira: um `createAdminSupabaseClient()` acima da
-    // checagem daria acesso privilegiado antes de saber quem está chamando.
-    const posValidacao = fonte.indexOf('{ error: "Não autorizado" }');
-    const posAdmin = fonte.indexOf("createAdminSupabaseClient()");
-
-    expect(posValidacao).toBeGreaterThan(-1);
-    expect(posAdmin).toBeGreaterThan(posValidacao);
-  });
-
-  it("não usa o cliente da requisição para ler o financeiro", () => {
-    // Com o cliente anônimo, `contas` e `compras_produtos` voltam vazias.
-    expect(fonte).not.toContain("createServerSupabaseClient");
-  });
-
-  it("erro de leitura não vira despesa zero", () => {
-    // O `const { data: contas } = await ...` sem `error` foi o que deixou a
-    // ficha sair com "Gastos de Preparação: R$ 0,00" como se fosse apurado.
-    expect(fonte).toContain("error: erroContas");
-    expect(fonte).toContain("error: erroCompras");
-    const posGuarda = fonte.indexOf("if (erroContas || erroCompras)");
-    const posCalculo = fonte.indexOf("const despesasPreparacao");
-    expect(posGuarda).toBeGreaterThan(-1);
-    expect(posCalculo).toBeGreaterThan(posGuarda);
-  });
 });

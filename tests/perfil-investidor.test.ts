@@ -40,11 +40,13 @@ const telaInvestidor = ler("src", "app", "investidor", "page.tsx");
 // A rota mudou de endereço na fusão de 2026-08-22: dois trabalhos paralelos
 // entregaram módulo de investidor no mesmo caminho, e a participação por
 // veículo — que é o que este teste guarda — foi para `participacoes/`. O
-// cadastro e o razão ficaram com `/api/financeiro/investidores`.
+// cadastro e o razão ficaram na raiz da coleção. Em 2026-08-28, com a
+// aposentadoria do módulo de caixa, tudo mudou de /api/financeiro/investidores
+// para /api/investidores (e os componentes para components/investidores/).
 const rotaGestao = ler(
-  "src", "app", "api", "financeiro", "investidores", "participacoes", "route.ts",
+  "src", "app", "api", "investidores", "participacoes", "route.ts",
 );
-const telaGestao = ler("src", "components", "financeiro", "InvestidoresGestao.tsx");
+const telaGestao = ler("src", "components", "investidores", "InvestidoresGestao.tsx");
 const garagem = ler("src", "app", "garagem", "page.tsx");
 const definirSenha = ler("src", "app", "definir-senha", "page.tsx");
 const confirm = ler("src", "app", "api", "auth", "confirm", "route.ts");

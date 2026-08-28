@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Visão Geral — Motors Showcase",
-  description: "O que exige ação hoje: estoque, financeiro e integrações.",
+  description: "O que exige ação hoje: estoque, leads e mídia paga.",
 };
 
 /**
@@ -50,19 +50,9 @@ export default async function AdminVisaoGeralPage() {
     resumoDeVisitas(30),
   ]);
 
-  const hoje = new Date().toISOString().split("T")[0];
-
-  // Contas vencidas — mesma regra do dashboard financeiro.
-  const { data: contasVencidas } = await supabase
-    .from("contas")
-    .select("valor")
-    .or(`status.eq.vencido,and(status.eq.pendente,data_vencimento.lt.${hoje})`);
-
-  const totalVencido = (contasVencidas ?? []).reduce(
-    (acc, c: any) => acc + Number(c.valor || 0),
-    0,
-  );
-
+  // O KPI e o alerta de contas vencidas saíram em 2026-08-28, com a
+  // aposentadoria do módulo de caixa (decisão do dono): a tabela `contas`
+  // não existe mais, e o financeiro renasce sobre o razão do handoff.
   const { count: campanhasNoAr } = await supabase
     .from("midia_campanhas")
     .select("id", { count: "exact", head: true })
@@ -125,16 +115,6 @@ export default async function AdminVisaoGeralPage() {
     });
   }
 
-  if (totalVencido > 0) {
-    alertas.push({
-      titulo: `${(contasVencidas ?? []).length} título(s) vencidos`,
-      detalhe: `${totalVencido.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em atraso, somando todos os vencimentos anteriores a hoje.`,
-      acao: "ABRIR CONTAS A PAGAR",
-      href: "/admin/financeiro/contas-pagar",
-      urgente: true,
-    });
-  }
-
   if (semFotos.length > 0) {
     alertas.push({
       titulo: `${semFotos.length} anúncio(s) com menos de 8 fotos`,
@@ -176,12 +156,6 @@ export default async function AdminVisaoGeralPage() {
       cor: "text-mt-ink",
     },
     {
-      rotulo: "Em atraso",
-      valor: totalVencido.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
-      nota: `${(contasVencidas ?? []).length} título(s)`,
-      cor: totalVencido > 0 ? "text-mt-accent" : "text-mt-ink",
-    },
-    {
       rotulo: "Campanhas no ar",
       valor: String(campanhasNoAr ?? 0),
       nota: "mídia paga registrada",
@@ -216,7 +190,7 @@ export default async function AdminVisaoGeralPage() {
         <div className="mt-rotulo mt-rotulo-accent">Painel</div>
         <h1 className="mt-titulo text-3xl md:text-4xl first-letter:uppercase">{data}</h1>
         <p className="mt-1 max-w-[620px] text-sm text-mt-neutral-800">
-          O que exige ação hoje, calculado sobre o estoque, o financeiro e a mídia paga.
+          O que exige ação hoje, calculado sobre o estoque, os leads e a mídia paga.
         </p>
       </div>
 
@@ -280,7 +254,7 @@ export default async function AdminVisaoGeralPage() {
             {[
               ["Estoque", "/admin/estoque"],
               ["Leads", "/admin/leads"],
-              ["Contas a pagar", "/admin/financeiro/contas-pagar"],
+              ["Clientes e fornecedores", "/admin/clientes"],
               ["Mídia paga", "/admin/marketing/midia-paga"],
               ["Aparência e cores", "/admin/configuracoes?tab=aparencia"],
               ["Usuários e permissões", "/admin/usuarios"],

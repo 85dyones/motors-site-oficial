@@ -8,8 +8,10 @@ O produto tem três camadas:
 
 - **Loja** — vitrine, ficha do veículo (PDP), avaliação de compra, CarMatch e
   landings de destaque, no design Modernist.
-- **Painel** (`/admin`) — estoque, funil de leads, financeiro, mídia paga,
-  usuários/permissões e auditoria (telas A1–A17).
+- **Painel** (`/admin`) — estoque, funil de leads, clientes e fornecedores,
+  investidores, mídia paga, usuários/permissões e auditoria (telas A1–A17).
+  O módulo de caixa foi aposentado em 2026-08-28; o financeiro renasce sobre
+  o razão do handoff.
 - **Motors Ciclo** — o programa de ciclo de vida do cliente (garantia, revisões
   em rede, recompra futura). Especificado em `docs/MANUAL_MOTORS_CICLO.md`;
   implementação ainda no começo.
