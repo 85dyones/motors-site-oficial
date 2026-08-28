@@ -7,6 +7,7 @@ import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 
 import { PROCEDENCIA_PADRAO, normalizarProcedencia } from "../lib/procedencia";
 import { normalizarCuradoria, type PublicacaoInstagram } from "../lib/instagramCuradoria";
+import { DESTAQUES_PADRAO } from "../lib/destaquesRapidos";
 
 import type {
   ThemeType,
@@ -97,12 +98,15 @@ export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
 
 // Types imported from ../types
 
-export const DEFAULT_QUICK_TAGS: QuickTag[] = [
-  { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
-  { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
-  { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
-  { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" }
-];
+/**
+ * Reexportação, e não uma segunda lista.
+ *
+ * Até 27/08 esta constante era uma CÓPIA literal de `DESTAQUES_PADRAO`, em
+ * outro arquivo. Duas listas idênticas que precisam mudar juntas divergem —
+ * é só questão de qual das duas alguém encontra primeiro. A razão de existir
+ * o nome é histórica: metade dos chamadores importa daqui.
+ */
+export const DEFAULT_QUICK_TAGS: QuickTag[] = DESTAQUES_PADRAO;
 
 // StockOverrides imported from ../types
 
