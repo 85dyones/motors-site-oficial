@@ -90,6 +90,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  */
 const ORIGENS_QUE_APAGAM: OrigemDaAgenda[] = ["financeiro", "rede"];
 
+/**
+ * Por que ESTA origem não apaga, e o que fazer em vez disso.
+ *
+ * Uma frase só para as três seria mentira em uma delas: o lead do site (2026-08-28)
+ * **pode** ser apagado — é o direito de eliminação do titular, LGPD art. 18, VI —
+ * só que não por aqui. Dizer "é referência de contrato" a quem quer atender um
+ * pedido de exclusão manda a pessoa embora achando que não há caminho.
+ */
+const PORQUE_NAO_APAGA: Partial<Record<OrigemDaAgenda, string>> = {
+  lead:
+    "Lead do site não se apaga pela agenda. A exclusão a pedido do titular " +
+    "(LGPD art. 18, VI) é feita pelo Administrador na tela de Leads, onde ela " +
+    "leva junto o rastro do atendimento.",
+};
+
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -111,8 +126,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json(
         {
           error:
+            PORQUE_NAO_APAGA[origem] ??
             `Registro de ${ORIGENS[origem].rotulo} não se apaga — ele é ` +
-            "referência de contrato e de histórico. Desative em vez de excluir.",
+              "referência de contrato e de histórico. Desative em vez de excluir.",
         },
         { status: 400 },
       );

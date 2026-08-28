@@ -115,10 +115,90 @@ describe("a tela", () => {
     expect(codigo).toContain("onDrop");
   });
 
+  it("a barra de slide ENTRA sem tirar as outras duas formas de navegar", () => {
+    // 2026-08-28, pedido do dono: *"uma barra de slide seria ideal além das
+    // setas"*. "Além", não "no lugar de" — e é fácil um refactor futuro achar
+    // que a barra tornou as setas redundantes. São gestos diferentes: a barra
+    // move a VISTA, as setas movem o LEAD.
+    expect(codigo).toMatch(/type="range"/);
+    expect(codigo).toContain("Percorrer o funil");
+    // O trilho de etapas: clicar num nome leva a coluna para a vista.
+    expect(codigo).toContain("irParaEtapa");
+  });
+
+  it("a barra some quando o quadro cabe na tela", () => {
+    // Controle que não controla nada é ruído — e ruído numa tela de balcão
+    // ensina a ignorar o resto dela.
+    expect(codigo).toMatch(/\{rolavel && \(/);
+  });
+
   it("impede o link do telefone de roubar o arrasto", () => {
     // Sem `draggable={false}` no <a>, o navegador arrasta o link em vez do
     // card e o drop nunca dispara. Falha muda: o card só não se move.
-    expect(codigo).toMatch(/wa\.me[\s\S]{0,400}draggable=\{false\}/);
+    //
+    // Desde 2026-08-28 o link sai de `linkDeConversa()` (lib/funil.ts) em vez
+    // de ser montado aqui, mas a armadilha é a mesma: é uma âncora dentro de
+    // um elemento arrastável.
+    expect(codigo).toMatch(/href=\{conversa\}[\s\S]{0,400}draggable=\{false\}/);
+  });
+
+  it("o botão de WhatsApp registra o contato, não só abre a conversa", () => {
+    // É a parte invisível do atalho e a razão de ele existir: sem registrar,
+    // o vendedor que acabou de falar com o cliente recebe, uma hora depois,
+    // um alerta cobrando que fale com o cliente. Dois desses e ninguém lê
+    // mais alerta nenhum.
+    expect(codigo).toContain("falarNoWhatsApp");
+    expect(codigo).toMatch(/contato: "whatsapp"/);
+    // E a mensagem já vai escrita — o pedido era um atalho para FALAR.
+    expect(codigo).toContain("mensagemParaCliente");
+  });
+
+  it("etapa terminal passa pela caixa de motivo antes de gravar", () => {
+    // Se `mover` gravasse direto, o card chegaria em "Perdido" sem motivo e o
+    // relatório nasceria vazio — que é o destino de todo campo opcional de
+    // CRM. A caixa é o que torna o motivo obrigatório na prática.
+    const bloco = codigo.slice(codigo.indexOf("const mover"), codigo.indexOf("const confirmarDesfecho"));
+    expect(bloco).toContain("setFechando");
+    expect(bloco).toMatch(/tipo === "ganho" \|\| etapa\.tipo === "perdido"/);
+  });
+
+  it("as colunas vêm do banco, com o funil fixo só como rede de segurança", () => {
+    // O `const ETAPAS` que morava aqui era metade da razão de o funil não ser
+    // editável. Se ele voltar, a tela para de refletir o que o dono configurou
+    // e ninguém percebe — as colunas continuam aparecendo, só que erradas.
+    expect(codigo).not.toMatch(/const ETAPAS(_|:| =)/);
+    expect(codigo).toContain("setEtapas(d.etapas?.length ? ordenarEtapas(d.etapas) : ETAPAS_PADRAO)");
+  });
+
+  it("coluna arquivada com lead dentro continua na tela", () => {
+    // Desativar uma etapa que ainda guarda cards os faria sumir sem erro
+    // nenhum. `etapasDoQuadro` (que chama `etapasVisiveis` por dentro) é quem
+    // garante isso, e a tela precisa usá-la em vez de filtrar por `ativa` na
+    // mão.
+    expect(codigo).toContain("etapasDoQuadro(etapas, emAberto)");
+    expect(codigo).not.toMatch(/etapas\.filter\(\(e\) => e\.ativa\)/);
+  });
+
+  it("ganho e perdido são BOTÃO, não coluna", () => {
+    // 2026-08-28, segunda rodada: *"não precisa de uma aba de ganho ou
+    // perdido, só um botão para destinar"*. O quadro desenha `colunasVisiveis`
+    // (só etapas abertas) e os botões vêm de `destinos` — se alguém religar as
+    // colunas terminais, o quadro volta a ter duas colunas que só crescem.
+    expect(codigo).toContain("const destinos = useMemo(() => destinosDoNegocio(etapas)");
+    expect(codigo).toContain("{destinos.map((e) => (");
+    // E os botões não podem voltar a sair das colunas do quadro.
+    expect(codigo).not.toMatch(/colunasVisiveis[\s\S]{0,80}tipo === "ganho"/);
+  });
+
+  it("o lead fechado sai do quadro e ganha endereço", () => {
+    // "Sem coluna" não pode virar "o card sumiu": é a falha muda que este
+    // projeto persegue. O quadro filtra por `emAberto`, e a lista de fechados
+    // mostra motivo, observação e o caminho de volta.
+    expect(codigo).toContain("leads.filter((l) => !l.desfecho)");
+    expect(codigo).toContain("Fechados ({fechados.length})");
+    expect(codigo).toContain("const reabrir = useCallback");
+    // A observação que o dono pediu aparece na lista, não só no formulário.
+    expect(codigo).toContain("l.desfecho_nota");
   });
 
   it("autoriza o drop com preventDefault no dragOver", () => {

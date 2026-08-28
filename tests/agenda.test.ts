@@ -289,11 +289,31 @@ describe("as bordas da agenda concordam entre si", () => {
     for (const papel of Object.keys(ROTULO_DO_PAPEL)) {
       expect(ROTULO_DO_PAPEL[papel as keyof typeof ROTULO_DO_PAPEL]).toBeTruthy();
     }
+    // `lead` entra em 2026-08-28 pela migração do funil, que acrescenta um
+    // quinto ramo à mesma view. O literal é verificado lá, não aqui.
+    const sqlFunil = ler("supabase", "migrations", "20260828120000_funil_de_vendas.sql");
+    expect(sqlFunil).toContain("'lead'::text");
+
     // O vocabulário completo, para que um papel novo na view force a passagem
     // por aqui em vez de aparecer cru na tela.
     expect(Object.keys(ROTULO_DO_PAPEL).sort()).toEqual(
-      ["ambos", "cliente", "fornecedor", "investidor", "prestador"],
+      ["ambos", "cliente", "fornecedor", "investidor", "lead", "prestador"],
     );
+  });
+
+  it("o lead entra na agenda sem virar mais um lugar para editá-lo", () => {
+    // O pedido do dono foi *"todo lead precisa ir para a aba de clientes e
+    // fornecedores também"*, e não "editável de lá". Toda gravação em `leads`
+    // passa pelo gatilho que reinicia o relógio da estagnação e escreve no
+    // rastro: corrigir um telefone numa lista de contatos apagaria a cobrança
+    // de um lead que ninguém atendeu, e o rastro registraria "atendimento"
+    // onde houve digitação.
+    expect(CAMPOS_EDITAVEIS.lead).toEqual({});
+    expect(() => rotearEdicao("lead", { telefone: "41999999999" })).toThrow();
+
+    // E a agenda diz onde ele se gerencia de verdade.
+    expect(ORIGENS.lead.casa).toBe("/admin/leads");
+    expect(ORIGENS.lead.tabela).toBe("leads");
   });
 
   it("as colunas que a rota pede são as que a view entrega", () => {

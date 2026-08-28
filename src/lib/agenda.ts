@@ -27,7 +27,7 @@
  */
 
 /** De qual cadastro a linha veio. É a chave de tudo neste arquivo. */
-export type OrigemDaAgenda = "financeiro" | "ciclo" | "rede" | "investidores";
+export type OrigemDaAgenda = "financeiro" | "ciclo" | "rede" | "investidores" | "lead";
 
 /** O que a pessoa é para a loja. `ambos` é do `parceiros.tipo` e vale por dois. */
 export type PapelNaAgenda =
@@ -35,7 +35,19 @@ export type PapelNaAgenda =
   | "fornecedor"
   | "ambos"
   | "prestador"
-  | "investidor";
+  | "investidor"
+  /**
+   * Quem pediu contato e ainda não comprou (2026-08-28, pedido do dono: *"todo
+   * lead precisa ir para a aba de clientes e fornecedores também, para melhorar
+   * gestão"*).
+   *
+   * Papel próprio, e não `cliente`: o lead não comprou nada, não tem CPF nem
+   * consentimento de LGPD, e chamá-lo de cliente misturaria na mesma lista quem
+   * tem contrato de 36 meses e quem mandou uma mensagem ontem. O que ele tem em
+   * comum com os outros é ser gente com quem a loja se relaciona — que é
+   * exatamente a pergunta que esta agenda responde.
+   */
+  | "lead";
 
 /** Uma linha da view, do jeito que a API devolve. */
 export interface PessoaDaAgenda {
@@ -64,6 +76,7 @@ export const ROTULO_DO_PAPEL: Record<PapelNaAgenda, string> = {
   ambos: "Cliente e fornecedor",
   prestador: "Prestador",
   investidor: "Investidor",
+  lead: "Lead",
 };
 
 /**
@@ -99,6 +112,15 @@ export const ORIGENS: Record<
     tabela: "investidores",
     casa: "/admin/financeiro/investidores",
   },
+  lead: {
+    rotulo: "Lead do site",
+    tabela: "leads",
+    // A casa do lead é o kanban. A agenda mostra que ele existe e em que pé
+    // está a conversa; mover de etapa, anotar e fechar o negócio acontece lá,
+    // onde o motivo do desfecho é pedido e o rastro é escrito. Editar contato
+    // de lead de passagem aqui criaria um segundo caminho para o mesmo dado.
+    casa: "/admin/leads",
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -118,6 +140,7 @@ export function papeisQueContam(filtro: string): PapelNaAgenda[] {
   if (filtro === "fornecedor") return ["fornecedor", "ambos"];
   if (filtro === "prestador") return ["prestador"];
   if (filtro === "investidor") return ["investidor"];
+  if (filtro === "lead") return ["lead"];
   if (filtro === "ambos") return ["ambos"];
   return [];
 }
@@ -213,6 +236,16 @@ export const CAMPOS_EDITAVEIS: Record<
     observacoes: "observacoes",
     ativo: "ativo",
   },
+  // O lead não se edita daqui. Mapa vazio é uma decisão, não um esquecimento:
+  // `rotearEdicao` recusa qualquer campo que não esteja na lista, e a tela lê
+  // o mesmo mapa para não oferecer um formulário que a rota vai negar.
+  //
+  // A razão é o relógio. Toda gravação em `leads` passa pelo gatilho que
+  // reinicia a estagnação e escreve no rastro — corrigir um telefone numa
+  // lista de contatos apagaria a cobrança de um lead que ninguém atendeu, e o
+  // rastro registraria "atendimento" onde houve digitação. O kanban é onde
+  // isso tem significado.
+  lead: {},
 };
 
 export interface EdicaoRoteada {

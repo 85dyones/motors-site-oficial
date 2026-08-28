@@ -772,7 +772,9 @@ export default function UserManagement() {
                     />
                     <span className="pl-1 text-[10px] text-mt-neutral-700">
                       Com DDI, no formato +55… — é por aqui que a rotina noturna avisa sobre
-                      registro de venda incompleto. Sem telefone, o vendedor não é avisado.
+                      registro de venda incompleto e que o funil avisa sobre lead parado ou
+                      transferido. Sem telefone, o vendedor não é avisado e não entra no rodízio
+                      de leads.
                     </span>
                   </div>
 
