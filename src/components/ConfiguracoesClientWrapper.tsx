@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useConfirm } from "./admin/ConfirmDialog";
 import AparenciaCores from "./admin/AparenciaCores";
@@ -8,6 +8,10 @@ import FaixaProcedenciaTextos from "./admin/FaixaProcedenciaTextos";
 import InstagramCuradoria from "./admin/InstagramCuradoria";
 import CardsCompartilhamento from "./admin/CardsCompartilhamento";
 import { getEstoque, Veiculo, supabase } from "../lib/supabase";
+import { checkTagMatchesVehicle, condicoesDaTag } from "../lib/regrasEstoque";
+import { publicavel } from "../lib/coerenciaDoCadastro";
+import { CARROCERIAS } from "../lib/classificacaoVeiculo";
+import { PERFIS_DE_USO } from "../lib/perfisDeUso";
 import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POPUP_SETTINGS, DEFAULT_QUICK_TAGS, DEFAULT_CAMPAIGNS } from "../app/ThemeContext";
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 import { processImage } from "../lib/imageProcessor";
@@ -19,7 +23,8 @@ import type {
   Campaign,
   CompartilhamentoSettings,
   PopupSettings,
-  QuickTag
+  QuickTag,
+  CondicaoDeTag
 } from "../types";
 
 // Types imported from ../types
@@ -290,6 +295,7 @@ export default function ConfiguracoesClientWrapper() {
   const [editingQuickTag, setEditingQuickTag] = useState<QuickTag | null>(null);
   const [isCreatingQuickTag, setIsCreatingQuickTag] = useState(false);
 
+
   // Popup settings states
   const [popupSettings, setPopupSettings] = useState<PopupSettings>(DEFAULT_POPUP_SETTINGS);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -308,6 +314,39 @@ export default function ConfiguracoesClientWrapper() {
   // é a tabela A6 (`/admin/estoque`) e o editor A15 que escrevem, por rota
   // autenticada, nas colunas do banco.
   const [overrides, setOverrides] = useState<Record<string, { quick_tags?: string[] }>>({});
+  /**
+   * Quantos carros uma regra pega — o número que faltava para não montar
+   * categoria às cegas.
+   *
+   * O denominador são os PUBLICÁVEIS: o painel carrega também o que está fora
+   * do feed e o bloqueado por laudo ou fotos, e contar esses infla um número
+   * que o visitante nunca vai ver. `publicavel` é o mesmo gate de
+   * `getEstoque()`, e é seguro no cliente (o módulo não tem imports).
+   */
+  const veiculosPublicaveis = useMemo(
+    () => vehicles.filter((v) => publicavel(v as never)),
+    [vehicles],
+  );
+  const contarCasando = useCallback(
+    (tag: QuickTag) =>
+      veiculosPublicaveis.filter((v) => checkTagMatchesVehicle(tag, v, overrides)).length,
+    [veiculosPublicaveis, overrides],
+  );
+
+  /** As condições da tag em edição, sempre na forma nova. */
+  const condicoesEmEdicao = (tag: QuickTag | null): CondicaoDeTag[] =>
+    tag ? condicoesDaTag(tag) : [];
+
+  /** Reescreve a lista de condições preservando o resto da tag. */
+  const setCondicoes = (fn: (atuais: CondicaoDeTag[]) => CondicaoDeTag[]) =>
+    setEditingQuickTag((prev) => {
+      if (!prev) return prev;
+      const proximas = fn(condicoesDaTag(prev));
+      // Os três campos antigos saem quando a tag passa a ter `condicoes`:
+      // manter os dois lados gravados deixaria duas verdades no mesmo objeto.
+      const { field: _f, operator: _o, value: _v, ...resto } = prev;
+      return { ...resto, condicoes: proximas };
+    });
   
 
   // Webhook integration states
@@ -1509,59 +1548,193 @@ export default function ConfiguracoesClientWrapper() {
                       />
                     </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">Campo Mapeado</label>
-                      <select
-                        value={editingQuickTag?.field || "tipo"}
-                        onChange={(e) => {
-                          const newField = e.target.value as any;
-                          setEditingQuickTag(prev => prev ? { 
-                            ...prev, 
-                            field: newField,
-                            operator: newField === "manual" ? "none" : prev.operator === "none" ? "equals" : prev.operator,
-                            value: newField === "manual" ? "" : prev.value 
-                          } : null);
-                        }}
-                        className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full cursor-pointer"
+                    {/* ── Condições da regra ──────────────────────────────
+                        Antes era UM campo, UM operador e UM valor. Isso não
+                        expressa "SUV para família" nem "automático com baixa
+                        km" — as combinações que o vocabulário de perfis
+                        múltiplos abriu, e que são o que a curadoria faz de
+                        diferente da vitrine automática de /estoque.
+
+                        Todas as condições precisam casar (E): o que se pede a
+                        uma curadoria é ESTREITAR. */}
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+                        Regra — todas as condições precisam casar
+                      </label>
+
+                      {condicoesEmEdicao(editingQuickTag).map((cond, i) => {
+                        const fechado =
+                          cond.field === "tipo"
+                            ? (CARROCERIAS as readonly string[])
+                            : cond.field === "perfil_uso"
+                              ? PERFIS_DE_USO.map((pf) => pf.slug)
+                              : cond.field === "combustivel"
+                                ? ["Flex", "Gasolina", "Álcool", "Diesel", "Elétrico", "Híbrido"]
+                                : cond.field === "cambio"
+                                  ? ["Automático", "Manual"]
+                                  : null;
+                        const numerico = ["preco", "quilometragem", "ano"].includes(cond.field);
+                        const rotuloDoValor = (v: string) =>
+                          cond.field === "perfil_uso"
+                            ? (PERFIS_DE_USO.find((pf) => pf.slug === v)?.nome ?? v)
+                            : v;
+
+                        return (
+                          <div key={i} className="grid grid-cols-1 gap-2 border border-mt-regua-fina p-2.5 sm:grid-cols-[1fr_auto_1fr_auto]">
+                            <select
+                              aria-label="Campo"
+                              value={cond.field}
+                              onChange={(e) => {
+                                const campo = e.target.value as CondicaoDeTag["field"];
+                                setCondicoes((cs) =>
+                                  cs.map((c, j) =>
+                                    j === i
+                                      ? {
+                                          field: campo,
+                                          // Campo novo, valor velho não serve: trocar
+                                          // "Carroceria = SUV" para "Preço" deixaria
+                                          // `SUV` num comparador numérico.
+                                          value: "",
+                                          operator: campo === "manual" ? "none" : ["preco", "quilometragem", "ano"].includes(campo) ? "less" : "equals",
+                                        }
+                                      : c,
+                                  ),
+                                );
+                              }}
+                              className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full cursor-pointer"
+                            >
+                              <option value="tipo">Carroceria</option>
+                              <option value="perfil_uso">Para que serve</option>
+                              <option value="preco">Preço de venda</option>
+                              <option value="quilometragem">Quilometragem</option>
+                              <option value="ano">Ano</option>
+                              <option value="cambio">Câmbio</option>
+                              <option value="combustivel">Combustível</option>
+                              <option value="marca">Marca</option>
+                              <option value="manual">Só seleção manual</option>
+                            </select>
+
+                            {cond.field === "manual" ? (
+                              <span className="self-center text-[11px] text-mt-neutral-600 sm:col-span-2">
+                                Os carros entram um a um, pela tela de estoque.
+                              </span>
+                            ) : (
+                              <>
+                                <select
+                                  aria-label="Operador"
+                                  value={cond.operator}
+                                  onChange={(e) =>
+                                    setCondicoes((cs) =>
+                                      cs.map((c, j) =>
+                                        j === i ? { ...c, operator: e.target.value as CondicaoDeTag["operator"] } : c,
+                                      ),
+                                    )
+                                  }
+                                  className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-2 h-10 cursor-pointer"
+                                >
+                                  {numerico ? (
+                                    <>
+                                      <option value="less">menor que</option>
+                                      <option value="greater">maior que</option>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <option value="equals">é</option>
+                                      <option value="contains">contém</option>
+                                    </>
+                                  )}
+                                </select>
+
+                                {/* Lista fechada onde o vocabulário é fechado.
+                                    Texto livre aqui foi como se chegou a uma
+                                    categoria de zero carro: era preciso saber e
+                                    digitar `urbano` exatamente. */}
+                                {fechado ? (
+                                  <select
+                                    aria-label="Valor"
+                                    value={cond.value}
+                                    onChange={(e) =>
+                                      setCondicoes((cs) => cs.map((c, j) => (j === i ? { ...c, value: e.target.value } : c)))
+                                    }
+                                    className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full cursor-pointer"
+                                  >
+                                    <option value="">— escolha —</option>
+                                    {fechado.map((v) => (
+                                      <option key={v} value={v}>
+                                        {rotuloDoValor(v)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    aria-label="Valor"
+                                    type={numerico ? "number" : "text"}
+                                    placeholder={cond.field === "preco" ? "60000" : cond.field === "ano" ? "2022" : cond.field === "quilometragem" ? "40000" : "Chevrolet"}
+                                    value={cond.value}
+                                    onChange={(e) =>
+                                      setCondicoes((cs) => cs.map((c, j) => (j === i ? { ...c, value: e.target.value } : c)))
+                                    }
+                                    className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full placeholder-mt-neutral-500"
+                                  />
+                                )}
+                              </>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setCondicoes((cs) => cs.filter((_, j) => j !== i))}
+                              disabled={condicoesEmEdicao(editingQuickTag).length <= 1}
+                              className="mt-foco h-10 border border-mt-regua-fina px-3 text-[10px] font-bold uppercase tracking-widest text-mt-neutral-700 disabled:opacity-30"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => setCondicoes((cs) => [...cs, { field: "tipo", operator: "equals", value: "" }])}
+                        className="mt-foco h-9 w-max border border-mt-regua-fina px-4 text-[10px] font-bold uppercase tracking-widest text-mt-ink"
                       >
-                        <option value="tipo">Carroceria (Tipo)</option>
-                        <option value="perfil_uso">Estilo de Vida (Perfil de Uso)</option>
-                        <option value="preco">Preço de Venda</option>
-                        <option value="quilometragem">Quilometragem</option>
-                        <option value="marca">Marca (Fabricante)</option>
-                        <option value="combustivel">Combustível</option>
-                        <option value="manual">Manual (Apenas Associação Direta)</option>
-                      </select>
-                    </div>
+                        + Condição
+                      </button>
 
-                    {editingQuickTag?.field !== "manual" && (
-                      <>
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">Operador de Regra</label>
-                          <select
-                            value={editingQuickTag?.operator || "equals"}
-                            onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, operator: e.target.value as any } : null)}
-                            className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full cursor-pointer"
+                      {/* O contador que faltava.
+                          Sem ele, a única forma de descobrir que a regra não
+                          pega ninguém era publicar e olhar a página — e foi
+                          assim que categorias de zero carro foram parar no ar. */}
+                      {editingQuickTag && (() => {
+                        const n = contarCasando(editingQuickTag);
+                        const total = veiculosPublicaveis.length;
+                        const soManual = condicoesEmEdicao(editingQuickTag).every(
+                          (c) => c.field === "manual" || c.operator === "none",
+                        );
+                        return (
+                          <div
+                            className={`border-l-[3px] px-3.5 py-2.5 text-[11px] leading-relaxed ${
+                              n === 0 && !soManual
+                                ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800"
+                                : "border-mt-regua bg-mt-bg text-mt-neutral-800"
+                            }`}
                           >
-                            <option value="equals">Igual a</option>
-                            <option value="contains">Contém Texto</option>
-                            <option value="less">Menor que (&lt;)</option>
-                            <option value="greater">Maior que (&gt;)</option>
-                          </select>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">Valor Mapeado</label>
-                          <input
-                            type="text"
-                            placeholder="EX: ESPORTIVO ou 150000"
-                            value={editingQuickTag?.value || ""}
-                            onChange={(e) => setEditingQuickTag(prev => prev ? { ...prev, value: e.target.value } : null)}
-                            className="bg-mt-surface border border-mt-regua-fina text-xs text-mt-ink px-3 h-10 w-full placeholder-mt-neutral-500"
-                          />
-                        </div>
-                      </>
-                    )}
+                            {soManual ? (
+                              <>Categoria manual: {n} de {total} carros marcados até agora.</>
+                            ) : n === 0 ? (
+                              <>
+                                <strong>Esta regra não pega nenhum carro</strong> dos {total} publicáveis.
+                                Publicada assim, a categoria fica fora do ar até algum carro casar.
+                              </>
+                            ) : (
+                              <>
+                                Esta regra pega <strong>{n} de {total}</strong> carros publicáveis.
+                                {n === total && " — ou seja, o pátio inteiro: uma categoria que não recorta nada."}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
 
                     {/* Banner Mode Selector (Allows image background option or carousel for any category) */}
                     <div className="flex flex-col gap-1.5 sm:col-span-2 border-t border-mt-regua-fina pt-3">
@@ -1667,18 +1840,32 @@ export default function ConfiguracoesClientWrapper() {
                     <button
                       onClick={async () => {
                         if (!editingQuickTag) return;
-                        const isManual = editingQuickTag.field === "manual";
-                        if (!editingQuickTag.name.trim() || (!isManual && !editingQuickTag.value.trim())) {
-                          alert("Preencha todos os campos corretamente.");
+                        if (!editingQuickTag.name.trim()) {
+                          alert("Dê um nome à categoria.");
                           return;
                         }
-                        
+                        // Condição sem valor casa com string vazia e produz
+                        // categoria fantasma — pega tudo ou nada, e ninguém
+                        // entende por quê. Barrar aqui é mais barato que
+                        // descobrir na página.
+                        const condicoes = condicoesDaTag(editingQuickTag);
+                        const incompleta = condicoes.find(
+                          (c) => c.field !== "manual" && c.operator !== "none" && !String(c.value).trim(),
+                        );
+                        if (incompleta) {
+                          alert("Uma das condições está sem valor. Preencha ou remova a linha.");
+                          return;
+                        }
+
                         const generatedId = slugifyTag(editingQuickTag.name) || "tag-" + Date.now();
+                        // Grava só a forma nova: manter `field`/`operator`/`value`
+                        // ao lado de `condicoes` deixaria duas verdades no mesmo
+                        // objeto, e a leitura prefere `condicoes`.
+                        const { field: _f, operator: _o, value: _v, ...semFormaAntiga } = editingQuickTag;
                         const tagToSave: QuickTag = {
-                          ...editingQuickTag,
+                          ...semFormaAntiga,
+                          condicoes,
                           id: isCreatingQuickTag ? generatedId : editingQuickTag.id,
-                          operator: isManual ? "none" : editingQuickTag.operator,
-                          value: isManual ? "" : editingQuickTag.value,
                           description: editingQuickTag.description || "",
                           bgImageUrl: editingQuickTag.bgImageUrl || "",
                           bannerMode: editingQuickTag.bannerMode || (editingQuickTag.bgImageUrl ? "image" : "carousel")
@@ -1705,22 +1892,12 @@ export default function ConfiguracoesClientWrapper() {
               {/* List of current quick tags */}
               <div className="flex flex-col gap-3">
                 {quickTags.map((tag) => {
-                  const tagSlug = slugifyTag(tag.name) || tag.id;
-                  const linkedCount = vehicles.filter((v) => {
-                    const manualTags = overrides[v.id]?.quick_tags ?? [];
-                    if (manualTags.includes(tag.id) || manualTags.includes(tagSlug)) return true;
-                    if (tag.field === "manual" || tag.operator === "none") return false;
-                    let val: any = (v as any)[tag.field];
-                    if (tag.field === "preco") val = v.preco_promocional > 0 && v.preco_promocional < v.preco_original ? v.preco_promocional : v.preco_original;
-                    if (tag.field === "quilometragem") val = v.quilometragem;
-                    const strVal = String(val || "").toLowerCase();
-                    const targetVal = tag.value.toLowerCase();
-                    if (tag.operator === "equals") return strVal === targetVal;
-                    if (tag.operator === "contains") return strVal.includes(targetVal);
-                    if (tag.operator === "less") return Number(val) < Number(tag.value);
-                    if (tag.operator === "greater") return Number(val) > Number(tag.value);
-                    return false;
-                  }).length;
+                  /* Contagem pelo MESMO motor que a vitrine usa.
+                     Aqui vivia uma terceira cópia da regra, escrita à mão — e
+                     pior que as outras duas: não conhecia `perfis_uso`, então
+                     toda categoria de perfil aparecia com contagem errada no
+                     painel. Regra duplicada não fica igual; fica parecida. */
+                  const linkedCount = contarCasando(tag);
 
                   return (
                     <div key={tag.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-mt-bg border border-mt-regua-fina gap-3">
@@ -1786,9 +1963,7 @@ export default function ConfiguracoesClientWrapper() {
                     setEditingQuickTag({
                       id: "quick-tag-" + Date.now(),
                       name: "",
-                      field: "tipo",
-                      operator: "equals",
-                      value: ""
+                      condicoes: [{ field: "tipo", operator: "equals", value: "" }],
                     });
                     setIsCreatingQuickTag(true);
                   }}

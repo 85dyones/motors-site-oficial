@@ -11,11 +11,60 @@ import { slugifyTag } from "./tagUtils";
  * mesma contagem, então ela vive aqui e não dentro de um componente.
  */
 
+/**
+ * Os destaques que valem quando o painel não tem nenhum.
+ *
+ * ---------------------------------------------------------------------------
+ * A lista antiga, medida contra os 35 veículos servidos em 2026-08-27
+ * ---------------------------------------------------------------------------
+ *   curadoria    perfil_uso == "CURADORIA EXCLUSIVA"   →  0 de 35
+ *   economicos   preço < R$ 180.000                    → 34 de 35
+ *   parcela_1k   preço < R$ 120.000                    → 30 de 35
+ *   baixa_km     km < 40.000                           →  6 de 35
+ *
+ * `curadoria` apontava para um valor que morreu na migração de perfis — URL
+ * indexada com grade vazia. Os dois de preço faziam o contrário: com a mediana
+ * do pátio em R$ 62.900, um teto de 120 mil devolve 86% do estoque. Categoria
+ * que devolve quase tudo não recorta nada.
+ *
+ * ---------------------------------------------------------------------------
+ * O que a curadoria faz que `/estoque/{recorte}` não faz
+ * ---------------------------------------------------------------------------
+ * A vitrine automática já corta por carroceria (12), perfil de uso (8) e faixa
+ * de preço (3), sem ninguém configurar nada — `/estoque/urbano` e
+ * `/estoque/ate-60-mil` estão no ar. Repetir esses cortes aqui produziria duas
+ * URLs para a mesma grade, e alguém teria de escolher qual é a canônica.
+ *
+ * Sobra para a curadoria o que a vitrine não corta — quilometragem, câmbio,
+ * ano — mais a seleção manual de campanha e o banner com texto editorial. Os
+ * três padrões abaixo são disso, e cada um foi medido: nenhum devolve zero,
+ * nenhum devolve o pátio.
+ *
+ * ⚠️ Estes padrões só entram em cena quando o painel está sem categoria
+ * nenhuma. Hoje o painel tem duas, e elas vencem.
+ */
 export const DESTAQUES_PADRAO: QuickTag[] = [
-  { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
-  { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
-  { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
-  { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" },
+  // 6 de 35 em 27/08. O corte mais estreito dos três, e o único que sobreviveu
+  // à revisão — quilometragem não é eixo de `/estoque`.
+  {
+    id: "baixa_km",
+    name: "BAIXA QUILOMETRAGEM",
+    condicoes: [{ field: "quilometragem", operator: "less", value: "40000" }],
+  },
+  // 14 de 35. `cambio` não tem vitrine própria e é o primeiro filtro de quem
+  // compra carro de cidade.
+  {
+    id: "cambio-automatico",
+    name: "CÂMBIO AUTOMÁTICO",
+    condicoes: [{ field: "cambio", operator: "equals", value: "Automático" }],
+  },
+  // 11 de 35. `greater` em `ano` passa pelo campo aberto de `condicaoCasa`,
+  // que preserva número — comparar "2022" como texto daria ordem alfabética.
+  {
+    id: "ate-3-anos",
+    name: "ATÉ 3 ANOS DE USO",
+    condicoes: [{ field: "ano", operator: "greater", value: "2022" }],
+  },
 ];
 
 /**

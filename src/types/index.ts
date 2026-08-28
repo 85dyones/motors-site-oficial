@@ -207,12 +207,49 @@ export interface Campaign {
   targetVehicleId?: string;
 }
 
+/** Os campos que o editor de destaque oferece. Aberto na leitura — ver `checkTagMatchesVehicle`. */
+export type CampoDeTag =
+  | "perfil_uso"
+  | "preco"
+  | "quilometragem"
+  | "tipo"
+  | "marca"
+  | "combustivel"
+  | "cambio"
+  | "ano"
+  | "manual";
+
+export type OperadorDeTag = "equals" | "less" | "greater" | "contains" | "none";
+
+/**
+ * Uma condição da regra de curadoria.
+ *
+ * A regra nasceu com UMA condição — um campo, um operador, um valor — e isso
+ * não expressa "SUV para família" nem "automático com baixa km", que é
+ * justamente o que o vocabulário de perfis múltiplos abriu.
+ */
+export interface CondicaoDeTag {
+  field: CampoDeTag;
+  operator: OperadorDeTag;
+  value: string;
+}
+
 export interface QuickTag {
   id: string;
   name: string;
-  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel" | "manual";
-  operator: "equals" | "less" | "greater" | "contains" | "none";
-  value: string;
+  /**
+   * ⚠️ Os três campos abaixo são a forma ANTIGA, e continuam sendo lidos para
+   * sempre. As tags gravadas em produção estão nela, e reescrever o que
+   * funciona seria risco sem retorno — `condicoesDaTag` (lib/regrasEstoque)
+   * traduz as duas formas num lugar só.
+   *
+   * O painel grava `condicoes`.
+   */
+  field?: CampoDeTag;
+  operator?: OperadorDeTag;
+  value?: string;
+  /** A forma nova: todas as condições precisam casar (E). */
+  condicoes?: CondicaoDeTag[];
   description?: string;
   bannerMode?: "image" | "carousel";
   bgImageUrl?: string;
