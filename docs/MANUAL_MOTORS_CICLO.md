@@ -1,8 +1,10 @@
 ﻿# Manual Motors Ciclo
 ### Alinhamento do site, da base de dados e da automação
 
-**Versão 1.1 — Agosto 2026**
+**Versão 1.2 — Agosto 2026**
 Documento de referência para desenvolvimento. Toda decisão de produto, site ou automação deve ser verificável contra este documento.
+
+> **v1.2 (2026-08-28)** — incorpora a [Emenda 02](EMENDA_02_MANUAL_CICLO.md), aprovada pelo dono em 28/08/2026 ("mantenha o percentual da FIPE"): a recompra passa a ser **percentual da FIPE vigente no exercício, por faixa de conformidade**, com trava pelo praticado da casa; o gatilho estatístico do §1.4 é revogado e substituído por salvaguardas contratuais; o Índice Ciclo sai da fórmula de valor e vira indicador. Alterou §1.1, §1.2, §1.3, §1.4, §5.5, §5.6 e §5.7. Parecer jurídico e provisionamento seguem obrigatórios antes do primeiro contrato.
 
 > **v1.1 (2026-08-13)** — incorpora a [Emenda 01](EMENDA_01_MANUAL_CICLO.md), aprovada pelo dono em 13/08/2026: o programa passa a operar **sem telemetria embarcada**, e a conformidade de revisão nasce da Garagem Motors, com diário de bordo, validada pela loja contra a etiqueta de troca de óleo. Alterou §1.4, §1.5 (novo), §2.1, §3.1, §4.2, §5.2, §5.6, §5.7 e §6.3. O registro do que mudou e por quê está na emenda; este documento traz o texto vigente.
 
@@ -26,7 +28,7 @@ O sistema tem uma responsabilidade central: **saber, todo dia, quais clientes es
 
 | Peça | Função | Regra |
 |---|---|---|
-| **Recompra fixada** | Atrai o cliente | Motors compra de volta em 24 ou 36 meses por valor definido em contrato |
+| **Recompra fixada** | Atrai o cliente | Motors compra de volta em 24 ou 36 meses por **percentual da FIPE definido em contrato**, por faixa de conformidade (v1.2) |
 | **Revisões na rede** | Condição de validade | Recompra só é honrada com 100% das revisões feitas na rede parceira, dentro da janela de KM/tempo |
 | **Garantia estendida** | Protege o passivo | Reduz probabilidade de retorno com avaria estrutural |
 | **Histórico proprietário** | Ativo acumulado | KM real, manutenção, uso — permite precificar a recompra com risco baixo |
@@ -39,55 +41,62 @@ Sugestão de partida — conservadora, ajustável com dados:
 
 - **Modelos elegíveis:** apenas alta liquidez, giro histórico < 45 dias, com no mínimo 12 meses de série própria
 - **Idade máxima na venda:** até 6 anos de fabricação
-- **KM máximo no ato da recompra:** 15.000 km/ano acumulado (excedente reduz o valor por tabela publicada em contrato)
-- **Valor de recompra:** percentual do valor pago, definido por faixa de modelo e prazo, com **teto de exposição agregada** aprovado pela diretoria
-- **Perda de elegibilidade:** revisão fora da janela, sinistro com dano estrutural, adulteração de KM, débito de financiamento em aberto
+- **KM máximo no ato da recompra:** 15.000 km/ano acumulado — o excedente não extingue: é deduzido pelos **degraus de KM da curva de avaliação da casa**, anexos ao contrato (v1.2)
+- **Valor de recompra:** percentual da **FIPE vigente no exercício**, por faixa de conformidade, com **trava pelo praticado da casa por perfil** e **teto de exposição agregada** aprovado pela diretoria (v1.2)
+- **Perda de elegibilidade:** revisão fora da janela sem recuperação, sinistro com dano estrutural (média/grande monta), gravame não quitado no exercício, adulteração de KM, débito de financiamento em aberto
 
 ### 1.3 O que precisa estar em contrato
 
-- Valor de recompra em reais, não em percentual da FIPE (FIPE é média nacional retroativa e não serve como referência contratual)
+- **Percentual da FIPE vigente no exercício** (v1.2 — decisão do dono em 28/08: "mantenha o percentual da FIPE"), definido no fechamento da venda, com a tabela de faixas de conformidade anexa. O argumento da v1.0 — FIPE é média nacional retroativa — segue verdadeiro; o risco dele é tratado pela **trava do §5.5**, não pela proibição da referência. Para *estimar mercado* (equity mining, §5.3), FIPE pura continua desqualificada.
 - Janela de exercício (ex.: entre o mês 22 e 26, ou 34 e 38)
 - Condições de perda de elegibilidade, listadas exaustivamente
-- Tabela de desconto por KM excedente e por avaria, publicada e anexa
-- Direito da Motors de vistoriar antes de honrar
+- Tabela de desconto por KM excedente (degraus da curva de avaliação) e por avaria (por orçamento, na vistoria), publicada e anexa
+- Direito da Motors de vistoriar antes de honrar — a **vistoria de retorno é etapa obrigatória do exercício** (v1.2)
 
 > **Atenção jurídica.** A recompra fixada é uma opção de venda que a Motors escreve. É passivo contábil. Exige provisionamento e parecer jurídico antes do primeiro contrato assinado.
 
-### 1.4 Gatilho de ativação da recompra
+### 1.4 Salvaguardas da recompra (o gatilho de ativação foi revogado — v1.2)
 
-**A recompra não é ligada no lançamento. É um módulo com pré-requisito.**
+**A recompra deixa de esperar um gatilho estatístico. Passa a ser protegida por salvaguardas que valem desde o primeiro contrato.**
 
-Razão técnica: precificar a recompra sobre FIPE contradiz o próprio §5.3 deste manual, que desqualifica a FIPE como referência contratual. Sem curva de depreciação própria, a Motors estaria escrevendo uma opção de venda usando a fonte que ela mesma considera insuficiente.
+Da v1.0 até a v1.1, esta seção mantinha a recompra desligada até
+`conformidade_revisao >= 70%` por 3 meses, `veiculos_monitorados >= 150` e
+`serie_procedencia >= 6 meses`. Em 28/08/2026 o dono revogou o gatilho
+("mantenha o percentual da FIPE" — Emenda 02, E1): a mecânica que a casa já
+pratica — percentual da FIPE por faixa de conformidade — vira a regra escrita,
+e o que o gatilho protegia passa a ser protegido por contrato:
 
-**Condição de ativação, verificável e auditável:**
+1. **Trava pelo praticado** (§5.5): o percentual pleno nunca excede o que a
+   casa efetivamente paga por perfil de carro, menos a margem alvo. É a
+   resposta ao risco de a FIPE descolar do mercado local.
+2. **Parecer jurídico + provisionamento antes do primeiro contrato assinado**
+   — a nota do §1.3 permanece: opção de venda é passivo contábil, e o teto de
+   exposição agregada continua com a diretoria (§1.2).
+3. **Parâmetros como dado, com vigência** (§5.5): os percentuais são seed em
+   `ciclo_parametros`; o contrato guarda os parâmetros do dia da assinatura;
+   os seeds só viram contrato depois de batidos contra o praticado real por
+   perfil.
+4. **Franquia de KM, vistoria de retorno e excludentes** (§1.2, §5.5): o
+   contrato delimita o estado do carro que volta.
 
-```
-conformidade_revisao >= 70%   por 3 meses consecutivos
-E veiculos_monitorados >= 150
-E serie_procedencia >= 6 meses
-```
+**A série de conformidade continua obrigatória — mudou de papel.**
+`conformidade_diaria`, `serie_procedencia` e o painel do indicador seguem
+rodando desde o dia 1 (§5.7): deixam de ser porteiro do produto e viram o que
+define a **faixa de cada contrato** e recalibra os percentuais trimestralmente
+com dado próprio (§5.6). Dia sem cálculo continua zerando a série — a
+disciplina não afrouxou, só o que depende dela.
 
-Onde:
-
-- `conformidade_revisao` = % de veículos com Ciclo ativo cuja última revisão programada foi feita na rede dentro da janela contratada.
-- `serie_procedencia` = meses consecutivos com registro diário ininterrupto de `conformidade_diaria`, contados do primeiro veículo com Ciclo ativo. **Dia sem cálculo zera a contagem** — a série precisa ser contínua para servir de base à curva.
-- `veiculos_monitorados` = veículos com Ciclo ativo **e diário de bordo vivo**: ao menos uma revisão confirmada nos últimos 12 meses, ou ainda dentro da janela da primeira revisão.
-
-> **v1.1:** a terceira condição era `serie_telemetria >= 6 meses`. A telemetria embarcada foi adiada (nenhum provedor contratado) e a fonte do KM real passou a ser a diário de bordo, com o KM lido pela oficina e fotografado na etiqueta de óleo — dado menos frequente e **mais verificável** que odômetro reportado por rastreador. O que o gatilho protege não mudou: a Motors não escreve opção de venda sem curva de depreciação própria com KM real. Ver §1.5 e Emenda 01, artigo E1.
-
-**O `fator_retencao` do §5.5 continua exigindo série histórica própria.** Esta mudança troca a fonte do KM; não dispensa a curva. A recompra permanece desligada até que as duas coisas existam.
-
-**O sistema deve calcular e exibir esse indicador em painel desde o primeiro dia.** É o número que destrava a fase seguinte — a diretoria acompanha, ninguém precisa argumentar.
-
-**Enquanto o gatilho não abre:**
+**Enquanto a formalização não conclui** (parecer jurídico, provisionamento e
+validação dos seeds contra o praticado):
 - Contratos vendidos são Essencial e Garantido *sem cláusula de recompra*
 - Campos `recompra_*` permanecem nulos
-- O Índice Ciclo roda normalmente e acumula histórico (é o que forma a curva)
 - Nenhuma peça de comunicação menciona recompra
+- O diário de bordo e a conformidade acumulam história normalmente — é a
+  faixa futura dos primeiros contratos
 
 ### 1.5 Plano de revisões
 
-*Artigo novo na v1.1. É o que o diário de bordo mede e o que alimenta o §1.4.*
+*Artigo novo na v1.1. É o que o diário de bordo mede — e, desde a v1.2, o que define a faixa de recompra do §5.5.*
 
 **Intervalo: 10.000 km ou 12 meses, o que ocorrer primeiro.**
 
@@ -528,21 +537,58 @@ Elegível se:
 
 Só é oferta se **mantém a parcela**. Oferta que aumenta a parcela não é upgrade, é venda forçada — e queima o cliente.
 
-### 5.5 Precificação da recompra
+### 5.5 Precificação da recompra (v1.2 — percentual da FIPE por faixa)
 
 ```
-recompra_piso = valor_venda × fator_retencao(modelo, prazo) × fator_seguranca
-recompra_teto = recompra_piso × 1,08
-recompra_vigente = recompra_piso + (recompra_teto − recompra_piso) × (indice_total / 100)
+recompra_vigente = percentual_da_faixa × FIPE_vigente_no_exercicio
+                   − deducao_km_excedente − deducao_avarias
 ```
 
-`fator_retencao` **deve vir de série histórica própria** de depreciação por modelo. Enquanto ela não existir, o gatilho do §1.4 mantém a recompra desligada — não use estimativa de mercado como substituto.
+**As faixas** — seed em `ciclo_parametros`, com vigência datada; o contrato
+guarda os parâmetros do dia da assinatura:
 
-`fator_seguranca` inicial de 0,93, ajustável para cima somente após 12 meses de dados próprios.
+| Conformidade das revisões | Crédito em troca | Dinheiro |
+|---|---|---|
+| **Em dia** — todas documentadas dentro da janela (§1.5, §5.7) | 85% | 80% |
+| **Recuperada** — 1 atraso, recuperado em até 60 dias (máx. 1 por ciclo) | 80% | 75% |
+| **Fora** — atraso não recuperado | **extinta** — avaliação normal |
 
-O **piso é contratual e nunca cai.** O índice só move o valor para cima dentro da faixa.
+**A trava que substitui o gatilho revogado (§1.4):**
+
+```
+percentual_pleno × FIPE ≤ preço praticado pela casa no perfil − margem alvo
+```
+
+A Motors nunca promete pagar amanhã mais do que paga hoje pelo mesmo carro,
+menos a margem que a operação precisa. Perfil em que a conta não fecha não é
+elegível — o percentual não se estica para caber.
+
+Regras que amarram a fórmula:
+
+- **Deduções**: KM excedente da franquia (15.000 km/ano) pelos degraus da
+  curva de avaliação da casa, sem teto de corte; avarias além do desgaste por
+  orçamento, na vistoria de retorno obrigatória. Excludentes do §1.2
+  extinguem, não deduzem.
+- **Crédito em troca > dinheiro por desenho**: a recompra existe para trazer
+  o cliente de volta ao estoque.
+- **Vale até o novo negócio**: exercida na troca ou na venda do carro de
+  volta à loja, que reentra com a regra de preço do contrato sobreposta à
+  avaliação.
+- **Os seeds acima ainda não são contrato**: antes do primeiro contrato
+  assinado, bater cada percentual contra o praticado real da casa por perfil
+  (a trava é o critério) — pendência registrada na Emenda 02, D13.
+- A **curva de depreciação própria** (histórico proprietário do §1.1)
+  continua sendo acumulada — como instrumento de **recalibração trimestral**
+  dos percentuais e da margem alvo, não como pré-condição. `fator_retencao`
+  e `fator_seguranca` da v1.1 saem da fórmula.
 
 ### 5.6 Índice Ciclo
+
+> **v1.2 — o índice saiu da fórmula de valor.** O valor de recompra é função
+> só da **faixa de conformidade** (§5.5); o Índice Ciclo permanece como
+> indicador mensal de painel e engajamento (série em `indice_ciclo`), e como
+> insumo da recalibração trimestral. Com isso a neutralidade fica garantida
+> por construção: recusa não toca dinheiro, porque o índice não toca dinheiro.
 
 **Enquanto não houver provedor de telemetria contratado (v1.1):**
 
@@ -571,7 +617,7 @@ Cada componente normalizado de 0 a 1. Calculado mensalmente, gravado em `indice_
 
 **Regra de neutralidade:** se `consentimento_conducao = false`, o componente de condução **não conta como zero — é redistribuído proporcionalmente entre os outros três.** Recusar telemetria de condução nunca pode reduzir o índice. É requisito de LGPD e é o que sustenta a promessa de marketing.
 
-**Regra de piso:** `indice_total` nunca reduz o valor abaixo de `recompra_piso`. Se algum componente cai, o cliente perde apenas a parte que ainda não conquistou.
+**Regra de piso (reformulada na v1.2):** dentro de uma faixa de conformidade, o valor não é reduzido por índice — o índice não participa do valor. O que move o valor é a mudança de faixa (§5.5), e mesmo ela nunca desce abaixo do percentual da faixa em que o cliente está: quem está em dia não perde por componente de indicador.
 
 ### 5.7 Conformidade de revisão (indicador de gatilho)
 
@@ -580,9 +626,9 @@ conformidade_revisao = veiculos_com_ultima_revisao_na_janela
                      / veiculos_com_ciclo_ativo_e_revisao_devida
 ```
 
-Rodar diariamente, exibir em painel desde o dia 1. **É o número que destrava a Fase 2.**
+Rodar diariamente, exibir em painel desde o dia 1. **É o número que define a faixa de cada contrato (§5.5) e mede a saúde do programa** — na v1.1 era o que destravava a Fase 2; o gatilho foi revogado na v1.2, a régua de verificação não.
 
-**O que conta no numerador (v1.1):** só revisão com `confirmada_em` preenchido **e** `dentro_da_janela = true`. Registro feito pelo cliente e ainda sem verificação da loja **não conta** — é a transcrição literal do §1.4, que exige revisão "feita na rede dentro da janela contratada", e é o que neutraliza fraude: registrar não é o ativo, a verificação é.
+**O que conta no numerador (v1.1):** só revisão com `confirmada_em` preenchido **e** `dentro_da_janela = true`. Registro feito pelo cliente e ainda sem verificação da loja **não conta** — é a régua que a faixa "em dia" do §5.5 pressupõe (revisão documentada dentro da janela do §1.5), e é o que neutraliza fraude: registrar não é o ativo, a verificação é. Desde a v1.2, essa régua tem consequência direta no valor: ela decide a faixa.
 
 **Gravar todo dia em `conformidade_diaria`, inclusive quando o denominador é zero** (com `pct = NULL`). Os primeiros meses de série serão honestamente vazios — a primeira revisão de um carro vendido hoje só vence daqui a meses. É exatamente o que se quer: a série começa no dia zero, e `serie_procedencia` (§1.4) só corre com registro ininterrupto.
 
@@ -824,22 +870,27 @@ Estender o `TRACKING_SPEC.md` existente com os eventos do ciclo. Cada um vai par
 
 > **v1.1 — o que mudou de ordem e por quê.** A integração de telemetria saiu da fila (nenhum provedor contratado) e a **diário de bordo subiu para o 4º lugar**: sem ela não existe fonte de conformidade, e conformidade é o que o passo 5 mede e o que o §1.4 exige. Antes do passo 1, um pré-requisito de segurança que já foi executado em 2026-08-13: separar o público do cliente do público da equipe no Auth, porque os dois dividem o mesmo pool de usuários.
 
-### Bloco B — Recompra *(bloqueado até o gatilho do §1.4 abrir)*
+### Bloco B — Recompra *(v1.2: destravado para DESENVOLVER; assinatura só após a formalização do §1.4)*
 
-> **Não iniciar desenvolvimento antes da condição ser atingida.** Construir a interface de recompra antes da hora cria pressão organizacional para ligá-la antes de o dado sustentar.
+> O gatilho estatístico foi revogado (Emenda 02). O que segura agora não é
+> dado acumulado, é formalização: parecer jurídico, provisionamento e seeds
+> validados contra o praticado. **Desenvolver pode; assinar contrato com
+> cláusula de recompra, ainda não.** A ordem natural é a do handoff: contrato
+> no fechamento (F1), revisões e exposição (F2), recompra como porta de
+> entrada (F2).
 
-13. Cálculo do `fator_retencao` sobre série própria de depreciação
-14. Módulo de precificação com piso, teto e faixa do índice
-15. Contrato eletrônico de recompra e provisionamento contábil
-16. Selo de recompra na vitrine e na ficha do veículo
+13. `ciclo_parametros` com faixas, trava e vigência datada (§5.5) — validar seeds contra o praticado por perfil
+14. Módulo de precificação por faixa de conformidade, com a trava pelo praticado
+15. Contrato eletrônico de recompra e provisionamento contábil *(bloqueia a primeira assinatura)*
+16. Selo de recompra na vitrine e na ficha do veículo *(só após o primeiro contrato)*
 17. Gatilhos 6 e 7 (janela de recompra e elegibilidade em risco)
-18. Painel de exposição agregada vs. teto aprovado
+18. Painel de exposição agregada vs. teto aprovado + histograma do praticado × curva alvo (recalibração trimestral)
 
 ---
 
 ## Anexo — Perguntas a fechar antes do desenvolvimento
 
-1. Percentual de recompra por faixa de modelo e prazo — quem define e com base em qual série?
+1. ~~Percentual de recompra por faixa de modelo e prazo — quem define e com base em qual série?~~ **Respondida na v1.2**: percentual da FIPE por faixa de conformidade (§5.5); os seeds (85/80 · 80/75) ainda precisam ser batidos contra o praticado da casa por perfil, e a **margem alvo da trava** ainda não tem número — são as duas metades que restam desta pergunta.
 2. Teto de exposição agregada de recompra aprovado pela diretoria
 3. Modelo de provisionamento contábil do passivo de recompra
 4. Divisão de comissão com cada tipo de parceiro, formalizada
@@ -850,5 +901,10 @@ Estender o `TRACKING_SPEC.md` existente com os eventos do ciclo. Cada um vai par
 
 7. Intervalos de revisão acordados com a rede parceira — hoje o §1.5 usa a prática publicada das montadoras como referência, e ela deve ser substituída pelo contrato quando existir.
 8. Quando contratar provedor de rastreamento? A telemetria não bloqueia mais o programa, mas os pesos do §5.6 e a tabela do §6.3-D voltam a mudar quando ela entrar.
+
+**Acrescentadas na v1.2:**
+
+9. A margem alvo por perfil — o número da trava do §5.5. Sem ele, a trava não calcula e os seeds não se validam.
+10. Validação jurídica dos templates de contrato de recompra (a spec 60 do handoff prevê o fluxo) — junto com o modelo de provisionamento da pergunta 3, é o que separa "desenvolvido" de "assinável".
 
 **Fechadas na v1.1** (registro em `EMENDA_01_MANUAL_CICLO.md`): quem valida a revisão — **Comercial ou Administrador**, com o Comercial como dono da fila de verificação e o Administrador como revisor. É arranjo **transitório**: a resposta definitiva depende da pergunta 6, e a estrutura correta é um papel de pós-venda próprio, dono da fila, dos lembretes e do relacionamento durante os 36 meses.
