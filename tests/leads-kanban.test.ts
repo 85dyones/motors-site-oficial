@@ -17,10 +17,14 @@ import {
  * "não acontece" quando o link do telefone rouba o gesto.
  */
 
+// ⚠️ Normaliza CRLF: checkout com core.autocrlf=true (Windows) materializa
+// \r\n. O strip de comentário logo abaixo casa linha a linha ancorando em `$`,
+// que não alcança o "\r" sobrando — e os `//` não removidos estouram as
+// janelas de distância ([\s\S]{0,N}) das asserções. O repo guarda LF.
 const kanban = readFileSync(
   join(__dirname, "..", "src", "components", "admin", "LeadsKanban.tsx"),
   "utf-8"
-);
+).replace(/\r\n/g, "\n");
 
 /**
  * O mesmo arquivo sem comentários.
@@ -38,7 +42,7 @@ const codigo = kanban
 const rota = readFileSync(
   join(__dirname, "..", "src", "app", "api", "leads", "gerenciar", "route.ts"),
   "utf-8"
-);
+).replace(/\r\n/g, "\n");
 
 describe("iniciais", () => {
   it("usa primeira e última palavra", () => {

@@ -35,7 +35,13 @@ function fontes(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-const arquivos = fontes(raiz).map((f) => ({ caminho: f, texto: readFileSync(f, "utf-8") }));
+// ⚠️ Separador nativo: no Windows o `join` monta "src\lib\funil.ts", e a
+// isenção por `endsWith("lib/funil.ts")` nunca casaria — o arquivo isento
+// voltaria a ser infrator só por causa da máquina. Compara-se sempre em "/".
+const arquivos = fontes(raiz).map((f) => ({
+  caminho: f.replace(/\\/g, "/"),
+  texto: readFileSync(f, "utf-8"),
+}));
 
 describe("ponto único de montagem", () => {
   it("ninguém monta wa.me à mão com o número da loja", () => {
