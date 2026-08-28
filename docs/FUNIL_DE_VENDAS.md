@@ -372,6 +372,55 @@ Nada de lógica de horário ou de prazo no workflow — ela está no banco.
 transfere ninguém. É o que se chama para conferir a régua antes de ligar o
 workflow.
 
+### O workflow, versionado
+
+`Motors Funil — Alertas de Estagnação.json`, na raiz do repositório, no mesmo
+padrão dos outros dois. Oito nós:
+
+```
+De hora em hora → Pedir a fila → Distribuir os avisos → Tem para quem mandar?
+                                                          ├─ sim → Enviar (Evolution) → Registrar envio ─┐
+                                                          └─ não → Não enviado (sem número) ─────────────┴→ Conferir entregas
+```
+
+**Para importar:** n8n → Import from File. Depois, três coisas:
+
+1. **A credencial `FUNIL_MOTOR_TOKEN`** (Header Auth) precisa ser criada e
+   selecionada no nó *Pedir a fila* — o JSON traz um id de marcação que não
+   existe na instância. `Name = Authorization`, `Value = Bearer <token>`.
+2. **`WHATSAPP_GESTAO`** no nó *Distribuir os avisos*: o número de quem cuida
+   do cadastro comercial. Vazio, o aviso de pendência de cadastro não sai — e
+   fica registrado como não enviado, em vez de sumir.
+3. **Ligar** só depois de conferir a prévia. Ele é importado **desligado** de
+   propósito: a primeira rodada manda mensagem de verdade.
+
+**Três decisões dentro do workflow que merecem nota:**
+
+- **Ele acorda de hora em hora, todo dia — inclusive de madrugada e domingo.**
+  Não é descuido. Quem decide se pode avisar agora é a rota; repetir a régua de
+  horário no cron a duplicaria em dois lugares que ninguém obriga a concordar,
+  e num fuso ainda por cima. Fora do horário a fila volta suprimida e nada é
+  gravado. Custo: ~10 chamadas por dia que não fazem nada.
+- **O aviso de cadastro faltando sai uma vez por dia, não a cada hora.**
+  `vendedor_sem_whatsapp` e `sem_vendedor_disponivel` são silenciosos e
+  precisam de alguém; mas um lembrete repetido doze vezes vira ruído que se
+  aprende a ignorar — o oposto do que um alerta serve para fazer. As outras
+  duas supressões (`fora_do_horario`, `alerta_recente`) não geram aviso
+  nenhum: são a régua funcionando.
+- **Falha de entrega derruba a execução.** É o único buraco do desenho: a rota
+  transfere no mesmo comando que monta a fila, e a entrega acontece depois, no
+  n8n. Se o envio falhar em silêncio, o lead trocou de dono e o dono novo não
+  soube — exatamente a transferência sem aviso que o resto do sistema existe
+  para impedir. O nó *Conferir entregas* estoura quando qualquer aviso de
+  vendedor não saiu, e diz quais. O aviso de gestão fica fora da conta: ele
+  não transfere nada.
+
+`tests/funil.test.ts` trava o contrato entre o arquivo e a rota — os campos
+lidos, os nomes das supressões, a credencial e o nó de conferência. A cópia
+versionada de workflow já divergiu do que roda ao vivo duas vezes neste
+projeto (`supabase/README.md`); o teste cobre a metade que o repositório
+controla.
+
 > **A transferência só acontece com `reservar: true`**, dentro do mesmo comando
 > que produz a mensagem. Não existe transferência silenciosa: se ninguém vai ser
 > avisado, o lead não troca de dono.
@@ -450,5 +499,11 @@ a seis meses precisa saber que os números foram escolhidos, não herdados.
 - **Rever os prazos com um mês de dados.** A tabela §3.1 é um ponto de partida
   declarado; a primeira leitura do relatório é o que diz se 15 minutos gera
   ação ou gera ruído.
-- **Ligar o workflow do n8n** (§5) e configurar `FUNIL_MOTOR_TOKEN`. Até lá o
-  funil registra tudo e não avisa ninguém.
+- **Ligar o workflow do n8n.** O arquivo está versionado e o token já está na
+  Vercel (2026-08-28); falta importar, preencher `WHATSAPP_GESTAO` e ativar.
+- **Limpar os leads de teste antes de ativar.** A prévia de 2026-08-28 trouxe
+  oito leads sem dono, e pelo menos cinco são sobra de QA — "TESTE GTM",
+  "teste turnstile", "Motors Store test". Ligar assim manda oito mensagens
+  sobre leads que não existem, e ensina a equipe a ignorar o alerta na
+  estreia. O motivo *"Contato inválido, duplicado ou trote"* existe para
+  isso.
