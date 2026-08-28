@@ -306,6 +306,16 @@ avisado.
 `suprimidos` traz o que ficou de fora **com o motivo**. Fila que descarta em
 silêncio é fila que ninguém audita.
 
+O workflow está versionado em `Motors Funil — Alertas de Estagnação.json`, na
+raiz. Importe, crie a credencial Header Auth `FUNIL_MOTOR_TOKEN`
+(`Authorization: Bearer <token>`), preencha `WHATSAPP_GESTAO` no nó
+*Distribuir os avisos* e ative — ele é importado desligado de propósito.
+
+Ele acorda de hora em hora todo dia: a régua de horário é da ROTA, não do
+cron, para não existir em dois lugares. E a execução termina vermelha se algum
+aviso de vendedor não for entregue — a rota já transferiu o lead nesse ponto, e
+entrega que falha calada é transferência sem aviso.
+
 A régua completa está em `docs/FUNIL_DE_VENDAS.md`.
 
 ---

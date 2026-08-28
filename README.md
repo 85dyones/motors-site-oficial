@@ -43,7 +43,7 @@ As variáveis de ambiente estão descritas em `.env.example`.
 | `AUDITORIA.md` | Auditoria do Pacote 0 (fotografia de 2026-08-03) + decisões datadas |
 | `docs/ACHADOS_FINANCEIRO.md` | 13 achados de revisão no financeiro/investidores, ainda não corrigidos |
 | `supabase/README.md` | Migrações, runbook de aplicação e o contrato do sync de estoque |
-| `WEBHOOKS_N8N.md` | Contrato dos webhooks site → n8n (formatos A, B e C) |
+| `WEBHOOKS_N8N.md` | Contrato dos webhooks site → n8n (formatos A, B e C) e as rotas que o n8n chama de volta |
 | `TRACKING_SPEC.md` | Meta Pixel/CAPI e Google — spec em produção |
 | `docs/GTM_CONFIGURACAO.md` | Variáveis, tags, gatilhos e conversões do GTM, prontos para copiar |
 | `SETUP_MANUAL.md` | Passo a passo de configuração de contas externas |

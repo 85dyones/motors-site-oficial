@@ -478,6 +478,112 @@ describe("o rodízio não tem teto", () => {
   });
 });
 
+describe("o workflow do n8n e a rota falam a mesma língua", () => {
+  // `supabase/README.md` registra que a cópia versionada de workflow do n8n já
+  // divergiu do que roda ao vivo DUAS vezes neste projeto. A divergência é
+  // muda: o workflow lê um campo que a rota deixou de mandar, a expressão vira
+  // `undefined`, e a mensagem sai vazia ou não sai — com a execução verde.
+  //
+  // Este bloco não prova que o n8n está configurado certo (nada aqui alcança o
+  // n8n). Prova que o ARQUIVO versionado combina com a rota — que é a metade
+  // que o repositório controla.
+
+  const workflow = readFileSync(
+    join(__dirname, "..", "Motors Funil — Alertas de Estagnação.json"),
+    "utf-8",
+  );
+  const wf = JSON.parse(workflow);
+  const rota = readFileSync(
+    join(__dirname, "..", "src", "app", "api", "funil", "alertas", "route.ts"),
+    "utf-8",
+  );
+
+  it("o JSON é válido e nenhuma conexão aponta para um nó que não existe", () => {
+    // Conexão órfã não impede a importação: o n8n só desenha o fluxo partido,
+    // e o ramo some sem avisar.
+    const nomes = new Set(wf.nodes.map((n: any) => n.name));
+    for (const [origem, saidas] of Object.entries<any>(wf.connections)) {
+      expect(nomes.has(origem), `origem inexistente: ${origem}`).toBe(true);
+      for (const saida of saidas.main) {
+        for (const alvo of saida) {
+          expect(nomes.has(alvo.node), `destino inexistente: ${alvo.node}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("chama a rota certa, com reservar ligado", () => {
+    expect(workflow).toContain("/api/funil/alertas");
+    expect(workflow).toContain('\\"reservar\\": true');
+  });
+
+  it("usa o token do funil, nunca o do Ciclo", () => {
+    // Segredo mede acesso: a base de leads e a base de clientes do Ciclo são
+    // dois conjuntos de dados. Um workflow que reusasse o token vizinho
+    // abriria uma escada de privilégio sem ninguém notar.
+    //
+    // A asserção olha a CREDENCIAL, não o texto do arquivo: a primeira versão
+    // deste teste procurava a string "CICLO_MOTOR_TOKEN" no JSON inteiro e
+    // reprovou a nota que EXPLICA por que aquele token não é usado aqui. É o
+    // mesmo vício da autoconferência da migração — cobrar a palavra em vez da
+    // regra.
+    const credenciais = wf.nodes
+      .map((n: any) => n.credentials?.httpHeaderAuth?.name)
+      .filter(Boolean);
+    expect(credenciais).toContain("FUNIL_MOTOR_TOKEN");
+    expect(credenciais).not.toContain("CICLO_MOTOR_TOKEN");
+  });
+
+  it("lê da resposta só campos que a rota realmente manda", () => {
+    for (const campo of ["fila", "suprimidos", "sem_destinatario"]) {
+      expect(workflow, `workflow lê ${campo}`).toContain(campo);
+      expect(rota, `rota manda ${campo}`).toContain(campo);
+    }
+    // A forma de cada item da fila. `destinatario.whatsapp` é o que decide
+    // para quem a mensagem vai — se ele mudar de nome, todo aviso vira
+    // "sem número" e o ramo silencioso engole tudo.
+    expect(workflow).toContain("a.destinatario?.whatsapp");
+    expect(rota).toMatch(/destinatario: \{[\s\S]{0,200}whatsapp:/);
+    expect(workflow).toContain("a.mensagem");
+    expect(rota).toContain("mensagem: mensagemDeAlerta(linha");
+  });
+
+  it("as supressões que ele trata como acionáveis existem no banco", () => {
+    // Um nome errado aqui não dá erro: o filtro simplesmente nunca casa, e o
+    // aviso de cadastro faltando nunca sai.
+    for (const motivo of ["vendedor_sem_whatsapp", "sem_vendedor_disponivel"]) {
+      expect(workflow, `workflow cita ${motivo}`).toContain(motivo);
+      expect(sqlExecutavel, `SQL produz ${motivo}`).toContain(motivo);
+    }
+    // E as que ele IGNORA de propósito também são reais — se uma delas mudar
+    // de nome, ela passa a virar alarme de gestão todo dia.
+    for (const normal of ["fora_do_horario", "alerta_recente"]) {
+      expect(sqlExecutavel).toContain(normal);
+    }
+  });
+
+  it("falha de entrega derruba a execução — o lead já foi transferido", () => {
+    // É o único buraco do desenho: a rota transfere no mesmo comando que monta
+    // a fila, e a entrega acontece depois, no n8n. Envio que falha em silêncio
+    // produz exatamente a transferência sem aviso que o resto do sistema
+    // existe para impedir.
+    const conferir = wf.nodes.find((n: any) => n.name === "Conferir entregas");
+    expect(conferir, "o nó de conferência sumiu").toBeTruthy();
+    expect(conferir.parameters.jsCode).toContain("throw new Error");
+    expect(conferir.parameters.jsCode).toContain("JÁ foi transferido");
+    // E ele precisa receber os DOIS ramos: o que enviou e o que não tinha
+    // número. Só um deles e metade das falhas fica invisível.
+    expect(wf.connections["Registrar envio"].main[0][0].node).toBe("Conferir entregas");
+    expect(wf.connections["Não enviado (sem número)"].main[0][0].node).toBe("Conferir entregas");
+  });
+
+  it("nasce desligado", () => {
+    // Importar não pode ligar sozinho: a primeira rodada em produção manda
+    // mensagem de verdade, e quem decide a hora é o dono.
+    expect(wf.active).toBe(false);
+  });
+});
+
 describe("a autoconferência não pode sujar a base que ela conferiu", () => {
   // 2026-08-28: a migração foi recusada em produção com
   //   "ACEITE FALHOU: o rodízio mandou o lead para Dyones Oliveira".
