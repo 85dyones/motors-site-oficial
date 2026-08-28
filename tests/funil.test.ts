@@ -478,6 +478,46 @@ describe("o rodízio não tem teto", () => {
   });
 });
 
+describe("a autoconferência não pode sujar a base que ela conferiu", () => {
+  // 2026-08-28: a migração foi recusada em produção com
+  //   "ACEITE FALHOU: o rodízio mandou o lead para Dyones Oliveira".
+  // A função estava certa; a asserção é que fora escrita para um banco vazio.
+  // E ela escondia um defeito pior, provado depois num banco de ensaio: o
+  // bloco chamava `montar_fila_do_funil(..., true)`, que NÃO tem recorte —
+  // ela reserva a fila inteira. Num banco com leads de verdade, o aceite
+  // teria transferido lead real, carimbado `alertado_em` e escrito no rastro,
+  // e a limpeza por DELETE só apagaria as linhas do próprio ensaio.
+  //
+  // Ou seja: a migração que existe para impedir transferência silenciosa
+  // faria uma, na hora de aplicar. Estes três testes trancam a correção.
+
+  it("o ensaio roda dentro de um bloco que desfaz tudo", () => {
+    // Sem o sentinela, qualquer escrita do aceite — inclusive sobre dado real
+    // — fica comitada junto com a migração.
+    const sentinelas = sqlExecutavel.match(/errcode = 'ACE01'/g) ?? [];
+    const capturas = sqlExecutavel.match(/when sqlstate 'ACE01' then null/g) ?? [];
+    expect(sentinelas.length).toBe(2);
+    expect(capturas.length).toBe(2);
+  });
+
+  it("a limpeza não depende de o bloco chegar ao fim", () => {
+    // `delete` no rodapé só roda se nenhuma asserção falhar antes — e é
+    // justamente quando uma falha que o resíduo fica para trás. O rollback
+    // não tem esse problema.
+    expect(sqlExecutavel).not.toMatch(/delete from public\.leads\s+where nome like/);
+    expect(sqlExecutavel).not.toMatch(/delete from auth\.users\s+where id in \(v_vend/);
+  });
+
+  it("o rodízio é cobrado pela regra, não pelo nome de quem ele escolhe", () => {
+    // Nome só é previsível num banco vazio. A asserção correta é relativa:
+    // quem foi escolhido tem a MENOR carteira aberta entre os elegíveis.
+    expect(sqlExecutavel).not.toMatch(
+      /novo_responsavel is distinct from 'Aceite/,
+    );
+    expect(sqlExecutavel).toContain("qtd is distinct from v_min");
+  });
+});
+
 describe("quem mexe na régua", () => {
   it("configurar o funil está na matriz A17, não num `includes` de rota", () => {
     // Em 2026-08-19 o multi-papel mostrou o custo de cada rota inventar o
