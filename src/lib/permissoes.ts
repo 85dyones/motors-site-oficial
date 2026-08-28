@@ -373,6 +373,21 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "faz", "faz"],
     "Cadastro único — Marketing vê volume de lead, não contato",
   ),
+  // Linha ACRESCENTADA em 2026-08-28, pedido do dono: *"temos que ser capazes
+  // de editar o funil de vendas de acordo com a necessidade"*.
+  //
+  // Ela NÃO é "usar o funil" — mover lead continua na linha "Ver e mover leads
+  // no kanban", que é do Comercial. Esta é a régua: quantos minutos um lead
+  // pode ficar parado, quando ele troca de dono e quais motivos de perda
+  // existem. Muda o dia a dia da equipe inteira e responde por metas, então é
+  // de quem responde pela operação — Admin e Gestor. O Comercial LÊ a
+  // configuração (o kanban precisa das etapas para desenhar as colunas), mas
+  // não a altera: quem é cobrado pelo prazo não deveria ser quem o define.
+  linha(
+    "Configurar o funil de vendas",
+    ["faz", "faz", "nao_ve", "nao_ve", "nao_ve"],
+    "A régua vale para a equipe — quem é cobrado pelo prazo não o define",
+  ),
   linha(
     "Gerenciar campanhas de mídia paga",
     ["faz", "nao_ve", "faz", "nao_ve", "nao_ve"],

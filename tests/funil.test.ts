@@ -1,0 +1,475 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
+import {
+  ETAPAS_PADRAO,
+  agruparPorMotivo,
+  chaveDaEtapa,
+  destinatarioDoAviso,
+  emMinutos,
+  espera,
+  etapasVisiveis,
+  formatarPrazo,
+  linkDeConversa,
+  mensagemDeAlerta,
+  mensagemParaCliente,
+  minutosParado,
+  nivelDeEstagnacao,
+  numeroDiscavel,
+  ordenarEtapas,
+  paradoDesde,
+  separarPrazo,
+  taxaDeConversao,
+  validarFunil,
+  type EtapaDoFunil,
+  type LinhaDaFilaDoFunil,
+  type MotivoDoFunil,
+} from "../src/lib/funil";
+
+/**
+ * O funil de vendas — a régua de tempo, o desfecho e o aviso.
+ *
+ * 2026-08-28, pedido do dono em cinco partes: lead na agenda de pessoas,
+ * ganho/perdido com motivo, funil editável, alerta de estagnação no WhatsApp e
+ * transferência automática com exceções.
+ *
+ * O que este arquivo protege são as decisões que, se mudarem sozinhas, mudam
+ * o comportamento sem quebrar nada visível:
+ *
+ *  - o relógio da estagnação (que campo ele lê, e o que o reinicia);
+ *  - a exceção nomeada pelo dono (visita e negociação não transferem);
+ *  - a validação que impede um funil salvo de virar um funil quebrado;
+ *  - a concordância entre a régua do TypeScript e a do Postgres — as duas
+ *    calculam a mesma coisa, e se divergirem a tela pinta um card de vermelho
+ *    enquanto o motor acha que está tudo bem.
+ */
+
+const SQL = readFileSync(
+  join(__dirname, "..", "supabase", "migrations", "20260828120000_funil_de_vendas.sql"),
+  "utf-8",
+);
+
+/** O SQL sem comentários — a migração explica o próprio código, e uma
+ *  asserção contra o texto cru casaria com a prosa em vez do executável. */
+const sqlExecutavel = SQL.split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n");
+
+const AGORA = Date.parse("2026-08-28T15:00:00-03:00");
+
+const etapa = (over: Partial<EtapaDoFunil> = {}): EtapaDoFunil => ({
+  chave: "proposta",
+  rotulo: "Proposta",
+  ordem: 3,
+  tipo: "aberta",
+  estagnacao_minutos: 2880,
+  transferencia_minutos: 7200,
+  protegida: false,
+  ativa: true,
+  ...over,
+});
+
+const lead = (horasParado: number, over: Record<string, unknown> = {}) => ({
+  id: "1",
+  nome: "Ana Souza",
+  situacao: "proposta",
+  created_at: new Date(AGORA - horasParado * 3600_000).toISOString(),
+  ultimo_movimento_em: new Date(AGORA - horasParado * 3600_000).toISOString(),
+  ...over,
+});
+
+// ---------------------------------------------------------------------------
+
+describe("o relógio da estagnação", () => {
+  it("conta do toque mais recente, não da entrada do lead", () => {
+    // Um lead que entrou há 30 dias e foi atendido hoje não está parado há 30
+    // dias. Contar da entrada encheria a tela de vermelho e ensinaria a
+    // equipe a ignorar a cor.
+    const l = lead(720, { ultimo_contato_em: new Date(AGORA - 3600_000).toISOString() });
+    expect(minutosParado(l, AGORA)).toBe(60);
+  });
+
+  it("aguenta lead antigo, de antes de as colunas existirem", () => {
+    // Lead gravado antes da migração pode chegar sem `ultimo_movimento_em`
+    // numa resposta em cache. Sem a rede de `created_at` daria NaN, e NaN
+    // comparado com qualquer prazo é `false` — o card ficaria eternamente
+    // verde. Falha muda, do tipo que este projeto persegue.
+    const l = { id: "1", nome: "A", situacao: "proposta", created_at: new Date(AGORA - 7200_000).toISOString() };
+    expect(minutosParado(l, AGORA)).toBe(120);
+    expect(Number.isFinite(paradoDesde(l))).toBe(true);
+  });
+
+  it("nunca conta tempo negativo", () => {
+    // Relógio do servidor à frente do relógio do navegador é comum. "-3 min
+    // parado" na tela é pior que "agora".
+    const l = lead(-2);
+    expect(minutosParado(l, AGORA)).toBe(0);
+  });
+});
+
+describe("nivelDeEstagnacao", () => {
+  it("avisa ANTES de estourar o prazo", () => {
+    // A hora de agir é antes da cobrança. Um sinal que só acende junto com o
+    // alerta chega tarde para o que ele deveria evitar.
+    expect(nivelDeEstagnacao(lead(1), etapa(), AGORA)).toBe("ok");
+    expect(nivelDeEstagnacao(lead(30), etapa(), AGORA)).toBe("atencao");
+    expect(nivelDeEstagnacao(lead(48), etapa(), AGORA)).toBe("estagnado");
+    expect(nivelDeEstagnacao(lead(121), etapa(), AGORA)).toBe("transferir");
+  });
+
+  it("etapa protegida nunca chega em `transferir`", () => {
+    // A exceção que o dono nomeou: *"salvo os que já estão em negociação ou
+    // com visita agendada"*. A tela não pode prometer uma transferência que o
+    // banco não vai fazer.
+    expect(nivelDeEstagnacao(lead(500), etapa({ protegida: true }), AGORA)).toBe("estagnado");
+  });
+
+  it("negócio encerrado não apodrece", () => {
+    // Pintar de vermelho o que já acabou treina a equipe a ignorar cor.
+    expect(nivelDeEstagnacao(lead(500, { desfecho: "ganho" }), etapa(), AGORA)).toBe("ok");
+    expect(nivelDeEstagnacao(lead(500), etapa({ tipo: "perdido" }), AGORA)).toBe("ok");
+  });
+
+  it("etapa sem prazo não cobra ninguém", () => {
+    expect(nivelDeEstagnacao(lead(5000), etapa({ estagnacao_minutos: null, transferencia_minutos: null }), AGORA)).toBe("ok");
+  });
+
+  it("etapa desconhecida não vira alarme", () => {
+    // Lead numa etapa que a tela ainda não carregou (ou que foi apagada num
+    // banco de teste): o card aparece calmo em vez de vermelho por engano.
+    expect(nivelDeEstagnacao(lead(5000), undefined, AGORA)).toBe("ok");
+  });
+});
+
+describe("prazos em minutos, escritos em português", () => {
+  it("mostra na maior unidade que couber", () => {
+    expect(formatarPrazo(15)).toBe("15 min");
+    expect(formatarPrazo(90)).toBe("1,5 h");
+    expect(formatarPrazo(1440)).toBe("1 dia");
+    expect(formatarPrazo(7200)).toBe("5 dias");
+    expect(formatarPrazo(null)).toBe("—");
+  });
+
+  it("ida e volta do formulário não perde o valor", () => {
+    // O banco guarda minutos; o formulário edita valor + unidade. Se a volta
+    // não bater, salvar sem tocar em nada mudaria o prazo — o pior tipo de
+    // bug de configuração, porque parece que alguém mexeu.
+    for (const minutos of [15, 60, 90, 1440, 2880, 7200]) {
+      const { valor, unidade } = separarPrazo(minutos);
+      expect(emMinutos(valor, unidade)).toBe(minutos);
+    }
+  });
+
+  it("campo vazio e zero viram `sem prazo`, não zero", () => {
+    // Prazo zero cobraria o vendedor no mesmo segundo em que o lead chega.
+    expect(emMinutos("", "horas")).toBeNull();
+    expect(emMinutos(0, "horas")).toBeNull();
+    expect(emMinutos(-3, "dias")).toBeNull();
+  });
+
+  it("aceita a vírgula decimal que se digita em português", () => {
+    expect(emMinutos("1,5", "horas")).toBe(90);
+  });
+});
+
+describe("editar o funil sem quebrá-lo", () => {
+  it("o rótulo vira chave estável, sem acento nem espaço", () => {
+    expect(chaveDaEtapa("Test Drive")).toBe("test_drive");
+    expect(chaveDaEtapa("Negociação Avançada")).toBe("negociacao_avancada");
+    expect(chaveDaEtapa("  Pós-venda  ")).toBe("pos_venda");
+  });
+
+  it("recusa funil sem etapa de ganho ou de perdido", () => {
+    // Sem elas o motivo do desfecho deixa de ser coletado — e o relatório
+    // seca sem nada dar erro.
+    const erros = validarFunil([etapa()]);
+    expect(erros.some((e) => e.includes("GANHO"))).toBe(true);
+    expect(erros.some((e) => e.includes("PERDIDO"))).toBe(true);
+  });
+
+  it("recusa transferir antes de avisar", () => {
+    // O lead trocaria de dono antes de o vendedor saber que estava parado.
+    const erros = validarFunil([
+      ...ETAPAS_PADRAO.filter((e) => e.tipo !== "aberta"),
+      etapa({ estagnacao_minutos: 2880, transferencia_minutos: 60 }),
+    ]);
+    expect(erros.some((e) => e.includes("menor que o de alerta"))).toBe(true);
+  });
+
+  it("recusa transferir sem nunca avisar", () => {
+    const erros = validarFunil([
+      ...ETAPAS_PADRAO.filter((e) => e.tipo !== "aberta"),
+      etapa({ estagnacao_minutos: null, transferencia_minutos: 1440 }),
+    ]);
+    expect(erros.some((e) => e.includes("sem nunca avisar"))).toBe(true);
+  });
+
+  it("aceita o funil que a migração semeia", () => {
+    // A semente do banco precisa passar na validação da tela. Se não passar, o
+    // dono abre a configuração e encontra erro sem ter mexido em nada.
+    expect(validarFunil(ETAPAS_PADRAO)).toEqual([]);
+  });
+
+  it("etapa arquivada com lead dentro continua visível", () => {
+    // Desativar uma coluna que ainda tem card faria os cards sumirem da tela
+    // sem erro nenhum.
+    const etapas = [etapa({ chave: "antiga", ativa: false }), ...ETAPAS_PADRAO];
+    const visiveis = etapasVisiveis(etapas, [{ situacao: "antiga" }]);
+    expect(visiveis.map((e) => e.chave)).toContain("antiga");
+    expect(etapasVisiveis(etapas, [{ situacao: "novo" }]).map((e) => e.chave)).not.toContain("antiga");
+  });
+
+  it("ordena pela ordem, com o rótulo como desempate estável", () => {
+    const fora = [etapa({ chave: "b", rotulo: "B", ordem: 2 }), etapa({ chave: "a", rotulo: "A", ordem: 1 })];
+    expect(ordenarEtapas(fora).map((e) => e.chave)).toEqual(["a", "b"]);
+  });
+});
+
+describe("falar com o cliente", () => {
+  it("normaliza o número para o formato que o wa.me aceita", () => {
+    expect(numeroDiscavel("(41) 99737-2165")).toBe("5541997372165");
+    expect(numeroDiscavel("+5541997372165")).toBe("5541997372165");
+    expect(numeroDiscavel("4133334444")).toBe("554133334444");
+    expect(numeroDiscavel(null)).toBe("");
+  });
+
+  it("sem número, sem link — e não um link quebrado", () => {
+    // `wa.me/` sem número abre o WhatsApp numa tela de erro, e o vendedor
+    // conclui que o sistema está quebrado. Quem chama esconde o botão.
+    expect(linkDeConversa(null)).toBe("");
+    expect(linkDeConversa("")).toBe("");
+  });
+
+  it("a mensagem cita o carro quando existe interesse", () => {
+    // É a diferença entre "oi, tudo bem?" e uma retomada que o cliente
+    // reconhece.
+    const com = mensagemParaCliente({ nome: "joão da silva", interesse: "Onix 2020" }, { loja: "Motors", vendedor: "Ana Paula" });
+    expect(com).toContain("João");
+    expect(com).toContain("Ana");
+    expect(com).toContain("Onix 2020");
+    expect(com).not.toContain("  ");
+
+    const sem = mensagemParaCliente({ nome: "João", interesse: null }, { loja: "Motors" });
+    expect(sem).toContain("seu contato pelo nosso site");
+  });
+
+  it("o texto viaja codificado dentro do link", () => {
+    const link = linkDeConversa("5541997372165", "Olá, João!");
+    expect(link.startsWith("https://wa.me/5541997372165?text=")).toBe(true);
+    expect(link).not.toContain(" ");
+  });
+});
+
+describe("o aviso que chega no WhatsApp do vendedor", () => {
+  const base: LinhaDaFilaDoFunil = {
+    lead_id: "1",
+    nome: "Ana Souza",
+    telefone: "5541997372165",
+    interesse: "Onix 2020",
+    canal: "site",
+    situacao: "proposta",
+    etapa: "Proposta",
+    minutos_parado: 2880,
+    aviso: "estagnacao",
+    responsavel: "Bruno",
+    responsavel_whatsapp: "+5541999990001",
+    novo_responsavel: null,
+    novo_whatsapp: null,
+    suprimido_por: null,
+  };
+
+  it("diz o que fazer e traz o link junto", () => {
+    // Alerta que obriga a abrir o painel para achar o telefone é alerta que
+    // espera o vendedor chegar na loja.
+    const texto = mensagemDeAlerta(base, { loja: "Motors" });
+    expect(texto).toContain("Ana Souza");
+    expect(texto).toContain("2 dias");
+    expect(texto).toContain("https://wa.me/5541997372165");
+  });
+
+  it("nunca leva valor de negócio nem documento", () => {
+    // A mensagem trafega por WhatsApp: o mínimo necessário é nome, carro e
+    // link.
+    const texto = mensagemDeAlerta({ ...base, aviso: "transferencia", novo_responsavel: "Carla", novo_whatsapp: "+5541999990002" });
+    expect(texto).not.toMatch(/R\$|CPF|CNPJ/);
+  });
+
+  it("a transferência diz de quem o lead veio", () => {
+    // Sem isso o vendedor novo recebe um nome sem contexto e liga sem saber o
+    // que já foi conversado.
+    const texto = mensagemDeAlerta({ ...base, aviso: "transferencia", novo_responsavel: "Carla", novo_whatsapp: "+5541999990002" });
+    expect(texto).toContain("Bruno");
+    expect(texto).toContain("transferido");
+  });
+
+  it("entrega no dono atual quando é cobrança, e no novo quando é troca", () => {
+    // Mandar a cobrança para quem acabou de perder o lead — ou o aviso de
+    // chegada para quem o perdeu — é o erro que faz a equipe desconfiar do
+    // sistema inteiro.
+    expect(destinatarioDoAviso(base)).toBe("5541999990001");
+    expect(
+      destinatarioDoAviso({ ...base, aviso: "transferencia", novo_whatsapp: "+5541999990002" }),
+    ).toBe("5541999990002");
+    expect(
+      destinatarioDoAviso({ ...base, aviso: "atribuicao", novo_whatsapp: "+5541999990003" }),
+    ).toBe("5541999990003");
+  });
+
+  it("sem número não inventa destinatário", () => {
+    expect(destinatarioDoAviso({ ...base, responsavel_whatsapp: null })).toBeNull();
+  });
+});
+
+describe("o relatório", () => {
+  const motivos: MotivoDoFunil[] = [
+    { chave: "preco", rotulo: "Preço", tipo: "perdido", ordem: 1, ativo: true },
+    { chave: "sem_estoque", rotulo: "Sem estoque", tipo: "perdido", ordem: 2, ativo: true },
+    { chave: "a_vista", rotulo: "À vista", tipo: "ganho", ordem: 1, ativo: true },
+  ];
+
+  const fechados = [
+    { desfecho: "perdido" as const, desfecho_motivo: "preco", desfecho_valor: null },
+    { desfecho: "perdido" as const, desfecho_motivo: "preco", desfecho_valor: null },
+    { desfecho: "perdido" as const, desfecho_motivo: null, desfecho_valor: null },
+    { desfecho: "ganho" as const, desfecho_motivo: "a_vista", desfecho_valor: 60000 },
+  ];
+
+  it("agrupa por motivo, do maior para o menor", () => {
+    const linhas = agruparPorMotivo(fechados, motivos, "perdido");
+    expect(linhas[0].chave).toBe("preco");
+    expect(linhas[0].quantidade).toBe(2);
+    expect(Math.round(linhas[0].percentual)).toBe(67);
+  });
+
+  it("mostra o `sem motivo` em vez de escondê-lo", () => {
+    // É o termômetro de confiança do relatório: se for a maior fatia, nenhuma
+    // das outras vale nada — e é melhor ver isso no gráfico que na reunião.
+    const linhas = agruparPorMotivo(fechados, motivos, "perdido");
+    const semMotivo = linhas.find((l) => l.chave === "sem_motivo");
+    expect(semMotivo?.rotulo).toBe("Sem motivo informado");
+    expect(semMotivo?.quantidade).toBe(1);
+  });
+
+  it("soma o valor só do que foi ganho", () => {
+    const linhas = agruparPorMotivo(fechados, motivos, "ganho");
+    expect(linhas[0].valor).toBe(60000);
+  });
+
+  it("a conversão é sobre negócios ENCERRADOS", () => {
+    // Sobre o total, a taxa pioraria no começo do mês e melhoraria sozinha no
+    // fim, sem ninguém ter vendido nada a mais.
+    expect(taxaDeConversao(1, 3)).toBe(25);
+    expect(taxaDeConversao(0, 0)).toBe(0);
+  });
+});
+
+describe("a tela e o banco calculam a mesma coisa", () => {
+  it("as duas leem `ultimo_movimento_em` e `ultimo_contato_em`", () => {
+    // Se divergirem, a tela pinta o card de vermelho enquanto o motor acha
+    // que está tudo bem — ou o contrário, que é pior: o lead troca de dono
+    // sem nenhum aviso visual antes.
+    const fonte = readFileSync(join(__dirname, "..", "src", "lib", "funil.ts"), "utf-8");
+    expect(fonte).toContain("ultimo_movimento_em");
+    expect(fonte).toContain("ultimo_contato_em");
+    expect(sqlExecutavel).toContain("greatest(l.ultimo_movimento_em, l.ultimo_contato_em)");
+  });
+
+  it("as sete chaves do funil antigo continuam sendo as da semente", () => {
+    // `leads.situacao` já grava essas chaves em 100% das linhas, e agora há
+    // uma FK para elas. Trocar uma chave aqui migraria — ou perderia — os
+    // leads existentes.
+    for (const e of ETAPAS_PADRAO) {
+      expect(sqlExecutavel).toContain(`'${e.chave}'`);
+    }
+  });
+
+  it("visita e negociação nascem protegidas nos dois lados", () => {
+    expect(ETAPAS_PADRAO.find((e) => e.chave === "visita")?.protegida).toBe(true);
+    expect(ETAPAS_PADRAO.find((e) => e.chave === "negociacao")?.protegida).toBe(true);
+    expect(sqlExecutavel).toMatch(/'visita',\s+'Visita agendada',\s+4,\s+'aberta',\s+2880,\s+null,\s+true/);
+    expect(sqlExecutavel).toMatch(/'negociacao',\s+'Negociação',\s+5,\s+'aberta',\s+2880,\s+null,\s+true/);
+  });
+
+  it("a fila é do papel de serviço, nunca do usuário logado", () => {
+    // Ela carrega nome e telefone de lead e o WhatsApp da equipe. Mesma régua
+    // do motor do Ciclo.
+    expect(sqlExecutavel).toMatch(
+      /revoke all on function public\.montar_fila_do_funil[\s\S]{0,120}from public, anon, authenticated/,
+    );
+    expect(sqlExecutavel).toMatch(
+      /grant execute on function public\.montar_fila_do_funil[\s\S]{0,120}to service_role/,
+    );
+  });
+
+  it("a leitura de leads deixou de ser de qualquer authenticated", () => {
+    // A policy antiga (`using (true)`) era de quando `authenticated` queria
+    // dizer "gente do painel" — antes de o papel `cliente` existir. Este
+    // arquivo leva `leads` para dentro de uma view compartilhada, então a
+    // porta precisa estar fechada.
+    expect(sqlExecutavel).toContain("public.is_staff(auth.uid())");
+    expect(sqlExecutavel).not.toMatch(/create policy leads_leitura[\s\S]{0,120}using \(true\)/);
+  });
+
+  it("o rastro cascateia na exclusão do lead (LGPD art. 18, VI)", () => {
+    // Um rastro que sobrevivesse ao pedido de exclusão guardaria o nome de
+    // quem pediu para ser esquecido.
+    expect(sqlExecutavel).toMatch(
+      /lead_id\s+uuid not null references public\.leads\(id\) on delete cascade/,
+    );
+  });
+});
+
+describe("quem mexe na régua", () => {
+  it("configurar o funil está na matriz A17, não num `includes` de rota", () => {
+    // Em 2026-08-19 o multi-papel mostrou o custo de cada rota inventar o
+    // próprio recorte: quem é comercial E gestor precisa valer pelo mais
+    // permissivo dos dois, e um `perfis.includes("gestor")` escrito à mão numa
+    // rota não sabe disso.
+    expect(MATRIZ_DE_PERMISSOES.map((l) => l.acao)).toContain("Configurar o funil de vendas");
+    const rota = readFileSync(
+      join(__dirname, "..", "src", "app", "api", "funil", "config", "route.ts"),
+      "utf-8",
+    );
+    expect(rota).toContain('podeFazer(perfis, "Configurar o funil de vendas")');
+  });
+
+  it("quem é cobrado pelo prazo não é quem o define", () => {
+    // O Comercial move lead (linha "Ver e mover leads no kanban") e LÊ a
+    // configuração — o kanban precisa das etapas para desenhar as colunas —,
+    // mas quem define em quantos minutos ele é cobrado é quem responde pela
+    // operação.
+    for (const p of ["admin", "gestor"] as const) {
+      expect(podeFazer(p, "Configurar o funil de vendas")).toBe("faz");
+    }
+    for (const p of ["comercial", "marketing", "financeiro"] as const) {
+      expect(podeFazer(p, "Configurar o funil de vendas")).toBe("nao_ve");
+    }
+    // Mas mover lead continua sendo dele.
+    expect(podeFazer("comercial", "Ver e mover leads no kanban")).toBe("faz");
+  });
+
+  it("a rota do desfecho recusa fechar negócio sem motivo", () => {
+    // A validação não pode morar só na tela: uma validação de componente vira
+    // opcional no dia em que alguém chamar a rota de outro lugar — e o
+    // relatório de perdas nasce vazio sem nada dar erro.
+    const rota = readFileSync(
+      join(__dirname, "..", "src", "app", "api", "leads", "gerenciar", "route.ts"),
+      "utf-8",
+    );
+    expect(rota).toContain("motivo_obrigatorio");
+    expect(rota).toMatch(/status: 422/);
+    // E recusa motivo de ganho num negócio perdido: somar peras com maçãs só
+    // apareceria no gráfico, meses depois.
+    expect(rota).toMatch(/motivoBanco\.tipo !== etapa\.tipo/);
+  });
+});
+
+describe("espera", () => {
+  it("escreve curto, como cabe no rodapé do card", () => {
+    expect(espera(new Date(AGORA - 30_000).toISOString(), AGORA)).toBe("agora");
+    expect(espera(new Date(AGORA - 20 * 60_000).toISOString(), AGORA)).toBe("20 min");
+    expect(espera(new Date(AGORA - 5 * 3600_000).toISOString(), AGORA)).toBe("5 h");
+    expect(espera(new Date(AGORA - 50 * 3600_000).toISOString(), AGORA)).toBe("2 d");
+  });
+});

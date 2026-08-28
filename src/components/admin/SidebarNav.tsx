@@ -64,6 +64,22 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
           href: "/admin/clientes",
           roles: ["admin", "gestor", "comercial", "financeiro"],
         },
+        // O funil de vendas (2026-08-28). Os dois itens vivem sob Leads e não
+        // em Configurações: quem mexe na régua do funil é quem opera o funil,
+        // e mandá-lo para o outro lado do menu é o caminho mais curto para a
+        // régua nunca ser ajustada.
+        //
+        // O relatório abre para todo o grupo — ele é contagem por motivo, sem
+        // nome nem telefone, e é a resposta para "por que a gente perde
+        // venda". A rota omite o recorte por vendedor para quem a matriz A17
+        // mantém longe do contato individual.
+        { name: "Ganhos e perdas", href: "/admin/leads/relatorio" },
+        // Configurar, não: a régua vale para a equipe inteira.
+        {
+          name: "Configurar funil",
+          href: "/admin/leads/funil",
+          roles: ["admin", "gestor"],
+        },
       ],
     },
     {

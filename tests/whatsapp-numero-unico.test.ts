@@ -39,13 +39,43 @@ const arquivos = fontes(raiz).map((f) => ({ caminho: f, texto: readFileSync(f, "
 
 describe("ponto único de montagem", () => {
   it("ninguém monta wa.me à mão com o número da loja", () => {
+    // Há DOIS destinos possíveis num link de WhatsApp, e só um deles é o da
+    // loja. Cada um tem uma função e um arquivo:
+    //
+    //   lib/whatsapp.ts ... `linkWhatsApp()` — o número DA LOJA, que o
+    //                       visitante aciona. É o que este teste protege.
+    //   lib/funil.ts ...... `linkDeConversa()` — o número DO CLIENTE, que o
+    //                       vendedor aciona pelo card do kanban (2026-08-28).
+    //
+    // Até 2026-08-28 o kanban montava `wa.me/${l.telefone}` na mão e a
+    // exceção aqui era escrita nesse formato exato — o que deixava passar
+    // qualquer outra tela que montasse o link do cliente à mão com outro nome
+    // de variável. Agora a exceção é por ARQUIVO, e o arquivo isento é
+    // verificado logo abaixo: ele não pode alcançar as configurações da loja.
+    const ISENTOS = ["lib/funil.ts"];
     const infratores = arquivos
       .filter(({ texto }) => texto.includes("wa.me/"))
-      // O Kanban de leads monta `wa.me/${l.telefone}` — é o número do
-      // cliente, não o da loja. Esse é o uso legítimo.
-      .filter(({ texto }) => !/wa\.me\/\$\{l\.telefone\}/.test(texto))
+      .filter(({ caminho }) => !ISENTOS.some((i) => caminho.endsWith(i)))
       .map(({ caminho }) => caminho);
     expect(infratores).toEqual([]);
+  });
+
+  it("o link do cliente não tem como virar o link da loja", () => {
+    // A isenção acima só é segura enquanto `lib/funil.ts` não souber quem é a
+    // loja. Se um dia ele importar as configurações, o link do card pode
+    // passar a apontar para o próprio número da revenda — e a loja mandaria
+    // mensagem para si mesma sem ninguém perceber.
+    const funil = readFileSync(join(raiz, "lib", "funil.ts"), "utf-8");
+    expect(funil).not.toMatch(/companySettings|whatsappRaw|numeroDaLoja|getCachedSettings/);
+  });
+
+  it("o kanban usa o montador único em vez de escrever o link à mão", () => {
+    const kanban = readFileSync(
+      join(raiz, "components", "admin", "LeadsKanban.tsx"),
+      "utf-8",
+    );
+    expect(kanban).toContain("linkDeConversa");
+    expect(kanban).not.toContain("wa.me/");
   });
 
   it("nenhum número da loja ficou hardcoded no código", () => {

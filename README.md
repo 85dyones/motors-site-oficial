@@ -8,7 +8,7 @@ O produto tem três camadas:
 
 - **Loja** — vitrine, ficha do veículo (PDP), avaliação de compra, CarMatch e
   landings de destaque, no design Modernist.
-- **Painel** (`/admin`) — estoque, kanban de leads, financeiro, mídia paga,
+- **Painel** (`/admin`) — estoque, funil de leads, financeiro, mídia paga,
   usuários/permissões e auditoria (telas A1–A17).
 - **Motors Ciclo** — o programa de ciclo de vida do cliente (garantia, revisões
   em rede, recompra futura). Especificado em `docs/MANUAL_MOTORS_CICLO.md`;
@@ -38,6 +38,7 @@ As variáveis de ambiente estão descritas em `.env.example`.
 |---|---|
 | `docs/MANUAL_MOTORS_CICLO.md` | A especificação de produto do Ciclo — **fonte de verdade** |
 | `docs/MOTORS_CICLO_IMPLEMENTACAO.md` | O plano de implementação em pacotes |
+| `docs/FUNIL_DE_VENDAS.md` | O funil de leads — a régua de estagnação e transferência, a pesquisa que a embasa e o que ficou de fora |
 | `docs/FINANCEIRO_OPERACIONAL.md` | A linha geral do financeiro — briefing de 2026-08-21, o que está entregue e a fila |
 | `AUDITORIA.md` | Auditoria do Pacote 0 (fotografia de 2026-08-03) + decisões datadas |
 | `docs/ACHADOS_FINANCEIRO.md` | 13 achados de revisão no financeiro/investidores, ainda não corrigidos |
