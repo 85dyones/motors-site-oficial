@@ -2,8 +2,9 @@
 
 **Responde a:** `HANDOFF_MENSURACAO_BRECHAS.md`.
 **Feito:** A.2, A.3, B.1, B.3 e a parte de código do A.1.
-**Continua aberto:** a conferência do A.1 no DebugView, o Consent Mode (B.2) e
-os cinco itens do contêiner (bloco C).
+**Continua aberto:** a conferência do A.1 no DebugView, o Consent Mode (B.2)
+— agora com data marcada para **18/09/2026**, ver §B.2 — e os cinco itens do
+contêiner (bloco C).
 
 ---
 
@@ -161,6 +162,31 @@ tag de defaults publicada do outro lado deixaria uma janela em que o contêiner
 carrega sem instrução de consentimento. Pior que o estado atual.
 
 Quando for fazer, é uma rodada própria, com as duas metades no mesmo dia.
+
+### A data: 18/09/2026
+
+Definida em 28/08, a pedido do dono ("se pede uma data, defina uma e siga").
+Três semanas, dentro da janela de 2–4 que o handoff consolidado chamou de
+defensável, e numa sexta — o dia da semana em que o tráfego da loja é menor, o
+que reduz o custo de um ajuste no mesmo dia.
+
+O que a data significa: **as duas metades saem juntas, em 18/09.** Não é a data
+de começar a pensar; é a data de publicar.
+
+| Metade | Quem | O que sai |
+|---|---|---|
+| Contêiner | quem publica o GTM | tag de `consent default` com tudo em `denied`, disparando antes de todas |
+| Site | dev | `gtag('consent','default',…denied)` antes de carregar o contêiner; `update` para `granted` no aceite; o contêiner passa a carregar sempre, em vez de ser bloqueado por inteiro |
+
+**Por que não foi implementado agora, junto do resto:** a metade do site,
+sozinha, é pior que o estado de hoje. Carregar o GTM sempre sem a tag de
+defaults publicada do outro lado abre uma janela em que o contêiner roda sem
+instrução de consentimento — exatamente o que o parágrafo acima descreve.
+Publicar meia mudança contra um prazo é como se perde a confiança na medição.
+
+**O que precisa estar pronto antes de 18/09:** confirmação de que a tag de
+defaults está criada no espaço de trabalho do contêiner. Sem isso, a data
+desliza — e deslizar com motivo escrito é melhor que cumprir pela metade.
 
 ---
 
