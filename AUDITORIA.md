@@ -503,6 +503,31 @@ sincronizador do n8n sempre apontaram `zwbqmzgnagfeqinqkolp` — e o dono
 confirmou que este é o de produção. Era documentação desatualizada, não dois
 ambientes: o `CLAUDE.md` foi corrigido.
 
+### 3.11 ✅ `leads` era legível por qualquer usuário autenticado — CORRIGIDA em 2026-08-28
+
+A migração `20260807210000` abriu a tabela com
+`create policy leads_leitura ... to authenticated using (true)`. Fazia sentido
+no dia: `authenticated` era sinônimo de "gente do painel".
+
+Deixou de fazer em **2026-08-13**, quando o papel `cliente` entrou com a
+Garagem. O comprador que acessa a área dele é `authenticated` e não é staff —
+e desde então podia pedir, com a chave anônima que vai no bundle do navegador,
+a lista inteira de nome, telefone e interesse de todo mundo que já preencheu um
+formulário no site.
+
+Ninguém percebeu porque a **tela** sempre checou perfil (`ehStaff` em
+`/api/leads/gerenciar`). A checagem estava na porta da frente; a dos fundos —
+o PostgREST — ficou destrancada. É a mesma família do achado 3.4 (`site_settings`
+aberta ao `anon`), e a lição se repete: **quando o vocabulário de papéis cresce,
+toda policy escrita com `using (true)` muda de significado sem mudar de texto.**
+
+Corrigida em `20260828120000_funil_de_vendas.sql`, que precisava mexer nisso de
+todo jeito — ela leva `leads` para dentro da view `agenda_de_pessoas`, que é
+`security_invoker`, e a mesma abertura chegaria a outra tela. As três policies
+passaram a exigir `is_staff(auth.uid())`, e a autoconferência da migração
+empurra a porta vestindo a pele de um cliente da Garagem. Nenhuma tela do painel
+muda de comportamento.
+
 ### 3.10 🟢 Divergências menores de conteúdo
 
 `site_settings` traz endereço em São Paulo (Av. Europa) e o texto institucional fala de "uma

@@ -248,6 +248,68 @@ recusar, ela reprocessa as mesmas contas a cada execução.
 
 ---
 
+## Sentido inverso — o n8n pergunta, o site responde
+
+Duas rotas invertem a direção deste documento: aqui o site é o **chamado**, não
+o emissor. Quem bate é o n8n, sem sessão, com um Bearer próprio.
+
+| Rota | Segredo | O que devolve |
+|---|---|---|
+| `POST /api/ciclo/motor/fila` | `CICLO_MOTOR_TOKEN` | A fila de gatilhos do Motors Ciclo (manual §4.1). |
+| `POST /api/funil/alertas` | `FUNIL_MOTOR_TOKEN` | A fila de avisos do funil de leads: lead sem dono, lead parado e lead a transferir. |
+
+**Cada uma tem o SEU segredo, sem fallback entre eles.** Segredo mede acesso: a
+base de leads do site e a base de clientes do Ciclo são dois conjuntos de dados
+e dois workflows, e quem tem a credencial de um não deveria puxar o outro. Um
+`||` para o token vizinho economizaria uma variável de ambiente e criaria uma
+escada de privilégio silenciosa — foi exatamente o achado #9 da revisão de
+2026-08-18, quando a porta do Ciclo aceitava o token de margens.
+
+Sem a variável configurada, a rota responde **503** e não 401: o problema é de
+configuração nossa, e 401 mandaria o n8n tentar outro token para sempre.
+
+### `POST /api/funil/alertas` (2026-08-28)
+
+```
+Authorization: Bearer $FUNIL_MOTOR_TOKEN
+{ "reservar": true }
+```
+
+```jsonc
+{
+  "ok": true, "reservado": true, "total": 2,
+  "fila": [{
+    "lead_id": "…",
+    "aviso": "transferencia",          // atribuicao | estagnacao | transferencia
+    "lead": { "nome": "…", "whatsapp": "5541…", "interesse": "Onix 2020",
+              "etapa": "Proposta", "minutos_parado": 7300 },
+    "destinatario": { "nome": "Carla", "whatsapp": "5541…" },
+    "responsavel_anterior": "Bruno",
+    "mensagem": "…"                     // pronto para a Evolution
+  }],
+  "suprimidos": [{ "lead_id": "…", "suprimido_por": "alerta_recente", … }]
+}
+```
+
+O workflow acorda de hora em hora, chama com `reservar: true` e envia
+`mensagem` para `destinatario.whatsapp`. **Nenhuma regra de horário ou de prazo
+mora no workflow** — quem decide quem está parado, se pode avisar agora e para
+quem vai o lead transferido é `montar_fila_do_funil`, no banco. Um workflow
+desligado atrasa mensagem; um workflow reconfigurado por engano não consegue
+redistribuir a carteira de um vendedor.
+
+`"reservar": false` é prévia: mostra o que aconteceria, não grava e não
+transfere. **A transferência só acontece com `reservar: true`**, no mesmo
+comando que produz a mensagem — não existe troca de dono sem alguém ser
+avisado.
+
+`suprimidos` traz o que ficou de fora **com o motivo**. Fila que descarta em
+silêncio é fila que ninguém audita.
+
+A régua completa está em `docs/FUNIL_DE_VENDAS.md`.
+
+---
+
 ## Modos de falha — o que o n8n não vê
 
 Isto é o que mais importa para quem depura do outro lado.

@@ -53,8 +53,14 @@ create table auth.users (
   updated_at timestamptz default now()
 );
 
+-- O `nullif` de FORA é o que faltava: `set_config('request.jwt.claims', '')`
+-- é como se dispensa a sessão no meio de um aceite, e `''::jsonb` explode com
+-- "invalid input syntax for type json". O Supabase de verdade trata string
+-- vazia como ausência de claims — aqui era só o `auth.jwt()` logo abaixo que
+-- fazia isso. A divergência só aparecia quando alguma coisa lia `auth.uid()`
+-- DEPOIS de dispensar a sessão, que é o que um gatilho em `leads` faz.
 create or replace function auth.uid() returns uuid as $$
-  select nullif(current_setting('request.jwt.claims', true)::jsonb->>'sub', '')::uuid;
+  select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb->>'sub', '')::uuid;
 $$ language sql stable;
 
 create or replace function auth.jwt() returns jsonb as $$
@@ -257,3 +263,51 @@ create policy parceiros_ciclo_staff on public.parceiros_ciclo
 
 grant select, insert, update, delete
   on public.clientes, public.parceiros_ciclo to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- `leads`, na forma que a migração 20260807210000 deixa
+-- ---------------------------------------------------------------------------
+-- Entra pelo mesmo motivo de `clientes` e `parceiros_ciclo`: a migração do
+-- funil (20260828120000) reconstrói a view `agenda_de_pessoas` com um ramo de
+-- leads, troca a RLS da tabela e pendura gatilhos nela. Sem o recorte aqui, a
+-- cadeia testaria a migração na forma degradada — a que produção nunca vê.
+--
+-- A migração de leads não entra na CADEIA porque ela é ADITIVA sobre uma
+-- tabela vestigial de marketing que este andaime não reproduz (event_id,
+-- utm_*, capi_*), e a migração seguinte (20260811130000) faz
+-- `alter column event_id drop not null` — que num banco do zero falharia.
+-- O que interessa ao funil são as colunas do kanban, e são estas.
+--
+-- ⚠️ A policy permissiva abaixo é copiada de propósito: é justamente ela que
+-- a migração do funil derruba. Sem reproduzi-la, o aceite provaria que a
+-- porta está fechada num banco onde ela nunca esteve aberta.
+create table public.leads (
+  id            uuid primary key default gen_random_uuid(),
+  nome          text not null,
+  email         text,
+  telefone      text,
+  interesse     text,
+  canal         text,
+  veiculo_id    bigint,
+  situacao      text not null default 'novo',
+  responsavel   text,
+  observacoes   text,
+  atualizado_em timestamptz not null default now(),
+  created_at    timestamptz not null default now(),
+  constraint leads_situacao_valida check (
+    situacao in ('novo', 'em_contato', 'proposta', 'visita',
+                 'negociacao', 'fechado', 'perdido')
+  )
+);
+
+alter table public.leads enable row level security;
+
+create policy leads_leitura on public.leads
+  for select to authenticated using (true);
+create policy leads_atualizacao on public.leads
+  for update to authenticated using (true) with check (true);
+create policy leads_exclusao on public.leads
+  for delete to authenticated using (true);
+
+grant select, insert, update, delete on public.leads to authenticated, service_role;
+
