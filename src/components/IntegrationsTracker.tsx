@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import { marcarContainerAtivo } from "../lib/dataLayer";
+import { persistirParametrosDeCampanha } from "../lib/telemetry";
 
 declare global {
   interface Window {
@@ -112,6 +113,20 @@ export default function IntegrationsTracker() {
 
     const checkAndInitTrackors = () => {
       if (typeof window === "undefined") return;
+
+      // ANTES do portão, de propósito — e isto é o oposto de uma brecha.
+      //
+      // `persistirParametrosDeCampanha` guarda o `gclid` da URL em MEMÓRIA
+      // sempre, e no dispositivo só depois do aceite: o portão do disco vive
+      // dentro dela. Chamá-la aqui é o que faz a memória existir para quem
+      // ainda não decidiu.
+      //
+      // Estava depois do `return` de baixo e o efeito era invisível nos testes
+      // de unidade, que chamam a função direto: para quem chegava do anúncio e
+      // não clicava no banner, ela nunca rodava, a memória ficava vazia, e o
+      // aceite feito duas páginas adiante não tinha o que gravar — a URL já não
+      // trazia mais o parâmetro. Quem pegou foi o teste de navegador.
+      persistirParametrosDeCampanha();
 
       const consent = localStorage.getItem("ag_cookie_consent");
       if (consent !== "accepted") {

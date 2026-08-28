@@ -172,6 +172,114 @@ export interface UtmParameters {
  * Parses UTM parameters from URL search query or falls back to localStorage.
  * Automatically persists parameters found in the URL.
  */
+/**
+ * As chaves de campanha — uma lista só.
+ *
+ * A lista É o contrato: chave que não está aqui não é lida da URL nem
+ * persistida, e some sem erro. Foi o que aconteceu com `gbraid`/`wbraid` até
+ * 27/08. Vive fora das funções porque a captura e a leitura precisam concordar;
+ * duas listas divergem na primeira correção.
+ */
+const CHAVES_DE_CAMPANHA: (keyof UtmParameters)[] = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "fbclid",
+];
+
+/**
+ * O que a URL desta navegação trouxe, guardado só em memória.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que memória, e não `localStorage`, antes do aceite
+ * ---------------------------------------------------------------------------
+ * A pergunta que gerou isto foi: "se melhora a métrica, grave antes do aceite".
+ * A resposta honesta é que gravar no DISPOSITIVO antes do aceite melhora quase
+ * nada além do que este objeto já resolve — e custa contrariar o texto que o
+ * visitante leu ("enquanto você não aceitar, nenhuma ferramenta de análise ou
+ * publicidade é carregada"), inclusive para quem clicou em RECUSAR.
+ *
+ * O que de fato se perdia era a jornada: chegar do anúncio, navegar para outra
+ * página, e só então aceitar ou enviar um formulário. Nesse caminho o `gclid`
+ * some da URL e, sem nada guardado, ninguém mais o encontra.
+ *
+ * Esta variável cobre exatamente essa jornada. Ela vive no módulo, então
+ * sobrevive à navegação SPA do Next — que não recarrega o JS — e some quando a
+ * aba fecha ou a página é recarregada de verdade. Não é armazenamento no
+ * dispositivo: é o mesmo dado que já está na URL que o visitante abriu, mantido
+ * enquanto ele decide.
+ *
+ * Daí saem os dois ganhos, sem tocar no disco antes da hora:
+ *
+ *   · quem aceita o banner DEPOIS de navegar tem o `gclid` gravado na hora do
+ *     aceite, vindo daqui — a URL já não o tem mais;
+ *   · quem NUNCA aceita e envia um formulário leva o `gclid` junto no lead,
+ *     porque o payload do lead nunca teve portão (ver `getUtmParameters`).
+ *
+ * Quem recusa não tem nada gravado no dispositivo, que é o que a política
+ * promete. E o dado nunca sai daqui por conta própria: só vai junto de um
+ * formulário que a pessoa escolheu enviar.
+ */
+const capturadoNestaSessao: Partial<Record<keyof UtmParameters, string>> = {};
+
+/** Lê a URL para a memória. Sem portão: não escreve no dispositivo. */
+function capturarDaUrl(): void {
+  const urlParams = new URLSearchParams(window.location.search);
+  CHAVES_DE_CAMPANHA.forEach((key) => {
+    const val = urlParams.get(key);
+    // O primeiro valor vence: a URL de ENTRADA é a que trouxe a pessoa. Um
+    // parâmetro que apareça numa navegação posterior não reescreve a origem.
+    if (val && !capturadoNestaSessao[key]) capturadoNestaSessao[key] = val;
+  });
+}
+
+/**
+ * Passa para o dispositivo o que foi capturado — só depois do aceite.
+ *
+ * `IntegrationsTracker` chama no mount e de novo no evento
+ * `ag-cookie-consent-updated`, que é o que faz o aceite tardio ainda valer: na
+ * segunda chamada a memória já tem o `gclid` da página de entrada, mesmo que a
+ * URL atual não tenha mais nada.
+ *
+ * Mesmo desenho que o `_fbc` recebeu em 27/08. O portão fica AQUI DENTRO, e não
+ * só no chamador, para que `getUtmParameters` possa chamar sem repetir a
+ * verificação e nenhum chamador futuro grave sem querer.
+ */
+export function persistirParametrosDeCampanha(): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    // A captura em memória roda SEMPRE — é o que preserva a atribuição de quem
+    // ainda não decidiu. O que espera o aceite é a linha de baixo.
+    capturarDaUrl();
+
+    if (localStorage.getItem("ag_cookie_consent") !== "accepted") return;
+
+    CHAVES_DE_CAMPANHA.forEach((key) => {
+      const val = capturadoNestaSessao[key];
+      if (val) localStorage.setItem(`ag_${key}`, val);
+    });
+  } catch (e) {
+    console.warn("[Telemetry] Failed to persist campaign parameters:", e);
+  }
+}
+
+/**
+ * Os parâmetros de campanha desta visita, para irem junto com o lead.
+ *
+ * A LEITURA não tem portão, e é deliberado. O retorno vai no payload de um
+ * formulário que a pessoa está enviando com nome e telefone — o `gclid` é o
+ * dado menos sensível daquele POST, e a base ali é o lead que ela escolheu
+ * mandar, não cookie. Barrar aqui quebraria a atribuição de todo lead de quem
+ * não aceitou, sem ganho nenhum de privacidade.
+ *
+ * Quem tem portão é a GRAVAÇÃO, em `persistirParametrosDeCampanha`.
+ */
 export function getUtmParameters(): UtmParameters {
   const result: UtmParameters = {
     utm_source: null,
@@ -188,25 +296,21 @@ export function getUtmParameters(): UtmParameters {
   if (typeof window === "undefined") return result;
 
   try {
+    // Atualiza a memória e, se já houve aceite, o disco. Tem portão próprio.
+    persistirParametrosDeCampanha();
+
     const urlParams = new URLSearchParams(window.location.search);
-    // A lista É o contrato: chave que não está aqui não é lida da URL nem
-    // persistida, e some sem erro. Foi o que aconteceu com `gbraid`/`wbraid`
-    // até 27/08.
-    const keys: (keyof UtmParameters)[] = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "gbraid", "wbraid", "fbclid"];
 
-    keys.forEach((key) => {
-      // 1. Try URL context first
-      let val = urlParams.get(key);
-      
-      // 2. If present in URL, persist it in localStorage (prefixed with ag_)
-      if (val) {
-        localStorage.setItem(`ag_${key}`, val);
-      } else {
-        // 3. Fallback to localStorage
-        val = localStorage.getItem(`ag_${key}`) || localStorage.getItem(key);
-      }
-
-      result[key] = val || null;
+    CHAVES_DE_CAMPANHA.forEach((key) => {
+      // Nesta ordem: a URL de agora; o que esta navegação capturou antes de a
+      // pessoa decidir; e por fim o que ficou guardado de uma visita anterior
+      // — que só existe se houve aceite.
+      result[key] =
+        urlParams.get(key) ||
+        capturadoNestaSessao[key] ||
+        localStorage.getItem(`ag_${key}`) ||
+        localStorage.getItem(key) ||
+        null;
     });
   } catch (e) {
     console.warn("[Telemetry] Failed to parse UTM parameters:", e);

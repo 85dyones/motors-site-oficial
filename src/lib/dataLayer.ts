@@ -476,7 +476,23 @@ export function pushLead(
   tipo: TipoDeLead,
   dados: ContextoDeVeiculo & { form_id?: string; lead_id?: string } = {},
 ): void {
-  push({ event: "generate_lead", lead_type: tipo, ...dados });
+  // `lead_type` DEPOIS do spread, como nas funções de clique acima.
+  //
+  // Aqui a ordem estava invertida. Hoje isso não muda nada em produção: o tipo
+  // de `dados` não tem `lead_type`, então o TypeScript já impede o chamador de
+  // sobrescrever. O problema é que a proteção mora no tipo, e tipo se afrouxa
+  // — um `as any` num chamador, ou um campo novo no `ContextoDeVeiculo`, e o
+  // valor forçado volta a ser sobrescrevível sem que nada acuse.
+  //
+  // Com o spread antes, a garantia deixa de depender do tipo e passa a ser
+  // estrutural: qualquer `lead_type` que venha em `dados` é descartado aqui,
+  // por construção. É a mesma correção que `pushCliqueWhatsApp` e
+  // `pushCliqueTelefone` já receberam em 27/08 — esta função ficou de fora
+  // porque a inversão dela não estava causando defeito visível.
+  //
+  // `generate_lead` é o evento que vira conversão de LEAD no Google Ads e
+  // alimenta o lance. Um `lead_type` errado aqui muda o valor reportado.
+  push({ event: "generate_lead", ...dados, lead_type: tipo });
 }
 
 /** Simulação de financiamento concluída — micro-conversão (§4.4). */
