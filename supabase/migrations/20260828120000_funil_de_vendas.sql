@@ -1137,297 +1137,359 @@ declare
   v_dom    timestamptz := '2026-08-30 10:00:00-03';  -- domingo
   f        record;
   qtd      int;
+  v_min    int;
   v_txt    text;
 begin
-  -- a) a semente, e as duas exceções que o dono nomeou
-  select count(*) into qtd from public.funil_etapas;
-  if qtd < 7 then
-    raise exception 'ACEITE FALHOU: o funil nasceu com % etapa(s), esperado 7', qtd;
-  end if;
-  if not exists (select 1 from public.funil_etapas
-                  where chave in ('visita', 'negociacao') and protegida
-                  having count(*) = 2) then
-    raise exception
-      'ACEITE FALHOU: visita e negociação precisam nascer protegidas — é a '
-      'regra que o dono nomeou: lead com visita marcada não troca de dono.';
-  end if;
-
-  -- b) O FUNIL É EDITÁVEL. Esta é a asserção que dá razão ao arquivo: o
-  --    `check` antigo recusaria uma etapa nova, e o sintoma seria "erro ao
-  --    salvar" sem pista nenhuma.
-  insert into public.funil_etapas (chave, rotulo, ordem, tipo, estagnacao_minutos)
-    values ('aceite_test_drive', 'Test drive', 45, 'aberta', 60);
-
-  insert into public.leads (nome, telefone, interesse, situacao, ultimo_movimento_em)
-    values ('Aceite Funil Um', '5541999990001', 'Onix 2020',
-            'aceite_test_drive', v_seg - interval '3 hours')
-    returning id into v_lead;
-
-  -- c) o rastro nasceu junto com o lead
-  if not exists (select 1 from public.leads_eventos
-                  where lead_id = v_lead and tipo = 'entrada') then
-    raise exception
-      'ACEITE FALHOU: lead entrou sem deixar rastro — sem a linha de entrada '
-      'não há de onde tirar tempo de funil no relatório.';
-  end if;
-
-  -- d) a etapa terminal carimba o desfecho, e o motivo continua com a pessoa
-  update public.leads set situacao = 'perdido' where id = v_lead;
-  select desfecho into v_txt from public.leads where id = v_lead;
-  if v_txt is distinct from 'perdido' then
-    raise exception
-      'ACEITE FALHOU: mover para a etapa terminal não carimbou o desfecho '
-      '(veio "%")', coalesce(v_txt, '<nulo>');
-  end if;
-  if not exists (select 1 from public.leads_eventos
-                  where lead_id = v_lead and tipo = 'desfecho') then
-    raise exception 'ACEITE FALHOU: o desfecho não entrou no rastro';
-  end if;
-
-  -- e) reabrir limpa o desfecho: negócio que voltou a andar não pode seguir
-  --    contando como perda no relatório do mês
-  update public.leads set desfecho_motivo = 'preco' where id = v_lead;
-  update public.leads set situacao = 'em_contato' where id = v_lead;
-  select coalesce(desfecho, '') || '/' || coalesce(desfecho_motivo, '')
-    into v_txt from public.leads where id = v_lead;
-  if v_txt <> '/' then
-    raise exception
-      'ACEITE FALHOU: reabrir o lead deixou desfecho/motivo para trás ("%")', v_txt;
-  end if;
-
-  -- f) a fila. Um vendedor com WhatsApp, três leads em situações diferentes.
-  insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
-  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
-          'authenticated', 'authenticated', 'aceite-funil-vend@exemplo.invalido', now(), now())
-  returning id into v_vend;
-  update public.profiles
-     set full_name = 'Aceite Vendedora', papeis = array['comercial'],
-         role = 'comercial', telefone_e164 = '+5541999990100'
-   where id = v_vend;
-
-  -- lead sem dono, parado além do prazo da etapa `novo`
-  update public.leads
-     set situacao = 'novo', responsavel = null,
-         ultimo_movimento_em = v_seg - interval '3 hours',
-         ultimo_contato_em = null, alertado_em = null
-   where id = v_lead;
-
-  -- lead em NEGOCIAÇÃO, parado há uma semana: avisa, mas não transfere
-  insert into public.leads (nome, telefone, situacao, responsavel, ultimo_movimento_em)
-    values ('Aceite Funil Dois', '5541999990002', 'negociacao',
-            'Aceite Vendedora', v_seg - interval '7 days')
-    returning id into v_lead2;
-
-  -- lead em PROPOSTA, parado há uma semana: transfere
-  insert into public.leads (nome, telefone, situacao, responsavel, ultimo_movimento_em)
-    values ('Aceite Funil Três', '5541999990003', 'proposta',
-            'Ex-consultor Que Saiu', v_seg - interval '7 days')
-    returning id into v_lead3;
-
-  -- f.1) domingo não recebe mensagem — e o motivo vem escrito
-  select suprimido_por into v_txt
-    from public.montar_fila_do_funil(v_dom, false) where lead_id = v_lead;
-  if v_txt is distinct from 'fora_do_horario' then
-    raise exception
-      'ACEITE FALHOU: a fila de domingo veio com supressão "%" — o vendedor '
-      'não é um servidor.', coalesce(v_txt, '<nula>');
-  end if;
-
-  -- f.2) o lead sem dono é atribuído a quem tem menos carteira
-  select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead;
-  if f.aviso is distinct from 'atribuicao' then
-    raise exception
-      'ACEITE FALHOU: lead sem dono há 3h saiu como "%", esperado "atribuicao"',
-      coalesce(f.aviso, '<nulo>');
-  end if;
-  if f.novo_responsavel is distinct from 'Aceite Vendedora'
-     or f.novo_whatsapp is distinct from '+5541999990100' then
-    raise exception
-      'ACEITE FALHOU: a atribuição não achou vendedor com WhatsApp (veio "%"/"%")',
-      coalesce(f.novo_responsavel, '<nulo>'), coalesce(f.novo_whatsapp, '<nulo>');
-  end if;
-
-  -- f.3) A EXCEÇÃO DO DONO: negociação avisa, mas não troca de mão
-  select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead2;
-  if f.aviso is distinct from 'estagnacao' then
-    raise exception
-      'ACEITE FALHOU: lead em negociação há 7 dias saiu como "%" — etapa '
-      'protegida avisa, nunca transfere.', coalesce(f.aviso, '<nulo>');
-  end if;
-
-  -- f.4) proposta parada há uma semana troca de dono
-  select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead3;
-  if f.aviso is distinct from 'transferencia' then
-    raise exception
-      'ACEITE FALHOU: lead em proposta há 7 dias saiu como "%", esperado '
-      '"transferencia"', coalesce(f.aviso, '<nulo>');
-  end if;
-
-  -- f.5) reservar aplica a transferência E deixa rastro, no mesmo comando
-  perform public.montar_fila_do_funil(v_seg, true);
-  select responsavel into v_txt from public.leads where id = v_lead3;
-  if v_txt is distinct from 'Aceite Vendedora' then
-    raise exception
-      'ACEITE FALHOU: p_reservar não transferiu o lead (dono ficou "%")',
-      coalesce(v_txt, '<nulo>');
-  end if;
-  if not exists (select 1 from public.leads_eventos
-                  where lead_id = v_lead3 and tipo = 'transferencia' and automatico) then
-    raise exception
-      'ACEITE FALHOU: a transferência automática não entrou no rastro — o '
-      'vendedor descobriria a troca de dono por adivinhação.';
-  end if;
-
-  -- f.6) o relógio da estagnação NÃO reinicia numa transferência automática
-  select minutos_parado into qtd
-    from public.montar_fila_do_funil(v_seg + interval '1 minute', false)
-   where lead_id = v_lead3;
-  if coalesce(qtd, 0) < 10000 then
-    raise exception
-      'ACEITE FALHOU: o lead transferido nasceu com o relógio zerado (% min). '
-      'O dono novo teria o dobro do prazo do antigo.', qtd;
-  end if;
-
-  -- f.7) cutucado agora, não se cutuca de novo na mesma rodada
-  select suprimido_por into v_txt
-    from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead2;
-  if v_txt is distinct from 'alerta_recente' then
-    raise exception
-      'ACEITE FALHOU: o mesmo lead seria cutucado duas vezes seguidas '
-      '(supressão veio "%")', coalesce(v_txt, '<nula>');
-  end if;
-
-  -- f.8) O RODÍZIO ESCOLHE O MENOS CARREGADO, não o próximo da lista.
-  --      Rodízio cego distribui igual no papel e desigual na prática: quem
-  --      está de férias acumula. Uma segunda vendedora, com a carteira cheia,
-  --      prova que a escolha olha a carga.
-  insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
-  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
-          'authenticated', 'authenticated', 'aceite-funil-vend2@exemplo.invalido', now(), now())
-  returning id into v_vend2;
-  update public.profiles
-     set full_name = 'Aceite Sobrecarregada', papeis = array['comercial'],
-         role = 'comercial', telefone_e164 = '+5541999990200'
-   where id = v_vend2;
-
-  -- A recém-chegada nasce com cinco leads; a outra, com os do aceite.
-  insert into public.leads (nome, situacao, responsavel, ultimo_movimento_em)
-  select 'Aceite Carga ' || g, 'em_contato', 'Aceite Sobrecarregada',
-         v_seg - interval '1 hour'
-    from generate_series(1, 5) g;
-
-  insert into public.leads (nome, telefone, situacao, ultimo_movimento_em)
-    values ('Aceite Funil Quatro', '5541999990004', 'novo', v_seg - interval '3 hours')
-    returning id into v_lead4;
-
-  select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead4;
-  if f.novo_responsavel is distinct from 'Aceite Vendedora' then
-    raise exception
-      'ACEITE FALHOU: o rodízio mandou o lead para "%" — deveria ir para quem '
-      'tem menos leads abertos, não para o próximo da lista.',
-      coalesce(f.novo_responsavel, '<nulo>');
-  end if;
-
-  -- f.9) NÃO HÁ TETO DE TRANSFERÊNCIAS, e quem para a roda é o ATENDIMENTO.
+  -- ==========================================================================
+  -- ENSAIO EM SECO: tudo aqui dentro é desfeito no fim
+  -- ==========================================================================
+  -- A primeira versão deste bloco ensaiava direto na base e limpava com
+  -- DELETE no fim. Duas coisas quebraram quando ele encontrou uma base de
+  -- verdade, e a segunda é grave:
   --
-  --      Decisão do dono em 2026-08-28: *"quantas se fizerem necessárias até o
-  --      atendimento"*. Este bloco prova as duas metades: um lead com cinco
-  --      trocas no currículo continua andando, e basta alguém falar com o
-  --      cliente para ele sair da fila. Se um teto voltar um dia, é aqui que
-  --      ele quebra — e o motivo fica escrito.
+  --  1. As asserções citavam o vendedor pelo NOME ("Aceite Vendedora").
+  --     Num banco novo o elenco é só o do ensaio; em produção há gente real,
+  --     e o rodízio — corretamente — escolheu quem tinha menos leads abertos.
+  --     A função estava certa e o teste, errado. Ver a asserção relativa
+  --     adiante: o que se cobra é a REGRA, não o nome de quem ela escolhe.
   --
-  --      Nasce já em `proposta` de propósito: o gatilho reescreve
-  --      `ultimo_movimento_em` a cada troca de etapa, e é ele quem manda.
-  insert into public.leads (nome, telefone, situacao, responsavel, transferencias, ultimo_movimento_em)
-    values ('Aceite Roda Viva', '5541999990005', 'proposta', 'Outro Que Saiu',
-            5, v_seg - interval '30 days')
-    returning id into v_lead5;
-
-  select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead5;
-  if f.aviso is distinct from 'transferencia' or f.suprimido_por is not null then
-    raise exception
-      'ACEITE FALHOU: lead com cinco transferências saiu como "%"/"%" — não há '
-      'teto, ele circula até ser atendido.',
-      coalesce(f.aviso, '<nulo>'), coalesce(f.suprimido_por, '<nula>');
-  end if;
-
-  perform public.montar_fila_do_funil(v_seg, true);
-  if (select responsavel from public.leads where id = v_lead5)
-       is not distinct from 'Outro Que Saiu' then
-    raise exception
-      'ACEITE FALHOU: a sexta transferência não aconteceu — algum teto voltou.';
-  end if;
-  if (select transferencias from public.leads where id = v_lead5) <> 6 then
-    raise exception
-      'ACEITE FALHOU: o contador de transferências não andou. Sem teto, ele é '
-      'a única forma de alguém notar um lead que ninguém quer.';
-  end if;
-
-  -- A metade que importa: o atendimento tira o lead da roda.
-  perform set_config('request.jwt.claims',
-    json_build_object('sub', v_vend, 'role', 'authenticated')::text, true);
-  v_contato := public.registrar_contato_do_lead(v_lead5, 'whatsapp');
-  perform set_config('request.jwt.claims', '', true);
-
-  select count(*) into qtd
-    from public.montar_fila_do_funil(v_contato + interval '1 minute', false)
-   where lead_id = v_lead5;
-  if qtd <> 0 then
-    raise exception
-      'ACEITE FALHOU: o lead atendido continuou na roda — "até o atendimento" '
-      'exige que o atendimento seja o fim da linha.';
-  end if;
-
-  -- f.10) registrar contato para o relógio: o vendedor que acabou de falar com
-  --      o cliente não pode ser cobrado por não ter falado com o cliente
-  -- Vestindo a sessão da vendedora: `registrar_contato_do_lead` exige staff, e
-  -- um `do $$` roda sem JWT nenhum. Chamar sem a sessão provaria que a função
-  -- funciona num contexto que a aplicação nunca tem.
-  perform set_config('request.jwt.claims',
-    json_build_object('sub', v_vend, 'role', 'authenticated')::text, true);
-  v_contato := public.registrar_contato_do_lead(v_lead2, 'whatsapp');
-  perform set_config('request.jwt.claims', '', true);
-
-  -- A fila é consultada a partir do INSTANTE do contato, e não do `v_seg`
-  -- fixo: a função carimba `now()`, e um `p_agora` combinado para dias depois
-  -- mediria a parada como se o contato não tivesse acontecido.
-  select count(*) into qtd
-    from public.montar_fila_do_funil(v_contato + interval '1 minute', false)
-   where lead_id = v_lead2;
-  if qtd <> 0 then
-    raise exception
-      'ACEITE FALHOU: o lead com contato recém-registrado continuou na fila — '
-      'abrir a conversa tem que parar o relógio, senão o vendedor é cobrado '
-      'por não ter feito o que acabou de fazer.';
-  end if;
-  if not exists (select 1 from public.leads_eventos
-                  where lead_id = v_lead2 and tipo = 'contato') then
-    raise exception 'ACEITE FALHOU: o contato registrado não entrou no rastro';
-  end if;
-
-  -- g) a trava do funil: não dá para ficar sem "perdido"
+  --  2. `montar_fila_do_funil(..., true)` não tem recorte: ela reserva a fila
+  --     INTEIRA. Rodando em produção, o ensaio teria transferido os leads
+  --     reais, carimbado `alertado_em` em todos e escrito no rastro — e a
+  --     limpeza por DELETE só apagaria os leads do ensaio. Ou seja: a
+  --     migração teria feito, em silêncio, exatamente a transferência sem
+  --     aviso que este arquivo inteiro existe para impedir. O defeito 1
+  --     abortou antes e evitou o 2 por acidente.
   --
-  -- `set constraints all immediate` porque o gatilho é DEFERRABLE INITIALLY
-  -- DEFERRED: ele só cobra no COMMIT, e um bloco `do $$` nunca commita. Sem
-  -- esta linha o aceite passaria por não executar a trava, que é a forma mais
-  -- traiçoeira de teste verde — o adiamento existe para a tela poder salvar
-  -- várias etapas de uma vez sem tropeçar num estado intermediário legítimo.
+  -- A correção é a mesma para os dois: o ensaio roda dentro de um bloco que
+  -- termina levantando um erro-sentinela. O `exception` o captura, e o
+  -- Postgres desfaz TUDO que o bloco fez — leads de teste, usuários de teste,
+  -- e também qualquer efeito da fila sobre dado real. O que sobrevive é o que
+  -- interessa: a prova de que a régua funciona, e os NOTICE, que não são
+  -- transacionais.
+  --
+  -- ⚠️ Não troque este `raise` por um `return`: `return` sai do bloco sem
+  -- desfazer nada, e o ensaio volta a escrever na base.
   begin
-    update public.funil_etapas set ativa = false where tipo = 'perdido';
-    set constraints all immediate;
-    raise exception
-      'ACEITE FALHOU: desativar a última etapa de perdido passou — o motivo '
-      'da perda deixaria de ser coletado sem ninguém ver.';
-  exception
-    when check_violation then null;  -- é o que tinha que acontecer
-  end;
+    -- a) a semente, e as duas exceções que o dono nomeou
+    select count(*) into qtd from public.funil_etapas;
+    if qtd < 7 then
+      raise exception 'ACEITE FALHOU: o funil nasceu com % etapa(s), esperado 7', qtd;
+    end if;
+    if not exists (select 1 from public.funil_etapas
+                    where chave in ('visita', 'negociacao') and protegida
+                    having count(*) = 2) then
+      raise exception
+        'ACEITE FALHOU: visita e negociação precisam nascer protegidas — é a '
+        'regra que o dono nomeou: lead com visita marcada não troca de dono.';
+    end if;
 
-  -- limpeza
-  delete from public.leads     where nome like 'Aceite %';
-  delete from public.leads     where id in (v_lead, v_lead2, v_lead3, v_lead4, v_lead5);
-  delete from public.profiles  where id in (v_vend, v_vend2);
-  delete from auth.users       where id in (v_vend, v_vend2);
-  delete from public.funil_etapas where chave = 'aceite_test_drive';
+    -- b) O FUNIL É EDITÁVEL. Esta é a asserção que dá razão ao arquivo: o
+    --    `check` antigo recusaria uma etapa nova, e o sintoma seria "erro ao
+    --    salvar" sem pista nenhuma.
+    insert into public.funil_etapas (chave, rotulo, ordem, tipo, estagnacao_minutos)
+      values ('aceite_test_drive', 'Test drive', 45, 'aberta', 60);
+
+    insert into public.leads (nome, telefone, interesse, situacao, ultimo_movimento_em)
+      values ('Aceite Funil Um', '5541999990001', 'Onix 2020',
+              'aceite_test_drive', v_seg - interval '3 hours')
+      returning id into v_lead;
+
+    -- c) o rastro nasceu junto com o lead
+    if not exists (select 1 from public.leads_eventos
+                    where lead_id = v_lead and tipo = 'entrada') then
+      raise exception
+        'ACEITE FALHOU: lead entrou sem deixar rastro — sem a linha de entrada '
+        'não há de onde tirar tempo de funil no relatório.';
+    end if;
+
+    -- d) a etapa terminal carimba o desfecho, e o motivo continua com a pessoa
+    update public.leads set situacao = 'perdido' where id = v_lead;
+    select desfecho into v_txt from public.leads where id = v_lead;
+    if v_txt is distinct from 'perdido' then
+      raise exception
+        'ACEITE FALHOU: mover para a etapa terminal não carimbou o desfecho '
+        '(veio "%")', coalesce(v_txt, '<nulo>');
+    end if;
+    if not exists (select 1 from public.leads_eventos
+                    where lead_id = v_lead and tipo = 'desfecho') then
+      raise exception 'ACEITE FALHOU: o desfecho não entrou no rastro';
+    end if;
+
+    -- e) reabrir limpa o desfecho: negócio que voltou a andar não pode seguir
+    --    contando como perda no relatório do mês
+    update public.leads set desfecho_motivo = 'preco' where id = v_lead;
+    update public.leads set situacao = 'em_contato' where id = v_lead;
+    select coalesce(desfecho, '') || '/' || coalesce(desfecho_motivo, '')
+      into v_txt from public.leads where id = v_lead;
+    if v_txt <> '/' then
+      raise exception
+        'ACEITE FALHOU: reabrir o lead deixou desfecho/motivo para trás ("%")', v_txt;
+    end if;
+
+    -- f) a fila. Um vendedor com WhatsApp, três leads em situações diferentes.
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-funil-vend@exemplo.invalido', now(), now())
+    returning id into v_vend;
+    update public.profiles
+       set full_name = 'Aceite Vendedora', papeis = array['comercial'],
+           role = 'comercial', telefone_e164 = '+5541999990100'
+     where id = v_vend;
+
+    -- lead sem dono, parado além do prazo da etapa `novo`
+    update public.leads
+       set situacao = 'novo', responsavel = null,
+           ultimo_movimento_em = v_seg - interval '3 hours',
+           ultimo_contato_em = null, alertado_em = null
+     where id = v_lead;
+
+    -- lead em NEGOCIAÇÃO, parado há uma semana: avisa, mas não transfere
+    insert into public.leads (nome, telefone, situacao, responsavel, ultimo_movimento_em)
+      values ('Aceite Funil Dois', '5541999990002', 'negociacao',
+              'Aceite Vendedora', v_seg - interval '7 days')
+      returning id into v_lead2;
+
+    -- lead em PROPOSTA, parado há uma semana: transfere
+    insert into public.leads (nome, telefone, situacao, responsavel, ultimo_movimento_em)
+      values ('Aceite Funil Três', '5541999990003', 'proposta',
+              'Ex-consultor Que Saiu', v_seg - interval '7 days')
+      returning id into v_lead3;
+
+    -- f.1) domingo não recebe mensagem — e o motivo vem escrito
+    select suprimido_por into v_txt
+      from public.montar_fila_do_funil(v_dom, false) where lead_id = v_lead;
+    if v_txt is distinct from 'fora_do_horario' then
+      raise exception
+        'ACEITE FALHOU: a fila de domingo veio com supressão "%" — o vendedor '
+        'não é um servidor.', coalesce(v_txt, '<nula>');
+    end if;
+
+    -- f.2) o lead sem dono é atribuído a quem tem menos carteira
+    select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead;
+    if f.aviso is distinct from 'atribuicao' then
+      raise exception
+        'ACEITE FALHOU: lead sem dono há 3h saiu como "%", esperado "atribuicao"',
+        coalesce(f.aviso, '<nulo>');
+    end if;
+    -- O que se cobra aqui é que a fila ACHOU alguém com WhatsApp — não QUEM.
+    -- Numa base com vendedores de verdade, quem ela escolhe depende da carga
+    -- de cada um, e é isso que f.8 verifica. Prender o aceite a um nome foi o
+    -- que quebrou a aplicação em produção.
+    if f.novo_responsavel is null or coalesce(trim(f.novo_whatsapp), '') = '' then
+      raise exception
+        'ACEITE FALHOU: a atribuição não achou vendedor com WhatsApp (veio "%"/"%")',
+        coalesce(f.novo_responsavel, '<nulo>'), coalesce(f.novo_whatsapp, '<nulo>');
+    end if;
+
+    -- f.3) A EXCEÇÃO DO DONO: negociação avisa, mas não troca de mão
+    select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead2;
+    if f.aviso is distinct from 'estagnacao' then
+      raise exception
+        'ACEITE FALHOU: lead em negociação há 7 dias saiu como "%" — etapa '
+        'protegida avisa, nunca transfere.', coalesce(f.aviso, '<nulo>');
+    end if;
+
+    -- f.4) proposta parada há uma semana troca de dono
+    select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead3;
+    if f.aviso is distinct from 'transferencia' then
+      raise exception
+        'ACEITE FALHOU: lead em proposta há 7 dias saiu como "%", esperado '
+        '"transferencia"', coalesce(f.aviso, '<nulo>');
+    end if;
+
+    -- f.5) reservar aplica a transferência E deixa rastro, no mesmo comando
+    perform public.montar_fila_do_funil(v_seg, true);
+    select responsavel into v_txt from public.leads where id = v_lead3;
+    -- Mudou de dono é o que importa; para QUEM é assunto de f.8.
+    if v_txt is null or v_txt is not distinct from 'Ex-consultor Que Saiu' then
+      raise exception
+        'ACEITE FALHOU: p_reservar não transferiu o lead (dono ficou "%")',
+        coalesce(v_txt, '<nulo>');
+    end if;
+    if not exists (select 1 from public.leads_eventos
+                    where lead_id = v_lead3 and tipo = 'transferencia' and automatico) then
+      raise exception
+        'ACEITE FALHOU: a transferência automática não entrou no rastro — o '
+        'vendedor descobriria a troca de dono por adivinhação.';
+    end if;
+
+    -- f.6) o relógio da estagnação NÃO reinicia numa transferência automática
+    select minutos_parado into qtd
+      from public.montar_fila_do_funil(v_seg + interval '1 minute', false)
+     where lead_id = v_lead3;
+    if coalesce(qtd, 0) < 10000 then
+      raise exception
+        'ACEITE FALHOU: o lead transferido nasceu com o relógio zerado (% min). '
+        'O dono novo teria o dobro do prazo do antigo.', qtd;
+    end if;
+
+    -- f.7) cutucado agora, não se cutuca de novo na mesma rodada
+    select suprimido_por into v_txt
+      from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead2;
+    if v_txt is distinct from 'alerta_recente' then
+      raise exception
+        'ACEITE FALHOU: o mesmo lead seria cutucado duas vezes seguidas '
+        '(supressão veio "%")', coalesce(v_txt, '<nula>');
+    end if;
+
+    -- f.8) O RODÍZIO ESCOLHE O MENOS CARREGADO, não o próximo da lista.
+    --      Rodízio cego distribui igual no papel e desigual na prática: quem
+    --      está de férias acumula. Uma segunda vendedora, com a carteira cheia,
+    --      prova que a escolha olha a carga.
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-funil-vend2@exemplo.invalido', now(), now())
+    returning id into v_vend2;
+    update public.profiles
+       set full_name = 'Aceite Sobrecarregada', papeis = array['comercial'],
+           role = 'comercial', telefone_e164 = '+5541999990200'
+     where id = v_vend2;
+
+    -- A recém-chegada nasce com cinco leads; a outra, com os do aceite.
+    insert into public.leads (nome, situacao, responsavel, ultimo_movimento_em)
+    select 'Aceite Carga ' || g, 'em_contato', 'Aceite Sobrecarregada',
+           v_seg - interval '1 hour'
+      from generate_series(1, 5) g;
+
+    insert into public.leads (nome, telefone, situacao, ultimo_movimento_em)
+      values ('Aceite Funil Quatro', '5541999990004', 'novo', v_seg - interval '3 hours')
+      returning id into v_lead4;
+
+    select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead4;
+
+    -- A asserção RELATIVA. A primeira versão exigia um NOME — e nome só é
+    -- previsível num banco vazio; em produção o rodízio escolheu, com toda a
+    -- razão, um vendedor real com a carteira menor, e a migração se recusou a
+    -- aplicar. Aqui se cobra a regra que a função promete: quem ela escolheu
+    -- tem a MENOR carteira aberta entre os elegíveis. Isso vale igual num
+    -- banco recém-criado e numa loja com cinco vendedores.
+    select count(*) into qtd
+      from public.leads x
+     where trim(coalesce(x.responsavel, '')) = trim(f.novo_responsavel)
+       and x.desfecho is null;
+
+    select min(c.carga) into v_min
+      from (
+        select (select count(*) from public.leads x
+                 where trim(coalesce(x.responsavel, '')) = trim(p.full_name)
+                   and x.desfecho is null) as carga
+          from public.profiles p
+         where p.is_active
+           and p.papeis && array['comercial', 'admin']
+           and coalesce(trim(p.full_name), '')     <> ''
+           and coalesce(trim(p.telefone_e164), '') <> ''
+      ) c;
+
+    if f.novo_responsavel is null or qtd is distinct from v_min then
+      raise exception
+        'ACEITE FALHOU: o rodízio mandou o lead para "%", que tem % leads '
+        'abertos, mas há elegível com % — a escolha deve ser sempre a menor '
+        'carteira.',
+        coalesce(f.novo_responsavel, '<nulo>'), qtd, v_min;
+    end if;
+
+    -- f.9) NÃO HÁ TETO DE TRANSFERÊNCIAS, e quem para a roda é o ATENDIMENTO.
+    --
+    --      Decisão do dono em 2026-08-28: *"quantas se fizerem necessárias até o
+    --      atendimento"*. Este bloco prova as duas metades: um lead com cinco
+    --      trocas no currículo continua andando, e basta alguém falar com o
+    --      cliente para ele sair da fila. Se um teto voltar um dia, é aqui que
+    --      ele quebra — e o motivo fica escrito.
+    --
+    --      Nasce já em `proposta` de propósito: o gatilho reescreve
+    --      `ultimo_movimento_em` a cada troca de etapa, e é ele quem manda.
+    insert into public.leads (nome, telefone, situacao, responsavel, transferencias, ultimo_movimento_em)
+      values ('Aceite Roda Viva', '5541999990005', 'proposta', 'Outro Que Saiu',
+              5, v_seg - interval '30 days')
+      returning id into v_lead5;
+
+    select * into f from public.montar_fila_do_funil(v_seg, false) where lead_id = v_lead5;
+    if f.aviso is distinct from 'transferencia' or f.suprimido_por is not null then
+      raise exception
+        'ACEITE FALHOU: lead com cinco transferências saiu como "%"/"%" — não há '
+        'teto, ele circula até ser atendido.',
+        coalesce(f.aviso, '<nulo>'), coalesce(f.suprimido_por, '<nula>');
+    end if;
+
+    perform public.montar_fila_do_funil(v_seg, true);
+    if (select responsavel from public.leads where id = v_lead5)
+         is not distinct from 'Outro Que Saiu' then
+      raise exception
+        'ACEITE FALHOU: a sexta transferência não aconteceu — algum teto voltou.';
+    end if;
+    if (select transferencias from public.leads where id = v_lead5) <> 6 then
+      raise exception
+        'ACEITE FALHOU: o contador de transferências não andou. Sem teto, ele é '
+        'a única forma de alguém notar um lead que ninguém quer.';
+    end if;
+
+    -- A metade que importa: o atendimento tira o lead da roda.
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', v_vend, 'role', 'authenticated')::text, true);
+    v_contato := public.registrar_contato_do_lead(v_lead5, 'whatsapp');
+    perform set_config('request.jwt.claims', '', true);
+
+    select count(*) into qtd
+      from public.montar_fila_do_funil(v_contato + interval '1 minute', false)
+     where lead_id = v_lead5;
+    if qtd <> 0 then
+      raise exception
+        'ACEITE FALHOU: o lead atendido continuou na roda — "até o atendimento" '
+        'exige que o atendimento seja o fim da linha.';
+    end if;
+
+    -- f.10) registrar contato para o relógio: o vendedor que acabou de falar com
+    --      o cliente não pode ser cobrado por não ter falado com o cliente
+    -- Vestindo a sessão da vendedora: `registrar_contato_do_lead` exige staff, e
+    -- um `do $$` roda sem JWT nenhum. Chamar sem a sessão provaria que a função
+    -- funciona num contexto que a aplicação nunca tem.
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', v_vend, 'role', 'authenticated')::text, true);
+    v_contato := public.registrar_contato_do_lead(v_lead2, 'whatsapp');
+    perform set_config('request.jwt.claims', '', true);
+
+    -- A fila é consultada a partir do INSTANTE do contato, e não do `v_seg`
+    -- fixo: a função carimba `now()`, e um `p_agora` combinado para dias depois
+    -- mediria a parada como se o contato não tivesse acontecido.
+    select count(*) into qtd
+      from public.montar_fila_do_funil(v_contato + interval '1 minute', false)
+     where lead_id = v_lead2;
+    if qtd <> 0 then
+      raise exception
+        'ACEITE FALHOU: o lead com contato recém-registrado continuou na fila — '
+        'abrir a conversa tem que parar o relógio, senão o vendedor é cobrado '
+        'por não ter feito o que acabou de fazer.';
+    end if;
+    if not exists (select 1 from public.leads_eventos
+                    where lead_id = v_lead2 and tipo = 'contato') then
+      raise exception 'ACEITE FALHOU: o contato registrado não entrou no rastro';
+    end if;
+
+    -- g) a trava do funil: não dá para ficar sem "perdido"
+    --
+    -- `set constraints all immediate` porque o gatilho é DEFERRABLE INITIALLY
+    -- DEFERRED: ele só cobra no COMMIT, e um bloco `do $$` nunca commita. Sem
+    -- esta linha o aceite passaria por não executar a trava, que é a forma mais
+    -- traiçoeira de teste verde — o adiamento existe para a tela poder salvar
+    -- várias etapas de uma vez sem tropeçar num estado intermediário legítimo.
+    begin
+      update public.funil_etapas set ativa = false where tipo = 'perdido';
+      set constraints all immediate;
+      raise exception
+        'ACEITE FALHOU: desativar a última etapa de perdido passou — o motivo '
+        'da perda deixaria de ser coletado sem ninguém ver.';
+    exception
+      when check_violation then null;  -- é o que tinha que acontecer
+    end;
+
+
+    raise exception 'ensaio concluido' using errcode = 'ACE01';
+  exception
+    -- O sentinela, e só ele. Qualquer outro erro sobe: é uma falha de aceite
+    -- de verdade e a migração tem que parar.
+    when sqlstate 'ACE01' then null;
+  end;
 
   raise notice
     'Aceite verificado: o funil aceita etapa nova, a etapa terminal carimba o '
@@ -1451,84 +1513,92 @@ declare
   v_lead    uuid;
   qtd       int;
 begin
-  insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
-  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
-          'authenticated', 'authenticated', 'aceite-funil-cli@exemplo.invalido', now(), now())
-  returning id into v_cliente;
-  update public.profiles set papeis = array['cliente'], role = 'cliente'
-   where id = v_cliente;
+  -- Mesmo ensaio em seco do bloco acima, e pela mesma razão: este aqui cria
+  -- um cliente da Garagem, um comercial e um lead só para empurrar a porta.
+  -- Nenhum dos três tem por que sobreviver à migração, e um `delete` no fim
+  -- depende de o bloco chegar ao fim — se uma asserção falhar no meio, o
+  -- rastro do ensaio fica na base de produção. O rollback não depende disso.
+  begin
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-funil-cli@exemplo.invalido', now(), now())
+    returning id into v_cliente;
+    update public.profiles set papeis = array['cliente'], role = 'cliente'
+     where id = v_cliente;
 
-  insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
-  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
-          'authenticated', 'authenticated', 'aceite-funil-com@exemplo.invalido', now(), now())
-  returning id into v_com;
-  update public.profiles set papeis = array['comercial'], role = 'comercial',
-         full_name = 'Aceite Comercial'
-   where id = v_com;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-funil-com@exemplo.invalido', now(), now())
+    returning id into v_com;
+    update public.profiles set papeis = array['comercial'], role = 'comercial',
+           full_name = 'Aceite Comercial'
+     where id = v_com;
 
-  insert into public.leads (nome, telefone, interesse, situacao)
-    values ('Aceite RLS do Funil', '5541999990009', 'HB20 2021', 'novo')
-    returning id into v_lead;
+    insert into public.leads (nome, telefone, interesse, situacao)
+      values ('Aceite RLS do Funil', '5541999990009', 'HB20 2021', 'novo')
+      returning id into v_lead;
 
-  -- ---- na pele do cliente da Garagem ----
-  perform set_config('request.jwt.claims',
-    json_build_object('sub', v_cliente, 'role', 'authenticated')::text, true);
-  set local role authenticated;
+    -- ---- na pele do cliente da Garagem ----
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', v_cliente, 'role', 'authenticated')::text, true);
+    set local role authenticated;
 
-  select count(*) into qtd from public.leads where id = v_lead;
-  if qtd <> 0 then
-    raise exception
-      'ACEITE FALHOU: um cliente logado leu % lead(s) direto da tabela. Era '
-      'exatamente a brecha que a policy `using (true)` deixava aberta.', qtd;
-  end if;
+    select count(*) into qtd from public.leads where id = v_lead;
+    if qtd <> 0 then
+      raise exception
+        'ACEITE FALHOU: um cliente logado leu % lead(s) direto da tabela. Era '
+        'exatamente a brecha que a policy `using (true)` deixava aberta.', qtd;
+    end if;
 
-  select count(*) into qtd from public.agenda_de_pessoas where id = v_lead;
-  if qtd <> 0 then
-    raise exception
-      'ACEITE FALHOU: um cliente logado leu % lead(s) pela agenda de pessoas. '
-      'A view está furando a RLS de public.leads.', qtd;
-  end if;
+    select count(*) into qtd from public.agenda_de_pessoas where id = v_lead;
+    if qtd <> 0 then
+      raise exception
+        'ACEITE FALHOU: um cliente logado leu % lead(s) pela agenda de pessoas. '
+        'A view está furando a RLS de public.leads.', qtd;
+    end if;
 
-  reset role;
+    reset role;
 
-  -- ---- na pele de quem atende ----
-  perform set_config('request.jwt.claims',
-    json_build_object('sub', v_com, 'role', 'authenticated')::text, true);
-  set local role authenticated;
+    -- ---- na pele de quem atende ----
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', v_com, 'role', 'authenticated')::text, true);
+    set local role authenticated;
 
-  select count(*) into qtd from public.agenda_de_pessoas
-   where id = v_lead and papel = 'lead';
-  if qtd <> 1 then
-    raise exception
-      'ACEITE FALHOU: o comercial viu % linha(s) do lead na agenda, esperado 1. '
-      'O pedido era que TODO lead aparecesse na aba de clientes e '
-      'fornecedores.', qtd;
-  end if;
+    select count(*) into qtd from public.agenda_de_pessoas
+     where id = v_lead and papel = 'lead';
+    if qtd <> 1 then
+      raise exception
+        'ACEITE FALHOU: o comercial viu % linha(s) do lead na agenda, esperado 1. '
+        'O pedido era que TODO lead aparecesse na aba de clientes e '
+        'fornecedores.', qtd;
+    end if;
 
-  select count(*) into qtd from public.agenda_de_pessoas
-   where id = v_lead and especialidade = 'Novo' and ativo;
-  if qtd <> 1 then
-    raise exception
-      'ACEITE FALHOU: o lead apareceu na agenda sem a etapa do funil ou já '
-      'inativo — quem abre a agenda precisa saber em que pé está a conversa.';
-  end if;
+    select count(*) into qtd from public.agenda_de_pessoas
+     where id = v_lead and especialidade = 'Novo' and ativo;
+    if qtd <> 1 then
+      raise exception
+        'ACEITE FALHOU: o lead apareceu na agenda sem a etapa do funil ou já '
+        'inativo — quem abre a agenda precisa saber em que pé está a conversa.';
+    end if;
 
-  reset role;
-  perform set_config('request.jwt.claims', '', true);
+    reset role;
+    perform set_config('request.jwt.claims', '', true);
 
-  -- ---- lead perdido sai da lista do dia a dia, sem sair do histórico ----
-  update public.leads set situacao = 'perdido' where id = v_lead;
-  select count(*) into qtd from public.agenda_de_pessoas
-   where id = v_lead and ativo = false;
-  if qtd <> 1 then
-    raise exception
-      'ACEITE FALHOU: o lead perdido continuou ativo na agenda — ele tem que '
-      'sair do filtro padrão e continuar alcançável em "todos".';
-  end if;
+    -- ---- lead perdido sai da lista do dia a dia, sem sair do histórico ----
+    update public.leads set situacao = 'perdido' where id = v_lead;
+    select count(*) into qtd from public.agenda_de_pessoas
+     where id = v_lead and ativo = false;
+    if qtd <> 1 then
+      raise exception
+        'ACEITE FALHOU: o lead perdido continuou ativo na agenda — ele tem que '
+        'sair do filtro padrão e continuar alcançável em "todos".';
+    end if;
 
-  delete from public.leads    where id = v_lead;
-  delete from public.profiles where id in (v_cliente, v_com);
-  delete from auth.users      where id in (v_cliente, v_com);
+
+    raise exception 'ensaio concluido' using errcode = 'ACE01';
+  exception
+    when sqlstate 'ACE01' then null;
+  end;
 
   raise notice
     'Aceite verificado: o cliente da Garagem não alcança lead nem pela tabela '
