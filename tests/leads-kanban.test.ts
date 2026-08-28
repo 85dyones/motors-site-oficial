@@ -179,15 +179,26 @@ describe("a tela", () => {
     expect(codigo).not.toMatch(/etapas\.filter\(\(e\) => e\.ativa\)/);
   });
 
-  it("ganho e perdido são BOTÃO, não coluna", () => {
+  it("os desfechos são BOTÃO, não coluna", () => {
     // 2026-08-28, segunda rodada: *"não precisa de uma aba de ganho ou
     // perdido, só um botão para destinar"*. O quadro desenha `colunasVisiveis`
     // (só etapas abertas) e os botões vêm de `destinos` — se alguém religar as
-    // colunas terminais, o quadro volta a ter duas colunas que só crescem.
+    // colunas terminais, o quadro volta a ter colunas que só crescem.
     expect(codigo).toContain("const destinos = useMemo(() => destinosDoNegocio(etapas)");
-    expect(codigo).toContain("{destinos.map((e) => (");
     // E os botões não podem voltar a sair das colunas do quadro.
     expect(codigo).not.toMatch(/colunasVisiveis[\s\S]{0,80}tipo === "ganho"/);
+  });
+
+  it("descartar não fica na mesma fileira de fechar o negócio", () => {
+    // Terceira rodada, no mesmo dia: *"precisamos ter a opção de encerrar como
+    // 'não é uma oportunidade de negócio'"*. Se ele virar mais um botão ao
+    // lado de Perdido, o erro fácil é marcar spam como perda — que é o erro
+    // que o terceiro tipo existe para evitar, porque perda derruba a taxa de
+    // conversão da loja.
+    expect(codigo).toContain("const fecham = useMemo");
+    expect(codigo).toContain("const descartam = useMemo");
+    expect(codigo).toContain("{fecham.map((e) => (");
+    expect(codigo).toContain("{descartam.map((e) => (");
   });
 
   it("o lead fechado sai do quadro e ganha endereço", () => {

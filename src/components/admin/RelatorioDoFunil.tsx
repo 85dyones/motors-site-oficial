@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { LinhaDoRelatorio } from "../../lib/funil";
+import { ROTULO_DO_DESFECHO, type LinhaDoRelatorio } from "../../lib/funil";
 
 /**
  * Ganhos e perdas — o relatório que o motivo obrigatório torna possível.
@@ -31,6 +31,7 @@ interface Dados {
   periodo: { de: string; ate: string };
   ganhos: number;
   perdidos: number;
+  descartados: number;
   valor_ganho: number;
   ticket_medio: number;
   taxa_conversao: number;
@@ -38,6 +39,7 @@ interface Dados {
   ciclo_mediano_dias: number | null;
   por_motivo_perdido: LinhaDoRelatorio[];
   por_motivo_ganho: LinhaDoRelatorio[];
+  por_motivo_descartado: LinhaDoRelatorio[];
   funil_atual: { chave: string; rotulo: string; quantidade: number }[];
   por_vendedor?: {
     nome: string;
@@ -48,7 +50,7 @@ interface Dados {
     taxa_conversao: number;
   }[];
   observacoes?: {
-    desfecho: "ganho" | "perdido";
+    desfecho: "ganho" | "perdido" | "descartado";
     motivo: string | null;
     nota: string;
     responsavel: string | null;
@@ -146,7 +148,7 @@ export default function RelatorioDoFunil() {
             passa a se encher sozinho, a cada negócio fechado no kanban.
           </p>
         </div>
-      ) : !dados || dados.ganhos + dados.perdidos === 0 ? (
+      ) : !dados || dados.ganhos + dados.perdidos + dados.descartados === 0 ? (
         <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-10 text-center">
           <div className="text-[15px] font-extrabold tracking-[-.01em]">
             Nenhum negócio encerrado no período
@@ -164,7 +166,11 @@ export default function RelatorioDoFunil() {
             <Numero
               rotulo="Conversão"
               valor={`${dados.taxa_conversao.toFixed(0)}%`}
-              nota="sobre negócios encerrados"
+              nota={
+                dados.descartados > 0
+                  ? `ganhos ÷ (ganhos + perdidos) — ${dados.descartados} descartado(s) fora`
+                  : "ganhos ÷ (ganhos + perdidos)"
+              }
             />
             <Numero rotulo="Vendido" valor={dinheiro(dados.valor_ganho)} nota="quando informado" />
             <Numero
@@ -192,6 +198,16 @@ export default function RelatorioDoFunil() {
             linhas={dados.por_motivo_ganho}
             total={dados.ganhos}
             mostrarValor
+          />
+
+          {/* Não é métrica de venda — é métrica de formulário. Se "spam"
+              domina, o conserto é no captcha, não no atendimento. Fica no fim
+              e com o título dizendo o que ela NÃO é, para ninguém somar isto à
+              conta de perdas. */}
+          <Barras
+            titulo="Descartados — fora da conta de conversão"
+            linhas={dados.por_motivo_descartado}
+            total={dados.descartados}
           />
 
           {dados.por_vendedor && dados.por_vendedor.length > 0 && (
@@ -246,7 +262,7 @@ export default function RelatorioDoFunil() {
                   >
                     <div className="text-[12px] leading-snug text-mt-ink">{o.nota}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
-                      <span>{o.desfecho === "ganho" ? "Ganho" : "Perdido"}</span>
+                      <span>{ROTULO_DO_DESFECHO[o.desfecho]}</span>
                       {o.motivo && <span>{o.motivo}</span>}
                       {o.responsavel && <span>{o.responsavel}</span>}
                       {o.quando && (

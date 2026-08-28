@@ -83,6 +83,10 @@ export async function GET(request: NextRequest) {
 
     const ganhos = leads.filter((l) => l.desfecho === "ganho");
     const perdidos = leads.filter((l) => l.desfecho === "perdido");
+    // Fora da conta, e é a razão de o tipo existir (2026-08-28): spam, teste
+    // e contato equivocado não são negócio perdido. Enquanto entravam como
+    // perda, cada robô no formulário baixava a taxa de conversão da loja.
+    const descartados = leads.filter((l) => l.desfecho === "descartado");
     const valorGanho = ganhos.reduce((s, l) => s + (Number(l.desfecho_valor ?? 0) || 0), 0);
 
     // Dias entre a entrada do lead e o desfecho. A média com mediana ao lado
@@ -98,6 +102,7 @@ export async function GET(request: NextRequest) {
       total: leads.length,
       ganhos: ganhos.length,
       perdidos: perdidos.length,
+      descartados: descartados.length,
       valor_ganho: valorGanho,
       ticket_medio: ganhos.length > 0 ? valorGanho / ganhos.length : 0,
       taxa_conversao: taxaDeConversao(ganhos.length, perdidos.length),
@@ -105,6 +110,10 @@ export async function GET(request: NextRequest) {
       ciclo_mediano_dias: ciclos.length > 0 ? ciclos[Math.floor(ciclos.length / 2)] : null,
       por_motivo_perdido: agruparPorMotivo(leads, motivos, "perdido"),
       por_motivo_ganho: agruparPorMotivo(leads, motivos, "ganho"),
+      // Por que a loja recebe lixo. Não é métrica de venda — é métrica de
+      // formulário: se "spam" domina, o conserto é no captcha, não no
+      // atendimento.
+      por_motivo_descartado: agruparPorMotivo(leads, motivos, "descartado"),
       // O funil de hoje, ao lado do resultado do período: o relatório de agosto
       // sem o funil de agora responde "como foi" e não "como está".
       funil_atual: etapas
@@ -128,6 +137,7 @@ export async function GET(request: NextRequest) {
       // devolveria, pela porta lateral, exatamente o que o resto do relatório
       // toma o cuidado de não mostrar.
       resposta.observacoes = leads
+        .filter((l) => l.desfecho !== "descartado")
         .filter((l) => (l.desfecho_nota ?? "").trim())
         .sort(
           (a, b) =>
@@ -146,6 +156,13 @@ export async function GET(request: NextRequest) {
 
       const porVendedor = new Map<string, { ganhos: number; perdidos: number; valor: number }>();
       for (const l of leads) {
+        // Descartado fica de fora do recorte por vendedor pelo mesmo motivo
+        // que fica de fora da taxa: contar spam contra quem atendeu seria
+        // cobrar o vendedor por um robô. O `continue` vem ANTES do `else`,
+        // porque um `else` que engole tudo que não é ganho é exatamente como
+        // o descarte viraria perda de novo, em silêncio.
+        if (l.desfecho === "descartado") continue;
+
         const quem = l.responsavel?.trim() || "Sem responsável";
         const atual = porVendedor.get(quem) ?? { ganhos: 0, perdidos: 0, valor: 0 };
         if (l.desfecho === "ganho") {

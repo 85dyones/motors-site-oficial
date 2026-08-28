@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EtapaDoFunil, MotivoDoFunil } from "../../lib/funil";
+import { ehDescarte, type EtapaDoFunil, type MotivoDoFunil } from "../../lib/funil";
 
 /**
  * A caixa que pergunta POR QUÊ antes de fechar o negócio.
@@ -52,6 +52,39 @@ export default function ModalDeDesfecho({
   aoCancelar: () => void;
 }) {
   const ganho = etapa.tipo === "ganho";
+  const descarte = ehDescarte(etapa.tipo);
+
+  /**
+   * Os três desfechos escrevem diferente porque significam coisas diferentes.
+   *
+   * "Negócio perdido" e "Não é oportunidade" no mesmo texto seria a origem do
+   * problema que o terceiro tipo resolve: quem lê "perdido" para um spam
+   * hesita, marca como perdido mesmo, e a taxa de conversão da loja cai por
+   * causa de um robô.
+   */
+  const rotulos = descarte
+    ? {
+        chapeu: "Não é oportunidade",
+        pergunta: "O que era, então?",
+        vazio: "descarte",
+        confirmar: "Descartar",
+        exemplo: "Ex.: formulário preenchido por robô, três vezes no mesmo minuto",
+      }
+    : ganho
+      ? {
+          chapeu: "Negócio ganho",
+          pergunta: "Por quê?",
+          vazio: "ganho",
+          confirmar: "Marcar como ganho",
+          exemplo: "Ex.: fechou levando o usado na troca, entrega quinta",
+        }
+      : {
+          chapeu: "Negócio perdido",
+          pergunta: "Por quê?",
+          vazio: "perda",
+          confirmar: "Marcar como perdido",
+          exemplo: "Ex.: queria prata, só tinha branco — pediu para avisar quando chegar",
+        };
   const [motivo, setMotivo] = useState("");
   const [valor, setValor] = useState("");
   const [nota, setNota] = useState("");
@@ -89,12 +122,12 @@ export default function ModalDeDesfecho({
       <div
         ref={caixa}
         className={`flex max-h-[90vh] w-full max-w-md flex-col gap-4 overflow-y-auto border-t-4 bg-mt-bg p-6 shadow-[var(--mt-shadow-lg)] ${
-          ganho ? "border-mt-accent-800" : "border-mt-accent"
+          ganho ? "border-mt-accent-800" : descarte ? "border-mt-neutral-500" : "border-mt-accent"
         }`}
       >
         <div className="flex flex-col gap-1 border-b border-mt-regua-fina pb-3">
           <div className="mt-rotulo mt-rotulo-accent">
-            {ganho ? "Negócio ganho" : "Negócio perdido"}
+            {rotulos.chapeu}
           </div>
           <h3 className="text-base font-extrabold tracking-[-.015em] text-mt-ink">{lead.nome}</h3>
           {lead.interesse && (
@@ -107,13 +140,13 @@ export default function ModalDeDesfecho({
           // melhor que mostrar uma lista vazia e deixar o card preso.
           <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-4 text-center">
             <p className="text-[12px] leading-relaxed text-mt-neutral-800">
-              Nenhum motivo de {ganho ? "ganho" : "perda"} está cadastrado. Cadastre em{" "}
+              Nenhum motivo de {rotulos.vazio} está cadastrado. Cadastre em{" "}
               <strong>Configurar funil</strong> para conseguir fechar o negócio aqui.
             </p>
           </div>
         ) : (
           <>
-            <div className="mt-rotulo">Por quê?</div>
+            <div className="mt-rotulo">{rotulos.pergunta}</div>
             <div className="flex flex-col gap-0.5">
               {disponiveis.map((m) => (
                 <button
@@ -142,16 +175,13 @@ export default function ModalDeDesfecho({
                   value={nota}
                   onChange={(e) => setNota(e.target.value)}
                   rows={3}
-                  placeholder={
-                    ganho
-                      ? "Ex.: fechou levando o usado na troca, entrega quinta"
-                      : "Ex.: queria prata, só tinha branco — pediu para avisar quando chegar"
-                  }
+                  placeholder={rotulos.exemplo}
                   className="mt-foco w-full resize-none border border-mt-regua-fina bg-mt-surface p-2 text-[12px] leading-snug text-mt-ink outline-none focus:border-mt-accent"
                 />
                 <span className="text-[10px] leading-relaxed text-mt-neutral-600">
-                  Opcional, e é o que o motivo não consegue dizer. Aparece no relatório ao lado
-                  da estatística.
+                  {descarte
+                    ? "Opcional. O descarte fica fora da taxa de conversão — este lead não entra na conta de ganhos nem de perdas."
+                    : "Opcional, e é o que o motivo não consegue dizer. Aparece no relatório ao lado da estatística."}
                 </span>
               </label>
 
@@ -186,7 +216,7 @@ export default function ModalDeDesfecho({
             disabled={!motivo}
             className="mt-btn mt-foco cursor-pointer bg-mt-ink px-4 py-2.5 text-[11px] text-mt-bg disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {ganho ? "Marcar como ganho" : "Marcar como perdido"}
+            {rotulos.confirmar}
           </button>
         </div>
       </div>
