@@ -105,10 +105,21 @@ describe("a URL da ficha não mudou ao extrair a slugificação", () => {
       "/carros/chevrolet/cruze/ltz-14-turbo/chevrolet-cruze-ltz-14-turbo-42",
     ],
     [
-      // Acento some em vez de virar "e" — comportamento antigo, preservado de
-      // propósito: transliterar agora renomearia URL viva.
+      // Acento vira a letra sem acento desde 2026-08-28 — antes ele SUMIA, e
+      // "Citroën" saía `citron`.
+      //
+      // A versão anterior deste caso preservava o comportamento antigo de
+      // propósito, com o argumento de que transliterar "renomearia URL viva".
+      // A premissa foi medida e não se sustenta: nenhum dos 35 veículos
+      // servidos tem acento em marca, modelo ou versão, e nenhuma das 145 URLs
+      // do sitemap sai mutilada. Não há URL viva para renomear.
+      //
+      // O que havia era um defeito à espera: `Utilitário` e `Conversível` são
+      // carroceria da lista fechada, e o hub delas nasceria como
+      // `/estoque/utilitrio` no dia em que o primeiro carro fosse classificado
+      // assim — que é uma das pendências abertas do painel.
       veiculo({ id: "7", marca: "Citroën", modelo: "C4 Cactus", versao: "Feel 1.6" }),
-      "/carros/citron/c4-cactus/feel-16/citron-c4-cactus-feel-16-7",
+      "/carros/citroen/c4-cactus/feel-16/citroen-c4-cactus-feel-16-7",
     ],
     [
       // Campos vazios caem nos mesmos fallbacks de antes.

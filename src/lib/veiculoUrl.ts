@@ -79,6 +79,20 @@ export function slugificar(bruto: string): string {
   return bruto
     .toLowerCase()
     .trim()
+    // Acento vira a letra sem acento, e não o vazio.
+    //
+    // Sem esta linha, `[^a-z0-9-]` APAGAVA o caractere acentuado: `Utilitário`
+    // saía `utilitrio` e `Conversível` saía `conversvel`. Os hubs continuavam
+    // funcionando — as duas pontas usavam a mesma função —, mas a URL pública
+    // ficava com a palavra escrita errada.
+    //
+    // Corrigido em 2026-08-28, e a hora importa: nenhum dos 35 veículos
+    // servidos tem acento em marca, modelo ou versão (medido), então nenhuma
+    // URL de ficha muda hoje. `Utilitário` e `Conversível` ainda não têm carro
+    // — os dois hubs respondem 404. Depois que as carrocerias pendentes forem
+    // aplicadas, `/estoque/utilitrio` existiria e seria indexado assim.
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9\-]/g, "");
 }

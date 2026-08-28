@@ -289,11 +289,39 @@ export default function CarMatch() {
     }
   }, [estoque]);
 
+  /**
+   * Os limites do slider de "VALOR EXATO", tirados do pátio.
+   *
+   * Estavam cravados em `min={100000}` — mais que o DOBRO do carro mais caro
+   * da metade de baixo do estoque. Medido em 28/08: o mais barato custa
+   * R$ 23.900 e a mediana é R$ 62.900, ou seja, quem usasse esta aba não
+   * conseguia dizer um orçamento que descrevesse dois terços da vitrine. É o
+   * mesmo resquício do catálogo fictício que estava nas etiquetas.
+   *
+   * As faixas prontas da outra aba já saíam do estoque; esta ficou para trás.
+   */
+  const faixaDoSlider = useMemo(() => {
+    const precos = estoque
+      .filter((v) => !v.vendido)
+      .map((v) => precoVigente(v))
+      .filter((p) => p > 0);
+    if (precos.length === 0) return { min: 20000, max: 500000, passo: 5000 };
+    const piso = Math.max(5000, Math.floor(Math.min(...precos) / 5000) * 5000);
+    const teto = Math.ceil(Math.max(...precos) / 5000) * 5000;
+    return { min: piso, max: teto, passo: teto - piso > 200000 ? 10000 : 5000 };
+  }, [estoque]);
+
+  /** O valor do slider, sempre dentro da faixa que o pátio comporta. */
+  const orcamentoDoSlider = Math.min(
+    Math.max(customMaxBudget, faixaDoSlider.min),
+    faixaDoSlider.max,
+  );
+
   const confirmCustomBudget = () => {
     setAnswers((prev) => ({
       ...prev,
       budgetMin: 0,
-      budgetMax: customMaxBudget
+      budgetMax: orcamentoDoSlider
     }));
     setTimeout(() => {
       setGameState("q2");
@@ -480,7 +508,14 @@ export default function CarMatch() {
 
     if (parsedBudget === 0) parsedBudget = 1000000;
 
-    let obj: AnswerState["objective"] = "status";
+    // `""` quando o texto não disse — e não um palpite.
+    //
+    // Antes o objetivo caía em "status" e a experiência era cravada em "tech",
+    // sem que ninguém tivesse escolhido nenhum dos dois. Como este caminho
+    // pulava direto para o resultado, a pessoa terminava o quiz com duas
+    // respostas que nunca deu — e o consultor recebia o perfil como se fossem
+    // dela.
+    let obj: AnswerState["objective"] = "";
     if (lower.includes("família") || lower.includes("familia") || lower.includes("viagem") || lower.includes("viajar") || lower.includes("filho") || lower.includes("espaço")) {
       obj = "family";
     } else if (lower.includes("cidade") || lower.includes("trabalho") || lower.includes("diário") || lower.includes("diario") || lower.includes("economia")) {
@@ -489,7 +524,7 @@ export default function CarMatch() {
       obj = "offroad";
     }
 
-    let style: AnswerState["style"] = "open";
+    let style: AnswerState["style"] = "";
     if (lower.includes("suv") || lower.includes("4x4") || lower.includes("jeep")) {
       style = "suv";
     } else if (lower.includes("sedã") || lower.includes("sedan")) {
@@ -500,9 +535,28 @@ export default function CarMatch() {
       style = "pickup";
     }
 
-    return { budgetMax: parsedBudget, objective: obj, experience: "tech" as any, style: style };
+    return { budgetMax: parsedBudget, objective: obj, style };
   };
 
+  /**
+   * "DESCREVER" é uma forma de responder a pergunta 01, não um atalho para o fim.
+   *
+   * -------------------------------------------------------------------------
+   * O que mudou em 2026-08-28
+   * -------------------------------------------------------------------------
+   * Esta aba vive sob o título "Qual a faixa de investimento para a próxima
+   * garagem?", ao lado de FAIXA e VALOR EXATO. As outras duas respondem a
+   * pergunta e avançam para a 02. Esta pulava para o resultado, preenchendo as
+   * cinco respostas sozinha — com EXPERIÊNCIA e PRAZO cravados no código.
+   *
+   * O dono relatou exatamente isso: **"não consegui responder todas"**. Não era
+   * impressão; o fluxo terminava sem perguntar.
+   *
+   * Agora o texto livre serve para o que ele consegue: fixa o orçamento e
+   * deixa PRÉ-SELECIONADO o que disse com todas as letras ("um SUV para a
+   * família" marca objetivo e carroceria). O que ele não disse continua em
+   * branco, e a pessoa responde — vendo a pré-seleção e podendo trocá-la.
+   */
   const confirmAiCuratorQuery = () => {
     if (!aiQuery.trim()) return;
 
@@ -513,15 +567,13 @@ export default function CarMatch() {
       budgetMin: 0,
       budgetMax: parsed.budgetMax,
       objective: parsed.objective,
-      experience: parsed.experience,
       style: parsed.style,
-      timeline: "researching"
     }));
 
     setIsAiCuratorActive(true);
 
     setTimeout(() => {
-      setGameState("loading");
+      setGameState("q2");
     }, 200);
   };
 
@@ -850,14 +902,14 @@ export default function CarMatch() {
                       LIMITE DE INVESTIMENTO
                     </Rotulo>
                     <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
-                      {formatPrice(customMaxBudget)}
+                      {formatPrice(orcamentoDoSlider)}
                     </div>
                     <input
                       type="range"
-                      min={100000}
-                      max={1000000}
-                      step={20000}
-                      value={customMaxBudget}
+                      min={faixaDoSlider.min}
+                      max={faixaDoSlider.max}
+                      step={faixaDoSlider.passo}
+                      value={orcamentoDoSlider}
                       onChange={(e) => setCustomMaxBudget(Number(e.target.value))}
                       aria-label="Limite de investimento"
                       className="mt-range mt-foco mt-6 [--mt-range-trilho:var(--mt-inverso-regua)]"
