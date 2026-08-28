@@ -238,27 +238,71 @@ function capturarDaUrl(): void {
   });
 }
 
+/** Apaga do dispositivo as nove chaves de campanha. */
+export function descartarParametrosDeCampanha(): void {
+  if (typeof window === "undefined") return;
+  try {
+    CHAVES_DE_CAMPANHA.forEach((key) => localStorage.removeItem(`ag_${key}`));
+  } catch (e) {
+    console.warn("[Telemetry] Failed to discard campaign parameters:", e);
+  }
+}
+
 /**
- * Passa para o dispositivo o que foi capturado — só depois do aceite.
+ * Guarda no dispositivo o parâmetro de campanha — desde a chegada, e a recusa
+ * apaga.
  *
- * `IntegrationsTracker` chama no mount e de novo no evento
- * `ag-cookie-consent-updated`, que é o que faz o aceite tardio ainda valer: na
- * segunda chamada a memória já tem o `gclid` da página de entrada, mesmo que a
- * URL atual não tenha mais nada.
+ * ---------------------------------------------------------------------------
+ * Por que a gravação deixou de esperar o aceite, em 28/08
+ * ---------------------------------------------------------------------------
+ * Decisão do dono, com o motivo dele: *"a pessoa pode mudar de ideia e sempre
+ * teremos a decisão dela gravada por último"*.
  *
- * Mesmo desenho que o `_fbc` recebeu em 27/08. O portão fica AQUI DENTRO, e não
- * só no chamador, para que `getUtmParameters` possa chamar sem repetir a
- * verificação e nenhum chamador futuro grave sem querer.
+ * A memória de sessão, sozinha, cobria quem navega e aceita na mesma aba. Não
+ * cobria quem chega do anúncio, recarrega ou volta noutro dia, e só então
+ * aceita — aí a memória já morreu e o `gclid` se perdeu para sempre. Gravar na
+ * chegada fecha esse caso.
+ *
+ * O que torna o argumento verdadeiro é a outra metade, e ela é obrigatória:
+ * **a recusa apaga.** Sem isso, o identificador ficaria no dispositivo
+ * contradizendo a última decisão da pessoa — que é justamente o oposto do que a
+ * frase acima defende. Por isso `rejected` não é só "não gravar": é
+ * `descartarParametrosDeCampanha()`, removendo o que já estava lá.
+ *
+ * A memória de sessão SOBREVIVE à recusa de propósito. É o que permite a
+ * mudança de ideia funcionar na mesma aba: quem recusa e depois aceita tem o
+ * `gclid` regravado a partir dela. Memória não é armazenamento no dispositivo —
+ * some quando a aba fecha.
+ *
+ * ---------------------------------------------------------------------------
+ * O que isso custa, escrito para quem vier depois
+ * ---------------------------------------------------------------------------
+ * Fica uma janela entre a chegada e a decisão em que o identificador de anúncio
+ * está no dispositivo sem consentimento — segundos para quem clica no banner,
+ * indefinida para quem simplesmente o ignora, que não é pouca gente.
+ *
+ * O texto da política foi ajustado na mesma rodada para descrever isso (ver
+ * `app/privacidade/page.tsx`, seção de cookies). Código e política contando
+ * histórias diferentes é pior do que qualquer das duas escolhas: era a
+ * alternativa que o handoff de mensuração colocou como "ou o código respeita o
+ * texto, ou o texto passa a descrever o código". Esta é a segunda porta.
+ *
+ * O que NÃO mudou: GA4, Google Ads, Meta Pixel e o cookie `_fbc` continuam
+ * atrás do aceite. O que se grava aqui é só o parâmetro que já estava na URL
+ * que a pessoa abriu, e ele não sai do dispositivo por conta própria — só vai
+ * junto de um formulário que ela escolheu enviar.
  */
 export function persistirParametrosDeCampanha(): void {
   if (typeof window === "undefined") return;
 
   try {
-    // A captura em memória roda SEMPRE — é o que preserva a atribuição de quem
-    // ainda não decidiu. O que espera o aceite é a linha de baixo.
     capturarDaUrl();
 
-    if (localStorage.getItem("ag_cookie_consent") !== "accepted") return;
+    // A última decisão manda. Recusou: sai do dispositivo o que houver.
+    if (localStorage.getItem("ag_cookie_consent") === "rejected") {
+      descartarParametrosDeCampanha();
+      return;
+    }
 
     CHAVES_DE_CAMPANHA.forEach((key) => {
       const val = capturadoNestaSessao[key];

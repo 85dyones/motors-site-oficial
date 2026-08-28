@@ -222,6 +222,22 @@ export default async function PrivacidadePage() {
               de análise ou publicidade é carregada</strong> — nem Google Analytics, nem Google Ads,
               nem Meta Pixel. Se você recusar, o site continua funcionando normalmente.
             </p>
+            {/* Este parágrafo entrou em 28/08 e não é redação: ele descreve o
+                que `lib/telemetry.ts` passou a fazer na mesma rodada. Se a
+                gravação na chegada voltar a esperar o aceite, este texto tem de
+                sair junto — política e código contando histórias diferentes é
+                pior do que qualquer das duas escolhas. */}
+            <p>
+              Uma exceção, para você saber exatamente o que acontece: quando você chega ao site
+              por um anúncio, o endereço traz um código que identifica de qual anúncio veio o
+              clique (por exemplo <code>gclid</code> ou <code>fbclid</code>).{" "}
+              <strong className="text-mt-ink">Esse código é guardado no seu navegador assim que
+              você chega, antes da sua resposta ao aviso</strong> — é o que nos permite saber
+              qual anúncio funcionou caso você aceite mais tarde, inclusive numa visita futura.
+              Ele fica só no seu dispositivo e não é enviado a ninguém enquanto você não
+              enviar um formulário por vontade própria.{" "}
+              <strong className="text-mt-ink">Se você recusar, ele é apagado na hora.</strong>
+            </p>
             <p>Se você aceitar, usamos:</p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>

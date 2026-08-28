@@ -310,15 +310,25 @@ describe("B.3 · o cookie de anúncio respeita o banner", () => {
  * Capturar na entrada, atrás do portão, corrige os dois lados: passa a valer o
  * texto da política E passa a existir a atribuição que não existia.
  */
-describe("B.4 · o identificador de anúncio respeita o banner", () => {
+describe("B.4 · a última decisão da pessoa é a que vale", () => {
   /**
-   * Ambiente de navegador mínimo: só o que estas funções tocam.
+   * ATENÇÃO a quem lê isto achando que é uma brecha: não é descuido.
    *
-   * O `vi.resetModules()` do `beforeEach` não é detalhe: desde que a captura
-   * passou a viver em memória de módulo (`capturadoNestaSessao`), um teste
-   * herdaria o `gclid` capturado pelo anterior. Sem isolar, o teste do
-   * fallback de visita antiga passava a ler a captura da sessão e falhava —
-   * foi assim que este cuidado apareceu.
+   * Até 28/08 este bloco exigia o contrário — nada gravado antes do aceite. A
+   * régua inverteu por decisão do dono, com o motivo dele: *"a pessoa pode
+   * mudar de ideia e sempre teremos a decisão dela gravada por último"*.
+   *
+   * A memória de sessão cobria quem navega e aceita na mesma aba; não cobria
+   * quem recarrega ou volta noutro dia e só então aceita. Gravar na chegada
+   * fecha esse caso.
+   *
+   * O que torna a frase verdadeira — e o que estes testes guardam — é a outra
+   * metade: **recusar apaga**. Sem isso o identificador ficaria no dispositivo
+   * contradizendo a última decisão, que é o oposto do argumento.
+   *
+   * O texto da política foi ajustado na mesma rodada para descrever isso. Há
+   * um teste no fim deste bloco vigiando os dois juntos: se a gravação na
+   * chegada sair do código, o parágrafo tem de sair da política.
    */
   function comAmbiente(url: string, consentimento: string | null) {
     const dados = new Map<string, string>();
@@ -347,34 +357,55 @@ describe("B.4 · o identificador de anúncio respeita o banner", () => {
 
   const COM_ANUNCIO = "https://motorsstore.com.br/?gclid=ABC123&utm_source=google&fbclid=XYZ789";
 
-  it("sem aceite, NADA é gravado no dispositivo", async () => {
+  const chavesDeCampanha = (dados: Map<string, string>) =>
+    [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent").sort();
+
+  it("sem decisão nenhuma, grava na chegada", async () => {
     const dados = comAmbiente(COM_ANUNCIO, null);
-    const { persistirParametrosDeCampanha } = await moduloLimpo();
-    persistirParametrosDeCampanha();
-    const gravadas = [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent");
-    expect(gravadas).toEqual([]);
-  });
-
-  it("recusa explícita também não grava", async () => {
-    const dados = comAmbiente(COM_ANUNCIO, "rejected");
-    const { persistirParametrosDeCampanha } = await moduloLimpo();
-    persistirParametrosDeCampanha();
-    expect(dados.get("ag_gclid")).toBeUndefined();
-  });
-
-  it("depois do aceite, grava — é a atribuição que se queria", async () => {
-    const dados = comAmbiente(COM_ANUNCIO, "accepted");
     const { persistirParametrosDeCampanha } = await moduloLimpo();
     persistirParametrosDeCampanha();
     expect(dados.get("ag_gclid")).toBe("ABC123");
     expect(dados.get("ag_fbclid")).toBe("XYZ789");
+  });
+
+  it("RECUSAR apaga o que já estava gravado", async () => {
+    // O coração da decisão de 28/08: gravar cedo só se sustenta se a recusa
+    // desfizer. Sem esta linha, "a última decisão vale" seria falso.
+    const dados = comAmbiente(COM_ANUNCIO, null);
+    const { persistirParametrosDeCampanha } = await moduloLimpo();
+    persistirParametrosDeCampanha();
+    expect(chavesDeCampanha(dados).length).toBeGreaterThan(0);
+
+    dados.set("ag_cookie_consent", "rejected");
+    persistirParametrosDeCampanha();
+    expect(chavesDeCampanha(dados)).toEqual([]);
+  });
+
+  it("recusar e depois ACEITAR regrava — a mudança de ideia funciona", async () => {
+    // É o caso que o dono nomeou. A memória de sessão sobrevive à recusa de
+    // propósito: ela não é armazenamento no dispositivo, e é o que permite
+    // reconstruir a atribuição quando a pessoa muda de ideia na mesma aba.
+    const dados = comAmbiente(COM_ANUNCIO, "rejected");
+    const { persistirParametrosDeCampanha } = await moduloLimpo();
+    persistirParametrosDeCampanha();
+    expect(chavesDeCampanha(dados)).toEqual([]);
+
+    dados.set("ag_cookie_consent", "accepted");
+    persistirParametrosDeCampanha();
+    expect(dados.get("ag_gclid")).toBe("ABC123");
+  });
+
+  it("depois do aceite, grava", async () => {
+    const dados = comAmbiente(COM_ANUNCIO, "accepted");
+    const { persistirParametrosDeCampanha } = await moduloLimpo();
+    persistirParametrosDeCampanha();
+    expect(dados.get("ag_gclid")).toBe("ABC123");
     expect(dados.get("ag_utm_source")).toBe("google");
   });
 
-  it("a LEITURA continua sem portão — o lead não perde atribuição", async () => {
-    // Deliberado: o retorno vai no payload de um formulário que a pessoa está
-    // enviando com nome e telefone. O `gclid` é o dado menos sensível daquele
-    // POST. Barrar aqui quebraria todo lead de quem não aceitou, sem ganho.
+  it("a LEITURA nunca teve portão — o lead não perde atribuição", async () => {
+    // O retorno vai no payload de um formulário que a pessoa está enviando com
+    // nome e telefone. O `gclid` é o dado menos sensível daquele POST.
     comAmbiente(COM_ANUNCIO, null);
     const { getUtmParameters } = await moduloLimpo();
     const utm = getUtmParameters();
@@ -382,60 +413,49 @@ describe("B.4 · o identificador de anúncio respeita o banner", () => {
     expect(utm.utm_source).toBe("google");
   });
 
-  it("`getUtmParameters` não grava sem aceite", async () => {
-    // A gravação foi delegada à função com portão; esta é a prova de que a
-    // delegação não deixou passar nada por fora.
-    const dados = comAmbiente(COM_ANUNCIO, null);
-    const { getUtmParameters } = await moduloLimpo();
-    getUtmParameters();
-    const gravadas = [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent");
-    expect(gravadas).toEqual([]);
-  });
-
   it("o que foi guardado antes serve de fallback quando a URL não traz nada", async () => {
     // Visitante que volta digitando o endereço: nem a URL nem a memória desta
-    // sessão têm parâmetro, e o que sobra é o da visita em que ele aceitou.
+    // sessão têm parâmetro, e o que sobra é o da visita anterior.
     const dados = comAmbiente("https://motorsstore.com.br/estoque", "accepted");
     dados.set("ag_gclid", "DE_UMA_VISITA_ANTERIOR");
     const { getUtmParameters } = await moduloLimpo();
     expect(getUtmParameters().gclid).toBe("DE_UMA_VISITA_ANTERIOR");
   });
 
-  it("a captura roda na ENTRADA, ANTES do portão", () => {
-    // A ordem aqui é o oposto da intuição, e a versão anterior deste teste
-    // exigia o contrário — errado.
-    //
-    // `persistirParametrosDeCampanha` guarda em MEMÓRIA sempre e no dispositivo
-    // só depois do aceite: o portão do disco vive DENTRO dela. Chamá-la depois
-    // do `return` antecipado do tracker fazia com que, para quem ainda não
-    // tinha decidido, ela nunca rodasse — a memória ficava vazia e o aceite
-    // feito duas páginas adiante não tinha o que gravar.
-    //
-    // Os testes de unidade não pegaram porque chamam a função direto. Quem
-    // pegou foi o teste de navegador; este aqui existe para o bug não voltar.
+  it("a captura roda na ENTRADA, antes do retorno antecipado do tracker", async () => {
+    // `persistirParametrosDeCampanha` trata recusa e gravação por dentro. Se a
+    // chamada ficasse depois do `return` de quem não aceitou, ela nunca rodaria
+    // para quem ainda não decidiu — nem gravando, nem apagando numa recusa.
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
     const portao = fonte.indexOf('const consent = localStorage.getItem("ag_cookie_consent")');
     const chamada = fonte.indexOf("persistirParametrosDeCampanha();");
     expect(chamada, "o tracker não chama a captura").toBeGreaterThan(-1);
-    expect(chamada, "a captura precisa vir ANTES do portão do tracker").toBeLessThan(portao);
+    expect(chamada, "a captura precisa vir ANTES do retorno antecipado").toBeLessThan(portao);
   });
 
-  it("o `_fbc`, esse sim, continua depois do portão", () => {
-    // Diferente da captura de campanha: `persistirFbc` escreve o cookie direto,
-    // sem portão interno. Ele depende do `return` de cima para não gravar antes
-    // do aceite. Trocar a ordem dos dois seria a brecha de verdade.
+  it("o `_fbc`, esse sim, continua atrás do aceite", async () => {
+    // Não mudou em 28/08 e não deve mudar por tabela: `persistirFbc` escreve o
+    // cookie direto, sem tratamento interno de recusa, e depende do `return` de
+    // cima. GA4, Ads e Meta seguem no mesmo regime.
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
     const portao = fonte.indexOf('const consent = localStorage.getItem("ag_cookie_consent")');
     expect(fonte.indexOf("persistirFbc();")).toBeGreaterThan(portao);
   });
 
-  it("e roda de novo quando o consentimento muda", () => {
-    // Quem aceita o banner ainda na página de destino tem o `gclid` capturado
-    // direto da URL. É o mesmo mecanismo do `_fbc`.
-    const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
-    const bloco = fonte.slice(fonte.indexOf("const checkAndInitTrackors"));
-    expect(bloco).toContain("persistirParametrosDeCampanha();");
-    expect(fonte).toContain('window.addEventListener("ag-cookie-consent-updated", checkAndInitTrackors)');
+  it("a política descreve a gravação na chegada", async () => {
+    // Código e política não podem contar histórias diferentes. Se um dia a
+    // gravação voltar a esperar o aceite, este teste falha e lembra de tirar o
+    // parágrafo do texto publicado.
+    const codigo = lerCodigo("src/lib/telemetry.ts");
+    const politica = lerCodigo("src/app/privacidade/page.tsx");
+
+    const gravaNaChegada = codigo.includes("descartarParametrosDeCampanha();");
+    expect(gravaNaChegada, "o código deixou de gravar na chegada?").toBe(true);
+
+    expect(politica, "a política não avisa que grava antes da resposta")
+      .toMatch(/antes da sua resposta ao aviso/);
+    expect(politica, "a política não avisa que a recusa apaga")
+      .toMatch(/recusar, ele é apagado/);
   });
 });
 
@@ -487,29 +507,29 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
   const chavesGravadas = () =>
     [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent").sort();
 
-  it("aceitar DEPOIS de navegar ainda grava o gclid da entrada", async () => {
+  it("aceitar DEPOIS de navegar mantém o gclid da entrada", async () => {
     const tel = await import("../src/lib/telemetry");
 
-    // 1. Chega do anúncio e não decide nada.
+    // 1. Chega do anúncio e não decide nada. Desde 28/08 já grava aqui.
     irPara(COM_ANUNCIO);
     tel.persistirParametrosDeCampanha();
-    expect(chavesGravadas(), "gravou antes do aceite").toEqual([]);
+    expect(dados.get("ag_gclid")).toBe("DA_ENTRADA_123");
 
     // 2. Navega — a URL não tem mais o parâmetro.
     irPara(SEM_PARAMETRO);
     tel.persistirParametrosDeCampanha();
-    expect(chavesGravadas(), "gravou sem aceite depois de navegar").toEqual([]);
 
     // 3. Aceita o banner aqui, longe da página de entrada.
     aceitar("accepted");
     tel.persistirParametrosDeCampanha();
 
-    // Sem a memória de sessão, isto seria `null`: a URL já não tem o gclid.
+    // O valor da ENTRADA sobrevive às duas passagens. Nem a URL vazia do passo
+    // 2 nem o aceite tardio do passo 3 o substituem por nada.
     expect(dados.get("ag_gclid")).toBe("DA_ENTRADA_123");
     expect(dados.get("ag_utm_source")).toBe("google");
   });
 
-  it("quem NUNCA aceita ainda leva o gclid junto no lead", async () => {
+  it("quem NUNCA responde ao banner leva o gclid junto no lead", async () => {
     const tel = await import("../src/lib/telemetry");
 
     irPara(COM_ANUNCIO);
@@ -517,9 +537,9 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
     irPara(SEM_PARAMETRO);
 
     // O payload do lead nunca teve portão — é um formulário que a pessoa
-    // escolheu enviar, e o gclid é o dado menos sensível dele.
+    // escolheu enviar, e o gclid é o dado menos sensível dele. Depois de
+    // navegar, quem ainda tem o valor é a memória de sessão e o dispositivo.
     expect(tel.getUtmParameters().gclid).toBe("DA_ENTRADA_123");
-    expect(chavesGravadas(), "o lead não pode gravar no dispositivo").toEqual([]);
   });
 
   it("quem RECUSA não tem nada gravado, nem depois de navegar", async () => {
