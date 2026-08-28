@@ -97,6 +97,12 @@ function comoFunciona(e: EtapaEditavel): string {
   if (e.tipo === "perdido") {
     return "É o botão de perder do card, não uma coluna do quadro. Pede o motivo e para o relógio.";
   }
+  if (e.tipo === "descartado") {
+    return (
+      "É o botão de descarte do card — spam, teste, contato equivocado. Pede o motivo, " +
+      "para o relógio e fica FORA da taxa de conversão: não conta como ganho nem como perda."
+    );
+  }
   if (!alerta) return "Sem régua de tempo: nada é cobrado nesta etapa.";
 
   const cobra = `Cobra o vendedor no WhatsApp depois de ${formatarPrazo(alerta)} parado`;
@@ -353,6 +359,7 @@ export default function FunilEditor() {
                 <option value="aberta">Em andamento</option>
                 <option value="ganho">Ganho</option>
                 <option value="perdido">Perdido</option>
+                <option value="descartado">Não é oportunidade</option>
               </select>
 
               <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-mt-neutral-700">
@@ -417,8 +424,8 @@ export default function FunilEditor() {
         ))}
 
         <p className="text-[11px] leading-relaxed text-mt-neutral-700">
-          Só as etapas <strong>em andamento</strong> viram coluna do quadro. Ganho e perdido são
-          os dois botões no rodapé do card — o negócio fechado sai do quadro e vai para a lista de
+          Só as etapas <strong>em andamento</strong> viram coluna do quadro. Ganho, perdido e
+          &ldquo;não é oportunidade&rdquo; são os botões no rodapé do card — o negócio fechado sai do quadro e vai para a lista de
           fechados, com motivo, observação e caminho de volta.
           <br />
           Etapa desmarcada some do kanban, mas continua aparecendo enquanto tiver lead dentro —
@@ -437,12 +444,16 @@ export default function FunilEditor() {
           que ninguém escolhe vira ruído, e motivo demais faz o vendedor clicar no primeiro.
         </p>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {(["perdido", "ganho"] as TipoDeDesfecho[]).map((tipo) => (
+        <div className="grid gap-6 md:grid-cols-3">
+          {(["perdido", "ganho", "descartado"] as TipoDeDesfecho[]).map((tipo) => (
             <div key={tipo} className="flex flex-col gap-2">
               <div className="flex items-baseline justify-between">
                 <div className="text-[11px] font-extrabold uppercase tracking-[.1em]">
-                  {tipo === "ganho" ? "Ganhou porque" : "Perdeu porque"}
+                  {tipo === "ganho"
+                    ? "Ganhou porque"
+                    : tipo === "descartado"
+                      ? "Descartou porque"
+                      : "Perdeu porque"}
                 </div>
                 <button
                   onClick={() => acrescentarMotivo(tipo)}

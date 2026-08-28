@@ -18,6 +18,8 @@ import {
   mensagemParaCliente,
   minutosParado,
   nivelDeEstagnacao,
+  ROTULO_DO_DESFECHO,
+  ehDescarte,
   ordenarEtapas,
   seloDeRodizio,
   type EtapaDoFunil,
@@ -301,8 +303,18 @@ export default function LeadsKanban() {
   // numa etapa arquivada ressuscitaria a coluna sem ninguém entender por quê.
   const colunasVisiveis = useMemo(() => etapasDoQuadro(etapas, emAberto), [etapas, emAberto]);
 
-  /** Os dois botões do card. */
+  /**
+   * Os botões do card, em dois grupos.
+   *
+   * Fechar um negócio e descartar um registro são gestos diferentes, e
+   * juntá-los na mesma fileira convidaria ao erro que o descarte existe para
+   * evitar: marcar spam como "perdido" porque era o botão ao lado. Ganho e
+   * perdido ficam lado a lado; o descarte vem embaixo, com menos peso, porque
+   * é o mais raro dos três.
+   */
   const destinos = useMemo(() => destinosDoNegocio(etapas), [etapas]);
+  const fecham = useMemo(() => destinos.filter((e) => !ehDescarte(e.tipo)), [destinos]);
+  const descartam = useMemo(() => destinos.filter((e) => ehDescarte(e.tipo)), [destinos]);
 
   const fechados = useMemo(
     () =>
@@ -847,9 +859,9 @@ export default function LeadsKanban() {
                               qualquer coluna. Vem de `destinos`, e não das
                               colunas do quadro: ganho e perdido deixaram de
                               ser colunas em 2026-08-28. */}
-                          {destinos.length > 0 && (
+                          {fecham.length > 0 && (
                             <div className="mt-1 flex gap-1">
-                              {destinos.map((e) => (
+                              {fecham.map((e) => (
                                 <button
                                   key={e.chave}
                                   onClick={() => mover(l.id, e.chave)}
@@ -861,6 +873,21 @@ export default function LeadsKanban() {
                               ))}
                             </div>
                           )}
+
+                          {/* O descarte, com menos peso: é o mais raro dos
+                              três e não deve competir por atenção com o
+                              fechamento de um negócio de verdade. */}
+                          {descartam.map((e) => (
+                            <button
+                              key={e.chave}
+                              onClick={() => mover(l.id, e.chave)}
+                              aria-label={`Marcar ${l.nome} como ${e.rotulo}`}
+                              title="Spam, teste, contato equivocado — fica fora da taxa de conversão"
+                              className="mt-foco mt-1 w-full cursor-pointer px-2 py-1 text-[10px] text-mt-neutral-600 hover:text-mt-accent"
+                            >
+                              {e.rotulo}
+                            </button>
+                          ))}
                         </div>
                       );
                     })}
@@ -918,10 +945,12 @@ export default function LeadsKanban() {
                               className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
                                 l.desfecho === "ganho"
                                   ? "border-mt-accent-800 text-mt-accent-800"
-                                  : "border-mt-regua-fina text-mt-neutral-700"
+                                  : ehDescarte(l.desfecho)
+                                    ? "border-dashed border-mt-regua-fina text-mt-neutral-500"
+                                    : "border-mt-regua-fina text-mt-neutral-700"
                               }`}
                             >
-                              {l.desfecho === "ganho" ? "Ganho" : "Perdido"}
+                              {l.desfecho ? ROTULO_DO_DESFECHO[l.desfecho] : "—"}
                             </span>
                             <div className="mt-1 text-[11px] leading-snug text-mt-neutral-800">
                               {rotuloDoMotivo(l.desfecho_motivo) ?? "—"}

@@ -5,7 +5,11 @@ import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
   ETAPAS_PADRAO,
+  TIPOS_DE_DESFECHO,
   agruparPorMotivo,
+  ehDescarte,
+  ehTipoDeDesfecho,
+  ehTipoDeEtapa,
   destinosDoNegocio,
   etapasDoQuadro,
   chaveDaEtapa,
@@ -226,7 +230,7 @@ describe("editar o funil sem quebrá-lo", () => {
     expect(quadro.map((e) => e.chave)).not.toContain("perdido");
 
     const destinos = destinosDoNegocio(ETAPAS_PADRAO);
-    expect(destinos.map((e) => e.chave)).toEqual(["fechado", "perdido"]);
+    expect(destinos.map((e) => e.chave)).toEqual(["fechado", "perdido", "descartado"]);
   });
 
   it("destino desativado some do botão", () => {
@@ -236,7 +240,7 @@ describe("editar o funil sem quebrá-lo", () => {
     const semPerda = ETAPAS_PADRAO.map((e) =>
       e.tipo === "perdido" ? { ...e, ativa: false } : e,
     );
-    expect(destinosDoNegocio(semPerda).map((e) => e.chave)).toEqual(["fechado"]);
+    expect(destinosDoNegocio(semPerda).map((e) => e.chave)).toEqual(["fechado", "descartado"]);
   });
 
   it("etapa arquivada com lead dentro continua visível", () => {
@@ -407,8 +411,21 @@ describe("a tela e o banco calculam a mesma coisa", () => {
     // `leads.situacao` já grava essas chaves em 100% das linhas, e agora há
     // uma FK para elas. Trocar uma chave aqui migraria — ou perderia — os
     // leads existentes.
-    for (const e of ETAPAS_PADRAO) {
-      expect(sqlExecutavel).toContain(`'${e.chave}'`);
+    //
+    // A lista é EXPLÍCITA, e não `ETAPAS_PADRAO`: a semente cresceu em
+    // 2026-08-28 com `descartado`, que nasce na migração seguinte. Varrer o
+    // padrão faria este teste cobrar da migração antiga uma etapa que ela não
+    // tem — foi exatamente o que aconteceu, e o alvo aqui são as SETE do
+    // `check` original.
+    const DO_CHECK_ANTIGO = [
+      "novo", "em_contato", "proposta", "visita", "negociacao", "fechado", "perdido",
+    ];
+    for (const chave of DO_CHECK_ANTIGO) {
+      expect(sqlExecutavel, `semente sem ${chave}`).toContain(`'${chave}'`);
+    }
+    // E todas elas continuam no padrão da tela.
+    for (const chave of DO_CHECK_ANTIGO) {
+      expect(ETAPAS_PADRAO.map((e) => e.chave)).toContain(chave);
     }
   });
 
@@ -475,6 +492,125 @@ describe("o rodízio não tem teto", () => {
     // o cliente. A função que o botão de WhatsApp chama existe para isso.
     expect(sqlExecutavel).toContain("registrar_contato_do_lead");
     expect(sqlExecutavel).toMatch(/set\s+ultimo_contato_em = v_agora/);
+  });
+});
+
+describe("o terceiro desfecho: não é uma oportunidade de negócio", () => {
+  // 2026-08-28, pedido do dono: *"precisamos ter a opção de encerrar como
+  // 'não é uma oportunidade de negócio', para os casos de spam, testes,
+  // contato equivocado"*.
+  //
+  // O ponto não é ter mais um rótulo. É que a taxa de conversão é
+  // `ganhos / (ganhos + perdidos)`: enquanto spam entrava como perda, cada
+  // robô que preenchia o formulário baixava o número da loja — e a decisão
+  // que sai de um número desses é sobre a equipe comercial, quando o problema
+  // era o captcha.
+
+  const SQL_DESCARTE = readFileSync(
+    join(__dirname, "..", "supabase", "migrations",
+         "20260828160000_desfecho_sem_oportunidade.sql"),
+    "utf-8",
+  );
+  /** Só o que o Postgres executa — a migração cita a regra ANTIGA para
+   *  explicar por que a trocou, e uma asserção contra o texto cru reprovaria
+   *  a própria explicação. Foi o vício que já apareceu duas vezes hoje. */
+  const descarteExecutavel = SQL_DESCARTE.split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  it("o descarte fica FORA da taxa de conversão", () => {
+    // A asserção que dá razão ao tipo inteiro. 1 ganho, 1 perda e 98 spams
+    // não podem virar 1%.
+    expect(taxaDeConversao(1, 1)).toBe(50);
+    // `taxaDeConversao` recebe dois números justamente para não haver onde
+    // enfiar o descarte — quem tentasse passaria o total e o tipo reclamaria.
+    const fechados = [
+      { desfecho: "ganho" as const, desfecho_motivo: "a_vista", desfecho_valor: null },
+      { desfecho: "perdido" as const, desfecho_motivo: "preco", desfecho_valor: null },
+      ...Array.from({ length: 98 }, () => ({
+        desfecho: "descartado" as const, desfecho_motivo: "spam", desfecho_valor: null,
+      })),
+    ];
+    const g = fechados.filter((l) => l.desfecho === "ganho").length;
+    const p = fechados.filter((l) => l.desfecho === "perdido").length;
+    expect(taxaDeConversao(g, p)).toBe(50);
+  });
+
+  it("a rota do relatório conta os três separados e não deixa o descarte cair no else", () => {
+    const rota = readFileSync(
+      join(__dirname, "..", "src", "app", "api", "funil", "relatorio", "route.ts"),
+      "utf-8",
+    );
+    expect(rota).toContain('l.desfecho === "descartado"');
+    expect(rota).toContain("descartados: descartados.length");
+    expect(rota).toContain("por_motivo_descartado");
+    // No recorte por vendedor o `continue` tem que vir ANTES do `else`: um
+    // `else` que engole tudo que não é ganho transforma descarte em perda de
+    // novo, e cobra o vendedor por um robô.
+    const bloco = rota.slice(rota.indexOf("const porVendedor"), rota.indexOf("resposta.por_vendedor"));
+    expect(bloco.indexOf('desfecho === "descartado") continue'))
+      .toBeLessThan(bloco.indexOf("atual.perdidos += 1"));
+  });
+
+  it("o vocabulário é lista, não ternário", () => {
+    // O defeito que este teste tranca: `m.tipo === "ganho" ? "ganho" :
+    // "perdido"` estava certo com dois desfechos e, com o terceiro,
+    // converteria TODO motivo de descarte em motivo de perda — sem erro,
+    // desfazendo em silêncio a separação inteira. O mesmo ternário na etapa
+    // faria a etapa terminal virar `aberta`, e ela viraria coluna do quadro.
+    expect(TIPOS_DE_DESFECHO).toEqual(["ganho", "perdido", "descartado"]);
+    expect(ehTipoDeDesfecho("descartado")).toBe(true);
+    expect(ehTipoDeDesfecho("inventado")).toBe(false);
+    expect(ehTipoDeEtapa("descartado")).toBe(true);
+    expect(ehTipoDeEtapa("")).toBe(false);
+
+    const rota = readFileSync(
+      join(__dirname, "..", "src", "app", "api", "funil", "config", "route.ts"),
+      "utf-8",
+    );
+    expect(rota).toContain("ehTipoDeEtapa");
+    expect(rota).toContain("ehTipoDeDesfecho");
+    expect(rota).not.toMatch(/\? "ganho" : "perdido"/);
+    expect(rota).not.toMatch(/includes\(e\.tipo\) \? e\.tipo : "aberta"/);
+  });
+
+  it("o descarte não vira coluna do quadro nem cobra prazo", () => {
+    const descarte = ETAPAS_PADRAO.find((e) => e.chave === "descartado");
+    expect(descarte).toBeTruthy();
+    expect(descarte!.protegida).toBe(true);
+    expect(descarte!.estagnacao_minutos).toBeNull();
+    expect(etapasDoQuadro(ETAPAS_PADRAO, []).map((e) => e.chave)).not.toContain("descartado");
+    expect(destinosDoNegocio(ETAPAS_PADRAO).map((e) => e.chave)).toContain("descartado");
+    expect(ehDescarte(descarte!.tipo)).toBe(true);
+    // E lead descartado não apodrece, como qualquer negócio encerrado.
+    expect(nivelDeEstagnacao(lead(5000, { desfecho: "descartado" }), etapa(), AGORA)).toBe("ok");
+  });
+
+  it("contato_invalido deixou de ser motivo de perda", () => {
+    // Ele já existia como perda com o comentário certo — "não é motivo de
+    // venda perdida" — e mesmo assim contava como uma. A chave fica para o
+    // histórico não quebrar; o que muda é o lado.
+    expect(SQL_DESCARTE).toMatch(/set tipo = 'descartado'[\s\S]{0,200}where chave = 'contato_invalido'/);
+    // E quem já tinha sido fechado com ele muda de desfecho junto: perdido
+    // apontando para motivo de descarte é um estado que a própria rota recusa
+    // ao gravar.
+    expect(SQL_DESCARTE).toContain("set desfecho = 'descartado'");
+  });
+
+  it("a agenda escreve a regra pelo lado positivo", () => {
+    // `desfecho is distinct from 'perdido'` deixaria o spam de volta na lista
+    // de contatos ativos. Escrita como "ativo é quem está em aberto ou
+    // ganhou", um quarto tipo que apareça um dia nasce inativo — o lado
+    // seguro de errar numa lista de contatos.
+    expect(descarteExecutavel).toContain("(l.desfecho is null or l.desfecho = 'ganho')");
+    expect(descarteExecutavel).not.toContain("desfecho is distinct from 'perdido'");
+  });
+
+  it("o gatilho carimba os três tipos", () => {
+    // Sem o terceiro na lista, o lead cai na etapa de descarte, não recebe
+    // desfecho e volta para a fila de estagnação — o vendedor cobrado por não
+    // atender um robô.
+    expect(SQL_DESCARTE).toContain("in ('ganho', 'perdido', 'descartado')");
   });
 });
 

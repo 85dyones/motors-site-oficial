@@ -5,6 +5,8 @@ import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
   chaveDaEtapa,
+  ehTipoDeDesfecho,
+  ehTipoDeEtapa,
   ordenarEtapas,
   validarFunil,
   type EtapaDoFunil,
@@ -124,13 +126,24 @@ export async function PUT(request: NextRequest) {
       chave: (e.chave || chaveDaEtapa(e.rotulo || "")).trim(),
       rotulo: String(e.rotulo ?? "").trim(),
       ordem: Number.isFinite(e.ordem) ? Number(e.ordem) : i + 1,
-      tipo: (["aberta", "ganho", "perdido"].includes(e.tipo) ? e.tipo : "aberta") as EtapaDoFunil["tipo"],
+      // Recusa, não converte. O ternário que estava aqui virava `aberta`
+      // qualquer tipo desconhecido — e no dia em que entrou o descarte ele
+      // transformaria a etapa terminal numa coluna do quadro, em silêncio.
+      tipo: e.tipo as EtapaDoFunil["tipo"],
       estagnacao_minutos: numeroOuNulo(e.estagnacao_minutos),
       transferencia_minutos: numeroOuNulo(e.transferencia_minutos),
       protegida: e.protegida === true,
       ativa: e.ativa !== false,
       cor: e.cor ? String(e.cor) : null,
     }));
+
+    const tipoInvalido = etapasRecebidas.find((e) => !ehTipoDeEtapa(e.tipo));
+    if (tipoInvalido) {
+      return NextResponse.json(
+        { error: `Tipo de etapa desconhecido: "${tipoInvalido.tipo}".` },
+        { status: 422 },
+      );
+    }
 
     const semChave = etapas.find((e) => !e.chave);
     if (semChave) {
@@ -145,12 +158,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: problemas.join(" "), problemas }, { status: 422 });
     }
 
+    const motivoInvalido = motivosRecebidos
+      .filter((m) => String(m?.rotulo ?? "").trim())
+      .find((m) => !ehTipoDeDesfecho(m.tipo));
+    if (motivoInvalido) {
+      return NextResponse.json(
+        { error: `Tipo de motivo desconhecido: "${motivoInvalido.tipo}".` },
+        { status: 422 },
+      );
+    }
+
     const motivos: MotivoDoFunil[] = motivosRecebidos
       .filter((m) => String(m?.rotulo ?? "").trim())
       .map((m, i) => ({
         chave: (m.chave || chaveDaEtapa(m.rotulo)).trim(),
         rotulo: String(m.rotulo).trim(),
-        tipo: (m.tipo === "ganho" ? "ganho" : "perdido") as MotivoDoFunil["tipo"],
+        tipo: m.tipo as MotivoDoFunil["tipo"],
         ordem: Number.isFinite(m.ordem) ? Number(m.ordem) : i + 1,
         ativo: m.ativo !== false,
       }));

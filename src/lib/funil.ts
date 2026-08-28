@@ -22,8 +22,71 @@
 // O vocabulário
 // ---------------------------------------------------------------------------
 
-export type TipoDeEtapa = "aberta" | "ganho" | "perdido";
-export type TipoDeDesfecho = "ganho" | "perdido";
+export type TipoDeEtapa = "aberta" | "ganho" | "perdido" | "descartado";
+
+/**
+ * Como um negócio termina. Três, e não dois — 2026-08-28, pedido do dono:
+ * *"precisamos ter a opção de encerrar como 'não é uma oportunidade de
+ * negócio', para os casos de spam, testes, contato equivocado"*.
+ *
+ * `descartado` não é um sabor de `perdido`, e a diferença não é semântica: a
+ * taxa de conversão é `ganhos / (ganhos + perdidos)`. Enquanto spam entrava
+ * como perda, cada robô que preenchia o formulário baixava o número da loja —
+ * e a decisão que sai de um número desses é sobre a equipe comercial, quando
+ * o problema era o captcha. O terceiro tipo existe para SAIR da conta.
+ */
+export type TipoDeDesfecho = "ganho" | "perdido" | "descartado";
+
+/**
+ * Os vocabulários, como LISTA — e é a lista que as rotas normalizam contra.
+ *
+ * Existem porque a alternativa já produziu um defeito neste arquivo: o PUT do
+ * funil normalizava com `m.tipo === "ganho" ? "ganho" : "perdido"`, um ternário
+ * que estava certo enquanto havia dois desfechos e que, no dia em que entrou o
+ * terceiro, passaria a converter TODO motivo de descarte em motivo de perda —
+ * sem erro, sem aviso, e desfazendo em silêncio a separação que o descarte
+ * existe para criar. O mesmo ternário na etapa transformaria a etapa de
+ * descarte em `aberta`, e ela viraria coluna do quadro.
+ *
+ * Uma lista não tem "else": valor fora dela é recusado, não convertido.
+ */
+export const TIPOS_DE_ETAPA: readonly TipoDeEtapa[] = [
+  "aberta",
+  "ganho",
+  "perdido",
+  "descartado",
+];
+
+export const TIPOS_DE_DESFECHO: readonly TipoDeDesfecho[] = [
+  "ganho",
+  "perdido",
+  "descartado",
+];
+
+export function ehTipoDeEtapa(v: unknown): v is TipoDeEtapa {
+  return typeof v === "string" && (TIPOS_DE_ETAPA as readonly string[]).includes(v);
+}
+
+export function ehTipoDeDesfecho(v: unknown): v is TipoDeDesfecho {
+  return typeof v === "string" && (TIPOS_DE_DESFECHO as readonly string[]).includes(v);
+}
+
+/** Como cada desfecho se lê na tela. */
+export const ROTULO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
+  ganho: "Ganho",
+  perdido: "Perdido",
+  descartado: "Descartado",
+};
+
+/**
+ * O negócio que nunca existiu — e que por isso não entra em conta nenhuma.
+ *
+ * Predicado e não comparação solta porque ele é consultado em cinco telas: se
+ * uma delas esquecer, o spam volta a aparecer numa estatística.
+ */
+export function ehDescarte(tipo?: TipoDeEtapa | TipoDeDesfecho | null): boolean {
+  return tipo === "descartado";
+}
 
 /** Uma etapa do funil, do jeito que `funil_etapas` guarda. */
 export interface EtapaDoFunil {
@@ -90,6 +153,7 @@ export const ETAPAS_PADRAO: EtapaDoFunil[] = [
   { chave: "negociacao", rotulo: "Negociação", ordem: 5, tipo: "aberta", estagnacao_minutos: null, transferencia_minutos: null, protegida: true, ativa: true },
   { chave: "fechado", rotulo: "Ganho", ordem: 6, tipo: "ganho", estagnacao_minutos: null, transferencia_minutos: null, protegida: true, ativa: true },
   { chave: "perdido", rotulo: "Perdido", ordem: 7, tipo: "perdido", estagnacao_minutos: null, transferencia_minutos: null, protegida: true, ativa: true },
+  { chave: "descartado", rotulo: "Não é oportunidade", ordem: 8, tipo: "descartado", estagnacao_minutos: null, transferencia_minutos: null, protegida: true, ativa: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -552,6 +616,11 @@ export function agruparPorMotivo(
  * Sobre encerrados, e não sobre o total: incluir no denominador os leads que
  * ainda estão em negociação faz a taxa parecer pior no começo do mês e
  * melhorar sozinha no fim, sem ninguém ter vendido nada a mais.
+ *
+ * E DESCARTADO não entra em lado nenhum — é a razão de o terceiro tipo
+ * existir. A assinatura recebe dois números de propósito: quem chamar com o
+ * total de encerrados no lugar de `perdidos` está somando spam à conta, e o
+ * tipo não deixa isso passar despercebido.
  */
 export function taxaDeConversao(ganhos: number, perdidos: number): number {
   const fechados = ganhos + perdidos;

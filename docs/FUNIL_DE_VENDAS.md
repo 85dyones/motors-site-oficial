@@ -216,8 +216,57 @@ Duas observações sobre a lista:
   distorcem tudo que vier depois.
 - **No ganho, o motivo é a forma de pagamento.** É o corte que a loja usa para
   planejar caixa e para saber quanto do resultado depende de banco.
+- **A lista de perda encolheu para nove:** `contato_invalido` virou motivo de
+  descarte (ver §3.6).
 
-### 3.6 O motivo e a observação fazem trabalhos diferentes
+### 3.6 O terceiro desfecho: descartado
+
+Pedido do dono em 2026-08-28, horas depois de o funil entrar no ar: *"precisamos
+ter a opção de encerrar como 'não é uma oportunidade de negócio', para os casos
+de spam, testes, contato equivocado"*.
+
+A migração anterior já tinha visto metade do problema e resolvido metade dele:
+criou o motivo `contato_invalido` com o comentário *"não é motivo de venda
+perdida — é motivo de lead que nunca foi lead"*. Isso tirou o spam de dentro de
+"preço". **Não tirou o spam de dentro de "perdemos".**
+
+E é aí que o estrago mora, porque a taxa de conversão é:
+
+```
+ganhos ÷ (ganhos + perdidos)
+```
+
+Com spam como perda, cada robô que preenche o formulário baixa o número da
+loja. Uma semana ruim de spam vira uma semana ruim de vendas no relatório — e a
+decisão que sai de um número desses é sobre a equipe comercial, quando o
+problema era o captcha.
+
+Por isso `descartado` é um **tipo de desfecho** ao lado de ganho e perdido, e
+não um motivo dentro de perdido: só assim ele sai do denominador.
+
+| | Conta na conversão | Aparece na agenda | Cobra prazo |
+|---|---|---|---|
+| Ganho | numerador e denominador | sim | não |
+| Perdido | denominador | não | não |
+| **Descartado** | **em lado nenhum** | não | não |
+
+**Seis motivos de descarte:** spam ou robô · teste interno da equipe · contato
+equivocado (não era sobre carro) · lead duplicado · contato inválido ou trote ·
+currículo, fornecedor ou parceria.
+
+O último não é enfeite: revenda recebe currículo e proposta de fornecedor pelo
+mesmo formulário do site. E `contato_invalido` **mudou de lado** mantendo a
+chave — o rótulo é o que se lê na tela, a chave é identidade, e trocá-la
+apagaria o motivo de qualquer lead já fechado com ele.
+
+Na tela, o descarte fica **fora da fileira** de Ganho/Perdido, com menos peso:
+se virasse mais um botão ao lado de "Perdido", o erro fácil seria marcar spam
+como perda — exatamente o que o tipo existe para evitar. E o relatório mostra
+os descartes numa seção própria, com o título dizendo o que ela não é
+(*"fora da conta de conversão"*). Ela não é métrica de venda: é métrica de
+formulário. Se "spam" domina, o conserto é no captcha, não no atendimento.
+
+### 3.7 O motivo e a observação fazem trabalhos diferentes
 
 Pedido do dono em 2026-08-28: *"deixe um campo de observação adicional além dos
 motivos padrão"*. São dois campos porque são duas perguntas:
