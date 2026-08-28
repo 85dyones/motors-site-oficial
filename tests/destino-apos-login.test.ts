@@ -46,8 +46,8 @@ describe("destino de entrada no painel", () => {
   });
 
   it("o desvio de acesso negado não joga ninguém em Configurações", () => {
-    // Financeiro não pode ver Configurações: mandá-lo para lá gera um
-    // segundo redirecionamento até /admin/financeiro.
+    // Financeiro não pode ver Configurações: mandá-lo para lá geraria um
+    // segundo redirecionamento.
     // Os âncoras mudaram em 2026-08-21, quando o proxy passou a ler TODOS os
     // papéis (`perfisDe`) em vez do primário — a intenção do teste é a
     // mesma: o desvio leva à Visão geral, nunca a Configurações.
@@ -76,9 +76,13 @@ describe("destino de entrada no painel", () => {
     // Marketing), e não pelo nome de quem não pode: assim o `gestor`, que
     // também não tem conteúdo de site na A17, já nasce barrado sem que
     // ninguém precise lembrar de acrescentá-lo aqui.
+    //
+    // O destino do desvio mudou em 2026-08-28: era /admin/financeiro, que
+    // deixou de existir com a aposentadoria do módulo de caixa — agora todo
+    // desvio leva à Visão geral, e o endereço antigo não pode reaparecer.
     expect(arquivos["proxy.ts"]).toContain('path.startsWith("/admin/configuracoes")');
     expect(arquivos["proxy.ts"]).toContain('!perfis.includes("comercial")');
     expect(arquivos["proxy.ts"]).toContain('!perfis.includes("marketing")');
-    expect(arquivos["proxy.ts"]).toContain('url.pathname = "/admin/financeiro"');
+    expect(arquivos["proxy.ts"]).not.toContain('url.pathname = "/admin/financeiro"');
   });
 });

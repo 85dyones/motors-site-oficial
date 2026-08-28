@@ -66,12 +66,12 @@ describe("nomenclatura da tabela de inventário", () => {
     const padrao = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/;
     const comAcesso = arquivos.filter((a) => padrao.test(readFileSync(a, "utf8")));
 
-    // 9 arquivos, 17 pontos de acesso — o inventário atual:
+    // 9 arquivos, 15 pontos de acesso — o inventário atual:
     //   lib/supabase.ts (5), lib/estoqueEscrita.ts (2),
     //   api/ciclo/vendas/estoque/route.ts (1),
     //   api/estoque/[id]/route.ts (2, sendo 1 em comentário),
-    //   api/financeiro/margens/consulta/route.ts (2),
-    //   api/financeiro/margens/route.ts (2), lib/webhook-dispatcher.ts (1),
+    //   lib/webhook-dispatcher.ts (1), app/investidor/page.tsx (1),
+    //   api/investidores/participacoes/route.ts (1),
     //   app/admin/estoque/page.tsx (1), app/admin/estoque/[id]/page.tsx (1)
     //
     // Eram 10 acessos em 5 arquivos até 2026-08-03. A consulta perdeu um
@@ -106,13 +106,19 @@ describe("nomenclatura da tabela de inventário", () => {
     // dele, não o custo da loja —, e o recorte por pessoa é da RLS de
     // `investidor_veiculos`, não deste `.in()`.
     //
-    // E o décimo primeiro, no mesmo dia:
-    // `api/financeiro/investidores/route.ts`, que serve o seletor de veículo
-    // do lançamento de participação. O recorte é o mesmo da tela de margens
+    // E o décimo primeiro, no mesmo dia: a rota de participações de
+    // investidor (hoje `api/investidores/participacoes/route.ts`), que serve
+    // o seletor de veículo do lançamento. O recorte era o da tela de margens
     // (id, marca, modelo, versao, ano, preco, vendido) — sem `placa`,
     // `chassi` ou `preco_compra`: escolher um carro numa lista não alarga o
     // que o perfil enxerga.
-    expect(comAcesso.length).toBe(11);
+    //
+    // Em 2026-08-28 a lista ENCOLHEU pela primeira vez: a aposentadoria do
+    // módulo de caixa (decisão do dono — o financeiro renasce sobre o razão
+    // do handoff) levou os 4 acessos das duas rotas de margens, e as rotas de
+    // investidor mudaram de endereço (/api/financeiro/investidores →
+    // /api/investidores). De 11 arquivos e 19 acessos para 9 e 15.
+    expect(comAcesso.length).toBe(9);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -120,6 +126,6 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(19);
+    expect(total).toBe(15);
   });
 });

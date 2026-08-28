@@ -786,12 +786,9 @@ export default function EditorDeVeiculo({
                   </div>
                   <p className="mt-2 text-[11px] leading-relaxed text-mt-neutral-700">
                     Bruta: preço anunciado menos o de compra. Não inclui preparação,
-                    documentação nem custo de pátio — esses entram por lançamento no
-                    financeiro e aparecem em
-                    <Link href="/admin/financeiro/margens" className="ml-1 font-semibold text-mt-accent underline underline-offset-2">
-                      margem por veículo
-                    </Link>
-                    .
+                    documentação nem custo de pátio — esses entram quando o novo
+                    financeiro (razão por veículo) estiver no ar; o painel antigo de
+                    margem foi aposentado em 2026-08-28.
                   </p>
                 </>
               )}

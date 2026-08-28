@@ -78,14 +78,20 @@ describe("ALCADA_DO_PERFIL", () => {
     expect(ALCADA_DO_PERFIL.comercial).toBe("5% no preço");
   });
 
-  it("a do Financeiro é um ATO, não um valor — decisão do dono em 2026-08-21", () => {
-    // Esta asserção dizia `"R$ 1.500"`, transcrito do design doc. O dono
-    // desfez a régua: "essa regra de 1.500 reais não faz sentido no
-    // financeiro". Valor não mede risco numa revenda — R$ 1.200 de despesa
-    // nova recorrente compromete mais caixa que R$ 40.000 de um carro já
-    // negociado. O que decide agora é agendar × registrar (`lib/alcada.ts`).
-    expect(ALCADA_DO_PERFIL.financeiro).toBe("Agendamento vai ao Gestor");
-    expect(ALCADA_DO_PERFIL.gestor).toBe("Sem limite em preço e agendamento");
+  it("nenhuma alçada volta a ser um valor em reais", () => {
+    // A asserção original dizia `"R$ 1.500"`, transcrito do design doc; o dono
+    // desfez a régua em 2026-08-21 ("essa regra de 1.500 reais não faz sentido
+    // no financeiro") e o texto virou "Agendamento vai ao Gestor". Em
+    // 2026-08-28 o módulo de caixa — e com ele a fila de agendamento — foi
+    // aposentado (o financeiro renasce sobre o razão do handoff), e a alçada
+    // dos dois perfis passou a ser a de preço. O que este teste trava é a
+    // lição que sobrevive às duas mudanças: valor em reais não mede risco
+    // numa revenda, e nenhum número pode voltar por descuido.
+    expect(ALCADA_DO_PERFIL.financeiro).toBe("Sem limite no preço");
+    expect(ALCADA_DO_PERFIL.gestor).toBe("Sem limite no preço");
+    for (const texto of Object.values(ALCADA_DO_PERFIL)) {
+      expect(texto).not.toMatch(/R\$\s*\d/);
+    }
   });
 });
 

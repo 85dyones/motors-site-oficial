@@ -110,7 +110,7 @@ export const ORIGENS: Record<
   investidores: {
     rotulo: "Investidor",
     tabela: "investidores",
-    casa: "/admin/financeiro/investidores",
+    casa: "/admin/investidores",
   },
   lead: {
     rotulo: "Lead do site",

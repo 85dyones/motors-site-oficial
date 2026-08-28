@@ -9,39 +9,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 async function enrichPayload(event: string, payload: any, supabase: any): Promise<any> {
   if (!payload) return null;
 
-  // Helper to fetch category name
-  const getCategoryName = async (categoryId: string | null, embeddedCategory?: any) => {
-    if (embeddedCategory) {
-      return `${embeddedCategory.icone || "📁"} ${embeddedCategory.nome}`;
-    }
-    if (!categoryId) return "Outros";
-    try {
-      const { data } = await supabase
-        .from("categorias_financeiras")
-        .select("nome, icone")
-        .eq("id", categoryId)
-        .maybeSingle();
-      return data ? `${data.icone || "📁"} ${data.nome}` : "Outros";
-    } catch {
-      return "Outros";
-    }
-  };
-
-  // Helper to resolve purchases category text enum to friendly name
-  const getPurchaseCategoryFriendly = (cat: string | null) => {
-    if (!cat) return "Outros";
-    const map: Record<string, string> = {
-      peca_reposicao: "🔧 Peça de Reposição",
-      acessorio: "🎒 Acessório",
-      material_escritorio: "🏢 Material de Escritório",
-      material_limpeza: "🧼 Material de Limpeza",
-      combustivel: "⛽ Combustível",
-      ferramenta: "🛠️ Ferramenta",
-      outro: "📁 Outro"
-    };
-    return map[cat] || cat;
-  };
-
   // Helper to fetch vehicle info
   const getVehicleInfo = async (vehicleId: string | null, embeddedVehicle?: any) => {
     if (embeddedVehicle) {
@@ -60,65 +27,11 @@ async function enrichPayload(event: string, payload: any, supabase: any): Promis
     }
   };
 
-  if (event.startsWith("conta_")) {
-    const categoria = await getCategoryName(payload.categoria_id, payload.categoria);
-    const veiculo = await getVehicleInfo(payload.veiculo_id, payload.veiculo);
-    return {
-      id: payload.id,
-      tipo: payload.tipo,
-      descricao: payload.descricao,
-      valor: Number(payload.valor),
-      vencimento: payload.data_vencimento,
-      pagamento: payload.data_pagamento || null,
-      status: payload.status,
-      categoria,
-      parceiro: payload.tipo === "pagar" ? payload.fornecedor : payload.cliente,
-      forma_pagamento: payload.forma_pagamento || null,
-      parcela: payload.total_parcelas > 1 ? `${payload.parcela_atual} de ${payload.total_parcelas}` : "1 de 1"
-    };
-  }
-
-  if (event.startsWith("recorrente_")) {
-    const categoria = await getCategoryName(payload.categoria_id, payload.categoria);
-    return {
-      id: payload.id,
-      descricao: payload.descricao,
-      valor: Number(payload.valor),
-      frequencia: payload.frequencia,
-      dia_vencimento: payload.dia_vencimento,
-      categoria,
-      fornecedor: payload.fornecedor || null,
-      forma_pagamento: payload.forma_pagamento || null,
-      ativa: payload.ativa !== false
-    };
-  }
-
-  if (event.startsWith("compra_")) {
-    const categoria = getPurchaseCategoryFriendly(payload.categoria);
-    const veiculo = await getVehicleInfo(payload.veiculo_id, payload.veiculo);
-    return {
-      id: payload.id,
-      descricao: payload.descricao,
-      valor: Number(payload.valor_total || payload.valor),
-      data_compra: payload.data_compra,
-      categoria,
-      fornecedor: payload.fornecedor || null,
-      veiculo,
-      nota_fiscal: payload.nota_fiscal || null,
-      status: payload.status
-    };
-  }
-
-  if (event.startsWith("fornecedor_")) {
-    return {
-      id: payload.id,
-      nome: payload.nome,
-      tipo: payload.tipo,
-      documento: payload.documento || null,
-      telefone: payload.telefone || null,
-      email: payload.email || null
-    };
-  }
+  // Os eventos do caixa legado (conta_*, recorrente_*, compra_*, fornecedor_*)
+  // foram aposentados em 2026-08-28 junto com o módulo financeiro — decisão do
+  // dono: o financeiro renasce do zero sobre o razão do handoff (spec 30).
+  // Quando o razão emitir eventos, eles ganham nomes novos aqui e no
+  // WEBHOOKS_N8N.md; os antigos não voltam.
 
   // Aporte/retirada de investidor (briefing 2026-08-21). `valor` é sempre
   // positivo — o lado mora em `tipo`, como nos contadores de conta_vencida.

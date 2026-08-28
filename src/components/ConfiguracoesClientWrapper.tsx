@@ -1418,7 +1418,7 @@ export default function ConfiguracoesClientWrapper() {
                 TOKEN DE AUTENTICAÇÃO DA API (HEADERS)
               </h2>
               <p className="text-xs text-mt-neutral-700 mb-4 font-normal leading-relaxed">
-                Token exigido pelo endpoint de consulta de margens por WhatsApp (<code>/api/financeiro/margens/consulta</code>): toda consulta precisa do cabeçalho <code>Authorization: Bearer [Token]</code>. Sem token configurado em lugar nenhum, o endpoint responde 503 — ele não abre sem autenticação.
+                Token dos dois sentidos da conversa com o n8n: sai no cabeçalho <code>Authorization: Bearer [Token]</code> dos webhooks administrativos e é exigido nas rotas que o n8n consome (motor do Ciclo, vendas incompletas). A consulta de margens que também o usava foi aposentada com o módulo financeiro em 2026-08-28.
               </p>
 
               <div className="flex flex-col gap-3.5">

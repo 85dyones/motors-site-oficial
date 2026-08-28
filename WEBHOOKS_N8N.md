@@ -21,9 +21,8 @@ Desde 2026-08-12 essa linha **não é legível pela chave `anon`** (migração
 quem mexer aqui: todo caminho de servidor que precise dela tem de ler por
 `getCachedSettings`, que usa `SUPABASE_SERVICE_ROLE_KEY`. Um `select` direto
 com o cliente da requisição num endpoint sem sessão — `/api/leads`,
-`/api/avaliacao`, `/api/financeiro/margens/consulta` — volta `null` e o lead
-sai sem `Authorization`, sem erro nenhum. `tests/settings-leitura-privilegiada.test.ts`
-falha se isso voltar.
+`/api/avaliacao` — volta `null` e o lead sai sem `Authorization`, sem erro
+nenhum. `tests/settings-leitura-privilegiada.test.ts` falha se isso voltar.
 
 | Campo no painel | Env de fallback | Padrão de código |
 |---|---|---|
@@ -69,11 +68,10 @@ Bearer certo leva 403.
 > desligado: os eventos administrativos daquele período levaram **404** e
 > viraram `console.warn`, sem retentativa.
 
-> ⚠️ Preencher o token liga uma trava do lado de **entrada** também:
-> `/api/financeiro/margens/consulta` valida o mesmo `Bearer` e passa a devolver
-> 401 sem ele. O chamador é o workflow "Consulta Margens Mínimo - Motors", hoje
-> desligado e com o literal `SEU_TOKEN_CONFIGURADO` no header — precisa ser
-> atualizado antes de ser ligado.
+> A consulta de margens (`/api/financeiro/margens/consulta`), que validava o
+> mesmo `Bearer` no sentido de entrada, foi **aposentada em 2026-08-28** com o
+> módulo de caixa. O workflow "Consulta Margens Mínimo - Motors" já estava
+> desligado no n8n e agora não tem endpoint — pode ser arquivado.
 
 ---
 
@@ -161,14 +159,13 @@ lê. **O cliente nunca vê esse valor no site.** Regra em
 
 ## Formato C — Evento administrativo
 
-**Origem:** `src/lib/webhook-dispatcher.ts` e
-`/api/financeiro/notificacoes/processar`
+**Origem:** `src/lib/webhook-dispatcher.ts`
 **Destino:** `webhookNotificacoesUrl`
 **Header extra:** `X-Admin-Event: <nome do evento>`
 
 ```json
 {
-  "event": "conta_criada",
+  "event": "investidor_movimento",
   "timestamp": "2026-08-10T17:00:00.000Z",
   "data": { }
 }
@@ -179,72 +176,29 @@ dispatcher resolve ids em nomes legíveis antes de enviar:
 
 | Prefixo | `data` contém |
 |---|---|
-| `conta_` | `id, tipo, descricao, valor, vencimento, pagamento, status, categoria, parceiro, forma_pagamento, parcela` |
-| `recorrente_` | `id, descricao, valor, frequencia, dia_vencimento, categoria, fornecedor, forma_pagamento, ativa` |
-| `compra_` | `id, descricao, valor, data_compra, categoria, fornecedor, veiculo, nota_fiscal, status` |
-| `fornecedor_` | `id, nome, tipo, documento, telefone, email` |
 | `investidor_` | `id, investidor, tipo, valor, data, descricao, forma_pagamento, veiculo, observacoes` |
 | qualquer outro | o payload cru, sem enriquecimento |
 
-`categoria` vem como `"🔧 Peça de Reposição"` (ícone + nome), não como id.
 `veiculo` vem como `"BMW 320i (2022)"`, não como id. `valor` é number.
 
 O evento do prefixo `investidor_` hoje é um só: `investidor_movimento`, emitido
 a cada aporte ou retirada registrado no painel (2026-08-21). `investidor` vem
 como nome, `tipo` é `"aporte"` ou `"retirada"` e `valor` é **sempre positivo** —
-o lado mora em `tipo`, como nos contadores de `conta_vencida`. `veiculo` só vem
-preenchido quando a movimentação é um carro de repasse.
+o lado mora em `tipo`. `veiculo` só vem preenchido quando a movimentação é um
+carro de repasse.
 
-A aprovação de agendamento (2026-08-21) acrescenta três eventos ao prefixo
-`conta_`, com o mesmo `data` da tabela: **`conta_aguardando_aprovacao`**
-(agendamento — conta a pagar que fica em aberto — lançado por quem não tem
-poder de aprovar; sai NO LUGAR de `conta_criada`, nunca junto, e é o aviso
-"conta subiu pra aprovação" do briefing), **`conta_aprovada`** e
-**`conta_recusada`** (a decisão do Gestor — uma emissão por parcela do
-lançamento). O `status` dentro de `data` diz o estado resultante:
-`aguardando_aprovacao`, `pendente` ou `cancelado`.
-
-Não há limiar em reais: registro de conta já paga nunca gera esses eventos, e
-agendamento gera sempre — ver `docs/FINANCEIRO_OPERACIONAL.md` §3.
-
-O prefixo `recorrente_` ganha os três equivalentes em 2026-08-22:
-**`recorrente_aguardando_aprovacao`** (cadastro de despesa recorrente nova por
-quem não aprova — sai NO LUGAR de `recorrente_criada`), **`recorrente_aprovada`**
-e **`recorrente_recusada`**. A **geração** mensal continua sem evento de
-aprovação: o compromisso foi assumido quando a recorrente foi aprovada, e um
-aviso por parcela viraria ruído todo mês.
+> **Aposentados em 2026-08-28**, junto com o módulo de caixa (decisão do dono:
+> nada ali tinha dado real, e o financeiro renasce sobre o razão do handoff):
+> os prefixos `conta_` (criada, paga, atualizada, deletada, aguardando
+> aprovação, aprovada, recusada), `recorrente_` (idem), `compra_registrada`,
+> `fornecedor_criado` e o `conta_vencida` — o único que não saía do dispatcher
+> (a rota `/api/financeiro/notificacoes/processar` montava o envelope à mão, e
+> foi aposentada junto). O contrato completo desses eventos está no git deste
+> arquivo; quando o razão emitir eventos financeiros, eles entram aqui com
+> nomes novos, e os templates antigos do `adm-motors` podem ser removidos.
 
 **Liga/desliga por evento:** `webhooks.events[nomeDoEvento] === false` bloqueia
 o disparo. Ausente = habilitado.
-
-### `conta_vencida` — a segunda origem do Formato C
-
-`conta_vencida` é o único evento que **não** sai do dispatcher. Quem emite é
-`POST /api/financeiro/notificacoes/processar`, e ele monta o envelope à mão.
-
-Até 2026-08-12 essa rota mandava uma forma própria — `{ tipo:
-"notificacao_financeira", subtipo, conta, mensagem }`, sem `event` e sem `data`.
-O `adm-motors` rejeitava com "Payload inválido" e o template de `conta_vencida`
-nunca rodou. Hoje ela emite o Formato C, com os mesmos campos do prefixo
-`conta_` mais três:
-
-| Campo extra | Significado |
-|---|---|
-| `subtipo` | `"vencimento_proximo"` (3 ou 1 dia antes) ou `"vencido"` (no dia ou 7 dias depois) — é o mesmo valor gravado em `notificacoes_financeiras.tipo` |
-| `dias_atraso` | dias vencidos; `0` quando ainda não venceu ou vence hoje |
-| `dias_para_vencer` | dias restantes; `0` quando já venceu |
-
-Os dois contadores são sempre `>= 0`: quem lê não precisa interpretar sinal.
-O evento cobre os dois lados do vencimento porque é isso que o rótulo do painel
-promete — "Contas Vencidas / Alertas de Vencimento" é um checkbox só.
-
-**`mensagem` não vai no corpo.** Quem formata texto de WhatsApp é o n8n, para os
-onze eventos. A rota ainda monta o seu próprio texto, mas só para gravar em
-`notificacoes_financeiras` como registro do que motivou o aviso — os dois textos
-não são o mesmo e não precisam ser.
-
-Essa rota **grava o registro só quando o webhook responde ok**. Enquanto o n8n
-recusar, ela reprocessa as mesmas contas a cada execução.
 
 ---
 
@@ -376,15 +330,14 @@ Isto é o que mais importa para quem depura do outro lado.
       na tabela `leads`.
 - [x] Confirmar que `webhookNotificacoesUrl` está preenchido em produção —
       está, e aponta para o `adm-motors` (2026-08-12)
-- [x] `apiSecretToken` **passou a ser obrigatório em
-      `/api/financeiro/margens/consulta`** (2026-08-12). Só naquela rota, e
-      por um motivo específico: ela agora lê `contas` e `compras_produtos` com
-      a chave de serviço, então a RLS deixou de ser a rede de segurança que
-      segurava o dado financeiro. Sem token configurado (nem no painel nem em
-      `N8N_SECRET_TOKEN`) a rota responde **503**, não 200 aberto. Como
-      `apiSecretToken` está vazio no banco por decisão, a rota depende de
-      `N8N_SECRET_TOKEN` existir na Vercel — se sumir, a ficha de margem para
-      de responder de forma visível, não silenciosa.
+- [x] `apiSecretToken` passou a ser obrigatório em
+      `/api/financeiro/margens/consulta` (2026-08-12) — item encerrado em
+      2026-08-28, quando a rota foi **aposentada** junto com o módulo de
+      caixa. A lição continua valendo para qualquer rota nova que leia com a
+      chave de serviço: token obrigatório, 503 sem configuração, nunca 200
+      aberto. Se `N8N_SECRET_TOKEN` sumir da Vercel, quem para de forma
+      visível são os Bearer dos webhooks de saída — os tokens das rotas de
+      entrada (motor do Ciclo, funil) são variáveis próprias.
 - [x] Decidir se o token passa a ser obrigatório nos webhooks — sim. O
       `adm-motors` exige `headerAuth` desde 2026-08-12; lead e avaliação
       entram na sequência (item abaixo). Com a leitura de `site_settings`

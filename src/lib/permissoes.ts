@@ -200,10 +200,10 @@ export const ROTULO_DO_PERFIL: Record<Perfil, string> = {
  */
 export const ALCADA_DO_PERFIL: Record<Perfil, string> = {
   admin: "Sem limite",
-  gestor: "Sem limite em preço e agendamento",
+  gestor: "Sem limite no preço",
   marketing: "—",
   comercial: "5% no preço",
-  financeiro: "Agendamento vai ao Gestor",
+  financeiro: "Sem limite no preço",
 };
 
 /** Descrição de cada perfil (cards do topo da A17). */
@@ -215,8 +215,8 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
   },
   gestor: {
     descricao:
-      "Aprova os agendamentos do financeiro, ajusta os valores de entrada e saída dos negócios de carro e acompanha os relatórios.",
-    chave: "Aprova agendamento financeiro",
+      "Ajusta os valores de entrada e saída dos negócios de carro, configura o funil de vendas e acompanha investidores e a conformidade do Ciclo.",
+    chave: "Ajusta valores do negócio",
   },
   marketing: {
     descricao:
@@ -230,7 +230,7 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
   },
   financeiro: {
     descricao:
-      "Fluxo de caixa, contas, custo por veículo e o texto legal do simulador.",
+      "Custo por veículo, investidores e o texto legal do simulador — o caixa renasce sobre o razão do novo financeiro.",
     chave: "Dono do texto legal",
   },
 };
@@ -319,27 +319,12 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "nao_ve", "faz"],
     "O custo é a ENTRADA do negócio — Comercial vê preço e desconto, não custo",
   ),
-  linha(
-    "Lançar e aprovar contas a pagar",
-    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
-    "Lançar é do Financeiro; agendar exige a linha abaixo",
-  ),
-  // As duas linhas abaixo entram em 2026-08-21 com o papel Gestor, por pedido
-  // do dono: ele "terá o poder de aprovar os agendamentos financeiro... bem
-  // como acesso aos relatórios". São as duas atribuições que o A17 não tinha
-  // como expressar — a primeira porque a aprovação era um limite em reais que
-  // ninguém sabia defender, a segunda porque relatório nunca teve linha
-  // própria e vinha de carona no acesso ao módulo inteiro.
-  linha(
-    "Aprovar agendamento financeiro",
-    ["faz", "faz", "nao_ve", "nao_ve", "nao_ve"],
-    "Quem agenda não aprova: o Financeiro lança, o Gestor libera",
-  ),
-  linha(
-    "Ver relatórios gerenciais e DRE",
-    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
-    "Leitura consolidada — não dá poder de lançar nem de decidir",
-  ),
+  // As linhas do módulo de caixa — "Lançar e aprovar contas a pagar",
+  // "Aprovar agendamento financeiro" (2026-08-21) e "Ver relatórios
+  // gerenciais e DRE" — saíram em 2026-08-28 com a aposentadoria do módulo,
+  // por decisão do dono: o financeiro renasce do zero sobre o razão do
+  // handoff (spec 30), e as linhas voltam com os nomes das telas novas.
+  //
   // Separação de funções, decidida em 2026-08-21 junto com "quem aprova
   // pagamento no dia a dia é o Gestor": quem libera um agendamento não pode
   // apagar a conta, a movimentação de caixa que a baixa gerou e a trilha da
