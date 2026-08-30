@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ler, lerCodigo } from "./fonte";
 import {
-  LAUDO_BLOQUEIA_PUBLICACAO,
   MINIMO_DE_FOTOS,
   REGRAS_DE_COERENCIA,
   bloqueiosDePublicacao,
@@ -44,7 +43,10 @@ describe("1 · os dez casos do handoff", () => {
    */
   const casos = [
     { id: 8171616, v: veiculo("Fiat", "Titano", "Volcano 2.2 16V 4x4 TB Die Aut", "SUV"), esperada: "Picape" },
-    { id: 8137195, v: veiculo("Kia", "Bongo", "K-2500 2.5 4x2", "Hatch"), esperada: "Utilitário" },
+    // `Caminhão` desde 29/08: a lista fechada ganhou o valor, e o Bongo é o
+    // caso que o pedia. `Utilitário` segue aceito — o detector não reclama de
+    // nenhuma das duas leituras, só de `Hatch`, que era o que o feed mandava.
+    { id: 8137195, v: veiculo("Kia", "Bongo", "K-2500 2.5 4x2", "Hatch"), esperada: "Caminhão" },
     { id: 8303260, v: veiculo("Fiat", "Strada", "Ranch T200AT", "Hatch"), esperada: "Picape" },
     { id: 8256747, v: veiculo("BMW", "320i", "2.0 Sport GP Active Flex Aut", "Hatch"), esperada: "Sedan" },
     { id: 8307965, v: veiculo("Chevrolet", "Onix Plus", "Turbo LT Automático", "Hatch"), esperada: "Sedan" },
@@ -106,6 +108,8 @@ describe("2 · o silêncio, que é a metade difícil", () => {
     // certa para o que ela não sabe — o contrário transformaria cada carro novo
     // do pátio num alerta.
     expect(divergenciaDeCarroceria(veiculo("Chevrolet", "Celta", "1.0 Life", "Hatch"))).toBeNull();
+    // E o Bongo em `Utilitário` continua em paz: as duas leituras valem.
+    expect(divergenciaDeCarroceria(veiculo("Kia", "Bongo", "K-2500 2.5 4x2", "Utilitário"))).toBeNull();
     expect(divergenciaDeCarroceria(veiculo("Honda", "Civic", "2.0 EXL", "Sedan"))).toBeNull();
     expect(divergenciaDeCarroceria({})).toBeNull();
   });
@@ -152,20 +156,18 @@ describe("3 · o detector nunca escreve", () => {
 
 describe("4 · bloqueio de publicação", () => {
   const completo = {
-    laudo_pericia: "Laudo cautelar aprovado sem apontamentos.",
     whatsapp_images: Array.from({ length: MINIMO_DE_FOTOS }, (_, i) => `foto-${i}.jpg`),
   };
 
-  it("aprova quem tem laudo e as oito fotos", () => {
+  it("aprova quem tem as oito fotos", () => {
     expect(bloqueiosDePublicacao(completo)).toEqual([]);
     expect(publicavel(completo)).toBe(true);
   });
 
   it("tira do ar com menos de oito fotos, e diz quantas faltam", () => {
-    const seisFotos = { ...completo, whatsapp_images: ["a", "b", "c", "d", "e", "f"] };
+    const seisFotos = { whatsapp_images: ["a", "b", "c", "d", "e", "f"] };
     const motivos = bloqueiosDePublicacao(seisFotos);
     expect(motivos.map((m) => m.id)).toEqual(["poucas-fotos"]);
-    expect(motivos[0].bloqueia).toBe(true);
     expect(publicavel(seisFotos)).toBe(false);
     expect(motivos[0].texto).toContain(`6 de ${MINIMO_DE_FOTOS}`);
     // As fotos vêm do RevendaMais, não do painel: sem essa frase, alguém
@@ -176,36 +178,31 @@ describe("4 · bloqueio de publicação", () => {
   it("`whatsapp_images` sujo não conta como foto", () => {
     // A coluna chega do feed como JSON, e já veio com entrada vazia no meio da
     // lista. A Kombi `8392516` é o caso: uma entrada, nenhuma foto.
-    const comBuracos = { ...completo, whatsapp_images: ["a", null, "", "b", undefined] };
+    const comBuracos = { whatsapp_images: ["a", null, "", "b", undefined] };
     expect(publicavel(comBuracos)).toBe(false);
   });
 
-  it("aponta a falta de laudo — e HOJE não tira do ar por causa dela", () => {
-    // ⚠️ Esta é a asserção que documenta a medição, não uma preferência.
+  it("laudo vazio NÃO impede publicação", () => {
+    // ⚠️ A asserção que registra uma correção de domínio, não de gosto.
     //
-    // O plano desta rodada dizia que ligar o gate do laudo custaria UM carro.
-    // Lido na produção de 2026-08-27, na coluna `laudo_pericia` dos 39
-    // veículos servidos: **38 estão vazios**. Ligar teria levado a vitrine de
-    // 39 para 1 — a loja inteira, não um anúncio.
+    // A versão anterior lia `laudo_pericia` vazio como "carro não periciado" e
+    // bloqueava por isso. O dono corrigiu em 29/08: **100% do pátio é
+    // periciado**, e o campo guarda APONTAMENTOS pontuais. Vazio quer dizer
+    // sem apontamentos — o melhor caso. Bloquear ali era punir o carro
+    // impecável, e teria levado a vitrine de 34 para 1.
     //
-    // Se alguém trocar `LAUDO_BLOQUEIA_PUBLICACAO` para `true`, é aqui que a
-    // conta aparece: o teste cai, e a mensagem manda rodar a auditoria antes.
-    const semLaudo = { ...completo, laudo_pericia: "   " };
-    const motivos = bloqueiosDePublicacao(semLaudo);
-    expect(motivos.map((m) => m.id)).toEqual(["sem-laudo"]);
-    expect(motivos[0].texto).toMatch(/100% do estoque/);
-    expect(LAUDO_BLOQUEIA_PUBLICACAO).toBe(false);
-    expect(motivos[0].bloqueia).toBe(false);
-    expect(publicavel(semLaudo)).toBe(true);
+    // O status da perícia mora em `pericia`, outra coluna.
+    const semObservacao = { ...completo, laudo_pericia: "" } as never;
+    expect(publicavel(semObservacao)).toBe(true);
+    expect(bloqueiosDePublicacao(semObservacao)).toEqual([]);
   });
 
-  it("a pendência continua listada, mesmo sem bloquear", () => {
-    // O meio-termo perigoso seria sumir com o item enquanto ele não bloqueia:
-    // aí a promessa de "laudo em 100% do estoque" ficaria sem nenhum lugar que
-    // a cobrasse, e a distinção viraria esquecimento.
-    const nada = { laudo_pericia: null, whatsapp_images: null };
-    expect(bloqueiosDePublicacao(nada).map((m) => m.id)).toEqual(["sem-laudo", "poucas-fotos"]);
-    expect(bloqueiosDePublicacao(nada).map((m) => m.bloqueia)).toEqual([false, true]);
+  it("o motivo `sem-laudo` não existe mais", () => {
+    // Contraprova pelo outro lado: se alguém reintroduzir a regra, o carro sem
+    // apontamento volta a sair do ar sem ninguém entender por quê.
+    const nada = { whatsapp_images: null } as never;
+    expect(bloqueiosDePublicacao(nada).map((m) => m.id)).toEqual(["poucas-fotos"]);
+    expect(lerCodigo("src/lib/coerenciaDoCadastro.ts")).not.toContain('"sem-laudo"');
   });
 });
 
@@ -299,28 +296,18 @@ describe("6 · a auditoria em lote", () => {
     expect(script).toContain("bloqueiosDePublicacao");
   });
 
-  it("mostra, por id, quem sairia do ar se o laudo passasse a bloquear", () => {
-    // É a seção que responde "posso ligar o gate?", e a resposta é o tamanho
-    // da lista. Sem ela, ligar `LAUDO_BLOQUEIA_PUBLICACAO` volta a ser um
-    // palpite — foi exatamente assim que o número 1 virou 38.
+  it("a seção do laudo saiu do relatório", () => {
+    // Ela listava 33 dos 34 publicados como pendência, sobre a premissa de que
+    // campo vazio significava carro não periciado. O dono corrigiu: 100% do
+    // pátio é periciado, e o campo guarda apontamentos — vazio é o melhor
+    // caso. Relatório que acusa 97% do estoque todo dia é relatório que
+    // ninguém lê.
     const script = ler("scripts/auditoria-estoque.ts");
-    expect(script).toContain("LAUDO_BLOQUEIA_PUBLICACAO");
-    expect(script).toMatch(/sem-laudo/);
-    expect(script).toMatch(/sairiam do ar/);
-  });
-
-  it("pendência de laudo não entra na conta de achados", () => {
-    // 38 de 39 sem laudo deixaria o comando vermelho todo dia, e comando que
-    // é sempre vermelho é comando que ninguém lê. O que conta como achado é
-    // defeito de cadastro; falta de preenchimento é outra coisa.
-    const script = lerCodigo("scripts/auditoria-estoque.ts");
-    // Do título da seção 5 até a linha de resumo — `achados === 0` mora lá, e
-    // fatiar até o fim do arquivo casaria com ele.
-    const secao5 = script.slice(script.indexOf("5 · Sem laudo"), script.indexOf("achados === 0"));
-    expect(secao5.length).toBeGreaterThan(100);
-    expect(secao5).not.toMatch(/achados\s*(\+=|\+\+)/);
-    // E a seção 4, que conta, continua contando.
-    const secao4 = script.slice(script.indexOf("4 · Fora da vitrine"), script.indexOf("5 · Sem laudo"));
+    expect(script).not.toContain("LAUDO_BLOQUEIA_PUBLICACAO");
+    expect(script).not.toMatch(/sairiam do ar/);
+    // A seção 4, que conta de verdade, continua contando.
+    const codigo = lerCodigo("scripts/auditoria-estoque.ts");
+    const secao4 = codigo.slice(codigo.indexOf("4 · Fora da vitrine"));
     expect(secao4).toMatch(/achados\s*\+=/);
   });
 });

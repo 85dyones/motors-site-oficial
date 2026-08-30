@@ -40,8 +40,8 @@ export async function GET() {
     // `mapVeiculoDbToVeiculo`.
     //
     // `incluirNaoPublicaveis`: esta rota alimenta as telas internas de estoque
-    // e margem, que precisam do pátio INTEIRO. Um carro sem laudo continua
-    // custando pátio e capital enquanto não é publicável.
+    // e margem, que precisam do pátio INTEIRO. Um carro fora da vitrine
+    // continua custando pátio e capital.
     const veiculos = await getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, incluirNaoPublicaveis: true });
 
     // Só o que os seletores precisam. `getEstoque` já não expõe

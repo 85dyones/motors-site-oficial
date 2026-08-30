@@ -40,10 +40,10 @@ export default async function AdminVisaoGeralPage() {
     // `incluirPlaca`: o alerta de ficha própria incompleta conta placa entre
     // os campos. Rota do painel, atrás do guarda de sessão do layout.
     //
-    // `incluirNaoPublicaveis`: o carro bloqueado por falta de laudo ou de fotos
-    // sai da vitrine, não do painel — é AQUI que o bloqueio se resolve. Filtrar
-    // nesta chamada esconderia o veículo justamente de quem tem como
-    // desbloqueá-lo, e o contador de pendências desta tela nasceria mentindo.
+    // `incluirNaoPublicaveis`: o carro bloqueado por falta de fotos sai da
+    // vitrine, não do painel — é AQUI que a pendência aparece. Filtrar nesta
+    // chamada esconderia o veículo justamente de quem tem como resolvê-la, e o
+    // contador desta tela nasceria mentindo.
     getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, incluirNaoPublicaveis: true }),
     getCachedSettings(),
     // `null` quando o GA4 não tem credencial de leitura — a tela mostra "—".

@@ -319,7 +319,7 @@ export default function ConfiguracoesClientWrapper() {
    * categoria às cegas.
    *
    * O denominador são os PUBLICÁVEIS: o painel carrega também o que está fora
-   * do feed e o bloqueado por laudo ou fotos, e contar esses infla um número
+   * do feed e o bloqueado por falta de fotos, e contar esses infla um número
    * que o visitante nunca vai ver. `publicavel` é o mesmo gate de
    * `getEstoque()`, e é seguro no cliente (o módulo não tem imports).
    */
@@ -414,7 +414,7 @@ export default function ConfiguracoesClientWrapper() {
         // aqui que eles são marcados como vendidos e conferidos na margem;
         // escondê-los deixaria o veículo inalcançável.
         // `incluirNaoPublicaveis` — mesma razão, outro filtro: o bloqueio por
-        // laudo ou fotos tira o carro da vitrine, e é nesta tela que ele é
+        // falta de fotos tira o carro da vitrine, e é nesta tela que ele é
         // desfeito. Painel que não mostra o bloqueado não tem como desbloquear.
         const data = await getEstoque({ incluirForaDoFeed: true, incluirNaoPublicaveis: true });
         setVehicles(data);

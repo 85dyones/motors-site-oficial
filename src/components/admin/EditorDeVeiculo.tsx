@@ -198,15 +198,11 @@ export default function EditorDeVeiculo({
       ok: fichaPropriaCompleta,
       estado: fichaPropriaCompleta ? "OK" : "PENDENTE",
     },
-    {
-      l: "Laudo cautelar",
-      // Não diz "bloqueia" porque hoje não bloqueia: 38 das 39 fichas estão com
-      // o campo vazio, e ligar o gate agora tiraria a loja do ar em vez de um
-      // carro. Ver `LAUDO_BLOQUEIA_PUBLICACAO`.
-      d: "Texto do laudo exibido na ficha do veículo.",
-      ok: Boolean(v.laudo_pericia),
-      estado: v.laudo_pericia ? "OK" : "PENDENTE",
-    },
+    // O laudo saiu do checklist em 29/08. Ele acusava PENDENTE em 33 dos 34
+    // publicados, sobre uma premissa errada: 100% do pátio é periciado, e
+    // `laudo_pericia` guarda APONTAMENTOS pontuais. Vazio é o melhor caso, não
+    // uma falta — e checklist que fica vermelho no carro impecável ensina a
+    // ignorar o checklist.
     {
       l: "Texto do anúncio revisado",
       d: "Descrição editorial que abre a página do veículo.",
@@ -248,11 +244,8 @@ export default function EditorDeVeiculo({
      tela mentindo sobre o próprio site. */
   const bloqueios = useMemo(
     () =>
-      bloqueiosDePublicacao({
-        laudo_pericia: v.laudo_pericia,
-        whatsapp_images: v.whatsapp_images,
-      }).filter((b) => b.bloqueia),
-    [v.laudo_pericia, v.whatsapp_images],
+      bloqueiosDePublicacao({ whatsapp_images: v.whatsapp_images }),
+    [v.whatsapp_images],
   );
 
   const margem =

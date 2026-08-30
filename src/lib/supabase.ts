@@ -790,9 +790,9 @@ export async function getEstoque(
           noFeed = data;
         }
 
-        // Bloqueio de publicação, aplicado sobre a LINHA CRUA: `laudo_pericia`
-        // e `whatsapp_images` são colunas, e filtrar antes de mapear evita
-        // montar objeto de veículo que ninguém vai usar.
+        // Bloqueio de publicação, aplicado sobre a LINHA CRUA:
+        // `whatsapp_images` é coluna, e filtrar antes de mapear evita montar
+        // objeto de veículo que ninguém vai usar.
         //
         // ⚠️ Este filtro NÃO tem válvula: se ele zerar a lista, a vitrine fica
         // vazia mesmo. Foi decidido assim porque as duas falhas não custam o
