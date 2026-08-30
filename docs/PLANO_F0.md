@@ -23,6 +23,31 @@ Nenhuma migração da F0 roda antes do OK.** (É o passo 2 do
 | **T4** conferência diária | ⏸ depende da carga ter o que conferir |
 | **T5** backup | ⏸ PITR é add-on pago — decisão de custo do dono |
 
+**Decisão de infraestrutura (dono, 2026-08-29):** as fotos ficam no **Supabase
+Storage**, não num S3 próprio na VPS — "vamos manter como está o S3, se preciso
+atualizo o supabase para o pro". O que sustentou a escolha: o limite da Vercel
+que preocupava é o do *bundle de deploy* (foto de runtime não entra nele), e o
+limite dela que este projeto de fato já bateu é a cota de otimização de imagem
+(`/_next/image` com 402) — resolvida servindo do CDN próprio. Volume medido:
+1.497 fotos hoje, algo entre 0,5 e 1,5 GB tratadas, contra 100 GB no Pro. Um S3
+na VPS poria TLS, backup, monitoração e a banda de toda visita à vitrine na
+mesma máquina do n8n. **Quando o Pro passa a ser necessário:** só se as fotos
+dos 104 veículos do feed forem migradas (~750 MB estouraria 1 GB do Free); pelo
+uso nativo de hoje, não há pressa.
+
+**A LACUNA que o storage próprio ainda não fecha:** a galeria grava só em
+veículo `origem = 'painel'`, e por um bom motivo — as três colunas de foto são
+do feed, e o sync as reescreveria no ciclo seguinte, em silêncio. Como os 104
+veículos atuais são todos do sync, **na prática o carro57 continua servindo
+100% do estoque de hoje**. Dois caminhos para fechar de verdade, ambos com o
+dono:
+  a) **Colunas de override de foto** (o padrão que `modelo_override` já usa): o
+     sync não as conhece, então a foto própria sobrevive a todo ciclo e a
+     galeria passa a valer para todo o estoque. Custa uma migração aditiva, uma
+     preferência no mapper e a migração das 1.497 fotos.
+  b) **Esperar a F2**, quando `estoque_motors` vira projeção do núcleo e o sync
+     deixa de ser dono das fotos. Sem trabalho novo, mas o carro57 fica.
+
 **Pendências deixadas pelas revisões, para decidir com o dono:**
 - **O núcleo ainda não sabe do veículo nativo.** O cadastro escreve só em
   `estoque_motors`; não nasce `veiculos` (uuid+chassi), nem evento `ENTRADA`,
