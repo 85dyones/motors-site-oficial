@@ -105,44 +105,23 @@ async function main() {
 
   // ── 4 · fora da vitrine ───────────────────────────────────────────────────
   titulo("4 · Fora da vitrine agora");
-  const comMotivo = estoque.map((v) => ({ v, b: bloqueiosDePublicacao(v) }));
-  const bloqueados = comMotivo.filter((x) => x.b.some((m) => m.bloqueia));
+  const bloqueados = estoque
+    .map((v) => ({ v, b: bloqueiosDePublicacao(v) }))
+    .filter((x) => x.b.length > 0);
   if (bloqueados.length === 0) {
     console.log("  nenhum — todo o pátio está publicável");
   } else {
     achados += bloqueados.length;
     for (const { v, b } of bloqueados) {
-      const motivos = b.filter((m) => m.bloqueia).map((m) => m.texto).join(" · ");
-      console.log(`  ${id(v)}${nome(v).slice(0, 44).padEnd(46)} ${motivos}`);
+      console.log(`  ${id(v)}${nome(v).slice(0, 44).padEnd(46)} ${b.map((m) => m.texto).join(" · ")}`);
     }
   }
 
-  // ── 5 · o que sairia se o laudo passasse a bloquear ───────────────────────
-  //
-  // Esta seção é a que responde à pergunta "posso ligar o gate do laudo?". A
-  // resposta é o TAMANHO da lista, e é por isso que ela sai por id: em 27/08
-  // eram 38 de 39, e ligar teria tirado a loja do ar em vez de um carro.
-  //
-  // Não conta como achado: pendência de preenchimento não é defeito de
-  // cadastro, e somá-la deixaria o código de saída vermelho para sempre — o
-  // jeito mais rápido de ensinar todo mundo a ignorar o comando.
-  titulo("5 · Sem laudo cautelar (não bloqueia — ver LAUDO_BLOQUEIA_PUBLICACAO)");
-  const semLaudo = comMotivo.filter((x) => x.b.some((m) => m.id === "sem-laudo"));
-  if (semLaudo.length === 0) {
-    console.log("  nenhum — o campo está preenchido em todo o pátio");
-    console.log("  → dá para ligar `LAUDO_BLOQUEIA_PUBLICACAO` sem tirar carro do ar");
-  } else {
-    const fatia = ((semLaudo.length / estoque.length) * 100).toFixed(0);
-    console.log(`  ${semLaudo.length} de ${estoque.length} veículos (${fatia}%) sairiam do ar se o gate fosse ligado hoje:`);
-    for (const { v } of semLaudo) {
-      console.log(`  ${id(v)}${nome(v).slice(0, 44)}`);
-    }
-    console.log(
-      "\n  O site afirma perícia cautelar em 100% do estoque (aboutSettings.value1),\n" +
-        "  e o SDR repete a frase. Enquanto esta lista for longa, a saída é\n" +
-        "  preencher o campo — não ligar o gate.",
-    );
-  }
+  // A seção de "sem laudo cautelar" saiu em 29/08. Ela listava 33 dos 34
+  // publicados como pendência, e a premissa estava errada: 100% do pátio é
+  // periciado, e `laudo_pericia` guarda APONTAMENTOS. Vazio é o melhor caso.
+  // Um relatório que acusa 97% do estoque todo dia é um relatório que ninguém
+  // lê. Ver `bloqueiosDePublicacao`.
 
   console.log(`\n${achados === 0 ? "✓ nada a revisar" : `${achados} achado(s) — revisar em /admin/estoque`}\n`);
   process.exit(achados === 0 ? 0 : 1);

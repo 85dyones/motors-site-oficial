@@ -156,6 +156,9 @@ const PLURAIS: Record<string, string> = {
   Van: "Vans",
   // "Utilitários", não "Utilitárioes": o acento cai no plural.
   "Utilitário": "Utilitários",
+  // "Caminhões", não "Caminhãos": o `-ão` átono faz plural em `-ões`, e a
+  // regra genérica (`${palavra}s`) erraria exatamente aqui.
+  "Caminhão": "Caminhões",
 };
 
 /**

@@ -58,8 +58,9 @@ export type SinaisDoVeiculo = {
    * que é onde a regra mora (aquele módulo não tem imports e por isso serve
    * também ao painel, que é cliente).
    *
-   * A falta de laudo cautelar está listada lá como pendência e **não** entra
-   * aqui hoje: 38 das 39 fichas servidas em 27/08 estão com o campo vazio.
+   * O laudo NÃO entra aqui, e nunca deveria ter entrado: 100% do pátio é
+   * periciado, e `laudo_pericia` guarda apontamentos pontuais — vazio é o
+   * melhor caso. Corrigido em 29/08, pelo dono.
    *
    * Opcional: chamador que não sabe do bloqueio se comporta como antes.
    */
