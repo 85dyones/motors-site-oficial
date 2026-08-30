@@ -10,6 +10,19 @@ Nenhuma migração da F0 roda antes do OK.** (É o passo 2 do
 > sobrescreve veículos que ele próprio cadastrou — veículo nascido no painel
 > nunca é alterado pelo sync.
 
+## Andamento (29/08, aprovado pelo dono)
+
+| Tarefa | Estado |
+|---|---|
+| **T1** mapa de convivência | ✅ `docs/MAPA_CONVIVENCIA_SCHEMA.md` (D-T1.1 a D-T1.8) |
+| **T2** schema núcleo | ✅ 9 fatias (f0a–f0i) **aplicadas em produção**, cada uma ensaiada com ROLLBACK |
+| **T6** cadastro nativo + trava | ✅ banco (f0k); tela e rota em curso |
+| revisão adversarial | ✅ rendeu **f0j** (uma linha vigente por régua; TRUNCATE fora da API) e **f0l** (anon fora do núcleo — o `pg_default_acl` do Supabase concedia por baixo do `revoke from public`; `confirmacoes_disponibilidade` virou append-only) |
+| testes | ✅ `tests/f0-nucleo.test.ts` — 56 invariantes, provados por mutação (17 injetadas, 17 pegas) |
+| **T3** carga | ⏸ **bloqueada em H1** (exportação do RevendaMais) |
+| **T4** conferência diária | ⏸ depende da carga ter o que conferir |
+| **T5** backup | ⏸ PITR é add-on pago — decisão de custo do dono |
+
 Ponto de partida melhor que o previsto pelo handoff: o caixa legado já foi
 aposentado (28/08, migração `20260828190000` — sem colisão de `plano_contas`),
 a Emenda 02 já resolveu a mecânica da recompra (manual v1.2), e o levantamento
