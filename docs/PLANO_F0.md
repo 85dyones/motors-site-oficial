@@ -16,14 +16,29 @@ Nenhuma migração da F0 roda antes do OK.** (É o passo 2 do
 |---|---|
 | **T1** mapa de convivência | ✅ `docs/MAPA_CONVIVENCIA_SCHEMA.md` (D-T1.1 a D-T1.8) |
 | **T2** schema núcleo | ✅ 9 fatias (f0a–f0i) **aplicadas em produção**, cada uma ensaiada com ROLLBACK |
-| **T6** cadastro nativo + trava | ✅ banco (f0k); tela e rota em curso |
+| **T6** cadastro nativo + trava | ✅ completo — banco (f0k), tela `/admin/estoque/novo`, `POST /api/estoque` e a reprecificação do nativo (T6-b). Fotos ficam para a entrega do storage próprio |
 | revisão adversarial | ✅ rendeu **f0j** (uma linha vigente por régua; TRUNCATE fora da API) e **f0l** (anon fora do núcleo — o `pg_default_acl` do Supabase concedia por baixo do `revoke from public`; `confirmacoes_disponibilidade` virou append-only) |
 | testes | ✅ `tests/f0-nucleo.test.ts` — 56 invariantes, provados por mutação (17 injetadas, 17 pegas) |
 | **T3** carga | ⏸ **bloqueada em H1** (exportação do RevendaMais) |
 | **T4** conferência diária | ⏸ depende da carga ter o que conferir |
 | **T5** backup | ⏸ PITR é add-on pago — decisão de custo do dono |
 
-**Achado da entrega da T6 — reprecificação do nativo (T6-b):** o editor A15 mostra
+**Pendências deixadas pelas revisões, para decidir com o dono:**
+- **O núcleo ainda não sabe do veículo nativo.** O cadastro escreve só em
+  `estoque_motors`; não nasce `veiculos` (uuid+chassi), nem evento `ENTRADA`,
+  nem partida de aquisição. É coerente com "estoque_motors intocada até a F2",
+  mas o momento em que o operador cadastra é o momento natural do evento de
+  entrada — decidir se entra já na entrega de fotos ou na F1.
+- **A tabela A6 chama de "publicado" um carro que não está no ar** (o nativo com
+  0 fotos aparece como publicado, embora a vitrine o filtre). A tela de sucesso
+  do cadastro diz a verdade; a tabela não.
+- **Sem guarda de duplicidade**: nada impede cadastrar o mesmo carro duas vezes
+  (não há unique em `placa`/`chassi` em `estoque_motors`).
+- **PDP do nativo é alcançável por URL** antes das fotos — comportamento
+  pré-existente para carros do feed com menos de 8 fotos; vale honrar
+  `publicavel` (ou `noindex`) na entrega do upload.
+
+**Achado da entrega da T6 — reprecificação do nativo (T6-b), RESOLVIDO:** o editor A15 mostra
 preço como texto, não campo, e `preco` não está em `CAMPOS_NOSSOS`
 (`src/lib/estoqueEscrita.ts`). O motivo é bom e está escrito lá: o sync
 sobrescreveria a edição no ciclo seguinte, em silêncio. **Só que esse motivo não
