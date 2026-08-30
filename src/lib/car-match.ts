@@ -39,16 +39,21 @@ import { slugificar } from "./veiculoUrl";
  * quer o mesmo carro mais rápido.
  */
 export const TAGS_DA_RESPOSTA: Record<string, readonly string[]> = {
-  // 02 · objetivo — por que está comprando
+  // 02 · objetivo — para que o carro serve
   family: ["familia"],
   status: ["performance"],
+  // "Rodar barato na cidade"
   efficiency: ["urbano", "economico"],
-  offroad: ["off-road", "trabalho"],
+  // "Trabalho e estrada" — o texto novo cita estrada, e a etiqueta acompanha.
+  offroad: ["trabalho", "off-road", "estrada"],
 
-  // 03 · experiência — o que valoriza ao dirigir
+  // 03 · o que pesa na escolha
   performance: ["performance"],
   comfort: ["familia", "estrada"],
-  tech: ["urbano"],
+  // "Facilidade no dia a dia — câmbio automático e fácil de manobrar".
+  // `automatico` é etiqueta de fato do carro, não de perfil: a resposta passa
+  // a querer dizer algo verificável (14 dos 35 são automáticos).
+  tech: ["urbano", "automatico"],
   economy: ["economico"],
 
   // 04 · estilo — carroceria, no vocabulário de `CARROCERIAS`
