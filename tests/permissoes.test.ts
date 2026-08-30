@@ -136,7 +136,27 @@ describe("campoNegadoAoPerfil", () => {
   });
 
   it("campo fora do vocabulário é negado, não ignorado", () => {
-    expect(campoNegadoAoPerfil("admin", ["preco"])?.campo).toBe("preco");
+    // O exemplo era `preco` até 2026-08-29, quando ele ENTROU no vocabulário
+    // (o veículo nativo passou a ser reprecificável — só ele, porque só nele o
+    // sync não passa por cima). Trocado por um campo que de fato não existe:
+    // a regra em teste é "campo sem linha na matriz é negado", e ela não pode
+    // depender de qual campo está fora hoje.
+    expect(campoNegadoAoPerfil("admin", ["campo_que_ninguem_declarou"])?.campo).toBe(
+      "campo_que_ninguem_declarou",
+    );
+    expect(campoNegadoAoPerfil("admin", ["campo_que_ninguem_declarou"])?.acao).toBe(
+      "(campo sem linha na matriz)",
+    );
+  });
+
+  it("reprecificar é da linha de preço, e o Comercial não passa direto", () => {
+    // A contrapartida do teste acima: `preco` entrou no vocabulário, e entrou
+    // na linha mais restritiva das duas ("acima de 5%"). Ver
+    // `tests/preco-do-nativo.test.ts` para a régua completa.
+    expect(campoNegadoAoPerfil("admin", ["preco"])).toBeNull();
+    expect(campoNegadoAoPerfil("gestor", ["preco_original"])).toBeNull();
+    expect(campoNegadoAoPerfil("comercial", ["preco"])?.campo).toBe("preco");
+    expect(campoNegadoAoPerfil("marketing", ["preco"])?.campo).toBe("preco");
   });
 
   it("lista vazia não nega nada", () => {

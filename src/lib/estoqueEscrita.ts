@@ -46,17 +46,60 @@ export const CAMPOS_NOSSOS = [
 export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];
 
 /**
+ * Preço: gravável só no veículo que nasceu no painel.
+ *
+ * `preco` e `preco_original` SÃO colunas do feed, e é por isso que ficam fora
+ * de `CAMPOS_NOSSOS`: editá-las num veículo do RevendaMais seria desfeito no
+ * ciclo seguinte, em silêncio — o mesmo motivo que criou `modelo_override` e
+ * `versao_override` em vez de edição direta.
+ *
+ * **Esse motivo deixou de existir para o veículo nativo** (migração
+ * 20260829130000): a trava do sync garante que o RevendaMais nunca toca em
+ * linha de `origem = 'painel'`. Sem isto, a loja cadastra um carro no painel e
+ * não consegue mais corrigir o preço — nem para promoção, nem para consertar
+ * um dígito errado.
+ *
+ * As duas colunas andam juntas de propósito: o mapper público lê
+ * `preco_original` e a ordenação da vitrine lê `preco`. Gravar uma só faria o
+ * carro sair a R$ 0 em metade das superfícies.
+ */
+export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
+
+/**
+ * Os campos graváveis para ESTE veículo — a lista fixa, mais o preço quando a
+ * linha é do painel.
+ *
+ * Recebe a origem em vez de consultá-la: quem chama já leu a linha, e uma
+ * segunda consulta aqui abriria janela entre a leitura e a escrita.
+ */
+export function camposGravaveis(origem?: string | null): readonly string[] {
+  return origem === "painel"
+    ? [...CAMPOS_NOSSOS, ...CAMPOS_DE_PRECO_DO_NATIVO]
+    : CAMPOS_NOSSOS;
+}
+
+/**
  * Só o que o painel pode escrever passa; o resto do corpo é descartado.
  *
  * Corpo que não é objeto vira lista vazia em vez de exceção: `"campo" in
  * "texto"` é TypeError, e um POST com `campos: "vendido"` derrubava a rota com
  * 500 no lugar do 400 que a entrada malformada merece.
  */
-export function extrairCamposNossos(corpo: unknown): Record<string, unknown> {
+export function extrairCamposNossos(
+  corpo: unknown,
+  /**
+   * Origem da linha sendo escrita. Só `"painel"` alarga a lista (com o preço —
+   * ver `CAMPOS_DE_PRECO_DO_NATIVO`); ausente ou qualquer outra coisa mantém o
+   * comportamento de sempre. Opcional de propósito: a rota de lote escreve em
+   * veículos de origens misturadas e não passa nada, então nenhum preço passa
+   * por lá — que é o certo, porque lote não é lugar de reprecificar.
+   */
+  origem?: string | null,
+): Record<string, unknown> {
   if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) return {};
   const fonte = corpo as Record<string, unknown>;
   const atualizacao: Record<string, unknown> = {};
-  for (const campo of CAMPOS_NOSSOS) {
+  for (const campo of camposGravaveis(origem)) {
     if (campo in fonte) atualizacao[campo] = fonte[campo];
   }
   return atualizacao;

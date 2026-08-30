@@ -65,6 +65,13 @@ interface VeiculoDb {
   donos_anteriores: number | null;
   garantia_fabrica: string | null;
   preco_compra: number | null;
+  /**
+   * `sync` (RevendaMais) ou `painel` (cadastro nativo, migração
+   * 20260829130000). Decide se o preço anunciado é campo ou texto: só o
+   * veículo do painel pode ser reprecificado, porque só nele o sync não passa
+   * por cima. Opcional para o editor não quebrar com linha antiga em cache.
+   */
+  origem?: string | null;
 }
 
 type Aba = "fotos" | "ficha" | "opcionais" | "preco" | "texto";
@@ -737,12 +744,43 @@ export default function EditorDeVeiculo({
             <>
               <div className="mt-rotulo mb-3">Preço e margem</div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
-                  <span className={rotuloCampo}>Preço anunciado · do feed</span>
-                  <div className="border border-mt-regua-fina bg-mt-surface px-3 py-2.5 text-lg font-extrabold tabular-nums tracking-[-.03em] text-mt-neutral-700">
-                    {v.preco_original ? brl(v.preco_original) : "—"}
+                {/* O preço anunciado é do FEED — editá-lo num carro do
+                    RevendaMais seria desfeito no ciclo seguinte, em silêncio.
+                    No veículo que nasceu aqui (migração 20260829130000) esse
+                    motivo não existe: a trava impede o sync de tocá-lo, então
+                    o campo é editável. Sem isto, a loja cadastra um carro e
+                    não consegue mais corrigir o preço. */}
+                {v.origem === "painel" && podeGravar("preco") ? (
+                  <div className="flex flex-col gap-1.5">
+                    <label className={rotuloCampo} htmlFor="f-preco">
+                      Preço anunciado · deste painel
+                    </label>
+                    <input
+                      id="f-preco"
+                      type="number"
+                      min={0}
+                      value={v.preco_original ?? ""}
+                      placeholder="Ex: 118900"
+                      onChange={(e) => {
+                        const valor = e.target.value === "" ? null : Number(e.target.value);
+                        // As duas colunas andam juntas: o mapper público lê
+                        // `preco_original` e a ordenação da vitrine lê `preco`.
+                        set("preco_original", valor);
+                        set("preco", valor);
+                      }}
+                      className={`${campoCaixa} border-mt-accent text-lg font-extrabold`}
+                    />
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <span className={rotuloCampo}>
+                      {v.origem === "painel" ? "Preço anunciado" : "Preço anunciado · do feed"}
+                    </span>
+                    <div className="border border-mt-regua-fina bg-mt-surface px-3 py-2.5 text-lg font-extrabold tabular-nums tracking-[-.03em] text-mt-neutral-700">
+                      {v.preco_original ? brl(v.preco_original) : "—"}
+                    </div>
+                  </div>
+                )}
                 {podeGravar("preco_compra") && (
                   <div className="flex flex-col gap-1.5">
                     <label className={rotuloCampo} htmlFor="f-compra">

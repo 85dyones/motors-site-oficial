@@ -66,10 +66,11 @@ describe("nomenclatura da tabela de inventário", () => {
     const padrao = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/;
     const comAcesso = arquivos.filter((a) => padrao.test(readFileSync(a, "utf8")));
 
-    // 9 arquivos, 15 pontos de acesso — o inventário atual:
+    // 10 arquivos, 16 pontos de acesso — o inventário atual:
     //   lib/supabase.ts (5), lib/estoqueEscrita.ts (2),
     //   api/ciclo/vendas/estoque/route.ts (1),
     //   api/estoque/[id]/route.ts (2, sendo 1 em comentário),
+    //   api/estoque/route.ts (1),
     //   lib/webhook-dispatcher.ts (1), app/investidor/page.tsx (1),
     //   api/investidores/participacoes/route.ts (1),
     //   app/admin/estoque/page.tsx (1), app/admin/estoque/[id]/page.tsx (1)
@@ -118,7 +119,19 @@ describe("nomenclatura da tabela de inventário", () => {
     // do handoff) levou os 4 acessos das duas rotas de margens, e as rotas de
     // investidor mudaram de endereço (/api/financeiro/investidores →
     // /api/investidores). De 11 arquivos e 19 acessos para 9 e 15.
-    expect(comAcesso.length).toBe(9);
+    //
+    // Em 2026-08-29 entrou o décimo, e é o primeiro INSERT da lista:
+    // `api/estoque/route.ts` ganhou o POST do cadastro nativo (adendo do dono,
+    // migração 20260829130000). Até aqui todo acesso era leitura ou UPDATE —
+    // veículo só nascia pelo sync do RevendaMais. A escrita continua sendo por
+    // rota autenticada, nunca pelo cliente com a anon key (`AUDITORIA.md §3.4`).
+    //
+    // E no mesmo dia o acesso nº 17, sem arquivo novo: `api/estoque/[id]` passou
+    // a ler `origem` antes de montar a atualização, porque é ela que decide se
+    // o PREÇO é gravável (só no veículo do painel — no do feed o sync
+    // desfaria). A leitura é do BANCO de propósito: aceitar `origem` do corpo
+    // deixaria qualquer um reprecificar carro do RevendaMais.
+    expect(comAcesso.length).toBe(10);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -126,6 +139,6 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(15);
+    expect(total).toBe(17);
   });
 });

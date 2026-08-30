@@ -640,13 +640,22 @@ describe("nenhum contrato antes da validação D13", () => {
     // table` e a `descricao` do próprio seed. As duas são literais de texto
     // sozinhos na linha — ficam de fora da contagem, o que sobra é código.
     const codigo = usos.filter((l) => !/^\s*'.*'\s*;?\s*$/.test(l));
-    expect(codigo.length, `usos inesperados de seed_validado_em:\n${codigo.join("\n")}`).toBe(2);
+    // Eram 2 até 2026-08-29. A f0m acrescentou o TRIGGER que impede a API de
+    // carimbar a coluna — o ataque adversarial provou que um `comercial`
+    // encerrava a vigência, inseria recompra a 150% da FIPE e dava o carimbo
+    // que só o dono pode dar. As linhas novas PROTEGEM a coluna; nenhuma a
+    // preenche, e é isso que as asserções abaixo continuam exigindo.
+    expect(codigo.length, `usos inesperados de seed_validado_em:\n${codigo.join("\n")}`).toBe(4);
     // 1º uso: a definição da coluna — nullable, sem default, sem not null.
     expect(codigo[0]).toMatch(/seed_validado_em\s+date,/);
     expect(codigo[0]).not.toMatch(/not null|default/i);
     // 2º uso: a autoconferência que recusa um seed que nasça validado.
     expect(codigo[1]).toMatch(/seed_validado_em is not null/);
     expect(F0).toMatch(/ACEITE FALHOU: seed não pode nascer validado/);
+    // 3º e 4º: o guarda da f0m — condição do trigger e a mensagem do erro.
+    expect(codigo[2]).toMatch(/new\.seed_validado_em is not null/);
+    expect(codigo[3]).toMatch(/seed_validado_em é decisão do dono/);
+    expect(F0).toMatch(/ciclo_parametros_seed_do_dono/);
 
     // E nenhum INSERT/UPDATE toca a coluna.
     expect(F0).not.toMatch(/set\s+seed_validado_em/i);

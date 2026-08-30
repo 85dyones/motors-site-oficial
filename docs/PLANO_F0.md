@@ -23,6 +23,18 @@ Nenhuma migração da F0 roda antes do OK.** (É o passo 2 do
 | **T4** conferência diária | ⏸ depende da carga ter o que conferir |
 | **T5** backup | ⏸ PITR é add-on pago — decisão de custo do dono |
 
+**Achado da entrega da T6 — reprecificação do nativo (T6-b):** o editor A15 mostra
+preço como texto, não campo, e `preco` não está em `CAMPOS_NOSSOS`
+(`src/lib/estoqueEscrita.ts`). O motivo é bom e está escrito lá: o sync
+sobrescreveria a edição no ciclo seguinte, em silêncio. **Só que esse motivo não
+existe para o veículo nativo** — a trava da f0k garante que o sync nunca toca
+nele. Sem corrigir, a loja cadastra um carro e não consegue mais mudar o preço.
+Correção: `preco`/`preco_original` graváveis **apenas** quando
+`origem = 'painel'`, na linha "Alterar preço acima de 5%" da matriz A17 (Admin,
+Gestor, Financeiro). O Comercial fica de fora até existir o fluxo de revisão
+(A16) que a alçada de 5% pressupõe — errar para baixo, como manda a régua da
+matriz.
+
 Ponto de partida melhor que o previsto pelo handoff: o caixa legado já foi
 aposentado (28/08, migração `20260828190000` — sem colisão de `plano_contas`),
 a Emenda 02 já resolveu a mecânica da recompra (manual v1.2), e o levantamento

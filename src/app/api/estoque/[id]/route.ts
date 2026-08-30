@@ -78,7 +78,20 @@ export async function PATCH(
     const perfil = perfisDe(profile);
 
     const body = await request.json();
-    const atualizacao = extrairCamposNossos(body);
+
+    // A origem decide se o PREÇO é gravável (migração 20260829130000): no
+    // veículo do RevendaMais o sync reescreveria a edição no ciclo seguinte,
+    // em silêncio; no que nasceu no painel, a trava garante que ele não toca.
+    // Lido do BANCO, nunca do corpo — senão bastaria mandar `origem:"painel"`
+    // no JSON para reprecificar um carro do feed.
+    const alvoDaEscrita = normalizarId(id);
+    const { data: linha } = await supabase
+      .from("estoque_motors")
+      .select("origem")
+      .eq("id", alvoDaEscrita)
+      .maybeSingle();
+
+    const atualizacao = extrairCamposNossos(body, linha?.origem);
 
     // Matriz A17, campo a campo. `preco_compra` é custo de aquisição, que
     // Marketing e Comercial não veem; `placa` é a ficha travada, só de Admin.

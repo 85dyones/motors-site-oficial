@@ -440,11 +440,27 @@ export function podeFazer(perfil: Perfil | Perfil[], acao: string): Permissao {
  */
 export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   placa: "Preencher documentação do veículo (placa, renavam)",
+  // `chassi` existe no banco desde o feed (20260817140000) e nunca teve campo
+  // de tela: o RevendaMais o traz sozinho. Ganhou um no cadastro nativo
+  // (2026-08-29), porque o carro que não vem do feed não tem quem o traga — e
+  // sem chassi não há NF-e, RENAVE nem fechamento de venda do Ciclo. Mesma
+  // linha da placa, pelo mesmo motivo do dono em 2026-08-08: preencher
+  // documento é trabalho de operação, e o dado nunca aparece no site.
+  chassi: "Preencher documentação do veículo (placa, renavam)",
   motor: "Preencher documentação do veículo (placa, renavam)",
   cor_interna: "Preencher documentação do veículo (placa, renavam)",
   donos_anteriores: "Preencher documentação do veículo (placa, renavam)",
   garantia_fabrica: "Preencher documentação do veículo (placa, renavam)",
   preco_compra: "Ver custo de aquisição e margem",
+  // Preço de anúncio: só existe como campo gravável no veículo NATIVO
+  // (migração 20260829130000) — no do RevendaMais o sync o reescreveria, e por
+  // isso `extrairCamposNossos` nem o deixa passar. Vai na linha "acima de 5%",
+  // a mais restritiva das duas de preço: Admin, Gestor e Financeiro fazem;
+  // o Comercial está em `revisao` e, enquanto o fluxo de revisão (A16) não
+  // existe, `campoNegadoAoPerfil` o trata como negado. É errar para baixo,
+  // como o cabeçalho deste arquivo manda.
+  preco: "Alterar preço acima de 5%",
+  preco_original: "Alterar preço acima de 5%",
   vendido: "Publicar ou despublicar veículo",
   tipo: "Editar opcionais e destaques rápidos",
   perfil_uso: "Editar opcionais e destaques rápidos",
