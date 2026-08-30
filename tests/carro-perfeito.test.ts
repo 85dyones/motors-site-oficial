@@ -241,6 +241,45 @@ describe("4 · o quiz pergunta as cinco", () => {
     expect(bloco).toContain('let obj: AnswerState["objective"] = "";');
   });
 
+  it("a pergunta 01 nunca fica sem opção clicável", () => {
+    // O defeito que o dono relatou duas vezes, e que reproduzi no navegador:
+    // `budgetRanges` nascia `[]` e a tela desenhava, no lugar das faixas,
+    // quatro caixas cinza vazias — `aria-hidden`, sem texto e sem clique.
+    // Enquanto o estoque não chegava (ou se a consulta falhasse), a primeira
+    // pergunta era impossível de responder, e o único botão à vista era
+    // VOLTAR.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+
+    // O esqueleto morto saiu de vez.
+    expect(codigo).not.toContain('className="h-[86px] border-2 border-mt-inverso-regua-fina"');
+    // E a lista é derivada, não um estado que começa vazio.
+    expect(codigo).not.toContain("useState<BudgetRange[]>([])");
+    expect(codigo).toContain("const faixasDeOrcamento = useMemo<BudgetRange[]>");
+  });
+
+  it("sem estoque, valem as faixas de reserva", () => {
+    // O memo tem retorno próprio para menos de 4 preços. Sem ele, o fallback
+    // seria de novo uma lista vazia — o mesmo defeito com outro nome.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    const memo = codigo.slice(
+      codigo.indexOf("const faixasDeOrcamento = useMemo"),
+      codigo.indexOf("}, [estoque]);"),
+    );
+    expect(memo).toMatch(/if \(precos\.length < 4\)/);
+    expect(memo).toContain("montar([50000, 65000, 90000], precos)");
+  });
+
+  it("as faixas saem de QUANTIL, não de fatia do intervalo", () => {
+    // Com um carro de R$ 318.900 esticando a ponta, cortar o intervalo em
+    // 15/35/60/80% punha 24 dos 35 carros numa faixa só (50–125 mil) e
+    // deixava outra vazia. Era o "difícil demais fazer um match acima dos
+    // 50 mil". Por quantil cada faixa leva um quarto do pátio: 7/11/9/8.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).toContain("quantil(0.25)");
+    expect(codigo).toContain("quantil(0.75)");
+    expect(codigo).not.toContain("spread * 0.15");
+  });
+
   it("o slider de valor exato cabe no pátio", () => {
     // `min={100000}` era mais que o dobro do carro mediano (R$ 62.900): quem
     // usasse a aba não conseguia descrever dois terços da vitrine.
