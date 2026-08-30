@@ -422,6 +422,10 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
     vendido: !!dbItem.vendido,
+    // Quem manda nesta ficha (migração 20260829130000): `sync` é do
+    // RevendaMais e é reescrito a cada ciclo; `painel` é nosso e o sync não
+    // toca. Metadado operacional, não sensível — por isso sai no mapper.
+    origem: dbItem.origem === "painel" ? "painel" : "sync",
     // Ficha própria do painel (migração 20260807160000): vazio até alguém
     // preencher — a UI oculta a linha, como em cambio/combustivel/cor.
     //
@@ -606,8 +610,13 @@ export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(l
     }
   }
 
-  // Linha sem carimbo é mantida: pode ter sido inserida à mão pelo painel, e
-  // sumir do site em silêncio seria pior que aparecer indevidamente.
+  // Linha sem carimbo é mantida — e desde 2026-08-29 isso deixou de ser
+  // hipótese e virou caso de primeira classe: o veículo cadastrado no painel
+  // (`origem = 'painel'`, migração 20260829130000) nasce com `last_seen_at`
+  // NULO de propósito, porque ele nunca veio em sync nenhum. Filtrá-lo pela
+  // janela do feed o faria sumir do site no primeiro ciclo — o oposto do que a
+  // trava do sync existe para garantir. Quem decide se ele vai à vitrine é
+  // `bloqueiosDePublicacao` (as 8 fotos), como para qualquer outro carro.
   return linhas.filter((l) => {
     if (!l.last_seen_at) return true;
     return new Date(l.last_seen_at).getTime() >= corte;

@@ -290,6 +290,14 @@ export interface MotivoDeBloqueio {
 export function bloqueiosDePublicacao(veiculo: {
   laudo_pericia?: string | null;
   whatsapp_images?: unknown;
+  /**
+   * De onde a linha veio: `painel` é o cadastro nativo do admin (2026-08-29),
+   * qualquer outra coisa — inclusive ausente — é o sync do RevendaMais. Só
+   * muda o TEXTO da pendência: quem tem de subir a foto é outra pessoa em cada
+   * caso, e mandar o operador esperar o feed de um carro que ele mesmo
+   * cadastrou seria uma instrução falsa. A régua é a mesma para os dois.
+   */
+  origem?: string | null;
 }): MotivoDeBloqueio[] {
   const motivos: MotivoDeBloqueio[] = [];
 
@@ -305,9 +313,13 @@ export function bloqueiosDePublicacao(veiculo: {
     ? veiculo.whatsapp_images.filter(Boolean).length
     : 0;
   if (fotos < MINIMO_DE_FOTOS) {
+    const deOndeVemAFoto =
+      veiculo.origem === "painel"
+        ? "suba as fotos pelo painel"
+        : "as fotos vêm do RevendaMais";
     motivos.push({
       id: "poucas-fotos",
-      texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos — as fotos vêm do RevendaMais`,
+      texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos — ${deOndeVemAFoto}`,
       bloqueia: true,
     });
   }
@@ -319,6 +331,7 @@ export function bloqueiosDePublicacao(veiculo: {
 export function publicavel(veiculo: {
   laudo_pericia?: string | null;
   whatsapp_images?: unknown;
+  origem?: string | null;
 }): boolean {
   return !bloqueiosDePublicacao(veiculo).some((m) => m.bloqueia);
 }

@@ -298,6 +298,18 @@ export interface Veiculo {
   vendido?: boolean;
   preco_compra?: number;
   preco?: number;
+  /**
+   * De onde a linha veio: `sync` (RevendaMais) ou `painel` (cadastro nativo,
+   * migração 20260829130000). Metadado operacional, não dado sensível — por
+   * isso viaja no mapper como qualquer outro campo, ao contrário de
+   * `preco_compra`/`placa`, que exigem pedido explícito.
+   *
+   * Quem precisa dele: o painel, para dizer quem manda naquela ficha — veículo
+   * do sync é sobrescrito pelo RevendaMais a cada 6 h, veículo do painel não
+   * (a trava vive no banco). E `bloqueiosDePublicacao`, para mandar o operador
+   * subir a foto em vez de esperar um feed que nunca vai trazê-la.
+   */
+  origem?: "sync" | "painel";
   // Ficha própria do painel (migração 20260807160000) — preenchida por nós,
   // nunca pelo sync do RevendaMais. `placa` voltou ao tipo por decisão do
   // dono em 2026-08-07: agora a coluna EXISTE, então o campo deixa de ser
