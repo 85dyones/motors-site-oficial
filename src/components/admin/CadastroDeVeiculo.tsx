@@ -332,13 +332,29 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
           </p>
         </div>
 
+        {/* O carro NASCE RASCUNHO — trigger da migração 20260830120000, e vale
+            igual para o que vem do RevendaMais. Dizer isto aqui não é detalhe:
+            a versão anterior desta tela prometia que "o veículo entra na
+            vitrine no próximo carregamento da página" assim que as pendências
+            fossem resolvidas, e a partir de 30/08 isso ficou falso — falta o
+            ato de publicar. Quem cadastrou sairia daqui esperando um carro no
+            ar que nunca apareceria. */}
+        <div className="border-l-[3px] border-mt-ink bg-mt-surface px-4 py-3.5">
+          <div className="mt-rotulo mb-2">Nasce como rascunho</div>
+          <p className="m-0 text-xs leading-relaxed text-mt-neutral-800">
+            Só o painel enxerga este veículo. Ele vai à vitrine quando alguém com a alçada de
+            publicação clicar em <strong>Publicar</strong> — no editor ou na tabela de estoque.
+            Importação nenhuma publica sozinha, e este cadastro também não.
+          </p>
+        </div>
+
         <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3.5">
           <div className="mt-rotulo mb-2">
-            {bloqueios.some((b) => b.bloqueia) ? "Ainda fora da vitrine" : "Pendências"}
+            {bloqueios.some((b) => b.bloqueia) ? "Falta para poder publicar" : "Pendências"}
           </div>
           {bloqueios.length === 0 ? (
             <p className="m-0 text-xs leading-relaxed text-mt-accent-800">
-              Nada pendente. O veículo entra na vitrine no próximo carregamento da página.
+              Nada pendente — o veículo já pode ser publicado.
             </p>
           ) : (
             <ul className="m-0 list-disc pl-4 text-xs leading-relaxed text-mt-accent-800">

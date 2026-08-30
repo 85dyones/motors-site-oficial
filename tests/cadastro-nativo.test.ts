@@ -244,8 +244,12 @@ describe("o cadastro não escreve o que o banco infere", () => {
     expect(naoPodeENemTemDados.status).toBe(403);
   });
 
-  it("a lista de proibidos cobre as quatro colunas que os triggers decidem", () => {
+  it("a lista de proibidos cobre as cinco colunas que os triggers decidem", () => {
+    // `estado_cadastro` entrou em 2026-08-30 (migração F0-q): o trigger de
+    // INSERT o força a `rascunho`, importado ou cadastrado, e a rota não tenta
+    // negociar. Ver `tests/rascunho-e-publicacao.test.ts`, trava 1.
     expect([...CAMPOS_QUE_A_ROTA_NUNCA_ESCREVE].sort()).toEqual([
+      "estado_cadastro",
       "first_seen_at",
       "id",
       "last_seen_at",

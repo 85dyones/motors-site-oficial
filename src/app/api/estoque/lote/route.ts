@@ -10,9 +10,14 @@ export const dynamic = "force-dynamic";
  * Ação em lote sobre o estoque — a barra de seleção da tela A6.
  *
  * O doc desenha "2 SELECIONADOS · Publicar · Marcar como vendido · Destacar na
- * home". Publicar depende do fluxo de revisão (A16), que não existe; o que esta
- * rota faz é o resto: marcar vendido, devolver a disponível e classificar
- * carroceria e perfil de uso de vários carros de uma vez.
+ * home". **Publicar passou a existir em 2026-08-30**, com a coluna
+ * `estado_cadastro` (migração F0-q): quem importa do RevendaMais recebe uma
+ * fila de rascunhos e libera de uma vez os que estão prontos. Arquivar entrou
+ * junto — é o "despublicar" da mesma linha da A17.
+ *
+ * A régua de fotos é conferida em `aplicarNosVeiculos`, contra o banco, e não
+ * aqui: as duas rotas de escrita passam por lá, e gate em rota é gate que a
+ * outra rota não tem.
  *
  * A alternativa era o cliente disparar N chamadas ao editor. Além do custo, N
  * chamadas falham pela metade: metade dos carros marcados, metade não, e nada
@@ -88,7 +93,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (resultado.erro) {
-      return NextResponse.json({ error: resultado.erro }, { status: resultado.status ?? 500 });
+      // `recusas` viaja quando a publicação foi barrada pela régua de fotos:
+      // a barra de ação marca as linhas exatas em vez de só mostrar o texto.
+      return NextResponse.json(
+        resultado.recusas
+          ? { error: resultado.erro, recusas: resultado.recusas }
+          : { error: resultado.erro },
+        { status: resultado.status ?? 500 },
+      );
     }
 
     return NextResponse.json({

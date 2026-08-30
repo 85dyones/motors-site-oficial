@@ -466,6 +466,14 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   preco: "Alterar preço acima de 5%",
   preco_original: "Alterar preço acima de 5%",
   vendido: "Publicar ou despublicar veículo",
+  // A linha da matriz que dá nome ao ato, finalmente com o campo que o executa
+  // (migração 20260830120000). Até 2026-08-30 "publicar" era uma consequência —
+  // o carro entrava no feed e aparecia — e a única coisa desta linha que existia
+  // como campo era `vendido`. Agora é decisão explícita: Admin e Comercial
+  // FAZEM, Marketing está em `revisao` e, enquanto o fluxo de revisão (A16) não
+  // existir, `campoNegadoAoPerfil` o trata como negado; Gestor e Financeiro não
+  // veem. Arquivar é a mesma linha — despublicar é o que ela sempre disse.
+  estado_cadastro: "Publicar ou despublicar veículo",
   // As três colunas de foto, na linha que o A17 já tinha para elas —
   // "Marketing é o dono natural", diz a observação, e Marketing entra como
   // `faz`. Gestor e Financeiro ficam de fora: nenhum dos dois abre o editor

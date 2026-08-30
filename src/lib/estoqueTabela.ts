@@ -2,35 +2,62 @@
  * Regras da tabela de estoque — tela A6 do design doc.
  *
  * O doc desenha os filtros como TODOS / PUBLICADOS / RASCUNHOS / RESERVADOS.
- * Rascunho e reservado são estados do fluxo de publicação (tela A16), que não
- * existe: inventá-los seria pintar de estado o que hoje é ausência de
- * informação. Os estados abaixo são os que se pode AFIRMAR a partir do dado
- * real — `vendido`, o carimbo de sync e a régua de publicação.
+ * **Rascunho passou a existir de verdade em 2026-08-30** (coluna
+ * `estado_cadastro`, migração F0-q): com a importação manual, todo carro nasce
+ * rascunho e só sai por ato de quem publica. `reservado` continua fora — não há
+ * dado que o sustente, e inventá-lo seria pintar de estado o que hoje é
+ * ausência de informação.
  *
  * Tudo aqui é função pura: a tela monta, esta camada decide.
  *
  * ---------------------------------------------------------------------------
  * A direção da dependência
  * ---------------------------------------------------------------------------
- * Este módulo importa `coerenciaDoCadastro`; o contrário nunca. Aquele arquivo
- * não tem import nenhum de propósito — ele é desenhado por componente de
- * cliente, e um import de `./supabase` lá arrastaria o cliente do banco para o
- * bundle do navegador. Como ele não importa ninguém, importá-lo daqui é seguro:
- * esta camada também viaja para o cliente, via `TabelaDeEstoque`.
+ * Este módulo importa `coerenciaDoCadastro` e `estadoDoCadastro`; o contrário
+ * nunca. Aquele primeiro arquivo não tem import nenhum de propósito — ele é
+ * desenhado por componente de cliente, e um import de `./supabase` lá
+ * arrastaria o cliente do banco para o bundle do navegador. Como ele não
+ * importa ninguém, importá-lo daqui é seguro: esta camada também viaja para o
+ * cliente, via `TabelaDeEstoque`.
  */
 
 import { publicavel, type MotivoDeBloqueio } from "./coerenciaDoCadastro";
+import { normalizarEstadoCadastro, type EstadoCadastro } from "./estadoDoCadastro";
 
-export type EstadoDoVeiculo = "publicado" | "fora_da_vitrine" | "vendido" | "fora_do_feed";
+/**
+ * O que a etiqueta da linha diz. Cinco valores, de duas naturezas diferentes:
+ *
+ * - `rascunho`, `publicado` e `arquivado` são a DECISÃO DA LOJA, lida de
+ *   `estado_cadastro`.
+ * - `vendido` e `fora_da_vitrine` são o que se sobrepõe a essa decisão: o
+ *   primeiro é fato consumado, o segundo é PENDÊNCIA DE MATERIAL — o carro que
+ *   a loja publicou e a régua de fotos segura.
+ *
+ * `fora_do_feed` saiu em 2026-08-30, e não por simplificação. Ele era derivado
+ * de `apenasDoUltimoSync`: ficava fora quem não veio no ciclo mais recente do
+ * robô. Com a importação MANUAL, essa janela apodrece — importar um carro só
+ * faria dele "o ciclo mais recente" e mandaria o estoque inteiro para
+ * "fora do feed", com o site continuando a mostrar todo mundo. Seria o painel
+ * mentindo sobre a vitrine outra vez, que é exatamente o defeito que a rodada
+ * anterior desta tela consertou. Quem saiu do estoque agora tem nome próprio e
+ * dono: `arquivado`, decidido por gente.
+ */
+export type EstadoDoVeiculo =
+  | "rascunho"
+  | "publicado"
+  | "fora_da_vitrine"
+  | "vendido"
+  | "arquivado";
 
 export const ROTULO_DO_ESTADO: Record<EstadoDoVeiculo, string> = {
+  rascunho: "Rascunho",
   publicado: "Publicado",
   fora_da_vitrine: "Fora da vitrine",
   vendido: "Vendido",
-  fora_do_feed: "Fora do feed",
+  arquivado: "Arquivado",
 };
 
-/** Filtro da régua superior: os quatro estados mais "todos". */
+/** Filtro da régua superior: os cinco estados mais "todos". */
 export type FiltroDeEstado = EstadoDoVeiculo | "todos";
 
 export interface LinhaDeEstoque {
@@ -45,18 +72,23 @@ export interface LinhaDeEstoque {
   fotos: number;
   estado: EstadoDoVeiculo;
   /**
-   * Veio no ciclo de sync mais recente?
+   * A decisão da loja, crua — `rascunho`, `publicado` ou `arquivado`.
    *
-   * Fica na linha porque a tela recalcula o estado sem recarregar a página (ver
-   * `reclassificarLinha`). Sem este sinal, "devolver a disponível" não tinha o
-   * que escrever além de `publicado` — e um carro fora do feed voltava a
-   * aparecer no ar com um clique.
-   *
-   * Veículo cadastrado no painel nasce com `last_seen_at` nulo — ele nunca veio
-   * em sync nenhum — e `apenasDoUltimoSync` o mantém. Para efeito desta coluna,
-   * ele está no pátio.
+   * Fica na linha, ao lado de `estado`, porque os dois respondem perguntas
+   * diferentes: `estado` é a etiqueta (onde `vendido` e a falta de foto podem
+   * se sobrepor), este é o que está gravado na coluna e o que as ações de
+   * publicar/arquivar alteram. Sem ele, a tela não saberia qual botão oferecer
+   * — nem recalcular a linha depois do clique sem recarregar a página.
    */
-  noUltimoSync: boolean;
+  estadoCadastro: EstadoCadastro;
+  /**
+   * Marcado como vendido na COLUNA do banco.
+   *
+   * Também vinha implícito em `estado`, e implícito não serve para recalcular:
+   * publicar um carro sem saber se ele está vendido faria a linha voltar a
+   * "publicado" sobre uma venda já registrada.
+   */
+  vendido: boolean;
   /**
    * O que `bloqueiosDePublicacao` respondeu sobre esta linha: a lista inteira,
    * com o texto pronto, bloqueante ou não.
@@ -95,14 +127,43 @@ export interface LinhaDeEstoque {
  *
  * `classificarEstado` a aplica sobre a linha crua do banco; `reclassificarLinha`
  * sobre a linha que já está na tela. Duas portas, uma decisão.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que esta ordem, depois da F0-q
+ * ---------------------------------------------------------------------------
+ * 1. `arquivado` vence tudo, inclusive a venda. É a decisão terminal da loja, e
+ *    é o que o site lê: desde 2026-08-30 `getSinaisDeEstoque` responde "saiu do
+ *    estoque" para qualquer coisa que não seja `publicado`. Deixar a etiqueta
+ *    "Vendido" por cima de um carro arquivado faria o painel dizer que ele está
+ *    no ar com o selo VENDIDO quando ele não está em lugar nenhum — e essa é
+ *    justamente a divergência painel × site que esta tela existe para não ter.
+ *
+ *    É a inversão consciente da regra antiga "vendido vence fora do feed".
+ *    Aquela valia porque `fora_do_feed` era EFEITO da venda (o robô parava de
+ *    anunciar sozinho), e efeito não pode esconder causa. `arquivado` é ATO —
+ *    alguém clicou —, e ato não se esconde atrás de flag.
+ *
+ * 2. `vendido` vem antes de `rascunho`, e isso é operação: um repasse vendido
+ *    antes de o anúncio subir não pode ficar na fila de "falta finalizar" para
+ *    sempre. A venda encerra o trabalho de preparação.
+ *
+ * 3. `rascunho` vem antes do bloqueio de fotos porque as duas coisas não são a
+ *    mesma tarefa. Rascunho é "ninguém revisou ainda"; fora da vitrine é "a
+ *    loja publicou e falta material". Chamar todo rascunho de "fora da vitrine"
+ *    apagaria a decisão pendente — e a lista de trabalho de quem importou
+ *    viraria a lista de quem tira foto.
+ *
+ * 4. `fora_da_vitrine` sobra para o que interessa: publicado, no pátio, e ainda
+ *    assim fora do ar. É o único estado que se resolve subindo foto.
  */
 function decidirEstado(
+  estadoCadastro: EstadoCadastro,
   vendido: boolean,
-  noUltimoSync: boolean,
   bloqueado: boolean,
 ): EstadoDoVeiculo {
+  if (estadoCadastro === "arquivado") return "arquivado";
   if (vendido) return "vendido";
-  if (!noUltimoSync) return "fora_do_feed";
+  if (estadoCadastro === "rascunho") return "rascunho";
   if (bloqueado) return "fora_da_vitrine";
   return "publicado";
 }
@@ -111,66 +172,54 @@ function decidirEstado(
  * Estado de um veículo — a resposta a "este carro está no ar agora?".
  *
  * ---------------------------------------------------------------------------
- * O que esta função passou a considerar, e por quê
+ * A fonte primária é a decisão da loja
  * ---------------------------------------------------------------------------
- * Ela olhava só `vendido` e o carimbo de sync. Um veículo cadastrado pelo
- * painel com zero fotos saía da tela de cadastro com "Ainda fora da vitrine"
- * escrito na cara — e aparecia como **Publicado** nesta tabela dois cliques
- * depois. Quem corta a vitrine é `publicavel` (`getEstoque`, 8 fotos), então o
- * painel estava discordando do site sobre o mesmo carro, na tela em que se
- * decide o que anunciar. Achado do `qa-guardian`; corrigido em 2026-08-30.
+ * `estado_cadastro` (migração F0-q) manda. Antes dela esta função inferia tudo
+ * do relógio do robô e da régua de fotos, e a inferência tinha dois defeitos
+ * que a importação manual tornaria diários: nenhum rascunho tinha como se
+ * anunciar como tal, e um ciclo parcial de sync mandava o estoque inteiro para
+ * "fora do feed".
  *
- * A régua **não é reescrita aqui**: é a mesma `bloqueiosDePublicacao` que corta
- * o `getEstoque`, que o editor A15 desenha e que a tela de cadastro mostra. O
- * número de fotos tem uma casa só, e não é esta.
- *
- * ---------------------------------------------------------------------------
- * A ordem, e por que é essa
- * ---------------------------------------------------------------------------
- * A mesma de `decidirPublicacao` (`lib/publicacao.ts`), que decide o que o
- * visitante e o Google veem. As duas camadas leem os mesmos três sinais;
- * discordar da ordem seria a tabela discordar do site outra vez:
- *
- *   1. `vendido` — fato consumado. O carro vendido some do feed no ciclo
- *      seguinte, e chamá-lo de "fora do feed" esconderia o motivo real.
- *   2. `fora_do_feed` — o RevendaMais parou de anunciar. Subir foto não traz
- *      esse carro de volta, então dizer "fora da vitrine" mandaria quem lê para
- *      a tarefa errada.
- *   3. `fora_da_vitrine` — está no pátio, o painel mostra, o site não. É o
- *      único dos três que se resolve daqui: completar as fotos devolve o carro
- *      ao ar no carregamento seguinte.
+ * A régua de fotos **não é reescrita aqui**: é a mesma `bloqueiosDePublicacao`
+ * que corta o `getEstoque`, que o editor A15 desenha e que a tela de cadastro
+ * mostra. O número de fotos tem uma casa só, e não é esta.
  *
  * Objeto sem `whatsapp_images` conta como zero foto, e portanto bloqueado — é
  * exatamente o que `getEstoque` faz com essa linha. Cair para "publicado" por
  * falta de dado recriaria a mentira que esta função existe para tirar.
  */
-export function classificarEstado(
-  veiculo: {
-    vendido?: boolean | null;
-    laudo_pericia?: string | null;
-    whatsapp_images?: unknown;
-    origem?: string | null;
-  },
-  noUltimoSync: boolean,
-): EstadoDoVeiculo {
-  return decidirEstado(Boolean(veiculo.vendido), noUltimoSync, !publicavel(veiculo));
+export function classificarEstado(veiculo: {
+  estado_cadastro?: string | null;
+  vendido?: boolean | null;
+  laudo_pericia?: string | null;
+  whatsapp_images?: unknown;
+  origem?: string | null;
+}): EstadoDoVeiculo {
+  return decidirEstado(
+    normalizarEstadoCadastro(veiculo.estado_cadastro),
+    Boolean(veiculo.vendido),
+    // A régua de material, consultada — nunca reescrita.
+    !publicavel(veiculo),
+  );
 }
 
 /**
- * O estado da linha depois que a tela muda `vendido` em lote.
+ * O estado da linha depois de uma ação da tela — vender, devolver a disponível,
+ * publicar, arquivar.
  *
  * A tabela atualiza a linha na hora, sem recarregar a página. Ela escrevia
  * `"publicado"` à mão ao devolver um carro a disponível — e devolvia junto a
- * mentira: um carro com três fotos, ou fora do feed, voltava a aparecer no ar.
- * A linha já carrega os dois sinais que faltavam, e a régua é a de cima.
+ * mentira: um carro com três fotos voltava a aparecer no ar. Recebe a MUDANÇA
+ * em vez da linha já alterada de propósito: quem chama não precisa lembrar de
+ * atualizar o campo antes de reclassificar, que é o esquecimento fácil.
  */
 export function reclassificarLinha(
-  linha: Pick<LinhaDeEstoque, "noUltimoSync" | "bloqueios">,
-  vendido: boolean,
+  linha: Pick<LinhaDeEstoque, "estadoCadastro" | "vendido" | "bloqueios">,
+  mudanca: Partial<Pick<LinhaDeEstoque, "estadoCadastro" | "vendido">> = {},
 ): EstadoDoVeiculo {
   return decidirEstado(
-    vendido,
-    linha.noUltimoSync,
+    mudanca.estadoCadastro ?? linha.estadoCadastro,
+    mudanca.vendido ?? linha.vendido,
     linha.bloqueios.some((b) => b.bloqueia),
   );
 }
@@ -180,13 +229,56 @@ export function contarPorEstado(
 ): Record<FiltroDeEstado, number> {
   const contagem: Record<FiltroDeEstado, number> = {
     todos: linhas.length,
+    rascunho: 0,
     publicado: 0,
     fora_da_vitrine: 0,
     vendido: 0,
-    fora_do_feed: 0,
+    arquivado: 0,
   };
   for (const l of linhas) contagem[l.estado] += 1;
   return contagem;
+}
+
+/**
+ * Esta linha tem o material para ir ao ar?
+ *
+ * O pré-teste que a tela faz ANTES de chamar a rota, com a lista de bloqueios
+ * que ela já recebeu montada. A rota refaz a verificação contra o banco — esta
+ * aqui existe para não gastar uma ida ao servidor e para o botão saber quantos
+ * dos selecionados estão prontos.
+ */
+export function prontoParaPublicar(linha: Pick<LinhaDeEstoque, "bloqueios">): boolean {
+  return !linha.bloqueios.some((b) => b.bloqueia);
+}
+
+export interface FilaDeRascunhos {
+  /** Quantos rascunhos há — o mesmo número do contador do filtro. */
+  total: number;
+  /** Quantos já podem ser publicados agora, sem mais nenhuma foto. */
+  prontos: number;
+  /** Quantos ainda dependem de material. */
+  bloqueados: number;
+}
+
+/**
+ * A fila de trabalho de quem importou: o que falta finalizar.
+ *
+ * O contador do filtro responde "quantos rascunhos"; esta função responde a
+ * pergunta seguinte, que é a que decide o que fazer agora — *"destes, quantos
+ * eu publico com um clique e quantos dependem de alguém subir foto?"*. Sem a
+ * separação, a fila é um número só e o operador abre carro por carro para
+ * descobrir.
+ *
+ * Conta sobre `estado`, e não sobre `estadoCadastro`, para não discordar do
+ * chip que fica ao lado: um rascunho vendido aparece em "Vendidos" e não é
+ * trabalho de ninguém.
+ */
+export function resumoDaFilaDeRascunhos(
+  linhas: Array<Pick<LinhaDeEstoque, "estado" | "bloqueios">>,
+): FilaDeRascunhos {
+  const rascunhos = linhas.filter((l) => l.estado === "rascunho");
+  const prontos = rascunhos.filter((l) => prontoParaPublicar(l)).length;
+  return { total: rascunhos.length, prontos, bloqueados: rascunhos.length - prontos };
 }
 
 /**

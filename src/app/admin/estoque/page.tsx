@@ -1,9 +1,10 @@
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
-import { apenasDoUltimoSync, mapVeiculoDbToVeiculo } from "../../../lib/supabase";
+import { mapVeiculoDbToVeiculo } from "../../../lib/supabase";
 import { getCachedSettings } from "../../../lib/settings";
 import { paginasMaisVistas } from "../../../lib/analytics";
 import { normalizarQuickTags, normalizarStockOverrides } from "../../../lib/destaquesRapidos";
 import { bloqueiosDePublicacao } from "../../../lib/coerenciaDoCadastro";
+import { normalizarEstadoCadastro } from "../../../lib/estadoDoCadastro";
 import {
   classificarEstado,
   contarLeadsPorVeiculo,
@@ -25,20 +26,38 @@ export const metadata = {
 /**
  * Tela A6 do design doc — a tabela de estoque.
  *
+ * ---------------------------------------------------------------------------
+ * Quem abre, quando, e que decisão sai daqui
+ * ---------------------------------------------------------------------------
+ * Quem: Admin ou Comercial (a linha "Publicar ou despublicar veículo" da A17);
+ * Marketing abre para trabalhar material, mas não publica. Quando: depois de
+ * cada importação manual do RevendaMais, e sempre que um carro muda de
+ * situação. A decisão: **o que vai ao ar**. Cada rascunho sai daqui publicado
+ * ou continua na fila com o que falta escrito ao lado; o carro que saiu do
+ * pátio sai daqui arquivado.
+ *
  * Substitui a aba de cards de `/admin/configuracoes?tab=estoque`, onde editar
  * um carro era rolar uma lista de 88 fichas abertas. O doc pede o contrário:
  * uma linha por veículo, densa, com filtro por estado e ação em lote — o carro
  * inteiro abre no editor (A15).
+ *
+ * ---------------------------------------------------------------------------
+ * "No ar" deixou de ser inferido do relógio do robô (2026-08-30)
+ * ---------------------------------------------------------------------------
+ * Esta página filtrava por `apenasDoUltimoSync` para saber quem estava no feed.
+ * Com a importação MANUAL (decisão do dono), essa janela apodrece: importar um
+ * carro só faria dele o "ciclo mais recente" e mandaria o estoque inteiro para
+ * "fora do feed" — nesta tela, e só nesta, porque o site passou a ler
+ * `estado_cadastro`. O painel discordaria do site sobre 60 carros de uma vez.
+ * Quem responde agora é a coluna, e ela é decisão de gente.
  *
  * O que o doc desenha e não está aqui, por não haver fonte:
  *
  * - **Coluna FIPE.** `fipe` é lida pelo mapper mas NÃO existe no banco
  *   (registrado no baseline `20260803120000`). A coluna sairia vazia em 100%
  *   das linhas.
- * - **Rascunho e reservado.** São estados do fluxo de revisão (A16). O que
- *   existe é `vendido`, o carimbo de sync e a régua de publicação — daí os
- *   quatro estados reais, incluindo "fora da vitrine": cadastrado, visível
- *   aqui, e ainda assim fora do ar porque `bloqueiosDePublicacao` o segura.
+ * - **Reservado.** Continua sem dado que o sustente. `rascunho`, que estava na
+ *   mesma frase até 30/08, virou coluna e está inteiro nesta tela.
  * - **Importar planilha.** Continua sem existir: importação em lote precisa de
  *   conciliação (qual coluna é qual, o que fazer com duplicado) que a tela de
  *   um veículo por vez não precisa.
@@ -69,6 +88,11 @@ export default async function AdminEstoquePage() {
   // Quem cadastra veículo é quem publica (A17) — Admin e Comercial. Resolvido
   // aqui, no servidor, porque a régua da casa é esconder o que é negado: o
   // botão nem chega ao HTML de quem não pode usá-lo.
+  //
+  // Uma consulta, dois usos, e é a MESMA linha da matriz: pôr carro no ar e
+  // criar carro são o mesmo ato de alçada. Os dois nomes ficam porque as duas
+  // perguntas são diferentes na tela, e no dia em que a A17 as separar, separam
+  // sozinhas aqui.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -78,6 +102,7 @@ export default async function AdminEstoquePage() {
     .eq("id", user!.id)
     .single();
   const podeCriar = podeFazer(perfisDe(profile), "Publicar ou despublicar veículo") === "faz";
+  const podePublicar = podeCriar;
 
   // Leads por veículo: dado real desde a migração 20260807210000. `error`
   // ignorado de propósito — a tabela de estoque não pode deixar de abrir
@@ -87,12 +112,13 @@ export default async function AdminEstoquePage() {
 
   const visitasPorVeiculo = mapaDeVisitas(paginas);
 
-  // Quem veio no último ciclo de sync. Fora dessa lista = fora do feed.
-  const idsNoUltimoSync = new Set(
-    apenasDoUltimoSync(linhasDoBanco as Array<{ last_seen_at?: string | null }>).map((l: any) =>
-      String(l.id),
-    ),
-  );
+  // A coluna `estado_cadastro` chegou no banco? `select("*")` simplesmente não
+  // a traz quando ela não existe — sem erro, sem aviso. Sem esta detecção, um
+  // ambiente por migrar mostraria o estoque inteiro como "Rascunho" (é o piso
+  // de `normalizarEstadoCadastro`) e alguém passaria a tarde publicando 104
+  // carros que já estavam no ar. Mesma leitura que `getEstoque` faz.
+  const migracaoDoEstadoPendente =
+    linhasDoBanco.length > 0 && !linhasDoBanco.some((l) => l.estado_cadastro);
 
   const overrides = normalizarStockOverrides(settings.stockOverrides);
   const quickTags = normalizarQuickTags(settings.quickTags);
@@ -115,7 +141,6 @@ export default async function AdminEstoquePage() {
       : 0;
     const promocional = Number(v.preco_promocional || 0);
     const cheio = Number(v.preco_original || 0);
-    const noUltimoSync = idsNoUltimoSync.has(id);
     // Os motivos vão inteiros para a tela, com o texto já escrito. A etiqueta
     // sai de `classificarEstado`, que pergunta à MESMA função sobre a MESMA
     // linha (via `publicavel`) — por isso a etiqueta e o texto embaixo dela não
@@ -138,8 +163,12 @@ export default async function AdminEstoquePage() {
       preco: promocional > 0 && promocional < cheio ? promocional : cheio || null,
       foto: imagens[0] ?? null,
       fotos,
-      estado: classificarEstado(bruto, noUltimoSync),
-      noUltimoSync,
+      estado: classificarEstado(bruto),
+      // A decisão da loja, crua. `bruto` e não `v`: `estado_cadastro` é coluna
+      // e o mapper público não a conhece — nem deve, o site lê o dela em
+      // `getEstoque`.
+      estadoCadastro: normalizarEstadoCadastro(bruto.estado_cadastro),
+      vendido: Boolean(bruto.vendido),
       bloqueios,
       tipo: v.tipo ?? "",
       perfisUso: v.perfis_uso ?? [],
@@ -169,6 +198,8 @@ export default async function AdminEstoquePage() {
       overridesIniciais={overrides}
       visitasDisponiveis={visitasPorVeiculo !== null}
       podeCriar={podeCriar}
+      podePublicar={podePublicar}
+      migracaoDoEstadoPendente={migracaoDoEstadoPendente}
     />
   );
 }

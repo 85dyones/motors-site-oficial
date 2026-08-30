@@ -10,6 +10,15 @@ import {
   bloqueiosDePublicacao,
   divergenciaDeCarroceria,
 } from "../../lib/coerenciaDoCadastro";
+import {
+  CAMPO_DO_ESTADO,
+  EXPLICACAO_DO_ESTADO_CADASTRO,
+  ROTULO_DA_ACAO,
+  ROTULO_DO_ESTADO_CADASTRO,
+  acoesDoEstado,
+  normalizarEstadoCadastro,
+  ESTADO_APOS_ACAO,
+} from "../../lib/estadoDoCadastro";
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
 import GaleriaDeFotos from "./GaleriaDeFotos";
 
@@ -31,7 +40,11 @@ import GaleriaDeFotos from "./GaleriaDeFotos";
  *   a ordem e a capa já estão aqui desde 2026-08-30 (bucket próprio, migração
  *   F0-p) — para o veículo cadastrado no painel. No carro do RevendaMais as
  *   imagens continuam do feed e sobrescritas a cada sync, e a aba diz isso.
- * - **Enviar para revisão.** É a tela A16, ainda não construída.
+ * - **Enviar para revisão.** É a tela A16, ainda não construída. O que passou a
+ *   existir em 2026-08-30 é o outro lado dela: **publicar e arquivar**, no
+ *   cabeçalho. Quem abre esta tela é quem vai finalizar um rascunho vindo da
+ *   importação — a decisão que sai daqui é "este carro vai ao ar", e ela é um
+ *   botão próprio, não um efeito de salvar.
  *
  * Cada um aparece nomeado na interface em vez de simulado — a régua da casa.
  */
@@ -66,6 +79,13 @@ interface VeiculoDb {
   status_tag: string | null;
   status_tag_color: string | null;
   vendido: boolean | null;
+  /**
+   * A decisão da loja sobre este carro — `rascunho`, `publicado`, `arquivado`
+   * (migração 20260830120000). Opcional para o editor não quebrar com linha
+   * antiga em cache; `normalizarEstadoCadastro` a trata como rascunho, que é o
+   * único dos três que não afirma nada sobre o site.
+   */
+  estado_cadastro?: string | null;
   created_at: string | null;
   last_seen_at: string | null;
   placa: string | null;
@@ -113,6 +133,10 @@ const NOME_DO_CAMPO: Record<string, string> = {
   status_tag: "Tag de destaque",
   status_tag_color: "Cor da tag",
   vendido: "Disponibilidade",
+  // A trilha de quem pôs no ar e quem tirou. `aplicarNosVeiculos` já registra
+  // autor e horário de qualquer campo — sem o rótulo, a linha sairia como
+  // "estado_cadastro" no meio de uma lista em português.
+  estado_cadastro: "Publicação",
   tipo: "Carroceria",
   perfil_uso: "Perfil de uso",
   perfis_uso: "Para que serve",
@@ -314,6 +338,55 @@ export default function EditorDeVeiculo({
     [v.laudo_pericia, v.whatsapp_images, v.origem],
   );
 
+  /* ------------------------------------------------------------------------
+   * Publicar e arquivar — a decisão, separada da edição
+   * ------------------------------------------------------------------------
+   * Não entra no `salvar()` de propósito. Salvar é "guardei o que digitei";
+   * publicar é "este carro passa a existir para o cliente". Misturar os dois
+   * faria alguém pôr carro no ar ao corrigir uma vírgula na descrição — e faria
+   * o botão Salvar exigir a linha "Publicar ou despublicar" da A17 de quem só
+   * queria escrever texto.
+   */
+  const estadoCadastro = normalizarEstadoCadastro(v.estado_cadastro);
+  const podeDecidirPublicacao = podeGravar(CAMPO_DO_ESTADO);
+  const [mudandoEstado, setMudandoEstado] = useState(false);
+
+  const decidirPublicacao = async (acao: "publicar" | "arquivar") => {
+    const destino = ESTADO_APOS_ACAO[acao];
+    setMudandoEstado(true);
+    setErro("");
+    setAviso("");
+    try {
+      const res = await fetch(`/api/estoque/${v.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [CAMPO_DO_ESTADO]: destino }),
+      });
+      const data = await res.json().catch(() => ({}));
+      // 422 é a régua de fotos: a rota devolve o motivo escrito, e é ele que
+      // aparece — não um "falha ao salvar" que mandaria abrir a aba de fotos
+      // por adivinhação.
+      if (!res.ok) throw new Error(data.error || "Falha ao mudar o estado do cadastro");
+
+      /* Os dois `set` são obrigatórios e por motivos diferentes: `setV`
+         redesenha a etiqueta e os botões na hora, `setSalvo` impede que a tela
+         fique marcada como "Não salvo" por algo que já está no banco. Mesma
+         dupla que a galeria de fotos usa. */
+      setV((atual) => ({ ...atual, estado_cadastro: destino }));
+      setSalvo((atual) => ({ ...atual, estado_cadastro: destino }));
+      setAviso(
+        destino === "publicado"
+          ? "Publicado — o veículo passa a aparecer na vitrine."
+          : "Arquivado — o veículo sai do ar. Só volta se alguém publicar de novo.",
+      );
+      carregarHistorico();
+    } catch (e: any) {
+      setErro(e.message);
+    } finally {
+      setMudandoEstado(false);
+    }
+  };
+
   const margem =
     v.preco_compra && v.preco_original ? v.preco_original - Number(v.preco_compra) : null;
   const margemPct =
@@ -408,15 +481,27 @@ export default function EditorDeVeiculo({
             <h1 className="mt-titulo text-2xl md:text-3xl">
               {v.marca} {v.modelo}
             </h1>
+            {/* A etiqueta lia `v.vendido ? "VENDIDO" : "PUBLICADO"` — e
+                escrevia PUBLICADO sobre todo carro que não estivesse vendido,
+                inclusive o rascunho recém-cadastrado que o site nunca mostrou.
+                Agora sai da coluna que decide. `vendido` continua ao lado, como
+                o dado ortogonal que ele é: um carro pode estar publicado E
+                vendido (é assim que a carência de SEO funciona). */}
             <span
               className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                v.vendido
-                  ? "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent-800"
-                  : "border border-mt-regua text-mt-neutral-700"
+                estadoCadastro === "publicado"
+                  ? "border border-mt-regua text-mt-neutral-700"
+                  : "bg-mt-accent-100 border border-mt-accent-300 text-mt-accent-800"
               }`}
+              title={EXPLICACAO_DO_ESTADO_CADASTRO[estadoCadastro]}
             >
-              {v.vendido ? "VENDIDO" : "PUBLICADO"}
+              {ROTULO_DO_ESTADO_CADASTRO[estadoCadastro].toUpperCase()}
             </span>
+            {v.vendido && (
+              <span className="border border-mt-ink bg-mt-ink px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-mt-bg">
+                VENDIDO
+              </span>
+            )}
           </div>
           <div className="mt-1.5 text-xs text-mt-neutral-700">
             cód. {v.id} · {v.versao || "sem versão"} · {v.ano || "—"}
@@ -426,10 +511,44 @@ export default function EditorDeVeiculo({
           </div>
         </div>
 
-        <div className="flex flex-none items-center gap-3">
+        <div className="flex flex-none flex-wrap items-center gap-3">
           {sujo && (
             <span className="text-[11px] font-semibold text-mt-accent-800">Não salvo</span>
           )}
+
+          {/* Publicar e arquivar SOMEM para quem não tem a linha da A17 — a
+              régua do doc é esconder o que é negado, não deixar cinza. A rota
+              recusa igual, pela matriz de campo.
+
+              O botão Publicar fica DESABILITADO enquanto houver bloqueio de
+              material, e o motivo já está escrito logo abaixo, no checklist
+              ("Fora da vitrine. Este veículo não aparece no site enquanto:").
+              Publicar mesmo assim gravaria `publicado` num carro que o
+              `getEstoque` cortaria em seguida — o painel e o site voltariam a
+              discordar, com a agravante de alguém ter clicado achando que
+              resolveu. */}
+          {podeDecidirPublicacao &&
+            acoesDoEstado(estadoCadastro).map((acao) => {
+              const travado = acao === "publicar" && bloqueios.length > 0;
+              return (
+                <button
+                  key={acao}
+                  onClick={() => decidirPublicacao(acao)}
+                  disabled={mudandoEstado || travado}
+                  title={
+                    travado
+                      ? `Falta ${bloqueios.map((b) => b.texto).join("; ")}`
+                      : undefined
+                  }
+                  className={`mt-btn mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-45 ${
+                    acao === "publicar" ? "mt-btn-primario" : "mt-btn-contorno"
+                  }`}
+                >
+                  {mudandoEstado ? "…" : ROTULO_DA_ACAO[acao]}
+                </button>
+              );
+            })}
+
           <button
             onClick={() => setV(salvo)}
             disabled={!sujo || salvando}
@@ -947,6 +1066,26 @@ export default function EditorDeVeiculo({
               Ads e do índice de busca. A ficha continua respondendo — quem tem
               o link não bate em 404 — e voltar ao ar é só subir as fotos que
               faltam no RevendaMais. */}
+          {/* Decisão da loja e pendência de material são coisas diferentes, e
+              a tela diz as duas sem misturá-las. Rascunho e arquivado se
+              resolvem com um clique de quem tem a alçada; o bloqueio de fotos
+              não se resolve com clique nenhum. */}
+          {estadoCadastro !== "publicado" && (
+            <div className="mb-3 border-l-[3px] border-mt-accent bg-mt-accent-100 px-3 py-2.5 text-[11px] leading-snug text-mt-accent-800">
+              <strong>{ROTULO_DO_ESTADO_CADASTRO[estadoCadastro]}.</strong>{" "}
+              {estadoCadastro === "rascunho"
+                ? "Só o painel enxerga este veículo. Ele vai ao ar quando alguém publicar — nunca por importação."
+                : "Este veículo saiu do estoque e não aparece no site. Não volta sozinho."}
+              {/* Só no rascunho: em "arquivado" a frase vinha logo depois de
+                  "não volta sozinho" e as duas juntas se contradiziam na
+                  leitura. Ali o que interessa é que voltar é decisão, não
+                  material — e o botão Publicar já está à mão para quem decidir. */}
+              {estadoCadastro === "rascunho" && podeDecidirPublicacao && bloqueios.length === 0 && (
+                <> Está pronto para publicar.</>
+              )}
+            </div>
+          )}
+
           {bloqueios.length > 0 && (
             <div className="mb-3 border-l-[3px] border-mt-accent bg-mt-accent-100 px-3 py-2.5 text-[11px] leading-snug text-mt-accent-800">
               <strong>Fora da vitrine.</strong> Este veículo não aparece no site
@@ -956,6 +1095,9 @@ export default function EditorDeVeiculo({
                   <li key={b.id}>{b.texto}</li>
                 ))}
               </ul>
+              {estadoCadastro === "rascunho" && (
+                <p className="m-0 mt-1.5">Publicar fica travado até isso resolver.</p>
+              )}
             </div>
           )}
           {checklist.map((c) => (

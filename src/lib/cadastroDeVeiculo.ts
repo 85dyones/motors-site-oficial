@@ -99,6 +99,13 @@ export const CAMPOS_QUE_A_ROTA_NUNCA_ESCREVE = [
   "origem",
   "last_seen_at",
   "first_seen_at",
+  // Migração 20260830120000: todo carro nasce `rascunho`, e o trigger o força
+  // no INSERT — mandar outro valor no payload não adianta. Está aqui pela mesma
+  // razão dos quatro de cima: no dia em que alguém acrescentar o campo a um dos
+  // grupos do formulário, a rota passaria a poder PUBLICAR no nascimento, que é
+  // exatamente o que a decisão do dono de 30/08 desfez. Publicar é ato de quem
+  // tem a linha da A17, depois da revisão — nunca efeito de um cadastro.
+  "estado_cadastro",
 ] as const;
 
 /**

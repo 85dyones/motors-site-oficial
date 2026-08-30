@@ -1,4 +1,12 @@
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
+import {
+  CAMPO_DO_ESTADO,
+  ehEstadoDoCadastro,
+  ESTADOS_DO_CADASTRO,
+  recusasParaPublicar,
+  textoDaRecusaDePublicacao,
+  type RecusaDePublicacao,
+} from "./estadoDoCadastro";
 
 /**
  * Escrita no estoque — o caminho único por onde o painel altera veículo.
@@ -41,6 +49,16 @@ export const CAMPOS_NOSSOS = [
   // Migração 20260826230000. `perfil_uso` (singular) continua na lista para
   // não quebrar quem ainda escreve nele; o painel passou a escrever aqui.
   "perfis_uso",
+  // Migração 20260830120000 (F0-q). O estado do cadastro é NOSSO no sentido
+  // mais forte da palavra: o RevendaMais não o conhece, e o trigger de INSERT
+  // sobrescreve para `rascunho` qualquer valor que venha no payload da
+  // importação. Publicar é ato do painel, e é por isso que ele entra aqui, e
+  // não em `camposGravaveis(origem)`: aquela lista só alarga para o veículo
+  // NATIVO, porque `preco` e as fotos SÃO colunas do feed e o sync as
+  // reescreveria. `estado_cadastro` não é do feed — vale para todo veículo,
+  // venha ele de onde vier. Se ficasse do lado de lá, os 62 carros importados
+  // não teriam como ser publicados nem arquivados pelo painel.
+  CAMPO_DO_ESTADO,
 ] as const;
 
 export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];
@@ -97,6 +115,18 @@ export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
 export const CAMPOS_DE_FOTO = ["whatsapp_images", "web_full_images", "url_imagem"] as const;
 
 /**
+ * Colunas que a escrita LÊ para decidir, e nunca grava.
+ *
+ * `bloqueiosDePublicacao` precisa das fotos e da origem; `laudo_pericia` já vem
+ * em `CAMPOS_NOSSOS`. Sem elas no `select` do estado anterior, a verificação de
+ * publicação rodaria sobre um objeto sem `whatsapp_images` — que a régua conta
+ * como zero foto e recusaria TODO mundo, inclusive o carro com doze fotos.
+ * Errar assim é silencioso: o operador só veria "0 de 8 fotos" sobre uma
+ * galeria cheia e concluiria que o painel está quebrado.
+ */
+export const COLUNAS_LIDAS_PARA_DECIDIR = ["whatsapp_images", "origem"] as const;
+
+/**
  * Os campos graváveis para ESTE veículo — a lista fixa, mais o preço e as
  * fotos quando a linha é do painel.
  *
@@ -147,6 +177,14 @@ export interface ResultadoDaEscrita {
   status?: number;
   camposSalvos: string[];
   mudancasRegistradas: number;
+  /**
+   * Quem barrou a publicação, quando ela foi barrada — código e motivos.
+   *
+   * A mensagem de `erro` já nomeia os primeiros; esta lista viaja inteira para
+   * a tela poder marcar as linhas exatas. Ausente em toda escrita que não é
+   * publicação.
+   */
+  recusas?: RecusaDePublicacao[];
 }
 
 /**
@@ -170,15 +208,74 @@ export async function aplicarNosVeiculos(
     return { erro: "Nenhum veículo informado", status: 400, camposSalvos: [], mudancasRegistradas: 0 };
   }
 
+  // Estado fora do vocabulário nunca chega ao banco. O CHECK do Postgres o
+  // recusaria de qualquer forma, mas com uma mensagem que ninguém na loja lê —
+  // e a rota devolveria 500 sobre o que é erro de 400.
+  const estadoPedido = atualizacao[CAMPO_DO_ESTADO];
+  if (estadoPedido !== undefined && !ehEstadoDoCadastro(estadoPedido)) {
+    return {
+      erro: `Estado inválido: "${String(estadoPedido)}". Os válidos são ${ESTADOS_DO_CADASTRO.join(", ")}.`,
+      status: 400,
+      camposSalvos: [],
+      mudancasRegistradas: 0,
+    };
+  }
+
   const alvos = ids.map(normalizarId);
 
   // Estado anterior, lido ANTES do update: é o "NO AR HOJE" que a tela A16
   // compara com o proposto. Reconstruir isso depois exigiria refazer a cadeia
-  // inteira de trás para frente.
-  const { data: antes } = await supabase
+  // inteira de trás para frente. Desde a F0-q ele serve a um segundo uso: é
+  // sobre esta leitura que a régua de publicação é conferida.
+  const { data: antes, error: erroAntes } = await supabase
     .from("estoque_motors")
-    .select(["id", ...CAMPOS_NOSSOS].join(","))
+    .select(["id", ...CAMPOS_NOSSOS, ...COLUNAS_LIDAS_PARA_DECIDIR].join(","))
     .in("id", alvos);
+
+  // -------------------------------------------------------------------------
+  // Publicar exige a régua de fotos cumprida — e a verificação é DAQUI
+  // -------------------------------------------------------------------------
+  // Este módulo é "o caminho único por onde o painel altera veículo", e as duas
+  // rotas (`/api/estoque/[id]` e `/api/estoque/lote`) passam por ele. Pôr o
+  // gate numa delas deixaria a outra aberta; pôr nas duas criaria duas réguas
+  // que um dia divergem. A checagem da tela é conveniência — esta é a que vale.
+  //
+  // O lote é ATÔMICO: se um dos selecionados não pode ir ao ar, nenhum vai, e a
+  // mensagem diz quais e por quê. Publicar 9 de 12 em silêncio deixaria três
+  // carros parados sem ninguém saber, que é pior que o clique recusado.
+  if (estadoPedido === "publicado") {
+    if (erroAntes || !antes) {
+      return {
+        erro:
+          "Não foi possível conferir a régua de publicação destes veículos" +
+          (erroAntes?.message ? `: ${erroAntes.message}` : "") +
+          ". Nada foi publicado.",
+        status: 500,
+        camposSalvos: [],
+        mudancasRegistradas: 0,
+      };
+    }
+
+    // A atualização entra na conta: quem salva o laudo e publica no mesmo PATCH
+    // tem de ser julgado pelo valor NOVO. Conferir só o `antes` recusaria uma
+    // pendência que a própria chamada estava resolvendo.
+    const recusas = recusasParaPublicar(
+      (antes as Array<Record<string, unknown>>).map((linha) => ({
+        ...linha,
+        ...atualizacao,
+        id: linha.id as string | number,
+      })),
+    );
+    if (recusas.length > 0) {
+      return {
+        erro: textoDaRecusaDePublicacao(recusas),
+        status: 422,
+        camposSalvos: [],
+        mudancasRegistradas: 0,
+        recusas,
+      };
+    }
+  }
 
   const { error } = await supabase.from("estoque_motors").update(atualizacao).in("id", alvos);
 

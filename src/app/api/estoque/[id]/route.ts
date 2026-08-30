@@ -112,7 +112,14 @@ export async function PATCH(
     });
 
     if (resultado.erro) {
-      return NextResponse.json({ error: resultado.erro }, { status: resultado.status ?? 500 });
+      // 422 com `recusas` é a publicação barrada pela régua de fotos — o editor
+      // A15 mostra os motivos ao lado do botão em vez de um erro genérico.
+      return NextResponse.json(
+        resultado.recusas
+          ? { error: resultado.erro, recusas: resultado.recusas }
+          : { error: resultado.erro },
+        { status: resultado.status ?? 500 },
+      );
     }
 
     return NextResponse.json({
