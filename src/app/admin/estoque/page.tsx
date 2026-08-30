@@ -12,6 +12,7 @@ import {
 } from "../../../lib/estoqueTabela";
 import TabelaDeEstoque from "../../../components/admin/TabelaDeEstoque";
 import { diasEmEstoque } from "../../../lib/dataLayer";
+import { perfisDe, podeFazer } from "../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,16 @@ export const metadata = {
  *   das linhas.
  * - **Rascunho e reservado.** São estados do fluxo de revisão (A16). O que
  *   existe é `vendido` e o carimbo de sync — daí os três estados reais.
- * - **Importar planilha / + Novo veículo.** O estoque entra pelo sync do
- *   RevendaMais; criar carro à mão é outro pacote, junto com o storage próprio
- *   de fotos.
+ * - **Importar planilha.** Continua sem existir: importação em lote precisa de
+ *   conciliação (qual coluna é qual, o que fazer com duplicado) que a tela de
+ *   um veículo por vez não precisa.
+ *
+ * **"+ Novo veículo" passou a existir em 2026-08-29** — adendo do dono, junto
+ * com a trava do sync (migração 20260829130000). O estoque não entra mais só
+ * pelo RevendaMais: o carro de troca, repasse ou consignado nasce em
+ * `/admin/estoque/novo`, com id de faixa própria, e o sync nunca o altera. O
+ * botão só aparece para quem publica veículo (A17) — daí `podeCriar` vir
+ * resolvido do servidor.
  */
 export default async function AdminEstoquePage() {
   const supabase = await createServerSupabaseClient();
@@ -54,6 +62,19 @@ export default async function AdminEstoquePage() {
   ]);
 
   const linhasDoBanco = (brutos ?? []) as Array<Record<string, any>>;
+
+  // Quem cadastra veículo é quem publica (A17) — Admin e Comercial. Resolvido
+  // aqui, no servidor, porque a régua da casa é esconder o que é negado: o
+  // botão nem chega ao HTML de quem não pode usá-lo.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, papeis")
+    .eq("id", user!.id)
+    .single();
+  const podeCriar = podeFazer(perfisDe(profile), "Publicar ou despublicar veículo") === "faz";
 
   // Leads por veículo: dado real desde a migração 20260807210000. `error`
   // ignorado de propósito — a tabela de estoque não pode deixar de abrir
@@ -122,6 +143,7 @@ export default async function AdminEstoquePage() {
       destacadosIniciais={destacados}
       overridesIniciais={overrides}
       visitasDisponiveis={visitasPorVeiculo !== null}
+      podeCriar={podeCriar}
     />
   );
 }

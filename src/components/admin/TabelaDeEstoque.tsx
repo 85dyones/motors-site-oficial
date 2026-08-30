@@ -39,6 +39,15 @@ interface TabelaDeEstoqueProps {
   overridesIniciais: StockOverrides;
   /** `false` = GA4 sem credencial; a coluna de visitas mostra "—". */
   visitasDisponiveis: boolean;
+  /**
+   * Este perfil cadastra veículo? Resolvido no servidor pela linha
+   * "Publicar ou despublicar veículo" da A17 — Admin e Comercial.
+   *
+   * Governa se o botão "+ Novo veículo" EXISTE, não se ele fica cinza: "tudo
+   * que for negado some da interface" é a regra do doc, e a rota devolve 403
+   * de qualquer jeito para quem tentar pela URL.
+   */
+  podeCriar: boolean;
 }
 
 const FILTROS: Array<{ id: FiltroDeEstado; rotulo: string }> = [
@@ -66,6 +75,7 @@ export default function TabelaDeEstoque({
   destacadosIniciais,
   overridesIniciais,
   visitasDisponiveis,
+  podeCriar,
 }: TabelaDeEstoqueProps) {
   const [linhas, setLinhas] = useState<LinhaDeEstoque[]>(linhasIniciais);
   const [overrides, setOverrides] = useState<StockOverrides>(overridesIniciais);
@@ -254,18 +264,31 @@ export default function TabelaDeEstoque({
           <div className="mt-rotulo mt-rotulo-accent">Estoque</div>
           <h1 className="mt-titulo text-3xl md:text-4xl">{contagem.todos} veículos</h1>
           <p className="mt-1 max-w-[620px] text-sm text-mt-neutral-800">
-            O estoque entra pelo sync do RevendaMais. Aqui se decide o que a vitrine mostra,
-            como o carro é classificado e o que vai ao carrossel da home.
+            A maior parte do estoque entra pelo sync do RevendaMais; o que não veio de lá se
+            cadastra aqui. Nesta tela se decide o que a vitrine mostra, como o carro é
+            classificado e o que vai ao carrossel da home.
           </p>
         </div>
-        <Link
-          href="/estoque"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-btn mt-btn-contorno mt-foco px-4 py-2.5 text-[11px] no-underline"
-        >
-          Ver no site
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Some para quem não publica veículo (A17) — a régua do doc é
+              esconder, não desabilitar. A rota recusa igual, pela URL. */}
+          {podeCriar && (
+            <Link
+              href="/admin/estoque/novo"
+              className="mt-btn mt-btn-primario mt-foco px-4 py-2.5 text-[11px] no-underline"
+            >
+              + Novo veículo
+            </Link>
+          )}
+          <Link
+            href="/estoque"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-btn mt-btn-contorno mt-foco px-4 py-2.5 text-[11px] no-underline"
+          >
+            Ver no site
+          </Link>
+        </div>
       </div>
 
       {erro && (
