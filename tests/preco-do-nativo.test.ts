@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   CAMPOS_NOSSOS,
+  CAMPOS_DE_FOTO,
   CAMPOS_DE_PRECO_DO_NATIVO,
   camposGravaveis,
   extrairCamposNossos,
@@ -70,12 +71,22 @@ describe("o preço só é gravável no veículo do painel", () => {
     expect(CAMPOS_DE_PRECO_DO_NATIVO).toEqual(["preco", "preco_original"]);
   });
 
-  it("a lista do painel é a de sempre MAIS o preço — nada some", () => {
+  it("a lista do painel é a de sempre MAIS o que só o nativo grava — nada some", () => {
     const doPainel = camposGravaveis("painel");
     for (const campo of CAMPOS_NOSSOS) {
       expect(doPainel, `o campo "${campo}" sumiu da lista do painel`).toContain(campo);
     }
-    expect(doPainel.length).toBe(CAMPOS_NOSSOS.length + CAMPOS_DE_PRECO_DO_NATIVO.length);
+    // Dois grupos entram por origem, e pelo MESMO motivo: as colunas são do
+    // feed, e no veículo do RevendaMais o sync as reescreveria em silêncio.
+    // `CAMPOS_DE_FOTO` juntou-se ao preço em 2026-08-30, com o storage próprio
+    // (F0-p) — a soma é declarada, e não um número, para que um grupo novo
+    // obrigue quem o cria a passar por aqui em vez de afrouxar a conta.
+    expect(doPainel.length).toBe(
+      CAMPOS_NOSSOS.length + CAMPOS_DE_PRECO_DO_NATIVO.length + CAMPOS_DE_FOTO.length,
+    );
+    // Sem repetição entre os grupos: campo em duas listas passaria por dois
+    // gates diferentes conforme a rota.
+    expect(new Set(doPainel).size).toBe(doPainel.length);
   });
 
   it("extrairCamposNossos descarta preço quando a origem não é painel", () => {

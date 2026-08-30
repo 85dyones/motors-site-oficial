@@ -306,8 +306,60 @@ describe("toda tabela do núcleo nasce com org e RLS", () => {
   });
 });
 
+/**
+ * As policies do bucket de fotos (F0-p) NÃO são policies do núcleo.
+ *
+ * A varredura descobre arquivo por nome (`f0[a-z]_`), e em 2026-08-30 entrou
+ * um que não cria tabela nenhuma: `f0p` cria o bucket `veiculos` no
+ * `storage.objects`. Ele quebra três guardas de propósito, e cada quebra é uma
+ * decisão escrita na própria migração:
+ *
+ *   • `to anon` — a LEITURA é pública porque estas fotos SÃO o anúncio. Elas
+ *     aparecem na vitrine, no feed dos portais e no card do WhatsApp; bucket
+ *     privado exigiria URL assinada em cada card, que expira, e link de anúncio
+ *     que morre é pior que foto sem tratamento.
+ *   • `org_id = org_padrao()` — `storage.objects` é tabela do Supabase, não
+ *     nossa: não tem (nem pode ganhar) a coluna.
+ *
+ * Separá-las aqui não afrouxa nada: o bloco logo abaixo cobra do bucket
+ * exatamente o que faz sentido cobrar dele — escrita só de staff, e o público
+ * limitado a SELECT.
+ */
+const ehDoStorage = (policy: string) => /\bon\s+storage\.objects\b/i.test(policy);
+
+describe("o bucket de fotos abre a leitura e só ela", () => {
+  const doBucket = policiesDe(F0).filter(ehDoStorage);
+
+  it("há policies de storage para inspecionar", () => {
+    expect(doBucket.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("toda escrita exige `is_staff` — nenhuma alcança anon", () => {
+    const escrita = doBucket.filter((p) => /\bfor\s+(insert|update|delete)\b/i.test(p));
+    expect(escrita.length).toBeGreaterThanOrEqual(3);
+    for (const p of escrita) {
+      expect(p, `policy de escrita sem is_staff:\n${p}`).toMatch(
+        /public\.is_staff\(auth\.uid\(\)\)/,
+      );
+      expect(p, `policy de escrita alcançando anon:\n${p}`).not.toMatch(/\bto\s+anon\b/i);
+    }
+  });
+
+  it("a única que alcança anon é de SELECT", () => {
+    const publicas = doBucket.filter((p) => /\bto\s+[^;]*\banon\b/i.test(p));
+    expect(publicas.length).toBe(1);
+    expect(publicas[0]).toMatch(/\bfor\s+select\b/i);
+  });
+
+  it("o diário de bordo não virou público de carona", () => {
+    // A migração cobra isso do banco na autoconferência; aqui é a leitura do
+    // texto, para o teste acusar antes de alguém aplicar.
+    expect(F0).toContain("o diário de bordo virou público");
+  });
+});
+
 describe("nenhuma porta pública no núcleo", () => {
-  const policies = policiesDe(F0);
+  const policies = policiesDe(F0).filter((p) => !ehDoStorage(p));
 
   it("há policies para inspecionar", () => {
     // A trava contra o teste que "passa" porque não leu nada. O número é de

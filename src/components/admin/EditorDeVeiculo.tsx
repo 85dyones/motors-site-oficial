@@ -5,7 +5,13 @@ import Link from "next/link";
 import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
 import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
-import { bloqueiosDePublicacao, divergenciaDeCarroceria } from "../../lib/coerenciaDoCadastro";
+import {
+  MINIMO_DE_FOTOS,
+  bloqueiosDePublicacao,
+  divergenciaDeCarroceria,
+} from "../../lib/coerenciaDoCadastro";
+import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
+import GaleriaDeFotos from "./GaleriaDeFotos";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -21,10 +27,10 @@ import { bloqueiosDePublicacao, divergenciaDeCarroceria } from "../../lib/coeren
  * - **Visitas na página.** Vêm do GA4 por caminho, e a leitura hoje é feita em
  *   lote na tabela A6; por veículo, entra quando houver credencial garantida
  *   em produção.
- * - **Reordenar fotos / marca d'água.** As imagens vêm do feed do
- *   RevendaMais e são sobrescritas a cada sync; uma ordem salva aqui se
- *   perderia no ciclo seguinte. Entra junto com o storage próprio, quando o
- *   feed for descontinuado.
+ * - **Marca d'água nas fotos.** Depende de arte definida com o dono; o envio,
+ *   a ordem e a capa já estão aqui desde 2026-08-30 (bucket próprio, migração
+ *   F0-p) — para o veículo cadastrado no painel. No carro do RevendaMais as
+ *   imagens continuam do feed e sobrescritas a cada sync, e a aba diz isso.
  * - **Enviar para revisão.** É a tela A16, ainda não construída.
  *
  * Cada um aparece nomeado na interface em vez de simulado — a régua da casa.
@@ -43,7 +49,12 @@ interface VeiculoDb {
   cor: string | null;
   preco: number | null;
   preco_original: number | null;
+  /** Galeria da ficha, `og:image` e feed dos portais. JPEG quando é nossa. */
   whatsapp_images: string[] | null;
+  /** Card do catálogo, hero e vitrine. WebP quando é nossa. */
+  web_full_images: string[] | null;
+  /** Capa de queda do mapper quando os dois arrays estão vazios. */
+  url_imagem: string | null;
   pericia: string | null;
   descricao: string | null;
   descricao_seo: string | null;
@@ -105,13 +116,27 @@ const NOME_DO_CAMPO: Record<string, string> = {
   tipo: "Carroceria",
   perfil_uso: "Perfil de uso",
   perfis_uso: "Para que serve",
+  whatsapp_images: "Fotos (galeria e anúncio)",
+  web_full_images: "Fotos (card e vitrine)",
+  url_imagem: "Foto de capa",
 };
 
+/** Colunas cujo valor é lista de URL — o histórico conta, não transcreve. */
+const CAMPOS_DE_LISTA_DE_FOTO = new Set(["whatsapp_images", "web_full_images"]);
+
 /** Encurta valor longo (descrição, opcionais) para caber na linha. */
-const resumir = (v: string | null) => {
+const resumir = (v: string | null, campo?: string) => {
   if (v === null || v === "") return "vazio";
   if (v === "true") return "vendido";
   if (v === "false") return "disponível";
+  // Array de URL vira "12 fotos". `aplicarNosVeiculos` grava o valor com
+  // `String(array)`, o que produz 1.700 caracteres de URL colados por vírgula:
+  // transcrever isso na trilha não conta nada a ninguém, e o que importa
+  // ("eram 6, ficaram 12") cabe em duas palavras.
+  if (campo && CAMPOS_DE_LISTA_DE_FOTO.has(campo)) {
+    const n = v.split(",").filter((u) => u.trim() !== "").length;
+    return n === 1 ? "1 foto" : `${n} fotos`;
+  }
   return v.length > 40 ? v.slice(0, 40) + "…" : v;
 };
 
@@ -176,9 +201,26 @@ export default function EditorDeVeiculo({
     [v.marca, v.modelo, v.versao, v.tipo],
   );
 
+  /* As duas colunas de foto, pareadas por índice — `whatsapp_images[3]` e
+     `web_full_images[3]` são a mesma fotografia. É o pareamento que faz "a
+     primeira é a capa" valer nas duas ao mesmo tempo; a contagem continua
+     saindo daqui, como sempre saiu. */
   const fotos = useMemo(
-    () => (Array.isArray(v.whatsapp_images) ? v.whatsapp_images.filter(Boolean) : []),
-    [v.whatsapp_images],
+    () => fotosDoVeiculo(v.whatsapp_images, v.web_full_images),
+    [v.whatsapp_images, v.web_full_images],
+  );
+
+  /* A galeria grava sozinha (ver `GaleriaDeFotos`). As duas atualizações são
+     obrigatórias e por motivos diferentes: `setV` redesenha o checklist e o
+     aviso de "fora da vitrine" na hora, e `setSalvo` impede que a tela fique
+     marcada como "Não salvo" por uma alteração que já está no banco — o que
+     faria o botão Salvar reenviar fotos e poluir o histórico. */
+  const aoGravarFotos = useCallback(
+    (colunas: { whatsapp_images: string[]; web_full_images: string[]; url_imagem: string | null }) => {
+      setV((atual) => ({ ...atual, ...colunas }));
+      setSalvo((atual) => ({ ...atual, ...colunas }));
+    },
+    [],
   );
 
   const diasEmEstoque = useMemo(() => {
@@ -194,10 +236,15 @@ export default function EditorDeVeiculo({
   /** Checklist de publicação — os itens do doc que temos como verificar. */
   const checklist = [
     {
-      l: "8 fotos — bloqueia a publicação",
+      // O número vem da constante, não da mão: `MINIMO_DE_FOTOS` é a mesma
+      // régua que `bloqueiosDePublicacao` aplica e que `getEstoque` usa para
+      // filtrar a vitrine. Escrito à mão, um dia mudaria num lugar só e a tela
+      // passaria a discordar do site sobre por que o carro sumiu.
+      l: `${MINIMO_DE_FOTOS} fotos — bloqueia a publicação`,
       d: "Frente, traseira, laterais, interior, painel e porta-malas.",
-      ok: fotos.length >= 8,
-      estado: fotos.length >= 8 ? "OK" : `FALTAM ${8 - fotos.length}`,
+      ok: fotos.length >= MINIMO_DE_FOTOS,
+      estado:
+        fotos.length >= MINIMO_DE_FOTOS ? "OK" : `FALTAM ${MINIMO_DE_FOTOS - fotos.length}`,
     },
     {
       l: "Ficha própria completa",
@@ -258,8 +305,13 @@ export default function EditorDeVeiculo({
       bloqueiosDePublicacao({
         laudo_pericia: v.laudo_pericia,
         whatsapp_images: v.whatsapp_images,
+        // A origem muda só o TEXTO da pendência — "suba as fotos pelo painel"
+        // no veículo nativo, "as fotos vêm do RevendaMais" no do feed. Sem
+        // ela, a tela mandava o operador esperar um feed que nunca vai trazer
+        // foto do carro que ele mesmo cadastrou.
+        origem: v.origem,
       }).filter((b) => b.bloqueia),
-    [v.laudo_pericia, v.whatsapp_images],
+    [v.laudo_pericia, v.whatsapp_images, v.origem],
   );
 
   const margem =
@@ -337,7 +389,7 @@ export default function EditorDeVeiculo({
         <div className="h-[82px] w-[132px] flex-none overflow-hidden border border-mt-regua-fina bg-mt-surface">
           {fotos[0] ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={fotos[0]} alt="" className="h-full w-full object-cover" />
+            <img src={fotos[0].web} alt="" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full items-center justify-center text-[10px] text-mt-neutral-500">
               SEM FOTO
@@ -410,7 +462,14 @@ export default function EditorDeVeiculo({
       <div className="grid select-none grid-cols-2 border-t-2 border-mt-regua lg:grid-cols-4">
         {[
           { l: "Dias em estoque", v: diasEmEstoque !== null ? String(diasEmEstoque) : "—", nota: v.created_at ? "desde a entrada no feed" : "sem data de entrada" },
-          { l: "Fotos", v: String(fotos.length), nota: fotos.length >= 8 ? "acima do mínimo" : "mínimo de 8" },
+          {
+            l: "Fotos",
+            v: String(fotos.length),
+            nota:
+              fotos.length >= MINIMO_DE_FOTOS
+                ? "acima do mínimo"
+                : `mínimo de ${MINIMO_DE_FOTOS}`,
+          },
           { l: "Checklist", v: `${concluidos}/${checklist.length}`, nota: concluidos === checklist.length ? "pronto para publicar" : "itens pendentes" },
           {
             l: "Visitas na página",
@@ -458,44 +517,16 @@ export default function EditorDeVeiculo({
       <div className="flex flex-col gap-8 xl:flex-row">
         <div className="min-w-0 flex-1 xl:border-r xl:border-mt-regua-fina xl:pr-7">
           {aba === "fotos" && (
-            <>
-              <div className="mb-3 flex flex-wrap items-baseline gap-3">
-                <div className="mt-rotulo">Fotos · {fotos.length}</div>
-                <span className="ml-auto text-[11px] text-mt-neutral-700">
-                  A primeira é a capa do anúncio e do card no catálogo
-                </span>
-              </div>
-              {fotos.length === 0 ? (
-                <p className="py-8 text-center text-xs text-mt-neutral-700">
-                  Nenhuma foto neste veículo.
-                </p>
-              ) : (
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-                  {fotos.map((f, i) => (
-                    <div
-                      key={f + i}
-                      className="relative aspect-[4/3] overflow-hidden border border-mt-regua-fina bg-mt-surface"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f} alt="" className="h-full w-full object-cover" />
-                      {i === 0 && (
-                        <span className="absolute left-0 top-0 bg-mt-accent px-1.5 py-0.5 text-[9px] font-extrabold tracking-[.1em] text-mt-inverso">
-                          CAPA
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
-                <p className="text-xs leading-relaxed text-mt-neutral-800">
-                  As fotos vêm do feed do RevendaMais e são reescritas a cada sincronização —
-                  por isso <strong>reordenar, subir ou aplicar marca d&apos;água ainda não é
-                  possível aqui</strong>: a mudança se perderia no ciclo seguinte. Entra junto
-                  com o armazenamento próprio, quando o feed for descontinuado.
-                </p>
-              </div>
-            </>
+            <GaleriaDeFotos
+              estoqueId={v.id}
+              fotos={fotos}
+              origem={v.origem}
+              /* A linha "Adicionar e reordenar fotos" da A17 — Admin,
+                 Marketing e Comercial. Perguntar por uma das colunas basta:
+                 as três apontam para a mesma linha da matriz. */
+              podeEditar={podeGravar("whatsapp_images")}
+              aoGravar={aoGravarFotos}
+            />
           )}
 
           {aba === "ficha" && (
@@ -990,10 +1021,10 @@ export default function EditorDeVeiculo({
                   </div>
                   <div className="mt-1 leading-snug text-mt-neutral-800">
                     <span className="text-mt-neutral-600 line-through">
-                      {resumir(h.valor_anterior)}
+                      {resumir(h.valor_anterior, h.campo)}
                     </span>
                     <span className="mx-1.5 text-mt-neutral-500">→</span>
-                    <span className="font-semibold">{resumir(h.valor_novo)}</span>
+                    <span className="font-semibold">{resumir(h.valor_novo, h.campo)}</span>
                   </div>
                   {h.autor_nome && (
                     <div className="mt-0.5 text-[11px] text-mt-neutral-700">{h.autor_nome}</div>

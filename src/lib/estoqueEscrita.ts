@@ -66,15 +66,46 @@ export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];
 export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
 
 /**
- * Os campos graváveis para ESTE veículo — a lista fixa, mais o preço quando a
- * linha é do painel.
+ * Fotos: graváveis só no veículo que nasceu no painel — pelo mesmo motivo do
+ * preço, e com a mesma consequência se alguém afrouxar.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que não vale para o carro do feed
+ * ---------------------------------------------------------------------------
+ * As três colunas SÃO do RevendaMais: o sincronizador as reescreve a cada 6 h
+ * (`docs/levantamento-atual.md` §2.4, "o sync continua intocado até a F2").
+ * Deixar o painel subir foto num veículo `origem = 'sync'` produziria o pior
+ * defeito possível: o carro chega a oito fotos, sai da lista de bloqueados,
+ * entra na vitrine — e no ciclo seguinte volta a seis fotos e some, sem erro
+ * em lugar nenhum. Ninguém liga o sumiço ao envio de três horas antes.
+ *
+ * No veículo nativo (migração 20260829130000) esse motivo não existe: a trava
+ * garante que o sync nunca toca em linha de `origem = 'painel'`. E é
+ * exatamente para ele que o bucket foi criado — a migração F0-p abre dizendo
+ * que "sem ele o cadastro nativo cria carro que nunca chega à vitrine, porque
+ * a régua de publicação exige 8 fotos e não há de onde tirá-las".
+ *
+ * ---------------------------------------------------------------------------
+ * As três andam juntas
+ * ---------------------------------------------------------------------------
+ * `whatsapp_images` é a galeria da ficha, o `og:image` e o feed dos portais;
+ * `web_full_images` é o card, o hero e a vitrine; `url_imagem` é o degrau de
+ * queda do mapper quando os dois arrays estão vazios. Gravar um subconjunto
+ * faria as superfícies discordarem sobre qual é a capa — é a mesma razão pela
+ * qual `preco` e `preco_original` viajam em par.
+ */
+export const CAMPOS_DE_FOTO = ["whatsapp_images", "web_full_images", "url_imagem"] as const;
+
+/**
+ * Os campos graváveis para ESTE veículo — a lista fixa, mais o preço e as
+ * fotos quando a linha é do painel.
  *
  * Recebe a origem em vez de consultá-la: quem chama já leu a linha, e uma
  * segunda consulta aqui abriria janela entre a leitura e a escrita.
  */
 export function camposGravaveis(origem?: string | null): readonly string[] {
   return origem === "painel"
-    ? [...CAMPOS_NOSSOS, ...CAMPOS_DE_PRECO_DO_NATIVO]
+    ? [...CAMPOS_NOSSOS, ...CAMPOS_DE_PRECO_DO_NATIVO, ...CAMPOS_DE_FOTO]
     : CAMPOS_NOSSOS;
 }
 
