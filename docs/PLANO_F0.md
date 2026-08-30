@@ -1,8 +1,14 @@
 # Plano da F0 — adequação, base e migração
 
-**Status: PROPOSTO em 2026-08-28 — aguardando aprovação do dono. Nenhuma migração
-da F0 roda antes do OK.** (É o passo 2 do `motors-handoff/docs/fases/KICKOFF-PROMPT.md`;
-o passo 1 é o `docs/levantamento-atual.md`, produzido no mesmo dia.)
+**Status: PROPOSTO em 2026-08-28, v2 em 2026-08-29 — aguardando aprovação do dono.
+Nenhuma migração da F0 roda antes do OK.** (É o passo 2 do
+`motors-handoff/docs/fases/KICKOFF-PROMPT.md`; o passo 1 é o
+`docs/levantamento-atual.md`.)
+
+> **v2 (29/08) — adendo do dono:** entra na F0 o **cadastro nativo de veículos
+> no /admin** (T6), com a trava correspondente: o sync do RevendaMais só
+> sobrescreve veículos que ele próprio cadastrou — veículo nascido no painel
+> nunca é alterado pelo sync.
 
 Ponto de partida melhor que o previsto pelo handoff: o caixa legado já foi
 aposentado (28/08, migração `20260828190000` — sem colisão de `plano_contas`),
@@ -63,6 +69,47 @@ tabela de estado + reprocesso (fire-and-forget é proibido pelo padrão do hando
 PITR é add-on pago do Supabase (custo a aprovar) + export diário **testado por
 restauração**, não por existência do arquivo.
 
+**T6 — Cadastro nativo de veículos + trava do sync** *(adendo do dono, 29/08;
+db-architect + frontend-admin; exceção aditiva e deliberada à regra
+"estoque_motors intocada até a F2")*
+
+O primeiro pedaço do strangler pela porta de entrada: veículo passa a poder
+nascer no admin, sem RevendaMais — e o sync perde o direito de escrita sobre ele.
+
+- **Banco (aditivo):** coluna `origem text not null default 'sync'`
+  (check `sync|painel`; as 104 linhas atuais nascem `'sync'` pelo default) +
+  sequence própria para ids nativos a partir de **900.000.001** — o feed usa
+  6.170.299–8.429.524 (verificado em produção 29/08), faixas disjuntas dentro
+  do `integer`, colisão impossível.
+- **A trava é no banco, não no n8n:** trigger BEFORE UPDATE em `estoque_motors`
+  — se `OLD.origem = 'painel'` e a escrita tenta carimbar `last_seen_at`
+  (assinatura exclusiva do sync; nenhuma rota do painel grava esse campo), a
+  atualização é **ignorada**. O workflow do n8n não precisa mudar e não é
+  confiável como única defesa; o INSERT do sync nunca colide (faixas disjuntas).
+  Autoconferência da migração: simular o upsert do sync contra um veículo
+  `painel` e provar que nada muda.
+- **Visibilidade no site:** `getEstoque`/`getSinaisDeEstoque` filtram pela
+  janela do último sync (`last_seen_at`) — que os nativos não têm. O caminho de
+  leitura passa a tratar `origem='painel'` como sempre-presente, com
+  disponibilidade governada por `vendido` (+ regra de publicação abaixo).
+  Mudança pequena no contrato de leitura, coberta por teste (`ultimo-sync` e
+  vizinhos); a coluna nova **não** entra no mapper público.
+- **Tela:** `/admin/estoque/novo` + rota POST — a ficha completa do editor A15,
+  gate pela matriz (Admin e Comercial criam; Marketing não — mesma linha de
+  "Publicar ou despublicar veículo"). Fotos por **upload para bucket próprio**
+  no Supabase Storage (padrão já existente do `upload-branding`/`imageProcessor`),
+  gravadas em `url_imagem`/`whatsapp_images`/`web_full_images` no MESMO formato
+  do feed — antecipa uma fatia do item 16 do backlog (sair do carro57).
+- **Publicação (proposta, confirmar):** o nativo aparece no site quando tiver
+  ao menos 1 foto; sem foto fica só no admin. É a "foto mínima" da spec 50 na
+  régua mais branda possível — não é filtro de vitrine, é anúncio incompleto.
+- **Conferência diária (T4)** compara apenas `origem='sync'` — divergência de
+  nativo com o Revenda não existe por definição.
+- **Fronteira com a F1:** este formulário é compra simplificada sem
+  contabilização (o razão nasce na F1). Na F1 ele evolui para as 5 portas da
+  spec 10 gravando no núcleo; os nativos da F0 entram no núcleo pela mesma
+  carga/mapa da T3.
+
 **Invariantes com teste obrigatório ao fim da F0** (spec 00): balanço zero por
 lançamento; imutabilidade de eventos/partidas; 1 aquisição ativa por veículo;
 RLS nega leitura cross-org; `estoque_motors`, site público e `/avaliacao`
@@ -79,6 +126,9 @@ RLS nega leitura cross-org; `estoque_motors`, site público e `/avaliacao`
    confirmada" foi ajustado pela decisão de ritmo do dono em 28/08: o gatilho é
    o manual do operador/prorrogação, não a data.
 6. Pendências de tela (H4) resolvidas em spec.
+7. **Cadastro nativo provado em produção** (v2): 1 veículo de teste cadastrado
+   pelo painel, publicado no site, e **intocado por 2 ciclos do sync** (12 h) —
+   a prova de que a trava segura de verdade; depois, o teste é marcado vendido.
 
 ## Notas de risco
 
