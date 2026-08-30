@@ -139,26 +139,55 @@ export async function POST(request: Request) {
     }
     const linha = decisao.linha;
 
-    // `.select` sem `*`: a tela de sucesso só precisa do código gerado e do que
-    // decide a publicação. Devolver a linha inteira mandaria de volta o custo
-    // de aquisição para uma tela que pode estar aberta por quem não o vê.
-    const { data, error } = await supabase
-      .from("estoque_motors")
-      .insert(linha)
-      .select("id, marca, modelo, laudo_pericia, whatsapp_images")
-      .single();
+    // O nascimento é ATÔMICO e mora no banco (`cadastrar_veiculo_nativo`,
+    // migração 20260829170000): linha do site + identidade no núcleo
+    // (`veiculos`) + aquisição (`veiculo_entradas`) + evento `ENTRADA`. Foi
+    // decisão do dono em 29/08 — "precisa entrar já" —, e a razão de ser uma
+    // função e não quatro chamadas daqui é que meia entrada é pior que
+    // nenhuma: veículo no site sem história no núcleo é exatamente a
+    // divergência que a conferência diária existe para acusar.
+    //
+    // A modalidade vem do formulário; o padrão é compra direta. `troca` a
+    // função recusa, porque exige a venda de origem (spec 10) e negócio ainda
+    // não existe na operação.
+    const { data: criado, error } = await supabase.rpc("cadastrar_veiculo_nativo", {
+      dados: linha,
+      modalidade_entrada: decisao.modalidade,
+    });
 
     if (error) {
       console.error("[Estoque] Falha ao cadastrar veículo:", error.message);
-      // Banco sem a migração do cadastro nativo: sem a sequence, o `id` não
-      // tem default e o INSERT sem id volta como violação de not-null — erro
-      // cru que não diz a ninguém o que fazer. O PostgREST responde PGRST205
-      // ou 42703 quando falta tabela/coluna; a mensagem amigável é a mesma.
+
+      // As recusas da função vêm com prefixo próprio — são regra de negócio,
+      // não falha de servidor, e o operador precisa lê-las na tela.
+      const recusa = ["CHASSI_OBRIGATORIO", "TROCA_EXIGE_VENDA", "PARCERIA_EXIGE_PRECO", "CADASTRO_VAZIO"]
+        .find((p) => error.message.includes(p));
+      if (recusa) {
+        return NextResponse.json(
+          { error: error.message.replace(`${recusa}: `, "") },
+          { status: 422 },
+        );
+      }
+
+      // Documento repetido: o carro já está cadastrado (índices únicos de
+      // placa, renavam e chassi — migração 20260829170000).
+      if (error.code === "23505" || /duplicat|unique/i.test(error.message)) {
+        const qual = /placa/i.test(error.message)
+          ? "placa"
+          : /renavam/i.test(error.message)
+            ? "renavam"
+            : "chassi";
+        return NextResponse.json(
+          { error: `Já existe um veículo cadastrado com este ${qual}.` },
+          { status: 409 },
+        );
+      }
+
       if (ehTabelaOuColunaAusente(error)) {
         return NextResponse.json(
           {
             error: mensagemDeMigracaoPendente(
-              "20260829130000_f0k_cadastro_nativo_e_trava_do_sync.sql",
+              "20260829170000_f0o_entrada_no_nucleo_e_duplicidade.sql",
             ),
           },
           { status: 500 },
@@ -170,14 +199,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // A tela de sucesso precisa do código gerado e do que decide a publicação.
+    // Consulta recortada de propósito: devolver a linha inteira mandaria o
+    // custo de aquisição para uma tela que pode estar aberta por quem não o vê.
+    const { data } = await supabase
+      .from("estoque_motors")
+      .select("id, marca, modelo, laudo_pericia, whatsapp_images, origem")
+      .eq("id", criado.estoque_id)
+      .single();
+
     await registrarAcaoSensivel(
       supabase,
       "Cadastrar veículo no painel",
-      `Código ${data.id} · ${[linha.marca, linha.modelo, linha.versao].filter(Boolean).join(" ")}`,
+      `Código ${criado.estoque_id} · ${[linha.marca, linha.modelo, linha.versao].filter(Boolean).join(" ")} · entrada por ${criado.modalidade}`,
       { id: user.id, nome: profile?.full_name ?? user.email },
     );
 
-    return NextResponse.json({ ok: true, veiculo: data }, { status: 201 });
+    return NextResponse.json(
+      { ok: true, veiculo: data, nucleo: { veiculo_id: criado.veiculo_id } },
+      { status: 201 },
+    );
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

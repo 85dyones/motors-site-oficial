@@ -148,6 +148,7 @@ describe("o cadastro não escreve o que o banco infere", () => {
         last_seen_at: "2026-08-29T10:00:00Z",
         first_seen_at: "2020-01-01",
         marca: "VW", modelo: "Nivus", ano: 2023, preco: 118900, quilometragem: 38400,
+      chassi: "9BWZZZ377VT004251",
       },
       { papeis: ["comercial"] },
     );
@@ -163,6 +164,7 @@ describe("o cadastro não escreve o que o banco infere", () => {
     // Os mutantes "desarmar ehStaff" e "desarmar podeFazer" morrem aqui.
     const corpoValido = {
       marca: "VW", modelo: "Nivus", ano: 2023, preco: 118900, quilometragem: 38400,
+      chassi: "9BWZZZ377VT004251",
     };
 
     for (const foraDoPainel of [{ papeis: ["cliente"] }, { papeis: ["investidor"] }, null]) {
@@ -177,6 +179,7 @@ describe("o cadastro não escreve o que o banco infere", () => {
   it("quem publica cadastra; Marketing, Gestor e Financeiro não", () => {
     const corpoValido = {
       marca: "VW", modelo: "Nivus", ano: 2023, preco: 118900, quilometragem: 38400,
+      chassi: "9BWZZZ377VT004251",
     };
 
     for (const perfil of ["admin", "comercial"] as const) {
@@ -201,6 +204,7 @@ describe("o cadastro não escreve o que o banco infere", () => {
     const d = decidirCadastro(
       {
         marca: "VW", modelo: "Nivus", ano: 2023, preco: 118900, quilometragem: 38400,
+      chassi: "9BWZZZ377VT004251",
         preco_compra: 95000,
       },
       { papeis: ["comercial"] },
@@ -214,6 +218,7 @@ describe("o cadastro não escreve o que o banco infere", () => {
     const doAdmin = decidirCadastro(
       {
         marca: "VW", modelo: "Nivus", ano: 2023, preco: 118900, quilometragem: 38400,
+      chassi: "9BWZZZ377VT004251",
         preco_compra: 95000,
       },
       { papeis: ["admin"] },
@@ -248,12 +253,18 @@ describe("o cadastro não escreve o que o banco infere", () => {
     ]);
   });
 
-  it("a rota não cita `last_seen_at` nem `origem` no código — só em comentário", () => {
+  it("a rota não ESCREVE `last_seen_at` nem `origem`", () => {
     // A trava do banco reconhece o sync pela escrita em `last_seen_at`. Rota do
     // painel que a escrevesse viraria "o sync" aos olhos do trigger.
     const codigo = semComentarios(rotaEstoque);
     expect(codigo).not.toContain("last_seen_at");
-    expect(codigo).not.toContain("origem");
+
+    // `origem` PODE ser citada — desde 2026-08-29 a rota a LÊ de volta no
+    // `.select` da tela de sucesso (para o texto da pendência de fotos saber
+    // se manda subir pelo painel ou esperar o feed). O que não pode é entrar
+    // em escrita: quem decide a origem é o trigger, pela faixa do id.
+    expect(codigo).not.toMatch(/origem\s*:/);
+    expect(codigo).not.toMatch(/update\([\s\S]{0,120}origem/);
   });
 
   it("o formulário não cita `last_seen_at`, e só fala de origem para exibir pendência", () => {
@@ -370,15 +381,22 @@ describe("validação do cadastro", () => {
     ano: 2023,
     preco: 118900,
     quilometragem: 38400,
+    chassi: "9BWZZZ377VT004251",
   };
 
-  it("os cinco obrigatórios são marca, modelo, ano, preço e km", () => {
+  it("os obrigatórios são os cinco da vitrine mais o chassi", () => {
+    // O chassi entrou em 2026-08-29, quando o cadastro passou a nascer no
+    // núcleo (migração 20260829170000): lá ele é a identidade do veículo
+    // (`unique (org_id, chassi)`) e uma das três chaves da guarda de
+    // duplicidade que o dono pediu. A função do banco recusa sem ele — exigir
+    // aqui é dizer isso no formulário, não depois de preencher tudo.
     expect([...CAMPOS_OBRIGATORIOS_DO_CADASTRO]).toEqual([
       "marca",
       "modelo",
       "ano",
       "preco",
       "quilometragem",
+      "chassi",
     ]);
   });
 
@@ -390,6 +408,7 @@ describe("validação do cadastro", () => {
     const problemas = validarCadastroDeVeiculo({});
     expect(problemas.map((p) => p.campo).sort()).toEqual([
       "ano",
+      "chassi",
       "marca",
       "modelo",
       "preco",

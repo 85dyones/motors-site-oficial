@@ -84,7 +84,7 @@ export type CampoDeNascimento = (typeof CAMPOS_DE_NASCIMENTO)[number];
  * tem o documento na mão. A linha da A17 que o governa é a mesma da placa:
  * "Preencher documentação do veículo (placa, renavam)".
  */
-export const CAMPOS_DE_DOCUMENTO = ["chassi"] as const;
+export const CAMPOS_DE_DOCUMENTO = ["chassi", "renavam"] as const;
 
 /**
  * O que a rota nunca manda ao banco, aconteça o que acontecer.
@@ -101,13 +101,26 @@ export const CAMPOS_QUE_A_ROTA_NUNCA_ESCREVE = [
   "first_seen_at",
 ] as const;
 
-/** Sem estes cinco não existe anúncio: é o mínimo que a vitrine precisa ler. */
+/**
+ * Sem estes seis não existe cadastro.
+ *
+ * Os cinco primeiros são o mínimo que a VITRINE precisa ler. O `chassi` entrou
+ * em 2026-08-29, quando o cadastro passou a nascer no núcleo (migração
+ * 20260829170000): lá o chassi é a identidade do veículo — `unique (org_id,
+ * chassi)` — e é uma das três chaves da guarda de duplicidade que o dono pediu
+ * (placa, renavam e chassi). A função do banco recusa sem ele; exigir aqui é
+ * dizer isso no formulário, e não depois de o operador preencher tudo.
+ *
+ * Não é burocracia: carro sem chassi não se escritura no RENAVE nem se põe em
+ * NF-e — se ele não está à mão, o cadastro ainda não pode ser feito.
+ */
 export const CAMPOS_OBRIGATORIOS_DO_CADASTRO = [
   "marca",
   "modelo",
   "ano",
   "preco",
   "quilometragem",
+  "chassi",
 ] as const;
 
 /**
@@ -262,8 +275,31 @@ export function normalizarCadastro(corpo: unknown): Record<string, unknown> {
  * (403 genérico, não conta o que existe do outro lado), depois "não cadastra",
  * depois o filtro campo a campo, e só então os dados.
  */
+/**
+ * As portas de entrada que a F0 sabe registrar.
+ *
+ * `troca` fica de fora e a função do banco também a recusa: a constraint
+ * `troca_exige_venda` (spec 10) pede a venda que gerou o crédito, e negócio
+ * ainda não existe na operação. Oferecê-la aqui produziria uma entrada
+ * mentindo sobre de onde o carro veio. `lote` é momento B, declarado na spec.
+ */
+export const MODALIDADES_DO_CADASTRO = [
+  "compra_direta",
+  "consignacao",
+  "parceria",
+  "repasse",
+] as const;
+export type ModalidadeDoCadastro = (typeof MODALIDADES_DO_CADASTRO)[number];
+
+export const ROTULO_DA_MODALIDADE: Record<ModalidadeDoCadastro, string> = {
+  compra_direta: "Compra direta",
+  consignacao: "Consignação",
+  parceria: "Parceria",
+  repasse: "Repasse",
+};
+
 export type DecisaoDoCadastro =
-  | { ok: true; linha: Record<string, unknown> }
+  | { ok: true; linha: Record<string, unknown>; modalidade: ModalidadeDoCadastro }
   | { ok: false; status: number; erro: string; problemas?: ProblemaDoCadastro[] };
 
 export function decidirCadastro(
@@ -312,7 +348,31 @@ export function decidirCadastro(
     };
   }
 
-  return { ok: true, linha };
+  // A porta de entrada. Vem do formulário porque o núcleo registra a aquisição
+  // de verdade desde 2026-08-29 ("precisa entrar já") — e registrar tudo como
+  // compra direta faria a `veiculo_entradas` mentir sobre carro de terceiro,
+  // que é justamente o que as constraints da spec 10 existem para impedir.
+  //
+  // Modalidade desconhecida é RECUSA, nunca queda para o padrão: cair em
+  // "compra direta" silenciosamente registraria uma troca como compra própria
+  // — a mentira que este campo existe para evitar.
+  const escolhida = (corpo as Record<string, unknown>).modalidade;
+  let modalidade: ModalidadeDoCadastro = "compra_direta";
+  if (escolhida !== undefined && escolhida !== null && escolhida !== "") {
+    if (!MODALIDADES_DO_CADASTRO.includes(escolhida as ModalidadeDoCadastro)) {
+      return {
+        ok: false,
+        status: 422,
+        erro:
+          escolhida === "troca"
+            ? "Troca não existe sem a venda que a gerou (spec 10). Registre a venda primeiro; nesta fase use compra direta, consignação, parceria ou repasse."
+            : `Porta de entrada desconhecida: "${String(escolhida)}".`,
+      };
+    }
+    modalidade = escolhida as ModalidadeDoCadastro;
+  }
+
+  return { ok: true, linha, modalidade };
 }
 
 /** Só os campos de documento, em caixa alta e sem separador. */

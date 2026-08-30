@@ -447,6 +447,10 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   // linha da placa, pelo mesmo motivo do dono em 2026-08-08: preencher
   // documento é trabalho de operação, e o dado nunca aparece no site.
   chassi: "Preencher documentação do veículo (placa, renavam)",
+  // O renavam que dá nome à linha finalmente ganhou coluna: migração
+  // 20260829170000, junto com a guarda de duplicidade que o dono pediu
+  // (placa, renavam e chassi — as três chaves do mesmo carro).
+  renavam: "Preencher documentação do veículo (placa, renavam)",
   motor: "Preencher documentação do veículo (placa, renavam)",
   cor_interna: "Preencher documentação do veículo (placa, renavam)",
   donos_anteriores: "Preencher documentação do veículo (placa, renavam)",
@@ -462,6 +466,18 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   preco: "Alterar preço acima de 5%",
   preco_original: "Alterar preço acima de 5%",
   vendido: "Publicar ou despublicar veículo",
+  // As três colunas de foto, na linha que o A17 já tinha para elas —
+  // "Marketing é o dono natural", diz a observação, e Marketing entra como
+  // `faz`. Gestor e Financeiro ficam de fora: nenhum dos dois abre o editor
+  // para trabalhar imagem.
+  //
+  // São graváveis só no veículo nativo (`camposGravaveis` em
+  // `lib/estoqueEscrita.ts`): no carro do RevendaMais o sync as reescreve a
+  // cada 6 h. A régua de PAPEL e a régua de ORIGEM são independentes, e as
+  // duas precisam passar.
+  whatsapp_images: "Adicionar e reordenar fotos",
+  web_full_images: "Adicionar e reordenar fotos",
+  url_imagem: "Adicionar e reordenar fotos",
   tipo: "Editar opcionais e destaques rápidos",
   perfil_uso: "Editar opcionais e destaques rápidos",
   status_tag: "Editar opcionais e destaques rápidos",

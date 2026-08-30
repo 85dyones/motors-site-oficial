@@ -9,6 +9,9 @@ import { bloqueiosDePublicacao, MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCad
 import {
   validarCadastroDeVeiculo,
   numeroOuNulo,
+  MODALIDADES_DO_CADASTRO,
+  ROTULO_DA_MODALIDADE,
+  type ModalidadeDoCadastro,
   type ProblemaDoCadastro,
 } from "../../lib/cadastroDeVeiculo";
 
@@ -63,6 +66,9 @@ interface Rascunho {
   cor: string;
   placa: string;
   chassi: string;
+  renavam: string;
+  /** A porta de entrada (spec 10) — vira `veiculo_entradas` no núcleo. */
+  modalidade: string;
   motor: string;
   cor_interna: string;
   donos_anteriores: string;
@@ -90,6 +96,8 @@ const vazio: Rascunho = {
   cor: "",
   placa: "",
   chassi: "",
+  renavam: "",
+  modalidade: "compra_direta",
   motor: "",
   cor_interna: "",
   donos_anteriores: "",
@@ -261,9 +269,17 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
       (["marca", "modelo", "versao", "cambio", "combustivel", "cor"] as const).forEach(texto);
       (["ano", "ano_fabricacao", "quilometragem", "preco"] as const).forEach(numero);
 
-      // Ficha própria e documento — cada um só se a matriz deixar.
-      for (const campo of ["placa", "chassi", "motor", "cor_interna", "garantia_fabrica"] as const) {
-        if (podeGravar(campo)) texto(campo);
+      // A porta de entrada vai SEMPRE: ela não é campo de `estoque_motors` e
+      // sim o que a rota usa para registrar a aquisição no núcleo. Sem ela, o
+      // padrão do banco é compra direta — e carro de terceiro entraria como
+      // nosso, que é justamente o que as constraints da spec 10 impedem.
+      corpo.modalidade = v.modalidade;
+
+      // Ficha própria e documento — cada um só se a matriz deixar. `renavam`
+      // acompanha o chassi: os dois são documento do veículo e a mesma linha
+      // da A17 os governa.
+      for (const campo of ["placa", "chassi", "renavam", "motor", "cor_interna", "garantia_fabrica"] as const) {
+        if (podeGravar(campo === "renavam" ? "chassi" : campo)) texto(campo);
       }
       for (const campo of ["descricao", "descricao_seo", "opcionais", "laudo_pericia", "status_tag", "tipo"] as const) {
         if (podeGravar(campo)) texto(campo);
@@ -401,8 +417,34 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
       )}
 
       <Secao
+        titulo="Como o carro entrou"
+        descricao="A porta de entrada fica registrada na história do veículo — é ela que diz se o carro é da loja ou de terceiro. Troca não aparece aqui porque depende da venda que a gerou; ela entra quando o registro de venda existir."
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Campo
+            id="c-modalidade"
+            rotulo="Porta de entrada *"
+            dica="Consignação e parceria são carro de terceiro: o custo não entra como nosso."
+          >
+            <select
+              id="c-modalidade"
+              value={v.modalidade}
+              onChange={(e) => set("modalidade", e.target.value)}
+              className={campoCaixa}
+            >
+              {MODALIDADES_DO_CADASTRO.map((m) => (
+                <option key={m} value={m}>
+                  {ROTULO_DA_MODALIDADE[m]}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </div>
+      </Secao>
+
+      <Secao
         titulo="Identificação · obrigatório"
-        descricao="Marca, modelo, ano, preço e quilometragem são o mínimo que a vitrine precisa ler. O resto entra agora ou depois, no editor."
+        descricao="Marca, modelo, ano, preço, quilometragem e chassi. Os cinco primeiros são o mínimo que a vitrine precisa ler; o chassi é a identidade do veículo no sistema — é por ele que o mesmo carro não entra duas vezes, e é o que a escrituração no RENAVE vai pedir."
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Campo id="c-marca" rotulo="Marca *" problema={problemaDe("marca")}>
@@ -621,9 +663,9 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
             {podeGravar("chassi") && (
               <Campo
                 id="c-chassi"
-                rotulo="Chassi"
+                rotulo="Chassi *"
                 problema={problemaDe("chassi")}
-                dica="17 caracteres, como está no documento."
+                dica="17 caracteres, como está no documento. É a identidade do veículo: sem ele o cadastro não é concluído, e é por ele que o mesmo carro não entra duas vezes."
               >
                 <input
                   id="c-chassi"
@@ -631,6 +673,23 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
                   placeholder="9BWZZZ377VT004251"
                   onChange={(e) => set("chassi", e.target.value.toUpperCase())}
                   className={`${campoCaixa} font-mono`}
+                  autoComplete="off"
+                />
+              </Campo>
+            )}
+            {podeGravar("chassi") && (
+              <Campo
+                id="c-renavam"
+                rotulo="Renavam"
+                dica="Opcional aqui, exigido na escrituração. Não se repete entre veículos."
+              >
+                <input
+                  id="c-renavam"
+                  value={v.renavam}
+                  placeholder="00123456789"
+                  inputMode="numeric"
+                  onChange={(e) => set("renavam", e.target.value.replace(/\D/g, ""))}
+                  className={`${campoCaixa} font-mono tabular-nums`}
                   autoComplete="off"
                 />
               </Campo>
