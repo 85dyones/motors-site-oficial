@@ -4,10 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
+import { MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
 import {
   contarPorEstado,
   filtrarLinhas,
+  reclassificarLinha,
   ROTULO_DO_ESTADO,
+  type EstadoDoVeiculo,
   type FiltroDeEstado,
   type LinhaDeEstoque,
 } from "../../lib/estoqueTabela";
@@ -20,8 +23,10 @@ import type { StockOverrides } from "../../types";
  *
  * 1. **Estados reais.** O doc filtra por PUBLICADOS / RASCUNHOS / RESERVADOS.
  *    Rascunho e reservado dependem do fluxo de revisão (A16), que não existe.
- *    Aqui os estados são os que o banco sustenta: publicado, vendido e fora do
- *    feed.
+ *    Aqui os estados são os que o banco sustenta: publicado, fora da vitrine,
+ *    vendido e fora do feed. "Fora da vitrine" é o carro cadastrado que o site
+ *    não mostra — quem decide é `bloqueiosDePublicacao`, a mesma função que
+ *    corta o `getEstoque`, e o motivo dela vai escrito na linha.
  * 2. **Sem coluna FIPE.** `fipe` não existe no banco — sairia vazia em toda
  *    linha.
  * 3. **Classificar é ação de lote**, não select por linha. Era select por
@@ -53,9 +58,27 @@ interface TabelaDeEstoqueProps {
 const FILTROS: Array<{ id: FiltroDeEstado; rotulo: string }> = [
   { id: "todos", rotulo: "Todos" },
   { id: "publicado", rotulo: "Publicados" },
+  // Ao lado de "Publicados" de propósito: os dois números juntos respondem
+  // "quantos carros o site está mostrando, e quantos deveriam estar mostrando".
+  // É a pergunta que trouxe esta tela ao ar, e a lista de quem falta.
+  { id: "fora_da_vitrine", rotulo: "Fora da vitrine" },
   { id: "vendido", rotulo: "Vendidos" },
   { id: "fora_do_feed", rotulo: "Fora do feed" },
 ];
+
+/**
+ * A etiqueta de estado. Mapa em vez de ternário encadeado: com quatro estados,
+ * a cadeia deixa de caber numa linha e passa a esconder qual cor é de qual.
+ *
+ * "Fora da vitrine" usa o fundo de alerta cheio — é o único estado desta lista
+ * que alguém resolve hoje, sem esperar sync nem cliente.
+ */
+const CLASSE_DO_ESTADO: Record<EstadoDoVeiculo, string> = {
+  publicado: "border-mt-regua text-mt-neutral-800",
+  fora_da_vitrine: "border-mt-accent bg-mt-accent-100 text-mt-accent-800",
+  vendido: "border-mt-ink bg-mt-ink text-mt-bg",
+  fora_do_feed: "border-mt-accent-300 text-mt-accent-800",
+};
 
 const PASSO_DA_PAGINA = 20;
 
@@ -356,12 +379,17 @@ export default function TabelaDeEstoque({
             {selecionadosVisiveis.length} selecionado(s)
           </span>
 
+          {/* Os dois botões abaixo pedem o estado a `reclassificarLinha` em vez
+              de escrevê-lo à mão: a tela atualiza a linha sem recarregar, e o
+              `"publicado"` que ficava digitado aqui era como um carro sem fotos
+              — ou fora do feed — voltava a aparecer no ar com um clique em
+              "devolver a disponível". */}
           <button
             disabled={semSelecao}
             onClick={() =>
               aplicarNoBanco({ vendido: true }, "Marcados como vendidos", (l) => ({
                 ...l,
-                estado: "vendido",
+                estado: reclassificarLinha(l, true),
                 divergente: false,
               }))
             }
@@ -375,7 +403,7 @@ export default function TabelaDeEstoque({
             onClick={() =>
               aplicarNoBanco({ vendido: false }, "Devolvidos a disponível", (l) => ({
                 ...l,
-                estado: "publicado",
+                estado: reclassificarLinha(l, false),
                 divergente: false,
               }))
             }
@@ -582,11 +610,21 @@ export default function TabelaDeEstoque({
                     {dinheiro(l.preco)}
                   </td>
 
+                  {/* O mínimo vem de `MINIMO_DE_FOTOS`, não do "8" digitado
+                      aqui, que era o que estava. O número tem nome justamente
+                      porque pode baixar — e no dia em que baixar, esta coluna
+                      não pode continuar cobrando oito. */}
                   <td className="py-2.5 pr-3 text-[11px] tabular-nums">
-                    <span className={l.fotos >= 8 ? "text-mt-neutral-800" : "text-mt-accent-800"}>
+                    <span
+                      className={
+                        l.fotos >= MINIMO_DE_FOTOS ? "text-mt-neutral-800" : "text-mt-accent-800"
+                      }
+                    >
                       {l.fotos}
                     </span>
-                    {l.fotos < 8 && <span className="text-mt-neutral-600">/8</span>}
+                    {l.fotos < MINIMO_DE_FOTOS && (
+                      <span className="text-mt-neutral-600">/{MINIMO_DE_FOTOS}</span>
+                    )}
                   </td>
 
                   <td className="py-2.5 pr-3 text-[11px] tabular-nums text-mt-neutral-800">
@@ -616,16 +654,29 @@ export default function TabelaDeEstoque({
 
                   <td className="py-2.5 pr-3">
                     <span
-                      className={`inline-block border px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] ${
-                        l.estado === "publicado"
-                          ? "border-mt-regua text-mt-neutral-800"
-                          : l.estado === "vendido"
-                            ? "border-mt-ink bg-mt-ink text-mt-bg"
-                            : "border-mt-accent-300 text-mt-accent-800"
-                      }`}
+                      className={`inline-block border px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] ${CLASSE_DO_ESTADO[l.estado]}`}
                     >
                       {ROTULO_DO_ESTADO[l.estado]}
                     </span>
+                    {/* O motivo, com o texto que `bloqueiosDePublicacao` já
+                        escreve ("2 de 8 fotos — as fotos vêm do RevendaMais").
+                        Etiqueta sem motivo mandaria o operador abrir o editor
+                        de cada carro para descobrir o que falta.
+
+                        Só neste estado: em "vendido" e "fora do feed" a
+                        pendência de fotos existe, mas não é o que tirou o carro
+                        do ar, e repeti-la ali afogaria o motivo verdadeiro. É a
+                        mesma escolha do editor A15, que filtra por `bloqueia`
+                        antes de dizer "Fora da vitrine". */}
+                    {l.estado === "fora_da_vitrine" && (
+                      <ul className="m-0 mt-1 max-w-[200px] list-none p-0 text-[9px] leading-snug text-mt-accent-800">
+                        {l.bloqueios
+                          .filter((b) => b.bloqueia)
+                          .map((b) => (
+                            <li key={b.id}>{b.texto}</li>
+                          ))}
+                      </ul>
+                    )}
                     {l.divergente && (
                       <span
                         className="mt-1 block text-[9px] font-bold uppercase tracking-[.08em] text-mt-accent"

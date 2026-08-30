@@ -3,6 +3,7 @@ import { apenasDoUltimoSync, mapVeiculoDbToVeiculo } from "../../../lib/supabase
 import { getCachedSettings } from "../../../lib/settings";
 import { paginasMaisVistas } from "../../../lib/analytics";
 import { normalizarQuickTags, normalizarStockOverrides } from "../../../lib/destaquesRapidos";
+import { bloqueiosDePublicacao } from "../../../lib/coerenciaDoCadastro";
 import {
   classificarEstado,
   contarLeadsPorVeiculo,
@@ -35,7 +36,9 @@ export const metadata = {
  *   (registrado no baseline `20260803120000`). A coluna sairia vazia em 100%
  *   das linhas.
  * - **Rascunho e reservado.** São estados do fluxo de revisão (A16). O que
- *   existe é `vendido` e o carimbo de sync — daí os três estados reais.
+ *   existe é `vendido`, o carimbo de sync e a régua de publicação — daí os
+ *   quatro estados reais, incluindo "fora da vitrine": cadastrado, visível
+ *   aqui, e ainda assim fora do ar porque `bloqueiosDePublicacao` o segura.
  * - **Importar planilha.** Continua sem existir: importação em lote precisa de
  *   conciliação (qual coluna é qual, o que fazer com duplicado) que a tela de
  *   um veículo por vez não precisa.
@@ -101,9 +104,29 @@ export default async function AdminEstoquePage() {
     const v = mapVeiculoDbToVeiculo(bruto);
     const id = String(bruto.id);
     const imagens = Array.isArray(v.whatsapp_images) ? v.whatsapp_images : [];
-    const fotos = imagens.filter((f) => f && f !== "/logo.png").length;
+    // A contagem sai da LINHA CRUA, não do objeto mapeado. O mapper inventa uma
+    // foto quando o array está vazio (`url_imagem`, ou `/logo.png` quando nem
+    // isso existe) e `bloqueiosDePublicacao` conta `whatsapp_images` e mais
+    // nada. Contadas em lugares diferentes, a coluna mostraria "1/8" ao lado de
+    // um bloqueio escrito "0 de 8 fotos": dois números sobre o mesmo carro na
+    // mesma linha.
+    const fotos = Array.isArray(bruto.whatsapp_images)
+      ? bruto.whatsapp_images.filter(Boolean).length
+      : 0;
     const promocional = Number(v.preco_promocional || 0);
     const cheio = Number(v.preco_original || 0);
+    const noUltimoSync = idsNoUltimoSync.has(id);
+    // Os motivos vão inteiros para a tela, com o texto já escrito. A etiqueta
+    // sai de `classificarEstado`, que pergunta à MESMA função sobre a MESMA
+    // linha (via `publicavel`) — por isso a etiqueta e o texto embaixo dela não
+    // têm como discordar.
+    //
+    // `bruto` e não `v`: `laudo_pericia`, `whatsapp_images` e `origem` são
+    // colunas, e é sobre a linha crua que `getEstoque` aplica o mesmo filtro.
+    // Esta consulta é `select("*")` direto na tabela, sem `getEstoque`: o
+    // bloqueado chega aqui inteiro, que é o que o painel precisa para
+    // desbloqueá-lo.
+    const bloqueios = bloqueiosDePublicacao(bruto);
 
     return {
       id,
@@ -115,7 +138,9 @@ export default async function AdminEstoquePage() {
       preco: promocional > 0 && promocional < cheio ? promocional : cheio || null,
       foto: imagens[0] ?? null,
       fotos,
-      estado: classificarEstado(bruto, idsNoUltimoSync.has(id)),
+      estado: classificarEstado(bruto, noUltimoSync),
+      noUltimoSync,
+      bloqueios,
       tipo: v.tipo ?? "",
       perfisUso: v.perfis_uso ?? [],
       // Da linha crua, não do objeto mapeado: o mapper deixou de devolver
