@@ -58,18 +58,37 @@ const SEGUNDOS_POR_PERGUNTA = 6;
  * continua vindo de `formatObjective`/`formatExperience`/… — mexer nestes
  * títulos não muda o que o n8n recebe.
  */
+/**
+ * ⚠️ O texto foi reescrito em 2026-08-29, e os IDS ficaram.
+ *
+ * O anterior era de loja premium — "Status, Exclusividade & Design",
+ * "Tecnologia, Inovação & Eficiência". Num pátio cuja mediana é R$ 62.900 e
+ * que começa em R$ 23.900, ninguém se reconhece nessas palavras. O dono
+ * apontou o passo duas vezes.
+ *
+ * Os ids não mudam porque são a chave de `TAGS_DA_RESPOSTA` (lib/car-match) e
+ * do que já foi gravado em lead antigo. Trocar `status` por `melhor-carro`
+ * renomearia dado histórico para ganhar nada: o visitante nunca vê o id.
+ */
 const OPCOES_OBJETIVO = [
-  { id: "family", letra: "A", titulo: "Conforto, Segurança & Família", desc: "Viagens seguras e bastante espaço.", resumo: "Família" },
-  { id: "status", letra: "B", titulo: "Status, Exclusividade & Design", desc: "Design imponente e presença única.", resumo: "Status" },
-  { id: "efficiency", letra: "C", titulo: "Tecnologia, Inovação & Eficiência", desc: "Uso urbano inteligente.", resumo: "Eficiência" },
-  { id: "offroad", letra: "D", titulo: "Força, Aventura & Capacidade", desc: "Capacidade offroad ou para trabalho pesado.", resumo: "Aventura" },
+  { id: "family", letra: "A", titulo: "Espaço para a família", desc: "Viajar e levar todo mundo com conforto.", resumo: "Família" },
+  { id: "status", letra: "B", titulo: "Um carro melhor que o meu", desc: "Mais equipado, mais presença.", resumo: "Subir de carro" },
+  { id: "efficiency", letra: "C", titulo: "Rodar barato na cidade", desc: "Economia e facilidade no dia a dia.", resumo: "Cidade" },
+  { id: "offroad", letra: "D", titulo: "Trabalho e estrada", desc: "Carga, 4x4 ou muita quilometragem.", resumo: "Trabalho" },
 ] as const;
 
+/**
+ * A 03 pergunta o que PESA na escolha; a 02, para que o carro serve.
+ *
+ * As duas eram quase a mesma pergunta com palavras diferentes — "Tecnologia,
+ * Inovação & Eficiência" na 02 e "Tecnologia & Conectividade" na 03. Quem
+ * respondia a primeira não sabia o que a segunda queria de diferente.
+ */
 const OPCOES_EXPERIENCIA = [
-  { id: "performance", letra: "A", titulo: "Performance & Potência", desc: "Aceleração rápida e dinâmica afiada.", resumo: "Performance" },
-  { id: "comfort", letra: "B", titulo: "Conforto Máximo & Silêncio", desc: "Isolamento acústico e rodar suave.", resumo: "Conforto" },
-  { id: "tech", letra: "C", titulo: "Tecnologia & Conectividade", desc: "Telas avançadas e sistemas de assistência.", resumo: "Tecnologia" },
-  { id: "economy", letra: "D", titulo: "Custo-Benefício & Manutenção", desc: "Economia no dia a dia e liquidez.", resumo: "Custo-benefício" },
+  { id: "performance", letra: "A", titulo: "Motor e desempenho", desc: "Força para ultrapassar e pegar estrada.", resumo: "Desempenho" },
+  { id: "comfort", letra: "B", titulo: "Conforto e silêncio", desc: "Rodar macio e cansar menos no trânsito.", resumo: "Conforto" },
+  { id: "tech", letra: "C", titulo: "Facilidade no dia a dia", desc: "Câmbio automático e fácil de manobrar.", resumo: "Praticidade" },
+  { id: "economy", letra: "D", titulo: "Custo de manter", desc: "Consumo, revisão e revenda.", resumo: "Custo" },
 ] as const;
 
 const OPCOES_ESTILO = [
@@ -350,45 +369,27 @@ export default function CarMatch() {
     }, 200);
   };
 
-  const formatObjective = (obj: AnswerState["objective"]) => {
-    switch(obj) {
-      case "status": return "Status, Exclusividade & Design";
-      case "family": return "Conforto, Segurança & Família";
-      case "efficiency": return "Tecnologia, Inovação & Eficiência";
-      case "offroad": return "Força, Aventura & Capacidade";
-      default: return "Não definido";
-    }
-  };
+  /**
+   * O rótulo que o consultor lê é o MESMO que o cliente clicou.
+   *
+   * Estes quatro formatadores eram `switch` com o texto copiado das opções —
+   * uma segunda cópia dos mesmos títulos, noutro lugar do arquivo. Copiar não
+   * quebra no dia em que se copia; quebra no dia em que só uma das duas é
+   * atualizada, e aí o CRM registra uma resposta que ninguém escolheu.
+   *
+   * Foi o que quase aconteceu ao reescrever o texto de 2026-08-29: as opções
+   * viraram "Um carro melhor que o meu" e o `switch` continuaria mandando
+   * "Status, Exclusividade & Design" para o WhatsApp do consultor.
+   */
+  const rotuloDaOpcao = (
+    opcoes: readonly { id: string; titulo: string }[],
+    id: string,
+  ) => opcoes.find((o) => o.id === id)?.titulo ?? "Não definido";
 
-  const formatExperience = (exp: AnswerState["experience"]) => {
-    switch(exp) {
-      case "performance": return "Performance & Potência";
-      case "comfort": return "Conforto Máximo & Silêncio";
-      case "tech": return "Tecnologia & Conectividade";
-      case "economy": return "Custo-Benefício & Baixa Manutenção";
-      default: return "Não definido";
-    }
-  };
-
-  const formatStyle = (style: AnswerState["style"]) => {
-    switch(style) {
-      case "suv": return "SUVs Imponentes";
-      case "sedan": return "Sedans Elegantes";
-      case "sport": return "Esportivos / Coupés";
-      case "pickup": return "Picapes";
-      case "open": return "Sem preferência (Aberto a sugestões)";
-      default: return "Não definido";
-    }
-  };
-
-  const formatTimeline = (timeline: AnswerState["timeline"]) => {
-    switch(timeline) {
-      case "immediate": return "Pronto para fechar negócio";
-      case "researching": return "Pesquisando para os próximos 30 dias";
-      case "future": return "Apenas mapeando opções";
-      default: return "Não definido";
-    }
-  };
+  const formatObjective = (obj: AnswerState["objective"]) => rotuloDaOpcao(OPCOES_OBJETIVO, obj);
+  const formatExperience = (exp: AnswerState["experience"]) => rotuloDaOpcao(OPCOES_EXPERIENCIA, exp);
+  const formatStyle = (style: AnswerState["style"]) => rotuloDaOpcao(OPCOES_ESTILO, style);
+  const formatTimeline = (timeline: AnswerState["timeline"]) => rotuloDaOpcao(OPCOES_PRAZO, timeline);
 
   const formatShort = (v: number) => {
     if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
@@ -979,7 +980,7 @@ export default function CarMatch() {
             {/* 03 — Experiência */}
             {gameState === "q3" && (
               <BlocoPergunta
-                titulo="O que você mais valoriza ao dirigir?"
+                titulo="O que mais pesa na sua escolha?"
                 opcoes={OPCOES_EXPERIENCIA}
                 selecionado={answers.experience}
                 onSelecionar={(id) => selectExperience(id as AnswerState["experience"])}
