@@ -465,6 +465,16 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   // como o cabeçalho deste arquivo manda.
   preco: "Alterar preço acima de 5%",
   preco_original: "Alterar preço acima de 5%",
+  // Promoção fica na MESMA linha que o preço, por decisão do dono em
+  // 2026-08-31 quando a alternativa foi posta: implementar a alçada de 5% que
+  // esta matriz declara, ou manter a régua de hoje. Manteve-se a de hoje —
+  // ninguém ganha nem perde poder com a chegada do campo.
+  //
+  // Fica registrado o que isso significa na prática: a linha "Alterar preço até
+  // 5%" do Comercial continua sem tela que a exerça. Enquanto ela não existir,
+  // o Comercial não define promoção nenhuma, nem de 1%. Implementar a alçada é
+  // trabalho de produto (medir o desconto e ramificar), não de permissão.
+  preco_promocional: "Alterar preço acima de 5%",
   vendido: "Publicar ou despublicar veículo",
   // A linha da matriz que dá nome ao ato, finalmente com o campo que o executa
   // (migração 20260830120000). Até 2026-08-30 "publicar" era uma consequência —

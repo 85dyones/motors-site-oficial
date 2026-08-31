@@ -6,6 +6,12 @@ import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
 import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
 import {
+  descontoPct,
+  precoEfetivo,
+  recusaDaPromocao,
+  temPromocao,
+} from "../../lib/precoPromocional";
+import {
   MINIMO_DE_FOTOS,
   bloqueiosDePublicacao,
   divergenciaDeCarroceria,
@@ -62,6 +68,13 @@ interface VeiculoDb {
   cor: string | null;
   preco: number | null;
   preco_original: number | null;
+  /**
+   * O "por" do de/por. Zero (ou nulo) significa sem promoção — é o vocabulário
+   * que o banco e a PDP já usam. Editável em veículo de QUALQUER origem desde
+   * 2026-08-31: promoção é decisão da loja, não do RevendaMais. Ver
+   * `lib/precoPromocional.ts`.
+   */
+  preco_promocional: number | null;
   /** Galeria da ficha, `og:image` e feed dos portais. JPEG quando é nossa. */
   whatsapp_images: string[] | null;
   /** Card do catálogo, hero e vitrine. WebP quando é nossa. */
@@ -126,6 +139,9 @@ const NOME_DO_CAMPO: Record<string, string> = {
   donos_anteriores: "Donos anteriores",
   garantia_fabrica: "Garantia de fábrica",
   preco_compra: "Preço de compra",
+  preco: "Preço efetivo",
+  preco_original: "Preço anunciado",
+  preco_promocional: "Preço promocional",
   descricao: "Descrição",
   descricao_seo: "Descrição para portais",
   laudo_pericia: "Laudo cautelar",
@@ -164,8 +180,10 @@ const resumir = (v: string | null, campo?: string) => {
   return v.length > 40 ? v.slice(0, 40) + "…" : v;
 };
 
-const brl = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const brl = (v: number | null | undefined) =>
+  v === null || v === undefined
+    ? "—"
+    : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 const rotuloCampo = "text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700";
 const campoCaixa =
@@ -387,10 +405,32 @@ export default function EditorDeVeiculo({
     }
   };
 
+  /**
+   * A promoção sendo editada — recusa e tamanho do desconto, para a tela dizer
+   * o que está fazendo antes de o operador salvar. A régua é a mesma do
+   * servidor (`lib/precoPromocional.ts`): a tela é conveniência, o gate de
+   * verdade está em `aplicarNosVeiculos`.
+   */
+  const promocao = {
+    recusa: recusaDaPromocao(v.preco_promocional, v.preco_original),
+    pct: descontoPct(v.preco_promocional, v.preco_original),
+    ativa: temPromocao(v.preco_promocional, v.preco_original),
+  };
+
+  /**
+   * Margem contra o preço EFETIVO, não contra o de tabela.
+   *
+   * Até 2026-08-31 a conta era `preco_original - preco_compra`, e o preço
+   * promocional não existia como campo do painel — então a distinção não
+   * aparecia. Com a promoção editável aqui, manter a conta antiga faria esta
+   * tela se contradizer: mostraria "de 85.000 por 69.900" três centímetros
+   * acima de uma margem calculada sobre 85.000, que é dinheiro que a loja não
+   * vai receber. Quem decide desconto precisa ver o que ele custa.
+   */
+  const precoQueEntra = precoEfetivo(v.preco_promocional, v.preco_original);
   const margem =
-    v.preco_compra && v.preco_original ? v.preco_original - Number(v.preco_compra) : null;
-  const margemPct =
-    margem !== null && v.preco_original ? (margem / v.preco_original) * 100 : null;
+    v.preco_compra && precoQueEntra ? precoQueEntra - Number(v.preco_compra) : null;
+  const margemPct = margem !== null && precoQueEntra ? (margem / precoQueEntra) * 100 : null;
 
   const salvar = async () => {
     setSalvando(true);
@@ -413,6 +453,15 @@ export default function EditorDeVeiculo({
         vendido: v.vendido,
         tipo: v.tipo,
         perfis_uso: v.perfis_uso,
+        // Promoção vai em toda origem — é o campo novo de 31/08.
+        preco_promocional: v.preco_promocional,
+        // Preço de tabela só do nativo, espelhando a condição do campo lá em
+        // baixo. Mandá-lo num carro do sync não faria mal (o servidor descarta
+        // em `camposGravaveis`), mas mandaria um campo que a tela mostrou como
+        // texto fixo — e um dia alguém leria isso como permissão.
+        ...(v.origem === "painel"
+          ? { preco: v.preco, preco_original: v.preco_original }
+          : {}),
       };
       const corpo = Object.fromEntries(
         Object.entries(tudo).filter(([campo]) => podeGravar(campo)),
@@ -931,6 +980,52 @@ export default function EditorDeVeiculo({
                     </div>
                   </div>
                 )}
+                {/* Promoção vale para veículo de qualquer origem — inclusive o
+                    importado. A trava total do sync (F0-q) tirou do RevendaMais
+                    a capacidade de reescrever a coluna, e em 31/08 os 104
+                    veículos da base eram do sync: restringi-la ao nativo, como
+                    o preço acima, entregaria um campo que não serviria a carro
+                    nenhum. */}
+                {podeGravar("preco_promocional") && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className={rotuloCampo} htmlFor="f-promo">
+                      Preço promocional · o &quot;por&quot;
+                    </label>
+                    <input
+                      id="f-promo"
+                      type="number"
+                      min={0}
+                      value={v.preco_promocional ? v.preco_promocional : ""}
+                      placeholder="Em branco = sem promoção"
+                      onChange={(e) => {
+                        const valor = e.target.value === "" ? 0 : Number(e.target.value);
+                        // Zero, e não null: é assim que o banco e a PDP dizem
+                        // "sem promoção" (`hasDiscount` testa `> 0`). Gravar
+                        // null faria o campo parecer não-preenchido em vez de
+                        // deliberadamente vazio.
+                        set("preco_promocional", valor);
+                      }}
+                      className={`${campoCaixa} ${
+                        promocao.recusa ? "border-red-500" : "border-mt-accent"
+                      } text-lg font-extrabold`}
+                    />
+                    {promocao.recusa ? (
+                      <span className="text-[11px] font-semibold text-red-600">
+                        {promocao.recusa}
+                      </span>
+                    ) : promocao.pct !== null ? (
+                      <span className="text-[11px] text-mt-neutral-800">
+                        {`Desconto de ${promocao.pct.toFixed(1)}% — a ficha mostra "de ${brl(
+                          v.preco_original,
+                        )} por ${brl(v.preco_promocional)}".`}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-mt-neutral-700">
+                        Sem promoção. A ficha mostra só o preço anunciado.
+                      </span>
+                    )}
+                  </div>
+                )}
                 {podeGravar("preco_compra") && (
                   <div className="flex flex-col gap-1.5">
                     <label className={rotuloCampo} htmlFor="f-compra">
@@ -957,7 +1052,14 @@ export default function EditorDeVeiculo({
               {podeGravar("preco_compra") && (
                 <>
                   <div className="mt-5 flex flex-wrap items-baseline gap-3 border-t-2 border-mt-regua pt-4">
-                    <span className="text-sm text-mt-neutral-800">Margem bruta projetada</span>
+                    <span className="text-sm text-mt-neutral-800">
+                      Margem bruta projetada
+                      {promocao.ativa && (
+                        <span className="ml-1.5 text-[11px] font-semibold text-mt-accent">
+                          sobre o preço promocional
+                        </span>
+                      )}
+                    </span>
                     <span
                       className={`ml-auto text-xl font-extrabold tabular-nums tracking-[-.03em] ${
                         margem === null
@@ -973,7 +1075,8 @@ export default function EditorDeVeiculo({
                     </span>
                   </div>
                   <p className="mt-2 text-[11px] leading-relaxed text-mt-neutral-700">
-                    Bruta: preço anunciado menos o de compra. Não inclui preparação,
+                    Bruta: {promocao.ativa ? "preço promocional" : "preço anunciado"} menos
+                    o de compra. Não inclui preparação,
                     documentação nem custo de pátio — esses entram quando o novo
                     financeiro (razão por veículo) estiver no ar; o painel antigo de
                     margem foi aposentado em 2026-08-28.

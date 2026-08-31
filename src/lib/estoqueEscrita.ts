@@ -1,4 +1,5 @@
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
+import { colunasDaPromocao, recusaDaPromocao } from "./precoPromocional";
 import {
   CAMPO_DO_ESTADO,
   ehEstadoDoCadastro,
@@ -84,6 +85,32 @@ export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];
 export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
 
 /**
+ * Preço promocional — o único campo do FEED que o painel grava em veículo de
+ * QUALQUER origem, inclusive nos importados do RevendaMais.
+ *
+ * Parece contradizer as duas listas acima, e não contradiz: elas restringem ao
+ * nativo porque o sync reescreveria a coluna no ciclo seguinte. Esse risco
+ * morreu por completo na trava total (`20260830120000_f0q`) — o RevendaMais não
+ * atualiza mais linha nenhuma, de origem nenhuma. O que sobra é uma pergunta de
+ * produto, não de segurança: quem manda no preço de tabela é o RevendaMais
+ * (por isso `preco_original` segue só do nativo), mas **quem decide promoção é
+ * a loja**.
+ *
+ * Por que não entrou em `CAMPOS_NOSSOS`: aquela lista promete que "o sync não
+ * conhece nenhum deles", e o sync conhece esta coluna — ele a preenche a cada
+ * importação. Enfiá-la lá tornaria o comentário mentira para quem ler depois.
+ *
+ * E por que isto não seria útil se valesse só para o nativo: em 2026-08-31 os
+ * 104 veículos da base eram `origem = 'sync'`, os 38 ativos inclusive. Uma
+ * promoção que só funcionasse no carro nativo não funcionaria em carro nenhum.
+ *
+ * **Não é operação de lote** — a mesma razão do `preco_compra`: o valor é de um
+ * carro só, e o preço efetivo derivado depende do `preco_original` de cada
+ * linha. As duas rotas barram, cada uma no seu lugar.
+ */
+export const CAMPO_DA_PROMOCAO = "preco_promocional";
+
+/**
  * Fotos: graváveis só no veículo que nasceu no painel — pelo mesmo motivo do
  * preço, e com a mesma consequência se alguém afrouxar.
  *
@@ -124,7 +151,15 @@ export const CAMPOS_DE_FOTO = ["whatsapp_images", "web_full_images", "url_imagem
  * Errar assim é silencioso: o operador só veria "0 de 8 fotos" sobre uma
  * galeria cheia e concluiria que o painel está quebrado.
  */
-export const COLUNAS_LIDAS_PARA_DECIDIR = ["whatsapp_images", "origem"] as const;
+export const COLUNAS_LIDAS_PARA_DECIDIR = [
+  "whatsapp_images",
+  "origem",
+  // `preco_original` entra pela promoção: o desconto é medido contra ele e o
+  // preço efetivo é derivado dele. Ler do BANCO, e não do corpo da requisição,
+  // é o que impede alguém de mandar `{preco_original: 999999, preco_promocional:
+  // 1}` e fabricar um desconto de 99% contra uma base que não existe.
+  "preco_original",
+] as const;
 
 /**
  * Os campos graváveis para ESTE veículo — a lista fixa, mais o preço e as
@@ -135,8 +170,8 @@ export const COLUNAS_LIDAS_PARA_DECIDIR = ["whatsapp_images", "origem"] as const
  */
 export function camposGravaveis(origem?: string | null): readonly string[] {
   return origem === "painel"
-    ? [...CAMPOS_NOSSOS, ...CAMPOS_DE_PRECO_DO_NATIVO, ...CAMPOS_DE_FOTO]
-    : CAMPOS_NOSSOS;
+    ? [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_PRECO_DO_NATIVO, ...CAMPOS_DE_FOTO]
+    : [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO];
 }
 
 /**
@@ -227,9 +262,31 @@ export async function aplicarNosVeiculos(
   // compara com o proposto. Reconstruir isso depois exigiria refazer a cadeia
   // inteira de trás para frente. Desde a F0-q ele serve a um segundo uso: é
   // sobre esta leitura que a régua de publicação é conferida.
+  // Lê TUDO que a escrita pode tocar, e não só `CAMPOS_NOSSOS`.
+  //
+  // Enquanto o select conhecia só a ficha própria, salvar preço ou foto num
+  // veículo nativo gravava no histórico uma mudança de `null` para o valor —
+  // porque `linha[campo]` vinha `undefined` e a comparação com o valor novo
+  // sempre diferia. Medido em produção em 2026-08-31: um PATCH que repetia o
+  // preço promocional que já estava lá registrou "preco_promocional: null →
+  // 65900" e "preco: null → 65900", duas mudanças que não aconteceram.
+  //
+  // Isso derrubava a promessa que abre esta função — "salvar sem alterar nada
+  // não pode poluir a trilha" — justamente na pergunta que a trilha existe para
+  // responder: quem mexeu no preço deste carro.
+  const colunasDoAntes = Array.from(
+    new Set([
+      "id",
+      ...CAMPOS_NOSSOS,
+      CAMPO_DA_PROMOCAO,
+      ...CAMPOS_DE_PRECO_DO_NATIVO,
+      ...CAMPOS_DE_FOTO,
+      ...COLUNAS_LIDAS_PARA_DECIDIR,
+    ]),
+  );
   const { data: antes, error: erroAntes } = await supabase
     .from("estoque_motors")
-    .select(["id", ...CAMPOS_NOSSOS, ...COLUNAS_LIDAS_PARA_DECIDIR].join(","))
+    .select(colunasDoAntes.join(","))
     .in("id", alvos);
 
   // -------------------------------------------------------------------------
@@ -277,7 +334,60 @@ export async function aplicarNosVeiculos(
     }
   }
 
-  const { error } = await supabase.from("estoque_motors").update(atualizacao).in("id", alvos);
+  // ---------------------------------------------------------------------------
+  // Promoção: valida contra a base do BANCO e deriva o preço efetivo
+  // ---------------------------------------------------------------------------
+  // As três colunas de preço andam juntas (ver `lib/precoPromocional.ts`).
+  // Gravar `preco_promocional` sozinha deixaria a vitrine ordenando pelo preço
+  // velho e os "similares" comparando contra um valor que não está mais em
+  // lugar nenhum — o tipo de erro que não aparece no painel, só no site.
+  let paraGravar = atualizacao;
+  if (CAMPO_DA_PROMOCAO in atualizacao) {
+    // Um carro por vez. O preço efetivo derivado depende do `preco_original` de
+    // CADA linha, e um único `update ... in (ids)` grava o mesmo valor em todas:
+    // aplicar a mesma promoção a dez carros de preços diferentes produziria dez
+    // descontos que ninguém escolheu. A rota de lote já barra antes; isto aqui
+    // é a rede, porque esta função é o caminho único e um dia terá outra boca.
+    if (alvos.length !== 1) {
+      return {
+        erro: "Preço promocional é de um veículo por vez — o desconto é medido contra o preço de cada carro.",
+        status: 400,
+        camposSalvos: [],
+        mudancasRegistradas: 0,
+      };
+    }
+    if (erroAntes || !antes || (antes as unknown[]).length === 0) {
+      return {
+        erro:
+          "Não foi possível ler o preço anunciado deste veículo para conferir a promoção" +
+          (erroAntes?.message ? `: ${erroAntes.message}` : "") +
+          ". Nada foi alterado.",
+        status: 500,
+        camposSalvos: [],
+        mudancasRegistradas: 0,
+      };
+    }
+
+    const linha = (antes as Array<Record<string, unknown>>)[0];
+    // A base é a do banco, salvo quando a MESMA chamada está mudando o preço
+    // anunciado (veículo nativo, campo e promoção salvos juntos). Conferir só
+    // contra o banco recusaria uma promoção válida contra o preço novo.
+    const baseCrua =
+      "preco_original" in atualizacao ? atualizacao.preco_original : linha.preco_original;
+    const base = baseCrua === null || baseCrua === undefined ? null : Number(baseCrua);
+
+    const recusa = recusaDaPromocao(atualizacao[CAMPO_DA_PROMOCAO] as number | null, base);
+    if (recusa) {
+      return { erro: recusa, status: 422, camposSalvos: [], mudancasRegistradas: 0 };
+    }
+
+    paraGravar = {
+      ...atualizacao,
+      ...colunasDaPromocao(atualizacao[CAMPO_DA_PROMOCAO] as number | null, base),
+    };
+  }
+
+  const { error } = await supabase.from("estoque_motors").update(paraGravar).in("id", alvos);
 
   if (error) {
     if (ehTabelaOuColunaAusente(error)) {
@@ -301,10 +411,41 @@ export async function aplicarNosVeiculos(
   // null, e number onde tem string numérica.
   const norm = (x: unknown) => (x === null || x === undefined || x === "" ? "" : String(x));
 
+  /**
+   * Igualdade por campo — numérica nas colunas numéricas, textual no resto.
+   *
+   * O Postgres devolve `numeric` como STRING: a coluna que vale 65900 volta do
+   * PostgREST como `"65900.00"`. Comparada com o `65900` que o formulário
+   * manda, `String()` de um lado dá "65900.00" e do outro "65900" — diferentes,
+   * e toda gravação de preço registrava uma mudança que não houve.
+   *
+   * A conversão é restrita a uma lista, e não aplicada a tudo: em campo de
+   * texto ela tornaria "007" igual a "7", e a placa e o chassi passam por aqui.
+   */
+  const NUMERICAS = new Set([
+    "preco",
+    "preco_original",
+    "preco_promocional",
+    "preco_compra",
+    "donos_anteriores",
+  ]);
+  const igual = (campo: string, antigo: unknown, novo: unknown) => {
+    if (NUMERICAS.has(campo)) {
+      const a = antigo === null || antigo === undefined || antigo === "" ? null : Number(antigo);
+      const b = novo === null || novo === undefined || novo === "" ? null : Number(novo);
+      // `NaN` não é comparável: cai na régua textual em vez de mentir "igual".
+      if (!(a !== null && Number.isNaN(a)) && !(b !== null && Number.isNaN(b))) return a === b;
+    }
+    return norm(antigo) === norm(novo);
+  };
+
   const mudancas: Array<Record<string, unknown>> = [];
   for (const linha of (antes ?? []) as Array<Record<string, unknown>>) {
-    for (const [campo, novo] of Object.entries(atualizacao)) {
-      if (norm(linha[campo]) === norm(novo)) continue;
+    // `paraGravar`, e não `atualizacao`: o `preco` derivado da promoção é uma
+    // alteração de preço como qualquer outra, e precisa aparecer para quem
+    // depois perguntar "quem mexeu no preço deste carro?".
+    for (const [campo, novo] of Object.entries(paraGravar)) {
+      if (igual(campo, linha[campo], novo)) continue;
       mudancas.push({
         veiculo_id: Number(linha.id),
         campo,
@@ -326,5 +467,5 @@ export async function aplicarNosVeiculos(
     }
   }
 
-  return { camposSalvos: campos, mudancasRegistradas: mudancas.length };
+  return { camposSalvos: Object.keys(paraGravar), mudancasRegistradas: mudancas.length };
 }

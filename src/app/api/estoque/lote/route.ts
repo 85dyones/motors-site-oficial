@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { campoNegadoAoPerfil, ehStaff, perfisDe } from "../../../../lib/permissoes";
-import { aplicarNosVeiculos, extrairCamposNossos } from "../../../../lib/estoqueEscrita";
+import {
+  aplicarNosVeiculos,
+  CAMPO_DA_PROMOCAO,
+  extrairCamposNossos,
+} from "../../../../lib/estoqueEscrita";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +76,17 @@ export async function POST(request: NextRequest) {
     if ("preco_compra" in atualizacao) {
       return NextResponse.json(
         { error: "Custo de aquisição se altera no editor do veículo, um a um" },
+        { status: 400 },
+      );
+    }
+
+    // Promoção também não é de lote, e pelo motivo mais concreto: o desconto é
+    // medido contra o preço de CADA carro. Um valor único aplicado a dez
+    // veículos de preços diferentes vira dez descontos que ninguém escolheu —
+    // e num deles, provavelmente, um preço acima do de tabela.
+    if (CAMPO_DA_PROMOCAO in atualizacao) {
+      return NextResponse.json(
+        { error: "Preço promocional se define no editor do veículo, um a um" },
         { status: 400 },
       );
     }

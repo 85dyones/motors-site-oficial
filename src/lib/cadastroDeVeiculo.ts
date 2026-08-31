@@ -45,6 +45,7 @@
 
 import { campoNegadoAoPerfil, ehStaff, perfisDe, podeFazer } from "./permissoes";
 import { extrairCamposNossos } from "./estoqueEscrita";
+import { colunasDaPromocao, recusaDaPromocao } from "./precoPromocional";
 
 /** Um campo obrigatório vazio ou um valor impossível, com o texto pronto. */
 export interface ProblemaDoCadastro {
@@ -70,6 +71,11 @@ export const CAMPOS_DE_NASCIMENTO = [
   "combustivel",
   "cor",
   "preco",
+  // Entrou em 2026-08-31, a pedido do dono ("precisamos do preço promocional
+  // também no cadastro e ajustes"). Opcional: em branco significa sem
+  // promoção, que segue sendo a verdade da maioria dos carros que entram.
+  // O que ele muda na gravação é o `preco` efetivo — ver `normalizarCadastro`.
+  "preco_promocional",
 ] as const;
 
 export type CampoDeNascimento = (typeof CAMPOS_DE_NASCIMENTO)[number];
@@ -140,10 +146,17 @@ export const CAMPOS_OBRIGATORIOS_DO_CADASTRO = [
  * das superfícies e R$ 0 na outra metade — e o R$ 0 é o tipo de erro que
  * ninguém vê no painel, só o cliente.
  *
- * `preco_promocional` fica de fora: promoção é decisão de preço, e o editor
- * A15 ainda não altera preço nenhum (a alçada de 5% da A17 depende de tela que
- * não existe). Zero ali significa "sem promoção", que é a verdade de um carro
- * que acabou de entrar.
+ * `preco_promocional` ficou de fora até 2026-08-31, com a justificativa de que
+ * "zero é a verdade de um carro que acabou de entrar" e de que o editor A15 não
+ * alterava preço nenhum. O dono pediu o campo nas duas telas, e a justificativa
+ * não sobreviveu ao dado: 16 dos 38 veículos ativos estavam em promoção, todos
+ * vindos do sync, e nenhum deles podia ser alterado pela loja. Agora a promoção
+ * é opcional aqui e no editor — vazia continua significando zero, e zero
+ * continua significando sem promoção.
+ *
+ * Ele NÃO entra nesta constante porque não é uma terceira coluna do mesmo
+ * valor: `preco` e `preco_original` recebem o mesmo número, e a promoção é
+ * outro número, que por sua vez reescreve `preco`. Ver `lib/precoPromocional.ts`.
  */
 export const PRECO_EM_DUAS_COLUNAS = ["preco", "preco_original"] as const;
 
@@ -168,6 +181,7 @@ const ROTULO: Record<string, string> = {
   combustivel: "Combustível",
   cor: "Cor",
   preco: "Preço anunciado",
+  preco_promocional: "Preço promocional",
   placa: "Placa",
   chassi: "Chassi",
 };
@@ -248,7 +262,7 @@ export function normalizarCadastro(corpo: unknown): Record<string, unknown> {
       linha[campo] = n === null ? null : Math.trunc(n);
       continue;
     }
-    if (campo === "preco") {
+    if (campo === "preco" || campo === "preco_promocional") {
       linha[campo] = numeroOuNulo(bruto);
       continue;
     }
@@ -259,9 +273,26 @@ export function normalizarCadastro(corpo: unknown): Record<string, unknown> {
     linha[campo] = texto === "" ? null : texto;
   }
 
-  // O preço mora em duas colunas — ver `PRECO_EM_DUAS_COLUNAS`.
+  // O preço mora em duas colunas — ver `PRECO_EM_DUAS_COLUNAS`. O digitado é o
+  // preço ANUNCIADO, o "de": vai para `preco_original`.
   if ("preco" in linha && linha.preco !== null) {
     linha.preco_original = linha.preco;
+  }
+
+  // A promoção, quando houver, muda o EFETIVO — a coluna `preco`, que é a que a
+  // vitrine ordena. `preco_original` fica com o de tabela, senão o de/por da
+  // ficha não teria "de". Carro cadastrado já em oferta é caso real: o dono
+  // pediu o campo aqui, e não só no editor.
+  //
+  // Sempre normaliza para 0 quando vazio, em vez de deixar a coluna nula: é o
+  // vocabulário que o resto do sistema fala para "sem promoção".
+  if ("preco_promocional" in linha) {
+    const derivado = colunasDaPromocao(
+      linha.preco_promocional as number | null,
+      (linha.preco_original ?? null) as number | null,
+    );
+    linha.preco_promocional = derivado.preco_promocional;
+    if (derivado.preco !== null) linha.preco = derivado.preco;
   }
 
   return linha;
@@ -448,6 +479,17 @@ export function validarCadastroDeVeiculo(
   }
   if (preco !== null && preco <= 0) {
     falta("preco", "O preço anunciado precisa ser maior que zero.");
+  }
+
+  // Promoção: opcional, mas se vier tem de ser menor que o anunciado. A régua é
+  // a mesma que o editor A15 e a rota de escrita aplicam — uma função só, para
+  // as três bocas não divergirem sobre o que é uma promoção válida.
+  const promocional = numeroOuNulo(corpo.preco_promocional);
+  if (!vazio(corpo.preco_promocional) && promocional === null) {
+    falta("preco_promocional", "Preço promocional precisa ser um número.");
+  } else {
+    const recusa = recusaDaPromocao(promocional, preco);
+    if (recusa) falta("preco_promocional", recusa);
   }
 
   if (!vazio(corpo.placa) && !placaEhValida(String(corpo.placa))) {

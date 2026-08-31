@@ -14,6 +14,7 @@ import {
   type ModalidadeDoCadastro,
   type ProblemaDoCadastro,
 } from "../../lib/cadastroDeVeiculo";
+import { descontoPct, precoEfetivo, temPromocao } from "../../lib/precoPromocional";
 
 /**
  * Cadastro nativo de veículo — o carro que não veio do RevendaMais.
@@ -61,6 +62,8 @@ interface Rascunho {
   ano_fabricacao: string;
   quilometragem: string;
   preco: string;
+  /** O "por". Vazio = sem promoção, que é o normal de um carro que entra. */
+  preco_promocional: string;
   cambio: string;
   combustivel: string;
   cor: string;
@@ -91,6 +94,7 @@ const vazio: Rascunho = {
   ano_fabricacao: "",
   quilometragem: "",
   preco: "",
+  preco_promocional: "",
   cambio: "",
   combustivel: "",
   cor: "",
@@ -124,8 +128,10 @@ const vazio: Rascunho = {
 const CAMBIOS = ["Automático", "Manual"];
 const COMBUSTIVEIS = ["Flex", "Gasolina", "Diesel", "Elétrico", "Híbrido"];
 
-const brl = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const brl = (v: number | null | undefined) =>
+  v === null || v === undefined
+    ? "—"
+    : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 const rotuloCampo = "text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700";
 const campoCaixa = "mt-campo-caixa mt-foco";
@@ -225,9 +231,16 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
      NÃO-renderização, não por CSS: a margem é o custo por subtração, e um
      `hidden` deixaria o valor no HTML de quem não pode vê-lo. */
   const preco = numeroOuNulo(v.preco);
+  const promo = numeroOuNulo(v.preco_promocional);
   const compra = numeroOuNulo(v.preco_compra);
-  const margem = preco !== null && compra !== null ? preco - compra : null;
-  const margemPct = margem !== null && preco ? (margem / preco) * 100 : null;
+  /* A promoção sendo digitada, com a mesma régua do servidor. */
+  const promocao = { pct: descontoPct(promo, preco), ativa: temPromocao(promo, preco) };
+  /* Margem contra o preço EFETIVO: se o carro já entra em oferta, é a oferta
+     que a loja vai receber. Calcular sobre o anunciado mostraria uma margem
+     que o desconto logo acima já desmentiu. */
+  const precoQueEntra = precoEfetivo(promo, preco);
+  const margem = precoQueEntra !== null && compra !== null ? precoQueEntra - compra : null;
+  const margemPct = margem !== null && precoQueEntra ? (margem / precoQueEntra) * 100 : null;
 
   /* O que vai estar pendente no minuto seguinte ao cadastro. Mesma função que
      filtra a vitrine e que o editor A15 desenha — a tela não repete a régua,
@@ -286,6 +299,14 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
       }
       if (podeGravar("donos_anteriores")) numero("donos_anteriores");
       if (podeGravar("preco_compra")) numero("preco_compra");
+      // Promoção vai SEMPRE, inclusive vazia — e por isso não usa `numero`,
+      // que omite o campo quando não há valor. A coluna fala "0 = sem
+      // promoção": omiti-la gravaria NULL, e os 104 veículos que o sync trouxe
+      // têm 0. Duas representações do mesmo nada é como nasce o relatório que
+      // não bate.
+      if (podeGravar("preco_promocional")) {
+        corpo.preco_promocional = numeroOuNulo(v.preco_promocional) ?? 0;
+      }
       if (podeGravar("perfis_uso") && v.perfis_uso.length > 0) {
         corpo.perfis_uso = v.perfis_uso;
       }
@@ -515,6 +536,35 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
               className={`${campoCaixa} text-lg font-extrabold tabular-nums`}
             />
           </Campo>
+          {/* Opcional, e ao lado do anunciado de propósito: o de/por da ficha
+              se lê como um par, e separá-los em seções diferentes faria o
+              operador digitar um desconto sem ver contra o quê. */}
+          {podeGravar("preco_promocional") && (
+            <Campo
+              id="c-promo"
+              rotulo="Preço promocional"
+              problema={problemaDe("preco_promocional")}
+              dica={
+                promocao.pct !== null
+                  ? `Desconto de ${promocao.pct.toFixed(1)}% — a ficha mostra "de ${brl(
+                      preco,
+                    )} por ${brl(promo)}".`
+                  : "Opcional. Em branco, o carro entra sem promoção."
+              }
+            >
+              <input
+                id="c-promo"
+                type="number"
+                min={0}
+                step={100}
+                inputMode="numeric"
+                value={v.preco_promocional}
+                placeholder="Sem promoção"
+                onChange={(e) => set("preco_promocional", e.target.value)}
+                className={`${campoCaixa} text-lg font-extrabold tabular-nums`}
+              />
+            </Campo>
+          )}
           <Campo id="c-ano" rotulo="Ano do modelo *" problema={problemaDe("ano")}>
             <input
               id="c-ano"
@@ -603,7 +653,9 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
       {podeGravar("preco_compra") && (
         <Secao
           titulo="Custo e margem"
-          descricao="A margem é recalculada enquanto você digita. Bruta: preço anunciado menos o de compra, sem preparação, documentação nem custo de pátio."
+          descricao={`A margem é recalculada enquanto você digita. Bruta: ${
+            promocao.ativa ? "preço promocional" : "preço anunciado"
+          } menos o de compra, sem preparação, documentação nem custo de pátio.`}
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo
@@ -628,6 +680,9 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
           <div className="mt-4 border border-mt-regua-fina bg-mt-surface px-4 py-3">
             {[
               { l: "Preço anunciado", v: preco, sinal: "" },
+              ...(promocao.ativa
+                ? [{ l: "Preço promocional", v: promo, sinal: "" }]
+                : []),
               { l: "Preço de compra", v: compra, sinal: "−" },
             ].map((linha) => (
               <div key={linha.l} className="flex items-baseline gap-3 py-1 text-[12px]">

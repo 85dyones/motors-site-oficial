@@ -81,8 +81,17 @@ describe("o preço só é gravável no veículo do painel", () => {
     // `CAMPOS_DE_FOTO` juntou-se ao preço em 2026-08-30, com o storage próprio
     // (F0-p) — a soma é declarada, e não um número, para que um grupo novo
     // obrigue quem o cria a passar por aqui em vez de afrouxar a conta.
+    //
+    // E obrigou: `CAMPO_DA_PROMOCAO` chegou em 2026-08-31 e esta linha foi o
+    // que o pegou. Ele soma +1 nas DUAS origens, não só no painel — é a única
+    // coluna do feed que o painel grava em veículo importado também, porque a
+    // trava total do sync tirou o risco de sobrescrita e promoção é decisão da
+    // loja, não do RevendaMais.
     expect(doPainel.length).toBe(
-      CAMPOS_NOSSOS.length + CAMPOS_DE_PRECO_DO_NATIVO.length + CAMPOS_DE_FOTO.length,
+      CAMPOS_NOSSOS.length +
+        1 /* CAMPO_DA_PROMOCAO */ +
+        CAMPOS_DE_PRECO_DO_NATIVO.length +
+        CAMPOS_DE_FOTO.length,
     );
     // Sem repetição entre os grupos: campo em duas listas passaria por dois
     // gates diferentes conforme a rota.
