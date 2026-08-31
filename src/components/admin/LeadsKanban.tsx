@@ -14,6 +14,7 @@ import {
   espera,
   etapasDoQuadro,
   formatarPrazo,
+  destinoDaConversa,
   linkDeConversa,
   mensagemParaCliente,
   minutosParado,
@@ -681,10 +682,16 @@ export default function LeadsKanban() {
                     {daEtapa.map((l) => {
                       const nivel = nivelDeEstagnacao(l, etapa, agora);
                       const aviso = AVISO[nivel];
+                      // O id da conversa vem junto na resposta de
+                      // `/api/leads/gerenciar` (2026-08-31). Existindo, o botão
+                      // abre o Chatwoot; senão cai no `wa.me`, que é o caso do
+                      // lead que ainda não escreveu — ver `linkDeConversa`.
                       const conversa = linkDeConversa(
                         l.telefone,
                         mensagemParaCliente(l, { vendedor: l.responsavel }),
+                        l.chatwoot_conversation_id,
                       );
+                      const destino = destinoDaConversa(l.telefone, l.chatwoot_conversation_id);
                       return (
                         <div
                           key={l.id}
@@ -725,7 +732,12 @@ export default function LeadsKanban() {
                               draggable={false}
                               className="mt-foco mt-2 flex items-center justify-center gap-1.5 border border-mt-accent bg-mt-bg px-2 py-1.5 text-[11px] font-semibold text-mt-accent hover:bg-mt-accent-100"
                             >
-                              WhatsApp
+                              {/* O rótulo diz para ONDE vai, e não é detalhe:
+                                  no `wa.me` a mensagem já vai escrita; no
+                                  Chatwoot, não — lá o consultor digita. Chamar
+                                  os dois de "WhatsApp" faria a pessoa colar um
+                                  texto que ela achava que já estava lá. */}
+                              {destino === "chatwoot" ? "Abrir no Chatwoot" : "WhatsApp"}
                               <span className="tabular-nums font-normal text-mt-neutral-700">
                                 {formatarTelefone(l.telefone)}
                               </span>
