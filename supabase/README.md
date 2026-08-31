@@ -375,8 +375,72 @@ O upsert do workflow n8n (`Antigravity - Sincronizador de Estoque`) só escreve
 as colunas que ele nomeia. As colunas da migração `20260807160000` ficam FORA
 desse mapeamento — é isso que preserva o que foi digitado no painel a cada
 ciclo. **Não adicione essas colunas ao workflow**: o feed não as tem, e o
-upsert as sobrescreveria com vazio. Quando o RevendaMais desligar, o sync para
-e todas as colunas passam a ser do painel, sem migração extra.
+upsert as sobrescreveria com vazio.
+
+### 🔴 Este contrato foi endurecido em 2026-08-30 — a trava agora é TOTAL
+
+O parágrafo acima descreve uma disciplina de mapeamento: *combinamos* que o
+workflow não nomearia certas colunas. Disciplina não é garantia — bastava
+alguém acrescentar a coluna no nó de upsert.
+
+Desde `20260829130000_f0k` + `20260830120000_f0q` a régua está no banco, em
+trigger, e o RevendaMais **não sobrescreve mais nada — nem o que ele mesmo
+importou**. A decisão do dono em 30/08 foi: *"para o sync cron, deixa apenas a
+opção de importação com acionamento manual, sem override"*. O cron de 6h está
+desligado (nó "Agendamento" marcado `disabled` de propósito visível); só o
+botão "Executar Manualmente" roda.
+
+A trava lê **dois sinais**, e não um:
+
+```sql
+if current_user = 'service_role'
+   or new.last_seen_at is distinct from old.last_seen_at then
+  return old;
+end if;
+```
+
+O segundo sinal existe porque `now()` no Postgres é o instante da **transação**,
+não do comando: uma escrita que repetisse o carimbo de `last_seen_at` passaria
+despercebida pela detecção por data. `current_user` não tem essa brecha — a
+chave de serviço do n8n mapeia para `service_role`, e chave de serviço fura RLS,
+mas **não fura trigger**.
+
+Veículo importado nasce em `estado_cadastro = 'rascunho'` (trigger força, mandar
+outro valor no payload não adianta) e só vai ao ar quando alguém publica pelo
+painel.
+
+---
+
+## Fotos — o storage é nosso desde 2026-08-31
+
+Até 30/08 **toda** foto do estoque era servida de `s3.carro57.com.br`, infra do
+RevendaMais: sair do fornecedor derrubaria as imagens do site inteiro. Decisão
+do dono: trazer para o Supabase Storage, **só os carros ativos** — *"o que
+estiver marcado como indisponível, vendido ou fora de estoque, pode descartar"*.
+
+Bucket `veiculos` (migração `20260829180000_f0p`): leitura pública, escrita só
+de staff, caminho `{estoque_id}/arquivo`.
+
+Script: `supabase/manutencao/migrar-fotos-do-carro57.js` — ensaia por padrão,
+grava com `--gravar`, aceita `--veiculo 123,456`. **Atômico por veículo**: falha
+em qualquer foto aborta aquele veículo inteiro (nada gravado, nomeado no
+relatório) e não impede os outros. Idempotente: rodar de novo pula o que já é
+nosso.
+
+Executado em 2026-08-31. 38 alvos → **37 migrados, 1 sem foto nenhuma**
+(`8392516`), 554 fotos, 1.050 arquivos no bucket, 160 MB. Dois veículos
+(`8203724`, `8213942`) falharam no download na primeira rodada — erro vazio, de
+rede; as fotos respondiam 200 no carro57 minutos depois e a segunda rodada
+migrou as 29. A atomicidade se provou: nenhum veículo ficou pela metade.
+
+Estado das colunas ANTES da gravação fica em
+`supabase/manutencao/reversao/fotos-carro57-*.sql` — é o botão de desfazer, um
+`update` por veículo. **Não é migração de schema e não tem rodapé de
+livro-razão, de propósito.**
+
+Verificado depois: zero URL do carro57 entre os ativos, `/estoque` com 1.054
+URLs do Supabase e nenhuma do carro57, feed de catálogo em produção com os
+mesmos 34 itens de antes.
 
 ---
 
