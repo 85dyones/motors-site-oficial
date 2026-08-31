@@ -17,10 +17,20 @@ import {
  * "não acontece" quando o link do telefone rouba o gesto.
  */
 
+// ⚠️ Normaliza CRLF na leitura. O repo guarda LF, mas o checkout com
+// `core.autocrlf=true` (Windows) materializa `\r\n` — e o removedor de
+// comentários logo abaixo casa linha a linha com `/^\s*\/\/.*$/`, onde `.` não
+// come `\r` e `$` só fecha depois dele. O `//` não é removido.
+//
+// Medido neste arquivo em 2026-08-31: **32 comentários sobrevivem** ao strip
+// sob CRLF, contra zero sob LF. Como as asserções abaixo medem distância entre
+// dois trechos, comentário sobrevivente as envenena das duas formas — a
+// positiva falha por estourar a janela, e a NEGATIVA passa com mais folga,
+// que é o jeito silencioso de um teste deixar de proteger.
 const kanban = readFileSync(
   join(__dirname, "..", "src", "components", "admin", "LeadsKanban.tsx"),
-  "utf-8"
-);
+  "utf-8",
+).replace(/\r\n/g, "\n");
 
 /**
  * O mesmo arquivo sem comentários.
@@ -140,12 +150,19 @@ describe("a tela", () => {
     // de ser montado aqui, mas a armadilha é a mesma: é uma âncora dentro de
     // um elemento arrastável.
     //
-    // A asserção já foi `href={conversa}[\s\S]{0,400}draggable={false}` e
-    // apodreceu: bastou o comentário do componente crescer para a distância
-    // passar de 400 e o teste acusar uma regressão que não houve. Medir
-    // proximidade em caracteres também conta `\r` — no Windows a mesma linha
-    // "anda" sozinha. O que importa não é a distância: é os dois estarem na
-    // MESMA tag de abertura. É isso que se afirma agora.
+    // A asserção já foi `href={conversa}[\s\S]{0,400}draggable={false}`.
+    //
+    // Ela falhava no Windows, e a primeira leitura disto — de que a janela de
+    // 400 tinha ficado apertada — estava ERRADA: foi medida no arquivo cru, e
+    // não no `codigo` sem comentários, que é contra o que a asserção roda. Com
+    // LF a distância real é 201, folgada. Quem a levava a 439 era o CRLF
+    // quebrando o removedor de comentários — conserto na leitura, lá em cima.
+    //
+    // A asserção mudou mesmo assim, e não por causa daquele engano: medir
+    // proximidade em caracteres não afirma o que interessa. Mutação provou que
+    // a janela de 400 aceitaria `draggable={false}` colocado DEPOIS do `>`,
+    // fora da tag, onde não faz efeito nenhum. O que importa é os dois estarem
+    // na MESMA tag de abertura, e é isso que se afirma agora.
     const daAncora = codigo.slice(codigo.indexOf("href={conversa}"));
     // O `>` que fecha a tag é o que abre uma linha. Não dá para usar `[^>]*`
     // nem parar no primeiro `>`: `onClick={() => ...}` tem um dentro.
