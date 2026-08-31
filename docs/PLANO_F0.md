@@ -16,7 +16,8 @@ Nenhuma migração da F0 roda antes do OK.** (É o passo 2 do
 |---|---|
 | **T1** mapa de convivência | ✅ `docs/MAPA_CONVIVENCIA_SCHEMA.md` (D-T1.1 a D-T1.8) |
 | **T2** schema núcleo | ✅ 9 fatias (f0a–f0i) **aplicadas em produção**, cada uma ensaiada com ROLLBACK |
-| **T6** cadastro nativo + trava | ✅ completo — banco (f0k), tela `/admin/estoque/novo`, `POST /api/estoque` e a reprecificação do nativo (T6-b). Fotos ficam para a entrega do storage próprio |
+| **T6** cadastro nativo + trava | ✅ completo — banco (f0k), tela `/admin/estoque/novo`, `POST /api/estoque`, reprecificação do nativo (T6-b), entrada no núcleo e guarda de duplicidade (f0o) |
+| **T7** storage próprio | ✅ bucket `veiculos` (f0p) + galeria no painel + **migração executada**: 37 dos 38 ativos fora do carro57, 160 MB |
 | revisão adversarial | ✅ rendeu **f0j** (uma linha vigente por régua; TRUNCATE fora da API) e **f0l** (anon fora do núcleo — o `pg_default_acl` do Supabase concedia por baixo do `revoke from public`; `confirmacoes_disponibilidade` virou append-only) |
 | testes | ✅ `tests/f0-nucleo.test.ts` — 56 invariantes, provados por mutação (17 injetadas, 17 pegas) |
 | **T3** carga | ⏸ **bloqueada em H1** (exportação do RevendaMais) |
@@ -31,9 +32,16 @@ limite dela que este projeto de fato já bateu é a cota de otimização de imag
 (`/_next/image` com 402) — resolvida servindo do CDN próprio. Volume medido:
 1.497 fotos hoje, algo entre 0,5 e 1,5 GB tratadas, contra 100 GB no Pro. Um S3
 na VPS poria TLS, backup, monitoração e a banda de toda visita à vitrine na
-mesma máquina do n8n. **Quando o Pro passa a ser necessário:** só se as fotos
-dos 104 veículos do feed forem migradas (~750 MB estouraria 1 GB do Free); pelo
-uso nativo de hoje, não há pressa.
+mesma máquina do n8n.
+
+**Quando o Pro passa a ser necessário — medido, não estimado.** A previsão aqui
+era de ~750 MB para migrar os 104 veículos, o que estouraria o 1 GB do Free.
+Errou por larga margem, e para o lado bom: migrar **só os ativos** (o recorte
+que o dono pediu) custou **160 MB**, 16% da cota. O que enxugou foi o recorte,
+não a compressão — 66 dos 104 são vendidos ou arquivados e não vieram. A conta
+de quando o Pro entra muda de "assim que migrarmos as fotos" para **"quando o
+estoque ativo passar de ~6× o de hoje, ou quando a F2 trouxer o histórico"**.
+Nenhum dos dois é este mês.
 
 **A virada de 2026-08-30 — o RevendaMais deixa de ser dono do dado.** Decisão do
 dono: *"para o sync cron, deixa apenas a opção de importação com acionamento
@@ -50,35 +58,40 @@ catálogo seguiu devolvendo os mesmos 34 itens.
 > "o ciclo mais recente" e derrubaria os outros 38 da vitrine — sem ninguém ter
 > mexido em nada. O estado precisava deixar de ser inferido do relógio do robô.
 
-**A LACUNA que o storage próprio ainda não fecha** *(em fechamento — a migração
-das fotos dos 38 ativos rodou em ensaio com 525 fotos, 0 falhas e 160 MB, e está
-sendo gravada)*: a galeria grava só em
-veículo `origem = 'painel'`, e por um bom motivo — as três colunas de foto são
-do feed, e o sync as reescreveria no ciclo seguinte, em silêncio. Como os 104
-veículos atuais são todos do sync, **na prática o carro57 continua servindo
-100% do estoque de hoje**. Dois caminhos para fechar de verdade, ambos com o
-dono:
-  a) **Colunas de override de foto** (o padrão que `modelo_override` já usa): o
-     sync não as conhece, então a foto própria sobrevive a todo ciclo e a
-     galeria passa a valer para todo o estoque. Custa uma migração aditiva, uma
-     preferência no mapper e a migração das 1.497 fotos.
-  b) **Esperar a F2**, quando `estoque_motors` vira projeção do núcleo e o sync
-     deixa de ser dono das fotos. Sem trabalho novo, mas o carro57 fica.
+**A LACUNA do storage — FECHADA em 31/08.** O plano previa escolher entre
+colunas de override de foto (a) e esperar a F2 (b). **Nenhum dos dois foi
+preciso**: a trava total do sync (f0k + f0q) tirou do RevendaMais o poder de
+sobrescrever qualquer coluna, de qualquer veículo — inclusive as três de foto,
+inclusive nos que ele mesmo importou. Sem sobrescrita não há o que blindar, e a
+galeria vale para todo o estoque sem migração de override nenhuma.
 
-**Pendências deixadas pelas revisões, para decidir com o dono:**
-- **O núcleo ainda não sabe do veículo nativo.** O cadastro escreve só em
-  `estoque_motors`; não nasce `veiculos` (uuid+chassi), nem evento `ENTRADA`,
-  nem partida de aquisição. É coerente com "estoque_motors intocada até a F2",
-  mas o momento em que o operador cadastra é o momento natural do evento de
-  entrada — decidir se entra já na entrega de fotos ou na F1.
-- **A tabela A6 chama de "publicado" um carro que não está no ar** (o nativo com
-  0 fotos aparece como publicado, embora a vitrine o filtre). A tela de sucesso
-  do cadastro diz a verdade; a tabela não.
-- **Sem guarda de duplicidade**: nada impede cadastrar o mesmo carro duas vezes
-  (não há unique em `placa`/`chassi` em `estoque_motors`).
-- **PDP do nativo é alcançável por URL** antes das fotos — comportamento
-  pré-existente para carros do feed com menos de 8 fotos; vale honrar
-  `publicavel` (ou `noindex`) na entrega do upload.
+Executada a alternativa (a) do dono no sentido de *trazer as fotos*, com o
+recorte que ele pediu — só carros ativos, descartando indisponível/vendido/fora
+de estoque: **37 dos 38 migrados** (o 38º, `8392516`, não tem foto nenhuma), 554
+fotos, 1.050 arquivos, 160 MB no bucket `veiculos`. Verificado depois: zero URL
+do carro57 no estoque ativo, e o feed de catálogo em produção com os mesmos 34
+itens de antes. Runbook e números em `supabase/README.md`; desfazer em
+`supabase/manutencao/reversao/`.
+
+Os 66 arquivados e vendidos **seguem apontando para o carro57** — é o descarte
+que o dono autorizou, e o que quebra se o fornecedor desligar são fotos de carro
+que não está à venda. Fica dito, não fica escondido.
+
+**Pendências das revisões — o que foi resolvido desde então:**
+- ✅ **O núcleo já sabe do veículo nativo.** `cadastrar_veiculo_nativo` (f0o)
+  escreve numa transação só: `estoque_motors` + `veiculos` (uuid+chassi) +
+  `veiculo_entradas` + evento `ENTRADA`. O momento do cadastro virou o momento
+  do evento de entrada, como o plano suspeitava que devia ser.
+- ✅ **A tabela A6 não mente mais.** `estado_cadastro` (`rascunho`/`publicado`/
+  `arquivado`) é coluna, não inferência: carro sem foto fica em rascunho e a
+  tabela mostra rascunho.
+- ✅ **Guarda de duplicidade no banco** (f0o): três índices únicos em forma
+  canônica — `placa` (sem hífen nem espaço, maiúscula), `chassi` e `renavam`.
+  `btrim` não tira hífen: `ABC-1D23` passava. O índice normaliza, e a função
+  grava já normalizado.
+- ⏳ **PDP do nativo alcançável por URL** antes das fotos — segue de pé.
+  Comportamento pré-existente para carros do feed com menos de 8 fotos; vale
+  honrar `publicavel` (ou `noindex`).
 
 **Achado da entrega da T6 — reprecificação do nativo (T6-b), RESOLVIDO:** o editor A15 mostra
 preço como texto, não campo, e `preco` não está em `CAMPOS_NOSSOS`
