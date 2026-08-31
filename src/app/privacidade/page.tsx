@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { LinkRegua, Rotulo } from "../../components/modernist/primitivos";
+import ControleDeRastreamento from "../../components/ControleDeRastreamento";
 import type { CompanySettings } from "../../types";
 import { SITE_URL } from "../../lib/site";
 
@@ -235,11 +236,11 @@ export default async function PrivacidadePage() {
             </p>
             <p>
               <strong className="text-mt-ink">Você pode se opor a qualquer momento</strong>, e a
-              oposição funciona de verdade: ao clicar em &ldquo;Não quero ser rastreado&rdquo; no
-              aviso, o rastreamento é interrompido e os identificadores de campanha guardados no
-              seu navegador são apagados na hora. O site continua funcionando igual, e a sua
-              escolha fica registrada para as próximas visitas neste dispositivo.
+              oposição funciona de verdade: o botão abaixo interrompe o rastreamento e apaga na
+              hora os identificadores de campanha guardados no seu navegador. O site continua
+              funcionando igual, e a escolha vale para as próximas visitas neste dispositivo.
             </p>
+            <ControleDeRastreamento />
             {/* Este parágrafo entrou em 28/08 e não é redação: ele descreve o
                 que `lib/telemetry.ts` passou a fazer na mesma rodada. Se a
                 gravação na chegada voltar a esperar o aceite, este texto tem de

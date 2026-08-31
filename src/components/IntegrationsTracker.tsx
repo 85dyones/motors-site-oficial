@@ -131,31 +131,36 @@ export default function IntegrationsTracker() {
       persistirParametrosDeCampanha();
 
       // -----------------------------------------------------------------------
-      // O portão deixou de esperar o aceite — passou a esperar a RECUSA
+      // Nada espera o aceite. A única barreira é a oposição explícita.
       // -----------------------------------------------------------------------
-      // Decisão do dono em 2026-08-31: *"ajustar o pixel do Meta no PDP para
-      // gravar antes que a política de cookies seja aceita. Banner informativo,
-      // gate removido — máximo dado, risco concentrado no pixel e no Ads"*.
+      // Decisão do dono em 2026-08-31, reafirmada depois de a ressalva ter sido
+      // levantada: *"não quero nada atrás do aceite, o `_fbc` precisa estar
+      // ativo... o custo jurídico ainda é infinitamente menor que o custo
+      // operacional de não ter os dados... é a forma como operam até as
+      // gigantes. Quando uma resolução como a europeia estiver valendo aqui no
+      // Brasil, mudamos"*. Base declarada: legítimo interesse (LGPD art. 7º, IX).
       //
-      // A diferença de uma palavra é a mudança inteira: era `!== "accepted"`,
-      // que barrava quem ainda não decidiu — a esmagadora maioria de quem chega
-      // por anúncio e vê uma página só. Agora é `=== "rejected"`, que barra
-      // apenas quem disse não.
+      // O portão já exigiu `=== "accepted"` — barrava quem apenas ainda não
+      // tinha respondido, que é a maioria de quem chega por anúncio e vê uma
+      // página só. Isso acabou. Ninguém precisa clicar em nada para ser medido.
       //
-      // O direito de oposição CONTINUA de pé, e por isso a recusa segue sendo
-      // lida aqui: um banner cujo "não quero" não fizesse nada seria pior que
-      // não ter banner, porque prometeria uma escolha inexistente. O que mudou
-      // é que a ausência de resposta parou de ser tratada como recusa.
+      // O que sobrou é `=== "rejected"`, e não é o mesmo portão de antes: ele
+      // só fecha para quem FOI ATRÁS de desligar, na página de privacidade. O
+      // aviso da home não oferece mais essa porta — um botão de recusa ao lado
+      // de "Entendi" induz a recusa, e o dono apontou isso na tela.
       //
-      // ⚠️ A política publicada em `/privacidade` foi reescrita na mesma
-      // rodada. Ela dizia, com essas palavras, que "enquanto você não aceitar,
-      // nenhuma ferramenta de análise ou publicidade é carregada" — e era
-      // verdade até esta linha mudar. Código e política contando histórias
-      // diferentes é pior que qualquer das duas escolhas; `tests/
-      // brechas-de-mensuracao.test.ts` trava as duas pontas juntas.
+      // ⚠️ DUAS COISAS ANDAM COM ESTA LINHA:
+      //   1. `/privacidade` descreve o que acontece de fato, e é lá que mora o
+      //      controle de desligar. A política já afirmou o oposto disto —
+      //      "enquanto você não aceitar, nenhuma ferramenta é carregada" — e o
+      //      problema nunca foi o rastreamento, foi dizer uma coisa e fazer
+      //      outra.
+      //   2. O aviso da home informa e some. Não decide nada.
+      //
+      // `tests/brechas-de-mensuracao.test.ts` trava as pontas juntas.
       const consent = localStorage.getItem("ag_cookie_consent");
       if (consent === "rejected") {
-        console.log("[IntegrationsTracker] Tracking disabled — o visitante recusou.");
+        console.log("[IntegrationsTracker] Desligado pelo próprio visitante, em /privacidade.");
         return;
       }
 

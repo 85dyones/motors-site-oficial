@@ -510,19 +510,46 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
       .toMatch(/pode se opor/);
   });
 
-  it("o banner não promete uma escolha que não existe mais", async () => {
-    // "Ao aceitar, você concorda" descrevia um portão que esperava o clique.
-    // Sem o portão, essa frase vira convite a uma decisão já tomada — e um
-    // botão "Aceitar Todos" que não libera nada é a definição de dark pattern
-    // ao contrário: promete controle onde não há.
+  it("o banner informa e some — não decide, e não induz recusa", async () => {
+    // Duas correções no mesmo dia. A primeira tirou "Ao aceitar, você concorda",
+    // que descrevia um portão que deixou de existir. A segunda veio de um print
+    // do dono: o botão "Não quero ser rastreado" ficava ao lado do "Entendi", e
+    // *"esta frase induz a recusa"*. Duas opções lado a lado, uma nomeando o
+    // medo, é um formulário perguntando à pessoa se ela quer ser vigiada.
     const banner = lerCodigo("src/components/CookieConsentBanner.tsx");
+
     expect(banner, "o banner ainda diz que o aceite libera as tags")
       .not.toMatch(/Ao aceitar, você concorda/);
-    expect(banner, "o banner não avisa que as tecnologias já estão ativas")
-      .toMatch(/já estão ativas nesta/);
-    // A saída continua existindo e continua sendo de verdade.
-    expect(banner).toMatch(/handleReject/);
-    expect(banner).toMatch(/"rejected"/);
+    // Nenhuma variação do convite à recusa pode voltar ao aviso.
+    expect(banner, "voltou a oferecer recusa no aviso da home")
+      .not.toMatch(/Não quero ser rastreado|Rejeitar|Recusar/);
+    expect(banner, "o aviso não escreve mais a decisão de ninguém")
+      .not.toMatch(/"rejected"/);
+    // E o caminho para a escolha continua visível, em tom baixo.
+    expect(banner, "sumiu o caminho para ajustar").toMatch(/Ajustar detalhes/);
+    expect(banner, "o link do ajuste não aponta para a política")
+      .toMatch(/href="\/privacidade"/);
+  });
+
+  it("a escolha existe de verdade — só mudou de lugar", async () => {
+    // Tirar o convite não pode virar tirar a capacidade: a base declarada é o
+    // legítimo interesse, que pressupõe oposição possível. O controle mora na
+    // política, e é ele que escreve o `rejected` que o tracker lê.
+    const controle = lerCodigo("src/components/ControleDeRastreamento.tsx");
+    const politica = lerCodigo("src/app/privacidade/page.tsx");
+    const tracker = lerCodigo("src/components/IntegrationsTracker.tsx");
+
+    expect(politica, "a política não monta o controle").toMatch(/<ControleDeRastreamento \/>/);
+    expect(controle, "o controle não grava a oposição").toMatch(/"ag_cookie_consent", "rejected"/);
+    // Efeito imediato: sem o evento, quem desliga continua sendo medido até
+    // recarregar — e o tracker escuta exatamente este nome.
+    expect(controle, "o controle não avisa o tracker")
+      .toMatch(/ag-cookie-consent-updated/);
+    expect(tracker, "o tracker não escuta a mudança")
+      .toMatch(/ag-cookie-consent-updated/);
+    // E os cookies de atribuição saem junto, senão "desliguei" seria só uma
+    // promessa: o `_fbc` continuaria no navegador.
+    expect(controle, "o controle não apaga o _fbc").toMatch(/_fbc=; path=\/; max-age=0/);
   });
 });
 
