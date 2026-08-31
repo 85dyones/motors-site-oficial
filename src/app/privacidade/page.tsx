@@ -216,11 +216,29 @@ export default async function PrivacidadePage() {
           </Secao>
 
           <Secao id="cookies" titulo="Cookies e tecnologias de rastreamento">
+            {/* ⚠️ Reescrito em 2026-08-31, na MESMA rodada em que o portão do
+                `IntegrationsTracker` mudou. Até essa data este parágrafo dizia
+                "enquanto você não aceitar, nenhuma ferramenta de análise ou
+                publicidade é carregada", e era verdade. Deixou de ser.
+
+                Se algum dia o carregamento voltar a esperar o aceite, este
+                texto tem de voltar junto. `tests/brechas-de-mensuracao.test.ts`
+                amarra as duas pontas: política e código não podem contar
+                histórias diferentes. */}
             <p>
-              Ao entrar no site pela primeira vez, você vê um aviso perguntando se aceita cookies.
-              <strong className="text-mt-ink"> Enquanto você não aceitar, nenhuma ferramenta
-              de análise ou publicidade é carregada</strong> — nem Google Analytics, nem Google Ads,
-              nem Meta Pixel. Se você recusar, o site continua funcionando normalmente.
+              Ao entrar no site você vê um aviso sobre cookies.{" "}
+              <strong className="text-mt-ink">As ferramentas de análise e de publicidade —
+              Google Analytics, Google Ads e Meta Pixel — são carregadas desde o início da
+              visita</strong>, antes da sua resposta ao aviso, com fundamento no{" "}
+              <strong className="text-mt-ink">legítimo interesse</strong> (art. 7º, IX da LGPD):
+              medir o desempenho dos nossos anúncios e entender como o site é usado.
+            </p>
+            <p>
+              <strong className="text-mt-ink">Você pode se opor a qualquer momento</strong>, e a
+              oposição funciona de verdade: ao clicar em &ldquo;Não quero ser rastreado&rdquo; no
+              aviso, o rastreamento é interrompido e os identificadores de campanha guardados no
+              seu navegador são apagados na hora. O site continua funcionando igual, e a sua
+              escolha fica registrada para as próximas visitas neste dispositivo.
             </p>
             {/* Este parágrafo entrou em 28/08 e não é redação: ele descreve o
                 que `lib/telemetry.ts` passou a fazer na mesma rodada. Se a

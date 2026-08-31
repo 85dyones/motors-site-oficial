@@ -46,31 +46,44 @@ export default function CookieConsentBanner() {
       {/* Header */}
       <span className="mt-rotulo mt-rotulo-accent">Privacidade &amp; Cookies</span>
 
-      {/* Description */}
+      {/*
+        O texto mudou em 2026-08-31 junto com o portão do tracker.
+
+        Antes ele dizia "ao aceitar, você concorda" — e era verdade: nada
+        carregava antes do clique. Agora as ferramentas sobem na chegada, e
+        prometer uma escolha que já foi feita seria a pior das versões. O aviso
+        passa a INFORMAR o que está acontecendo, no presente, e a oferecer a
+        saída — que continua funcionando de verdade.
+      */}
       <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-800">
-        A Motors Store utiliza cookies e outras tecnologias semelhantes para melhorar a sua experiência, otimizar a navegação, personalizar publicidade (Google e Meta Pixel) e analisar o tráfego do portal. Ao aceitar, você concorda com o uso dessas tags conforme a nossa{" "}
+        A Motors Store usa cookies para analisar o tráfego e personalizar publicidade (Google e
+        Meta Pixel) — <strong className="text-mt-ink">essas tecnologias já estão ativas nesta
+        visita</strong>, com base no legítimo interesse previsto na LGPD. Você pode desativá-las
+        agora, e o site continua funcionando igual. Detalhes na nossa{" "}
         <Link
           href="/privacidade"
           className="font-semibold text-mt-ink underline decoration-mt-accent decoration-2 underline-offset-2 hover:text-mt-accent"
         >
           Política de Privacidade
         </Link>
-        , em conformidade com a LGPD. Recusar não impede o uso do site.
+        .
       </p>
 
-      {/* Action Buttons */}
+      {/* O "entendi" apenas fecha o aviso: ele não LIBERA nada, porque não há
+          nada travado. Quem quiser sair usa o outro botão, que apaga o que foi
+          guardado e interrompe o rastreamento. */}
       <div className="flex items-center justify-end gap-2 border-t border-mt-regua-fina pt-3">
         <button
           onClick={handleReject}
           className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[10px] uppercase"
         >
-          Rejeitar
+          Não quero ser rastreado
         </button>
         <button
           onClick={handleAccept}
           className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[10px] uppercase"
         >
-          Aceitar Todos
+          Entendi
         </button>
       </div>
     </div>
