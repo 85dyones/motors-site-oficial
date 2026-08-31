@@ -1,29 +1,29 @@
 import { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
-import { publicavel } from "../../../../../../lib/coerenciaDoCadastro";
-import { getEstoque, getSinaisDeEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../../lib/supabase";
-import { decidirPublicacao, getDatasDeVenda } from "../../../../../../lib/publicacao";
-import PDPClientWrapper from "../../../../../../components/PDPClientWrapper";
-import FaixaProcedencia from "../../../../../../components/modernist/FaixaProcedencia";
-import { getCachedSettings } from "../../../../../../lib/settings";
-import { montarCompartilhamento } from "../../../../../../lib/compartilhamento";
-import { normalizarProcedencia } from "../../../../../../lib/procedencia";
-import { escolherSimilares } from "../../../../../../lib/similares";
+import { publicavel } from "../../../../../lib/coerenciaDoCadastro";
+import { getEstoque, getSinaisDeEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../lib/supabase";
+import { decidirPublicacao, getDatasDeVenda } from "../../../../../lib/publicacao";
+import PDPClientWrapper from "../../../../../components/PDPClientWrapper";
+import FaixaProcedencia from "../../../../../components/modernist/FaixaProcedencia";
+import { getCachedSettings } from "../../../../../lib/settings";
+import { montarCompartilhamento } from "../../../../../lib/compartilhamento";
+import { normalizarProcedencia } from "../../../../../lib/procedencia";
+import { escolherSimilares } from "../../../../../lib/similares";
 import {
   ehSegmentoDePdp,
   segmentoDoVeiculo,
   slugDeMarca,
   slugDeModelo,
-} from "../../../../../../lib/veiculoUrl";
-import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../../lib/nomeDoVeiculo";
-import { schemaDoVeiculo } from "../../../../../../lib/schemaVeiculo";
-import { blocoJsonLd, schemaDeTrilha } from "../../../../../../lib/schemaListagem";
+} from "../../../../../lib/veiculoUrl";
+import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../lib/nomeDoVeiculo";
+import { schemaDoVeiculo } from "../../../../../lib/schemaVeiculo";
+import { blocoJsonLd, schemaDeTrilha } from "../../../../../lib/schemaListagem";
 import {
   destinoDoVeiculoArquivado,
   recortesDoEstoque,
   rotuloDoModelo,
-} from "../../../../../../lib/hubsDeEstoque";
-import { generoDeModelo, seu } from "../../../../../../lib/generoDoVeiculo";
+} from "../../../../../lib/hubsDeEstoque";
+import { generoDeModelo, seu } from "../../../../../lib/generoDoVeiculo";
 
 // Incremental Static Regeneration (ISR) configuration
 export const revalidate = 3600; // Revalidate every 1 hour
@@ -37,8 +37,8 @@ interface PageProps {
     categoria: string;
     marca: string;
     modelo: string;
-    versao: string;
-    slug_completo_com_id: string;
+    /** O 4º e ÚLTIMO segmento: versão em slug + id no fim. */
+    ficha: string;
   }>;
 }
 
@@ -54,8 +54,9 @@ export async function generateStaticParams() {
       categoria: parts[1],
       marca: parts[2],
       modelo: parts[3],
-      versao: parts[4],
-      slug_completo_com_id: parts[5]
+      // `parts[4]` é o ÚLTIMO segmento desde 2026-08-31 — a URL perdeu o
+      // quinto, que repetia os três anteriores. Ver `getVeiculoPdpUrl`.
+      ficha: parts[4],
     };
   });
 }
@@ -95,7 +96,7 @@ async function publicacaoDoVeiculo(veiculo: {
 // Generate dynamic meta tags for Google Index SEO (High Performance indexation)
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const slug = resolvedParams.slug_completo_com_id;
+  const slug = resolvedParams.ficha;
   
   // Natively strip `.html` ending and capture ID
   const cleanSlug = slug.replace(/\.html$/, "");
@@ -206,7 +207,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function CarDetailsPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const slug = resolvedParams.slug_completo_com_id;
+  const slug = resolvedParams.ficha;
 
   // Segmento desconhecido não é ficha de veículo. Sem esta linha, a rota
   // — que é dinâmica no primeiro nível — serviria qualquer caminho de

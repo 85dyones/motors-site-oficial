@@ -128,8 +128,10 @@ describe("2b · a URL que o override conserta", () => {
     expect(
       getVeiculoPdpUrl({ id: "8059102", marca: "Ford", modelo: sujo, versao: sujo, tipo: "Sedan" }),
     ).toBe(
-      "/carros/ford/ka-sedan-10-se-flex-4p/ka-sedan-10-se-flex-4p" +
-        "/ford-ka-sedan-10-se-flex-4p-ka-sedan-10-se-flex-4p-8059102",
+      // O defeito continua visível — o mesmo pedaço DUAS vezes —, e é esse o
+      // ponto do teste. Sumiu a terceira repetição, que vinha do quinto
+      // segmento aposentado em 2026-08-31.
+      "/carros/ford/ka-sedan-1-0-se-flex-4p/ka-sedan-1-0-se-flex-4p-8059102",
     );
 
     expect(
@@ -140,7 +142,7 @@ describe("2b · a URL que o override conserta", () => {
         versao: "Sedan 1.0 SE Flex 4p",
         tipo: "Sedan",
       }),
-    ).toBe("/carros/ford/ka/sedan-10-se-flex-4p/ford-ka-sedan-10-se-flex-4p-8059102");
+    ).toBe("/carros/ford/ka/sedan-1-0-se-flex-4p-8059102");
   });
 });
 
@@ -165,8 +167,15 @@ describe("1c · dois veículos não podem virar o mesmo nome", () => {
 
     // O caminho SEM o id: é ele que precisa distinguir os carros para um
     // humano. Com o id no fim, duas fichas erradas continuariam "distintas".
+    //
+    // Como o id é retirado mudou em 2026-08-31, e a afirmação não. Antes o id
+    // morava num quinto segmento inteiro, então bastava descartar o último
+    // pedaço do caminho. Agora ele é a cauda do quarto — `.../sedan-1-0-se-
+    // flex-4p-8059102` —, e descartar o segmento todo deixaria os três em
+    // `/carros/ford/ka`, acusando uma colisão que não existe. Tira-se o sufixo
+    // numérico, que é exatamente "o caminho sem o id".
     const caminhos = frota.map((v) =>
-      getVeiculoPdpUrl({ ...v, tipo: "Sedan" }).split("/").slice(0, -1).join("/"),
+      getVeiculoPdpUrl({ ...v, tipo: "Sedan" }).replace(/-\d+$/, ""),
     );
 
     expect(new Set(caminhos).size, `colidiram: ${caminhos.join(" | ")}`).toBe(frota.length);

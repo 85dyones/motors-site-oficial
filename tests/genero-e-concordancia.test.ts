@@ -217,7 +217,7 @@ describe("o rótulo que veio com a versão colada aponta para o limpo", () => {
     const hubs = hubsDeModelo(historico, [], "carros", "ford");
 
     expect(hubs.find((h) => h.slug === "ka")?.canonicalDe).toBeNull();
-    expect(hubs.find((h) => h.slug === "ka-sedan-10-se-flex-4p")?.canonicalDe).toBe("ka");
+    expect(hubs.find((h) => h.slug === "ka-sedan-1-0-se-flex-4p")?.canonicalDe).toBe("ka");
   });
 
   it("sem irmão limpo, o hub sujo continua canônico de si mesmo", () => {
