@@ -90,15 +90,7 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       // acontece pelo editor do veículo, e é daqui que se chega nele.
       title: "Estoque",
       roles: ["admin", "gestor", "comercial", "marketing"],
-      items: [
-        { name: "Veículos", href: "/admin/estoque" },
-        // Texto das páginas de hub (2026-08-31). Fica no grupo Estoque porque
-        // é o que essas páginas listam, e o Gestor não aparece nos papéis do
-        // item: a linha da A17 é "Editar opcionais e destaques rápidos", que
-        // ele não faz. O grupo continua visível para ele por causa de
-        // "Veículos"; o filtro por item é que esconde este.
-        { name: "Texto das páginas", href: "/admin/hubs", roles: ["admin", "marketing", "comercial"] },
-      ],
+      items: [{ name: "Veículos", href: "/admin/estoque" }],
     },
     {
       // Motors Ciclo. Só Admin e Comercial pela matriz A17 ("Fechar venda do
@@ -140,6 +132,17 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // Tela A3: a porta de entrada do conteúdo do site. Vem primeiro
         // porque é dela que se alcança a edição de cada seção da home.
         { name: "Áreas e conteúdo", href: "/admin/site/areas" },
+        // Texto das páginas de marca, modelo, carroceria, perfil e faixa
+        // (2026-08-31). Nasceu no grupo Estoque, com o argumento de que são
+        // páginas que listam veículo — e o dono corrigiu: o que se edita ali é
+        // TEXTO de página, não estoque. Quem abre é quem escreve o site, e é
+        // aqui que essa pessoa procura.
+        //
+        // Sem `roles` próprio de propósito: os papéis deste grupo já são
+        // exatamente Admin, Comercial e Marketing, que é a linha "Editar
+        // opcionais e destaques rápidos" da A17 que a tela exige. Repetir a
+        // lista criaria duas cópias da mesma régua para divergirem depois.
+        { name: "Texto das páginas", href: "/admin/hubs" },
         { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
         { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
         { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
