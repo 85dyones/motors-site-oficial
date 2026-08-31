@@ -251,8 +251,9 @@ export const INTERVALO_MESES = 12;
 /** Tolerância aplicada à régua que venceu. */
 export const TOLERANCIA_DIAS = 30;
 export const TOLERANCIA_KM = 1000;
-/** O contrato do Ciclo é de 36 meses (§0) — três revisões por calendário. */
-export const REVISOES_NO_CONTRATO = 3;
+// Não há constante de "quantas revisões": o plano é vitalício até a próxima
+// venda do carro (dono, 2026-08-20). O banco materializa UMA janela por vez,
+// em `abrir_proxima_janela`; o que sobra aqui é projeção para a tela.
 
 export interface RevisaoPrevista {
   numero_revisao: number;
@@ -276,27 +277,29 @@ function somarDias(data: Date, dias: number): Date {
 const iso = (d: Date): string => d.toISOString().slice(0, 10);
 
 /**
- * O plano inteiro, gerado no fechamento da venda.
+ * PROJEÇÃO de janelas a partir de um marco — para a tela, não para o banco.
  *
- * O marco zero é a entrega, não a fabricação: `km_na_venda` é o KM de saída na
- * compra (v1.1 §5.2), e é ele o ponto de referência da primeira revisão — a
+ * Quem materializa é `abrir_proxima_janela` no Postgres, uma janela por vez,
+ * ancorada no último fato real: a última revisão confirmada, ou a venda. Esta
+ * função existe para o vendedor ver o que vai ser criado, e por isso projeta
+ * **uma** por padrão. Pedir mais devolve a continuação da régua do §1.5 como
+ * ilustração — o banco não terá essas linhas até cada revisão ser confirmada.
+ *
+ * O marco da primeira é a entrega, não a fabricação: `km_na_venda` é o KM de
+ * saída na compra (v1.1 §5.2), e é ele a referência da primeira revisão — a
  * única que não tem etiqueta de óleo anterior contra a qual conferir.
- *
- * A data prevista aqui é a régua do calendário. Quem roda muito atinge o KM
- * antes, e o gatilho 1 (§4.2) dispara pelo que vier primeiro; a data é
- * reprojetada a cada revisão confirmada.
  */
-export function planoDeRevisoes(
-  dataVenda: string,
-  kmNaVenda: number,
-  quantidade: number = REVISOES_NO_CONTRATO,
+export function projetarRevisoes(
+  marcoData: string,
+  marcoKm: number,
+  quantidade: number = 1,
 ): RevisaoPrevista[] {
   const plano: RevisaoPrevista[] = [];
   for (let n = 1; n <= quantidade; n++) {
-    const prevista = somarMeses(dataVenda, n * INTERVALO_MESES);
+    const prevista = somarMeses(marcoData, n * INTERVALO_MESES);
     plano.push({
       numero_revisao: n,
-      km_previsto: kmNaVenda + n * INTERVALO_KM,
+      km_previsto: marcoKm + n * INTERVALO_KM,
       janela_inicio: iso(somarDias(prevista, -TOLERANCIA_DIAS)),
       janela_fim: iso(somarDias(prevista, TOLERANCIA_DIAS)),
     });
