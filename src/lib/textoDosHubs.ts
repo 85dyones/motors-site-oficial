@@ -186,10 +186,27 @@ export function textoDeModelo(
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // UM parágrafo sobre perícia, não dois
+  // ---------------------------------------------------------------------------
+  // Medido em `/carros/volkswagen/saveiro` em 2026-08-31, a pedido do dono
+  // ("é repetitivo e redundante"): a página afirmava a perícia cautelar
+  // QUATRO vezes — este parágrafo, o `paragrafoDaSelecao` logo abaixo, o
+  // selo "TODOS PASSAM PELA PERÍCIA CAUTELAR" e ainda a primeira pergunta da
+  // FAQ. Duas delas vinham daqui.
+  //
+  // O que este parágrafo tem de próprio é a LISTA — sinistro, leilão, chassi,
+  // km coerente, restrição —, que é informação específica e não se repete em
+  // lugar nenhum. O que ele tinha de redundante era a moldura em volta: o
+  // laudo estar na ficha, e o exame valer para toda faixa de preço. As duas
+  // coisas o `paragrafoDaSelecao` já diz, com as mesmas palavras.
+  //
+  // Some a moldura, fica a lista. Vale para os 103 hubs de uma vez, que é o
+  // que a edição manual não alcançaria: ninguém escreve cópia para 103
+  // páginas.
   paragrafos.push(
-    `${No(genero)} ${nome} ${usado(genero)}, o que a perícia cautelar olha primeiro é o histórico: sinistro, leilão, ` +
-      "chassi, quilometragem coerente com o ano e restrição de documento. O laudo de cada " +
-      "unidade fica na ficha do veículo — é o mesmo exame para o carro de entrada e para o mais caro da vitrine.",
+    `${No(genero)} ${nome} ${usado(genero)}, a perícia olha primeiro o histórico: sinistro, leilão, ` +
+      "chassi, quilometragem coerente com o ano e restrição de documento.",
   );
 
   paragrafos.push(paragrafoDaSelecao(genero));

@@ -90,7 +90,15 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       // acontece pelo editor do veículo, e é daqui que se chega nele.
       title: "Estoque",
       roles: ["admin", "gestor", "comercial", "marketing"],
-      items: [{ name: "Veículos", href: "/admin/estoque" }],
+      items: [
+        { name: "Veículos", href: "/admin/estoque" },
+        // Texto das páginas de hub (2026-08-31). Fica no grupo Estoque porque
+        // é o que essas páginas listam, e o Gestor não aparece nos papéis do
+        // item: a linha da A17 é "Editar opcionais e destaques rápidos", que
+        // ele não faz. O grupo continua visível para ele por causa de
+        // "Veículos"; o filtro por item é que esconde este.
+        { name: "Texto das páginas", href: "/admin/hubs", roles: ["admin", "marketing", "comercial"] },
+      ],
     },
     {
       // Motors Ciclo. Só Admin e Comercial pela matriz A17 ("Fechar venda do

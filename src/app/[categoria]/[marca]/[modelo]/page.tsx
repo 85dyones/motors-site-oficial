@@ -16,6 +16,7 @@ import {
 } from "../../../../lib/schemaListagem";
 import { schemaDaLoja } from "../../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeModelo } from "../../../../lib/textoDosHubs";
+import { buscarTextoDoHub, resolverTextoDoHub } from "../../../../lib/textoEditadoDoHub";
 import { seminovo, um } from "../../../../lib/generoDoVeiculo";
 import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../../lib/veiculoUrl";
 
@@ -128,8 +129,17 @@ export default async function HubDeModeloPage({ params }: PageProps) {
   const { companySettings } = await getCachedSettings();
   const caminhoDaMarca = `/${hub.segmento}/${hub.slugMarca}`;
   const caminho = `${caminhoDaMarca}/${hub.slug}`;
-  const titulo = `${hub.marca} ${hub.nome} ${seminovo(hub.genero)} em Curitiba`;
   const perguntas = perguntasDeCategoria(`${hub.marca} ${hub.nome}`, hub.genero);
+
+  // O texto que a loja escreveu vence o gerado (2026-08-31). Falha na busca
+  // devolve `null` e a página segue com o automático — ver `textoEditadoDoHub`.
+  const { titulo, paragrafos: introducao } = resolverTextoDoHub(
+    await buscarTextoDoHub(caminho),
+    {
+      titulo: `${hub.marca} ${hub.nome} ${seminovo(hub.genero)} em Curitiba`,
+      paragrafos: textoDeModelo(hub.marca, hub.nome, hub.veiculos, hub.genero),
+    },
+  );
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -155,7 +165,7 @@ export default async function HubDeModeloPage({ params }: PageProps) {
           { rotulo: hub.marca, href: caminhoDaMarca },
         ]}
         titulo={titulo}
-        introducao={textoDeModelo(hub.marca, hub.nome, hub.veiculos, hub.genero)}
+        introducao={introducao}
         veiculos={hub.veiculos}
         textoSemEstoque={`Sem ${hub.marca} ${hub.nome} disponível neste momento. A página fica no ar — o modelo faz parte do que a loja compra, e quando ${um(hub.genero)} passar na perícia entra aqui.`}
         blocos={
