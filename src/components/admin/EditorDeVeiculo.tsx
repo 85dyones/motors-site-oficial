@@ -11,6 +11,7 @@ import {
   recusaDaPromocao,
   temPromocao,
 } from "../../lib/precoPromocional";
+import { recusaPorPisoDeCusto } from "../../lib/pisoDePreco";
 import {
   MINIMO_DE_FOTOS,
   bloqueiosDePublicacao,
@@ -412,7 +413,17 @@ export default function EditorDeVeiculo({
    * verdade está em `aplicarNosVeiculos`.
    */
   const promocao = {
-    recusa: recusaDaPromocao(v.preco_promocional, v.preco_original),
+    recusa:
+      recusaDaPromocao(v.preco_promocional, v.preco_original) ??
+      // O piso de custo entra na MESMA linha de recusa do campo: para quem
+      // opera, "não posso salvar isto" é uma coisa só, venha do de/por ou do
+      // chão. `podeVerCusto` espelha o que a tela já mostra — se a seção de
+      // custo está visível, o valor não é segredo para esta pessoa.
+      recusaPorPisoDeCusto(
+        precoEfetivo(v.preco_promocional, v.preco_original),
+        v.preco_compra,
+        { podeVerCusto: podeGravar("preco_compra") },
+      ),
     pct: descontoPct(v.preco_promocional, v.preco_original),
     ativa: temPromocao(v.preco_promocional, v.preco_original),
   };
@@ -605,9 +616,15 @@ export default function EditorDeVeiculo({
           >
             Descartar
           </button>
+          {/* Preço recusado trava o Salvar INTEIRO, e não só o campo: o PATCH
+              é um só, e o servidor recusaria tudo com 422. Deixar o botão vivo
+              faria o operador perder também o texto e os opcionais que digitou
+              na mesma sessão. O `title` diz o motivo, porque botão desabilitado
+              sem explicação é o que faz alguém concluir que a tela quebrou. */}
           <button
             onClick={salvar}
-            disabled={!sujo || salvando}
+            disabled={!sujo || salvando || promocao.recusa !== null}
+            title={promocao.recusa ?? undefined}
             className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[11px] disabled:opacity-45"
           >
             {salvando ? "Salvando…" : "Salvar"}

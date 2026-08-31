@@ -1,5 +1,6 @@
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
 import { colunasDaPromocao, recusaDaPromocao } from "./precoPromocional";
+import { efetivoDepoisDaEscrita, recusaPorPisoDeCusto } from "./pisoDePreco";
 import {
   CAMPO_DO_ESTADO,
   ehEstadoDoCadastro,
@@ -234,6 +235,15 @@ export async function aplicarNosVeiculos(
   ids: Array<string | number>,
   atualizacao: Record<string, unknown>,
   autor: { id: string; nome: string | null },
+  /**
+   * `podeVerCusto` decide se a recusa do piso NOMEIA o preço de compra.
+   *
+   * Booleano, e não o perfil, para este módulo não depender de `permissoes` —
+   * quem chama já resolveu a matriz e sabe a resposta. O padrão é `false`
+   * (mensagem genérica): errar para o lado de não vazar custo, como o
+   * cabeçalho de `permissoes.ts` manda.
+   */
+  opcoes?: { podeVerCusto?: boolean },
 ): Promise<ResultadoDaEscrita> {
   const campos = Object.keys(atualizacao);
   if (campos.length === 0) {
@@ -385,6 +395,43 @@ export async function aplicarNosVeiculos(
       ...atualizacao,
       ...colunasDaPromocao(atualizacao[CAMPO_DA_PROMOCAO] as number | null, base),
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // O piso: nenhum carro sai por menos do que entrou
+  // ---------------------------------------------------------------------------
+  // Régua inteira de alçada de preço, por decisão do dono em 2026-08-31 — não há
+  // banda percentual, só este chão. Ver `lib/pisoDePreco.ts`.
+  //
+  // Julga o preço EFETIVO depois da escrita, e não o de tabela: promoção que
+  // afunda abaixo do custo é o caminho que o campo novo abriu, e comparar
+  // contra `preco_original` a deixaria passar por baixo.
+  //
+  // Vale para QUALQUER escrita que mexa em preço — promoção, preço do nativo, ou
+  // as duas juntas —, e também quando é o CUSTO que está sendo lançado sobre um
+  // preço que já estava no ar.
+  const mexeEmPreco =
+    CAMPO_DA_PROMOCAO in paraGravar ||
+    "preco" in paraGravar ||
+    "preco_original" in paraGravar ||
+    "preco_compra" in paraGravar;
+  if (mexeEmPreco && antes && !erroAntes) {
+    for (const linha of antes as Array<Record<string, unknown>>) {
+      const custo = "preco_compra" in paraGravar ? paraGravar.preco_compra : linha.preco_compra;
+      const recusa = recusaPorPisoDeCusto(
+        efetivoDepoisDaEscrita(linha, paraGravar),
+        custo as number | null,
+        { podeVerCusto: opcoes?.podeVerCusto === true },
+      );
+      if (recusa) {
+        return {
+          erro: alvos.length > 1 ? `Veículo ${linha.id}: ${recusa}` : recusa,
+          status: 422,
+          camposSalvos: [],
+          mudancasRegistradas: 0,
+        };
+      }
+    }
   }
 
   const { error } = await supabase.from("estoque_motors").update(paraGravar).in("id", alvos);

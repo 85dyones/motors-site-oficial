@@ -102,10 +102,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resultado = await aplicarNosVeiculos(supabase, ids as Array<string | number>, atualizacao, {
-      id: user.id,
-      nome: profile?.full_name ?? user.email ?? null,
-    });
+    const resultado = await aplicarNosVeiculos(
+      supabase,
+      ids as Array<string | number>,
+      atualizacao,
+      { id: user.id, nome: profile?.full_name ?? user.email ?? null },
+      { podeVerCusto: campoNegadoAoPerfil(perfil, ["preco_compra"]) === null },
+    );
 
     if (resultado.erro) {
       // `recusas` viaja quando a publicação foi barrada pela régua de fotos:

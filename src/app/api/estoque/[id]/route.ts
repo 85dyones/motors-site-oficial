@@ -106,10 +106,16 @@ export async function PATCH(
       );
     }
 
-    const resultado = await aplicarNosVeiculos(supabase, [id], atualizacao, {
-      id: user.id,
-      nome: profile?.full_name ?? user.email ?? null,
-    });
+    const resultado = await aplicarNosVeiculos(
+      supabase,
+      [id],
+      atualizacao,
+      { id: user.id, nome: profile?.full_name ?? user.email ?? null },
+      // A recusa do piso só nomeia o preço de compra para quem já o vê na
+      // tela. `preco_compra` é a linha "Ver custo de aquisição e margem" da
+      // matriz A17 — a mesma que esconde o campo do Comercial.
+      { podeVerCusto: campoNegadoAoPerfil(perfil, ["preco_compra"]) === null },
+    );
 
     if (resultado.erro) {
       // 422 com `recusas` é a publicação barrada pela régua de fotos — o editor

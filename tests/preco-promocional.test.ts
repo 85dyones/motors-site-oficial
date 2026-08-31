@@ -14,6 +14,7 @@ import {
   extrairCamposNossos,
 } from "../src/lib/estoqueEscrita";
 import { normalizarCadastro, validarCadastroDeVeiculo } from "../src/lib/cadastroDeVeiculo";
+import { recusaPorPisoDeCusto } from "../src/lib/pisoDePreco";
 import { ACAO_DO_CAMPO_DE_VEICULO, podeGravarCampo } from "../src/lib/permissoes";
 
 /**
@@ -348,6 +349,122 @@ describe("a escrita, executada de ponta a ponta", () => {
   });
 });
 
+describe("o piso: nenhum carro sai por menos do que entrou", () => {
+  // Decisão do dono em 2026-08-31: *"sobre a margem de alteração de preço, só
+  // trave preços abaixo do preço de entrada"*. É a régua INTEIRA de alçada —
+  // sem banda percentual, sem aprovação em dois passos.
+  const COM_CUSTO = { ...SAVEIRO, preco: 68900, preco_compra: 55000 };
+
+  it("recusa promoção que afunda abaixo do preço de compra", async () => {
+    const { supabase, gravou } = bancoFalso([COM_CUSTO]);
+    const r = await aplicarNosVeiculos(
+      supabase,
+      [8335204],
+      { preco_promocional: 50000 },
+      AUTOR,
+      { podeVerCusto: true },
+    );
+
+    expect(r.status).toBe(422);
+    expect(r.erro).toMatch(/abaixo do preço de compra/i);
+    expect(gravou).toHaveLength(0);
+  });
+
+  it("aceita desconto grande, desde que fique no custo ou acima", async () => {
+    // Não há teto de desconto: 20% passa se o chão for respeitado.
+    const { supabase, gravou } = bancoFalso([COM_CUSTO]);
+    const r = await aplicarNosVeiculos(supabase, [8335204], { preco_promocional: 55000 }, AUTOR);
+
+    expect(r.erro).toBeUndefined();
+    expect(gravou[0].patch).toEqual({ preco_promocional: 55000, preco: 55000 });
+  });
+
+  it("julga o preço EFETIVO, não o de tabela", async () => {
+    // O caminho que o campo de promoção abriu: o anúncio continua dizendo
+    // 68.900, mas quem paga paga 50.000. Comparar contra `preco_original`
+    // deixaria passar por baixo da trava.
+    const { supabase } = bancoFalso([COM_CUSTO]);
+    const r = await aplicarNosVeiculos(supabase, [8335204], { preco_promocional: 50000 }, AUTOR);
+    expect(r.status).toBe(422);
+  });
+
+  it("sem custo lançado não há piso — e é o caso de 36 dos 38 ativos", async () => {
+    for (const custo of [null, 0, undefined]) {
+      const { supabase, gravou } = bancoFalso([{ ...SAVEIRO, preco: 68900, preco_compra: custo }]);
+      const r = await aplicarNosVeiculos(supabase, [8335204], { preco_promocional: 1000 }, AUTOR);
+      expect(r.erro, `custo ${String(custo)}`).toBeUndefined();
+      expect(gravou).toHaveLength(1);
+    }
+  });
+
+  it("ao lançar só o custo, julga contra a PROMOÇÃO vigente, não contra a tabela", async () => {
+    // O caso que a mutação encontrou: carro anunciado a 68.900, em promoção a
+    // 65.900, e alguém lança custo de 67.000. Contra a tabela pareceria
+    // saudável (68.900 > 67.000); contra o que o cliente paga, é prejuízo.
+    //
+    // Escrita que não traz `preco` obriga a recalcular o efetivo a partir do
+    // estado — é o único caminho em que essa conta importa, e por isso ela
+    // passava despercebida.
+    const { supabase, gravou } = bancoFalso([
+      { ...SAVEIRO, preco: 65900, preco_original: 68900, preco_promocional: 65900, preco_compra: null },
+    ]);
+    const r = await aplicarNosVeiculos(supabase, [8335204], { preco_compra: 67000 }, AUTOR, {
+      podeVerCusto: true,
+    });
+
+    expect(r.status).toBe(422);
+    expect(r.erro).toMatch(/65\.900/); // o efetivo, e não os 68.900 da tabela
+    expect(gravou).toHaveLength(0);
+  });
+
+  it("lançar o CUSTO acima do preço que já está no ar também é recusado", async () => {
+    // A trava tem duas pontas. Sem isto, bastaria salvar o preço primeiro e o
+    // custo depois para deixar o carro no prejuízo sem nenhuma recusa.
+    const { supabase, gravou } = bancoFalso([{ ...SAVEIRO, preco: 68900, preco_compra: null }]);
+    const r = await aplicarNosVeiculos(supabase, [8335204], { preco_compra: 80000 }, AUTOR, {
+      podeVerCusto: true,
+    });
+
+    expect(r.status).toBe(422);
+    expect(gravou).toHaveLength(0);
+  });
+
+  it("a recusa NÃO nomeia o custo para quem não pode vê-lo", async () => {
+    // Hoje todos que alteram preço também veem custo, então isto não muda nada
+    // na prática — existe para o dia em que o Comercial ganhar a alçada dele.
+    // Ele vê preço e desconto, não custo (matriz A17), e "abaixo de R$ 55.000"
+    // entregaria exatamente o número que a matriz esconde.
+    const { supabase } = bancoFalso([COM_CUSTO]);
+    const r = await aplicarNosVeiculos(supabase, [8335204], { preco_promocional: 50000 }, AUTOR, {
+      podeVerCusto: false,
+    });
+
+    expect(r.status).toBe(422);
+    expect(r.erro).not.toMatch(/55\.000|55000/);
+    expect(r.erro).toMatch(/abaixo do custo/i);
+  });
+
+  it("o padrão é não vazar: sem opções, a mensagem é a genérica", async () => {
+    const { supabase } = bancoFalso([COM_CUSTO]);
+    const r = await aplicarNosVeiculos(supabase, [8335204], { preco_promocional: 50000 }, AUTOR);
+    expect(r.erro).not.toMatch(/55\.000|55000/);
+  });
+
+  it("preço IGUAL ao custo passa — o piso é chão, não degrau", async () => {
+    expect(recusaPorPisoDeCusto(55000, 55000, { podeVerCusto: true })).toBeNull();
+    expect(recusaPorPisoDeCusto(54999, 55000, { podeVerCusto: true })).toBeTruthy();
+  });
+
+  // NOTA para quem rodar mutação aqui: trocar `c <= 0` por só `c === null` em
+  // `recusaPorPisoDeCusto` SOBREVIVE, e não é buraco de teste — é mutante
+  // equivalente. Com custo 0 o piso vira 0, e todo preço válido é `>= 0`, então
+  // as duas versões se comportam igual para qualquer entrada alcançável: preço
+  // negativo é barrado antes, por `recusaDaPromocao` e pelo CHECK do banco.
+  //
+  // O `<= 0` fica porque DIZ que zero é "não lançado", que é o vocabulário do
+  // resto do painel — a checklist do editor conta custo nulo como PENDENTE.
+});
+
 describe("no cadastro de veículo novo", () => {
   const base = {
     marca: "Volkswagen",
@@ -382,6 +499,32 @@ describe("no cadastro de veículo novo", () => {
     const problemas = validarCadastroDeVeiculo({ ...base, preco_promocional: "70000" });
     expect(problemas.map((p) => p.campo)).toContain("preco_promocional");
     expect(problemas.find((p) => p.campo === "preco_promocional")?.mensagem).toMatch(/MENOR/);
+  });
+
+  it("o piso vale no cadastro, onde o custo é digitado na mesma tela", () => {
+    // Aqui a trava morde desde o primeiro carro — diferente do editor, onde
+    // fica silenciosa nos 36 veículos sem custo lançado.
+    const abaixo = validarCadastroDeVeiculo({ ...base, preco: "50000", preco_compra: "55000" });
+    expect(abaixo.map((p) => p.campo)).toContain("preco");
+    expect(abaixo.find((p) => p.campo === "preco")?.mensagem).toMatch(/abaixo do preço de compra/i);
+
+    // Sem custo, nada a travar.
+    expect(validarCadastroDeVeiculo({ ...base, preco: "50000" })).toEqual([]);
+    // No custo exato, passa.
+    expect(validarCadastroDeVeiculo({ ...base, preco: "55000", preco_compra: "55000" })).toEqual([]);
+  });
+
+  it("promoção abaixo do custo é cobrada NO campo da promoção", () => {
+    // Quem afundou o preço foi ela; apontar o erro no preço anunciado mandaria
+    // o operador corrigir o campo errado.
+    const p = validarCadastroDeVeiculo({
+      ...base,
+      preco: "68900",
+      preco_promocional: "50000",
+      preco_compra: "55000",
+    });
+    expect(p.map((x) => x.campo)).toContain("preco_promocional");
+    expect(p.map((x) => x.campo)).not.toContain("preco");
   });
 
   it("a régua do cadastro é a MESMA do editor", () => {

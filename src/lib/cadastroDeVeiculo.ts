@@ -45,7 +45,13 @@
 
 import { campoNegadoAoPerfil, ehStaff, perfisDe, podeFazer } from "./permissoes";
 import { extrairCamposNossos } from "./estoqueEscrita";
-import { colunasDaPromocao, recusaDaPromocao } from "./precoPromocional";
+import {
+  colunasDaPromocao,
+  precoEfetivo,
+  recusaDaPromocao,
+  temPromocao,
+} from "./precoPromocional";
+import { recusaPorPisoDeCusto } from "./pisoDePreco";
 
 /** Um campo obrigatório vazio ou um valor impossível, com o texto pronto. */
 export interface ProblemaDoCadastro {
@@ -490,6 +496,22 @@ export function validarCadastroDeVeiculo(
   } else {
     const recusa = recusaDaPromocao(promocional, preco);
     if (recusa) falta("preco_promocional", recusa);
+  }
+
+  // O piso de custo, no cadastro. Aqui o custo é digitado na mesma tela, então
+  // a trava vale desde o primeiro carro — diferente do editor, onde ela fica
+  // silenciosa nos 36 veículos sem `preco_compra` lançado.
+  //
+  // A recusa nomeia o valor porque quem enxerga este campo é, por definição,
+  // quem pode ver custo: a seção inteira some para os outros perfis.
+  const custo = numeroOuNulo(corpo.preco_compra);
+  const abaixoDoPiso = recusaPorPisoDeCusto(precoEfetivo(promocional, preco), custo, {
+    podeVerCusto: true,
+  });
+  if (abaixoDoPiso) {
+    // Cobra no campo que o operador acabou de mexer: se há promoção, foi ela
+    // que afundou o preço; senão, foi o anunciado.
+    falta(temPromocao(promocional, preco) ? "preco_promocional" : "preco", abaixoDoPiso);
   }
 
   if (!vazio(corpo.placa) && !placaEhValida(String(corpo.placa))) {
