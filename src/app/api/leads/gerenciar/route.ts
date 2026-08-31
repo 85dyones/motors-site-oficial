@@ -68,6 +68,48 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // ------------------------------------------------------------------------
+    // A conversa no Chatwoot, quando já existe
+    // ------------------------------------------------------------------------
+    // Decisão do dono em 2026-08-31: o card leva para dentro do Chatwoot em vez
+    // do `wa.me`, para o consultor parar de responder pelo WhatsApp pessoal.
+    //
+    // Numa consulta separada, e não num `select` aninhado: `atendimentos` é
+    // escrita pelo n8n com a chave de serviço e SÓ agora ganhou policy de
+    // leitura (migração 20260831140000). Se a leitura falhar — policy ausente,
+    // tabela ausente num ambiente atrasado —, o kanban continua inteiro e cai
+    // no `wa.me`, que é o degrau que `linkDeConversa` já implementa. Perder o
+    // link do Chatwoot é um botão pior; derrubar a lista de leads é a tela.
+    //
+    // A conversa mais RECENTE ganha: um cliente que volta meses depois abre
+    // conversa nova, e é nela que o consultor tem de responder.
+    const conversaPorLead = new Map<string, number>();
+    if (leads.length > 0) {
+      const { data: atendimentos, error: erroAtendimento } = await supabase
+        .from("atendimentos")
+        .select("lead_id, chatwoot_conversation_id, iniciado_em, created_at")
+        .in("lead_id", leads.map((l: { id: string }) => l.id))
+        .not("chatwoot_conversation_id", "is", null);
+
+      if (erroAtendimento) {
+        console.warn("[Leads] Sem atendimento do Chatwoot:", erroAtendimento.message);
+      } else {
+        const maisRecentePrimeiro = [...(atendimentos ?? [])].sort((a, b) =>
+          String(b.iniciado_em ?? b.created_at ?? "").localeCompare(
+            String(a.iniciado_em ?? a.created_at ?? ""),
+          ),
+        );
+        for (const a of maisRecentePrimeiro) {
+          if (a.lead_id && !conversaPorLead.has(a.lead_id)) {
+            conversaPorLead.set(a.lead_id, Number(a.chatwoot_conversation_id));
+          }
+        }
+      }
+    }
+    for (const l of leads as Array<Record<string, unknown>>) {
+      l.chatwoot_conversation_id = conversaPorLead.get(String(l.id)) ?? null;
+    }
+
     // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
     // rota nova porque `/api/users` exige Admin — e quem atende lead é
     // Comercial, que precisa escolher o responsável e não pode listar

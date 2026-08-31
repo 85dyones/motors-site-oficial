@@ -1,3 +1,9 @@
+// Único import deste módulo, e ele respeita a regra que o mantém puro: monta
+// endereço a partir de env, não conhece o banco nem o número DA LOJA. A trava
+// de `whatsapp-numero-unico` continua valendo — `linkDeConversa` fala com o
+// número do CLIENTE, e `chatwoot.ts` não sabe quem é a Motors.
+import { linkDaConversa } from "./chatwoot";
+
 /**
  * O funil de vendas — as regras que não dependem de React nem de banco.
  *
@@ -130,6 +136,15 @@ export interface LeadDoFunil {
   desfecho_em?: string | null;
   /** Quantas vezes o motor já passou este lead adiante. Ver `seloDeRodizio`. */
   transferencias?: number | null;
+  /**
+   * A conversa do Chatwoot, quando já existe (2026-08-31).
+   *
+   * Não é coluna de `leads`: vive em `atendimentos`, escrita pelo n8n a partir
+   * do webhook, e `/api/leads/gerenciar` a anexa à resposta. Ausente ou nula é
+   * o caso normal do lead que preencheu o formulário e ainda não escreveu —
+   * `linkDeConversa` cai no `wa.me`.
+   */
+  chatwoot_conversation_id?: number | string | null;
 }
 
 /**
@@ -458,21 +473,60 @@ export function mensagemParaCliente(
 }
 
 /**
- * Link de conversa com o cliente. `""` quando não há número.
+ * Link de conversa com o cliente. `""` quando não há por onde falar.
  *
  * Devolver string vazia (em vez de `wa.me/`) é deliberado: um `wa.me` sem
  * número abre o WhatsApp numa tela de erro, e o vendedor conclui que o
  * sistema está quebrado. Quem chama esconde o botão — é a mesma regra que
  * `lib/whatsapp.ts` já usa para o número da loja.
+ *
+ * ---------------------------------------------------------------------------
+ * Desde 2026-08-31: o Chatwoot vem primeiro, quando existe
+ * ---------------------------------------------------------------------------
+ * Decisão do dono. Abrir `wa.me` fazia o consultor responder pelo WhatsApp
+ * pessoal, e a conversa não ficava registrada em lugar nenhum.
+ *
+ * O degrau existe porque conversa de WhatsApp no Chatwoot só nasce quando o
+ * CLIENTE escreve: o lead que acabou de preencher o formulário — justamente o
+ * que alguém precisa abordar primeiro — ainda não tem conversa. Sem o degrau,
+ * o caso mais comum ficaria sem botão.
+ *
+ * A mensagem pré-escrita viaja SÓ no `wa.me`. O Chatwoot não aceita texto na
+ * URL: lá o consultor cai dentro da conversa e digita. `mensagemNoLink` diz
+ * qual dos dois aconteceu, para a tela não prometer o que não vai entregar.
  */
 export function linkDeConversa(
   telefone: string | null | undefined,
   mensagem?: string,
+  /** Id da conversa no Chatwoot, quando o atendimento já existe. */
+  conversaChatwoot?: number | string | null,
 ): string {
+  const noChatwoot = linkDaConversa(conversaChatwoot);
+  if (noChatwoot) return noChatwoot;
+
   const numero = numeroDiscavel(telefone);
   if (!numero) return "";
   const texto = mensagem?.trim() ? `?text=${encodeURIComponent(mensagem)}` : "";
   return `https://wa.me/${numero}${texto}`;
+}
+
+/** Para onde o botão de conversa leva — a tela precisa dizer a verdade. */
+export type DestinoDaConversa = "chatwoot" | "whatsapp" | "nenhum";
+
+/**
+ * Onde este link vai abrir.
+ *
+ * Existe porque os dois destinos se comportam diferente e o vendedor precisa
+ * saber ANTES de clicar: no `wa.me` a mensagem já vai escrita; no Chatwoot,
+ * não. Rotular os dois de "WhatsApp" faria a pessoa colar um texto que ela
+ * achava que já estava lá.
+ */
+export function destinoDaConversa(
+  telefone: string | null | undefined,
+  conversaChatwoot?: number | string | null,
+): DestinoDaConversa {
+  if (linkDaConversa(conversaChatwoot)) return "chatwoot";
+  return numeroDiscavel(telefone) ? "whatsapp" : "nenhum";
 }
 
 // ---------------------------------------------------------------------------
