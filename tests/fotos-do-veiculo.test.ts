@@ -457,7 +457,6 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     // Sete fotos: uma a menos que a régua, e o motivo tem de dizer isso.
     const sete = Array.from({ length: MINIMO_DE_FOTOS - 1 }, (_, i) => url(i, "zap"));
     const motivos = bloqueiosDePublicacao({
-      laudo_pericia: "ok",
       whatsapp_images: sete,
       origem: "painel",
     });
@@ -470,7 +469,7 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
 
   it("cumprida a régua, o bloqueio some", () => {
     const oito = Array.from({ length: MINIMO_DE_FOTOS }, (_, i) => url(i, "zap"));
-    const motivos = bloqueiosDePublicacao({ laudo_pericia: "ok", whatsapp_images: oito });
+    const motivos = bloqueiosDePublicacao({ whatsapp_images: oito });
     expect(motivos.some((m) => m.id === "poucas-fotos")).toBe(false);
   });
 

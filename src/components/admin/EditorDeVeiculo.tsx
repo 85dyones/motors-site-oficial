@@ -295,15 +295,11 @@ export default function EditorDeVeiculo({
       ok: fichaPropriaCompleta,
       estado: fichaPropriaCompleta ? "OK" : "PENDENTE",
     },
-    {
-      l: "Laudo cautelar",
-      // Não diz "bloqueia" porque hoje não bloqueia: 38 das 39 fichas estão com
-      // o campo vazio, e ligar o gate agora tiraria a loja do ar em vez de um
-      // carro. Ver `LAUDO_BLOQUEIA_PUBLICACAO`.
-      d: "Texto do laudo exibido na ficha do veículo.",
-      ok: Boolean(v.laudo_pericia),
-      estado: v.laudo_pericia ? "OK" : "PENDENTE",
-    },
+    // O laudo saiu do checklist em 29/08. Ele acusava PENDENTE em 33 dos 34
+    // publicados, sobre uma premissa errada: 100% do pátio é periciado, e
+    // `laudo_pericia` guarda APONTAMENTOS pontuais. Vazio é o melhor caso, não
+    // uma falta — e checklist que fica vermelho no carro impecável ensina a
+    // ignorar o checklist.
     {
       l: "Texto do anúncio revisado",
       d: "Descrição editorial que abre a página do veículo.",
@@ -340,21 +336,22 @@ export default function EditorDeVeiculo({
   /* O que tira este carro do ar agora. Mesma função que `getEstoque` usa para
      filtrar, para a tela e o site nunca discordarem sobre o motivo.
 
-     `.filter(bloqueia)` porque a lista traz também a pendência que ainda não
-     tira do ar — dizer "fora da vitrine" para quem só está sem laudo seria a
-     tela mentindo sobre o próprio site. */
+     `.filter(bloqueia)` porque a lista PODE trazer pendência que não tira do
+     ar. Hoje não traz — o laudo, que era o único caso, saiu da régua em 29/08 —
+     mas o filtro fica: sem ele, o segundo motivo que alguém acrescentar passa a
+     dizer "fora da vitrine" sobre um carro que está no ar.
+
+     `laudo_pericia` saiu daqui junto com a regra. A origem fica, e é ela que
+     escolhe entre "suba as fotos pelo painel" e "as fotos vêm do RevendaMais":
+     sem ela a tela mandava o operador esperar um feed que nunca vai trazer foto
+     do carro que ele mesmo cadastrou. */
   const bloqueios = useMemo(
     () =>
       bloqueiosDePublicacao({
-        laudo_pericia: v.laudo_pericia,
         whatsapp_images: v.whatsapp_images,
-        // A origem muda só o TEXTO da pendência — "suba as fotos pelo painel"
-        // no veículo nativo, "as fotos vêm do RevendaMais" no do feed. Sem
-        // ela, a tela mandava o operador esperar um feed que nunca vai trazer
-        // foto do carro que ele mesmo cadastrou.
         origem: v.origem,
       }).filter((b) => b.bloqueia),
-    [v.laudo_pericia, v.whatsapp_images, v.origem],
+    [v.whatsapp_images, v.origem],
   );
 
   /* ------------------------------------------------------------------------

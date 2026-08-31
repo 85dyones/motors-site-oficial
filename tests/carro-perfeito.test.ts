@@ -241,6 +241,90 @@ describe("4 · o quiz pergunta as cinco", () => {
     expect(bloco).toContain('let obj: AnswerState["objective"] = "";');
   });
 
+  it("o consultor lê exatamente o que o cliente clicou", () => {
+    // Os rótulos viviam em DOIS lugares: as opções da tela e um `switch` que
+    // montava a mensagem do WhatsApp e o payload do CRM. Copiar não quebra no
+    // dia em que se copia — quebra no dia em que só uma das duas muda, e aí o
+    // consultor recebe uma resposta que ninguém escolheu.
+    //
+    // Foi o que quase aconteceu ao reescrever o texto: as opções viraram "Um
+    // carro melhor que o meu" e o `switch` seguiria mandando "Status,
+    // Exclusividade & Design".
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    for (const fn of ["formatObjective", "formatExperience", "formatStyle", "formatTimeline"]) {
+      const linha = codigo.slice(codigo.indexOf(`const ${fn} =`));
+      expect(linha.slice(0, 160), fn).toContain("rotuloDaOpcao(");
+    }
+    expect(codigo).not.toMatch(/case "status": return "Status/);
+  });
+
+  it("o texto das opções fala do pátio, não de loja premium", () => {
+    // A mediana da loja é R$ 62.900 e o carro mais barato custa R$ 23.900.
+    // "Status, Exclusividade & Design" e "Tecnologia, Inovação & Eficiência"
+    // descreviam outra vitrine — o dono apontou o passo duas vezes.
+    const fonte = ler("src/components/CarMatch.tsx");
+    const bloco = fonte.slice(fonte.indexOf("const OPCOES_OBJETIVO"), fonte.indexOf("const OPCOES_ESTILO"));
+    for (const morto of ["Status, Exclusividade", "Tecnologia, Inovação", "Força, Aventura", "Performance & Potência"]) {
+      expect(bloco, morto).not.toContain(`titulo: "${morto}`);
+    }
+    expect(bloco).toContain('titulo: "Espaço para a família"');
+    expect(bloco).toContain('titulo: "Rodar barato na cidade"');
+  });
+
+  it("as perguntas 02 e 03 não perguntam a mesma coisa", () => {
+    // "Tecnologia, Inovação & Eficiência" na 02 e "Tecnologia &
+    // Conectividade" na 03: quem respondia a primeira não sabia o que a
+    // segunda queria de diferente. A 02 pergunta PARA QUE serve; a 03, o que
+    // PESA na escolha.
+    const fonte = ler("src/components/CarMatch.tsx");
+    expect(fonte).toContain('titulo="O que mais pesa na sua escolha?"');
+    const objetivo = fonte.slice(fonte.indexOf("const OPCOES_OBJETIVO"), fonte.indexOf("const OPCOES_EXPERIENCIA"));
+    const experiencia = fonte.slice(fonte.indexOf("const OPCOES_EXPERIENCIA"), fonte.indexOf("const OPCOES_ESTILO"));
+    const titulos = (b: string) => [...b.matchAll(/titulo: "([^"]+)"/g)].map((m) => m[1].toLowerCase());
+    for (const t of titulos(objetivo)) {
+      expect(titulos(experiencia), `"${t}" repete entre a 02 e a 03`).not.toContain(t);
+    }
+  });
+
+  it("a pergunta 01 nunca fica sem opção clicável", () => {
+    // O defeito que o dono relatou duas vezes, e que reproduzi no navegador:
+    // `budgetRanges` nascia `[]` e a tela desenhava, no lugar das faixas,
+    // quatro caixas cinza vazias — `aria-hidden`, sem texto e sem clique.
+    // Enquanto o estoque não chegava (ou se a consulta falhasse), a primeira
+    // pergunta era impossível de responder, e o único botão à vista era
+    // VOLTAR.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+
+    // O esqueleto morto saiu de vez.
+    expect(codigo).not.toContain('className="h-[86px] border-2 border-mt-inverso-regua-fina"');
+    // E a lista é derivada, não um estado que começa vazio.
+    expect(codigo).not.toContain("useState<BudgetRange[]>([])");
+    expect(codigo).toContain("const faixasDeOrcamento = useMemo<BudgetRange[]>");
+  });
+
+  it("sem estoque, valem as faixas de reserva", () => {
+    // O memo tem retorno próprio para menos de 4 preços. Sem ele, o fallback
+    // seria de novo uma lista vazia — o mesmo defeito com outro nome.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    const memo = codigo.slice(
+      codigo.indexOf("const faixasDeOrcamento = useMemo"),
+      codigo.indexOf("}, [estoque]);"),
+    );
+    expect(memo).toMatch(/if \(precos\.length < 4\)/);
+    expect(memo).toContain("montar([50000, 65000, 90000], precos)");
+  });
+
+  it("as faixas saem de QUANTIL, não de fatia do intervalo", () => {
+    // Com um carro de R$ 318.900 esticando a ponta, cortar o intervalo em
+    // 15/35/60/80% punha 24 dos 35 carros numa faixa só (50–125 mil) e
+    // deixava outra vazia. Era o "difícil demais fazer um match acima dos
+    // 50 mil". Por quantil cada faixa leva um quarto do pátio: 7/11/9/8.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).toContain("quantil(0.25)");
+    expect(codigo).toContain("quantil(0.75)");
+    expect(codigo).not.toContain("spread * 0.15");
+  });
+
   it("o slider de valor exato cabe no pátio", () => {
     // `min={100000}` era mais que o dobro do carro mediano (R$ 62.900): quem
     // usasse a aba não conseguia descrever dois terços da vitrine.

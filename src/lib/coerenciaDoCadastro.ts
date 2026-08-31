@@ -95,8 +95,12 @@ export const REGRAS_DE_COERENCIA: readonly RegraDeCoerencia[] = [
     // não numa asserção. O HR da Hyundai não está no pátio; quando estiver,
     // entra como "hr-2500" ou pelo nome completo, nunca como duas letras.
     termos: ["bongo", "accelo", "delivery", "iveco daily chassi"],
-    carrocerias: ["Utilitário", "Picape"],
-    porque: "é utilitário de carga sobre chassi — caminhão leve",
+    // `Caminhão` entrou na lista fechada em 29/08 e passa a ser a leitura
+    // sugerida: o Bongo É um caminhão leve. `Utilitário` continua aceito
+    // porque descreve o mesmo veículo de outro ângulo, e o detector não
+    // reclama de quem viu o carro.
+    carrocerias: ["Caminhão", "Utilitário"],
+    porque: "é caminhão leve — carga sobre chassi, cabine separada",
   },
   {
     termos: ["voyage", "prisma", "virtus", "cruze", "corolla", "fluence", "sentra", "versa", "logan", "siena", "grand siena"],
@@ -210,57 +214,23 @@ export function divergenciaDeCarroceria(veiculo: {
  */
 export const MINIMO_DE_FOTOS = 8;
 
-/**
- * O laudo cautelar tira o carro do ar? **Hoje não** — e a razão é uma medição.
- *
- * ---------------------------------------------------------------------------
- * O número que mudou a decisão
- * ---------------------------------------------------------------------------
- * O plano desta rodada dizia que ligar o bloqueio por laudo custaria "o Celta
- * `8416946`". Fui conferir na produção antes de mergear, lendo a coluna
- * `laudo_pericia` dos 39 veículos embutidos em `/estoque`:
- *
- *   **38 dos 39 estão com o campo vazio.** O único preenchido é a Saveiro
- *   Trendline `8358193` — e com um texto digitado à mão, de uma linha.
- *
- * Ou seja: ligar isto agora não tiraria um carro do ar, tiraria a loja. A
- * vitrine iria de 39 para 1, o feed de anúncios junto, e o sitemap atrás.
- *
- * ---------------------------------------------------------------------------
- * Por que a pendência continua existindo, mesmo sem bloquear
- * ---------------------------------------------------------------------------
- * O argumento do handoff continua de pé, e é forte: `aboutSettings.value1`
- * afirma **"perícia cautelar independente em 100% do estoque, laudo na
- * ficha"**, e o SDR vai repetir a frase para o cliente com a confiança de quem
- * lê um campo. Uma promessa dessas com o campo vazio em 38 fichas é um
- * problema real — só que é um problema de PREENCHIMENTO, e nenhum gate de
- * código preenche laudo.
- *
- * Então o item continua listado: aparece no painel, aparece na auditoria, e
- * conta como pendência. O que ele não faz, enquanto esta constante for
- * `false`, é tirar a ficha do ar.
- *
- * ---------------------------------------------------------------------------
- * Como ligar, quando a hora chegar
- * ---------------------------------------------------------------------------
- * Trocar para `true` — uma linha, sem migração. **Antes de trocar**, rodar
- * `npm run auditoria:estoque` e olhar a seção 5: ela lista, por id, exatamente
- * quem sairia do ar. Se a lista ainda tiver 38 nomes, a resposta é preencher
- * os laudos, não mexer aqui.
- */
-export const LAUDO_BLOQUEIA_PUBLICACAO = false;
-
 export interface MotivoDeBloqueio {
   /** Chave estável, para o relatório de auditoria agrupar. */
-  id: "sem-laudo" | "poucas-fotos";
+  id: "poucas-fotos";
   /** A frase que o painel e o relatório mostram. */
   texto: string;
   /**
-   * Tira o carro do ar HOJE?
+   * Este motivo TIRA o carro do ar, ou é só pendência a resolver?
    *
-   * `false` é pendência: aparece no painel e na auditoria, não muda o que o
-   * visitante vê. A distinção existe porque as duas regras têm custos de
-   * ligar muito diferentes — ver `LAUDO_BLOQUEIA_PUBLICACAO`.
+   * Hoje é sempre `true`, porque sobrou um motivo só — o laudo saiu da lista em
+   * 29/08 e era justamente o que valia `false`. O campo fica porque a distinção
+   * é da INTERFACE, não desta função: a tabela A6, o editor A15 e a tela de
+   * cadastro separam "falta para poder publicar" de "pendência que não tira do
+   * ar", e a fila de rascunhos ordena por isso.
+   *
+   * Enquanto for sempre `true`, as frases de "não tira do ar" dessas telas não
+   * têm como aparecer. É dívida conhecida, não engano: some no dia em que
+   * entrar o segundo motivo, ou vira remoção deliberada se ele nunca vier.
    */
   bloqueia: boolean;
 }
@@ -269,26 +239,38 @@ export interface MotivoDeBloqueio {
  * O que impede este veículo de ir à vitrine — lista vazia significa liberado.
  *
  * ---------------------------------------------------------------------------
- * Por que virou bloqueio, e não continuou aviso
+ * O laudo saiu daqui em 2026-08-29, e a razão é de domínio
  * ---------------------------------------------------------------------------
- * O checklist de publicação sempre teve os dois itens, e sempre foram
- * informativos. O handoff de 27/08 apontou o custo disso com precisão: item de
- * checklist que não bloqueia é item que descreve intenção, não regra. Um
- * anúncio de uma foto no ar é a prova de que ninguém lê o aviso.
+ * A versão anterior tratava `laudo_pericia` vazio como "carro não periciado", e
+ * chegou a bloquear publicação por isso. **A leitura estava errada**, e quem
+ * corrigiu foi o dono: *"parta do pressuposto de que 100% dos carros são
+ * periciados; o campo existe para colocar observações sobre apontamentos
+ * pontuais"*.
  *
- * A lista devolve TODOS os motivos, bloqueantes ou não. Quem filtra vitrine
- * olha `bloqueia`; quem mostra pendência no painel mostra os dois.
+ * Ou seja, campo vazio quer dizer **sem apontamentos** — o melhor caso, não uma
+ * pendência. Bloquear por isso era punir o carro impecável.
+ *
+ * O resto do código já lia certo, o que torna o engano mais fácil de repetir:
+ * `PDPClientWrapper` anota `temLaudo` com a nota *"o laudo está na ficha — não
+ * 'o carro foi periciado', que vale para todos"*, e o acordeão de perícia só
+ * abre quando há texto E `pericia === "PERÍCIA APROVADA"`. Era o gate de
+ * publicação que destoava.
+ *
+ * O status da perícia mora em outra coluna, `pericia` — medida em 29/08 nos 34
+ * publicados: 17 `PERÍCIA APROVADA` e 17 `EM ANÁLISE`. É ela que diz se o laudo
+ * pode ser afirmado na ficha; `laudo_pericia` só carrega o que foi observado.
  *
  * ---------------------------------------------------------------------------
- * O que isto NÃO faz
+ * O que sobrou, e por que continua bloqueando
  * ---------------------------------------------------------------------------
- * Não apaga, não marca vendido e não some do painel. O veículo continua
- * inteiro no banco e visível em `/admin` — só não entra nas superfícies
- * públicas. Subir a oitava foto devolve o carro à vitrine no ciclo seguinte,
- * sem nenhuma outra ação.
+ * Fotos. Anúncio com uma foto é pior que anúncio nenhum, e é conserto de quem
+ * sobe o carro no RevendaMais — não julgamento sobre o veículo.
+ *
+ * Não apaga, não marca vendido e não some do painel: o veículo continua
+ * inteiro no banco e visível em `/admin`, só fora das superfícies públicas.
+ * Subir a oitava foto o devolve à vitrine no ciclo seguinte.
  */
 export function bloqueiosDePublicacao(veiculo: {
-  laudo_pericia?: string | null;
   whatsapp_images?: unknown;
   /**
    * De onde a linha veio: `painel` é o cadastro nativo do admin (2026-08-29),
@@ -301,14 +283,6 @@ export function bloqueiosDePublicacao(veiculo: {
 }): MotivoDeBloqueio[] {
   const motivos: MotivoDeBloqueio[] = [];
 
-  if (!(veiculo.laudo_pericia ?? "").trim()) {
-    motivos.push({
-      id: "sem-laudo",
-      texto: "sem laudo cautelar — o site afirma laudo em 100% do estoque",
-      bloqueia: LAUDO_BLOQUEIA_PUBLICACAO,
-    });
-  }
-
   const fotos = Array.isArray(veiculo.whatsapp_images)
     ? veiculo.whatsapp_images.filter(Boolean).length
     : 0;
@@ -319,6 +293,10 @@ export function bloqueiosDePublicacao(veiculo: {
         : "as fotos vêm do RevendaMais";
     motivos.push({
       id: "poucas-fotos",
+      // O texto varia com a origem porque quem sobe a foto é outra pessoa em
+      // cada caso: no carro do RevendaMais a foto vem do feed; no cadastrado
+      // aqui (2026-08-29), pelo próprio painel. Mandar o operador esperar o
+      // feed de um carro que ele mesmo cadastrou seria instrução falsa.
       texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos — ${deOndeVemAFoto}`,
       bloqueia: true,
     });
@@ -328,10 +306,15 @@ export function bloqueiosDePublicacao(veiculo: {
 }
 
 /** Atalho para os filtros. Ver `bloqueiosDePublicacao` para o porquê. */
+// `laudo_pericia` saiu da assinatura junto com a regra (29/08): a função não o
+// lê mais, e mantê-lo no tipo faria quem chama pensar que ele ainda pesa.
 export function publicavel(veiculo: {
-  laudo_pericia?: string | null;
   whatsapp_images?: unknown;
   origem?: string | null;
 }): boolean {
+  // `.some(bloqueia)`, e não `.length === 0`: a lista pode trazer pendência que
+  // não tira do ar. Hoje não traz — ver `MotivoDeBloqueio.bloqueia` —, mas quem
+  // acrescentar o segundo motivo não deve precisar lembrar de mudar isto aqui
+  // para o carro não sumir da vitrine por uma observação.
   return !bloqueiosDePublicacao(veiculo).some((m) => m.bloqueia);
 }

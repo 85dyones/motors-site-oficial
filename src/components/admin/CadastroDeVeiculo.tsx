@@ -249,11 +249,15 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
   const pendencias = useMemo(
     () =>
       bloqueiosDePublicacao({
-        laudo_pericia: v.laudo_pericia,
         whatsapp_images: [],
+        // `painel` fixo: este formulário só cria veículo nativo, e é o que faz
+        // a pendência dizer "suba as fotos pelo painel" em vez de mandar
+        // esperar um feed que não vai trazer este carro.
         origem: "painel",
       }),
-    [v.laudo_pericia],
+    // Sem dependência: a régua não lê mais nada do formulário desde que o
+    // laudo saiu dela (29/08) — o veículo nasce sempre com zero foto.
+    [],
   );
 
   const enviar = async () => {
@@ -335,7 +339,6 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
   // -------------------------------------------------------------------------
   if (criado) {
     const bloqueios = bloqueiosDePublicacao({
-      laudo_pericia: criado.laudo_pericia,
       whatsapp_images: criado.whatsapp_images,
       origem: "painel",
     });

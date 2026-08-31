@@ -61,7 +61,6 @@ const comFotos = (n: number) => Array.from({ length: n }, (_, i) => `https://s3/
 const publicavelDeVerdade = {
   estado_cadastro: "publicado",
   vendido: false,
-  laudo_pericia: "Laudo cautelar aprovado — Grupo Fiscal, 2026-08-14",
   whatsapp_images: comFotos(MINIMO_DE_FOTOS),
   origem: "sync",
 };
@@ -230,7 +229,6 @@ describe("reclassificarLinha", () => {
   it("devolver a disponível publica quem tem as fotos", () => {
     const completo = linha({
       bloqueios: bloqueiosDePublicacao({
-        laudo_pericia: "aprovado",
         whatsapp_images: comFotos(MINIMO_DE_FOTOS),
       }),
     });
@@ -262,7 +260,6 @@ describe("reclassificarLinha", () => {
       estado: "rascunho",
       estadoCadastro: "rascunho",
       bloqueios: bloqueiosDePublicacao({
-        laudo_pericia: "aprovado",
         whatsapp_images: comFotos(MINIMO_DE_FOTOS),
       }),
     });
@@ -281,14 +278,18 @@ describe("reclassificarLinha", () => {
   });
 
   it("a pendência que não bloqueia não muda o estado", () => {
-    const soSemLaudo = linha({
-      bloqueios: bloqueiosDePublicacao({
-        laudo_pericia: "",
-        whatsapp_images: comFotos(MINIMO_DE_FOTOS),
-      }),
+    // Escrito quando o laudo vazio era essa pendência. Ele saiu da régua em
+    // 29/08 — hoje não há motivo com `bloqueia: false`, e pedir um a
+    // `bloqueiosDePublicacao` devolveria lista vazia, o que faria este teste
+    // passar sem exercer nada.
+    //
+    // O motivo é montado à mão de propósito: o que se afirma aqui é da
+    // RECLASSIFICAÇÃO — ela olha `bloqueia`, não o tamanho da lista —, e essa
+    // regra tem de continuar de pé para o dia em que o segundo motivo entrar.
+    const soPendencia = linha({
+      bloqueios: [{ id: "poucas-fotos", texto: "observação qualquer", bloqueia: false }],
     });
-    expect(soSemLaudo.bloqueios).toHaveLength(1);
-    expect(reclassificarLinha(soSemLaudo, { vendido: false })).toBe("publicado");
+    expect(reclassificarLinha(soPendencia, { vendido: false })).toBe("publicado");
   });
 });
 
@@ -345,7 +346,6 @@ describe("contarPorEstado", () => {
 
 describe("resumoDaFilaDeRascunhos", () => {
   const prontoDeVerdade = bloqueiosDePublicacao({
-    laudo_pericia: "aprovado",
     whatsapp_images: comFotos(MINIMO_DE_FOTOS),
   });
   const semFoto = bloqueiosDePublicacao({ whatsapp_images: comFotos(2), origem: "sync" });
@@ -370,14 +370,17 @@ describe("resumoDaFilaDeRascunhos", () => {
   });
 
   it("a pendência que não bloqueia não segura ninguém na fila", () => {
-    // Sem laudo continua pendência, e 38 das 39 fichas estão assim: se contasse
-    // como bloqueio, a fila diria que nenhum rascunho pode ser publicado.
-    const soSemLaudo = bloqueiosDePublicacao({
-      laudo_pericia: "",
-      whatsapp_images: comFotos(MINIMO_DE_FOTOS),
-    });
-    expect(soSemLaudo).toHaveLength(1);
-    const resumo = resumoDaFilaDeRascunhos([linha({ estado: "rascunho", bloqueios: soSemLaudo })]);
+    // Mesma história do teste acima: a pendência que existia aqui era o laudo
+    // vazio, aposentado em 29/08. O motivo vai à mão para a afirmação continuar
+    // sendo sobre a FILA — ela conta por `bloqueia`, não por lista não-vazia.
+    //
+    // A razão original vale igual: se pendência contasse como bloqueio, a fila
+    // diria que nenhum rascunho pode ser publicado, e o número que a tela mostra
+    // deixaria de significar "quantos posso pôr no ar agora".
+    const soPendencia = [
+      { id: "poucas-fotos" as const, texto: "observação qualquer", bloqueia: false },
+    ];
+    const resumo = resumoDaFilaDeRascunhos([linha({ estado: "rascunho", bloqueios: soPendencia })]);
     expect(resumo).toEqual({ total: 1, prontos: 1, bloqueados: 0 });
   });
 

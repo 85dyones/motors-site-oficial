@@ -54,6 +54,11 @@ export const CARROCERIAS = [
   "Perua",
   "Van",
   "Utilitário",
+  // O pátio gira caminhão leve — o Bongo K-2500 é o caso de hoje. Sem esta
+  // linha ele caía em `Utilitário`, que também descreve furgão e picape de
+  // trabalho: três coisas diferentes no mesmo balde, e nenhuma vitrine
+  // conseguindo dizer "caminhão".
+  "Caminhão",
   "Motocicleta",
   "Esportivo",
   "Conversível",

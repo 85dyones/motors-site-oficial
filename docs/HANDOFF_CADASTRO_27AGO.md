@@ -6,6 +6,21 @@
 quem visita.
 **O que precisa de você:** as nove carrocerias e as fotos de três carros.
 
+
+> ### ⚠️ Errata de 29/08 — o laudo nunca deveria ter bloqueado
+>
+> Este documento trata `laudo_pericia` vazio como pendência, e a proposta de
+> bloquear publicação por isso saiu daqui. **A premissa estava errada.** O dono
+> corrigiu: *"parta do pressuposto de que 100% dos carros são periciados; o
+> campo existe para colocar observações sobre apontamentos pontuais"*.
+>
+> Vazio significa **sem apontamentos** — o melhor caso. A regra foi removida do
+> código, do checklist do painel e da auditoria. O status da perícia mora em
+> `pericia`, outra coluna. Ver `docs/PROPRIEDADE_DOS_CAMPOS.md`.
+>
+> O que continua valendo deste documento: o bloqueio por **fotos**, as
+> carrocerias e o detector de coerência.
+
 ---
 
 ## O que a auditoria acertou

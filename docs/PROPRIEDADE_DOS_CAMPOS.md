@@ -71,42 +71,51 @@ sempre que precisarmos corrigir um campo que o feed manda.
 
 ## Bloqueio de publicação
 
-Desde 27/08, um item do checklist deixou de ser conselho:
+Um item, e só um:
 
 | Item | Tira do ar? | Onde se resolve |
 |---|---|---|
 | menos de 8 fotos | **sim** | RevendaMais — as fotos vêm do feed |
-| sem laudo cautelar | ainda não | painel — é campo nosso |
 
 Um veículo bloqueado sai da vitrine, do feed de anúncios e do índice de busca,
-mas **a ficha continua respondendo** — quem tem o link não bate em 404, e
-resolver o item devolve o carro ao ar no ciclo seguinte. A regra vive em
+mas **a ficha continua respondendo** — quem tem o link não bate em 404, e subir
+as fotos devolve o carro ao ar no ciclo seguinte. A regra vive em
 `bloqueiosDePublicacao` (`src/lib/coerenciaDoCadastro.ts`) e o filtro é o
 padrão de `getEstoque()`: ver o bloqueado exige pedir
 `incluirNaoPublicaveis: true`.
 
-### Por que o laudo ainda não bloqueia
+### O laudo saiu da lista, e a correção é de domínio
 
-O plano desta rodada previa que ligar o gate do laudo custaria **um** carro. A
-medição feita antes de mergear, na coluna `laudo_pericia` dos 39 veículos
-servidos em 27/08, deu outro número: **38 estão vazios**. Só a Saveiro
-Trendline `8358193` tem texto, digitado à mão.
+A primeira versão desta regra tratava `laudo_pericia` vazio como "carro não
+periciado" e chegou a bloquear publicação por isso. **A leitura estava errada.**
+Quem corrigiu foi o dono, em 29/08:
 
-Ligar hoje não tiraria um anúncio do ar — tiraria a loja. Por isso a pendência
-continua listada no painel e na auditoria, e a trava é uma constante de uma
-linha: `LAUDO_BLOQUEIA_PUBLICACAO`. A seção 5 de `npm run auditoria:estoque`
-imprime, por id, exatamente quem sairia do ar se ela virasse `true` — é a conta
-a fazer antes de mexer.
+> *"Parta do pressuposto de que 100% dos carros são periciados. O campo existe
+> para colocar observações sobre apontamentos pontuais."*
 
-O que essa pendência protege é literal: `aboutSettings.value1` afirma **"perícia
-cautelar independente em 100% do estoque, laudo na ficha"**, e o SDR repete a
-frase para o cliente. Enquanto a lista da seção 5 for longa, a saída é
-preencher os laudos — não ligar o gate.
+Campo vazio quer dizer **sem apontamentos** — o melhor caso, não uma pendência.
+Bloquear ali punia o carro impecável, e teria levado a vitrine de 34 para 1.
+
+Duas colunas, dois papéis:
+
+| Coluna | O que guarda | Medido em 29/08 |
+|---|---|---|
+| `pericia` | o **status** da perícia | 17 `PERÍCIA APROVADA`, 17 `EM ANÁLISE` |
+| `laudo_pericia` | as **observações**, quando há | preenchida em 1 de 34 |
+
+É `pericia` que decide se o laudo pode ser afirmado na ficha: o acordeão de
+perícia da PDP só abre quando há texto **e** o status é `PERÍCIA APROVADA`. O
+resto do código já lia assim — `PDPClientWrapper` anota `temLaudo` com a nota
+*"o laudo está na ficha — não 'o carro foi periciado', que vale para todos"*.
+Era o gate de publicação que destoava.
 
 ## Auditoria
 
-`npm run auditoria:estoque` roda cinco seções — contagem por carroceria com
+`npm run auditoria:estoque` roda quatro seções — contagem por carroceria com
 teto para `Hatch`, contradição entre nome e carroceria, URL com segmento
-repetido, quem está fora da vitrine agora, e quem sairia se o laudo passasse a
-bloquear. Sai com código ≠ 0 quando há achado; a seção 5 não conta como achado,
-porque um comando sempre vermelho é um comando que ninguém lê.
+repetido e quem está fora da vitrine agora. Sai com código ≠ 0 quando há
+achado.
+
+A seção de "sem laudo cautelar" saiu em 29/08 junto com a regra: ela listava 33
+dos 34 publicados, e relatório que acusa 97% do estoque todo dia é relatório
+que ninguém lê.
