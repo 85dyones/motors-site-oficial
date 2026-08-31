@@ -75,10 +75,53 @@ export function ehSegmentoDePdp(valor: string): valor is SegmentoDePdp {
  * §2.2.2b do plano manda não fazer. Quem quiser transliterar, faça numa
  * migração própria, com 301.
  */
+/**
+ * As abreviações que o RevendaMais manda coladas na versão.
+ *
+ * O feed escreve "VOLCANO 2.2 16V 4X4 TB DIE. AUT.", e a URL saía
+ * `volcano-22-16v-4x4-tb-die-aut` — três palavras cortadas no meio. O dono
+ * pediu em 2026-08-31: *"informações truncadas e repetidas, pode ser mais
+ * clean e entregar dados relevantes para os indexadores"*.
+ *
+ * Tabela CURTA e por TOKEN INTEIRO, de propósito. Um `replace` solto em "aut"
+ * comeria o miolo de qualquer palavra que o contenha; casando só o token
+ * separado, "aut" vira "automatico" e nada mais é tocado. Só entram aqui as
+ * abreviações que o feed usa de fato e que não têm outro sentido possível numa
+ * versão de veículo — na dúvida, deixa como está: URL feia é melhor que URL
+ * errada.
+ */
+const ABREVIACOES_DA_VERSAO: Record<string, string> = {
+  aut: "automatico",
+  die: "diesel",
+  tb: "turbo",
+  turbodie: "turbodiesel",
+  cs: "cabine-simples",
+  cd: "cabine-dupla",
+};
+
+/** Expande as abreviações conhecidas, token a token. */
+function expandirAbreviacoes(slug: string): string {
+  return slug
+    .split("-")
+    .map((t) => ABREVIACOES_DA_VERSAO[t] ?? t)
+    .join("-");
+}
+
 export function slugificar(bruto: string): string {
   return bruto
     .toLowerCase()
     .trim()
+    // O ponto vira HÍFEN, e não vazio.
+    //
+    // Enquanto ele era apagado por `[^a-z0-9-]`, "2.2" saía `22` — um motor
+    // 2.2 anunciado na URL como "vinte e dois", e "1.0" virando "10". Não é
+    // feiúra, é informação errada: quem lê o endereço lê outro carro.
+    //
+    // Corrigido em 2026-08-31, na mesma virada que encurtou a URL da ficha.
+    // Mudar isto renomeia endereço, e foi por isso que esperou uma janela: o
+    // site ainda não anuncia e quase nada indexou — *"se existe um momento
+    // para alinhar e mudar, é este"*.
+    .replace(/[.,/]/g, "-")
     // Acento vira a letra sem acento, e não o vazio.
     //
     // Sem esta linha, `[^a-z0-9-]` APAGAVA o caractere acentuado: `Utilitário`
@@ -94,7 +137,17 @@ export function slugificar(bruto: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9\-]/g, "");
+    .replace(/[^a-z0-9\-]/g, "")
+    // H\u00edfen duplo aparece quando o bruto trazia "2.2 " ou " / " \u2014 o ponto e a
+    // barra viram h\u00edfen e o espa\u00e7o ao lado vira outro. Sem esta limpeza a URL
+    // sai com `2-2--16v`, e h\u00edfen sobrando no fim ("aut.") deixaria `-aut-`.
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** O segmento de VERS\u00c3O, com as abrevia\u00e7\u00f5es do feed abertas por extenso. */
+export function slugDeVersao(bruto: string): string {
+  return expandirAbreviacoes(slugificar(bruto));
 }
 
 /**

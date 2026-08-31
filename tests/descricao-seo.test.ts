@@ -25,7 +25,7 @@ const raiz = join(__dirname, "..");
 const ler = (caminho: string) => readFileSync(join(raiz, caminho), "utf8");
 
 const FEED = "src/app/api/feed/xml/route.ts";
-const PDP = "src/app/[categoria]/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx";
+const PDP = "src/app/[categoria]/[marca]/[modelo]/[ficha]/page.tsx";
 const MAPPER = "src/lib/supabase.ts";
 const EDITOR = "src/components/admin/EditorDeVeiculo.tsx";
 

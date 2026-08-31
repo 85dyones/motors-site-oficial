@@ -105,7 +105,7 @@ describe("para onde a URL arquivada vai", () => {
 describe("a ficha aplica a decisão", () => {
   it("redireciona com 301 e não com 302", () => {
     const fonte = lerCodigo(
-      "src/app/[categoria]/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx",
+      "src/app/[categoria]/[marca]/[modelo]/[ficha]/page.tsx",
     );
 
     expect(fonte).toMatch(/if \(publicacao\.arquivar\)/);

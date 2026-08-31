@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { limparModelo, segmentoDoVeiculo, slugificar } from "./veiculoUrl";
+import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
 import { publicavel } from "./coerenciaDoCadastro";
 import type { Veiculo } from "../types";
@@ -968,10 +968,32 @@ export function getVeiculoPdpUrl(veiculo: {
   // Slugify each segment
   const slugMarca = slugificar(finalBrand);
   const slugModelo = slugificar(finalModel);
-  const slugVersao = slugificar(finalVersion);
+  const slugVersao = slugDeVersao(finalVersion);
 
-  // Create clean, beautiful full slug and URL path
-  const slugCompletoComId = `${slugMarca}-${slugModelo}-${slugVersao}-${veiculo.id}`;
-  
-  return `/${segmentoDoVeiculo(veiculo)}/${slugMarca}/${slugModelo}/${slugVersao}/${slugCompletoComId}`;
+  // ---------------------------------------------------------------------------
+  // Quatro segmentos, não cinco — a virada de 2026-08-31
+  // ---------------------------------------------------------------------------
+  // A URL era:
+  //
+  //   /carros/fiat/titano/volcano-22-16v-4x4-tb-die-aut
+  //          /fiat-titano-volcano-22-16v-4x4-tb-die-aut-8171616
+  //
+  // O quinto segmento era, POR CONSTRUÇÃO, a concatenação dos três anteriores.
+  // A única informação nova nele era o id. O dono viu e perguntou: *"esta url
+  // faz sentido? informações truncadas e repetidas, pode ser mais clean"*.
+  //
+  // Agora é:
+  //
+  //   /carros/fiat/titano/volcano-2-2-16v-4x4-turbo-diesel-automatico-8171616
+  //
+  // O id continua sendo o ÚLTIMO trecho, e isso não é estética: a ficha resolve
+  // o veículo pegando o que vem depois do último hífen. Qualquer mudança aqui
+  // que tire o id do fim quebra a resolução — e quebra em silêncio, servindo
+  // 404 para carro que existe.
+  //
+  // Por que agora: mexer em endereço renomeia página indexada, e a janela é
+  // esta — *"o site não anuncia nada ainda, não indexou quase nada, se existe
+  // um momento para alinhar e mudar, é este"*. A URL de cinco segmentos segue
+  // respondendo, com 301 para cá.
+  return `/${segmentoDoVeiculo(veiculo)}/${slugMarca}/${slugModelo}/${slugVersao}-${veiculo.id}`;
 }

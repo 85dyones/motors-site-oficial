@@ -70,7 +70,7 @@ describe("o rodapé aponta para as páginas perenes", () => {
   it("nada mais no site aponta para `/estoque?marca=`", () => {
     for (const arquivo of [
       "src/components/Footer.tsx",
-      "src/app/[categoria]/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx",
+      "src/app/[categoria]/[marca]/[modelo]/[ficha]/page.tsx",
     ]) {
       expect(lerCodigo(arquivo)).not.toMatch(/\/estoque\?marca=/);
     }

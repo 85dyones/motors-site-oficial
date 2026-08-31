@@ -40,8 +40,7 @@ const pdp = ler(
   "[categoria]",
   "[marca]",
   "[modelo]",
-  "[versao]",
-  "[slug_completo_com_id]",
+  "[ficha]",
   "page.tsx"
 );
 
