@@ -35,7 +35,14 @@ function fontes(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-const arquivos = fontes(raiz).map((f) => ({ caminho: f, texto: readFileSync(f, "utf-8") }));
+const arquivos = fontes(raiz).map((f) => ({
+  // Separador POSIX sempre. `join` devolve `\` no Windows, e as isenções
+  // abaixo são escritas com `/`: comparar cru faz o arquivo ISENTO ser
+  // acusado de infrator — num teste que passa no CI (Linux) e falha só na
+  // máquina de quem está editando o código.
+  caminho: f.replace(/\\/g, "/"),
+  texto: readFileSync(f, "utf-8"),
+}));
 
 describe("ponto único de montagem", () => {
   it("ninguém monta wa.me à mão com o número da loja", () => {

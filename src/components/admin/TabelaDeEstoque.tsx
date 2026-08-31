@@ -4,24 +4,43 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
+import { MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
 import {
   contarPorEstado,
   filtrarLinhas,
+  prontoParaPublicar,
+  reclassificarLinha,
+  resumoDaFilaDeRascunhos,
   ROTULO_DO_ESTADO,
+  type EstadoDoVeiculo,
   type FiltroDeEstado,
   type LinhaDeEstoque,
 } from "../../lib/estoqueTabela";
+import { CAMPO_DO_ESTADO, type EstadoCadastro } from "../../lib/estadoDoCadastro";
 import type { StockOverrides } from "../../types";
 
 /**
  * Tela A6 do design doc — a tabela de estoque.
  *
+ * ---------------------------------------------------------------------------
+ * Quem abre, quando, e que decisão sai daqui
+ * ---------------------------------------------------------------------------
+ * Quem importou do RevendaMais abre esta tela logo depois da importação, e é
+ * daqui que sai a decisão de **o que vai ao ar**. A fila de rascunhos é a lista
+ * de trabalho: cada linha diz o que falta, e "Publicar" libera os que já podem.
+ *
  * Três diferenças deliberadas em relação ao desenho:
  *
- * 1. **Estados reais.** O doc filtra por PUBLICADOS / RASCUNHOS / RESERVADOS.
- *    Rascunho e reservado dependem do fluxo de revisão (A16), que não existe.
- *    Aqui os estados são os que o banco sustenta: publicado, vendido e fora do
- *    feed.
+ * 1. **Rascunho existe; reservado não.** O doc filtra por PUBLICADOS /
+ *    RASCUNHOS / RESERVADOS. Desde 2026-08-30 rascunho é coluna
+ *    (`estado_cadastro`) e é o estado em que todo carro nasce. `reservado`
+ *    continua sem dado que o sustente.
+ *
+ *    Os cinco chips misturam duas naturezas de propósito, e a tela precisa
+ *    mantê-las distintas: **Rascunhos** e **Arquivados** são decisão da loja
+ *    (alguém libera, alguém tira); **Fora da vitrine** é pendência de material
+ *    num carro que a loja JÁ publicou — resolve-se subindo foto, sem clique
+ *    nenhum. Confundir os dois manda o operador para a tarefa errada.
  * 2. **Sem coluna FIPE.** `fipe` não existe no banco — sairia vazia em toda
  *    linha.
  * 3. **Classificar é ação de lote**, não select por linha. Era select por
@@ -39,14 +58,74 @@ interface TabelaDeEstoqueProps {
   overridesIniciais: StockOverrides;
   /** `false` = GA4 sem credencial; a coluna de visitas mostra "—". */
   visitasDisponiveis: boolean;
+  /**
+   * Este perfil cadastra veículo? Resolvido no servidor pela linha
+   * "Publicar ou despublicar veículo" da A17 — Admin e Comercial.
+   *
+   * Governa se o botão "+ Novo veículo" EXISTE, não se ele fica cinza: "tudo
+   * que for negado some da interface" é a regra do doc, e a rota devolve 403
+   * de qualquer jeito para quem tentar pela URL.
+   */
+  podeCriar: boolean;
+  /**
+   * Este perfil põe carro no ar e tira do ar? Mesma linha da A17 que governa
+   * `podeCriar` — Admin e Comercial fazem, Marketing está em revisão (e revisão
+   * sem a tela A16 é negação), Gestor e Financeiro não veem.
+   *
+   * Governa a EXISTÊNCIA dos botões Publicar e Arquivar, não a cor deles. A
+   * rota recusa igual pela matriz de campo (`estado_cadastro`).
+   */
+  podePublicar: boolean;
+  /**
+   * O banco ainda não tem a coluna `estado_cadastro`?
+   *
+   * Sem este aviso, um ambiente por migrar mostraria os 104 veículos como
+   * "Rascunho" — o piso de `normalizarEstadoCadastro` — e a tela pediria para
+   * publicar de novo o que já está no ar.
+   */
+  migracaoDoEstadoPendente: boolean;
 }
 
 const FILTROS: Array<{ id: FiltroDeEstado; rotulo: string }> = [
   { id: "todos", rotulo: "Todos" },
+  // Primeiro chip depois de "Todos", e à esquerda de "Publicados": desde a
+  // importação manual, a fila de rascunhos é a primeira pergunta de quem abre
+  // a tela — "o que chegou e ainda não foi liberado?".
+  { id: "rascunho", rotulo: "Rascunhos" },
   { id: "publicado", rotulo: "Publicados" },
+  // Ao lado de "Publicados" de propósito: os dois números juntos respondem
+  // "quantos carros o site está mostrando, e quantos deveriam estar mostrando".
+  // É a pergunta que trouxe esta tela ao ar, e a lista de quem falta.
+  { id: "fora_da_vitrine", rotulo: "Fora da vitrine" },
   { id: "vendido", rotulo: "Vendidos" },
-  { id: "fora_do_feed", rotulo: "Fora do feed" },
+  { id: "arquivado", rotulo: "Arquivados" },
 ];
+
+/**
+ * A etiqueta de estado. Mapa em vez de ternário encadeado: com cinco estados,
+ * a cadeia deixa de caber numa linha e passa a esconder qual cor é de qual.
+ *
+ * As cores separam as duas naturezas. **Rascunho** e **Fora da vitrine** usam o
+ * acento porque pedem ação de alguém — o primeiro uma decisão, o segundo
+ * material. **Arquivado** é neutro apagado: é estado de repouso, e pintá-lo de
+ * alerta encheria a tela de vermelho sobre 42 carros que já foram resolvidos.
+ */
+const CLASSE_DO_ESTADO: Record<EstadoDoVeiculo, string> = {
+  rascunho: "border-mt-accent bg-mt-accent-100 text-mt-accent-800",
+  publicado: "border-mt-regua text-mt-neutral-800",
+  fora_da_vitrine: "border-mt-accent bg-mt-accent-100 text-mt-accent-800",
+  vendido: "border-mt-ink bg-mt-ink text-mt-bg",
+  arquivado: "border-mt-regua-fina text-mt-neutral-600",
+};
+
+/**
+ * Os estados em que a linha mostra o que falta para ir ao ar.
+ *
+ * Os dois pelos quais o operador PODE fazer alguma coisa hoje. Repetir a
+ * pendência de fotos sob "Vendido" ou "Arquivado" afogaria o motivo verdadeiro
+ * de o carro não estar no ar — é a mesma escolha do editor A15.
+ */
+const ESTADOS_QUE_MOSTRAM_PENDENCIA: EstadoDoVeiculo[] = ["rascunho", "fora_da_vitrine"];
 
 const PASSO_DA_PAGINA = 20;
 
@@ -66,6 +145,9 @@ export default function TabelaDeEstoque({
   destacadosIniciais,
   overridesIniciais,
   visitasDisponiveis,
+  podeCriar,
+  podePublicar,
+  migracaoDoEstadoPendente,
 }: TabelaDeEstoqueProps) {
   const [linhas, setLinhas] = useState<LinhaDeEstoque[]>(linhasIniciais);
   const [overrides, setOverrides] = useState<StockOverrides>(overridesIniciais);
@@ -81,10 +163,23 @@ export default function TabelaDeEstoque({
   const [aviso, setAviso] = useState("");
 
   const contagem = useMemo(() => contarPorEstado(linhas), [linhas]);
+  const fila = useMemo(() => resumoDaFilaDeRascunhos(linhas), [linhas]);
   const filtradas = useMemo(() => filtrarLinhas(linhas, { estado: filtro, busca }), [linhas, filtro, busca]);
   const naTela = filtradas.slice(0, visiveis);
 
   const selecionadosVisiveis = selecionados.filter((id) => filtradas.some((l) => l.id === id));
+
+  /**
+   * Dos selecionados, quem já tem o material para ir ao ar.
+   *
+   * A rota confere de novo, contra o banco — esta partição existe para o botão
+   * poder dizer "Publicar 9 de 12" antes de gastar uma ida ao servidor, e para
+   * a recusa não ser um beco: quem clica descobre o número na hora e ainda tem
+   * o segundo botão para liberar os prontos.
+   */
+  const prontos = linhas
+    .filter((l) => selecionadosVisiveis.includes(l.id) && prontoParaPublicar(l))
+    .map((l) => l.id);
   const todasSelecionadas = naTela.length > 0 && naTela.every((l) => selecionados.includes(l.id));
 
   const alternarSelecao = (id: string) => {
@@ -109,29 +204,67 @@ export default function TabelaDeEstoque({
     campos: Record<string, unknown>,
     descricao: string,
     aplicarNaLinha: (l: LinhaDeEstoque) => LinhaDeEstoque,
+    /** Alvos explícitos — só "publicar os prontos" os usa. Padrão: a seleção. */
+    alvos: string[] = selecionadosVisiveis,
   ) => {
-    if (selecionadosVisiveis.length === 0) return;
+    if (alvos.length === 0) return;
     limpar();
     setSalvando(true);
     try {
       const res = await fetch("/api/estoque/lote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selecionadosVisiveis, campos }),
+        body: JSON.stringify({ ids: alvos, campos }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Falha ao salvar");
 
-      setLinhas((prev) =>
-        prev.map((l) => (selecionadosVisiveis.includes(l.id) ? aplicarNaLinha(l) : l)),
-      );
-      setAviso(`${descricao} · ${selecionadosVisiveis.length} veículo(s)`);
+      setLinhas((prev) => prev.map((l) => (alvos.includes(l.id) ? aplicarNaLinha(l) : l)));
+      setAviso(`${descricao} · ${alvos.length} veículo(s)`);
       setSelecionados([]);
     } catch (e: any) {
       setErro(e.message);
     } finally {
       setSalvando(false);
     }
+  };
+
+  /**
+   * Publicar ou arquivar os selecionados — a decisão que esta tela existe para
+   * produzir.
+   *
+   * A régua de fotos NÃO é reescrita aqui: `prontoParaPublicar` lê a lista de
+   * bloqueios que a linha já traz, montada por `bloqueiosDePublicacao` no
+   * servidor. E o pré-teste não é o gate — a rota confere contra o banco e
+   * devolve 422 com os códigos. Se este `if` sumisse num refactor, o pior que
+   * aconteceria é uma ida ao servidor a mais e a mesma recusa, escrita lá.
+   */
+  const mudarEstado = async (estado: EstadoCadastro, alvos = selecionadosVisiveis) => {
+    if (alvos.length === 0) return;
+
+    if (estado === "publicado") {
+      const bloqueados = alvos.filter((id) => !prontos.includes(id));
+      if (bloqueados.length > 0) {
+        limpar();
+        setErro(
+          `${bloqueados.length} de ${alvos.length} ainda não podem ir ao ar — falta material. ` +
+            `Códigos: ${bloqueados.slice(0, 6).join(", ")}${bloqueados.length > 6 ? "…" : ""}. ` +
+            `O que falta em cada um está escrito na coluna Estado.`,
+        );
+        return;
+      }
+    }
+
+    await aplicarNoBanco(
+      { [CAMPO_DO_ESTADO]: estado },
+      estado === "publicado" ? "Publicados" : "Arquivados — fora do ar",
+      (l) => ({
+        ...l,
+        estadoCadastro: estado,
+        estado: reclassificarLinha(l, { estadoCadastro: estado }),
+      }),
+      alvos,
+    );
   };
 
   /** Campos que vivem no JSON de settings: destaque na home e destaque rápido. */
@@ -254,28 +387,86 @@ export default function TabelaDeEstoque({
           <div className="mt-rotulo mt-rotulo-accent">Estoque</div>
           <h1 className="mt-titulo text-3xl md:text-4xl">{contagem.todos} veículos</h1>
           <p className="mt-1 max-w-[620px] text-sm text-mt-neutral-800">
-            O estoque entra pelo sync do RevendaMais. Aqui se decide o que a vitrine mostra,
-            como o carro é classificado e o que vai ao carrossel da home.
+            O RevendaMais importa; quem publica é a loja. Todo carro — importado ou cadastrado
+            aqui — nasce <strong>rascunho</strong> e só vai ao ar por decisão desta tela. É aqui
+            também que se define classificação, destaque na home e o que sai do estoque.
           </p>
         </div>
-        <Link
-          href="/estoque"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-btn mt-btn-contorno mt-foco px-4 py-2.5 text-[11px] no-underline"
-        >
-          Ver no site
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Some para quem não publica veículo (A17) — a régua do doc é
+              esconder, não desabilitar. A rota recusa igual, pela URL. */}
+          {podeCriar && (
+            <Link
+              href="/admin/estoque/novo"
+              className="mt-btn mt-btn-primario mt-foco px-4 py-2.5 text-[11px] no-underline"
+            >
+              + Novo veículo
+            </Link>
+          )}
+          <Link
+            href="/estoque"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-btn mt-btn-contorno mt-foco px-4 py-2.5 text-[11px] no-underline"
+          >
+            Ver no site
+          </Link>
+        </div>
       </div>
 
+      {migracaoDoEstadoPendente && (
+        <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs leading-relaxed text-mt-accent-800">
+          <strong>A coluna de estado ainda não existe neste banco.</strong> Enquanto ela faltar,
+          tudo aparece como rascunho — inclusive o que já está no ar. Aplique a migração{" "}
+          <code className="text-mt-ink">
+            20260830120000_f0q_estado_do_cadastro_e_fim_do_override.sql
+          </code>{" "}
+          antes de publicar ou arquivar qualquer coisa nesta tela.
+        </div>
+      )}
+
       {erro && (
-        <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
+        <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs leading-relaxed text-mt-accent-800">
           {erro}
         </div>
       )}
       {aviso && !erro && (
         <div className="border-l-[3px] border-mt-ink bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">
           {aviso}
+        </div>
+      )}
+
+      {/* A fila de trabalho de quem importou.
+
+          O chip "Rascunhos" já conta quantos; esta faixa responde a pergunta
+          seguinte, que é a acionável — quantos vão ao ar com um clique e
+          quantos ainda dependem de foto. Some quando não há rascunho: faixa
+          permanente com zero vira parte do papel de parede. */}
+      {fila.total > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3">
+          <span className="text-[11px] font-extrabold uppercase tracking-[.1em] text-mt-ink">
+            <span className="tabular-nums">{fila.total}</span> rascunho(s) esperando revisão
+          </span>
+          <span className="text-[11px] text-mt-neutral-800">
+            <span className="tabular-nums font-bold">{fila.prontos}</span> pronto(s) para publicar
+            {fila.bloqueados > 0 && (
+              <>
+                {" · "}
+                <span className="tabular-nums font-bold">{fila.bloqueados}</span> esperando material
+              </>
+            )}
+          </span>
+          {filtro !== "rascunho" && (
+            <button
+              onClick={() => {
+                setFiltro("rascunho");
+                setVisiveis(PASSO_DA_PAGINA);
+              }}
+              className="mt-foco ml-auto cursor-pointer text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700 hover:text-mt-ink"
+            >
+              Ver a fila
+            </button>
+          )}
         </div>
       )}
 
@@ -333,12 +524,62 @@ export default function TabelaDeEstoque({
             {selecionadosVisiveis.length} selecionado(s)
           </span>
 
+          {/* Publicar e arquivar SOMEM para quem não tem a linha da A17 — "tudo
+              que for negado some da interface, não fica cinza". Vêm primeiro
+              porque são a decisão que a tela existe para produzir; o resto da
+              barra é manutenção de anúncio. */}
+          {podePublicar && (
+            <>
+              <button
+                disabled={semSelecao}
+                onClick={() => mudarEstado("publicado")}
+                className="mt-foco cursor-pointer border border-mt-ink bg-mt-ink px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-bg hover:border-mt-accent hover:bg-mt-accent disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Publicar
+                {prontos.length < selecionadosVisiveis.length && (
+                  <span className="ml-1.5 tabular-nums opacity-80">
+                    {prontos.length}/{selecionadosVisiveis.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Só aparece quando a seleção está misturada. É a saída do beco:
+                  sem ele, quem selecionou 12 e tem 3 sem foto precisaria
+                  desmarcar os 3 à mão para publicar os 9. */}
+              {prontos.length > 0 && prontos.length < selecionadosVisiveis.length && (
+                <button
+                  disabled={salvando}
+                  onClick={() => mudarEstado("publicado", prontos)}
+                  className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {prontos.length === 1
+                    ? "Publicar só o que está pronto"
+                    : `Publicar só os ${prontos.length} prontos`}
+                </button>
+              )}
+
+              <button
+                disabled={semSelecao}
+                onClick={() => mudarEstado("arquivado")}
+                className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Arquivar
+              </button>
+            </>
+          )}
+
+          {/* Os dois botões abaixo pedem o estado a `reclassificarLinha` em vez
+              de escrevê-lo à mão: a tela atualiza a linha sem recarregar, e o
+              `"publicado"` que ficava digitado aqui era como um carro sem fotos
+              — ou arquivado — voltava a aparecer no ar com um clique em
+              "devolver a disponível". */}
           <button
             disabled={semSelecao}
             onClick={() =>
               aplicarNoBanco({ vendido: true }, "Marcados como vendidos", (l) => ({
                 ...l,
-                estado: "vendido",
+                vendido: true,
+                estado: reclassificarLinha(l, { vendido: true }),
                 divergente: false,
               }))
             }
@@ -352,7 +593,8 @@ export default function TabelaDeEstoque({
             onClick={() =>
               aplicarNoBanco({ vendido: false }, "Devolvidos a disponível", (l) => ({
                 ...l,
-                estado: "publicado",
+                vendido: false,
+                estado: reclassificarLinha(l, { vendido: false }),
                 divergente: false,
               }))
             }
@@ -559,11 +801,21 @@ export default function TabelaDeEstoque({
                     {dinheiro(l.preco)}
                   </td>
 
+                  {/* O mínimo vem de `MINIMO_DE_FOTOS`, não do "8" digitado
+                      aqui, que era o que estava. O número tem nome justamente
+                      porque pode baixar — e no dia em que baixar, esta coluna
+                      não pode continuar cobrando oito. */}
                   <td className="py-2.5 pr-3 text-[11px] tabular-nums">
-                    <span className={l.fotos >= 8 ? "text-mt-neutral-800" : "text-mt-accent-800"}>
+                    <span
+                      className={
+                        l.fotos >= MINIMO_DE_FOTOS ? "text-mt-neutral-800" : "text-mt-accent-800"
+                      }
+                    >
                       {l.fotos}
                     </span>
-                    {l.fotos < 8 && <span className="text-mt-neutral-600">/8</span>}
+                    {l.fotos < MINIMO_DE_FOTOS && (
+                      <span className="text-mt-neutral-600">/{MINIMO_DE_FOTOS}</span>
+                    )}
                   </td>
 
                   <td className="py-2.5 pr-3 text-[11px] tabular-nums text-mt-neutral-800">
@@ -593,16 +845,38 @@ export default function TabelaDeEstoque({
 
                   <td className="py-2.5 pr-3">
                     <span
-                      className={`inline-block border px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] ${
-                        l.estado === "publicado"
-                          ? "border-mt-regua text-mt-neutral-800"
-                          : l.estado === "vendido"
-                            ? "border-mt-ink bg-mt-ink text-mt-bg"
-                            : "border-mt-accent-300 text-mt-accent-800"
-                      }`}
+                      className={`inline-block border px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] ${CLASSE_DO_ESTADO[l.estado]}`}
                     >
                       {ROTULO_DO_ESTADO[l.estado]}
                     </span>
+                    {/* O motivo, com o texto que `bloqueiosDePublicacao` já
+                        escreve ("2 de 8 fotos — as fotos vêm do RevendaMais").
+                        Etiqueta sem motivo mandaria o operador abrir o editor
+                        de cada carro para descobrir o que falta — e é
+                        exatamente isso que faz a fila de rascunhos ser uma fila
+                        de trabalho e não uma lista.
+
+                        Só nestes dois estados: em "vendido" e "arquivado" a
+                        pendência de fotos existe, mas não é o que tirou o carro
+                        do ar, e repeti-la ali afogaria o motivo verdadeiro. É a
+                        mesma escolha do editor A15, que filtra por `bloqueia`
+                        antes de dizer "Fora da vitrine". */}
+                    {ESTADOS_QUE_MOSTRAM_PENDENCIA.includes(l.estado) &&
+                      (prontoParaPublicar(l) ? (
+                        // Rascunho sem pendência: um clique e vai ao ar. Dizer
+                        // isso é o que separa "o que falta" de "o que já pode".
+                        <span className="mt-1 block text-[9px] leading-snug text-mt-neutral-700">
+                          pronto para publicar
+                        </span>
+                      ) : (
+                        <ul className="m-0 mt-1 max-w-[200px] list-none p-0 text-[9px] leading-snug text-mt-accent-800">
+                          {l.bloqueios
+                            .filter((b) => b.bloqueia)
+                            .map((b) => (
+                              <li key={b.id}>{b.texto}</li>
+                            ))}
+                        </ul>
+                      ))}
                     {l.divergente && (
                       <span
                         className="mt-1 block text-[9px] font-bold uppercase tracking-[.08em] text-mt-accent"
@@ -647,9 +921,9 @@ export default function TabelaDeEstoque({
         <div className="mt-rotulo mb-2">Ainda fora desta tela</div>
         <p className="text-xs leading-relaxed text-mt-neutral-800">
           A coluna <strong>FIPE</strong> do desenho não existe como dado no banco.{" "}
-          <strong>Rascunho</strong> e <strong>reservado</strong> dependem do fluxo de revisão, que
-          ainda não foi construído. <strong>Importar planilha</strong> e{" "}
-          <strong>novo veículo</strong> pressupõem cadastro fora do feed do RevendaMais.
+          <strong>Reservado</strong> continua sem dado que o sustente — rascunho saiu desta lista
+          em 30/08, quando virou coluna. <strong>Importar planilha</strong> ainda não existe: a
+          importação do RevendaMais é manual e cria rascunhos.
           {!visitasDisponiveis && (
             <>
               {" "}

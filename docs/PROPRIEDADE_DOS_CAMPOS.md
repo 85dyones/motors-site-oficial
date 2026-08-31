@@ -15,9 +15,34 @@ correção desfeita no sync seguinte, em silêncio.
 
 | Origem | O que acontece | Campos |
 |---|---|---|
-| **Feed** | O sincronizador reescreve a cada ciclo. Corrigir no painel dura até o próximo sync. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor`, `preco_original`, `preco_promocional`, `whatsapp_images` |
-| **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `opcionais`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso` |
+| **Feed** | O sincronizador traz na importação. **Desde 30/08 ele não reescreve mais nada** — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor`, `preco_original`, `whatsapp_images` |
+| **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `opcionais`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro` |
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
+| **Do feed, mas nosso para editar** | Coluna que o feed preenche e o painel sobrescreve para valer, em veículo de qualquer origem. | `preco_promocional` |
+
+### 🔴 A tabela acima mudou de sentido em 2026-08-30
+
+A coluna "O que acontece" do Feed dizia *"o sincronizador reescreve a cada
+ciclo; corrigir no painel dura até o próximo sync"*. **Isso deixou de ser
+verdade.** A trava total (`20260829130000_f0k` + `20260830120000_f0q`) faz o
+RevendaMais não atualizar linha nenhuma, de origem nenhuma — ele só INSERE
+veículo novo, e o cron nem roda mais sozinho.
+
+A tabela continua útil porque descreve **de onde o dado nasce**, e porque a
+linha "Nosso" ainda é a única em que o painel pode escrever livremente. Mas o
+medo que a organizava — "salvei e voltou sozinho" — não existe mais.
+
+`preco_promocional` foi o primeiro campo a atravessar essa fronteira, em
+2026-08-31, a pedido do dono. Ele nasce do feed e a loja o sobrescreve, em
+veículo importado inclusive. Não virou "Nosso" porque o sync continua sabendo
+dele; não é "Override" porque não há coluna paralela — a trava tornou o
+override desnecessário. **Antes de criar um override novo, pergunte se ele
+ainda é preciso.**
+
+Uma ressalva que continua valendo: o preço de **tabela** (`preco`,
+`preco_original`) segue editável só no veículo nativo. Não é limitação técnica,
+é decisão de produto — enquanto o carro for do RevendaMais, quem define o preço
+de lista é ele; quem define **promoção** é a loja.
 
 ### Por que o override existe, e quando criar outro
 

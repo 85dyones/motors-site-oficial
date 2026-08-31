@@ -422,6 +422,10 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
     vendido: !!dbItem.vendido,
+    // Quem manda nesta ficha (migração 20260829130000): `sync` é do
+    // RevendaMais e é reescrito a cada ciclo; `painel` é nosso e o sync não
+    // toca. Metadado operacional, não sensível — por isso sai no mapper.
+    origem: dbItem.origem === "painel" ? "painel" : "sync",
     // Ficha própria do painel (migração 20260807160000): vazio até alguém
     // preencher — a UI oculta a linha, como em cambio/combustivel/cor.
     //
@@ -606,8 +610,13 @@ export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(l
     }
   }
 
-  // Linha sem carimbo é mantida: pode ter sido inserida à mão pelo painel, e
-  // sumir do site em silêncio seria pior que aparecer indevidamente.
+  // Linha sem carimbo é mantida — e desde 2026-08-29 isso deixou de ser
+  // hipótese e virou caso de primeira classe: o veículo cadastrado no painel
+  // (`origem = 'painel'`, migração 20260829130000) nasce com `last_seen_at`
+  // NULO de propósito, porque ele nunca veio em sync nenhum. Filtrá-lo pela
+  // janela do feed o faria sumir do site no primeiro ciclo — o oposto do que a
+  // trava do sync existe para garantir. Quem decide se ele vai à vitrine é
+  // `bloqueiosDePublicacao` (as 8 fotos), como para qualquer outro carro.
   return linhas.filter((l) => {
     if (!l.last_seen_at) return true;
     return new Date(l.last_seen_at).getTime() >= corte;
@@ -641,9 +650,22 @@ export async function getSinaisDeEstoque(
   try {
     const { data, error } = await supabase
       .from("estoque_motors")
-      .select("id, last_seen_at");
+      .select("id, last_seen_at, estado_cadastro");
 
     if (error || !data || data.length === 0) return nadaSabido;
+
+    // Desde 2026-08-30 "fora do feed" tem nome próprio: `arquivado`. A PDP
+    // continua resolvendo o carro (é o que permite dizer que ele não está mais
+    // disponível, em vez de responder 200 anunciando o que a loja não tem),
+    // mas quem responde "saiu do estoque" agora é a decisão da loja, não a
+    // ausência dele no último ciclo do robô.
+    const propriaLinha = data.find((l: any) => String(l.id) === String(id));
+    if (propriaLinha?.estado_cadastro) {
+      return {
+        foraDoFeed: propriaLinha.estado_cadastro !== "publicado",
+        ultimaPresenca: propriaLinha.last_seen_at ?? null,
+      };
+    }
 
     const visiveis = apenasDoUltimoSync(data);
     // Mesma válvula de segurança do `getEstoque`: se o filtro descartou tudo,
@@ -779,13 +801,39 @@ export async function getEstoque(
         console.warn("[Supabase] Query error:", error.message);
         list = estoqueDeContingencia();
       } else if (data && data.length > 0) {
-        let noFeed = opts.incluirForaDoFeed ? data : apenasDoUltimoSync(data);
-        // A válvula de segurança é do CARIMBO DE SYNC, e só dele: se o
-        // `last_seen_at` vier torto, o site não pode cair no MOCK_ESTOQUE — 5
-        // carros fictícios em produção. Serve o que veio do banco e registra.
+        // --------------------------------------------------------------
+        // Quem decide o que está no ar é a LOJA, não o robô (2026-08-30)
+        // --------------------------------------------------------------
+        // Até aqui a régua era `apenasDoUltimoSync`: ficava no ar quem tinha
+        // `last_seen_at` dentro da janela do ciclo mais recente. Isso valia
+        // enquanto o cron rodava de 6 em 6 horas e o feed era a verdade.
+        //
+        // Com a importação MANUAL (decisão do dono — "sem override, criamos
+        // rascunhos dos carros para serem finalizados antes de serem
+        // publicados"), a mesma régua se voltaria contra o site: bastaria uma
+        // importação parcial, ou de um carro só, para esse carro virar "o
+        // ciclo mais recente" e derrubar todo o resto da vitrine. Ninguém teria
+        // mexido em nada.
+        //
+        // `estado_cadastro` (migração 20260830120000) é o estado explícito que
+        // substitui a inferência. `apenasDoUltimoSync` fica no arquivo e segue
+        // testada: ela é a régua da linha ANTIGA, sem estado, e o fallback
+        // abaixo a usa enquanto houver banco por migrar.
+        const temEstado = data.some((l: any) => l.estado_cadastro);
+        let noFeed = opts.incluirForaDoFeed
+          ? data
+          : temEstado
+            ? data.filter((l: any) => l.estado_cadastro === "publicado")
+            : apenasDoUltimoSync(data);
+
+        // A válvula vale para os DOIS caminhos, e pela mesma razão de sempre:
+        // se o filtro zerar, o site não pode cair no MOCK_ESTOQUE — 5 carros
+        // fictícios em produção. Serve o que veio do banco e registra alto.
         if (noFeed.length === 0) {
           console.warn(
-            "[Supabase] Filtro de last_seen_at descartou todas as linhas; servindo o estoque completo."
+            temEstado
+              ? "[Supabase] Nenhum veículo com estado_cadastro='publicado'; servindo o estoque completo. Alguém arquivou tudo, ou a publicação não foi feita."
+              : "[Supabase] Filtro de last_seen_at descartou todas as linhas; servindo o estoque completo."
           );
           noFeed = data;
         }

@@ -16,6 +16,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Veiculo } from "../../types";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
+import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
 
 /* ────────────────────────────────────────────────────────────────────────
    Rótulo em versalete — o marcador tipográfico do sistema
@@ -276,7 +277,35 @@ export function CardVeiculo({
              O `sizes` é o que faz a otimização valer: sem ele o Next serve o
              maior candidato do srcset em qualquer viewport, e o ganho vira
              zero. As três medidas são as grades reais em que este card vive —
-             uma coluna no celular, duas no tablet, três no desktop. */
+             uma coluna no celular, duas no tablet, três no desktop.
+
+             ⚠️ `unoptimized` SÓ para a foto que é nossa (2026-08-30, storage
+             próprio F0-p). Não é preferência estética, são duas medições:
+
+             1. **A cota já estourou.** `/_next/image` respondeu 402 em
+                produção — quota de otimização da Vercel, contada por imagem de
+                ORIGEM. O card é a superfície que mais consome: ele desenha
+                todo veículo na home, no catálogo, nas landings, nos hubs e nas
+                páginas de bairro. Com o storage próprio o inventário de fotos
+                cresce, e mandá-lo inteiro pelo otimizador é comprar de volta o
+                mesmo 402.
+             2. **Não há o que otimizar.** A foto nossa já sai tratada do
+                envio: 1280px no lado maior, WebP, ~150 KB
+                (`imageProcessor.processarFotoDeVeiculo`), servida pelo CDN do
+                Supabase. O otimizador cortaria pouco e cobraria por isso.
+
+             O que vem do **carro57 continua otimizado** — `ehFotoPropria`
+             devolve `false` para qualquer URL fora do bucket `veiculos`, então
+             a prop é `false` para 100% do estoque de hoje e este bloco segue
+             se comportando exatamente como antes para ele. Lá a otimização
+             ainda paga: o RevendaMais entrega o arquivo em tamanho cheio, sem
+             `srcset` e sem WebP, e é esse o defeito que o `next/image` veio
+             corrigir em 2026-08-25.
+
+             A PDP não recebe o mesmo tratamento, de propósito: lá a fonte é
+             `whatsapp_images` (1600px) e a mesma foto é desenhada como
+             miniatura de 240px — é o caso em que o srcset ainda vale mais que
+             a cota. */
           <Image
             src={foto}
             alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
@@ -285,6 +314,7 @@ export function CardVeiculo({
             priority={prioridade}
             fetchPriority={prioridade ? "high" : "auto"}
             loading={prioridade ? "eager" : "lazy"}
+            unoptimized={ehFotoPropria(foto)}
             className="object-cover"
           />
         ) : null}

@@ -33,9 +33,14 @@ Há ainda uma quarta pasta que **não existe hoje** e é criada sob demanda:
   - **ferramenta**, que fica para sempre e roda quantas vezes for preciso:
     `aplicar-migracao.js` (aplica uma migração pelo pooler),
     `conferir-estado-do-financeiro.sql` (pergunta ao banco, sem escrever
-    nada, se as migrações do financeiro continuam de pé) e
+    nada, se as migrações do financeiro continuam de pé),
     `acertar_livro_razao_da_colisao.sql` (diagnóstico + acerto da colisão de
-    timestamp de 2026-08-22 — ver abaixo).
+    timestamp de 2026-08-22 — ver abaixo) e
+    `migrar-fotos-do-carro57.js` (traz as fotos dos veículos publicados e não
+    vendidos para o bucket `veiculos` e reescreve as colunas do anúncio;
+    ensaia por padrão, grava com `--gravar`, e é idempotente — ver o cabeçalho
+    do arquivo). O dump de reversão que ele gera antes de gravar cai em
+    `manutencao/reversao/`.
 
 `pendente/` não é uma convenção do Supabase CLI — é uma salvaguarda deste
 projeto. Ver o passo 4 do runbook abaixo para o motivo. Está **vazia desde
@@ -113,6 +118,18 @@ refletir mudanças novas: a fonte de verdade é `migrations/`.
 | `20260822180000_lancar_do_extrato_atomico.sql` | `lancar_do_extrato()`: conta paga + movimentação + vínculo numa transação só. Existe porque a rota fazia as três escritas em sequência e desfazia com `.delete()` se uma falhasse — e **RLS que recusa DELETE não levanta erro**, apaga zero linhas e devolve sucesso. Para o financeiro (que não apaga, desde `20260821210000`) o rollback era no-op silencioso, e sobrava conta paga órfã que a próxima importação do OFX lançaria de novo. A correção não foi abrir DELETE: foi tirar a necessidade de desfazer. ✅ **Aplicada** (marca defasada corrigida em 2026-08-28 — o livro-razão registra a versão). Função derrubada pela aposentadoria de 2026-08-28. |
 | `20260822210000_fundir_investidores.sql` | Funde os dois módulos de investidor que 21 e 22/08 produziram em paralelo, e **repõe o `gestor` nas três réguas** que `perfil_investidor` reescreveu sem ele: o CHECK de `role`, `papeis_validos()` e `has_finance_access()`. O estrago do CHECK era o pior — quem já era gestor tinha uma linha que o CHECK novo recusa, então qualquer UPDATE nesse perfil falhava. Na fusão, `investidores` (a ficha) vence como identidade porque o sócio pode aportar sem nunca ter login; `investidor_veiculos` ganha `investidor_cadastro_id`; `investidor_movimentos` é COPIADO para o razão único e nada é apagado; `investidor_posicao` passa a somar do razão único, senão a tela do sócio e o painel do financeiro mostrariam saldos diferentes. Defensiva: cada passo checa se a tabela existe, porque a colisão de timestamp pode ter feito o `db push` pular `perfil_investidor` inteira. ✅ **Aplicada** (marca defasada corrigida em 2026-08-28 — a ficha do sócio em produção carrega "criada na fusão de 2026-08-22", e o livro-razão registra a versão). |
 | `20260828190000_aposentadoria_financeiro_legado.sql` | **Aposentadoria do módulo de caixa**, por decisão do dono na análise do handoff ("nada ali tem dado real, construa do zero" — o financeiro renasce sobre o razão da spec 30). Derruba `contas` (4 lançamentos de teste, documentados no cabeçalho), `compras_produtos`, `despesas_recorrentes`, `movimentacoes`, `categorias_financeiras`, `plano_contas` (o nome fica livre para o razão), `notificacoes_financeiras`, `extrato_bancario` e as funções `atualizar_contas_vencidas`, `lancar_do_extrato` e os dois carimbos de alçada. **Preserva, de propósito**: `parceiros` (porta de criação da agenda de pessoas), as quatro tabelas de investidor (decisão do dono: "investidores fica"), `funil_etapas`, a view `agenda_de_pessoas`, `has_finance_access` e `is_admin` (com dependentes vivos). Trava de sanidade aborta se alguma tabela passar de 50 linhas; autoconferência prova morte, sobrevivência e a agenda respondendo. **Aplicada em produção em 2026-08-28.** |
+| `20260829120000_f0a_org_e_enums.sql` | **F0-a (núcleo do handoff)**: `orgs` (uma linha, ilegível — sem policy), `org_padrao()` SECURITY DEFINER e os 4 enums da spec 00 (`evento_tipo` com 29 valores). **Aplicada em produção em 2026-08-29.** |
+| `20260829120100_f0b_veiculos_e_entradas.sql` | **F0-b**: `veiculos` (uuid + chassi único por org; elo `estoque_id` com o site — D-T1.4) e `veiculo_entradas` com as constraints das cinco portas (`troca_exige_venda`, `consignacao_sem_custo`, `parceria_exige_preco`, `terceiro_sem_posse`, `lote_momento_b`, unique parcial de aquisição ativa). Autoconferência recusa 7 violações e falha se nascer policy pública (o fantasma de AUDITORIA §3.4-c). **Aplicada em produção em 2026-08-29.** |
+| `20260829120200_f0c_eventos_e_auditoria.sql` | **F0-c**: `veiculo_eventos` e `auditoria` append-only (`nucleo_bloquear_mutacao()` + ausência de policy de UPDATE/DELETE — D-T1.6); motivo obrigatório em correção/estorno. **Aplicada em produção em 2026-08-29.** |
+| `20260829120300_f0d_custos_e_precos.sql` | **F0-d**: `veiculo_custos` (previsto × realizado, toda despesa tem dono) e `veiculo_precos` (FIPE/anúncio/piso com vigência; piso nunca acima do anúncio). **Aplicada em produção em 2026-08-29.** |
+| `20260829120400_f0e_razao.sql` | **F0-e**: o razão da spec 30 — `plano_contas` (15 contas seed), `lancamentos` + `partidas` append-only com dimensões, **balanço zero por constraint trigger deferida** (`nucleo_conferir_balanco`, que também recusa lançamento sem pernas), `regras_contabilizacao` (10 seeds transcritos da spec) e `regras_comissao` **sem seed de propósito** (o valor é do dono). Guarda D-T1.7: parâmetro vigente só aceita encerrar vigência (`nucleo_so_encerra_vigencia`). **Aplicada em produção em 2026-08-29.** |
+| `20260829120500_f0f_parametros.sql` | **F0-f**: `parametros_avaliacao` (curva da spec 11: base 20, piso 15, teto 40, degraus de km) e `ciclo_parametros` (Emenda 02: faixas 85/80 · 80/75, régua de revisões, franquia 15.000 km/ano, excludentes) — `seed_validado_em` nasce NULO: nenhum contrato antes do D13. **Aplicada em produção em 2026-08-29.** |
+| `20260829120600_f0g_negocios.sql` | **F0-g**: `negocios` (proposta→pre_venda→fechado\|cancelado; pré-venda exige validade), `negocio_pagamentos` (previsto→confirmado→liquidado; financiamento exige financeira), `confirmacoes_disponibilidade` (trava anti venda dupla) e a FK `venda_origem_id`→negocios. Trigger recusa `fechado` fora da função atômica da F1 (GUC `nucleo.fechamento_atomico`). **Aplicada em produção em 2026-08-29.** |
+| `20260829120700_f0h_documentos_anuncios_renave.sql` | **F0-h**: `documentos` (vocabulário da spec 60; pendência marcada para o gate de entrega da F1), `anuncios` versionado e **append-only** (CDC art. 30 — é prova) e `renave_operacoes` como **espelho neutro** das 5 operações da Res. 1.026 (payload jsonb; integradora é decisão humana da F0, API é F3). **Aplicada em produção em 2026-08-29.** |
+| `20260829120800_f0i_situacao.sql` | **F0-i**: `calcula_situacao(evento_tipo[])` (função pura) + view `veiculo_situacao` em `security_invoker`. A autoconferência é a **tabela-verdade com 17 casos** — situação nunca é coluna, sempre projeção. **Aplicada em produção em 2026-08-29.** |
+| `20260829121000_f0j_unicidade_de_vigencia.sql` | **F0-j** (achados da revisão do `qa-guardian`): índices únicos parciais garantindo **uma linha vigente por régua** (`regras_contabilizacao` com `nulls not distinct` — o cast enum→text não é IMMUTABLE e o Postgres recusa no índice; `regras_comissao`, `parametros_avaliacao`, `ciclo_parametros`) e `revoke truncate` das append-only para `anon`/`authenticated` (trigger row-level não dispara em TRUNCATE). **Aplicada em produção em 2026-08-29.** |
+| `20260829140000_f0l_fechar_superficie_anon_do_nucleo.sql` | **F0-l** (achados da conferência de drift): a `f0a` declarava `revoke ... from public` em `org_padrao()`, mas o `pg_default_acl` do Supabase concede a `anon` NOMINALMENTE — e revoke de PUBLIC não alcança isso; a função ficava chamável por `POST /rest/v1/rpc/org_padrao` com a anon key. Mesmo mecanismo dava a `anon` GRANT amplo nas 20 tabelas do núcleo (só a RLS segurava — a mesma lição de `AUDITORIA` §3.4). Aqui `anon` sai por completo do núcleo (20 tabelas + view + função); **`authenticated` fica**, porque é o papel do /admin via PostgREST e quem decide lá é a RLS. De quebra, `confirmacoes_disponibilidade` vira append-only: a policy de UPDATE deixava esticar `valida_ate` de uma confirmação emitida, enfraquecendo a trava anti venda dupla que a tabela existe para sustentar. **Aplicada em produção em 2026-08-29.** |
+| `20260829130000_f0k_cadastro_nativo_e_trava_do_sync.sql` | **F0-k (T6, adendo do dono)**: o veículo passa a poder nascer no `/admin`. `estoque_motors.origem` (`sync`\|`painel`, default `sync` — as 104 linhas existentes são o que sempre foram), sequence nativa a partir de **900000001** (o feed usa 6,1M–8,4M: faixas disjuntas, colisão impossível), trigger de INSERT que **infere** origem pela faixa (não confia no chamador) e zera `last_seen_at` do nativo, e a **trava**: trigger de UPDATE que ignora escrita do sync sobre linha do painel — reconhece o sync pela assinatura `last_seen_at`, que nenhuma rota do painel escreve. Ignora em silêncio em vez de estourar, para não matar o lote do feed. Autoconferência **simula o upsert do sync contra um nativo** e exige que nada mude. **Aplicada em produção em 2026-08-29.** |
 
 ## `testes/` — as migrações rodam antes de irem para produção
 
@@ -358,8 +375,72 @@ O upsert do workflow n8n (`Antigravity - Sincronizador de Estoque`) só escreve
 as colunas que ele nomeia. As colunas da migração `20260807160000` ficam FORA
 desse mapeamento — é isso que preserva o que foi digitado no painel a cada
 ciclo. **Não adicione essas colunas ao workflow**: o feed não as tem, e o
-upsert as sobrescreveria com vazio. Quando o RevendaMais desligar, o sync para
-e todas as colunas passam a ser do painel, sem migração extra.
+upsert as sobrescreveria com vazio.
+
+### 🔴 Este contrato foi endurecido em 2026-08-30 — a trava agora é TOTAL
+
+O parágrafo acima descreve uma disciplina de mapeamento: *combinamos* que o
+workflow não nomearia certas colunas. Disciplina não é garantia — bastava
+alguém acrescentar a coluna no nó de upsert.
+
+Desde `20260829130000_f0k` + `20260830120000_f0q` a régua está no banco, em
+trigger, e o RevendaMais **não sobrescreve mais nada — nem o que ele mesmo
+importou**. A decisão do dono em 30/08 foi: *"para o sync cron, deixa apenas a
+opção de importação com acionamento manual, sem override"*. O cron de 6h está
+desligado (nó "Agendamento" marcado `disabled` de propósito visível); só o
+botão "Executar Manualmente" roda.
+
+A trava lê **dois sinais**, e não um:
+
+```sql
+if current_user = 'service_role'
+   or new.last_seen_at is distinct from old.last_seen_at then
+  return old;
+end if;
+```
+
+O segundo sinal existe porque `now()` no Postgres é o instante da **transação**,
+não do comando: uma escrita que repetisse o carimbo de `last_seen_at` passaria
+despercebida pela detecção por data. `current_user` não tem essa brecha — a
+chave de serviço do n8n mapeia para `service_role`, e chave de serviço fura RLS,
+mas **não fura trigger**.
+
+Veículo importado nasce em `estado_cadastro = 'rascunho'` (trigger força, mandar
+outro valor no payload não adianta) e só vai ao ar quando alguém publica pelo
+painel.
+
+---
+
+## Fotos — o storage é nosso desde 2026-08-31
+
+Até 30/08 **toda** foto do estoque era servida de `s3.carro57.com.br`, infra do
+RevendaMais: sair do fornecedor derrubaria as imagens do site inteiro. Decisão
+do dono: trazer para o Supabase Storage, **só os carros ativos** — *"o que
+estiver marcado como indisponível, vendido ou fora de estoque, pode descartar"*.
+
+Bucket `veiculos` (migração `20260829180000_f0p`): leitura pública, escrita só
+de staff, caminho `{estoque_id}/arquivo`.
+
+Script: `supabase/manutencao/migrar-fotos-do-carro57.js` — ensaia por padrão,
+grava com `--gravar`, aceita `--veiculo 123,456`. **Atômico por veículo**: falha
+em qualquer foto aborta aquele veículo inteiro (nada gravado, nomeado no
+relatório) e não impede os outros. Idempotente: rodar de novo pula o que já é
+nosso.
+
+Executado em 2026-08-31. 38 alvos → **37 migrados, 1 sem foto nenhuma**
+(`8392516`), 554 fotos, 1.050 arquivos no bucket, 160 MB. Dois veículos
+(`8203724`, `8213942`) falharam no download na primeira rodada — erro vazio, de
+rede; as fotos respondiam 200 no carro57 minutos depois e a segunda rodada
+migrou as 29. A atomicidade se provou: nenhum veículo ficou pela metade.
+
+Estado das colunas ANTES da gravação fica em
+`supabase/manutencao/reversao/fotos-carro57-*.sql` — é o botão de desfazer, um
+`update` por veículo. **Não é migração de schema e não tem rodapé de
+livro-razão, de propósito.**
+
+Verificado depois: zero URL do carro57 entre os ativos, `/estoque` com 1.054
+URLs do Supabase e nenhuma do carro57, feed de catálogo em produção com os
+mesmos 34 itens de antes.
 
 ---
 

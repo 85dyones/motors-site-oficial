@@ -4,6 +4,7 @@ import { nomeDoVeiculo } from '../../../../lib/nomeDoVeiculo';
 import { rotuloDoModelo } from '../../../../lib/hubsDeEstoque';
 import { segmentoDoVeiculo } from '../../../../lib/veiculoUrl';
 import { concordar, generoDeModelo } from '../../../../lib/generoDoVeiculo';
+import { temPromocao } from '../../../../lib/precoPromocional';
 
 // Rota dinâmica, e não `revalidate`: o handler lê `request.url` para montar o
 // endereço absoluto de cada item, e isso não pode ser pré-renderizado. Com
@@ -46,8 +47,24 @@ export async function GET(request: Request) {
           ? car.web_full_images[0] 
           : '';
 
-      const price = car.preco_promocional > 0 ? car.preco_promocional : car.preco_original;
-      
+      // Preço e promoção são DUAS tags, não uma escolha entre duas.
+      //
+      // Até 2026-08-31 esta linha era `preco_promocional > 0 ? promocional :
+      // original` e o resultado ia sozinho para `g:price` — o feed anunciava a
+      // Saveiro a R$ 65.900 sem dizer que era oferta, e `g:sale_price` não
+      // aparecia em nenhum dos 34 itens. Duas consequências, ambas medidas:
+      // o anúncio perdia a tarja de oferta e o preço riscado, e o preço
+      // declarado divergia da ficha, que mostra "de 68.900 por 65.900" — o tipo
+      // de divergência que o Meta e o Merchant Center reprovam por conta
+      // própria, sem avisar que reprovaram.
+      //
+      // A semântica dos dois catálogos é a mesma: `price` é o de tabela,
+      // `sale_price` é o que se paga hoje. A régua de "há promoção" é a MESMA
+      // da PDP (`temPromocao`), para o feed nunca prometer oferta que a ficha
+      // não mostra.
+      const emPromocao = temPromocao(car.preco_promocional, car.preco_original);
+      const price = car.preco_original;
+
       // O mesmo nome deduplicado do `<title>` da ficha e do `Car.name`
       // (`lib/nomeDoVeiculo.ts`). Medido no feed em produção em 2026-08-25:
       //
@@ -104,7 +121,10 @@ export async function GET(request: Request) {
       <g:brand>${brand}</g:brand>
       <g:condition>${car.quilometragem === 0 ? 'new' : 'used'}</g:condition>
       <g:availability>in_stock</g:availability>
-      <g:price>${price.toFixed(2)} BRL</g:price>
+      <g:price>${price.toFixed(2)} BRL</g:price>${
+        emPromocao ? `
+      <g:sale_price>${Number(car.preco_promocional).toFixed(2)} BRL</g:sale_price>` : ''
+      }
       <g:vehicle_type>car</g:vehicle_type>
       <g:year>${String(car.ano).split('/')[0] || car.ano}</g:year>
       <g:mileage>

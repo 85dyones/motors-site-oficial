@@ -139,7 +139,18 @@ describe("a tela", () => {
     // Desde 2026-08-28 o link sai de `linkDeConversa()` (lib/funil.ts) em vez
     // de ser montado aqui, mas a armadilha é a mesma: é uma âncora dentro de
     // um elemento arrastável.
-    expect(codigo).toMatch(/href=\{conversa\}[\s\S]{0,400}draggable=\{false\}/);
+    //
+    // A asserção já foi `href={conversa}[\s\S]{0,400}draggable={false}` e
+    // apodreceu: bastou o comentário do componente crescer para a distância
+    // passar de 400 e o teste acusar uma regressão que não houve. Medir
+    // proximidade em caracteres também conta `\r` — no Windows a mesma linha
+    // "anda" sozinha. O que importa não é a distância: é os dois estarem na
+    // MESMA tag de abertura. É isso que se afirma agora.
+    const daAncora = codigo.slice(codigo.indexOf("href={conversa}"));
+    // O `>` que fecha a tag é o que abre uma linha. Não dá para usar `[^>]*`
+    // nem parar no primeiro `>`: `onClick={() => ...}` tem um dentro.
+    const atributos = daAncora.slice(0, daAncora.search(/\n\s*>/));
+    expect(atributos).toContain("draggable={false}");
   });
 
   it("o botão de WhatsApp registra o contato, não só abre a conversa", () => {

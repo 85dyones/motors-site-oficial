@@ -219,6 +219,20 @@ export interface MotivoDeBloqueio {
   id: "poucas-fotos";
   /** A frase que o painel e o relatório mostram. */
   texto: string;
+  /**
+   * Este motivo TIRA o carro do ar, ou é só pendência a resolver?
+   *
+   * Hoje é sempre `true`, porque sobrou um motivo só — o laudo saiu da lista em
+   * 29/08 e era justamente o que valia `false`. O campo fica porque a distinção
+   * é da INTERFACE, não desta função: a tabela A6, o editor A15 e a tela de
+   * cadastro separam "falta para poder publicar" de "pendência que não tira do
+   * ar", e a fila de rascunhos ordena por isso.
+   *
+   * Enquanto for sempre `true`, as frases de "não tira do ar" dessas telas não
+   * têm como aparecer. É dívida conhecida, não engano: some no dia em que
+   * entrar o segundo motivo, ou vira remoção deliberada se ele nunca vier.
+   */
+  bloqueia: boolean;
 }
 
 /**
@@ -258,6 +272,14 @@ export interface MotivoDeBloqueio {
  */
 export function bloqueiosDePublicacao(veiculo: {
   whatsapp_images?: unknown;
+  /**
+   * De onde a linha veio: `painel` é o cadastro nativo do admin (2026-08-29),
+   * qualquer outra coisa — inclusive ausente — é o sync do RevendaMais. Só
+   * muda o TEXTO da pendência: quem tem de subir a foto é outra pessoa em cada
+   * caso, e mandar o operador esperar o feed de um carro que ele mesmo
+   * cadastrou seria uma instrução falsa. A régua é a mesma para os dois.
+   */
+  origem?: string | null;
 }): MotivoDeBloqueio[] {
   const motivos: MotivoDeBloqueio[] = [];
 
@@ -265,9 +287,18 @@ export function bloqueiosDePublicacao(veiculo: {
     ? veiculo.whatsapp_images.filter(Boolean).length
     : 0;
   if (fotos < MINIMO_DE_FOTOS) {
+    const deOndeVemAFoto =
+      veiculo.origem === "painel"
+        ? "suba as fotos pelo painel"
+        : "as fotos vêm do RevendaMais";
     motivos.push({
       id: "poucas-fotos",
-      texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos — as fotos vêm do RevendaMais`,
+      // O texto varia com a origem porque quem sobe a foto é outra pessoa em
+      // cada caso: no carro do RevendaMais a foto vem do feed; no cadastrado
+      // aqui (2026-08-29), pelo próprio painel. Mandar o operador esperar o
+      // feed de um carro que ele mesmo cadastrou seria instrução falsa.
+      texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos — ${deOndeVemAFoto}`,
+      bloqueia: true,
     });
   }
 
@@ -275,6 +306,15 @@ export function bloqueiosDePublicacao(veiculo: {
 }
 
 /** Atalho para os filtros. Ver `bloqueiosDePublicacao` para o porquê. */
-export function publicavel(veiculo: { whatsapp_images?: unknown }): boolean {
-  return bloqueiosDePublicacao(veiculo).length === 0;
+// `laudo_pericia` saiu da assinatura junto com a regra (29/08): a função não o
+// lê mais, e mantê-lo no tipo faria quem chama pensar que ele ainda pesa.
+export function publicavel(veiculo: {
+  whatsapp_images?: unknown;
+  origem?: string | null;
+}): boolean {
+  // `.some(bloqueia)`, e não `.length === 0`: a lista pode trazer pendência que
+  // não tira do ar. Hoje não traz — ver `MotivoDeBloqueio.bloqueia` —, mas quem
+  // acrescentar o segundo motivo não deve precisar lembrar de mudar isto aqui
+  // para o carro não sumir da vitrine por uma observação.
+  return !bloqueiosDePublicacao(veiculo).some((m) => m.bloqueia);
 }
