@@ -35,7 +35,24 @@ mesma máquina do n8n. **Quando o Pro passa a ser necessário:** só se as fotos
 dos 104 veículos do feed forem migradas (~750 MB estouraria 1 GB do Free); pelo
 uso nativo de hoje, não há pressa.
 
-**A LACUNA que o storage próprio ainda não fecha:** a galeria grava só em
+**A virada de 2026-08-30 — o RevendaMais deixa de ser dono do dado.** Decisão do
+dono: *"para o sync cron, deixa apenas a opção de importação com acionamento
+manual, sem override, criamos rascunhos dos carros para serem finalizados antes
+de serem publicados"*. Executado: o cron de 6 h foi **desligado no n8n** (nó de
+agendamento marcado `disabled`, visível no editor; o gatilho manual ficou), a
+migração `20260830120000_f0q` criou `estado_cadastro`
+(`rascunho|publicado|arquivado`) e a trava do sync virou total. O backfill
+preservou a vitrine (38 publicados, 24 vendidos, 42 arquivados) e o feed do
+catálogo seguiu devolvendo os mesmos 34 itens.
+
+> **Por que a coluna, e não só desligar o cron:** "estar no ar" era derivado da
+> janela de `last_seen_at`. Com importação manual, importar UM carro o tornaria
+> "o ciclo mais recente" e derrubaria os outros 38 da vitrine — sem ninguém ter
+> mexido em nada. O estado precisava deixar de ser inferido do relógio do robô.
+
+**A LACUNA que o storage próprio ainda não fecha** *(em fechamento — a migração
+das fotos dos 38 ativos rodou em ensaio com 525 fotos, 0 falhas e 160 MB, e está
+sendo gravada)*: a galeria grava só em
 veículo `origem = 'painel'`, e por um bom motivo — as três colunas de foto são
 do feed, e o sync as reescreveria no ciclo seguinte, em silêncio. Como os 104
 veículos atuais são todos do sync, **na prática o carro57 continua servindo

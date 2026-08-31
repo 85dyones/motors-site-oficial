@@ -33,9 +33,14 @@ Há ainda uma quarta pasta que **não existe hoje** e é criada sob demanda:
   - **ferramenta**, que fica para sempre e roda quantas vezes for preciso:
     `aplicar-migracao.js` (aplica uma migração pelo pooler),
     `conferir-estado-do-financeiro.sql` (pergunta ao banco, sem escrever
-    nada, se as migrações do financeiro continuam de pé) e
+    nada, se as migrações do financeiro continuam de pé),
     `acertar_livro_razao_da_colisao.sql` (diagnóstico + acerto da colisão de
-    timestamp de 2026-08-22 — ver abaixo).
+    timestamp de 2026-08-22 — ver abaixo) e
+    `migrar-fotos-do-carro57.js` (traz as fotos dos veículos publicados e não
+    vendidos para o bucket `veiculos` e reescreve as colunas do anúncio;
+    ensaia por padrão, grava com `--gravar`, e é idempotente — ver o cabeçalho
+    do arquivo). O dump de reversão que ele gera antes de gravar cai em
+    `manutencao/reversao/`.
 
 `pendente/` não é uma convenção do Supabase CLI — é uma salvaguarda deste
 projeto. Ver o passo 4 do runbook abaixo para o motivo. Está **vazia desde
