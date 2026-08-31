@@ -82,22 +82,24 @@ export default function IntegrationsTracker() {
      * `_fbc` por 90 dias, quando a visita veio de um anúncio do Meta.
      *
      * -----------------------------------------------------------------------
-     * Passou para DENTRO do portão em 27/08
+     * Duas viradas, e a segunda desfez a primeira — de propósito
      * -----------------------------------------------------------------------
-     * A versão anterior gravava o cookie antes do aceite, argumentando que
-     * capturar o parâmetro não é o mesmo que enviar evento. O argumento tem
-     * lógica e mesmo assim não se sustenta: a política publicada afirma, com
-     * essas palavras, que *"enquanto você não aceitar, nenhuma ferramenta de
-     * análise ou publicidade é carregada"* — e a mesma política declara `_fbc`
-     * como cookie de atribuição de anúncio. Escrevê-lo antes do aceite
-     * desmente o texto que o visitante leu.
+     * Em 27/08 este cookie passou para DENTRO do portão do aceite. O motivo era
+     * bom e não era técnico: a política publicada afirmava, com essas palavras,
+     * que *"enquanto você não aceitar, nenhuma ferramenta de análise ou
+     * publicidade é carregada"*, e a mesma política declarava `_fbc` como
+     * cookie de atribuição. Escrevê-lo antes do aceite desmentia o texto que o
+     * visitante tinha lido.
      *
-     * Não custa mídia; custa numa reclamação à ANPD, e o conserto é este.
+     * Em 31/08 o dono mudou a decisão de produto — *"máximo dado, risco
+     * concentrado no pixel e no Ads"* — e a política foi reescrita na MESMA
+     * rodada para descrever o que passa a acontecer. O que não se pode é ter
+     * uma sem a outra: o problema de 27/08 nunca foi a gravação, foi a
+     * divergência entre o que o site fazia e o que ele dizia fazer.
      *
-     * O que se perde é menos do que parece: esta função roda também no evento
-     * `ag-cookie-consent-updated`, então quem aceita o banner ainda na página
-     * de entrada tem o `fbclid` capturado na hora, direto da URL. Some só o
-     * caso de quem navega para outra página antes de aceitar.
+     * Agora o portão só barra a recusa explícita, então `_fbc` é gravado na
+     * chegada de quem ainda não respondeu — que é justamente quem vem do
+     * anúncio e vê uma página só.
      */
     const persistirFbc = () => {
       try {
@@ -128,9 +130,37 @@ export default function IntegrationsTracker() {
       // trazia mais o parâmetro. Quem pegou foi o teste de navegador.
       persistirParametrosDeCampanha();
 
+      // -----------------------------------------------------------------------
+      // Nada espera o aceite. A única barreira é a oposição explícita.
+      // -----------------------------------------------------------------------
+      // Decisão do dono em 2026-08-31, reafirmada depois de a ressalva ter sido
+      // levantada: *"não quero nada atrás do aceite, o `_fbc` precisa estar
+      // ativo... o custo jurídico ainda é infinitamente menor que o custo
+      // operacional de não ter os dados... é a forma como operam até as
+      // gigantes. Quando uma resolução como a europeia estiver valendo aqui no
+      // Brasil, mudamos"*. Base declarada: legítimo interesse (LGPD art. 7º, IX).
+      //
+      // O portão já exigiu `=== "accepted"` — barrava quem apenas ainda não
+      // tinha respondido, que é a maioria de quem chega por anúncio e vê uma
+      // página só. Isso acabou. Ninguém precisa clicar em nada para ser medido.
+      //
+      // O que sobrou é `=== "rejected"`, e não é o mesmo portão de antes: ele
+      // só fecha para quem FOI ATRÁS de desligar, na página de privacidade. O
+      // aviso da home não oferece mais essa porta — um botão de recusa ao lado
+      // de "Entendi" induz a recusa, e o dono apontou isso na tela.
+      //
+      // ⚠️ DUAS COISAS ANDAM COM ESTA LINHA:
+      //   1. `/privacidade` descreve o que acontece de fato, e é lá que mora o
+      //      controle de desligar. A política já afirmou o oposto disto —
+      //      "enquanto você não aceitar, nenhuma ferramenta é carregada" — e o
+      //      problema nunca foi o rastreamento, foi dizer uma coisa e fazer
+      //      outra.
+      //   2. O aviso da home informa e some. Não decide nada.
+      //
+      // `tests/brechas-de-mensuracao.test.ts` trava as pontas juntas.
       const consent = localStorage.getItem("ag_cookie_consent");
-      if (consent !== "accepted") {
-        console.log("[IntegrationsTracker] Tracking disabled. LGPD Cookie consent not accepted yet.");
+      if (consent === "rejected") {
+        console.log("[IntegrationsTracker] Desligado pelo próprio visitante, em /privacidade.");
         return;
       }
 
@@ -292,8 +322,13 @@ export default function IntegrationsTracker() {
       return;
     }
 
+    // Mesma régua da inicialização (31/08): só a recusa explícita barra. Se
+    // este ficasse em `!== "accepted"`, o primeiro PageView entraria e os das
+    // páginas seguintes não — a sessão apareceria no Meta como visita de uma
+    // página só, que é pior que não aparecer: vira um número errado, não um
+    // número faltando.
     const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return;
+    if (consent === "rejected") return;
 
     // Dispatch GA4 page view
     if (window.gtag && ga4Id) {

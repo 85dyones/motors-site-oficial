@@ -433,11 +433,27 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     expect(chamada, "a captura precisa vir ANTES do retorno antecipado").toBeLessThan(portao);
   });
 
-  it("o `_fbc`, esse sim, continua atrás do aceite", async () => {
-    // Não mudou em 28/08 e não deve mudar por tabela: `persistirFbc` escreve o
-    // cookie direto, sem tratamento interno de recusa, e depende do `return` de
-    // cima. GA4, Ads e Meta seguem no mesmo regime.
+  it("o portão barra a RECUSA, não a ausência de resposta", async () => {
+    // Este teste chamava-se "o `_fbc`, esse sim, continua atrás do aceite" e
+    // afirmava o regime anterior. Em 2026-08-31 o dono mudou a decisão —
+    // *"banner informativo, gate removido — máximo dado"* — e o teste passou a
+    // ficar VERDE afirmando o contrário do que o código faz: `persistirFbc()`
+    // continua depois do portão, só que o portão deixou de exigir aceite.
+    //
+    // Teste que sobrevive à inversão da regra que ele guarda não guarda nada.
+    // Agora ele afirma a régua nova, e falha se alguém voltar ao `!==`.
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
+
+    // Duas ocorrências: a inicialização e o PageView de navegação. As duas
+    // precisam da mesma régua — se só uma mudasse, a sessão apareceria no Meta
+    // como visita de uma página só, que é um número errado, não um faltando.
+    const barrasPorRecusa = fonte.match(/consent === "rejected"/g) ?? [];
+    expect(barrasPorRecusa.length, "as duas portas precisam barrar por recusa").toBe(2);
+    expect(fonte, "voltou a exigir aceite sem reescrever a política?")
+      .not.toMatch(/consent !== "accepted"/);
+
+    // E o `_fbc` continua DEPOIS do portão: quem recusou não ganha cookie de
+    // atribuição. É a metade da regra que não mudou.
     const portao = fonte.indexOf('const consent = localStorage.getItem("ag_cookie_consent")');
     expect(fonte.indexOf("persistirFbc();")).toBeGreaterThan(portao);
   });
@@ -455,7 +471,85 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     expect(politica, "a política não avisa que grava antes da resposta")
       .toMatch(/antes da sua resposta ao aviso/);
     expect(politica, "a política não avisa que a recusa apaga")
-      .toMatch(/recusar, ele é apagado/);
+      .toMatch(/apagados na hora|recusar, ele é apagado/);
+  });
+
+  it("a política admite que o rastreamento começa ANTES da resposta", async () => {
+    // A trava que faltava, e que teria pego a divergência de 2026-08-31 sozinha.
+    //
+    // O teste acima amarrava política e código para os parâmetros de campanha,
+    // mas ninguém amarrava a afirmação mais forte do texto publicado — que
+    // "enquanto você não aceitar, nenhuma ferramenta de análise ou publicidade
+    // é carregada". Quando o portão mudou, essa frase virou mentira e nenhum
+    // teste caiu.
+    const tracker = lerCodigo("src/components/IntegrationsTracker.tsx");
+    const politica = lerCodigo("src/app/privacidade/page.tsx");
+
+    const carregaAntesDaResposta = tracker.includes('consent === "rejected"');
+    expect(carregaAntesDaResposta, "o portão voltou a exigir aceite?").toBe(true);
+
+    // A promessa antiga não pode ter sobrado em lugar nenhum do texto.
+    expect(politica, "a política ainda promete que nada carrega antes do aceite")
+      .not.toMatch(/nenhuma ferramenta\s+de análise ou publicidade é carregada/);
+
+    // E o texto novo precisa dizer as duas coisas: que já está ativo, e com que
+    // base legal. Afirmar a primeira sem a segunda é o pior dos dois mundos.
+    expect(politica, "a política não diz que as ferramentas já estão carregadas")
+      .toMatch(/carregadas desde o início da\s+visita/);
+    // Âncora no ARTIGO, não na expressão: "legítimo interesse" já aparecia
+    // noutra seção da política (segurança e prevenção a fraudes), então
+    // `toMatch(/legítimo interesse/)` casava com a ocorrência errada e passava
+    // mesmo se a seção de cookies parasse de citar base legal nenhuma. Foi
+    // mutação que encontrou — a asserção fraca sobreviveu à remoção.
+    expect(politica, "a seção de cookies não cita o artigo que fundamenta o rastreamento")
+      .toMatch(/art\.\s*7º,\s*IX/);
+
+    // E o direito de oposição precisa estar escrito, porque ele existe no
+    // código: `consent === "rejected"` continua barrando.
+    expect(politica, "a política não fala do direito de se opor")
+      .toMatch(/pode se opor/);
+  });
+
+  it("o banner informa e some — não decide, e não induz recusa", async () => {
+    // Duas correções no mesmo dia. A primeira tirou "Ao aceitar, você concorda",
+    // que descrevia um portão que deixou de existir. A segunda veio de um print
+    // do dono: o botão "Não quero ser rastreado" ficava ao lado do "Entendi", e
+    // *"esta frase induz a recusa"*. Duas opções lado a lado, uma nomeando o
+    // medo, é um formulário perguntando à pessoa se ela quer ser vigiada.
+    const banner = lerCodigo("src/components/CookieConsentBanner.tsx");
+
+    expect(banner, "o banner ainda diz que o aceite libera as tags")
+      .not.toMatch(/Ao aceitar, você concorda/);
+    // Nenhuma variação do convite à recusa pode voltar ao aviso.
+    expect(banner, "voltou a oferecer recusa no aviso da home")
+      .not.toMatch(/Não quero ser rastreado|Rejeitar|Recusar/);
+    expect(banner, "o aviso não escreve mais a decisão de ninguém")
+      .not.toMatch(/"rejected"/);
+    // E o caminho para a escolha continua visível, em tom baixo.
+    expect(banner, "sumiu o caminho para ajustar").toMatch(/Ajustar detalhes/);
+    expect(banner, "o link do ajuste não aponta para a política")
+      .toMatch(/href="\/privacidade"/);
+  });
+
+  it("a escolha existe de verdade — só mudou de lugar", async () => {
+    // Tirar o convite não pode virar tirar a capacidade: a base declarada é o
+    // legítimo interesse, que pressupõe oposição possível. O controle mora na
+    // política, e é ele que escreve o `rejected` que o tracker lê.
+    const controle = lerCodigo("src/components/ControleDeRastreamento.tsx");
+    const politica = lerCodigo("src/app/privacidade/page.tsx");
+    const tracker = lerCodigo("src/components/IntegrationsTracker.tsx");
+
+    expect(politica, "a política não monta o controle").toMatch(/<ControleDeRastreamento \/>/);
+    expect(controle, "o controle não grava a oposição").toMatch(/"ag_cookie_consent", "rejected"/);
+    // Efeito imediato: sem o evento, quem desliga continua sendo medido até
+    // recarregar — e o tracker escuta exatamente este nome.
+    expect(controle, "o controle não avisa o tracker")
+      .toMatch(/ag-cookie-consent-updated/);
+    expect(tracker, "o tracker não escuta a mudança")
+      .toMatch(/ag-cookie-consent-updated/);
+    // E os cookies de atribuição saem junto, senão "desliguei" seria só uma
+    // promessa: o `_fbc` continuaria no navegador.
+    expect(controle, "o controle não apaga o _fbc").toMatch(/_fbc=; path=\/; max-age=0/);
   });
 });
 
