@@ -123,7 +123,7 @@ export default async function GaragemPage({
   const { data: veiculos, error: erroVeiculos } = await supabase
     .from("veiculos_vendidos")
     .select(
-      `id, placa, marca, modelo, versao, ano_modelo, data_venda, km_na_venda,
+      `id, placa, marca, modelo, versao, ano_modelo, data_venda, km_na_venda, saiu_em,
        contrato:contratos_ciclo ( plano, garantia_meses, garantia_fim ),
        plano_revisoes ( numero_revisao, km_previsto, janela_inicio, janela_fim, manutencao_id ),
        manutencoes ( id, tipo, numero_revisao, data_servico, km_registrado,
