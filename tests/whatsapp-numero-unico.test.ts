@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { linkWhatsApp, numeroDaLoja, normalizarNumero } from "../src/lib/whatsapp";
+import { semComentarios } from "./fonte";
 
 /**
  * A loja atende num número só.
@@ -41,7 +42,11 @@ const arquivos = fontes(raiz).map((f) => ({
   // acusado de infrator — num teste que passa no CI (Linux) e falha só na
   // máquina de quem está editando o código.
   caminho: f.replace(/\\/g, "/"),
-  texto: readFileSync(f, "utf-8"),
+  // Sem comentário: a nota que explica por que uma tela NÃO monta o link à mão
+  // costuma citar `wa.me/` justamente para dizer isso, e o varredor cru acusava
+  // a própria explicação de infratora. Trava tem de medir código, não prosa —
+  // mesma armadilha que `tests/fonte.ts` descreve no cabeçalho.
+  texto: semComentarios(readFileSync(f, "utf-8")),
 }));
 
 describe("ponto único de montagem", () => {

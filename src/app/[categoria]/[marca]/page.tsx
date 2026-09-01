@@ -18,7 +18,8 @@ import { schemaDaLoja } from "../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeMarca } from "../../../lib/textoDosHubs";
 import { generoDoSegmento, seminovo, um } from "../../../lib/generoDoVeiculo";
 import { buscarTextoDoHub, resolverTextoDoHub } from "../../../lib/textoEditadoDoHub";
-import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../lib/veiculoUrl";
+import { ehSegmentoDePdp, segmentoDoVeiculo, type SegmentoDePdp } from "../../../lib/veiculoUrl";
+import { linkWhatsApp } from "../../../lib/whatsapp";
 
 /**
  * Hub de marca — `/carros/jeep`, `/motos/harley-davidson`.
@@ -104,7 +105,7 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
   const rotuloDoSegmento = hub.segmento === "motos" ? "Motos" : "Carros";
   const genero = generoDoSegmento(hub.segmento);
   const novos = seminovo(genero, true);
-  const perguntas = perguntasDeCategoria(`${hub.nome} ${novos}`, genero);
+  const perguntas = perguntasDeCategoria(`${hub.nome} ${novos}`, genero, caminho);
 
   // O texto que a loja escreveu vence o gerado. Esta rota ficou de fora na
   // entrega de 31/08 junto com `/estoque/[recorte]` — ver a nota lá.
@@ -114,6 +115,16 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
       titulo: `${hub.nome} ${novos} em Curitiba`,
       paragrafos: textoDeMarca(hub.nome, hub.veiculos, hub.modelos.map((m) => m.nome), genero),
     },
+  );
+
+
+  /* Saída do hub de marca sem carro (2026-09-01, relatório dos hubs). O
+     recorte é o SEGMENTO: numa página de marca de moto, oferecer carro seria
+     trocar de assunto, não sugerir alternativa. */
+  const doSegmento = disponiveis.filter((v) => segmentoDoVeiculo(v) === hub.segmento).slice(0, 3);
+  const avisarHref = linkWhatsApp(
+    companySettings,
+    `Olá! Vi a página ${hub.nome} no site e quero ser avisado quando entrar ${um(genero)}.`,
   );
 
   const jsonLd = blocoJsonLd([
@@ -138,6 +149,9 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
         titulo={tituloDaPagina}
         introducao={introducao}
         veiculos={hub.veiculos}
+        alternativos={doSegmento}
+        rotuloAlternativos="Enquanto isso, no estoque de hoje"
+        avisarHref={avisarHref}
         textoSemEstoque={`Sem ${hub.nome} disponível neste momento. O estoque gira toda semana e esta página continua no ar — quando entrar ${um(genero)}, aparece aqui.`}
         blocos={[
           ...(hub.modelos.length > 0

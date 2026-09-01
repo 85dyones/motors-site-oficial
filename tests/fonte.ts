@@ -43,7 +43,19 @@ export function ler(caminho: string): string {
  * que este repositório não tem.
  */
 export function lerCodigo(caminho: string): string {
-  const fonte = ler(caminho);
+  return semComentarios(ler(caminho));
+}
+
+/**
+ * O varredor, para quem já tem a fonte em mãos.
+ *
+ * `lerCodigo` cobre o caso comum — um caminho, um arquivo. Testes que varrem
+ * `src/` inteiro montam a própria lista e precisam do descarte aplicado ao
+ * texto que já leram; foi o caso de `whatsapp-numero-unico` em 2026-09-01, que
+ * acusava de infratora uma tela cujo único `wa.me/` estava na nota explicando
+ * por que ela NÃO monta o link à mão.
+ */
+export function semComentarios(fonte: string): string {
   let saida = "";
   let i = 0;
 

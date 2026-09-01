@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Veiculo } from "../../types";
 import { resumirSelecao } from "../../lib/destaquesRapidos";
 import GradeDeVeiculos from "./GradeDeVeiculos";
+import BotaoWhatsApp from "./BotaoWhatsApp";
 import { formatarKm, formatarPreco } from "./primitivos";
 
 /**
@@ -47,6 +48,29 @@ export interface PaginaDeEstoqueProps {
   veiculos: Veiculo[];
   /** Mensagem quando a grade está vazia — o hub continua no ar. */
   textoSemEstoque?: string;
+  /**
+   * O que oferecer quando a grade está vazia — a SAÍDA do hub sem carro.
+   *
+   * Achado do relatório dos hubs (31/08): *"hoje um hub sem carro é um beco.
+   * Quem busca um modelo específico e não acha é o lead mais qualificado que
+   * chega no site — e hoje ele volta para o Google"*.
+   *
+   * Quem chama escolhe o recorte: o hub de modelo manda os outros da mesma
+   * marca, o de carroceria manda a mesma carroceria em outra faixa. Lista
+   * vazia não desenha nada — hub perene de uma loja recém-aberta não deve
+   * inventar vizinho.
+   */
+  alternativos?: Veiculo[];
+  /** O cabeçalho dessa grade — ex.: "Do mesmo tipo, em outra faixa". */
+  rotuloAlternativos?: string;
+  /**
+   * Link de WhatsApp já com a mensagem escrita — o "avise quando entrar um".
+   *
+   * `linkWhatsApp` devolve "" quando não há número configurado, e string vazia
+   * aqui esconde o botão: `wa.me/` sem número abre o WhatsApp numa tela de
+   * erro, que é pior do que não oferecer.
+   */
+  avisarHref?: string;
   blocos?: BlocoDeLinks[];
   faq?: PerguntaFrequente[];
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
@@ -76,6 +100,9 @@ export default function PaginaDeEstoque({
   introducao = [],
   veiculos,
   textoSemEstoque,
+  alternativos = [],
+  rotuloAlternativos = "Enquanto isso, do mesmo perfil",
+  avisarHref = "",
   blocos = [],
   faq = [],
   acao,
@@ -202,16 +229,47 @@ export default function PaginaDeEstoque({
           </div>
         ) : (
           /* Grade vazia não é erro: o hub é perene e volta a encher quando o
-             estoque girar. O que não pode é virar beco sem saída — daí o
-             caminho de volta e os blocos de links logo abaixo. */
+             estoque girar. O que não pode é virar beco sem saída.
+
+             Três saídas, na ordem em que resolvem o problema de quem chegou
+             aqui procurando uma coisa específica:
+
+               1. AVISE-ME, que capta o lead no canal que a loja já atende. É
+                  a primeira porque quem busca um modelo e não acha é o lead
+                  mais qualificado do site — e sem isto ele volta para o
+                  Google, que é exatamente o que o relatório encontrou.
+               2. ALTERNATIVAS de verdade, com card e preço, não um link
+                  genérico: "mesma carroceria em outra faixa" responde a
+                  intenção; "ver todo o estoque" devolve o trabalho de filtrar
+                  para quem já tinha filtrado.
+               3. O catálogo inteiro, que continua sendo a saída de sempre. */
           <div className="border-b border-mt-regua-fina py-10">
             <p className="m-0 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800">
               {textoSemEstoque ??
                 "Sem unidades disponíveis neste momento. O estoque gira toda semana — fale com um consultor e avisamos quando entrar."}
             </p>
-            <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco mt-6">
-              VER TODO O ESTOQUE
-            </Link>
+            <div className="mt-6 flex flex-wrap gap-0.5">
+              {avisarHref && (
+                <BotaoWhatsApp
+                  href={avisarHref}
+                  origem="Hub sem estoque - Avise-me"
+                  rotulo="AVISE-ME QUANDO ENTRAR"
+                  className="mt-btn mt-btn-primario mt-foco"
+                />
+              )}
+              <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco">
+                VER TODO O ESTOQUE
+              </Link>
+            </div>
+
+            {alternativos.length > 0 && (
+              <div className="mt-10">
+                <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">{rotuloAlternativos}</h2>
+                <div className="mt-5">
+                  <GradeDeVeiculos veiculos={alternativos} prioritarios={0} />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -29,6 +29,7 @@ import {
 import { avaliados, seminovo, type Genero } from "../../../lib/generoDoVeiculo";
 import { buscarTextoDoHub, resolverTextoDoHub } from "../../../lib/textoEditadoDoHub";
 import type { Veiculo } from "../../../types";
+import { linkWhatsApp } from "../../../lib/whatsapp";
 
 /**
  * Recortes do estoque — `/estoque/suv`, `/estoque/ate-60-mil`.
@@ -182,7 +183,7 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
   const { recorte, historico, disponiveis } = dados;
   const { companySettings } = await getCachedSettings();
   const caminho = `/estoque/${slug}`;
-  const perguntas = perguntasDeCategoria(recorte.rotuloNasPerguntas, recorte.genero);
+  const perguntas = perguntasDeCategoria(recorte.rotuloNasPerguntas, recorte.genero, caminho);
 
   // O texto que a loja escreveu vence o gerado.
   //
@@ -195,6 +196,17 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
   const { titulo, paragrafos: introducao } = resolverTextoDoHub(
     await buscarTextoDoHub(caminho),
     { titulo: recorte.titulo, paragrafos: recorte.introducao },
+  );
+
+
+  /* Saída do recorte sem carro (2026-09-01, relatório dos hubs). Aqui o que
+     esvaziou a página foi o PRÓPRIO filtro — carroceria, perfil ou faixa —,
+     então a alternativa honesta é o estoque sem ele, com card e preço em vez
+     de um link que devolve o trabalho de filtrar a quem já filtrou. */
+  const noEstoqueHoje = disponiveis.slice(0, 3);
+  const avisarHref = linkWhatsApp(
+    companySettings,
+    `Olá! Vi a página ${recorte.titulo} no site e quero ser avisado quando entrar algo assim.`,
   );
 
   const jsonLd = blocoJsonLd([
@@ -220,6 +232,9 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
         titulo={titulo}
         introducao={introducao}
         veiculos={recorte.veiculos}
+        alternativos={noEstoqueHoje}
+        rotuloAlternativos="Enquanto isso, no estoque de hoje"
+        avisarHref={avisarHref}
         blocos={[
           {
             titulo: "Por faixa de preço",
