@@ -15,10 +15,37 @@ correção desfeita no sync seguinte, em silêncio.
 
 | Origem | O que acontece | Campos |
 |---|---|---|
-| **Feed** | O sincronizador traz na importação. **Desde 30/08 ele não reescreve mais nada** — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor`, `preco_original`, `whatsapp_images` |
+| **Feed** | O sincronizador traz na importação. **Desde 30/08 ele não reescreve mais nada** — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor`, `preco_original` |
 | **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `opcionais`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro` |
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
-| **Do feed, mas nosso para editar** | Coluna que o feed preenche e o painel sobrescreve para valer, em veículo de qualquer origem. | `preco_promocional` |
+| **Do feed, mas nosso para editar** | Coluna que o feed preenche e o painel sobrescreve para valer, em veículo de qualquer origem. | `preco_promocional`, `whatsapp_images`, `web_full_images`, `url_imagem` |
+
+### 🟢 As fotos atravessaram a fronteira em 2026-09-01 (F0.5)
+
+As três colunas de foto saíram de **Feed** e entraram na quarta linha, ao lado
+de `preco_promocional`. `camposGravaveis` não as condiciona mais a
+`origem === 'painel'`, e a galeria do editor perdeu o portão de origem — sobrou
+`podeEditar`, a linha "Adicionar e reordenar fotos" da matriz A17.
+
+O motivo antigo ("o sync reescreve a cada 6 h") morreu duas vezes: a trava total
+o impede de atualizar coluna nenhuma, e em 31/08 as fotos dos 37 ativos foram
+para o bucket `veiculos`. Como `origem = 'sync'` é 100% do estoque, a condição
+mantinha a galeria fechada para **todos** os carros — e a pendência de fotos
+ainda mandava resolver no RevendaMais, que desde 30/08 não tem como devolver o
+dado. Quatro carros estavam fora da vitrine exatamente por isso.
+
+**Decisão do dono em 01/09, sobre hospedagem:** as fotos já migradas **ficam**
+no nosso bucket, e **nenhuma migração nova é feita**. Carro novo continua
+chegando com URL do `s3.carro57.com.br` e permanece assim — não se mexe em foto
+que está boa. Quando faltar ou precisar trocar, o caminho é o painel. O motivo
+declarado foi não criar centro de custo; conferido no mesmo dia, o bucket ocupa
+160 MB de 1 GB do plano free, então **hospedar não custa nada hoje** — o que
+pesa é egress, e egress não muda de lado conforme onde o arquivo mora.
+
+Consequência para os portais: a vitrine ativa serve foto nossa, com URL pública
+sem expiração e sob nosso controle de ordem e capa. Vendidos e arquivados seguem
+no carro57 de propósito — quando aquele link morrer, essas fichas já terão saído
+do ar pela carência de `publicacao.ts`.
 
 ### 🔴 A tabela acima mudou de sentido em 2026-08-30
 

@@ -112,24 +112,48 @@ export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
 export const CAMPO_DA_PROMOCAO = "preco_promocional";
 
 /**
- * Fotos: graváveis só no veículo que nasceu no painel — pelo mesmo motivo do
- * preço, e com a mesma consequência se alguém afrouxar.
+ * Fotos: graváveis em veículo de QUALQUER origem, desde 2026-09-01 (F0.5).
  *
  * ---------------------------------------------------------------------------
- * Por que não vale para o carro do feed
+ * A condição que existia aqui, e por que ela caiu
  * ---------------------------------------------------------------------------
- * As três colunas SÃO do RevendaMais: o sincronizador as reescreve a cada 6 h
- * (`docs/levantamento-atual.md` §2.4, "o sync continua intocado até a F2").
- * Deixar o painel subir foto num veículo `origem = 'sync'` produziria o pior
- * defeito possível: o carro chega a oito fotos, sai da lista de bloqueados,
- * entra na vitrine — e no ciclo seguinte volta a seis fotos e some, sem erro
- * em lugar nenhum. Ninguém liga o sumiço ao envio de três horas antes.
+ * Até aqui estas três colunas só eram graváveis em `origem = 'painel'`. O
+ * motivo escrito era: *"o sincronizador as reescreve a cada 6 h"* — e o defeito
+ * temido era real e bem descrito: o carro chega a oito fotos, entra na vitrine,
+ * e no ciclo seguinte volta a seis e some, sem erro em lugar nenhum.
  *
- * No veículo nativo (migração 20260829130000) esse motivo não existe: a trava
- * garante que o sync nunca toca em linha de `origem = 'painel'`. E é
- * exatamente para ele que o bucket foi criado — a migração F0-p abre dizendo
- * que "sem ele o cadastro nativo cria carro que nunca chega à vitrine, porque
- * a régua de publicação exige 8 fotos e não há de onde tirá-las".
+ * **Esse motivo deixou de existir, duas vezes.** A trava total do sync
+ * (`20260829130000_f0k` + `20260830120000_f0q:115-120`) tirou do RevendaMais o
+ * poder de atualizar qualquer coluna de qualquer linha — inclusive as que ele
+ * mesmo importou. E em 31/08 as fotos dos ativos saíram do `s3.carro57.com.br`
+ * para o nosso bucket: 37 dos 38 publicados à venda. A condição sobreviveu à
+ * razão dela por dois dias, e o `docs/PLANO_F0.md` já tinha registrado a
+ * conclusão sem que o código a seguisse — *"sem sobrescrita não há o que
+ * blindar, e a galeria vale para todo o estoque sem migração de override
+ * nenhuma"*.
+ *
+ * O custo de manter a condição não era teórico. Em 01/09, na vitrine REAL,
+ * quatro carros estavam abaixo da porta de quatro fotos — Kombi Standard (0),
+ * Parati CL (1), Sandero Expression (1) e Voyage 1.0 (1) — e outros três no ar
+ * com ficha incompleta. Em todos, a pendência mandava o operador resolver no
+ * RevendaMais, num painel que não podia recebê-la de volta.
+ *
+ * ⚠️ Para quem for conferir: `npm run auditoria:estoque` NÃO carrega
+ * `.env.local`, e sem as variáveis `getEstoque()` cai no `MOCK_ESTOQUE` — os
+ * cinco carros fictícios de `supabase.ts:22-90` (o Porsche de R$ 998.000 é um
+ * deles). Rodar sem env produz um relatório convincente sobre um estoque que
+ * não existe. Exportar as três variáveis antes.
+ *
+ * ---------------------------------------------------------------------------
+ * O que continua sendo verdade
+ * ---------------------------------------------------------------------------
+ * Quem decide QUEM sobe foto continua sendo a matriz A17
+ * (`ACAO_DO_CAMPO_DE_VEICULO`, linha "Adicionar e reordenar fotos") — a régua
+ * de PAPEL nunca foi esta, e afrouxar a de COLUNA não a afrouxa.
+ *
+ * E misturar foto nossa com foto do carro57 no mesmo carro é seguro: a faxina
+ * do bucket passa por `caminhoDaUrlPublica`, que devolve `null` para URL que
+ * não é nossa. Removemos do Storage só o que subimos.
  *
  * ---------------------------------------------------------------------------
  * As três andam juntas
@@ -163,16 +187,24 @@ export const COLUNAS_LIDAS_PARA_DECIDIR = [
 ] as const;
 
 /**
- * Os campos graváveis para ESTE veículo — a lista fixa, mais o preço e as
- * fotos quando a linha é do painel.
+ * Os campos graváveis para ESTE veículo — a lista fixa e as fotos sempre, mais
+ * o preço de tabela quando a linha é do painel.
  *
  * Recebe a origem em vez de consultá-la: quem chama já leu a linha, e uma
  * segunda consulta aqui abriria janela entre a leitura e a escrita.
+ *
+ * `origem` continua importando, e só por causa de `CAMPOS_DE_PRECO_DO_NATIVO`.
+ * Não é limitação técnica — a trava impediria o sync de desfazer o preço do
+ * mesmo jeito que impede o resto. É a decisão de produto do
+ * `docs/PROPRIEDADE_DOS_CAMPOS.md`: enquanto o carro for do RevendaMais, quem
+ * define o preço de LISTA é ele; quem define PROMOÇÃO é a loja, em qualquer
+ * origem (`CAMPO_DA_PROMOCAO`). Rever isso é assunto do PR 5 da F0.5, e depende
+ * de existir conferência que acuse divergência de preço — senão o painel vira
+ * fonte única sem saber que virou.
  */
 export function camposGravaveis(origem?: string | null): readonly string[] {
-  return origem === "painel"
-    ? [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_PRECO_DO_NATIVO, ...CAMPOS_DE_FOTO]
-    : [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO];
+  const base = [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_FOTO];
+  return origem === "painel" ? [...base, ...CAMPOS_DE_PRECO_DO_NATIVO] : base;
 }
 
 /**

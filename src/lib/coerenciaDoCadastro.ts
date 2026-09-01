@@ -292,14 +292,6 @@ export interface MotivoDeBloqueio {
  */
 export function bloqueiosDePublicacao(veiculo: {
   whatsapp_images?: unknown;
-  /**
-   * De onde a linha veio: `painel` é o cadastro nativo do admin (2026-08-29),
-   * qualquer outra coisa — inclusive ausente — é o sync do RevendaMais. Só
-   * muda o TEXTO da pendência: quem tem de subir a foto é outra pessoa em cada
-   * caso, e mandar o operador esperar o feed de um carro que ele mesmo
-   * cadastrou seria uma instrução falsa. A régua é a mesma para os dois.
-   */
-  origem?: string | null;
 }): MotivoDeBloqueio[] {
   const motivos: MotivoDeBloqueio[] = [];
 
@@ -307,14 +299,24 @@ export function bloqueiosDePublicacao(veiculo: {
     ? veiculo.whatsapp_images.filter(Boolean).length
     : 0;
 
-  // O texto varia com a origem porque quem sobe a foto é outra pessoa em cada
-  // caso: no carro do RevendaMais a foto vem do feed; no cadastrado aqui
-  // (2026-08-29), pelo próprio painel. Mandar o operador esperar o feed de um
-  // carro que ele mesmo cadastrou seria instrução falsa.
-  const deOndeVemAFoto =
-    veiculo.origem === "painel"
-      ? "suba as fotos pelo painel"
-      : "as fotos vêm do RevendaMais";
+  // ---------------------------------------------------------------------------
+  // Uma instrução só, desde 2026-09-01
+  // ---------------------------------------------------------------------------
+  // Até aqui este texto variava com a origem: no carro do painel dizia "suba as
+  // fotos pelo painel", no do feed dizia "as fotos vêm do RevendaMais". A
+  // distinção fazia sentido enquanto a galeria recusava veículo do sync.
+  //
+  // Ela caiu na F0.5 — a trava tirou do RevendaMais o poder de reescrever foto,
+  // e a galeria passou a valer para qualquer origem. Manter os dois textos
+  // deixaria a tela mandando o operador para o RevendaMais em 100% do estoque,
+  // que é `origem = 'sync'` inteiro.
+  //
+  // O custo disso era medido: em 01/09, na vitrine real, quatro carros estavam
+  // abaixo da porta de quatro fotos (Kombi, Parati, Sandero, Voyage) e três no
+  // ar com ficha incompleta — todos com esta pendência mandando resolver noutro
+  // sistema. O `origem` saiu da assinatura junto com o texto: parâmetro que não
+  // muda mais nada convida a acreditar que muda.
+  const deOndeVemAFoto = "suba as fotos pelo painel";
 
   // ---------------------------------------------------------------------------
   // Duas faixas, dois motivos — e só a primeira fecha a porta
