@@ -219,7 +219,7 @@ describe("reclassificarLinha", () => {
   // porta dos fundos.
   const semFotos = linha({
     estado: "fora_da_vitrine",
-    bloqueios: bloqueiosDePublicacao({ whatsapp_images: [], origem: "painel" }),
+    bloqueios: bloqueiosDePublicacao({ whatsapp_images: [] }),
   });
 
   it("devolver a disponível NÃO publica carro sem fotos", () => {
@@ -348,7 +348,7 @@ describe("resumoDaFilaDeRascunhos", () => {
   const prontoDeVerdade = bloqueiosDePublicacao({
     whatsapp_images: comFotos(MINIMO_DE_FOTOS),
   });
-  const semFoto = bloqueiosDePublicacao({ whatsapp_images: comFotos(2), origem: "sync" });
+  const semFoto = bloqueiosDePublicacao({ whatsapp_images: comFotos(2) });
 
   it("separa o que vai ao ar com um clique do que espera material", () => {
     // O contador do chip responde "quantos rascunhos"; esta função responde a

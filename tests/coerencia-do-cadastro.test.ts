@@ -184,9 +184,12 @@ describe("4 · bloqueio de publicação", () => {
     expect(motivos[0].bloqueia).toBe(true);
     expect(publicavel(tresFotos)).toBe(false);
     expect(motivos[0].texto).toContain(`3 de ${MINIMO_DE_FOTOS}`);
-    // As fotos vêm do RevendaMais, não do painel: sem essa frase, alguém
-    // procura o botão de subir foto em `/admin` e não acha.
-    expect(motivos[0].texto).toMatch(/RevendaMais/);
+    // Até 01/09 esta linha exigia o oposto — que o texto citasse o RevendaMais,
+    // "sem essa frase alguém procura o botão de subir foto em /admin e não
+    // acha". A F0.5 pôs o botão lá: a galeria passou a aceitar veículo de
+    // qualquer origem, e mandar o operador para fora virou a instrução errada.
+    expect(motivos[0].texto).toContain("suba as fotos pelo painel");
+    expect(motivos[0].texto).not.toMatch(/RevendaMais/);
   });
 
   it("NO mínimo exato, já vai ao ar — a borda que a decisão criou", () => {

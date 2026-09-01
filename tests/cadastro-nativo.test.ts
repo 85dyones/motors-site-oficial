@@ -271,16 +271,19 @@ describe("o cadastro não escreve o que o banco infere", () => {
     expect(codigo).not.toMatch(/update\([\s\S]{0,120}origem/);
   });
 
-  it("o formulário não cita `last_seen_at`, e só fala de origem para exibir pendência", () => {
+  it("o formulário não cita `last_seen_at` nem `origem` — nenhum dos dois é dele", () => {
     const codigo = semComentarios(formulario);
     expect(codigo).not.toContain("last_seen_at");
-    // `origem: "painel"` entra em `bloqueiosDePublicacao` para o texto da
-    // pendência dizer "suba as fotos pelo painel" em vez de mandar esperar um
-    // feed que nunca virá. Nenhuma outra menção é legítima.
-    const todas = codigo.match(/origem/g) ?? [];
-    const naPendencia = codigo.match(/origem: "painel"/g) ?? [];
-    expect(todas.length).toBe(naPendencia.length);
-    expect(naPendencia.length).toBeGreaterThan(0);
+    // A régua ficou mais simples em 01/09. Antes, `origem: "painel"` era uma
+    // menção legítima: ela ia para `bloqueiosDePublicacao` escolher o texto da
+    // pendência de fotos. Com a galeria aberta a toda origem, a pendência tem
+    // uma frase só e o parâmetro saiu da assinatura — então o formulário não
+    // tem mais nenhum motivo para falar de origem.
+    //
+    // O que este teste sempre protegeu continua de pé: quem decide a origem é
+    // o trigger, pela faixa do id. Formulário que a escrevesse mentiria para o
+    // banco, e a linha nasceria como "painel" sem ser.
+    expect(codigo).not.toMatch(/origem/);
   });
 
   it("o contrato do banco continua o que este teste pressupõe", () => {

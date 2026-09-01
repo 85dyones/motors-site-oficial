@@ -361,11 +361,12 @@ export default function EditorDeVeiculo({
      do carro que ele mesmo cadastrou. */
   const bloqueios = useMemo(
     () =>
+      // `origem` saiu daqui na F0.5 — a régua e o texto passaram a ser os
+      // mesmos para carro do feed e carro nativo.
       bloqueiosDePublicacao({
         whatsapp_images: v.whatsapp_images,
-        origem: v.origem,
       }).filter((b) => b.bloqueia),
-    [v.whatsapp_images, v.origem],
+    [v.whatsapp_images],
   );
 
   /* ------------------------------------------------------------------------
@@ -722,10 +723,11 @@ export default function EditorDeVeiculo({
             <GaleriaDeFotos
               estoqueId={v.id}
               fotos={fotos}
-              origem={v.origem}
               /* A linha "Adicionar e reordenar fotos" da A17 — Admin,
                  Marketing e Comercial. Perguntar por uma das colunas basta:
-                 as três apontam para a mesma linha da matriz. */
+                 as três apontam para a mesma linha da matriz.
+                 `origem` saiu daqui na F0.5: a galeria não pergunta mais de
+                 onde o carro veio, só quem é o usuário. */
               podeEditar={podeGravar("whatsapp_images")}
               aoGravar={aoGravarFotos}
             />
