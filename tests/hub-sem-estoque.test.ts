@@ -3,6 +3,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import PaginaDeEstoque from "../src/components/modernist/PaginaDeEstoque";
 import { PERGUNTAS_POR_CAMINHO, perguntasDeCategoria } from "../src/lib/textoDosHubs";
+import {
+  CARROCERIAS_COM_HUB,
+  FAIXAS_DE_PRECO,
+  RECORTES_APOSENTADOS,
+} from "../src/lib/hubsDeEstoque";
+import { PERFIS_DE_USO } from "../src/lib/perfisDeUso";
+import { slugificar } from "../src/lib/veiculoUrl";
 import { ler } from "./fonte";
 import type { Veiculo } from "../src/types";
 
@@ -181,5 +188,48 @@ describe("o FAQ deixa de ser o mesmo em todos os hubs", () => {
       // A chamada tem de terminar em `caminho)` — a mesma chave de textos_de_hub.
       expect(fonte.slice(i, i + 200), rota).toMatch(/perguntasDeCategoria\([^)]*caminho\)/);
     }
+  });
+});
+
+describe("recorte aposentado redireciona em vez de sumir", () => {
+  it("`wagon` aponta para `perua` — a URL indexada não vira 404", () => {
+    // Duas páginas para a mesma carroceria disputavam a mesma consulta, as
+    // duas vazias. Unificar sem redirecionar jogaria fora o sinal que
+    // `/estoque/wagon` já acumulou, e a regra da casa para URL aposentada é o
+    // 308 (mesma de `[ficha]/[legado]`).
+    expect(RECORTES_APOSENTADOS.wagon).toBe("perua");
+  });
+
+  it("nenhum destino é ele mesmo aposentado — corrente o robô corta", () => {
+    for (const [origem, destino] of Object.entries(RECORTES_APOSENTADOS)) {
+      expect(RECORTES_APOSENTADOS[destino], `${origem} -> ${destino}`).toBeUndefined();
+    }
+  });
+
+  it("o destino é uma carroceria VIVA, não um slug qualquer", () => {
+    const vivos = new Set([
+      ...CARROCERIAS_COM_HUB.map((c) => slugificar(c)),
+      ...PERFIS_DE_USO.map((p) => p.slug),
+      ...FAIXAS_DE_PRECO.map((f) => f.slug),
+    ]);
+    for (const [origem, destino] of Object.entries(RECORTES_APOSENTADOS)) {
+      expect(vivos.has(destino), `${origem} -> ${destino}`).toBe(true);
+      // E a origem NÃO pode continuar viva: seria redirecionar uma página que
+      // ainda existe, e o hub venceria o 308 de forma imprevisível.
+      expect(vivos.has(origem), `${origem} ainda é recorte vivo`).toBe(false);
+    }
+  });
+
+  it("a rota chama o 308 ANTES de resolver — senão cai no 404", () => {
+    // Depois de o valor sair de `CARROCERIAS`, `resolver` devolve `null` para
+    // o slug antigo. Se o redirecionamento viesse depois, a página nunca
+    // chegaria nele.
+    const rota = ler("src/app/estoque/[recorte]/page.tsx");
+    const iRedirect = rota.indexOf("RECORTES_APOSENTADOS[slug]");
+    const iResolver = rota.indexOf("await resolver(slug)", rota.indexOf("RecorteDoEstoquePage"));
+    expect(iRedirect).toBeGreaterThan(-1);
+    expect(iResolver).toBeGreaterThan(iRedirect);
+    // 308, não 307: a mudança é permanente e o robô precisa saber disso.
+    expect(rota).toContain("permanentRedirect(`/estoque/${destino}`)");
   });
 });

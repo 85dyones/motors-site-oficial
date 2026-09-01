@@ -272,10 +272,23 @@ describe("4 · o vocabulário de carroceria está completo", () => {
     expect(generoDeCarroceria("Utilitário")).toBe("m");
   });
 
-  it("Wagon continua na lista", () => {
-    // Sem uso ativo hoje, e fica: dois veículos podem tê-lo gravado à mão, e
-    // remover o valor do dropdown tira do dono a chance de reescolher.
-    expect(CARROCERIAS).toContain("Wagon");
+  it("Wagon saiu da lista — era a mesma coisa que Perua", () => {
+    // Esta trava dizia o CONTRÁRIO até 2026-09-01: *"sem uso ativo hoje, e
+    // fica: dois veículos podem tê-lo gravado à mão, e remover o valor do
+    // dropdown tira do dono a chance de reescolher"*.
+    //
+    // A razão deixou de valer. Ter os dois valores gerava duas páginas para a
+    // mesma carroceria — `/estoque/perua` e `/estoque/wagon` respondiam 200,
+    // as duas vazias, disputando a mesma consulta. Decisão do dono: *"são de
+    // fato a mesma coisa, unifique"*. A migração `20260901140000` levou o
+    // único Wagon (a Palio Weekend) para Perua e reclassificou a SpaceFox, que
+    // estava em Hatch.
+    expect(CARROCERIAS).not.toContain("Wagon");
+    expect(CARROCERIAS).toContain("Perua");
+
+    // E o valor não pode voltar pela porta dos fundos: sem plural e sem gênero
+    // ele sairia como "Wagons" cru no `<h1>` e no masculino no texto.
+    expect(CARROCERIAS_COM_PLURAL).not.toContain("Wagon");
   });
 });
 

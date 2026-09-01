@@ -63,7 +63,12 @@ export const CARROCERIAS = [
   "Esportivo",
   "Conversível",
   "Coupe",
-  "Wagon",
+  // `Wagon` saiu em 2026-09-01. Era sinônimo de `Perua`, e ter os dois na
+  // lista gerava DUAS páginas para a mesma carroceria — `/estoque/perua` e
+  // `/estoque/wagon`, as duas respondendo 200, as duas vazias, disputando a
+  // mesma consulta. Decisão do dono: *"são de fato a mesma coisa, unifique"*.
+  // O dado foi migrado antes (`20260901140000`) e a URL antiga responde 308
+  // para a nova — ver `RECORTES_APOSENTADOS` em `lib/hubsDeEstoque.ts`.
 ] as const;
 
 /**

@@ -58,6 +58,15 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "daqui costuma chegar à loja já sabendo o que é laudo e o que ele mostra. Por isso a " +
         "perícia é feita antes, por empresa independente, e o laudo fica publicado na ficha de " +
         "cada carro — não é algo que se combina depois de fechar o negócio.",
+      // O parágrafo "o que olhar" (2026-09-01, fórmula do relatório dos hubs).
+      // Faltava nas duas páginas geo: elas explicavam o critério da loja e o
+      // caminho até ela, sem nunca dizer o que só quem mexe com carro sabe. É
+      // o que o documento chama de autoridade — e aqui é ancorado no que é
+      // específico de Curitiba, não em conselho genérico de compra.
+      "Duas conferências valem mais nesta cidade do que na média do país. A primeira é por " +
+        "baixo: muito carro daqui passa temporada no litoral, e maresia ataca assoalho, molas e " +
+        "parafusos antes de aparecer na pintura. A segunda é a partida em manhã fria — motor que " +
+        "custa a pegar a cinco graus não demonstra isso às três da tarde, com o carro já quente.",
       "Quem vem do Centro, do Batel, do Água Verde ou do Alto da XV chega pela Avenida Paraná ou " +
         "pela Linha Verde; de Santa Felicidade e do Portão, o caminho natural é a Marechal " +
         "Floriano seguida da Linha Verde. Há estacionamento na porta, e dá para ver o carro, " +
@@ -84,6 +93,14 @@ export const PAGINAS_GEO: PaginaGeo[] = [
           "Atendemos toda a Região Metropolitana — Pinhais, Colombo, São José dos Pinhais, " +
           "Almirante Tamandaré, Araucária e vizinhas. Para veículos de ticket mais alto, " +
           "recebemos compradores de outras praças do Paraná e de Santa Catarina.",
+      },
+      {
+        pergunta: "Como sei se o carro passou temporada no litoral?",
+        resposta:
+          "Maresia aparece por baixo antes de aparecer na pintura: assoalho, molas, parafusos " +
+          "dos bancos e a borda interna da tampa traseira contam a história. É um dos pontos " +
+          "que a perícia cautelar independente verifica antes de o veículo entrar na vitrine, e " +
+          "o laudo fica na ficha do carro.",
       },
       {
         pergunta: "Aceitam meu carro na troca?",
@@ -115,13 +132,28 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "de uma multimarcas que mora no bairro é o tempo que ela pode dedicar a cada venda. " +
         "Aqui o vendedor não trabalha por fila de senha: de cada dez veículos avaliados, três " +
         "entram no estoque, e é sobre esses três que a conversa acontece.",
+      // O "o que olhar" desta página é o que a PROXIMIDADE permite verificar —
+      // não conselho de compra genérico. É o argumento da página de bairro
+      // dito em termos mecânicos, e não se repete na página de Curitiba.
+      "Comprar perto de casa muda o que dá para verificar, e quase ninguém aproveita. Dá para " +
+        "voltar de manhã cedo e dar a partida com o motor frio, que é o teste mais revelador de " +
+        "um usado e o único que uma visita única à tarde nunca faz. Dá para trazer o seu " +
+        "mecânico, ou o amigo que entende de carro, sem marcar o dia com uma semana de " +
+        "antecedência. E dá para ver o mesmo veículo duas vezes antes de decidir.",
       "A referência mais fácil para quem vem de fora do bairro é a Linha Verde; de dentro, a " +
         "Avenida Erasto Gaertner e a Avenida Paraná chegam em poucos minutos. Boa Vista, Atuba, " +
         "Cabral, Tarumã, Santa Cândida e Bairro Alto ficam todos a uma distância de bairro — " +
         "menos de dez minutos de carro na maior parte do dia.",
-      "Todo veículo passa por perícia cautelar independente antes de ir para a vitrine e o laudo " +
-        "fica na ficha, no site. É o exame que o comprador de Curitiba costuma pedir de qualquer " +
-        "jeito; fazer antes economiza a ida à vistoria no meio da negociação.",
+      // Este parágrafo falava de perícia, e dizia quase palavra por palavra o
+      // que a página de Curitiba já diz — `tests/paginas-geo.test.ts` mediu a
+      // sobreposição e reprovou. Duas páginas geo que repetem o mesmo bloco
+      // são o começo da doorway que o comentário no topo deste arquivo proíbe;
+      // a saída certa foi dar a esta o ângulo que só ela tem, não afrouxar a
+      // régua. A prática de perícia continua contada na outra, e no FAQ daqui.
+      "Comprar de uma loja do próprio bairro tem um efeito que só aparece depois. Quando surge " +
+        "dúvida de documentação, de garantia ou da primeira revisão, resolver é passar aqui numa " +
+        "tarde — não abrir chamado e esperar retorno. É a parte do negócio que ninguém avalia na " +
+        "hora de escolher, e que decide como a compra vai ser lembrada dois anos depois.",
     ],
     faq: [
       {
@@ -138,6 +170,13 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Tem estacionamento na loja?",
         resposta: "Tem. Há vaga na porta, e o test drive sai do próprio showroom.",
+      },
+      {
+        pergunta: "Posso trazer meu mecânico para ver o carro?",
+        resposta:
+          "Pode, e a gente prefere. Quem mora perto consegue ainda voltar de manhã cedo para dar " +
+          "a partida com o motor frio — é o teste mais revelador de um usado, e o que uma visita " +
+          "única à tarde nunca faz. Avise pelo WhatsApp que o veículo fica separado.",
       },
       {
         pergunta: "Preciso agendar para ver um carro?",

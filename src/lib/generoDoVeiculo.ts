@@ -124,7 +124,8 @@ const MODELOS_MASCULINOS = new Set(["bongo"]);
  */
 const CARROCERIAS_FEMININAS = new Set([
   "picape",
-  "wagon",
+  // "wagon" saiu em 2026-09-01 junto com o valor em `CARROCERIAS`: era
+  // sinônimo de "perua" e gerava uma segunda página para a mesma carroceria.
   "perua",
   "van",
   // "motocicleta" faltava, e a função devolvia masculino para ela — lido na
@@ -151,7 +152,6 @@ const PLURAIS: Record<string, string> = {
   Esportivo: "Esportivos",
   Conversível: "Conversíveis",
   Coupe: "Coupés",
-  Wagon: "Wagons",
   Perua: "Peruas",
   Van: "Vans",
   // "Utilitários", não "Utilitárioes": o acento cai no plural.

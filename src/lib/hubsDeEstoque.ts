@@ -340,6 +340,27 @@ export function acharHubDeModelo(
  */
 export const CARROCERIAS_COM_HUB = CARROCERIAS.filter((c) => c !== "Motocicleta");
 
+/**
+ * Recortes de `/estoque` que foram APOSENTADOS, e para onde vão.
+ *
+ * Slug daqui responde **308** em vez de 404, e fica fora do sitemap: a URL já
+ * foi servida e indexada, e transformá-la em erro joga fora o sinal que ela
+ * acumulou. É a mesma regra de `[ficha]/[legado]`.
+ *
+ * `wagon` → `perua` em 2026-09-01: eram dois valores para a mesma carroceria em
+ * `CARROCERIAS`, e por isso duas páginas com o mesmo assunto, as duas vazias,
+ * disputando a mesma consulta. Decisão do dono: *"são de fato a mesma coisa,
+ * unifique"*. O `tipo` dos veículos foi migrado antes — sem isso o hub antigo
+ * continuaria nascendo do histórico, e o 308 competiria com ele.
+ *
+ * Regra para a próxima entrada: o destino tem de ser um recorte VIVO. Apontar
+ * para outro aposentado faria corrente de redirecionamento, que o rastreador
+ * corta — `tests/hub-sem-estoque.test.ts` cobra isso.
+ */
+export const RECORTES_APOSENTADOS: Record<string, string> = {
+  wagon: "perua",
+};
+
 export function hubsDeCarroceria(historico: Veiculo[], disponiveis: Veiculo[]): HubDeCarroceria[] {
   const jaTeve = new Set(
     historico.map((v) => slugificar(v.tipo ?? "")).filter(Boolean),

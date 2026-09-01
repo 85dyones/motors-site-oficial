@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import PaginaDeEstoque from "../../../components/modernist/PaginaDeEstoque";
 import ContagemDeEstoque from "../../../components/ContagemDeEstoque";
 import { getCachedSettings } from "../../../lib/settings";
@@ -11,6 +11,7 @@ import {
   FAIXAS_DE_PRECO,
   hubsDeCarroceria,
   hubsDeMarca,
+  RECORTES_APOSENTADOS,
   recortesDoEstoque,
 } from "../../../lib/hubsDeEstoque";
 import {
@@ -177,6 +178,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function RecorteDoEstoquePage({ params }: PageProps) {
   const { recorte: slug } = await params;
+
+  // Recorte aposentado responde 308, não 404 — a URL já foi indexada, e o 404
+  // jogaria fora o sinal dela. Vem ANTES de `resolver`: depois de o valor sair
+  // de `CARROCERIAS`, o hub não existe mais e a página cairia em `notFound`.
+  const destino = RECORTES_APOSENTADOS[slug];
+  if (destino) permanentRedirect(`/estoque/${destino}`);
+
   const dados = await resolver(slug);
   if (!dados) notFound();
 
