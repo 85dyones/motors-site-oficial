@@ -17,6 +17,7 @@ import {
 import { schemaDaLoja } from "../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeMarca } from "../../../lib/textoDosHubs";
 import { generoDoSegmento, seminovo, um } from "../../../lib/generoDoVeiculo";
+import { buscarTextoDoHub, resolverTextoDoHub } from "../../../lib/textoEditadoDoHub";
 import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../lib/veiculoUrl";
 
 /**
@@ -103,9 +104,17 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
   const rotuloDoSegmento = hub.segmento === "motos" ? "Motos" : "Carros";
   const genero = generoDoSegmento(hub.segmento);
   const novos = seminovo(genero, true);
-  const tituloDaPagina = `${hub.nome} ${novos} em Curitiba`;
-
   const perguntas = perguntasDeCategoria(`${hub.nome} ${novos}`, genero);
+
+  // O texto que a loja escreveu vence o gerado. Esta rota ficou de fora na
+  // entrega de 31/08 junto com `/estoque/[recorte]` — ver a nota lá.
+  const { titulo: tituloDaPagina, paragrafos: introducao } = resolverTextoDoHub(
+    await buscarTextoDoHub(caminho),
+    {
+      titulo: `${hub.nome} ${novos} em Curitiba`,
+      paragrafos: textoDeMarca(hub.nome, hub.veiculos, hub.modelos.map((m) => m.nome), genero),
+    },
+  );
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -127,7 +136,7 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
           { rotulo: "Estoque", href: "/estoque" },
         ]}
         titulo={tituloDaPagina}
-        introducao={textoDeMarca(hub.nome, hub.veiculos, hub.modelos.map((m) => m.nome), genero)}
+        introducao={introducao}
         veiculos={hub.veiculos}
         textoSemEstoque={`Sem ${hub.nome} disponível neste momento. O estoque gira toda semana e esta página continua no ar — quando entrar ${um(genero)}, aparece aqui.`}
         blocos={[

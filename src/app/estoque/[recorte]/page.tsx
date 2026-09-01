@@ -27,6 +27,7 @@ import {
   textoDePerfil,
 } from "../../../lib/textoDosHubs";
 import { avaliados, seminovo, type Genero } from "../../../lib/generoDoVeiculo";
+import { buscarTextoDoHub, resolverTextoDoHub } from "../../../lib/textoEditadoDoHub";
 import type { Veiculo } from "../../../types";
 
 /**
@@ -183,13 +184,26 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
   const caminho = `/estoque/${slug}`;
   const perguntas = perguntasDeCategoria(recorte.rotuloNasPerguntas, recorte.genero);
 
+  // O texto que a loja escreveu vence o gerado.
+  //
+  // Esta rota ficou de FORA na entrega de 31/08, e o defeito era mudo: o painel
+  // oferecia as 103 páginas para editar, o texto era gravado, e só os 65 hubs
+  // de MODELO o exibiam. Os 20 de marca e os 18 recortes daqui ignoravam em
+  // silêncio — o operador salvava, ia ver a página e encontrava o texto
+  // automático de sempre. Foi assim que `/estoque/picape` foi reportado como
+  // "não salva": estava salvo no banco, sem ninguém para ler.
+  const { titulo, paragrafos: introducao } = resolverTextoDoHub(
+    await buscarTextoDoHub(caminho),
+    { titulo: recorte.titulo, paragrafos: recorte.introducao },
+  );
+
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
       { nome: "Home", caminho: "/" },
       { nome: "Estoque", caminho: "/estoque" },
       { nome: recorte.rotulo, caminho },
     ]),
-    schemaDeListagem(recorte.titulo, recorte.veiculos),
+    schemaDeListagem(titulo, recorte.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
   ]);
@@ -203,8 +217,8 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
           { rotulo: "Home", href: "/" },
           { rotulo: "Estoque", href: "/estoque" },
         ]}
-        titulo={recorte.titulo}
-        introducao={recorte.introducao}
+        titulo={titulo}
+        introducao={introducao}
         veiculos={recorte.veiculos}
         blocos={[
           {

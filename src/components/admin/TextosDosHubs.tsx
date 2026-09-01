@@ -123,12 +123,20 @@ export default function TextosDosHubs() {
       setAviso(
         d.voltouAoAutomatico
           ? "Voltou ao texto automático — a página acompanha o estoque de novo."
-          : "Salvo. A página passa a mostrar este texto.",
+          : "Salvo. A página já mostra este texto.",
       );
       if (voltarAoAutomatico) {
         setTitulo(aberto.hub.tituloGerado);
         setCorpo(aberto.hub.paragrafosGerados.join("\n\n"));
       }
+      // Recarrega o DETALHE, não só a lista.
+      //
+      // Sem isto a tela mentia depois de salvar: `aberto.editado` continuava
+      // `null`, então a dica seguia dizendo "começando do texto que o site gera
+      // hoje" e o botão "Voltar ao automático" seguia cinza — três sinais na
+      // tela afirmando que nada tinha sido gravado, sobre um texto que estava
+      // no banco. Foi parte do "não salva" relatado em 2026-09-01.
+      await abrir(aberto.hub.caminho);
       carregarLista();
       setTimeout(() => setAviso(""), 5000);
     } catch (e) {

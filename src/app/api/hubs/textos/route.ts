@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
@@ -229,6 +230,7 @@ export async function PUT(request: NextRequest) {
     if (!titulo && paragrafos.length === 0) {
       const { error } = await supabase.from("textos_de_hub").delete().eq("caminho", caminho);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      revalidatePath(caminho);
       return NextResponse.json({ ok: true, voltouAoAutomatico: true });
     }
 
@@ -239,6 +241,23 @@ export async function PUT(request: NextRequest) {
         { onConflict: "caminho" },
       );
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // ------------------------------------------------------------------------
+    // Sem isto, "salvei e não mudou nada" — por uma hora
+    // ------------------------------------------------------------------------
+    // As três rotas de hub são ISR com `revalidate = 3600`. Gravar no banco não
+    // invalida página gerada: o visitante (e o operador que foi conferir)
+    // continua recebendo a versão em cache por até sessenta minutos.
+    //
+    // Foi metade do defeito relatado em 2026-09-01. A outra metade era pior —
+    // duas das três rotas nem liam a tabela —, mas esta sozinha bastaria para o
+    // operador concluir que o painel não salva, e mexer no texto de novo.
+    //
+    // `revalidatePath` é o descarte pontual: só o caminho editado sai do cache,
+    // e a próxima visita reconstrói com o texto novo. O `revalidate = 3600`
+    // continua valendo para o giro de estoque, que é o que ele existe para
+    // acompanhar.
+    revalidatePath(caminho);
 
     return NextResponse.json({ ok: true });
   } catch (e) {
