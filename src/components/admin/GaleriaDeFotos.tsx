@@ -13,7 +13,7 @@ import {
   validarFoto,
   type FotoDoVeiculo,
 } from "../../lib/fotosDoVeiculo";
-import { MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
+import { FOTOS_DA_FICHA_COMPLETA, MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
 
 /**
  * A galeria de fotos do editor A15 — aba "Fotos e mídia".
@@ -27,11 +27,11 @@ import { MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
  * — é outro fluxo, do PWA, com outro bucket.)
  *
  * A decisão que sai desta tela é uma só: **este carro pode ir ao ar?** A régua
- * é `MINIMO_DE_FOTOS`, a mesma que o site usa para filtrar a vitrine
- * (`bloqueiosDePublicacao`), e por isso o contador aqui e o site nunca
- * discordam. O operador sobe fotos até a barra fechar, arrasta a melhor para a
- * primeira posição — que é a capa do card, do card do WhatsApp e do anúncio no
- * portal — e o carro entra na vitrine no ciclo seguinte.
+ * é `MINIMO_DE_FOTOS` (quatro desde 01/09), a mesma que o site usa para filtrar
+ * a vitrine (`bloqueiosDePublicacao`), e por isso o contador aqui e o site
+ * nunca discordam. O operador sobe fotos até a barra fechar, arrasta a melhor
+ * para a primeira posição — que é a capa do card, do card do WhatsApp e do
+ * anúncio no portal — e o carro entra na vitrine no ciclo seguinte.
  *
  * ---------------------------------------------------------------------------
  * O envio é DIRETO do navegador para o Storage
@@ -240,9 +240,15 @@ export default function GaleriaDeFotos({
         </span>
       </div>
 
-      {/* A régua de publicação, dita com a própria função — nunca com o número
-          escrito à mão. Se `MINIMO_DE_FOTOS` mudar em `coerenciaDoCadastro`,
-          esta frase muda junto e o site continua concordando com a tela. */}
+      {/* A régua, dita com as próprias constantes — nunca com o número escrito
+          à mão. Se elas mudarem em `coerenciaDoCadastro`, estas frases mudam
+          junto e o site continua concordando com a tela.
+
+          TRÊS estados desde 2026-09-01, e o do meio é o que a mudança criou:
+          o carro que já está no ar e ainda deve fotos. A barra fecha em
+          `MINIMO_DE_FOTOS` porque a pergunta que ela existe para responder é
+          "posso publicar?"; a meta das oito continua visível logo abaixo, como
+          o que é — material que falta, não permissão. */}
       <div
         className={`mb-4 border-l-[3px] px-3 py-2.5 text-[11px] leading-snug ${
           faltam > 0
@@ -257,12 +263,20 @@ export default function GaleriaDeFotos({
             </strong>{" "}
             para este veículo aparecer na vitrine, no feed de anúncios e na busca.
           </>
+        ) : fotos.length < FOTOS_DA_FICHA_COMPLETA ? (
+          <>
+            <strong className="tabular-nums">
+              No ar com {fotos.length} fotos.
+            </strong>{" "}
+            Faltam {FOTOS_DA_FICHA_COMPLETA - fotos.length} para a ficha completa — pendência
+            que <strong>não</strong> tira o carro do ar.
+          </>
         ) : (
           <>
             <strong className="tabular-nums">
-              {fotos.length} fotos — mínimo de {MINIMO_DE_FOTOS} cumprido.
+              {fotos.length} fotos — ficha completa.
             </strong>{" "}
-            A régua de publicação não trava mais por foto.
+            No ar, com o material que o anúncio pede.
           </>
         )}
       </div>

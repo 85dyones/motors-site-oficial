@@ -278,17 +278,17 @@ describe("reclassificarLinha", () => {
   });
 
   it("a pendência que não bloqueia não muda o estado", () => {
-    // Escrito quando o laudo vazio era essa pendência. Ele saiu da régua em
-    // 29/08 — hoje não há motivo com `bloqueia: false`, e pedir um a
-    // `bloqueiosDePublicacao` devolveria lista vazia, o que faria este teste
-    // passar sem exercer nada.
+    // Este teste já montou o motivo À MÃO, num período em que nenhum motivo com
+    // `bloqueia: false` existia — o laudo, que era o único, saiu da régua em
+    // 29/08. Voltou ao caso real em 01/09: cinco fotos passa da porta (4) e não
+    // chega na ficha completa (8).
     //
-    // O motivo é montado à mão de propósito: o que se afirma aqui é da
-    // RECLASSIFICAÇÃO — ela olha `bloqueia`, não o tamanho da lista —, e essa
-    // regra tem de continuar de pé para o dia em que o segundo motivo entrar.
+    // Vale mais assim. Objeto montado à mão sobrevive à regra sumir; construído
+    // pela função, o teste cai junto com ela.
     const soPendencia = linha({
-      bloqueios: [{ id: "poucas-fotos", texto: "observação qualquer", bloqueia: false }],
+      bloqueios: bloqueiosDePublicacao({ whatsapp_images: comFotos(5) }),
     });
+    expect(soPendencia.bloqueios.map((b) => b.id)).toEqual(["fotos-incompletas"]);
     expect(reclassificarLinha(soPendencia, { vendido: false })).toBe("publicado");
   });
 });
@@ -370,16 +370,14 @@ describe("resumoDaFilaDeRascunhos", () => {
   });
 
   it("a pendência que não bloqueia não segura ninguém na fila", () => {
-    // Mesma história do teste acima: a pendência que existia aqui era o laudo
-    // vazio, aposentado em 29/08. O motivo vai à mão para a afirmação continuar
-    // sendo sobre a FILA — ela conta por `bloqueia`, não por lista não-vazia.
+    // Mesma história do teste acima, e a mesma volta ao caso real em 01/09.
     //
     // A razão original vale igual: se pendência contasse como bloqueio, a fila
     // diria que nenhum rascunho pode ser publicado, e o número que a tela mostra
-    // deixaria de significar "quantos posso pôr no ar agora".
-    const soPendencia = [
-      { id: "poucas-fotos" as const, texto: "observação qualquer", bloqueia: false },
-    ];
+    // deixaria de significar "quantos posso pôr no ar agora". Um carro de cinco
+    // fotos ESTÁ pronto para publicar — falta material, não permissão.
+    const soPendencia = bloqueiosDePublicacao({ whatsapp_images: comFotos(5) });
+    expect(soPendencia.map((b) => b.id)).toEqual(["fotos-incompletas"]);
     const resumo = resumoDaFilaDeRascunhos([linha({ estado: "rascunho", bloqueios: soPendencia })]);
     expect(resumo).toEqual({ total: 1, prontos: 1, bloqueados: 0 });
   });

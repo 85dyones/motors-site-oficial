@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { ler, lerCodigo } from "./fonte";
 import {
   MINIMO_DE_FOTOS,
+  FOTOS_DA_FICHA_COMPLETA,
   REGRAS_DE_COERENCIA,
   bloqueiosDePublicacao,
   divergenciaDeCarroceria,
@@ -155,24 +156,75 @@ describe("3 · o detector nunca escreve", () => {
 });
 
 describe("4 · bloqueio de publicação", () => {
-  const completo = {
-    whatsapp_images: Array.from({ length: MINIMO_DE_FOTOS }, (_, i) => `foto-${i}.jpg`),
-  };
+  /**
+   * Duas réguas desde 2026-09-01, e o teste separa as duas.
+   *
+   * Decisão do dono: *"4 fotos boas são suficiente pra iniciar e deixar
+   * publicado, mas continuar marcando incompleto até as 8 internamente"*.
+   *
+   * Os fixtures deixam de usar um número só de propósito. `noMinimo` tinha o
+   * nome `completo` e usava `MINIMO_DE_FOTOS` — enquanto os dois valores eram
+   * o mesmo oito, a confusão não custava nada; agora ela é a diferença entre
+   * "está no ar" e "está pronto".
+   */
+  const comFotos = (n: number) => ({
+    whatsapp_images: Array.from({ length: n }, (_, i) => `foto-${i}.jpg`),
+  });
+  const fichaCompleta = comFotos(FOTOS_DA_FICHA_COMPLETA);
 
-  it("aprova quem tem as oito fotos", () => {
-    expect(bloqueiosDePublicacao(completo)).toEqual([]);
-    expect(publicavel(completo)).toBe(true);
+  it("ficha completa não tem motivo nenhum", () => {
+    expect(bloqueiosDePublicacao(fichaCompleta)).toEqual([]);
+    expect(publicavel(fichaCompleta)).toBe(true);
   });
 
-  it("tira do ar com menos de oito fotos, e diz quantas faltam", () => {
-    const seisFotos = { whatsapp_images: ["a", "b", "c", "d", "e", "f"] };
-    const motivos = bloqueiosDePublicacao(seisFotos);
+  it("abaixo do mínimo, bloqueia e diz quantas faltam", () => {
+    const tresFotos = comFotos(3);
+    const motivos = bloqueiosDePublicacao(tresFotos);
     expect(motivos.map((m) => m.id)).toEqual(["poucas-fotos"]);
-    expect(publicavel(seisFotos)).toBe(false);
-    expect(motivos[0].texto).toContain(`6 de ${MINIMO_DE_FOTOS}`);
+    expect(motivos[0].bloqueia).toBe(true);
+    expect(publicavel(tresFotos)).toBe(false);
+    expect(motivos[0].texto).toContain(`3 de ${MINIMO_DE_FOTOS}`);
     // As fotos vêm do RevendaMais, não do painel: sem essa frase, alguém
     // procura o botão de subir foto em `/admin` e não acha.
     expect(motivos[0].texto).toMatch(/RevendaMais/);
+  });
+
+  it("NO mínimo exato, já vai ao ar — a borda que a decisão criou", () => {
+    // 4 é o primeiro valor que publica. Um `<=` no lugar do `<` mataria
+    // justamente o carro que a mudança existe para liberar.
+    const quatro = comFotos(MINIMO_DE_FOTOS);
+    expect(publicavel(quatro)).toBe(true);
+    expect(bloqueiosDePublicacao(quatro).some((m) => m.bloqueia)).toBe(false);
+  });
+
+  it("entre o mínimo e a ficha completa: no ar, com pendência", () => {
+    // O caso real que motivou tudo: o SpaceFox `8429524`, com cinco fotos,
+    // ficava fora da vitrine e do hub `/spacefox` — que respondia 200 listando
+    // zero carros.
+    const cinco = comFotos(5);
+    const motivos = bloqueiosDePublicacao(cinco);
+    expect(motivos.map((m) => m.id)).toEqual(["fotos-incompletas"]);
+    expect(motivos[0].bloqueia).toBe(false);
+    expect(publicavel(cinco)).toBe(true);
+    // O texto diz que está NO AR antes de dizer o que falta: número em
+    // vermelho sem contexto fazia o operador concluir que não publicou.
+    expect(motivos[0].texto).toMatch(/no ar/);
+    expect(motivos[0].texto).toContain(String(FOTOS_DA_FICHA_COMPLETA));
+  });
+
+  it("um carro nunca é bloqueado E incompleto ao mesmo tempo", () => {
+    // O `else if` é o que garante isto. Listar as duas coisas cobraria da
+    // pessoa uma tarefa que ela nem pode começar.
+    for (const n of [0, 1, 3, 4, 7, 8, 20]) {
+      const ids = bloqueiosDePublicacao(comFotos(n)).map((m) => m.id);
+      expect(ids.length, `${n} fotos`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("a régua de publicar é MENOR que a de ficha completa", () => {
+    // Se alguém igualar as duas, o motivo `fotos-incompletas` fica inalcançável
+    // e a mudança de 01/09 se desfaz sem nenhum teste vermelho.
+    expect(MINIMO_DE_FOTOS).toBeLessThan(FOTOS_DA_FICHA_COMPLETA);
   });
 
   it("`whatsapp_images` sujo não conta como foto", () => {
@@ -192,7 +244,7 @@ describe("4 · bloqueio de publicação", () => {
     // impecável, e teria levado a vitrine de 34 para 1.
     //
     // O status da perícia mora em `pericia`, outra coluna.
-    const semObservacao = { ...completo, laudo_pericia: "" } as never;
+    const semObservacao = { ...fichaCompleta, laudo_pericia: "" } as never;
     expect(publicavel(semObservacao)).toBe(true);
     expect(bloqueiosDePublicacao(semObservacao)).toEqual([]);
   });

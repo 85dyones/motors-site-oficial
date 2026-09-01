@@ -5,7 +5,11 @@ import Link from "next/link";
 import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
 import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
-import { bloqueiosDePublicacao, MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
+import {
+  bloqueiosDePublicacao,
+  FOTOS_DA_FICHA_COMPLETA,
+  MINIMO_DE_FOTOS,
+} from "../../lib/coerenciaDoCadastro";
 import {
   validarCadastroDeVeiculo,
   numeroOuNulo,
@@ -934,9 +938,11 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
             aqui, no desktop; as internas de avaria e vistoria são do aplicativo de pátio.
           </p>
           <p className="m-0 mt-2 text-xs leading-relaxed text-mt-neutral-800">
-            Enquanto o veículo tiver menos de <strong>{MINIMO_DE_FOTOS} fotos</strong>, ele fica
-            visível só no painel: não entra na vitrine, no feed de anúncios nem no sitemap. Isso
-            já vale para todo o estoque — não é regra nova deste cadastro.
+            Com menos de <strong>{MINIMO_DE_FOTOS} fotos</strong> o veículo fica visível só no
+            painel: não entra na vitrine, no feed de anúncios nem no sitemap. A partir das{" "}
+            {MINIMO_DE_FOTOS} ele <strong>vai ao ar</strong>, e segue marcado como ficha
+            incompleta até as {FOTOS_DA_FICHA_COMPLETA} — pendência que não tira o carro do ar.
+            Isso vale para todo o estoque, não é regra nova deste cadastro.
           </p>
           {pendencias.length > 0 && (
             <ul className="m-0 mt-2.5 list-disc pl-4 text-[11px] leading-relaxed text-mt-neutral-700">

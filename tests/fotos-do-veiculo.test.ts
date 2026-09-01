@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createClient } from "@supabase/supabase-js";
 import GaleriaDeFotos from "../src/components/admin/GaleriaDeFotos";
+import EditorDeVeiculo from "../src/components/admin/EditorDeVeiculo";
 import {
   BUCKET_DE_FOTOS,
   EXTENSAO_DA_VARIANTE,
@@ -27,7 +28,11 @@ import {
   extrairCamposNossos,
 } from "../src/lib/estoqueEscrita";
 import { ACAO_DO_CAMPO_DE_VEICULO, campoNegadoAoPerfil, podeFazer } from "../src/lib/permissoes";
-import { MINIMO_DE_FOTOS, bloqueiosDePublicacao } from "../src/lib/coerenciaDoCadastro";
+import {
+  FOTOS_DA_FICHA_COMPLETA,
+  MINIMO_DE_FOTOS,
+  bloqueiosDePublicacao,
+} from "../src/lib/coerenciaDoCadastro";
 import { LADO_DA_VARIANTE, MIME_DA_VARIANTE } from "../src/lib/imageProcessor";
 
 /**
@@ -453,11 +458,30 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     expect(editor).not.toContain('"mínimo de 8"');
   });
 
+  it("o checklist tem os DOIS degraus de foto, cada um na sua constante", () => {
+    // Um degrau só esconderia metade da régua: ou o operador não saberia que o
+    // carro JÁ pode ir ao ar, ou não saberia que ainda deve fotos.
+    const publica = "l: `${MINIMO_DE_FOTOS} fotos — libera a publicação`";
+    const completa = "l: `${FOTOS_DA_FICHA_COMPLETA} fotos — ficha completa`";
+    expect(editor).toContain(publica);
+    expect(editor).toContain(completa);
+    // E cada rótulo tem de estar no MESMO item que a sua condição: rótulo de um
+    // degrau com o `ok` do outro passaria despercebido, e a tela acusaria a
+    // faixa errada sem nunca quebrar.
+    const itemDe = (rotulo: string) =>
+      editor.slice(editor.indexOf(rotulo), editor.indexOf(rotulo) + 250);
+    expect(itemDe(publica)).toContain("ok: fotos.length >= MINIMO_DE_FOTOS");
+    expect(itemDe(completa)).toContain("ok: fotos.length >= FOTOS_DA_FICHA_COMPLETA");
+    // O segundo diz, na própria linha, que não tira o carro do ar — sem isso
+    // ele é lido como bloqueio e o operador segura a publicação por engano.
+    expect(editor).toContain("Não segura o carro fora do ar.");
+  });
+
   it("quantas faltam sai da mesma função que filtra a vitrine", () => {
-    // Sete fotos: uma a menos que a régua, e o motivo tem de dizer isso.
-    const sete = Array.from({ length: MINIMO_DE_FOTOS - 1 }, (_, i) => url(i, "zap"));
+    // Uma foto a menos que a régua — o motivo tem de dizer exatamente isso.
+    const abaixoDaPorta = Array.from({ length: MINIMO_DE_FOTOS - 1 }, (_, i) => url(i, "zap"));
     const motivos = bloqueiosDePublicacao({
-      whatsapp_images: sete,
+      whatsapp_images: abaixoDaPorta,
       origem: "painel",
     });
     const poucas = motivos.find((m) => m.id === "poucas-fotos");
@@ -467,14 +491,98 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     expect(poucas?.texto).toContain("suba as fotos pelo painel");
   });
 
-  it("cumprida a régua, o bloqueio some", () => {
-    const oito = Array.from({ length: MINIMO_DE_FOTOS }, (_, i) => url(i, "zap"));
-    const motivos = bloqueiosDePublicacao({ whatsapp_images: oito });
+  it("cumprida a porta, o bloqueio some — e vira pendência até a ficha", () => {
+    const noMinimo = Array.from({ length: MINIMO_DE_FOTOS }, (_, i) => url(i, "zap"));
+    const motivos = bloqueiosDePublicacao({ whatsapp_images: noMinimo });
     expect(motivos.some((m) => m.id === "poucas-fotos")).toBe(false);
+    // Some o bloqueio, NÃO a cobrança: é o degrau que a decisão de 01/09 criou.
+    expect(motivos.find((m) => m.id === "fotos-incompletas")?.bloqueia).toBe(false);
+
+    const completa = Array.from({ length: FOTOS_DA_FICHA_COMPLETA }, (_, i) => url(i, "zap"));
+    expect(bloqueiosDePublicacao({ whatsapp_images: completa })).toEqual([]);
   });
 
   it("o editor passa a origem para o bloqueio — senão o texto mente", () => {
-    expect(editor).toMatch(/bloqueiosDePublicacao\(\{[\s\S]{0,600}origem: v\.origem/);
+    // A origem escolhe entre "suba as fotos pelo painel" e "as fotos vêm do
+    // RevendaMais". Sem ela a tela manda o operador esperar um feed que nunca
+    // vai trazer foto do carro que ele mesmo cadastrou.
+    const i = editor.indexOf("bloqueiosDePublicacao({");
+    expect(i).toBeGreaterThan(-1);
+    expect(editor.slice(i, i + 600)).toContain("origem: v.origem");
+  });
+
+  it("a nota do contador distingue os TRÊS estados", () => {
+    // Duas frases para três situações fariam o carro de cinco fotos ler
+    // "mínimo para publicar" — dizendo que está fora do ar quem já está dentro.
+    // A do meio é a que a decisão de 01/09 criou.
+    expect(editor).toContain('? "ficha completa"');
+    expect(editor).toContain("no ar — faltam ${FOTOS_DA_FICHA_COMPLETA - fotos.length} para a ficha");
+    expect(editor).toContain("mínimo de ${MINIMO_DE_FOTOS} para publicar");
+  });
+});
+
+describe("o checklist do editor — medido no DOM, não no código-fonte", () => {
+  /* Mesmo recurso da aba de fotos acima: `renderToStaticMarkup` executa hooks e
+     JSX de verdade, sem jsdom. Aqui isso importa mais do que lá — os dois
+     degraus de foto são a mudança de 01/09, e é exatamente na tela que eles
+     podem discordar do site sobre o carro estar no ar. */
+  const editorDe = (fotos: number) =>
+    renderToStaticMarkup(
+      createElement(EditorDeVeiculo as never, {
+        inicial: {
+          id: 8429524,
+          marca: "volkswagen",
+          modelo: "spacefox",
+          versao: "1.6 8v trend totalflex 4p",
+          ano_fabricacao: 2012,
+          ano_modelo: 2013,
+          preco: 39900,
+          estado_cadastro: "publicado",
+          origem: "revendamais",
+          whatsapp_images: Array.from({ length: fotos }, (_, i) => url(i, "zap")),
+        } as never,
+        visitas30Dias: null,
+        perfil: ["admin"] as never,
+      }),
+    );
+
+  const semTag = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
+  /** O selo do item — o primeiro que aparece DEPOIS do rótulo, que é a ordem
+   *  em que a linha é desenhada. Ler o item inteiro em vez do documento é o
+   *  que impede o selo de um degrau de responder pelo outro. */
+  const seloDe = (html: string, rotulo: string) => {
+    const texto = semTag(html);
+    const i = texto.indexOf(rotulo);
+    if (i < 0) return `<AUSENTE: ${rotulo}>`;
+    return texto.slice(i).match(/OK|PENDENTE|FALTAM \d+/)?.[0] ?? "<SEM SELO>";
+  };
+
+  const LIBERA = "fotos — libera a publicação";
+  const COMPLETA = "fotos — ficha completa";
+
+  it("cinco fotos: no ar E devendo — um OK e uma pendência", () => {
+    // O caso real que abriu a mudança: o SpaceFox 8429524 tem cinco.
+    const html = editorDe(5);
+    expect(seloDe(html, LIBERA)).toBe("OK");
+    expect(seloDe(html, COMPLETA)).toBe(`FALTAM ${FOTOS_DA_FICHA_COMPLETA - 5}`);
+    // E a faixa NÃO acusa bloqueio: dizer "fora da vitrine" sobre um carro que
+    // o cliente está vendo é o erro que esta régua de dois degraus pode causar.
+    expect(semTag(html)).not.toContain("Fora da vitrine");
+  });
+
+  it("abaixo da porta: o primeiro degrau cobra, e a faixa avisa", () => {
+    const html = editorDe(MINIMO_DE_FOTOS - 1);
+    expect(seloDe(html, LIBERA)).toBe("FALTAM 1");
+    expect(seloDe(html, COMPLETA)).toBe(`FALTAM ${FOTOS_DA_FICHA_COMPLETA - MINIMO_DE_FOTOS + 1}`);
+    expect(semTag(html)).toContain("Fora da vitrine");
+  });
+
+  it("ficha completa: os dois degraus cumpridos, nada pendente de foto", () => {
+    const html = editorDe(FOTOS_DA_FICHA_COMPLETA);
+    expect(seloDe(html, LIBERA)).toBe("OK");
+    expect(seloDe(html, COMPLETA)).toBe("OK");
+    expect(semTag(html)).not.toContain("Fora da vitrine");
   });
 });
 
@@ -495,7 +603,11 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
       }),
     );
 
-  const oito = Array.from({ length: MINIMO_DE_FOTOS }, (_, i) => foto(i));
+  // Os dois fixtures deixaram de ser um só em 2026-09-01. Enquanto publicar e
+  // "ficha completa" eram o mesmo noMinimo, um array bastava — e ele se chamava
+  // `noMinimo`, nome que passou a mentir quando a porta virou quatro.
+  const noMinimo = Array.from({ length: MINIMO_DE_FOTOS }, (_, i) => foto(i));
+  const fichaCompleta = Array.from({ length: FOTOS_DA_FICHA_COMPLETA }, (_, i) => foto(i));
 
   it("veículo nativo e vazio: diz quantas faltam e oferece o envio", () => {
     const html = desenhar();
@@ -508,14 +620,27 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
   });
 
   it("uma a menos que a régua: a conta bate com a função", () => {
-    const html = desenhar({ fotos: oito.slice(0, MINIMO_DE_FOTOS - 1) });
+    const html = desenhar({ fotos: noMinimo.slice(0, MINIMO_DE_FOTOS - 1) });
     expect(html).toContain(`Faltam 1 de ${MINIMO_DE_FOTOS}`);
   });
 
-  it("régua cumprida: o aviso vira confirmação, sem número à mão", () => {
-    const html = desenhar({ fotos: oito });
+  it("no mínimo exato: já está no ar, e a barra diz isso", () => {
+    // A borda que a decisão de 01/09 criou. O aviso não pode mais dizer só
+    // "cumprido": o carro está publicado E ainda deve fotos, e é a primeira
+    // frase que precisa contar a boa notícia.
+    const html = desenhar({ fotos: noMinimo });
+    // `Faltam N de M` é o formato da porta fechada: some assim que ela
+    // abre. Anular pelo número seria frágil — em quatro e oito, os dois
+    // avisos começariam com o mesmo `Faltam 4`.
+    expect(html).not.toMatch(/Faltam d+ de /);
+    expect(html).toContain("No ar com");
+    expect(html).toContain(`Faltam ${FOTOS_DA_FICHA_COMPLETA - MINIMO_DE_FOTOS} para a ficha`);
+  });
+
+  it("ficha completa: o aviso vira confirmação, sem número à mão", () => {
+    const html = desenhar({ fotos: fichaCompleta });
     expect(html).not.toContain("Faltam");
-    expect(html).toContain(`mínimo de ${MINIMO_DE_FOTOS} cumprido`);
+    expect(html).toContain("ficha completa");
   });
 
   it("a capa é marcada, e só a primeira", () => {

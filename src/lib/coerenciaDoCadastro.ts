@@ -196,41 +196,61 @@ export function divergenciaDeCarroceria(veiculo: {
 // ---------------------------------------------------------------------------
 // Bloqueio de publicação
 // ---------------------------------------------------------------------------
+/**
+ * Quantas fotos um anúncio precisa para IR AO AR.
+ *
+ * ---------------------------------------------------------------------------
+ * Era oito. Virou quatro em 2026-09-01, e as oito não sumiram
+ * ---------------------------------------------------------------------------
+ * Decisão do dono: *"esta trava de 8 fotos pode ser um complicado, acho que 4
+ * fotos boas são suficiente pra iniciar e deixar publicado, mas continuar
+ * marcando incompleto até as 8 internamente"*.
+ *
+ * A régua antiga misturava duas perguntas numa: "este anúncio já é bom o
+ * bastante para existir?" e "esta ficha está completa?". Elas têm respostas
+ * diferentes — quatro fotos boas vendem carro, e a oitava é capricho que não
+ * pode custar semanas de vitrine. Agora são duas constantes e dois motivos.
+ *
+ * Medido na produção no dia da mudança, nos 38 publicados e não vendidos: dois
+ * carros entram na vitrine — o SpaceFox `8429524` com cinco fotos e o Uno
+ * `8100652` com **sete**, que estava fora por uma única foto. Os dois abaixo da
+ * porta continuam fora — Parati `8152210` com uma foto, Kombi `8392516` sem
+ * nenhuma —, e é o que se quer: anúncio de uma foto é pior que anúncio nenhum.
+ *
+ * ⚠️ Baixar mais este número não é gratuito. Ele governa vitrine, feed de
+ * anúncios e sitemap ao mesmo tempo — um carro magro entra no catálogo de
+ * remarketing ao lado dos completos.
+ */
+export const MINIMO_DE_FOTOS = 4;
 
 /**
- * Quantas fotos um anúncio precisa para ir ao ar.
+ * Quantas fotos a ficha precisa para estar COMPLETA — cobrança interna.
  *
- * O número já era regra: o checklist de publicação cobra oito desde sempre.
- * O que mudou em 2026-08-27 é ele deixar de ser aviso e virar porta.
+ * Não bloqueia nada. Vira a pendência `fotos-incompletas`, que o painel mostra
+ * como "não tira do ar" e que a fila de rascunhos não conta como impedimento.
+ * É a antiga régua de publicação, preservada no lugar certo: a meta de
+ * material, não a porta.
  *
- * ⚠️ **As fotos vêm do feed**, não do painel. Um carro com seis fotos não se
- * conserta em `/admin` — alguém precisa subi-las no RevendaMais. Se isso
- * travar carro demais, baixar aqui é uma linha; é por isso que o número tem
- * nome em vez de estar solto no meio de um `if`.
- *
- * Medido nos 39 veículos servidos em 2026-08-27: **três** ficam abaixo de oito
- * — duas fichas com UMA foto (Kombi `8392516`, Parati `8152210`) e o Uno
- * `8100652` com sete. Anúncio de uma foto é pior que anúncio nenhum.
+ * Oito é o enquadramento que o checklist descreve — frente, traseira, duas
+ * laterais, interior, painel, porta-malas e motor.
  */
-export const MINIMO_DE_FOTOS = 8;
+export const FOTOS_DA_FICHA_COMPLETA = 8;
 
 export interface MotivoDeBloqueio {
   /** Chave estável, para o relatório de auditoria agrupar. */
-  id: "poucas-fotos";
+  id: "poucas-fotos" | "fotos-incompletas";
   /** A frase que o painel e o relatório mostram. */
   texto: string;
   /**
    * Este motivo TIRA o carro do ar, ou é só pendência a resolver?
    *
-   * Hoje é sempre `true`, porque sobrou um motivo só — o laudo saiu da lista em
-   * 29/08 e era justamente o que valia `false`. O campo fica porque a distinção
-   * é da INTERFACE, não desta função: a tabela A6, o editor A15 e a tela de
-   * cadastro separam "falta para poder publicar" de "pendência que não tira do
-   * ar", e a fila de rascunhos ordena por isso.
+   * Foi sempre `true` entre 29/08 e 01/09 — o laudo, que era o único caso de
+   * `false`, tinha saído da régua, e este campo ficou anotado como dívida: as
+   * frases de "não tira do ar" das telas não tinham como aparecer.
    *
-   * Enquanto for sempre `true`, as frases de "não tira do ar" dessas telas não
-   * têm como aparecer. É dívida conhecida, não engano: some no dia em que
-   * entrar o segundo motivo, ou vira remoção deliberada se ele nunca vier.
+   * Deixou de ser dívida. `fotos-incompletas` é um motivo real que não
+   * bloqueia, e os sete consumidores que já filtravam por este campo passaram a
+   * exercer o ramo que nunca rodava — sem nenhum deles precisar mudar.
    */
   bloqueia: boolean;
 }
@@ -286,19 +306,40 @@ export function bloqueiosDePublicacao(veiculo: {
   const fotos = Array.isArray(veiculo.whatsapp_images)
     ? veiculo.whatsapp_images.filter(Boolean).length
     : 0;
+
+  // O texto varia com a origem porque quem sobe a foto é outra pessoa em cada
+  // caso: no carro do RevendaMais a foto vem do feed; no cadastrado aqui
+  // (2026-08-29), pelo próprio painel. Mandar o operador esperar o feed de um
+  // carro que ele mesmo cadastrou seria instrução falsa.
+  const deOndeVemAFoto =
+    veiculo.origem === "painel"
+      ? "suba as fotos pelo painel"
+      : "as fotos vêm do RevendaMais";
+
+  // ---------------------------------------------------------------------------
+  // Duas faixas, dois motivos — e só a primeira fecha a porta
+  // ---------------------------------------------------------------------------
+  // Até 01/09 havia uma faixa só: menos de oito, fora do ar. A régua passou a
+  // distinguir "bom o bastante para existir" de "ficha completa", e o `else if`
+  // é o que impede os dois motivos de aparecerem juntos — um carro com duas
+  // fotos está bloqueado, não bloqueado E incompleto. Listar as duas coisas
+  // faria a tela cobrar da pessoa uma tarefa que ela nem pode começar.
   if (fotos < MINIMO_DE_FOTOS) {
-    const deOndeVemAFoto =
-      veiculo.origem === "painel"
-        ? "suba as fotos pelo painel"
-        : "as fotos vêm do RevendaMais";
     motivos.push({
       id: "poucas-fotos",
-      // O texto varia com a origem porque quem sobe a foto é outra pessoa em
-      // cada caso: no carro do RevendaMais a foto vem do feed; no cadastrado
-      // aqui (2026-08-29), pelo próprio painel. Mandar o operador esperar o
-      // feed de um carro que ele mesmo cadastrou seria instrução falsa.
-      texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos — ${deOndeVemAFoto}`,
+      texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos para publicar — ${deOndeVemAFoto}`,
       bloqueia: true,
+    });
+  } else if (fotos < FOTOS_DA_FICHA_COMPLETA) {
+    motivos.push({
+      id: "fotos-incompletas",
+      // Diz que está no ar ANTES de dizer o que falta. Sem isso o operador lê
+      // um número em vermelho e conclui que o carro não está publicado — que é
+      // exatamente a confusão que a régua de oito criava.
+      texto:
+        `no ar com ${fotos} fotos — a ficha completa pede ${FOTOS_DA_FICHA_COMPLETA} ` +
+        `(${deOndeVemAFoto})`,
+      bloqueia: false,
     });
   }
 

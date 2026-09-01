@@ -90,7 +90,7 @@ que não está à venda. Fica dito, não fica escondido.
   `btrim` não tira hífen: `ABC-1D23` passava. O índice normaliza, e a função
   grava já normalizado.
 - ⏳ **PDP do nativo alcançável por URL** antes das fotos — segue de pé.
-  Comportamento pré-existente para carros do feed com menos de 8 fotos; vale
+  Comportamento pré-existente para carros do feed abaixo da régua de fotos; vale
   honrar `publicavel` (ou `noindex`).
 
 **Achado da entrega da T6 — reprecificação do nativo (T6-b), RESOLVIDO:** o editor A15 mostra

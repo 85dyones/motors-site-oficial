@@ -14,6 +14,7 @@ import {
 import { recusaPorPisoDeCusto } from "../../lib/pisoDePreco";
 import {
   MINIMO_DE_FOTOS,
+  FOTOS_DA_FICHA_COMPLETA,
   bloqueiosDePublicacao,
   divergenciaDeCarroceria,
 } from "../../lib/coerenciaDoCadastro";
@@ -283,11 +284,23 @@ export default function EditorDeVeiculo({
       // régua que `bloqueiosDePublicacao` aplica e que `getEstoque` usa para
       // filtrar a vitrine. Escrito à mão, um dia mudaria num lugar só e a tela
       // passaria a discordar do site sobre por que o carro sumiu.
-      l: `${MINIMO_DE_FOTOS} fotos — bloqueia a publicação`,
-      d: "Frente, traseira, laterais, interior, painel e porta-malas.",
+      l: `${MINIMO_DE_FOTOS} fotos — libera a publicação`,
+      d: "Frente, traseira, uma lateral e o interior já contam a história.",
       ok: fotos.length >= MINIMO_DE_FOTOS,
       estado:
         fotos.length >= MINIMO_DE_FOTOS ? "OK" : `FALTAM ${MINIMO_DE_FOTOS - fotos.length}`,
+    },
+    {
+      // O item que a mudança de 01/09 criou. Ele NÃO bloqueia — o carro já está
+      // no ar quando esta linha aparece pendente —, e é por isso que o rótulo
+      // fala de ficha, não de publicação. Ver `FOTOS_DA_FICHA_COMPLETA`.
+      l: `${FOTOS_DA_FICHA_COMPLETA} fotos — ficha completa`,
+      d: "As duas laterais, painel, porta-malas e motor. Não segura o carro fora do ar.",
+      ok: fotos.length >= FOTOS_DA_FICHA_COMPLETA,
+      estado:
+        fotos.length >= FOTOS_DA_FICHA_COMPLETA
+          ? "OK"
+          : `FALTAM ${FOTOS_DA_FICHA_COMPLETA - fotos.length}`,
     },
     {
       l: "Ficha própria completa",
@@ -336,10 +349,11 @@ export default function EditorDeVeiculo({
   /* O que tira este carro do ar agora. Mesma função que `getEstoque` usa para
      filtrar, para a tela e o site nunca discordarem sobre o motivo.
 
-     `.filter(bloqueia)` porque a lista PODE trazer pendência que não tira do
-     ar. Hoje não traz — o laudo, que era o único caso, saiu da régua em 29/08 —
-     mas o filtro fica: sem ele, o segundo motivo que alguém acrescentar passa a
-     dizer "fora da vitrine" sobre um carro que está no ar.
+     `.filter(bloqueia)` porque a lista TRAZ pendência que não tira do ar:
+     desde 01/09, o carro de 4 a 7 fotos está publicado e devendo material
+     (`fotos-incompletas`). Sem este filtro a faixa diria "fora da vitrine"
+     sobre um carro que o cliente está vendo — e o botão Publicar, que lê o
+     tamanho desta lista, ficaria travado no carro que já passou pela régua.
 
      `laudo_pericia` saiu daqui junto com a regra. A origem fica, e é ela que
      escolhe entre "suba as fotos pelo painel" e "as fotos vêm do RevendaMais":
@@ -647,10 +661,16 @@ export default function EditorDeVeiculo({
           {
             l: "Fotos",
             v: String(fotos.length),
+            // Três estados desde 01/09, e o do meio é o que não existia: o
+            // carro que ESTÁ no ar e ainda deve fotos. Um rótulo só esconderia
+            // a pendência ou mentiria sobre o carro estar publicado — por isso
+            // são três, e nenhum com número escrito à mão.
             nota:
-              fotos.length >= MINIMO_DE_FOTOS
-                ? "acima do mínimo"
-                : `mínimo de ${MINIMO_DE_FOTOS}`,
+              fotos.length >= FOTOS_DA_FICHA_COMPLETA
+                ? "ficha completa"
+                : fotos.length >= MINIMO_DE_FOTOS
+                  ? `no ar — faltam ${FOTOS_DA_FICHA_COMPLETA - fotos.length} para a ficha`
+                  : `mínimo de ${MINIMO_DE_FOTOS} para publicar`,
           },
           { l: "Checklist", v: `${concluidos}/${checklist.length}`, nota: concluidos === checklist.length ? "pronto para publicar" : "itens pendentes" },
           {

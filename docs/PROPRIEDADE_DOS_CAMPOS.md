@@ -71,11 +71,19 @@ sempre que precisarmos corrigir um campo que o feed manda.
 
 ## Bloqueio de publicação
 
-Um item, e só um:
+Uma régua, dois degraus — decisão do dono em 01/09:
 
 | Item | Tira do ar? | Onde se resolve |
 |---|---|---|
-| menos de 8 fotos | **sim** | RevendaMais — as fotos vêm do feed |
+| menos de 4 fotos (`poucas-fotos`) | **sim** | painel, ou RevendaMais no carro do feed |
+| de 4 a 7 fotos (`fotos-incompletas`) | não | painel — é pendência interna, o carro já está no ar |
+
+Quatro fotos são a porta: *"acho que 4 fotos boas são suficiente pra iniciar e
+deixar publicado, mas continuar marcando incompleto até as 8 internamente"*. As
+oito continuam sendo a meta (`FOTOS_DA_FICHA_COMPLETA`), e o painel cobra —
+sem tirar o carro da vitrine. O carro de 4 fotos entra nos três destinos:
+vitrine, feed de anúncios e sitemap. É o que "publicado" já significava no
+código, e mantém uma régua só.
 
 Um veículo bloqueado sai da vitrine, do feed de anúncios e do índice de busca,
 mas **a ficha continua respondendo** — quem tem o link não bate em 404, e subir
