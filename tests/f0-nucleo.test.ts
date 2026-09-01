@@ -896,6 +896,10 @@ describe("a trava do sync não pode se desmontar por descuido", () => {
       method?: string;
       body?: string;
       headerParameters?: { parameters: Cabecalho[] };
+      /** `predefinedCredentialType` desde 30/08 — ver o teste da credencial. */
+      authentication?: string;
+      /** `supabaseApi`: o n8n injeta o segredo e ele some do JSON. */
+      nodeCredentialType?: string;
     };
   };
 
@@ -925,12 +929,50 @@ describe("a trava do sync não pode se desmontar por descuido", () => {
     expect(body).toMatch(/\bid:\s*\$json\.id\b/);
   });
 
-  it("o sync autentica com a chave de serviço — por isso a trava é trigger, não RLS", () => {
-    const auth = cabecalhos().find((h) => h.name === "Authorization")?.value ?? "";
-    expect(auth).toContain("SUPABASE_SERVICE_ROLE_KEY");
-    expect(cabecalhos().find((h) => h.name === "apikey")?.value).toContain(
-      "SUPABASE_SERVICE_ROLE_KEY",
-    );
+  it("o sync autentica por credencial do n8n — o segredo saiu do JSON, e isso muda o que dá para provar aqui", () => {
+    // -----------------------------------------------------------------------
+    // Por que esta asserção mudou em 2026-09-01
+    // -----------------------------------------------------------------------
+    // Até aqui este teste exigia dois cabeçalhos literais, `Authorization` e
+    // `apikey`, contendo a string `SUPABASE_SERVICE_ROLE_KEY`. Ele passava — e
+    // passava guardando um mecanismo que o workflow VIVO abandonou.
+    //
+    // O nó de upsert migrou para `predefinedCredentialType` + `supabaseApi`: o
+    // n8n injeta o segredo na hora da chamada e ele deixa de existir no JSON.
+    // O arquivo versionado só não acusou a diferença porque estava velho —
+    // exportado em 30/08 11:17, enquanto o workflow foi alterado às 18:38 do
+    // mesmo dia. Reexportado em 01/09, o teste ficou vermelho na hora.
+    //
+    // A lição é a de sempre neste repositório: teste que abre arquivo por nome
+    // fica verde guardando código morto. O arquivo é uma CÓPIA do que roda no
+    // n8n, não a fonte — e cópia envelhece em silêncio.
+    //
+    // -----------------------------------------------------------------------
+    // O que continua verdadeiro, e como sabemos
+    // -----------------------------------------------------------------------
+    // A identidade do sync ainda é a chave de serviço. Não dá para ler o
+    // segredo daqui, mas dá para deduzir: `estoque_motors` não tem policy de
+    // INSERT para `anon` (só "Insercao do painel autenticado", TO authenticated
+    // — conferido em pg_policy em 01/09), e o sync insere carro novo todo dia.
+    // Quem insere ou é `authenticated` ou ignora RLS; a credencial `supabaseApi`
+    // do n8n pede o *Service Role Secret* por desenho. Logo, service_role.
+    //
+    // Consequência para a trava (20260830120000_f0q:115-120): dos seus dois
+    // ramos, o da IDENTIDADE (`current_user = 'service_role'`) deixou de ser
+    // demonstrável a partir do repositório. Quem carrega o peso aqui é o ramo
+    // da ASSINATURA (`last_seen_at`), e ele tem teste próprio logo acima —
+    // "o body do upsert ainda carimba `last_seen_at`". Se aquele cair, a trava
+    // fica pendurada numa identidade que este arquivo não consegue verificar.
+    expect(upsert!.parameters.authentication).toBe("predefinedCredentialType");
+    expect(upsert!.parameters.nodeCredentialType).toBe("supabaseApi");
+
+    // E nenhum cabeçalho de autenticação escrito à mão: um `Authorization`
+    // inline venceria a credencial e devolveria o segredo ao JSON — de onde
+    // ele acabou de sair. Os únicos cabeçalhos legítimos são `Content-Type` e
+    // o `Prefer: resolution=merge-duplicates` que faz do POST um upsert.
+    const nomes = cabecalhos().map((h) => h.name.toLowerCase());
+    expect(nomes).not.toContain("authorization");
+    expect(nomes).not.toContain("apikey");
   });
 
   // -------------------------------------------------------------------------

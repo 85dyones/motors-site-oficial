@@ -12,6 +12,27 @@ Código: schema núcleo (spec 00) + org_padrao() + RLS + auditoria; staging + ca
 veículos (migration-runner); conferência diária n8n; backup PITR + export diário TESTADO.
 Saída: adesão RENAVE confirmada; divergência de estoque zero por 5 dias; pendências de tela resolvidas.
 
+## F0.5 — Conteúdo do anúncio (2026-09-01) — conteúdo nosso, operação deles
+Pedido do dono: *"a ideia é usar por mais um tempo o revenda como financeiro e gestor de estoque,
+mas quero ainda ter o controle sobre o conteúdo no site, pra integrar corretamente nos portais"*.
+Fatia vertical fina (vitrine), ortogonal à fatia operação/financeiro — por isso cabe antes da F1,
+que pressupõe entrada e venda nascendo no admin. Não antecipa a F2: `estoque_motors` NÃO vira
+projeção aqui, e nenhum portal é chamado.
+
+A fronteira: **o RevendaMais diz o que existe e quanto custa; nós dizemos como aparece e se
+aparece.** A trava total de 30/08 já tirou dele o poder de reescrever — o que falta não é
+proteção, é permissão.
+
+Entregas: foto editável em veículo de qualquer origem (a trava tornou o gate por `origem`
+obsoleto) · `marcar_conteudo_atualizado()` passa a ver `modelo_override`, `versao_override`,
+`perfis_uso`, `estado_cadastro` · conferência diária que só ACUSA divergência de preço e sumiço
+(rota com Bearer próprio, 503 sem config; **não escreve em `estoque_motors`**) — é o item
+"conferência diária n8n" que a F0 já pedia · preço de tabela editável (depois da conferência) ·
+mapa de completude por portal · as colunas que o mapa provar faltarem · estado do anúncio
+(`anuncios_portal` por `estoque_id`) + payload montado em SOMBRA.
+Saída: os 38 publicados com foto, preço e ficha editáveis pelo painel; divergência zero por 5
+dias; payload de portal montado em sombra para 100% deles.
+
 ## F1 — MVP operacional (≈6–8 semanas) — a partir daqui, entrada e venda nascem no admin
 Entregas (paralelizáveis por módulo após spec 00 no ar):
 compras: 5 portas (spec 10) + diligência de procedência + estornos/correções + confirmação de
