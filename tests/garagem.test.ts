@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { semComentarios } from "./fonte";
 
 /**
  * A Garagem Motors — manual v1.1 §6.3, fase 1.
@@ -115,10 +116,21 @@ describe("o link mágico entra por token_hash", () => {
     expect(rotaConfirm).toContain("`${origin}/garagem`");
   });
 
-  it("?next= continua sanitizado nas duas rotas de auth", () => {
+  it("?next= não é mais lido — nem para sanitizar", () => {
+    // Esta trava pedia a SANITIZAÇÃO (`//host`, `/\host`), que é a defesa
+    // certa para um parâmetro em uso. Em 2026-09-01 ele saiu inteiro das duas
+    // rotas, por decisão do dono sobre o destino do staff — *"sempre que logar
+    // na área administrativa, sempre, a primeira visualização deve ser a Visão
+    // Geral"* —, e ninguém no repositório o escrevia: nem template de e-mail,
+    // nem link do painel.
+    //
+    // Sem leitura não há o que sanitizar, e o open redirect deixa de ser um
+    // risco contido para deixar de existir. A asserção fica invertida: se o
+    // parâmetro voltar, esta falha antes de alguém lembrar da sanitização.
     for (const rota of [rotaConfirm, rotaCallback]) {
-      expect(rota).toContain('rawNext.startsWith("/")');
-      expect(rota).toContain('!rawNext.startsWith("//")');
+      const codigo = semComentarios(rota);
+      expect(codigo).not.toContain('searchParams.get("next")');
+      expect(codigo).not.toContain("rawNext");
     }
   });
 });

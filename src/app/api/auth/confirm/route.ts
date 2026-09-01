@@ -23,10 +23,16 @@ export const dynamic = "force-dynamic";
  * verificação acontece no servidor (`verifyOtp`) e não depende de cookie
  * prévio — o link funciona em qualquer navegador, e continua de uso único.
  *
- * O destino é decidido pelo PAPEL, não por parâmetro: cliente vai para a
- * Garagem, staff vai para o painel. `?next=` só vale para staff — cliente não
- * tem outra área para ir, e aceitar destino arbitrário para ele seria só
- * superfície de phishing.
+ * O destino é decidido pelo PAPEL, e SÓ por ele: cliente vai para a Garagem,
+ * investidor para a área dele, staff para a Visão geral do painel.
+ *
+ * Até 2026-09-01 o staff podia ser desviado por `?next=`. Saiu por decisão do
+ * dono — *"sempre que logar na área administrativa, sempre, a primeira
+ * visualização deve ser a Visão Geral"* —, e a remoção não custou nada: o
+ * parâmetro era honrado aqui e no callback, e escrito por lugar nenhum. O
+ * template de e-mail (`docs/AREA_DO_CLIENTE_AUTH.md`) manda só `token_hash` e
+ * `type`. Com ele foi embora também a superfície de open redirect que a
+ * sanitização em volta existia para conter.
  *
  * Dois tipos furam essa regra, e é de propósito: `invite` e `recovery` chegam
  * de alguém que ainda NÃO tem senha utilizável — o convidado nunca teve uma, e
@@ -39,13 +45,6 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
   const type = (searchParams.get("type") ?? "email") as EmailOtpType;
-
-  // Mesma sanitização do callback: só caminho interno.
-  const rawNext = searchParams.get("next");
-  const nextSeguro =
-    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.startsWith("/\\")
-      ? rawNext
-      : null;
 
   if (!tokenHash) {
     return NextResponse.redirect(`${origin}/login?error=link-incompleto`);
@@ -76,8 +75,9 @@ export async function GET(request: NextRequest) {
     .eq("id", user.id)
     .single();
 
+  // SEMPRE a Visão geral — ver a nota sobre `?next=` no cabeçalho.
   if (ehStaff(profile)) {
-    return NextResponse.redirect(`${origin}${nextSeguro ?? "/admin"}`);
+    return NextResponse.redirect(`${origin}/admin`);
   }
   // Investidor tem área própria desde 2026-08-22; sem esta linha o convite
   // dele terminava na Garagem, que a página manda de volta para a home.

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { semComentarios } from "./fonte";
 
 /**
  * Quem entra no painel cai na Visão geral.
@@ -21,6 +22,7 @@ const arquivos = {
   "login/page.tsx": readFileSync(join(raiz, "app", "login", "page.tsx"), "utf-8"),
   "LoginForm.tsx": readFileSync(join(raiz, "components", "LoginForm.tsx"), "utf-8"),
   "auth/callback": readFileSync(join(raiz, "app", "api", "auth", "callback", "route.ts"), "utf-8"),
+  "auth/confirm": readFileSync(join(raiz, "app", "api", "auth", "confirm", "route.ts"), "utf-8"),
   "proxy.ts": readFileSync(join(raiz, "proxy.ts"), "utf-8"),
 };
 
@@ -33,16 +35,43 @@ describe("destino de entrada no painel", () => {
     expect(arquivos["login/page.tsx"]).toContain('redirect("/admin")');
   });
 
-  it("o callback de autenticação usa a Visão geral como padrão", () => {
-    expect(arquivos["auth/callback"]).toContain(': "/admin"');
+  it("o callback manda para a Visão geral, e o destino não é calculado", () => {
+    // Era `?next= ?? "/admin"`. Virou constante em 2026-09-01, por decisão do
+    // dono: *"sempre que logar na área administrativa, sempre, a primeira
+    // visualização deve ser a Visão Geral"*.
+    const codigo = semComentarios(arquivos["auth/callback"]);
+    expect(codigo).toContain('const destino = "/admin"');
+    expect(codigo).toContain("${origin}${destino}");
   });
 
-  it("o callback só redireciona para caminho interno", () => {
-    // `//host` e `/\host` são normalizados pelo browser para origem externa —
-    // aceitar qualquer `?next=` era o padrão clássico de open redirect.
-    expect(arquivos["auth/callback"]).toContain('rawNext.startsWith("/")');
-    expect(arquivos["auth/callback"]).toContain('!rawNext.startsWith("//")');
-    expect(arquivos["auth/callback"]).toContain('!rawNext.startsWith("/\\\\")');
+  it("o confirm manda o STAFF para a Visão geral", () => {
+    // Esta rota é a do link mágico, e decide pelo PAPEL. O staff não tinha
+    // trava nenhuma até 01/09 — o teste antigo cobria só o callback.
+    const codigo = semComentarios(arquivos["auth/confirm"]);
+    const i = codigo.indexOf("ehStaff(profile)");
+    expect(i).toBeGreaterThan(-1);
+    // A crase de fechamento faz parte da asserção, e não é detalhe: sem ela
+    // `${origin}/admin/configuracoes` passava, porque CONTÉM `${origin}/admin`.
+    // Foi o que uma mutação encontrou — a trava dizia "vai para o painel"
+    // quando queria dizer "vai para a Visão geral".
+    expect(codigo.slice(i, i + 160)).toContain("`${origin}/admin`");
+  });
+
+  it("NENHUMA rota de autenticação lê `next` — a fresta foi fechada", () => {
+    // A versão anterior deste bloco travava a SANITIZAÇÃO do `?next=`
+    // (`//host`, `/\host`), o que é a defesa certa para um parâmetro que se
+    // usa. Só que ele era honrado por duas rotas e ESCRITO por nenhuma:
+    // nenhum template de e-mail, nenhum link do painel, nenhuma rota. Era
+    // desvio possível sem uso — e um open redirect a ser contido de graça.
+    //
+    // Não ler é mais forte que sanitizar: some a regra E some o que ela
+    // protegia. Se alguém reintroduzir o parâmetro, esta trava falha antes de
+    // a sanitização voltar a fazer falta.
+    for (const rota of ["auth/callback", "auth/confirm"] as const) {
+      const codigo = semComentarios(arquivos[rota]);
+      expect(codigo, rota).not.toContain('searchParams.get("next")');
+      expect(codigo, rota).not.toContain("rawNext");
+    }
   });
 
   it("o desvio de acesso negado não joga ninguém em Configurações", () => {
