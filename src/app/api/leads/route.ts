@@ -195,6 +195,26 @@ export async function POST(request: NextRequest) {
         // evento: é o mesmo que vai para a CAPI do Meta, então o lead passa
         // a dar para cruzar com `capi_meta_*` na mesma linha.
         event_id: body.eventId || null,
+        /**
+         * O elo entre quem NAVEGA e quem VIROU lead.
+         *
+         * A coluna existia desde a tabela de marketing e nunca foi preenchida:
+         * medido em 2026-09-02, 0 dos 11 leads tinham `ag_uid`. E o valor
+         * estava aqui do lado o tempo todo — `resolvedAgUid` é resolvido na
+         * entrada da rota e já viaja como `external_id` para o Meta, logo
+         * abaixo. Gravava-se para o Meta e não para a própria casa.
+         *
+         * Sem ele, o servidor não tem como saber que o visitante que está
+         * abrindo uma ficha agora é a pessoa que deixou telefone semana
+         * passada — que é exatamente o que a CAPI usa para elevar a
+         * correspondência. A ausência não dá erro: dá 0% de e-mail e telefone
+         * no relatório de qualidade do pixel, sem nada explicando por quê.
+         *
+         * `ag_ref_nao_localizado` é o sentinela de quem chegou sem rastreio;
+         * vira `null` para a coluna não guardar texto que não identifica
+         * ninguém, e para `count(ag_uid)` continuar significando o que parece.
+         */
+        ag_uid: resolvedAgUid !== "ag_ref_nao_localizado" ? resolvedAgUid : null,
       });
 
       if (erroLead) {
