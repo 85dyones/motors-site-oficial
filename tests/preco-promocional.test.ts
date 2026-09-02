@@ -170,25 +170,43 @@ describe("o que é recusado, e com que texto", () => {
 });
 
 describe("quem pode gravar promoção", () => {
-  it("a promoção vale em veículo de QUALQUER origem", () => {
-    // O teste que mais importa: em 31/08 os 104 veículos eram do sync. Uma
-    // promoção só do nativo não serviria a carro nenhum.
-    expect(camposGravaveis("sync")).toContain(CAMPO_DA_PROMOCAO);
+  /* -------------------------------------------------------------------------
+     Invertido em 2026-09-02. De 31/08 a 02/09 a promoção era gravável em
+     qualquer origem ("quem decide promoção é a loja"). O dono reverteu: "o
+     preço é do revenda, sempre, nos campos de preço e no de promoção, senão eu
+     crio dois lugares para mudar isso". A medição do mesmo dia deu razão ao
+     medo sem que ele tivesse custado nada aqui — zero promoções criadas pelo
+     painel — e mostrou o custo do lado oposto: a Sorento R$ 8.000 acima do
+     RevendaMais porque a trava total impedia o preço de chegar. A migração
+     20260902120000 abre a trava para as três colunas; estes testes fecham o
+     painel. As três colunas de preço passam a ter UMA régua: só no nativo.
+     ---------------------------------------------------------------------- */
+
+  it("a promoção só é gravável no veículo NATIVO — como o preço de tabela", () => {
     expect(camposGravaveis("painel")).toContain(CAMPO_DA_PROMOCAO);
-    expect(camposGravaveis(null)).toContain(CAMPO_DA_PROMOCAO);
+    expect(camposGravaveis("sync")).not.toContain(CAMPO_DA_PROMOCAO);
+    expect(camposGravaveis(null)).not.toContain(CAMPO_DA_PROMOCAO);
+    expect(camposGravaveis(undefined)).not.toContain(CAMPO_DA_PROMOCAO);
   });
 
-  it("mas o preço de TABELA continua só do nativo", () => {
-    // A promoção abriu; o preço de tabela não. Quem manda nele é o
-    // RevendaMais enquanto o carro for dele.
-    expect(camposGravaveis("sync")).not.toContain("preco_original");
-    expect(camposGravaveis("sync")).not.toContain("preco");
+  it("as TRÊS colunas de preço têm a mesma régua — nenhuma sozinha", () => {
+    // Se uma abrir sem as outras, volta o "dois lugares para mudar": promoção
+    // aqui e tabela lá produzem o "de/por" que a ficha mostra e o RevendaMais
+    // desconhece.
+    for (const campo of ["preco", "preco_original", CAMPO_DA_PROMOCAO]) {
+      expect(camposGravaveis("sync"), campo).not.toContain(campo);
+      expect(camposGravaveis("painel"), campo).toContain(campo);
+    }
   });
 
-  it("passa por `extrairCamposNossos` no veículo importado", () => {
+  it("NÃO passa por `extrairCamposNossos` no veículo importado", () => {
+    // Até 02/09 esta asserção esperava `{ preco_promocional: 65900, descricao }`.
     const corpo = { preco_promocional: 65900, preco_original: 999, descricao: "ok" };
-    expect(extrairCamposNossos(corpo, "sync")).toEqual({
+    expect(extrairCamposNossos(corpo, "sync")).toEqual({ descricao: "ok" });
+    // No nativo, o trio passa inteiro.
+    expect(extrairCamposNossos(corpo, "painel")).toEqual({
       preco_promocional: 65900,
+      preco_original: 999,
       descricao: "ok",
     });
   });
@@ -203,29 +221,36 @@ describe("quem pode gravar promoção", () => {
 });
 
 describe("a escrita, executada de ponta a ponta", () => {
-  it("grava promoção E preço efetivo num veículo do SYNC", async () => {
+  it("a função de escrita é agnóstica à origem — o portão é `extrairCamposNossos`", async () => {
+    // Este teste passava um corpo já extraído a um veículo do SYNC e provava
+    // que "grava promoção E preço efetivo". Continua verdadeiro no nível da
+    // função, e é bom que seja: `aplicarNosVeiculos` deriva o efetivo para
+    // quem quer que a chame. Quem decide SE a promoção chega até aqui num
+    // carro do feed é `extrairCamposNossos` — testado acima, e desde 02/09 a
+    // resposta é não. Se um dia esta função ganhar uma boca que não passe pelo
+    // portão, é aqui que a promoção do painel voltaria a competir com a do
+    // RevendaMais.
     const { supabase, gravou } = bancoFalso([SAVEIRO]);
     const r = await aplicarNosVeiculos(supabase, [8335204], { preco_promocional: 65900 }, AUTOR);
 
     expect(r.erro).toBeUndefined();
     expect(gravou[0].patch).toEqual({ preco_promocional: 65900, preco: 65900 });
-    // `preco_original` intocado: o "de" continua sendo o do RevendaMais.
     expect(gravou[0].patch).not.toHaveProperty("preco_original");
   });
 
   it("a base vem do BANCO, não do corpo da requisição", async () => {
     // Sem isto, `{preco_original: 999999, preco_promocional: 1}` fabricaria um
-    // desconto de 99,9% contra uma base que não existe. Como `preco_original`
-    // não passa em veículo do sync, o que resta é a base real — e 999999 é
-    // maior que 68900, então a promoção de 1 seria "válida" contra a falsa.
-    const { supabase, gravou } = bancoFalso([SAVEIRO]);
-    const corpo = extrairCamposNossos(
-      { preco_original: 999999, preco_promocional: 70000 },
-      "sync",
-    );
+    // desconto de 99,9% contra uma base que não existe. Até 02/09 o cenário
+    // era o carro do sync (a base não passava, a promoção passava). Agora
+    // nenhuma das duas passa no sync, então o cenário vira o NATIVO mandando
+    // só a promoção: a base tem de sair do banco, e 70.000 é maior que os
+    // 68.900 reais.
+    const nativo = { ...SAVEIRO, origem: "painel" };
+    const { supabase, gravou } = bancoFalso([nativo]);
+    const corpo = extrairCamposNossos({ preco_promocional: 70000 }, "painel");
+    expect(corpo).toEqual({ preco_promocional: 70000 });
     const r = await aplicarNosVeiculos(supabase, [8335204], corpo, AUTOR);
 
-    // 70.000 é maior que a base REAL (68.900) — recusado.
     expect(r.status).toBe(422);
     expect(r.erro).toMatch(/MENOR/);
     expect(gravou).toHaveLength(0);
