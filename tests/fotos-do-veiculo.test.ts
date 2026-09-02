@@ -27,6 +27,8 @@ import {
   camposGravaveis,
   extrairCamposNossos,
 } from "../src/lib/estoqueEscrita";
+import { recusaDoLote } from "../src/app/api/estoque/lote/route";
+import { decidirCadastro } from "../src/lib/cadastroDeVeiculo";
 import { ACAO_DO_CAMPO_DE_VEICULO, campoNegadoAoPerfil, podeFazer } from "../src/lib/permissoes";
 import {
   FOTOS_DA_FICHA_COMPLETA,
@@ -341,9 +343,8 @@ describe("foto é gravável em veículo de qualquer origem (F0.5, 2026-09-01)", 
      morar no nosso bucket. A condição sobreviveu à razão dela.
 
      O preço de mantê-la era medido: `origem = 'sync'` é 100% do estoque, então
-     a galeria estava fechada para TODOS os carros, e em 01/09 quatro deles
-     estavam abaixo da porta de quatro fotos (Kombi, Parati, Sandero, Voyage),
-     com outros três no ar e com ficha incompleta.
+     a galeria estava fechada para TODOS os carros, e dois dos 38 publicados
+     ativos estavam abaixo da porta de quatro fotos: Kombi e Parati.
      ---------------------------------------------------------------------- */
 
   it("as três colunas são graváveis em toda origem, inclusive ausente", () => {
@@ -366,13 +367,68 @@ describe("foto é gravável em veículo de qualquer origem (F0.5, 2026-09-01)", 
   });
 
   it("as colunas de foto NÃO entraram em CAMPOS_NOSSOS", () => {
-    // `CAMPOS_NOSSOS` é a lista que a rota de LOTE usa. Foto entrando ali
-    // abriria escrita em MASSA nas três colunas — e a galeria é uma tela de um
-    // carro só, com capa e ordem. Liberar por origem (feito) é diferente de
-    // liberar em lote (não feito, e não pedido).
+    // Continua valendo, mas por menos do que a versão anterior deste comentário
+    // afirmava. Ela dizia que `CAMPOS_NOSSOS` "é a lista que a rota de LOTE
+    // usa" — e não é: a rota de lote chama `extrairCamposNossos` sem origem, ou
+    // seja, `camposGravaveis(undefined)`. As duas listas divergiram no exato
+    // momento em que a F0.5 abriu as fotos, e este teste seguiu verde guardando
+    // uma propriedade que não protegia mais nada. Quem protege o lote agora é
+    // `recusaDoLote`, testado logo abaixo.
     for (const campo of CAMPOS_DE_FOTO) {
       expect(CAMPOS_NOSSOS as readonly string[], campo).not.toContain(campo);
     }
+  });
+
+  describe("o lote continua fechado para foto — a regressão que a F0.5 abriu", () => {
+    /* Abrir a régua de COLUNA abriu junto duas bocas que ninguém pediu, porque
+       as duas chamam `extrairCamposNossos` SEM origem. Estes testes exercitam a
+       decisão que a ROTA chama, não a lista que ela por acaso consulta — foi
+       exatamente por mirar a lista que a suíte não viu o furo. */
+
+    it("as três colunas são recusadas em lote, uma a uma", () => {
+      for (const campo of CAMPOS_DE_FOTO) {
+        expect(recusaDoLote({ [campo]: [] }), campo).toMatch(/um a um/);
+      }
+    });
+
+    it("recusa mesmo acompanhada de campo legítimo — não basta ignorar a foto", () => {
+      // O perigo é o silêncio: aceitar o lote descartando só a foto faria o
+      // operador acreditar que reordenou 200 carros.
+      expect(recusaDoLote({ tipo: "SUV", whatsapp_images: ["a", "b"] })).toMatch(/Foto/);
+    });
+
+    it("lote legítimo continua passando", () => {
+      expect(recusaDoLote({ tipo: "SUV" })).toBeNull();
+      expect(recusaDoLote({ vendido: true })).toBeNull();
+      expect(recusaDoLote({})).toBeNull();
+    });
+
+    it("as barreiras que já existiam não se perderam na refatoração", () => {
+      expect(recusaDoLote({ preco_compra: 1000 })).toMatch(/Custo de aquisição/);
+      expect(recusaDoLote({ preco_promocional: 65900 })).toMatch(/promocional/);
+    });
+
+    it("o cadastro nativo também não aceita foto pelo corpo", () => {
+      // Quatro strings quaisquer satisfazem MINIMO_DE_FOTOS: sem esta barreira
+      // nascia carro "com fotos" que não são imagens, publicável em seguida.
+      // As colunas são jsonb e engolem escalar, e aí `Array.isArray` é falso e
+      // a ficha vira "0 fotos" — sem erro em lugar nenhum.
+      const d = decidirCadastro(
+        {
+          marca: "VW", modelo: "Nivus", ano: 2023, preco: 118900,
+          quilometragem: 38400, chassi: "9BWZZZ377VT004252",
+          whatsapp_images: ["nao-e-url", "b", "c", "d"],
+          web_full_images: "nem-array",
+          url_imagem: "javascript:alert(1)",
+        },
+        { papeis: ["comercial"] },
+      );
+      expect(d.ok).toBe(true);
+      if (!d.ok) return;
+      for (const campo of CAMPOS_DE_FOTO) {
+        expect(d.linha, `${campo} chegaria ao INSERT`).not.toHaveProperty(campo);
+      }
+    });
   });
 
   it("o aviso que mandava o operador ao RevendaMais saiu da tela", () => {

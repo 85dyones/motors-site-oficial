@@ -311,9 +311,9 @@ export function bloqueiosDePublicacao(veiculo: {
   // deixaria a tela mandando o operador para o RevendaMais em 100% do estoque,
   // que é `origem = 'sync'` inteiro.
   //
-  // O custo disso era medido: em 01/09, na vitrine real, quatro carros estavam
-  // abaixo da porta de quatro fotos (Kombi, Parati, Sandero, Voyage) e três no
-  // ar com ficha incompleta — todos com esta pendência mandando resolver noutro
+  // O custo disso era medido: entre os 38 publicados e não vendidos, dois
+  // estavam abaixo da porta de quatro fotos (Kombi e Parati) e outros com a
+  // ficha incompleta — todos com esta pendência mandando resolver noutro
   // sistema. O `origem` saiu da assinatura junto com o texto: parâmetro que não
   // muda mais nada convida a acreditar que muda.
   const deOndeVemAFoto = "suba as fotos pelo painel";

@@ -429,9 +429,9 @@ export default function GaleriaDeFotos({
       {/* Aqui ficava o aviso que mandava o operador subir a foto no outro
           sistema, alegando que o sincronizador a sobrescreveria. Saiu em
           2026-09-01: era falso desde 30/08, quando a trava tirou do feed o
-          poder de reescrever coluna, e ensinava a não tentar. Quatro carros —
-          Kombi, Parati, Sandero e Voyage — estavam fora da vitrine por falta
-          de foto que ninguém subiu porque a tela dizia que não daria.
+          poder de reescrever coluna, e ensinava a não tentar. Kombi e Parati
+          estavam fora da vitrine por falta de foto que ninguém subiu porque a
+          tela dizia que não daria.
 
           O texto exato não é reproduzido nem aqui: `tests/fotos-do-veiculo`
           procura por ele no arquivo inteiro para garantir que não volte. */}

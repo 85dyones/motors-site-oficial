@@ -244,16 +244,31 @@ describe("o cadastro não escreve o que o banco infere", () => {
     expect(naoPodeENemTemDados.status).toBe(403);
   });
 
-  it("a lista de proibidos cobre as cinco colunas que os triggers decidem", () => {
+  it("a lista de proibidos: cinco colunas que os triggers decidem, mais as três de foto", () => {
+    // Lista fechada de propósito — acrescentar exige decidir, e decidir exige
+    // escrever aqui o porquê.
+    //
     // `estado_cadastro` entrou em 2026-08-30 (migração F0-q): o trigger de
     // INSERT o força a `rascunho`, importado ou cadastrado, e a rota não tenta
     // negociar. Ver `tests/rascunho-e-publicacao.test.ts`, trava 1.
+    //
+    // As três de foto entraram em 2026-09-02, e por motivo diferente dos cinco
+    // primeiros: não é o banco que decide, é que a rota não tem como validar.
+    // Enquanto foto exigia `origem = 'painel'`, esta rota as descartava sozinha
+    // (chama `extrairCamposNossos` sem origem); ao abrir a galeria para toda
+    // origem na F0.5, o INSERT passou a aceitar array de foto do corpo, sem
+    // conferir forma nem host. Quatro strings quaisquer satisfazem
+    // `MINIMO_DE_FOTOS`. Foto entra pela galeria, depois do nascimento, onde
+    // `validarFoto` e o Storage conferem tipo e tamanho.
     expect([...CAMPOS_QUE_A_ROTA_NUNCA_ESCREVE].sort()).toEqual([
       "estado_cadastro",
       "first_seen_at",
       "id",
       "last_seen_at",
       "origem",
+      "url_imagem",
+      "web_full_images",
+      "whatsapp_images",
     ]);
   });
 

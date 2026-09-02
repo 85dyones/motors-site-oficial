@@ -133,10 +133,17 @@ export const CAMPO_DA_PROMOCAO = "preco_promocional";
  * nenhuma"*.
  *
  * O custo de manter a condição não era teórico. Em 01/09, na vitrine REAL,
- * quatro carros estavam abaixo da porta de quatro fotos — Kombi Standard (0),
- * Parati CL (1), Sandero Expression (1) e Voyage 1.0 (1) — e outros três no ar
- * com ficha incompleta. Em todos, a pendência mandava o operador resolver no
- * RevendaMais, num painel que não podia recebê-la de volta.
+ * DOIS carros estavam abaixo da porta de quatro fotos — Kombi Standard (0) e
+ * Parati CL (1) —, mais outros com a ficha incompleta. Em todos, a pendência
+ * mandava o operador resolver no RevendaMais, num painel que não podia
+ * recebê-la de volta.
+ *
+ * ⚠️ Este número já foi contado errado duas vezes aqui, e a armadilha é a
+ * mesma: a seção "Fora da vitrine agora" da auditoria responde "o que a régua
+ * de fotos reprova", NÃO "o que está fora do ar" — ela mistura publicado,
+ * arquivado e vendido-na-carência. Sandero e Voyage apareciam nela e estão
+ * `arquivado`: não foi a foto que os tirou. Contar exige filtrar
+ * `estado_cadastro = 'publicado' and not vendido`.
  *
  * ⚠️ Para quem for conferir: `npm run auditoria:estoque` NÃO carrega
  * `.env.local`, e sem as variáveis `getEstoque()` cai no `MOCK_ESTOQUE` — os
