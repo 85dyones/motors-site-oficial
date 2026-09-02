@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { rastreamentoRecusado } from "../lib/telemetry";
 
 /**
  * O liga-desliga do rastreamento, na página de privacidade.
@@ -41,7 +42,7 @@ export default function ControleDeRastreamento() {
 
   useEffect(() => {
     try {
-      setEstado(localStorage.getItem("ag_cookie_consent") === "rejected" ? "desligado" : "ativo");
+      setEstado(rastreamentoRecusado() ? "desligado" : "ativo");
     } catch {
       // Navegador com armazenamento bloqueado: mostra "ativo", que é a verdade
       // do que o tracker faz quando não consegue ler a preferência.

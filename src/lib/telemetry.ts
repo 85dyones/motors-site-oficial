@@ -13,6 +13,51 @@ import {
 // Trocar para "vehicle" se o catálogo migrar de vertical (decisão em aberto).
 export const META_CONTENT_TYPE = "product";
 
+/**
+ * O visitante DESLIGOU o rastreamento? Só a recusa explícita barra.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que isto é uma função, e não a linha repetida cinco vezes
+ * ---------------------------------------------------------------------------
+ * Era. A decisão do dono em 2026-08-31 — *"não quero nada atrás do aceite, o
+ * `_fbc` precisa estar ativo"*, com a oposição morando em `/privacidade` —
+ * trocou a régua de "só quem aceitou" para "todos, menos quem recusou".
+ *
+ * A troca foi aplicada em `IntegrationsTracker` (nos dois pontos) e em
+ * `ControleDeRastreamento`, e **não** aqui: os cinco eventos deste arquivo
+ * continuaram exigindo `=== "accepted"`. Como ninguém mais precisa aceitar,
+ * `ag_cookie_consent` fica `null` para todo visitante, as cinco funções
+ * devolviam `null`, e quem depende do retorno parava junto.
+ *
+ * O estrago, medido na produção em 2026-09-02 antes da correção:
+ *
+ *   - **PageView vivo** (11.600 em 28 dias): sai do script base do pixel, que
+ *     não passa por aqui. É o único evento que sobreviveu.
+ *   - **ViewContent, Contact, Search, CompleteRegistration e Lead: zero** — no
+ *     navegador E no CAPI.
+ *   - `/api/capi` recebeu **0 requisições contra 37 visitas a ficha** em seis
+ *     horas. A rota não estava falhando: não era chamada.
+ *   - O espelho de Lead em `/api/leads` também parou, e por tabela: ele exige
+ *     `body.eventId`, que vem de `trackLeadSubmission` — bloqueada aqui.
+ *
+ * O relatório da mídia leu isso como "a rota do servidor quebrou em 1º de
+ * agosto". Não quebrou: nunca chegou a ser chamada depois de 31/08, e o
+ * número saudável do PageView escondia o resto.
+ *
+ * Uma função só porque foi a repetição que permitiu a divergência. Quem mudar
+ * a política muda aqui, e os oito pontos do site acompanham.
+ */
+export function rastreamentoRecusado(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem("ag_cookie_consent") === "rejected";
+  } catch {
+    // Armazenamento bloqueado não é recusa. `ControleDeRastreamento` mostra
+    // "ativo" nesse caso, e a tela e o comportamento têm de concordar.
+    return false;
+  }
+}
+
 export interface TelemetryLeadPayload {
   marca: string;
   modelo: string;
@@ -451,8 +496,7 @@ export function trackLeadSubmission(
       lead_id: eventId,
     });
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     // Com o container no ar, quem manda `generate_lead` para o GA4 é a tag 204
     // — com mais parâmetro do que este `gtag` jamais mandou (`vehicle.*`
@@ -558,8 +602,7 @@ export function trackVehicleView(
       primeiraVez: vehicle.primeiraVez,
     });
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("ViewContent");
 
@@ -604,8 +647,7 @@ export function trackAppraisalSubmit(category: string, brand: string, model: str
     // uma conversão distinta no Ads, e é o `lead_type` que separa as duas.
     pushLead("avaliacao");
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("CompleteRegistration");
 
@@ -647,8 +689,7 @@ export function trackCarMatch(tags: string[], resultsCount: number): string | nu
   if (typeof window === "undefined") return null;
 
   try {
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("Search");
 
@@ -700,8 +741,7 @@ export function trackContactClick(
       pushCliqueTelefone(label || "desconhecido", contexto);
     }
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("Contact");
 
