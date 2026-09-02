@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import { marcarContainerAtivo } from "../lib/dataLayer";
-import { persistirParametrosDeCampanha } from "../lib/telemetry";
+import { persistirParametrosDeCampanha, rastreamentoRecusado } from "../lib/telemetry";
 
 declare global {
   interface Window {
@@ -158,8 +158,7 @@ export default function IntegrationsTracker() {
       //   2. O aviso da home informa e some. Não decide nada.
       //
       // `tests/brechas-de-mensuracao.test.ts` trava as pontas juntas.
-      const consent = localStorage.getItem("ag_cookie_consent");
-      if (consent === "rejected") {
+      if (rastreamentoRecusado()) {
         console.log("[IntegrationsTracker] Desligado pelo próprio visitante, em /privacidade.");
         return;
       }
@@ -327,8 +326,7 @@ export default function IntegrationsTracker() {
     // páginas seguintes não — a sessão apareceria no Meta como visita de uma
     // página só, que é pior que não aparecer: vira um número errado, não um
     // número faltando.
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent === "rejected") return;
+    if (rastreamentoRecusado()) return;
 
     // Dispatch GA4 page view
     if (window.gtag && ga4Id) {

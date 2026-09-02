@@ -276,7 +276,8 @@ describe("B.3 · o cookie de anúncio respeita o banner", () => {
     expect(escrita).toBeGreaterThan(-1);
 
     // A escrita mora dentro da função que só roda depois do portão.
-    const portao = fonte.indexOf('const consent = localStorage.getItem("ag_cookie_consent")');
+    const portao = fonte.indexOf("if (rastreamentoRecusado()");
+    expect(portao, "o tracker não tem portão").toBeGreaterThan(-1);
     const chamada = fonte.indexOf("persistirFbc();");
     expect(chamada).toBeGreaterThan(portao);
   });
@@ -427,8 +428,14 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     // chamada ficasse depois do `return` de quem não aceitou, ela nunca rodaria
     // para quem ainda não decidiu — nem gravando, nem apagando numa recusa.
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
-    const portao = fonte.indexOf('const consent = localStorage.getItem("ag_cookie_consent")');
+    // A âncora mudou em 2026-09-02: o portão virou `rastreamentoRecusado()`,
+    // uma função só, porque a linha repetida foi o que permitiu `telemetry.ts`
+    // divergir de `IntegrationsTracker` por dois dias. `indexOf` do texto
+    // antigo devolvia -1 e a comparação passava a ser contra -1 — o teste
+    // reprovava sem que nada de errado tivesse acontecido.
+    const portao = fonte.indexOf("rastreamentoRecusado()");
     const chamada = fonte.indexOf("persistirParametrosDeCampanha();");
+    expect(portao, "o tracker não tem portão").toBeGreaterThan(-1);
     expect(chamada, "o tracker não chama a captura").toBeGreaterThan(-1);
     expect(chamada, "a captura precisa vir ANTES do retorno antecipado").toBeLessThan(portao);
   });
@@ -447,15 +454,26 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     // Duas ocorrências: a inicialização e o PageView de navegação. As duas
     // precisam da mesma régua — se só uma mudasse, a sessão apareceria no Meta
     // como visita de uma página só, que é um número errado, não um faltando.
-    const barrasPorRecusa = fonte.match(/consent === "rejected"/g) ?? [];
-    expect(barrasPorRecusa.length, "as duas portas precisam barrar por recusa").toBe(2);
+    // Contagem por `split`, não por regex: só os CHAMADOS contam, e a linha de
+    // `import` casa com o nome da função tanto quanto eles.
+    const barrasPorRecusa = fonte.split("if (rastreamentoRecusado()").length - 1;
+    expect(barrasPorRecusa, "as duas portas precisam barrar por recusa").toBe(2);
     expect(fonte, "voltou a exigir aceite sem reescrever a política?")
       .not.toMatch(/consent !== "accepted"/);
 
+    // E a régua vive numa função só, compartilhada com `telemetry.ts`. Foi
+    // exatamente a duplicação que deixou os cinco eventos de lá exigindo
+    // aceite por dois dias depois de a política mudar aqui.
+    const regra = lerCodigo("src/lib/telemetry.ts");
+    expect(regra, "a régua saiu da função compartilhada?")
+      .toContain('localStorage.getItem("ag_cookie_consent") === "rejected"');
+    expect(regra, "telemetry voltou a exigir aceite?").not.toMatch(/!== "accepted"/);
+
     // E o `_fbc` continua DEPOIS do portão: quem recusou não ganha cookie de
     // atribuição. É a metade da regra que não mudou.
-    const portao = fonte.indexOf('const consent = localStorage.getItem("ag_cookie_consent")');
-    expect(fonte.indexOf("persistirFbc();")).toBeGreaterThan(portao);
+    expect(fonte.indexOf("persistirFbc();")).toBeGreaterThan(
+      fonte.indexOf("if (rastreamentoRecusado()"),
+    );
   });
 
   it("a política descreve a gravação na chegada", async () => {
@@ -485,8 +503,15 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     const tracker = lerCodigo("src/components/IntegrationsTracker.tsx");
     const politica = lerCodigo("src/app/privacidade/page.tsx");
 
-    const carregaAntesDaResposta = tracker.includes('consent === "rejected"');
-    expect(carregaAntesDaResposta, "o portão voltou a exigir aceite?").toBe(true);
+    // A régua saiu do componente em 2026-09-02 e virou `rastreamentoRecusado()`
+    // em `telemetry.ts` — uma definição para os oito pontos do site. A trava
+    // segue a régua para onde ela foi: o que importa é que barre RECUSA, não
+    // ausência de resposta, e em qualquer lugar que ela more.
+    expect(tracker, "o tracker parou de consultar a régua?")
+      .toContain("rastreamentoRecusado()");
+    const regra = lerCodigo("src/lib/telemetry.ts");
+    expect(regra, "o portão voltou a exigir aceite?")
+      .toContain('localStorage.getItem("ag_cookie_consent") === "rejected"');
 
     // A promessa antiga não pode ter sobrado em lugar nenhum do texto.
     expect(politica, "a política ainda promete que nada carrega antes do aceite")

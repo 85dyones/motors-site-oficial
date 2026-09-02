@@ -240,16 +240,52 @@ describe("os disparos que já existiam passaram a alimentar a camada", () => {
     });
   });
 
-  it("publica mesmo sem consentimento — o envio é que espera o aceite", async () => {
+  it("sem preferência registrada, publica E envia", async () => {
+    /* Este teste dizia o CONTRÁRIO até 2026-09-02: *"publica mesmo sem
+       consentimento — o envio é que espera o aceite"*, e exigia `null`.
+
+       Era o regime anterior. A decisão do dono em 31/08 — *"não quero nada
+       atrás do aceite"* — foi aplicada no `IntegrationsTracker` e esquecida nos
+       cinco eventos de `telemetry.ts`, que seguiram exigindo `"accepted"`. Como
+       ninguém mais aceita nada, a chave fica `null` e TODO evento de conversão
+       parou: ViewContent, Contact, Search, CompleteRegistration e o Lead — no
+       navegador e no CAPI. Medido na produção: `/api/capi` com 0 requisições
+       contra 37 visitas a ficha em seis horas.
+
+       O teste ficou verde o tempo todo afirmando o comportamento quebrado. É a
+       forma mais cara de trava errada: ela não avisa, ela confirma. */
     const { trackContactClick } = await import("../src/lib/telemetry");
 
-    // `localStorage` não existe neste ambiente: é exatamente o caso "sem
-    // consentimento registrado". O push acontece; o retorno é nulo porque
-    // nenhum evento foi ENVIADO ao GA4 nem ao Pixel.
+    // Sem `localStorage` neste ambiente — o mesmo caso do visitante que nunca
+    // respondeu nada. A régua trata isso como "não recusou".
     const eventId = trackContactClick("phone", "Rodapé - Telefone");
 
-    expect(eventId).toBeNull();
+    expect(eventId, "evento sem id = nada chega ao Meta").not.toBeNull();
+    expect(eventId).toMatch(/^Contact\./);
     expect(fila()[0]).toMatchObject({ event: "click_to_call" });
+  });
+
+  it("a RECUSA explícita continua barrando o envio, e só ela", async () => {
+    // A metade da regra que não mudou, e a que precisa de trava de verdade:
+    // quem desligou em `/privacidade` não tem evento enviado. O `dataLayer`
+    // continua recebendo o push — escrever num array em memória não envia
+    // nada, e é o GTM que decide o que sai.
+    const anterior = (globalThis as { localStorage?: unknown }).localStorage;
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (chave: string) => (chave === "ag_cookie_consent" ? "rejected" : null),
+      setItem: () => {},
+      removeItem: () => {},
+    };
+    try {
+      const { trackContactClick } = await import("../src/lib/telemetry");
+      const eventId = trackContactClick("phone", "Rodapé - Telefone");
+
+      expect(eventId, "recusou e mesmo assim enviou").toBeNull();
+      expect(fila()[0]).toMatchObject({ event: "click_to_call" });
+    } finally {
+      if (anterior === undefined) delete (globalThis as { localStorage?: unknown }).localStorage;
+      else (globalThis as { localStorage?: unknown }).localStorage = anterior;
+    }
   });
 });
 
@@ -299,11 +335,29 @@ describe("a camada acrescenta, nunca substitui", () => {
     // Escrever num array em memória não envia nada; quem envia é o GTM, que só
     // carrega depois do aceite — e processa a fila que já estiver ali. Com o
     // gate aqui, o contexto anterior ao aceite se perderia.
+    // A âncora mudou em 2026-09-02: a régua virou `rastreamentoRecusado()`,
+    // definida no TOPO do arquivo. Procurar `ag_cookie_consent` depois do push
+    // passou a achar -1 — e a comparação viraria "push antes de -1", que
+    // reprova sem que nada de errado tenha acontecido. O que importa é a ordem
+    // dentro da função, então a âncora é a CHAMADA.
+    /* A medida é dentro do CORPO de `trackVehicleView`, e o recorte não é
+       capricho. A versão anterior procurava o gate a partir do push e conferia
+       que ele vinha depois — o que uma mutação furou: acrescentar um gate ANTES
+       do push deixava o de baixo no lugar, o `indexOf` continuava achando esse,
+       e a suíte seguia verde enquanto o `dataLayer` perdia o contexto de quem
+       ainda não respondeu. Prova que existe UM gate depois não é a mesma coisa
+       que provar que não existe NENHUM antes. */
     const fonte = lerCodigo("src/lib/telemetry.ts");
-    const indicePush = fonte.indexOf("pushVeiculo(");
-    const indiceConsent = fonte.indexOf("ag_cookie_consent", indicePush);
+    const inicio = fonte.indexOf("export function trackVehicleView");
+    expect(inicio, "trackVehicleView sumiu").toBeGreaterThan(-1);
+    const fim = fonte.indexOf("export function", inicio + 30);
+    const corpo = fonte.slice(inicio, fim === -1 ? undefined : fim);
 
-    expect(indicePush).toBeGreaterThan(-1);
-    expect(indicePush).toBeLessThan(indiceConsent);
+    const indicePush = corpo.indexOf("pushVeiculo(");
+    const primeiroGate = corpo.indexOf("rastreamentoRecusado()");
+
+    expect(indicePush, "o push saiu de trackVehicleView").toBeGreaterThan(-1);
+    expect(primeiroGate, "o gate sumiu de trackVehicleView").toBeGreaterThan(-1);
+    expect(indicePush, "há um gate ANTES do push").toBeLessThan(primeiroGate);
   });
 });
