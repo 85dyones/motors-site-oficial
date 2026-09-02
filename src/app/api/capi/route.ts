@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendCapiEvent, type CapiEvent } from "../../../lib/meta-capi";
 import { getCachedSettings } from "../../../lib/settings";
+import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,61 @@ export async function POST(request: NextRequest) {
         const pixelId = companySettings?.metaPixelId || null;
 
         /**
+         * Quem já foi lead volta identificado — e é isso que sobe a
+         * correspondência.
+         *
+         * Decisão do dono em 2026-09-01, depois de a mídia medir o ViewContent
+         * em 4,4/10: cobertura de 100% em `user_agent`, `fbp` e `external_id`,
+         * e ZERO em `em`/`ph`. Correspondência ruim, num orçamento apertado, é
+         * dinheiro comprando o público errado.
+         *
+         * O `Lead` já mandava e-mail e telefone com hash — ele acontece dentro
+         * de `/api/leads`, que tem os dois na mão. O que faltava era o evento
+         * de NAVEGAÇÃO: quem abre uma ficha não digita nada, então o servidor
+         * precisa reconhecê-lo. O `ag_uid` chega aqui como `externalId`, e
+         * desde 02/09 ele também é gravado no lead — antes disso a coluna
+         * existia e estava vazia em 100% das linhas, e esta busca não teria o
+         * que achar.
+         *
+         * ⚠️ A PII **não volta para o navegador**. É lida aqui, hasheada em
+         * `sendCapiEvent` (SHA-256) e enviada ao Meta. A rota responde 204 sem
+         * corpo em qualquer caso — quem chama nunca descobre se o visitante é
+         * conhecido, o que impede transformar este endereço público em oráculo
+         * de "este ag_uid tem cadastro".
+         *
+         * Melhor esforço: falha aqui não pode derrubar o evento. Sem o lead, o
+         * evento vai como ia antes — anônimo, e ainda assim melhor que nada.
+         */
+        let email: string | null = null;
+        let telefone: string | null = null;
+        const uidDoLead =
+          typeof externalId === "string" &&
+          externalId.length > 0 &&
+          externalId !== "ag_ref_nao_localizado"
+            ? externalId
+            : null;
+
+        if (uidDoLead) {
+          try {
+            const supabase = createAdminSupabaseClient();
+            const { data } = await supabase
+              .from("leads")
+              // O mais recente: quem preencheu duas vezes tem duas linhas, e a
+              // última é a que descreve a pessoa hoje. `leads_ag_uid_idx` cobre
+              // exatamente esta ordem (migração 20260902130000).
+              .select("email, telefone")
+              .eq("ag_uid", uidDoLead)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            email = data?.email || null;
+            telefone = data?.telefone || null;
+          } catch (erro) {
+            console.warn("[api/capi] Enriquecimento por ag_uid falhou (não bloqueante):", erro);
+          }
+        }
+
+        /**
          * Fila no n8n em vez de entrega direta ao Meta.
          *
          * Decidido em 2026-08-06: o n8n já é a peça de integração do projeto,
@@ -84,6 +140,10 @@ export async function POST(request: NextRequest) {
           eventId: validEventId,
           eventSourceUrl: typeof eventSourceUrl === "string" ? eventSourceUrl : null,
           userData: {
+            // Do lead, quando o visitante já é conhecido. `sendCapiEvent`
+            // normaliza e hasheia os dois antes de sair daqui.
+            email,
+            phone: telefone,
             fbp: typeof fbp === "string" ? fbp : null,
             fbc: typeof fbc === "string" ? fbc : null,
             externalId: typeof externalId === "string" ? externalId : null,
@@ -104,6 +164,21 @@ export async function POST(request: NextRequest) {
           // (Contact é o evento mais frequente do site) e por isso usa um
           // webhook PRÓPRIO, separado do de leads: enxurrada de tracking não
           // pode degradar a entrega de lead, que é o caminho do dinheiro.
+          //
+          // ⚠️ ESTE RAMO MANDA `email` E `phone` EM CLARO. O hash acontece em
+          // `sendCapiEvent`, que é o OUTRO caminho — aqui o objeto vai como
+          // está, e a PII de quem já é lead atravessaria a rede e ficaria no
+          // histórico de execução do n8n.
+          //
+          // Não acontece hoje: `N8N_WEBHOOK_TRACKING_URL` não existe na Vercel
+          // (confirmado pelo dono em 2026-09-02), e o workflow que atenderia
+          // este endereço também não — o que existe é "My workflow 2", de
+          // maio, parado, e que lê `body.record`, formato que esta rota não
+          // manda. Ligar aquilo quebraria tudo em silêncio.
+          //
+          // Quem for construir a fila de verdade: ou hasheia ANTES de postar
+          // aqui, ou o n8n hasheia antes de falar com o Meta. Enfileirar PII em
+          // claro para ganhar retry é troca ruim.
           await fetch(webhookTracking, {
             method: "POST",
             headers: {
