@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import { EstatisticasRegua, Rotulo, Seta } from "./modernist/primitivos";
 import { aplicarTotalEstoque } from "../lib/textoInstitucional";
+import { GARANTIA_MESES } from "../lib/paginasInstitucionais";
 
 /**
  * A Motors — tela 06 do design doc.
@@ -180,7 +181,17 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
             // mesma régua em `modernist/HeroHome`.
             { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
             { valor: "FIPE", rotulo: "BASE DE AVALIAÇÃO" },
-            { valor: "6 MESES", rotulo: "GARANTIA MOTOR E CÂMBIO" },
+            // O prazo vem de `GARANTIA_MESES`, nunca escrito aqui.
+            //
+            // Esta linha dizia "6 MESES" enquanto `/garantia` — a página que
+            // responde pelo compromisso — dizia "três meses" desde a decisão do
+            // dono em 2026-08-25. Duas afirmações contratuais diferentes no
+            // mesmo site, e a errada era a que aparecia primeiro para quem
+            // chega pelo "Sobre". Encontrada pelo dono em 01/09.
+            //
+            // A constante já existia e ninguém a usava: era número à mão numa
+            // tela e fonte canônica parada em `paginasInstitucionais.ts`.
+            { valor: `${GARANTIA_MESES} MESES`, rotulo: "GARANTIA MOTOR E CÂMBIO" },
           ]}
         />
         {(companySettings.address || companySettings.hours || companySettings.phone) && (

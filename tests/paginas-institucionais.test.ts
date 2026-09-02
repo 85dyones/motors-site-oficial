@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ler, lerCodigo } from "./fonte";
+import { ler, lerCodigo, semComentarios } from "./fonte";
 import {
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
@@ -8,6 +8,30 @@ import {
   TEXTO_DE_GARANTIA,
 } from "../src/lib/paginasInstitucionais";
 import { PROCEDENCIA_PADRAO } from "../src/lib/procedencia";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+
+/** Todo .ts/.tsx servido ao visitante, já sem comentários. */
+function arquivosPublicos(): { caminho: string; codigo: string }[] {
+  const raiz = join(__dirname, "..", "src");
+  const saida: { caminho: string; codigo: string }[] = [];
+  const varrer = (dir: string) => {
+    for (const nome of readdirSync(dir)) {
+      const caminho = join(dir, nome);
+      if (statSync(caminho).isDirectory()) {
+        if (nome === "test") continue;
+        varrer(caminho);
+      } else if (/\.tsx?$/.test(nome)) {
+        saida.push({
+          caminho: caminho.replace(/\\/g, "/"),
+          codigo: semComentarios(readFileSync(caminho, "utf-8")),
+        });
+      }
+    }
+  };
+  varrer(raiz);
+  return saida;
+}
 
 /**
  * `/financiamento` e `/garantia` — as duas páginas em que cada frase é uma
@@ -72,6 +96,51 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
   it("declara os três meses", () => {
     expect(GARANTIA_MESES).toBe(3);
     expect(TEXTO_DE_GARANTIA.join(" ")).toMatch(/três meses/i);
+  });
+
+  it("o site inteiro diz o MESMO prazo — nenhuma tela escreve o número à mão", () => {
+    /* Em 2026-09-01 o dono encontrou "6 MESES · GARANTIA MOTOR E CÂMBIO" na
+       régua de `/sobre`, enquanto `/garantia` — a página que responde pelo
+       compromisso — dizia "três meses" desde 25/08. Duas afirmações
+       CONTRATUAIS diferentes no mesmo site, e a errada aparecia primeiro para
+       quem chega pelo "Sobre".
+
+       A constante já existia e ninguém a usava. É a mesma armadilha do
+       telefone da loja: número escrito à mão numa tela e fonte canônica
+       parada — enquanto as duas concordam ninguém percebe, e quando divergem
+       o cliente lê uma promessa que a loja não assinou.
+
+       A varredura é sobre CÓDIGO, não sobre prosa: comentário que conta esta
+       história cita o "6 MESES" de propósito, e trava tem de medir o que vai
+       à tela. Ficam de fora `/admin` (é a tela que edita) e `/garagem`, onde
+       `garantia_meses` é o prazo REAL daquele contrato, lido do banco. */
+    const publicas = arquivosPublicos().filter(
+      ({ caminho }) => !/\/(admin|garagem)\//.test(caminho),
+    );
+    expect(publicas.length).toBeGreaterThan(50);
+
+    for (const { caminho, codigo } of publicas) {
+      /* Duração escrita à mão PERTO da palavra garantia. A primeira versão
+         caçava qualquer "N meses" e reprovou `avaliacoesGoogle.ts`, que diz
+         "há 1 mês" — data relativa de avaliação, não promessa. Régua larga
+         demais é régua que alguém desliga na primeira sexta-feira. */
+      const suspeitos: string[] = [];
+      const re = /\b\d+\s+(MESES|meses|mês)\b/g;
+      let achado: RegExpExecArray | null;
+      while ((achado = re.exec(codigo)) !== null) {
+        const janela = codigo.slice(Math.max(0, achado.index - 120), achado.index + 120);
+        if (/garantia/i.test(janela)) suspeitos.push(achado[0]);
+      }
+      expect(suspeitos, `${caminho}: ${suspeitos.join(" | ")}`).toEqual([]);
+    }
+  });
+
+  it("a régua de /sobre lê a constante, e é a mesma de /garantia", () => {
+    const sobre = lerCodigo("src/components/SobreClientWrapper.tsx");
+    expect(sobre).toContain("GARANTIA_MESES");
+    expect(sobre).toContain("${GARANTIA_MESES} MESES");
+    // E o rótulo continua dizendo o escopo — prazo sem escopo é promessa solta.
+    expect(sobre).toContain("GARANTIA MOTOR E CÂMBIO");
   });
 
   it("diz que a cobertura SOMA aos direitos do consumidor", () => {

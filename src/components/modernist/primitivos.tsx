@@ -169,7 +169,7 @@ export function EstatisticasRegua({
 
      O fallback do valor é um `clamp`, e não os 34px do design, porque quem
      não define a var é a régua de /sobre, que roda na largura toda do
-     telefone: em 375px cada coluna fica com ~100px e "6 MESES" a 34px pede
+     telefone: em 375px cada coluna fica com ~100px e "3 MESES" a 34px pede
      165px. O número vazava na coluna vizinha e a régua lia "100%FIPE". O
      `clamp` chega nos 34px do design a partir de ~654px de viewport, então
      no desktop nada muda; ele só encolhe onde encolher é o que faz o texto
