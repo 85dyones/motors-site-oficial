@@ -32,7 +32,7 @@ o impede de atualizar coluna nenhuma, e em 31/08 as fotos dos 37 ativos foram
 para o bucket `veiculos`. Como `origem = 'sync'` é 100% do estoque, a condição
 mantinha a galeria fechada para **todos** os carros — e a pendência de fotos
 ainda mandava resolver no RevendaMais, que desde 30/08 não tem como devolver o
-dado. Quatro carros estavam fora da vitrine exatamente por isso.
+dado. Kombi e Parati estavam fora da vitrine exatamente por isso.
 
 **Decisão do dono em 01/09, sobre hospedagem:** as fotos já migradas **ficam**
 no nosso bucket, e **nenhuma migração nova é feita**. Carro novo continua

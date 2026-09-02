@@ -19,7 +19,7 @@ Por domínio, com linhas estimadas em 28/08:
 
 | Domínio | Objetos | Estado |
 |---|---|---|
-| **Site/estoque** | `estoque_motors` (105 em 01/09 — o site exibe os `estado_cadastro='publicado'`: 38 à venda + 24 vendidos na carência; 42 arquivados fora), `site_settings` (8 linhas jsonb), `historico_veiculo` (append-only, ~36) | produção viva |
+| **Site/estoque** | `estoque_motors` (104 em 02/09 — o site exibe os `estado_cadastro='publicado'`: 38 à venda + 24 vendidos na carência; 42 arquivados fora), `site_settings` (8 linhas jsonb), `historico_veiculo` (append-only, ~36) | produção viva |
 | **Leads/funil** | `leads` (~11), `leads_eventos` (~21), `funil_etapas` (8 — seed de 28/08), `funil_motivos` (~19), `atendimentos`, `leads_erros`, `ia_classificacoes`, `contacts` | frente ativa de outra sessão (funil de vendas, 28/08) |
 | **Agenda de pessoas** | view `agenda_de_pessoas` (une `parceiros` + `clientes` + `parceiros_ciclo` + `investidores` + `leads`), `parceiros` (0 — porta de criação do `/api/pessoas`) | pedido do dono de 24/08; **ficou na aposentadoria** |
 | **Investidores** | `investidores` (1 ficha), `movimentacoes_investidor`, `investidor_veiculos`, `investidor_movimentos`, view `investidor_posicao` | **ficou por decisão do dono** ("precisamos deste modelo"); telas em `/admin/investidores`, portal em `/investidor` |
@@ -130,17 +130,31 @@ PostgREST. Carro novo nasce `origem='sync'`, `estado_cadastro='rascunho'`.
 `url_imagem`, `link_conversao`, `pericia`, `descricao`, `whatsapp_images`,
 `web_full_images`, `last_seen_at`.
 
-**Os quatro campos do feed continuam sendo descartados.** `VALOR_FIPE` e
-`CHASSI` são lidos pelo nó "Classificação e Regras de Negócio"; `ACCESSORIES` e
-`PLATE` não são sequer referenciados. Mas **nenhum dos quatro entra no corpo do
-upsert** — o dado chega e morre no nó de mapeamento. A migração
-`20260817140000_documento_do_estoque_e_cep.sql` criou `chassi`, `valor_fipe` e
-`codigo_fipe` exatamente para acabar com isso ("três campos que o sincronizador
-não lia", medidos 42/42, 40/42 e 42/42 no feed real), e o corpo do upsert nunca
-foi atualizado. O que está preenchido no banco hoje veio de outro caminho e está
-parcial: dos 38 da vitrine, 27 com chassi, 25 com `codigo_fipe`, 21 com
-`valor_fipe`. **Corrigir isso são três linhas no upsert do n8n, não uma
-migração.**
+**O dado morre no CORPO DO UPSERT, não no mapeamento** (corrigido em 02/09 —
+a versão anterior deste parágrafo culpava o nó de código, e errado).
+
+O nó "Classificação e Regras de Negócio" lê `PLATE`, `CHASSI`, `MOTOR`, `FIPE` e
+`VALOR_FIPE`, e **emite 25 campos** — os 22 do upsert mais `placa`, `chassi`,
+`motor`, `valor_fipe` e `codigo_fipe`. O trabalho de mapeamento **já está
+feito**. Os cinco simplesmente não são citados no `JSON.stringify` do nó de
+upsert, e caem ali. Só `ACCESSORIES` e `DOORS` não são lidos por ninguém.
+
+A migração `20260817140000_documento_do_estoque_e_cep.sql` criou `chassi`,
+`valor_fipe` e `codigo_fipe` exatamente para acabar com isso ("três campos que o
+sincronizador não lia", medidos 42/42, 40/42 e 42/42 no feed), e o corpo do
+upsert nunca foi atualizado. O que está no banco veio de outro caminho e está
+parcial: dos 38 publicados ativos, 27 com chassi, 25 com `codigo_fipe`, 21 com
+`valor_fipe`. **Corrigir são cinco chaves no upsert do n8n, não uma migração.**
+
+Medido no feed real em 02/09 (39 anúncios): `DOORS` preenchido em **39/39**,
+`VALOR_FIPE` em 31, `ACCESSORIES` em 19, `PROMOTION_PRICE` em 19. `DOORS` é
+campo obrigatório em portal e não existe como coluna aqui — é a única lacuna da
+lista que exigiria migração, e a fonte já a manda.
+
+⚠️ `placa` e `motor` estão em `CAMPOS_NOSSOS` (o painel os edita). Incluí-los no
+upsert só afeta INSERT — a trava descarta todo UPDATE do sync —, então carro
+novo nasceria com os dois preenchidos em vez de em branco, sem risco de desfazer
+edição. Quem mexer nisso confirme que segue sendo verdade.
 
 **Fotos: fechado em 31/08.** Os ativos saíram do `s3.carro57.com.br` para o
 bucket `veiculos` do nosso Storage — 37 dos 38 publicados à venda (o 38º,
