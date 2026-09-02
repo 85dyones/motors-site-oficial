@@ -86,24 +86,35 @@ export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];
 export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
 
 /**
- * Preço promocional — o único campo do FEED que o painel grava em veículo de
- * QUALQUER origem, inclusive nos importados do RevendaMais.
+ * Preço promocional — gravável SÓ no veículo nativo, como o preço de tabela.
  *
- * Parece contradizer as duas listas acima, e não contradiz: elas restringem ao
- * nativo porque o sync reescreveria a coluna no ciclo seguinte. Esse risco
- * morreu por completo na trava total (`20260830120000_f0q`) — o RevendaMais não
- * atualiza mais linha nenhuma, de origem nenhuma. O que sobra é uma pergunta de
- * produto, não de segurança: quem manda no preço de tabela é o RevendaMais
- * (por isso `preco_original` segue só do nativo), mas **quem decide promoção é
- * a loja**.
+ * ---------------------------------------------------------------------------
+ * A volta, em 2026-09-02
+ * ---------------------------------------------------------------------------
+ * De 31/08 a 02/09 este foi o único campo do feed que o painel gravava em
+ * veículo de qualquer origem, sob o argumento "quem decide promoção é a loja".
+ * O dono reverteu:
+ *
+ *   "preciso que o preço seja o do revenda, sempre, nos campos de preço e no
+ *    de promoção, senão eu crio dois lugares para mudar isso e pode gerar
+ *    inúmeros problemas."
+ *
+ * A medição de 02/09 (feed real × banco, 39 anúncios) deu razão ao medo e
+ * mostrou que ele ainda não tinha custado nada aqui: ZERO promoções criadas
+ * pelo painel. O custo estava do outro lado — a Kia Sorento a R$ 8.000 a mais
+ * no site do que no RevendaMais, porque a trava total impedia o preço de
+ * chegar. A migração `20260902120000_preco_e_do_revendamais` abre a trava para
+ * as três colunas de preço (e para `last_seen_at`); esta constante fecha o
+ * painel. Um lugar só.
+ *
+ * Por que continua existindo: o veículo NATIVO não vem do RevendaMais, então o
+ * preço dele — tabela e promoção — só pode nascer aqui. O gate é o mesmo de
+ * `CAMPOS_DE_PRECO_DO_NATIVO`, pela mesma razão. Hoje não há nativo nenhum
+ * (104/104 `sync`); o campo espera o primeiro.
  *
  * Por que não entrou em `CAMPOS_NOSSOS`: aquela lista promete que "o sync não
- * conhece nenhum deles", e o sync conhece esta coluna — ele a preenche a cada
- * importação. Enfiá-la lá tornaria o comentário mentira para quem ler depois.
- *
- * E por que isto não seria útil se valesse só para o nativo: em 2026-08-31 os
- * 104 veículos da base eram `origem = 'sync'`, os 38 ativos inclusive. Uma
- * promoção que só funcionasse no carro nativo não funcionaria em carro nenhum.
+ * conhece nenhum deles", e o sync conhece esta coluna — agora mais do que
+ * nunca, ele a escreve.
  *
  * **Não é operação de lote** — a mesma razão do `preco_compra`: o valor é de um
  * carro só, e o preço efetivo derivado depende do `preco_original` de cada
@@ -195,23 +206,24 @@ export const COLUNAS_LIDAS_PARA_DECIDIR = [
 
 /**
  * Os campos graváveis para ESTE veículo — a lista fixa e as fotos sempre, mais
- * o preço de tabela quando a linha é do painel.
+ * as TRÊS colunas de preço quando a linha é do painel.
  *
  * Recebe a origem em vez de consultá-la: quem chama já leu a linha, e uma
  * segunda consulta aqui abriria janela entre a leitura e a escrita.
  *
- * `origem` continua importando, e só por causa de `CAMPOS_DE_PRECO_DO_NATIVO`.
- * Não é limitação técnica — a trava impediria o sync de desfazer o preço do
- * mesmo jeito que impede o resto. É a decisão de produto do
- * `docs/PROPRIEDADE_DOS_CAMPOS.md`: enquanto o carro for do RevendaMais, quem
- * define o preço de LISTA é ele; quem define PROMOÇÃO é a loja, em qualquer
- * origem (`CAMPO_DA_PROMOCAO`). Rever isso é assunto do PR 5 da F0.5, e depende
- * de existir conferência que acuse divergência de preço — senão o painel vira
- * fonte única sem saber que virou.
+ * `origem` decide UMA coisa: preço. E a régua é uma só para tabela e promoção,
+ * desde 2026-09-02 — "o preço é do revenda, sempre" (decisão do dono). No
+ * carro do RevendaMais, as três colunas chegam pelo sync, que a migração
+ * `20260902120000` voltou a deixar escrevê-las; no nativo, que não tem
+ * RevendaMais, nascem e mudam aqui. Não é limitação técnica, é para haver UM
+ * lugar de mudar preço — e a medição de 02/09 mostrou o custo de haver zero:
+ * a Sorento R$ 8.000 acima do gestor de estoque.
  */
 export function camposGravaveis(origem?: string | null): readonly string[] {
-  const base = [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_FOTO];
-  return origem === "painel" ? [...base, ...CAMPOS_DE_PRECO_DO_NATIVO] : base;
+  const base = [...CAMPOS_NOSSOS, ...CAMPOS_DE_FOTO];
+  return origem === "painel"
+    ? [...base, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_PRECO_DO_NATIVO]
+    : base;
 }
 
 /**

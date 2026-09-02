@@ -355,12 +355,13 @@ describe("foto é gravável em veículo de qualquer origem (F0.5, 2026-09-01)", 
     }
   });
 
-  it("o preço de tabela CONTINUA só do nativo — afrouxar foto não afrouxou ele", () => {
+  it("o preço CONTINUA só do nativo — afrouxar foto não afrouxou ele", () => {
     // A distinção que sobrou em `camposGravaveis` é de produto, não técnica
     // (`docs/PROPRIEDADE_DOS_CAMPOS.md`): enquanto o carro for do RevendaMais,
-    // quem define preço de LISTA é ele. Se este teste cair junto com o de
-    // cima, alguém apagou a condição inteira em vez de tirar a foto dela.
-    for (const campo of ["preco", "preco_original"]) {
+    // quem define preço — tabela E promoção, desde 02/09 — é ele. Se este
+    // teste cair junto com o de cima, alguém apagou a condição inteira em vez
+    // de tirar a foto dela.
+    for (const campo of ["preco", "preco_original", "preco_promocional"]) {
       expect(camposGravaveis("painel"), campo).toContain(campo);
       expect(camposGravaveis("sync"), campo).not.toContain(campo);
     }

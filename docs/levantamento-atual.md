@@ -114,15 +114,22 @@ Qualquer mudança de shape quebra esse conjunto — e o teste acusa.
 Workflow n8n "Antigravity — Sincronizador de Estoque" (`wfYIjBaxaFFnvAYa`),
 feed do RevendaMais → upsert em `estoque_motors` (carimbo `last_seen_at`).
 
-**Acionamento: manual.** O workflow está `active: false` e o nó
-`scheduleTrigger` "Agendamento (a cada 6h)" está marcado `disabled` — conferido
-na API do n8n em 01/09; o workflow foi alterado em 30/08 18:38. Sobrou o
-gatilho manual. Foi a decisão do dono de 30/08 (`docs/PLANO_F0.md:44-52`).
+**Acionamento: cron de 6 h, religado em 02/09** (`0 */6 * * *`,
+America/Sao_Paulo; workflow `active: true`, nó "Agendamento (a cada 6h)"
+habilitado — conferido na API do n8n). Tinha sido desligado em 30/08 por
+decisão do dono, para o sync não sobrescrever conteúdo; voltou quando a trava
+passou a garantir isso sozinha (abaixo). Entre 30/08 e 02/09 só houve gatilho
+manual, e nesse intervalo a Kia Sorento ficou R$ 8.000 acima do RevendaMais.
 
-**E, mesmo acionado, ele só INSERE.** A trava total (`20260829130000_f0k` +
-`20260830120000_f0q:115-120`) devolve `OLD` em todo UPDATE que venha da
-`service_role` ou que mexa em `last_seen_at` — silenciosamente, com 200 no
-PostgREST. Carro novo nasce `origem='sync'`, `estado_cadastro='rascunho'`.
+**E ele escreve QUATRO colunas, e só.** Desde `20260902120000_preco_e_do_revendamais`,
+a trava reconhece o sync (identidade `service_role` ou assinatura
+`last_seen_at`) e devolve a linha como está com `preco`, `preco_original`,
+`preco_promocional` e `last_seen_at` copiados do que ele mandou — nada mais,
+silenciosamente, com 200 no PostgREST. Entre 30/08 e 02/09 (`f0q`) ele não
+escrevia coluna nenhuma. Carro novo continua nascendo `origem='sync'`,
+`estado_cadastro='rascunho'`. Decisão do dono de 02/09: *"o preço é do
+revenda, sempre, nos campos de preço e no de promoção"* — ver
+`docs/PROPRIEDADE_DOS_CAMPOS.md`.
 
 **O que o upsert grava: 22 colunas** — `id`, `marca`, `modelo`, `versao`, `ano`,
 `ano_fabricacao`, `preco`, `preco_original`, `preco_promocional`,

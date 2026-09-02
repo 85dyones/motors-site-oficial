@@ -15,10 +15,46 @@ correção desfeita no sync seguinte, em silêncio.
 
 | Origem | O que acontece | Campos |
 |---|---|---|
-| **Feed** | O sincronizador traz na importação. **Desde 30/08 ele não reescreve mais nada** — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor`, `preco_original` |
+| **Feed, só na importação** | O sincronizador traz quando o carro nasce. **Desde 30/08 ele não reescreve** estas colunas — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor` |
+| **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at` |
 | **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `opcionais`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro` |
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
-| **Do feed, mas nosso para editar** | Coluna que o feed preenche e o painel sobrescreve para valer, em veículo de qualquer origem. | `preco_promocional`, `whatsapp_images`, `web_full_images`, `url_imagem` |
+| **Do feed, mas nosso para editar** | Coluna que o feed preenche no nascimento e o painel sobrescreve para valer, em veículo de qualquer origem. | `whatsapp_images`, `web_full_images`, `url_imagem` |
+
+### 🔴 O preço voltou a ser do RevendaMais em 2026-09-02 — as três colunas
+
+Decisão do dono, literal: *"preciso que o preço seja o do revenda, sempre, nos
+campos de preço e no de promoção, senão eu crio dois lugares para mudar isso e
+pode gerar inúmeros problemas."*
+
+Dois movimentos, no mesmo PR:
+
+1. **A trava abriu para quatro colunas** (`20260902120000_preco_e_do_revendamais`).
+   O gatilho continua reconhecendo o sync pelos dois sinais de sempre; ao
+   reconhecer, devolve a linha como está **com `preco`, `preco_original`,
+   `preco_promocional` e `last_seen_at` copiados do que o sync mandou** — e
+   nada mais. É allowlist por construção: coluna nova nasce protegida sem
+   ninguém lembrar de listar.
+2. **O painel fechou a promoção em carro do feed.** `CAMPO_DA_PROMOCAO` passou
+   a valer só no nativo, como `CAMPOS_DE_PRECO_DO_NATIVO`. As três colunas de
+   preço têm uma régua só.
+
+Por que a objeção de 01/09 caiu: a allowlist tinha sido recusada porque "o
+RevendaMais desfaria as 16 promoções que a loja define no painel". Medido no
+mesmo 02/09, feed real contra banco, 39 anúncios: **zero promoções criadas pelo
+painel**. Não havia o que desfazer. E havia o custo do lado oposto — a Kia
+Sorento anunciada a R$ 48.900 no RevendaMais e a R$ 56.900 no site, três dias
+depois do último import, porque a trava total impedia o preço de chegar.
+
+Com isso o **cron do sync voltou** (a cada 6 h): o motivo de desligá-lo era o
+risco de sobrescrita de conteúdo, e a allowlist o elimina — ele não alcança
+mais nada além de preço e carimbo. Preço novo no RevendaMais chega ao site no
+ciclo seguinte, e move `conteudo_atualizado_em` (o `lastmod` do sitemap), que
+é o comportamento certo: preço é conteúdo para o Google e para o portal.
+
+`last_seen_at` voltar a andar tem um segundo efeito: ele é o proxy da data de
+venda na carência de SEO (`publicacao.ts`) quando a venda não passa pelo Ciclo,
+e estava congelado em 30/08 para o estoque inteiro.
 
 ### 🟢 As fotos atravessaram a fronteira em 2026-09-01 (F0.5)
 
@@ -59,17 +95,15 @@ A tabela continua útil porque descreve **de onde o dado nasce**, e porque a
 linha "Nosso" ainda é a única em que o painel pode escrever livremente. Mas o
 medo que a organizava — "salvei e voltou sozinho" — não existe mais.
 
-`preco_promocional` foi o primeiro campo a atravessar essa fronteira, em
-2026-08-31, a pedido do dono. Ele nasce do feed e a loja o sobrescreve, em
-veículo importado inclusive. Não virou "Nosso" porque o sync continua sabendo
-dele; não é "Override" porque não há coluna paralela — a trava tornou o
-override desnecessário. **Antes de criar um override novo, pergunte se ele
-ainda é preciso.**
+> **Superado em 02/09:** `preco_promocional` atravessou essa fronteira em
+> 31/08, a pedido do dono, e voltou dois dias depois, a pedido do mesmo dono —
+> ver a seção 🔴 acima. Não virou "Nosso" nem "Override" em momento nenhum; hoje
+> está na linha "Feed, SEMPRE". **Antes de criar um override novo, pergunte se
+> ele ainda é preciso.**
 
-Uma ressalva que continua valendo: o preço de **tabela** (`preco`,
-`preco_original`) segue editável só no veículo nativo. Não é limitação técnica,
-é decisão de produto — enquanto o carro for do RevendaMais, quem define o preço
-de lista é ele; quem define **promoção** é a loja.
+A ressalva que valia para o preço de tabela vale agora para as três colunas de
+preço: editáveis só no veículo nativo, que não tem RevendaMais para vir. Não é
+limitação técnica — é para existir **um** lugar de mudar preço.
 
 ### Por que o override existe, e quando criar outro
 
