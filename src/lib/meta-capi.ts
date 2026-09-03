@@ -1,5 +1,8 @@
 import crypto from "crypto";
 
+/** Teto da chamada ao Graph. Ver a nota no `fetch`, onde ele é aplicado. */
+const TEMPO_LIMITE_MS = 5000;
+
 /** Normaliza e hasheia conforme exigência do Meta: lowercase, trim, SHA-256 hex. */
 function hash(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -87,13 +90,39 @@ export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; st
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      /**
+       * Tempo limite explícito — `fetch` não tem um.
+       *
+       * Sem isto, um Graph lento segura a função serverless até o teto da
+       * plataforma. Com uma requisição a cada ficha aberta, é assim que uma
+       * lentidão do Meta vira fila de funções presas e conta de execução —
+       * justamente quando a campanha traz volume, que é quando o Meta também
+       * está mais carregado.
+       *
+       * Cinco segundos é folgado: a chamada normal responde em menos de um.
+       * Estourar aqui é `AbortError`, tratado no `catch` como qualquer falha
+       * de rede — o evento se perde, e o do navegador já foi.
+       */
+      signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
     });
     if (!res.ok) {
-      console.warn(`[Meta CAPI] Erro ${res.status} no evento "${event.eventName}":`, await res.text().catch(() => ""));
+      // `console.error`, não `warn`: é o nível que o filtro de erro da Vercel
+      // enxerga, e é sobre ele que se liga alerta. Um CAPI recusando evento em
+      // silêncio já custou um mês a este projeto (ver o gate de consentimento,
+      // 31/08 a 02/09) — o log existia e ninguém o via porque era `warn`.
+      console.error(
+        `[Meta CAPI] FALHA ${res.status} no evento "${event.eventName}":`,
+        await res.text().catch(() => ""),
+      );
     }
     return { ok: res.ok, status: res.status };
   } catch (err) {
-    console.warn(`[Meta CAPI] Falha de rede (não bloqueante) no evento "${event.eventName}":`, err);
+    const expirou = err instanceof Error && err.name === "TimeoutError";
+    console.error(
+      `[Meta CAPI] FALHA ${expirou ? `por tempo limite (${TEMPO_LIMITE_MS}ms)` : "de rede"} ` +
+        `no evento "${event.eventName}":`,
+      err,
+    );
     return { ok: false, status: 0 };
   }
 }
