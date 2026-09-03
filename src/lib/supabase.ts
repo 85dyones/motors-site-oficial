@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { alertarFalha } from "./alertaDeFalha";
 import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
 import { publicavel } from "./coerenciaDoCadastro";
@@ -750,14 +751,59 @@ export async function getCarimbosDeConteudo(): Promise<Record<string, string>> {
  * onde é exatamente o que se quer sem banco configurado.
  */
 function estoqueDeContingencia(): Veiculo[] {
-  if (process.env.NODE_ENV === "production") {
-    console.error(
-      "[Supabase] Estoque indisponível em produção — servindo vitrine vazia. " +
-        "MOCK_ESTOQUE NÃO é servido: são carros fictícios."
-    );
-    return [];
+  // Só o caminho de veículo NÃO ENCONTRADO usa isto hoje, e ali a lista vazia
+  // é a resposta certa: id que não existe é 404, não falha. A lista da vitrine
+  // passou a usar `estoqueIndisponivel()`, logo abaixo.
+  return process.env.NODE_ENV === "production" ? [] : MOCK_ESTOQUE;
+}
+
+/** O estoque não pôde ser lido. Não é "não há carros" — é "não sei". */
+export class EstoqueIndisponivelError extends Error {
+  constructor(motivo: string) {
+    super(`Estoque indisponível: ${motivo}`);
+    this.name = "EstoqueIndisponivelError";
   }
-  return MOCK_ESTOQUE;
+}
+
+/**
+ * A leitura do estoque FALHOU. Em produção, isto estoura.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que estourar é melhor que devolver lista vazia
+ * ---------------------------------------------------------------------------
+ * Devolver `[]` fazia a página renderizar com SUCESSO, só que sem carro. Para o
+ * Next isso é um render bom — e ele **guarda no ISR por até uma hora**. Uma
+ * falha momentânea de leitura na hora errada virava sessenta minutos de vitrine
+ * vazia servida a todo mundo, clique pago inclusive.
+ *
+ * Aconteceu duas vezes em 2026-09-02/03, registrado nos logs de produção: uma
+ * ficha de Saveiro servida com 200, `cache=BYPASS`, e vitrine vazia.
+ *
+ * Estourando, o Next não guarda o render quebrado: quem já tem versão boa em
+ * cache continua sendo servido por ela, e o pior caso vira erro visível em vez
+ * de mentira cacheada. É a mesma escolha que o comentário acima já fazia entre
+ * vitrine vazia e carro fictício — honesto e visivelmente errado ganha de
+ * plausível e falso.
+ *
+ * ⚠️ **Consequências que valem saber, e que são deliberadas:**
+ *
+ *   - No BUILD isto derruba o deploy em vez de publicar um site sem carro.
+ *     Deploy que falha é caro; site publicado vazio é pior e mais silencioso.
+ *   - O painel e as rotas de API passam a responder 500 em vez de lista vazia.
+ *     Operador vendo erro sabe que não pode confiar na tela; operador vendo
+ *     "0 veículos" toma decisão sobre um pátio que não está vazio.
+ *   - Se o pátio um dia esvaziar DE VERDADE (tabela zerada), o site erra em vez
+ *     de mostrar vitrine vazia. É estado excepcional de qualquer jeito, e o
+ *     aviso conta o que houve.
+ */
+async function estoqueIndisponivel(motivo: string): Promise<Veiculo[]> {
+  if (process.env.NODE_ENV !== "production") return MOCK_ESTOQUE;
+
+  console.error(`[Supabase] FALHA — estoque indisponível: ${motivo}.`);
+  // O aviso procura a pessoa. Sem ele isto é mais um log que ninguém lê — que
+  // foi exatamente como a CAPI ficou um mês parada.
+  await alertarFalha("estoque-indisponivel", motivo);
+  throw new EstoqueIndisponivelError(motivo);
 }
 
 export async function getEstoque(
@@ -798,8 +844,7 @@ export async function getEstoque(
         .order("preco", { ascending: false });
 
       if (error) {
-        console.warn("[Supabase] Query error:", error.message);
-        list = estoqueDeContingencia();
+        list = await estoqueIndisponivel(`o banco recusou a consulta — ${error.message}`);
       } else if (data && data.length > 0) {
         // --------------------------------------------------------------
         // Quem decide o que está no ar é a LOJA, não o robô (2026-08-30)
@@ -862,17 +907,27 @@ export async function getEstoque(
         }
         list = visiveis.map(mapear);
       } else {
-        list = estoqueDeContingencia();
+        /* O ramo que era MUDO, e o mais provável dos quatro.
+           A consulta voltou sem erro e sem linha — e não registrava o que tinha
+           visto, então o log dizia "vitrine vazia" sem dizer por quê. Agora diz
+           se veio nulo ou lista de zero, que é a informação que separa "falha
+           de transporte" de "a tabela está vazia". */
+        list = await estoqueIndisponivel(
+          data === null || data === undefined
+            ? "a consulta voltou nula, sem erro"
+            : `a consulta voltou com ${data.length} linhas, sem erro`,
+        );
       }
     } catch (err) {
-      console.warn("[Supabase] Unexpected connection error:", err);
-      list = estoqueDeContingencia();
+      // Um `EstoqueIndisponivelError` vindo daqui de dentro já é a falha
+      // tratada: relançar em vez de virar segunda mensagem sobre a mesma coisa.
+      if (err instanceof EstoqueIndisponivelError) throw err;
+      list = await estoqueIndisponivel(`conexão caiu — ${String(err)}`);
     }
   } else {
     // Sem credenciais: em dev serve o catálogo local; em produção seria um
     // deploy sem env configurada — vitrine vazia, nunca carros fictícios.
-    console.info("[Supabase] Client not configured.");
-    list = estoqueDeContingencia();
+    list = await estoqueIndisponivel("cliente do Supabase não configurado — falta env no deploy");
   }
 
   return applyLocalOverrides(list);
