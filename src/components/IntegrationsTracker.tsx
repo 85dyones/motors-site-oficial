@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
-import { marcarContainerAtivo } from "../lib/dataLayer";
+import { marcarContainerAtivo, sanitizeGa4Id, sanitizeGtmId } from "../lib/dataLayer";
 import { persistirParametrosDeCampanha, rastreamentoRecusado } from "../lib/telemetry";
 
 declare global {
@@ -16,13 +16,10 @@ declare global {
   }
 }
 
-// O painel admin aceita tanto o ID puro ("GTM-TB665RN9") quanto o snippet
-// completo colado do Google Tag Manager. Extrai só o ID e descarta o resto —
-// o valor é interpolado dentro de um <script>, então nada além do ID entra.
-function sanitizeGtmId(raw: string): string {
-  const match = raw.match(/GTM-[A-Z0-9]+/i);
-  return match ? match[0].toUpperCase() : "";
-}
+// `sanitizeGtmId` subiu para `lib/dataLayer` em 2026-09-02, junto com o
+// `sanitizeGa4Id` que passou a existir: o `BootstrapDeTags` interpola os
+// mesmos ids no HTML servido, e fronteira de segurança com duas cópias é
+// fronteira que um dia diverge. Ver o comentário de lá.
 
 export default function IntegrationsTracker() {
   const { companySettings } = useTheme();
@@ -40,7 +37,7 @@ export default function IntegrationsTracker() {
    *
    * Um padrão só, num arquivo só. Se o ID mudar, muda no painel.
    */
-  const ga4Id = companySettings?.ga4Id || "";
+  const ga4Id = sanitizeGa4Id(companySettings?.ga4Id || "");
   const gtmId = sanitizeGtmId(companySettings?.gtmId || "");
   // Default `false`: na dúvida, o código continua medindo. Perder evento é
   // irreversível; contar em dobro por um dia, não.
@@ -165,8 +162,24 @@ export default function IntegrationsTracker() {
 
       persistirFbc();
 
+      // Quem já entrou no parse do HTML não entra de novo aqui.
+      //
+      // `BootstrapDeTags` (2026-09-02) carrega GA4 e GTM no `<head>` servido,
+      // ~3 s antes deste efeito. Ele marca `__mtTagsNoAto` com os ids que de
+      // fato subiu. Sem esta leitura o container entraria duas vezes e TODO
+      // evento contaria em dobro — o inverso exato do problema que a mudança
+      // veio resolver.
+      //
+      // A marca guarda os IDS, não um booleano: se alguém trocar o id no painel
+      // sem recarregar, o `config` novo ainda precisa sair daqui.
+      const noAto = (window as unknown as { __mtTagsNoAto?: { ga4: string | null; gtm: string | null } })
+        .__mtTagsNoAto;
+
       // 1. Google Analytics 4 (GA4) Initialization
-      if (ga4Id && idGA4Inicializado.current !== ga4Id) {
+      if (ga4Id && noAto?.ga4 === ga4Id) {
+        idGA4Inicializado.current = ga4Id;
+        bibliotecaGtagCarregada.current = true;
+      } else if (ga4Id && idGA4Inicializado.current !== ga4Id) {
         try {
           if (idGA4Inicializado.current) {
             console.warn(
@@ -207,7 +220,12 @@ export default function IntegrationsTracker() {
       // neste mesmo componente. NÃO configurar essas mesmas tags dentro do
       // container do GTM — os eventos disparariam duas vezes. Use o GTM apenas
       // para tags de terceiros que não passam por este arquivo.
-      if (gtmId && !initializedGTM.current) {
+      if (gtmId && noAto?.gtm === gtmId) {
+        // Já subiu no parse do HTML. Marcar como inicializado é o que impede o
+        // container de entrar duas vezes — e container em dobro é evento em
+        // dobro, que envenena lance e relatório ao mesmo tempo.
+        initializedGTM.current = true;
+      } else if (gtmId && !initializedGTM.current) {
         try {
           console.log(`[IntegrationsTracker] Initializing GTM with ID: ${gtmId}`);
 
