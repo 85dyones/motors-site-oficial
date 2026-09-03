@@ -44,10 +44,29 @@ export interface CapiEvent {
   pixelId?: string | null;
 }
 
+/**
+ * A forma de uma versão do Graph: `v` + maior + menor.
+ *
+ * O Meta CONSOME esse segmento quando o reconhece. Quando não reconhece, ele
+ * não reclama da versão — trata o segmento como um NÓ e devolve o RESTO do
+ * caminho como desconhecido. Foi o erro de 03/09:
+ *
+ *   Unknown path components: /1410450786690090/events
+ *
+ * com o pixel certo, a versão certa e a conta certa. A mensagem aponta para o
+ * pixel justamente porque o problema estava ANTES dele.
+ */
+const FORMA_DA_VERSAO = /^v\d+\.\d+$/;
+
 export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; status: number }> {
-  const pixelId = event.pixelId || process.env.META_PIXEL_ID;
-  const token = process.env.META_CAPI_ACCESS_TOKEN;
-  const version = process.env.META_GRAPH_API_VERSION;
+  /* `trim` nos três, e não só na versão: os valores vêm de um painel, e colar
+     de um documento traz espaço ou quebra de linha junto. No token isso vira
+     um 401 que se parece com credencial errada; na versão, um caminho que o
+     Meta não entende. Nenhum dos dois se parece com o que é — um caractere
+     que não se vê. */
+  const pixelId = (event.pixelId || process.env.META_PIXEL_ID)?.trim();
+  const token = process.env.META_CAPI_ACCESS_TOKEN?.trim();
+  const version = process.env.META_GRAPH_API_VERSION?.trim();
 
   if (!pixelId || !token || !version) {
     /* Esta é a falha mais silenciosa das três, e a que apaga a CAPI INTEIRA.
@@ -62,6 +81,24 @@ export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; st
       `[Meta CAPI] FALHA de configuração (${quais}); evento "${event.eventName}" ignorado.`,
     );
     await alertarFalha("meta-capi-configuracao", `variável ausente — ${quais}`);
+    return { ok: false, status: 0 };
+  }
+
+  if (!FORMA_DA_VERSAO.test(version)) {
+    /* Recusa ANTES de ir à rede. Mandar assim gasta uma ida ao Graph para
+       receber um 400 cujo texto não menciona a versão — foi o que fez este
+       defeito custar uma rodada inteira de deploy para ser entendido.
+
+       A versão vai no aviso ENTRE ASPAS, e pode: não é segredo, e é o que
+       torna visível o espaço ou a quebra de linha que sobrou. Já o token
+       nunca aparece em log nenhum. */
+    console.error(
+      `[Meta CAPI] FALHA de configuração: META_GRAPH_API_VERSION="${version}" não tem a forma vNN.N; evento "${event.eventName}" ignorado.`,
+    );
+    await alertarFalha(
+      "meta-capi-configuracao",
+      `META_GRAPH_API_VERSION="${version}" não tem a forma vNN.N`,
+    );
     return { ok: false, status: 0 };
   }
 
@@ -121,11 +158,17 @@ export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; st
       // silêncio já custou um mês a este projeto (ver o gate de consentimento,
       // 31/08 a 02/09) — o log existia e ninguém o via porque era `warn`.
       const corpo = await res.text().catch(() => "");
-      console.error(`[Meta CAPI] FALHA ${res.status} no evento "${event.eventName}":`, corpo);
+      /* O CAMINHO vai junto — versão e pixel, nunca o token. Quando o Meta
+         recusa por causa da URL, a resposta dele descreve o que sobrou, não o
+         que foi enviado: em 03/09 a mensagem citava o pixel para reclamar do
+         segmento anterior. Sem estes dois valores no log, a leitura do erro
+         vira adivinhação. */
+      const caminho = `${version}/${pixelId}/events`;
+      console.error(`[Meta CAPI] FALHA ${res.status} no evento "${event.eventName}" (${caminho}):`, corpo);
       // O aviso vai junto do log, e é ele que procura a pessoa. Um assunto só
       // para toda falha da CAPI: incluir o status na chave faria um token
       // expirado alternando 400/401 furar a carência.
-      await alertarFalha("meta-capi", `${res.status} no evento ${event.eventName}: ${corpo}`);
+      await alertarFalha("meta-capi", `${res.status} em ${caminho} no evento ${event.eventName}: ${corpo}`);
     }
     return { ok: res.ok, status: res.status };
   } catch (err) {
