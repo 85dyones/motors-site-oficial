@@ -8,6 +8,7 @@ import LeadPopup from "../components/LeadPopup";
 import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
+import BootstrapDeTags from "../components/BootstrapDeTags";
 import CamadaDeDados from "../components/CamadaDeDados";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
@@ -108,8 +109,22 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${archivo.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      {/* GA4/Meta/Google Ads são inicializados exclusivamente pelo <IntegrationsTracker />,
-          que respeita o consentimento de cookies (ag_cookie_consent). Não duplicar aqui. */}
+      <head>
+        {/*
+          GA4 e GTM entram AQUI, no HTML servido, desde 2026-09-02.
+
+          Antes eram carregados só pelo `useEffect` do <IntegrationsTracker />,
+          isto é, depois da hidratação: medido em produção, `load` aos 2.979 ms
+          e as tags aos 3.069 ms. Quem saía antes dos três segundos não era
+          medido por ninguém. O <BootstrapDeTags /> os sobe durante o parse e
+          marca `__mtTagsNoAto`; o tracker pula o que já subiu, para o container
+          não entrar em dobro.
+
+          O Meta Pixel, o `_fbc` e a reconfiguração em navegação client-side
+          continuam no <IntegrationsTracker />.
+        */}
+        <BootstrapDeTags />
+      </head>
       <body className="min-h-full flex flex-col bg-brand-bg text-brand-text font-sans transition-colors duration-300">
         {/* Anti-Flicker: blocking inline script restores theme BEFORE first paint */}
         <script
