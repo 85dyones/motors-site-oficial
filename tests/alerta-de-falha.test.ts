@@ -138,18 +138,20 @@ describe("o aviso de falha", () => {
   });
 });
 
-describe("a CAPI aciona o aviso nos TRÊS pontos de perda", () => {
+describe("a CAPI aciona o aviso nos QUATRO pontos de perda", () => {
   const lib = lerCodigo("src/lib/meta-capi.ts");
 
-  it("configuração ausente, recusa do Meta e falha de rede", () => {
-    /* Três formas de o evento não chegar, e a primeira é a pior: sem
-       `META_GRAPH_API_VERSION` (que não tem default) a CAPI inteira morre sem
-       nenhuma tentativa de entrega para alguém estranhar depois.
+  it("configuração ausente, configuração MALFORMADA, recusa do Meta e falha de rede", () => {
+    /* Quatro formas de o evento não chegar, e as duas primeiras são as piores:
+       sem `META_GRAPH_API_VERSION` (que não tem default) a CAPI inteira morre
+       sem nenhuma tentativa de entrega para alguém estranhar depois — e com a
+       variável PRESENTE mas malformada ela morre igual, só que gastando uma
+       ida à rede e recebendo de volta um erro que fala do pixel.
 
-       A contagem trava o conjunto: cobrir dois e esquecer um deixa exatamente
-       o buraco que este trabalho existe para fechar. */
+       A contagem trava o conjunto: cobrir três e esquecer uma deixa
+       exatamente o buraco que este trabalho existe para fechar. */
     const avisos = lib.split("alertarFalha(").length - 1;
-    expect(avisos, "um dos pontos de perda parou de avisar").toBe(3);
+    expect(avisos, "um dos pontos de perda parou de avisar").toBe(4);
     expect(lib).toContain('alertarFalha("meta-capi-configuracao"');
     expect(lib).toContain('alertarFalha("meta-capi"');
   });
@@ -159,5 +161,126 @@ describe("a CAPI aciona o aviso nos TRÊS pontos de perda", () => {
     // expirado alternando 400/401 furaria a contenção e viraria enxurrada.
     expect(lib).not.toMatch(/alertarFalha\(`meta-capi/);
     expect(lib).not.toMatch(/alertarFalha\("meta-capi-\$\{/);
+  });
+
+});
+
+/**
+ * A URL do Graph — o defeito de 03/09.
+ *
+ * Com o pixel certo e a versão certa, o Meta respondeu
+ * `Unknown path components: /1410450786690090/events`. A mensagem cita o pixel,
+ * mas o problema estava no segmento ANTERIOR: o Meta consome a versão quando a
+ * reconhece e, quando não reconhece, trata aquele pedaço como um nó e devolve o
+ * resto do caminho como desconhecido.
+ *
+ * Valor vindo de painel, colado de um documento, com um caractere invisível
+ * junto — e o código lia `process.env` cru.
+ */
+describe("a montagem do endereço do Graph", () => {
+  const ENVS = ["META_PIXEL_ID", "META_CAPI_ACCESS_TOKEN", "META_GRAPH_API_VERSION"] as const;
+  const anterior: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of ENVS) anterior[k] = process.env[k];
+    delete process.env.N8N_WEBHOOK_ALERTA_URL; // o aviso não é o assunto aqui
+    process.env.META_PIXEL_ID = "1410450786690090";
+    process.env.META_CAPI_ACCESS_TOKEN = "token-de-teste";
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    for (const k of ENVS) {
+      if (anterior[k] === undefined) delete process.env[k];
+      else process.env[k] = anterior[k];
+    }
+  });
+
+  async function enviar() {
+    vi.resetModules();
+    const { sendCapiEvent } = await import("../src/lib/meta-capi");
+    return sendCapiEvent({
+      eventName: "ViewContent",
+      eventId: "sonda",
+      userData: {},
+    } as Parameters<typeof sendCapiEvent>[0]);
+  }
+
+  it("espaço colado junto da versão NÃO chega à URL", async () => {
+    // A causa provável do erro real. `trim` a resolve na origem.
+    process.env.META_GRAPH_API_VERSION = " v26.0\n";
+    const chamou = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await enviar();
+
+    expect(chamou).toHaveBeenCalledTimes(1);
+    const url = String((chamou.mock.calls[0] as [string, RequestInit])[0]);
+    expect(url).toContain("https://graph.facebook.com/v26.0/1410450786690090/events");
+  });
+
+  it("versão malformada NÃO gasta ida à rede — recusa antes", async () => {
+    /* O ganho não é economizar uma requisição: é o erro passar a dizer o que
+       está errado. O 400 do Meta fala do pixel, que está certo. */
+    process.env.META_GRAPH_API_VERSION = "26.0";
+    const chamou = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+
+    const r = await enviar();
+
+    expect(chamou, "mandou mesmo assim, e o Meta é que vai reclamar").not.toHaveBeenCalled();
+    expect(r.ok).toBe(false);
+  });
+
+  it("a recusa por versão NOMEIA o valor, com as aspas que revelam o invisível", async () => {
+    // Sem as aspas, `v26.0 ` e `v26.0` se leem igual no log — que é como este
+    // defeito sobreviveu a uma rodada de deploy.
+    process.env.META_GRAPH_API_VERSION = "v26";
+    const registrou = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await enviar();
+
+    const texto = registrou.mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(texto).toContain('META_GRAPH_API_VERSION="v26"');
+  });
+
+  it("o token NUNCA aparece no que é registrado ou avisado", async () => {
+    /* O caminho passou a ir para o log porque sem ele a recusa do Meta é
+       ilegível. Só que o token viaja na MESMA URL, na query: montar a
+       mensagem a partir da URL inteira publicaria a credencial no log da
+       Vercel e no WhatsApp de quem recebe o aviso.
+
+       Este teste é de COMPORTAMENTO, e não de texto do código, porque a
+       versão anterior — que procurava `${token}` dentro do `console.error` —
+       não pegou a mutação que faz o token entrar de carona no `caminho`, que
+       é exatamente como o vazamento aconteceria de verdade. */
+    process.env.META_GRAPH_API_VERSION = "v26.0";
+    process.env.META_CAPI_ACCESS_TOKEN = "TOKEN-SECRETO-DE-TESTE";
+    process.env.N8N_WEBHOOK_ALERTA_URL = "https://n8n.exemplo/webhook/alerta";
+
+    const chamou = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).includes("graph.facebook.com")
+        ? new Response('{"error":{"message":"Unknown path components"}}', { status: 400 })
+        : new Response(null, { status: 200 }),
+    );
+    const registrou = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await enviar();
+
+    const logado = registrou.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+    expect(logado, "o token foi parar no log da Vercel").not.toContain("TOKEN-SECRETO-DE-TESTE");
+
+    const avisos = chamou.mock.calls.filter(([u]) => !String(u).includes("graph.facebook.com"));
+    expect(avisos.length, "o aviso não saiu — sem ele o teste não prova nada").toBe(1);
+    const corpo = String((avisos[0] as unknown as [string, RequestInit])[1].body);
+    expect(corpo, "o token foi parar na mensagem do aviso").not.toContain("TOKEN-SECRETO-DE-TESTE");
+  });
+
+  it("versão bem formada passa direto", async () => {
+    process.env.META_GRAPH_API_VERSION = "v26.0";
+    const chamou = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+
+    const r = await enviar();
+
+    expect(chamou).toHaveBeenCalledTimes(1);
+    expect(r.ok).toBe(true);
   });
 });
