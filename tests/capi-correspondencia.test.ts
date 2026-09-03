@@ -54,9 +54,18 @@ describe("o evento de navegação reconhece quem já é lead", () => {
   });
 
   it("o que a busca acha entra onde o hash acontece", () => {
-    // `sendCapiEvent` procura `userData.email` e `userData.phone`. Colocar o
-    // valor em qualquer outro campo é enviar nada, sem erro nenhum.
-    const bloco = capi.slice(capi.indexOf("userData: {"), capi.indexOf("customData:"));
+    /* `sendCapiEvent` procura `userData.email` e `userData.phone`. Colocar o
+       valor em qualquer outro campo é enviar nada, sem erro nenhum.
+
+       O recorte é ANCORADO no `userData` e vai até o fechamento dele. A versão
+       anterior ia até `customData:`, e quebrou quando a entrega virou função
+       própria (02/09, para rodar em `after()`): `customData` passou a aparecer
+       antes, no TIPO do parâmetro, e o `slice` devolvia string vazia — que
+       `toContain` reprova, mas por acidente, não por mérito. Âncora que casa
+       em dois lugares não é âncora. */
+    const inicio = capi.indexOf("userData: {");
+    expect(inicio, "o evento parou de montar userData").toBeGreaterThan(-1);
+    const bloco = capi.slice(inicio, capi.indexOf("},", inicio));
     expect(bloco).toContain("email,");
     expect(bloco).toContain("phone: telefone,");
 
@@ -108,6 +117,68 @@ describe("o evento de navegação reconhece quem já é lead", () => {
     const bruto = ler("src/app/api/capi/route.ts");
     const ramo = bruto.slice(bruto.indexOf("if (webhookTracking)"), bruto.indexOf("} else if (pixelId)"));
     expect(ramo).toMatch(/em claro|sem hash/i);
+  });
+});
+
+describe("a rota aguenta o volume que a campanha vai trazer", () => {
+  it("responde ANTES de falar com o Supabase e com o Meta", () => {
+    /* A rota é chamada uma vez por ficha aberta e faz duas idas à rede. Se
+       esperar as duas, a função serverless fica presa por elas a cada visita —
+       e a Vercel cobra por duração, com teto de concorrência.
+
+       `after()` é a primitiva do Next 16 para isso: a resposta vai embora e o
+       bloco segue com a função viva. É preparação, não conserto: com dois
+       eventos em doze horas nada aperta. Aperta quando a mídia ligar. */
+    expect(capi).toContain("after(async () => {");
+    // O 204 tem de estar FORA do bloco diferido, senão nada foi ganho.
+    const iAfter = capi.indexOf("after(async () => {");
+    const iResposta = capi.indexOf("return new NextResponse(null, { status: 204 })");
+    expect(iResposta, "a resposta ficou dentro do after").toBeGreaterThan(iAfter);
+    expect(capi.slice(iAfter, iResposta)).toContain("});");
+  });
+
+  it("lê os cabeçalhos ANTES de diferir — depois da resposta não há requisição", () => {
+    // IP e user-agent são o que sustenta a correspondência de um evento
+    // anônimo. Lê-los dentro do `after` é apostar num objeto que já foi.
+    const iIp = capi.indexOf("const ipDoVisitante");
+    const iAfter = capi.indexOf("after(async () => {");
+    expect(iIp, "a rota parou de capturar o IP").toBeGreaterThan(-1);
+    expect(iIp, "o IP é lido depois da resposta").toBeLessThan(iAfter);
+    // E chegam na entrega por parâmetro, não por `request`.
+    expect(capi).toContain("clientIpAddress: entrada.ipDoVisitante");
+    expect(capi).toContain("clientUserAgent: entrada.agenteDoVisitante");
+  });
+
+  it("a chamada ao Meta tem tempo limite — `fetch` não tem um", () => {
+    // Sem teto, um Graph lento segura a função até o limite da plataforma.
+    // Com uma requisição por ficha aberta, é assim que lentidão do Meta vira
+    // fila de funções presas — e o Meta fica mais lento justamente quando há
+    // volume, que é quando a campanha está rodando.
+    expect(lib).toContain("signal: AbortSignal.timeout(TEMPO_LIMITE_MS)");
+    expect(lib).toMatch(/const TEMPO_LIMITE_MS = \d+;/);
+  });
+
+  it("falha de entrega é `error`, não `warn` — é o nível que alerta enxerga", () => {
+    /* O log de falha já existia como `warn`, e foi exatamente isso que deixou
+       um mês de CAPI parada passar sem ninguém ver. `warn` não entra no filtro
+       de erro da Vercel, que é onde se olha e sobre o que se liga alerta.
+
+       A trava é sobre o NÍVEL, não sobre a frase: quem trocar de volta para
+       `warn` some do painel de erros sem quebrar nada. */
+    const envio = lib.slice(lib.indexOf("const res = await fetch"));
+    expect(envio).toContain("console.error");
+    expect(envio, "a falha do Meta voltou a ser warn").not.toMatch(
+      /console\.warn\(\s*[`"']\[Meta CAPI\]/,
+    );
+    /* E o marcador é procurável nos DOIS pontos: a recusa do Meta e a falha de
+       rede (tempo limite incluído). São as duas formas de o evento se perder, e
+       um alerta que filtra pelo marcador precisa pegar as duas.
+
+       Contar importa: `toContain` sozinho passava com o marcador removido de um
+       dos dois, porque o outro ainda estava na mesma fatia. Foi mutação que
+       encontrou. */
+    const marcadores = envio.split("[Meta CAPI] FALHA").length - 1;
+    expect(marcadores, "o marcador sumiu de um dos dois pontos de falha").toBe(2);
   });
 });
 
