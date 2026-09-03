@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { alertarFalha } from "./alertaDeFalha";
 
 /** Teto da chamada ao Graph. Ver a nota no `fetch`, onde ele é aplicado. */
 const TEMPO_LIMITE_MS = 5000;
@@ -49,9 +50,18 @@ export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; st
   const version = process.env.META_GRAPH_API_VERSION;
 
   if (!pixelId || !token || !version) {
-    console.warn(
-      `[Meta CAPI] Configuração ausente (pixelId=${!!pixelId} token=${!!token} version=${!!version}); evento "${event.eventName}" ignorado.`
+    /* Esta é a falha mais silenciosa das três, e a que apaga a CAPI INTEIRA.
+       `META_GRAPH_API_VERSION` não tem default: apagá-la da Vercel derruba todo
+       evento, e a rota segue devolvendo 204 como se nada fosse.
+
+       Era `warn`. Virou `error` com aviso pelo mesmo motivo das outras duas —
+       e com prioridade maior, porque aqui nem chega a existir tentativa de
+       entrega para alguém estranhar depois. */
+    const quais = `pixelId=${!!pixelId} token=${!!token} version=${!!version}`;
+    console.error(
+      `[Meta CAPI] FALHA de configuração (${quais}); evento "${event.eventName}" ignorado.`,
     );
+    await alertarFalha("meta-capi-configuracao", `variável ausente — ${quais}`);
     return { ok: false, status: 0 };
   }
 
@@ -110,19 +120,19 @@ export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; st
       // enxerga, e é sobre ele que se liga alerta. Um CAPI recusando evento em
       // silêncio já custou um mês a este projeto (ver o gate de consentimento,
       // 31/08 a 02/09) — o log existia e ninguém o via porque era `warn`.
-      console.error(
-        `[Meta CAPI] FALHA ${res.status} no evento "${event.eventName}":`,
-        await res.text().catch(() => ""),
-      );
+      const corpo = await res.text().catch(() => "");
+      console.error(`[Meta CAPI] FALHA ${res.status} no evento "${event.eventName}":`, corpo);
+      // O aviso vai junto do log, e é ele que procura a pessoa. Um assunto só
+      // para toda falha da CAPI: incluir o status na chave faria um token
+      // expirado alternando 400/401 furar a carência.
+      await alertarFalha("meta-capi", `${res.status} no evento ${event.eventName}: ${corpo}`);
     }
     return { ok: res.ok, status: res.status };
   } catch (err) {
     const expirou = err instanceof Error && err.name === "TimeoutError";
-    console.error(
-      `[Meta CAPI] FALHA ${expirou ? `por tempo limite (${TEMPO_LIMITE_MS}ms)` : "de rede"} ` +
-        `no evento "${event.eventName}":`,
-      err,
-    );
+    const oQue = expirou ? `tempo limite (${TEMPO_LIMITE_MS}ms)` : "rede";
+    console.error(`[Meta CAPI] FALHA de ${oQue} no evento "${event.eventName}":`, err);
+    await alertarFalha("meta-capi", `${oQue} no evento ${event.eventName}: ${String(err)}`);
     return { ok: false, status: 0 };
   }
 }
