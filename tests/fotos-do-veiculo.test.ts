@@ -27,6 +27,8 @@ import {
   camposGravaveis,
   extrairCamposNossos,
 } from "../src/lib/estoqueEscrita";
+import { recusaDoLote } from "../src/app/api/estoque/lote/route";
+import { decidirCadastro } from "../src/lib/cadastroDeVeiculo";
 import { ACAO_DO_CAMPO_DE_VEICULO, campoNegadoAoPerfil, podeFazer } from "../src/lib/permissoes";
 import {
   FOTOS_DA_FICHA_COMPLETA,
@@ -327,38 +329,114 @@ describe("a escrita exige gate de papel", () => {
   });
 });
 
-describe("foto só é gravável no veículo que o sync não toca", () => {
-  it("`origem = painel` abre as três colunas", () => {
-    const doPainel = camposGravaveis("painel");
-    for (const campo of CAMPOS_DE_FOTO) {
-      expect(doPainel, campo).toContain(campo);
-    }
-  });
+describe("foto é gravável em veículo de qualquer origem (F0.5, 2026-09-01)", () => {
+  /* -------------------------------------------------------------------------
+     A regra que este bloco guardava — e por que ela virou do avesso
+     -------------------------------------------------------------------------
+     Até 01/09 estas asserções exigiam o CONTRÁRIO: `painel` abria as três
+     colunas, `sync` as mantinha fora. O motivo escrito era "o sincronizador
+     reescreve essas colunas a cada 6 h".
 
-  it("`origem = sync` (e ausente) mantém as três fora", () => {
-    // O sincronizador reescreve essas colunas a cada 6 h. Deixar o painel
-    // gravar nelas num carro do feed produziria o pior defeito possível: o
-    // carro chega a 8 fotos, entra na vitrine, e no ciclo seguinte some — sem
-    // erro em lugar nenhum.
-    for (const origem of ["sync", null, undefined, "qualquer"]) {
+     Isso deixou de ser verdade duas vezes. A trava total
+     (`20260829130000_f0k` + `20260830120000_f0q`) tirou do RevendaMais o poder
+     de atualizar qualquer coluna; e em 31/08 as fotos dos ativos passaram a
+     morar no nosso bucket. A condição sobreviveu à razão dela.
+
+     O preço de mantê-la era medido: `origem = 'sync'` é 100% do estoque, então
+     a galeria estava fechada para TODOS os carros, e dois dos 38 publicados
+     ativos estavam abaixo da porta de quatro fotos: Kombi e Parati.
+     ---------------------------------------------------------------------- */
+
+  it("as três colunas são graváveis em toda origem, inclusive ausente", () => {
+    for (const origem of ["painel", "sync", null, undefined, "qualquer"]) {
       for (const campo of CAMPOS_DE_FOTO) {
-        expect(camposGravaveis(origem), `${origem}/${campo}`).not.toContain(campo);
+        expect(camposGravaveis(origem), `${origem}/${campo}`).toContain(campo);
       }
     }
   });
 
+  it("o preço CONTINUA só do nativo — afrouxar foto não afrouxou ele", () => {
+    // A distinção que sobrou em `camposGravaveis` é de produto, não técnica
+    // (`docs/PROPRIEDADE_DOS_CAMPOS.md`): enquanto o carro for do RevendaMais,
+    // quem define preço — tabela E promoção, desde 02/09 — é ele. Se este
+    // teste cair junto com o de cima, alguém apagou a condição inteira em vez
+    // de tirar a foto dela.
+    for (const campo of ["preco", "preco_original", "preco_promocional"]) {
+      expect(camposGravaveis("painel"), campo).toContain(campo);
+      expect(camposGravaveis("sync"), campo).not.toContain(campo);
+    }
+  });
+
   it("as colunas de foto NÃO entraram em CAMPOS_NOSSOS", () => {
-    // `CAMPOS_NOSSOS` é a lista que o sincronizador não conhece, e é ela que a
-    // rota de LOTE usa. Foto entrando ali abriria escrita em massa nas colunas
-    // do feed, para veículo de qualquer origem.
+    // Continua valendo, mas por menos do que a versão anterior deste comentário
+    // afirmava. Ela dizia que `CAMPOS_NOSSOS` "é a lista que a rota de LOTE
+    // usa" — e não é: a rota de lote chama `extrairCamposNossos` sem origem, ou
+    // seja, `camposGravaveis(undefined)`. As duas listas divergiram no exato
+    // momento em que a F0.5 abriu as fotos, e este teste seguiu verde guardando
+    // uma propriedade que não protegia mais nada. Quem protege o lote agora é
+    // `recusaDoLote`, testado logo abaixo.
     for (const campo of CAMPOS_DE_FOTO) {
       expect(CAMPOS_NOSSOS as readonly string[], campo).not.toContain(campo);
     }
   });
 
-  it("a tela explica o motivo em vez de só desabilitar o botão", () => {
-    expect(galeria).toContain("reescritas a cada sincronização");
-    expect(galeria).toContain("Suba as fotos no RevendaMais");
+  describe("o lote continua fechado para foto — a regressão que a F0.5 abriu", () => {
+    /* Abrir a régua de COLUNA abriu junto duas bocas que ninguém pediu, porque
+       as duas chamam `extrairCamposNossos` SEM origem. Estes testes exercitam a
+       decisão que a ROTA chama, não a lista que ela por acaso consulta — foi
+       exatamente por mirar a lista que a suíte não viu o furo. */
+
+    it("as três colunas são recusadas em lote, uma a uma", () => {
+      for (const campo of CAMPOS_DE_FOTO) {
+        expect(recusaDoLote({ [campo]: [] }), campo).toMatch(/um a um/);
+      }
+    });
+
+    it("recusa mesmo acompanhada de campo legítimo — não basta ignorar a foto", () => {
+      // O perigo é o silêncio: aceitar o lote descartando só a foto faria o
+      // operador acreditar que reordenou 200 carros.
+      expect(recusaDoLote({ tipo: "SUV", whatsapp_images: ["a", "b"] })).toMatch(/Foto/);
+    });
+
+    it("lote legítimo continua passando", () => {
+      expect(recusaDoLote({ tipo: "SUV" })).toBeNull();
+      expect(recusaDoLote({ vendido: true })).toBeNull();
+      expect(recusaDoLote({})).toBeNull();
+    });
+
+    it("as barreiras que já existiam não se perderam na refatoração", () => {
+      expect(recusaDoLote({ preco_compra: 1000 })).toMatch(/Custo de aquisição/);
+      expect(recusaDoLote({ preco_promocional: 65900 })).toMatch(/promocional/);
+    });
+
+    it("o cadastro nativo também não aceita foto pelo corpo", () => {
+      // Quatro strings quaisquer satisfazem MINIMO_DE_FOTOS: sem esta barreira
+      // nascia carro "com fotos" que não são imagens, publicável em seguida.
+      // As colunas são jsonb e engolem escalar, e aí `Array.isArray` é falso e
+      // a ficha vira "0 fotos" — sem erro em lugar nenhum.
+      const d = decidirCadastro(
+        {
+          marca: "VW", modelo: "Nivus", ano: 2023, preco: 118900,
+          quilometragem: 38400, chassi: "9BWZZZ377VT004252",
+          whatsapp_images: ["nao-e-url", "b", "c", "d"],
+          web_full_images: "nem-array",
+          url_imagem: "javascript:alert(1)",
+        },
+        { papeis: ["comercial"] },
+      );
+      expect(d.ok).toBe(true);
+      if (!d.ok) return;
+      for (const campo of CAMPOS_DE_FOTO) {
+        expect(d.linha, `${campo} chegaria ao INSERT`).not.toHaveProperty(campo);
+      }
+    });
+  });
+
+  it("o aviso que mandava o operador ao RevendaMais saiu da tela", () => {
+    // Ele era falso desde 30/08 e ensinava a não tentar. Se voltar, volta a
+    // primeira causa dos cinco carros fora da vitrine.
+    expect(galeria).not.toContain("reescritas a cada sincronização");
+    expect(galeria).not.toContain("Suba as fotos no RevendaMais");
   });
 });
 
@@ -377,11 +455,16 @@ describe("a costura: o que a galeria manda é o que a rota grava", () => {
     expect(passou.whatsapp_images).toHaveLength(2);
   });
 
-  it("no veículo do feed, nenhuma atravessa — e sem erro nenhum", () => {
-    // Silêncio é o comportamento certo AQUI porque a tela nem oferece o botão;
-    // o que não pode é a coluna passar e o sync desfazer depois.
-    expect(extrairCamposNossos(corpo, "sync")).toEqual({});
-    expect(extrairCamposNossos(corpo)).toEqual({});
+  it("no veículo do feed também — e é a mudança da F0.5", () => {
+    // Antes de 01/09 as duas linhas abaixo esperavam `{}`: o corpo saía certo
+    // da galeria e a rota o descartava em SILÊNCIO. Como a tela não oferecia o
+    // botão, o silêncio nunca aparecia — mas era ele que fechava a galeria
+    // para 100% do estoque.
+    for (const origem of ["sync", undefined]) {
+      const passou = extrairCamposNossos(corpo, origem);
+      expect(Object.keys(passou).sort(), String(origem)).toEqual([...CAMPOS_DE_FOTO].sort());
+      expect(passou.url_imagem, String(origem)).toBe(url(1, "zap"));
+    }
   });
 
   it("Marketing atravessa o gate de papel com esse mesmo corpo", () => {
@@ -480,15 +563,15 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
   it("quantas faltam sai da mesma função que filtra a vitrine", () => {
     // Uma foto a menos que a régua — o motivo tem de dizer exatamente isso.
     const abaixoDaPorta = Array.from({ length: MINIMO_DE_FOTOS - 1 }, (_, i) => url(i, "zap"));
-    const motivos = bloqueiosDePublicacao({
-      whatsapp_images: abaixoDaPorta,
-      origem: "painel",
-    });
+    const motivos = bloqueiosDePublicacao({ whatsapp_images: abaixoDaPorta });
     const poucas = motivos.find((m) => m.id === "poucas-fotos");
     expect(poucas?.bloqueia).toBe(true);
     expect(poucas?.texto).toContain(`${MINIMO_DE_FOTOS - 1} de ${MINIMO_DE_FOTOS}`);
-    // No veículo nativo o texto manda subir pelo painel — não esperar o feed.
+    // Uma instrução só, desde a F0.5 — e ela aponta para cá, não para o
+    // RevendaMais. O texto antigo ("as fotos vêm do RevendaMais") saía em 100%
+    // do estoque e era a razão de ninguém subir a foto que faltava.
     expect(poucas?.texto).toContain("suba as fotos pelo painel");
+    expect(poucas?.texto).not.toContain("RevendaMais");
   });
 
   it("cumprida a porta, o bloqueio some — e vira pendência até a ficha", () => {
@@ -502,13 +585,15 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     expect(bloqueiosDePublicacao({ whatsapp_images: completa })).toEqual([]);
   });
 
-  it("o editor passa a origem para o bloqueio — senão o texto mente", () => {
-    // A origem escolhe entre "suba as fotos pelo painel" e "as fotos vêm do
-    // RevendaMais". Sem ela a tela manda o operador esperar um feed que nunca
-    // vai trazer foto do carro que ele mesmo cadastrou.
+  it("o editor NÃO passa mais origem para o bloqueio — a régua e o texto são um só", () => {
+    // O inverso deste teste existia até 01/09, quando a origem escolhia entre
+    // "suba as fotos pelo painel" e "as fotos vêm do RevendaMais". Com a
+    // galeria aberta a toda origem, a segunda frase virou instrução falsa, e o
+    // parâmetro saiu da assinatura junto com ela: argumento que não muda mais
+    // nada convida quem lê a acreditar que muda.
     const i = editor.indexOf("bloqueiosDePublicacao({");
     expect(i).toBeGreaterThan(-1);
-    expect(editor.slice(i, i + 600)).toContain("origem: v.origem");
+    expect(editor.slice(i, i + 600)).not.toContain("origem: v.origem");
   });
 
   it("a nota do contador distingue os TRÊS estados", () => {
@@ -596,7 +681,6 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
       createElement(GaleriaDeFotos, {
         estoqueId: 900000001,
         fotos: [],
-        origem: "painel",
         podeEditar: true,
         aoGravar: () => {},
         ...props,
@@ -663,13 +747,20 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
     expect(html).toMatch(/disabled=""[^>]*aria-label="Mover a foto 1 para trás"/);
   });
 
-  it("veículo do feed: sem envio, e com o motivo escrito", () => {
-    const html = desenhar({ origem: "sync", fotos: [foto(1)] });
-    expect(html).not.toContain("Enviar fotos");
-    expect(html).not.toContain('type="file"');
-    expect(html).not.toContain("Remover a foto 1");
-    expect(html).toContain("reescritas a cada sincronização");
-    expect(html).toContain("Suba as fotos no RevendaMais");
+  it("veículo do feed: envio LIBERADO — é a entrega da F0.5", () => {
+    /* Este teste esperava o contrário até 01/09: nem botão, nem input, e o
+       aviso mandando subir no RevendaMais. Como o componente não recebe mais
+       `origem`, o carro do feed desenha exatamente como o nativo — e é isso
+       que se prova aqui, pelo HTML, não pelo texto do arquivo.
+
+       O id da faixa do feed (6,1M–8,4M) em vez do nativo (≥ 900.000.001):
+       `caminhoDaFoto` só exige que seja numérico, e a mistura com foto do
+       carro57 é segura porque a faxina passa por `caminhoDaUrlPublica`. */
+    const html = desenhar({ estoqueId: 8392516, fotos: [foto(1)] });
+    expect(html).toContain("Enviar fotos");
+    expect(html).toContain('type="file"');
+    expect(html).toContain("Remover a foto 1");
+    expect(html).not.toContain("Suba as fotos no RevendaMais");
     // A contagem e a régua continuam visíveis: a aba informa mesmo sem editar.
     expect(html).toContain(`Faltam ${MINIMO_DE_FOTOS - 1} de ${MINIMO_DE_FOTOS}`);
   });

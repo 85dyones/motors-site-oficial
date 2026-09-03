@@ -86,24 +86,35 @@ export type CampoNosso = (typeof CAMPOS_NOSSOS)[number];
 export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
 
 /**
- * Preço promocional — o único campo do FEED que o painel grava em veículo de
- * QUALQUER origem, inclusive nos importados do RevendaMais.
+ * Preço promocional — gravável SÓ no veículo nativo, como o preço de tabela.
  *
- * Parece contradizer as duas listas acima, e não contradiz: elas restringem ao
- * nativo porque o sync reescreveria a coluna no ciclo seguinte. Esse risco
- * morreu por completo na trava total (`20260830120000_f0q`) — o RevendaMais não
- * atualiza mais linha nenhuma, de origem nenhuma. O que sobra é uma pergunta de
- * produto, não de segurança: quem manda no preço de tabela é o RevendaMais
- * (por isso `preco_original` segue só do nativo), mas **quem decide promoção é
- * a loja**.
+ * ---------------------------------------------------------------------------
+ * A volta, em 2026-09-02
+ * ---------------------------------------------------------------------------
+ * De 31/08 a 02/09 este foi o único campo do feed que o painel gravava em
+ * veículo de qualquer origem, sob o argumento "quem decide promoção é a loja".
+ * O dono reverteu:
+ *
+ *   "preciso que o preço seja o do revenda, sempre, nos campos de preço e no
+ *    de promoção, senão eu crio dois lugares para mudar isso e pode gerar
+ *    inúmeros problemas."
+ *
+ * A medição de 02/09 (feed real × banco, 39 anúncios) deu razão ao medo e
+ * mostrou que ele ainda não tinha custado nada aqui: ZERO promoções criadas
+ * pelo painel. O custo estava do outro lado — a Kia Sorento a R$ 8.000 a mais
+ * no site do que no RevendaMais, porque a trava total impedia o preço de
+ * chegar. A migração `20260902120000_preco_e_do_revendamais` abre a trava para
+ * as três colunas de preço (e para `last_seen_at`); esta constante fecha o
+ * painel. Um lugar só.
+ *
+ * Por que continua existindo: o veículo NATIVO não vem do RevendaMais, então o
+ * preço dele — tabela e promoção — só pode nascer aqui. O gate é o mesmo de
+ * `CAMPOS_DE_PRECO_DO_NATIVO`, pela mesma razão. Hoje não há nativo nenhum
+ * (104/104 `sync`); o campo espera o primeiro.
  *
  * Por que não entrou em `CAMPOS_NOSSOS`: aquela lista promete que "o sync não
- * conhece nenhum deles", e o sync conhece esta coluna — ele a preenche a cada
- * importação. Enfiá-la lá tornaria o comentário mentira para quem ler depois.
- *
- * E por que isto não seria útil se valesse só para o nativo: em 2026-08-31 os
- * 104 veículos da base eram `origem = 'sync'`, os 38 ativos inclusive. Uma
- * promoção que só funcionasse no carro nativo não funcionaria em carro nenhum.
+ * conhece nenhum deles", e o sync conhece esta coluna — agora mais do que
+ * nunca, ele a escreve.
  *
  * **Não é operação de lote** — a mesma razão do `preco_compra`: o valor é de um
  * carro só, e o preço efetivo derivado depende do `preco_original` de cada
@@ -112,24 +123,55 @@ export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
 export const CAMPO_DA_PROMOCAO = "preco_promocional";
 
 /**
- * Fotos: graváveis só no veículo que nasceu no painel — pelo mesmo motivo do
- * preço, e com a mesma consequência se alguém afrouxar.
+ * Fotos: graváveis em veículo de QUALQUER origem, desde 2026-09-01 (F0.5).
  *
  * ---------------------------------------------------------------------------
- * Por que não vale para o carro do feed
+ * A condição que existia aqui, e por que ela caiu
  * ---------------------------------------------------------------------------
- * As três colunas SÃO do RevendaMais: o sincronizador as reescreve a cada 6 h
- * (`docs/levantamento-atual.md` §2.4, "o sync continua intocado até a F2").
- * Deixar o painel subir foto num veículo `origem = 'sync'` produziria o pior
- * defeito possível: o carro chega a oito fotos, sai da lista de bloqueados,
- * entra na vitrine — e no ciclo seguinte volta a seis fotos e some, sem erro
- * em lugar nenhum. Ninguém liga o sumiço ao envio de três horas antes.
+ * Até aqui estas três colunas só eram graváveis em `origem = 'painel'`. O
+ * motivo escrito era: *"o sincronizador as reescreve a cada 6 h"* — e o defeito
+ * temido era real e bem descrito: o carro chega a oito fotos, entra na vitrine,
+ * e no ciclo seguinte volta a seis e some, sem erro em lugar nenhum.
  *
- * No veículo nativo (migração 20260829130000) esse motivo não existe: a trava
- * garante que o sync nunca toca em linha de `origem = 'painel'`. E é
- * exatamente para ele que o bucket foi criado — a migração F0-p abre dizendo
- * que "sem ele o cadastro nativo cria carro que nunca chega à vitrine, porque
- * a régua de publicação exige 8 fotos e não há de onde tirá-las".
+ * **Esse motivo deixou de existir, duas vezes.** A trava total do sync
+ * (`20260829130000_f0k` + `20260830120000_f0q:115-120`) tirou do RevendaMais o
+ * poder de atualizar qualquer coluna de qualquer linha — inclusive as que ele
+ * mesmo importou. E em 31/08 as fotos dos ativos saíram do `s3.carro57.com.br`
+ * para o nosso bucket: 37 dos 38 publicados à venda. A condição sobreviveu à
+ * razão dela por dois dias, e o `docs/PLANO_F0.md` já tinha registrado a
+ * conclusão sem que o código a seguisse — *"sem sobrescrita não há o que
+ * blindar, e a galeria vale para todo o estoque sem migração de override
+ * nenhuma"*.
+ *
+ * O custo de manter a condição não era teórico. Em 01/09, na vitrine REAL,
+ * DOIS carros estavam abaixo da porta de quatro fotos — Kombi Standard (0) e
+ * Parati CL (1) —, mais outros com a ficha incompleta. Em todos, a pendência
+ * mandava o operador resolver no RevendaMais, num painel que não podia
+ * recebê-la de volta.
+ *
+ * ⚠️ Este número já foi contado errado duas vezes aqui, e a armadilha é a
+ * mesma: a seção "Fora da vitrine agora" da auditoria responde "o que a régua
+ * de fotos reprova", NÃO "o que está fora do ar" — ela mistura publicado,
+ * arquivado e vendido-na-carência. Sandero e Voyage apareciam nela e estão
+ * `arquivado`: não foi a foto que os tirou. Contar exige filtrar
+ * `estado_cadastro = 'publicado' and not vendido`.
+ *
+ * ⚠️ Para quem for conferir: `npm run auditoria:estoque` NÃO carrega
+ * `.env.local`, e sem as variáveis `getEstoque()` cai no `MOCK_ESTOQUE` — os
+ * cinco carros fictícios de `supabase.ts:22-90` (o Porsche de R$ 998.000 é um
+ * deles). Rodar sem env produz um relatório convincente sobre um estoque que
+ * não existe. Exportar as três variáveis antes.
+ *
+ * ---------------------------------------------------------------------------
+ * O que continua sendo verdade
+ * ---------------------------------------------------------------------------
+ * Quem decide QUEM sobe foto continua sendo a matriz A17
+ * (`ACAO_DO_CAMPO_DE_VEICULO`, linha "Adicionar e reordenar fotos") — a régua
+ * de PAPEL nunca foi esta, e afrouxar a de COLUNA não a afrouxa.
+ *
+ * E misturar foto nossa com foto do carro57 no mesmo carro é seguro: a faxina
+ * do bucket passa por `caminhoDaUrlPublica`, que devolve `null` para URL que
+ * não é nossa. Removemos do Storage só o que subimos.
  *
  * ---------------------------------------------------------------------------
  * As três andam juntas
@@ -163,16 +205,25 @@ export const COLUNAS_LIDAS_PARA_DECIDIR = [
 ] as const;
 
 /**
- * Os campos graváveis para ESTE veículo — a lista fixa, mais o preço e as
- * fotos quando a linha é do painel.
+ * Os campos graváveis para ESTE veículo — a lista fixa e as fotos sempre, mais
+ * as TRÊS colunas de preço quando a linha é do painel.
  *
  * Recebe a origem em vez de consultá-la: quem chama já leu a linha, e uma
  * segunda consulta aqui abriria janela entre a leitura e a escrita.
+ *
+ * `origem` decide UMA coisa: preço. E a régua é uma só para tabela e promoção,
+ * desde 2026-09-02 — "o preço é do revenda, sempre" (decisão do dono). No
+ * carro do RevendaMais, as três colunas chegam pelo sync, que a migração
+ * `20260902120000` voltou a deixar escrevê-las; no nativo, que não tem
+ * RevendaMais, nascem e mudam aqui. Não é limitação técnica, é para haver UM
+ * lugar de mudar preço — e a medição de 02/09 mostrou o custo de haver zero:
+ * a Sorento R$ 8.000 acima do gestor de estoque.
  */
 export function camposGravaveis(origem?: string | null): readonly string[] {
+  const base = [...CAMPOS_NOSSOS, ...CAMPOS_DE_FOTO];
   return origem === "painel"
-    ? [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_PRECO_DO_NATIVO, ...CAMPOS_DE_FOTO]
-    : [...CAMPOS_NOSSOS, CAMPO_DA_PROMOCAO];
+    ? [...base, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_PRECO_DO_NATIVO]
+    : base;
 }
 
 /**

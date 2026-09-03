@@ -252,13 +252,10 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
      esta entrega não sobe foto. */
   const pendencias = useMemo(
     () =>
-      bloqueiosDePublicacao({
-        whatsapp_images: [],
-        // `painel` fixo: este formulário só cria veículo nativo, e é o que faz
-        // a pendência dizer "suba as fotos pelo painel" em vez de mandar
-        // esperar um feed que não vai trazer este carro.
-        origem: "painel",
-      }),
+      // `origem` saiu daqui na F0.5: a pendência de foto passou a ter uma
+      // instrução só ("suba as fotos pelo painel"), porque a galeria deixou de
+      // recusar veículo do sync.
+      bloqueiosDePublicacao({ whatsapp_images: [] }),
     // Sem dependência: a régua não lê mais nada do formulário desde que o
     // laudo saiu dela (29/08) — o veículo nasce sempre com zero foto.
     [],
@@ -344,7 +341,6 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
   if (criado) {
     const bloqueios = bloqueiosDePublicacao({
       whatsapp_images: criado.whatsapp_images,
-      origem: "painel",
     });
     const nome = [criado.marca, criado.modelo].filter(Boolean).join(" ") || "Veículo";
 

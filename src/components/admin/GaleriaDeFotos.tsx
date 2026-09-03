@@ -70,15 +70,21 @@ type Estado =
 export default function GaleriaDeFotos({
   estoqueId,
   fotos,
-  origem,
   podeEditar,
   aoGravar,
 }: {
   estoqueId: number | string;
   fotos: FotoDoVeiculo[];
-  /** `painel` (cadastro nativo) ou `sync` (RevendaMais). Decide se edita. */
-  origem: string | null | undefined;
-  /** Matriz A17, linha "Adicionar e reordenar fotos". */
+  /**
+   * Matriz A17, linha "Adicionar e reordenar fotos". **É o único portão
+   * daqui.**
+   *
+   * Até 2026-09-01 havia um segundo, `origem === "painel"`, e ele fechava a
+   * galeria para 100% do estoque — nenhum veículo nativo existe. Caiu na F0.5:
+   * a trava do sync tirou do RevendaMais o poder de reescrever foto, e em
+   * 31/08 as fotos dos ativos passaram a ser nossas. Ver `estoqueEscrita.ts`,
+   * bloco de `CAMPOS_DE_FOTO`.
+   */
   podeEditar: boolean;
   /**
    * Chamado depois que a gravação VOLTOU OK, com as três colunas já no formato
@@ -92,7 +98,6 @@ export default function GaleriaDeFotos({
   const [gravadoEm, setGravadoEm] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
 
-  const doPainel = origem === "painel";
   const ocupado = estado.tipo === "enviando" || estado.tipo === "gravando";
   const faltam = Math.max(0, MINIMO_DE_FOTOS - fotos.length);
 
@@ -281,7 +286,7 @@ export default function GaleriaDeFotos({
         )}
       </div>
 
-      {podeEditar && doPainel && (
+      {podeEditar && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <input
             ref={entrada}
@@ -370,7 +375,7 @@ export default function GaleriaDeFotos({
                 {i + 1}
               </span>
 
-              {podeEditar && doPainel && (
+              {podeEditar && (
                 <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-[rgba(20,18,18,.72)] p-1">
                   <button
                     type="button"
@@ -421,22 +426,16 @@ export default function GaleriaDeFotos({
         </div>
       )}
 
-      {/* A explicação de por que o carro do feed não recebe foto aqui.
-          Ela é a mesma nota que existia antes do storage próprio — continua
-          verdadeira, só que agora apenas para `origem = 'sync'`. */}
-      {!doPainel && (
-        <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
-          <p className="text-xs leading-relaxed text-mt-neutral-800">
-            As fotos deste veículo vêm do <strong>feed do RevendaMais</strong> e são
-            reescritas a cada sincronização — por isso enviar, reordenar ou remover aqui{" "}
-            <strong>não é possível</strong>: a mudança se perderia no ciclo seguinte, em
-            silêncio, e o carro sairia da vitrine sem ninguém ligar uma coisa à outra.
-            Suba as fotos no RevendaMais. O envio pelo painel vale para o veículo
-            cadastrado aqui, que o sincronizador não toca.
-          </p>
-        </div>
-      )}
-      {doPainel && !podeEditar && (
+      {/* Aqui ficava o aviso que mandava o operador subir a foto no outro
+          sistema, alegando que o sincronizador a sobrescreveria. Saiu em
+          2026-09-01: era falso desde 30/08, quando a trava tirou do feed o
+          poder de reescrever coluna, e ensinava a não tentar. Kombi e Parati
+          estavam fora da vitrine por falta de foto que ninguém subiu porque a
+          tela dizia que não daria.
+
+          O texto exato não é reproduzido nem aqui: `tests/fotos-do-veiculo`
+          procura por ele no arquivo inteiro para garantir que não volte. */}
+      {!podeEditar && (
         <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
           <p className="text-xs leading-relaxed text-mt-neutral-800">
             Seu perfil vê as fotos e não as altera. Adicionar e reordenar foto é de

@@ -361,11 +361,12 @@ export default function EditorDeVeiculo({
      do carro que ele mesmo cadastrou. */
   const bloqueios = useMemo(
     () =>
+      // `origem` saiu daqui na F0.5 — a régua e o texto passaram a ser os
+      // mesmos para carro do feed e carro nativo.
       bloqueiosDePublicacao({
         whatsapp_images: v.whatsapp_images,
-        origem: v.origem,
       }).filter((b) => b.bloqueia),
-    [v.whatsapp_images, v.origem],
+    [v.whatsapp_images],
   );
 
   /* ------------------------------------------------------------------------
@@ -722,10 +723,11 @@ export default function EditorDeVeiculo({
             <GaleriaDeFotos
               estoqueId={v.id}
               fotos={fotos}
-              origem={v.origem}
               /* A linha "Adicionar e reordenar fotos" da A17 — Admin,
                  Marketing e Comercial. Perguntar por uma das colunas basta:
-                 as três apontam para a mesma linha da matriz. */
+                 as três apontam para a mesma linha da matriz.
+                 `origem` saiu daqui na F0.5: a galeria não pergunta mais de
+                 onde o carro veio, só quem é o usuário. */
               podeEditar={podeGravar("whatsapp_images")}
               aoGravar={aoGravarFotos}
             />
@@ -1014,13 +1016,15 @@ export default function EditorDeVeiculo({
                     </div>
                   </div>
                 )}
-                {/* Promoção vale para veículo de qualquer origem — inclusive o
-                    importado. A trava total do sync (F0-q) tirou do RevendaMais
-                    a capacidade de reescrever a coluna, e em 31/08 os 104
-                    veículos da base eram do sync: restringi-la ao nativo, como
-                    o preço acima, entregaria um campo que não serviria a carro
-                    nenhum. */}
-                {podeGravar("preco_promocional") && (
+                {/* Promoção segue a MESMA régua do preço de tabela desde
+                    02/09: editável só no veículo nativo. No carro do
+                    RevendaMais ela chega pelo sync — a migração 20260902120000
+                    voltou a deixá-lo escrever as três colunas de preço —, e
+                    editá-la aqui criaria o segundo lugar que o dono mandou não
+                    existir. De 31/08 a 02/09 este campo aparecia em qualquer
+                    origem; ninguém o usou (zero promoções só nossas, medido), e
+                    enquanto isso a Sorento ficou R$ 8.000 acima do gestor. */}
+                {v.origem === "painel" && podeGravar("preco_promocional") ? (
                   <div className="flex flex-col gap-1.5">
                     <label className={rotuloCampo} htmlFor="f-promo">
                       Preço promocional · o &quot;por&quot;
@@ -1056,6 +1060,23 @@ export default function EditorDeVeiculo({
                     ) : (
                       <span className="text-[11px] text-mt-neutral-700">
                         Sem promoção. A ficha mostra só o preço anunciado.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <span className={rotuloCampo}>
+                      {v.origem === "painel"
+                        ? "Preço promocional"
+                        : "Preço promocional · do feed"}
+                    </span>
+                    <div className="border border-mt-regua-fina bg-mt-surface px-3 py-2.5 text-lg font-extrabold tabular-nums tracking-[-.03em] text-mt-neutral-700">
+                      {v.preco_promocional ? brl(v.preco_promocional) : "sem promoção"}
+                    </div>
+                    {v.origem !== "painel" && (
+                      <span className="text-[11px] text-mt-neutral-700">
+                        Tabela e promoção deste carro são as do RevendaMais — mude lá, e a
+                        próxima importação traz.
                       </span>
                     )}
                   </div>
