@@ -38,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Garantia do Seminovo em Curitiba | Motors Store",
     description:
       "Três meses de garantia de motor e câmbio, sem carência e sem franquia, em todo carro " +
-      "vendido. Perícia cautelar independente antes da vitrine e laudo na ficha do veículo.",
+      "vendido. Perícia cautelar independente e laudo na ficha do veículo assim que aprovado.",
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,
@@ -76,7 +76,7 @@ export default async function GarantiaPage() {
         introducao={TEXTO_DE_GARANTIA}
         contagem={false}
         veiculos={[]}
-        textoSemEstoque="Veja o estoque disponível e o laudo de perícia de cada veículo na ficha."
+        textoSemEstoque="Veja o estoque disponível; o laudo de perícia fica na ficha assim que aprovado."
         conteudo={<FaixaProcedencia itens={normalizarProcedencia(settings.procedencia)} />}
         blocos={[
           {

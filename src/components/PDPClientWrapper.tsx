@@ -1210,6 +1210,30 @@ export default function PDPClientWrapper({
           </div>
           )}
 
+          {/* Perícia que ainda não foi aprovada: DIZ ISSO, em vez de calar.
+              O bloco acima resolveu não afirmar laudo limpo sobre carro não
+              periciado — certo, e continua. Mas o silêncio criou outro
+              problema: em 2026-09-03, dezessete dos trinta e seis veículos
+              publicados estavam "EM ANÁLISE", e nas fichas deles a perícia
+              simplesmente não existia, enquanto a FAQ da mesma página
+              prometia "o laudo fica na ficha do carro". Quem procurava não
+              achava e não sabia por quê.
+              Estado real é mais honesto que ausência, e não afirma nada sobre
+              o resultado — que é justamente o que ainda não se sabe. */}
+          {!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && (
+          <div className="px-4 md:px-0 print:px-0">
+            <div className="bg-brand-card border border-brand-card-border p-5 max-sm:p-4 print-avoid-break">
+              <p className="uppercase tracking-widest text-sm max-sm:text-xs font-black text-brand-text">
+                Perícia cautelar em andamento
+              </p>
+              <p className="mt-2 text-sm text-brand-text/70">
+                Este veículo passa por perícia cautelar independente — estrutura, chassi e
+                histórico de sinistro. O laudo é publicado aqui na ficha assim que aprovado.
+              </p>
+            </div>
+          </div>
+          )}
+
         </div>
 
         {/* Right Column: Desktop Sidebar and Matriz de Especificações (spans 5 cols on lg) */}

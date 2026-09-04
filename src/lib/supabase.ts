@@ -728,6 +728,59 @@ export async function getCarimbosDeConteudo(): Promise<Record<string, string>> {
 }
 
 /**
+ * `id -> last_seen_at` — a última vez que o feed confirmou cada veículo.
+ *
+ * Existe para o SITEMAP enxergar a carência do vendido pelo mesmo relógio que
+ * a ficha. Até 2026-09-04 eram dois relógios diferentes: `decidirPublicacao`
+ * recebe `dataVenda ?? ultimaPresenca`, e a ficha passava as duas
+ * (`getSinaisDeEstoque`) enquanto o sitemap passava só a data de venda. Com
+ * `veiculos_vendidos` vazia, o `noindex` do sitemap nunca virava `true` — e a
+ * URL ia continuar listada mesmo depois de a página passar a responder 308.
+ * Sitemap anunciando redirecionamento é sinal contraditório para o rastreador.
+ *
+ * `getSinaisDeEstoque` responde a mesma pergunta para UM id; o sitemap precisa
+ * de todos, e chamá-la 60 vezes seria 60 idas ao banco por revalidação.
+ *
+ * Falha SEMPRE para o mapa vazio, nunca para exceção: sem carimbo, a carência
+ * não vence e o carro continua listado. É o mesmo lado para o qual todo este
+ * módulo erra — manter no índice é recuperável, sumir do índice leva semanas.
+ */
+export async function getUltimasPresencas(): Promise<Record<string, string>> {
+  if (!isSupabaseConfigured || !supabase) return {};
+
+  try {
+    /* Duas colunas, uma ida. Poderia vir junto de `getCarimbosDeConteudo` num
+       `select` só — as duas leem a mesma tabela inteira na mesma revalidação
+       do sitemap —, e ficou separada de propósito: `conteudo_atualizado_em`
+       ainda depende de uma migração que pode não estar aplicada, e o PostgREST
+       rejeita a query INTEIRA com 42703 quando uma coluna não existe. Juntar
+       faria a ausência de um campo derrubar o outro, que é exatamente o
+       defeito documentado no cabeçalho de `getCarimbosDeConteudo`. */
+    const { data, error } = await supabase.from("estoque_motors").select("id, last_seen_at");
+
+    if (error || !data) {
+      console.warn(
+        "[Supabase] Sem últimas presenças (%s) — a carência do vendido não " +
+          "vence no sitemap.",
+        error?.message ?? "resposta vazia"
+      );
+      return {};
+    }
+
+    const mapa: Record<string, string> = {};
+    for (const linha of data as any[]) {
+      if (linha.last_seen_at) {
+        mapa[String(linha.id)] = linha.last_seen_at;
+      }
+    }
+    return mapa;
+  } catch (err) {
+    console.warn("[Supabase] Erro inesperado ao ler últimas presenças:", err);
+    return {};
+  }
+}
+
+/**
  * Consulta o estoque no Supabase, com fallback para os mocks.
  *
  * Por padrão devolve só o que veio no último ciclo de sync — é o que o site

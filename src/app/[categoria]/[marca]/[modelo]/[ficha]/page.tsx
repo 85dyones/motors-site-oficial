@@ -16,6 +16,7 @@ import {
   slugDeModelo,
 } from "../../../../../lib/veiculoUrl";
 import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../lib/nomeDoVeiculo";
+import { montarTextosDaFicha } from "../../../../../lib/tituloDaFicha";
 import { schemaDoVeiculo } from "../../../../../lib/schemaVeiculo";
 import { blocoJsonLd, schemaDeTrilha } from "../../../../../lib/schemaListagem";
 import {
@@ -147,8 +148,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const seoDescription = cleanDescription
     ? truncateString(cleanDescription, 155)
     : `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ${veiculo.ano}, cor ${veiculo.cor}, ` +
-      `${seu(generoDoModelo)} por ${priceText}. Perícia cautelar independente com laudo na ficha, ` +
-      "garantia e financiamento. Motors Store, Bacacheri, Curitiba.";
+      `${seu(generoDoModelo)} por ${priceText}. Perícia cautelar independente, garantia e ` +
+      "financiamento. Motors Store, Bacacheri, Curitiba.";
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
@@ -168,6 +169,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
    */
   const nomeDoVeiculo = montarNomeDoVeiculo(veiculo);
 
+  // Carro indisponível não anuncia preço no título nem no card. A regra, e a
+  // história dela, vivem em `lib/tituloDaFicha.ts` — onde dá para testá-la.
+  const textos = montarTextosDaFicha({
+    nome: nomeDoVeiculo,
+    ano: veiculo.ano,
+    cor: veiculo.cor,
+    km: veiculo.quilometragem,
+    precoTexto: priceText,
+    descricaoDisponivel: seoDescription,
+    publicacao,
+  });
+
   // A foto vence qualquer arte do painel: é o próprio produto. Quando o
   // veículo chega sem foto utilizável, `montarCompartilhamento` desce para o
   // card do painel e, na falta dele, para o card gerado — nunca para nada.
@@ -177,8 +190,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // outra coisa é o mesmo defeito que esticava o logo da home. Sem declaração,
   // Facebook e WhatsApp medem o arquivo sozinhos.
   return {
-    title: `${nomeDoVeiculo} - ${priceText} | Motors Store`,
-    description: seoDescription,
+    title: textos.titulo,
+    description: textos.descricao,
     alternates: {
       canonical: pdpUrl,
     },
@@ -196,8 +209,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       empresa: companySettings,
       pagina: "pdp",
       rotulo: `${veiculo.ano} · ${veiculo.quilometragem.toLocaleString("pt-BR")} km`,
-      tituloPadrao: `${nomeDoVeiculo} por ${priceText}`,
-      descricaoPadrao: seoDescription,
+      tituloPadrao: textos.tituloDoCard,
+      descricaoPadrao: textos.descricao,
       caminho: pdpUrl,
       imagemPreferida: imageUrl,
       imagemPreferidaSemDimensao: true,

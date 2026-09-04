@@ -139,6 +139,12 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(17);
+    // Nº 18, em 2026-09-04, sem arquivo novo: `lib/supabase.ts` ganhou
+    // `getUltimasPresencas()`, que lê `id, last_seen_at` de todas as linhas
+    // para o SITEMAP enxergar a carência do vendido pelo mesmo relógio que a
+    // ficha. `getSinaisDeEstoque` responde a mesma pergunta para um id só, e
+    // o sitemap precisa de todos — chamá-la em laço seria uma ida ao banco
+    // por veículo, a cada revalidação.
+    expect(total).toBe(18);
   });
 });
