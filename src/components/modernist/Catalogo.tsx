@@ -10,7 +10,14 @@ import {
   resolveTipoCombustivel,
 } from "../../lib/regrasEstoque";
 import { slugifyTag } from "../../lib/tagUtils";
-import { mostrarLimparTudo, painelDeFiltro } from "../../lib/vitrine";
+import {
+  casaComABusca,
+  chipDaBusca,
+  mensagemDeVitrineVazia,
+  mostrarLimparTudo,
+  painelDeFiltro,
+  termosDaBusca,
+} from "../../lib/vitrine";
 import { CardVeiculo, formatarPreco } from "./primitivos";
 
 /**
@@ -70,6 +77,10 @@ export default function Catalogo({
   });
   const [ordem, setOrdem] = useState<Ordenacao>("recentes");
   const [visiveis, setVisiveis] = useState(PAGINA);
+  // A busca por digitação também entra por parâmetro: é o que permite mandar
+  // um link de "Onix automático" pronto, de campanha ou de atendimento.
+  const [busca, setBusca] = useState(() => searchParams.get("q") ?? "");
+  const termos = useMemo(() => termosDaBusca(busca), [busca]);
   // Recolhido é o estado inicial, e é o mesmo nos dois lados da hidratação:
   // nada aqui mede a janela. Quem está no desktop nunca vê diferença — lá o
   // painel não obedece a este estado.
@@ -122,6 +133,7 @@ export default function Catalogo({
   const limparTudo = () => {
     setSelecionados({});
     setPrecoMax(null);
+    setBusca("");
     setVisiveis(PAGINA);
   };
 
@@ -160,6 +172,10 @@ export default function Catalogo({
     if (ignorar !== "preco" && precoMax !== null && precoVigente(v) > precoMax) {
       return false;
     }
+    // A busca vale também para a contagem ao lado de cada caixa: digitar
+    // "onix" e continuar vendo "MARCA · FIAT (7)" seria a lista mentindo
+    // sobre o que ela vai mostrar.
+    if (!casaComABusca(v, termos)) return false;
     return true;
   };
 
@@ -200,7 +216,7 @@ export default function Catalogo({
       { chave: "cambio", titulo: "CÂMBIO", opcoes: contar("cambio") },
       { chave: "combustivel", titulo: "COMBUSTÍVEL", opcoes: contar("combustivel") },
     ].filter((g) => g.opcoes.length > 0);
-  }, [estoque, selecionados, precoMax, quickTags, stockOverrides]);
+  }, [estoque, selecionados, precoMax, termos, quickTags, stockOverrides]);
 
   const filtrados = useMemo(() => {
     const lista = estoque.filter((v) => passaNosFiltros(v));
@@ -212,7 +228,7 @@ export default function Catalogo({
       default:
         return lista;
     }
-  }, [estoque, selecionados, precoMax, ordem]);
+  }, [estoque, selecionados, precoMax, termos, ordem]);
 
   const chipsAtivos = [
     ...Object.entries(selecionados).flatMap(([chave, valores]) =>
@@ -225,6 +241,11 @@ export default function Catalogo({
     ...(precoMax !== null
       ? [{ chave: "preco", valor: "", rotulo: `ATÉ ${formatarPreco(precoMax)}` }]
       : []),
+    // A busca entra na régua como qualquer outro filtro. Sem isto, o campo
+    // some junto com o painel no celular e a vitrine fica recortada sem que
+    // nada na tela diga por quê — o mesmo defeito que a contagem de filtros
+    // no botão existe para evitar.
+    ...(chipDaBusca(busca) ? [{ chave: "busca", valor: "", rotulo: chipDaBusca(busca)! }] : []),
   ];
 
   const totalFiltrado = filtrados.length;
@@ -271,6 +292,68 @@ export default function Catalogo({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Busca por digitação.
+            Fica FORA do painel de filtros, e nas duas larguras: o painel some
+            no celular, e um campo de busca escondido atrás de um botão é a
+            mesma caçada que ele existe para encurtar. Vem antes do alternador
+            porque é o caminho mais curto de todos — quem sabe o que quer
+            digita, quem não sabe abre o filtro.
+
+            Sem `<form>` e sem botão de enviar: filtra a cada tecla, sobre uma
+            lista que já está na memória do navegador. Botão só existiria para
+            disparar o que já aconteceu. */}
+        <div className="relative mt-4">
+          <label htmlFor="busca-da-vitrine" className="sr-only">
+            Buscar por modelo, marca ou característica
+          </label>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mt-neutral-600"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-4.5-4.5" />
+          </svg>
+          <input
+            id="busca-da-vitrine"
+            type="search"
+            value={busca}
+            onChange={(e) => {
+              setBusca(e.target.value);
+              setVisiveis(PAGINA);
+            }}
+            placeholder="Buscar modelo, marca, câmbio, cor…"
+            className="mt-foco w-full border-2 border-mt-regua bg-transparent py-2.5 pl-11 pr-11 text-[13px] font-semibold tracking-[.02em] placeholder:font-normal placeholder:tracking-normal placeholder:text-mt-neutral-600"
+          />
+          {busca !== "" && (
+            <button
+              type="button"
+              onClick={() => {
+                setBusca("");
+                setVisiveis(PAGINA);
+              }}
+              aria-label="Limpar a busca"
+              className="mt-foco absolute right-3 top-1/2 -translate-y-1/2 p-1 text-mt-accent"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                className="h-3.5 w-3.5"
+              >
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Botão de filtro — só abaixo do `lg`.
@@ -433,11 +516,11 @@ export default function Catalogo({
                 <button
                   key={`${chip.chave}-${chip.valor}`}
                   type="button"
-                  onClick={() =>
-                    chip.chave === "preco"
-                      ? setPrecoMax(null)
-                      : alternar(chip.chave, chip.valor)
-                  }
+                  onClick={() => {
+                    if (chip.chave === "preco") setPrecoMax(null);
+                    else if (chip.chave === "busca") setBusca("");
+                    else alternar(chip.chave, chip.valor);
+                  }}
                   aria-label={`Remover filtro ${chip.rotulo}`}
                   className="mt-foco flex items-center gap-2 border border-mt-regua px-3 py-1.5 text-xs font-semibold"
                 >
@@ -486,7 +569,10 @@ export default function Catalogo({
           {totalFiltrado === 0 ? (
             <div className="border-t-2 border-mt-regua py-16 text-center">
               <p className="m-0 text-[17px] font-extrabold">
-                Nenhum veículo com essa combinação de filtros.
+                {mensagemDeVitrineVazia(
+                  busca,
+                  chipsAtivos.filter((c) => c.chave !== "busca").length,
+                )}
               </p>
               {/* Mesmo caso do `LIMPAR (N)` lá em cima: `limparTudo` cru
                   desmonta este bloco inteiro e o foco cai no `<body>`. Adiado

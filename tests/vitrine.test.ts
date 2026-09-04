@@ -6,11 +6,18 @@ import { getVeiculoPdpUrl } from "../src/lib/supabase";
 import { nomeComAno } from "../src/lib/nomeDoVeiculo";
 import { schemaDeListagem } from "../src/lib/schemaListagem";
 import {
+  CAMPOS_DA_BUSCA,
+  CAMPOS_FORA_DA_BUSCA,
+  casaComABusca,
+  chipDaBusca,
   FILTROS_PARA_LIMPAR_TUDO,
   indiceDaVitrine,
+  mensagemDeVitrineVazia,
   mostrarLimparTudo,
   painelDeFiltro,
   SO_NO_CELULAR,
+  termosDaBusca,
+  textoBuscavel,
   vitrineTemFichas,
 } from "../src/lib/vitrine";
 import IndiceDaVitrine from "../src/components/modernist/IndiceDaVitrine";
@@ -421,6 +428,217 @@ describe("o ponto de chamada do índice, em `/estoque`", () => {
     // para evitar.
     expect(fonte).toMatch(
       /href="#todos-os-veiculos"[\s\S]{0,300}\$\{SO_NO_CELULAR\}/,
+    );
+  });
+});
+
+describe("a busca por digitação lê uma lista branca, nunca o objeto", () => {
+  /**
+   * Pedido do dono em 2026-09-04, no mesmo lote do filtro recolhido: digitar
+   * em vez de caçar a caixa certa numa coluna de cinco grupos.
+   *
+   * A implementação óbvia — varrer o objeto do veículo — vaza documento sem
+   * exibir nada. `Veiculo` tem `placa`; buscar em cima do objeto faria a
+   * vitrine RESPONDER sobre ela: digita a placa, e a ficha que aparece
+   * confirma de quem é. É o mesmo raciocínio que tirou `placa` do mapper
+   * público, aplicado à outra ponta.
+   *
+   * Estes testes existem porque a diferença entre as duas implementações é
+   * invisível em qualquer teste de comportamento normal: as duas acham o Onix.
+   */
+  const ONIX = {
+    id: "1",
+    marca: "Chevrolet",
+    modelo: "Onix",
+    versao: "LTZ 1.0 Turbo",
+    ano: 2022,
+    cor: "Prata",
+    cambio: "Automático",
+    combustivel: "Flex",
+    tipo: "Hatch",
+    motor: "1.0 Turbo",
+    opcionais: "Ar-condicionado, Central multimídia",
+    quilometragem: 30000,
+    preco_original: 89900,
+    preco_promocional: 0,
+    pericia: "",
+    whatsapp_images: [],
+    web_full_images: [],
+    fipe: "",
+    laudo_pericia: "",
+  } as unknown as Veiculo;
+
+  it("acha por modelo, por marca e por característica", () => {
+    for (const termo of ["onix", "chevrolet", "automatico", "prata", "turbo", "multimidia"]) {
+      expect(casaComABusca(ONIX, termosDaBusca(termo)), termo).toBe(true);
+    }
+  });
+
+  it("ignora acento e caixa nos dois lados", () => {
+    // O carro tem "Automático"; ninguém digita o acento no celular.
+    expect(casaComABusca(ONIX, termosDaBusca("AUTOMÁTICO"))).toBe(true);
+    expect(casaComABusca(ONIX, termosDaBusca("automatico"))).toBe(true);
+    expect(casaComABusca(ONIX, termosDaBusca("Ar-Condicionado"))).toBe(true);
+  });
+
+  it("todos os termos precisam casar, em qualquer ordem", () => {
+    expect(casaComABusca(ONIX, termosDaBusca("onix automatico"))).toBe(true);
+    expect(casaComABusca(ONIX, termosDaBusca("automatico onix"))).toBe(true);
+    // O segundo termo não existe neste carro: o conjunto reprova.
+    expect(casaComABusca(ONIX, termosDaBusca("onix diesel"))).toBe(false);
+  });
+
+  it("busca vazia não filtra ninguém — e não reprova todo mundo", () => {
+    // A inversão clássica: tratar "" como termo deixa a vitrine em branco na
+    // primeira pintura, antes de qualquer tecla.
+    expect(termosDaBusca("")).toEqual([]);
+    expect(termosDaBusca("   ")).toEqual([]);
+    expect(casaComABusca(ONIX, termosDaBusca(""))).toBe(true);
+    expect(casaComABusca(ONIX, termosDaBusca("   "))).toBe(true);
+  });
+
+  it("NÃO acha por placa, ainda que o objeto a tenha", () => {
+    // O cenário real: alguém passa a lista com `incluirPlaca` e a busca vira
+    // um oráculo de documento sem uma linha de código mudar.
+    const comPlaca = { ...ONIX, placa: "ABC1D23" } as unknown as Veiculo;
+
+    expect(textoBuscavel(comPlaca)).not.toContain("abc1d23");
+    expect(casaComABusca(comPlaca, termosDaBusca("ABC1D23"))).toBe(false);
+    expect(casaComABusca(comPlaca, termosDaBusca("abc1d23"))).toBe(false);
+    // E continua achando o carro pelo que é público.
+    expect(casaComABusca(comPlaca, termosDaBusca("onix"))).toBe(true);
+  });
+
+  it("o que é proibido está DECLARADO, não só ausente", () => {
+    // Lista que não se afirma é lista que cresce sem revisão: o dia em que
+    // alguém acrescentar `chassi` a `CAMPOS_DA_BUSCA`, este teste fala.
+    for (const proibido of CAMPOS_FORA_DA_BUSCA) {
+      expect(CAMPOS_DA_BUSCA as readonly string[]).not.toContain(proibido);
+    }
+    expect(CAMPOS_FORA_DA_BUSCA).toContain("placa");
+  });
+
+  it("o texto buscável sai SÓ dos campos da lista branca", () => {
+    // Mede o conjunto, não uma amostra: um campo a mais na lista sem leitor
+    // correspondente não compila, e um campo a mais no OBJETO não entra aqui.
+    const texto = textoBuscavel(ONIX);
+    const esperado = ["chevrolet", "onix", "ltz 1.0 turbo", "2022", "prata", "automatico", "flex", "hatch", "1.0 turbo"];
+
+    for (const pedaco of esperado) expect(texto).toContain(pedaco);
+    expect(texto).not.toContain("89900");
+    expect(texto).not.toContain("30000");
+  });
+
+  it("veículo sem os campos opcionais não quebra nem vira lixo", () => {
+    const magro = { id: "2", marca: "Fiat", modelo: "Uno" } as unknown as Veiculo;
+
+    expect(textoBuscavel(magro)).toBe("fiat uno");
+    expect(casaComABusca(magro, termosDaBusca("uno"))).toBe(true);
+  });
+});
+
+describe("a busca se mostra e se desfaz", () => {
+  it("vira chip na régua, com o que foi digitado", () => {
+    // Sem chip, o recorte da vitrine fica invisível quando o painel recolhe no
+    // celular — o mesmo defeito que a contagem no botão de filtro evita.
+    expect(chipDaBusca("onix automatico")).toBe("“ONIX AUTOMATICO”");
+    expect(chipDaBusca("  onix  ")).toBe("“ONIX”");
+  });
+
+  it("busca vazia não vira chip", () => {
+    expect(chipDaBusca("")).toBeNull();
+    expect(chipDaBusca("   ")).toBeNull();
+  });
+
+  it("o vazio explica pelo motivo certo", () => {
+    // "Nenhum veículo com essa combinação de filtros" para quem só digitou uma
+    // palavra manda procurar no lugar errado.
+    expect(mensagemDeVitrineVazia("gol", 0)).toBe("Nenhum veículo para “gol”.");
+    expect(mensagemDeVitrineVazia("gol", 2)).toBe("Nenhum veículo para “gol” com esses filtros.");
+    expect(mensagemDeVitrineVazia("", 2)).toBe("Nenhum veículo com essa combinação de filtros.");
+    expect(mensagemDeVitrineVazia("   ", 3)).toBe("Nenhum veículo com essa combinação de filtros.");
+  });
+});
+
+describe("o ponto de chamada da busca, no `Catalogo`", () => {
+  /**
+   * As funções puras acima podem estar perfeitas e a busca não filtrar nada.
+   * Foi exatamente o que a revisão de 04/09 achou na primeira versão do painel
+   * recolhido: mutar a função nova deixava 1868 testes verdes, porque nenhum
+   * deles passava pelo ponto de chamada.
+   *
+   * `Catalogo` usa `useSearchParams()` e não renderiza fora do navegador, então
+   * aqui a leitura é da fonte — mas ancorada em EXPRESSÃO, nunca em substring
+   * solta: `toContain("setBusca")` passaria com o `setBusca` de qualquer um
+   * dos quatro lugares que o chamam.
+   */
+  const fonte = lerCodigo("src/components/modernist/Catalogo.tsx");
+
+  it("o filtro de fato consulta a busca", () => {
+    // Sem esta linha o campo digita e a vitrine não muda.
+    expect(fonte).toMatch(/if \(!casaComABusca\(v, termos\)\) return false;/);
+    expect(fonte).toMatch(/const termos = useMemo\(\(\) => termosDaBusca\(busca\), \[busca\]\)/);
+  });
+
+  it("a lista recalcula quando a busca muda", () => {
+    // `termos` fora das dependências: o `useMemo` devolve o resultado velho e
+    // a vitrine congela na primeira busca. Verde em qualquer teste de função.
+    const memos = fonte.match(/\}, \[estoque, selecionados, precoMax[^\]]*\]\)/g) ?? [];
+
+    expect(memos.length).toBe(2);
+    for (const memo of memos) expect(memo).toContain("termos");
+  });
+
+  it("digitar volta para a primeira leva", () => {
+    // Sem isto, quem já clicou "ver mais" três vezes busca e recebe 36 cards
+    // de um resultado de 2 — e o botão de carregar mais some sem explicação.
+    expect(fonte).toMatch(/onChange=\{\(e\) => \{\s*setBusca\(e\.target\.value\);\s*setVisiveis\(PAGINA\);/);
+  });
+
+  it("o campo fica FORA do painel que recolhe", () => {
+    // Busca escondida atrás do botão de filtro é a mesma caçada que ela existe
+    // para encurtar. A posição no JSX é o que decide: o `<aside>` é quem
+    // carrega o `filtro.classe`.
+    const campo = fonte.indexOf('id="busca-da-vitrine"');
+    const aside = fonte.indexOf("<aside");
+
+    expect(campo).toBeGreaterThan(-1);
+    expect(aside).toBeGreaterThan(-1);
+    expect(campo).toBeLessThan(aside);
+
+    // A classe que recolhe existe UMA vez no arquivo, e é do `<aside>`.
+    //
+    // A primeira versão desta guarda procurava `filtro.classe` DEPOIS do `id`
+    // do campo — e a mutação que a derrubou põe a classe no `<div>` que vem
+    // ANTES dele. Negativa direcional não guarda estrutura; contar as
+    // ocorrências e dizer de quem é a única, sim.
+    const recolhem = [...fonte.matchAll(/\{filtro\.classe\}/g)];
+
+    expect(recolhem).toHaveLength(1);
+    expect(recolhem[0].index!).toBeGreaterThan(aside);
+    expect(recolhem[0].index! - aside).toBeLessThan(200);
+  });
+
+  it("o campo tem rótulo, ainda que invisível", () => {
+    expect(fonte).toMatch(/<label htmlFor="busca-da-vitrine" className="sr-only">/);
+  });
+
+  it("limpar tudo limpa a busca junto", () => {
+    // Com a busca de fora, "VER TODO O ESTOQUE" deixa a vitrine recortada e o
+    // botão vira mentira. Ancorado dentro do corpo de `limparTudo`.
+    expect(fonte).toMatch(/const limparTudo = \(\) => \{[\s\S]{0,220}setBusca\(""\);[\s\S]{0,120}\};/);
+  });
+
+  it("o chip da busca se remove sozinho", () => {
+    expect(fonte).toMatch(/else if \(chip\.chave === "busca"\) setBusca\(""\);/);
+    expect(fonte).toMatch(/chipDaBusca\(busca\) \? \[\{ chave: "busca"/);
+  });
+
+  it("o vazio recebe a contagem SEM a busca", () => {
+    // Passar `chipsAtivos.length` cru faria a mensagem dizer "com esses
+    // filtros" quando o único filtro é a própria busca.
+    expect(fonte).toMatch(
+      /mensagemDeVitrineVazia\(\s*busca,\s*chipsAtivos\.filter\(\(c\) => c\.chave !== "busca"\)\.length,\s*\)/,
     );
   });
 });
