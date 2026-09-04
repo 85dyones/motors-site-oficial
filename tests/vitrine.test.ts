@@ -189,18 +189,26 @@ describe("a função pura por trás do índice", () => {
 });
 
 describe("recolher o filtro no mobile não recolhe no desktop", () => {
-  it("fechado: some no celular", () => {
-    expect(painelDeFiltro(false).classe).toMatch(/(^|\s)hidden(\s|$)/);
+  it("fechado some no celular, aberto aparece, e o desktop nunca recolhe", () => {
+    // Igualdade por ramo, não `toContain` mais lista negra. A versão anterior
+    // era `toMatch(/(^|\s)hidden(\s|$)/)` de um lado, `not.toMatch` do outro e
+    // `toContain("lg:block")` nos dois — e `"hidden lg:block max-lg:block"`
+    // passava nas três, devolvendo o painel EXPANDIDO no celular, que é o
+    // defeito original deste PR. Mesmo buraco que `classeDoBotao` tinha, no
+    // campo ao lado; sobrou porque eu consertei um e não o irmão.
+    //
+    // `classe`, `classeDoBotao` e `rotulo` são todos derivados de um booleano.
+    // Os três se testam por igualdade — assimetria aqui é onde a próxima
+    // variante de grafia entra.
+    expect(painelDeFiltro(false).classe).toBe("hidden lg:block");
+    expect(painelDeFiltro(true).classe).toBe("lg:block");
   });
 
-  it("aberto: aparece no celular", () => {
-    expect(painelDeFiltro(true).classe).not.toMatch(/(^|\s)hidden(\s|$)/);
-  });
-
-  it("nos DOIS estados o desktop continua com a coluna de filtro", () => {
-    // É o par que não pode se separar. No desktop o filtro é a coluna da
-    // esquerda da tela 02 do design doc e não recolhe nunca — um `hidden` sem
-    // o `lg:block` ao lado apaga o filtro do desktop sem erro nenhum.
+  it("o `lg:block` sobrevive nos dois estados — é o par que não separa", () => {
+    // No desktop o filtro é a coluna da esquerda da tela 02 do design doc e
+    // não recolhe nunca: um `hidden` sem o `lg:block` ao lado apaga o filtro
+    // do desktop sem erro nenhum. A igualdade acima já garante isto; esta
+    // asserção existe para dizer POR QUE as duas strings são o que são.
     for (const aberto of [true, false]) {
       expect(painelDeFiltro(aberto).classe).toContain("lg:block");
     }
