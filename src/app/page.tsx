@@ -345,7 +345,7 @@ export default async function Home() {
     contato: (
       <section className="bg-mt-accent px-[18px] py-14 text-mt-inverso lg:px-10 lg:py-[76px]">
         <h2 className="mt-display m-0 max-w-[1000px] text-[34px] lg:text-[88px]">
-          O carro certo não é o mais caro. É o que você não quer devolver.
+          Estoque selecionado a dedo para quem não aceita qualquer escolha.
         </h2>
         <div className="mt-8 flex flex-wrap gap-0.5 lg:mt-11">
           <Link href="/estoque" className="mt-btn mt-btn-tinta mt-foco">
