@@ -108,12 +108,30 @@ describe("o `Car` traz os campos que faltavam", () => {
     expect(schema.vehicleEngine).toMatchObject({ engineType: "1.3 Turbo" });
   });
 
-  it("NÃO inventa portas nem lugares", () => {
-    // `numberOfDoors` e `vehicleSeatingCapacity` não existem em
-    // `estoque_motors`. Deduzi-los da carroceria acerta na maioria e erra na
-    // picape cabine simples e no cupê — e schema é afirmação, não palpite.
-    expect(schema).not.toHaveProperty("numberOfDoors");
-    expect(schema).not.toHaveProperty("vehicleSeatingCapacity");
+  it("declara portas quando SABE, e continua sem inventar lugares", () => {
+    // Metade deste teste virou do avesso em 2026-09-04. `numberOfDoors` não
+    // existia porque não havia coluna; a migração `20260904120000` a criou, do
+    // `<DOORS>` que o feed já mandava em 39 de 39 e o sync descartava.
+    //
+    // A régua que ele guardava continua de pé, e ficou mais forte: schema é
+    // afirmação, não palpite. A prova de que a dedução seria palpite está no
+    // próprio feed — duas Kombis com contagens DIFERENTES entre si (4 e 3).
+    //
+    // `vehicleSeatingCapacity` segue fora pela razão original: não há coluna e
+    // o feed não manda. Ver `tests/portas-do-veiculo.test.ts`.
+    // A asserção é sobre o JSON SERIALIZADO, não sobre a chave do objeto.
+    // `numberOfDoors: undefined` existe como chave — igual a `bodyType`,
+    // `color` e todo campo opcional daqui —, e é o `JSON.stringify` que a
+    // omite. É o texto emitido que o Google lê, então é ele que o teste mede.
+    expect(RENEGADE.portas).toBeUndefined();
+    expect(schema.numberOfDoors).toBeUndefined();
+    expect(JSON.stringify(schema)).not.toContain("numberOfDoors");
+    expect(JSON.stringify(schema)).not.toContain("vehicleSeatingCapacity");
+
+    const comPortas = schemaDoVeiculo({ ...RENEGADE, portas: 5 }, { caminho: CAMINHO, indisponivel: false });
+    expect(comPortas.numberOfDoors).toBe(5);
+    expect(JSON.stringify(comPortas)).toContain('"numberOfDoors":5');
+    expect(JSON.stringify(comPortas)).not.toContain("vehicleSeatingCapacity");
   });
 
   it("usa o vocabulário do schema.org para o câmbio", () => {

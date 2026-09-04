@@ -327,6 +327,18 @@ export interface Veiculo {
    */
   first_seen_at?: string | null;
   garantia_fabrica?: string;
+  /**
+   * Quantas portas — do `<DOORS>` do feed (migração `20260904120000`).
+   *
+   * `undefined` quando não se aplica ou não foi informado. O feed manda `0` em
+   * moto, e a importação converte para nulo: `numberOfDoors: 0` no JSON-LD não
+   * é campo vazio, é afirmação falsa.
+   *
+   * **Nunca deduzir da carroceria.** Medido no feed de 04/09: duas Kombis com
+   * contagens diferentes entre si (4 e 3), duas Saveiros cabine simples (2) e
+   * o Fusca (2) — a dedução erraria em pelo menos cinco dos 39.
+   */
+  portas?: number;
 }
 
 export type StockOverrides = Record<string, {
