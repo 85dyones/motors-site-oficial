@@ -10,7 +10,7 @@ import {
   resolveTipoCombustivel,
 } from "../../lib/regrasEstoque";
 import { slugifyTag } from "../../lib/tagUtils";
-import { painelDeFiltro } from "../../lib/vitrine";
+import { mostrarLimparTudo, painelDeFiltro } from "../../lib/vitrine";
 import { CardVeiculo, formatarPreco } from "./primitivos";
 
 /**
@@ -90,6 +90,18 @@ export default function Catalogo({
    */
   const fecharFiltro = () => {
     setFiltroAberto(false);
+    botaoDoFiltro.current?.focus();
+  };
+
+  /**
+   * Limpa os filtros a partir da régua de chips, sem largar o foco.
+   *
+   * Mesmo motivo do `fecharFiltro`, e aqui é por construção: a função deste
+   * botão é tornar falsa a própria precondição — sem chip ativo a régua inteira
+   * desmonta e ele vai junto. O alternador do filtro é o vizinho que sobrevive.
+   */
+  const limparTudoSemPerderOFoco = () => {
+    limparTudo();
     botaoDoFiltro.current?.focus();
   };
 
@@ -273,7 +285,7 @@ export default function Catalogo({
           onClick={() => setFiltroAberto((aberto) => !aberto)}
           aria-expanded={filtroAberto}
           aria-controls="painel-de-filtros"
-          className="mt-foco mt-4 flex w-full items-center justify-between border-2 border-mt-regua px-4 py-2.5 text-[11px] font-extrabold tracking-[.16em] lg:hidden"
+          className={`mt-foco mt-4 flex w-full items-center justify-between border-2 border-mt-regua px-4 py-2.5 text-[11px] font-extrabold tracking-[.16em] ${filtro.classeDoBotao}`}
         >
           <span className="flex items-center gap-2">
             {filtro.rotulo}
@@ -435,17 +447,26 @@ export default function Catalogo({
                 </button>
               ))}
 
-              {/* O "LIMPAR (N)" do painel passou a nascer escondido no celular,
-                  junto com o painel — desfazer tudo custaria um toque a mais,
-                  ou um chip de cada vez. Aqui ele volta, fora do painel, e só
-                  onde some: no desktop o botão do topo do filtro continua
-                  visível e este seria repetição. A partir de dois filtros,
-                  que é quando remover um a um passa a doer. */}
-              {chipsAtivos.length > 1 && (
+              {/* O "LIMPAR (N)" do painel nasce escondido no celular junto com
+                  o painel — desfazer tudo custaria um toque a mais, ou um chip
+                  de cada vez. Aqui ele volta, fora do painel.
+
+                  `mostrarLimparTudo` decide, e inclui o estado do painel: com
+                  ele ABERTO no celular os dois botões de limpar estariam na
+                  mesma tela. A primeira versão disto dizia em comentário que
+                  aparecia "só onde some", e não era verdade — a revisão de
+                  04/09 pegou.
+
+                  `limparTudo` sozinho no `onClick` seria o mesmo defeito de
+                  foco que o `fecharFiltro` corrigiu, e pior: aqui é por
+                  construção. Zerar os filtros torna falsa a condição da régua
+                  de chips logo acima, o botão sai do DOM, e o foco de quem
+                  acabou de acioná-lo cai no `<body>` (WCAG 2.4.3). */}
+              {mostrarLimparTudo(chipsAtivos.length, filtroAberto) && (
                 <button
                   type="button"
-                  onClick={limparTudo}
-                  className="mt-foco border border-mt-accent px-3 py-1.5 text-xs font-semibold text-mt-accent lg:hidden"
+                  onClick={limparTudoSemPerderOFoco}
+                  className={`mt-foco border border-mt-accent px-3 py-1.5 text-xs font-semibold text-mt-accent ${filtro.classeDoBotao}`}
                 >
                   LIMPAR TUDO
                 </button>

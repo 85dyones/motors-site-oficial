@@ -74,7 +74,9 @@ export function indiceDaVitrine(disponiveis: Veiculo[]): FichaNoIndice[] {
 export interface PainelDeFiltro {
   /** Classes de visibilidade do `<aside>`. */
   classe: string;
-  /** O que o botão do mobile diz. */
+  /** Classes de visibilidade do botão que alterna o painel. */
+  classeDoBotao: string;
+  /** O que o botão diz. */
   rotulo: string;
 }
 
@@ -82,12 +84,49 @@ export interface PainelDeFiltro {
  * A visibilidade do painel de filtro, dado o que o cliente escolheu.
  *
  * `lg:block` aparece nos DOIS estados de propósito: no desktop o filtro é a
- * coluna da esquerda e não recolhe nunca. O botão que alterna isto só existe
- * abaixo do `lg`.
+ * coluna da esquerda e não recolhe nunca.
+ *
+ * `classeDoBotao` mora aqui, e não solto na marcação, porque na revisão de
+ * 2026-09-04 ficou claro que isto é um TRIO, não um par: a classe do `<aside>`,
+ * o rótulo, e a visibilidade do botão. Com o botão fora da função, trocar o
+ * `lg:hidden` dele por `hidden` deixava o painel recolhido no celular e **sem
+ * nenhuma forma de abrir** — beco sem saída funcional, suíte inteira verde.
+ * Junto, o par "esconde o painel / mostra o botão" tem teste dos dois lados.
  */
 export function painelDeFiltro(aberto: boolean): PainelDeFiltro {
   return {
     classe: aberto ? "lg:block" : "hidden lg:block",
+    classeDoBotao: "lg:hidden",
     rotulo: aberto ? "FECHAR FILTROS" : "FILTROS",
   };
+}
+
+/** A partir de quantos filtros ativos o atalho de limpar tudo compensa. */
+export const FILTROS_PARA_LIMPAR_TUDO = 2;
+
+/**
+ * Se o atalho "LIMPAR TUDO" da régua de chips aparece.
+ *
+ * Ele existe porque o "LIMPAR (N)" do topo do painel nasce escondido no
+ * celular junto com o painel. Logo: só quando o painel está FECHADO — com ele
+ * aberto os dois apareceriam na mesma tela, que foi o defeito que a revisão de
+ * 04/09 apontou no comentário ("só onde some" não era verdade).
+ *
+ * E a partir de dois filtros: com um só, remover o chip custa o mesmo toque.
+ */
+export function mostrarLimparTudo(filtrosAtivos: number, painelAberto: boolean): boolean {
+  return !painelAberto && filtrosAtivos >= FILTROS_PARA_LIMPAR_TUDO;
+}
+
+/**
+ * Se `/estoque` tem índice de fichas para publicar.
+ *
+ * A página precisa saber disso para decidir se serve a âncora do fallback, e
+ * `IndiceDaVitrine` para decidir se renderiza. Antes cada um derivava o próprio
+ * predicado, e eles só concordavam porque `indiceDaVitrine` é 1:1 com o pátio:
+ * bastaria ela passar a filtrar para a âncora morta voltar sem teste nenhum
+ * ver. Uma pergunta, uma resposta.
+ */
+export function vitrineTemFichas(disponiveis: Veiculo[]): boolean {
+  return indiceDaVitrine(disponiveis).length > 0;
 }

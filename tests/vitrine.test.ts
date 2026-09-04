@@ -5,7 +5,13 @@ import type { Veiculo } from "../src/types";
 import { getVeiculoPdpUrl } from "../src/lib/supabase";
 import { nomeComAno } from "../src/lib/nomeDoVeiculo";
 import { schemaDeListagem } from "../src/lib/schemaListagem";
-import { indiceDaVitrine, painelDeFiltro } from "../src/lib/vitrine";
+import {
+  FILTROS_PARA_LIMPAR_TUDO,
+  indiceDaVitrine,
+  mostrarLimparTudo,
+  painelDeFiltro,
+  vitrineTemFichas,
+} from "../src/lib/vitrine";
 import IndiceDaVitrine from "../src/components/modernist/IndiceDaVitrine";
 import { lerCodigo } from "./fonte";
 
@@ -136,6 +142,17 @@ describe("o índice servido cobre o estoque inteiro", () => {
       renderToStaticMarkup(createElement(IndiceDaVitrine, { disponiveis: PATIO })),
     ).toContain('id="todos-os-veiculos"');
   });
+
+  it("os links passam autoridade — nada de `nofollow`", () => {
+    // É a razão de existir do bloco: `ItemList` já informava a URL. Um
+    // `rel="nofollow"` aqui deixa a marcação intacta e mata a entrega inteira,
+    // sem que a contagem de links perceba.
+    const html = renderToStaticMarkup(
+      createElement(IndiceDaVitrine, { disponiveis: PATIO }),
+    );
+    expect(html).not.toMatch(/nofollow/i);
+    expect(html).not.toMatch(/\brel=/);
+  });
 });
 
 describe("a função pura por trás do índice", () => {
@@ -172,9 +189,57 @@ describe("recolher o filtro no mobile não recolhe no desktop", () => {
     }
   });
 
+  it("onde o painel recolhe, o botão que o abre existe", () => {
+    // O terceiro lado do trio, e o pior de perder: com o botão em `hidden` o
+    // painel fica recolhido no celular e SEM nenhuma forma de abrir. Beco sem
+    // saída funcional, e nada mais na tela quebra. Achado na revisão de 04/09.
+    for (const aberto of [true, false]) {
+      const painel = painelDeFiltro(aberto);
+      expect(painel.classeDoBotao).toContain("lg:hidden");
+      expect(painel.classeDoBotao).not.toMatch(/(^|\s)hidden(\s|$)/);
+    }
+  });
+
   it("o botão diz o que vai acontecer, não onde ele está", () => {
     expect(painelDeFiltro(false).rotulo).toBe("FILTROS");
     expect(painelDeFiltro(true).rotulo).toBe("FECHAR FILTROS");
+  });
+});
+
+describe("o atalho de limpar tudo da régua de chips", () => {
+  it("aparece com o painel fechado e dois filtros ou mais", () => {
+    expect(mostrarLimparTudo(FILTROS_PARA_LIMPAR_TUDO, false)).toBe(true);
+    expect(mostrarLimparTudo(FILTROS_PARA_LIMPAR_TUDO + 3, false)).toBe(true);
+  });
+
+  it("não aparece com um filtro só — remover o chip custa o mesmo toque", () => {
+    expect(mostrarLimparTudo(1, false)).toBe(false);
+    expect(mostrarLimparTudo(0, false)).toBe(false);
+  });
+
+  it("some com o painel aberto — lá o `LIMPAR (N)` do topo já está na tela", () => {
+    // Sem isto os dois botões de limpar tudo ficam visíveis ao mesmo tempo no
+    // celular. A primeira versão afirmava em comentário que isso não
+    // acontecia, e acontecia.
+    for (const filtros of [2, 5, 12]) {
+      expect(mostrarLimparTudo(filtros, true)).toBe(false);
+    }
+  });
+
+  it("o limiar é dois, e é um número só no projeto", () => {
+    expect(FILTROS_PARA_LIMPAR_TUDO).toBe(2);
+    expect(mostrarLimparTudo(FILTROS_PARA_LIMPAR_TUDO - 1, false)).toBe(false);
+  });
+});
+
+describe("a página e o índice usam o MESMO predicado de pátio cheio", () => {
+  it("responde pelos dois: o bloco e a âncora que aponta para ele", () => {
+    // Antes cada lado derivava o seu, e concordavam só porque
+    // `indiceDaVitrine` é 1:1 com o pátio. Bastaria ela passar a filtrar para
+    // a âncora morta voltar sem teste nenhum ver.
+    expect(vitrineTemFichas(PATIO)).toBe(true);
+    expect(vitrineTemFichas([])).toBe(false);
+    expect(vitrineTemFichas(PATIO)).toBe(indiceDaVitrine(PATIO).length > 0);
   });
 });
 
@@ -199,6 +264,34 @@ describe("o ponto de chamada do painel de filtro", () => {
     expect(fonte).toMatch(/<aside[\s\S]{0,200}\$\{filtro\.classe\}/);
   });
 
+  it("a visibilidade dos DOIS controles de celular vem da função", () => {
+    // Com `lg:hidden` solto na marcação, trocá-lo por `hidden` some com o
+    // único caminho para abrir o filtro no celular — e nada mais quebra.
+    // Ancorado em cada botão: um `toContain` solto passaria com um dos dois
+    // reescrito à mão.
+    expect(fonte).toMatch(
+      /aria-controls="painel-de-filtros"[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
+    );
+    expect(fonte).toMatch(
+      /onClick=\{limparTudoSemPerderOFoco\}[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
+    );
+  });
+
+  it("o disclosure anuncia o próprio estado, e aponta para o painel certo", () => {
+    // `aria-expanded={true}` mente sempre; um `aria-controls` que não casa com
+    // o `id` do `<aside>` é referência pendurada. Nenhum dos dois quebra nada
+    // na tela — só para quem usa leitor de tela.
+    expect(fonte).toContain("aria-expanded={filtroAberto}");
+    expect(fonte).toContain('aria-controls="painel-de-filtros"');
+    expect(fonte).toContain('id="painel-de-filtros"');
+  });
+
+  it("o atalho de limpar tudo pergunta à regra, e não perde o foco", () => {
+    expect(fonte).toContain("mostrarLimparTudo(chipsAtivos.length, filtroAberto)");
+    expect(fonte).toMatch(/onClick=\{limparTudoSemPerderOFoco\}/);
+    expect(fonte).toContain("limparTudo();");
+  });
+
   it("o painel recolhido continua na árvore", () => {
     // Decidir isso em JavaScript exige medir a janela no cliente: divergência
     // de hidratação e piscar de campos na primeira pintura — a armadilha que
@@ -218,8 +311,27 @@ describe("o ponto de chamada do painel de filtro", () => {
 describe("o ponto de chamada do índice, em `/estoque`", () => {
   const fonte = lerCodigo("src/app/estoque/page.tsx");
 
-  it("renderiza o índice — apagá-lo não pode passar em silêncio", () => {
-    expect(fonte).toMatch(/<IndiceDaVitrine\s+disponiveis=\{disponiveis\}\s*\/>/);
+  it("o índice é o primeiro filho do `<nav>`, sem condição e sem embrulho", () => {
+    // Asserção POSICIONAL, e de propósito. `toMatch(/<IndiceDaVitrine/)` pega
+    // apagar o elemento e não pega neutralizá-lo (`{false && …}`), embrulhá-lo
+    // num `<div className="hidden">` — links no HTML, invisíveis para gente,
+    // que é a regra 6 quebrada ao contrário — nem movê-lo para dentro do
+    // `fallback` do `<Suspense>`, onde ele sumiria da árvore do cliente.
+    //
+    // Exigir que ele venha logo depois do `>` que fecha a abertura do `<nav>`
+    // mata os três de uma vez. Precedente no repo: `rodape-e-imagens.test.ts`
+    // ancora `<GradeDeVeiculos` entre `fallback={` e `<Catalogo`.
+    //
+    // O `{}` opcional é o comentário JSX que `lerCodigo` esvazia mas não
+    // remove — `{/* … */}` vira `{}`. Chaves VAZIAS, então `{false && …}` e
+    // qualquer outra condição continuam sem casar.
+    //
+    // `[^<]` e não `[\s\S]`: com o coringa largo, o `>` do próprio
+    // `<div className="hidden">` servia de âncora e o embrulho passava. Foi a
+    // única das 21 mutações que escapou na primeira rodada deste conserto.
+    expect(fonte).toMatch(
+      /aria-label="Índice do estoque"[^<]{0,200}>\s*(?:\{\}\s*)?<IndiceDaVitrine disponiveis=\{disponiveis\} \/>/,
+    );
   });
 
   it("a âncora do fallback só sai com pátio cheio", () => {
@@ -227,7 +339,7 @@ describe("o ponto de chamada do índice, em `/estoque`", () => {
     // guarda aqui, estoque zerado servia um botão de largura total dizendo
     // "VER TODO O ESTOQUE 0" que não levava a lugar nenhum.
     expect(fonte).toMatch(
-      /\{disponiveis\.length > 0 && \([\s\S]{0,200}href="#todos-os-veiculos"/,
+      /\{vitrineTemFichas\(disponiveis\) && \([\s\S]{0,200}href="#todos-os-veiculos"/,
     );
   });
 });

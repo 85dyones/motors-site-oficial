@@ -22,6 +22,7 @@ import {
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja } from "../../lib/schemaLoja";
 import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
+import { vitrineTemFichas } from "../../lib/vitrine";
 
 export const revalidate = 60;
 
@@ -187,7 +188,7 @@ export default async function EstoquePage() {
                   no `Catalogo` e em tela estreita quebra para uma segunda
                   linha — deslocamento pré-existente, que esta entrega reduz
                   (antes o `<aside>` inteiro também descia) mas não elimina. */}
-              {disponiveis.length > 0 && (
+              {vitrineTemFichas(disponiveis) && (
                 <a
                   href="#todos-os-veiculos"
                   className="mt-foco mt-4 flex w-full items-center justify-between border-2 border-mt-regua px-4 py-2.5 text-[11px] font-extrabold tracking-[.16em] text-mt-ink no-underline lg:hidden"

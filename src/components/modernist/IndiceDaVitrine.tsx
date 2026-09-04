@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Veiculo } from "../../types";
-import { indiceDaVitrine } from "../../lib/vitrine";
+import { indiceDaVitrine, vitrineTemFichas } from "../../lib/vitrine";
 
 /**
  * O índice de fichas, renderizado no servidor.
@@ -25,8 +25,9 @@ export default function IndiceDaVitrine({ disponiveis }: { disponiveis: Veiculo[
 
   // Cabeçalho seguido de nada é ruído para quem lê e landmark vazio para quem
   // usa leitor de tela. E a âncora que aponta para cá, no fallback do
-  // <Suspense>, é escondida pelo mesmo motivo — as duas seguem a mesma régua.
-  if (fichas.length === 0) return null;
+  // <Suspense>, é escondida pela MESMA função — não por um predicado paralelo
+  // que só concorda por coincidência.
+  if (!vitrineTemFichas(disponiveis)) return null;
 
   return (
     // `scroll-mt-24` porque o header é `sticky top-0`: sem a folga, a âncora
