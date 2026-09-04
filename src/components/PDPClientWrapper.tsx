@@ -1210,25 +1210,32 @@ export default function PDPClientWrapper({
           </div>
           )}
 
-          {/* Perícia que ainda não foi aprovada: DIZ ISSO, em vez de calar.
+          {/* Laudo ainda não publicado: DIZ ISSO, em vez de calar.
               O bloco acima resolveu não afirmar laudo limpo sobre carro não
               periciado — certo, e continua. Mas o silêncio criou outro
               problema: em 2026-09-03, dezessete dos trinta e seis veículos
-              publicados estavam "EM ANÁLISE", e nas fichas deles a perícia
-              simplesmente não existia, enquanto a FAQ da mesma página
-              prometia "o laudo fica na ficha do carro". Quem procurava não
-              achava e não sabia por quê.
-              Estado real é mais honesto que ausência, e não afirma nada sobre
-              o resultado — que é justamente o que ainda não se sabe. */}
+              publicados não tinham a perícia marcada como aprovada, e nas
+              fichas deles o assunto simplesmente não existia, enquanto a FAQ
+              da mesma página prometia "o laudo fica na ficha do carro". Quem
+              procurava não achava e não sabia por quê.
+
+              ⚠️ O TEXTO FALA DO LAUDO, NÃO DA PERÍCIA. A primeira versão dizia
+              "perícia cautelar em andamento", e estava errada: a perícia É
+              feita antes de o veículo entrar na vitrine (confirmado pelo dono
+              em 2026-09-04) — o que falta é o RESULTADO chegar, porque o sync
+              do RevendaMais não traz o campo. Afirmar "em andamento" sobre um
+              exame já concluído é o mesmo erro do bloco acima, invertido:
+              inventar estado de processo a partir de ausência de dado. */}
           {!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && (
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border p-5 max-sm:p-4 print-avoid-break">
               <p className="uppercase tracking-widest text-sm max-sm:text-xs font-black text-brand-text">
-                Perícia cautelar em andamento
+                Laudo cautelar
               </p>
               <p className="mt-2 text-sm text-brand-text/70">
-                Este veículo passa por perícia cautelar independente — estrutura, chassi e
-                histórico de sinistro. O laudo é publicado aqui na ficha assim que aprovado.
+                Este veículo passa por perícia cautelar independente antes de entrar na vitrine —
+                estrutura, chassi e histórico de sinistro. O laudo é publicado aqui na ficha assim
+                que aprovado.
               </p>
             </div>
           </div>

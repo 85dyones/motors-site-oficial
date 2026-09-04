@@ -136,7 +136,7 @@ export const TEXTO_DE_GARANTIA: string[] = [
     "fora está no termo que acompanha a venda: leia antes de assinar, e pergunte o que não " +
     "estiver claro. Se um vendedor não deixa você ler o termo com calma, o problema não é o termo.",
   "O que faz diferença de verdade, porém, acontece antes da garantia. Todo veículo passa por " +
-    "perícia cautelar independente — estrutura, chassi e histórico de sinistro auditados por " +
+    "perícia cautelar independente antes de entrar na vitrine — estrutura, chassi e histórico de sinistro auditados por " +
     "laboratório credenciado — e o laudo fica publicado na ficha do carro assim que é aprovado, " +
     "não guardado numa gaveta para mostrar depois da proposta. De cada dez veículos avaliados, " +
     "três entram no estoque. Os outros sete vão para repasse.",
@@ -171,7 +171,7 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        com a perícia APROVADA, e parte da vitrine está em análise a qualquer
        momento. "Assim que a perícia é aprovada" descreve o que o site faz. */
     resposta:
-      "Todos, sem exceção. A perícia é feita por empresa independente e o laudo fica na ficha " +
+      "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente e o laudo fica na ficha " +
       "do veículo, no site, assim que é aprovada — dá para ler antes de vir à loja.",
   },
   {

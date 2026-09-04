@@ -84,7 +84,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Todos os carros têm laudo de perícia cautelar?",
         resposta:
-          "Sim. A perícia é independente. O laudo de cada unidade fica disponível na ficha do " +
+          "Sim. A perícia é independente e acontece antes do veículo entrar na vitrine. O laudo de cada unidade fica disponível na ficha do " +
           "carro, no site, assim que é aprovado.",
       },
       {
