@@ -1,6 +1,6 @@
 # Motors Store - Portal Oficial de Seminovos e Veículos
 
-> Portal premium de venda, compra, troca e avaliação de veículos seminovos e novos. Fichas técnicas completas com laudos de perícia cautelar aprovados 100%.
+> Revenda de seminovos selecionados em Curitiba: de cada dez veículos avaliados, três entram no estoque. Compra, troca e avaliação. Perícia cautelar independente, com o laudo publicado na ficha assim que é aprovado.
 
 ## Páginas e Rotas Principais
 - Home / Catálogo: `/` (Apresenta carrossel principal, ofertas em destaque, marcas/modelos e console de filtros rápidos e avançados)

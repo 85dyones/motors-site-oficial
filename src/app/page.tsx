@@ -78,7 +78,7 @@ export async function generateMetadata(): Promise<Metadata> {
       pagina: "home",
       tituloPadrao: tabTitle || "Motors Store | Seminovos Selecionados em Curitiba",
       descricaoPadrao:
-        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha e preço no anúncio.",
+        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha assim que aprovado, preço no anúncio.",
       caminho: "/",
     }),
   };

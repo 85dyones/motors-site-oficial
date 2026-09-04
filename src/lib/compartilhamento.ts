@@ -61,7 +61,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "",
     tituloPadrao: "Motors Store | Seminovos Selecionados em Curitiba",
     descricaoPadrao:
-      "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha e preço no anúncio.",
+      "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha assim que aprovado, preço no anúncio.",
   },
   {
     id: "estoque",
@@ -70,7 +70,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Estoque",
     tituloPadrao: "Seminovos selecionados em Curitiba",
     descricaoPadrao:
-      "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine. O laudo fica na ficha.",
+      "Todo veículo passa por perícia cautelar independente. O laudo fica na ficha assim que aprovado.",
   },
   {
     id: "avaliacao",
@@ -115,7 +115,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Destaque",
     tituloPadrao: "Seleção de destaque em Curitiba",
     descricaoPadrao:
-      "Um recorte do estoque que passou pela perícia cautelar independente. Procedência e laudo na ficha de cada carro.",
+      "Um recorte do estoque que passou pela perícia cautelar independente. Procedência na ficha, e o laudo assim que a perícia é aprovada.",
   },
   {
     id: "privacidade",

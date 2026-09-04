@@ -1,5 +1,10 @@
 import { MetadataRoute } from "next";
-import { getCarimbosDeConteudo, getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
+import {
+  getCarimbosDeConteudo,
+  getEstoque,
+  getUltimasPresencas,
+  getVeiculoPdpUrl,
+} from "../lib/supabase";
 import { decidirPublicacao, getDatasDeVenda } from "../lib/publicacao";
 import { getCachedSettings } from "../lib/settings";
 import {
@@ -69,9 +74,10 @@ const ATUALIZACAO_INSTITUCIONAL = new Date("2026-08-15T00:00:00Z");
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // As leituras que alimentam o `lastmod`, a carência e as páginas perenes.
   // Independentes entre si, então vão juntas.
-  const [carimbos, datasDeVenda, destaques, recortes] = await Promise.all([
+  const [carimbos, datasDeVenda, ultimasPresencas, destaques, recortes] = await Promise.all([
     getCarimbosDeConteudo(),
     getDatasDeVenda(),
+    getUltimasPresencas(),
     destaquesParaSitemap(),
     recortesDoEstoque(),
   ]);
@@ -203,10 +209,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // `foraDoFeed: false` não é atalho: `getEstoque()` já descartou quem não
       // veio no último ciclo, então tudo que chega aqui está no feed. O que
       // ainda pode sair do índice é o carro vendido há mais que a carência.
+      //
+      // `ultimaPresenca` entrou em 2026-09-04 e é o que faz este relógio ser o
+      // MESMO da ficha. Sem ela, `decidirPublicacao` só via `dataVenda` — que
+      // durante todo o período em que `veiculos_vendidos` esteve vazia era
+      // `undefined` para todo mundo. O `noindex` daqui nunca virava `true`, e
+      // a URL seguiria listada mesmo depois de a página começar a responder
+      // 308. Sitemap que anuncia redirecionamento é sinal contraditório.
       const publicacao = decidirPublicacao({
         vendido: veiculo.vendido,
         foraDoFeed: false,
         dataVenda: datasDeVenda[String(veiculo.id)],
+        ultimaPresenca: ultimasPresencas[String(veiculo.id)],
       });
       if (publicacao.noindex) continue;
 

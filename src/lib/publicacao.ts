@@ -72,9 +72,15 @@ export type SinaisDoVeiculo = {
    */
   ultimaPresenca?: string | null;
   /**
-   * `veiculos_vendidos.data_venda`. Só existe para venda fechada pela tela do
-   * Ciclo, que é de 2026-08-14 — carro marcado `vendido` direto no painel não
-   * tem essa data, e é por isso que existe o proxy acima.
+   * Quando a loja disse que este carro saiu.
+   *
+   * Duas origens, resolvidas em `getDatasDeVenda`: `veiculos_vendidos.data_venda`
+   * (venda fechada pela tela do Ciclo, de 2026-08-14) e, desde 2026-09-04, o
+   * carimbo do `historico_veiculo` quando alguém marca `vendido` no painel.
+   *
+   * Antes só a primeira existia, e ela cobria quase nada — a tabela do Ciclo
+   * tinha zero linhas. Toda a carência dependia do proxy acima, que o sync
+   * reinicia a cada seis horas para o carro que segue no feed.
    */
   dataVenda?: string | null;
 };
@@ -162,16 +168,114 @@ export function decidirPublicacao(sinais: SinaisDoVeiculo, agora: Date = new Dat
 }
 
 /**
- * `estoque_id -> data_venda` das vendas fechadas pelo Ciclo.
+ * A fusão das duas fontes de data de venda — pura, e por isso testável.
  *
- * Lê com a chave de SERVIÇO por necessidade, não por conveniência:
+ * Estava embutida em `getDatasDeVenda`, que é cacheada e fala com o Supabase:
+ * o único teste possível era procurar strings no arquivo, e um teste desses
+ * não percebe quando a REGRA muda. Foi assim que a precedência errada
+ * (Ciclo > painel) passou pela primeira revisão.
+ *
+ * Duas decisões vivem aqui:
+ *
+ * 1. **A mais recente vence**, venha de que fonte vier. Já foi "o Ciclo vence
+ *    o painel", e o contraexemplo é o Bloco B do próprio programa: carro
+ *    vendido pelo Ciclo em janeiro, RECOMPRADO, de volta à vitrine, revendido
+ *    pelo painel em setembro. Com precedência por fonte, janeiro venceria — e
+ *    a ficha nasceria com a carência vencida, virando 308 no mesmo dia da
+ *    segunda venda. Hoje `veiculos_vendidos` está vazia e isso não morde;
+ *    morde quando o Ciclo entrar em operação.
+ *
+ * 2. **Do histórico, só quem terminou marcado.** Interessa a ÚLTIMA mudança da
+ *    chave, não a última vez que ela foi ligada: o carro marcado vendido e
+ *    depois DESMARCADO está à venda de novo, e a data antiga não pode
+ *    sobreviver a isso. Se ela sobrevivesse e já passasse dos 90 dias, a ficha
+ *    viva responderia 308 para o hub no instante da remarcação.
+ *
+ * O `"true"` é contrato de formato com `estoqueEscrita.ts`, que serializa com
+ * `String(novo)`. Acoplamento por string entre módulos — travado em
+ * `tests/ficha-vendida.test.ts`, que é o que faz o rompimento aparecer no CI
+ * em vez de aparecer no índice do Google três meses depois.
+ */
+export function resolverDatasDeVenda(
+  vendasDoCiclo: Array<{ estoque_id?: unknown; data_venda?: unknown }>,
+  mudancasNoPainel: Array<{ veiculo_id?: unknown; valor_novo?: unknown; registrado_em?: unknown }>
+): Record<string, string> {
+  const maisRecente: Record<string, string> = {};
+  const considerar = (id: unknown, data: unknown) => {
+    if (id == null || typeof data !== "string" || !data) return;
+    const chave = String(id);
+    if (!maisRecente[chave] || data > maisRecente[chave]) maisRecente[chave] = data;
+  };
+
+  const ultimaMudanca: Record<string, { data: string; valor: string }> = {};
+  for (const linha of mudancasNoPainel) {
+    const id = linha.veiculo_id;
+    const data = linha.registrado_em;
+    if (id == null || typeof data !== "string" || !data) continue;
+    const chave = String(id);
+    if (!ultimaMudanca[chave] || data > ultimaMudanca[chave].data) {
+      ultimaMudanca[chave] = { data, valor: String(linha.valor_novo) };
+    }
+  }
+  for (const [id, ultima] of Object.entries(ultimaMudanca)) {
+    if (ultima.valor === "true") considerar(id, ultima.data);
+  }
+
+  for (const linha of vendasDoCiclo) {
+    considerar(linha.estoque_id, linha.data_venda);
+  }
+
+  return maisRecente;
+}
+
+/**
+ * `estoque_id -> data da venda`, de DUAS fontes.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que duas
+ * ---------------------------------------------------------------------------
+ * `veiculos_vendidos` é o registro de venda do CICLO: exige `cliente_id`,
+ * `chassi`, `placa`, `km_na_venda` e `valor_venda`. É a venda formalizada, com
+ * gente e contrato. O painel, quando alguém marca "vendido" na tela de
+ * estoque, não tem nada disso — e por isso nunca escreveu ali. Em 2026-09-03 a
+ * tabela tinha zero linhas, e a carência do vendido dependia inteiramente do
+ * proxy `last_seen_at`.
+ *
+ * O proxy funciona para quem SAI do feed: o carimbo congela e o relógio corre.
+ * Mas o carro vendido na loja que segue anunciado no RevendaMais é
+ * re-carimbado a cada ciclo do sync, quatro vezes por dia — e para ele a
+ * carência nunca começa. Caso real: o Chevrolet Spin `8100626`, marcado
+ * vendido no site e presente no feed de 03/09.
+ *
+ * A segunda fonte existe para isso, sem tabela nova e sem coluna nova: o
+ * painel JÁ registra toda mudança de campo em `historico_veiculo`
+ * (`estoqueEscrita.ts`), então a virada de `vendido` para `true` deixa data e
+ * hora. Era um dado que existia e ninguém lia.
+ *
+ * ⚠️ O QUE ELA NÃO RESOLVE, e é preciso dizer com todas as letras: ela vale da
+ * data em que passou a ser lida para a frente. Em 2026-09-04 o histórico tinha
+ * DUAS linhas de `vendido`, cobrindo 1 dos 24 vendidos publicados — e nenhuma
+ * delas é a do Spin, que não tem linha nenhuma em campo nenhum. Os outros 23
+ * foram marcados por caminhos que não passaram por `aplicarNosVeiculos`
+ * (reconciliação por SQL, sync antigo), e para eles continua valendo só o
+ * `last_seen_at`. Dar data ao passado é backfill, e backfill é decisão do
+ * dono, não efeito colateral desta função.
+ *
+ * A ocorrência MAIS RECENTE vence, venha de onde vier — ver o comentário no
+ * corpo, e o contraexemplo de recompra que derrubou a precedência por fonte.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a chave de serviço
+ * ---------------------------------------------------------------------------
  * `veiculos_vendidos` tem RLS `for select to authenticated` restrita ao próprio
  * cliente (migração 20260813150000). Com a anon key o retorno é uma lista
  * vazia e `error` nulo — RLS não devolve erro, devolve vazio —, e a carência
  * cairia silenciosamente no proxy para todo mundo, para sempre.
  *
- * Só `estoque_id` e `data_venda` saem da tabela. O resto dela é PII de cliente
- * e contrato, e isto aqui roda no caminho de renderização de página pública.
+ * Só `estoque_id` e `data_venda` saem de `veiculos_vendidos`, e só
+ * `veiculo_id` e `registrado_em` do histórico. O resto das duas é PII de
+ * cliente, contrato e autoria, e isto roda no caminho de renderização de
+ * página pública.
  */
 export const getDatasDeVenda = unstable_cache(
   async (): Promise<Record<string, string>> => {
@@ -193,24 +297,43 @@ export const getDatasDeVenda = unstable_cache(
       const client = createClient(url, chave, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
-      const { data, error } = await client
-        .from("veiculos_vendidos")
-        .select("estoque_id, data_venda");
+      /* As duas leituras são independentes: vão juntas, e uma que falhe não
+         leva a outra. Perder o histórico e ficar só com o Ciclo é pior do que
+         hoje, mas não é o fim — o `last_seen_at` continua atrás das duas. */
+      const [vendasDoCiclo, mudancasNoPainel] = await Promise.all([
+        client.from("veiculos_vendidos").select("estoque_id, data_venda"),
+        /* Sem filtrar por `valor_novo`: é preciso ver a ÚLTIMA mudança da
+           chave, não a última vez que ela foi ligada. Filtrando só as
+           `"true"`, um carro marcado vendido e depois DESMARCADO — voltou à
+           vitrine — guardaria a data antiga; se ela já passasse dos 90 dias,
+           a ficha viva responderia 308 para o hub no instante da remarcação. */
+        client
+          .from("historico_veiculo")
+          .select("veiculo_id, valor_novo, registrado_em")
+          .eq("campo", "vendido"),
+      ]);
 
-      if (error || !data) {
-        console.warn("[Publicação] Falha ao ler datas de venda:", error?.message);
+      if (vendasDoCiclo.error && mudancasNoPainel.error) {
+        console.warn(
+          "[Publicação] Falha ao ler datas de venda nas duas fontes:",
+          vendasDoCiclo.error?.message,
+          mudancasNoPainel.error?.message
+        );
         return {};
       }
 
-      const mapa: Record<string, string> = {};
-      for (const linha of data) {
-        if (linha.estoque_id == null || !linha.data_venda) continue;
-        const id = String(linha.estoque_id);
-        // Um veículo pode ter mais de uma venda no histórico (recompra). A mais
-        // recente é a que define a carência.
-        if (!mapa[id] || linha.data_venda > mapa[id]) mapa[id] = linha.data_venda;
+      if (mudancasNoPainel.error) {
+        console.warn(
+          "[Publicação] Sem o histórico do painel (%s) — a carência de quem " +
+            "segue no feed vai depender só de last_seen_at.",
+          mudancasNoPainel.error.message
+        );
       }
-      return mapa;
+      if (vendasDoCiclo.error) {
+        console.warn("[Publicação] Sem as vendas do Ciclo:", vendasDoCiclo.error.message);
+      }
+
+      return resolverDatasDeVenda(vendasDoCiclo.data ?? [], mudancasNoPainel.data ?? []);
     } catch (err) {
       console.warn("[Publicação] Erro inesperado ao ler datas de venda:", err);
       return {};

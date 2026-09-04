@@ -259,8 +259,17 @@ describe("página do veículo", () => {
     // P3 da RECOMENDACAO_SEO (2026-08-19). Medido em produção antes: o X4
     // ocupava os 60 caracteres do Google só com a repetição, e preço e nome
     // da loja nunca apareciam no resultado.
-    expect(pdp).toContain("title: `${nomeDoVeiculo} - ${priceText} | Motors Store`");
+    /* Desde 2026-09-04 o formato do título mora em `lib/tituloDaFicha.ts` —
+       o carro indisponível não anuncia preço, e essa decisão precisava ser
+       chamável para ser testável (ver `tests/ficha-vendida.test.ts`).
+       O que este caso trava continua sendo o mesmo: o que a ficha ENTREGA ao
+       título é o nome deduplicado, e não a marca+modelo+versão somadas. */
+    expect(pdp).toContain("nome: nomeDoVeiculo");
+    expect(pdp).toContain("title: textos.titulo");
     expect(pdp).not.toContain("${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} - ${priceText}");
+
+    const titulo = ler("src", "lib", "tituloDaFicha.ts");
+    expect(titulo).toContain("`${nome} - ${precoTexto} | Motors Store`");
   });
 });
 
