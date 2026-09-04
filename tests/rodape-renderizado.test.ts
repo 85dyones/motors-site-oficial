@@ -100,6 +100,20 @@ describe("o rodapé entrega links, não parágrafos", () => {
 
   it("o link do endereço se anuncia para quem não vê a coluna", async () => {
     const html = await rodape();
-    expect(html).toMatch(/aria-label="[^"]*Google Maps[^"]*"/);
+
+    // Amarrado à âncora CERTA, não a "existe um aria-label com Google Maps em
+    // algum lugar do rodapé": mover o rótulo para outro elemento passaria.
+    const ancora = html.match(
+      new RegExp(`<a[^>]*href="${PERFIL_NO_GOOGLE.replace(/[?]/g, "\\?")}"[^>]*>`),
+    );
+    expect(ancora).not.toBeNull();
+    expect(ancora?.[0]).toMatch(/aria-label="[^"]*Google Maps[^"]*"/);
+    // WCAG 2.5.3: o nome acessível precisa conter o texto visível.
+    expect(ancora?.[0]).toContain("Rua Ernesto Piazzetta");
+  });
+
+  it("o Instagram é o décimo link, e é o Instagram", async () => {
+    // A contagem sozinha não o distingue: trocá-lo pelo Facebook passava.
+    expect(await ancoras()).toContain(EMPRESA.instagram);
   });
 });
