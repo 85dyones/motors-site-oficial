@@ -324,6 +324,15 @@ export default function Catalogo({
         >
           <div className="flex items-baseline justify-between border-b-2 border-mt-regua pb-3.5 pt-5">
             <span className="text-[11px] font-extrabold tracking-[.16em]">FILTROS</span>
+            {/* `limparTudo` cru, e não `limparTudoSemPerderOFoco`: este botão
+                tem o MESMO defeito de foco que os dois handlers acima
+                corrigem — some do DOM ao ser acionado e larga o foco no
+                `<body>`. Não foi corrigido junto de propósito: ele aparece
+                também no desktop, onde `botaoDoFiltro` é `display:none` e
+                `.focus()` nele é no-op silencioso. Precisa de outro alvo, e
+                isso é decisão de design, não cópia. Tarefa aberta em
+                2026-09-04; vale igual para o "VER TODO O ESTOQUE" do estado
+                vazio, mais abaixo. */}
             {chipsAtivos.length > 0 && (
               <button
                 type="button"
@@ -410,7 +419,7 @@ export default function Catalogo({
           <button
             type="button"
             onClick={fecharFiltro}
-            className="mt-btn mt-btn-tinta mt-foco w-full lg:hidden"
+            className={`mt-btn mt-btn-tinta mt-foco w-full ${filtro.classeDoBotao}`}
           >
             VER {totalFiltrado} {totalFiltrado === 1 ? "VEÍCULO" : "VEÍCULOS"}
           </button>
@@ -479,6 +488,10 @@ export default function Catalogo({
               <p className="m-0 text-[17px] font-extrabold">
                 Nenhum veículo com essa combinação de filtros.
               </p>
+              {/* Mesmo caso do `LIMPAR (N)` lá em cima: `limparTudo` cru
+                  desmonta este bloco inteiro e o foco cai no `<body>`. Adiado
+                  pelo mesmo motivo — aparece no desktop, onde o alternador do
+                  filtro não existe para receber o foco. */}
               <button
                 type="button"
                 onClick={limparTudo}

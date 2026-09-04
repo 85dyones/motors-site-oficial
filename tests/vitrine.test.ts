@@ -153,6 +153,16 @@ describe("o índice servido cobre o estoque inteiro", () => {
     expect(html).not.toMatch(/nofollow/i);
     expect(html).not.toMatch(/\brel=/);
   });
+
+  it("o bloco é visível — link no HTML e invisível para gente não conta", () => {
+    // A asserção posicional na página cobre embrulhar o componente por fora.
+    // Isto cobre o lado de dentro: um `hidden` na classe da própria `<section>`
+    // deixa os 36 links no HTML e some com eles para quem enxerga. É a regra 6
+    // quebrada ao contrário, e o teste tem a marcação na mão — só não olhava.
+    expect(
+      renderToStaticMarkup(createElement(IndiceDaVitrine, { disponiveis: PATIO })),
+    ).not.toMatch(/\bhidden\b/);
+  });
 });
 
 describe("a função pura por trás do índice", () => {
@@ -264,17 +274,25 @@ describe("o ponto de chamada do painel de filtro", () => {
     expect(fonte).toMatch(/<aside[\s\S]{0,200}\$\{filtro\.classe\}/);
   });
 
-  it("a visibilidade dos DOIS controles de celular vem da função", () => {
+  it("a visibilidade dos TRÊS controles de celular vem da função", () => {
     // Com `lg:hidden` solto na marcação, trocá-lo por `hidden` some com o
-    // único caminho para abrir o filtro no celular — e nada mais quebra.
-    // Ancorado em cada botão: um `toContain` solto passaria com um dos dois
-    // reescrito à mão.
-    expect(fonte).toMatch(
+    // controle e nada mais quebra — no alternador isso deixa o filtro
+    // inacessível no celular. Ancorado em cada botão: um `toContain` solto
+    // passaria com qualquer um deles reescrito à mão.
+    //
+    // Eram dois na segunda rodada da revisão de 04/09, e a saída "VER N
+    // VEÍCULOS" de dentro do painel era o terceiro `lg:hidden` escrito à mão
+    // que ninguém tinha contado. O trio virou quarteto.
+    for (const ancora of [
       /aria-controls="painel-de-filtros"[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
-    );
-    expect(fonte).toMatch(
       /onClick=\{limparTudoSemPerderOFoco\}[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
-    );
+      /onClick=\{fecharFiltro\}[\s\S]{0,200}\$\{filtro\.classeDoBotao\}/,
+    ]) {
+      expect(fonte).toMatch(ancora);
+    }
+
+    // E nenhum `lg:hidden` sobrou solto: sobrar é o convite para o próximo.
+    expect(fonte).not.toContain("lg:hidden");
   });
 
   it("o disclosure anuncia o próprio estado, e aponta para o painel certo", () => {
@@ -302,9 +320,24 @@ describe("o ponto de chamada do painel de filtro", () => {
   it("fechar pelo botão de dentro devolve o foco ao alternador", () => {
     // O botão de fechar vive dentro do `<aside>` que ele esconde: sem isso o
     // foco cai no `<body>` e o Tab seguinte recomeça do topo (WCAG 2.4.3).
-    expect(fonte).toContain("botaoDoFiltro.current?.focus()");
     expect(fonte).toMatch(/onClick=\{fecharFiltro\}/);
     expect(fonte).toMatch(/ref=\{botaoDoFiltro\}/);
+  });
+
+  it("cada handler de foco tem o `focus()` DENTRO dele", () => {
+    // A versão anterior era um `toContain("botaoDoFiltro.current?.focus()")`
+    // sem âncora — e a string está nas duas funções. Dava para apagar o
+    // `focus()` de QUALQUER uma das duas correções de acessibilidade deste PR
+    // que a outra segurava o teste, com os 1887 verdes. Achado na terceira
+    // rodada da revisão de 2026-09-04.
+    //
+    // É o mesmo raciocínio que já valia para `classeDoBotao` logo acima:
+    // travar quem chama não é travar o que a função faz.
+    for (const handler of ["fecharFiltro", "limparTudoSemPerderOFoco"]) {
+      expect(fonte).toMatch(
+        new RegExp(`const ${handler} = \\(\\) => \\{[^}]*botaoDoFiltro\\.current\\?\\.focus\\(\\)`),
+      );
+    }
   });
 });
 
@@ -332,6 +365,11 @@ describe("o ponto de chamada do índice, em `/estoque`", () => {
     expect(fonte).toMatch(
       /aria-label="Índice do estoque"[^<]{0,200}>\s*(?:\{\}\s*)?<IndiceDaVitrine disponiveis=\{disponiveis\} \/>/,
     );
+
+    // E o `<nav>` que o abriga não pode esconder o conjunto: `[^<]` atravessa
+    // os atributos dele sem tropeçar, então mover o `hidden` para lá passava
+    // pela âncora acima levando junto os hubs de marca e carroceria.
+    expect(fonte).not.toMatch(/aria-label="Índice do estoque"[^<]{0,200}\bhidden\b/);
   });
 
   it("a âncora do fallback só sai com pátio cheio", () => {
