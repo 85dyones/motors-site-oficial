@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { QuickTag, StockOverrides, Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import {
@@ -10,7 +11,7 @@ import {
   resolveTipoCombustivel,
 } from "../../lib/regrasEstoque";
 import { slugifyTag } from "../../lib/tagUtils";
-import { mostrarLimparTudo, painelDeFiltro } from "../../lib/vitrine";
+import { mostrarLimparTudo, painelDeFiltro, rotuloDosResultados } from "../../lib/vitrine";
 import { CardVeiculo, formatarPreco } from "./primitivos";
 
 /**
@@ -124,9 +125,17 @@ export default function Catalogo({
    * O destino é a grade, que existe nas duas larguras e é o que acabou de
    * mudar: nomeada como região, ela também anuncia o estoque de volta para
    * quem usa leitor de tela, em vez de só não perder o foco.
+   *
+   * `flushSync` e não `limparTudo()` solto. O React agenda o estado e devolve o
+   * controle ANTES de repintar, então o `.focus()` da linha seguinte
+   * aconteceria com a região ainda carregando o nome velho — e o nome é lido no
+   * instante do foco, não depois. Sem o despacho, quem limpa a partir do estado
+   * vazio ouve "Resultados: 0 veículos" no exato momento em que os 36 voltaram
+   * para a tela. É o único lugar do arquivo que precisa da pintura síncrona, e
+   * é porque aqui o foco e o texto têm que chegar juntos.
    */
   const limparTudoComFocoNosResultados = () => {
-    limparTudo();
+    flushSync(() => limparTudo());
     regiaoDeResultados.current?.focus();
   };
 
@@ -452,7 +461,7 @@ export default function Catalogo({
           ref={regiaoDeResultados}
           tabIndex={-1}
           role="region"
-          aria-label="Resultados"
+          aria-label={rotuloDosResultados(totalFiltrado)}
           className="mt-foco min-w-0 flex-1 px-[18px] pb-16 pt-6 lg:px-10 lg:pb-[70px]"
         >
           {chipsAtivos.length > 0 && (

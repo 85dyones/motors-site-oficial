@@ -10,6 +10,7 @@ import {
   indiceDaVitrine,
   mostrarLimparTudo,
   painelDeFiltro,
+  rotuloDosResultados,
   vitrineTemFichas,
 } from "../src/lib/vitrine";
 import IndiceDaVitrine from "../src/components/modernist/IndiceDaVitrine";
@@ -308,6 +309,26 @@ describe("o ponto de chamada do painel de filtro", () => {
   });
 });
 
+describe("o nome acessível da região de resultados", () => {
+  // Função pura, então testada por COMPORTAMENTO — asserção de fonte é a
+  // segunda escolha deste arquivo, e aqui ela não é necessária.
+  it("diz quantos veículos sobraram, que é o que mudou", () => {
+    expect(rotuloDosResultados(36)).toBe("Resultados: 36 veículos");
+    expect(rotuloDosResultados(0)).toBe("Resultados: 0 veículos");
+  });
+
+  it("um veículo no singular — `1 veículos` é a saída errada mais provável", () => {
+    expect(rotuloDosResultados(1)).toBe("Resultados: 1 veículo");
+  });
+
+  it("o número entra sempre — nome fixo não anuncia mudança nenhuma", () => {
+    // A razão de a função existir: `aria-label="Resultados"` é um nome que
+    // nunca muda, e o leitor de tela leria a mesma frase depois de limpar.
+    const nomes = [0, 1, 9, 36].map(rotuloDosResultados);
+    expect(new Set(nomes).size).toBe(nomes.length);
+  });
+});
+
 /**
  * Guardas do foco dos dois botões que apagam a si mesmos.
  *
@@ -349,7 +370,7 @@ describe("limpar tudo não larga o foco no `<body>` — em nenhuma largura", () 
     // `[^}]*` não escapa do corpo da função — as duas chamadas têm que estar
     // DENTRO dele, não soltas em qualquer ponto do arquivo.
     expect(fonte).toMatch(
-      /const limparTudoComFocoNosResultados = \(\) => \{[^}]*limparTudo\(\);[^}]*regiaoDeResultados\.current\?\.focus\(\);[^}]*\}/,
+      /const limparTudoComFocoNosResultados = \(\) => \{[^}]*limparTudo\(\)[^}]*regiaoDeResultados\.current\?\.focus\(\);[^}]*\}/,
     );
   });
 
@@ -393,7 +414,22 @@ describe("limpar tudo não larga o foco no `<body>` — em nenhuma largura", () 
     // resultado novo. Sem eles o foco chega num elemento mudo — o `<body>`
     // com etapas a mais.
     expect(alvoDeFoco).toMatch(/role="region"/);
-    expect(alvoDeFoco).toMatch(/aria-label="[^"]+"/);
+    // E o nome é EXPRESSÃO, não literal: um `aria-label="Resultados"` fixo
+    // passaria num `toMatch(/aria-label=/)` solto sem anunciar contagem
+    // nenhuma — que é exatamente o buraco que este bloco fecha.
+    expect(alvoDeFoco).toContain("aria-label={rotuloDosResultados(totalFiltrado)}");
+  });
+
+  it("a contagem chega à tela ANTES do foco — senão o lido é o número velho", () => {
+    // O React agenda o estado e devolve o controle sem repintar, então o
+    // `.focus()` da linha seguinte acontece com o `aria-label` ainda no valor
+    // antigo — e é NO INSTANTE DO FOCO que o leitor de tela lê o nome. Sem o
+    // despacho síncrono, quem limpa a partir do estado vazio ouve "0 veículos"
+    // no exato momento em que 36 voltaram para a tela.
+    expect(fonte).toContain('import { flushSync } from "react-dom"');
+    expect(fonte).toMatch(
+      /const limparTudoComFocoNosResultados = \(\) => \{[^}]*flushSync\([^}]*limparTudo\(\)[^}]*regiaoDeResultados\.current\?\.focus\(\)/,
+    );
   });
 });
 
