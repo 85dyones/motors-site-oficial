@@ -111,20 +111,32 @@ describe("a ficha diz o estado real da perícia", () => {
     expect(pdp).toContain('veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA"');
   });
 
-  it("quando NÃO está aprovada, a ficha fala — em vez de ficar muda", () => {
+  it("quando o laudo NÃO está publicado, a ficha fala — em vez de ficar muda", () => {
     /* O silêncio era o outro lado do mesmo problema: a FAQ da mesma página
        prometia o laudo, e a ficha não explicava a ausência. */
     expect(pdp).toContain('!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA")');
-    expect(pdp).toContain("Perícia cautelar em andamento");
+    expect(pdp).toContain("Laudo cautelar");
   });
 
-  it("o texto do estado pendente NÃO afirma resultado", () => {
-    // "Em andamento" descreve o processo. Qualquer palavra sobre o resultado
-    // seria inventar o que ainda não se sabe — o mesmo erro, do outro lado.
-    const i = pdp.indexOf("Perícia cautelar em andamento");
-    const bloco = pdp.slice(i, i + 420);
-    expect(bloco).not.toMatch(/aprovad[oa]\b(?!\s*\.|\s*<)/i);
-    expect(bloco).not.toMatch(/sem apontamento|livre de sinistro|impecável/i);
+  it("o texto fala do LAUDO, e não inventa estado da perícia", () => {
+    /* A primeira versão dizia "perícia cautelar em andamento", e estava
+       errada: a perícia É feita antes de o veículo entrar na vitrine
+       (confirmado pelo dono em 2026-09-04) — o que falta é o resultado
+       chegar, porque o sync do RevendaMais não traz o campo.
+       Afirmar "em andamento" sobre exame já concluído é inventar processo a
+       partir de ausência de dado — o mesmo erro do bloco do laudo aprovado,
+       invertido. */
+    const i = pdp.indexOf("                Laudo cautelar");
+    expect(i, "o bloco do laudo pendente sumiu").toBeGreaterThan(-1);
+    /* Janela pelo FIM do bloco e espaço NORMALIZADO. Medir em caracteres
+       apodrece a cada reflow, e o JSX quebra a frase no meio — "…assim\n
+       que aprovado" — então comparar com o texto cru falha por um espaço. */
+    const fim = pdp.indexOf("</div>", i);
+    const bloco = pdp.slice(i, fim > i ? fim + 6 : i + 700).replace(/\s+/g, " ");
+
+    expect(bloco, "voltou a afirmar estado de processo").not.toMatch(/em andamento|em análise/i);
+    // E continua sem afirmar RESULTADO, que é o que de fato não se sabe.
+    expect(bloco).not.toMatch(/sem apontamento|livre de sinistro|impecável|aprovada\b/i);
     expect(bloco).toContain("assim que aprovado");
   });
 });

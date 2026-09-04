@@ -423,7 +423,7 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
         "Pode valer, desde que o histórico acompanhe. Veículo de frota costuma ter manutenção " +
         "registrada e rodar mais quilômetro por ano que o de pessoa física — o que importa é se as " +
         "revisões seguiram a quilometragem. Todo veículo aqui passa por perícia cautelar " +
-        "independente, e o laudo fica na ficha assim que a perícia é aprovada.",
+        "independente antes de ser anunciado, e o laudo fica na ficha assim que aprovado.",
     },
   ],
 
@@ -559,7 +559,7 @@ export function perguntasDeCategoria(
          para metade da vitrine, uma coisa que a ficha não entregava — e é a
          resposta que um assistente de IA cita como se fosse a loja falando. */
       resposta:
-        "Sim. Todo veículo passa por perícia cautelar independente, e o laudo fica disponível " +
+        "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, e o laudo fica disponível " +
         "na ficha do carro assim que a perícia é aprovada. É o mesmo exame para qualquer faixa de preço.",
     },
     {
