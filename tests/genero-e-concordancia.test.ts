@@ -295,13 +295,84 @@ describe("o vocabulário do POSICIONAMENTO vale para o texto público", () => {
     "src/components/Footer.tsx",
     "src/components/modernist/HeroHome.tsx",
     "src/app/api/feed/xml/route.ts",
+    // Entraram em 04/09/2026, com a rodada que tirou "alto padrão" e as
+    // promessas de prazo. Todos conferidos limpos antes de entrar: o único
+    // "premium" que restava estava num comentário, e `lerCodigo` desconta
+    // comentários.
+    "src/app/avaliacao/page.tsx",
+    "src/app/financiamento/page.tsx",
+    "src/components/AutoAvaliacao.tsx",
+    "src/components/SobreClientWrapper.tsx",
+    "src/lib/paginasInstitucionais.ts",
   ];
 
   it.each(publicos)("%s não usa a coluna \"Evitar\"", (arquivo) => {
     const codigo = lerCodigo(arquivo);
     expect(codigo).not.toMatch(/premium/i);
+    // A meta de /sobre vendeu "veículos de alto padrão" até 04/09/2026. É a
+    // mesma promessa que "premium" com outras palavras: fala de faixa de preço
+    // onde o posicionamento fala de SELEÇÃO — e a vitrine vai de R$ 23.900 a
+    // R$ 318.900, o que desmente a frase na própria página.
+    expect(codigo).not.toMatch(/alto[- ]padrão/i);
     expect(codigo).not.toMatch(/procedência garantida/i);
     expect(codigo).not.toMatch(/melhores condições/i);
     expect(codigo).not.toMatch(/oferta exclusiva/i);
+  });
+});
+
+describe("nenhuma superfície pública promete prazo que ninguém mede", () => {
+  /**
+   * Auditoria de 04/09/2026, feita antes de ingerir as páginas no assistente
+   * do WhatsApp. A promessa não era falsa por si: era **afirmada sem medição**
+   * — "proposta em menos de 10 minutos" aparecia na home, na meta de
+   * /avaliacao, no card de compartilhamento e na própria tela, e ainda uma
+   * quinta vez como estatística ("10 min · RESPOSTA"). Nada no sistema mede
+   * esse tempo, e ninguém foi combinado para cumpri-lo.
+   *
+   * Um texto de página tem contexto ao redor que relativiza. O assistente
+   * repete a frase sozinha, no privado, para quem já mandou o carro — que é
+   * exatamente quando ela vira compromisso cobrável.
+   *
+   * A correção não foi trocar por outro número: foi dizer o que de fato
+   * acontece — um consultor retorna no WhatsApp.
+   */
+  const superficies = [
+    "src/app/page.tsx",
+    "src/app/avaliacao/page.tsx",
+    "src/app/financiamento/page.tsx",
+    "src/components/AutoAvaliacao.tsx",
+    "src/lib/compartilhamento.ts",
+  ];
+
+  it.each(superficies)("%s não crava prazo de resposta", (arquivo) => {
+    const codigo = lerCodigo(arquivo);
+    expect(codigo).not.toMatch(/em menos de \d+ ?min/i);
+    // A mesma promessa em forma de estatística — foi por onde ela sobreviveu à
+    // primeira leitura, porque não é uma frase. Casa o número RENDERIZADO
+    // (`>10 min<`) e o número em string: `\b\d+ ?min\b` casaria também com
+    // "py-10 min-h-[...]" de qualquer classe do Tailwind, e o teste morreria
+    // de causa alheia na primeira vez que alguém encostasse no layout.
+    expect(codigo).not.toMatch(/>\s*\d+\s*min/i);
+    expect(codigo).not.toMatch(/["'`]\s*\d+ ?min(utos)?/i);
+    expect(codigo).not.toMatch(/no mesmo dia/i);
+  });
+
+  it("a home continua dizendo por onde a resposta chega", () => {
+    // Guarda positiva: apagar a promessa e não pôr nada no lugar deixaria a
+    // seção sem próximo passo, e o negativo acima passaria igual.
+    const home = lerCodigo("src/app/page.tsx");
+    expect(home).toMatch(/consultor retorna no WhatsApp/);
+    expect(home).toMatch(/POR ONDE RESPONDEMOS/);
+  });
+
+  it("a garantia vale para quem compra de fora, e o texto diz até onde", () => {
+    // A resposta dizia "Atendemos Curitiba, a Região Metropolitana e
+    // compradores de fora do estado" — verdadeiro e menor que a operação. O
+    // dono confirmou em 04/09/2026 que a loja entrega no Brasil todo; o que é
+    // regional é a MÍDIA, não o serviço. `areaServed` do schema continua sendo
+    // o raio de competição, e é outra coisa (ver `schemaLoja.ts`).
+    const faq = lerCodigo("src/lib/paginasInstitucionais.ts");
+    expect(faq).toMatch(/entregamos para todo o Brasil/i);
+    expect(faq).not.toMatch(/Atendemos Curitiba, a Região Metropolitana/);
   });
 });
