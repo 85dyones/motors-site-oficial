@@ -50,28 +50,51 @@ export const PERFIS_EM_PORTAIS = [
 ];
 
 /**
- * O Perfil da Empresa no Google.
+ * O lugar da loja no Google — um identificador, duas URLs, dois usos.
  *
- * É a ficha que carrega as avaliações (4,8 de 170 em 2026-09-04) e que
- * responde no pacote local. Até aqui o site não a citava em lugar nenhum —
- * nem em `sameAs`, nem em `hasMap`, nem como link no endereço do rodapé — e
- * sem citação nenhuma o buscador não tem por onde juntar as duas coisas.
+ * A ficha do Perfil da Empresa é o que carrega as avaliações e responde no
+ * pacote local. Até 2026-09-04 o site não a citava em lugar nenhum: nem
+ * `sameAs`, nem `hasMap`, nem link no endereço do rodapé. Sem citação, o
+ * buscador não tem por onde juntar as duas coisas.
  *
  * ---------------------------------------------------------------------------
- * Por que esta forma de URL, e não outra
+ * De onde saíram os identificadores
  * ---------------------------------------------------------------------------
  * O dono mandou o link de compartilhamento (`share.google/…`), que redireciona
  * para uma URL de BUSCA com `kgmid=/g/11kc2q4gmp`. Nenhuma das duas serve:
  * encurtador é opaco e some sem aviso, e URL de busca não é a página da
- * entidade. `?cid=` é o endereço canônico e estável da ficha.
+ * entidade.
  *
- * O CID sai do `ftid` que o Maps publica na própria URL do lugar —
- * `0x94dce75dbdaa40bf:0x579b5ba0d1b9e4aa`, cuja segunda metade em decimal é o
- * número abaixo. Conferido em 2026-09-04 abrindo a URL: cai em "Motors Store",
- * Rua Ernesto Piazzetta 98, Bacacheri — o mesmo endereço que o site publica.
+ * O que serve sai do `ftid` que o Maps publica na URL do lugar,
+ * `0x94dce75dbdaa40bf:0x579b5ba0d1b9e4aa`:
  *
- * ⚠️ Duas divergências de NAP no perfil, medidas no mesmo dia. As duas são
- * tarefa da operação, não do código, e a segunda é grave:
+ *  - a segunda metade em decimal é o CID, `6312740048961397930`;
+ *  - o `place_id` abaixo decodifica (base64url) para as MESMAS duas metades em
+ *    little-endian — `bf40aabd5de7dc94` e `aae4b9d1a05b9b57`. Conferido, não
+ *    copiado: é o mesmo feature por dois caminhos.
+ *
+ * O Google documenta que `place_id` pode mudar; o `ftid`/CID não. Por isso a
+ * URL canônica da ficha usa `?cid=`, e o `place_id` fica para onde a API do
+ * Maps o exige. A forma `www.google.com/maps?cid=` responde 200 direto —
+ * `maps.google.com/?cid=` faz um salto de redirecionamento antes, e declarar o
+ * atalho em vez do endereço é o tipo de coisa que envelhece mal.
+ *
+ * ---------------------------------------------------------------------------
+ * Duas URLs do Maps no repositório, de propósito
+ * ---------------------------------------------------------------------------
+ * `components/LinkComoChegar.tsx` usa `maps/dir/?api=1&destination=…`, que é
+ * ROTA — leva de onde a pessoa está até aqui, abre o app no celular, e dispara
+ * `click_directions`. Isto aqui é o LUGAR — a ficha, com mapa, avaliações e
+ * horário. São propósitos diferentes e as duas formas continuam existindo; o
+ * que não podia continuar era cada uma identificar a loja do seu jeito. Desde
+ * 04/09 a rota também é fixada por `destination_place_id`, com o `place_id`
+ * daqui, em vez de depender do geocode do endereço em texto.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚠️ Duas divergências de NAP no perfil
+ * ---------------------------------------------------------------------------
+ * Medidas em 2026-09-04. As duas são tarefa da operação, não do código, e a
+ * segunda é grave:
  *
  *  - o telefone lá é (41) 99842-6127, que é o número que o SITE aposentou em
  *    2026-08-25 (a nota está em `components/Footer.tsx`). O site hoje publica
@@ -80,10 +103,13 @@ export const PERFIS_EM_PORTAIS = [
  *    resolve DNS mas não responde em HTTPS (25s de timeout). O botão "Site"
  *    da ficha não leva a lugar nenhum, e é justamente esse campo que o Google
  *    usa para ligar o perfil ao domínio. Enquanto ele não apontar para
- *    `motorsstore.com.br`, o elo que este arquivo tenta declarar não fecha do
- *    outro lado.
+ *    `motorsstore.com.br`, o elo que este arquivo declara não fecha do outro
+ *    lado.
  */
-export const PERFIL_NO_GOOGLE = "https://maps.google.com/?cid=6312740048961397930";
+export const PERFIL_NO_GOOGLE = "https://www.google.com/maps?cid=6312740048961397930";
+
+/** O mesmo lugar no formato que a API do Maps consome. Ver a nota acima. */
+export const PLACE_ID_NO_GOOGLE = "ChIJv0CqvV3n3JQRquS50aBbm1c";
 
 /**
  * As cidades que a loja atende de fato.

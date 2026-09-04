@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
-import { PERFIL_NO_GOOGLE } from "../lib/schemaLoja";
+import { colunasDoRodape } from "../lib/colunasDoRodape";
 import { trackContactClick } from "../lib/telemetry";
-import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
 
 /**
  * Rodapé Modernist (redesign 2026).
@@ -25,61 +24,7 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
   const marcas = navegacao?.marcas ?? [];
   const modelos = navegacao?.modelos ?? [];
 
-  const colunas: {
-    titulo: string;
-    itens: { rotulo: string; href: string | null; contato?: "whatsapp" | "phone" }[];
-  }[] = [
-    {
-      titulo: "INSTITUCIONAL",
-      itens: [
-        { rotulo: "Quem somos", href: "/sobre" },
-        { rotulo: "Garagem Profiler", href: "/carro-perfeito" },
-        { rotulo: "Avaliação Express", href: "/avaliacao" },
-        { rotulo: "Financiamento", href: "/financiamento" },
-        { rotulo: "Garantia", href: "/garantia" },
-        { rotulo: "Privacidade & LGPD", href: "/privacidade" },
-      ],
-    },
-    {
-      titulo: "ATENDIMENTO",
-      itens: [
-        {
-          rotulo: companySettings.phone,
-          href: `tel:${(companySettings.phone || "").replace(/\D/g, "")}`,
-          contato: "phone",
-        },
-        {
-          // Rótulo e link saem do MESMO campo (`lib/whatsapp.ts`). Vinham de
-          // dois: o texto de `companySettings.whatsapp`, o href de
-          // `whatsappRaw`. Em 2026-08-25 o HTML servido da home mostrava
-          // "(41) 99842-6127" com um wa.me para 5541997372165 — número na tela
-          // diferente do número que o botão abre.
-          rotulo: `WhatsApp ${telefoneVisivel(companySettings)}`,
-          href: linkWhatsApp(companySettings),
-          contato: "whatsapp",
-        },
-        { rotulo: companySettings.hours, href: null },
-      ],
-    },
-    {
-      titulo: "LOCALIZAÇÃO",
-      itens: [
-        {
-          // O endereço era texto morto em todas as páginas. Agora aponta para
-          // o Perfil da Empresa no Google — onde estão o mapa, as rotas e as
-          // avaliações — e é o link que faltava para o buscador juntar o site
-          // com a ficha. O porquê da forma `?cid=` está em `lib/schemaLoja.ts`.
-          //
-          // Sem `target="_blank"`: o Instagram, logo abaixo, também é externo
-          // e não abre em aba nova. Divergir aqui seria comportamento
-          // diferente para dois links do mesmo bloco.
-          rotulo: companySettings.address,
-          href: PERFIL_NO_GOOGLE,
-        },
-        { rotulo: companySettings.instagramUsername || companySettings.instagram, href: companySettings.instagram || null },
-      ],
-    },
-  ];
+  const colunas = colunasDoRodape(companySettings);
 
   return (
     <footer className="w-full bg-mt-inverso-fundo px-6 pb-8 pt-14 text-mt-inverso-suave lg:px-10">
@@ -111,10 +56,22 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
                       <Link
                         key={item.rotulo}
                         href={item.href}
+                        aria-label={item.rotuloAcessivel}
                         // Telefone e WhatsApp do rodapé aparecem em todas as
                         // páginas e são rota de contato como qualquer outra —
                         // até 2026-08-06 eram os únicos CTAs de contato do
                         // site que não disparavam `Contact`.
+                        //
+                        // O endereço, que desde 2026-09-04 abre o Perfil da
+                        // Empresa no Google, NÃO dispara `click_directions`, e
+                        // é decisão, não esquecimento: aquele evento é o "Como
+                        // chegar" das páginas de bairro (`TRACKING_SPEC.md`) e
+                        // entra como conversão SECUNDÁRIA no Google Ads. Este
+                        // link abre a ficha, não uma rota — misturar os dois
+                        // infla uma conversão com um gesto diferente, que é o
+                        // erro de medição que a própria spec chama de pior
+                        // tipo, porque parece boa notícia. Fica sem medida até
+                        // existir evento próprio.
                         onClick={
                           item.contato
                             ? () =>
