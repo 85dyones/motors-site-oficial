@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import type { CompanySettings, Veiculo } from "../src/types";
 import { nomeComAno, nomeDoVeiculo } from "../src/lib/nomeDoVeiculo";
 import { precoValidoAte, schemaDoVeiculo, transmissaoDoSchema } from "../src/lib/schemaVeiculo";
-import { ID_DA_LOJA, faixaDePreco, schemaDaLoja } from "../src/lib/schemaLoja";
+import {
+  ID_DA_LOJA,
+  PERFIL_NO_GOOGLE,
+  faixaDePreco,
+  schemaDaLoja,
+} from "../src/lib/schemaLoja";
+import { lerCodigo } from "./fonte";
 
 /**
  * O JSON-LD do veículo e da loja.
@@ -187,5 +193,43 @@ describe("o `AutoDealer` é único e não publica coordenada que não tem", () =
 
   it("o telefone do schema sai do mesmo campo que o botão de WhatsApp", () => {
     expect(schemaDaLoja(EMPRESA).telephone).toBe("+5541997372165");
+  });
+});
+
+describe("o elo com o Perfil da Empresa no Google", () => {
+  it("o perfil entra no `sameAs`, ao lado dos portais", () => {
+    // Sem citação nenhuma, o buscador não tem por onde juntar o site com a
+    // ficha que carrega as avaliações. Até 2026-09-04 o `AutoDealer` da
+    // produção não tinha um único link do Google — medido, não suposto.
+    expect(schemaDaLoja(EMPRESA).sameAs).toContain(PERFIL_NO_GOOGLE);
+  });
+
+  it("o perfil é o mapa do lugar", () => {
+    expect(schemaDaLoja(EMPRESA).hasMap).toBe(PERFIL_NO_GOOGLE);
+  });
+
+  it("`hasMap` não depende de `geo`, e `geo` não depende dele", () => {
+    // São independentes de propósito: `hasMap` aponta para o pin oficial do
+    // Google, `geo` afirma um par de números nosso. Um `geo` que diverge do
+    // pin é pior que `geo` ausente — a regra já estava no arquivo e continua.
+    const semCoordenada = schemaDaLoja(EMPRESA);
+    expect(semCoordenada.geo).toBeUndefined();
+    expect(semCoordenada.hasMap).toBe(PERFIL_NO_GOOGLE);
+  });
+
+  it("é a URL canônica da ficha, não o encurtador nem uma busca", () => {
+    // O dono mandou um `share.google/…`, que redireciona para uma URL de
+    // BUSCA com `kgmid`. Encurtador some sem aviso e busca não é a página da
+    // entidade; `?cid=` é o endereço estável da ficha.
+    expect(PERFIL_NO_GOOGLE).toBe("https://maps.google.com/?cid=6312740048961397930");
+    expect(PERFIL_NO_GOOGLE).not.toMatch(/share\.google|\/search\?|kgmid/);
+  });
+
+  it("o endereço do rodapé aponta para o perfil, e não é mais texto morto", () => {
+    // Guarda de fonte: `Footer` é client component e usa `useTheme()`, então
+    // não cabe em `renderToStaticMarkup` sem contexto. A âncora nomeia a
+    // constante — `href: null` de volta, ou uma URL escrita à mão, falham.
+    const fonte = lerCodigo("src/components/Footer.tsx");
+    expect(fonte).toMatch(/rotulo: companySettings\.address,\s*href: PERFIL_NO_GOOGLE,/);
   });
 });

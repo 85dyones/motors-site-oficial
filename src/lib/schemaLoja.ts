@@ -50,6 +50,42 @@ export const PERFIS_EM_PORTAIS = [
 ];
 
 /**
+ * O Perfil da Empresa no Google.
+ *
+ * É a ficha que carrega as avaliações (4,8 de 170 em 2026-09-04) e que
+ * responde no pacote local. Até aqui o site não a citava em lugar nenhum —
+ * nem em `sameAs`, nem em `hasMap`, nem como link no endereço do rodapé — e
+ * sem citação nenhuma o buscador não tem por onde juntar as duas coisas.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que esta forma de URL, e não outra
+ * ---------------------------------------------------------------------------
+ * O dono mandou o link de compartilhamento (`share.google/…`), que redireciona
+ * para uma URL de BUSCA com `kgmid=/g/11kc2q4gmp`. Nenhuma das duas serve:
+ * encurtador é opaco e some sem aviso, e URL de busca não é a página da
+ * entidade. `?cid=` é o endereço canônico e estável da ficha.
+ *
+ * O CID sai do `ftid` que o Maps publica na própria URL do lugar —
+ * `0x94dce75dbdaa40bf:0x579b5ba0d1b9e4aa`, cuja segunda metade em decimal é o
+ * número abaixo. Conferido em 2026-09-04 abrindo a URL: cai em "Motors Store",
+ * Rua Ernesto Piazzetta 98, Bacacheri — o mesmo endereço que o site publica.
+ *
+ * ⚠️ Duas divergências de NAP no perfil, medidas no mesmo dia. As duas são
+ * tarefa da operação, não do código, e a segunda é grave:
+ *
+ *  - o telefone lá é (41) 99842-6127, que é o número que o SITE aposentou em
+ *    2026-08-25 (a nota está em `components/Footer.tsx`). O site hoje publica
+ *    +55 41 99737-2165.
+ *  - o campo "site" do perfil aponta para `motorsstoreoficial.com.br`, que
+ *    resolve DNS mas não responde em HTTPS (25s de timeout). O botão "Site"
+ *    da ficha não leva a lugar nenhum, e é justamente esse campo que o Google
+ *    usa para ligar o perfil ao domínio. Enquanto ele não apontar para
+ *    `motorsstore.com.br`, o elo que este arquivo tenta declarar não fecha do
+ *    outro lado.
+ */
+export const PERFIL_NO_GOOGLE = "https://maps.google.com/?cid=6312740048961397930";
+
+/**
  * As cidades que a loja atende de fato.
  *
  * Curitiba mais a Região Metropolitana de onde o comprador se desloca — o
@@ -170,11 +206,22 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
     telephone: empresa.whatsappRaw ? `+${empresa.whatsappRaw}` : undefined,
     address: enderecoDoSchema(empresa.address),
     geo: geoDoSchema(empresa),
+    // A ficha do Google como mapa do lugar. `geo` continua saindo do painel e
+    // continua ausente enquanto ele não tiver as coordenadas — as duas coisas
+    // são independentes de propósito: `hasMap` aponta para o pin oficial,
+    // `geo` afirma um par de números nosso, e afirmar um que diverge do pin é
+    // pior que não afirmar nenhum.
+    hasMap: PERFIL_NO_GOOGLE,
     priceRange: preco,
     currenciesAccepted: "BRL",
     paymentAccepted: "Dinheiro, Cartão de Crédito, Financiamento, Consórcio, Troca",
     areaServed: CIDADES_ATENDIDAS.map((name) => ({ "@type": "City", name })),
-    sameAs: [empresa.instagram, empresa.facebook, ...PERFIS_EM_PORTAIS].filter(Boolean),
+    sameAs: [
+      empresa.instagram,
+      empresa.facebook,
+      PERFIL_NO_GOOGLE,
+      ...PERFIS_EM_PORTAIS,
+    ].filter(Boolean),
     // Horário real da loja: Seg-Sex 08h30-18h30, Sáb 08h30-15h.
     openingHoursSpecification: [
       {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
+import { PERFIL_NO_GOOGLE } from "../lib/schemaLoja";
 import { trackContactClick } from "../lib/telemetry";
 import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
 
@@ -63,7 +64,18 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
     {
       titulo: "LOCALIZAÇÃO",
       itens: [
-        { rotulo: companySettings.address, href: null },
+        {
+          // O endereço era texto morto em todas as páginas. Agora aponta para
+          // o Perfil da Empresa no Google — onde estão o mapa, as rotas e as
+          // avaliações — e é o link que faltava para o buscador juntar o site
+          // com a ficha. O porquê da forma `?cid=` está em `lib/schemaLoja.ts`.
+          //
+          // Sem `target="_blank"`: o Instagram, logo abaixo, também é externo
+          // e não abre em aba nova. Divergir aqui seria comportamento
+          // diferente para dois links do mesmo bloco.
+          rotulo: companySettings.address,
+          href: PERFIL_NO_GOOGLE,
+        },
         { rotulo: companySettings.instagramUsername || companySettings.instagram, href: companySettings.instagram || null },
       ],
     },
