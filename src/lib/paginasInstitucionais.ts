@@ -177,8 +177,8 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
   {
     pergunta: "A garantia vale se eu comprar de outra cidade?",
     resposta:
-      "Vale. Atendemos Curitiba, a Região Metropolitana e compradores de fora do estado, e a " +
-      "cobertura é a mesma. O que muda é a logística de entrega, combinada caso a caso.",
+      "Vale. A cobertura é a mesma para quem compra em Curitiba e para quem compra de fora — " +
+      "entregamos para todo o Brasil. O que muda é a logística, combinada caso a caso.",
   },
   {
     pergunta: "E a documentação da transferência?",

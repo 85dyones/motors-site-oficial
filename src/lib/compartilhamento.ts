@@ -79,7 +79,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Avaliação Express",
     tituloPadrao: "Quanto vale o seu carro hoje",
     descricaoPadrao:
-      "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Proposta no WhatsApp em menos de 10 minutos.",
+      "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Um consultor retorna no WhatsApp com a proposta.",
   },
   {
     id: "carroPerfeito",
@@ -97,7 +97,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Quem somos",
     tituloPadrao: "Tradição de showroom, curadoria de tecnologia",
     descricaoPadrao:
-      "Conheça a história da Motors Store. De um showroom tradicional em Curitiba a pioneira na inteligência artificial para curadoria de veículos de alto padrão.",
+      "Conheça a história da Motors Store: um showroom tradicional em Curitiba que virou curadoria com inteligência artificial e aceita três de cada dez carros avaliados.",
   },
   {
     id: "contato",

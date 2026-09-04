@@ -278,14 +278,14 @@ export default async function Home() {
           Avaliação Express
         </h2>
         <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          Proposta real em menos de 10 minutos, com base na Tabela FIPE e no giro
-          do nosso estoque.
+          Proposta com base na Tabela FIPE e no giro do nosso estoque — um
+          consultor retorna no WhatsApp.
         </p>
         <div className="mt-7 flex max-w-[420px] border-t-2 border-mt-regua">
           <div className="flex-1 border-r border-mt-regua-media pr-4 pt-3.5">
-            <div className="text-[26px] font-extrabold">10 min</div>
+            <div className="text-[26px] font-extrabold">WHATSAPP</div>
             <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
-              RESPOSTA
+              POR ONDE RESPONDEMOS
             </div>
           </div>
           <div className="flex-1 pl-4 pt-3.5">
