@@ -21,6 +21,7 @@ import {
 } from "../../lib/schemaListagem";
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja } from "../../lib/schemaLoja";
+import { indiceDaVitrine } from "../../lib/vitrine";
 
 export const revalidate = 60;
 
@@ -83,6 +84,8 @@ export default async function EstoquePage() {
 
   const marcas = hubsDeMarca(historico, disponiveis, "carros").filter((m) => m.veiculos.length > 0);
   const carrocerias = hubsDeCarroceria(historico, disponiveis).filter((c) => c.veiculos.length > 0);
+
+  const fichas = indiceDaVitrine(disponiveis);
 
   const perguntas = perguntasDeCategoria("carros seminovos");
 
@@ -160,6 +163,20 @@ export default async function EstoquePage() {
                   {disponiveis.length === 1 ? "VEÍCULO NA SELEÇÃO" : "VEÍCULOS NA SELEÇÃO"}
                 </span>
               </div>
+
+              {/* O lugar do botão de filtro do celular, ocupado por algo que
+                  FUNCIONA sem JavaScript. Mesma caixa, mesma altura: quando o
+                  `Catalogo` assume, o botão "FILTROS" entra aqui e a grade não
+                  se move. Um placeholder morto ocuparia o mesmo espaço e não
+                  levaria ninguém a lugar nenhum — quem lê sem JS não tem
+                  filtro, mas tem o índice completo no rodapé. */}
+              <a
+                href="#todos-os-veiculos"
+                className="mt-foco mt-4 flex w-full items-center justify-between border-2 border-mt-regua px-4 py-2.5 text-[11px] font-extrabold tracking-[.16em] text-mt-ink no-underline lg:hidden"
+              >
+                VER TODO O ESTOQUE
+                <span className="text-mt-accent">{disponiveis.length}</span>
+              </a>
             </div>
             <div className="flex flex-col lg:flex-row lg:items-stretch">
               <div
@@ -188,6 +205,40 @@ export default async function EstoquePage() {
         aria-label="Índice do estoque"
         className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10"
       >
+        {/* Toda ficha à venda, como link.
+            A grade servida mostra a primeira leva — 9 cards; o resto só
+            aparece depois do "carregar mais", que é JavaScript. Medido na
+            produção em 2026-09-04: 9 links de ficha no HTML contra 34 URLs no
+            `ItemList`. `ItemList` informa o rastreador, mas não é caminho de
+            navegação e não passa autoridade; para quem lê a página sem
+            executar JS as outras 25 simplesmente não existiam.
+
+            Este índice fecha os dois buracos de uma vez, e é barato: texto,
+            sem imagem. O `id` existe porque o fallback do <Suspense> aponta
+            para cá, e o `scroll-mt-24` porque o header é `sticky top-0`: sem a
+            folga, a âncora deixa o título embaixo dele. Mesma régua que
+            `/privacidade` já usa. */}
+        {fichas.length > 0 && (
+          <section id="todos-os-veiculos" className="mb-8 scroll-mt-24">
+            <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
+              Todos os veículos à venda{" "}
+              <span className="text-mt-accent">{fichas.length}</span>
+            </h2>
+            <ul className="m-0 mt-4 list-none columns-1 gap-x-8 p-0 sm:columns-2 lg:columns-3">
+              {fichas.map((ficha) => (
+                <li key={ficha.id} className="mb-1.5 break-inside-avoid">
+                  <Link
+                    href={ficha.href}
+                    className="mt-foco text-[13px] text-mt-neutral-800 no-underline hover:text-mt-accent hover:underline"
+                  >
+                    {ficha.rotulo}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {marcas.length > 0 && (
           <section>
             <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Seminovos por marca</h2>

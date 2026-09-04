@@ -10,6 +10,7 @@ import {
   resolveTipoCombustivel,
 } from "../../lib/regrasEstoque";
 import { slugifyTag } from "../../lib/tagUtils";
+import { painelDeFiltro } from "../../lib/vitrine";
 import { CardVeiculo, formatarPreco } from "./primitivos";
 
 /**
@@ -19,6 +20,12 @@ import { CardVeiculo, formatarPreco } from "./primitivos";
  * aqui é ordenar o que já está à vista: o rótulo com a contagem total e o
  * botão de limpar ficam sempre visíveis, e nenhum filtro remove o caminho de
  * volta para o estoque inteiro.
+ *
+ * No celular a coluna vira um bloco empilhado ACIMA do primeiro carro — o
+ * cliente rolava a lista de filtros inteira antes de ver a vitrine. Desde
+ * 2026-09-04 ela nasce recolhida atrás de um botão, e só abaixo do `lg`: no
+ * desktop o filtro continua sendo a coluna da esquerda, sem botão nenhum. A
+ * regra desse par vive em `lib/vitrine.ts`, com teste de comportamento.
  */
 
 const PAGINA = 9;
@@ -63,6 +70,10 @@ export default function Catalogo({
   });
   const [ordem, setOrdem] = useState<Ordenacao>("recentes");
   const [visiveis, setVisiveis] = useState(PAGINA);
+  // Recolhido é o estado inicial, e é o mesmo nos dois lados da hidratação:
+  // nada aqui mede a janela. Quem está no desktop nunca vê diferença — lá o
+  // painel não obedece a este estado.
+  const [filtroAberto, setFiltroAberto] = useState(false);
 
   const alternar = (chave: string, valor: string) => {
     setSelecionados((prev) => {
@@ -188,6 +199,7 @@ export default function Catalogo({
 
   const totalFiltrado = filtrados.length;
   const mostrando = Math.min(visiveis, totalFiltrado);
+  const filtro = painelDeFiltro(filtroAberto);
 
   return (
     <div className="font-modernist">
@@ -230,11 +242,55 @@ export default function Catalogo({
             ))}
           </div>
         </div>
+
+        {/* Botão de filtro — só abaixo do `lg`.
+            Ocupa o mesmo lugar e a mesma altura do "VER TODO O ESTOQUE" que o
+            fallback do <Suspense> serve no HTML: os dois se trocam na
+            hidratação sem empurrar a grade para baixo. A contagem de filtros
+            ativos vem junto porque painel recolhido não pode esconder que a
+            vitrine está filtrada. */}
+        <button
+          type="button"
+          onClick={() => setFiltroAberto((aberto) => !aberto)}
+          aria-expanded={filtroAberto}
+          aria-controls="painel-de-filtros"
+          className="mt-foco mt-4 flex w-full items-center justify-between border-2 border-mt-regua px-4 py-2.5 text-[11px] font-extrabold tracking-[.16em] lg:hidden"
+        >
+          <span className="flex items-center gap-2">
+            {filtro.rotulo}
+            {chipsAtivos.length > 0 && (
+              <span className="text-mt-accent">({chipsAtivos.length})</span>
+            )}
+          </span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`h-3 w-3 text-mt-accent transition-transform ${
+              filtroAberto ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M5 8l7 7 7-7" />
+          </svg>
+        </button>
       </div>
 
       <div className="flex flex-col lg:flex-row lg:items-stretch">
-        {/* Coluna de filtros */}
-        <aside className="shrink-0 px-[18px] pb-8 lg:w-[290px] lg:border-r-2 lg:border-mt-regua lg:py-0 lg:pl-10 lg:pr-7">
+        {/* Coluna de filtros.
+            `filtro.classe` esconde no celular e mantém no desktop. O elemento
+            NÃO sai da árvore: decidir isso em JavaScript exigiria medir a
+            janela no cliente — divergência de hidratação e piscar de campos na
+            primeira pintura, a armadilha que `BuscaRegua.tsx` documenta no
+            `soDesktop`. Escondido por CSS, o que o cliente marcou continua no
+            estado e volta intacto quando ele reabre. */}
+        <aside
+          id="painel-de-filtros"
+          className={`${filtro.classe} shrink-0 px-[18px] pb-8 lg:w-[290px] lg:border-r-2 lg:border-mt-regua lg:py-0 lg:pl-10 lg:pr-7`}
+        >
           <div className="flex items-baseline justify-between border-b-2 border-mt-regua pb-3.5 pt-5">
             <span className="text-[11px] font-extrabold tracking-[.16em]">FILTROS</span>
             {chipsAtivos.length > 0 && (
@@ -312,6 +368,18 @@ export default function Catalogo({
               <span>{precoMax === null ? "Sem teto" : formatarPreco(precoMax)}</span>
             </div>
           </div>
+
+          {/* A saída do painel no celular, com o resultado já contado.
+              Sem ela o cliente que abriu o filtro precisa rolar de volta até o
+              topo para achar o botão que fecha — e a contagem, que é a
+              resposta ao que ele acabou de marcar, fica fora da tela. */}
+          <button
+            type="button"
+            onClick={() => setFiltroAberto(false)}
+            className="mt-btn mt-btn-tinta mt-foco w-full lg:hidden"
+          >
+            VER {totalFiltrado} {totalFiltrado === 1 ? "VEÍCULO" : "VEÍCULOS"}
+          </button>
         </aside>
 
         {/* Grade */}
