@@ -274,7 +274,7 @@ describe("o ponto de chamada do painel de filtro", () => {
       /aria-controls="painel-de-filtros"[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
     );
     expect(fonte).toMatch(
-      /onClick=\{limparTudoSemPerderOFoco\}[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
+      /\$\{filtro\.classeDoBotao\}`\}[\s\S]{0,120}LIMPAR TUDO/,
     );
   });
 
@@ -289,8 +289,11 @@ describe("o ponto de chamada do painel de filtro", () => {
 
   it("o atalho de limpar tudo pergunta à regra, e não perde o foco", () => {
     expect(fonte).toContain("mostrarLimparTudo(chipsAtivos.length, filtroAberto)");
-    expect(fonte).toMatch(/onClick=\{limparTudoSemPerderOFoco\}/);
-    expect(fonte).toContain("limparTudo();");
+    // Ancorado no RÓTULO e não no nome do handler: os três botões que limpam
+    // chamam o mesmo agora, então o nome sozinho não diz qual deles é este.
+    expect(fonte).toMatch(
+      /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}LIMPAR TUDO/,
+    );
   });
 
   it("o painel recolhido continua na árvore", () => {
@@ -406,6 +409,21 @@ describe("limpar tudo não larga o foco no `<body>` — em nenhuma largura", () 
     // outro bloco. O `{}` opcional é o comentário JSX que `lerCodigo` esvazia
     // mas não remove; chaves VAZIAS, então nenhuma condição casa aqui.
     expect(fonte).toMatch(/<\/aside>\s*(?:\{\}\s*)?<div[^>]*\sref=\{regiaoDeResultados\}/);
+  });
+
+  it("os TRÊS que limpam usam o mesmo handler — a regra é uma só", () => {
+    // O `LIMPAR TUDO` da régua vinha de `limparTudoSemPerderOFoco`, que manda o
+    // foco para `botaoDoFiltro`. Aquilo FUNCIONAVA — o botão dele é `lg:hidden`,
+    // e ali o alternador está na tela. Mas movia o foco para TRÁS, para fora da
+    // região, e — medido no navegador com um espião no `.focus()` — anunciava a
+    // contagem VELHA, porque aquele caminho não despacha o estado antes.
+    //
+    // Mesma ação, mesmo destino. `fecharFiltro` continua à parte de propósito:
+    // fechar um disclosure e devolver o foco ao alternador que o abriu é outro
+    // gesto, e ali o alternador é o lugar certo.
+    expect(fonte).not.toContain("limparTudoSemPerderOFoco");
+    const chamadas = fonte.match(/onClick=\{limparTudoComFocoNosResultados\}/g) ?? [];
+    expect(chamadas).toHaveLength(3);
   });
 
   it("o alvo se anuncia — `<div>` focado sem nome não diz nada", () => {

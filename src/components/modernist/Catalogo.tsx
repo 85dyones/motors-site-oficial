@@ -96,31 +96,27 @@ export default function Catalogo({
   };
 
   /**
-   * Limpa os filtros a partir da régua de chips, sem largar o foco.
-   *
-   * Mesmo motivo do `fecharFiltro`, e aqui é por construção: a função deste
-   * botão é tornar falsa a própria precondição — sem chip ativo a régua inteira
-   * desmonta e ele vai junto. O alternador do filtro é o vizinho que sobrevive.
-   */
-  const limparTudoSemPerderOFoco = () => {
-    limparTudo();
-    botaoDoFiltro.current?.focus();
-  };
-
-  /**
    * Zera os filtros e leva o foco para a região de resultados.
    *
-   * Terceiro caso do mesmo defeito, e o primeiro que não podia copiar o
-   * remédio dos outros dois. O `LIMPAR (N)` do topo do painel e o `VER TODO O
-   * ESTOQUE` do estado vazio também tornam falsa a própria condição de
-   * renderização e saem do DOM — mas, ao contrário de `fecharFiltro` e de
-   * `limparTudoSemPerderOFoco`, esses dois aparecem NAS DUAS LARGURAS.
+   * Vale para os TRÊS botões que limpam: o `LIMPAR (N)` do topo do painel, o
+   * `LIMPAR TUDO` da régua de chips e o `VER TODO O ESTOQUE` do estado vazio.
+   * Os três tornam falsa a própria condição de renderização e saem do DOM
+   * levando o foco de quem os acionou para o `<body>` (WCAG 2.4.3).
    *
-   * Por isso `botaoDoFiltro` não serve de destino aqui: ele é o "FILTROS", que
-   * tem `lg:hidden`. No desktop é `display:none`, e `.focus()` em elemento
-   * escondido não faz nada e não devolve erro — o foco seguiria caindo no
-   * `<body>` (WCAG 2.4.3) exatamente onde ninguém olhou, com o celular
-   * consertado escondendo a outra metade.
+   * `botaoDoFiltro` não serve de destino. Ele é o "FILTROS", que tem
+   * `lg:hidden`: no desktop é `display:none`, e `.focus()` em elemento
+   * escondido não faz nada e não devolve erro. Dois destes três aparecem NAS
+   * DUAS LARGURAS, então mandar para lá consertaria o celular e deixaria o
+   * desktop idêntico ao defeito — sem nada na tela quebrar.
+   *
+   * O terceiro (`LIMPAR TUDO`) é `lg:hidden` e chegou a usar o alternador, que
+   * ali de fato está na tela. Mesmo assim veio para cá: aquele caminho move o
+   * foco para TRÁS, para fora da região, e anuncia a contagem VELHA (ver o
+   * `flushSync` abaixo). Mesma ação, mesmo destino — uma regra em vez de duas.
+   *
+   * `fecharFiltro` fica de fora, e de propósito: fechar um disclosure e
+   * devolver o foco ao alternador que o abriu é outro gesto, e lá o alternador
+   * é o lugar certo.
    *
    * O destino é a grade, que existe nas duas larguras e é o que acabou de
    * mudar: nomeada como região, ela também anuncia o estoque de volta para
@@ -503,15 +499,20 @@ export default function Catalogo({
                   aparecia "só onde some", e não era verdade — a revisão de
                   04/09 pegou.
 
-                  `limparTudo` sozinho no `onClick` seria o mesmo defeito de
-                  foco que o `fecharFiltro` corrigiu, e pior: aqui é por
-                  construção. Zerar os filtros torna falsa a condição da régua
-                  de chips logo acima, o botão sai do DOM, e o foco de quem
-                  acabou de acioná-lo cai no `<body>` (WCAG 2.4.3). */}
+                  `limparTudo` sozinho no `onClick` seria defeito de foco por
+                  construção: zerar os filtros torna falsa a condição da régua
+                  logo acima, o botão sai do DOM e o foco de quem acabou de
+                  acioná-lo cai no `<body>` (WCAG 2.4.3).
+
+                  Este botão já apontou para o alternador do filtro, que aqui
+                  está na tela — some com o painel fechado, e é só com o painel
+                  fechado que ele aparece. Mesmo assim mudou de destino: aquilo
+                  mandava o foco para trás, para FORA da região que acabou de
+                  mudar, e sem despacho síncrono anunciava a contagem velha. */}
               {mostrarLimparTudo(chipsAtivos.length, filtroAberto) && (
                 <button
                   type="button"
-                  onClick={limparTudoSemPerderOFoco}
+                  onClick={limparTudoComFocoNosResultados}
                   className={`mt-foco border border-mt-accent px-3 py-1.5 text-xs font-semibold text-mt-accent ${filtro.classeDoBotao}`}
                 >
                   LIMPAR TUDO
