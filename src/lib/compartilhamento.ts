@@ -97,7 +97,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Quem somos",
     tituloPadrao: "Tradição de showroom, curadoria de tecnologia",
     descricaoPadrao:
-      "Conheça a história da Motors Store: um showroom tradicional em Curitiba que virou curadoria com inteligência artificial e aceita três de cada dez carros avaliados.",
+      "Conheça a história da Motors Store: um showroom tradicional em Curitiba que virou curadoria com IA e aceita três de cada dez carros avaliados.",
   },
   {
     id: "contato",
