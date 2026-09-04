@@ -1,22 +1,43 @@
 import { describe, it, expect } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { Veiculo } from "../src/types";
 import { getVeiculoPdpUrl } from "../src/lib/supabase";
 import { nomeComAno } from "../src/lib/nomeDoVeiculo";
 import { schemaDeListagem } from "../src/lib/schemaListagem";
 import { indiceDaVitrine, painelDeFiltro } from "../src/lib/vitrine";
+import IndiceDaVitrine from "../src/components/modernist/IndiceDaVitrine";
 import { lerCodigo } from "./fonte";
 
 /**
  * A vitrine de `/estoque`: o que o servidor entrega e o que o celular vê.
  *
  * Medido contra a produção em 2026-09-04: o HTML servido de `/estoque` trazia
- * 9 links de ficha (`<a href="/carros/...">` com quatro segmentos) e 34 URLs
- * no `ItemList`. A grade vive dentro de um `<Suspense>` cujo fallback mostra a
- * primeira leva; as outras 25 fichas só existiam no JSON-LD.
+ * 9 links de ficha e 36 URLs no `ItemList` (34 carros e 2 motos — contar só
+ * `/carros/` esconde as motos e foi o erro da primeira medição). A grade vive
+ * dentro de um `<Suspense>` cujo fallback mostra a primeira leva; as outras 27
+ * fichas só existiam no JSON-LD.
  *
- * Os testes abaixo são de comportamento porque a versão por `grep` deste
- * mesmo invariante passaria intacta se alguém trocasse `disponiveis` por
- * `disponiveis.slice(0, 9)` — as palavras continuam no arquivo.
+ * ---------------------------------------------------------------------------
+ * Por que este arquivo RENDERIZA em vez de ler a fonte
+ * ---------------------------------------------------------------------------
+ * A primeira versão testava só `indiceDaVitrine` e `painelDeFiltro`, e a
+ * revisão de 04/09 mostrou que isso não guardava nada: as duas funções nasceram
+ * naquele commit e o risco nunca esteve nelas. Estava no PONTO DE CHAMADA. Três
+ * mutações passaram a suíte inteira — entre elas `fichas.map(` virando
+ * `fichas.slice(0, 9).map(` dentro do JSX, que é literalmente o defeito medido
+ * em produção com o `slice` só trocando de endereço.
+ *
+ * `IndiceDaVitrine` existe para fechar isso: é síncrono, não busca dado e não
+ * usa hook de roteador, então cabe em `renderToStaticMarkup` e o teste conta os
+ * `<a>` que de fato saíram. Recortar a lista ou apagar o bloco fica vermelho.
+ *
+ * O painel de filtro não tem essa saída: vive dentro de `Catalogo`, que é
+ * client component e chama `useSearchParams()` — renderizá-lo exigiria jsdom e
+ * contexto de roteador, que `vitest.config.ts` documenta como infraestrutura
+ * ainda não montada aqui. Para ele o guarda é asserção de fonte, e ela nomeia a
+ * expressão exata em vez de uma palavra solta, que é o que deixou passar
+ * `painelDeFiltro(true)`.
  */
 
 function veiculo(parcial: Partial<Veiculo> & Pick<Veiculo, "id" | "marca" | "modelo">): Veiculo {
@@ -40,49 +61,53 @@ function veiculo(parcial: Partial<Veiculo> & Pick<Veiculo, "id" | "marca" | "mod
 }
 
 /** Um pátio maior que a primeira leva de 9 — é onde o defeito aparecia. */
-const PATIO: Veiculo[] = Array.from({ length: 34 }, (_, i) =>
+const PATIO: Veiculo[] = Array.from({ length: 36 }, (_, i) =>
   veiculo({
     id: String(8000000 + i),
     marca: ["Jeep", "Fiat", "BMW", "Honda"][i % 4],
     modelo: `Modelo ${i}`,
     versao: `1.${i % 9} Turbo Automático`,
     ano: 2018 + (i % 6),
+    // Duas motos: `getVeiculoPdpUrl` manda para `/motos/`, e um índice que só
+    // enxerga `/carros/` deixaria as duas de fora sem ninguém notar.
+    tipo: i < 2 ? "Moto" : "SUV",
   }),
 );
 
-describe("o índice da vitrine cobre o estoque inteiro", () => {
-  it("publica uma entrada por veículo disponível, não só a primeira leva", () => {
-    // A primeira leva servida são 9 cards. O índice existe justamente para as
-    // outras 25: recortar aqui devolve o defeito medido em produção.
-    expect(indiceDaVitrine(PATIO)).toHaveLength(PATIO.length);
+/** Os `href` que o componente de fato renderizou. */
+function linksRenderizados(disponiveis: Veiculo[]): string[] {
+  const html = renderToStaticMarkup(createElement(IndiceDaVitrine, { disponiveis }));
+  return [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+}
+
+describe("o índice servido cobre o estoque inteiro", () => {
+  it("renderiza um link por veículo disponível, não só a primeira leva", () => {
+    // O defeito medido em produção: 9 de 36. Um `.slice()` em qualquer ponto
+    // do caminho — na função pura ou no `.map()` do JSX — cai aqui.
+    expect(linksRenderizados(PATIO)).toHaveLength(PATIO.length);
+  });
+
+  it("os links renderizados são exatamente as fichas do pátio", () => {
+    expect(new Set(linksRenderizados(PATIO))).toEqual(
+      new Set(PATIO.map((v) => getVeiculoPdpUrl(v))),
+    );
+  });
+
+  it("as motos entram — o índice não é só de carros", () => {
+    const motos = linksRenderizados(PATIO).filter((h) => h.startsWith("/motos/"));
+    expect(motos).toHaveLength(2);
   });
 
   it("cobre exatamente as mesmas fichas que o `ItemList` anuncia", () => {
     // O invariante que interessa: o que o JSON-LD promete ao rastreador, o
     // HTML entrega como link. Um dos dois recortando é a divergência.
-    const doIndice = indiceDaVitrine(PATIO).map((f) => f.href);
-    const doItemList = schemaDeListagem("x", PATIO).itemListElement.map((item) =>
-      new URL(item.url).pathname,
+    const doItemList = schemaDeListagem("x", PATIO).itemListElement.map(
+      (item) => new URL(item.url).pathname,
     );
-
-    expect(new Set(doIndice)).toEqual(new Set(doItemList));
+    expect(new Set(linksRenderizados(PATIO))).toEqual(new Set(doItemList));
   });
 
-  it("usa o mesmo caminho de ficha que a grade — não um montado à mão", () => {
-    const primeiro = indiceDaVitrine(PATIO)[0];
-    expect(primeiro.href).toBe(getVeiculoPdpUrl(PATIO[0]));
-    // Quatro segmentos: o quinto repetia os outros três e saiu em 2026-09-01.
-    expect(primeiro.href.split("/").filter(Boolean)).toHaveLength(4);
-  });
-
-  it("cada ficha entra uma vez só", () => {
-    const hrefs = indiceDaVitrine(PATIO).map((f) => f.href);
-    expect(new Set(hrefs).size).toBe(hrefs.length);
-  });
-
-  it("o rótulo não repete a versão dentro do modelo", () => {
-    // Mesmo defeito nº 2 que `nomeDoVeiculo` existe para eliminar: o índice
-    // não pode reintroduzi-lo montando o nome por conta própria.
+  it("o nome do veículo aparece no link, sem repetir a versão", () => {
     const bmw = veiculo({
       id: "7947766",
       marca: "BMW",
@@ -90,16 +115,42 @@ describe("o índice da vitrine cobre o estoque inteiro", () => {
       versao: "m40i 3.0 m sport edit v6 turbo aut",
       ano: 2023,
     });
-    const [entrada] = indiceDaVitrine([bmw]);
+    const html = renderToStaticMarkup(
+      createElement(IndiceDaVitrine, { disponiveis: [bmw] }),
+    );
 
-    expect(entrada.rotulo).toBe(nomeComAno(bmw));
-    expect(entrada.rotulo).toBe("BMW X4 M40i 3.0 M Sport Edit V6 Turbo Aut 2023");
+    expect(html).toContain(nomeComAno(bmw));
+    expect(html).toContain("BMW X4 M40i 3.0 M Sport Edit V6 Turbo Aut 2023");
   });
 
-  it("pátio vazio devolve lista vazia — o bloco some junto", () => {
+  it("pátio vazio não renderiza nada — nem o cabeçalho", () => {
     // Cabeçalho seguido de nada é ruído para quem lê e landmark vazio para
-    // quem usa leitor de tela.
-    expect(indiceDaVitrine([])).toEqual([]);
+    // quem usa leitor de tela. E a âncora do fallback aponta para este `id`:
+    // sem o bloco, ela precisa sumir junto (ver o teste do fallback abaixo).
+    expect(renderToStaticMarkup(createElement(IndiceDaVitrine, { disponiveis: [] }))).toBe("");
+  });
+
+  it("publica a âncora que o fallback do `<Suspense>` procura", () => {
+    expect(linksRenderizados(PATIO).length).toBeGreaterThan(0);
+    expect(
+      renderToStaticMarkup(createElement(IndiceDaVitrine, { disponiveis: PATIO })),
+    ).toContain('id="todos-os-veiculos"');
+  });
+});
+
+describe("a função pura por trás do índice", () => {
+  it("devolve uma entrada por veículo, na ordem em que recebeu", () => {
+    expect(indiceDaVitrine(PATIO)).toHaveLength(PATIO.length);
+    expect(indiceDaVitrine(PATIO)[0].href).toBe(getVeiculoPdpUrl(PATIO[0]));
+  });
+
+  it("cada ficha entra uma vez só", () => {
+    const hrefs = indiceDaVitrine(PATIO).map((f) => f.href);
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it("a ficha tem quatro segmentos — o quinto repetia os outros três", () => {
+    expect(indiceDaVitrine(PATIO)[0].href.split("/").filter(Boolean)).toHaveLength(4);
   });
 });
 
@@ -127,13 +178,56 @@ describe("recolher o filtro no mobile não recolhe no desktop", () => {
   });
 });
 
-describe("o painel recolhido continua na árvore", () => {
-  it("`Catalogo` não remove o `<aside>` por condição", () => {
+/**
+ * Guardas de fonte do ponto de chamada.
+ *
+ * Segunda escolha, e assumida como tal: só existem porque `Catalogo` não cabe
+ * em `renderToStaticMarkup` (client component com `useSearchParams()`). Cada
+ * uma nomeia a EXPRESSÃO exata — `painelDeFiltro(filtroAberto)`, não
+ * `painelDeFiltro(` — porque a versão frouxa casava com `painelDeFiltro(true)`,
+ * que é justamente a mutação que passou na revisão de 04/09.
+ */
+describe("o ponto de chamada do painel de filtro", () => {
+  const fonte = lerCodigo("src/components/modernist/Catalogo.tsx");
+
+  it("passa o ESTADO para `painelDeFiltro`, não uma constante", () => {
+    expect(fonte).toContain("painelDeFiltro(filtroAberto)");
+  });
+
+  it("aplica a classe devolvida no `<aside>`", () => {
+    // Sem a interpolação o painel nunca recolhe, e nada mais quebra.
+    expect(fonte).toMatch(/<aside[\s\S]{0,200}\$\{filtro\.classe\}/);
+  });
+
+  it("o painel recolhido continua na árvore", () => {
     // Decidir isso em JavaScript exige medir a janela no cliente: divergência
     // de hidratação e piscar de campos na primeira pintura — a armadilha que
     // `BuscaRegua.tsx` já documenta no `soDesktop`. Some por CSS.
-    const fonte = lerCodigo("src/components/modernist/Catalogo.tsx");
-    expect(fonte).not.toMatch(/\{\s*\w+\s*&&\s*\(?\s*<aside/);
-    expect(fonte).toMatch(/painelDeFiltro\(/);
+    expect(fonte).not.toMatch(/\{\s*[\w.]+\s*(&&|\?)[\s\S]{0,40}<aside/);
+  });
+
+  it("fechar pelo botão de dentro devolve o foco ao alternador", () => {
+    // O botão de fechar vive dentro do `<aside>` que ele esconde: sem isso o
+    // foco cai no `<body>` e o Tab seguinte recomeça do topo (WCAG 2.4.3).
+    expect(fonte).toContain("botaoDoFiltro.current?.focus()");
+    expect(fonte).toMatch(/onClick=\{fecharFiltro\}/);
+    expect(fonte).toMatch(/ref=\{botaoDoFiltro\}/);
+  });
+});
+
+describe("o ponto de chamada do índice, em `/estoque`", () => {
+  const fonte = lerCodigo("src/app/estoque/page.tsx");
+
+  it("renderiza o índice — apagá-lo não pode passar em silêncio", () => {
+    expect(fonte).toMatch(/<IndiceDaVitrine\s+disponiveis=\{disponiveis\}\s*\/>/);
+  });
+
+  it("a âncora do fallback só sai com pátio cheio", () => {
+    // O alvo é condicional (pátio vazio não renderiza o bloco). Sem a mesma
+    // guarda aqui, estoque zerado servia um botão de largura total dizendo
+    // "VER TODO O ESTOQUE 0" que não levava a lugar nenhum.
+    expect(fonte).toMatch(
+      /\{disponiveis\.length > 0 && \([\s\S]{0,200}href="#todos-os-veiculos"/,
+    );
   });
 });

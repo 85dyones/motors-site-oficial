@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { QuickTag, StockOverrides, Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import {
@@ -74,6 +74,24 @@ export default function Catalogo({
   // nada aqui mede a janela. Quem está no desktop nunca vê diferença — lá o
   // painel não obedece a este estado.
   const [filtroAberto, setFiltroAberto] = useState(false);
+  const botaoDoFiltro = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Fecha o painel e devolve o foco ao alternador.
+   *
+   * O botão de fechar vive DENTRO do `<aside>` que ele faz virar
+   * `display:none`. Sem esta linha, quem chega nele por teclado ou leitor de
+   * tela some com o próprio elemento focado: o foco cai no `<body>` e o Tab
+   * seguinte recomeça do topo do documento (WCAG 2.4.3). Achado na revisão de
+   * 2026-09-04.
+   *
+   * O `Header` não sofre disso porque lá quem fecha é o próprio alternador,
+   * que continua montado. Aqui são dois elementos, e um deles desaparece.
+   */
+  const fecharFiltro = () => {
+    setFiltroAberto(false);
+    botaoDoFiltro.current?.focus();
+  };
 
   const alternar = (chave: string, valor: string) => {
     setSelecionados((prev) => {
@@ -250,6 +268,7 @@ export default function Catalogo({
             ativos vem junto porque painel recolhido não pode esconder que a
             vitrine está filtrada. */}
         <button
+          ref={botaoDoFiltro}
           type="button"
           onClick={() => setFiltroAberto((aberto) => !aberto)}
           aria-expanded={filtroAberto}
@@ -372,10 +391,13 @@ export default function Catalogo({
           {/* A saída do painel no celular, com o resultado já contado.
               Sem ela o cliente que abriu o filtro precisa rolar de volta até o
               topo para achar o botão que fecha — e a contagem, que é a
-              resposta ao que ele acabou de marcar, fica fora da tela. */}
+              resposta ao que ele acabou de marcar, fica fora da tela.
+
+              `fecharFiltro` e não `setFiltroAberto(false)`: este botão some
+              junto com o painel, e o foco precisa ir para algum lugar. */}
           <button
             type="button"
-            onClick={() => setFiltroAberto(false)}
+            onClick={fecharFiltro}
             className="mt-btn mt-btn-tinta mt-foco w-full lg:hidden"
           >
             VER {totalFiltrado} {totalFiltrado === 1 ? "VEÍCULO" : "VEÍCULOS"}
@@ -412,6 +434,22 @@ export default function Catalogo({
                   </svg>
                 </button>
               ))}
+
+              {/* O "LIMPAR (N)" do painel passou a nascer escondido no celular,
+                  junto com o painel — desfazer tudo custaria um toque a mais,
+                  ou um chip de cada vez. Aqui ele volta, fora do painel, e só
+                  onde some: no desktop o botão do topo do filtro continua
+                  visível e este seria repetição. A partir de dois filtros,
+                  que é quando remover um a um passa a doer. */}
+              {chipsAtivos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={limparTudo}
+                  className="mt-foco border border-mt-accent px-3 py-1.5 text-xs font-semibold text-mt-accent lg:hidden"
+                >
+                  LIMPAR TUDO
+                </button>
+              )}
             </div>
           )}
 
