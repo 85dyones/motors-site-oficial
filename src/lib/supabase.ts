@@ -409,6 +409,19 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     // migração 20260817130000 esta coluna não existia e o valor era `undefined`
     // em silêncio, que é como todo anúncio do feed acabou com a mesma frase.
     descricao_seo: textoUtil(dbItem.descricao_seo),
+    /**
+     * Portas — inteiro positivo, ou ausente.
+     *
+     * `Number.isInteger` e `> 0` juntos, e não `Number(x) || undefined`: o
+     * banco guarda `NULL` para moto (o feed manda `0` e a importação converte),
+     * e um `0` que escapasse viraria `numberOfDoors: 0` no JSON-LD — afirmação
+     * falsa, não campo vazio. A régua é a mesma do comentário de
+     * `schemaVeiculo.ts`: schema errado é pior que campo ausente.
+     */
+    portas:
+      Number.isInteger(dbItem.portas) && Number(dbItem.portas) > 0
+        ? Number(dbItem.portas)
+        : undefined,
     cabine_premium: hasCabinePremium,
     tecnologia_embarcada: hasTech,
     conducao_dinamica: hasConducaoDinamica,

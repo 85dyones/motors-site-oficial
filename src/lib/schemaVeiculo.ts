@@ -17,11 +17,19 @@ import { SITE_URL } from "./site";
  *      o vende, então o Google não ligava a oferta à loja física, que é o
  *      sinal que sustenta o resultado local.
  *
- * O que NÃO está aqui é tão deliberado quanto o que está: `numberOfDoors` e
- * `vehicleSeatingCapacity` não existem em `estoque_motors`. Deduzi-los da
- * carroceria daria certo na maioria e erraria no Kombi, na picape cabine
- * simples e no cupê — e schema errado é pior que campo ausente, porque é
- * afirmação. Quando as colunas existirem, entram aqui.
+ * O que NÃO está aqui é tão deliberado quanto o que está — e a lista encolheu
+ * em 2026-09-04. `numberOfDoors` entrou: a coluna `portas` passou a existir
+ * (migração `20260904120000`), alimentada pelo `<DOORS>` que o feed já mandava
+ * em 39 de 39 e o sync descartava.
+ *
+ * O medo que segurava o campo estava certo, e o feed provou: duas Kombis com
+ * contagens DIFERENTES entre si (4 e 3), duas Saveiros cabine simples (2) e o
+ * Fusca (2). Dedução por carroceria erraria em pelo menos cinco.
+ *
+ * `vehicleSeatingCapacity` continua fora, pela razão original: não existe
+ * coluna, e o feed não manda. Deduzir da carroceria daria certo na maioria e
+ * erraria nos mesmos casos — schema errado é pior que campo ausente, porque é
+ * afirmação. Quando a coluna existir, entra aqui.
  */
 
 /**
@@ -112,6 +120,24 @@ export function schemaDoVeiculo(veiculo: Veiculo, opcoes: OpcoesDoSchemaDoVeicul
     // Só quando a ficha do painel sabe. `0` é informação legítima ("nunca
     // transferido") e precisa passar; `undefined` e `NaN`, não.
     numberOfPreviousOwners: Number.isFinite(donos) ? donos : undefined,
+    /**
+     * Portas — o campo que este arquivo documentava como ausente até 04/09.
+     *
+     * O comentário do topo dizia: *"`numberOfDoors` não existe em
+     * `estoque_motors`. Deduzi-los da carroceria daria certo na maioria e
+     * erraria no Kombi, na picape cabine simples e no cupê — e schema errado é
+     * pior que campo ausente, porque é afirmação. Quando as colunas existirem,
+     * entram aqui."* A coluna existe (migração `20260904120000`), então entrou.
+     *
+     * E o feed provou que a dedução seria mesmo errada: **duas Kombis com
+     * contagens diferentes entre si** (4 e 3), duas Saveiros cabine simples (2)
+     * e o Fusca (2), nos 39 anúncios de 04/09.
+     *
+     * O mapper já devolve `undefined` para moto — lá o feed manda `0`, e aqui
+     * `0` seria afirmação falsa, não campo vazio. Ao contrário de
+     * `numberOfPreviousOwners`, em que zero é informação.
+     */
+    numberOfDoors: veiculo.portas,
     itemCondition: "https://schema.org/UsedCondition",
     offers: {
       "@type": "Offer",

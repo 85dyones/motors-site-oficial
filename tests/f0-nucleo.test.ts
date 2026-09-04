@@ -896,6 +896,10 @@ describe("a trava do sync não pode se desmontar por descuido", () => {
       method?: string;
       body?: string;
       headerParameters?: { parameters: Cabecalho[] };
+      /** `predefinedCredentialType` desde 30/08 — ver o teste da credencial. */
+      authentication?: string;
+      /** `supabaseApi`: o n8n injeta o segredo e ele some do JSON. */
+      nodeCredentialType?: string;
     };
   };
 
@@ -925,12 +929,25 @@ describe("a trava do sync não pode se desmontar por descuido", () => {
     expect(body).toMatch(/\bid:\s*\$json\.id\b/);
   });
 
-  it("o sync autentica com a chave de serviço — por isso a trava é trigger, não RLS", () => {
-    const auth = cabecalhos().find((h) => h.name === "Authorization")?.value ?? "";
-    expect(auth).toContain("SUPABASE_SERVICE_ROLE_KEY");
-    expect(cabecalhos().find((h) => h.name === "apikey")?.value).toContain(
-      "SUPABASE_SERVICE_ROLE_KEY",
-    );
+  it("o sync autentica por credencial do n8n — o segredo saiu do JSON", () => {
+    // Este teste exigia os cabeçalhos `Authorization` e `apikey` com a string
+    // `SUPABASE_SERVICE_ROLE_KEY`, e passava — guardando um mecanismo que o
+    // workflow VIVO abandonou. O nó migrou para `predefinedCredentialType` +
+    // `supabaseApi`: o n8n injeta o segredo na chamada e ele deixa de existir
+    // no JSON. O arquivo do repo só não acusava porque estava velho.
+    //
+    // A identidade `service_role` continua valendo — `estoque_motors` não tem
+    // policy de INSERT para `anon` e o sync insere —, mas deixou de ser
+    // demonstrável a partir daqui. Quem carrega a trava neste arquivo é o ramo
+    // da ASSINATURA (`last_seen_at`), testado logo acima.
+    expect(upsert!.parameters.authentication).toBe("predefinedCredentialType");
+    expect(upsert!.parameters.nodeCredentialType).toBe("supabaseApi");
+
+    // E nenhum cabeçalho de auth escrito à mão: um `Authorization` inline
+    // venceria a credencial e devolveria o segredo ao JSON.
+    const nomes = cabecalhos().map((h) => h.name.toLowerCase());
+    expect(nomes).not.toContain("authorization");
+    expect(nomes).not.toContain("apikey");
   });
 
   // -------------------------------------------------------------------------
