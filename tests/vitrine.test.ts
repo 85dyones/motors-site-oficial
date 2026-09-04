@@ -308,6 +308,95 @@ describe("o ponto de chamada do painel de filtro", () => {
   });
 });
 
+/**
+ * Guardas do foco dos dois botões que apagam a si mesmos.
+ *
+ * `fecharFiltro` e `limparTudoSemPerderOFoco` resolveram este mesmo defeito
+ * mandando o foco para `botaoDoFiltro`, e aquilo só serve para eles: os dois
+ * vivem atrás de `lg:hidden`, então o alternador que recebe o foco está na
+ * tela sempre que eles estão.
+ *
+ * Estes dois não. O `LIMPAR (N)` do topo do painel e o `VER TODO O ESTOQUE` do
+ * estado vazio aparecem nas DUAS larguras, e no desktop o alternador é
+ * `display:none`: `.focus()` nele é no-op silencioso e o foco continua caindo
+ * no `<body>`. Copiar o padrão do vizinho consertaria o celular e deixaria o
+ * desktop exatamente como estava — sem nenhum teste ver. É esse ponto cego que
+ * o `describe` abaixo fecha, e por isso ele mede o ALVO, não só a chamada.
+ */
+describe("limpar tudo não larga o foco no `<body>` — em nenhuma largura", () => {
+  const fonte = lerCodigo("src/components/modernist/Catalogo.tsx");
+
+  /** A abertura da tag que carrega o `ref` do alvo de foco. */
+  const alvoDeFoco = fonte.match(/<div[^>]*\sref=\{regiaoDeResultados\}[^>]*>/)?.[0] ?? "";
+
+  it("os dois botões que se apagam chamam quem reposiciona o foco", () => {
+    // `onClick={limparTudo}` cru É o defeito: os dois tornam falsa a própria
+    // condição de renderização e saem do DOM levando o foco junto. Ancorado no
+    // rótulo de cada um — um `toContain` solto passaria com só um convertido.
+    expect(fonte).not.toMatch(/onClick=\{limparTudo\}/);
+    expect(fonte).toMatch(
+      /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}LIMPAR \(\{chipsAtivos\.length\}\)/,
+    );
+    expect(fonte).toMatch(
+      /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}VER TODO O ESTOQUE/,
+    );
+  });
+
+  it("o handler limpa E move o foco — sem a segunda linha ninguém recebe", () => {
+    // A mutação que este teste existe para pegar: apagar o `.focus()` deixa a
+    // limpeza funcionando, a tela correta e o foco no `<body>`.
+    //
+    // `[^}]*` não escapa do corpo da função — as duas chamadas têm que estar
+    // DENTRO dele, não soltas em qualquer ponto do arquivo.
+    expect(fonte).toMatch(
+      /const limparTudoComFocoNosResultados = \(\) => \{[^}]*limparTudo\(\);[^}]*regiaoDeResultados\.current\?\.focus\(\);[^}]*\}/,
+    );
+  });
+
+  it("o alvo é focável por código — `tabIndex={-1}` no mesmo elemento do `ref`", () => {
+    // Sem ele, `.focus()` num `<div>` não faz nada e não avisa. E precisa ser
+    // `-1`: com `0` a grade inteira entra na ordem de Tab de todo mundo.
+    expect(alvoDeFoco).toContain("ref={regiaoDeResultados}");
+    expect(alvoDeFoco).toContain("tabIndex={-1}");
+  });
+
+  it("o alvo existe nas DUAS larguras — é o que barra copiar `botaoDoFiltro`", () => {
+    // `botaoDoFiltro` é o "FILTROS", e ele tem `lg:hidden`. `\bhidden\b` pega
+    // `hidden`, `lg:hidden` e qualquer outro degrau de uma vez; a classe
+    // também não pode sair de `filtro.classe`, que injeta `hidden` em runtime.
+    //
+    // As duas primeiras linhas são a trava contra medir o vazio. Sem o alvo no
+    // arquivo, `alvoDeFoco` é `""` e os `not` abaixo passariam sem ler nada —
+    // a armadilha que `tests/fonte.ts` documenta. E o recorte também precisa
+    // ter CHEGADO à lista de classes: `[^>]*` para no primeiro `>`, e um dia
+    // um `onClick={() => …}` na tag põe um `>` antes dela (o mesmo tropeço
+    // anotado em `leads-kanban`). Truncado ali, o teste voltaria a mentir
+    // verde — exigir `className=` faz ele gritar em vez de calar.
+    expect(alvoDeFoco).toContain("ref={regiaoDeResultados}");
+    expect(alvoDeFoco).toContain("className=");
+    expect(alvoDeFoco).not.toMatch(/\bhidden\b/);
+    expect(alvoDeFoco).not.toContain("filtro.");
+  });
+
+  it("o alvo nasce montado, logo depois do painel — não atrás de condição", () => {
+    // Asserção POSICIONAL, como a do índice em `/estoque` mais abaixo: exigir
+    // que ele venha colado no `</aside>` mata de uma vez embrulhá-lo num
+    // `{cond && (…)}` (alvo some junto com os botões) e movê-lo para dentro de
+    // outro bloco. O `{}` opcional é o comentário JSX que `lerCodigo` esvazia
+    // mas não remove; chaves VAZIAS, então nenhuma condição casa aqui.
+    expect(fonte).toMatch(/<\/aside>\s*(?:\{\}\s*)?<div[^>]*\sref=\{regiaoDeResultados\}/);
+  });
+
+  it("o alvo se anuncia — `<div>` focado sem nome não diz nada", () => {
+    // A vantagem que justifica mandar o foco para um contêiner em vez de um
+    // controle: com papel e nome, o leitor de tela anuncia a região e lê o
+    // resultado novo. Sem eles o foco chega num elemento mudo — o `<body>`
+    // com etapas a mais.
+    expect(alvoDeFoco).toMatch(/role="region"/);
+    expect(alvoDeFoco).toMatch(/aria-label="[^"]+"/);
+  });
+});
+
 describe("o ponto de chamada do índice, em `/estoque`", () => {
   const fonte = lerCodigo("src/app/estoque/page.tsx");
 

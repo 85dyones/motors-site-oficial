@@ -75,6 +75,7 @@ export default function Catalogo({
   // painel não obedece a este estado.
   const [filtroAberto, setFiltroAberto] = useState(false);
   const botaoDoFiltro = useRef<HTMLButtonElement>(null);
+  const regiaoDeResultados = useRef<HTMLDivElement>(null);
 
   /**
    * Fecha o painel e devolve o foco ao alternador.
@@ -103,6 +104,30 @@ export default function Catalogo({
   const limparTudoSemPerderOFoco = () => {
     limparTudo();
     botaoDoFiltro.current?.focus();
+  };
+
+  /**
+   * Zera os filtros e leva o foco para a região de resultados.
+   *
+   * Terceiro caso do mesmo defeito, e o primeiro que não podia copiar o
+   * remédio dos outros dois. O `LIMPAR (N)` do topo do painel e o `VER TODO O
+   * ESTOQUE` do estado vazio também tornam falsa a própria condição de
+   * renderização e saem do DOM — mas, ao contrário de `fecharFiltro` e de
+   * `limparTudoSemPerderOFoco`, esses dois aparecem NAS DUAS LARGURAS.
+   *
+   * Por isso `botaoDoFiltro` não serve de destino aqui: ele é o "FILTROS", que
+   * tem `lg:hidden`. No desktop é `display:none`, e `.focus()` em elemento
+   * escondido não faz nada e não devolve erro — o foco seguiria caindo no
+   * `<body>` (WCAG 2.4.3) exatamente onde ninguém olhou, com o celular
+   * consertado escondendo a outra metade.
+   *
+   * O destino é a grade, que existe nas duas larguras e é o que acabou de
+   * mudar: nomeada como região, ela também anuncia o estoque de volta para
+   * quem usa leitor de tela, em vez de só não perder o foco.
+   */
+  const limparTudoComFocoNosResultados = () => {
+    limparTudo();
+    regiaoDeResultados.current?.focus();
   };
 
   const alternar = (chave: string, valor: string) => {
@@ -327,7 +352,7 @@ export default function Catalogo({
             {chipsAtivos.length > 0 && (
               <button
                 type="button"
-                onClick={limparTudo}
+                onClick={limparTudoComFocoNosResultados}
                 className="mt-foco text-[11px] font-semibold text-mt-accent"
               >
                 LIMPAR ({chipsAtivos.length})
@@ -416,8 +441,20 @@ export default function Catalogo({
           </button>
         </aside>
 
-        {/* Grade */}
-        <div className="min-w-0 flex-1 px-[18px] pb-16 pt-6 lg:px-10 lg:pb-[70px]">
+        {/* Grade — e o alvo de foco de quem limpa os filtros.
+            `tabIndex={-1}` põe o `<div>` ao alcance de `.focus()` sem colocar a
+            grade inteira na ordem de Tab; `role` e `aria-label` existem para o
+            foco chegar num elemento que sabe se anunciar, e não num contêiner
+            mudo. Nada aqui pode recolher por largura: é o único destino que
+            serve ao desktop e ao celular ao mesmo tempo — ver
+            `limparTudoComFocoNosResultados`. */}
+        <div
+          ref={regiaoDeResultados}
+          tabIndex={-1}
+          role="region"
+          aria-label="Resultados"
+          className="mt-foco min-w-0 flex-1 px-[18px] pb-16 pt-6 lg:px-10 lg:pb-[70px]"
+        >
           {chipsAtivos.length > 0 && (
             <div className="mb-6 flex flex-wrap gap-2">
               {chipsAtivos.map((chip) => (
@@ -481,7 +518,7 @@ export default function Catalogo({
               </p>
               <button
                 type="button"
-                onClick={limparTudo}
+                onClick={limparTudoComFocoNosResultados}
                 className="mt-btn mt-btn-contorno mt-foco mt-6"
               >
                 VER TODO O ESTOQUE
