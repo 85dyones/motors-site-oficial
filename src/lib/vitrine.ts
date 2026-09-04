@@ -15,8 +15,9 @@ import { getVeiculoPdpUrl } from "./supabase";
  * ---------------------------------------------------------------------------
  * `/estoque` renderiza a grade dentro de um `<Suspense>`, e o fallback mostra
  * a primeira leva — 9 cards. Medido contra a produção em 2026-09-04: o HTML
- * servido trazia **9** links de ficha e **34** URLs no `ItemList`. As outras
- * 25 existiam só no JSON-LD.
+ * servido trazia **9** links de ficha e **36** URLs no `ItemList` (34 carros e
+ * 2 motos; contar só `/carros/` foi o que me fez escrever 34 aqui). As outras
+ * 27 existiam só no JSON-LD.
  *
  * `ItemList` informa, mas não é link de navegação: não passa autoridade e não
  * dá caminho a quem lê a página sem executar JavaScript. Na prática a regra 6
@@ -70,6 +71,18 @@ export function indiceDaVitrine(disponiveis: Veiculo[]): FichaNoIndice[] {
   }));
 }
 
+/**
+ * Onde um controle existe só abaixo do `lg`.
+ *
+ * Um nome só para os cinco lugares que recolhem no celular e não no desktop —
+ * os três do `Catalogo`, e a âncora "VER TODO O ESTOQUE" que o fallback do
+ * `<Suspense>` serve em `/estoque`. Escrito à mão, cada um vira um `lg:hidden`
+ * solto esperando virar `hidden`; e o que sobra solto é o convite para o
+ * próximo. A quinta ocorrência foi achada na revisão de 2026-09-04, depois de
+ * eu já ter fechado as outras quatro.
+ */
+export const SO_NO_CELULAR = "lg:hidden";
+
 /** Como o painel de filtro se apresenta agora. */
 export interface PainelDeFiltro {
   /** Classes de visibilidade do `<aside>`. */
@@ -96,7 +109,7 @@ export interface PainelDeFiltro {
 export function painelDeFiltro(aberto: boolean): PainelDeFiltro {
   return {
     classe: aberto ? "lg:block" : "hidden lg:block",
-    classeDoBotao: "lg:hidden",
+    classeDoBotao: SO_NO_CELULAR,
     rotulo: aberto ? "FECHAR FILTROS" : "FILTROS",
   };
 }

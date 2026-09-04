@@ -10,6 +10,7 @@ import {
   indiceDaVitrine,
   mostrarLimparTudo,
   painelDeFiltro,
+  SO_NO_CELULAR,
   vitrineTemFichas,
 } from "../src/lib/vitrine";
 import IndiceDaVitrine from "../src/components/modernist/IndiceDaVitrine";
@@ -159,6 +160,12 @@ describe("o índice servido cobre o estoque inteiro", () => {
     // Isto cobre o lado de dentro: um `hidden` na classe da própria `<section>`
     // deixa os 36 links no HTML e some com eles para quem enxerga. É a regra 6
     // quebrada ao contrário, e o teste tem a marcação na mão — só não olhava.
+    //
+    // Honestidade sobre o alcance: isto é LISTA NEGRA de um item. `invisible`,
+    // `sr-only`, `opacity-0` e um `absolute -left-[9999px]` fazem o mesmo e
+    // passam. A guarda encarece o acidente, não o impede — perseguir grafia de
+    // classe CSS não converge. O que TEM garantia aqui é a contagem de links e
+    // a igualdade com o `ItemList`, logo acima; isto é o cinto por cima.
     expect(
       renderToStaticMarkup(createElement(IndiceDaVitrine, { disponiveis: PATIO })),
     ).not.toMatch(/\bhidden\b/);
@@ -203,11 +210,21 @@ describe("recolher o filtro no mobile não recolhe no desktop", () => {
     // O terceiro lado do trio, e o pior de perder: com o botão em `hidden` o
     // painel fica recolhido no celular e SEM nenhuma forma de abrir. Beco sem
     // saída funcional, e nada mais na tela quebra. Achado na revisão de 04/09.
+    //
+    // `toBe` e não `toContain` + lista negra. A versão anterior era
+    // `toContain("lg:hidden")` mais um `not.toMatch(/(^|\s)hidden(\s|$)/)`, e
+    // `"lg:hidden max-lg:hidden"` passava nas duas — contém o primeiro, e o
+    // caractere antes do segundo `hidden` é `:`, não espaço. No Tailwind v4
+    // isso gera `@media (width < 64rem){display:none}` e some com os TRÊS
+    // controles em toda largura: a `gA` de volta, com 1889 verdes.
+    //
+    // Como é constante, a igualdade é a asserção certa — e é mais curta que a
+    // que estava aqui. `rotulo` já era testado assim; a inconsistência estava
+    // só neste campo.
     for (const aberto of [true, false]) {
-      const painel = painelDeFiltro(aberto);
-      expect(painel.classeDoBotao).toContain("lg:hidden");
-      expect(painel.classeDoBotao).not.toMatch(/(^|\s)hidden(\s|$)/);
+      expect(painelDeFiltro(aberto).classeDoBotao).toBe(SO_NO_CELULAR);
     }
+    expect(SO_NO_CELULAR).toBe("lg:hidden");
   });
 
   it("o botão diz o que vai acontecer, não onde ele está", () => {
@@ -292,7 +309,11 @@ describe("o ponto de chamada do painel de filtro", () => {
     }
 
     // E nenhum `lg:hidden` sobrou solto: sobrar é o convite para o próximo.
+    // Vale para os DOIS arquivos, porque o quinto controle mora na página — a
+    // âncora "VER TODO O ESTOQUE" do fallback. A frase valia para um arquivo
+    // só enquanto eu não tinha contado direito.
     expect(fonte).not.toContain("lg:hidden");
+    expect(lerCodigo("src/app/estoque/page.tsx")).not.toContain("lg:hidden");
   });
 
   it("o disclosure anuncia o próprio estado, e aponta para o painel certo", () => {
@@ -378,6 +399,20 @@ describe("o ponto de chamada do índice, em `/estoque`", () => {
     // "VER TODO O ESTOQUE 0" que não levava a lugar nenhum.
     expect(fonte).toMatch(
       /\{vitrineTemFichas\(disponiveis\) && \([\s\S]{0,200}href="#todos-os-veiculos"/,
+    );
+  });
+
+  it("a âncora é o quinto controle de celular, e usa a constante", () => {
+    // Afirmação POSITIVA, e não só o `not.toContain("lg:hidden")` do outro
+    // teste: aquele é negativo, e a mutação que importa aqui REMOVE a
+    // interpolação e escreve `hidden` — sem deixar `lg:hidden` para trás.
+    // Passou verde na primeira tentativa deste conserto.
+    //
+    // Trocar por `hidden` some com o único caminho pré-hidratação para o
+    // índice no celular, e devolve o salto de layout que o fallback existe
+    // para evitar.
+    expect(fonte).toMatch(
+      /href="#todos-os-veiculos"[\s\S]{0,300}\$\{SO_NO_CELULAR\}/,
     );
   });
 });
