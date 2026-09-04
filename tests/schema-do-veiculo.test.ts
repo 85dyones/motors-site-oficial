@@ -10,6 +10,7 @@ import {
   schemaDaLoja,
 } from "../src/lib/schemaLoja";
 import { colunasDoRodape } from "../src/lib/colunasDoRodape";
+import { urlDaRota } from "../src/lib/rotaAteALoja";
 import { lerCodigo } from "./fonte";
 
 /**
@@ -300,12 +301,34 @@ describe("o elo com o Perfil da Empresa no Google", () => {
   });
 
   it("a rota do `COMO CHEGAR` é fixada pelo mesmo lugar, não pelo texto", () => {
-    // Endereço em texto é geocodificado a cada clique, tem homônimo e é
-    // editável no painel. As duas URLs do Maps do repositório continuam
-    // diferentes de propósito — rota e lugar — mas a loja é identificada num
-    // lugar só.
-    const fonte = lerCodigo("src/components/LinkComoChegar.tsx");
-    expect(fonte).toContain("destination_place_id=${PLACE_ID_NO_GOOGLE}");
-    expect(fonte).toContain("maps/dir/?api=1&destination=");
+    // Comparação de VALOR, e não `toContain("…${PLACE_ID_NO_GOOGLE}")` na
+    // fonte, que foi como esta guarda nasceu. Aquilo afirmava que o NOME do
+    // identificador aparecia no template literal, e um
+    // `import { PERFIL_NO_GOOGLE as PLACE_ID_NO_GOOGLE }` passava: a rota
+    // montava `destination_place_id=https://www.google.com/maps?cid=…`, cujo
+    // `?` corta a query. O parâmetro sumia e a rota voltava a depender do
+    // geocode do texto. `tsc` limpo, 1867 verdes.
+    //
+    // Eu tinha escrito, dois arquivos antes e no mesmo commit, que essa forma
+    // de guarda estava aposentada — e replantei aqui.
+    expect(urlDaRota(EMPRESA.address)).toBe(
+      "https://www.google.com/maps/dir/?api=1" +
+        `&destination=${encodeURIComponent(EMPRESA.address)}` +
+        "&destination_place_id=ChIJv0CqvV3n3JQRquS50aBbm1c",
+    );
+  });
+
+  it("a rota carrega os DOIS parâmetros, e o `place_id` sem query dentro", () => {
+    const url = new URL(urlDaRota(EMPRESA.address));
+    expect(url.searchParams.get("destination")).toBe(EMPRESA.address);
+    expect(url.searchParams.get("destination_place_id")).toBe(PLACE_ID_NO_GOOGLE);
+    // O que a mutação do apelido produzia: um valor com `?` dentro, que o
+    // parser de query descarta ao meio.
+    expect(PLACE_ID_NO_GOOGLE).not.toMatch(/[?&/:]/);
+  });
+
+  it("sem endereço não monta rota — o botão some em vez de levar a lugar nenhum", () => {
+    expect(urlDaRota("")).toBe("");
+    expect(urlDaRota("   ")).toBe("");
   });
 });

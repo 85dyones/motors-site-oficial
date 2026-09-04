@@ -293,6 +293,7 @@ describe("o vocabulário do POSICIONAMENTO vale para o texto público", () => {
     "src/app/contato/page.tsx",
     "src/app/destaques/[tag]/page.tsx",
     "src/components/Footer.tsx",
+    "src/lib/colunasDoRodape.ts",
     "src/components/modernist/HeroHome.tsx",
     "src/app/api/feed/xml/route.ts",
   ];
