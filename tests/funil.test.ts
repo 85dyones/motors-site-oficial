@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
-import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
+import { comOAssistente, MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
+import { lerCodigo } from "./fonte";
 import {
   ETAPAS_PADRAO,
   TIPOS_DE_DESFECHO,
@@ -811,5 +812,141 @@ describe("espera", () => {
     expect(espera(new Date(AGORA - 20 * 60_000).toISOString(), AGORA)).toBe("20 min");
     expect(espera(new Date(AGORA - 5 * 3600_000).toISOString(), AGORA)).toBe("5 h");
     expect(espera(new Date(AGORA - 50 * 3600_000).toISOString(), AGORA)).toBe("2 d");
+  });
+});
+
+describe("o relógio só começa quando o assistente sai do circuito", () => {
+  /**
+   * Decisão do dono em 2026-09-05, depois que o Ney ganhou cenários e passou a
+   * conversar antes do consultor: **o SLA só conta depois que o Ney transfere,
+   * e toda métrica de controle só conta depois que ele sai do circuito.**
+   *
+   * Cobrar o vendedor pelo tempo em que o assistente estava atendendo é cobrar
+   * por trabalho que não era dele — e, pior, cutucá-lo aos 15 minutos e
+   * transferir o lead aos 60 no meio de um pré-atendimento que está indo bem.
+   *
+   * ---------------------------------------------------------------------------
+   * O padrão é o relógio RODANDO
+   * ---------------------------------------------------------------------------
+   * `com_assistente` é `false` por omissão, de propósito. Hoje o Ney não está
+   * ligado a caixa nenhuma: uma regra que pausasse por AUSÊNCIA de informação
+   * desligaria o SLA dos catorze leads em produção, em silêncio, e ninguém
+   * descobriria até o primeiro cliente reclamar de não ter sido atendido.
+   */
+  const etapa = {
+    chave: "proposta",
+    rotulo: "Proposta",
+    ordem: 3,
+    tipo: "aberta" as const,
+    estagnacao_minutos: 15,
+    transferencia_minutos: 60,
+    protegida: false,
+    ativa: true,
+  };
+
+  it("lead sem informação de assistente conta como sempre contou", () => {
+    // A garantia de que esta entrega não muda nada hoje.
+    expect(minutosParado(lead(3), AGORA)).toBe(180);
+    expect(nivelDeEstagnacao(lead(3), etapa, AGORA)).toBe("transferir");
+  });
+
+  it("com o assistente na conversa, o lead não está parado", () => {
+    const comNey = lead(3, { com_assistente: true });
+
+    expect(minutosParado(comNey, AGORA)).toBe(0);
+    expect(nivelDeEstagnacao(comNey, etapa, AGORA)).toBe("ok");
+  });
+
+  it("nem mesmo com prazo zero na etapa", () => {
+    // `estagnacao_minutos: 0` é configurável no painel, e `minutos >= 0` é
+    // sempre verdade. Sem a saída explícita, um prazo zero marcaria como
+    // estagnado justamente o lead que o motor não vai cutucar.
+    const agressiva = { ...etapa, estagnacao_minutos: 0, transferencia_minutos: 0 };
+
+    expect(nivelDeEstagnacao(lead(3, { com_assistente: true }), agressiva, AGORA)).toBe("ok");
+    // E continua valendo para quem já está com o humano.
+    expect(nivelDeEstagnacao(lead(3), agressiva, AGORA)).toBe("transferir");
+  });
+
+  it("depois da transferência, o relógio começa DALI — não da entrada do lead", () => {
+    /**
+     * O caso que a decisão existe para resolver: o cliente escreveu às 9h, o
+     * Ney conversou até as 9h50, o consultor assumiu às 9h50. Às 10h o
+     * vendedor está devendo 10 minutos, não 60.
+     */
+    const transferido = lead(1, {
+      humano_assumiu_em: new Date(AGORA - 10 * 60_000).toISOString(),
+      com_assistente: false,
+    });
+
+    expect(minutosParado(transferido, AGORA)).toBe(10);
+    // 10 de 15 já é a faixa de atenção — 60% do prazo, a hora de agir ANTES do
+    // alerta. O que importa é que não é "transferir", que é onde ele estaria
+    // se o relógio tivesse contado a conversa do assistente junto.
+    expect(nivelDeEstagnacao(transferido, etapa, AGORA)).toBe("atencao");
+    expect(nivelDeEstagnacao(lead(1), etapa, AGORA)).toBe("transferir");
+  });
+
+  it("a transferência não RETROCEDE o relógio de quem já foi atendido depois", () => {
+    // `paradoDesde` é o mais recente de todos os toques. Um humano que
+    // respondeu depois da transferência é o marco que vale — senão uma
+    // transferência antiga reabriria o prazo de um lead recém-atendido.
+    const atendidoDepois = lead(5, {
+      humano_assumiu_em: new Date(AGORA - 300 * 60_000).toISOString(),
+      ultimo_contato_em: new Date(AGORA - 5 * 60_000).toISOString(),
+    });
+
+    expect(minutosParado(atendidoDepois, AGORA)).toBe(5);
+  });
+
+  it("`comOAssistente` só é verdade com o booleano explícito", () => {
+    // Nulo e indefinido são "não sei", e não sei significa relógio rodando.
+    expect(comOAssistente(lead(1))).toBe(false);
+    expect(comOAssistente(lead(1, { com_assistente: null }))).toBe(false);
+    expect(comOAssistente(lead(1, { com_assistente: false }))).toBe(false);
+    expect(comOAssistente(lead(1, { com_assistente: true }))).toBe(true);
+  });
+});
+
+describe("a rota entrega ao painel o que o motor usa para decidir", () => {
+  /**
+   * O motor (`montar_fila_do_funil`) e a tela (`nivelDeEstagnacao`) precisam
+   * responder a mesma coisa sobre o mesmo lead. O db-architect achou a
+   * divergência antes de ela existir: a rota selecionava só
+   * `chatwoot_conversation_id`, então `com_assistente` nunca chegaria ao
+   * `LeadDoFunil` — e no dia em que o Ney entrasse, o banco tiraria o lead da
+   * fila enquanto o card continuaria pintando "3 dias parado".
+   */
+  const rota = lerCodigo("src/app/api/leads/gerenciar/route.ts");
+
+  it("seleciona as colunas do assistente, não só a da conversa", () => {
+    expect(rota).toMatch(/com_assistente/);
+    expect(rota).toMatch(/humano_assumiu_em/);
+  });
+
+  it("e as anexa ao lead que a tela recebe", () => {
+    expect(rota).toMatch(/l\.com_assistente = a\?\.comAssistente \?\? false/);
+    expect(rota).toMatch(/l\.humano_assumiu_em = a\?\.humanoAssumiuEm \?\? null/);
+  });
+
+  it("coluna ausente vira relógio RODANDO, não pausado", () => {
+    // A mesma direção segura do `default false` no banco: num ambiente sem a
+    // migração, `com_assistente` volta `undefined`, e `undefined` não pode
+    // desligar o SLA em silêncio.
+    expect(rota).toMatch(/comAssistente: a\.com_assistente === true/);
+    expect(rota).toMatch(/l\.com_assistente = a\?\.comAssistente \?\? false/);
+  });
+
+  it("usa a MESMA régua de «mais recente» que o banco", () => {
+    // `coalesce(iniciado_em, created_at)` decrescente, dos dois lados. Duas
+    // réguas seria o motor escolhendo uma conversa e a tela outra.
+    expect(rota).toMatch(/b\.iniciado_em \?\? b\.created_at/);
+  });
+
+  it("o atendimento sem id de conversa ainda conta para o relógio", () => {
+    // O `not is null` no `chatwoot_conversation_id` saiu do filtro: um
+    // atendimento pode existir com o assistente conversando antes de a
+    // conversa ter id espelhado, e filtrá-lo apagaria o único sinal que pausa.
+    expect(rota).not.toMatch(/\.not\("chatwoot_conversation_id", "is", null\)/);
   });
 });

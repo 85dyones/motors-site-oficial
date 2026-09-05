@@ -145,6 +145,30 @@ export interface LeadDoFunil {
    * `linkDeConversa` cai no `wa.me`.
    */
   chatwoot_conversation_id?: number | string | null;
+  /**
+   * Quando um humano assumiu a conversa, tirando o assistente do circuito.
+   *
+   * Decisão do dono em 2026-09-05: **o SLA só conta depois que o Ney
+   * transfere; toda métrica de controle só conta depois que ele sai do
+   * circuito.** Cobrar o vendedor pelo tempo em que o assistente estava
+   * conversando é cobrar por trabalho que não era dele.
+   *
+   * Vive em `atendimentos`, como o id da conversa, e é anexada pela mesma
+   * rota. Nulo tem DOIS significados, e eles se separam por `com_assistente`:
+   * ou o assistente ainda está com a conversa, ou nunca houve conversa
+   * nenhuma — o lead que preencheu o formulário e não escreveu.
+   */
+  humano_assumiu_em?: string | null;
+  /**
+   * O assistente está com a conversa AGORA.
+   *
+   * Só isto pausa o relógio, e o padrão é `false`. É deliberado: hoje nenhuma
+   * conversa passa pelo assistente (ele não está ligado a caixa nenhuma), e
+   * uma regra que pausasse por ausência de informação desligaria o SLA de
+   * todos os catorze leads em silêncio. Ausência de dado tem de significar o
+   * comportamento de sempre.
+   */
+  com_assistente?: boolean | null;
 }
 
 /**
@@ -187,14 +211,40 @@ export const ETAPAS_PADRAO: EtapaDoFunil[] = [
  * pintaria o card de vermelho por engano.
  */
 export function paradoDesde(lead: LeadDoFunil): number {
-  const candidatos = [lead.ultimo_contato_em, lead.ultimo_movimento_em, lead.created_at]
+  const candidatos = [
+    lead.ultimo_contato_em,
+    lead.ultimo_movimento_em,
+    // A entrega do assistente ao humano reinicia o relógio: o vendedor não
+    // responde pelo tempo em que a conversa não estava com ele.
+    lead.humano_assumiu_em,
+    lead.created_at,
+  ]
     .map((v) => (v ? new Date(v).getTime() : NaN))
     .filter((n) => Number.isFinite(n));
   return candidatos.length > 0 ? Math.max(...candidatos) : Date.now();
 }
 
-/** Há quantos minutos este lead está parado. Nunca negativo. */
+/**
+ * O assistente ainda está no circuito deste lead.
+ *
+ * Enquanto estiver, NENHUMA métrica de controle conta — decisão do dono em
+ * 2026-09-05. Não é só o alerta de estagnação: é o mesmo relógio que pinta o
+ * card, ordena o kanban e alimenta o relatório do funil.
+ */
+export function comOAssistente(lead: LeadDoFunil): boolean {
+  return lead.com_assistente === true;
+}
+
+/**
+ * Há quantos minutos este lead está parado. Nunca negativo.
+ *
+ * Zero enquanto o assistente conversa: não é "acabou de se mexer", é "o
+ * relógio ainda não começou". Quem lê o número precisa da mesma resposta que
+ * o motor de alertas dá, e devolver o tempo real aqui faria a tela pintar de
+ * vermelho um lead que o motor, corretamente, não vai cutucar.
+ */
 export function minutosParado(lead: LeadDoFunil, agora: number = Date.now()): number {
+  if (comOAssistente(lead)) return 0;
   return Math.max(0, Math.floor((agora - paradoDesde(lead)) / 60000));
 }
 
@@ -218,6 +268,11 @@ export function nivelDeEstagnacao(
   agora: number = Date.now(),
 ): NivelDeEstagnacao {
   if (!etapa || etapa.tipo !== "aberta" || lead.desfecho) return "ok";
+  // O assistente no circuito segura tudo. `minutosParado` já devolveria zero,
+  // mas a saída explícita é o que impede uma etapa com `estagnacao_minutos: 0`
+  // — prazo que o dono pode configurar no painel — de marcar como estagnado um
+  // lead que o motor não vai cutucar.
+  if (comOAssistente(lead)) return "ok";
   const minutos = minutosParado(lead, agora);
 
   const transferir = etapa.transferencia_minutos;
