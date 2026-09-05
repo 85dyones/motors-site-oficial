@@ -642,17 +642,30 @@ export default function Catalogo({
                 ))}
               </div>
 
+              {/* O fim da primeira leva é onde o cliente decide se a loja tem
+                  nove carros ou trinta e seis.
+
+                  Até 05/09/2026 este botão era `mt-btn-tinta` — preto sobre
+                  fundo claro, ao lado de um "Mostrando 9 de 36" em cinza de
+                  12px. No celular, depois de rolar nove fichas, ele lê como
+                  rodapé da lista e não como "tem mais". A cor de destaque é
+                  escassa no site de propósito, e este é exatamente o lugar que
+                  ela existe para marcar: a única ação que revela que a vitrine
+                  continua.
+
+                  A contagem cresceu junto e perdeu o cinza claro — ela é o
+                  argumento, não a legenda. */}
               <div className="mt-12 flex flex-wrap items-center gap-4 border-t-2 border-mt-regua pt-5">
                 {mostrando < totalFiltrado && (
                   <button
                     type="button"
                     onClick={() => setVisiveis((n) => n + PAGINA)}
-                    className="mt-btn mt-btn-tinta mt-foco"
+                    className="mt-btn mt-btn-primario mt-foco"
                   >
                     CARREGAR MAIS {Math.min(PAGINA, totalFiltrado - mostrando)}
                   </button>
                 )}
-                <span className="text-xs text-mt-neutral-600">
+                <span className="text-[13px] font-semibold text-mt-neutral-800">
                   Mostrando {mostrando} de {totalFiltrado}
                 </span>
               </div>

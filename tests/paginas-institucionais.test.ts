@@ -90,6 +90,47 @@ describe("financiamento não promete o que depende do banco", () => {
     );
     expect(ler("src/components/CalculadoraFinanciamento.tsx")).toMatch(/TAC e IOF/);
   });
+
+  it("«o simulador abaixo» é verdade — ele vem antes da grade", () => {
+    /**
+     * Achado pelo dono na produção em 05/09/2026. O texto de abertura promete
+     * "o simulador **abaixo** responde a primeira pergunta"; medido na página,
+     * a frase estava a 267px do topo e o primeiro campo do simulador a
+     * **1702px**, com a grade de nove cards entre os dois. "Abaixo" quer dizer
+     * o próximo bloco, não o que vem depois de rolar a vitrine inteira.
+     *
+     * O teste prende os DOIS lados: se alguém trocar a palavra, ou mover o
+     * simulador de volta para depois da grade, uma das duas asserções cai. Não
+     * adianta guardar só a posição — a promessa mora no texto.
+     */
+    expect(TEXTO_DE_FINANCIAMENTO.join(" ")).toMatch(/simulador abaixo/i);
+    expect(lerCodigo("src/app/financiamento/page.tsx")).toMatch(
+      /posicaoDoConteudo="antes-da-grade"/,
+    );
+  });
+
+  it("e o aviso de estoque vazio aponta para o lado certo", () => {
+    // Ele é renderizado no lugar da GRADE, que agora vem depois do simulador:
+    // dizer "o simulador abaixo" ali manda o cliente para o rodapé.
+    const fonte = lerCodigo("src/app/financiamento/page.tsx");
+
+    expect(fonte).toMatch(/textoSemEstoque="[^"]*simulador acima/);
+    expect(fonte).not.toMatch(/textoSemEstoque="[^"]*simulador abaixo/);
+  });
+
+  it("o bloco livre tem UM lugar por página, não dois", () => {
+    // `conteudo` renderizado nos dois pontos duplicaria o simulador na tela e
+    // no HTML — dois formulários com os mesmos `id`, que é erro de
+    // acessibilidade antes de ser erro visual.
+    const layout = lerCodigo("src/components/modernist/PaginaDeEstoque.tsx");
+    const usos = [...layout.matchAll(/posicaoDoConteudo === "(antes|depois)-da-grade" && blocoLivre/g)];
+
+    expect(usos).toHaveLength(2);
+    expect(usos.map((u) => u[1])).toEqual(["antes", "depois"]);
+    // E o padrão continua sendo depois: `/garantia` não foi tocada.
+    expect(layout).toMatch(/posicaoDoConteudo = "depois-da-grade"/);
+    expect(lerCodigo("src/app/garantia/page.tsx")).not.toMatch(/posicaoDoConteudo/);
+  });
 });
 
 describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {

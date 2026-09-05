@@ -87,11 +87,23 @@ export interface PaginaDeEstoqueProps {
    */
   contagem?: boolean;
   /**
-   * Bloco livre entre a grade e os links — hoje o simulador de `/financiamento`
-   * e a régua de procedência de `/garantia`. Entra depois da grade porque
-   * nessas páginas o estoque é ilustração do argumento, não o argumento.
+   * Bloco livre da página — hoje o simulador de `/financiamento` e a régua de
+   * procedência de `/garantia`.
    */
   conteudo?: ReactNode;
+  /**
+   * Onde o `conteudo` entra.
+   *
+   * O padrão é DEPOIS da grade, porque na maioria dessas páginas o estoque é
+   * ilustração do argumento e o bloco é o fecho.
+   *
+   * `/financiamento` inverte, e por um motivo medido: o texto de abertura diz
+   * "o simulador **abaixo** responde a primeira pergunta", e o simulador
+   * estava a 1702px do topo, com 9 cards entre a frase e ele. Quem lê "abaixo"
+   * procura o próximo bloco, não o que vem depois de rolar a grade inteira —
+   * e ali o simulador não é o fecho, é o assunto da página.
+   */
+  posicaoDoConteudo?: "antes-da-grade" | "depois-da-grade";
 }
 
 export default function PaginaDeEstoque({
@@ -108,7 +120,11 @@ export default function PaginaDeEstoque({
   acao,
   contagem = true,
   conteudo,
+  posicaoDoConteudo = "depois-da-grade",
 }: PaginaDeEstoqueProps) {
+  const blocoLivre = conteudo ? (
+    <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
+  ) : null;
   const resumo = resumirSelecao(veiculos);
   const temResumo = veiculos.length > 0;
   const marcasVisiveis = resumo.marcas.slice(0, 3);
@@ -223,6 +239,8 @@ export default function PaginaDeEstoque({
           )}
         </div>
 
+        {posicaoDoConteudo === "antes-da-grade" && blocoLivre}
+
         {veiculos.length > 0 ? (
           <div className="py-8">
             <GradeDeVeiculos veiculos={veiculos} />
@@ -273,7 +291,7 @@ export default function PaginaDeEstoque({
           </div>
         )}
 
-        {conteudo && <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>}
+        {posicaoDoConteudo === "depois-da-grade" && blocoLivre}
 
         {/* Bloco sem link nenhum não entra: cabeçalho seguido de nada é ruído
             para quem lê e landmark vazio para quem navega por leitor de tela.

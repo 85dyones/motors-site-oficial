@@ -93,8 +93,15 @@ export default async function FinanciamentoPage() {
         introducao={TEXTO_DE_FINANCIAMENTO}
         contagem={false}
         veiculos={paraGrade}
-        textoSemEstoque="Sem veículos nesta faixa agora — o simulador abaixo funciona com qualquer carro do estoque."
+        textoSemEstoque="Sem veículos nesta faixa agora — o simulador acima funciona com qualquer carro do estoque."
         conteudo={<SimuladorDeFinanciamento veiculos={disponiveis} />}
+        /* O texto de abertura diz "o simulador ABAIXO responde a primeira
+           pergunta". Medido na produção em 05/09/2026: a frase ficava a 267px
+           do topo e o primeiro campo do simulador a 1702px, com a grade de
+           nove cards entre os dois. Quem lê "abaixo" procura o próximo bloco,
+           não o que vem depois de rolar a vitrine inteira.
+           E aqui o simulador não é o fecho da página: é o assunto dela. */
+        posicaoDoConteudo="antes-da-grade"
         blocos={[
           {
             titulo: "Por faixa de preço",
