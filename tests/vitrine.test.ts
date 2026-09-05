@@ -20,6 +20,7 @@ import {
   mensagemDeVitrineVazia,
   mostrarLimparTudo,
   painelDeFiltro,
+  rotuloDosResultados,
   SO_NO_CELULAR,
   termosDaBusca,
   textoBuscavel,
@@ -322,7 +323,7 @@ describe("o ponto de chamada do painel de filtro", () => {
     // que ninguém tinha contado. O trio virou quarteto.
     for (const ancora of [
       /aria-controls="painel-de-filtros"[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
-      /onClick=\{limparTudoSemPerderOFoco\}[\s\S]{0,300}\$\{filtro\.classeDoBotao\}/,
+      /\$\{filtro\.classeDoBotao\}`\}[\s\S]{0,120}LIMPAR TUDO/,
       /onClick=\{fecharFiltro\}[\s\S]{0,200}\$\{filtro\.classeDoBotao\}/,
     ]) {
       expect(fonte).toMatch(ancora);
@@ -347,8 +348,11 @@ describe("o ponto de chamada do painel de filtro", () => {
 
   it("o atalho de limpar tudo pergunta à regra, e não perde o foco", () => {
     expect(fonte).toContain("mostrarLimparTudo(chipsAtivos.length, filtroAberto)");
-    expect(fonte).toMatch(/onClick=\{limparTudoSemPerderOFoco\}/);
-    expect(fonte).toContain("limparTudo();");
+    // Ancorado no RÓTULO, e não no nome do handler: desde que os três botões
+    // que limpam passaram a chamar o mesmo, o nome sozinho não diz qual é este.
+    expect(fonte).toMatch(
+      /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}LIMPAR TUDO/,
+    );
   });
 
   it("o painel recolhido continua na árvore", () => {
@@ -374,11 +378,146 @@ describe("o ponto de chamada do painel de filtro", () => {
     //
     // É o mesmo raciocínio que já valia para `classeDoBotao` logo acima:
     // travar quem chama não é travar o que a função faz.
-    for (const handler of ["fecharFiltro", "limparTudoSemPerderOFoco"]) {
+    // O par deixou de ter um destino só quando `limparTudoSemPerderOFoco` foi
+    // absorvido por `limparTudoComFocoNosResultados`: agora são dois handlers e
+    // dois ALVOS diferentes. Travar só o nome do handler deixaria trocar um
+    // alvo pelo outro sem ninguém ver — e trocar é justamente o defeito, porque
+    // `botaoDoFiltro` é `display:none` no desktop. Cada par vai junto.
+    const handlers: [string, string][] = [
+      ["fecharFiltro", "botaoDoFiltro"],
+      ["limparTudoComFocoNosResultados", "regiaoDeResultados"],
+    ];
+    for (const [handler, alvo] of handlers) {
       expect(fonte).toMatch(
-        new RegExp(`const ${handler} = \\(\\) => \\{[^}]*botaoDoFiltro\\.current\\?\\.focus\\(\\)`),
+        new RegExp(`const ${handler} = \\(\\) => \\{[^}]*${alvo}\\.current\\?\\.focus\\(\\)`),
       );
     }
+  });
+});
+
+describe("o nome acessível da região de resultados", () => {
+  // Função pura, então testada por COMPORTAMENTO — asserção de fonte é a
+  // segunda escolha deste arquivo, e aqui ela não é necessária.
+  it("diz quantos veículos sobraram, que é o que mudou", () => {
+    expect(rotuloDosResultados(36)).toBe("Resultados: 36 veículos");
+    expect(rotuloDosResultados(0)).toBe("Resultados: 0 veículos");
+  });
+
+  it("um veículo no singular — `1 veículos` é a saída errada mais provável", () => {
+    expect(rotuloDosResultados(1)).toBe("Resultados: 1 veículo");
+  });
+
+  it("o número entra sempre — nome fixo não anuncia mudança nenhuma", () => {
+    // A razão de a função existir: um nome fixo é a mesma frase antes e depois
+    // de limpar, e o leitor de tela leria exatamente isso.
+    const nomes = [0, 1, 9, 36].map(rotuloDosResultados);
+    expect(new Set(nomes).size).toBe(nomes.length);
+  });
+});
+
+/**
+ * Guardas do foco dos três botões que apagam a si mesmos.
+ *
+ * `fecharFiltro` resolve este mesmo defeito mandando o foco para
+ * `botaoDoFiltro`, e aquilo só serve para ele: o botão de fechar vive atrás de
+ * `SO_NO_CELULAR`, então o alternador que recebe o foco está na tela sempre que
+ * ele está.
+ *
+ * O `LIMPAR (N)` do topo do painel e o `VER TODO O ESTOQUE` do estado vazio
+ * não. Os dois aparecem NAS DUAS LARGURAS, e no desktop o alternador é
+ * `display:none`: `.focus()` nele é no-op silencioso e o foco continua caindo
+ * no `<body>`. Foi por isso que o conserto ficou adiado em 04/09 — copiar o
+ * padrão do vizinho consertaria o celular e deixaria o desktop exatamente como
+ * estava, sem nenhum teste ver. É esse ponto cego que o `describe` abaixo
+ * fecha, e por isso ele mede o ALVO, não só a chamada.
+ */
+describe("limpar tudo não larga o foco no `<body>` — em nenhuma largura", () => {
+  const fonte = lerCodigo("src/components/modernist/Catalogo.tsx");
+
+  /** A abertura da tag que carrega o `ref` do alvo de foco. */
+  const alvoDeFoco = fonte.match(/<div[^>]*\sref=\{regiaoDeResultados\}[^>]*>/)?.[0] ?? "";
+
+  it("os três botões que se apagam chamam quem reposiciona o foco", () => {
+    // `onClick={limparTudo}` cru É o defeito: os três tornam falsa a própria
+    // condição de renderização e saem do DOM levando o foco junto. Ancorado no
+    // rótulo de cada um — um `toContain` solto passaria com só um convertido.
+    expect(fonte).not.toMatch(/onClick=\{limparTudo\}/);
+    expect(fonte).toMatch(
+      /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}LIMPAR \(\{chipsAtivos\.length\}\)/,
+    );
+    expect(fonte).toMatch(
+      /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}VER TODO O ESTOQUE/,
+    );
+    const chamadas = fonte.match(/onClick=\{limparTudoComFocoNosResultados\}/g) ?? [];
+    expect(chamadas).toHaveLength(3);
+  });
+
+  it("o handler limpa E move o foco — sem a segunda linha ninguém recebe", () => {
+    // A mutação que este teste existe para pegar: apagar o `.focus()` deixa a
+    // limpeza funcionando, a tela correta e o foco no `<body>`.
+    //
+    // A classe negada não escapa do corpo da função — as duas chamadas têm que
+    // estar DENTRO dele, não soltas em qualquer ponto do arquivo.
+    expect(fonte).toMatch(
+      /const limparTudoComFocoNosResultados = \(\) => \{[^}]*limparTudo\(\)[^}]*regiaoDeResultados\.current\?\.focus\(\);[^}]*\}/,
+    );
+  });
+
+  it("o alvo é focável por código — `tabIndex={-1}` no mesmo elemento do `ref`", () => {
+    // Sem ele, `.focus()` num `<div>` não faz nada e não avisa. E precisa ser
+    // `-1`: com `0` a grade inteira entra na ordem de Tab de todo mundo.
+    expect(alvoDeFoco).toContain("ref={regiaoDeResultados}");
+    expect(alvoDeFoco).toContain("tabIndex={-1}");
+  });
+
+  it("o alvo existe nas DUAS larguras — é o que barra copiar `botaoDoFiltro`", () => {
+    // `botaoDoFiltro` é o "FILTROS", e ele tem `SO_NO_CELULAR`. A regex pega
+    // `hidden`, `lg:hidden` e qualquer outro degrau de uma vez; a classe também
+    // não pode sair de `filtro.classe`, que injeta `hidden` em runtime.
+    //
+    // As duas primeiras linhas são a trava contra medir o vazio. Sem o alvo no
+    // arquivo, `alvoDeFoco` é vazio e os `not` abaixo passariam sem ler nada —
+    // a armadilha que `tests/fonte.ts` documenta. E o recorte também precisa
+    // ter CHEGADO à lista de classes: ele para no primeiro fecha-tag, e um dia
+    // uma arrow function na tag põe um deles antes dela. Truncado ali, o teste
+    // voltaria a mentir verde — exigir `className=` faz ele gritar.
+    expect(alvoDeFoco).toContain("ref={regiaoDeResultados}");
+    expect(alvoDeFoco).toContain("className=");
+    expect(alvoDeFoco).not.toMatch(/\bhidden\b/);
+    expect(alvoDeFoco).not.toContain("filtro.");
+  });
+
+  it("o alvo nasce montado, logo depois do painel — não atrás de condição", () => {
+    // Asserção POSICIONAL, como a do índice em `/estoque` mais abaixo: exigir
+    // que ele venha colado no fecha-`aside` mata de uma vez embrulhá-lo numa
+    // condição (alvo some junto com os botões) e movê-lo para outro bloco. As
+    // chaves opcionais são o comentário JSX que `lerCodigo` esvazia mas não
+    // remove; VAZIAS, então nenhuma condição casa aqui.
+    expect(fonte).toMatch(/<\/aside>\s*(?:\{\}\s*)?<div[^>]*\sref=\{regiaoDeResultados\}/);
+  });
+
+  it("o alvo se anuncia — `<div>` focado sem nome não diz nada", () => {
+    // A vantagem que justifica mandar o foco para um contêiner em vez de um
+    // controle: com papel e nome, o leitor de tela anuncia a região e lê o
+    // resultado novo. Sem eles o foco chega num elemento mudo — o `<body>`
+    // com etapas a mais.
+    expect(alvoDeFoco).toMatch(/role="region"/);
+    // E o nome é EXPRESSÃO, não literal: um nome fixo passaria num toMatch
+    // solto de `aria-label=` sem anunciar contagem nenhuma — que é exatamente
+    // o buraco que este bloco fecha.
+    expect(alvoDeFoco).toContain("aria-label={rotuloDosResultados(totalFiltrado)}");
+  });
+
+  it("a contagem chega à tela ANTES do foco — senão o lido é o número velho", () => {
+    // O React agenda o estado e devolve o controle sem repintar, então o
+    // `.focus()` da linha seguinte acontece com o `aria-label` ainda no valor
+    // antigo — e é NO INSTANTE DO FOCO que o leitor de tela lê o nome. Sem o
+    // despacho síncrono, quem limpa a partir do estado vazio ouve "0 veículos"
+    // no exato momento em que 36 voltaram para a tela. Medido no navegador.
+    expect(fonte).toContain("flushSync");
+    expect(fonte).toMatch(
+      /const limparTudoComFocoNosResultados = \(\) => \{[^}]*flushSync\([^}]*limparTudo\(\)[^}]*regiaoDeResultados\.current\?\.focus\(\)/,
+    );
   });
 });
 

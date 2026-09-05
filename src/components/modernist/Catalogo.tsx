@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { QuickTag, StockOverrides, Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import {
@@ -19,6 +20,7 @@ import {
   mensagemDeVitrineVazia,
   mostrarLimparTudo,
   painelDeFiltro,
+  rotuloDosResultados,
   termosDaBusca,
 } from "../../lib/vitrine";
 import { CardVeiculo, formatarPreco } from "./primitivos";
@@ -90,6 +92,7 @@ export default function Catalogo({
   const [filtroAberto, setFiltroAberto] = useState(false);
   const botaoDoFiltro = useRef<HTMLButtonElement>(null);
   const campoDeBusca = useRef<HTMLInputElement>(null);
+  const regiaoDeResultados = useRef<HTMLDivElement>(null);
 
   /**
    * Fecha o painel e devolve o foco ao alternador.
@@ -109,15 +112,44 @@ export default function Catalogo({
   };
 
   /**
-   * Limpa os filtros a partir da régua de chips, sem largar o foco.
+   * Zera os filtros e leva o foco para a região de resultados.
    *
-   * Mesmo motivo do `fecharFiltro`, e aqui é por construção: a função deste
-   * botão é tornar falsa a própria precondição — sem chip ativo a régua inteira
-   * desmonta e ele vai junto. O alternador do filtro é o vizinho que sobrevive.
+   * Fecha a tarefa que ficou aberta em 2026-09-04: os TRÊS botões que limpam
+   * — o `LIMPAR (N)` do topo do painel, o `LIMPAR TUDO` da régua de chips e o
+   * `VER TODO O ESTOQUE` do estado vazio — tornam falsa a própria condição de
+   * renderização e saem do DOM levando o foco de quem os acionou para o
+   * `<body>` (WCAG 2.4.3).
+   *
+   * `botaoDoFiltro` não servia de destino, que foi o motivo de o conserto ter
+   * sido adiado. Ele é o "FILTROS", que tem `SO_NO_CELULAR`: no desktop é
+   * `display:none`, e `.focus()` em elemento escondido não faz nada e não
+   * devolve erro. Dois destes três aparecem NAS DUAS LARGURAS — medido a
+   * 1440px, mandar para lá deixa o `activeElement` no `<body>` do mesmo jeito.
+   * Consertaria o celular e esconderia o desktop, com a suíte verde.
+   *
+   * O terceiro (`LIMPAR TUDO`) é só do celular e chegou a usar o alternador,
+   * que ali de fato está na tela. Veio para cá mesmo assim: aquele caminho
+   * move o foco para TRÁS, para fora da região que acabou de mudar, e anuncia
+   * a contagem velha (ver o `flushSync` abaixo). Mesma ação, mesmo destino.
+   *
+   * `fecharFiltro` fica de fora, e de propósito: fechar um disclosure e
+   * devolver o foco ao alternador que o abriu é outro gesto, e lá o alternador
+   * é o lugar certo — não há nada de novo para anunciar.
+   *
+   * O destino é a grade, que existe nas duas larguras e é o que acabou de
+   * mudar: nomeada como região, ela também anuncia o estoque de volta para
+   * quem usa leitor de tela, em vez de só não perder o foco.
+   *
+   * `flushSync` e não `limparTudo()` solto. O React agenda o estado e devolve o
+   * controle ANTES de repintar, então o `.focus()` da linha seguinte
+   * aconteceria com a região ainda carregando o nome velho — e o nome é lido no
+   * instante do foco, não depois. Sem o despacho, quem limpa a partir do estado
+   * vazio ouve "Resultados: 0 veículos" no exato momento em que os 36 voltaram
+   * para a tela.
    */
-  const limparTudoSemPerderOFoco = () => {
-    limparTudo();
-    botaoDoFiltro.current?.focus();
+  const limparTudoComFocoNosResultados = () => {
+    flushSync(() => limparTudo());
+    regiaoDeResultados.current?.focus();
   };
 
   const alternar = (chave: string, valor: string) => {
@@ -444,19 +476,14 @@ export default function Catalogo({
         >
           <div className="flex items-baseline justify-between border-b-2 border-mt-regua pb-3.5 pt-5">
             <span className="text-[11px] font-extrabold tracking-[.16em]">FILTROS</span>
-            {/* `limparTudo` cru, e não `limparTudoSemPerderOFoco`: este botão
-                tem o MESMO defeito de foco que os dois handlers acima
-                corrigem — some do DOM ao ser acionado e larga o foco no
-                `<body>`. Não foi corrigido junto de propósito: ele aparece
-                também no desktop, onde `botaoDoFiltro` é `display:none` e
-                `.focus()` nele é no-op silencioso. Precisa de outro alvo, e
-                isso é decisão de design, não cópia. Tarefa aberta em
-                2026-09-04; vale igual para o "VER TODO O ESTOQUE" do estado
-                vazio, mais abaixo. */}
+            {/* Este botão some do DOM ao ser acionado. O destino do foco é a
+                região de resultados, e não o alternador do filtro: ele aparece
+                também no desktop, onde `botaoDoFiltro` é `display:none`. Era a
+                tarefa aberta em 2026-09-04, e o alvo novo é o que a fechou. */}
             {chipsAtivos.length > 0 && (
               <button
                 type="button"
-                onClick={limparTudo}
+                onClick={limparTudoComFocoNosResultados}
                 className="mt-foco text-[11px] font-semibold text-mt-accent"
               >
                 LIMPAR ({chipsAtivos.length})
@@ -545,8 +572,20 @@ export default function Catalogo({
           </button>
         </aside>
 
-        {/* Grade */}
-        <div className="min-w-0 flex-1 px-[18px] pb-16 pt-6 lg:px-10 lg:pb-[70px]">
+        {/* Grade — e o alvo de foco de quem limpa os filtros.
+            `tabIndex={-1}` põe o `<div>` ao alcance de `.focus()` sem colocar a
+            grade inteira na ordem de Tab; `role` e `aria-label` existem para o
+            foco chegar num elemento que sabe se anunciar, e não num contêiner
+            mudo. Nada aqui pode recolher por largura: é o único destino que
+            serve ao desktop e ao celular ao mesmo tempo — ver
+            `limparTudoComFocoNosResultados`. */}
+        <div
+          ref={regiaoDeResultados}
+          tabIndex={-1}
+          role="region"
+          aria-label={rotuloDosResultados(totalFiltrado)}
+          className="mt-foco min-w-0 flex-1 px-[18px] pb-16 pt-6 lg:px-10 lg:pb-[70px]"
+        >
           {chipsAtivos.length > 0 && (
             <div className="mb-6 flex flex-wrap gap-2">
               {chipsAtivos.map((chip) => (
@@ -586,15 +625,19 @@ export default function Catalogo({
                   aparecia "só onde some", e não era verdade — a revisão de
                   04/09 pegou.
 
-                  `limparTudo` sozinho no `onClick` seria o mesmo defeito de
-                  foco que o `fecharFiltro` corrigiu, e pior: aqui é por
-                  construção. Zerar os filtros torna falsa a condição da régua
-                  de chips logo acima, o botão sai do DOM, e o foco de quem
-                  acabou de acioná-lo cai no `<body>` (WCAG 2.4.3). */}
+                  `limparTudo` sozinho no `onClick` seria defeito de foco por
+                  construção: zerar os filtros torna falsa a condição da régua
+                  logo acima, o botão sai do DOM e o foco de quem acabou de
+                  acioná-lo cai no `<body>` (WCAG 2.4.3).
+
+                  Este apontou para o alternador do filtro, que aqui está na
+                  tela. Mudou de destino mesmo assim: aquilo mandava o foco para
+                  trás, para FORA da região que acabou de mudar, e sem despacho
+                  síncrono anunciava a contagem velha. */}
               {mostrarLimparTudo(chipsAtivos.length, filtroAberto) && (
                 <button
                   type="button"
-                  onClick={limparTudoSemPerderOFoco}
+                  onClick={limparTudoComFocoNosResultados}
                   className={`mt-foco border border-mt-accent px-3 py-1.5 text-xs font-semibold text-mt-accent ${filtro.classeDoBotao}`}
                 >
                   LIMPAR TUDO
@@ -612,12 +655,13 @@ export default function Catalogo({
                 )}
               </p>
               {/* Mesmo caso do `LIMPAR (N)` lá em cima: `limparTudo` cru
-                  desmonta este bloco inteiro e o foco cai no `<body>`. Adiado
-                  pelo mesmo motivo — aparece no desktop, onde o alternador do
-                  filtro não existe para receber o foco. */}
+                  desmontaria este bloco inteiro e o foco cairia no `<body>`.
+                  Aqui o desktop é o caso difícil — o alternador do filtro não
+                  existe lá para receber o foco — e é por isso que o destino é
+                  a região de resultados, que existe nas duas larguras. */}
               <button
                 type="button"
-                onClick={limparTudo}
+                onClick={limparTudoComFocoNosResultados}
                 className="mt-btn mt-btn-contorno mt-foco mt-6"
               >
                 VER TODO O ESTOQUE

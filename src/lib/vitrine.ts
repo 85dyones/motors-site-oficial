@@ -132,6 +132,24 @@ export function mostrarLimparTudo(filtrosAtivos: number, painelAberto: boolean):
 }
 
 /**
+ * O nome acessível da região de resultados da vitrine.
+ *
+ * Quem limpa os filtros recebe o foco nessa região — ver
+ * `limparTudoComFocoNosResultados`, em `Catalogo.tsx` — e é NO INSTANTE DO FOCO
+ * que o leitor de tela lê o nome do elemento. Um nome fixo ("Resultados") não
+ * anuncia nada: a frase sai igual antes e depois, e a única coisa que mudou foi
+ * justamente a contagem.
+ *
+ * E a contagem não está ao alcance de quem acabou de ser focado: o "36 VEÍCULOS
+ * NA SELEÇÃO" vive na barra de controle, ACIMA e FORA da região. Ela entra aqui,
+ * no nome, para chegar junto com o foco em vez de depender de o cliente sair
+ * procurando o número que ele não viu mudar.
+ */
+export function rotuloDosResultados(total: number): string {
+  return `Resultados: ${total} ${total === 1 ? "veículo" : "veículos"}`;
+}
+
+/**
  * Se `/estoque` tem índice de fichas para publicar.
  *
  * A página precisa saber disso para decidir se serve a âncora do fallback, e
