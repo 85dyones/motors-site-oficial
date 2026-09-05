@@ -82,7 +82,27 @@ describe("a promessa do laudo carrega a condição", () => {
          superfícies: "laudo na ficha" seco, "laudo DE CADA UNIDADE fica
          disponível", "laudo de perícia de cada veículo na ficha". Uma delas
          estava na MESMA página que eu tinha acabado de corrigir duas vezes. */
-      const trechos = corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de)[^.]{0,60}/gi) ?? [];
+      /* `de cada` entrou na alternância em 2026-09-05, e pelo mesmo motivo que
+         as três anteriores: a revisão da F1 achou "onde fica o laudo DE CADA
+         VEÍCULO" num card novo de `/avaliacao` — décima superfície, e a
+         primeira escrita DEPOIS desta trava existir. A frase afirma laudo
+         publicado para todos sem nunca dizer "ficha", então passava reto.
+
+         O padrão do defeito é sempre o mesmo: quem escreve quer dizer "o laudo
+         é público" e escolhe um jeito novo de dizer onde ele está. Por isso a
+         alternância cobre o LUGAR ("ficha") e a QUANTIFICAÇÃO ("de cada"), que
+         são as duas formas de afirmar a mesma coisa. */
+      /* A cauda vai até o PONTO FINAL, e não mais 60 caracteres.
+
+         Com `de cada` na alternância, o gatilho passou a casar mais cedo na
+         frase, e a janela fixa cortava antes da ressalva: "laudo de cada
+         unidade fica disponível na ficha do carro, no site, assim q|ue a
+         perícia é aprovada" (`paginasGeo.ts`) virou infrator com o texto
+         CORRETO. A ressalva mora na mesma frase que a promessa — então a
+         frase é a unidade certa de leitura, em vez de um número de caracteres
+         escolhido a dedo. */
+      const trechos =
+        corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]*/gi) ?? [];
       for (const trecho of trechos) {
         if (!/aprovad/i.test(trecho)) {
           infratores.push(`${caminho}: ${trecho.slice(0, 110)}`);

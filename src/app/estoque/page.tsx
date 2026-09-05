@@ -21,7 +21,7 @@ import {
 } from "../../lib/schemaListagem";
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja } from "../../lib/schemaLoja";
-import { segmentarComLinks } from "../../lib/linksNoTexto";
+import { criarLinkador } from "../../lib/linksNoTexto";
 import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
 import {
   CAIXA_DA_BUSCA,
@@ -97,6 +97,8 @@ export default async function EstoquePage() {
   const marcas = hubsDeMarca(historico, disponiveis, "carros").filter((m) => m.veiculos.length > 0);
   const carrocerias = hubsDeCarroceria(historico, disponiveis).filter((c) => c.veiculos.length > 0);
 
+  const linkar = criarLinkador("/estoque");
+
   const perguntas = perguntasDeCategoria("carros seminovos");
 
   const jsonLd = blocoJsonLd([
@@ -148,10 +150,29 @@ export default async function EstoquePage() {
           Carros seminovos em Curitiba{" "}
           <span className="text-mt-accent">{disponiveis.length}</span>
         </h1>
+        {/* O parágrafo de abertura passa pelo MESMO linkador do FAQ abaixo —
+            é o primeiro texto da página, e "perícia cautelar" aqui é onde o
+            leitor encontra o termo antes de qualquer outro lugar. Como o
+            linkador tem memória, o link sai aqui e o FAQ fica com o texto
+            comum, em vez de repetir a mesma âncora quatro vezes. */}
         <p className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três
-          entram. O laudo fica na ficha do carro assim que aprovado, e o preço está no anúncio.
-          Showroom no Bacacheri, em Curitiba.
+          {linkar(
+            "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
+              "entram. O laudo fica na ficha do carro assim que aprovado, e o preço está no anúncio. " +
+              "Showroom no Bacacheri, em Curitiba.",
+          ).map((parte, i) =>
+            parte.href ? (
+              <Link
+                key={i}
+                href={parte.href}
+                className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+              >
+                {parte.texto}
+              </Link>
+            ) : (
+              <span key={i}>{parte.texto}</span>
+            ),
+          )}
         </p>
       </div>
 
@@ -388,7 +409,7 @@ export default async function EstoquePage() {
                     `schemaDePerguntas` publica no `FAQPage` logo acima, e
                     markup dentro dela faria markup e página divergirem. */}
                 <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                  {segmentarComLinks(item.resposta, "/estoque").map((parte, i) =>
+                  {linkar(item.resposta).map((parte, i) =>
                     parte.href ? (
                       <Link
                         key={`${item.pergunta}-${i}`}

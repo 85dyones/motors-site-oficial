@@ -39,9 +39,18 @@ const DEPOIS_DA_AVALIACAO = [
     apoio: "A diferença entre o seu carro e o próximo, parcelada com análise em vários bancos.",
   },
   {
-    rotulo: "Garantia e laudo cautelar",
+    rotulo: "Garantia e perícia",
     href: "/garantia",
-    apoio: "O que cobre motor e câmbio, e onde fica o laudo de cada veículo.",
+    // "assim que aprovado", e nunca "o laudo de cada veículo".
+    //
+    // A primeira versão desta linha dizia "onde fica o laudo de cada veículo",
+    // que afirma laudo publicado para todos. Não é o caso: a ficha só abre o
+    // bloco com `pericia === "PERÍCIA APROVADA"`, e em 03/09/2026 dezessete de
+    // trinta e seis publicados estavam EM ANÁLISE. É a mesma afirmação que
+    // `d2ee139` e `673b048` corrigiram em cinco superfícies — e escorregou de
+    // volta aqui porque `coerencia-da-pericia` casa "laudo … na ficha", e a
+    // frase não dizia "ficha". A varredura foi ampliada junto com esta linha.
+    apoio: "O que cobre motor e câmbio, e onde fica o laudo assim que a perícia é aprovada.",
   },
 ];
 

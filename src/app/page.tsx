@@ -249,7 +249,14 @@ export default async function Home() {
        zeros na home parecem loja fechada, não recorte. */
     faixas_de_preco: disponiveis.length > 0 && (
       <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
-        <CabecalhoSecao numero="POR FAIXA DE PREÇO" titulo="Escolha pelo orçamento" />
+        {/* Sem `numero`, e o prop é opcional justamente para isto.
+            A numeração da home ("01 — ESTOQUE SELECIONADO", "02 — CONSULTORIA"…)
+            foi escrita para uma ordem fixa e já não descreve a página: o dono
+            reordena as seções na tela A3 sem que os números acompanhem. Todo
+            número livre entre 01 e 02 já está ocupado — 03 é "VENDA OU TROCA" —,
+            e renumerar a home inteira é outra tarefa, não efeito colateral
+            desta. */}
+        <CabecalhoSecao titulo="Escolha pelo orçamento" />
         <div className="flex flex-wrap gap-1.5 pt-6">
           {hubsDeFaixa(disponiveis).map((f) => (
             <Link

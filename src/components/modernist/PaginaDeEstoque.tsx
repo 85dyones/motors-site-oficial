@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Veiculo } from "../../types";
 import { resumirSelecao } from "../../lib/destaquesRapidos";
-import { segmentarComLinks } from "../../lib/linksNoTexto";
+import { criarLinkador } from "../../lib/linksNoTexto";
 import GradeDeVeiculos from "./GradeDeVeiculos";
 import BotaoWhatsApp from "./BotaoWhatsApp";
 import { formatarKm, formatarPreco } from "./primitivos";
@@ -138,6 +138,11 @@ export default function PaginaDeEstoque({
   posicaoDoConteudo = "depois-da-grade",
   caminho,
 }: PaginaDeEstoqueProps) {
+  // Um linkador para a página inteira: o mesmo `Set` atravessa introdução e
+  // FAQ, então cada destino vira link UMA vez por página, e não uma por
+  // parágrafo. Ver `criarLinkador`.
+  const linkar = criarLinkador(caminho);
+
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
   ) : null;
@@ -206,7 +211,7 @@ export default function PaginaDeEstoque({
                 key={i}
                 className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]"
               >
-                {segmentarComLinks(paragrafo, caminho).map((parte, j) =>
+                {linkar(paragrafo).map((parte, j) =>
                   parte.href ? (
                     <Link
                       key={j}
@@ -369,7 +374,7 @@ export default function PaginaDeEstoque({
                       dentro da string: `segmentarComLinks` só quebra o texto em
                       pedaços — juntá-los devolve a resposta byte a byte. */}
                   <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                    {segmentarComLinks(item.resposta, caminho).map((parte, i) =>
+                    {linkar(item.resposta).map((parte, i) =>
                       parte.href ? (
                         <Link
                           key={`${item.pergunta}-${i}`}

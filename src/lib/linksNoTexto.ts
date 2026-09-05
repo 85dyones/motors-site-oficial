@@ -4,9 +4,14 @@
  * O relatório de linkagem interna de 2026-09-05 achou o maior vazamento de
  * link equity do site num lugar que ninguém olha: as respostas do FAQ. O mesmo
  * bloco de perguntas é renderizado em ~50 páginas (marca, modelo, carroceria,
- * faixa, bairro, `/garantia`, `/financiamento`), e nele "Avaliação Express",
- * "laudo cautelar" e "financiamento" aparecem escritos por extenso, sem link,
- * enquanto as três páginas correspondentes recebiam entrada só do rodapé.
+ * faixa, bairro, `/garantia`, `/financiamento`), e nele "Avaliação Express" e
+ * "perícia cautelar" aparecem escritos por extenso, sem link.
+ *
+ * O ganho medido, sem arredondar para cima: `/garantia` e `/avaliacao` passam a
+ * receber link contextual em ~50 páginas. `/financiamento` ganha UMA — a palavra
+ * só aparece fora de auto-link no hub `/estoque/primeiro-carro`. A primeira
+ * versão deste bloco dizia que as três recebiam entrada "só do rodapé", o que
+ * era falso: `/avaliacao` está no cabeçalho de toda página.
  *
  * ---------------------------------------------------------------------------
  * Por que segmentar em vez de reescrever a string
@@ -41,10 +46,19 @@ export interface DestinoNoTexto {
  *
  * Ordem importa quando um termo é sufixo do outro — por isso a segmentação
  * ordena por comprimento antes de casar, e não confia nesta ordem.
+ *
+ * **"laudo cautelar" não dispara em nenhuma página hoje**, e isso está medido:
+ * zero ocorrências nos 45 pares de FAQ e nos 54 parágrafos de introdução
+ * publicados. A expressão aparece só numa PERGUNTA gerada por `textoDosHubs`, e
+ * pergunta não é segmentada. Fica registrado aqui em vez de removido porque o
+ * cluster de guias sobre perícia (a fase seguinte do plano) usa esse exato
+ * termo — mas ninguém deve olhar esta lista e supor que as quatro entradas
+ * estão trabalhando. Três estão.
  */
 export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "Avaliação Express", href: "/avaliacao" },
   { termo: "perícia cautelar", href: "/garantia" },
+  // Sem uso no texto publicado hoje — ver a nota acima.
   { termo: "laudo cautelar", href: "/garantia" },
   { termo: "financiamento", href: "/financiamento" },
 ];
@@ -86,12 +100,14 @@ interface Ocorrencia {
 export function segmentarComLinks(
   texto: string,
   caminhoAtual?: string,
+  jaLinkados?: Set<string>,
 ): SegmentoDeTexto[] {
   const bruto = texto ?? "";
   if (!bruto) return [];
 
   const candidatos = [...TERMOS_COM_DESTINO]
     .filter((d) => d.href !== caminhoAtual)
+    .filter((d) => !jaLinkados?.has(d.href))
     // Mais longo primeiro: se um termo for sufixo de outro, o específico casa
     // antes e o genérico encontra o espaço já ocupado.
     .sort((a, b) => b.termo.length - a.termo.length);
@@ -126,10 +142,37 @@ export function segmentarComLinks(
     // O texto do link sai do texto ORIGINAL, não do termo cadastrado: é assim
     // que "avaliação express" em caixa baixa continua em caixa baixa na tela.
     segmentos.push({ texto: bruto.slice(o.inicio, o.fim), href: o.href });
+    jaLinkados?.add(o.href);
     cursor = o.fim;
   }
 
   if (cursor < bruto.length) segmentos.push({ texto: bruto.slice(cursor) });
 
   return segmentos;
+}
+
+/**
+ * Um linkador com memória, para uma página inteira.
+ *
+ * `segmentarComLinks` sozinha limita a uma ocorrência por termo POR STRING, e
+ * a revisão da F1 mediu o que isso vira numa página real: `/estoque/ate-60-mil`
+ * saía com **quatro** âncoras idênticas para `/garantia` — duas nos parágrafos
+ * de abertura, duas no FAQ —, porque "perícia cautelar" aparece em 21 das 54
+ * introduções publicadas. Quatro links iguais na mesma página é o campo minado
+ * que a regra 1 diz querer evitar; a régua estava na unidade errada.
+ *
+ * Quem monta a página cria um linkador e usa o MESMO em todos os blocos. O
+ * primeiro link de cada destino fica onde o leitor chega primeiro — a
+ * introdução, antes do FAQ — e os demais viram texto comum.
+ *
+ * Seguro por ser server-side: `PaginaDeEstoque` e `/estoque` são server
+ * components e renderizam uma vez por requisição. Num client component o `Set`
+ * sobreviveria a uma segunda passada do StrictMode e comeria links da primeira
+ * — se algum dia precisar disso no cliente, crie o linkador dentro do render,
+ * nunca em módulo.
+ */
+export function criarLinkador(caminhoAtual?: string) {
+  const jaLinkados = new Set<string>();
+  return (texto: string): SegmentoDeTexto[] =>
+    segmentarComLinks(texto, caminhoAtual, jaLinkados);
 }
