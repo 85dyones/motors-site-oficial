@@ -11,7 +11,7 @@ import {
   normalizarQuickTags,
   normalizarStockOverrides,
 } from "../../lib/destaquesRapidos";
-import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
+import { hubsDeCarroceria, hubsDeFaixa, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import {
   blocoJsonLd,
@@ -21,6 +21,7 @@ import {
 } from "../../lib/schemaListagem";
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja } from "../../lib/schemaLoja";
+import { segmentarComLinks } from "../../lib/linksNoTexto";
 import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
 import {
   CAIXA_DA_BUSCA,
@@ -329,6 +330,41 @@ export default async function EstoquePage() {
             </div>
           </section>
         )}
+
+        {/* Por faixa de preço — o recorte de maior intenção comercial, e o
+            único que não tinha entrada nenhuma daqui.
+
+            `/estoque/ate-60-mil` e as duas irmãs recebiam link só das
+            carrocerias, de `/financiamento` e de `/garantia`: não estavam na
+            home, não estavam neste hub, não estavam nas marcas. São as buscas
+            do tipo "carro até 60 mil em Curitiba" — intenção alta, e a três
+            cliques do hub principal. O bloco já existia pronto em
+            `/estoque/[recorte]`; aqui é a mesma lista, com a contagem que as
+            seções vizinhas mostram.
+
+            As três faixas são perenes: aparecem mesmo com zero, porque a
+            página existe e continua respondendo. O que some é o BLOCO INTEIRO
+            quando não há estoque nenhum — três zeros enfileirados num pátio
+            vazio (sync fora do ar) parecem defeito, não recorte. */}
+        {disponiveis.length > 0 && (
+          <section className="mt-8">
+            <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Seminovos por faixa de preço</h2>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {hubsDeFaixa(disponiveis).map((f) => (
+                <Link
+                  key={f.slug}
+                  href={`/estoque/${f.slug}`}
+                  className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
+                >
+                  {f.nome}
+                  <span className="text-[10px] font-semibold text-mt-accent">
+                    {f.veiculos.length}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </nav>
 
       {/* Fora do <nav>: pergunta frequente não é navegação, e landmark com
@@ -344,8 +380,27 @@ export default async function EstoquePage() {
             {perguntas.map((item) => (
               <div key={item.pergunta} className="border-b border-mt-regua-fina py-4">
                 <dt className="text-[14px] font-extrabold text-mt-ink">{item.pergunta}</dt>
+                {/* Mesma segmentação do FAQ de `PaginaDeEstoque`, porque esta
+                    página tem render próprio e não passa por lá — a maior
+                    página do site depois da home ficaria justamente de fora.
+
+                    A string continua intacta: é a MESMA que
+                    `schemaDePerguntas` publica no `FAQPage` logo acima, e
+                    markup dentro dela faria markup e página divergirem. */}
                 <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                  {item.resposta}
+                  {segmentarComLinks(item.resposta, "/estoque").map((parte, i) =>
+                    parte.href ? (
+                      <Link
+                        key={`${item.pergunta}-${i}`}
+                        href={parte.href}
+                        className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+                      >
+                        {parte.texto}
+                      </Link>
+                    ) : (
+                      <span key={`${item.pergunta}-${i}`}>{parte.texto}</span>
+                    ),
+                  )}
                 </dd>
               </div>
             ))}

@@ -101,3 +101,40 @@ describe("as respostas do FAQ linkam para as páginas que citam", () => {
     expect(html).not.toContain("<dl");
   });
 });
+
+describe("a introdução também linka", () => {
+  it("um parágrafo de abertura que cita a Avaliação Express vira link", () => {
+    const html = renderToStaticMarkup(
+      createElement(PaginaDeEstoque, {
+        trilha: [{ rotulo: "Home", href: "/" }],
+        titulo: "Financiamento",
+        veiculos: [],
+        introducao: [
+          "Seu carro atual entra como entrada. A Avaliação Express devolve uma proposta pelo WhatsApp.",
+        ],
+        contagem: false,
+        caminho: "/financiamento",
+      }),
+    );
+
+    // O parágrafo, não o FAQ: é onde a menção mais valiosa de /financiamento
+    // mora, e o primeiro corte desta entrega deixou de fora.
+    expect(hrefs(html)).toContain("/avaliacao");
+  });
+
+  it("a introdução preserva o texto do parágrafo", () => {
+    const paragrafo = "Trabalhamos com financiamento e perícia cautelar em todo o estoque.";
+    const html = renderToStaticMarkup(
+      createElement(PaginaDeEstoque, {
+        trilha: [{ rotulo: "Home", href: "/" }],
+        titulo: "Teste",
+        veiculos: [],
+        introducao: [paragrafo],
+        contagem: false,
+      }),
+    );
+
+    const visivel = html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&");
+    expect(visivel).toContain(paragrafo);
+  });
+});

@@ -193,12 +193,32 @@ export default function PaginaDeEstoque({
                 <span className="text-mt-accent"> {veiculos.length}</span>
               )}
             </h1>
+            {/* A introdução linka pela mesma régua do FAQ, e aqui sem a
+                restrição do JSON-LD: nada deste texto vai para o `FAQPage`.
+
+                É onde estão as menções que mais importam. "A Avaliação Express
+                devolve uma proposta pelo WhatsApp" abre o terceiro parágrafo de
+                `/financiamento` — o ponto exato em que quem está simulando
+                parcela descobre que o carro dele vale entrada, e até 05/09/2026
+                a frase não levava a lugar nenhum. */}
             {introducao.map((paragrafo, i) => (
               <p
                 key={i}
                 className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]"
               >
-                {paragrafo}
+                {segmentarComLinks(paragrafo, caminho).map((parte, j) =>
+                  parte.href ? (
+                    <Link
+                      key={j}
+                      href={parte.href}
+                      className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+                    >
+                      {parte.texto}
+                    </Link>
+                  ) : (
+                    <span key={j}>{parte.texto}</span>
+                  ),
+                )}
               </p>
             ))}
             {acao && <div className="mt-6">{acao}</div>}

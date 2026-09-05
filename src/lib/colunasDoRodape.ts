@@ -47,6 +47,11 @@ export function colunasDoRodape(companySettings: CompanySettings): ColunaDoRodap
         { rotulo: "Avaliação Express", href: "/avaliacao" },
         { rotulo: "Financiamento", href: "/financiamento" },
         { rotulo: "Garantia", href: "/garantia" },
+        // `/contato` entrou em 2026-09-05. A página existia, estava no sitemap
+        // e recebia UM link em todo o site — de `/sobre`. O rodapé é o único
+        // lugar que aparece em todas as páginas, e é onde quem procura endereço
+        // e telefone olha primeiro.
+        { rotulo: "Contato", href: "/contato" },
         { rotulo: "Privacidade & LGPD", href: "/privacidade" },
       ],
     },

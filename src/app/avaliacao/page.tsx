@@ -8,8 +8,12 @@ import { schemaDaLoja } from "../../lib/schemaLoja";
 
 const CAMINHO = "/avaliacao";
 
+// "Um consultor retorna no WhatsApp", e não um prazo em minutos: a loja não
+// mede tempo de retorno, e `promessa-publica` guarda essa linha em toda
+// superfície de cliente. A frase com "menos de 10 minutos" é a versão anterior
+// e não volta.
 const DESCRICAO =
-  "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Proposta no WhatsApp em menos de 10 minutos.";
+  "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Um consultor retorna no WhatsApp com a proposta.";
 
 /**
  * Para onde a página manda quem terminou — ou quem desistiu no meio.

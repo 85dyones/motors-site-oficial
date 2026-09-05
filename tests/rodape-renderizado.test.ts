@@ -92,10 +92,18 @@ describe("o rodapé entrega links, não parágrafos", () => {
     expect(hrefs).toContain("https://wa.me/5541997372165");
   });
 
-  it("são dez âncoras, e nenhuma se perdeu no caminho", async () => {
-    // Seis institucionais + telefone + WhatsApp + endereço + Instagram. O
+  it("são onze âncoras, e nenhuma se perdeu no caminho", async () => {
+    // SETE institucionais + telefone + WhatsApp + endereço + Instagram. O
     // número exato é a trava: um item que deixa de virar link some daqui.
-    expect(await ancoras()).toHaveLength(10);
+    //
+    // Eram seis institucionais até 2026-09-05, quando `/contato` entrou na
+    // coluna. A página existia, estava no sitemap e recebia UM link em todo o
+    // site — de `/sobre`.
+    expect(await ancoras()).toHaveLength(11);
+  });
+
+  it("o contato está entre os institucionais", async () => {
+    expect(await ancoras()).toContain("/contato");
   });
 
   it("o link do endereço se anuncia para quem não vê a coluna", async () => {
