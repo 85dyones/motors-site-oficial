@@ -188,11 +188,18 @@ silêncio, para sempre"*.
 padrão.
 
 O risco da substring é o falso positivo, e ele se testa: a suíte lista **todos
-os canais que o site escreve hoje** — `Formulário Contato`, `Lead Popup`,
-`WhatsApp Proposta`, `WhatsApp Dúvidas`, `CarMatch Recommendations`,
-`Garagem Match Profiler`, `Avaliação`, `Appraisal Chat` — e prova que os seis
-primeiros dão `compra` e os dois últimos dão `avaliacao`. Canal novo que
-colidir quebra o teste antes de chegar em produção.
+os canais que o site escreve hoje**, colhidos um a um do código —
+`Formulário Contato`, `Lead Popup`, `Garagem Match Profiler`,
+`CarMatch Recommendations`, `WhatsApp Proposta`, `WhatsApp Dúvidas`,
+`WhatsApp Usado na Troca`, `Agendamento Test-Drive`,
+`Simulação de Financiamento`, mais os fallbacks `N/A` e `site` — e prova que
+todos dão `compra`, enquanto `Avaliação` e `Appraisal Chat` dão `avaliacao`.
+
+**O quase-acerto que justifica a lista existir** é `"WhatsApp Usado na Troca"`
+(`PDPClientWrapper`): ele é sobre avaliar um usado, mas quem preencheu quer
+**comprar** — e o motivo certo para ele, `avaliacao_do_usado`, mora justamente
+no escopo de compra (§3). A substring `avalia` não o alcança, e é isso que o
+teste trava. Canal novo que colidir quebra a suíte antes de chegar em produção.
 
 ### 5.2 Lista vazia nunca prende o card
 
@@ -303,7 +310,7 @@ seletor que só tem um valor válido é ruído.
 
 Em `tests/funil.test.ts`, ao lado do que já existe:
 
-1. **`escopoDoLead` contra os canais reais** — os oito canais que o site
+1. **`escopoDoLead` contra os canais reais** — os **onze** canais que o site
    escreve hoje, nominalmente (§5.1). É o teste que pega colisão de substring.
 2. **`escopoDoLead` com entrada degenerada** — `null`, `undefined`, `""`,
    `"  "`, e variações de acento/caixa (`"AVALIAÇÃO"`, `"avaliacao"`) → o
@@ -317,14 +324,36 @@ Em `tests/funil.test.ts`, ao lado do que já existe:
    completa do tipo, não `[]`.
 6. **`ehEscopoDeMotivo` recusa** — `"venda"`, `"COMPRA"`, `null`, `1` → `false`.
    Trava a régua que a rota usa.
-7. **`ModalDeDesfecho` renderizado** — dois casos, montando o componente e
-   contando os botões da lista: um lead com `canal: "Avaliação"` e um com
-   `canal: "Lead Popup"`. Testar só `motivosVisiveis` não prova que a caixa a
-   chama; a mutação tem que ser no ponto de chamada.
+7. **O ponto de chamada** — testar só `motivosVisiveis` não prova que a caixa a
+   chama, e é o ponto de chamada que apodrece: basta alguém reescrever o
+   `useMemo` e o escopo deixa de valer sem nenhum teste ficar vermelho. Vale o
+   mesmo para o guarda na rota de config e para o seletor no `FunilEditor`.
+
+   **Correção deste spec, 2026-09-05:** a primeira versão pedia o componente
+   *renderizado* ("montando o componente e contando os botões"). Foi escrito
+   sem conferir a infraestrutura. O repositório roda `environment: "node"`, sem
+   `jsdom`, sem plugin React, e o `include` (`tests/**/*.test.ts`) nem pega
+   `.tsx` — montar o componente exigiria instalar três dependências e mudar o
+   runner, trabalho maior que a própria feature.
+
+   O que fica no lugar: **asserção de fonte**, no padrão que o repositório já
+   usa em `turnstile-estabilidade.test.ts` e `nomenclatura-estoque` — lê o
+   arquivo, prova que a chamada existe **e** que o filtro velho não sobreviveu
+   ao lado dela. Limite honesto: isso prova o ponto de chamada, não o
+   comportamento renderizado. No dia em que houver jsdom, vira teste de render.
+
+### 8.1 A migração entra na cadeia do CI
+
+`tests/migracoes-executam.test.ts` aplica a cadeia contra um Postgres local do
+zero e **cobra o `"Aceite verificado"` de cada migração** — *"não basta a
+migração não explodir"*. Mas a `CADEIA` é uma **lista explícita**: migração que
+não entrar nela tem bloco de aceite que só roda em produção. A nova entra.
 
 A migração termina com o rodapé de autoconferência e auto-registro no
 livro-razão, como as anteriores do funil: prova pelo **efeito** — consulta o
 CHECK, o default e as linhas reclassificadas — e não pela existência da coluna.
+O item que só um banco de verdade prova é o CHECK: o aceite tenta **inserir**
+`escopo = 'venda'` e exige `check_violation`.
 
 ---
 
