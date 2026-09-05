@@ -46,8 +46,29 @@ import type { Veiculo } from "../../../types";
  * em toda linha de título, mesmo custando bytes.
  */
 
-/** O que o assistente precisa saber ANTES de ler a lista. */
-function cabecalho(quantos: number, geradoEm: string): string {
+/**
+ * O teto que o Chatwoot impõe ao documento ingerido.
+ *
+ * Medido em 05/09/2026: o Captain guardou **exatamente 15000 bytes** de um
+ * arquivo de 25.854 e cortou o resto — 21 dos 36 carros entraram, e o
+ * vigésimo primeiro parou no meio do título. Nada avisa: o documento fica com
+ * `status: available` e o assistente simplesmente não conhece metade do pátio.
+ *
+ * A margem de 1000 existe porque o corte é do lado deles e a conta é do nosso:
+ * acentuação em UTF-8 ocupa dois bytes e `String.length` conta caracteres.
+ */
+const TETO_DO_CAPTAIN = 15000;
+const MARGEM = 1000;
+
+/**
+ * O que o assistente precisa saber ANTES de ler a lista.
+ *
+ * `noPatio` é o pátio inteiro; `nesteArquivo` é quantos couberam. Quando os
+ * dois divergem, o cabeçalho diz — porque um assistente que acha que viu tudo
+ * responde "não temos" com convicção sobre um carro que a loja tem.
+ */
+function cabecalho(noPatio: number, nesteArquivo: number, geradoEm: string): string {
+  const faltando = noPatio - nesteArquivo;
   return [
     "# Fichas técnicas do pátio da Motors Store",
     "",
@@ -65,13 +86,56 @@ function cabecalho(quantos: number, geradoEm: string): string {
     "  nem que deixou de estar: quem confirma é o consultor.",
     "- Um carro que não aparece aqui pode ter entrado depois. Não diga que a",
     "  loja não tem — pergunte e encaminhe.",
+    "- A lista de opcionais pode estar **abreviada** para o arquivo caber. Se o",
+    "  cliente perguntar por um item que não está aqui, não diga que o carro não",
+    "  tem: pergunte e encaminhe.",
     "",
-    `Veículos nesta fotografia: ${quantos}`,
+    ...(faltando > 0
+      ? [
+          `- **Este arquivo tem ${nesteArquivo} dos ${noPatio} veículos do pátio.** Os outros`,
+          `  ${faltando} não couberam. Nunca diga que a loja não tem um carro só porque`,
+          "  ele não está aqui — pergunte e encaminhe.",
+        ]
+      : []),
+    "",
+    `Garantia de todos: ${GARANTIA_MESES} meses de motor e câmbio, contados da entrega.`,
+    `Veículos no pátio: ${noPatio}`,
+    `Veículos neste arquivo: ${nesteArquivo}`,
     `Gerada em: ${geradoEm}`,
     "",
     "---",
     "",
   ].join("\n");
+}
+
+/**
+ * Corta a lista de opcionais numa vírgula, para caber no orçamento.
+ *
+ * Cortar no meio de "Ar-condicion" faria o assistente ler um opcional que não
+ * existe. A vírgula é a fronteira natural da lista, e é onde o corte não
+ * inventa item.
+ */
+/**
+ * O que a linha de opcionais custa ALÉM do texto dela.
+ *
+ * O rótulo, o sufixo do corte e a quebra de linha. A primeira versão dividia o
+ * orçamento só pelo texto e ignorava estes 32 bytes por carro: com 36 carros o
+ * arquivo saía 1.051 bytes ACIMA do teto — bem dentro da margem, mas a margem
+ * existe para o erro deles, não para o meu.
+ */
+const CUSTO_DA_LINHA_DE_OPCIONAIS = "- Opcionais: ".length + " (lista abreviada)".length + 1;
+
+function opcionaisQueCabem(opcionais: string, orcamento: number): string {
+  const texto = String(opcionais || "").trim();
+  if (orcamento <= 0) return "";
+  if (texto.length <= orcamento) return texto;
+
+  const cortado = texto.slice(0, Math.max(0, orcamento));
+  const ultimaVirgula = cortado.lastIndexOf(",");
+  // Sem vírgula no trecho, o primeiro item já não cabe: melhor omitir do que
+  // publicar meia palavra.
+  if (ultimaVirgula < 0) return "";
+  return `${cortado.slice(0, ultimaVirgula)} (lista abreviada)`;
 }
 
 /** Uma linha só quando o campo existe — campo vazio vira lixo no meio da ficha. */
@@ -96,36 +160,47 @@ function estadoDaPericia(veiculo: Veiculo): string {
   // vale com a condição colada nela, e uma frase que a carrega antes lê bem
   // aqui e mal quando o Captain recorta o pedaço.
   return veiculo.pericia === "PERÍCIA APROVADA"
-    ? "o laudo está na ficha do carro no site — perícia aprovada"
-    : "a perícia foi feita, e todo carro passa por ela antes de entrar na vitrine; o laudo entra na ficha assim que aprovada";
+    ? "laudo na ficha do carro, perícia aprovada"
+    : "feita — todo carro passa antes da vitrine; o laudo entra na ficha assim que aprovada";
 }
 
-function ficha(veiculo: Veiculo): string {
+function ficha(veiculo: Veiculo, orcamentoDeOpcionais: number): string {
   // `nomeComAno`, e não `marca + modelo + versão`: o feed do RevendaMais já
   // embute a versão dentro do modelo, e concatenar produz "BMW X4 M40i 3.0 M
   // Sport Edit V6 Turbo Aut 2020 — m40i 3.0 m sport edit v6 turbo aut". É o
   // mesmo defeito que `tests/schema-do-veiculo.test.ts` guarda no JSON-LD e no
   // feed de anúncios; aqui ele custaria o título de TODO bloco que o Captain
   // recupera — que é justamente o que identifica o carro para ele.
-  let bloco = `## ${nomeComAno(veiculo)}\n\n`;
-  bloco += linha("Marca", veiculo.marca);
-  bloco += linha("Modelo", veiculo.modelo);
-  bloco += linha("Versão", String(veiculo.versao || "").trim());
-  bloco += linha("Ano", veiculo.ano);
-  bloco += linha(
-    "Quilometragem",
+  // Uma linha para a ficha inteira, em vez de doze rótulos.
+  //
+  // A versão de doze linhas gastava ~690 bytes por carro e o arquivo dava
+  // 20.998 com o pátio de hoje — 6 KB acima do teto do Captain, medido no
+  // teste. Rótulo repetido 36 vezes ("Câmbio: ", "Combustível: ") é orçamento
+  // gasto em pontuação, e o que se paga com ele é carro cortado do fim.
+  //
+  // Marca, modelo, versão e ano saíram das linhas porque já estão no título —
+  // e o título é justamente o que identifica o bloco quando o Captain o
+  // recorta.
+  const especificacoes = [
     typeof veiculo.quilometragem === "number" && veiculo.quilometragem > 0
       ? `${veiculo.quilometragem.toLocaleString("pt-BR")} km`
       : "",
-  );
-  bloco += linha("Câmbio", veiculo.cambio);
-  bloco += linha("Combustível", resolveTipoCombustivel(veiculo));
-  bloco += linha("Cor", veiculo.cor);
-  bloco += linha("Carroceria", veiculo.tipo);
-  bloco += linha("Motor", veiculo.motor);
-  bloco += linha("Opcionais", veiculo.opcionais);
-  bloco += linha("Perícia cautelar", estadoDaPericia(veiculo));
-  bloco += linha("Garantia", `${GARANTIA_MESES} meses de motor e câmbio, contados da entrega`);
+    veiculo.cambio,
+    resolveTipoCombustivel(veiculo),
+    veiculo.tipo,
+    veiculo.motor ? `motor ${veiculo.motor}` : "",
+    veiculo.cor,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean)
+    .join(" · ");
+
+  let bloco = `## ${nomeComAno(veiculo)}\n\n`;
+  bloco += linha("Ficha", especificacoes);
+  bloco += linha("Perícia", estadoDaPericia(veiculo));
+  bloco += linha("Opcionais", opcionaisQueCabem(veiculo.opcionais ?? "", orcamentoDeOpcionais));
+  // A garantia saiu daqui para o cabeçalho: ela é a mesma para todo carro, e
+  // repetida 36 vezes custava 2 KB de um orçamento de 15.
   bloco += linha("Ficha no site", `${SITE_URL}${getVeiculoPdpUrl(veiculo)}`);
 
   return `${bloco}\n---\n\n`;
@@ -138,12 +213,66 @@ function ficha(veiculo: Veiculo): string {
  * atrasa nada — e a fotografia que o Captain guarda é muito mais velha que
  * isso de qualquer jeito.
  */
+/**
+ * Monta o arquivo inteiro. **Pura de propósito** — é o que permite ao teste
+ * medir o resultado com um pátio sintético de qualquer tamanho, em vez de só
+ * afirmar coisas sobre o texto do código.
+ *
+ * A regra que ela garante: **todo carro entra**. Ficha curta para os 36 vale
+ * mais que ficha completa para 21 e nada para os outros 15, que foi o que o
+ * teto do Captain fez na primeira ingestão.
+ *
+ * Mede-se a ficha SEM opcionais primeiro, porque é o piso incompressível; o
+ * que sobra até o teto é o que se pode gastar com eles. Pátio grande dá
+ * opcional curto, e isso é preferível a carro ausente.
+ */
+export function montarFichas(todos: Veiculo[], geradoEm: string): string {
+  if (todos.length === 0) return cabecalho(0, 0, geradoEm);
+
+  const teto = TETO_DO_CAPTAIN - MARGEM;
+
+  /**
+   * Quantos carros cabem, com a ficha no mínimo (sem opcionais).
+   *
+   * O orçamento de opcionais só encolhe os opcionais — a ficha base é
+   * incompressível, e com pátio grande ela sozinha estoura. A primeira versão
+   * ignorava isso e devolvia 20.998 bytes para 36 carros; o Captain cortava o
+   * excedente no meio de um título, calado.
+   *
+   * Quando não couber, o corte é AQUI e é declarado no cabeçalho. Perder os
+   * últimos e dizer quantos é honesto; perder metade sem avisar não é.
+   */
+  const bases = todos.map((v) => ficha(v, 0).length);
+  let cabem = 0;
+  let acumulado = cabecalho(todos.length, todos.length, geradoEm).length;
+  while (cabem < todos.length && acumulado + bases[cabem] <= teto) {
+    acumulado += bases[cabem];
+    cabem += 1;
+  }
+
+  const dentro = todos.slice(0, cabem);
+  const topo = cabecalho(todos.length, dentro.length, geradoEm);
+
+  // O que sobra depois das fichas mínimas é o que se pode gastar com
+  // opcionais, dividido igualmente. Pátio grande dá opcional curto, e isso é
+  // preferível a carro ausente.
+  const minimo = dentro.map((v) => ficha(v, 0)).join("");
+  const sobra = teto - topo.length - minimo.length;
+  const orcamento =
+    dentro.length > 0
+      ? Math.max(0, Math.floor(sobra / dentro.length) - CUSTO_DA_LINHA_DE_OPCIONAIS)
+      : 0;
+
+  return topo + dentro.map((v) => ficha(v, orcamento)).join("");
+}
+
 const fichasDoPatio = unstable_cache(
   async (): Promise<string> => {
     const { disponiveis } = await recortesDoEstoque();
-    const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-
-    return cabecalho(disponiveis.length, agora) + disponiveis.map(ficha).join("");
+    return montarFichas(
+      disponiveis,
+      new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+    );
   },
   ["fichas-para-o-assistente"],
   { tags: ["inventory"], revalidate: 3600 },
