@@ -36,6 +36,7 @@ import {
 import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { schemaDaLoja } from "../lib/schemaLoja";
+import FaixasDePreco from "../components/modernist/FaixasDePreco";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -234,6 +235,31 @@ export default async function Home() {
         </div>
       </section>
 
+    ),
+
+    /* ─── Por faixa de preço ───
+       Os três hubs de maior intenção comercial do site — "carro até 60 mil em
+       Curitiba" é busca de quem já decidiu o orçamento — e até 05/09/2026 a
+       home não linkava nenhum deles. O filtro de preço da busca em régua é
+       client-side: gera estado, não gera URL, e portanto não gera link
+       rastreável. Estes três geram.
+
+       A contagem sai do mesmo `hubsDeFaixa` que a `/estoque` usa, então os dois
+       números vêm da mesma conta. O bloco inteiro some com o pátio vazio: três
+       zeros na home parecem loja fechada, não recorte. */
+    faixas_de_preco: (
+      <FaixasDePreco
+        disponiveis={disponiveis}
+        className="px-[18px] pt-12 lg:px-10 lg:pt-16"
+        espacoDoTopo="mt-6"
+        /* Sem `numero`, e o prop é opcional justamente para isto. A numeração
+           da home ("01 — ESTOQUE SELECIONADO", "02 — CONSULTORIA"…) foi escrita
+           para uma ordem fixa e já não descreve a página: o dono reordena as
+           seções na tela A3 sem que os números acompanhem. Todo número livre
+           entre 01 e 02 está ocupado — 03 é "VENDA OU TROCA" —, e renumerar a
+           home inteira é outra tarefa, não efeito colateral desta. */
+        cabecalho={<CabecalhoSecao titulo="Escolha pelo orçamento" />}
+      />
     ),
 
     /* ─── 02 Consultoria ─── */

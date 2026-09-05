@@ -47,6 +47,16 @@ export function colunasDoRodape(companySettings: CompanySettings): ColunaDoRodap
         { rotulo: "Avaliação Express", href: "/avaliacao" },
         { rotulo: "Financiamento", href: "/financiamento" },
         { rotulo: "Garantia", href: "/garantia" },
+        // `/contato` entrou em 2026-09-05, e a razão é MENOR do que a primeira
+        // versão deste comentário dizia. Ele afirmava "recebia um único link em
+        // todo o site, de /sobre" — falso: `Header.tsx` já a lista no NAV de
+        // toda página (escondida por `hidden desktop:block` abaixo do desktop,
+        // mas presente no HTML), e `/privacidade` também linka.
+        //
+        // Fica porque a coluna INSTITUCIONAL é onde se procura contato depois
+        // que o cabeçalho rolou para fora da tela — não porque a página
+        // estivesse órfã.
+        { rotulo: "Contato", href: "/contato" },
         { rotulo: "Privacidade & LGPD", href: "/privacidade" },
       ],
     },

@@ -91,6 +91,7 @@ export default async function GarantiaPage() {
           },
         ]}
         faq={PERGUNTAS_DE_GARANTIA}
+        caminho={CAMINHO}
       />
     </div>
   );
