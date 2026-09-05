@@ -52,18 +52,41 @@ const raiz = join(__dirname, "..");
  *
  * Um seletor de período do relatório do funil ("30 dias") e um prazo de etapa
  * em minutos são decisão de projeto, não promessa — e ficariam vermelhos num
- * teste chamado "nenhuma superfície pública promete prazo". `src/lib/ciclo`
- * IMPLEMENTA a recompra, que a regra 5 proíbe COMUNICAR.
+ * teste chamado "nenhuma superfície pública promete prazo".
  *
  * A isenção é por natureza da superfície, não por conveniência: nada aqui é
  * servido a cliente. Se um dia for, sai da lista.
+ *
+ * ---------------------------------------------------------------------------
+ * Duas isenções que existiram e estavam ERRADAS
+ * ---------------------------------------------------------------------------
+ * Na primeira versão desta lista, em 04/09/2026, `src/lib/ciclo/` inteiro e
+ * `src/app/api/` inteiro estavam isentos. Os dois abrigam texto de cliente:
+ *
+ * - `src/lib/ciclo/motor.ts` É a mensagem que sai no WhatsApp — o cabeçalho
+ *   dele diz "o texto nasce no site e não no nó do n8n". É literalmente o pior
+ *   caso que o comentário acima descreve, e estava isento por engano meu.
+ * - `src/app/api/feed/xml/route.ts` monta a `<g:description>` do catálogo:
+ *   copy de anúncio pago. `llms-full.txt/route.ts` é a superfície de ingestão
+ *   por assistente. `avaliacao/route.ts` é onde a recomendação de compra
+ *   existe — o ponto exato em que a regra 4 quebraria com uma linha.
+ *
+ * Isenção por PREFIXO de pasta erra assim: leva junto o que a pasta não
+ * prometeu. Por isso agora ela é por arquivo, e cada um traz o motivo.
  */
 const INTERNOS = [
   "src/app/admin/",
   "src/components/admin/",
-  "src/app/api/",
-  "src/lib/ciclo/",
 ];
+
+/** Arquivos isentos um a um, com o motivo escrito ao lado. */
+const ARQUIVOS_INTERNOS: Record<string, string> = {
+  // Implementa o gatilho da recompra — a regra 5 proíbe COMUNICAR, não calcular.
+  "src/lib/ciclo/gatilho.ts": "implementa o gatilho de recompra",
+  // Catálogo de permissões do painel: os rótulos descrevem o que cada papel
+  // enxerga, e um deles nomeia o indicador da recompra. Ninguém de fora lê.
+  "src/lib/permissoes.ts": "rótulos de permissão do painel",
+};
 
 /** Todo `.ts`, `.tsx` e `.json` sob `src/`. O `.json` faltava até 04/09. */
 function arquivosDeTexto(dir: string, achados: string[] = []): string[] {
@@ -87,22 +110,59 @@ const comoNoRepo = (caminho: string) => relative(raiz, caminho).split(sep).join(
  * escolhe. Sem juntar, `"…proposta em " + "10 minutos"` evade toda regra que
  * precise ver o número ao lado da unidade, e o teste de comprimento de meta
  * mede só o primeiro pedaço.
+ *
+ * Duas correções sobre a primeira versão, de 04/09/2026:
+ *
+ * 1. **Aspas mistas.** Ela só juntava aspas IGUAIS, e
+ *    `"…em " + '10 minutos' + "…"` passava inteiro. Agora as três formas
+ *    (aspa dupla, simples e crase) se juntam entre si, que é o que o
+ *    `QUANTO` já pressupunha ao prever template literal.
+ * 2. **Literal que É o operador.** `{cond ? "+" : "−"}` casava o `"+"`
+ *    inteiro e o apagava, deixando `{cond ?  : "−"}`. Inofensivo — o que
+ *    sobra é sintaxe, não prosa — mas um `.join(" + ")` colaria os vizinhos.
+ *    Na mesma linha a junção agora OLHA o conteúdo do literal da esquerda e
+ *    desiste quando ele é só um sinal de mais.
  */
+function juntarLiterais(fonte: string): string {
+  // Quebra de linha: o estilo dominante do repo, e o único caso em que o
+  // ponto de corte não foi escolhido por ninguém.
+  const multilinha = fonte.replace(/(["'`])[ \t]*\+[ \t]*\r?\n[ \t]*(["'`])/g, "");
+
+  // Mesma linha: só quando o literal da esquerda tem conteúdo de texto.
+  return multilinha.replace(
+    /(["'`])([^"'`\n]*)\1[ \t]*\+[ \t]*(["'`])/g,
+    (todo, aspa, conteudo) => (/^\s*\+?\s*$/.test(conteudo) ? todo : `${aspa}${conteudo}`),
+  );
+}
+
 function comoOLeitorRecebe(caminho: string): string {
   const bruto = readFileSync(caminho, "utf8");
   const semNota = caminho.endsWith(".json") ? bruto : semComentarios(bruto);
-  return semNota.replace(/"\s*\+\s*(\r?\n)?\s*"/g, "").replace(/'\s*\+\s*(\r?\n)?\s*'/g, "");
+  return juntarLiterais(semNota);
 }
 
 // ── vocabulário das regras ─────────────────────────────────────────────────
 // `\$?\{…\}` cobre o número que chega por interpolação — `Proposta em ${x}
 // minutos` e `{prazo} minutos` no JSX. Sem isso a promessa volta escrita como
 // template literal, que é o formato mais natural de todos num componente.
-const QUANTO = String.raw`(~?\d+|\$?\{[^}]{0,24}\}|um|uma|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|quinze|vinte|trinta|quarenta|poucos|poucas|meia)`;
+// A dezena composta ("quarenta e cinco minutos") entra pelo prefixo opcional.
+const QUANTO = String.raw`(~?\d+|\$?\{[^}]{0,24}\}|(?:vinte|trinta|quarenta|cinquenta|sessenta)\s+e\s+\w+|um|uma|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|quinze|vinte|trinta|quarenta|poucos|poucas|meia)`;
 const UNIDADE = String.raw`(minutos?|min|horas?|h)\b`;
-const LIGA = String.raw`\b(em|dentro de|leva|levam|demora|demoram|dura|duram|no prazo de)\s+(menos de\s+|cerca de\s+|at[ée]\s+|apenas\s+|em m[ée]dia,?\s+|m[ée]dia de\s+)?`;
+const LIGA = String.raw`\b(em|dentro de|leva|levam|demora|demoram|dura|duram|no prazo de|entre)\s+(menos de\s+|cerca de\s+|at[ée]\s+|apenas\s+|em m[ée]dia,?\s+|m[ée]dia de\s+)?`;
 const SUJEITO = String.raw`(propost|respost|respond|retorn|contat|avali|an[áa]lis|analis|aprova|atend|or[çc]ament|simula|ligamos|chamamos)`;
 const PERTO = String.raw`[^.;!?]{0,70}`;
+
+/**
+ * As formas de NEGAR uma promessa.
+ *
+ * Sem isto a trava reprova o registro que esta própria entrega adotou — "o que
+ * a simulação não faz é prometer aprovação" ficaria vermelho pela regra que
+ * proíbe prometer aprovação. Medido em 04/09/2026 numa bateria de 15 textos
+ * legítimos: 14 eram reprovados, e todos por falta desta guarda.
+ *
+ * Uma trava que fica vermelha por causa alheia é desligada na terceira vez.
+ */
+const NEGADORES = /\b(n[ãa]o|nunca|jamais|nada de|sem prometer|nem sempre|desconfie|deixamos de|deixe de)\b/i;
 
 /** Uma regra devolve o trecho infrator, ou `null`. */
 interface Regra {
@@ -112,10 +172,35 @@ interface Regra {
   acha(texto: string): string | null;
 }
 
+/**
+ * Procura todas as ocorrências e descarta as que estão dentro de uma negação.
+ *
+ * A janela é a frase: volta até a pontuação anterior, no máximo 90 caracteres.
+ * Frase é a unidade certa porque é onde a negação de fato opera — "não" num
+ * período anterior não nega o seguinte.
+ */
+function acharSemNegacao(texto: string, re: RegExp): string | null {
+  const global = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+  for (const achado of texto.matchAll(global)) {
+    const inicio = achado.index ?? 0;
+    const janela = texto.slice(Math.max(0, inicio - 90), inicio);
+    const frase = janela.slice(janela.search(/[^.;!?]*$/));
+    if (!NEGADORES.test(frase)) return achado[0];
+  }
+  return null;
+}
+
 const porRegex = (nome: string, re: RegExp, soPublico = true): Regra => ({
   nome,
   soPublico,
   acha: (texto) => texto.match(re)?.[0] ?? null,
+});
+
+/** Como `porRegex`, mas a negação da promessa não é a promessa. */
+const porRegexNegavel = (nome: string, re: RegExp, soPublico = true): Regra => ({
+  nome,
+  soPublico,
+  acha: (texto) => acharSemNegacao(texto, re),
 });
 
 const REGRAS: Regra[] = [
@@ -161,23 +246,41 @@ const REGRAS: Regra[] = [
   // A mesma promessa em forma de estatística. Duas formas: renderizada no JSX
   // (`>10 min<`) e como propriedade de objeto — que é como `EstatisticasRegua`
   // recebe os itens, e por onde ela voltaria sem passar por nenhuma das duas.
-  porRegex("prazo renderizado como estatística", new RegExp(String.raw`>\s*\d+\s*(min|minutos?|h|horas?|dias?)\s*<`, "i")),
+  //
+  // O `h` sozinho saiu das duas: "9h às 19h" é HORÁRIO DA LOJA, não prazo, e
+  // `companySettings.hours` já carrega "das 08h30 às 18h30". Uma régua de
+  // horário de atendimento não pode ficar vermelha aqui. `24h` continua pego
+  // pela regra de prazo de resposta, que exige a ligação temporal ("em até").
+  porRegex("prazo renderizado como estatística", new RegExp(String.raw`>\s*\d+\s*(min|minutos?|horas?|dias?)\s*<`, "i")),
   porRegex(
     "prazo como item de estatística",
-    new RegExp(String.raw`(valor|rotulo|label|titulo)\s*:\s*["'\`][^"'\`]{0,24}\b\d+\s*(min|minutos?|h|horas?|dias?)\b`, "i"),
+    new RegExp(String.raw`(valor|rotulo|label|titulo)\s*:\s*["'\`][^"'\`]{0,24}\b\d+\s*(min|minutos?|horas?|dias?)\b`, "i"),
   ),
 
-  // Quem decide o prazo da análise é o banco. Ancorado em crédito para não
-  // pegar "venha ver os dois no mesmo dia", que é convite ao leitor.
-  porRegex(
-    "análise de crédito no mesmo dia",
-    /(an[áa]lise|aprova[çc][ãa]o|cr[ée]dito)[^.;!?]{0,60}no mesmo dia|no mesmo dia[^.;!?]{0,60}(an[áa]lise|aprova[çc][ãa]o|cr[ée]dito)/i,
+  // Quem decide o prazo é o banco — e, para a proposta, a vistoria.
+  //
+  // A âncora era só `análise|aprovação|crédito`, e "Proposta no mesmo dia" —
+  // a mesma promessa que este PR removeu, reescrita — passava por fora dela.
+  porRegexNegavel(
+    "resposta prometida no mesmo dia",
+    /(an[áa]lise|aprova[çc][ãa]o|cr[ée]dito|propost|respost|retorn|contat|avalia|entrega)[^.;!?]{0,60}no mesmo dia|no mesmo dia[^.;!?]{0,60}(an[áa]lise|aprova[çc][ãa]o|cr[ée]dito|propost|respost|retorn|contat|avalia|entrega)/i,
   ),
 
   // Proibido pela regulação de publicidade de crédito (§1.4b do plano).
-  porRegex("aprovação prometida", /aprova[çc][ãa]o\s+(garantid|cert[ao]|imediat|na hora)|cr[ée]dito\s+garantid/i, false),
-  porRegex("superlativo sobre o que a loja não controla", /melhores?\s+(taxas?|condi[çc][õo]es|pre[çc]os?)/i, false),
-  porRegex("promessa absoluta de processo", /sem\s+burocracia/i, false),
+  porRegexNegavel(
+    "aprovação prometida",
+    /aprova[çc][ãa]o\s+(garantid|cert[ao]|imediat|facilitad|na hora)|cr[ée]dito\s+(garantid|f[áa]cil|na hora)/i,
+    false,
+  ),
+  // `melhores?` se lia `melhore` + `s?`: casava "melhores" e não casava
+  // **"melhor"**, que é a forma mais comum ("a melhor taxa do mercado"). A
+  // regra cobria exatamente a frase que eu tinha removido e mais nada.
+  porRegexNegavel(
+    "superlativo sobre o que a loja não controla",
+    /melhor(es)?\s+(taxas?|condi[çc][õo]es|pre[çc]os?)/i,
+    false,
+  ),
+  porRegexNegavel("promessa absoluta de processo", /(sem|zero)\s+burocracia/i, false),
 
   // O posicionamento fala de SELEÇÃO, não de faixa de preço — e a vitrine
   // desmente a frase sozinha: vai de R$ 23.900 a R$ 318.900. A NEGAÇÃO é
@@ -199,11 +302,11 @@ const REGRAS: Regra[] = [
       // escolhe.
       const re =
         /alt[íi]ssimo\s+padr[ãa]o|alto\s*[- ]?\s*padr[ãa]o|\bde\s+luxo\b|(curadoria|sele[çc][ãa]o|atendimento|experi[êe]ncia|loja|revenda|seminovos?|carros?|ve[íi]culos?)\s+premium|premium\s+(seminovos?|carros?|ve[íi]culos?)/gi;
-      for (const achado of texto.matchAll(re)) {
-        const antes = texto.slice(Math.max(0, (achado.index ?? 0) - 30), achado.index);
-        if (!/\bn[ãa]o\b[^.;!?]{0,24}$/i.test(antes)) return achado[0];
-      }
-      return null;
+      // A guarda de negação era local e só conhecia `não`, numa janela de 30
+      // caracteres: "NUNCA fomos uma revenda premium" — a frase do
+      // POSICIONAMENTO.md — ficava vermelha. Passou a usar a mesma
+      // `acharSemNegacao` das outras, que conhece nunca, jamais, desconfie.
+      return acharSemNegacao(texto, re);
     },
   },
 
@@ -213,25 +316,47 @@ const REGRAS: Regra[] = [
   // valor que a LOJA paga.
   //
   // `preço de pátio` entra pelo mesmo motivo: a campanha do popup dizia que a
-  // ferramenta de avaliação devolve "preço de pátio". Ela devolve a FIPE — o
-  // valor de compra sai da vistoria e quem o informa é o consultor.
-  porRegex(
+  // ferramenta de avaliação devolve "preço de pátio". Ela devolve a FIPE.
+  //
+  // A primeira versão listava seis expressões e por isso não sustentava o
+  // invariante que este comentário invoca: "Oferecemos R$ 42.000 pelo seu
+  // usado" passava inteiro. O verbo agora é aberto, e o alvo é a construção —
+  // dinheiro perto de "pelo seu carro", que é a forma que a frase toma.
+  //
+  // A EXPRESSÃO "valor de compra" não é a infração — é o vocabulário com que o
+  // projeto fala da regra. Ela aparece exatamente nos avisos que dizem que o
+  // valor não sai ali: "a FIPE é referência de mercado, não proposta de
+  // compra" (`AutoAvaliacao.tsx`), "DATA DE COMPRA" na Garagem do próprio
+  // cliente, "abaixo do preço de compra" na alçada do painel. Uma regra que
+  // proíbe a palavra proíbe a ressalva junto.
+  //
+  // O que a regra persegue é DINHEIRO apresentado como o que a loja paga.
+  porRegexNegavel(
     "valor de compra exibido ao cliente",
-    /(rotulo|label|titulo|valor)\s*:\s*["'`][^"'`]*\b(pagamos|compramos|de compra|pela troca|damos)|(\bpagamos|\bcompramos|\bdamos)\s+(at[ée]\s+)?R\$|(m[ée]dia|valor)\s+que\s+pagamos|pre[çc]o de p[áa]tio/i,
+    /(rotulo|label|titulo|valor)\s*:\s*["'`][^"'`]*\b(pagamos|compramos|pela troca|damos)|(pagamos|compramos|damos|oferecemos|oferec\w+|garantimos)[^.;!?]{0,40}R\$|R\$[^.;!?]{0,40}(pelo seu|pela sua|pelo teu|no seu)\s+(carro|usado|ve[íi]culo|moto|seminovo)|(m[ée]dia|valor)\s+que\s+pagamos|pre[çc]o de p[áa]tio/i,
   ),
 
   // CLAUDE.md regra 5 — desenvolver a recompra é permitido; COMUNICÁ-la em
-  // superfície pública, não, até parecer jurídico e provisionamento. Ancorada
-  // em FIPE/contrato/percentual para não acusar a palavra solta num rótulo de
-  // permissão interna.
-  porRegex(
+  // superfície pública, não, até parecer jurídico, provisionamento e seeds
+  // validados (manual §1.4 v1.2).
+  //
+  // Era ancorada em FIPE/contrato/percentual, e por isso NÃO sustentava o
+  // invariante: "No fim do programa, a Motors recompra o seu carro" — a frase
+  // mais simples possível, e a mais provável — passava. Agora é a palavra, em
+  // superfície de cliente, com guarda de negação (a loja PODE dizer que não
+  // trabalha com recompra). Quem calcula o gatilho está isento por arquivo,
+  // com o motivo escrito ao lado.
+  porRegexNegavel(
     "recompra em comunicação pública",
-    /(recompra|recompramos|readquir\w*)[^.;!?]{0,70}(FIPE|contrato|garantid|\d+\s*%)|(\d+\s*%|FIPE)[^.;!?]{0,70}(recompramos|recompra garantid)/i,
+    /\b(recompra|recompramos|recompraremos|readquir\w*)\b/i,
   ),
 ];
 
 const TODOS = arquivosDeTexto(join(raiz, "src"));
-const ehInterno = (caminho: string) => INTERNOS.some((p) => comoNoRepo(caminho).startsWith(p));
+const ehInterno = (caminho: string) => {
+  const rel = comoNoRepo(caminho);
+  return INTERNOS.some((p) => rel.startsWith(p)) || rel in ARQUIVOS_INTERNOS;
+};
 
 describe("nenhuma superfície de cliente promete o que ninguém mede", () => {
   it("a varredura está de fato lendo o repositório", () => {
@@ -246,7 +371,17 @@ describe("nenhuma superfície de cliente promete o que ninguém mede", () => {
     expect(nomes).toContain("src/lib/aboutSettings.json");
     expect(nomes).toContain("src/lib/companySettings.json");
     // E a isenção declarada de fato exclui alguém — se não excluir, ela mente.
-    expect(TODOS.filter(ehInterno).length).toBeGreaterThan(50);
+    expect(TODOS.filter(ehInterno).length).toBeGreaterThan(20);
+    // Os arquivos isentos um a um existem: nome errado isenta ninguém e a
+    // linha vira um comentário que parece uma regra.
+    for (const arquivo of Object.keys(ARQUIVOS_INTERNOS)) {
+      expect(TODOS.map(comoNoRepo), arquivo).toContain(arquivo);
+    }
+    // E as superfícies que já estiveram isentas por engano estão de volta.
+    const publicos = TODOS.filter((c) => !ehInterno(c)).map(comoNoRepo);
+    expect(publicos).toContain("src/lib/ciclo/motor.ts");
+    expect(publicos).toContain("src/app/api/feed/xml/route.ts");
+    expect(publicos).toContain("src/app/api/avaliacao/route.ts");
   });
 
   it("junta literais concatenados antes de ler", () => {
@@ -305,8 +440,13 @@ describe("o que entrou no lugar da promessa", () => {
     const home = lerCodigo("src/app/page.tsx");
 
     expect(home).toMatch(/>3 EM 10</);
-    expect(home).toMatch(/DOS AVALIADOS/);
-    expect(home).not.toMatch(/>WHATSAPP</);
+    expect(home).toMatch(/VIRAM ESTOQUE/);
+    // E o rótulo tem VERBO, que é a convenção da régua: `100% / PASSAM PELA
+    // CAUTELAR`, `3 MESES / GARANTIA MOTOR E CÂMBIO`. `DOS AVALIADOS`, a
+    // primeira tentativa, era fragmento sem verbo — e no bloco de venda e
+    // troca a leitura disponível virava «3 em 10 recebem proposta», que é
+    // pior do que a verdade: todo mundo recebe resposta.
+    expect(home).not.toMatch(/DOS AVALIADOS/);
   });
 
   it("a FIPE aparece como referência, nunca como valor de compra", () => {
@@ -356,12 +496,24 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
    * O que este bloco NÃO cobre, e por quê
    * ---------------------------------------------------------------------------
    * `estoque_motors.descricao_seo` — a meta description de cada ficha — tem 28
-   * textos em produção que fecham com "entregamos em todo o Paraná e no
-   * litoral catarinense até Balneário Camboriú". Não é falso (entregamos lá),
-   * mas lido isolado soa como teto. Reescrever 51 meta descriptions é decisão
-   * de conteúdo e de SEO do dono, não deste PR, e a fonte versionada
-   * (`conteudo-seo/rascunhos*.json`) só tem 3 das 28. O plano de ingestão
-   * aprovado exclui ficha de veículo e hub de modelo justamente por isso.
+   * textos em produção que afirmam alcance regional ("entregamos em todo o
+   * Paraná e no litoral catarinense até Balneário Camboriú" e paráfrases). Não
+   * é falso — entregamos lá —, mas lido isolado soa como teto.
+   *
+   * A fonte versionada tem **18 dessas 41 fichas** em
+   * `conteudo-seo/rascunhos*.json`. A primeira versão desta nota dizia "3 das
+   * 28", contando a frase EXATA em vez da afirmação — o mesmo erro que esta
+   * trava inteira existe para corrigir, cometido dentro dela. As outras 15
+   * dizem a mesma coisa com outras palavras ("com entrega para todo o Paraná").
+   *
+   * Com o número certo, a razão do adiamento muda: não é que mexer na fonte
+   * versionada não resolva — resolve a maior parte, e `aplicar-rascunhos.js`
+   * grava. É que reescrever 41 meta descriptions de produção é decisão de
+   * conteúdo e de SEO do dono, e ele não foi consultado. Fica registrado como
+   * pendência, não como impossibilidade.
+   *
+   * O plano de ingestão aprovado exclui ficha de veículo e hub de modelo, então
+   * o assistente não vê essa contradição — quem vê é o leitor e o Google.
    */
   const ALCANCE = /entregamos para todo o Brasil/i;
 

@@ -285,7 +285,7 @@ export default async function Home() {
           <div className="flex-1 border-r border-mt-regua-media pr-4 pt-3.5">
             <div className="text-[26px] font-extrabold">3 EM 10</div>
             <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
-              DOS AVALIADOS
+              VIRAM ESTOQUE
             </div>
           </div>
           <div className="flex-1 pl-4 pt-3.5">

@@ -109,9 +109,15 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  * - "transferência acompanhada" → `PROCEDENCIA_PADRAO`;
  * - **três meses de cobertura** → decisão do dono em 2026-08-25;
  * - **entrega para todo o Brasil** → decisão do dono em 2026-09-04. O que é
- *   regional é a MÍDIA (Paraná e litoral de Santa Catarina), não o serviço.
- *   `CIDADES_ATENDIDAS` em `schemaLoja.ts` continua sendo o raio de
- *   COMPETIÇÃO, que é outra coisa, e por isso não mudou.
+ *   regional é a MÍDIA — os anúncios rodam em Paraná e litoral de Santa
+ *   Catarina —, não o serviço.
+ *
+ *   `CIDADES_ATENDIDAS` em `schemaLoja.ts` NÃO tem nada a ver com isso e não
+ *   mudou: são as seis cidades da Região Metropolitana (Curitiba, Pinhais,
+ *   Colombo, São José dos Pinhais, Almirante Tamandaré, Araucária), e o
+ *   `areaServed` do schema significa raio de COMPETIÇÃO, como o comentário de
+ *   lá explica. Três alcances diferentes convivem de propósito: onde a loja
+ *   compete, onde a mídia roda, e para onde a loja entrega.
  *
  * ---------------------------------------------------------------------------
  * Duas decisões de redação que não são estilo
