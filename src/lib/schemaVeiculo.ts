@@ -58,6 +58,51 @@ export function precoValidoAte(base = new Date()): string {
   return data.toISOString().slice(0, 10);
 }
 
+/**
+ * Quantas fotos entram no `image` do `Car`.
+ *
+ * O schema.org aceita uma ou muitas, e o Google recomenda várias — mas a régua
+ * aqui não é "quanto mais, melhor". O estoque tem fichas com trinta e poucas
+ * fotos, e despejar todas num nó que já carrega preço, oferta e loja infla o
+ * JSON-LD de cada uma das ~40 fichas sem acrescentar informação: as primeiras
+ * são as que o cadastro ordena para vender, e da décima em diante são detalhe
+ * de porta-malas e pneu.
+ *
+ * Dez é o que o Google usa como teto prático em galeria de produto, e mantém a
+ * primeira posição — que é a imagem principal — intocada.
+ */
+export const MAXIMO_DE_IMAGENS = 10;
+
+/**
+ * As fotos do veículo, na ordem do cadastro.
+ *
+ * Até 2026-09-05 o `Car` publicava **uma**: `web_full_images[0]`. A ficha
+ * mostra a galeria inteira, e o schema dizia que existia uma foto — quem lê o
+ * dado estruturado (Google Imagens, painel de conhecimento, assistente) via um
+ * carro com uma foto só.
+ *
+ * `web_full_images` primeiro porque é a versão de site; as do WhatsApp são o
+ * fallback de quem ainda não tem o conjunto completo, e são as mesmas fotos em
+ * outra resolução. Concatenar os dois duplicaria a mesma imagem em duas URLs —
+ * por isso é `||`, e não `[...a, ...b]`.
+ *
+ * Filtra vazio e duplicata: URL repetida no array é a mesma foto declarada duas
+ * vezes, e alguns validadores reclamam.
+ */
+export function galeriaDoSchema(
+  veiculo: Pick<Veiculo, "web_full_images" | "whatsapp_images">,
+): string[] {
+  const fonte = veiculo.web_full_images?.length
+    ? veiculo.web_full_images
+    : veiculo.whatsapp_images ?? [];
+
+  const limpas = (fonte ?? [])
+    .map((u) => (typeof u === "string" ? u.trim() : ""))
+    .filter(Boolean);
+
+  return [...new Set(limpas)].slice(0, MAXIMO_DE_IMAGENS);
+}
+
 export interface OpcoesDoSchemaDoVeiculo {
   /** Caminho da ficha, como `getVeiculoPdpUrl` devolve. */
   caminho: string;
@@ -70,7 +115,7 @@ export function schemaDoVeiculo(veiculo: Veiculo, opcoes: OpcoesDoSchemaDoVeicul
   const temDesconto =
     veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original;
   const preco = temDesconto ? veiculo.preco_promocional : veiculo.preco_original;
-  const imagem = veiculo.web_full_images?.[0] || veiculo.whatsapp_images?.[0] || "";
+  const imagens = galeriaDoSchema(veiculo);
   const motor = (veiculo.motor ?? "").trim();
   const donos = Number(veiculo.donos_anteriores);
 
@@ -82,7 +127,7 @@ export function schemaDoVeiculo(veiculo: Veiculo, opcoes: OpcoesDoSchemaDoVeicul
     "@id": `${url}#car`,
     name: nomeComAno(veiculo),
     url,
-    image: imagem || undefined,
+    image: imagens.length > 0 ? imagens : undefined,
     description:
       veiculo.descricao_seo ||
       veiculo.descricao ||
@@ -136,3 +181,4 @@ export function schemaDoVeiculo(veiculo: Veiculo, opcoes: OpcoesDoSchemaDoVeicul
     },
   };
 }
+

@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import LandingDestaque from '../../../components/modernist/LandingDestaque';
 import { getEstoque } from '../../../lib/supabase';
 import { getCachedSettings } from '../../../lib/settings';
+import { blocoJsonLd } from '../../../lib/schemaListagem';
+import { schemaDaLoja, schemaDoSite } from '../../../lib/schemaLoja';
 import { montarCompartilhamento } from '../../../lib/compartilhamento';
 import {
   DESTAQUES_PADRAO,
@@ -153,13 +155,24 @@ export default async function DestaquesPage({ params }: PageProps) {
 
   const relacionados = resolvidos.filter((d) => d.slug !== destaque.slug);
 
+  /* A lista, a loja e o site.
+     Estas landings são indexáveis e entram no sitemap; até 2026-09-05 cada uma
+     anunciava um recorte do estoque sem dizer de quem é a loja. */
+  const grafo = blocoJsonLd([
+    itemListSchema,
+    schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
+  ]);
+
   return (
     // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
     <div className="flex min-h-screen flex-col bg-mt-bg text-mt-ink">
-      {/* Structured Data (JSON-LD) for SEO */}
+      {/* A lista, a loja e o site. As landings de destaque sao indexaveis e
+          entram no sitemap: sem o `AutoDealer`, cada uma anunciava um recorte
+          do estoque sem dizer de quem e a loja. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+        dangerouslySetInnerHTML={{ __html: grafo }}
       />
       <LandingDestaque
         destaque={destaque}

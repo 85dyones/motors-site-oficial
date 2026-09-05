@@ -17,8 +17,8 @@ import {
 } from "../../../../../lib/veiculoUrl";
 import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../lib/nomeDoVeiculo";
 import { montarTextosDaFicha } from "../../../../../lib/tituloDaFicha";
-import { schemaDoVeiculo } from "../../../../../lib/schemaVeiculo";
-import { blocoJsonLd, schemaDeTrilha } from "../../../../../lib/schemaListagem";
+import { grafoDaFicha } from "../../../../../lib/grafoDaFicha";
+import { blocoJsonLd } from "../../../../../lib/schemaListagem";
 import {
   destinoDoVeiculoArquivado,
   recortesDoEstoque,
@@ -289,10 +289,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
   // `numberOfPreviousOwners` e — o mais caro — `offers.seller`: a oferta não
   // dizia quem vende nem de onde se retira, então nada ligava as 39 fichas à
   // loja física que o `AutoDealer` descreve.
-  const carSchema = schemaDoVeiculo(veiculo, {
-    caminho: pdpUrl,
-    indisponivel: publicacao.indisponivel,
-  });
+  // O `Car` sai de `grafoDaFicha`, junto dos outros três nós — ver abaixo.
 
   /**
    * Trilha com os hubs de marca e de modelo.
@@ -309,20 +306,35 @@ export default async function CarDetailsPage({ params }: PageProps) {
   const caminhoDaMarca = `/${segmento}/${slugDeMarca(veiculo.marca)}`;
   const caminhoDoModelo = `${caminhoDaMarca}/${slugDeModelo(veiculo.marca, veiculo.modelo, veiculo.versao)}`;
 
-  const breadcrumbSchema = schemaDeTrilha([
-    { nome: "Home", caminho: "/" },
-    { nome: "Estoque", caminho: "/estoque" },
-    { nome: veiculo.marca, caminho: caminhoDaMarca },
-    { nome: `${veiculo.marca} ${veiculo.modelo}`, caminho: caminhoDoModelo },
-  ]);
+  /**
+   * A montagem do grafo mora em `lib/grafoDaFicha.ts`, e não aqui.
+   *
+   * Array de nós escrito direto no JSX é montagem sem teste: remover um nó não
+   * quebra tipo, render nem teste, e a página segue publicando JSON-LD válido —
+   * só que mudo. Foi exatamente assim que a `Offer` desta ficha passou duas
+   * semanas referenciando um `#dealer` que a própria ficha não emitia.
+   */
+  const grafo = grafoDaFicha({
+    veiculo,
+    caminho: pdpUrl,
+    indisponivel: publicacao.indisponivel,
+    trilha: [
+      { nome: "Home", caminho: "/" },
+      { nome: "Estoque", caminho: "/estoque" },
+      { nome: veiculo.marca, caminho: caminhoDaMarca },
+      { nome: `${veiculo.marca} ${veiculo.modelo}`, caminho: caminhoDoModelo },
+    ],
+    empresa: settings.companySettings,
+    disponiveis,
+  });
 
   return (
     <div className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
-      {/* `Car` e `BreadcrumbList` no mesmo bloco: array de nós é JSON-LD válido
-          e poupa um <script> em toda ficha. */}
+      {/* Os quatro nós num `<script>` só: array é JSON-LD válido, e o que
+          decide quais nós são é `grafoDaFicha`, acima. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: blocoJsonLd([carSchema, breadcrumbSchema]) }}
+        dangerouslySetInnerHTML={{ __html: blocoJsonLd(grafo) }}
       />
       <PDPClientWrapper
         veiculo={veiculo}

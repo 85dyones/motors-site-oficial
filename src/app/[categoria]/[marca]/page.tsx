@@ -14,7 +14,7 @@ import {
   schemaDePerguntas,
   schemaDeTrilha,
 } from "../../../lib/schemaListagem";
-import { schemaDaLoja } from "../../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeMarca } from "../../../lib/textoDosHubs";
 import { generoDoSegmento, seminovo, um } from "../../../lib/generoDoVeiculo";
 import { buscarTextoDoHub, resolverTextoDoHub } from "../../../lib/textoEditadoDoHub";
@@ -136,6 +136,7 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
     schemaDeListagem(tituloDaPagina, hub.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
+    schemaDoSite(companySettings),
   ]);
 
   return (

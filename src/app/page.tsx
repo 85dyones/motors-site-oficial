@@ -35,7 +35,8 @@ import {
 // anterior a esta rodada: o nome da loja nunca chegou ao structured data.
 import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
 import { linkWhatsApp } from "../lib/whatsapp";
-import { schemaDaLoja } from "../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../lib/schemaLoja";
+import { blocoJsonLd } from "../lib/schemaListagem";
 import FaixasDePreco from "../components/modernist/FaixasDePreco";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
@@ -146,7 +147,15 @@ export default async function Home() {
   // ligar cada oferta à loja física. Bloco duplicado aqui reabriria a chance de
   // as duas versões divergirem — que é o defeito que o NAP fictício de agosto
   // já custou uma vez.
-  const autoDealerSchema = schemaDaLoja(empresa, { disponiveis });
+  // `WebSite` entrou em 2026-09-05 e vem junto de propósito: é ele que diz que
+  // este domínio é UMA coisa, publicada por UMA empresa, e o `publisher` aponta
+  // para o `#dealer` acima por `@id`. Na home o par vale mais do que em
+  // qualquer outra página — é a URL que o Google usa para decidir o que é a
+  // marca, e a Motors Store colide com "Usa Motors" e "ACX Motors".
+  const grafoDaHome = blocoJsonLd([
+    schemaDaLoja(empresa, { disponiveis }),
+    schemaDoSite(empresa),
+  ]);
 
   /**
    * As seções da home, indexadas pelo id do catálogo (`lib/areasDoSite.ts`).
@@ -405,10 +414,10 @@ export default async function Home() {
     // `<div>`, não `<main>`: o layout raiz já abre um `<main>`, e landmarks
     // aninhados desorientam navegação por leitor de tela.
     <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
-      {/* Local Business (AutoDealer) Schema Markup */}
+      {/* O grafo da home: a loja e o site, ligados por `publisher`. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(autoDealerSchema) }}
+        dangerouslySetInnerHTML={{ __html: grafoDaHome }}
       />
 
       {/* A ordem e a visibilidade vêm da tela A3 do painel. `areasVisiveis`

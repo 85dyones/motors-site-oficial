@@ -265,3 +265,60 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
     ],
   };
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   O site como entidade — `WebSite`
+   ──────────────────────────────────────────────────────────────────────── */
+
+/** O identificador do site no grafo. Estável, como o `#dealer`. */
+export const ID_DO_SITE = `${SITE_URL}/#website`;
+
+/** Referência ao site para usar em `isPartOf`. */
+export const REFERENCIA_DO_SITE = { "@id": ID_DO_SITE } as const;
+
+/**
+ * O nó `WebSite`, e por que ele não é enfeite.
+ *
+ * Sozinho não gera rich result nenhum — nem tenta. O trabalho dele é dizer que
+ * este domínio é UMA coisa, publicada por UMA empresa: sem ele, o `AutoDealer`
+ * e as ~150 páginas são nós soltos que um consumidor precisa adivinhar que se
+ * relacionam. É o que sustenta desambiguação de marca, e a Motors Store tem
+ * esse problema de verdade — colide com "Usa Motors" e "ACX Motors", e o
+ * relatório de visibilidade em IA de 05/09 mediu o resultado: nas buscas de
+ * marca quem responde são os agregadores, com dados velhos, e o site próprio
+ * não aparece.
+ *
+ * `publisher` aponta para o `#dealer` por `@id` em vez de repetir o bloco. É a
+ * mesma disciplina da ficha: um nó, um lugar, e as referências apontam para ele
+ * — bloco duplicado é duas versões que envelhecem em ritmos diferentes.
+ *
+ * ---------------------------------------------------------------------------
+ * `potentialAction` fica de fora, e a razão mudou
+ * ---------------------------------------------------------------------------
+ * O playbook manda declarar um `SearchAction` com `/estoque?q={termo}`. A
+ * objeção conhecida era que a busca do catálogo seria client-side, sem URL — e
+ * ela **não procede**: `Catalogo` lê `searchParams.get("q")` e abre já filtrado.
+ * A URL existe e funciona.
+ *
+ * O motivo de não declarar é outro, e é sobre o que a declaração PROMETE. O
+ * `SearchAction` diz "este site tem uma página de resultados de busca em tal
+ * endereço". `Catalogo` usa o `q` como valor INICIAL de um estado de cliente:
+ * quem chega sem JavaScript — que é a condição de quem lê o HTML servido —
+ * recebe a grade inteira, não o resultado da busca. Declarar seria descrever um
+ * comportamento que só existe depois da hidratação.
+ *
+ * Some-se a isso que o Google descontinuou a sitelinks searchbox: o campo não
+ * rende nada hoje, e o pouco que renderia não vale afirmar o que não se cumpre.
+ * Quando a busca escrever na URL e o servidor devolver o recorte, entra aqui.
+ */
+export function schemaDoSite(empresa: Pick<CompanySettings, "name">) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": ID_DO_SITE,
+    url: SITE_URL,
+    name: empresa.name,
+    inLanguage: "pt-BR",
+    publisher: REFERENCIA_DA_LOJA,
+  };
+}

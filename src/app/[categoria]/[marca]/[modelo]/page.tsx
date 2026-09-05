@@ -14,7 +14,7 @@ import {
   schemaDePerguntas,
   schemaDeTrilha,
 } from "../../../../lib/schemaListagem";
-import { schemaDaLoja } from "../../../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeModelo } from "../../../../lib/textoDosHubs";
 import { buscarTextoDoHub, resolverTextoDoHub } from "../../../../lib/textoEditadoDoHub";
 import { seminovo, um } from "../../../../lib/generoDoVeiculo";
@@ -152,6 +152,7 @@ export default async function HubDeModeloPage({ params }: PageProps) {
     schemaDeListagem(titulo, hub.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
+    schemaDoSite(companySettings),
   ]);
 
   const irmaos = (marca?.modelos ?? []).filter((m) => m.slug !== hub.slug);
