@@ -116,6 +116,12 @@ export interface MotivoDoFunil {
   tipo: TipoDeDesfecho;
   ordem: number;
   ativo: boolean;
+  /**
+   * Para que tipo de negócio este motivo existe. Opcional de propósito: uma
+   * linha vinda de banco ainda não migrado chega sem o campo, e tratá-la como
+   * `ambos` é o que impede a caixa de esvaziar entre o deploy e a migração.
+   */
+  escopo?: EscopoDeMotivo;
 }
 
 /** O mínimo que as regras precisam saber de um lead. */
@@ -415,6 +421,94 @@ export function destinosDoNegocio(etapas: EtapaDoFunil[]): EtapaDoFunil[] {
 /** Índice da etapa na fila visível — o que as setas do card usam. */
 export function indiceDaEtapa(etapas: EtapaDoFunil[], chave: string): number {
   return etapas.findIndex((e) => e.chave === chave);
+}
+
+// ---------------------------------------------------------------------------
+// Quem quer vender perde por outros motivos
+// ---------------------------------------------------------------------------
+
+/**
+ * Para que negócio um motivo de desfecho existe.
+ *
+ * 2026-09-05, pedido do dono: *"precisamos ter opções diferentes para clientes
+ * de avaliação"*. Até aqui a caixa filtrava por `tipo` e mais nada — e quem só
+ * queria VENDER o carro dele via "Financiamento ou crédito reprovado" e "Não
+ * tínhamos o carro que ele queria" como razões de ter perdido o negócio.
+ *
+ * `ambos` não é o meio-termo preguiçoso: é a posição correta para o que
+ * acontece igual nos dois funis (o cliente sumiu; era spam) e a posição SEGURA
+ * para tudo que ninguém classificou ainda.
+ */
+export type EscopoDeMotivo = "compra" | "avaliacao" | "ambos";
+
+/** O que um LEAD é. Nunca `ambos` — um lead concreto é uma coisa ou a outra. */
+export type EscopoDeLead = "compra" | "avaliacao";
+
+/**
+ * Lista, e não ternário — a mesma lição que `TIPOS_DE_DESFECHO` já carrega
+ * neste arquivo. `escopo === "avaliacao" ? "avaliacao" : "compra"` converteria
+ * um `ambos` digitado errado em `compra`, sem erro e sem aviso.
+ */
+export const ESCOPOS_DE_MOTIVO: readonly EscopoDeMotivo[] = ["compra", "avaliacao", "ambos"];
+
+export function ehEscopoDeMotivo(v: unknown): v is EscopoDeMotivo {
+  return typeof v === "string" && (ESCOPOS_DE_MOTIVO as readonly string[]).includes(v);
+}
+
+/**
+ * Que negócio é este lead, a partir do canal por onde ele entrou.
+ *
+ * Hoje os canais de avaliação são exatamente dois — `"Avaliação"`
+ * (`/api/avaliacao`) e `"Appraisal Chat"` (`AutoAvaliacao`). Ainda assim isto
+ * NÃO é uma lista fixa, e a razão está escrita em `/api/leads`: o canal vem do
+ * corpo do POST, e uma lista fixa faria *"um canal novo na ficha nascer fora
+ * da lista, em silêncio, para sempre"*. Um `"Avaliação WhatsApp"` amanhã cairia
+ * em compra e ninguém veria erro nenhum.
+ *
+ * O risco da substring é o falso positivo, e ele está travado em teste: a
+ * suíte lista os onze canais que o site escreve hoje. O quase-acerto é
+ * `"WhatsApp Usado na Troca"` — é sobre avaliar um usado, mas o lead quer
+ * COMPRAR, e para ele o motivo certo (`avaliacao_do_usado`) mora em compra.
+ *
+ * Desconhecido, vazio e nulo caem em `compra`: é o funil padrão, e é o que
+ * a loja tinha antes desta função existir.
+ */
+export function escopoDoLead(canal: string | null | undefined): EscopoDeLead {
+  const normalizado = (canal ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return normalizado.includes("avalia") || normalizado.includes("appraisal")
+    ? "avaliacao"
+    : "compra";
+}
+
+/**
+ * Os motivos que a caixa de desfecho oferece: do tipo certo E do escopo certo.
+ *
+ * A queda no fim é deliberada. Se o filtro por escopo não sobrar nada — porque
+ * o banco ainda não migrou, ou porque alguém desativou a lista inteira pela
+ * tela — devolve tudo daquele tipo. Motivo fora de contexto é ruim; card que
+ * não fecha é pior, e esta caixa é o único caminho para tirar o lead do
+ * quadro.
+ */
+export function motivosVisiveis(
+  motivos: MotivoDoFunil[],
+  tipo: TipoDeDesfecho,
+  escopo: EscopoDeLead,
+): MotivoDoFunil[] {
+  const doTipo = motivos
+    .filter((m) => m.ativo && m.tipo === tipo)
+    .sort((a, b) => a.ordem - b.ordem);
+
+  const noEscopo = doTipo.filter((m) => {
+    // Ausente é `ambos`, e não "escondido": é o default da coluna, e é o que
+    // mantém a caixa cheia entre o deploy deste arquivo e a migração.
+    const dele = m.escopo ?? "ambos";
+    return dele === escopo || dele === "ambos";
+  });
+
+  return noEscopo.length > 0 ? noEscopo : doTipo;
 }
 
 // ---------------------------------------------------------------------------

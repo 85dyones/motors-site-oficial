@@ -14,7 +14,9 @@ import {
   etapasDoQuadro,
   chaveDaEtapa,
   destinatarioDoAviso,
+  ehEscopoDeMotivo,
   emMinutos,
+  escopoDoLead,
   espera,
   etapasVisiveis,
   formatarPrazo,
@@ -22,6 +24,7 @@ import {
   mensagemDeAlerta,
   mensagemParaCliente,
   minutosParado,
+  motivosVisiveis,
   nivelDeEstagnacao,
   numeroDiscavel,
   ordenarEtapas,
@@ -811,5 +814,158 @@ describe("espera", () => {
     expect(espera(new Date(AGORA - 20 * 60_000).toISOString(), AGORA)).toBe("20 min");
     expect(espera(new Date(AGORA - 5 * 3600_000).toISOString(), AGORA)).toBe("5 h");
     expect(espera(new Date(AGORA - 50 * 3600_000).toISOString(), AGORA)).toBe("2 d");
+  });
+});
+
+describe("escopo do motivo — quem quer vender não perde pelos motivos de quem quer comprar", () => {
+  /**
+   * Os canais que o site REALMENTE escreve hoje, colhidos um a um do código:
+   *
+   *   api/avaliacao/route.ts ....... "Avaliação"
+   *   AutoAvaliacao.tsx ............ "Appraisal Chat"
+   *   ContatoClientWrapper.tsx ..... "Formulário Contato"
+   *   LeadPopup.tsx ................ "Lead Popup"
+   *   CarMatch.tsx ................. "Garagem Match Profiler"
+   *   app/test/page.tsx ............ "CarMatch Recommendations"
+   *   PDPClientWrapper.tsx ......... as cinco de `setActiveChannel`
+   *   api/leads/route.ts ........... "N/A" e "site", os dois fallbacks
+   *
+   * É este teste que pega colisão de substring. "WhatsApp Usado na Troca" é o
+   * quase-acerto que justifica a lista existir: é sobre avaliar um usado, mas
+   * o lead quer COMPRAR — e para ele o motivo certo é `avaliacao_do_usado`,
+   * que vive no escopo de compra.
+   */
+  const CANAIS_DE_COMPRA = [
+    "Formulário Contato",
+    "Lead Popup",
+    "Garagem Match Profiler",
+    "CarMatch Recommendations",
+    "WhatsApp Proposta",
+    "WhatsApp Dúvidas",
+    "WhatsApp Usado na Troca",
+    "Agendamento Test-Drive",
+    "Simulação de Financiamento",
+    "N/A",
+    "site",
+  ];
+
+  const CANAIS_DE_AVALIACAO = ["Avaliação", "Appraisal Chat"];
+
+  it.each(CANAIS_DE_COMPRA)("o canal %s é negócio de compra", (canal) => {
+    expect(escopoDoLead(canal)).toBe("compra");
+  });
+
+  it.each(CANAIS_DE_AVALIACAO)("o canal %s é negócio de avaliação", (canal) => {
+    expect(escopoDoLead(canal)).toBe("avaliacao");
+  });
+
+  it("canal ausente ou vazio cai no funil padrão, nunca em exceção", () => {
+    expect(escopoDoLead(null)).toBe("compra");
+    expect(escopoDoLead(undefined)).toBe("compra");
+    expect(escopoDoLead("")).toBe("compra");
+    expect(escopoDoLead("   ")).toBe("compra");
+    expect(escopoDoLead("canal que ninguém escreveu ainda")).toBe("compra");
+  });
+
+  it("reconhece a avaliação escrita de qualquer jeito", () => {
+    // O canal é texto livre no corpo do POST. Acento e caixa não podem
+    // decidir qual lista o vendedor vê.
+    for (const canal of [
+      "AVALIAÇÃO",
+      "avaliacao",
+      "Avaliacao",
+      "  Avaliação  ",
+      "Avaliação WhatsApp",
+      "appraisal chat",
+    ]) {
+      expect(escopoDoLead(canal)).toBe("avaliacao");
+    }
+  });
+
+  it("ehEscopoDeMotivo recusa o desconhecido em vez de converter", () => {
+    expect(ehEscopoDeMotivo("compra")).toBe(true);
+    expect(ehEscopoDeMotivo("avaliacao")).toBe(true);
+    expect(ehEscopoDeMotivo("ambos")).toBe(true);
+    for (const lixo of ["venda", "COMPRA", "Avaliação", "", null, undefined, 1, {}]) {
+      expect(ehEscopoDeMotivo(lixo)).toBe(false);
+    }
+  });
+
+  describe("motivosVisiveis", () => {
+    const m = (
+      chave: string,
+      escopo: "compra" | "avaliacao" | "ambos" | undefined,
+      extra: Partial<MotivoDoFunil> = {},
+    ): MotivoDoFunil => ({
+      chave,
+      rotulo: chave,
+      tipo: "perdido",
+      ordem: 1,
+      ativo: true,
+      ...(escopo ? { escopo } : {}),
+      ...extra,
+    });
+
+    const LISTA: MotivoDoFunil[] = [
+      m("credito_reprovado", "compra"),
+      m("recusou_consignacao", "avaliacao"),
+      m("sem_resposta", "ambos"),
+      m("a_vista", "ambos", { tipo: "ganho" }),
+    ];
+
+    it("esconde de cada lado o que é do outro", () => {
+      const naAvaliacao = motivosVisiveis(LISTA, "perdido", "avaliacao").map((x) => x.chave);
+      expect(naAvaliacao).toEqual(["recusou_consignacao", "sem_resposta"]);
+
+      const naCompra = motivosVisiveis(LISTA, "perdido", "compra").map((x) => x.chave);
+      expect(naCompra).toEqual(["credito_reprovado", "sem_resposta"]);
+    });
+
+    it("continua respeitando o tipo do desfecho", () => {
+      expect(motivosVisiveis(LISTA, "ganho", "avaliacao").map((x) => x.chave)).toEqual(["a_vista"]);
+    });
+
+    it("motivo desativado não volta por causa do escopo", () => {
+      const lista = [m("recusou_consignacao", "avaliacao", { ativo: false })];
+      expect(motivosVisiveis(lista, "perdido", "avaliacao")).toEqual([]);
+    });
+
+    it("ordena por ordem, como a caixa desenha", () => {
+      const lista = [
+        m("segundo", "avaliacao", { ordem: 2 }),
+        m("primeiro", "avaliacao", { ordem: 1 }),
+      ];
+      expect(motivosVisiveis(lista, "perdido", "avaliacao").map((x) => x.chave)).toEqual([
+        "primeiro",
+        "segundo",
+      ]);
+    });
+
+    it("motivo sem escopo vale para os dois — banco não migrado não esvazia a caixa", () => {
+      const lista = [m("legado", undefined)];
+      expect(motivosVisiveis(lista, "perdido", "compra").map((x) => x.chave)).toEqual(["legado"]);
+      expect(motivosVisiveis(lista, "perdido", "avaliacao").map((x) => x.chave)).toEqual(["legado"]);
+    });
+
+    it("lista escopada vazia devolve a lista cheia do tipo, nunca vazia", () => {
+      // Card preso é pior que motivo fora de contexto: a caixa é o único
+      // caminho para tirar o lead do quadro.
+      const soDeCompra = [m("credito_reprovado", "compra"), m("preco", "compra", { ordem: 2 })];
+      expect(motivosVisiveis(soDeCompra, "perdido", "avaliacao").map((x) => x.chave)).toEqual([
+        "credito_reprovado",
+        "preco",
+      ]);
+    });
+
+    it("a queda de segurança não ressuscita desativado nem troca de tipo", () => {
+      const lista = [
+        m("credito_reprovado", "compra"),
+        m("desativado", "compra", { ativo: false }),
+        m("a_vista", "compra", { tipo: "ganho" }),
+      ];
+      expect(motivosVisiveis(lista, "perdido", "avaliacao").map((x) => x.chave)).toEqual([
+        "credito_reprovado",
+      ]);
+    });
   });
 });
