@@ -61,7 +61,17 @@ function arquivosDeTexto(): string[] {
            O que estava escapando: `src/lib/aboutSettings.json` publica em
            `/sobre` a frase "O laudo de cada carro fica disponível para
            consulta mediante solicitação" — promessa sem ressalva, dentro de
-           `src/lib`, invisível só porque o filtro pedia `.tsx`. */
+           `src/lib`, invisível só porque o filtro pedia `.tsx`.
+
+           ⚠️ **E isto cobre o FALLBACK, não o publicado.** `getCachedSettings`
+           lê `site_settings` primeiro; o `.json` só vale quando o banco não
+           responde (o que ainda importa: é o que o crawler recebe no HTML
+           pré-hidratação). Em 05/09/2026 a linha `about` do banco publicava
+           "Laudo Cautelar 100% Aprovado" com 35 aprovados de 83 não vendidos —
+           afirmação falsa, fora do alcance de qualquer teste que leia o
+           repositório. Junto com 30 páginas de hub servidas por
+           `textos_de_hub`. Trava de arquivo não vê texto que mora em tabela;
+           para medir o que o site DIZ, varra o HTML servido. */
         achados.push(caminho);
       }
     }
@@ -120,11 +130,20 @@ describe("a promessa do laudo carrega a condição", () => {
            atravessa fronteira de string e pode pescar um álibi da propriedade
            vizinha — hoje já há trechos casados com 230 e 247 caracteres.
 
-         120 cobre os dois: zero falso positivo no repositório e pega o caso
-         acima. A margem é medida, não chutada — dos 19 trechos que casam hoje,
-         o `aprovad` mais distante está no offset 78 (`paginasGeo.ts`). Se um
-         texto novo legítimo passar de 120, o certo é aproximar a ressalva da
-         promessa, não esticar este número. */
+         120 é o melhor ponto medido, não uma cura: zero falso positivo no
+         repositório e pega o caso acima. A margem é medida, não chutada — dos
+         20 trechos que casam hoje, o `aprovad` mais distante está no offset 78
+         (`paginasGeo.ts`). Se um texto novo legítimo passar de 120, o certo é
+         aproximar a ressalva da promessa, não esticar este número.
+
+         **O que 120 ainda NÃO pega**, medido na revisão de 05/09 e registrado
+         aqui para ninguém supor cobertura que não existe: um álibi curto que
+         fale de outra coisa ("…e a nossa oficina do Bacacheri é aprovada pelo
+         Inmetro", 106 chars; "…com o seu crédito já aprovado pelo banco"), e
+         uma segunda promessa que comece dentro da janela da primeira, engolida
+         pela cauda gulosa. Nenhuma janela finita fecha um heurístico de "tem
+         'aprovad' por perto" — isto é uma rede, não uma prova. A prova é ler o
+         texto. */
       const trechos =
         corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]{0,120}/gi) ?? [];
       for (const trecho of trechos) {

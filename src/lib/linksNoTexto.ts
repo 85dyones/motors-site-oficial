@@ -189,9 +189,13 @@ export function segmentarComLinks(
  * **O linkador nasce DENTRO do corpo do componente, a cada render.** É só isso.
  * Enquanto essa linha for verdade, o `Set` morre com o render que o criou e não
  * há vazamento entre requisições nem entre páginas — verificado num único
- * processo de build, em que `/estoque`, as três faixas e as duas páginas de
- * bairro saíram cada uma com o seu par de links (se o `Set` atravessasse
- * renders, da segunda em diante o resultado seria vazio).
+ * processo de build, em que `/estoque`, as três faixas e as páginas de bairro
+ * saíram todas com link (se o `Set` atravessasse renders, da segunda página em
+ * diante o resultado seria vazio). O que cada uma recebe varia com o texto que
+ * publica: `/seminovos-curitiba` sai com dois, `/seminovos-bacacheri` com um —
+ * o texto dela não escreve "perícia cautelar" nem "laudo cautelar" por extenso.
+ * A prova do não-vazamento é a página seguinte não sair VAZIA, não um número
+ * fixo de links por página.
  *
  * O que NÃO sustenta a segurança, apesar de parecer: "é server component" e
  * "renderiza uma vez por requisição". Uma versão anterior deste bloco dizia

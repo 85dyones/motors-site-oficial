@@ -31,18 +31,29 @@ export default function FaixasDePreco({
   disponiveis,
   cabecalho,
   className = "",
+  espacoDoTopo = "mt-4",
 }: {
   disponiveis: Veiculo[];
   /** O título do bloco, que difere entre a home e o índice da vitrine. */
   cabecalho: ReactNode;
   className?: string;
+  /**
+   * Respiro entre o cabeçalho e os chips.
+   *
+   * A home usava `pt-6` (24px) enquanto o bloco era JSX solto, e a extração
+   * trocou por `mt-4` (16px) sem querer — `CabecalhoSecao` não tem margem
+   * inferior, então o título ficou 8px mais colado. A revisão pegou; a home
+   * volta a 24, a vitrine fica em 16, que é o que ela sempre teve porque o
+   * `<h2>` dela é menor.
+   */
+  espacoDoTopo?: string;
 }) {
   if (disponiveis.length === 0) return null;
 
   return (
     <section className={className}>
       {cabecalho}
-      <div className="mt-4 flex flex-wrap gap-1.5">
+      <div className={`${espacoDoTopo} flex flex-wrap gap-1.5`}>
         {hubsDeFaixa(disponiveis).map((faixa) => (
           <Link
             key={faixa.slug}

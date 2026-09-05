@@ -251,6 +251,7 @@ export default async function Home() {
       <FaixasDePreco
         disponiveis={disponiveis}
         className="px-[18px] pt-12 lg:px-10 lg:pt-16"
+        espacoDoTopo="mt-6"
         /* Sem `numero`, e o prop é opcional justamente para isto. A numeração
            da home ("01 — ESTOQUE SELECIONADO", "02 — CONSULTORIA"…) foi escrita
            para uma ordem fixa e já não descreve a página: o dono reordena as

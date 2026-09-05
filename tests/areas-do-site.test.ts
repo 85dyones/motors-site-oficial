@@ -53,17 +53,24 @@ describe("normalizarAreas", () => {
     /* O nome deste caso era "entra no fim, visível" até 2026-09-05, e as
        asserções nunca olharam posição — só tamanho, os dois primeiros ids e
        `ocultas`. Quando `normalizarAreas` deixou de empurrar para o fim, o
-       nome passou a mentir e o teste continuou verde. A última linha é o
-       conserto: agora a POSIÇÃO está sob teste, e o nome descreve o que ela
-       verifica. */
-    // Config antiga, salva quando o catálogo tinha menos seções.
-    const c = normalizarAreas({ ordem: ["hero", "busca"], ocultas: [] });
+       nome passou a mentir e o teste continuou verde.
+
+       A ordem salva NÃO pode ser prefixo do catálogo, e essa foi a segunda
+       armadilha: com `["hero","busca"]`, `push` e `splice` produzem o mesmo
+       array, e a asserção de posição que eu tinha acabado de acrescentar
+       passava verde com o comportamento antigo. `["hero","contato"]` separa os
+       dois — `contato` é a ÚLTIMA do catálogo, então tudo que falta precisa
+       entrar ANTES dela. */
+    const c = normalizarAreas({ ordem: ["hero", "contato"], ocultas: [] });
     expect(c.ordem).toHaveLength(AREAS_DA_HOME.length);
-    expect(c.ordem.slice(0, 2)).toEqual(["hero", "busca"]);
+    // A preferência salva continua valendo: `contato` segue logo após `hero`
+    // seria o resultado de `push`; aqui as ausentes entram no meio.
+    expect(c.ordem[0]).toBe("hero");
+    expect(c.ordem[c.ordem.length - 1]).toBe("contato");
     // A seção que não estava na config não pode nascer oculta.
     expect(c.ocultas).toEqual([]);
-    // E as ausentes entram na ordem do catálogo, não empilhadas no fim.
-    expect(c.ordem).toEqual(AREAS_DA_HOME.map((a) => a.id));
+    // Nenhuma some, nenhuma duplica.
+    expect([...c.ordem].sort()).toEqual([...AREAS_DA_HOME.map((a) => a.id)].sort());
   });
 
   it("ignora pedido de ocultar seção fixa", () => {
