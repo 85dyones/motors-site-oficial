@@ -6,14 +6,22 @@ import { schemaDoVeiculo } from "./schemaVeiculo";
 /**
  * Os quatro nós que a ficha do veículo publica — montados aqui, não no JSX.
  *
- * Existe por causa de um defeito que este repositório cometeu três vezes em
- * 2026, sempre igual: montar o array de nós direto no `<script>` da rota deixa
- * a MONTAGEM sem teste. Tirar um nó do array não quebra tipo, não quebra render
- * e não quebra teste nenhum — a página segue publicando JSON-LD válido, só que
- * mudo. Foi assim que a `Offer` de cada ficha passou duas semanas apontando
- * `seller: { "@id": ".../#dealer" }` para um nó que a própria ficha não emitia.
+ * Existe por causa de um defeito concreto: montar o array de nós direto no
+ * `<script>` da rota deixa a MONTAGEM sem teste. Tirar um nó não quebra tipo,
+ * não quebra render e não quebra teste — a página segue publicando JSON-LD
+ * válido, só que mudo. Foi assim que a `Offer` de cada ficha passou **11 dias**
+ * (25/08 a 05/09/2026) apontando `seller: { "@id": ".../#dealer" }` para um nó
+ * que a própria ficha não emitia.
  *
- * Com a montagem numa função, remover um nó exige editar código coberto.
+ * ⚠️ **Extrair a montagem não basta**, e a revisão da F2 provou: com esta
+ * função pronta e coberta por 16 casos, trocar o ponto de publicação por
+ * `blocoJsonLd(grafo.slice(0, 1))` na rota deixava a suíte INTEIRA verde. Quem
+ * guarda o resultado é `tests/ficha-publica-o-grafo.test.ts`, que renderiza a
+ * ficha e conta os nós servidos. Esta função organiza; o teste é que protege.
+ *
+ * (A primeira versão desta nota dizia "três vezes em 2026" e "duas semanas".
+ * Nenhum dos dois se sustentou na verificação — o defeito documentado é um, e
+ * são 11 dias.)
  *
  * ---------------------------------------------------------------------------
  * Por que os quatro, e nessa ordem

@@ -307,6 +307,11 @@ export const REFERENCIA_DO_SITE = { "@id": ID_DO_SITE } as const;
  * recebe a grade inteira, não o resultado da busca. Declarar seria descrever um
  * comportamento que só existe depois da hidratação.
  *
+ * (Uma versão anterior desta nota dizia "recebe a grade inteira". Recebe NOVE:
+ * o fallback do `<Suspense>` serve `PRIMEIRA_LEVA` cards. O argumento não
+ * depende do número — o servidor ignora o `q` de qualquer jeito —, mas o fato
+ * citado estava errado.)
+ *
  * Some-se a isso que o Google descontinuou a sitelinks searchbox: o campo não
  * rende nada hoje, e o pouco que renderia não vale afirmar o que não se cumpre.
  * Quando a busca escrever na URL e o servidor devolver o recorte, entra aqui.

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import CarMatch from "../../components/CarMatch";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
+import { blocoJsonLd, schemaDeTrilha } from "../../lib/schemaListagem";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 
 const DESCRICAO =
   "Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e um consultor envia três sugestões reais do estoque no WhatsApp.";
@@ -35,6 +37,38 @@ export async function generateMetadata(): Promise<Metadata> {
  * sendo o `CarMatch` de produção; o header e o rodapé apontam para cá em vez
  * do antigo âncora `/#match-garagem`.
  */
-export default function CarroPerfeitoPage() {
-  return <CarMatch />;
+export default async function CarroPerfeitoPage() {
+  const { companySettings } = await getCachedSettings();
+
+  /**
+   * Dado estruturado entrou em 2026-09-05, e esta era a página pública com
+   * MENOS schema do site: prioridade 0.7 no sitemap — a mesma de `/avaliacao` e
+   * `/garantia` — e nenhum nó, nem trilha.
+   *
+   * A F2 foi buscar `/sobre`, `/contato` e as landings de destaque com o
+   * argumento de serem páginas públicas de entidade, e passou por cima
+   * justamente desta. Foi a revisão que apontou: a frase que eu tinha escrito
+   * ("as 9 de fora são erro, área logada ou bloqueadas no robots") era falsa
+   * para ela e para `/privacidade`, que estão no sitemap e permitidas no
+   * `robots.ts`.
+   *
+   * Sem `disponiveis`: o quiz não lista estoque, e ler o banco aqui
+   * acrescentaria dependência a uma rota de captação que não precisa dela —
+   * mesmo critério de `/avaliacao` e `/contato`.
+   */
+  const grafo = blocoJsonLd([
+    schemaDeTrilha([
+      { nome: "Home", caminho: "/" },
+      { nome: "Garagem Profiler", caminho: "/carro-perfeito" },
+    ]),
+    schemaDaLoja(companySettings),
+    schemaDoSite(companySettings),
+  ]);
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: grafo }} />
+      <CarMatch />
+    </>
+  );
 }

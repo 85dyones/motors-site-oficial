@@ -62,14 +62,20 @@ export function precoValidoAte(base = new Date()): string {
  * Quantas fotos entram no `image` do `Car`.
  *
  * O schema.org aceita uma ou muitas, e o Google recomenda várias — mas a régua
- * aqui não é "quanto mais, melhor". O estoque tem fichas com trinta e poucas
- * fotos, e despejar todas num nó que já carrega preço, oferta e loja infla o
- * JSON-LD de cada uma das ~40 fichas sem acrescentar informação: as primeiras
- * são as que o cadastro ordena para vender, e da décima em diante são detalhe
- * de porta-malas e pneu.
+ * aqui não é "quanto mais, melhor". A ficha mais fotografada do estoque tem
+ * **29** fotos (o Camaro `8324691`), e despejar todas num nó que já carrega
+ * preço, oferta e loja infla o JSON-LD de cada uma das **59 fichas** sem
+ * acrescentar informação proporcional.
  *
- * Dez é o que o Google usa como teto prático em galeria de produto, e mantém a
- * primeira posição — que é a imagem principal — intocada.
+ * Dez é o teto prático que o Google usa em galeria de produto, e mantém a
+ * primeira posição — a imagem principal — intocada. Corta 72 dos 83 veículos
+ * disponíveis em 05/09/2026.
+ *
+ * ⚠️ É ESCOLHA, não fato medido. A primeira versão desta nota afirmava que "da
+ * décima em diante são detalhe de porta-malas e pneu" — ninguém auditou o
+ * conteúdo das fotos para poder dizer isso. O que se sabe é que a ordem do
+ * cadastro é a ordem de vender. Se alguém medir e descobrir que a 12ª costuma
+ * ser o interior, o número sobe.
  */
 export const MAXIMO_DE_IMAGENS = 10;
 
