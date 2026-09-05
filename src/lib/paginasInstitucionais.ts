@@ -24,8 +24,10 @@ import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque"
  * Fonte de cada afirmação:
  * - "simulação e pré-aprovação pelo WhatsApp com os principais bancos" →
  *   `aboutSettings.card2Desc`, publicado em /sobre;
- * - "troca como entrada, avaliação em ~10 minutos pela FIPE" → a régua da home
- *   e a Avaliação Express, que já operam assim;
+ * - "troca como entrada, avaliação pela FIPE" → a Avaliação Express, que já
+ *   opera assim. O "~10 minutos" que esta linha citava saiu em 04/09/2026,
+ *   junto com a régua da home que o sustentava: o prazo não era medido em
+ *   lugar nenhum e ninguém tinha sido combinado para cumpri-lo;
  * - "de cada dez avaliados, três entram" → `aboutSettings.historyP1`.
  *
  * O que NÃO está aqui, e não pode entrar: taxa, parcela fechada, prazo máximo
@@ -43,8 +45,8 @@ export const TEXTO_DE_FINANCIAMENTO: string[] = [
     "principais bancos parceiros. Trabalhar com mais de um banco importa porque cada um lê " +
     "perfil de crédito de um jeito: a mesma pessoa recebe respostas diferentes, e quem manda " +
     "a proposta para um só nunca descobre isso.",
-  "Seu carro atual entra como entrada. A Avaliação Express dá uma proposta em cerca de dez " +
-    "minutos, com base na Tabela FIPE e no giro do nosso estoque — e nem todo carro avaliado " +
+  "Seu carro atual entra como entrada. A Avaliação Express devolve uma proposta pelo " +
+    "WhatsApp, com base na Tabela FIPE e no giro do nosso estoque — e nem todo carro avaliado " +
     "vira estoque nosso: quando não vira, a gente diz por quê.",
   "O que a simulação não faz é prometer aprovação. Taxa, prazo e valor final dependem de " +
     "análise de crédito, e o número que aparece aqui é estimativa com TAC e IOF incluídos, " +
@@ -61,8 +63,9 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
   {
     pergunta: "Posso usar meu carro como entrada?",
     resposta:
-      "Pode. A avaliação leva cerca de dez minutos, é feita com base na Tabela FIPE e no giro do " +
-      "nosso estoque, e o valor aprovado entra como entrada no financiamento do próximo carro.",
+      "Pode. A avaliação é feita com base na Tabela FIPE e no giro do nosso estoque, e um " +
+      "consultor devolve a proposta pelo WhatsApp — o valor aprovado entra como entrada no " +
+      "financiamento do próximo carro.",
   },
   {
     pergunta: "Em quantas vezes consigo parcelar?",
@@ -104,7 +107,17 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  *   `aboutSettings.value2`;
  * - "de cada dez avaliados, três entram" → `aboutSettings.historyP1`;
  * - "transferência acompanhada" → `PROCEDENCIA_PADRAO`;
- * - **três meses de cobertura** → decisão do dono em 2026-08-25.
+ * - **três meses de cobertura** → decisão do dono em 2026-08-25;
+ * - **entrega para todo o Brasil** → decisão do dono em 2026-09-04. O que é
+ *   regional é a MÍDIA — os anúncios rodam em Paraná e litoral de Santa
+ *   Catarina —, não o serviço.
+ *
+ *   `CIDADES_ATENDIDAS` em `schemaLoja.ts` NÃO tem nada a ver com isso e não
+ *   mudou: são as seis cidades da Região Metropolitana (Curitiba, Pinhais,
+ *   Colombo, São José dos Pinhais, Almirante Tamandaré, Araucária), e o
+ *   `areaServed` do schema significa raio de COMPETIÇÃO, como o comentário de
+ *   lá explica. Três alcances diferentes convivem de propósito: onde a loja
+ *   compete, onde a mídia roda, e para onde a loja entrega.
  *
  * ---------------------------------------------------------------------------
  * Duas decisões de redação que não são estilo
@@ -177,8 +190,9 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
   {
     pergunta: "A garantia vale se eu comprar de outra cidade?",
     resposta:
-      "Vale. Atendemos Curitiba, a Região Metropolitana e compradores de fora do estado, e a " +
-      "cobertura é a mesma. O que muda é a logística de entrega, combinada caso a caso.",
+      "Vale. A cobertura é a mesma em Curitiba, na Região Metropolitana e para quem compra de " +
+      "outro estado — entregamos para todo o Brasil. O que muda é a logística de entrega, " +
+      "combinada caso a caso.",
   },
   {
     pergunta: "E a documentação da transferência?",

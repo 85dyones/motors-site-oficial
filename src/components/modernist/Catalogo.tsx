@@ -11,7 +11,18 @@ import {
   resolveTipoCombustivel,
 } from "../../lib/regrasEstoque";
 import { slugifyTag } from "../../lib/tagUtils";
-import { mostrarLimparTudo, painelDeFiltro, rotuloDosResultados } from "../../lib/vitrine";
+import {
+  CAIXA_DA_BUSCA,
+  casaComABusca,
+  chipDaBusca,
+  CONTAINER_DA_BUSCA,
+  EXEMPLO_DA_BUSCA,
+  mensagemDeVitrineVazia,
+  mostrarLimparTudo,
+  painelDeFiltro,
+  rotuloDosResultados,
+  termosDaBusca,
+} from "../../lib/vitrine";
 import { CardVeiculo, formatarPreco } from "./primitivos";
 
 /**
@@ -71,11 +82,16 @@ export default function Catalogo({
   });
   const [ordem, setOrdem] = useState<Ordenacao>("recentes");
   const [visiveis, setVisiveis] = useState(PAGINA);
+  // A busca por digitação também entra por parâmetro: é o que permite mandar
+  // um link de "Onix automático" pronto, de campanha ou de atendimento.
+  const [busca, setBusca] = useState(() => searchParams.get("q") ?? "");
+  const termos = useMemo(() => termosDaBusca(busca), [busca]);
   // Recolhido é o estado inicial, e é o mesmo nos dois lados da hidratação:
   // nada aqui mede a janela. Quem está no desktop nunca vê diferença — lá o
   // painel não obedece a este estado.
   const [filtroAberto, setFiltroAberto] = useState(false);
   const botaoDoFiltro = useRef<HTMLButtonElement>(null);
+  const campoDeBusca = useRef<HTMLInputElement>(null);
   const regiaoDeResultados = useRef<HTMLDivElement>(null);
 
   /**
@@ -98,25 +114,27 @@ export default function Catalogo({
   /**
    * Zera os filtros e leva o foco para a região de resultados.
    *
-   * Vale para os TRÊS botões que limpam: o `LIMPAR (N)` do topo do painel, o
-   * `LIMPAR TUDO` da régua de chips e o `VER TODO O ESTOQUE` do estado vazio.
-   * Os três tornam falsa a própria condição de renderização e saem do DOM
-   * levando o foco de quem os acionou para o `<body>` (WCAG 2.4.3).
+   * Fecha a tarefa que ficou aberta em 2026-09-04: os TRÊS botões que limpam
+   * — o `LIMPAR (N)` do topo do painel, o `LIMPAR TUDO` da régua de chips e o
+   * `VER TODO O ESTOQUE` do estado vazio — tornam falsa a própria condição de
+   * renderização e saem do DOM levando o foco de quem os acionou para o
+   * `<body>` (WCAG 2.4.3).
    *
-   * `botaoDoFiltro` não serve de destino. Ele é o "FILTROS", que tem
-   * `lg:hidden`: no desktop é `display:none`, e `.focus()` em elemento
-   * escondido não faz nada e não devolve erro. Dois destes três aparecem NAS
-   * DUAS LARGURAS, então mandar para lá consertaria o celular e deixaria o
-   * desktop idêntico ao defeito — sem nada na tela quebrar.
+   * `botaoDoFiltro` não servia de destino, que foi o motivo de o conserto ter
+   * sido adiado. Ele é o "FILTROS", que tem `SO_NO_CELULAR`: no desktop é
+   * `display:none`, e `.focus()` em elemento escondido não faz nada e não
+   * devolve erro. Dois destes três aparecem NAS DUAS LARGURAS — medido a
+   * 1440px, mandar para lá deixa o `activeElement` no `<body>` do mesmo jeito.
+   * Consertaria o celular e esconderia o desktop, com a suíte verde.
    *
-   * O terceiro (`LIMPAR TUDO`) é `lg:hidden` e chegou a usar o alternador, que
-   * ali de fato está na tela. Mesmo assim veio para cá: aquele caminho move o
-   * foco para TRÁS, para fora da região, e anuncia a contagem VELHA (ver o
-   * `flushSync` abaixo). Mesma ação, mesmo destino — uma regra em vez de duas.
+   * O terceiro (`LIMPAR TUDO`) é só do celular e chegou a usar o alternador,
+   * que ali de fato está na tela. Veio para cá mesmo assim: aquele caminho
+   * move o foco para TRÁS, para fora da região que acabou de mudar, e anuncia
+   * a contagem velha (ver o `flushSync` abaixo). Mesma ação, mesmo destino.
    *
    * `fecharFiltro` fica de fora, e de propósito: fechar um disclosure e
    * devolver o foco ao alternador que o abriu é outro gesto, e lá o alternador
-   * é o lugar certo.
+   * é o lugar certo — não há nada de novo para anunciar.
    *
    * O destino é a grade, que existe nas duas larguras e é o que acabou de
    * mudar: nomeada como região, ela também anuncia o estoque de volta para
@@ -127,8 +145,7 @@ export default function Catalogo({
    * aconteceria com a região ainda carregando o nome velho — e o nome é lido no
    * instante do foco, não depois. Sem o despacho, quem limpa a partir do estado
    * vazio ouve "Resultados: 0 veículos" no exato momento em que os 36 voltaram
-   * para a tela. É o único lugar do arquivo que precisa da pintura síncrona, e
-   * é porque aqui o foco e o texto têm que chegar juntos.
+   * para a tela.
    */
   const limparTudoComFocoNosResultados = () => {
     flushSync(() => limparTudo());
@@ -152,6 +169,7 @@ export default function Catalogo({
   const limparTudo = () => {
     setSelecionados({});
     setPrecoMax(null);
+    setBusca("");
     setVisiveis(PAGINA);
   };
 
@@ -190,6 +208,15 @@ export default function Catalogo({
     if (ignorar !== "preco" && precoMax !== null && precoVigente(v) > precoMax) {
       return false;
     }
+    // A busca vale também para a contagem ao lado de cada caixa: digitar
+    // "onix" e continuar vendo "MARCA · FIAT (7)" seria a lista mentindo
+    // sobre o que ela vai mostrar.
+    //
+    // E ela NÃO honra `ignorar`, de propósito: `ignorar` serve para um grupo
+    // do painel não zerar a própria contagem, e a busca não é um grupo — não
+    // há caixa marcada para desconsiderar. Ninguém passa `"busca"` hoje; quem
+    // passar amanhã recebe a contagem com a busca aplicada, que é o certo.
+    if (!casaComABusca(v, termos)) return false;
     return true;
   };
 
@@ -230,7 +257,7 @@ export default function Catalogo({
       { chave: "cambio", titulo: "CÂMBIO", opcoes: contar("cambio") },
       { chave: "combustivel", titulo: "COMBUSTÍVEL", opcoes: contar("combustivel") },
     ].filter((g) => g.opcoes.length > 0);
-  }, [estoque, selecionados, precoMax, quickTags, stockOverrides]);
+  }, [estoque, selecionados, precoMax, termos, quickTags, stockOverrides]);
 
   const filtrados = useMemo(() => {
     const lista = estoque.filter((v) => passaNosFiltros(v));
@@ -242,7 +269,7 @@ export default function Catalogo({
       default:
         return lista;
     }
-  }, [estoque, selecionados, precoMax, ordem]);
+  }, [estoque, selecionados, precoMax, termos, ordem]);
 
   const chipsAtivos = [
     ...Object.entries(selecionados).flatMap(([chave, valores]) =>
@@ -255,6 +282,11 @@ export default function Catalogo({
     ...(precoMax !== null
       ? [{ chave: "preco", valor: "", rotulo: `ATÉ ${formatarPreco(precoMax)}` }]
       : []),
+    // A busca entra na régua como qualquer outro filtro. Sem isto, o campo
+    // some junto com o painel no celular e a vitrine fica recortada sem que
+    // nada na tela diga por quê — o mesmo defeito que a contagem de filtros
+    // no botão existe para evitar.
+    ...(chipDaBusca(busca) ? [{ chave: "busca", valor: "", rotulo: chipDaBusca(busca)! }] : []),
   ];
 
   const totalFiltrado = filtrados.length;
@@ -303,10 +335,100 @@ export default function Catalogo({
           </div>
         </div>
 
+        {/* Busca por digitação.
+            Fica FORA do painel de filtros, e nas duas larguras: o painel some
+            no celular, e um campo de busca escondido atrás de um botão é a
+            mesma caçada que ele existe para encurtar. Vem antes do alternador
+            porque é o caminho mais curto de todos — quem sabe o que quer
+            digita, quem não sabe abre o filtro.
+
+            Sem `<form>` e sem botão de enviar AQUI: filtra a cada tecla, sobre
+            uma lista que já está na memória do navegador, e um botão só
+            existiria para disparar o que já aconteceu. O fallback de
+            `/estoque` tem um `<form>` de verdade, porque lá não há tecla que
+            dispare nada — e é ele que reserva esta caixa no HTML servido, para
+            a grade não pular na hidratação. */}
+        <div className={CONTAINER_DA_BUSCA}>
+          <label htmlFor="busca-da-vitrine" className="sr-only">
+            Buscar por modelo, marca ou característica
+          </label>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mt-neutral-600"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-4.5-4.5" />
+          </svg>
+          <input
+            ref={campoDeBusca}
+            id="busca-da-vitrine"
+            type="search"
+            value={busca}
+            onChange={(e) => {
+              setBusca(e.target.value);
+              setVisiveis(PAGINA);
+            }}
+            // O placeholder ensina a digitar VALOR, não nome de campo. A
+            // primeira versão dizia "modelo, marca, câmbio, cor" e piorava o
+            // resultado de quem obedecia: "câmbio automático" achava 5 e
+            // "automático" achava 14, porque o nome do campo não está no
+            // índice — só o valor dele.
+            placeholder={EXEMPLO_DA_BUSCA}
+            // `appearance-none` no botão nativo de limpar: o `type="search"`
+            // desenha um X próprio no Chrome, Edge e Safari, e ele apareceria
+            // ao lado do nosso — dois X colados, e só um deles com rótulo e
+            // ordem de foco. O preflight do Tailwind reseta só o
+            // `search-decoration`, não este.
+            className={CAIXA_DA_BUSCA}
+          />
+          {busca !== "" && (
+            <button
+              type="button"
+              // Devolve o foco ao campo, e não é preciosismo: este botão só
+              // existe enquanto `busca !== ""`, e o clique torna a própria
+              // precondição falsa. Sem isto o nó sai do DOM e o foco cai no
+              // `<body>` (WCAG 2.4.3) — a terceira vez que este defeito
+              // aparece neste branch, depois de `fecharFiltro` e do
+              // `LIMPAR TUDO`.
+              //
+              // As outras duas ocorrências do arquivo ficaram adiadas porque o
+              // vizinho natural (`botaoDoFiltro`) é `display:none` no desktop.
+              // Aqui esse motivo não existe: o campo está montado nas duas
+              // larguras, e continuar digitando é o que a pessoa quer fazer.
+              onClick={() => {
+                setBusca("");
+                setVisiveis(PAGINA);
+                campoDeBusca.current?.focus();
+              }}
+              aria-label="Limpar a busca"
+              className="mt-foco absolute right-3 top-1/2 -translate-y-1/2 p-1 text-mt-accent"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                className="h-3.5 w-3.5"
+              >
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          )}
+        </div>
+
         {/* Botão de filtro — só abaixo do `lg`.
             Ocupa o mesmo lugar e a mesma altura do "VER TODO O ESTOQUE" que o
             fallback do <Suspense> serve no HTML: os dois se trocam na
-            hidratação sem empurrar a grade para baixo. A contagem de filtros
+            hidratação sem empurrar a grade para baixo — e a busca acima faz o
+            mesmo par com o `<form>` de lá, o que deixou de ser verdade por um
+            commit quando o campo entrou só deste lado. A contagem de filtros
             ativos vem junto porque painel recolhido não pode esconder que a
             vitrine está filtrada. */}
         <button
@@ -354,6 +476,10 @@ export default function Catalogo({
         >
           <div className="flex items-baseline justify-between border-b-2 border-mt-regua pb-3.5 pt-5">
             <span className="text-[11px] font-extrabold tracking-[.16em]">FILTROS</span>
+            {/* Este botão some do DOM ao ser acionado. O destino do foco é a
+                região de resultados, e não o alternador do filtro: ele aparece
+                também no desktop, onde `botaoDoFiltro` é `display:none`. Era a
+                tarefa aberta em 2026-09-04, e o alvo novo é o que a fechou. */}
             {chipsAtivos.length > 0 && (
               <button
                 type="button"
@@ -440,7 +566,7 @@ export default function Catalogo({
           <button
             type="button"
             onClick={fecharFiltro}
-            className="mt-btn mt-btn-tinta mt-foco w-full lg:hidden"
+            className={`mt-btn mt-btn-tinta mt-foco w-full ${filtro.classeDoBotao}`}
           >
             VER {totalFiltrado} {totalFiltrado === 1 ? "VEÍCULO" : "VEÍCULOS"}
           </button>
@@ -466,11 +592,11 @@ export default function Catalogo({
                 <button
                   key={`${chip.chave}-${chip.valor}`}
                   type="button"
-                  onClick={() =>
-                    chip.chave === "preco"
-                      ? setPrecoMax(null)
-                      : alternar(chip.chave, chip.valor)
-                  }
+                  onClick={() => {
+                    if (chip.chave === "preco") setPrecoMax(null);
+                    else if (chip.chave === "busca") setBusca("");
+                    else alternar(chip.chave, chip.valor);
+                  }}
                   aria-label={`Remover filtro ${chip.rotulo}`}
                   className="mt-foco flex items-center gap-2 border border-mt-regua px-3 py-1.5 text-xs font-semibold"
                 >
@@ -504,11 +630,10 @@ export default function Catalogo({
                   logo acima, o botão sai do DOM e o foco de quem acabou de
                   acioná-lo cai no `<body>` (WCAG 2.4.3).
 
-                  Este botão já apontou para o alternador do filtro, que aqui
-                  está na tela — some com o painel fechado, e é só com o painel
-                  fechado que ele aparece. Mesmo assim mudou de destino: aquilo
-                  mandava o foco para trás, para FORA da região que acabou de
-                  mudar, e sem despacho síncrono anunciava a contagem velha. */}
+                  Este apontou para o alternador do filtro, que aqui está na
+                  tela. Mudou de destino mesmo assim: aquilo mandava o foco para
+                  trás, para FORA da região que acabou de mudar, e sem despacho
+                  síncrono anunciava a contagem velha. */}
               {mostrarLimparTudo(chipsAtivos.length, filtroAberto) && (
                 <button
                   type="button"
@@ -524,8 +649,16 @@ export default function Catalogo({
           {totalFiltrado === 0 ? (
             <div className="border-t-2 border-mt-regua py-16 text-center">
               <p className="m-0 text-[17px] font-extrabold">
-                Nenhum veículo com essa combinação de filtros.
+                {mensagemDeVitrineVazia(
+                  busca,
+                  chipsAtivos.filter((c) => c.chave !== "busca").length,
+                )}
               </p>
+              {/* Mesmo caso do `LIMPAR (N)` lá em cima: `limparTudo` cru
+                  desmontaria este bloco inteiro e o foco cairia no `<body>`.
+                  Aqui o desktop é o caso difícil — o alternador do filtro não
+                  existe lá para receber o foco — e é por isso que o destino é
+                  a região de resultados, que existe nas duas larguras. */}
               <button
                 type="button"
                 onClick={limparTudoComFocoNosResultados}

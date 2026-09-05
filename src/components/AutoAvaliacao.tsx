@@ -878,7 +878,7 @@ export default function AutoAvaliacao() {
         </h1>
         <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-neutral-800 lg:text-base">
           Dados oficiais da Tabela FIPE cruzados com o giro real do nosso
-          estoque. Proposta no WhatsApp em menos de 10 minutos.
+          estoque. Um consultor retorna no WhatsApp com a proposta.
         </p>
 
         {/* Trilho de passos */}

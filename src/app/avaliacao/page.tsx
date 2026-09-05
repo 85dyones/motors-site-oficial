@@ -4,7 +4,7 @@ import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 
 const DESCRICAO =
-  "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Proposta no WhatsApp em menos de 10 minutos.";
+  "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Um consultor retorna no WhatsApp com a proposta.";
 
 // Sem `openGraph` próprio esta rota herdava o do layout raiz — compartilhar a
 // avaliação mostrava o título e a descrição da home, como se fosse ela.

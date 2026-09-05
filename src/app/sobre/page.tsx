@@ -8,7 +8,7 @@ import { SITE_URL } from "../../lib/site";
 export const revalidate = 60;
 
 const DESCRICAO =
-  "Conheça a história da Motors Store. De um showroom tradicional em Curitiba a pioneira na inteligência artificial para curadoria de veículos de alto padrão.";
+  "Conheça a história da Motors Store: um showroom tradicional em Curitiba que virou curadoria com IA e aceita três de cada dez carros avaliados.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { companySettings } = await getCachedSettings();

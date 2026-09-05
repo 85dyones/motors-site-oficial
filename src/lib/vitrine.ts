@@ -15,8 +15,9 @@ import { getVeiculoPdpUrl } from "./supabase";
  * ---------------------------------------------------------------------------
  * `/estoque` renderiza a grade dentro de um `<Suspense>`, e o fallback mostra
  * a primeira leva — 9 cards. Medido contra a produção em 2026-09-04: o HTML
- * servido trazia **9** links de ficha e **34** URLs no `ItemList`. As outras
- * 25 existiam só no JSON-LD.
+ * servido trazia **9** links de ficha e **36** URLs no `ItemList` (34 carros e
+ * 2 motos; contar só `/carros/` foi o que me fez escrever 34 aqui). As outras
+ * 27 existiam só no JSON-LD.
  *
  * `ItemList` informa, mas não é link de navegação: não passa autoridade e não
  * dá caminho a quem lê a página sem executar JavaScript. Na prática a regra 6
@@ -70,6 +71,18 @@ export function indiceDaVitrine(disponiveis: Veiculo[]): FichaNoIndice[] {
   }));
 }
 
+/**
+ * Onde um controle existe só abaixo do `lg`.
+ *
+ * Um nome só para os cinco lugares que recolhem no celular e não no desktop —
+ * os três do `Catalogo`, e a âncora "VER TODO O ESTOQUE" que o fallback do
+ * `<Suspense>` serve em `/estoque`. Escrito à mão, cada um vira um `lg:hidden`
+ * solto esperando virar `hidden`; e o que sobra solto é o convite para o
+ * próximo. A quinta ocorrência foi achada na revisão de 2026-09-04, depois de
+ * eu já ter fechado as outras quatro.
+ */
+export const SO_NO_CELULAR = "lg:hidden";
+
 /** Como o painel de filtro se apresenta agora. */
 export interface PainelDeFiltro {
   /** Classes de visibilidade do `<aside>`. */
@@ -96,7 +109,7 @@ export interface PainelDeFiltro {
 export function painelDeFiltro(aberto: boolean): PainelDeFiltro {
   return {
     classe: aberto ? "lg:block" : "hidden lg:block",
-    classeDoBotao: "lg:hidden",
+    classeDoBotao: SO_NO_CELULAR,
     rotulo: aberto ? "FECHAR FILTROS" : "FILTROS",
   };
 }
@@ -148,3 +161,243 @@ export function rotuloDosResultados(total: number): string {
 export function vitrineTemFichas(disponiveis: Veiculo[]): boolean {
   return indiceDaVitrine(disponiveis).length > 0;
 }
+
+/**
+ * ---------------------------------------------------------------------------
+ * 3. Buscar por digitação, sem deixar documento vazar pela busca
+ * ---------------------------------------------------------------------------
+ * Pedido do dono em 2026-09-04, no mesmo lote do filtro recolhido: um campo
+ * para digitar modelo e característica, em vez de caçar a caixa certa numa
+ * coluna de cinco grupos.
+ *
+ * A implementação óbvia — varrer o objeto inteiro do veículo — é a errada, e
+ * de um jeito que nenhum teste de comportamento pegaria: `Veiculo` tem
+ * `placa`, e um dia terá mais campo operacional. Buscar em cima do objeto
+ * transformaria a vitrine num oráculo de placa: digita, e a ficha que aparece
+ * CONFIRMA que aquela placa é daquele carro. Não precisa exibir o dado para
+ * vazá-lo — basta responder sobre ele.
+ *
+ * Por isso a busca lê uma LISTA BRANCA de campos, nunca o objeto. Campo novo
+ * no tipo não entra sozinho; alguém precisa escrever o nome dele aqui, e o
+ * teste vigia os dois lados.
+ *
+ * O mapper público de `supabase.ts` também não devolve `placa` — mas as duas
+ * defesas existem porque protegem coisas diferentes: lá é o que trafega para o
+ * cliente, aqui é o que a vitrine aceita responder.
+ */
+
+/** Os campos que a busca lê. Público, e escolhido um a um. */
+export const CAMPOS_DA_BUSCA = [
+  "marca",
+  "modelo",
+  "versao",
+  "ano",
+  "cor",
+  "cambio",
+  "combustivel",
+  "tipo",
+  "motor",
+  "opcionais",
+] as const;
+
+/**
+ * Os campos que a busca NUNCA lê, ainda que estejam no objeto.
+ *
+ * Documento do veículo é dado operacional do painel — a mesma regra que tira
+ * `placa` do mapper público. Está escrito aqui, e não só ausente da lista de
+ * cima, para o teste poder afirmar a proibição em vez de só constatar a
+ * omissão: lista que não se afirma é lista que cresce sem revisão.
+ */
+export const CAMPOS_FORA_DA_BUSCA = ["placa", "renavam", "chassi", "preco_compra"] as const;
+
+/** Minúscula e sem acento — quem digita "cambio" acha "Câmbio". */
+export function normalizarParaBusca(texto: string): string {
+  return (texto ?? "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Os termos de uma busca.
+ *
+ * Espaço separa termos e TODOS precisam casar, em qualquer campo e em qualquer
+ * ordem: "onix automatico" acha o Onix de câmbio automático, e "automatico
+ * onix" acha o mesmo carro. Busca vazia devolve lista vazia, que é o sinal de
+ * "não filtra nada" — e não de "não casa nada".
+ */
+export function termosDaBusca(termo: string): string[] {
+  return normalizarParaBusca(termo).split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Como cada campo da lista branca é lido.
+ *
+ * Um mapa tipado, e não `veiculo[campo]` com um cast: assim acrescentar um
+ * nome a `CAMPOS_DA_BUSCA` **não compila** enquanto ninguém escrever o leitor
+ * dele aqui. A lista branca deixa de depender de disciplina e passa a depender
+ * do compilador — que é a diferença entre uma regra e um comentário.
+ */
+const LEITORES: Record<(typeof CAMPOS_DA_BUSCA)[number], (v: Veiculo) => string> = {
+  marca: (v) => v.marca ?? "",
+  modelo: (v) => v.modelo ?? "",
+  versao: (v) => v.versao ?? "",
+  ano: (v) => String(v.ano ?? ""),
+  cor: (v) => v.cor ?? "",
+  cambio: (v) => v.cambio ?? "",
+  combustivel: (v) => v.combustivel ?? "",
+  tipo: (v) => v.tipo ?? "",
+  motor: (v) => v.motor ?? "",
+  opcionais: (v) => v.opcionais ?? "",
+};
+
+/** O texto de um veículo, montado só a partir de `CAMPOS_DA_BUSCA`. */
+export function textoBuscavel(veiculo: Veiculo): string {
+  return normalizarParaBusca(
+    CAMPOS_DA_BUSCA.map((campo) => LEITORES[campo](veiculo))
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+/** O mesmo texto, sem `opcionais` — só a ficha técnica. */
+export function textoDaFichaTecnica(veiculo: Veiculo): string {
+  return normalizarParaBusca(
+    CAMPOS_DA_BUSCA.filter((campo) => campo !== "opcionais")
+      .map((campo) => LEITORES[campo](veiculo))
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+/**
+ * As palavras que NOMEIAM uma dimensão que o painel de filtro oferece.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que esta lista existe
+ * ---------------------------------------------------------------------------
+ * Medido contra a produção em 2026-09-04: digitar **"elétrico" trazia 23
+ * carros, e nenhum era elétrico**. O casamento vinha de `opcionais` — "vidros
+ * elétricos", "travas elétricas". Ao mesmo tempo, o painel de COMBUSTÍVEL na
+ * mesma tela nem oferecia "Elétrico", porque não há nenhum no pátio.
+ *
+ * Dois controles lado a lado dando respostas contraditórias, e a busca era a
+ * que mentia — o defeito que o comentário do `Catalogo` condena pela outra
+ * ponta ("seria a lista mentindo sobre o que ela vai mostrar").
+ *
+ * A regra: **termo que nomeia uma dimensão do painel casa só na ficha
+ * técnica**. "elétrico" pergunta pelo combustível, não por vidro. "couro" e
+ * "teto solar" não nomeiam dimensão nenhuma e seguem lendo `opcionais`.
+ *
+ * O vocabulário é fechado e vem de `resolveTipoCombustivel` — é o domínio de
+ * combustível e de câmbio no Brasil, não número de negócio.
+ */
+export const VOCABULARIO_CANONICO = [
+  "flex",
+  "alcool",
+  "eletrico",
+  "hibrido",
+  "diesel",
+  "gasolina",
+  "gnv",
+  "automatico",
+  "automatizado",
+  "manual",
+  "cvt",
+] as const;
+
+/** Se o termo digitado pergunta por uma dimensão da ficha, e não por opcional. */
+export function ehTermoDeFichaTecnica(termo: string): boolean {
+  // Prefixo a partir de três letras: quem digita "eletric" quer a mesma coisa
+  // de quem digita "eletrico", e a busca é incremental — cada tecla consulta.
+  return termo.length >= 3 && VOCABULARIO_CANONICO.some((palavra) => palavra.startsWith(termo));
+}
+
+/**
+ * Se um veículo casa com o que foi digitado.
+ *
+ * Sem termo, casa — a busca vazia não é um filtro que reprova todo mundo, e
+ * essa inversão é o defeito clássico deste tipo de campo: a vitrine amanhece
+ * vazia porque alguém tratou "" como um termo.
+ *
+ * Cada termo escolhe seu próprio índice: os que nomeiam uma dimensão do painel
+ * leem só a ficha técnica; os outros leem tudo, `opcionais` incluído.
+ */
+export function casaComABusca(veiculo: Veiculo, termos: string[]): boolean {
+  if (termos.length === 0) return true;
+  const tudo = textoBuscavel(veiculo);
+  const ficha = textoDaFichaTecnica(veiculo);
+  return termos.every((termo) => (ehTermoDeFichaTecnica(termo) ? ficha : tudo).includes(termo));
+}
+
+/**
+ * O rótulo do chip da busca ativa, ou `null` quando não há busca.
+ *
+ * Aspas curvas, as mesmas de `mensagemDeVitrineVazia`: o chip fica ao lado de
+ * chips de filtro que são palavra solta em caixa alta ("FLEX", "AUTOMÁTICO"),
+ * e sem elas o que a pessoa digitou se confunde com uma opção do painel.
+ */
+export const LIMITE_DO_CHIP = 28;
+
+export function chipDaBusca(termo: string): string | null {
+  const limpo = (termo ?? "").trim();
+  if (!limpo) return null;
+  // Trunca porque o chip não quebra linha e `?q=` é alcançável pela URL: um
+  // termo de uma palavra longa esticava a régua e trazia rolagem lateral no
+  // celular, que é o oposto do que esta entrega foi fazer lá.
+  const curto =
+    limpo.length > LIMITE_DO_CHIP ? `${limpo.slice(0, LIMITE_DO_CHIP - 1)}…` : limpo;
+  return `“${curto.toUpperCase()}”`;
+}
+
+/**
+ * O que a tela diz quando a vitrine filtrada não devolve nada.
+ *
+ * Antes era uma frase só — "Nenhum veículo com essa combinação de filtros" —
+ * e ela mente para quem chegou ali digitando: a pessoa procurou uma palavra,
+ * não marcou caixa nenhuma, e a tela responde falando de filtros. Erro que
+ * explica errado é pior que erro sem explicação, porque manda procurar no
+ * lugar errado.
+ *
+ * `outrosFiltros` é a contagem SEM a busca — é o que separa "não achei a
+ * palavra" de "a palavra existe, os filtros é que a excluíram".
+ */
+export function mensagemDeVitrineVazia(termo: string, outrosFiltros: number): string {
+  const limpo = (termo ?? "").trim();
+  if (limpo && outrosFiltros > 0) return `Nenhum veículo para “${limpo}” com esses filtros.`;
+  if (limpo) return `Nenhum veículo para “${limpo}”.`;
+  return "Nenhum veículo com essa combinação de filtros.";
+}
+
+/**
+ * A caixa da busca, escrita uma vez só.
+ *
+ * Ela existe em DOIS lugares que precisam ter exatamente a mesma altura: o
+ * `<form>` do fallback de `/estoque`, que é o que vai no HTML servido, e o
+ * campo do `Catalogo`, que o substitui na hidratação. Classe divergente entre
+ * os dois é a grade pulando na tela mais usada do site — o defeito que o
+ * campo novo introduziu em 04/09 e que só apareceu quando alguém mediu os
+ * bytes do HTML.
+ *
+ * Constante em vez de duas strings iguais: iguais elas ficam até a primeira
+ * vez que alguém ajusta o padding de um lado só.
+ */
+export const CONTAINER_DA_BUSCA = "relative mt-4";
+export const CAIXA_DA_BUSCA =
+  "mt-foco w-full border-2 border-mt-regua bg-transparent py-2.5 pl-11 pr-11 " +
+  "text-[13px] font-semibold tracking-[.02em] placeholder:font-normal " +
+  "placeholder:tracking-normal placeholder:text-mt-neutral-600 " +
+  // `mt-busca` esconde o X nativo do `type="search"`, que o Chrome, o Edge e o
+  // Safari desenham colado no nosso. A regra vive em `globals.css` e NÃO como
+  // variante arbitrária do Tailwind: escrita como
+  // `[&::-webkit-search-cancel-button]:appearance-none`, a classe CHEGAVA ao
+  // elemento e a regra nunca era gerada — medido no navegador em 04/09/2026,
+  // com `classList` tendo a classe e `document.styleSheets` sem nenhum seletor
+  // correspondente. As outras classes desta mesma constante funcionavam, que é
+  // o que torna esse defeito invisível numa olhada.
+  "mt-busca";
+
+/** O que o campo ensina a digitar: VALOR, nunca nome de campo. */
+export const EXEMPLO_DA_BUSCA = "Buscar: onix, automático, prata, teto solar…";

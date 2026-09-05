@@ -38,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Financiamento de Carro Seminovo em Curitiba | Motors Store",
     description:
       "Simule a parcela do seu seminovo em Curitiba com entrada, troca ou sem entrada. " +
-      "Aprovação com múltiplos bancos, análise no mesmo dia. Loja no Bacacheri.",
+      "Análise com múltiplos bancos, conduzida por consultor. Loja no Bacacheri.",
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,

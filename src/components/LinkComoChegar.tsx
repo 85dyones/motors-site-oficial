@@ -1,6 +1,7 @@
 "use client";
 
 import { pushComoChegar } from "../lib/dataLayer";
+import { urlDaRota } from "../lib/rotaAteALoja";
 
 /**
  * "Como chegar" — abre a rota no Google Maps e registra `click_directions`.
@@ -10,8 +11,10 @@ import { pushComoChegar } from "../lib/dataLayer";
  * micro-conversão de intenção presencial (§4.4 do plano de aquisição) e é a
  * única fonte possível do evento — sem o link, não há o que medir.
  *
- * `dir/?api=1&destination=` é a forma documentada e estável do Maps; abre o
- * app no celular e o site no desktop, sem depender de chave de API.
+ * A URL sai de `lib/rotaAteALoja.ts`, e não daqui: montada no JSX, a única
+ * guarda possível era procurar o NOME do identificador no texto do arquivo, e
+ * um apelido de import passava por ela deixando a rota quebrada. O porquê dos
+ * dois parâmetros está lá.
  */
 export default function LinkComoChegar({
   endereco,
@@ -23,12 +26,12 @@ export default function LinkComoChegar({
   origem: string;
   className?: string;
 }) {
-  const destino = (endereco || "").trim();
-  if (!destino) return null;
+  const rota = urlDaRota(endereco);
+  if (!rota) return null;
 
   return (
     <a
-      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}`}
+      href={rota}
       target="_blank"
       rel="noopener noreferrer"
       onClick={() => pushComoChegar(origem)}

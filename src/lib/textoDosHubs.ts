@@ -565,7 +565,7 @@ export function perguntasDeCategoria(
     {
       pergunta: "Vocês aceitam meu carro usado na troca?",
       resposta:
-        "Aceitamos. A avaliação é feita no showroom em cerca de 10 minutos, com base na Tabela " +
+        "Aceitamos. A avaliação é feita no showroom, com base na Tabela " +
         "FIPE e no giro do nosso estoque, e vale como entrada. Dá para começar pela Avaliação Express, online.",
     },
     {

@@ -3,6 +3,7 @@ import { ler, lerCodigo } from "./fonte";
 import DEFAULT_COMPANY_SETTINGS from "../src/lib/companySettings.json";
 import { linkWhatsApp, numeroDaLoja, telefoneVisivel } from "../src/lib/whatsapp";
 import { enderecoDoSchema } from "../src/lib/schemaLoja";
+import { colunasDoRodape } from "../src/lib/colunasDoRodape";
 
 /**
  * Um número de telefone só, no site inteiro.
@@ -65,10 +66,28 @@ describe("rótulo e link não podem discordar", () => {
   });
 
   it("o rodapé usa o formatador, não o campo de texto", () => {
-    const fonte = lerCodigo("src/components/Footer.tsx");
+    // Isto lia a FONTE do `Footer` e procurava `telefoneVisivel(...)`. Em
+    // 2026-09-04 as colunas saíram do componente para `lib/colunasDoRodape.ts`
+    // — o `Footer` é client component e não cabe em teste de renderização aqui
+    // — e a guarda passou a vigiar o arquivo errado. Este teste avisou na hora,
+    // que é o serviço dele.
+    //
+    // Aproveitado para virar comparação de VALOR, que é o que o `describe`
+    // promete: o rótulo que a pessoa lê contra o número que o link abre. Bem
+    // mais forte do que procurar o nome de uma função no texto do arquivo.
+    const empresa = {
+      ...DEFAULT_COMPANY_SETTINGS,
+      whatsappRaw: NUMERO_CANONICO,
+      // O cenário exato do defeito: campo de leitura desatualizado no painel.
+      whatsapp: "(41) 99842-6127",
+    };
+    const zap = colunasDoRodape(empresa)
+      .find((c) => c.titulo === "ATENDIMENTO")
+      ?.itens.find((i) => i.contato === "whatsapp");
 
-    expect(fonte).toMatch(/telefoneVisivel\(companySettings\)/);
-    expect(fonte).not.toMatch(/WhatsApp \$\{companySettings\.whatsapp\}/);
+    expect(zap?.rotulo).toContain("(41) 99737-2165");
+    expect(zap?.rotulo).not.toContain("99842-6127");
+    expect(zap?.href).toContain(NUMERO_CANONICO);
   });
 
   it("a ficha do veículo também", () => {
