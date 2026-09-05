@@ -1002,3 +1002,83 @@ describe("o chip da busca não estica a régua", () => {
     expect(chipDaBusca("onix automatico")).toBe("“ONIX AUTOMATICO”");
   });
 });
+
+describe("o fim da primeira leva não pode parecer o fim do estoque", () => {
+  /**
+   * Achado pelo dono no celular, em 05/09/2026: depois de rolar nove fichas,
+   * o "CARREGAR MAIS 9" era preto sobre fundo claro, ao lado de um
+   * "Mostrando 9 de 36" em cinza de 12px. Ele lê como rodapé da lista — e o
+   * cliente sai achando que a loja tem nove carros.
+   *
+   * A cor de destaque é escassa no site de propósito. Este é o lugar que ela
+   * existe para marcar: a única ação que revela que a vitrine continua.
+   */
+  const fonte = lerCodigo("src/components/modernist/Catalogo.tsx");
+
+  it("o botão de carregar mais usa a cor de destaque", () => {
+    expect(fonte).toMatch(/className="mt-btn mt-btn-primario mt-foco"\s*>\s*CARREGAR MAIS/);
+    expect(fonte).not.toMatch(/mt-btn-tinta[^"]*"\s*>\s*CARREGAR MAIS/);
+  });
+
+  it("a variante de destaque é a que carrega o `--mt-accent`", () => {
+    // Guarda do par: trocar a classe não adianta se a classe não for a
+    // acentuada. `mt-btn-primario` é a única que pinta com a cor da marca.
+    const css = ler("src/app/modernist.css");
+    const bloco = css.match(/\.mt-btn-primario\s*\{[^}]*\}/)?.[0] ?? "";
+
+    expect(bloco).toMatch(/background:\s*var\(--mt-accent\)/);
+  });
+
+  it("a contagem ao lado dele não é legenda", () => {
+    // "Mostrando 9 de 36" É o argumento: em cinza de 12px ao lado de um botão
+    // preto, ninguém lê. Cresceu e escureceu junto com o botão.
+    expect(fonte).toMatch(
+      /className="text-\[13px\] font-semibold text-mt-neutral-800"\s*>\s*\n?\s*Mostrando \{mostrando\} de \{totalFiltrado\}/,
+    );
+  });
+});
+
+describe("a home dá saída para a vitrine nos dois extremos dos destaques", () => {
+  /**
+   * Achado pelo dono no celular em 05/09/2026. O bloco "01 — Estoque
+   * selecionado" tinha "VER OS 36 VEÍCULOS" só no cabeçalho. Empilhada, a
+   * grade tem seis fotos grandes: quem rola até o último card chega direto no
+   * bloco preto da Consultoria, com o link de cima fora da tela há muito.
+   *
+   * É o mesmo defeito do "CARREGAR MAIS" que parecia rodapé, na seção acima —
+   * a diferença entre "a loja tem estes seis" e "a loja tem trinta e seis".
+   */
+  const home = lerCodigo("src/app/page.tsx");
+
+  it("o link aparece duas vezes na seção de destaques", () => {
+    const secao = home.slice(
+      home.indexOf("01 — ESTOQUE SELECIONADO"),
+      home.indexOf("02 — CONSULTORIA"),
+    );
+    const links = [...secao.matchAll(/<LinkRegua href="\/estoque">VER OS \{total\} VEÍCULOS<\/LinkRegua>/g)];
+
+    expect(links).toHaveLength(2);
+  });
+
+  it("um antes da grade e outro depois — não dois no cabeçalho", () => {
+    // Dois links colados no topo não resolvem nada e é o jeito mais fácil de
+    // este teste passar sem a entrega existir.
+    const secao = home.slice(
+      home.indexOf("01 — ESTOQUE SELECIONADO"),
+      home.indexOf("02 — CONSULTORIA"),
+    );
+    const grade = secao.indexOf("destaquesSemana.map");
+    const posicoes = [...secao.matchAll(/VER OS \{total\} VEÍCULOS/g)].map((m) => m.index!);
+
+    expect(posicoes).toHaveLength(2);
+    expect(posicoes[0]).toBeLessThan(grade);
+    expect(posicoes[1]).toBeGreaterThan(grade);
+  });
+
+  it("os dois dizem o total do estoque, não o das fotos que ele mostra", () => {
+    // `destaquesSemana` é um recorte; `total` é a vitrine inteira. Trocar um
+    // pelo outro faria o link prometer seis carros.
+    expect(home).not.toMatch(/VER OS \{destaquesSemana\.length\}/);
+    expect(home).toMatch(/const total = disponiveis\.length|total=\{disponiveis\.length\}|total = disponiveis/);
+  });
+});

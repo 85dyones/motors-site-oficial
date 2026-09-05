@@ -220,6 +220,18 @@ export default async function Home() {
             />
           ))}
         </div>
+
+        {/* A mesma saída, repetida no fim da grade.
+            Achado pelo dono no celular em 05/09/2026: no topo o link existe,
+            mas empilhada a grade tem seis fotos grandes — quem rola até o
+            último card chega no bloco preto da Consultoria sem nada por perto
+            dizendo que a vitrine continua, e o link de cima saiu da tela há
+            muito. É o mesmo defeito do "carregar mais" que parecia rodapé.
+            No desktop custa uma linha; no celular é a diferença entre voltar
+            ao topo e sair da página. */}
+        <div className="pt-9 lg:pt-10">
+          <LinkRegua href="/estoque">VER OS {total} VEÍCULOS</LinkRegua>
+        </div>
       </section>
 
     ),
