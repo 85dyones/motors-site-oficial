@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Veiculo } from "../../types";
 import { resumirSelecao } from "../../lib/destaquesRapidos";
+import { segmentarComLinks } from "../../lib/linksNoTexto";
 import GradeDeVeiculos from "./GradeDeVeiculos";
 import BotaoWhatsApp from "./BotaoWhatsApp";
 import { formatarKm, formatarPreco } from "./primitivos";
@@ -104,6 +105,20 @@ export interface PaginaDeEstoqueProps {
    * e ali o simulador não é o fecho, é o assunto da página.
    */
   posicaoDoConteudo?: "antes-da-grade" | "depois-da-grade";
+  /**
+   * O caminho desta página — só para o FAQ não linkar para ela mesma.
+   *
+   * As respostas citam "Avaliação Express", "laudo cautelar" e "financiamento"
+   * por extenso, e `segmentarComLinks` transforma a primeira ocorrência de cada
+   * um em link. No FAQ de `/financiamento`, que fala de financiamento em quase
+   * toda resposta, isso viraria auto-link: ruído para quem lê e sinal nulo para
+   * o rastreador.
+   *
+   * Opcional de propósito. Sem ele o FAQ ainda linka corretamente — só perde
+   * essa proteção. Nenhuma página fica errada por esquecer a prop; a de
+   * `/garantia` e a de `/financiamento` ficam redundantes.
+   */
+  caminho?: string;
 }
 
 export default function PaginaDeEstoque({
@@ -121,6 +136,7 @@ export default function PaginaDeEstoque({
   contagem = true,
   conteudo,
   posicaoDoConteudo = "depois-da-grade",
+  caminho,
 }: PaginaDeEstoqueProps) {
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
@@ -327,8 +343,25 @@ export default function PaginaDeEstoque({
               {faq.map((item) => (
                 <div key={item.pergunta} className="border-b border-mt-regua-fina py-4">
                   <dt className="text-[14px] font-extrabold text-mt-ink">{item.pergunta}</dt>
+                  {/* A resposta é a MESMA string que vai para o `FAQPage` do
+                      JSON-LD, e o Google exige que o texto marcado seja idêntico
+                      ao visível. Por isso o link entra aqui, no render, e nunca
+                      dentro da string: `segmentarComLinks` só quebra o texto em
+                      pedaços — juntá-los devolve a resposta byte a byte. */}
                   <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                    {item.resposta}
+                    {segmentarComLinks(item.resposta, caminho).map((parte, i) =>
+                      parte.href ? (
+                        <Link
+                          key={`${item.pergunta}-${i}`}
+                          href={parte.href}
+                          className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+                        >
+                          {parte.texto}
+                        </Link>
+                      ) : (
+                        <span key={`${item.pergunta}-${i}`}>{parte.texto}</span>
+                      ),
+                    )}
                   </dd>
                 </div>
               ))}

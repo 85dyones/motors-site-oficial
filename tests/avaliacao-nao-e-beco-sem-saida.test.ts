@@ -64,7 +64,9 @@ function hrefsRenderizados(html: string): string[] {
 
 /** O conteúdo dos blocos `application/ld+json` da página. */
 function grafo(html: string): Record<string, unknown>[] {
-  return [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].flatMap((m) =>
+  // `[\s\S]` e não a flag `s`: o alvo do tsconfig é anterior a es2018, e
+  // `dotAll` ali é erro de compilação, não aviso.
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) =>
     JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&")),
   );
 }

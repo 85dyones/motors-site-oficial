@@ -115,6 +115,7 @@ export default async function FinanciamentoPage() {
           },
         ]}
         faq={PERGUNTAS_DE_FINANCIAMENTO}
+        caminho={CAMINHO}
       />
     </div>
   );
