@@ -217,21 +217,41 @@ export interface OpcoesDoSchemaDaLoja {
  * a ficha do veículo referencia por `@id` em vez de repetir o bloco.
  */
 export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaLoja = {}) {
+  /**
+   * `empresa` chega `null` mais vezes do que o tipo admite, e derrubava a
+   * página.
+   *
+   * `getCachedSettings` nunca rejeita — engole a falha e segue —, mas devolve
+   * `companySettings: null` quando `site_settings` tem linhas e nenhuma com
+   * `id='company'`: nesse caminho o fallback do JSON local é pulado, porque a
+   * leitura do banco "deu certo". Aí `empresa.name` estoura, e o que cai não é
+   * o schema: é a rota inteira.
+   *
+   * Achado pela revisão da F2, que renderizou `/carro-perfeito` com settings
+   * nula e recebeu `TypeError`. A F2 espalhou o risco de duas rotas para seis
+   * ao levar o nó para `/sobre`, `/contato`, `/carro-perfeito` e
+   * `/destaques/[tag]` — a guarda mora aqui, e não em cada chamador, porque é
+   * uma linha que fecha para todos.
+   *
+   * Campo ausente é o comportamento certo: `JSON.stringify` descarta
+   * `undefined`, então o nó sai menor em vez de a página sair 500.
+   */
+  const dados = empresa ?? ({} as CompanySettings);
   const preco = faixaDePreco(opcoes.disponiveis ?? []);
 
   return {
     "@context": "https://schema.org",
     "@type": "AutoDealer",
     "@id": ID_DA_LOJA,
-    name: empresa.name,
+    name: dados.name,
     image: `${SITE_URL}/logo.png`,
     logo: `${SITE_URL}/logo.png`,
     url: SITE_URL,
     // `whatsappRaw` é o número da loja em formato discável, o mesmo que
     // alimenta todo botão de WhatsApp do site (`lib/whatsapp.ts`).
-    telephone: empresa.whatsappRaw ? `+${empresa.whatsappRaw}` : undefined,
-    address: enderecoDoSchema(empresa.address),
-    geo: geoDoSchema(empresa),
+    telephone: dados.whatsappRaw ? `+${dados.whatsappRaw}` : undefined,
+    address: enderecoDoSchema(dados.address),
+    geo: geoDoSchema(dados),
     // A ficha do Google como mapa do lugar. `geo` continua saindo do painel e
     // continua ausente enquanto ele não tiver as coordenadas — as duas coisas
     // são independentes de propósito: `hasMap` aponta para o pin oficial,
@@ -243,8 +263,8 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
     paymentAccepted: "Dinheiro, Cartão de Crédito, Financiamento, Consórcio, Troca",
     areaServed: CIDADES_ATENDIDAS.map((name) => ({ "@type": "City", name })),
     sameAs: [
-      empresa.instagram,
-      empresa.facebook,
+      dados.instagram,
+      dados.facebook,
       PERFIL_NO_GOOGLE,
       ...PERFIS_EM_PORTAIS,
     ].filter(Boolean),
@@ -304,25 +324,29 @@ export const REFERENCIA_DO_SITE = { "@id": ID_DO_SITE } as const;
  * `SearchAction` diz "este site tem uma página de resultados de busca em tal
  * endereço". `Catalogo` usa o `q` como valor INICIAL de um estado de cliente:
  * quem chega sem JavaScript — que é a condição de quem lê o HTML servido —
- * recebe a grade inteira, não o resultado da busca. Declarar seria descrever um
- * comportamento que só existe depois da hidratação.
+ * recebe os **nove** cards do fallback do `<Suspense>` (`PRIMEIRA_LEVA`), a
+ * mesma primeira leva de sempre, e não o resultado da busca. Declarar seria
+ * descrever um comportamento que só existe depois da hidratação.
  *
- * (Uma versão anterior desta nota dizia "recebe a grade inteira". Recebe NOVE:
- * o fallback do `<Suspense>` serve `PRIMEIRA_LEVA` cards. O argumento não
- * depende do número — o servidor ignora o `q` de qualquer jeito —, mas o fato
- * citado estava errado.)
+ * (Uma versão anterior dizia "a grade inteira" no lugar dos nove. O argumento
+ * não dependia do número — o servidor ignora o `q` de qualquer jeito —, mas o
+ * fato citado estava errado, e ficou errado por mais uma rodada porque a
+ * correção foi anexada aqui embaixo em vez de aplicada na frase acima.)
  *
  * Some-se a isso que o Google descontinuou a sitelinks searchbox: o campo não
  * rende nada hoje, e o pouco que renderia não vale afirmar o que não se cumpre.
  * Quando a busca escrever na URL e o servidor devolver o recorte, entra aqui.
  */
-export function schemaDoSite(empresa: Pick<CompanySettings, "name">) {
+export function schemaDoSite(empresa: Pick<CompanySettings, "name"> | null | undefined) {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "@id": ID_DO_SITE,
     url: SITE_URL,
-    name: empresa.name,
+    // Mesma guarda de `schemaDaLoja`, pelo mesmo motivo: `companySettings`
+    // chega `null` quando `site_settings` existe sem a linha `id='company'`, e
+    // `empresa.name` derrubava a rota inteira. Campo ausente, não página 500.
+    name: empresa?.name,
     inLanguage: "pt-BR",
     publisher: REFERENCIA_DA_LOJA,
   };

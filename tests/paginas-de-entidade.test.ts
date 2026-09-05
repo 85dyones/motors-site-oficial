@@ -27,19 +27,37 @@ const EMPRESA: CompanySettings = {
   cnpj: "",
 };
 
+// Completo o bastante para a vitrine montar hub, carroceria e contagem: um
+// veiculo com campos faltando quebra a rota por motivo que nao e o assunto.
 const VEICULO = {
   id: "1",
   marca: "Fiat",
   modelo: "Argo",
+  versao: "Drive 1.0",
+  ano: 2022,
   preco_original: 70000,
   preco_promocional: 0,
+  quilometragem: 30000,
+  tipo: "Hatch",
+  cor: "Prata",
+  cambio: "Manual",
+  combustivel: "Flex",
+  motor: "1.0",
   vendido: false,
+  estado_cadastro: "publicado",
+  web_full_images: ["https://x/1.webp"],
+  whatsapp_images: ["https://x/1-zap.jpg"],
 } as unknown as Veiculo;
 
-vi.mock("../src/lib/settings", () => ({
+// `await original()` preserva o que a rota usa alem do que este arquivo mocka
+// -- `recortePublicoDeSettings`, `getVeiculoPdpUrl`. Mock que apaga export
+// vizinho quebra a rota por motivo que nao e o assunto do teste.
+vi.mock("../src/lib/settings", async (original) => ({
+  ...(await original<Record<string, unknown>>()),
   getCachedSettings: async () => ({ companySettings: EMPRESA }),
 }));
-vi.mock("../src/lib/supabase", () => ({
+vi.mock("../src/lib/supabase", async (original) => ({
+  ...(await original<Record<string, unknown>>()),
   getEstoque: async () => [VEICULO],
 }));
 vi.mock("../src/components/SobreClientWrapper", () => ({ default: () => null }));
@@ -109,5 +127,49 @@ describe("/contato publica onde a loja fica", () => {
     const loja = (await contato()).find((n) => n["@type"] === "AutoDealer");
 
     expect(loja).not.toHaveProperty("priceRange");
+  });
+});
+
+describe("/estoque publica o grafo", () => {
+  /**
+   * A vitrine, que é a página de maior tráfego depois da home.
+   *
+   * A revisão da F2 provou o buraco: removi `schemaDoSite` de `/` e `/estoque`
+   * ao mesmo tempo e a suíte inteira ficou verde — 122 arquivos, 2137 testes.
+   * O `WebSite` é nó NOVO deste PR nas duas rotas, e sumia pelo mesmo caminho
+   * silencioso pelo qual o `#dealer` sumiu por 11 dias.
+   *
+   * ⚠️ A HOME CONTINUA DESCOBERTA, e isso é deliberado, não esquecimento. Ela
+   * puxa `getReputacaoGoogle` e a curadoria do Instagram além do estoque e das
+   * settings; o teste precisaria de mais mocks do que tem asserção, e mock
+   * demais transforma prova em ficção. `/estoque` cobre o mesmo padrão de
+   * montagem com dois mocks. Quem mexer no grafo da home não tem rede — saiba
+   * disso antes de mexer.
+   */
+  async function estoque() {
+    const { default: EstoquePage } = await import("../src/app/estoque/page");
+    return nos(renderToStaticMarkup(await EstoquePage()));
+  }
+
+  it("emite BreadcrumbList, ItemList, FAQPage, AutoDealer e WebSite", async () => {
+    const tipos = (await estoque()).map((n) => n["@type"]);
+
+    expect(tipos).toContain("BreadcrumbList");
+    expect(tipos).toContain("ItemList");
+    expect(tipos).toContain("FAQPage");
+    expect(tipos).toContain("AutoDealer");
+    expect(tipos).toContain("WebSite");
+  });
+
+  it("remover um nó do array tem que quebrar aqui", async () => {
+    expect(await estoque()).toHaveLength(5);
+  });
+
+  it("a loja e o site se ligam pelo mesmo @id", async () => {
+    const publicados = await estoque();
+    const loja = publicados.find((n) => n["@type"] === "AutoDealer");
+    const site = publicados.find((n) => n["@type"] === "WebSite");
+
+    expect(site!.publisher).toEqual({ "@id": loja!["@id"] });
   });
 });

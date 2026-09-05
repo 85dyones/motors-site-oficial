@@ -5,7 +5,7 @@ import type { CompanySettings, Veiculo } from "../src/types";
 /**
  * A ficha renderizada — o `<script>` de verdade, não a função que o alimenta.
  *
- * `grafo-de-schema` cobre `grafoDaFicha` com 16 casos, e nenhum deles nota se a
+ * `grafo-de-schema` cobre `grafoDaFicha` com 5 casos, e nenhum deles nota se a
  * ROTA parar de publicar o que a função devolve. A revisão da F2 provou o
  * buraco com uma linha:
  *

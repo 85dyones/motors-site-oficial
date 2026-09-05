@@ -62,20 +62,32 @@ export function precoValidoAte(base = new Date()): string {
  * Quantas fotos entram no `image` do `Car`.
  *
  * O schema.org aceita uma ou muitas, e o Google recomenda várias — mas a régua
- * aqui não é "quanto mais, melhor". A ficha mais fotografada do estoque tem
- * **29** fotos (o Camaro `8324691`), e despejar todas num nó que já carrega
- * preço, oferta e loja infla o JSON-LD de cada uma das **59 fichas** sem
- * acrescentar informação proporcional.
+ * aqui não é "quanto mais, melhor". Despejar a galeria inteira num nó que já
+ * carrega preço, oferta e loja infla o JSON-LD de cada ficha sem acrescentar
+ * informação proporcional; a ficha mais fotografada do estoque publicado passa
+ * de vinte fotos.
  *
  * Dez é o teto prático que o Google usa em galeria de produto, e mantém a
- * primeira posição — a imagem principal — intocada. Corta 72 dos 83 veículos
- * disponíveis em 05/09/2026.
+ * primeira posição — a imagem principal — intocada. **O teto atua em 56 das 59
+ * fichas**, medido no HTML construído em 05/09/2026: são as que publicam
+ * exatamente dez.
  *
- * ⚠️ É ESCOLHA, não fato medido. A primeira versão desta nota afirmava que "da
- * décima em diante são detalhe de porta-malas e pneu" — ninguém auditou o
+ * ⚠️ Duas coisas que este bloco JÁ AFIRMOU ERRADO, e que ficam registradas
+ * porque o erro foi do mesmo tipo nas duas vezes — número exato sobre a
+ * população errada:
+ *
+ *  - "a ficha mais fotografada tem 29 fotos (o Camaro `8324691`)". O `8324691`
+ *    está `arquivado`, e `getEstoque` só devolve `publicado` — ele não tem
+ *    ficha nenhuma. Contar a tabela inteira não é contar o que o site serve.
+ *  - "corta 72 dos 83 disponíveis". Aquele 83 era `vendido = false` na tabela
+ *    toda, incluindo os arquivados; a frase ficava duas linhas abaixo de "59
+ *    fichas" e lia-se como a mesma população.
+ *
+ * E o teto continua sendo ESCOLHA, não fato medido: a primeira versão dizia que
+ * "da décima em diante são detalhe de porta-malas e pneu", e ninguém auditou o
  * conteúdo das fotos para poder dizer isso. O que se sabe é que a ordem do
- * cadastro é a ordem de vender. Se alguém medir e descobrir que a 12ª costuma
- * ser o interior, o número sobe.
+ * cadastro é a ordem de vender. Se alguém medir e a 12ª costumar ser o
+ * interior, o número sobe.
  */
 export const MAXIMO_DE_IMAGENS = 10;
 

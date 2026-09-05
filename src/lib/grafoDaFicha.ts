@@ -14,10 +14,16 @@ import { schemaDoVeiculo } from "./schemaVeiculo";
  * que a própria ficha não emitia.
  *
  * ⚠️ **Extrair a montagem não basta**, e a revisão da F2 provou: com esta
- * função pronta e coberta por 16 casos, trocar o ponto de publicação por
+ * função pronta e coberta por 5 casos, trocar o ponto de publicação por
  * `blocoJsonLd(grafo.slice(0, 1))` na rota deixava a suíte INTEIRA verde. Quem
  * guarda o resultado é `tests/ficha-publica-o-grafo.test.ts`, que renderiza a
  * ficha e conta os nós servidos. Esta função organiza; o teste é que protege.
+ *
+ * O mesmo par existe para `/sobre`, `/contato` e `/estoque` em
+ * `tests/paginas-de-entidade.test.ts`. **A home não tem**, e é decisão
+ * declarada: ela puxa reputação do Google e curadoria do Instagram além do
+ * estoque, e o teste precisaria de mais mock do que asserção. Quem mexer no
+ * grafo de `src/app/page.tsx` não tem rede.
  *
  * (A primeira versão desta nota dizia "três vezes em 2026" e "duas semanas".
  * Nenhum dos dois se sustentou na verificação — o defeito documentado é um, e

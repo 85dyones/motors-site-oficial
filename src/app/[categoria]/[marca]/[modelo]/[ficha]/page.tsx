@@ -287,9 +287,13 @@ export default async function CarDetailsPage({ params }: PageProps) {
   // O `Car` completo mora em `lib/schemaVeiculo.ts`. Ficava aqui, montado à
   // mão, e era onde faltavam `sku`, `bodyType`, `itemCondition` na raiz,
   // `numberOfPreviousOwners` e — o mais caro — `offers.seller`: a oferta não
-  // dizia quem vende nem de onde se retira, então nada ligava as 39 fichas à
-  // loja física que o `AutoDealer` descreve.
-  // O `Car` sai de `grafoDaFicha`, junto dos outros três nós — ver abaixo.
+  // dizia quem vende nem de onde se retira, então nada ligava as fichas à loja
+  // física que o `AutoDealer` descreve.
+  //
+  // Desde 05/09/2026 ele sai de `grafoDaFicha`, junto dos outros três nós — e
+  // por um motivo parente: o `seller` acima passou a apontar para um `#dealer`
+  // que a ficha não emitia, e array de nós montado no JSX não tem teste que
+  // perceba a falta.
 
   /**
    * Trilha com os hubs de marca e de modelo.

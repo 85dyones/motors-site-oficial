@@ -73,7 +73,7 @@ describe("o site é uma entidade declarada", () => {
 
   it("não promete uma busca que o servidor não entrega", () => {
     // `Catalogo` lê `?q=` como valor inicial de estado de cliente: quem chega
-    // sem JavaScript recebe a grade inteira, não o resultado. Declarar
+    // sem JavaScript recebe os 9 cards do fallback, não o resultado. Declarar
     // `SearchAction` seria descrever o que só existe depois da hidratação.
     const site = schemaDoSite(EMPRESA) as unknown as Record<string, unknown>;
 
@@ -130,7 +130,7 @@ describe("o Car publica a galeria, não uma foto", () => {
     expect(g).toEqual(["https://x/1.webp", "https://x/2.webp"]);
   });
 
-  it("corta no teto, para não inflar 40 fichas com foto de porta-malas", () => {
+  it("corta no teto — 56 das 59 fichas publicam exatamente dez", () => {
     const muitas = Array.from({ length: 30 }, (_, i) => `https://x/${i}.webp`);
     const g = galeriaDoSchema({ web_full_images: muitas, whatsapp_images: [] } as never);
 
@@ -154,7 +154,7 @@ describe("a ficha publica os quatro nós", () => {
    *
    * Enquanto o array vivia no JSX da rota, remover um nó não quebrava tipo,
    * render nem teste — a página seguia publicando JSON-LD válido, só que mudo.
-   * Foi assim que a `Offer` passou duas semanas apontando para um `#dealer`
+   * Foi assim que a `Offer` passou 11 dias apontando para um `#dealer`
    * que a própria ficha não emitia.
    */
   function grafo() {
