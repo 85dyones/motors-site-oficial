@@ -59,6 +59,7 @@ Três decisões do dono na conversa de 2026-09-05:
 | **D1** | Escolha **automática pelo canal**, não manual pelo vendedor. Relatório à mercê de quem clicou errado não é relatório. |
 | **D2** | **Só a perda** ganha lista própria por ora. O ganho segue compartilhado. |
 | **D3** | Os **7 motivos** de perda de avaliação entram (os 3 do dono + os 4 propostos no desenho). |
+| **D4** | Ajuste de rótulo na revisão do spec: o #7 vira só **"Restrição no documento"**, e o **"Sumiu — não respondeu mais"** vira **"Sem retorno do cliente"**. O `nao_trouxe_para_vistoria` sai — virou o mesmo motivo (§6.2). Resultado: **6 chaves novas + 1 rótulo reescrito**, e ainda 7 opções na caixa. |
 
 **Fora de escopo, deliberadamente:**
 
@@ -112,16 +113,25 @@ existente sumir de tela nenhuma.
 
 ### 4.1 A reclassificação, e o seu limite
 
-A migração faz **um `update` nominal só**: as **8 chaves de §6.1** passam a
-`compra`, por `where chave in (...)`. Todo o resto — os 4 de ganho, os 6 de
-descarte, o `sem_resposta` e qualquer motivo que o dono tenha digitado pela
-tela **Configurar funil** — fica no `default 'ambos'` e continua aparecendo nos
-dois lados.
+A migração faz **dois `update` nominais**, e mais nada:
+
+1. As **8 chaves de §6.1** passam a `compra`, por `where chave in (...)`.
+2. O **rótulo** de `sem_resposta` passa a "Sem retorno do cliente" (§6.2).
+
+Todo o resto — os 4 de ganho, os 6 de descarte, o próprio `sem_resposta` e
+qualquer motivo que o dono tenha digitado pela tela **Configurar funil** — fica
+no `default 'ambos'` e continua aparecendo nos dois lados.
 
 Só se toca no que a semente escreveu, e nominalmente. Reclassificar por
 heurística o que uma pessoa digitou à mão seria decidir por ela e fazer sumir
 da tela um motivo que ela usa — a ausência silenciosa que este repositório vem
 perseguindo.
+
+O `update` 2 mexe no **rótulo, nunca na chave** — mesma regra que
+`20260828160000` já aplicou quando `contato_invalido` trocou de lado: *"o
+rótulo é o que se lê na tela; a chave é identidade"*. Nenhum lead já fechado
+com `sem_resposta` perde o motivo, e o relatório continua somando a mesma
+barra, agora com nome melhor.
 
 > Nota de contagem: a perda tem **9** motivos, não os 10 da semente original de
 > 2026-08-28. `contato_invalido` mudou de lado em
@@ -224,11 +234,22 @@ fora dela é recusado, não convertido.
 
 ### 6.2 Perda — escopo `ambos`
 
-| chave | rótulo |
-|---|---|
-| `sem_resposta` | Sumiu — não respondeu mais |
+| chave | rótulo antes | rótulo agora |
+|---|---|---|
+| `sem_resposta` | Sumiu — não respondeu mais | **Sem retorno do cliente** |
 
-O único que descreve o mesmo acontecimento nos dois negócios.
+O único que descreve o mesmo acontecimento nos dois negócios — e por isso o
+único que fica em `ambos`.
+
+**Por que o rótulo muda.** Palavra do dono, 2026-09-05. "Sumiu" é gíria e a
+frase estava escrita para o funil de compra; "Sem retorno do cliente" é o que
+se lê num relatório. A chave não muda (§4.1), então o histórico fica de pé.
+
+Ela substitui um oitavo motivo de avaliação que estava no desenho anterior
+(`nao_trouxe_para_vistoria`, "Não trouxe o carro para a vistoria"), **cortado
+aqui**: o lead de avaliação já enxergava `sem_resposta`, e as duas opções na
+mesma caixa dividiriam o mesmo acontecimento em duas barras do relatório —
+a doença que esta tabela existe para curar.
 
 ### 6.3 Perda — escopo `avaliacao` (novos)
 
@@ -239,10 +260,12 @@ O único que descreve o mesmo acontecimento nos dois negócios.
 | 3 | `recusou_consignacao` | Não aceitou deixar em consignação | dono |
 | 4 | `vendeu_para_outro` | Vendeu para outro comprador | proposto |
 | 5 | `desistiu_de_vender` | Desistiu de vender | proposto |
-| 6 | `nao_trouxe_para_vistoria` | Não trouxe o carro para a vistoria | proposto |
-| 7 | `restricao_no_veiculo` | Gravame, multa ou restrição no documento | proposto |
+| 6 | `restricao_no_documento` | Restrição no documento | proposto |
 
-**Por que o #1 importa mais que os outros seis.** É o único motivo do sistema
+Seis, mais o `sem_resposta` de §6.2 — **sete opções na caixa**, o mesmo
+tamanho da lista que o funil de compra já mostra hoje.
+
+**Por que o #1 importa mais que os outros cinco.** É o único motivo do sistema
 inteiro em que **quem diz não somos nós**. Ele não mede desempenho do vendedor
 — mede a régua de compra da loja. Enquanto ele não existir, toda recusa nossa
 some dentro de alguma perda comercial, e o número que responderia *"quantos
@@ -250,10 +273,6 @@ carros a gente está deixando passar?"* não existe.
 
 **Por que o #5 e não o `desistiu` de hoje.** O rótulo existente diz *"Desistiu
 de trocar de carro"*. Quem só queria vender não estava trocando nada.
-
-**Por que o #6.** O `CLAUDE.md` é explícito: *"quem decide é o consultor,
-depois da vistoria"*. O lead que nunca traz o carro é a perda mais barata de
-recuperar e hoje não tem onde cair.
 
 ### 6.4 Ganho e descarte
 
@@ -315,11 +334,12 @@ CHECK, o default e as linhas reclassificadas — e não pela existência da colu
    `--gravar`** (BEGIN/ROLLBACK) — é o staging que o projeto não tem.
 2. Conferir na saída do ensaio pelo **efeito**, não pela existência da coluna:
    o CHECK, o `default 'ambos'`, e a contagem por escopo depois do `update`
-   nominal. Esperado: **8 `compra`**, **7 `avaliacao`**, **11 `ambos`** — 1 de
-   perda (`sem_resposta`) + 4 de ganho + 6 de descarte. Mais que 11 em `ambos`
-   significa que o dono criou motivo pela tela, e está certo assim (§4.1); um
-   `compra` a menos que 8 significa que alguém já mexeu na semente, e aí para e
-   pergunta.
+   nominal. Esperado: **8 `compra`**, **6 `avaliacao`**, **11 `ambos`** — 1 de
+   perda (`sem_resposta`) + 4 de ganho + 6 de descarte. E o rótulo de
+   `sem_resposta` lido de volta como "Sem retorno do cliente". Mais que 11 em
+   `ambos` significa que o dono criou motivo pela tela, e está certo assim
+   (§4.1); um `compra` a menos que 8 significa que alguém já mexeu na semente,
+   e aí para e pergunta.
 3. Só então `--gravar`.
 4. `qa-guardian` antes do merge, como toda entrega.
 
