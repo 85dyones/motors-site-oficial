@@ -90,9 +90,15 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Atendem quem mora fora de Curitiba?",
         resposta:
+          // Esta pergunta é a MESMA de `PERGUNTAS_DE_GARANTIA` ("A garantia vale
+          // se eu comprar de outra cidade?"). Até 04/09/2026 as duas respostas
+          // discordavam: aqui o alcance era Região Metropolitana, com Paraná e
+          // Santa Catarina só "para veículos de ticket mais alto"; lá era "fora
+          // do estado". Duas respostas públicas para a mesma pergunta é como o
+          // cliente descobre no balcão que uma delas não vale.
           "Atendemos toda a Região Metropolitana — Pinhais, Colombo, São José dos Pinhais, " +
-          "Almirante Tamandaré, Araucária e vizinhas. Para veículos de ticket mais alto, " +
-          "recebemos compradores de outras praças do Paraná e de Santa Catarina.",
+          "Almirante Tamandaré, Araucária e vizinhas — e entregamos para todo o Brasil. " +
+          "A logística de entrega é combinada caso a caso com o consultor.",
       },
       {
         pergunta: "Como sei se o carro passou temporada no litoral?",
@@ -105,7 +111,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Aceitam meu carro na troca?",
         resposta:
-          "Sim. A Avaliação Express dá uma proposta em cerca de 10 minutos, com base na Tabela " +
+          "Sim. A Avaliação Express devolve uma proposta pelo WhatsApp, com base na Tabela " +
           "FIPE e no giro do nosso estoque, e o valor entra como entrada.",
       },
       {
@@ -187,7 +193,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Vocês compram carro usado aqui no bairro?",
         resposta:
-          "Compramos. A Avaliação Express dá uma proposta em cerca de 10 minutos e vale tanto " +
+          "Compramos. A Avaliação Express devolve uma proposta pelo WhatsApp e vale tanto " +
           "para troca quanto para venda direta — nem todo carro avaliado entra no estoque, e " +
           "quando não entra a gente diz por quê.",
       },

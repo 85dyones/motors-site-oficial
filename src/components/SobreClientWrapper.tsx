@@ -180,7 +180,10 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
             // parte do estoque está sempre com o laudo em análise. Ver a
             // mesma régua em `modernist/HeroHome`.
             { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
-            { valor: "FIPE", rotulo: "BASE DE AVALIAÇÃO" },
+            // "BASE DE AVALIAÇÃO" ao lado de um número lê como proposta de
+            // compra. A FIPE é referência de mercado; o valor sai da vistoria,
+            // e quem o informa é o consultor — nunca o site (CLAUDE.md, §4).
+            { valor: "FIPE", rotulo: "REFERÊNCIA DE MERCADO" },
             // O prazo vem de `GARANTIA_MESES`, nunca escrito aqui.
             //
             // Esta linha dizia "6 MESES" enquanto `/garantia` — a página que
