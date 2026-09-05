@@ -148,3 +148,30 @@ describe("a lista de termos", () => {
     }
   });
 });
+
+describe("um destino, um link — mesmo com termos diferentes", () => {
+  it("perícia cautelar e laudo cautelar na mesma frase dão UM link", () => {
+    // Os dois termos apontam para `/garantia`. A revisão de 05/09 mostrou que
+    // a supressão por página não pegava este caso, porque o filtro roda antes
+    // do laço e nenhum dos dois estava no `Set` naquele momento.
+    const segmentos = segmentarComLinks(
+      "A perícia cautelar é independente e o laudo cautelar fica publicado assim que aprovado.",
+    );
+
+    expect(destinos(segmentos)).toEqual(["/garantia"]);
+  });
+
+  it("e o texto continua inteiro", () => {
+    const frase = "A perícia cautelar é independente e o laudo cautelar fica publicado.";
+
+    expect(texto(segmentarComLinks(frase))).toBe(frase);
+  });
+
+  it("destinos diferentes na mesma frase continuam saindo os dois", () => {
+    const segmentos = segmentarComLinks(
+      "A perícia cautelar vem antes, e a Avaliação Express cuida do seu usado.",
+    );
+
+    expect(destinos(segmentos).sort()).toEqual(["/avaliacao", "/garantia"]);
+  });
+});

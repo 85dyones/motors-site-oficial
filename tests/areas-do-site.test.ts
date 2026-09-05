@@ -49,13 +49,21 @@ describe("normalizarAreas", () => {
     expect(c.ordem[0]).toBe("instagram");
   });
 
-  it("seção nova do código entra no fim, visível", () => {
+  it("seção nova do código entra visível, e na ordem do catálogo", () => {
+    /* O nome deste caso era "entra no fim, visível" até 2026-09-05, e as
+       asserções nunca olharam posição — só tamanho, os dois primeiros ids e
+       `ocultas`. Quando `normalizarAreas` deixou de empurrar para o fim, o
+       nome passou a mentir e o teste continuou verde. A última linha é o
+       conserto: agora a POSIÇÃO está sob teste, e o nome descreve o que ela
+       verifica. */
     // Config antiga, salva quando o catálogo tinha menos seções.
     const c = normalizarAreas({ ordem: ["hero", "busca"], ocultas: [] });
     expect(c.ordem).toHaveLength(AREAS_DA_HOME.length);
     expect(c.ordem.slice(0, 2)).toEqual(["hero", "busca"]);
     // A seção que não estava na config não pode nascer oculta.
     expect(c.ocultas).toEqual([]);
+    // E as ausentes entram na ordem do catálogo, não empilhadas no fim.
+    expect(c.ordem).toEqual(AREAS_DA_HOME.map((a) => a.id));
   });
 
   it("ignora pedido de ocultar seção fixa", () => {

@@ -1,51 +1,95 @@
 import { describe, it, expect } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import FaixasDePreco from "../src/components/modernist/FaixasDePreco";
 import { FAIXAS_DE_PRECO } from "../src/lib/faixasDePreco";
 import { AREAS_DA_HOME, normalizarAreas, areasVisiveis } from "../src/lib/areasDoSite";
+import type { Veiculo } from "../src/types";
 
 /**
- * As três faixas de preço, como NAVEGAÇÃO.
+ * As três faixas de preço como NAVEGAÇÃO — renderizadas, não lidas do fonte.
  *
- * A revisão da F1 apontou o buraco: apagar `faixas_de_preco` do objeto `blocos`
- * em `src/app/page.tsx` deixa a área registrada no catálogo (o dono continua
- * vendo o item na tela A3, ligando e desligando) e a home renderiza **nada** —
- * verde nos 2051 testes. O mesmo vale para o bloco da vitrine.
+ * A primeira versão deste arquivo casava regex sobre `src/app/page.tsx`, e a
+ * revisão de 05/09 mostrou o limite disso: renomear a chave `faixas_de_preco:`
+ * derrubava um caso, mas trocar o gate `disponiveis.length > 0` por `false &&`
+ * deixava a home sem desenhar nada com os 2087 **verdes**. Teste de fonte pega
+ * a chave sumindo; não pega a condição mentindo.
  *
- * Renderizar a home aqui não é viável: ela puxa Supabase, reputação do Google e
- * curadoria do Instagram. O que dá para amarrar sem isso, e é o que o defeito
- * exige, são as duas pontas: a área existe no catálogo e chega a `areasVisiveis`
- * com a config de produção, e o JSX que a monta existe nos dois arquivos. A
- * terceira ponta — os links realmente saírem no HTML — está medida no `next
- * start` desta entrega e anotada no commit.
+ * Por isso o bloco virou `components/modernist/FaixasDePreco`: dá para
+ * renderizar sem subir Supabase, e a condição passa a estar sob teste.
  */
 
-const ARQUIVOS = {
-  home: "src/app/page.tsx",
-  vitrine: "src/app/estoque/page.tsx",
-} as const;
-
-function fonte(qual: keyof typeof ARQUIVOS): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require("node:fs").readFileSync(ARQUIVOS[qual], "utf8");
+function veiculo(id: string, preco: number): Veiculo {
+  return {
+    id,
+    marca: "Fiat",
+    modelo: "Argo",
+    versao: "Drive 1.0",
+    ano: 2022,
+    preco_original: preco,
+    preco_promocional: 0,
+    quilometragem: 30000,
+    tipo: "Hatch",
+    vendido: false,
+  } as unknown as Veiculo;
 }
 
-describe("as faixas de preço existem como recorte", () => {
-  it("são três, e cada uma tem slug e nome", () => {
-    expect(FAIXAS_DE_PRECO).toHaveLength(3);
+const PATIO = [veiculo("1", 45000), veiculo("2", 85000), veiculo("3", 150000)];
+
+function bloco(disponiveis: Veiculo[]): string {
+  return renderToStaticMarkup(
+    createElement(FaixasDePreco, {
+      disponiveis,
+      cabecalho: createElement("h2", null, "Por faixa de preço"),
+    }),
+  );
+}
+
+function hrefs(html: string): string[] {
+  return [...html.matchAll(/<a[^>]*href="([^"]+)"/g)].map((m) => m[1]);
+}
+
+describe("o bloco de faixas leva às três páginas", () => {
+  it("um link por faixa, e todos apontam para o hub certo", () => {
+    const saida = hrefs(bloco(PATIO));
+
+    expect(saida).toHaveLength(FAIXAS_DE_PRECO.length);
     for (const faixa of FAIXAS_DE_PRECO) {
-      expect(faixa.slug, "faixa sem slug").toBeTruthy();
-      expect(faixa.nome, "faixa sem nome").toBeTruthy();
+      expect(saida, `sem link para ${faixa.slug}`).toContain(`/estoque/${faixa.slug}`);
     }
+  });
+
+  it("as três aparecem mesmo quando uma está zerada — são hubs perenes", () => {
+    // Só um carro barato: as outras duas faixas ficam em zero e continuam ali,
+    // porque a página existe e responde.
+    const saida = hrefs(bloco([veiculo("1", 45000)]));
+
+    expect(saida).toHaveLength(3);
+  });
+
+  it("com o pátio vazio, o bloco inteiro some", () => {
+    // Três zeros enfileirados comunicam loja fechada, não recorte. É a
+    // condição que a mutação `false &&` fingia respeitar.
+    expect(bloco([])).toBe("");
+  });
+
+  it("a contagem de cada faixa é a real", () => {
+    const html = bloco(PATIO);
+
+    // Um carro em cada faixa: nenhuma contagem pode sair diferente de 1.
+    expect([...html.matchAll(/>(\d+)<\/span>/g)].map((m) => m[1])).toEqual(["1", "1", "1"]);
   });
 });
 
-describe("a home leva às faixas", () => {
+describe("a home e a vitrine montam o bloco", () => {
+  const fonte = (p: string) => readFileSync(p, "utf8");
+
   it("a área está no catálogo da tela A3", () => {
     expect(AREAS_DA_HOME.map((a) => a.id)).toContain("faixas_de_preco");
   });
 
   it("a área chega a areasVisiveis mesmo com a config de produção", () => {
-    // A ordem salva em produção não conhece `faixas_de_preco` — é o caso que
-    // `normalizarAreas` precisa cobrir para a seção não sumir.
     const config = normalizarAreas({
       ordem: ["hero", "busca", "destaques_rapidos", "estoque_selecionado", "consultoria",
               "venda_troca", "reputacao", "instagram", "contato"],
@@ -55,34 +99,10 @@ describe("a home leva às faixas", () => {
     expect(areasVisiveis(config).map((a) => a.id)).toContain("faixas_de_preco");
   });
 
-  it("o bloco que a monta existe, e monta um link por faixa", () => {
-    const codigo = fonte("home");
-
-    // O id do bloco e a fonte dos links. Sem os dois, a área aparece no painel
-    // e a home não desenha nada.
-    expect(codigo, "bloco `faixas_de_preco` sumiu de page.tsx").toMatch(/faixas_de_preco:/);
-    expect(codigo, "os links não saem de hubsDeFaixa").toMatch(/hubsDeFaixa\(disponiveis\)/);
-    expect(codigo).toMatch(/href=\{`\/estoque\/\$\{f\.slug\}`\}/);
-  });
-});
-
-describe("a vitrine leva às faixas", () => {
-  it("o índice do estoque tem a seção, e ela sai de hubsDeFaixa", () => {
-    const codigo = fonte("vitrine");
-
-    expect(codigo, "seção de faixa sumiu de /estoque").toMatch(/Seminovos por faixa de preço/);
-    expect(codigo).toMatch(/hubsDeFaixa\(disponiveis\)/);
-    expect(codigo).toMatch(/href=\{`\/estoque\/\$\{f\.slug\}`\}/);
-  });
-
-  it("as três faixas ficam ao lado de marca e carroceria, não em outro lugar", () => {
-    const codigo = fonte("vitrine");
-    const indice = codigo.indexOf("Índice do estoque");
-    const faixa = codigo.indexOf("Seminovos por faixa de preço");
-    const faq = codigo.indexOf("Perguntas frequentes");
-
-    expect(indice).toBeGreaterThan(-1);
-    expect(faixa).toBeGreaterThan(indice);
-    expect(faixa, "a seção de faixa caiu fora do <nav> do índice").toBeLessThan(faq);
+  it("os dois lugares que montam o bloco continuam montando", () => {
+    // A fiação: o componente existe e é testado acima, mas quem o chama não é
+    // renderizado aqui (a home puxa Supabase, reputação e Instagram).
+    expect(fonte("src/app/page.tsx")).toMatch(/faixas_de_preco:\s*\(\s*<FaixasDePreco/);
+    expect(fonte("src/app/estoque/page.tsx")).toMatch(/<FaixasDePreco/);
   });
 });

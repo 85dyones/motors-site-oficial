@@ -36,7 +36,7 @@ import {
 import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { schemaDaLoja } from "../lib/schemaLoja";
-import { hubsDeFaixa } from "../lib/hubsDeEstoque";
+import FaixasDePreco from "../components/modernist/FaixasDePreco";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -247,29 +247,18 @@ export default async function Home() {
        A contagem sai do mesmo `hubsDeFaixa` que a `/estoque` usa, então os dois
        números vêm da mesma conta. O bloco inteiro some com o pátio vazio: três
        zeros na home parecem loja fechada, não recorte. */
-    faixas_de_preco: disponiveis.length > 0 && (
-      <section className="px-[18px] pt-12 lg:px-10 lg:pt-16">
-        {/* Sem `numero`, e o prop é opcional justamente para isto.
-            A numeração da home ("01 — ESTOQUE SELECIONADO", "02 — CONSULTORIA"…)
-            foi escrita para uma ordem fixa e já não descreve a página: o dono
-            reordena as seções na tela A3 sem que os números acompanhem. Todo
-            número livre entre 01 e 02 já está ocupado — 03 é "VENDA OU TROCA" —,
-            e renumerar a home inteira é outra tarefa, não efeito colateral
-            desta. */}
-        <CabecalhoSecao titulo="Escolha pelo orçamento" />
-        <div className="flex flex-wrap gap-1.5 pt-6">
-          {hubsDeFaixa(disponiveis).map((f) => (
-            <Link
-              key={f.slug}
-              href={`/estoque/${f.slug}`}
-              className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
-            >
-              {f.nome}
-              <span className="text-[10px] font-semibold text-mt-accent">{f.veiculos.length}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
+    faixas_de_preco: (
+      <FaixasDePreco
+        disponiveis={disponiveis}
+        className="px-[18px] pt-12 lg:px-10 lg:pt-16"
+        /* Sem `numero`, e o prop é opcional justamente para isto. A numeração
+           da home ("01 — ESTOQUE SELECIONADO", "02 — CONSULTORIA"…) foi escrita
+           para uma ordem fixa e já não descreve a página: o dono reordena as
+           seções na tela A3 sem que os números acompanhem. Todo número livre
+           entre 01 e 02 está ocupado — 03 é "VENDA OU TROCA" —, e renumerar a
+           home inteira é outra tarefa, não efeito colateral desta. */
+        cabecalho={<CabecalhoSecao titulo="Escolha pelo orçamento" />}
+      />
     ),
 
     /* ─── 02 Consultoria ─── */

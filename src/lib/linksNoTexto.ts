@@ -47,18 +47,23 @@ export interface DestinoNoTexto {
  * Ordem importa quando um termo é sufixo do outro — por isso a segmentação
  * ordena por comprimento antes de casar, e não confia nesta ordem.
  *
- * **"laudo cautelar" não dispara em nenhuma página hoje**, e isso está medido:
- * zero ocorrências nos 45 pares de FAQ e nos 54 parágrafos de introdução
- * publicados. A expressão aparece só numa PERGUNTA gerada por `textoDosHubs`, e
- * pergunta não é segmentada. Fica registrado aqui em vez de removido porque o
- * cluster de guias sobre perícia (a fase seguinte do plano) usa esse exato
- * termo — mas ninguém deve olhar esta lista e supor que as quatro entradas
- * estão trabalhando. Três estão.
+ * ⚠️ **Meça isto no HTML SERVIDO, nunca no `src/`.** Uma versão anterior deste
+ * comentário afirmava que "laudo cautelar" não disparava em página nenhuma, com
+ * números e tudo. Era falso: a expressão é o texto da ÚNICA âncora de
+ * `/garantia` em `/estoque/ate-60-mil` — verificado no HTML do build,
+ * `href="/garantia">laudo cautelar<`.
+ *
+ * O erro tem uma causa que se repete neste repositório: os parágrafos de hub
+ * têm override por caminho na tabela `textos_de_hub` (semeada em
+ * `20260901130000`), e é o override que a página serve. Contar ocorrências em
+ * `textoDosHubs.ts` mede o GERADOR, não o publicado — e o texto "…é aí que o
+ * laudo cautelar deixa de ser detalhe" não existe em `src/` nenhum.
+ *
+ * As quatro entradas trabalham.
  */
 export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "Avaliação Express", href: "/avaliacao" },
   { termo: "perícia cautelar", href: "/garantia" },
-  // Sem uso no texto publicado hoje — ver a nota acima.
   { termo: "laudo cautelar", href: "/garantia" },
   { termo: "financiamento", href: "/financiamento" },
 ];
@@ -113,8 +118,18 @@ export function segmentarComLinks(
     .sort((a, b) => b.termo.length - a.termo.length);
 
   const ocorrencias: Ocorrencia[] = [];
+  /* Destinos já reivindicados NESTA chamada.
+     `jaLinkados` cuida da página; este cuida da string, e são coisas
+     diferentes: dois TERMOS distintos podem apontar para o mesmo lugar.
+     "A perícia cautelar é independente e o laudo cautelar fica publicado"
+     saía com duas âncoras para `/garantia` no mesmo parágrafo, porque o filtro
+     de `jaLinkados` roda uma vez, antes do laço, e nenhum dos dois termos
+     estava lá quando ele rodou. */
+  const destinosDaChamada = new Set<string>();
 
   for (const destino of candidatos) {
+    if (destinosDaChamada.has(destino.href)) continue;
+
     const padrao = new RegExp(`\\b${escaparParaRegex(destino.termo)}\\b`, "i");
     const achado = padrao.exec(bruto);
     if (!achado) continue;
@@ -128,6 +143,7 @@ export function segmentarComLinks(
     if (colide) continue;
 
     ocorrencias.push({ inicio, fim, href: destino.href });
+    destinosDaChamada.add(destino.href);
   }
 
   if (ocorrencias.length === 0) return [{ texto: bruto }];
@@ -154,22 +170,35 @@ export function segmentarComLinks(
 /**
  * Um linkador com memória, para uma página inteira.
  *
- * `segmentarComLinks` sozinha limita a uma ocorrência por termo POR STRING, e
- * a revisão da F1 mediu o que isso vira numa página real: `/estoque/ate-60-mil`
- * saía com **quatro** âncoras idênticas para `/garantia` — duas nos parágrafos
- * de abertura, duas no FAQ —, porque "perícia cautelar" aparece em 21 das 54
- * introduções publicadas. Quatro links iguais na mesma página é o campo minado
- * que a regra 1 diz querer evitar; a régua estava na unidade errada.
+ * `segmentarComLinks` sozinha limita a uma ocorrência por termo POR STRING, e a
+ * revisão da F1 mediu o que isso vira numa página real: `/estoque/ate-60-mil`
+ * saía com **três** âncoras para `/garantia` — uma na abertura, duas no FAQ —,
+ * porque "perícia cautelar" e "laudo cautelar" apontam para o mesmo lugar e
+ * aparecem espalhados pelo texto do hub. Três links iguais na mesma página é o
+ * campo minado que a regra 1 diz querer evitar; a régua estava na unidade
+ * errada. (Uma versão anterior desta nota dizia "quatro, duas e duas" — quatro
+ * era o total de âncoras, contando a de `/avaliacao`.)
  *
  * Quem monta a página cria um linkador e usa o MESMO em todos os blocos. O
  * primeiro link de cada destino fica onde o leitor chega primeiro — a
  * introdução, antes do FAQ — e os demais viram texto comum.
  *
- * Seguro por ser server-side: `PaginaDeEstoque` e `/estoque` são server
- * components e renderizam uma vez por requisição. Num client component o `Set`
- * sobreviveria a uma segunda passada do StrictMode e comeria links da primeira
- * — se algum dia precisar disso no cliente, crie o linkador dentro do render,
- * nunca em módulo.
+ * ---------------------------------------------------------------------------
+ * O invariante que mantém isso seguro
+ * ---------------------------------------------------------------------------
+ * **O linkador nasce DENTRO do corpo do componente, a cada render.** É só isso.
+ * Enquanto essa linha for verdade, o `Set` morre com o render que o criou e não
+ * há vazamento entre requisições nem entre páginas — verificado num único
+ * processo de build, em que `/estoque`, as três faixas e as duas páginas de
+ * bairro saíram cada uma com o seu par de links (se o `Set` atravessasse
+ * renders, da segunda em diante o resultado seria vazio).
+ *
+ * O que NÃO sustenta a segurança, apesar de parecer: "é server component" e
+ * "renderiza uma vez por requisição". Uma versão anterior deste bloco dizia
+ * isso, e ainda advertia que num client component o StrictMode comeria links —
+ * também falso, porque o StrictMode reinvoca o corpo do componente e portanto
+ * cria um `Set` novo. O perigo real, no servidor ou no cliente, é um só: mover
+ * `criarLinkador()` para escopo de módulo, ou memoizar o resultado dele.
  */
 export function criarLinkador(caminhoAtual?: string) {
   const jaLinkados = new Set<string>();

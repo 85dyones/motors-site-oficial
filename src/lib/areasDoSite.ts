@@ -87,8 +87,10 @@ export const AREAS_DA_HOME: DefinicaoDeArea[] = [
   // As faixas de preço entraram em 2026-09-05. `/estoque/ate-60-mil` e as duas
   // irmãs recebiam link só das carrocerias, de `/financiamento` e de
   // `/garantia` — nunca da home, que é a página de maior autoridade do site.
-  // `normalizarAreas` põe seção nova no fim da ordem salva, então ela nasce
-  // visível; o lugar dela na home é decisão do dono, na tela A3.
+  // A posição AQUI é a que a seção assume para quem já tem ordem salva:
+  // `normalizarAreas` a insere logo depois de `estoque_selecionado`, a vizinha
+  // que a precede nesta lista. O lugar definitivo continua sendo decisão do
+  // dono, na tela A3.
   {
     id: "faixas_de_preco",
     nome: "Por faixa de preço",

@@ -11,7 +11,8 @@ import {
   normalizarQuickTags,
   normalizarStockOverrides,
 } from "../../lib/destaquesRapidos";
-import { hubsDeCarroceria, hubsDeFaixa, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
+import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
+import FaixasDePreco from "../../components/modernist/FaixasDePreco";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import {
   blocoJsonLd,
@@ -367,25 +368,15 @@ export default async function EstoquePage() {
             página existe e continua respondendo. O que some é o BLOCO INTEIRO
             quando não há estoque nenhum — três zeros enfileirados num pátio
             vazio (sync fora do ar) parecem defeito, não recorte. */}
-        {disponiveis.length > 0 && (
-          <section className="mt-8">
-            <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Seminovos por faixa de preço</h2>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {hubsDeFaixa(disponiveis).map((f) => (
-                <Link
-                  key={f.slug}
-                  href={`/estoque/${f.slug}`}
-                  className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
-                >
-                  {f.nome}
-                  <span className="text-[10px] font-semibold text-mt-accent">
-                    {f.veiculos.length}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <FaixasDePreco
+          disponiveis={disponiveis}
+          className="mt-8"
+          cabecalho={
+            <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
+              Seminovos por faixa de preço
+            </h2>
+          }
+        />
       </nav>
 
       {/* Fora do <nav>: pergunta frequente não é navegação, e landmark com

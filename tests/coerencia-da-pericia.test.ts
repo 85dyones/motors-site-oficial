@@ -52,7 +52,16 @@ function arquivosDeTexto(): string[] {
       if (statSync(caminho).isDirectory()) {
         if (entrada === "admin") continue;
         visitar(caminho);
-      } else if (/\.tsx?$/.test(entrada)) {
+      } else if (/\.(tsx?|json)$/.test(entrada)) {
+        /* `.json` entrou em 2026-09-05, e a lição já tinha sido aprendida ao
+           lado: `promessa-publica` recebeu este mesmo conserto em `ad5c5d4`
+           ("o texto errado estava no .json que a varredura nao lia"), e este
+           arquivo foi editado no dia seguinte sem levá-la junto.
+
+           O que estava escapando: `src/lib/aboutSettings.json` publica em
+           `/sobre` a frase "O laudo de cada carro fica disponível para
+           consulta mediante solicitação" — promessa sem ressalva, dentro de
+           `src/lib`, invisível só porque o filtro pedia `.tsx`. */
         achados.push(caminho);
       }
     }
@@ -92,17 +101,32 @@ describe("a promessa do laudo carrega a condição", () => {
          é público" e escolhe um jeito novo de dizer onde ele está. Por isso a
          alternância cobre o LUGAR ("ficha") e a QUANTIFICAÇÃO ("de cada"), que
          são as duas formas de afirmar a mesma coisa. */
-      /* A cauda vai até o PONTO FINAL, e não mais 60 caracteres.
+      /* A cauda é 120 — nem 60, nem a frase inteira. Os dois extremos falham,
+         em direções opostas, e cada um foi medido:
 
-         Com `de cada` na alternância, o gatilho passou a casar mais cedo na
-         frase, e a janela fixa cortava antes da ressalva: "laudo de cada
-         unidade fica disponível na ficha do carro, no site, assim q|ue a
-         perícia é aprovada" (`paginasGeo.ts`) virou infrator com o texto
-         CORRETO. A ressalva mora na mesma frase que a promessa — então a
-         frase é a unidade certa de leitura, em vez de um número de caracteres
-         escolhido a dedo. */
+         · **60** dava FALSO POSITIVO. Com `de cada` na alternância o gatilho
+           casa mais cedo, e a janela cortava antes da ressalva: "laudo de cada
+           unidade fica disponível na ficha do carro, no site, assim q|ue a
+           perícia é aprovada" (`paginasGeo.ts`) virava infrator com o texto
+           CORRETO.
+
+         · **`[^.]*`, até o ponto final**, dava FALSO NEGATIVO — e este é pior,
+           porque a trava existe para pegar exatamente o que ele deixa passar.
+           A revisão construiu o caso: "O laudo fica na ficha do carro para
+           todo mundo ver antes mesmo de visitar a loja, e a nossa oficina
+           parceira do Bacacheri é credenciada e aprovada pelo Inmetro" passa
+           limpo. O "aprovada" está na mesma frase, mas fala da OFICINA. Como a
+           varredura roda sobre a fonte com espaço colapsado, a cauda ainda
+           atravessa fronteira de string e pode pescar um álibi da propriedade
+           vizinha — hoje já há trechos casados com 230 e 247 caracteres.
+
+         120 cobre os dois: zero falso positivo no repositório e pega o caso
+         acima. A margem é medida, não chutada — dos 19 trechos que casam hoje,
+         o `aprovad` mais distante está no offset 78 (`paginasGeo.ts`). Se um
+         texto novo legítimo passar de 120, o certo é aproximar a ressalva da
+         promessa, não esticar este número. */
       const trechos =
-        corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]*/gi) ?? [];
+        corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]{0,120}/gi) ?? [];
       for (const trecho of trechos) {
         if (!/aprovad/i.test(trecho)) {
           infratores.push(`${caminho}: ${trecho.slice(0, 110)}`);

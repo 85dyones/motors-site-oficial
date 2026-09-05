@@ -138,3 +138,93 @@ describe("a introdução também linka", () => {
     expect(visivel).toContain(paragrafo);
   });
 });
+
+describe("um link por destino na PÁGINA, não por bloco", () => {
+  /**
+   * A trava de `criarLinkador`, e ela nasceu sem ninguém.
+   *
+   * A revisão de 05/09 trocou `criarLinkador(caminho)` de volta por
+   * `(t) => segmentarComLinks(t, caminho)` nos dois pontos de chamada — o
+   * comportamento anterior, o que emitia âncoras repetidas — e a suíte inteira
+   * ficou VERDE. Terceira vez que este repositório extrai lógica para uma lib e
+   * deixa a chamada descoberta; o docblock no topo deste arquivo já contava as
+   * duas primeiras.
+   *
+   * A combinação que importa é introdução E FAQ juntos, citando o mesmo termo:
+   * é só aí que a memória do linkador atua. O teste anterior renderizava só
+   * `faq`.
+   */
+  const INTRO = [
+    "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine.",
+    "A perícia cautelar acontece antes do anúncio, e não depois da proposta.",
+  ];
+  const PERGUNTAS = [
+    {
+      pergunta: "Os carros têm laudo?",
+      resposta: "Sim, todo veículo passa por perícia cautelar antes da vitrine.",
+    },
+    {
+      pergunta: "E na faixa de entrada?",
+      resposta: "A mesma perícia cautelar vale para qualquer faixa de preço.",
+    },
+  ];
+
+  function pagina(): string {
+    return renderToStaticMarkup(
+      createElement(PaginaDeEstoque, {
+        trilha: [{ rotulo: "Home", href: "/" }],
+        titulo: "Seminovos até R$ 60 mil",
+        veiculos: [],
+        introducao: INTRO,
+        faq: PERGUNTAS,
+        contagem: false,
+      }),
+    );
+  }
+
+  it("quatro menções do mesmo termo viram UM link", () => {
+    const paraGarantia = hrefs(pagina()).filter((h) => h === "/garantia");
+
+    expect(paraGarantia).toHaveLength(1);
+  });
+
+  it("o link fica no primeiro lugar em que o leitor encontra o termo", () => {
+    const html = pagina();
+    const primeiroLink = html.indexOf('href="/garantia"');
+    const inicioDoFaq = html.indexOf("<dl");
+
+    expect(primeiroLink).toBeGreaterThan(-1);
+    expect(primeiroLink, "o link caiu no FAQ em vez da abertura").toBeLessThan(inicioDoFaq);
+  });
+
+  it("as quatro menções continuam legíveis, com ou sem link", () => {
+    const visivel = pagina().replace(/<[^>]+>/g, "").replace(/&amp;/g, "&");
+
+    for (const texto of [...INTRO, ...PERGUNTAS.map((p) => p.resposta)]) {
+      expect(visivel, `texto perdido: ${texto.slice(0, 40)}`).toContain(texto);
+    }
+  });
+
+  it("destinos diferentes não competem entre si", () => {
+    const html = renderToStaticMarkup(
+      createElement(PaginaDeEstoque, {
+        trilha: [{ rotulo: "Home", href: "/" }],
+        titulo: "Teste",
+        veiculos: [],
+        introducao: ["Todo veículo passa por perícia cautelar independente."],
+        faq: [
+          {
+            pergunta: "Troca?",
+            resposta: "Dá para começar pela Avaliação Express, online.",
+          },
+        ],
+        contagem: false,
+      }),
+    );
+
+    // A memória é por destino: gastar `/garantia` na abertura não pode impedir
+    // `/avaliacao` de virar link no FAQ.
+    expect(hrefs(html)).toContain("/garantia");
+    expect(hrefs(html)).toContain("/avaliacao");
+  });
+});
