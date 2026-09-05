@@ -21,6 +21,14 @@ import {
 } from "../../lib/schemaListagem";
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja } from "../../lib/schemaLoja";
+import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
+import {
+  CAIXA_DA_BUSCA,
+  CONTAINER_DA_BUSCA,
+  EXEMPLO_DA_BUSCA,
+  SO_NO_CELULAR,
+  vitrineTemFichas,
+} from "../../lib/vitrine";
 
 export const revalidate = 60;
 
@@ -29,8 +37,12 @@ export const revalidate = 60;
  *
  * Igual ao `PAGINA` do `Catalogo` (9): o fallback e a primeira tela do catálogo
  * mostram exatamente a mesma coisa, então a troca na hidratação não move nada
- * na tela. As demais URLs de ficha chegam ao rastreador pelo `ItemList` logo
- * abaixo, que lista o estoque inteiro.
+ * na tela.
+ *
+ * As demais fichas chegam pelo `IndiceDaVitrine`, no rodapé da página. Este
+ * comentário dizia que o `ItemList` resolvia isso — não resolve: JSON-LD
+ * informa a URL, mas não é link de navegação e não passa autoridade. Medido na
+ * produção em 2026-09-04: 9 links de ficha no HTML contra 36 URLs no `ItemList`.
  */
 const PRIMEIRA_LEVA = 9;
 
@@ -109,10 +121,14 @@ export default async function EstoquePage() {
        * autoridade nenhuma para as 39 fichas sem uma segunda passada de
        * renderização do Google.
        *
-       * O `ItemList` resolve a metade que interessa ao rastreador (as URLs
-       * estão no HTML), e o título e a trilha voltam a existir para quem lê a
-       * página sem executar JavaScript. O filtro continua no cliente, onde é o
-       * lugar dele.
+       * O título e a trilha voltam a existir para quem lê a página sem
+       * executar JavaScript, e o filtro continua no cliente, onde é o lugar
+       * dele.
+       *
+       * O `ItemList` continua sendo emitido, mas ele NÃO é o que leva o
+       * rastreador às fichas — isto aqui dizia que era, e a medição de
+       * 2026-09-04 mostrou o contrário. Quem faz esse trabalho é o
+       * `IndiceDaVitrine`, com link de verdade, no rodapé.
        */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       <ContagemDeEstoque total={disponiveis.length} />
@@ -160,6 +176,78 @@ export default async function EstoquePage() {
                   {disponiveis.length === 1 ? "VEÍCULO NA SELEÇÃO" : "VEÍCULOS NA SELEÇÃO"}
                 </span>
               </div>
+
+              {/* O lugar da busca, reservado com a caixa exata.
+
+                  Sem isto o campo nasce só na hidratação e empurra a grade
+                  ~60px para baixo, nas DUAS larguras — medido no HTML servido:
+                  o fallback vai até o byte 56497 e o `Catalogo` só põe o campo
+                  em 57908. É o mesmo deslocamento que a coluna reservada do
+                  filtro, logo abaixo, existe para evitar.
+
+                  É um `<form method="get">`, não uma caixa morta: quem submete
+                  vai para `/estoque?q=…`, e o `Catalogo` lê esse parâmetro
+                  (`useState(() => searchParams.get("q"))`). O termo sobrevive
+                  à navegação e a URL fica compartilhável.
+
+                  **O que ele NÃO faz:** filtrar sem JavaScript. Para isso o
+                  fallback precisaria ler `searchParams`, e ler `searchParams`
+                  aqui torna `/estoque` dinâmica — hoje ela é `revalidate = 60`
+                  e é a tela mais usada do site. Trocar o cache dela por busca
+                  sem JS é decisão que se toma de propósito, não de carona numa
+                  caixa de busca. Quem lê sem JS continua com o índice completo
+                  no rodapé, que é o caminho que este arquivo já garante. */}
+              <form action="/estoque" method="get" className={CONTAINER_DA_BUSCA}>
+                <label htmlFor="busca-da-vitrine-servida" className="sr-only">
+                  Buscar por modelo, marca ou característica
+                </label>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mt-neutral-600"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M20 20l-4.5-4.5" />
+                </svg>
+                <input
+                  id="busca-da-vitrine-servida"
+                  type="search"
+                  name="q"
+                  placeholder={EXEMPLO_DA_BUSCA}
+                  className={CAIXA_DA_BUSCA}
+                />
+              </form>
+
+              {/* O lugar do botão de filtro do celular, ocupado por algo que
+                  FUNCIONA sem JavaScript: um placeholder morto gastaria o
+                  mesmo espaço e não levaria ninguém a lugar nenhum. Quem lê
+                  sem JS não tem filtro, mas tem o índice completo no rodapé.
+
+                  A mesma condição do alvo, e não por simetria: sem ela, pátio
+                  vazio — sync fora do ar, banco inacessível, o estado que o
+                  `generateMetadata` acima já modela — serviria um botão de
+                  largura total dizendo "VER TODO O ESTOQUE 0" apontando para
+                  uma âncora que o `IndiceDaVitrine` não renderizou.
+
+                  A caixa é idêntica à do botão "FILTROS" que o `Catalogo` põe
+                  neste lugar, então a troca na hidratação não mexe nesta
+                  linha. O que ainda mexe é a barra de ORDENAR, que só existe
+                  no `Catalogo` e em tela estreita quebra para uma segunda
+                  linha — deslocamento pré-existente, que esta entrega reduz
+                  (antes o `<aside>` inteiro também descia) mas não elimina. */}
+              {vitrineTemFichas(disponiveis) && (
+                <a
+                  href="#todos-os-veiculos"
+                  className={`mt-foco mt-4 flex w-full items-center justify-between border-2 border-mt-regua px-4 py-2.5 text-[11px] font-extrabold tracking-[.16em] text-mt-ink no-underline ${SO_NO_CELULAR}`}
+                >
+                  VER TODO O ESTOQUE
+                  <span className="text-mt-accent">{disponiveis.length}</span>
+                </a>
+              )}
             </div>
             <div className="flex flex-col lg:flex-row lg:items-stretch">
               <div
@@ -188,6 +276,20 @@ export default async function EstoquePage() {
         aria-label="Índice do estoque"
         className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10"
       >
+        {/* Toda ficha à venda, como link.
+            A grade servida mostra a primeira leva — 9 cards; o resto só
+            aparece depois do "carregar mais", que é JavaScript. Medido na
+            produção em 2026-09-04: 9 links de ficha no HTML contra 36 URLs no
+            `ItemList`. `ItemList` informa o rastreador, mas não é caminho de
+            navegação e não passa autoridade; para quem lê a página sem
+            executar JS as outras 27 simplesmente não existiam.
+
+            A lista mora em `IndiceDaVitrine` e não aqui porque um `.slice()`
+            enfiado no `.map()` do JSX devolveria o defeito sem teste nenhum
+            perceber — foi o furo que a revisão de 04/09 achou. Lá ela é
+            renderizada e contada por teste. */}
+        <IndiceDaVitrine disponiveis={disponiveis} />
+
         {marcas.length > 0 && (
           <section>
             <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Seminovos por marca</h2>
