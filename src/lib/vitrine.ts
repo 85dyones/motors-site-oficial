@@ -244,17 +244,74 @@ export function textoBuscavel(veiculo: Veiculo): string {
   );
 }
 
+/** O mesmo texto, sem `opcionais` — só a ficha técnica. */
+export function textoDaFichaTecnica(veiculo: Veiculo): string {
+  return normalizarParaBusca(
+    CAMPOS_DA_BUSCA.filter((campo) => campo !== "opcionais")
+      .map((campo) => LEITORES[campo](veiculo))
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+/**
+ * As palavras que NOMEIAM uma dimensão que o painel de filtro oferece.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que esta lista existe
+ * ---------------------------------------------------------------------------
+ * Medido contra a produção em 2026-09-04: digitar **"elétrico" trazia 23
+ * carros, e nenhum era elétrico**. O casamento vinha de `opcionais` — "vidros
+ * elétricos", "travas elétricas". Ao mesmo tempo, o painel de COMBUSTÍVEL na
+ * mesma tela nem oferecia "Elétrico", porque não há nenhum no pátio.
+ *
+ * Dois controles lado a lado dando respostas contraditórias, e a busca era a
+ * que mentia — o defeito que o comentário do `Catalogo` condena pela outra
+ * ponta ("seria a lista mentindo sobre o que ela vai mostrar").
+ *
+ * A regra: **termo que nomeia uma dimensão do painel casa só na ficha
+ * técnica**. "elétrico" pergunta pelo combustível, não por vidro. "couro" e
+ * "teto solar" não nomeiam dimensão nenhuma e seguem lendo `opcionais`.
+ *
+ * O vocabulário é fechado e vem de `resolveTipoCombustivel` — é o domínio de
+ * combustível e de câmbio no Brasil, não número de negócio.
+ */
+export const VOCABULARIO_CANONICO = [
+  "flex",
+  "alcool",
+  "eletrico",
+  "hibrido",
+  "diesel",
+  "gasolina",
+  "gnv",
+  "automatico",
+  "automatizado",
+  "manual",
+  "cvt",
+] as const;
+
+/** Se o termo digitado pergunta por uma dimensão da ficha, e não por opcional. */
+export function ehTermoDeFichaTecnica(termo: string): boolean {
+  // Prefixo a partir de três letras: quem digita "eletric" quer a mesma coisa
+  // de quem digita "eletrico", e a busca é incremental — cada tecla consulta.
+  return termo.length >= 3 && VOCABULARIO_CANONICO.some((palavra) => palavra.startsWith(termo));
+}
+
 /**
  * Se um veículo casa com o que foi digitado.
  *
  * Sem termo, casa — a busca vazia não é um filtro que reprova todo mundo, e
  * essa inversão é o defeito clássico deste tipo de campo: a vitrine amanhece
  * vazia porque alguém tratou "" como um termo.
+ *
+ * Cada termo escolhe seu próprio índice: os que nomeiam uma dimensão do painel
+ * leem só a ficha técnica; os outros leem tudo, `opcionais` incluído.
  */
 export function casaComABusca(veiculo: Veiculo, termos: string[]): boolean {
   if (termos.length === 0) return true;
-  const texto = textoBuscavel(veiculo);
-  return termos.every((termo) => texto.includes(termo));
+  const tudo = textoBuscavel(veiculo);
+  const ficha = textoDaFichaTecnica(veiculo);
+  return termos.every((termo) => (ehTermoDeFichaTecnica(termo) ? ficha : tudo).includes(termo));
 }
 
 /**
@@ -264,9 +321,17 @@ export function casaComABusca(veiculo: Veiculo, termos: string[]): boolean {
  * chips de filtro que são palavra solta em caixa alta ("FLEX", "AUTOMÁTICO"),
  * e sem elas o que a pessoa digitou se confunde com uma opção do painel.
  */
+export const LIMITE_DO_CHIP = 28;
+
 export function chipDaBusca(termo: string): string | null {
   const limpo = (termo ?? "").trim();
-  return limpo ? `“${limpo.toUpperCase()}”` : null;
+  if (!limpo) return null;
+  // Trunca porque o chip não quebra linha e `?q=` é alcançável pela URL: um
+  // termo de uma palavra longa esticava a régua e trazia rolagem lateral no
+  // celular, que é o oposto do que esta entrega foi fazer lá.
+  const curto =
+    limpo.length > LIMITE_DO_CHIP ? `${limpo.slice(0, LIMITE_DO_CHIP - 1)}…` : limpo;
+  return `“${curto.toUpperCase()}”`;
 }
 
 /**
@@ -287,3 +352,34 @@ export function mensagemDeVitrineVazia(termo: string, outrosFiltros: number): st
   if (limpo) return `Nenhum veículo para “${limpo}”.`;
   return "Nenhum veículo com essa combinação de filtros.";
 }
+
+/**
+ * A caixa da busca, escrita uma vez só.
+ *
+ * Ela existe em DOIS lugares que precisam ter exatamente a mesma altura: o
+ * `<form>` do fallback de `/estoque`, que é o que vai no HTML servido, e o
+ * campo do `Catalogo`, que o substitui na hidratação. Classe divergente entre
+ * os dois é a grade pulando na tela mais usada do site — o defeito que o
+ * campo novo introduziu em 04/09 e que só apareceu quando alguém mediu os
+ * bytes do HTML.
+ *
+ * Constante em vez de duas strings iguais: iguais elas ficam até a primeira
+ * vez que alguém ajusta o padding de um lado só.
+ */
+export const CONTAINER_DA_BUSCA = "relative mt-4";
+export const CAIXA_DA_BUSCA =
+  "mt-foco w-full border-2 border-mt-regua bg-transparent py-2.5 pl-11 pr-11 " +
+  "text-[13px] font-semibold tracking-[.02em] placeholder:font-normal " +
+  "placeholder:tracking-normal placeholder:text-mt-neutral-600 " +
+  // `mt-busca` esconde o X nativo do `type="search"`, que o Chrome, o Edge e o
+  // Safari desenham colado no nosso. A regra vive em `globals.css` e NÃO como
+  // variante arbitrária do Tailwind: escrita como
+  // `[&::-webkit-search-cancel-button]:appearance-none`, a classe CHEGAVA ao
+  // elemento e a regra nunca era gerada — medido no navegador em 04/09/2026,
+  // com `classList` tendo a classe e `document.styleSheets` sem nenhum seletor
+  // correspondente. As outras classes desta mesma constante funcionavam, que é
+  // o que torna esse defeito invisível numa olhada.
+  "mt-busca";
+
+/** O que o campo ensina a digitar: VALOR, nunca nome de campo. */
+export const EXEMPLO_DA_BUSCA = "Buscar: onix, automático, prata, teto solar…";

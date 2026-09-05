@@ -11,8 +11,11 @@ import {
 } from "../../lib/regrasEstoque";
 import { slugifyTag } from "../../lib/tagUtils";
 import {
+  CAIXA_DA_BUSCA,
   casaComABusca,
   chipDaBusca,
+  CONTAINER_DA_BUSCA,
+  EXEMPLO_DA_BUSCA,
   mensagemDeVitrineVazia,
   mostrarLimparTudo,
   painelDeFiltro,
@@ -86,6 +89,7 @@ export default function Catalogo({
   // painel não obedece a este estado.
   const [filtroAberto, setFiltroAberto] = useState(false);
   const botaoDoFiltro = useRef<HTMLButtonElement>(null);
+  const campoDeBusca = useRef<HTMLInputElement>(null);
 
   /**
    * Fecha o painel e devolve o foco ao alternador.
@@ -175,6 +179,11 @@ export default function Catalogo({
     // A busca vale também para a contagem ao lado de cada caixa: digitar
     // "onix" e continuar vendo "MARCA · FIAT (7)" seria a lista mentindo
     // sobre o que ela vai mostrar.
+    //
+    // E ela NÃO honra `ignorar`, de propósito: `ignorar` serve para um grupo
+    // do painel não zerar a própria contagem, e a busca não é um grupo — não
+    // há caixa marcada para desconsiderar. Ninguém passa `"busca"` hoje; quem
+    // passar amanhã recebe a contagem com a busca aplicada, que é o certo.
     if (!casaComABusca(v, termos)) return false;
     return true;
   };
@@ -301,10 +310,13 @@ export default function Catalogo({
             porque é o caminho mais curto de todos — quem sabe o que quer
             digita, quem não sabe abre o filtro.
 
-            Sem `<form>` e sem botão de enviar: filtra a cada tecla, sobre uma
-            lista que já está na memória do navegador. Botão só existiria para
-            disparar o que já aconteceu. */}
-        <div className="relative mt-4">
+            Sem `<form>` e sem botão de enviar AQUI: filtra a cada tecla, sobre
+            uma lista que já está na memória do navegador, e um botão só
+            existiria para disparar o que já aconteceu. O fallback de
+            `/estoque` tem um `<form>` de verdade, porque lá não há tecla que
+            dispare nada — e é ele que reserva esta caixa no HTML servido, para
+            a grade não pular na hidratação. */}
+        <div className={CONTAINER_DA_BUSCA}>
           <label htmlFor="busca-da-vitrine" className="sr-only">
             Buscar por modelo, marca ou característica
           </label>
@@ -321,6 +333,7 @@ export default function Catalogo({
             <path d="M20 20l-4.5-4.5" />
           </svg>
           <input
+            ref={campoDeBusca}
             id="busca-da-vitrine"
             type="search"
             value={busca}
@@ -328,15 +341,37 @@ export default function Catalogo({
               setBusca(e.target.value);
               setVisiveis(PAGINA);
             }}
-            placeholder="Buscar modelo, marca, câmbio, cor…"
-            className="mt-foco w-full border-2 border-mt-regua bg-transparent py-2.5 pl-11 pr-11 text-[13px] font-semibold tracking-[.02em] placeholder:font-normal placeholder:tracking-normal placeholder:text-mt-neutral-600"
+            // O placeholder ensina a digitar VALOR, não nome de campo. A
+            // primeira versão dizia "modelo, marca, câmbio, cor" e piorava o
+            // resultado de quem obedecia: "câmbio automático" achava 5 e
+            // "automático" achava 14, porque o nome do campo não está no
+            // índice — só o valor dele.
+            placeholder={EXEMPLO_DA_BUSCA}
+            // `appearance-none` no botão nativo de limpar: o `type="search"`
+            // desenha um X próprio no Chrome, Edge e Safari, e ele apareceria
+            // ao lado do nosso — dois X colados, e só um deles com rótulo e
+            // ordem de foco. O preflight do Tailwind reseta só o
+            // `search-decoration`, não este.
+            className={CAIXA_DA_BUSCA}
           />
           {busca !== "" && (
             <button
               type="button"
+              // Devolve o foco ao campo, e não é preciosismo: este botão só
+              // existe enquanto `busca !== ""`, e o clique torna a própria
+              // precondição falsa. Sem isto o nó sai do DOM e o foco cai no
+              // `<body>` (WCAG 2.4.3) — a terceira vez que este defeito
+              // aparece neste branch, depois de `fecharFiltro` e do
+              // `LIMPAR TUDO`.
+              //
+              // As outras duas ocorrências do arquivo ficaram adiadas porque o
+              // vizinho natural (`botaoDoFiltro`) é `display:none` no desktop.
+              // Aqui esse motivo não existe: o campo está montado nas duas
+              // larguras, e continuar digitando é o que a pessoa quer fazer.
               onClick={() => {
                 setBusca("");
                 setVisiveis(PAGINA);
+                campoDeBusca.current?.focus();
               }}
               aria-label="Limpar a busca"
               className="mt-foco absolute right-3 top-1/2 -translate-y-1/2 p-1 text-mt-accent"
@@ -359,7 +394,9 @@ export default function Catalogo({
         {/* Botão de filtro — só abaixo do `lg`.
             Ocupa o mesmo lugar e a mesma altura do "VER TODO O ESTOQUE" que o
             fallback do <Suspense> serve no HTML: os dois se trocam na
-            hidratação sem empurrar a grade para baixo. A contagem de filtros
+            hidratação sem empurrar a grade para baixo — e a busca acima faz o
+            mesmo par com o `<form>` de lá, o que deixou de ser verdade por um
+            commit quando o campo entrou só deste lado. A contagem de filtros
             ativos vem junto porque painel recolhido não pode esconder que a
             vitrine está filtrada. */}
         <button

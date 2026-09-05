@@ -5,11 +5,16 @@ import type { Veiculo } from "../src/types";
 import { getVeiculoPdpUrl } from "../src/lib/supabase";
 import { nomeComAno } from "../src/lib/nomeDoVeiculo";
 import { schemaDeListagem } from "../src/lib/schemaListagem";
+import { resolveTipoCombustivel } from "../src/lib/regrasEstoque";
 import {
   CAMPOS_DA_BUSCA,
   CAMPOS_FORA_DA_BUSCA,
   casaComABusca,
+  CAIXA_DA_BUSCA,
   chipDaBusca,
+  ehTermoDeFichaTecnica,
+  EXEMPLO_DA_BUSCA,
+  LIMITE_DO_CHIP,
   FILTROS_PARA_LIMPAR_TUDO,
   indiceDaVitrine,
   mensagemDeVitrineVazia,
@@ -21,7 +26,7 @@ import {
   vitrineTemFichas,
 } from "../src/lib/vitrine";
 import IndiceDaVitrine from "../src/components/modernist/IndiceDaVitrine";
-import { lerCodigo } from "./fonte";
+import { ler, lerCodigo } from "./fonte";
 
 /**
  * A vitrine de `/estoque`: o que o servidor entrega e o que o celular vê.
@@ -509,13 +514,42 @@ describe("a busca por digitação lê uma lista branca, nunca o objeto", () => {
     expect(casaComABusca(comPlaca, termosDaBusca("onix"))).toBe(true);
   });
 
-  it("o que é proibido está DECLARADO, não só ausente", () => {
-    // Lista que não se afirma é lista que cresce sem revisão: o dia em que
-    // alguém acrescentar `chassi` a `CAMPOS_DA_BUSCA`, este teste fala.
+  it("nenhum dos campos proibidos chega ao texto, venha por onde vier", () => {
+    /**
+     * A primeira versão deste teste comparava só NOMES: conferia que
+     * `CAMPOS_FORA_DA_BUSCA` não aparecia em `CAMPOS_DA_BUSCA`. Isso prende o
+     * nome do campo e não prende o CONTEÚDO de um leitor que já existe —
+     * quatro mutações passavam com `tsc` verde e a suíte verde, todas da
+     * mesma forma:
+     *
+     *     versao: (v) => `${v.versao} ${(v as any).chassi}`
+     *
+     * Não é hipótese: `estoque_motors` tem `placa` preenchida em 38 das 107
+     * linhas e `chassi` em 36. E é o mesmo defeito do commit `dccbadf` deste
+     * branch — "o teste que eu escrevi não guardava nada do que a entrega
+     * faz" — um commit depois, no mesmo arquivo.
+     *
+     * Agora o teste MARCA cada campo proibido com um valor reconhecível e
+     * procura a marca na saída: qualquer caminho que o leve ao texto acende.
+     */
+    const sujo = { ...ONIX } as Record<string, unknown>;
+    for (const proibido of CAMPOS_FORA_DA_BUSCA) sujo[proibido] = `PROIBIDO-${proibido}`;
+    const comoVeiculo = sujo as unknown as Veiculo;
+    const texto = textoBuscavel(comoVeiculo);
+
+    for (const proibido of CAMPOS_FORA_DA_BUSCA) {
+      expect(texto, proibido).not.toContain(`proibido-${proibido}`);
+      expect(casaComABusca(comoVeiculo, termosDaBusca(`PROIBIDO-${proibido}`)), proibido).toBe(false);
+    }
+
+    // E a lista não pode encolher para caber: tirar `chassi` dela faria as
+    // asserções acima passarem sem guardar mais nada.
+    expect(CAMPOS_FORA_DA_BUSCA.length).toBeGreaterThanOrEqual(4);
     for (const proibido of CAMPOS_FORA_DA_BUSCA) {
       expect(CAMPOS_DA_BUSCA as readonly string[]).not.toContain(proibido);
     }
     expect(CAMPOS_FORA_DA_BUSCA).toContain("placa");
+    expect(CAMPOS_FORA_DA_BUSCA).toContain("chassi");
   });
 
   it("o texto buscável sai SÓ dos campos da lista branca", () => {
@@ -640,5 +674,192 @@ describe("o ponto de chamada da busca, no `Catalogo`", () => {
     expect(fonte).toMatch(
       /mensagemDeVitrineVazia\(\s*busca,\s*chipsAtivos\.filter\(\(c\) => c\.chave !== "busca"\)\.length,\s*\)/,
     );
+  });
+});
+
+describe("um termo que nomeia dimensão do painel não casa em opcional", () => {
+  /**
+   * Medido contra a produção em 2026-09-04: digitar "elétrico" trazia **23
+   * carros, nenhum elétrico**. O casamento vinha de `opcionais` — "vidros
+   * elétricos", "travas elétricas" — enquanto o painel de COMBUSTÍVEL na mesma
+   * tela nem oferecia "Elétrico", porque não há nenhum no pátio.
+   *
+   * Dois controles lado a lado com respostas contraditórias, e a busca era a
+   * que mentia.
+   *
+   * `opcionais` continua no índice: está vazio em 67% do estoque, então
+   * "couro" (9 carros) e "teto solar" (3) são piso e não verdade — mas piso é
+   * melhor que nada, e nenhum deles nomeia dimensão do painel.
+   */
+  const eletrificado = veiculo({
+    id: "9001",
+    marca: "Chevrolet",
+    modelo: "Onix",
+    combustivel: "Flex",
+    opcionais: "Vidros elétricos, Travas elétricas, Bancos de couro, Teto solar",
+  });
+
+  it("«elétrico» pergunta pelo combustível, não por vidro", () => {
+    expect(casaComABusca(eletrificado, termosDaBusca("eletrico"))).toBe(false);
+    expect(casaComABusca(eletrificado, termosDaBusca("elétrico"))).toBe(false);
+    // E acha de verdade quando o combustível é esse.
+    const eletrico = veiculo({ id: "9002", marca: "BYD", modelo: "Dolphin", combustivel: "Elétrico" });
+    expect(casaComABusca(eletrico, termosDaBusca("eletrico"))).toBe(true);
+  });
+
+  it("a busca concorda com o painel: mesmo termo, mesma resposta", () => {
+    // O invariante que interessa. `resolveTipoCombustivel` é o que alimenta o
+    // grupo COMBUSTÍVEL do filtro; se a busca discordar dele, a tela tem duas
+    // verdades.
+    const patio = [eletrificado, veiculo({ id: "9003", marca: "BYD", modelo: "Dolphin", combustivel: "Elétrico" })];
+    const pelaBusca = patio.filter((v) => casaComABusca(v, termosDaBusca("eletrico")));
+    const peloPainel = patio.filter((v) => resolveTipoCombustivel(v) === "Elétrico");
+
+    expect(pelaBusca.map((v) => v.id)).toEqual(peloPainel.map((v) => v.id));
+  });
+
+  it("o mesmo vale para câmbio", () => {
+    const comManual = veiculo({
+      id: "9004",
+      marca: "Fiat",
+      modelo: "Uno",
+      cambio: "Automático",
+      opcionais: "Manual do proprietário, Chave reserva",
+    });
+    expect(casaComABusca(comManual, termosDaBusca("manual"))).toBe(false);
+    expect(casaComABusca(comManual, termosDaBusca("automatico"))).toBe(true);
+  });
+
+  it("termo que NÃO nomeia dimensão continua lendo os opcionais", () => {
+    expect(casaComABusca(eletrificado, termosDaBusca("couro"))).toBe(true);
+    expect(casaComABusca(eletrificado, termosDaBusca("teto solar"))).toBe(true);
+  });
+
+  it("o vocabulário canônico cobre as dimensões que o painel oferece", () => {
+    // Se um combustível novo entrar em `resolveTipoCombustivel` e não aqui, a
+    // colisão volta calada para aquele valor.
+    for (const combustivel of ["Flex", "Álcool", "Elétrico", "Híbrido", "Diesel", "Gasolina"]) {
+      const termo = termosDaBusca(combustivel)[0];
+      expect(ehTermoDeFichaTecnica(termo), combustivel).toBe(true);
+    }
+    for (const cambio of ["Automático", "Manual", "CVT", "Automatizado"]) {
+      expect(ehTermoDeFichaTecnica(termosDaBusca(cambio)[0]), cambio).toBe(true);
+    }
+    // E não abocanha o que não é dimensão.
+    for (const palavra of ["couro", "teto", "solar", "onix", "prata", "turbo", "jeep"]) {
+      expect(ehTermoDeFichaTecnica(palavra), palavra).toBe(false);
+    }
+  });
+
+  it("prefixo curto não vira dimensão — a busca é incremental", () => {
+    // Cada tecla consulta: "e", "el", "ele" passariam a rotear tudo para a
+    // ficha técnica no meio da digitação, e o resultado piscaria.
+    expect(ehTermoDeFichaTecnica("e")).toBe(false);
+    expect(ehTermoDeFichaTecnica("el")).toBe(false);
+    expect(ehTermoDeFichaTecnica("ele")).toBe(true);
+  });
+});
+
+describe("a caixa da busca existe no HTML servido, com a mesma altura", () => {
+  /**
+   * Medido no HTML servido de `/estoque` em 04/09/2026, depois que a busca
+   * entrou: o fallback do `<Suspense>` terminava no byte 56497 e o `Catalogo`
+   * só punha o campo em 57908. O campo nascia na hidratação e empurrava a
+   * grade ~60px para baixo, nas DUAS larguras — e o comentário logo abaixo
+   * dele continuava afirmando que a troca acontecia "sem empurrar a grade".
+   *
+   * É o mesmo deslocamento que a coluna reservada de 290px do filtro existe
+   * para evitar, na mesma tela, no mesmo commit anterior.
+   */
+  const doFallback = lerCodigo("src/app/estoque/page.tsx");
+  const doCatalogo = lerCodigo("src/components/modernist/Catalogo.tsx");
+
+  it("o fallback serve um campo de busca de verdade", () => {
+    expect(doFallback).toMatch(/<form action="\/estoque" method="get"/);
+    expect(doFallback).toMatch(/name="q"/);
+    expect(doFallback).toMatch(/id="busca-da-vitrine-servida"/);
+  });
+
+  it("e ele vem ANTES do `<Catalogo>` — é o que o HTML entrega", () => {
+    const campo = doFallback.indexOf('id="busca-da-vitrine-servida"');
+    const catalogo = doFallback.indexOf("<Catalogo");
+    const fallback = doFallback.indexOf("fallback={");
+
+    expect(campo).toBeGreaterThan(fallback);
+    expect(campo).toBeLessThan(catalogo);
+  });
+
+  it("os dois campos usam a MESMA caixa, por construção", () => {
+    // Constante compartilhada em vez de duas strings iguais: iguais elas ficam
+    // até a primeira vez que alguém ajusta o padding de um lado só, e o
+    // deslocamento volta sem ninguém medir bytes de novo.
+    for (const fonte of [doFallback, doCatalogo]) {
+      expect(fonte).toMatch(/className=\{CAIXA_DA_BUSCA\}/);
+      expect(fonte).toMatch(/className=\{CONTAINER_DA_BUSCA\}/);
+      expect(fonte).toMatch(/placeholder=\{EXEMPLO_DA_BUSCA\}/);
+    }
+    // E a caixa tem o que decide a altura.
+    expect(CAIXA_DA_BUSCA).toContain("py-2.5");
+    expect(CAIXA_DA_BUSCA).toContain("border-2");
+  });
+
+  it("o X nativo do `type=search` fica escondido — senão são dois", () => {
+    // Chrome, Edge e Safari desenham o próprio botão de limpar no
+    // `type="search"`, e ele apareceria colado no nosso. O preflight do
+    // Tailwind reseta só o `search-decoration`, não este.
+    //
+    // A regra é CSS de verdade, não variante arbitrária do Tailwind: escrita
+    // como `[&::-webkit-search-cancel-button]:appearance-none` dentro desta
+    // constante, a classe chegava ao elemento e a REGRA NUNCA ERA GERADA —
+    // medido no navegador em 04/09/2026. Por isso o teste confere os dois
+    // lados: a classe no campo e o seletor na folha.
+    expect(CAIXA_DA_BUSCA).toContain("mt-busca");
+    expect(ler("src/app/globals.css")).toMatch(
+      /.mt-busca::-webkit-search-cancel-button {[^}]*appearance: none/,
+    );
+  });
+
+  it("o placeholder ensina VALOR, não nome de campo", () => {
+    // A primeira versão dizia "modelo, marca, câmbio, cor" e piorava o
+    // resultado de quem obedecia: "câmbio automático" achava 5 e "automático"
+    // achava 14, porque o nome do campo não está no índice — só o valor.
+    expect(EXEMPLO_DA_BUSCA).not.toMatch(/câmbio|cambio|modelo|marca|cor\b/i);
+    expect(EXEMPLO_DA_BUSCA).toMatch(/automático/i);
+  });
+});
+
+describe("limpar a busca não larga o foco no `<body>`", () => {
+  const fonte = lerCodigo("src/components/modernist/Catalogo.tsx");
+
+  it("o botão devolve o foco ao campo", () => {
+    // Terceira vez que este defeito aparece neste branch, depois de
+    // `fecharFiltro` e do `LIMPAR TUDO`: o botão só existe enquanto
+    // `busca !== ""`, e o clique torna a própria precondição falsa.
+    //
+    // As outras duas ocorrências ficaram adiadas porque o vizinho natural
+    // (`botaoDoFiltro`) é `display:none` no desktop. Aqui esse motivo não
+    // existe — o campo está montado nas duas larguras.
+    expect(fonte).toMatch(
+      /onClick=\{\(\) => \{\s*setBusca\(""\);\s*setVisiveis\(PAGINA\);\s*campoDeBusca\.current\?\.focus\(\);\s*\}\}/,
+    );
+    expect(fonte).toMatch(/const campoDeBusca = useRef<HTMLInputElement>\(null\)/);
+    expect(fonte).toMatch(/ref=\{campoDeBusca\}/);
+  });
+});
+
+describe("o chip da busca não estica a régua", () => {
+  it("trunca termo longo", () => {
+    // `?q=` é alcançável pela URL: um termo de uma palavra só, longa, esticava
+    // o chip e trazia rolagem lateral no celular — o oposto do que esta
+    // entrega foi fazer lá.
+    const longo = "a".repeat(80);
+    const chip = chipDaBusca(longo)!;
+
+    expect(chip.length).toBeLessThanOrEqual(LIMITE_DO_CHIP + 3);
+    expect(chip).toMatch(/…”$/);
+  });
+
+  it("termo curto passa inteiro, sem reticências", () => {
+    expect(chipDaBusca("onix automatico")).toBe("“ONIX AUTOMATICO”");
   });
 });

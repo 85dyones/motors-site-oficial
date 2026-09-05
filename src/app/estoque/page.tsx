@@ -22,7 +22,13 @@ import {
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja } from "../../lib/schemaLoja";
 import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
-import { SO_NO_CELULAR, vitrineTemFichas } from "../../lib/vitrine";
+import {
+  CAIXA_DA_BUSCA,
+  CONTAINER_DA_BUSCA,
+  EXEMPLO_DA_BUSCA,
+  SO_NO_CELULAR,
+  vitrineTemFichas,
+} from "../../lib/vitrine";
 
 export const revalidate = 60;
 
@@ -170,6 +176,51 @@ export default async function EstoquePage() {
                   {disponiveis.length === 1 ? "VEÍCULO NA SELEÇÃO" : "VEÍCULOS NA SELEÇÃO"}
                 </span>
               </div>
+
+              {/* O lugar da busca, reservado com a caixa exata.
+
+                  Sem isto o campo nasce só na hidratação e empurra a grade
+                  ~60px para baixo, nas DUAS larguras — medido no HTML servido:
+                  o fallback vai até o byte 56497 e o `Catalogo` só põe o campo
+                  em 57908. É o mesmo deslocamento que a coluna reservada do
+                  filtro, logo abaixo, existe para evitar.
+
+                  É um `<form method="get">`, não uma caixa morta: quem submete
+                  vai para `/estoque?q=…`, e o `Catalogo` lê esse parâmetro
+                  (`useState(() => searchParams.get("q"))`). O termo sobrevive
+                  à navegação e a URL fica compartilhável.
+
+                  **O que ele NÃO faz:** filtrar sem JavaScript. Para isso o
+                  fallback precisaria ler `searchParams`, e ler `searchParams`
+                  aqui torna `/estoque` dinâmica — hoje ela é `revalidate = 60`
+                  e é a tela mais usada do site. Trocar o cache dela por busca
+                  sem JS é decisão que se toma de propósito, não de carona numa
+                  caixa de busca. Quem lê sem JS continua com o índice completo
+                  no rodapé, que é o caminho que este arquivo já garante. */}
+              <form action="/estoque" method="get" className={CONTAINER_DA_BUSCA}>
+                <label htmlFor="busca-da-vitrine-servida" className="sr-only">
+                  Buscar por modelo, marca ou característica
+                </label>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mt-neutral-600"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M20 20l-4.5-4.5" />
+                </svg>
+                <input
+                  id="busca-da-vitrine-servida"
+                  type="search"
+                  name="q"
+                  placeholder={EXEMPLO_DA_BUSCA}
+                  className={CAIXA_DA_BUSCA}
+                />
+              </form>
 
               {/* O lugar do botão de filtro do celular, ocupado por algo que
                   FUNCIONA sem JavaScript: um placeholder morto gastaria o

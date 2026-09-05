@@ -338,3 +338,26 @@ html, body {
 }
 
 
+
+/* ---------------------------------------------------------------------------
+   Busca da vitrine: um X só
+
+   `type="search"` faz o Chrome, o Edge e o Safari desenharem o próprio botão
+   de limpar, e ele apareceria colado no nosso — dois X iguais, e só um deles
+   com rótulo e ordem de foco.
+
+   A regra estava escrita como variante arbitrária do Tailwind
+   (`[&::-webkit-search-cancel-button]:appearance-none`) dentro de uma
+   constante em `lib/vitrine.ts`. A classe CHEGAVA ao elemento e o Tailwind
+   NÃO gerava a regra: medido no navegador em 04/09/2026 — `classList` tinha a
+   classe, `document.styleSheets` não tinha nenhum seletor com
+   `search-cancel-button`. As outras classes da mesma constante funcionavam, o
+   que torna o defeito invisível numa olhada.
+
+   Aqui é CSS de verdade, e o teste confere que esta regra existe.
+   O preflight do Tailwind reseta só o `search-decoration`, não este.
+--------------------------------------------------------------------------- */
+.mt-busca::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
