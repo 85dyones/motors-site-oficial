@@ -104,52 +104,27 @@ export function semComentarios(fonte: string): string {
 }
 
 /**
- * A condição do `if` que envolve `marcadorNoCorpo`, com espaços normalizados.
- *
  * ---------------------------------------------------------------------------
- * Por que a condição INTEIRA, e não uma busca dentro dela
+ * Aqui morava `condicaoDoIf`, e por que ela não mora mais
  * ---------------------------------------------------------------------------
- * Escrita em 2026-09-05, depois de a revisão furar a primeira versão do teste
- * que trava o desfecho do funil. Aquela versão proibia a GRAFIA do defeito
- * (`não pode conter === "ganho"`) e afirmava a presença do predicado
- * (`tem que conter ehTipoDeDesfecho(`). As duas juntas ainda deixavam passar
+ * Escrita em 2026-09-05 para trancar a guarda do desfecho do funil: ela
+ * extraía a condição inteira de um `if` para o teste comparar com a esperada.
+ * Era a resposta a uma revisão que tinha furado a versão anterior — aquela
+ * proibia a GRAFIA do defeito, e a proibição não cobre a próxima forma.
  *
- *     if (ehTipoDeDesfecho(etapa.tipo) && etapa.tipo !== "descartado")
+ * A revisão seguinte, no dia 06, furou esta também, com três formas que não
+ * encostam na condição afirmada: um `if` a MAIS antes da guarda, um desvio
+ * DEPOIS dela, e a cadeia `else if` (onde `lastIndexOf("if (")` casa dentro
+ * do `else if` e o teste lê o ramo que ninguém mexeu). As três restauram o
+ * defeito inteiro e deixam a suíte verde.
  *
- * — que restaura o defeito exatamente, satisfaz as duas asserções, e ficava
- * verde. Proibir grafia é sempre isso: uma lista do que já se viu.
+ * A lição, e é a razão de esta nota ficar: **asserção sobre o texto de um
+ * `if` prova aquele `if` e mais nada.** Não existe regex que conserte isso,
+ * porque o problema não é a regex — é que o teste não executa o código.
  *
- * E cobrava caro do lado legítimo. Proibir um literal no corpo INTEIRO de uma
- * função reprova mudanças corretas que passem perto — um `tipo === "ganho" ?
- * valor : null` dez linhas abaixo não tem nada a ver com a decisão travada.
- *
- * Afirmar a condição inteira resolve os dois: `&&` a mais reprova, literal
- * longe da guarda não reprova, e a mensagem de falha mostra o que a guarda
- * virou em vez de dizer que uma regex não casou.
+ * A saída foi tirar a decisão de dentro do componente e da rota: ela virou
+ * `criarMover` (`lib/leadsKanban`) e `decidirDesfecho` (`lib/funil`), as duas
+ * puras e CHAMADAS pelos testes. As asserções de fonte que sobraram afirmam
+ * só a delegação — que ninguém trouxe a regra de volta para onde ela não pode
+ * ser executada.
  */
-export function condicaoDoIf(fonte: string, marcadorNoCorpo: string): string {
-  const alvo = fonte.indexOf(marcadorNoCorpo);
-  if (alvo < 0) throw new Error(`marcador ausente na fonte: ${marcadorNoCorpo}`);
-
-  // O `if` mais próximo ANTES do marcador. Por isso o marcador precisa ser a
-  // primeira coisa dentro do bloco: qualquer `if` no meio do caminho seria
-  // encontrado no lugar do que interessa.
-  const abre = fonte.lastIndexOf("if (", alvo);
-  if (abre < 0) throw new Error(`nenhum \`if\` antes de: ${marcadorNoCorpo}`);
-
-  const inicio = abre + "if (".length;
-  let nivel = 1;
-  let i = inicio;
-  for (; i < alvo; i++) {
-    if (fonte[i] === "(") nivel++;
-    else if (fonte[i] === ")") {
-      nivel--;
-      if (nivel === 0) break;
-    }
-  }
-  if (nivel !== 0) {
-    throw new Error(`os parênteses do \`if\` não fecharam antes de: ${marcadorNoCorpo}`);
-  }
-
-  return fonte.slice(inicio, i).replace(/\s+/g, " ").trim();
-}

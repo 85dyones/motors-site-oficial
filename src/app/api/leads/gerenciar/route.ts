@@ -4,9 +4,10 @@ import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
-  ehTipoDeDesfecho,
+  decidirDesfecho,
   ordenarEtapas,
   type EtapaDoFunil,
+  type EtapaDoDesfecho,
   type MotivoDoFunil,
 } from "../../../../lib/funil";
 
@@ -267,57 +268,38 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      // `ehTipoDeDesfecho` e não a dupla `"ganho" || "perdido"` que estava
-      // aqui: ela não conhecia `descartado` (2026-08-28) e deixava o descarte
-      // passar sem motivo — a mesma metade que faltava na tela. Uma trava que
-      // se esquece de um dos tipos é uma trava que não existe para ele.
-      if (etapa && ehTipoDeDesfecho(etapa.tipo)) {
-        const motivo = typeof desfecho_motivo === "string" ? desfecho_motivo.trim() : "";
-        if (!motivo) {
-          return NextResponse.json(
-            {
-              error:
-                `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
-                `é ele que a tela "Ganhos e perdas" agrupa.`,
-              motivo_obrigatorio: true,
-              tipo: etapa.tipo,
-            },
-            { status: 422 },
-          );
-        }
-
-        const { data: motivoBanco } = await supabase
-          .from("funil_motivos")
-          .select("chave, tipo")
-          .eq("chave", motivo)
-          .maybeSingle();
-
-        if (!motivoBanco) {
-          return NextResponse.json(
-            { error: `Motivo desconhecido: "${motivo}".` },
-            { status: 422 },
-          );
-        }
-        // Motivo de ganho num negócio perdido faria o relatório somar peras com
-        // maçãs — e o erro só apareceria no gráfico, meses depois.
-        if (motivoBanco.tipo !== etapa.tipo) {
-          return NextResponse.json(
-            {
-              error:
-                `O motivo "${motivo}" é de ${motivoBanco.tipo}, e a etapa ` +
-                `"${etapa.rotulo}" é de ${etapa.tipo}.`,
-            },
-            { status: 422 },
-          );
-        }
-
-        atualizacao.desfecho_motivo = motivo;
-        atualizacao.desfecho_valor = valorOuNulo(desfecho_valor);
-        atualizacao.desfecho_nota =
-          typeof desfecho_nota === "string" && desfecho_nota.trim()
-            ? desfecho_nota.trim()
-            : null;
+      // A regra inteira mora em `decidirDesfecho` (`lib/funil`); o que sobra
+      // aqui é a busca do motivo no banco, que é a única parte que não é pura.
+      //
+      // Ela saiu daqui em 06/09. Antes, a única prova de que esta trava valia
+      // para os TRÊS desfechos era um teste que lia a condição do `if` no
+      // fonte — e a revisão furou isso inserindo um desvio logo abaixo do
+      // trecho lido: descarte gravava direto, a condição afirmada continuava
+      // idêntica, e a suíte inteira ficava verde. Junta e pura, a regra é
+      // executada pelo teste, e desvio novo roda junto.
+      const decisao = await decidirDesfecho(
+        (etapa as EtapaDoDesfecho | null) ?? null,
+        { desfecho_motivo, desfecho_valor, desfecho_nota },
+        async (chave) => {
+          const { data } = await supabase
+            .from("funil_motivos")
+            .select("chave, tipo")
+            .eq("chave", chave)
+            .maybeSingle();
+          return data ?? null;
+        },
+      );
+      if (!decisao.ok) {
+        return NextResponse.json(
+          {
+            error: decisao.erro,
+            motivo_obrigatorio: decisao.motivoObrigatorio,
+            tipo: decisao.tipo,
+          },
+          { status: 422 },
+        );
       }
+      Object.assign(atualizacao, decisao.campos);
     }
 
     const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
@@ -329,13 +311,6 @@ export async function PATCH(request: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
-
-/** Valor do negócio ganho. Vazio é nulo — zero seria uma venda de R$ 0. */
-function valorOuNulo(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = typeof v === "string" ? Number(v.replace(/\./g, "").replace(",", ".")) : Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /**

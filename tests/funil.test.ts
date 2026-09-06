@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
-import { condicaoDoIf, lerCodigo, semComentarios } from "./fonte";
+import { lerCodigo, semComentarios } from "./fonte";
 import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
@@ -25,6 +25,10 @@ import {
   minutosParado,
   nivelDeEstagnacao,
   numeroDiscavel,
+  ETAPA_DE_ENTRADA,
+  ROTULO_DO_DESFECHO,
+  decidirDesfecho,
+  motivoUtilizavel,
   motivosDepoisDeGravar,
   ordenarEtapas,
   paradoDesde,
@@ -299,6 +303,89 @@ describe("editar o funil sem quebrá-lo", () => {
 
     expect(depois.find((m) => m.tipo === "descartado")?.ativo).toBe(false);
     expect(validarFunil(ETAPAS_PADRAO, depois).join(" ")).toContain("Não é oportunidade");
+  });
+
+  it("a etapa em que o lead nasce não pode virar terminal", () => {
+    // O caminho de perda total que a revisão de 06/09 encontrou. O `<select>`
+    // de tipo do FunilEditor não abre exceção para a etapa de entrada, e
+    // `leads.situacao` tem `default 'novo'`: as duas rotas públicas do site
+    // (/api/leads e /api/avaliacao) não mandam situação nenhuma.
+    //
+    // Com a etapa de entrada marcada como terminal, todo lead do site nasce
+    // numa etapa que exige motivo, o banco recusa, e as duas rotas tratam a
+    // falha como NÃO BLOQUEANTE (`console.warn` e seguem). O visitante vê o
+    // WhatsApp abrir normalmente e o lead não existe em lugar nenhum.
+    for (const tipo of TIPOS_DE_DESFECHO) {
+      const erros = validarFunil(
+        ETAPAS_PADRAO.map((e) => (e.chave === ETAPA_DE_ENTRADA ? { ...e, tipo } : e)),
+        MOTIVOS_DOS_TRES,
+      );
+      expect(erros.join(" "), `entrada como ${tipo} passou`).toContain(ETAPA_DE_ENTRADA);
+    }
+  });
+
+  it("a etapa de entrada também não pode ser desativada nem sumir", () => {
+    // Desativar não perde o lead do mesmo jeito — perde pela FK: `situacao`
+    // referencia `funil_etapas(chave)`, e o default continua apontando para
+    // uma etapa que a tela mandou desativar. Mesma perda, outro erro.
+    const desativada = validarFunil(
+      ETAPAS_PADRAO.map((e) => (e.chave === ETAPA_DE_ENTRADA ? { ...e, ativa: false } : e)),
+      MOTIVOS_DOS_TRES,
+    );
+    expect(desativada.join(" ")).toContain(ETAPA_DE_ENTRADA);
+
+    const ausente = validarFunil(
+      ETAPAS_PADRAO.filter((e) => e.chave !== ETAPA_DE_ENTRADA),
+      MOTIVOS_DOS_TRES,
+    );
+    expect(ausente.join(" ")).toContain(ETAPA_DE_ENTRADA);
+  });
+
+  it("motivo sem rótulo não conta como saída — a rota vai descartá-lo", () => {
+    // A divergência que a revisão mediu: o `+ motivo` do FunilEditor nasce com
+    // `rotulo: ""` e `ativo: true`. A tela contava esse motivo e apagava o
+    // erro do beco; a rota FILTRA por rótulo antes de gravar e respondia 422
+    // com exatamente a frase que a tela tinha acabado de apagar.
+    //
+    // O dono desmarcava tudo, via o erro, clicava `+ motivo`, o erro sumia,
+    // Salvar habilitava, e o servidor recusava. Erro que o operador não
+    // entende porque as duas camadas contavam coisas diferentes.
+    const vazio = motivo({ chave: "motivo_novo", rotulo: "   ", tipo: "descartado" });
+    expect(motivoUtilizavel(vazio)).toBe(false);
+
+    const erros = validarFunil(ETAPAS_PADRAO, [
+      ...MOTIVOS_DOS_TRES.filter((m) => m.tipo !== "descartado"),
+      vazio,
+    ]);
+    expect(erros.join(" ")).toContain("Não é oportunidade");
+  });
+
+  it("motivo sem chave não conta — ele não teria como ser gravado", () => {
+    // `chaveDaEtapa("???")` devolve string vazia, e a rota monta a chave com
+    // `m.chave || chaveDaEtapa(m.rotulo)`. Um motivo assim vira botão na caixa
+    // e estoura na hora de fechar, dos dois lados.
+    expect(chaveDaEtapa("???")).toBe("");
+    expect(motivoUtilizavel(motivo({ chave: "", rotulo: "???" }))).toBe(false);
+  });
+
+  it("dois motivos com a mesma chave são recusados antes de virar 500", () => {
+    // `upsert(..., { onConflict: "chave" })` com duas linhas da mesma chave
+    // devolve `21000 ON CONFLICT DO UPDATE command cannot affect row a second
+    // time` — em inglês, cru, num 500. A validação já cobrava isso das etapas
+    // e não cobrava dos motivos.
+    const erros = validarFunil(ETAPAS_PADRAO, [
+      ...MOTIVOS_DOS_TRES,
+      motivo({ chave: "spam", rotulo: "Spam de novo", tipo: "descartado", ordem: 9 }),
+    ]);
+    expect(erros.some((e) => e.includes("spam"))).toBe(true);
+  });
+
+  it("motivo desconhecido não vira acusação de beco", () => {
+    // `null` não é lista vazia. A RLS deste projeto bloqueia devolvendo 200,
+    // `[]` e `error` nulo — tratar isso como "não há motivo nenhum" acusaria
+    // o dono de deixar o funil sem saída num PUT em que ele só mexeu num
+    // prazo, e ainda desabilitaria o botão de salvar.
+    expect(validarFunil(ETAPAS_PADRAO, null)).toEqual([]);
   });
 
   it("aceita o funil que a migração semeia", () => {
@@ -889,7 +976,10 @@ describe("quem mexe na régua", () => {
     expect(rota).toMatch(/status: 422/);
     // E recusa motivo de ganho num negócio perdido: somar peras com maçãs só
     // apareceria no gráfico, meses depois.
-    expect(rota).toMatch(/motivoBanco\.tipo !== etapa\.tipo/);
+    // A recusa por tipo cruzado saiu da rota em 06/09 e virou `decidirDesfecho`
+    // em `lib/funil` — onde ela é EXECUTADA por teste em vez de lida. O que se
+    // afirma aqui é só que a rota continua delegando.
+    expect(rota).toContain("decidirDesfecho(");
   });
 });
 
@@ -945,25 +1035,95 @@ describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () =>
   /**
    */
 
-  it("a rota cobra motivo nos TRÊS desfechos, não só nos dois primeiros", () => {
+  it("exige motivo nos TRÊS desfechos, e não cobra de etapa aberta", async () => {
+    // Executado, não lido. A versão anterior deste teste afirmava a condição
+    // do `if` no fonte da rota, e a revisão de 06/09 a furou inserindo um
+    // desvio LOGO ABAIXO do trecho lido: descarte gravava direto, a condição
+    // afirmada continuava idêntica, e a suíte inteira ficava verde.
+    const nunca = async () => {
+      throw new Error("não devia procurar motivo nenhum");
+    };
+
+    for (const tipo of TIPOS_DE_DESFECHO) {
+      const etapa = { chave: tipo, rotulo: ROTULO_DO_DESFECHO[tipo], tipo };
+      const semMotivo = await decidirDesfecho(etapa, {}, nunca);
+      expect(semMotivo.ok, `${tipo} passou sem motivo`).toBe(false);
+      if (!semMotivo.ok) {
+        expect(semMotivo.motivoObrigatorio).toBe(true);
+        expect(semMotivo.erro).toContain(ROTULO_DO_DESFECHO[tipo]);
+      }
+    }
+
+    // Etapa aberta não cobra nada — e nem vai ao banco procurar motivo.
+    const aberta = await decidirDesfecho(
+      { chave: "proposta", rotulo: "Proposta", tipo: "aberta" },
+      { desfecho_motivo: "spam" },
+      nunca,
+    );
+    expect(aberta).toEqual({ ok: true, campos: {} });
+
+    // Etapa desconhecida (migração pendente) segue o comportamento antigo.
+    expect(await decidirDesfecho(null, {}, nunca)).toEqual({ ok: true, campos: {} });
+  });
+
+  it("recusa motivo de um tipo em etapa de outro", async () => {
+    // Somar peras com maçãs só apareceria no gráfico, meses depois. A FK do
+    // banco garante que a chave existe, nunca que o tipo casa.
+    const decisao = await decidirDesfecho(
+      { chave: "descartado", rotulo: "Não é oportunidade", tipo: "descartado" },
+      { desfecho_motivo: "preco" },
+      async () => ({ chave: "preco", tipo: "perdido" }),
+    );
+    expect(decisao.ok).toBe(false);
+    if (!decisao.ok) expect(decisao.erro).toContain("perdido");
+  });
+
+  it("recusa motivo que não existe no banco", async () => {
+    const decisao = await decidirDesfecho(
+      { chave: "fechado", rotulo: "Ganho", tipo: "ganho" },
+      { desfecho_motivo: "inventado" },
+      async () => null,
+    );
+    expect(decisao.ok).toBe(false);
+    if (!decisao.ok) expect(decisao.erro).toContain("inventado");
+  });
+
+  it("com o motivo certo devolve os campos, e valor só quando faz sentido", async () => {
+    const doTipo = async (chave: string) => ({ chave, tipo: "ganho" });
+    const decisao = await decidirDesfecho(
+      { chave: "fechado", rotulo: "Ganho", tipo: "ganho" },
+      { desfecho_motivo: " a_vista ", desfecho_valor: "72.500,50", desfecho_nota: "  " },
+      doTipo,
+    );
+    expect(decisao).toEqual({
+      ok: true,
+      campos: {
+        desfecho_motivo: "a_vista",
+        desfecho_valor: 72500.5,
+        desfecho_nota: null,
+      },
+    });
+  });
+
+  it("a rota delega a decisão em vez de reimplementá-la", () => {
     // A rota é a segunda metade da mesma trava. Corrigir só a tela deixaria o
     // servidor aceitando descarte sem motivo — que é exatamente o buraco que
     // o comentário da própria rota diz existir para tapar ("uma validação que
     // mora apenas no componente vira opcional no dia em que alguém chamar a
     // rota de outro lugar").
+    // O que sobrou de asserção de fonte, e o que ela ainda vale: garantir
+    // que ninguém traga a regra de volta para dentro do PATCH, onde ela
+    // volta a ser testável só por leitura.
     const rota = lerCodigo(join("src", "app", "api", "leads", "gerenciar", "route.ts"));
-    const patch = trecho(rota, "export async function PATCH", "function valorOuNulo");
+    const patch = trecho(rota, "export async function PATCH", "export async function DELETE");
 
-    // A condição INTEIRA. `toContain("ehTipoDeDesfecho(")` sozinho aceitava
-    // `ehTipoDeDesfecho(etapa.tipo) && etapa.tipo !== "descartado"`, que
-    // restaura o defeito palavra por palavra — a revisão provou isso com o
-    // mutante ficando verde. `etapa &&` continua na frente porque a etapa
-    // pode não existir (migração pendente), e é ele que faz a rota seguir o
-    // comportamento antigo em vez de travar a tela.
-    expect(condicaoDoIf(patch, "const motivo = typeof desfecho_motivo")).toBe(
-      "etapa && ehTipoDeDesfecho(etapa.tipo)",
-    );
+    expect(patch).toContain("decidirDesfecho(");
+    expect(
+      patch,
+      "a decisão do desfecho voltou para dentro do PATCH — lá ela só se prova lendo",
+    ).not.toMatch(/===\s*"(ganho|perdido|descartado|aberta)"/);
   });
+
 
   it("nenhum arquivo de `src/` pergunta pelo desfecho com uma lista de dois", () => {
     // A trava de classe. As outras duas — a de cima e a de

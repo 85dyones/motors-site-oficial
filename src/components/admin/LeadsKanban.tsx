@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SEM_DONO,
+  criarMover,
   filtrarPorResponsavel,
   iniciais,
   opcoesDeResponsavel,
@@ -21,7 +22,6 @@ import {
   nivelDeEstagnacao,
   ROTULO_DO_DESFECHO,
   ehDescarte,
-  ehTipoDeDesfecho,
   ordenarEtapas,
   seloDeRodizio,
   type EtapaDoFunil,
@@ -237,28 +237,24 @@ export default function LeadsKanban() {
   );
 
   /**
-   * Move o card. Se o destino é etapa terminal, a caixa de motivos entra na
-   * frente — o card só chega lá com um "por quê" junto.
+   * Move o card. A decisão inteira mora em `criarMover` (`lib/leadsKanban`),
+   * e o que sobra aqui é a fiação: quem são as etapas, quem são os leads, o
+   * que é "pedir motivo" nesta tela e o que é "gravar".
    *
-   * A pergunta é `ehTipoDeDesfecho` e não uma lista de tipos escrita à mão.
-   * A lista já esteve aqui, com `"ganho"` e `"perdido"`: ela nasceu certa
-   * quando havia dois desfechos e ficou errada em 2026-08-28, quando entrou o
-   * terceiro. Descarte caía no `salvar` do fim, a caixa nunca abria, e os seis
-   * motivos de descarte iam para o banco como nulo — sem erro nenhum, que é
-   * como este arquivo perde dado. `funil.ts` guarda o vocabulário justamente
-   * para ninguém precisar repeti-lo.
+   * Ela saiu daqui em 06/09 porque dentro do componente ela só podia ser
+   * testada LENDO o arquivo — e uma revisão mostrou três jeitos de restaurar o
+   * defeito de 2026-08-28 sem mexer na linha que o teste lia. Fora, o teste
+   * executa o gesto. Ver o cabeçalho de `criarMover`.
    */
-  const mover = useCallback(
-    (id: string, chave: string) => {
-      const etapa = etapas.find((e) => e.chave === chave);
-      const lead = leads.find((l) => l.id === id);
-      if (!lead || !etapa) return;
-      if (ehTipoDeDesfecho(etapa.tipo)) {
-        setFechando({ lead, etapa });
-        return;
-      }
-      salvar(id, { situacao: chave });
-    },
+  const mover = useMemo(
+    () =>
+      criarMover({
+        etapas,
+        leads,
+        pedirMotivo: (lead, etapa) =>
+          setFechando({ lead: lead as Lead, etapa }),
+        gravar: salvar,
+      }),
     [etapas, leads, salvar],
   );
 

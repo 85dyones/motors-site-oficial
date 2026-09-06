@@ -174,24 +174,45 @@ export async function PUT(request: NextRequest) {
         ativo: m.ativo !== false,
       }));
 
+    // A mesma guarda que as etapas já tinham. `chaveDaEtapa("???")` devolve
+    // string vazia, e um motivo sem chave é gravado, vira botão na caixa e
+    // estoura na hora de fechar — dos dois lados, com mensagem diferente.
+    const motivoSemChave = motivos.find((m) => !m.chave);
+    if (motivoSemChave) {
+      return NextResponse.json(
+        {
+          error:
+            `O motivo "${motivoSemChave.rotulo}" não gerou uma chave válida. Use letras no nome.`,
+        },
+        { status: 400 },
+      );
+    }
+
     // A validação vem DEPOIS de normalizar os motivos, e recebe os dois.
     // Antes ela só via as etapas, e por isso não tinha como perceber uma
     // etapa terminal ativa sem nenhum motivo ativo para oferecer — o beco
     // sem saída que a revisão de 05/09 encontrou.
     //
     // O que ela julga é o estado DEPOIS de gravar, e não a lista do corpo:
-    // `motivosDepoisDeGravar` explica por quê. Se a leitura dos atuais falhar,
-    // a regra do beco é PULADA em vez de reprovar — tabela ausente ou RLS que
-    // devolve `[]` sem erro viraria "nenhum motivo de ganho está ativo", uma
-    // acusação falsa contra quem não fez nada errado.
+    // `motivosDepoisDeGravar` explica por quê.
+    //
+    // E quando não dá para saber, ela recebe `null` em vez de uma lista vazia.
+    // A primeira versão só tratava `error`, e a revisão de 06/09 mostrou o
+    // furo: a RLS deste projeto bloqueia devolvendo `200`, `[]` e `error`
+    // nulo. Num PUT que só mexe em prazo de etapa — corpo sem motivo nenhum —
+    // isso virava três erros acusando o dono de ter deixado o funil sem saída.
     const { data: motivosAtuais, error: erroMotivosAtuais } = await supabase
       .from("funil_motivos")
       .select("*");
+    const atuais = (motivosAtuais ?? []) as MotivoDoFunil[];
+    const conhecidos = !erroMotivosAtuais && atuais.length > 0;
     const problemas = validarFunil(
       etapas,
-      erroMotivosAtuais
-        ? motivos
-        : motivosDepoisDeGravar((motivosAtuais ?? []) as MotivoDoFunil[], motivos),
+      conhecidos
+        ? motivosDepoisDeGravar(atuais, motivos)
+        : motivos.length > 0
+          ? motivos
+          : null,
     );
     if (problemas.length > 0) {
       return NextResponse.json({ error: problemas.join(" "), problemas }, { status: 422 });

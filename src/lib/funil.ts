@@ -109,6 +109,39 @@ export function ehDescarte(tipo?: TipoDeEtapa | TipoDeDesfecho | null): boolean 
   return tipo === "descartado";
 }
 
+/**
+ * A etapa em que o lead nasce — o `default` de `leads.situacao` no banco
+ * (migração 20260807210000).
+ *
+ * Está aqui porque o funil editável pode desfazê-la sem saber o que quebrou.
+ * Nenhuma das duas rotas públicas do site manda `situacao` (`/api/leads` e
+ * `/api/avaliacao` gravam só nome, telefone, interesse e canal): quem decide
+ * onde o lead cai é o default da coluna. Se esta etapa deixar de existir, for
+ * desativada ou virar terminal, a captura do site quebra — e quebra CALADA,
+ * porque as duas rotas tratam a falha de gravação como não bloqueante para
+ * não travar o visitante.
+ *
+ * Se um dia o default da coluna mudar, muda aqui junto. São os dois lados da
+ * mesma decisão, e o aceite da migração 20260906150000 lê o default de verdade
+ * para que os dois não possam divergir em silêncio.
+ */
+export const ETAPA_DE_ENTRADA = "novo";
+
+/**
+ * Este motivo chega até a pessoa que precisa escolher?
+ *
+ * Três condições, e nenhuma é decorativa. `ativo` porque a caixa e o GET
+ * filtram por ele. `rotulo` porque é o texto do botão — e porque a rota
+ * DESCARTA motivo sem rótulo antes de gravar, então contá-lo aqui fazia a tela
+ * e o servidor discordarem: o dono via o erro sumir ao clicar "+ motivo" e
+ * levava 422 com a mesma frase ao salvar. `chave` porque é o que `leads`
+ * grava; `chaveDaEtapa("???")` devolve string vazia, e um motivo assim vira
+ * botão que estoura na hora de fechar.
+ */
+export function motivoUtilizavel(m: MotivoDoFunil): boolean {
+  return Boolean(m.ativo && m.chave?.trim() && m.rotulo?.trim());
+}
+
 /** Uma etapa do funil, do jeito que `funil_etapas` guarda. */
 export interface EtapaDoFunil {
   chave: string;
@@ -333,11 +366,44 @@ export function chaveDaEtapa(rotulo: string): string {
  * o lead antes de avisar o vendedor de que ele estava parado, o que é a
  * ordem errada de acontecer as coisas.
  */
-export function validarFunil(etapas: EtapaDoFunil[], motivos: MotivoDoFunil[]): string[] {
+export function validarFunil(
+  etapas: EtapaDoFunil[],
+  /**
+   * `null` = não deu para saber quais motivos existem.
+   *
+   * Não é o mesmo que lista vazia. A RLS deste projeto não devolve erro quando
+   * bloqueia: devolve `200`, `[]` e `error` nulo. Tratar isso como "não há
+   * motivo nenhum" acusaria o dono de deixar o funil sem saída num PUT em que
+   * ele só mexeu num prazo — e a acusação viria com três erros e um botão
+   * desabilitado, por uma leitura que não aconteceu.
+   */
+  motivos: MotivoDoFunil[] | null,
+): string[] {
   const erros: string[] = [];
   const ativas = etapas.filter((e) => e.ativa);
 
   if (ativas.length === 0) erros.push("O funil precisa de pelo menos uma etapa ativa.");
+
+  // A entrada do funil. Vem antes de ganho e perdido porque perder a saída
+  // estraga o relatório, e perder a ENTRADA estraga a captura: o lead do site
+  // nem chega a existir, e as duas rotas engolem a falha para não travar o
+  // visitante. Ver `ETAPA_DE_ENTRADA`.
+  const entrada = etapas.find((e) => e.chave === ETAPA_DE_ENTRADA);
+  if (!entrada || !entrada.ativa) {
+    erros.push(
+      `A etapa "${ETAPA_DE_ENTRADA}" precisa existir e estar ativa — é nela que todo lead ` +
+        `do site nasce, e sem ela a captura para de gravar sem avisar ninguém.`,
+    );
+  } else if (entrada.tipo !== "aberta") {
+    erros.push(
+      `A etapa "${ETAPA_DE_ENTRADA}" ("${entrada.rotulo}") não pode ser um desfecho: é nela que ` +
+        `todo lead do site nasce. Como desfecho, ela passaria a exigir motivo na entrada, ` +
+        `e o formulário do site deixaria de gravar em silêncio.`,
+    );
+  }
+  if (!ativas.some((e) => e.tipo === "aberta")) {
+    erros.push("Falta uma etapa EM ANDAMENTO ativa — sem ela o quadro não tem coluna nenhuma.");
+  }
   if (!ativas.some((e) => e.tipo === "ganho")) {
     erros.push("Falta uma etapa de GANHO ativa — sem ela não há onde registrar venda fechada.");
   }
@@ -346,6 +412,9 @@ export function validarFunil(etapas: EtapaDoFunil[], motivos: MotivoDoFunil[]): 
       "Falta uma etapa de PERDIDO ativa — sem ela o motivo da perda deixa de ser coletado.",
     );
   }
+
+  // Daqui para baixo, tudo depende de conhecer os motivos.
+  if (motivos === null) return erros;
 
   // Etapa terminal ATIVA cujo tipo não tem NENHUM motivo ativo é um beco sem
   // saída, e é um beco que só existe desde 2026-09-05: até então o descarte
@@ -365,7 +434,7 @@ export function validarFunil(etapas: EtapaDoFunil[], motivos: MotivoDoFunil[]): 
   for (const e of ativas) {
     const tipo = e.tipo;
     if (!ehTipoDeDesfecho(tipo)) continue;
-    if (motivos.some((m) => m.ativo && m.tipo === tipo)) continue;
+    if (motivos.some((m) => motivoUtilizavel(m) && m.tipo === tipo)) continue;
     erros.push(
       `"${e.rotulo}": nenhum motivo de ${MOTIVO_DO_DESFECHO[tipo]} está ativo. A etapa ` +
         `aparece como botão no card e a caixa não fecha sem motivo — o lead entraria ` +
@@ -397,7 +466,119 @@ export function validarFunil(etapas: EtapaDoFunil[], motivos: MotivoDoFunil[]): 
     }
   }
 
+  // Chave repetida entre MOTIVOS, pela mesma razão que entre etapas — mas o
+  // sintoma era pior: a gravação usa `upsert(..., { onConflict: "chave" })`, e
+  // duas linhas da mesma chave devolvem `21000 ON CONFLICT DO UPDATE command
+  // cannot affect row a second time`. O dono lia isso, em inglês, num 500.
+  const chavesDeMotivo = new Set<string>();
+  for (const m of motivos) {
+    const chave = m.chave?.trim();
+    if (!chave) continue;
+    if (chavesDeMotivo.has(chave)) {
+      erros.push(`Dois motivos com a mesma chave: "${chave}".`);
+    }
+    chavesDeMotivo.add(chave);
+  }
+
   return erros;
+}
+
+/** O que a decisão do desfecho precisa saber da etapa de destino. */
+export interface EtapaDoDesfecho {
+  chave: string;
+  rotulo: string;
+  tipo: TipoDeEtapa;
+}
+
+/** O veredito: ou os campos a gravar, ou a recusa já escrita em português. */
+export type DecisaoDeDesfecho =
+  | { ok: true; campos: Record<string, unknown> }
+  | { ok: false; erro: string; motivoObrigatorio: boolean; tipo?: TipoDeEtapa };
+
+/**
+ * Valor do negócio ganho. Vazio é nulo — zero seria uma venda de R$ 0.
+ *
+ * Aceita a vírgula decimal e o ponto de milhar que se digitam em português.
+ */
+export function valorDoDesfecho(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n =
+    typeof v === "string" ? Number(v.replace(/\./g, "").replace(",", ".")) : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * Mover para esta etapa exige motivo? E o motivo oferecido serve?
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a decisão inteira, e não pedaços dela na rota
+ * ---------------------------------------------------------------------------
+ * Esta regra é a metade servidora da trava do desfecho — a que continua
+ * valendo "no dia em que alguém chamar a rota de outro lugar". Ela morava
+ * espalhada dentro do PATCH, e a única prova que existia dela era textual:
+ * um teste lia a condição do `if` no fonte.
+ *
+ * A revisão de 06/09 furou isso inserindo um desvio DEPOIS do trecho que o
+ * teste lia — descarte gravava direto, a condição afirmada continuava
+ * idêntica, e a suíte inteira ficava verde. Junta aqui, a regra é executável:
+ * o teste chama `decidirDesfecho` com uma etapa de cada tipo e um
+ * `buscarMotivo` de mentira, e qualquer desvio novo roda.
+ *
+ * A busca do motivo entra como parâmetro em vez de import: é a única parte
+ * que fala com o banco, e mantê-la fora deixa este módulo puro — a mesma
+ * regra que o cabeçalho do arquivo já segue.
+ */
+export async function decidirDesfecho(
+  etapa: EtapaDoDesfecho | null,
+  corpo: { desfecho_motivo?: unknown; desfecho_valor?: unknown; desfecho_nota?: unknown },
+  buscarMotivo: (chave: string) => Promise<{ chave: string; tipo: string } | null>,
+): Promise<DecisaoDeDesfecho> {
+  // Etapa desconhecida (migração pendente) ou etapa aberta: nada a cobrar.
+  if (!etapa || !ehTipoDeDesfecho(etapa.tipo)) return { ok: true, campos: {} };
+
+  const motivo =
+    typeof corpo.desfecho_motivo === "string" ? corpo.desfecho_motivo.trim() : "";
+  if (!motivo) {
+    return {
+      ok: false,
+      motivoObrigatorio: true,
+      tipo: etapa.tipo,
+      erro:
+        `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
+        `é ele que a tela "Ganhos e perdas" agrupa.`,
+    };
+  }
+
+  const noBanco = await buscarMotivo(motivo);
+  if (!noBanco) {
+    return { ok: false, motivoObrigatorio: false, erro: `Motivo desconhecido: "${motivo}".` };
+  }
+
+  // Motivo de ganho num negócio perdido faria o relatório somar peras com
+  // maçãs — e o erro só apareceria no gráfico, meses depois.
+  if (noBanco.tipo !== etapa.tipo) {
+    return {
+      ok: false,
+      motivoObrigatorio: false,
+      erro:
+        `O motivo "${motivo}" é de ${noBanco.tipo}, e a etapa ` +
+        `"${etapa.rotulo}" é de ${etapa.tipo}.`,
+    };
+  }
+
+  const nota =
+    typeof corpo.desfecho_nota === "string" && corpo.desfecho_nota.trim()
+      ? corpo.desfecho_nota.trim()
+      : null;
+
+  return {
+    ok: true,
+    campos: {
+      desfecho_motivo: motivo,
+      desfecho_valor: valorDoDesfecho(corpo.desfecho_valor),
+      desfecho_nota: nota,
+    },
+  };
 }
 
 /**
