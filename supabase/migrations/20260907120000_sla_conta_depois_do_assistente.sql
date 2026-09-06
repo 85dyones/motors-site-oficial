@@ -602,5 +602,5 @@ begin
 end $$;
 
 insert into supabase_migrations.schema_migrations (version, name)
-  values ('20260905120000', 'sla_conta_depois_do_assistente')
+  values ('20260907120000', 'sla_conta_depois_do_assistente')
   on conflict (version) do nothing;
