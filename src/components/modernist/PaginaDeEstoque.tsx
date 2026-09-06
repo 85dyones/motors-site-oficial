@@ -5,6 +5,7 @@ import { resumirSelecao } from "../../lib/destaquesRapidos";
 import { criarLinkador } from "../../lib/linksNoTexto";
 import GradeDeVeiculos from "./GradeDeVeiculos";
 import BotaoWhatsApp from "./BotaoWhatsApp";
+import BuscaSobEncomenda, { type AlvoDaBusca } from "../BuscaSobEncomenda";
 import { formatarKm, formatarPreco } from "./primitivos";
 
 /**
@@ -72,6 +73,16 @@ export interface PaginaDeEstoqueProps {
    * erro, que é pior do que não oferecer.
    */
   avisarHref?: string;
+  /**
+   * Troca o "avise-me" por uma oferta de busca — só nos hubs de marca e modelo.
+   *
+   * Opt-in de propósito. Este componente é compartilhado por
+   * `/estoque/[recorte]`, `/financiamento`, `/garantia` e as páginas de bairro:
+   * mudar o estado vazio sem prop mudaria 60+ páginas de uma vez, e em "SUVs
+   * até 60 mil" o visitante não pediu um carro específico — o formulário
+   * perderia o objeto e viraria o `/carro-perfeito`, que já existe.
+   */
+  buscaSobEncomenda?: AlvoDaBusca;
   blocos?: BlocoDeLinks[];
   faq?: PerguntaFrequente[];
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
@@ -130,6 +141,7 @@ export default function PaginaDeEstoque({
   alternativos = [],
   rotuloAlternativos = "Enquanto isso, do mesmo perfil",
   avisarHref = "",
+  buscaSobEncomenda,
   blocos = [],
   faq = [],
   acao,
@@ -303,23 +315,29 @@ export default function PaginaDeEstoque({
                   para quem já tinha filtrado.
                3. O catálogo inteiro, que continua sendo a saída de sempre. */
           <div className="border-b border-mt-regua-fina py-10">
-            <p className="m-0 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800">
-              {textoSemEstoque ??
-                "Sem unidades disponíveis neste momento. O estoque gira toda semana — fale com um consultor e avisamos quando entrar."}
-            </p>
-            <div className="mt-6 flex flex-wrap gap-0.5">
-              {avisarHref && (
-                <BotaoWhatsApp
-                  href={avisarHref}
-                  origem="Hub sem estoque - Avise-me"
-                  rotulo="AVISE-ME QUANDO ENTRAR"
-                  className="mt-btn mt-btn-primario mt-foco"
-                />
-              )}
-              <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco">
-                VER TODO O ESTOQUE
-              </Link>
-            </div>
+            {buscaSobEncomenda ? (
+              <BuscaSobEncomenda {...buscaSobEncomenda} avisarHref={avisarHref} />
+            ) : (
+              <>
+                <p className="m-0 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800">
+                  {textoSemEstoque ??
+                    "Sem unidades disponíveis neste momento. O estoque gira toda semana — fale com um consultor e avisamos quando entrar."}
+                </p>
+                <div className="mt-6 flex flex-wrap gap-0.5">
+                  {avisarHref && (
+                    <BotaoWhatsApp
+                      href={avisarHref}
+                      origem="Hub sem estoque - Avise-me"
+                      rotulo="AVISE-ME QUANDO ENTRAR"
+                      className="mt-btn mt-btn-primario mt-foco"
+                    />
+                  )}
+                  <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco">
+                    VER TODO O ESTOQUE
+                  </Link>
+                </div>
+              </>
+            )}
 
             {alternativos.length > 0 && (
               <div className="mt-10">

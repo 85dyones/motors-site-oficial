@@ -185,6 +185,12 @@ export default async function HubDeModeloPage({ params }: PageProps) {
         alternativos={alternativos}
         rotuloAlternativos={`Enquanto isso, ${daMesmaMarca.length > 0 ? `outros ${hub.marca}` : "no estoque de hoje"}`}
         avisarHref={avisarHref}
+        buscaSobEncomenda={{
+          marca: hub.marca,
+          modelo: hub.nome,
+          caminho,
+          genero: hub.genero,
+        }}
         textoSemEstoque={`Sem ${hub.marca} ${hub.nome} disponível neste momento. A página fica no ar — o modelo faz parte do que a loja compra, e quando ${um(hub.genero)} passar na perícia entra aqui.`}
         blocos={
           irmaos.length > 0

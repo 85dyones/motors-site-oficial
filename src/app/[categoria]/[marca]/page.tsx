@@ -153,6 +153,12 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
         alternativos={doSegmento}
         rotuloAlternativos="Enquanto isso, no estoque de hoje"
         avisarHref={avisarHref}
+        buscaSobEncomenda={{
+          marca: hub.nome,
+          caminho,
+          genero,
+          modelosConhecidos: hub.modelos.map((m) => m.nome),
+        }}
         textoSemEstoque={`Sem ${hub.nome} disponível neste momento. O estoque gira toda semana e esta página continua no ar — quando entrar ${um(genero)}, aparece aqui.`}
         blocos={[
           ...(hub.modelos.length > 0
