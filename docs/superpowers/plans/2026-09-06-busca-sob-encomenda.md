@@ -509,7 +509,11 @@ describe("a rota /api/leads", () => {
     // A regra 7 do CLAUDE.md: o que já está em produção não muda de forma.
     // Um spread incondicional mandaria `modelo_interesse` e
     // `disponivel_estoque: false` em TODO lead, inclusive os da ficha.
-    expect(fonte).toMatch(/busca_encomenda\s*\n?\s*\?\s*colunasDoPedido|pedidoDeBusca\s*\?\s*colunasDoPedido/);
+    //
+    // Substring exata, e não regex de espaçamento: uma expressão que tolera
+    // `\s*` fica verde para qualquer formatação e vermelha quando o prettier
+    // quebra a linha — o oposto do que se quer de uma trava.
+    expect(fonte).toContain("...(pedidoDeBusca ? colunasDoPedido(pedidoDeBusca) : {})");
   });
 
   it("manda content_category para o CAPI sem tocar no evento da ficha", () => {
@@ -1095,9 +1099,13 @@ describe("o envio do formulário", () => {
   });
 
   it("oferece o wa.me quando o endpoint falha — nunca se perde o contato", () => {
-    const trechoDoErro = fonte.slice(fonte.indexOf("{erro &&"), fonte.indexOf("{erro &&") + 500);
-    expect(fonte.indexOf("{erro &&")).toBeGreaterThan(-1);
-    expect(trechoDoErro).toContain("avisarHref");
+    // A guarda vem ANTES da fatia. Com `indexOf` em -1, `slice(-1, 499)`
+    // devolve o último caractere do arquivo — uma string que não contém
+    // "avisarHref" e faz o teste falhar pelo motivo errado, escondendo que o
+    // bloco de erro nem existe.
+    const inicio = fonte.indexOf("{erro &&");
+    expect(inicio).toBeGreaterThan(-1);
+    expect(fonte.slice(inicio, inicio + 500)).toContain("avisarHref");
   });
 
   it("some em silêncio quando o honeypot vem preenchido", () => {
