@@ -3,9 +3,21 @@
  * `.env.local` (a URI do session pooler — ver o runbook no README).
  *
  * Existe porque o CLI do Supabase não está instalado nesta máquina e a API
- * de gerenciamento (`api.supabase.com`) já falhou antes. O `pg` já está em
- * `node_modules` e o pooler tem IPv4 — este é o transporte que comprovadamente
- * funciona aqui, o mesmo de `conteudo-seo/aplicar-rascunhos.js`.
+ * de gerenciamento (`api.supabase.com`) já falhou antes. O pooler tem IPv4 —
+ * é o transporte que comprovadamente funciona aqui, o mesmo de
+ * `conteudo-seo/aplicar-rascunhos.js`.
+ *
+ * ⚠️ `pg` NÃO é dependência do projeto. Esta linha dizia que ele "já está em
+ * `node_modules`" e isso era falso em 2026-09-06: não está no `package.json`,
+ * não vem no `npm ci`, e o `require` abaixo estoura com MODULE_NOT_FOUND.
+ * Antes de rodar:
+ *
+ *   npm i --no-save pg
+ *
+ * `--no-save` de propósito: o site não usa `pg` em runtime (fala com o
+ * Supabase por HTTP), e promovê-lo a dependência do build carregaria um
+ * driver de banco para dentro da Vercel por causa de um script de manutenção.
+ * Em worktree, `.env.local` também não vem junto — copie o da raiz.
  *
  *   node supabase/manutencao/aplicar-migracao.js <arquivo.sql>           # ensaio: BEGIN … ROLLBACK
  *   node supabase/manutencao/aplicar-migracao.js <arquivo.sql> --gravar  # BEGIN … COMMIT

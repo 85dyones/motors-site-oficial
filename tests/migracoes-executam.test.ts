@@ -78,6 +78,11 @@ const CADEIA = [
   // gatilho e a view da migração acima — se as duas divergirem, o lead
   // descartado fica sem carimbo e volta para a fila de estagnação.
   "20260828160000_desfecho_sem_oportunidade.sql",
+  // A trava do motivo (2026-09-06). Entra na cadeia porque recria o gatilho
+  // das duas acima e acrescenta um segundo BEFORE em `leads` — e a ORDEM entre
+  // os dois é o que faz a conferência ver a linha final em vez de um rascunho.
+  // Ordem de gatilho não se lê no arquivo: só um banco de verdade responde.
+  "20260906150000_desfecho_exige_motivo.sql",
 ];
 
 /**
