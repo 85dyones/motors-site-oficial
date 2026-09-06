@@ -25,6 +25,7 @@ import {
   minutosParado,
   nivelDeEstagnacao,
   numeroDiscavel,
+  motivosDepoisDeGravar,
   ordenarEtapas,
   paradoDesde,
   seloDeRodizio,
@@ -78,6 +79,26 @@ const etapa = (over: Partial<EtapaDoFunil> = {}): EtapaDoFunil => ({
   ativa: true,
   ...over,
 });
+
+/**
+ * Um motivo do funil. `descartado` é o padrão de propósito: é o tipo que
+ * este arquivo passou a existir para não deixar ninguém esquecer.
+ */
+const motivo = (over: Partial<MotivoDoFunil> = {}): MotivoDoFunil => ({
+  chave: "spam",
+  rotulo: "Spam ou robô",
+  tipo: "descartado",
+  ordem: 1,
+  ativo: true,
+  ...over,
+});
+
+/** Um motivo ativo de cada tipo — o mínimo para o funil não ter beco. */
+const MOTIVOS_DOS_TRES: MotivoDoFunil[] = [
+  motivo({ chave: "a_vista", rotulo: "À vista", tipo: "ganho" }),
+  motivo({ chave: "preco", rotulo: "Preço", tipo: "perdido" }),
+  motivo(),
+];
 
 const lead = (horasParado: number, over: Record<string, unknown> = {}) => ({
   id: "1",
@@ -192,7 +213,7 @@ describe("editar o funil sem quebrá-lo", () => {
   it("recusa funil sem etapa de ganho ou de perdido", () => {
     // Sem elas o motivo do desfecho deixa de ser coletado — e o relatório
     // seca sem nada dar erro.
-    const erros = validarFunil([etapa()]);
+    const erros = validarFunil([etapa()], MOTIVOS_DOS_TRES);
     expect(erros.some((e) => e.includes("GANHO"))).toBe(true);
     expect(erros.some((e) => e.includes("PERDIDO"))).toBe(true);
   });
@@ -202,7 +223,7 @@ describe("editar o funil sem quebrá-lo", () => {
     const erros = validarFunil([
       ...ETAPAS_PADRAO.filter((e) => e.tipo !== "aberta"),
       etapa({ estagnacao_minutos: 2880, transferencia_minutos: 60 }),
-    ]);
+    ], MOTIVOS_DOS_TRES);
     expect(erros.some((e) => e.includes("menor que o de alerta"))).toBe(true);
   });
 
@@ -210,14 +231,80 @@ describe("editar o funil sem quebrá-lo", () => {
     const erros = validarFunil([
       ...ETAPAS_PADRAO.filter((e) => e.tipo !== "aberta"),
       etapa({ estagnacao_minutos: null, transferencia_minutos: 1440 }),
-    ]);
+    ], MOTIVOS_DOS_TRES);
     expect(erros.some((e) => e.includes("sem nunca avisar"))).toBe(true);
+  });
+
+  it("recusa etapa terminal ativa sem nenhum motivo daquele tipo", () => {
+    // O beco sem saída que a revisão de 05/09 encontrou, e que este branch
+    // acabou de criar: a caixa de desfecho não fecha sem motivo, então uma
+    // etapa terminal ATIVA cujo tipo não tem NENHUM motivo ativo vira um
+    // botão que o card entra e não sai. Antes do branch o descarte passava
+    // reto (perdendo o motivo); agora ele para, e parar em silêncio é pior.
+    //
+    // Cobrado aqui, na configuração, porque é o único lugar onde quem pode
+    // consertar está presente: o Comercial que encontra o beco no card não
+    // tem permissão de abrir Configurar funil (`permissoes.ts`).
+    for (const tipo of TIPOS_DE_DESFECHO) {
+      const erros = validarFunil(
+        ETAPAS_PADRAO,
+        MOTIVOS_DOS_TRES.filter((m) => m.tipo !== tipo),
+      );
+      expect(erros.length, `${tipo} sem motivo passou batido`).toBeGreaterThan(0);
+      expect(erros.join(" ")).toContain(
+        ETAPAS_PADRAO.find((e) => e.tipo === tipo)!.rotulo,
+      );
+    }
+  });
+
+  it("motivo INATIVO não conta — ele não aparece na caixa", () => {
+    // `ModalDeDesfecho` filtra por `m.ativo`, e o GET da rota também. Um
+    // motivo desativado é invisível para quem precisa escolher, então contá-lo
+    // aqui daria por resolvido um beco que continua de pé.
+    const erros = validarFunil(
+      ETAPAS_PADRAO,
+      MOTIVOS_DOS_TRES.map((m) => (m.tipo === "descartado" ? { ...m, ativo: false } : m)),
+    );
+    expect(erros.join(" ")).toContain("Não é oportunidade");
+  });
+
+  it("etapa terminal INATIVA sem motivo não é problema", () => {
+    // Ela não vira botão no card (`destinosDoNegocio` só devolve as ativas),
+    // então não há beco. Cobrar aqui obrigaria o dono a manter motivo vivo
+    // para um destino que ele desligou de propósito.
+    const erros = validarFunil(
+      ETAPAS_PADRAO.map((e) => (e.tipo === "descartado" ? { ...e, ativa: false } : e)),
+      MOTIVOS_DOS_TRES.filter((m) => m.tipo !== "descartado"),
+    );
+    expect(erros).toEqual([]);
+  });
+
+  it("um PUT que só mexe nas etapas não é acusado de ficar sem motivo", () => {
+    // A rota trata `motivos: []` como *não toque nos motivos*: o upsert e a
+    // desativação estão os dois atrás de `motivos.length > 0`. Validar contra
+    // a lista vazia recusaria, com três erros, um PUT que nunca encostou em
+    // motivo nenhum — regressão que a regra acima criaria sozinha.
+    //
+    // O que a validação precisa ver é o estado DEPOIS de gravar.
+    expect(motivosDepoisDeGravar(MOTIVOS_DOS_TRES, [])).toEqual(MOTIVOS_DOS_TRES);
+    expect(validarFunil(ETAPAS_PADRAO, motivosDepoisDeGravar(MOTIVOS_DOS_TRES, []))).toEqual([]);
+  });
+
+  it("o motivo que sumiu do corpo conta como desativado, que é o que a rota faz", () => {
+    // "O que sumiu da tela é DESATIVADO, nunca apagado" — a rota grava isso
+    // logo depois de validar. Se a validação não enxergar a desativação, o
+    // dono consegue salvar um funil que ele mesmo acabou de deixar sem saída.
+    const semDescarte = MOTIVOS_DOS_TRES.filter((m) => m.tipo !== "descartado");
+    const depois = motivosDepoisDeGravar(MOTIVOS_DOS_TRES, semDescarte);
+
+    expect(depois.find((m) => m.tipo === "descartado")?.ativo).toBe(false);
+    expect(validarFunil(ETAPAS_PADRAO, depois).join(" ")).toContain("Não é oportunidade");
   });
 
   it("aceita o funil que a migração semeia", () => {
     // A semente do banco precisa passar na validação da tela. Se não passar, o
     // dono abre a configuração e encontra erro sem ter mexido em nada.
-    expect(validarFunil(ETAPAS_PADRAO)).toEqual([]);
+    expect(validarFunil(ETAPAS_PADRAO, MOTIVOS_DOS_TRES)).toEqual([]);
   });
 
   it("o quadro não desenha ganho nem perdido — eles são botão", () => {

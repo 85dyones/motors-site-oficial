@@ -85,6 +85,21 @@ export const ROTULO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
 };
 
 /**
+ * O mesmo desfecho no meio da frase: "nenhum motivo de PERDA está ativo".
+ *
+ * Existe separado de `ROTULO_DO_DESFECHO` porque o rótulo qualifica o NEGÓCIO
+ * ("Perdido") e este qualifica o MOTIVO ("de perda") — trocar um pelo outro
+ * dá "nenhum motivo de Perdido". E mora aqui, e não na caixa de desfecho,
+ * porque a validação do funil precisa da mesma palavra: duas cópias do mesmo
+ * vocabulário é como `descartado` foi esquecido da primeira vez.
+ */
+export const MOTIVO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
+  ganho: "ganho",
+  perdido: "perda",
+  descartado: "descarte",
+};
+
+/**
  * O negócio que nunca existiu — e que por isso não entra em conta nenhuma.
  *
  * Predicado e não comparação solta porque ele é consultado em cinco telas: se
@@ -318,7 +333,7 @@ export function chaveDaEtapa(rotulo: string): string {
  * o lead antes de avisar o vendedor de que ele estava parado, o que é a
  * ordem errada de acontecer as coisas.
  */
-export function validarFunil(etapas: EtapaDoFunil[]): string[] {
+export function validarFunil(etapas: EtapaDoFunil[], motivos: MotivoDoFunil[]): string[] {
   const erros: string[] = [];
   const ativas = etapas.filter((e) => e.ativa);
 
@@ -329,6 +344,32 @@ export function validarFunil(etapas: EtapaDoFunil[]): string[] {
   if (!ativas.some((e) => e.tipo === "perdido")) {
     erros.push(
       "Falta uma etapa de PERDIDO ativa — sem ela o motivo da perda deixa de ser coletado.",
+    );
+  }
+
+  // Etapa terminal ATIVA cujo tipo não tem NENHUM motivo ativo é um beco sem
+  // saída, e é um beco que só existe desde 2026-09-05: até então o descarte
+  // gravava sem motivo, e agora a caixa (e o banco) exigem um. O card entra
+  // pelo botão de destino e não tem como sair.
+  //
+  // A cobrança é AQUI, na configuração, porque é o único lugar onde quem pode
+  // consertar está presente. Quem encontra o beco é o Comercial, no card — e
+  // `podeFazer(comercial, "Configurar o funil de vendas")` é `nao_ve`.
+  //
+  // Só as ATIVAS: uma etapa terminal desativada não vira botão
+  // (`destinosDoNegocio` filtra por `ativa`), então não há beco, e cobrar
+  // obrigaria o dono a manter motivo vivo para um destino que ele desligou.
+  //
+  // E só motivo ATIVO conta: a caixa filtra por `m.ativo` e o GET da rota
+  // também, então um motivo desativado é invisível para quem precisa escolher.
+  for (const e of ativas) {
+    const tipo = e.tipo;
+    if (!ehTipoDeDesfecho(tipo)) continue;
+    if (motivos.some((m) => m.ativo && m.tipo === tipo)) continue;
+    erros.push(
+      `"${e.rotulo}": nenhum motivo de ${MOTIVO_DO_DESFECHO[tipo]} está ativo. A etapa ` +
+        `aparece como botão no card e a caixa não fecha sem motivo — o lead entraria ` +
+        `num beco sem saída.`,
     );
   }
 
@@ -357,6 +398,34 @@ export function validarFunil(etapas: EtapaDoFunil[]): string[] {
   }
 
   return erros;
+}
+
+/**
+ * Como os motivos ficam DEPOIS de gravar — o estado que a validação precisa ver.
+ *
+ * Existe por causa de duas regras da rota de configuração que, juntas, fazem a
+ * lista recebida no corpo NÃO ser o que vai valer:
+ *
+ *  1. Corpo sem motivo nenhum significa *não toque nos motivos* — o upsert e a
+ *     desativação estão os dois atrás de `motivos.length > 0`. Validar contra a
+ *     lista vazia recusaria, alegando funil sem saída, um PUT que só mexeu nas
+ *     etapas e nunca encostou num motivo.
+ *  2. "O que sumiu da tela é DESATIVADO, nunca apagado". Quem some do corpo
+ *     continua na tabela, inativo — e é assim que o dono deixa um funil sem
+ *     saída sem apagar nada. A validação só enxerga isso se olhar o resultado.
+ *
+ * Não grava: devolve a projeção. Quem grava é a rota, logo depois de validar.
+ */
+export function motivosDepoisDeGravar(
+  atuais: MotivoDoFunil[],
+  recebidos: MotivoDoFunil[],
+): MotivoDoFunil[] {
+  if (recebidos.length === 0) return atuais;
+  const noCorpo = new Set(recebidos.map((m) => m.chave));
+  return [
+    ...recebidos,
+    ...atuais.filter((m) => !noCorpo.has(m.chave)).map((m) => ({ ...m, ativo: false })),
+  ];
 }
 
 /** Da esquerda para a direita, como o kanban desenha. */

@@ -190,7 +190,10 @@ export default function FunilEditor() {
     });
   };
 
-  const problemas = useMemo(() => validarFunil(etapas.map(paraBanco)), [etapas]);
+  const problemas = useMemo(
+    () => validarFunil(etapas.map(paraBanco), motivos),
+    [etapas, motivos],
+  );
 
   const salvar = async () => {
     setSalvando(true);

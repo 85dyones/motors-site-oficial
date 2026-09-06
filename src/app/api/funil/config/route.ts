@@ -7,6 +7,7 @@ import {
   chaveDaEtapa,
   ehTipoDeDesfecho,
   ehTipoDeEtapa,
+  motivosDepoisDeGravar,
   ordenarEtapas,
   validarFunil,
   type EtapaDoFunil,
@@ -153,11 +154,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const problemas = validarFunil(etapas);
-    if (problemas.length > 0) {
-      return NextResponse.json({ error: problemas.join(" "), problemas }, { status: 422 });
-    }
-
     const motivoInvalido = motivosRecebidos
       .filter((m) => String(m?.rotulo ?? "").trim())
       .find((m) => !ehTipoDeDesfecho(m.tipo));
@@ -177,6 +173,30 @@ export async function PUT(request: NextRequest) {
         ordem: Number.isFinite(m.ordem) ? Number(m.ordem) : i + 1,
         ativo: m.ativo !== false,
       }));
+
+    // A validação vem DEPOIS de normalizar os motivos, e recebe os dois.
+    // Antes ela só via as etapas, e por isso não tinha como perceber uma
+    // etapa terminal ativa sem nenhum motivo ativo para oferecer — o beco
+    // sem saída que a revisão de 05/09 encontrou.
+    //
+    // O que ela julga é o estado DEPOIS de gravar, e não a lista do corpo:
+    // `motivosDepoisDeGravar` explica por quê. Se a leitura dos atuais falhar,
+    // a regra do beco é PULADA em vez de reprovar — tabela ausente ou RLS que
+    // devolve `[]` sem erro viraria "nenhum motivo de ganho está ativo", uma
+    // acusação falsa contra quem não fez nada errado.
+    const { data: motivosAtuais, error: erroMotivosAtuais } = await supabase
+      .from("funil_motivos")
+      .select("*");
+    const problemas = validarFunil(
+      etapas,
+      erroMotivosAtuais
+        ? motivos
+        : motivosDepoisDeGravar((motivosAtuais ?? []) as MotivoDoFunil[], motivos),
+    );
+    if (problemas.length > 0) {
+      return NextResponse.json({ error: problemas.join(" "), problemas }, { status: 422 });
+    }
+
 
     const agora = new Date().toISOString();
     const { error: erroEtapas } = await supabase
