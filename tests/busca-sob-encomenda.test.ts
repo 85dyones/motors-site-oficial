@@ -45,6 +45,17 @@ describe("colunasDoPedido", () => {
       .toBe("Citroen C3");
   });
 
+  it("não repete a marca quando a diferença é só a CAIXA", () => {
+    // O teste acima varia só o acento — as duas grafias usam "C" maiúsculo, e
+    // por isso fica verde mesmo sem o `.toLowerCase()` de `semAcento`. Este
+    // varia a caixa e nada mais, e morre se o `.toLowerCase()` for removido
+    // (provado por mutação).
+    expect(
+      colunasDoPedido(pedido({ marca: "Citroën", modelo_desejado: "citroen c3" }))
+        .modelo_interesse,
+    ).toBe("citroen c3");
+  });
+
   it("marca disponivel_estoque como false — é o que o pedido significa", () => {
     expect(colunasDoPedido(pedido()).disponivel_estoque).toBe(false);
   });
@@ -105,8 +116,12 @@ describe("textoDaBusca — variante de marca", () => {
     expect(semQualificar).not.toContain("laudo");
   });
 
-  it("promete retorno do consultor, não entrega do veículo", () => {
-    expect(carro.selo).toContain("48h úteis");
+  it("não crava prazo de resposta nenhum", () => {
+    // `tests/promessa-publica.test.ts` (04/09) proíbe afirmar tempo de retorno
+    // que nada mede, e "hora útil" não é calculada em lugar nenhum. O funil
+    // mede tempo até o primeiro contato, mas em relógio, não em hora comercial.
+    expect(carro.selo).toBe("Sem taxa, sem compromisso.");
+    expect(carro.selo).not.toMatch(/\d+\s*(h|hora|min)/i);
     expect(carro.selo.toLowerCase()).not.toContain("entrega");
   });
 });

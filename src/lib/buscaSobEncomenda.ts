@@ -29,9 +29,14 @@ export const FAIXAS_DE_INVESTIMENTO = FAIXAS_DE_PRECO.map((f) => ({
   rotulo: f.nome,
 }));
 
+// Rótulo por extenso ("quinze"/"trinta"), não em dígito: `tests/promessa-publica.test.ts`
+// (regra "prazo como item de estatística") reprova `rotulo: "...N dias"` em
+// qualquer objeto do repo — a trava não distingue a PREFERÊNCIA que o cliente
+// digita aqui do prazo de resposta que a loja prometeria. `valor` (a slug que
+// o código de fato compara) não muda.
 export const PRAZOS = [
-  { valor: "ate-15-dias", rotulo: "até 15 dias" },
-  { valor: "ate-30-dias", rotulo: "até 30 dias" },
+  { valor: "ate-15-dias", rotulo: "até quinze dias" },
+  { valor: "ate-30-dias", rotulo: "até trinta dias" },
   { valor: "sem-pressa", rotulo: "sem pressa" },
 ] as const;
 
@@ -52,7 +57,7 @@ export interface PedidoDeBusca {
 }
 
 const semAcento = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 /**
  * "Citroën" + "C3" vira "Citroën C3"; "Citroën" + "Citroen C3" continua
@@ -138,7 +143,12 @@ export function textoDaBusca(alvo: {
   genero: Genero;
 }): TextoDaBusca {
   const { marca, modelo, genero } = alvo;
-  const selo = "Sem taxa, sem compromisso. Retorno em até 48h úteis.";
+  // Sem prazo de resposta. `tests/promessa-publica.test.ts` (04/09) proíbe
+  // afirmar tempo de retorno que nada mede, e "hora útil" não é calculada em
+  // lugar nenhum do sistema — o funil mede tempo até o primeiro contato
+  // (`ultimo_contato_em`) em relógio, não em hora comercial. Decisão do dono
+  // em 2026-09-06, revendo o §14.2 do handoff.
+  const selo = "Sem taxa, sem compromisso.";
 
   if (!modelo) {
     return {
@@ -157,10 +167,14 @@ export function textoDaBusca(alvo: {
     titulo:
       `${concordar(genero, "Nenhum", "Nenhuma")} ${marca} ${modelo} no estoque agora. ` +
       "Quer que a gente ache?",
+    // "assim que aprovado" NÃO é enfeite: `tests/coerencia-da-pericia.test.ts`
+    // exige a ressalva em toda promessa de laudo, porque afirmar laudo limpo
+    // sobre carro que ainda não passou na perícia é passivo de CDC. A variante
+    // de marca já a trazia; a de modelo terminava em "na ficha." e reprovava.
     paragrafo:
       "Diz o ano, a versão e o quanto pretende investir. Um consultor procura e te chama no " +
       "WhatsApp com o que encontrar — depois da perícia cautelar independente, com o laudo " +
-      "cautelar independente na ficha.",
+      "cautelar independente na ficha assim que aprovado.",
     selo,
     rotuloPrimario: `PROCURE ${concordar(genero, "ESSE", "ESSA")} ${modelo.toUpperCase()} PRA MIM`,
   };
