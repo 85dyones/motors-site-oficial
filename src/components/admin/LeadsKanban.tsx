@@ -21,6 +21,7 @@ import {
   nivelDeEstagnacao,
   ROTULO_DO_DESFECHO,
   ehDescarte,
+  ehTipoDeDesfecho,
   ordenarEtapas,
   seloDeRodizio,
   type EtapaDoFunil,
@@ -238,13 +239,21 @@ export default function LeadsKanban() {
   /**
    * Move o card. Se o destino é etapa terminal, a caixa de motivos entra na
    * frente — o card só chega lá com um "por quê" junto.
+   *
+   * A pergunta é `ehTipoDeDesfecho` e não uma lista de tipos escrita à mão.
+   * A lista já esteve aqui, com `"ganho"` e `"perdido"`: ela nasceu certa
+   * quando havia dois desfechos e ficou errada em 2026-08-28, quando entrou o
+   * terceiro. Descarte caía no `salvar` do fim, a caixa nunca abria, e os seis
+   * motivos de descarte iam para o banco como nulo — sem erro nenhum, que é
+   * como este arquivo perde dado. `funil.ts` guarda o vocabulário justamente
+   * para ninguém precisar repeti-lo.
    */
   const mover = useCallback(
     (id: string, chave: string) => {
       const etapa = etapas.find((e) => e.chave === chave);
       const lead = leads.find((l) => l.id === id);
       if (!lead || !etapa) return;
-      if (etapa.tipo === "ganho" || etapa.tipo === "perdido") {
+      if (ehTipoDeDesfecho(etapa.tipo)) {
         setFechando({ lead, etapa });
         return;
       }

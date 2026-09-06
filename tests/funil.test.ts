@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, sep } from "node:path";
+import { lerCodigo, semComentarios } from "./fonte";
 import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
@@ -811,5 +812,111 @@ describe("espera", () => {
     expect(espera(new Date(AGORA - 20 * 60_000).toISOString(), AGORA)).toBe("20 min");
     expect(espera(new Date(AGORA - 5 * 3600_000).toISOString(), AGORA)).toBe("5 h");
     expect(espera(new Date(AGORA - 50 * 3600_000).toISOString(), AGORA)).toBe("2 d");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// O terceiro desfecho e a lista nominal que não o conhece
+// ---------------------------------------------------------------------------
+
+/**
+ * `src/lib/funil.ts` já escreveu esta lição em prosa, antes de ela custar
+ * alguma coisa: um `m.tipo === "ganho" ? "ganho" : "perdido"` estava certo
+ * enquanto havia dois desfechos e passaria a converter em silêncio no dia em
+ * que entrasse o terceiro. Foi por isso que `TIPOS_DE_DESFECHO`,
+ * `ehTipoDeDesfecho` e `ehDescarte` existem.
+ *
+ * A lição foi escrita e o defeito aconteceu assim mesmo, em outra forma — não
+ * o ternário, a disjunção. `mover` no kanban e o PATCH de `/api/leads/gerenciar`
+ * perguntavam `tipo === "ganho" || tipo === "perdido"`, uma pergunta que
+ * nasceu certa no commit 3cdf5a8 (dois desfechos) e ficou errada em
+ * 2026-08-28, quando `descartado` entrou. Nenhum erro, nenhum aviso: o card
+ * ia direto para a etapa de descarte, o gatilho do banco carimbava
+ * `desfecho = 'descartado'` e o MOTIVO ficava nulo. Os seis motivos de
+ * descarte nunca eram coletados, o ramo de descarte de `ModalDeDesfecho` era
+ * código morto, e todo descarte caía em "Sem motivo informado" no relatório.
+ *
+ * A metade da TELA é cobrada em `tests/leads-kanban.test.ts` — que é onde
+ * ela morava, e onde a asserção antiga exigia o defeito pela grafia. Aqui
+ * ficam a metade do SERVIDOR e a trava de classe, que vale para as duas.
+ *
+ * Por que a asserção cobra o PREDICADO e não aceita `!== "aberta"`: o segundo
+ * também é literal, só que do outro lado. Uma quinta etapa — "pausada", digamos
+ * — quebraria a versão negativa exatamente do mesmo jeito. O vocabulário mora
+ * em `funil.ts` de propósito; quem decide desfecho pergunta a ele.
+ */
+describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () => {
+  /** O que está entre duas âncoras da fonte. Falha alto se a âncora sumiu. */
+  function trecho(fonte: string, de: string, ate: string): string {
+    const i = fonte.indexOf(de);
+    expect(i, `âncora inicial não encontrada: ${de}`).toBeGreaterThanOrEqual(0);
+    const j = fonte.indexOf(ate, i + de.length);
+    expect(j, `âncora final não encontrada: ${ate}`).toBeGreaterThan(i);
+    return fonte.slice(i, j);
+  }
+
+  /**
+   * Tipo de etapa comparado a um literal — a forma do defeito, dos dois
+   * lados. `"aberta"` está na lista porque `!== "aberta"` é a mesma coisa
+   * pelo avesso: continua sendo quem move o card decidindo sozinho o que
+   * `funil.ts` já sabe, e quebraria igual no dia do quinto tipo.
+   */
+  const LITERAL_DE_TIPO = /===\s*"(ganho|perdido|descartado|aberta)"/;
+
+  it("a rota cobra motivo nos TRÊS desfechos, não só nos dois primeiros", () => {
+    // A rota é a segunda metade da mesma trava. Corrigir só a tela deixaria o
+    // servidor aceitando descarte sem motivo — que é exatamente o buraco que
+    // o comentário da própria rota diz existir para tapar ("uma validação que
+    // mora apenas no componente vira opcional no dia em que alguém chamar a
+    // rota de outro lugar").
+    const rota = lerCodigo(join("src", "app", "api", "leads", "gerenciar", "route.ts"));
+    const patch = trecho(rota, "export async function PATCH", "function valorOuNulo");
+
+    expect(
+      patch,
+      "o PATCH decide o desfecho por literal — descarte entra sem motivo e o " +
+        "relatório nasce vazio sem nada dar erro",
+    ).not.toMatch(LITERAL_DE_TIPO);
+    expect(patch).toContain("ehTipoDeDesfecho(");
+  });
+
+  it("nenhum arquivo de `src/` pergunta pelo desfecho com uma lista de dois", () => {
+    // A trava de classe. As outras duas — a de cima e a de
+    // `leads-kanban.test.ts` — seguram os dois pontos conhecidos; esta segura
+    // o próximo, que pelo histórico deste arquivo vai existir.
+    const raiz = join(__dirname, "..", "src");
+    const arquivos: string[] = [];
+    (function varrer(dir: string) {
+      for (const nome of readdirSync(dir)) {
+        const caminho = join(dir, nome);
+        if (statSync(caminho).isDirectory()) varrer(caminho);
+        else if (/\.tsx?$/.test(nome)) arquivos.push(caminho);
+      }
+    })(raiz);
+
+    // Sem isto, um erro de caminho deixaria a varredura vazia e o teste verde.
+    expect(arquivos.length).toBeGreaterThan(100);
+
+    // O par, nas duas ordens. Espaço em branco normalizado por precaução: os
+    // dois defeitos reais couberam numa linha só, mas uma condição um pouco
+    // mais longa o prettier quebra — e a busca não pode depender disso.
+    const PARES = [
+      /===\s*"ganho"\s*\|\|[^;{}]{0,80}===\s*"perdido"/,
+      /===\s*"perdido"\s*\|\|[^;{}]{0,80}===\s*"ganho"/,
+    ];
+
+    // Junta todos antes de cobrar: um `expect` dentro do laço estoura no
+    // primeiro e esconde os outros — foi assim que a rota escondeu o kanban
+    // enquanto os dois estavam quebrados.
+    const infratores = arquivos.filter((caminho) => {
+      const codigo = semComentarios(readFileSync(caminho, "utf8")).replace(/\s+/g, " ");
+      return PARES.some((par) => par.test(codigo));
+    });
+
+    expect(
+      infratores.map((c) => c.slice(raiz.length + 1).split(sep).join("/")),
+      '"ganho ou perdido" é a lista de dois de antes de 2026-08-28 — quem ' +
+        "decide desfecho pergunta a ehTipoDeDesfecho, que conhece os três",
+    ).toEqual([]);
   });
 });

@@ -3,7 +3,12 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
-import { ordenarEtapas, type EtapaDoFunil, type MotivoDoFunil } from "../../../../lib/funil";
+import {
+  ehTipoDeDesfecho,
+  ordenarEtapas,
+  type EtapaDoFunil,
+  type MotivoDoFunil,
+} from "../../../../lib/funil";
 
 export const dynamic = "force-dynamic";
 
@@ -262,14 +267,18 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      if (etapa && (etapa.tipo === "ganho" || etapa.tipo === "perdido")) {
+      // `ehTipoDeDesfecho` e não a dupla `"ganho" || "perdido"` que estava
+      // aqui: ela não conhecia `descartado` (2026-08-28) e deixava o descarte
+      // passar sem motivo — a mesma metade que faltava na tela. Uma trava que
+      // se esquece de um dos tipos é uma trava que não existe para ele.
+      if (etapa && ehTipoDeDesfecho(etapa.tipo)) {
         const motivo = typeof desfecho_motivo === "string" ? desfecho_motivo.trim() : "";
         if (!motivo) {
           return NextResponse.json(
             {
               error:
                 `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
-                `é ele que o relatório de ganhos e perdas lê.`,
+                `é ele que o relatório do funil agrupa.`,
               motivo_obrigatorio: true,
               tipo: etapa.tipo,
             },

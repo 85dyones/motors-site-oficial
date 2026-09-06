@@ -185,9 +185,27 @@ describe("a tela", () => {
     // Se `mover` gravasse direto, o card chegaria em "Perdido" sem motivo e o
     // relatório nasceria vazio — que é o destino de todo campo opcional de
     // CRM. A caixa é o que torna o motivo obrigatório na prática.
+    //
+    // A asserção mudou em 2026-09-05, e a versão anterior é a história desta
+    // linha: ela cobrava a GRAFIA da guarda,
+    //   `tipo === "ganho" || etapa.tipo === "perdido"`,
+    // e com isso congelou aqui a lista de dois desfechos do dia em que foi
+    // escrita. Em 2026-08-28 entrou o terceiro — `descartado` —, a lista
+    // deixou de conhecer o destino que os botões de descarte usam, e o card
+    // passava reto para `salvar`: a caixa nunca abria e os seis motivos de
+    // descarte chegavam ao banco como nulo. O teste não só parou de proteger;
+    // ele passou a EXIGIR o defeito, e a correção o deixava vermelho.
+    //
+    // O que se afirma agora é a regra, não a grafia: quem é terminal se
+    // pergunta a `funil.ts`, que é onde os tipos moram — inclusive o quarto,
+    // no dia em que existir.
     const bloco = codigo.slice(codigo.indexOf("const mover"), codigo.indexOf("const confirmarDesfecho"));
     expect(bloco).toContain("setFechando");
-    expect(bloco).toMatch(/tipo === "ganho" \|\| etapa\.tipo === "perdido"/);
+    expect(bloco).toContain("ehTipoDeDesfecho(");
+    expect(
+      bloco,
+      "lista de tipos escrita à mão em `mover` — foi uma delas que esqueceu o descarte",
+    ).not.toMatch(/===\s*"(aberta|ganho|perdido|descartado)"/);
   });
 
   it("as colunas vêm do banco, com o funil fixo só como rede de segurança", () => {
