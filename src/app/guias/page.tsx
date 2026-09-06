@@ -12,7 +12,15 @@ const DESCRICAO =
   "O que a perícia cautelar encontra, o que ela não encontra, e o que isso muda na hora de " +
   "comprar um seminovo. Escrito por quem paga o exame em todo o estoque.";
 
-export const revalidate = 86400;
+/**
+ * 3600, e nao 86400 -- pelo mesmo motivo que a rota do guia ja documentava.
+ *
+ * `getCachedSettings` e `unstable_cache` com 3600, e o revalidate efetivo e o
+ * MENOR da cadeia: a tabela do build mostrava `/guias  1h` com o 86400
+ * declarado. O irmao `[slug]/page.tsx` foi corrigido em `c69dd8c`; este ficou
+ * para tras no mesmo commit, e a revisao pegou.
+ */
+export const revalidate = 3600;
 
 export async function generateMetadata(): Promise<Metadata> {
   const { companySettings } = await getCachedSettings();

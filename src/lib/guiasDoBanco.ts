@@ -27,6 +27,20 @@ import { ehTabelaOuColunaAusente } from "./erroDeSchema";
  * devolver vitrine vazia (`lib/supabase.ts`, dois incidentes em 02-03/09):
  * falha de leitura ESTOURA, e a página não é servida. Erro é ruído de minutos;
  * 404 falso em conteúdo indexado custa semanas.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚠️ A MIGRAÇÃO VEM ANTES DO DEPLOY
+ * ---------------------------------------------------------------------------
+ * O texto do primeiro guia não existe mais em código — ele saiu de
+ * `lib/guias.ts` quando o conteúdo virou dado, e hoje mora só no seed da
+ * migração `20260906160000_guias_no_banco`.
+ *
+ * Se este código subir antes dela, nada quebra: a leitura devolve lista vazia
+ * (ver abaixo) e o build passa. Mas `/guias` fica no ar como hub VAZIO, com
+ * link no rodapé de todas as páginas e anunciado no sitemap — que é o pior dos
+ * dois mundos, porque convida o rastreador para uma página sem conteúdo.
+ *
+ * Ordem certa: aplicar a migração, depois deployar.
  */
 export class GuiasIndisponiveisError extends Error {
   constructor(motivo: string) {

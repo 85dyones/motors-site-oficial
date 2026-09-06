@@ -4,6 +4,16 @@ import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../lib/erroDeSchema";
 import { REGUA_DO_GUIA } from "../../../lib/guias";
+import {
+  normalizarCorpo,
+  normalizarFaq,
+  normalizarSaida,
+  normalizarSlug,
+  normalizarSobre,
+  problemasParaPublicar,
+  texto,
+} from "../../../lib/guiaValidacao";
+
 
 export const dynamic = "force-dynamic";
 
@@ -31,88 +41,6 @@ export const dynamic = "force-dynamic";
 
 const ACAO = "Editar opcionais e destaques rápidos";
 
-/** Slug servível: minúsculas, números e hífen. É o que fecha a URL. */
-function normalizarSlug(bruto: unknown): string {
-  return String(bruto ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 90);
-}
-
-function texto(bruto: unknown, limite: number): string {
-  return typeof bruto === "string" ? bruto.trim().slice(0, limite) : "";
-}
-
-/**
- * O corpo do guia, domado.
- *
- * A trava contra formato ruim mora AQUI, na escrita, e não na leitura — é onde
- * dá para avisar quem digitou. `lib/guiasDoBanco.ts` filtra de novo ao ler,
- * porque o banco pode ter linha antiga, mas ali o descarte é silencioso.
- */
-function normalizarCorpo(bruto: unknown) {
-  if (!Array.isArray(bruto)) return [];
-  return bruto
-    .map((secao) => ({
-      titulo: texto((secao as Record<string, unknown>)?.titulo, 140),
-      paragrafos: Array.isArray((secao as Record<string, unknown>)?.paragrafos)
-        ? ((secao as Record<string, unknown>).paragrafos as unknown[])
-            .map((p) => texto(p, 2000))
-            .filter(Boolean)
-        : [],
-    }))
-    .filter((s) => s.titulo && s.paragrafos.length > 0);
-}
-
-function normalizarFaq(bruto: unknown) {
-  if (!Array.isArray(bruto)) return [];
-  return bruto
-    .map((item) => ({
-      pergunta: texto((item as Record<string, unknown>)?.pergunta, 300),
-      resposta: texto((item as Record<string, unknown>)?.resposta, 2000),
-    }))
-    .filter((p) => p.pergunta && p.resposta);
-}
-
-function normalizarSaida(bruto: unknown) {
-  const dado = (bruto ?? {}) as Record<string, unknown>;
-  const href = texto(dado.href, 200);
-  // Só caminho interno. `href` externo numa saída comercial manda o leitor
-  // para fora no exato momento em que ele ia converter.
-  if (!href.startsWith("/")) return null;
-  return {
-    rotulo: texto(dado.rotulo, 80) || "Ver o estoque",
-    href,
-    apoio: texto(dado.apoio, 300),
-  };
-}
-
-/**
- * O que impede um guia de ir ao ar pela metade.
- *
- * Não é validação de formulário — é a régua editorial de `REGUA_DO_GUIA`
- * traduzida no que dá para verificar por código. O resto (assunto que a loja
- * pratica, ângulo de quem recusa o carro) é julgamento de quem escreve, e a
- * tela mostra a régua ao lado do campo.
- */
-function problemasParaPublicar(guia: {
-  titulo: string;
-  descricao: string;
-  corpo: ReturnType<typeof normalizarCorpo>;
-  saida: ReturnType<typeof normalizarSaida>;
-}): string[] {
-  const problemas: string[] = [];
-  if (!guia.titulo) problemas.push("O guia precisa de título.");
-  if (!guia.descricao) problemas.push("O guia precisa de descrição — ela vira o resumo na busca.");
-  if (guia.corpo.length === 0) problemas.push("O guia precisa de pelo menos uma seção com texto.");
-  if (!guia.saida) {
-    problemas.push("O guia precisa de uma saída comercial: um caminho interno começando com /.");
-  }
-  return problemas;
-}
 
 async function autorizar() {
   const supabase = await createServerSupabaseClient();
@@ -138,8 +66,13 @@ async function autorizar() {
 function revalidarCluster(slug?: string) {
   revalidatePath("/guias");
   if (slug) revalidatePath(`/guias/${slug}`);
-  // O sitemap lista os guias publicados; sem isto, um guia novo demora até uma
-  // hora para ser anunciado. Foi a lição que os hubs pagaram em 01/09.
+  // O sitemap lista os guias publicados, e declara `revalidate = 3600`: sem
+  // esta linha, um guia recém-publicado demora até uma hora para ser anunciado.
+  //
+  // É a única rota do repositório que revalida o sitemap — `/api/hubs/textos`
+  // não precisa, porque hub já está lá com ou sem texto próprio. A primeira
+  // versão deste comentário creditava a ideia àquele conserto de 01/09, que na
+  // verdade revalidava só o caminho editado.
   revalidatePath("/sitemap.xml");
 }
 
@@ -187,7 +120,7 @@ export async function POST(request: NextRequest) {
       corpo: normalizarCorpo(corpo.corpo),
       faq: normalizarFaq(corpo.faq),
       saida: normalizarSaida(corpo.saida),
-      sobre: Array.isArray(corpo.sobre) ? corpo.sobre.map((s: unknown) => texto(s, 120)).filter(Boolean) : [],
+      sobre: normalizarSobre(corpo.sobre),
       // Nasce rascunho sem exceção: publicar é ato deliberado, com o guia
       // pronto na tela. Ver a decisão do dono no docblock do topo.
       estado: "rascunho",
@@ -237,6 +170,14 @@ export async function PUT(request: NextRequest) {
     .eq("slug", slug)
     .maybeSingle();
 
+  // Guia inexistente é 404, e não 500. Sem esta linha o `update` não casava
+  // nenhuma linha, o `.single()` abaixo devolvia `PGRST116`, e a tela mostrava
+  // um erro de banco no lugar de "esse guia não existe mais" — que acontece de
+  // verdade quando duas abas editam e uma apaga.
+  if (!atual) {
+    return NextResponse.json({ error: `Não existe guia em /guias/${slug}.` }, { status: 404 });
+  }
+
   const { data, error } = await auth.supabase!
     .from("guias")
     .update({
@@ -246,7 +187,7 @@ export async function PUT(request: NextRequest) {
       corpo,
       faq: normalizarFaq(body.faq),
       saida,
-      sobre: Array.isArray(body.sobre) ? body.sobre.map((s: unknown) => texto(s, 120)).filter(Boolean) : [],
+      sobre: normalizarSobre(body.sobre),
       estado: querPublicar ? "publicado" : "rascunho",
       // `publicado_em` marca a PRIMEIRA publicação e não se mexe depois: é o
       // `datePublished` do Article, e reescrevê-lo a cada edição diria ao

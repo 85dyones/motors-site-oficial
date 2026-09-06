@@ -19,12 +19,24 @@ import type { EstadoDoGuia } from "../../lib/guias";
  * são blocos de verdade — mas o corpo de cada um continua sendo texto corrido.
  *
  * ---------------------------------------------------------------------------
- * Publicar é um botão separado
+ * "Salvar" PRESERVA o estado. Mudar de estado é ação própria.
  * ---------------------------------------------------------------------------
- * "Salvar" nunca muda o estado. Guia longo se escreve em várias sessões, e um
- * salvar que publicasse poria meio texto no ar e no sitemap. Quando o guia não
- * está pronto, a API devolve 422 com a lista do que falta — e a tela mostra a
- * lista, não um "erro ao salvar" opaco.
+ * A primeira versão tinha "Salvar rascunho" e "Publicar", e o docblock dizia
+ * que "salvar nunca muda o estado". Era falso, e o efeito era caro: num guia
+ * PUBLICADO, "Salvar rascunho" despublicava — e como a API revalida o cluster
+ * na hora, a página saía do ar imediatamente. Quem só queria corrigir um
+ * parágrafo precisava adivinhar que a ação certa era "Republicar", e nada
+ * pedia confirmação. A revisão pegou.
+ *
+ * Agora são três ações com nomes que dizem o que fazem:
+ *
+ *  · **Salvar** — grava o texto e mantém o estado, seja qual for. É o botão
+ *    que quem edita usa noventa por cento das vezes.
+ *  · **Publicar** — só aparece no rascunho. Quando o guia não está pronto, a
+ *    API devolve 422 com a lista do que falta, e a tela mostra a lista em vez
+ *    de um "erro ao salvar" opaco.
+ *  · **Despublicar** — só aparece no publicado, e pede confirmação, porque
+ *    tira uma página indexada do ar.
  */
 
 interface GuiaDoPainel {
@@ -133,14 +145,22 @@ export default function EditorDeGuias() {
         setAviso({ tipo: "erro", texto: dados.error || "Falha ao salvar", itens: dados.problemas });
         return;
       }
+      const antes = aberto.estado;
       setAberto(dados.guia);
       await carregar();
       setAviso({
         tipo: "ok",
         texto:
-          estado === "publicado"
-            ? `Publicado. Já está no ar em /guias/${dados.guia.slug}.`
-            : "Rascunho salvo. Não aparece no site nem no sitemap.",
+          estado === antes
+            ? // O caso comum: corrigiu um parágrafo. A mensagem diz onde o
+              // texto foi parar, porque publicado e rascunho vão a lugares
+              // diferentes.
+              estado === "publicado"
+              ? `Salvo. A página no ar em /guias/${dados.guia.slug} já mostra a alteração.`
+              : "Rascunho salvo. Não aparece no site nem no sitemap."
+            : estado === "publicado"
+              ? `Publicado. Já está no ar em /guias/${dados.guia.slug}.`
+              : "Despublicado. A página saiu do ar e do sitemap.",
       });
     } catch (e) {
       setAviso({ tipo: "erro", texto: (e as Error).message });
@@ -454,24 +474,52 @@ export default function EditorDeGuias() {
               />
             </div>
 
-            {/* Ações */}
+            {/* Ações.
+
+                "Salvar" manda o estado ATUAL — é o que faz editar um guia no
+                ar não tirá-lo do ar. A versão anterior tinha "Salvar rascunho",
+                que despublicava em silêncio. Mudar de estado agora exige o
+                botão que diz o nome do que faz. */}
             <div className="flex flex-wrap items-center gap-2 border-t border-mt-regua pt-3">
               <button
                 type="button"
                 className={BOTAO}
                 disabled={salvando}
-                onClick={() => salvar("rascunho")}
+                onClick={() => salvar(aberto.estado)}
               >
-                Salvar rascunho
+                Salvar
               </button>
-              <button
-                type="button"
-                className={`${BOTAO} border-mt-accent text-mt-accent-800`}
-                disabled={salvando}
-                onClick={() => salvar("publicado")}
-              >
-                {aberto.estado === "publicado" ? "Republicar" : "Publicar"}
-              </button>
+
+              {aberto.estado === "rascunho" ? (
+                <button
+                  type="button"
+                  className={`${BOTAO} border-mt-accent text-mt-accent-800`}
+                  disabled={salvando}
+                  onClick={() => salvar("publicado")}
+                >
+                  Publicar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={BOTAO}
+                  disabled={salvando}
+                  onClick={() => {
+                    // Confirma porque tira do ar uma página que o Google pode
+                    // já ter indexado — o mesmo peso de "Apagar".
+                    if (
+                      window.confirm(
+                        `Despublicar /guias/${aberto.slug}? A página sai do ar e do sitemap.`,
+                      )
+                    ) {
+                      void salvar("rascunho");
+                    }
+                  }}
+                >
+                  Despublicar
+                </button>
+              )}
+
               <button
                 type="button"
                 className={BOTAO}

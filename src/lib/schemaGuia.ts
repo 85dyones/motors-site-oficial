@@ -80,7 +80,8 @@ export function grafoDoGuia(opcoes: {
     ]),
     // O `FAQPage` do guia carrega as MESMAS perguntas que a página renderiza —
     // a exigência do Google é que o texto marcado seja idêntico ao visível, e
-    // é por isso que a lista é uma só, em `lib/guias.ts`.
+    // é por isso que a lista é uma só: a coluna `faq` da linha do guia, que a
+    // rota e este nó leem do mesmo objeto.
     schemaDePerguntas(guia.faq),
     schemaDaLoja(empresa),
     schemaDoSite(empresa),

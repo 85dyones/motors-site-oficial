@@ -76,9 +76,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 /**
  * Um guia do cluster de procedência.
  *
- * A rota é fina de propósito: todo o conteúdo mora em `lib/guias.ts` e todo o
- * grafo em `lib/schemaGuia.ts`. O que sobra aqui é layout — e é o que permite
- * ao teste renderizar a página inteira com um mock só.
+ * A rota é fina de propósito: o conteúdo vem da tabela `guias` por
+ * `lib/guiasDoBanco.ts`, o grafo sai de `lib/schemaGuia.ts`, e o que sobra aqui
+ * é layout. É o que permite ao teste renderizar a página inteira mockando dois
+ * módulos.
+ *
+ * (Isto dizia "todo o conteúdo mora em `lib/guias.ts`", e era verdade até o
+ * conteúdo virar dado em 06/09. Aquele arquivo hoje guarda só os tipos.)
  *
  * O texto passa pelo linkador da F1: "perícia cautelar" e "Avaliação Express"
  * viram link para as páginas que respondem por elas. Sem `caminhoAtual` —

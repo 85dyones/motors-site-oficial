@@ -99,7 +99,24 @@ export function schemaDePerguntas(perguntas: PerguntaDeSchema[]) {
  * Um array de nós no mesmo bloco é JSON-LD válido e evita quatro `<script>`
  * seguidos no HTML de cada hub. `JSON.stringify` descarta `undefined`, então
  * campo ausente continua ausente.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que `<` vira `<`
+ * ---------------------------------------------------------------------------
+ * `JSON.stringify` não escapa `</script>`. Como isto sai dentro de um
+ * `dangerouslySetInnerHTML`, um texto contendo essa sequência FECHA o bloco
+ * mais cedo e o que vem depois deixa de ser dado: vira HTML vivo na página.
+ *
+ * A escapada não é hipótese de laboratório. O conteúdo que passa por aqui é
+ * cada vez menos escrito em PR: `descricao_seo` já vem do painel e entra no
+ * `Car`, e desde 06/09 os guias inteiros — corpo, FAQ, títulos — são digitados
+ * em `/admin/guias` e caem no `Article` e no `FAQPage`. Quem tem papel de
+ * Marketing passa a poder escrever no `<script>` de uma página pública.
+ *
+ * `<` é JSON válido e o parser devolve `<` normalmente, então nenhum
+ * consumidor vê diferença — só o navegador para de encontrar a tag. Fecha as
+ * dez rotas que chamam esta função de uma vez.
  */
 export function blocoJsonLd(nos: unknown[]): string {
-  return JSON.stringify(nos.filter(Boolean));
+  return JSON.stringify(nos.filter(Boolean)).replace(/</g, "\\u003c");
 }
