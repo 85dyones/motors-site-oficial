@@ -5,7 +5,7 @@ import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
-import { colunasDoPedido, mensagemDoPedido } from "../../../lib/buscaSobEncomenda";
+import { colunasDoPedido, mensagemDoPedido, normalizarPedido } from "../../../lib/buscaSobEncomenda";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +26,12 @@ export async function POST(request: NextRequest) {
      * tabela própria de propósito: em `leads` ele cai no kanban A1/A8 que a
      * loja já abre, com etapa, responsável e desfecho. Ver o desenho em
      * `docs/superpowers/specs/2026-09-06-busca-sob-encomenda-design.md`.
+     *
+     * `normalizarPedido` saneia o que vier: a rota é pública e o corpo é
+     * escrito pelo cliente. Devolve `null` quando o pedido não serve, e a
+     * rota segue como um lead comum — ver `src/lib/buscaSobEncomenda.ts`.
      */
-    const pedidoDeBusca = body.busca_encomenda ?? null;
+    const pedidoDeBusca = normalizarPedido(body.busca_encomenda);
 
     // 1. Captcha — exigido por PADRÃO, com lista de isenções
     //

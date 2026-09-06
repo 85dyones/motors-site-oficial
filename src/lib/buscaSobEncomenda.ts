@@ -100,6 +100,88 @@ export function colunasDoPedido(pedido: PedidoDeBusca) {
   };
 }
 
+/**
+ * Teto de qualquer texto livre que entra pelo POST — a mesma régua aplicada a
+ * `marca`, `modelo_desejado`, `pagina_origem` e `observacao`. Sem ele, a rota
+ * pública aceitaria string sem limite dentro de `respostas_raw` (jsonb).
+ */
+const MAX_TEXTO_LIVRE = 300;
+
+/** String não vazia depois de `trim()`, cortada em `MAX_TEXTO_LIVRE`. Qualquer outro tipo, ou vazio, é `null`. */
+function textoLivre(valor: unknown): string | null {
+  if (typeof valor !== "string") return null;
+  const limpo = valor.trim();
+  return limpo ? limpo.slice(0, MAX_TEXTO_LIVRE) : null;
+}
+
+/** `null` quando não é uma das faixas que o formulário oferece — faixa inventada é pior que campo ausente. */
+function investimentoValido(valor: unknown): string | null {
+  return typeof valor === "string" && FAIXAS_DE_INVESTIMENTO.some((f) => f.valor === valor)
+    ? valor
+    : null;
+}
+
+/** Igual a `investimentoValido`, mas para `prazo` — aqui não invalida o pedido, o campo é opcional. */
+function prazoValido(valor: unknown): string | null {
+  return typeof valor === "string" && PRAZOS.some((p) => p.valor === valor) ? valor : null;
+}
+
+/** Inteiro entre 1950 e o ano que vem. Fora da faixa, ou de outro tipo, vira `null` — nunca invalida o pedido. */
+function anoMinValido(valor: unknown): number | null {
+  if (typeof valor !== "number" || !Number.isInteger(valor)) return null;
+  const proximoAno = new Date().getFullYear() + 1;
+  return valor >= 1950 && valor <= proximoAno ? valor : null;
+}
+
+/** Só `true` ou `false` sobrevivem — mesma regra 2 do CLAUDE.md: não responder nunca é penalizado, então vira `null`, não `false`. */
+function temTrocaValido(valor: unknown): boolean | null {
+  return valor === true || valor === false ? valor : null;
+}
+
+/**
+ * Saneia o que chegou em `busca_encomenda`, no corpo de um POST público.
+ *
+ * `/api/leads` não exige captcha por canal (§ da própria rota) e o corpo é
+ * escrito pelo cliente: sem esta função, `busca_encomenda: {}` bastava para
+ * gravar `disponivel_estoque: false` em QUALQUER lead — o corte que a migração
+ * `20260906120000` define como "demanda atendida vs. demanda perdida" — e
+ * `busca_encomenda: { marca: 1 }` estourava dentro de `juntarMarcaEModelo`,
+ * fazendo o lead INTEIRO se perder em silêncio (a persistência é
+ * não-bloqueante de propósito).
+ *
+ * Devolve `null` quando o pedido não serve — a rota então grava o lead como
+ * um lead comum, sem as três colunas de `colunasDoPedido`. Campo opcional fora
+ * de forma nunca invalida o pedido inteiro, só o próprio campo: a mesma régua
+ * da regra 2 do CLAUDE.md ("recusa nunca penaliza"), aplicada a um formulário
+ * em vez de a um consentimento.
+ */
+export function normalizarPedido(bruto: unknown): PedidoDeBusca | null {
+  if (bruto === null || typeof bruto !== "object" || Array.isArray(bruto)) return null;
+
+  const dado = bruto as Record<string, unknown>;
+
+  const marca = textoLivre(dado.marca);
+  const modeloDesejado = textoLivre(dado.modelo_desejado);
+  const paginaOrigem = textoLivre(dado.pagina_origem);
+  if (!marca || !modeloDesejado || !paginaOrigem) return null;
+
+  // `investimento` é campo obrigatório da interface — sem faixa reconhecida,
+  // o pedido inteiro não serve (diferente de `prazo`, abaixo).
+  const investimento = investimentoValido(dado.investimento);
+  if (!investimento) return null;
+
+  return {
+    marca,
+    modelo_desejado: modeloDesejado,
+    investimento,
+    pagina_origem: paginaOrigem,
+    ano_min: anoMinValido(dado.ano_min),
+    tem_troca: temTrocaValido(dado.tem_troca),
+    prazo: prazoValido(dado.prazo),
+    observacao: textoLivre(dado.observacao),
+  };
+}
+
 /** O pedido em uma linha — vai para o WhatsApp e para a coluna `interesse`. */
 export function mensagemDoPedido(pedido: PedidoDeBusca): string {
   const alvo = juntarMarcaEModelo(pedido.marca, pedido.modelo_desejado);

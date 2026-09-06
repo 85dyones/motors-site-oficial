@@ -5,7 +5,12 @@ import Link from "next/link";
 import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import SaidaDoCaptcha from "./SaidaDoCaptcha";
 import { mascararTelefone, telefoneDoLead } from "../lib/whatsapp";
-import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
+import {
+  getActiveAgUid,
+  getUtmParameters,
+  trackContactClick,
+  trackLeadSubmission,
+} from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { ACOES } from "../lib/turnstile";
 import { type Genero } from "../lib/generoDoVeiculo";
@@ -181,6 +186,12 @@ export default function BuscaSobEncomenda({
               className="mt-btn mt-btn-primario mt-foco"
               target="_blank"
               rel="noopener noreferrer"
+              // Consequência do lead recém-registrado — ver `pos_lead` em `lib/dataLayer.ts`.
+              onClick={() =>
+                trackContactClick("whatsapp", "Busca sob encomenda - Conversão WhatsApp", {
+                  pos_lead: true,
+                })
+              }
             >
               FALAR AGORA NO WHATSAPP
             </a>
@@ -243,6 +254,7 @@ export default function BuscaSobEncomenda({
           <input
             id="bse-nome"
             required
+            disabled={enviando}
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             className="mt-foco mb-4 w-full border border-mt-regua bg-transparent px-3 py-2 text-[14px] text-mt-ink"
@@ -254,6 +266,7 @@ export default function BuscaSobEncomenda({
           <input
             id="bse-zap"
             required
+            disabled={enviando}
             inputMode="tel"
             value={whatsapp}
             onChange={(e) => setWhatsapp(mascararTelefone(e.target.value))}
@@ -266,6 +279,7 @@ export default function BuscaSobEncomenda({
           <input
             id="bse-modelo"
             required
+            disabled={enviando}
             list={modelosConhecidos.length > 0 ? "bse-modelos" : undefined}
             value={modeloDesejado}
             onChange={(e) => setModeloDesejado(e.target.value)}
@@ -285,6 +299,7 @@ export default function BuscaSobEncomenda({
           <select
             id="bse-inv"
             required
+            disabled={enviando}
             value={investimento}
             onChange={(e) => setInvestimento(e.target.value)}
             className="mt-foco mb-4 w-full border border-mt-regua bg-transparent px-3 py-2 text-[14px] text-mt-ink"
@@ -325,6 +340,7 @@ export default function BuscaSobEncomenda({
               </label>
               <select
                 id="bse-ano"
+                disabled={enviando}
                 value={anoMin}
                 onChange={(e) => setAnoMin(e.target.value)}
                 className="mt-foco mb-4 w-full border border-mt-regua bg-transparent px-3 py-2 text-[14px] text-mt-ink"
@@ -350,6 +366,7 @@ export default function BuscaSobEncomenda({
                       type="radio"
                       name="bse-troca"
                       value={v}
+                      disabled={enviando}
                       checked={temTroca === v}
                       onChange={(e) => setTemTroca(e.target.value)}
                     />
@@ -363,6 +380,7 @@ export default function BuscaSobEncomenda({
               </label>
               <select
                 id="bse-prazo"
+                disabled={enviando}
                 value={prazo}
                 onChange={(e) => setPrazo(e.target.value)}
                 className="mt-foco mb-4 w-full border border-mt-regua bg-transparent px-3 py-2 text-[14px] text-mt-ink"
@@ -382,6 +400,7 @@ export default function BuscaSobEncomenda({
                 id="bse-obs"
                 maxLength={300}
                 rows={3}
+                disabled={enviando}
                 value={observacao}
                 onChange={(e) => setObservacao(e.target.value)}
                 className="mt-foco w-full border border-mt-regua bg-transparent px-3 py-2 text-[14px] text-mt-ink"
@@ -397,7 +416,16 @@ export default function BuscaSobEncomenda({
             onExpire={() => setToken("")}
           />
 
-          {captchaBloqueado && <SaidaDoCaptcha mensagem={mensagemDoPedido(montarPedido())} />}
+          {captchaBloqueado && (
+            <SaidaDoCaptcha
+              mensagem={mensagemDoPedido(montarPedido())}
+              onTentarNovamente={() => {
+                setCaptchaBloqueado(false);
+                setToken("");
+                turnstileRef.current?.reset();
+              }}
+            />
+          )}
 
           {erro && (
             <p className="m-0 mb-3 text-[13px] text-mt-neutral-800">

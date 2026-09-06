@@ -3,6 +3,7 @@ import {
   CANAL_BUSCA_ENCOMENDA,
   colunasDoPedido,
   mensagemDoPedido,
+  normalizarPedido,
   textoDaBusca,
   type PedidoDeBusca,
 } from "../src/lib/buscaSobEncomenda";
@@ -261,5 +262,113 @@ describe("o envio do formulário", () => {
   it("some em silêncio quando o honeypot vem preenchido", () => {
     // Dizer "recusado" ensina o robô a tentar de novo sem o campo.
     expect(fonte).toContain("apelido.trim() !== \"\"");
+  });
+});
+
+/**
+ * `normalizarPedido` — a rota `/api/leads` é pública, e `busca_encomenda` vem
+ * do corpo do POST, escrito pelo cliente. Dois buracos reais motivam este
+ * bloco: `{}` bastava para gravar `disponivel_estoque: false` em qualquer
+ * lead (o corte que a migração `20260906120000` chama de "demanda atendida vs.
+ * demanda perdida"), e `{ marca: 1 }` estourava dentro de `juntarMarcaEModelo`
+ * — dentro do `try/catch` da persistência, que é não-bloqueante de propósito,
+ * então o lead INTEIRO se perdia em silêncio.
+ */
+describe("normalizarPedido", () => {
+  const bruto = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    marca: "Citroën",
+    modelo_desejado: "C3",
+    investimento: "ate-60-mil",
+    pagina_origem: "/carros/citroen",
+    ...extra,
+  });
+
+  it("devolve null para objeto vazio", () => {
+    // O primeiro buraco: sem isto, `{}` sozinho já gravava as três colunas.
+    expect(normalizarPedido({})).toBeNull();
+  });
+
+  it("devolve null quando marca não é string", () => {
+    // O segundo buraco: isto chegava vivo até `juntarMarcaEModelo` e estourava.
+    expect(normalizarPedido(bruto({ marca: 1 }))).toBeNull();
+  });
+
+  it("devolve null para array", () => {
+    expect(normalizarPedido([])).toBeNull();
+    expect(normalizarPedido(["marca", "modelo"])).toBeNull();
+  });
+
+  it("devolve null para null e para undefined", () => {
+    expect(normalizarPedido(null)).toBeNull();
+    expect(normalizarPedido(undefined)).toBeNull();
+  });
+
+  it("devolve null quando modelo_desejado ou pagina_origem faltam ou vêm vazios", () => {
+    expect(normalizarPedido(bruto({ modelo_desejado: "" }))).toBeNull();
+    expect(normalizarPedido(bruto({ modelo_desejado: "   " }))).toBeNull();
+    expect(normalizarPedido(bruto({ pagina_origem: undefined }))).toBeNull();
+  });
+
+  it("devolve null quando investimento não casa nenhuma faixa — campo obrigatório", () => {
+    expect(normalizarPedido(bruto({ investimento: "faixa-inventada" }))).toBeNull();
+  });
+
+  it("prazo inventado não invalida o pedido — campo opcional, só ele vira null", () => {
+    const pedido = normalizarPedido(bruto({ prazo: "depois-de-amanha" }));
+    expect(pedido).not.toBeNull();
+    expect(pedido?.prazo).toBeNull();
+  });
+
+  it("tem_troca fora de true/false vira null no campo, sem invalidar o pedido", () => {
+    const pedido = normalizarPedido(bruto({ tem_troca: "talvez" }));
+    expect(pedido).not.toBeNull();
+    expect(pedido?.tem_troca).toBeNull();
+  });
+
+  it("ano_min fora da faixa 1950–ano que vem vira null no campo, não no pedido", () => {
+    const antigo = normalizarPedido(bruto({ ano_min: 1900 }));
+    expect(antigo).not.toBeNull();
+    expect(antigo?.ano_min).toBeNull();
+
+    const futuro = normalizarPedido(bruto({ ano_min: new Date().getFullYear() + 5 }));
+    expect(futuro?.ano_min).toBeNull();
+
+    // Tipo errado tem a mesma régua de "fora da faixa": vira null no campo.
+    const tipoErrado = normalizarPedido(bruto({ ano_min: "2018" }));
+    expect(tipoErrado?.ano_min).toBeNull();
+  });
+
+  it("observação de 400 caracteres sai cortada em 300", () => {
+    const longa = "a".repeat(400);
+    const pedido = normalizarPedido(bruto({ observacao: longa }));
+    expect(pedido?.observacao).toHaveLength(300);
+  });
+
+  it("campos opcionais ausentes viram null, nunca undefined", () => {
+    const pedido = normalizarPedido(bruto());
+    expect(pedido?.ano_min).toBeNull();
+    expect(pedido?.tem_troca).toBeNull();
+    expect(pedido?.prazo).toBeNull();
+    expect(pedido?.observacao).toBeNull();
+  });
+
+  it("um pedido bom passa inteiro, sem perder nenhum campo", () => {
+    const completo = bruto({
+      ano_min: 2018,
+      tem_troca: true,
+      prazo: "ate-15-dias",
+      observacao: "Prefiro cor escura.",
+    });
+
+    expect(normalizarPedido(completo)).toEqual({
+      marca: "Citroën",
+      modelo_desejado: "C3",
+      investimento: "ate-60-mil",
+      pagina_origem: "/carros/citroen",
+      ano_min: 2018,
+      tem_troca: true,
+      prazo: "ate-15-dias",
+      observacao: "Prefiro cor escura.",
+    });
   });
 });

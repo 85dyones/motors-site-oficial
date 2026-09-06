@@ -715,13 +715,23 @@ pelo dono em 2026-08-25).
 | `view_vehicle` | ficha do veículo | `vehicle{...}` + espelho `ecommerce` do GA4 |
 | `click_whatsapp` | todo CTA de WhatsApp | `whatsapp_location`, `pos_lead`, `vehicle_*` quando houver |
 | `click_to_call` | rodapé e ficha | `call_location` |
-| `generate_lead` | os cinco formulários | `lead_type` (`proposta` · `avaliacao` · `contato` · `curadoria` · `financiamento`), `form_id`, `vehicle_*` |
+| `generate_lead` | os seis formulários | `lead_type` (`proposta` · `avaliacao` · `contato` · `curadoria` · `financiamento`), `form_id`, `vehicle_*` |
 | `financing_simulation` | "Monte sua parcela" | `vehicle_id`, `down_payment`, `installments` |
 | `form_start` | abertura do modal de lead | `form_id`, `vehicle_*` |
 | `view_gallery` | galeria em tela cheia | `vehicle_id`, `images_viewed` |
 | `view_specs` | acordeões da ficha | `vehicle_id` |
 | `click_directions` | "Como chegar" das páginas de bairro | `directions_source` |
 
+> ℹ️ **A sexta superfície é a Busca sob encomenda, e ela reusa `lead_type:
+> "contato"` — decisão, não lacuna.** Desde 2026-09-06 os hubs de marca e
+> modelo sem estoque (`src/components/BuscaSobEncomenda.tsx`) também postam em
+> `/api/leads` e disparam `generate_lead`. Um valor novo na união `TipoDeLead`
+> (`src/lib/dataLayer.ts`) teria que entrar no container do GTM antes de
+> existir tráfego para testá-lo, e a regra 7 do `CLAUDE.md` proíbe mexer no
+> que já está no ar sem aviso explícito — então esta superfície nasce
+> reaproveitando `"contato"`. Quem separa este envio dos demais `contato` no
+> `dataLayer` é `form_id: "form-busca-encomenda"`, não um `lead_type` próprio.
+>
 > ⚠️ **O endereço do rodapé NÃO dispara `click_directions`, e isso é decisão.**
 > Desde 2026-09-04 ele abre o Perfil da Empresa no Google (`lib/schemaLoja.ts`),
 > e está em **todas** as páginas do site. Não entrou no evento porque
@@ -741,6 +751,14 @@ pelo dono em 2026-08-25).
 > conversão de `click_whatsapp` no GTM precisa excluir `pos_lead`**, senão cada
 > lead conta duas vezes e o CPA aparente cai pela metade. É o pior tipo de erro
 > de medição, porque parece boa notícia.
+
+> ℹ️ **A origem `whatsapp_location: "Hub sem estoque - Avise-me"` se aposenta
+> nos hubs de marca e modelo, a partir de 2026-09-06.** Quem comparar volume
+> mês a mês vai ver essa origem cair a zero ali — é a Busca sob encomenda
+> substituindo o CTA antigo (regra 7 do `CLAUDE.md`: evento existente não some
+> sem aviso). A origem **continua valendo** nos demais hubs que ainda passam
+> `avisarHref` sem `buscaSobEncomenda` — hoje, `/estoque/[recorte]`
+> (`src/components/modernist/PaginaDeEstoque.tsx`).
 
 **Só `click_whatsapp`, `generate_lead` e `click_to_call` devem virar conversão
 PRINCIPAL no Google Ads.** `financing_simulation` e `click_directions` entram

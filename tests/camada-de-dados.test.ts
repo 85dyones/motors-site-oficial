@@ -181,7 +181,7 @@ describe("os eventos que a mídia precisa", () => {
     expect(fila()[1]).toMatchObject({ pos_lead: false });
   });
 
-  it("os quatro fluxos que abrem o WhatsApp depois do envio marcam `pos_lead`", async () => {
+  it("os cinco fluxos que abrem o WhatsApp depois do envio marcam `pos_lead`", async () => {
     const { lerCodigo: lerFonte } = await import("./fonte");
 
     for (const arquivo of [
@@ -189,6 +189,7 @@ describe("os eventos que a mídia precisa", () => {
       "src/components/LeadPopup.tsx",
       "src/components/CarMatch.tsx",
       "src/components/AutoAvaliacao.tsx",
+      "src/components/BuscaSobEncomenda.tsx",
     ]) {
       expect(lerFonte(arquivo)).toMatch(/Conversão WhatsApp"[\s\S]{0,240}?pos_lead: true/);
     }
