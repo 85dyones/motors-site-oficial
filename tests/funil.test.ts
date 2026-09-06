@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
-import { lerCodigo, semComentarios } from "./fonte";
+import { condicaoDoIf, lerCodigo, semComentarios } from "./fonte";
 import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
@@ -856,12 +856,7 @@ describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () =>
   }
 
   /**
-   * Tipo de etapa comparado a um literal — a forma do defeito, dos dois
-   * lados. `"aberta"` está na lista porque `!== "aberta"` é a mesma coisa
-   * pelo avesso: continua sendo quem move o card decidindo sozinho o que
-   * `funil.ts` já sabe, e quebraria igual no dia do quinto tipo.
    */
-  const LITERAL_DE_TIPO = /===\s*"(ganho|perdido|descartado|aberta)"/;
 
   it("a rota cobra motivo nos TRÊS desfechos, não só nos dois primeiros", () => {
     // A rota é a segunda metade da mesma trava. Corrigir só a tela deixaria o
@@ -872,12 +867,15 @@ describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () =>
     const rota = lerCodigo(join("src", "app", "api", "leads", "gerenciar", "route.ts"));
     const patch = trecho(rota, "export async function PATCH", "function valorOuNulo");
 
-    expect(
-      patch,
-      "o PATCH decide o desfecho por literal — descarte entra sem motivo e o " +
-        "relatório nasce vazio sem nada dar erro",
-    ).not.toMatch(LITERAL_DE_TIPO);
-    expect(patch).toContain("ehTipoDeDesfecho(");
+    // A condição INTEIRA. `toContain("ehTipoDeDesfecho(")` sozinho aceitava
+    // `ehTipoDeDesfecho(etapa.tipo) && etapa.tipo !== "descartado"`, que
+    // restaura o defeito palavra por palavra — a revisão provou isso com o
+    // mutante ficando verde. `etapa &&` continua na frente porque a etapa
+    // pode não existir (migração pendente), e é ele que faz a rota seguir o
+    // comportamento antigo em vez de travar a tela.
+    expect(condicaoDoIf(patch, "const motivo = typeof desfecho_motivo")).toBe(
+      "etapa && ehTipoDeDesfecho(etapa.tipo)",
+    );
   });
 
   it("nenhum arquivo de `src/` pergunta pelo desfecho com uma lista de dois", () => {
@@ -897,12 +895,23 @@ describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () =>
     // Sem isto, um erro de caminho deixaria a varredura vazia e o teste verde.
     expect(arquivos.length).toBeGreaterThan(100);
 
-    // O par, nas duas ordens. Espaço em branco normalizado por precaução: os
-    // dois defeitos reais couberam numa linha só, mas uma condição um pouco
-    // mais longa o prettier quebra — e a busca não pode depender disso.
+    // O par, nas duas ordens, e só sobre `.tipo` — nunca sobre `.desfecho`.
+    //
+    // A distinção é o que separa a pergunta errada da conta certa. Decidir
+    // se uma ETAPA é terminal com dois nomes é o defeito: `funil.ts` tem o
+    // predicado, e a lista escrita à mão esquece o tipo que chegar depois.
+    // Já contar quantos LEADS têm `desfecho` ganho ou perdido é a definição
+    // da taxa de conversão — ali a dupla é obrigatória, e descartado precisa
+    // ficar de fora. A revisão de 05/09 provou que a versão anterior desta
+    // varredura reprovava exatamente esse denominador, com uma mensagem que
+    // dizia o contrário da verdade.
+    //
+    // Espaço em branco normalizado por precaução: os dois defeitos reais
+    // couberam numa linha só, mas uma condição um pouco mais longa o
+    // prettier quebra — e a busca não pode depender disso.
     const PARES = [
-      /===\s*"ganho"\s*\|\|[^;{}]{0,80}===\s*"perdido"/,
-      /===\s*"perdido"\s*\|\|[^;{}]{0,80}===\s*"ganho"/,
+      /\.tipo\s*===\s*"ganho"\s*\|\|[^;{}]{0,60}\.tipo\s*===\s*"perdido"/,
+      /\.tipo\s*===\s*"perdido"\s*\|\|[^;{}]{0,60}\.tipo\s*===\s*"ganho"/,
     ];
 
     // Junta todos antes de cobrar: um `expect` dentro do laço estoura no
@@ -915,8 +924,9 @@ describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () =>
 
     expect(
       infratores.map((c) => c.slice(raiz.length + 1).split(sep).join("/")),
-      '"ganho ou perdido" é a lista de dois de antes de 2026-08-28 — quem ' +
-        "decide desfecho pergunta a ehTipoDeDesfecho, que conhece os três",
+      '`.tipo === "ganho" || .tipo === "perdido"` é a lista de dois de antes ' +
+        "de 2026-08-28 — quem decide se uma etapa é terminal pergunta a " +
+        "ehTipoDeDesfecho, que conhece os três",
     ).toEqual([]);
   });
 });

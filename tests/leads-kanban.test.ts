@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { condicaoDoIf } from "./fonte";
 import {
   SEM_DONO,
   filtrarPorResponsavel,
@@ -196,16 +197,18 @@ describe("a tela", () => {
     // descarte chegavam ao banco como nulo. O teste não só parou de proteger;
     // ele passou a EXIGIR o defeito, e a correção o deixava vermelho.
     //
-    // O que se afirma agora é a regra, não a grafia: quem é terminal se
-    // pergunta a `funil.ts`, que é onde os tipos moram — inclusive o quarto,
-    // no dia em que existir.
+    // O que se afirma agora é a condição INTEIRA, e a versão do meio-dia
+    // também não bastava: ela proibia a grafia velha e exigia o predicado
+    // presente, e a revisão furou as duas com
+    //   `ehTipoDeDesfecho(etapa.tipo) && !ehDescarte(etapa.tipo)`
+    // — que restaura o defeito palavra por palavra e satisfaz as duas. Toda
+    // proibição de grafia é uma lista do que já se viu. A igualdade fecha, e
+    // de quebra a falha mostra no que a guarda se transformou.
     const bloco = codigo.slice(codigo.indexOf("const mover"), codigo.indexOf("const confirmarDesfecho"));
     expect(bloco).toContain("setFechando");
-    expect(bloco).toContain("ehTipoDeDesfecho(");
-    expect(
-      bloco,
-      "lista de tipos escrita à mão em `mover` — foi uma delas que esqueceu o descarte",
-    ).not.toMatch(/===\s*"(aberta|ganho|perdido|descartado)"/);
+    expect(condicaoDoIf(bloco, "setFechando({ lead, etapa });")).toBe(
+      "ehTipoDeDesfecho(etapa.tipo)",
+    );
   });
 
   it("as colunas vêm do banco, com o funil fixo só como rede de segurança", () => {

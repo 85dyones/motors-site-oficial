@@ -278,7 +278,7 @@ export async function PATCH(request: NextRequest) {
             {
               error:
                 `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
-                `é ele que o relatório do funil agrupa.`,
+                `é ele que a tela "Ganhos e perdas" agrupa.`,
               motivo_obrigatorio: true,
               tipo: etapa.tipo,
             },
