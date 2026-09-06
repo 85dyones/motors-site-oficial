@@ -301,6 +301,25 @@ describe("decidirNoFeed — o carro no catálogo de anúncios", () => {
     expect(passouUmDia.publica).toBe(false);
   });
 
+  it("data de venda no FUTURO não prende o carro no catálogo", () => {
+    // `diasDesde` devolve NEGATIVO para data futura, e negativo é `<= 7`. Sem
+    // guarda, um "2027" digitado no lugar de "2026" mantinha o carro anunciado
+    // por um ano. O caminho existe inteiro: `data_venda` é `date not null` sem
+    // CHECK, o fechamento do Ciclo valida km e valor mas não a data, e a tela
+    // usa `<input type="date">` sem `max`.
+    expect(decidirNoFeed({ ...vendido, dataVenda: haDias(-365) }, AGORA).publica).toBe(false);
+    expect(decidirNoFeed({ ...vendido, dataVenda: haDias(-1) }, AGORA).publica).toBe(false);
+    // E a fronteira de baixo continua dentro: vendido HOJE fica.
+    expect(decidirNoFeed({ ...vendido, dataVenda: haDias(0) }, AGORA).publica).toBe(true);
+  });
+
+  it("a janela do catálogo é de uma semana, não a do índice", () => {
+    // O valor exato, e não só a relação: com `toBeLessThan` sozinho, trocar o 7
+    // por 89 passava verde, e o número é o que decide por quanto tempo a loja
+    // anuncia carro que já vendeu.
+    expect(CARENCIA_VENDIDO_NO_FEED_DIAS).toBe(7);
+  });
+
   it("a janela do catálogo é MUITO menor que a do índice", () => {
     // Não é o mesmo número por acaso e não pode virar o mesmo. A PDP vendida
     // captura demanda quente por 90 dias; item de catálogo não captura nada —

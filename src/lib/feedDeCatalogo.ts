@@ -28,21 +28,35 @@ import type { SegmentoDePdp } from "./veiculoUrl";
 /**
  * Texto seguro para um nó de XML.
  *
- * O `&` vem PRIMEIRO e a ordem não é estilo: escapando `<` antes, o `&` recém
- * nascido em `&lt;` seria escapado por cima e o anúncio sairia com
- * `&amp;lt;` no título. É o erro clássico, e passa despercebido porque o
- * documento continua válido — só o texto fica errado.
+ * ## Por que um laço por caractere, e não uma cadeia de `.replace()`
+ *
+ * A forma óbvia — `.replace(/&/g,"&amp;").replace(/</g,"&lt;")…` — tem uma
+ * armadilha de ORDEM: se o `<` for tratado antes do `&`, o `&` recém-nascido
+ * dentro de `&lt;` é escapado por cima e sai `&amp;lt;`. O documento continua
+ * válido, então nada acusa; só o texto do anúncio fica errado. Era essa a forma
+ * que a rota usava, escrita três vezes e diferente em cada uma.
+ *
+ * Aqui cada caractere passa por exatamente um ramo e é substituído uma vez só.
+ * A ordem dos ramos é, por construção, irrelevante — e é justamente essa
+ * propriedade que faz a armadilha desaparecer em vez de ficar dependendo de
+ * quem escrever a próxima linha na sequência certa. **Se alguém voltar à cadeia
+ * de `.replace()`, a ordem volta a ser carga viva.**
  *
  * `&` já escapado na origem vira `&amp;amp;`, e isso é deliberado: o dado que
  * chega do cadastro é TEXTO, não marcação. Tentar reconhecer entidade que já
  * existe é adivinhar intenção, e basta adivinhar errado uma vez para o arquivo
  * inteiro cair.
  *
- * Os caracteres de controle saem porque o XML 1.0 não os admite nem escapados
- * — não existe entidade para `\x0B`. Eles chegam por texto colado no painel,
- * atravessam tsc, eslint e vitest sem sintoma, e só aparecem quando o Meta
- * recusa a carga. Tabulação, quebra de linha e retorno são os três permitidos
- * e ficam.
+ * ## Os caracteres que somem
+ *
+ * O XML 1.0 não admite os controles C0 nem escapados — não existe entidade para
+ * `\x0B`. Chegam por texto colado no painel, atravessam tsc, eslint e vitest
+ * sem sintoma, e só aparecem quando o portal recusa a carga inteira. `\t`, `\n`
+ * e `\r` são os três permitidos e ficam.
+ *
+ * U+FFFE e U+FFFF entram na mesma peneira: também não são `Char` válidos, e
+ * chegam de UTF-16 lido com a ordem de bytes trocada — o primo do BOM que este
+ * projeto já viu. Sobrevivem a qualquer escape e derrubam o documento.
  */
 export function escaparXml(valor: unknown): string {
   if (valor === null || valor === undefined) return "";
@@ -50,8 +64,13 @@ export function escaparXml(valor: unknown): string {
   let saida = "";
   for (const caractere of String(valor)) {
     const codigo = caractere.codePointAt(0) ?? 0;
-    // C0 exceto \t \n \r: proibidos em XML 1.0, e sem entidade que os salve.
-    if (codigo < 0x20 && codigo !== 0x09 && codigo !== 0x0a && codigo !== 0x0d) continue;
+    // C0 exceto \t \n \r, mais os dois não-caracteres do fim do BMP: proibidos
+    // em XML 1.0, e sem entidade que os salve.
+    const proibido =
+      (codigo < 0x20 && codigo !== 0x09 && codigo !== 0x0a && codigo !== 0x0d) ||
+      codigo === 0xfffe ||
+      codigo === 0xffff;
+    if (proibido) continue;
 
     if (caractere === "&") saida += "&amp;";
     else if (caractere === "<") saida += "&lt;";
@@ -66,12 +85,17 @@ export function escaparXml(valor: unknown): string {
 /**
  * O teto de caracteres do título de um item de catálogo.
  *
- * O Meta reporta `property_value_string_exceeds_length` acima disto, e o
- * Merchant Center corta na exibição. Hoje nenhum título do feed chega perto —
- * o maior tem 54 caracteres, porque `nomeDoVeiculo` já deduplica marca, modelo
- * e versão. Isto é guarda, não correção: nada impede uma `versao` longa de
- * chegar amanhã pelo sync, e o corte tem de ser nosso e previsível, não do
- * portal.
+ * ⚠️ **É regra da casa, não limite de API.** O teto duro do `title` no Meta é
+ * bem mais alto (centenas de caracteres) e o do Merchant Center também; 65 é o
+ * ponto em que os dois começam a CORTAR NA EXIBIÇÃO, e cortar é deles ou nosso.
+ * Preferimos nosso, porque o corte deles cai no meio da palavra. Quem for
+ * "corrigir" este número para o limite da API vai trocar um título legível por
+ * um título truncado pelo portal.
+ *
+ * Hoje nenhum título do feed chega perto — o maior tem 54 caracteres, porque
+ * `nomeDoVeiculo` já deduplica marca, modelo e versão. Isto é guarda, não
+ * correção de defeito ativo: nada impede uma `versao` longa de chegar amanhã
+ * pelo sync.
  */
 export const LIMITE_DO_TITULO = 65;
 

@@ -101,6 +101,16 @@ function tag(bloco: string, nome: string): string | null {
   return bloco.slice(i + abre.length, bloco.indexOf(`</g:${nome}>`, i));
 }
 
+/** O valor como o portal o lê — entidades desfeitas. */
+function decodificar(texto: string): string {
+  return texto
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 /** Todas as ocorrências de uma tag, na ordem. */
 function todasAsTags(bloco: string, nome: string): string[] {
   return [...bloco.matchAll(new RegExp(`<g:${nome}>([^<]*)</g:${nome}>`, "g"))].map((m) => m[1]);
@@ -115,20 +125,61 @@ beforeEach(() => {
 });
 
 describe("o documento é bem formado", () => {
-  it("nenhum & sobra fora de entidade — nem em texto, nem em URL", async () => {
+  it("nenhum & sobra fora de entidade — nem em texto, nem em URL, nem nas fotos ADICIONAIS", async () => {
     // A regressão exata que existia: `<g:link>` e `<g:image_link>` iam para o
     // XML sem passar por escape. Uma URL de CDN com query string
     // (`?w=1600&q=84`) bastava para invalidar o arquivo inteiro.
+    //
+    // A galeria tem MAIS DE UMA foto de propósito: 316 das 352 URLs do feed de
+    // produção saem por `<g:additional_image_link>`, e com fixture de uma foto
+    // só essa tag nunca é emitida — o escape dela ficaria sem prova nenhuma,
+    // que é exatamente a superfície que este commit multiplicou por dez.
     const xml = await gerarFeed([
       carro({
         marca: "Mercedes & Benz",
-        whatsapp_images: ["https://cdn.exemplo/foto.jpg?w=1600&q=84"],
+        tipo: "Picape & Cabine Dupla",
+        whatsapp_images: [
+          "https://cdn.exemplo/capa.jpg?w=1600&q=84",
+          "https://cdn.exemplo/foto-2.jpg?w=1600&q=84",
+          "https://cdn.exemplo/foto-3.jpg?w=1600&q=84",
+        ],
         web_full_images: [],
         descricao: "Ar & som, bancos <b>em couro</b>",
       }),
     ]);
 
     expect(xml).not.toMatch(/&(?!(amp|lt|gt|quot|apos);)/);
+
+    // E as tags específicas, para a falha apontar o lugar em vez de só dizer
+    // "tem um & solto em algum canto do arquivo".
+    const item = itemDe(xml, "8335204");
+    expect(todasAsTags(item, "additional_image_link")).toEqual([
+      "https://cdn.exemplo/foto-2.jpg?w=1600&amp;q=84",
+      "https://cdn.exemplo/foto-3.jpg?w=1600&amp;q=84",
+    ]);
+    expect(tag(item, "custom_label_1")).toBe("Picape &amp; Cabine Dupla");
+    expect(tag(item, "brand")).toBe("Mercedes &amp; Benz");
+  });
+
+  it("o endereço do site é escapado no canal E em cada g:link", async () => {
+    // `siteUrl` sai de `NEXT_PUBLIC_SITE_URL`, que é digitado por gente na
+    // Vercel — é a única porta por onde um `&` chega a estas duas tags, já que
+    // `slugificar` reduz o resto do caminho a [a-z0-9-]. Sem este caso, tirar
+    // o escape de `<g:link>` não quebrava teste nenhum.
+    const anterior = process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.NEXT_PUBLIC_SITE_URL = "https://exemplo.com?a=1&b=2";
+    try {
+      const xml = await gerarFeed([carro()]);
+
+      expect(xml).not.toMatch(/&(?!(amp|lt|gt|quot|apos);)/);
+      expect(xml.slice(0, xml.indexOf("<item>"))).toContain(
+        "<link>https://exemplo.com?a=1&amp;b=2</link>",
+      );
+      expect(tag(itemDe(xml, "8335204"), "link")).toContain("https://exemplo.com?a=1&amp;b=2/");
+    } finally {
+      if (anterior === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+      else process.env.NEXT_PUBLIC_SITE_URL = anterior;
+    }
   });
 
   it("nenhum < ou > sobra no texto entre as tags", async () => {
@@ -170,7 +221,10 @@ describe("o título", () => {
     ]);
 
     for (const item of itensDoFeed(xml)) {
-      const titulo = tag(item, "title") ?? "";
+      // Medido DECODIFICADO: o portal lê o valor, não a marcação. Contra o
+      // texto escapado, uma marca com `&` gastaria 5 caracteres do orçamento
+      // por `&amp;` e o teste reprovaria um título que na tela cabe.
+      const titulo = decodificar(tag(item, "title") ?? "");
       expect(titulo.length).toBeLessThanOrEqual(LIMITE_DO_TITULO);
       expect(titulo).not.toMatch(/\.\.\.$/);
       expect(titulo).not.toBe("");

@@ -232,7 +232,14 @@ export function decidirNoFeed(
 ): PresencaNoFeed {
   if (sinais.vendido) {
     const dias = diasDesde(sinais.dataVenda, agora);
-    const dentroDaJanela = dias !== null && dias <= CARENCIA_VENDIDO_NO_FEED_DIAS;
+    // `dias >= 0` não é zelo: `data_venda` é `date not null` SEM CHECK
+    // (`20260813150000`), o fechamento do Ciclo valida km e valor mas não a
+    // data (`20260814120000`), e o campo da tela é um `<input type="date">` sem
+    // `max`. Um "2027" digitado no lugar de "2026" devolve dias NEGATIVO, que
+    // é `<= 7` — e prenderia o carro no catálogo pago por um ano. É o mesmo
+    // modo de falha que o comentário acima descarta em `ultimaPresenca`,
+    // entrando por outra porta.
+    const dentroDaJanela = dias !== null && dias >= 0 && dias <= CARENCIA_VENDIDO_NO_FEED_DIAS;
     return { publica: dentroDaJanela, disponibilidade: "out_of_stock" };
   }
 

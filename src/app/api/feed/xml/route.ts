@@ -6,6 +6,7 @@ import { segmentoDoVeiculo } from '../../../../lib/veiculoUrl';
 import { concordar, generoDeModelo } from '../../../../lib/generoDoVeiculo';
 import { precoEfetivo, temPromocao } from '../../../../lib/precoPromocional';
 import { decidirNoFeed, getDatasDeVenda } from '../../../../lib/publicacao';
+import { alertarFalha } from '../../../../lib/alertaDeFalha';
 import { faixaDoPreco } from '../../../../lib/faixasDePreco';
 import {
   CATEGORIA_GOOGLE_POR_SEGMENTO,
@@ -45,10 +46,11 @@ async function datasDeVendaOuVazio(): Promise<Record<string, string>> {
   try {
     return await getDatasDeVenda();
   } catch (erro) {
-    console.warn(
-      '[XML Feed] sem as datas de venda (%s) — todo vendido sai na hora, como antes.',
-      erro instanceof Error ? erro.message : erro,
-    );
+    const detalhe = erro instanceof Error ? erro.message : String(erro);
+    console.warn('[XML Feed] sem as datas de venda (%s) — todo vendido sai na hora.', detalhe);
+    // Degradar em silêncio é como a carência do vendido ficaria desligada por
+    // semanas sem ninguém saber. O alerta tem `throttle` por assunto.
+    void alertarFalha('Feed do catálogo sem as datas de venda', detalhe);
     return {};
   }
 }
@@ -105,6 +107,12 @@ export async function GET(request: Request) {
         // e um caminho relativo (`/logo.png`, o último degrau do mapper) é foto
         // que o portal não consegue buscar. Melhor faltar o item e dizer o id.
         console.warn('[XML Feed] veículo %s sem foto absoluta — fora do catálogo', car.id);
+        // Um carro sumindo do catálogo PAGO é exatamente o tipo de coisa que
+        // não pode ficar só no log de uma função serverless.
+        void alertarFalha(
+          'Veículo fora do catálogo de anúncios',
+          `O veículo ${car.id} não tem nenhuma foto com endereço absoluto e ficou fora do feed.`,
+        );
         continue;
       }
 

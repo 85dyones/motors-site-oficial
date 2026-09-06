@@ -34,10 +34,21 @@ const util = (s) => {
 
   const carimbos = rows.map((r) => (r.last_seen_at ? new Date(r.last_seen_at).getTime() : NaN)).filter((t) => !Number.isNaN(t));
   const corte = Math.max(...carimbos) - JANELA_MS;
-  // ⚠️ Diverge do feed vivo desde 2026-09-06, e de propósito: lá o vendido
-  // permanece alguns dias como `out_of_stock` (ver `decidirNoFeed` em
-  // `lib/publicacao.ts`) antes de sair. Aqui interessa só o texto do anúncio de
-  // quem está à venda, e carro vendido não tem texto a conferir.
+  // ⚠️ Este recorte NÃO é o do feed vivo, e a diferença é maior do que parece.
+  // Medido em 2026-09-06: este script listaria 43 anúncios; o feed publica 36.
+  //
+  // São três divergências, e só a terceira é deliberada:
+  //   1. a janela de `last_seen_at` acima foi aposentada em 30/08 — quem manda
+  //      hoje é `estado_cadastro = 'publicado'` (`lib/supabase.ts`);
+  //   2. o feed exige 4 fotos para publicar (`publicavel`, em
+  //      `lib/coerenciaDoCadastro.ts`), e aqui não se conta foto;
+  //   3. desde 06/09 o vendido permanece alguns dias no feed como
+  //      `out_of_stock` (`decidirNoFeed`, em `lib/publicacao.ts`), enquanto
+  //      aqui ele sai na hora — e isso está certo: o que se confere aqui é o
+  //      TEXTO do anúncio, e carro vendido não tem texto a revisar.
+  //
+  // Ou seja: use este script para ler texto, nunca para responder "o que está
+  // no feed". Para isso, a fonte é a rota.
   const noFeed = rows.filter((r) => !r.last_seen_at || new Date(r.last_seen_at).getTime() >= corte)
     .filter((r) => !r.vendido);
 

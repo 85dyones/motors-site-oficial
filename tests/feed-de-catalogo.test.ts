@@ -30,12 +30,21 @@ describe("escaparXml", () => {
     );
   });
 
-  it("escapa o & ANTES de < e >, senão a entidade nasce dupla", () => {
-    // A ordem inversa produz `&amp;lt;`: o `<` vira `&lt;` e o `&` que acabou
-    // de nascer é escapado por cima. O anúncio sai com lixo no título.
-    const saida = escaparXml("a < b");
-    expect(saida).toBe("a &lt; b");
-    expect(saida).not.toContain("&amp;lt;");
+  it("cada caractere é escapado UMA vez — nenhuma entidade nasce dupla", () => {
+    // A armadilha da cadeia de `.replace()`: tratando `<` antes de `&`, o `&`
+    // recém-nascido em `&lt;` é escapado por cima e sai `&amp;lt;`. O documento
+    // continua válido e nada acusa — só o texto do anúncio fica errado.
+    //
+    // ⚠️ A implementação de hoje é um laço com um ramo por caractere, e nela
+    // essa inversão é impossível por construção: este teste NÃO pode falhar
+    // enquanto ela for assim. Ele existe para o dia em que alguém voltar à
+    // cadeia de `.replace()`, onde a ordem volta a ser carga viva.
+    expect(escaparXml("a < b")).toBe("a &lt; b");
+    expect(escaparXml("a > b")).toBe("a &gt; b");
+    expect(escaparXml(`x " y ' z`)).toBe("x &quot; y &apos; z");
+    for (const entrada of ["a < b", "a > b", `a " b`, "a ' b", "a & b"]) {
+      expect(escaparXml(entrada), entrada).not.toMatch(/&amp;(lt|gt|quot|apos);/);
+    }
   });
 
   it("não deixa nenhum & fora de entidade", () => {
@@ -61,6 +70,15 @@ describe("escaparXml", () => {
 
   it("preserva tabulação, quebra de linha e retorno", () => {
     expect(escaparXml("a\tb\nc\rd")).toBe("a\tb\nc\rd");
+  });
+
+  it("descarta U+FFFE e U+FFFF, que sobrevivem a qualquer escape", () => {
+    // Não são `Char` válidos em XML 1.0 e chegam de UTF-16 lido com a ordem de
+    // bytes trocada — o primo do BOM que este projeto já viu. Saem como bytes
+    // literais e derrubam o documento inteiro, a mesma classe do \x0B.
+    expect(escaparXml("antes￾meio￿depois")).toBe("antesmeiodepois");
+    // E o vizinho legítimo continua passando: U+FFFD é caractere válido.
+    expect(escaparXml("a�b")).toBe("a�b");
   });
 
   it("nulo e indefinido viram string vazia, não 'null'", () => {
@@ -127,6 +145,11 @@ describe("imagensDoAnuncio", () => {
   });
 
   it("respeita o teto do Meta", () => {
+    // O valor exato, e não só a coerência consigo mesmo: com a constante usada
+    // dos dois lados, trocar 10 por 40 passava verde — e o Meta simplesmente
+    // ignora o excedente de `additional_image_link`.
+    expect(MAXIMO_DE_IMAGENS).toBe(10);
+
     const muitas = Array.from({ length: MAXIMO_DE_IMAGENS + 5 }, (_, i) => url(i));
     expect(imagensDoAnuncio(muitas, [])).toHaveLength(MAXIMO_DE_IMAGENS);
   });
