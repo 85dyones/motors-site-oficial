@@ -21,7 +21,7 @@ import {
   schemaDeTrilha,
 } from "../../lib/schemaListagem";
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
-import { schemaDaLoja } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { criarLinkador } from "../../lib/linksNoTexto";
 import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
 import {
@@ -110,6 +110,7 @@ export default async function EstoquePage() {
     schemaDeListagem("Carros seminovos em Curitiba", disponiveis),
     schemaDePerguntas(perguntas),
     schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
   ]);
 
   return (

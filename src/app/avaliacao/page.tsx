@@ -4,7 +4,7 @@ import AutoAvaliacao from "../../components/AutoAvaliacao";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd, schemaDeTrilha } from "../../lib/schemaListagem";
-import { schemaDaLoja } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 
 const CAMINHO = "/avaliacao";
 
@@ -106,6 +106,7 @@ export default async function AvaliacaoPage() {
       { nome: "Avaliação Express", caminho: CAMINHO },
     ]),
     schemaDaLoja(companySettings),
+    schemaDoSite(companySettings),
   ]);
 
   return (

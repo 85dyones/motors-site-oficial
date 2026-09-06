@@ -6,7 +6,7 @@ import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../lib/procedencia";
 import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import { blocoJsonLd, schemaDePerguntas, schemaDeTrilha } from "../../lib/schemaListagem";
-import { schemaDaLoja } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { PERGUNTAS_DE_GARANTIA, TEXTO_DE_GARANTIA } from "../../lib/paginasInstitucionais";
 
 /**
@@ -65,6 +65,7 @@ export default async function GarantiaPage() {
     ]),
     schemaDePerguntas(PERGUNTAS_DE_GARANTIA),
     schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
   ]);
 
   return (
