@@ -73,9 +73,13 @@ create table if not exists public.guias (
   -- Fecha a URL: `/guias/{slug}`. Minúsculas, dígitos e hífen — o mesmo
   -- alfabeto que a rota resolve. Slug com espaço ou maiúscula gera link que
   -- não abre, e o erro só apareceria no build.
+  --
+  -- O teto de 90 é o mesmo `slice(0, 90)` de `normalizarSlug`, em
+  -- `app/api/guias/route.ts`: número menor aqui transformaria um título longo
+  -- em erro cru do Postgres na tela de quem escreve, em vez de um slug servível.
   slug text primary key
     constraint guias_slug_formato
-      check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(slug) <= 80),
+      check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(slug) <= 90),
 
   -- O `<h1>` e o `headline` do `Article`.
   titulo text not null,
@@ -181,7 +185,7 @@ comment on table public.guias is
 comment on column public.guias.slug is
   'Fecha a URL /guias/{slug}. Minúsculas, dígitos e hífen.';
 comment on column public.guias.titulo_seo is
-  'O <title> da aba. Nulo cai para o titulo.';
+  'O <title> da aba. Nulo cai para o titulo com o sufixo da loja, em lib/guiasDoBanco.ts — e por isso o seed guarda a forma exata, com o NAO em caixa alta.';
 comment on column public.guias.corpo is
   'Seções do texto: [{titulo, paragrafos: [texto]}]. Formato garantido por CHECK — jsonb aqui é estrutura, não saco.';
 comment on column public.guias.faq is

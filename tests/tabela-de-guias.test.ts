@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 /**
@@ -199,6 +200,28 @@ describe("o seed — o guia que já está no ar", () => {
     expect(saida.href.startsWith("/")).toBe(true);
     expect(saida.rotulo.length).toBeGreaterThan(0);
     expect(saida.apoio.length).toBeGreaterThan(0);
+  });
+
+  it("é verbatim: nem uma palavra mudou desde a revisão", () => {
+    // Contagem pega truncamento; frase proibida pega o erro conhecido. Nenhum
+    // dos dois pega uma palavra trocada no meio de um parágrafo — e é isso que
+    // uma "melhoria" bem-intencionada faz.
+    //
+    // O hash é do conteúdo do seed, não do arquivo: comentário, indentação e
+    // formatação do SQL podem mudar. O texto, não. E há um motivo forte para
+    // congelá-lo: DEPOIS de aplicada, esta migração é registro histórico —
+    // editar o texto aqui não muda uma vírgula no banco, só faz o arquivo
+    // mentir sobre o que rodou.
+    //
+    // Se você mudou o texto de propósito e a migração AINDA NÃO foi aplicada,
+    // atualize o hash junto, de olho aberto. Se ela já foi aplicada, o lugar
+    // de editar é o painel — `/admin/guias` —, não este arquivo.
+    const conteudo = createHash("sha256")
+      .update(JSON.stringify({ textos, jsons }))
+      .digest("hex");
+    expect(conteudo).toBe(
+      "d7046ea497e7c6c8164a99755d75c660f4568186981648850cca60d249d2ac08",
+    );
   });
 
   it("não publica ranking de motivo de reprovação — a distribuição real não existe aqui", () => {
