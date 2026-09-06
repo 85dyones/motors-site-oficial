@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   CARENCIA_VENDIDO_DIAS,
+  CARENCIA_VENDIDO_NO_FEED_DIAS,
+  decidirNoFeed,
   decidirPublicacao,
   diasDesde,
   type SinaisDoVeiculo,
@@ -259,5 +261,101 @@ describe("selo da PDP", () => {
     expect(ler(WRAPPER)).toMatch(
       /indisponivel\s*=\s*indisponivelDoServidor\s*\|\|\s*veiculo\.vendido/
     );
+  });
+});
+
+/**
+ * O catálogo de anúncios é o outro consumidor da mesma verdade — e ele erra
+ * para o lado OPOSTO do índice de busca.
+ *
+ * Até 2026-09-06 o feed fazia `if (car.vendido) continue`: o carro sumia no dia
+ * da venda. Sumir é pior do que parece — o Meta trata o item como deletado,
+ * quebrando anúncio dinâmico ativo e público montado por `content_ids`. O
+ * correto é o item continuar existindo, marcado indisponível, por pelo menos um
+ * ciclo completo de re-busca, e só então sair.
+ */
+describe("decidirNoFeed — o carro no catálogo de anúncios", () => {
+  const vendido: SinaisDoVeiculo = { vendido: true, foraDoFeed: false };
+
+  it("carro à venda entra disponível", () => {
+    expect(decidirNoFeed(base, AGORA)).toEqual({ publica: true, disponibilidade: "in_stock" });
+  });
+
+  it("vendido há poucos dias continua no catálogo, marcado indisponível", () => {
+    expect(decidirNoFeed({ ...vendido, dataVenda: haDias(2) }, AGORA)).toEqual({
+      publica: true,
+      disponibilidade: "out_of_stock",
+    });
+  });
+
+  it("o limite é exclusivo: no último dia da janela ainda está dentro", () => {
+    const noLimite = decidirNoFeed(
+      { ...vendido, dataVenda: haDias(CARENCIA_VENDIDO_NO_FEED_DIAS) },
+      AGORA
+    );
+    const passouUmDia = decidirNoFeed(
+      { ...vendido, dataVenda: haDias(CARENCIA_VENDIDO_NO_FEED_DIAS + 1) },
+      AGORA
+    );
+    expect(noLimite.publica).toBe(true);
+    expect(passouUmDia.publica).toBe(false);
+  });
+
+  it("a janela do catálogo é MUITO menor que a do índice", () => {
+    // Não é o mesmo número por acaso e não pode virar o mesmo. A PDP vendida
+    // captura demanda quente por 90 dias; item de catálogo não captura nada —
+    // não ranqueia, não é pesquisado. Aos 90, com o giro desta loja, o catálogo
+    // teria tanto carro morto quanto vivo.
+    expect(CARENCIA_VENDIDO_NO_FEED_DIAS).toBeLessThan(CARENCIA_VENDIDO_DIAS);
+  });
+
+  it("vendido SEM data de venda sai na hora — o oposto de decidirPublicacao", () => {
+    // A inversão é deliberada, e é a decisão de maior consequência aqui.
+    // `decidirPublicacao` erra para o lado de MANTER (sem data, a carência
+    // nunca vence) porque tirar do índice cedo demais joga fora tráfego
+    // recuperável. No catálogo o erro simétrico é anunciar carro que não
+    // existe, que custa dinheiro por impressão. Sem data, sai.
+    expect(decidirNoFeed({ ...vendido, dataVenda: null }, AGORA).publica).toBe(false);
+    expect(decidirNoFeed(vendido, AGORA).publica).toBe(false);
+  });
+
+  it("NÃO usa last_seen_at como proxy — é o caso do Spin 8100626", () => {
+    // O carro vendido na loja que segue anunciado no RevendaMais é
+    // re-carimbado quatro vezes por dia, então `last_seen_at` nunca envelhece.
+    // Com o proxy, esse carro ficaria `out_of_stock` no catálogo PARA SEMPRE —
+    // pior que o comportamento antigo, que ao menos o tirava no dia.
+    const recemCarimbado = { ...vendido, ultimaPresenca: haDias(0), dataVenda: null };
+    expect(decidirNoFeed(recemCarimbado, AGORA).publica).toBe(false);
+
+    // E o contrapositivo, para o teste não passar por acaso: com data de venda
+    // recente ele entra, mesmo com a mesma última presença.
+    const comData = { ...recemCarimbado, dataVenda: haDias(1) };
+    expect(decidirNoFeed(comData, AGORA).publica).toBe(true);
+  });
+
+  it("carro fora do feed não vai ao catálogo", () => {
+    // Motivo desconhecido — repasse, reserva, anúncio expirado. Anúncio pago
+    // não sustenta oferta que ninguém confirmou.
+    expect(decidirNoFeed({ ...base, foraDoFeed: true }, AGORA).publica).toBe(false);
+  });
+
+  it("nunca anuncia disponível o que a ficha mostra como VENDIDO", () => {
+    // As duas réguas divergem no PRAZO de propósito; não podem divergir no
+    // FATO. Um carro `in_stock` no catálogo levando a uma ficha com selo
+    // VENDIDO é o anúncio que o Meta e o cliente reprovam pelo mesmo motivo.
+    const cenarios: SinaisDoVeiculo[] = [
+      { ...vendido, dataVenda: haDias(0) },
+      { ...vendido, dataVenda: haDias(CARENCIA_VENDIDO_NO_FEED_DIAS) },
+      { ...vendido, dataVenda: haDias(CARENCIA_VENDIDO_NO_FEED_DIAS + 1) },
+      { ...vendido, ultimaPresenca: haDias(200) },
+      { ...vendido, dataVenda: null, ultimaPresenca: null },
+    ];
+
+    for (const sinais of cenarios) {
+      const ficha = decidirPublicacao(sinais, AGORA);
+      const catalogo = decidirNoFeed(sinais, AGORA);
+      expect(ficha.rotulo, JSON.stringify(sinais)).toBe("VENDIDO");
+      expect(catalogo.disponibilidade, JSON.stringify(sinais)).toBe("out_of_stock");
+    }
   });
 });

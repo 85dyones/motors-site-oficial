@@ -34,6 +34,10 @@ const util = (s) => {
 
   const carimbos = rows.map((r) => (r.last_seen_at ? new Date(r.last_seen_at).getTime() : NaN)).filter((t) => !Number.isNaN(t));
   const corte = Math.max(...carimbos) - JANELA_MS;
+  // ⚠️ Diverge do feed vivo desde 2026-09-06, e de propósito: lá o vendido
+  // permanece alguns dias como `out_of_stock` (ver `decidirNoFeed` em
+  // `lib/publicacao.ts`) antes de sair. Aqui interessa só o texto do anúncio de
+  // quem está à venda, e carro vendido não tem texto a conferir.
   const noFeed = rows.filter((r) => !r.last_seen_at || new Date(r.last_seen_at).getTime() >= corte)
     .filter((r) => !r.vendido);
 

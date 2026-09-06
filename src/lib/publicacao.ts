@@ -105,6 +105,39 @@ export type Publicacao = {
   arquivar: boolean;
 };
 
+/**
+ * Quanto tempo um carro vendido continua no CATÁLOGO DE ANÚNCIOS, indisponível.
+ *
+ * Sete, e não os noventa acima — a diferença é o ponto, não um descuido.
+ *
+ * Os noventa dias existem porque a PDP de um carro vendido captura demanda
+ * quente: quem procura "BMW X1 2019 usado" na semana seguinte é comprador
+ * daquele perfil. Um item de catálogo não captura nada — não ranqueia, não é
+ * pesquisado, e `out_of_stock` já não é entregue. Aos noventa, com o giro desta
+ * loja, o catálogo teria tanto carro morto quanto vivo, e o número que o dono lê
+ * como saúde do catálogo passaria a mentir.
+ *
+ * O que os sete dias compram é só que a TRANSIÇÃO seja observada. Até
+ * 2026-09-06 o feed fazia `if (car.vendido) continue` e o item sumia no dia da
+ * venda; para o Meta, item que some de uma carga para a outra foi deletado —
+ * o que quebra anúncio dinâmico ativo e público montado por `content_ids`.
+ * Existindo como `out_of_stock` por ao menos um ciclo completo, o portal
+ * encerra a entrega em vez de perder a referência. Sete dias cobrem o cache de
+ * três horas, a recarga diária das 07:00 e um fim de semana.
+ *
+ * O corta-fogo imediato continua existindo e não passa por aqui: arquivar no
+ * painel muda `estado_cadastro` e o carro sai de `getEstoque` na hora.
+ */
+export const CARENCIA_VENDIDO_NO_FEED_DIAS = 7;
+
+/** Como o carro se apresenta no catálogo de anúncios (Meta, Merchant Center). */
+export type PresencaNoFeed = {
+  /** O item existe na carga de hoje. */
+  publica: boolean;
+  /** O `g:availability` do item. */
+  disponibilidade: "in_stock" | "out_of_stock";
+};
+
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Dias inteiros entre um carimbo e agora. `null` quando a data não é utilizável. */
@@ -165,6 +198,52 @@ export function decidirPublicacao(sinais: SinaisDoVeiculo, agora: Date = new Dat
   }
 
   return { indisponivel: false, rotulo: null, noindex: false, arquivar: false };
+}
+
+/**
+ * A mesma verdade, para o catálogo de anúncios — e ela erra para o lado OPOSTO.
+ *
+ * Mora aqui, ao lado de `decidirPublicacao`, porque o cabeçalho deste módulo
+ * diz "três estados, decididos aqui e em nenhum outro lugar". Uma segunda régua
+ * de disponibilidade dentro da rota do feed seria exatamente o cérebro dividido
+ * que este arquivo existe para impedir: no dia em que alguém mexesse numa,
+ * a outra continuaria anunciando o contrário.
+ *
+ * ⚠️ **Não lê `ultimaPresenca`, e é de propósito.** `decidirPublicacao` usa
+ * `dataVenda ?? ultimaPresenca` e, sem nenhuma referência, deixa a carência
+ * nunca vencer — certo para o índice, onde manter é recuperável. No catálogo os
+ * dois erros são caros de formas diferentes:
+ *
+ *   - usar o proxy: o carro vendido que SEGUE anunciado no RevendaMais é
+ *     re-carimbado quatro vezes por dia, o relógio nunca começa, e o item fica
+ *     `out_of_stock` para sempre (o Spin `8100626` do comentário abaixo);
+ *   - não ter data: anunciar carro que não existe custa dinheiro por impressão.
+ *
+ * Por isso: só `dataVenda`, e sem ela o carro sai na hora. O efeito medido é que
+ * os 23 vendidos de hoje sem carimbo continuam saindo no dia da venda,
+ * exatamente como já saíam — a janela vale para o que tem data e para tudo o que
+ * for marcado pelo painel daqui para a frente, que é onde `estoqueEscrita.ts`
+ * grava o histórico. Dar data ao passado é backfill, e backfill é decisão do
+ * dono.
+ */
+export function decidirNoFeed(
+  sinais: SinaisDoVeiculo,
+  agora: Date = new Date()
+): PresencaNoFeed {
+  if (sinais.vendido) {
+    const dias = diasDesde(sinais.dataVenda, agora);
+    const dentroDaJanela = dias !== null && dias <= CARENCIA_VENDIDO_NO_FEED_DIAS;
+    return { publica: dentroDaJanela, disponibilidade: "out_of_stock" };
+  }
+
+  // Motivo da saída desconhecido — repasse, reserva, anúncio expirado. Anúncio
+  // pago não sustenta oferta que ninguém confirmou. (Hoje `getEstoque` já
+  // descarta esses antes de chegar aqui; a régua fica correta mesmo assim.)
+  if (sinais.foraDoFeed) {
+    return { publica: false, disponibilidade: "out_of_stock" };
+  }
+
+  return { publica: true, disponibilidade: "in_stock" };
 }
 
 /**
