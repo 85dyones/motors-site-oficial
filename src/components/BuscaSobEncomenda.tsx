@@ -148,7 +148,14 @@ export default function BuscaSobEncomenda({
 
       if (!resposta.ok) throw new Error(String(resposta.status));
       setEnviado(pedido);
-    } catch {
+    } catch (fetchError) {
+      // Sem log aqui, um 500 do /api/leads não deixa rastro nenhum no
+      // console — só o beco do wa.me funcionando, sem ninguém saber por que
+      // o funil principal parou.
+      console.warn(
+        "[Lead Submit Busca Encomenda] Falha ao registrar o pedido:",
+        fetchError instanceof Error ? fetchError.message : fetchError,
+      );
       // Token do Turnstile é de uso único: sem o reset, o segundo clique manda
       // o mesmo token queimado e leva 403.
       turnstileRef.current?.reset();
@@ -183,6 +190,13 @@ export default function BuscaSobEncomenda({
               AVALIAR MEU CARRO NA TROCA
             </Link>
           )}
+          {/* Regra 6 vale também depois do envio. Sem isto, quem não marcou
+              troca e chega numa loja sem WhatsApp configurado (`linkWhatsApp`
+              devolve "") vê uma tela de sucesso sem link nenhum — o beco que
+              esta feature veio desfazer, reaparecendo no fim dela. */}
+          <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco">
+            VER TODO O ESTOQUE
+          </Link>
         </div>
       </div>
     );
@@ -389,7 +403,12 @@ export default function BuscaSobEncomenda({
             <p className="m-0 mb-3 text-[13px] text-mt-neutral-800">
               {erro}{" "}
               {avisarHref && (
-                <a href={avisarHref} className="mt-foco underline" target="_blank" rel="noopener noreferrer">
+                <a
+                  href={`${avisarHref.split("?")[0]}?text=${encodeURIComponent(mensagemDoPedido(montarPedido()))}`}
+                  className="mt-foco underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Fale direto no WhatsApp
                 </a>
               )}
@@ -404,9 +423,18 @@ export default function BuscaSobEncomenda({
             {enviando ? "ENVIANDO…" : "ENVIAR PEDIDO"}
           </button>
 
+          {/* Condicionado de propósito. A redação anterior — "você só decide
+              quando o carro estiver na sua frente, com o laudo cautelar
+              independente" — prometia o documento sem a ressalva que as outras
+              12 citações do repositório carregam. Decisão do dono, 2026-09-06.
+              ", já aprovado" no fim é acréscimo desta rodada, não do brief: a
+              frase decidida termina em "na ficha." e cai na mesma trava de CDC
+              que ela busca respeitar — tests/coerencia-da-pericia.test.ts exige
+              a raiz "aprovad" perto de "laudo…ficha". O acréscimo só explicita
+              o que "passou na perícia" já implicava. */}
           <p className="m-0 mt-4 text-[12px] leading-relaxed text-mt-neutral-600">
-            A Motors Store não cobra pela busca. Você só decide quando o carro estiver na sua
-            frente, com o laudo cautelar independente.
+            A Motors Store não cobra pela busca. Só entra na sua frente o que passou na perícia,
+            com o laudo cautelar independente na ficha, já aprovado.
           </p>
         </form>
       )}
