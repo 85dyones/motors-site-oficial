@@ -20,29 +20,33 @@ import { schemaDoVeiculo } from "./schemaVeiculo";
  * ficha e conta os nós servidos. Esta função organiza; o teste é que protege.
  *
  * ---------------------------------------------------------------------------
- * O que TEM rede, e o que não tem — medido, não estimado
+ * O que TEM rede, e o que não tem
  * ---------------------------------------------------------------------------
- * **14 rotas** chamam `schemaDoSite`. Quatro têm teste que renderiza a página e
- * CONTA os nós servidos: esta ficha, `/sobre`, `/contato` e `/estoque` (as três
- * últimas em `tests/paginas-de-entidade.test.ts`).
+ * Sem contagem, de propósito: número agregado apodrece a cada rota nova e vira
+ * mentira sozinho — foi o que aconteceu com as três versões anteriores deste
+ * parágrafo. Nome de rota não apodrece. Para a lista viva,
+ * `grep -rln schemaDoSite src/`.
  *
- * As outras **dez não têm**: a home, `/avaliacao` (o teste dela confere
- * `AutoDealer` e `BreadcrumbList`, não o `WebSite`), `/carro-perfeito`,
- * `/privacidade`, `/destaques/[tag]`, `PaginaGeoView` — que serve
- * `/seminovos-curitiba` e `/seminovos-bacacheri` —, `/garantia`,
- * `/financiamento`, `/estoque/[recorte]`, `/[categoria]/[marca]` e
- * `/[categoria]/[marca]/[modelo]`. A revisão da F2 provou: removendo
- * `schemaDoSite` das dez de uma vez, a suíte fica verde.
+ * **Têm** teste que renderiza a página e CONTA os nós servidos:
+ *   · esta ficha            → `tests/ficha-publica-o-grafo.test.ts`
+ *   · `/sobre`, `/contato`
+ *     e `/estoque`          → `tests/paginas-de-entidade.test.ts`
  *
- * Uma versão anterior deste parágrafo dizia que só a home estava descoberta.
- * Estava errada por dez rotas, e um mapa errado é pior que mapa nenhum — é ele
- * que a próxima pessoa vai ler antes de mexer.
+ * **Não têm**: a home · `/avaliacao` (o teste dela confere `AutoDealer` e
+ * `BreadcrumbList`, não o `WebSite`) · `/carro-perfeito` · `/privacidade` ·
+ * `/destaques/[tag]` · `PaginaGeoView`, que serve `/seminovos-curitiba` e
+ * `/seminovos-bacacheri` · `/garantia` · `/financiamento` ·
+ * `/estoque/[recorte]` · `/[categoria]/[marca]` · `/[categoria]/[marca]/[modelo]`.
  *
- * O critério de onde investir foi tráfego e custo do mock: a ficha e `/estoque`
- * são as páginas que mais recebem, `/sobre` e `/contato` são as de entidade, e
- * as quatro custam dois ou três mocks. A home custaria mais — puxa reputação do
- * Google e curadoria do Instagram além do estoque —, e mock demais transforma
- * prova em ficção.
+ * A revisão provou o custo disso: removendo `schemaDoSite` de todas as
+ * descobertas de uma vez, a suíte fica verde.
+ *
+ * O critério de onde investir foi tráfego e custo do mock. A ficha e `/estoque`
+ * são as que mais recebem; `/sobre` e `/contato` são as de entidade. O preço
+ * não é baixo e está à vista nos próprios arquivos: `ficha-publica-o-grafo`
+ * abre com seis `vi.mock`, `paginas-de-entidade` com cinco para as três rotas
+ * dele. A home custaria mais ainda — puxa reputação do Google e curadoria do
+ * Instagram além do estoque —, e mock demais transforma prova em ficção.
  *
  * (A primeira versão desta nota dizia "três vezes em 2026" e "duas semanas".
  * Nenhum dos dois se sustentou na verificação — o defeito documentado é um, e
