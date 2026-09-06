@@ -4,7 +4,7 @@ import LinkComoChegar from "./LinkComoChegar";
 import { getCachedSettings } from "../lib/settings";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../lib/hubsDeEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDePerguntas, schemaDeTrilha } from "../lib/schemaListagem";
-import { schemaDaLoja } from "../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../lib/schemaLoja";
 import type { PaginaGeo } from "../lib/paginasGeo";
 
 /**
@@ -39,6 +39,7 @@ export default async function PaginaGeoView({ pagina }: { pagina: PaginaGeo }) {
     // A loja com `@id` também aqui: é a página que fala do endereço físico, e é
     // ela que o Google deve associar ao pacote local do bairro.
     schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
   ]);
 
   return (

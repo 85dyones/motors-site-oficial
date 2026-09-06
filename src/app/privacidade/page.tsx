@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCachedSettings } from "../../lib/settings";
+import { blocoJsonLd } from "../../lib/schemaListagem";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { LinkRegua, Rotulo } from "../../components/modernist/primitivos";
 import ControleDeRastreamento from "../../components/ControleDeRastreamento";
@@ -76,12 +78,26 @@ export default async function PrivacidadePage() {
   const cnpj = company.cnpj || "";
   const telefone = company.phone || "";
 
+  /**
+   * A loja e o site entram aqui, mas o `try` acima é quem manda: se as settings
+   * falharem, `company` fica `{}` e os nós saem com os campos ausentes em vez
+   * de derrubar a página. A política de privacidade nunca pode deixar de ser
+   * exibida — é obrigação legal, não conteúdo editorial.
+   *
+   * Ficou de fora da primeira entrega da F2, junto com `/carro-perfeito`, sob
+   * uma frase que dizia que as páginas sem o nó eram "erro, área logada ou
+   * bloqueadas no robots". As duas estão no sitemap e permitidas no
+   * `robots.ts`; a revisão apontou.
+   */
+  const grafo = blocoJsonLd([
+    breadcrumbSchema,
+    schemaDaLoja(company as CompanySettings),
+    schemaDoSite(company as CompanySettings),
+  ]);
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: grafo }} />
 
       {/* `<div>`, não `<main>`: o layout raiz já abre um `<main>`. */}
       <div className="w-full bg-mt-bg px-[18px] py-12 font-modernist text-mt-ink sm:px-6 sm:py-16 lg:px-8">

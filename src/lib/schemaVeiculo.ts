@@ -58,6 +58,69 @@ export function precoValidoAte(base = new Date()): string {
   return data.toISOString().slice(0, 10);
 }
 
+/**
+ * Quantas fotos entram no `image` do `Car`.
+ *
+ * O schema.org aceita uma ou muitas, e o Google recomenda várias — mas a régua
+ * aqui não é "quanto mais, melhor". Despejar a galeria inteira num nó que já
+ * carrega preço, oferta e loja infla o JSON-LD de cada ficha sem acrescentar
+ * informação proporcional; a ficha mais fotografada do estoque publicado passa
+ * de vinte fotos.
+ *
+ * Dez é o teto prático que o Google usa em galeria de produto, e mantém a
+ * primeira posição — a imagem principal — intocada. Medido no HTML construído
+ * em 05/09/2026: **56 das 59 fichas publicam exatamente dez** fotos, e em **53**
+ * o `slice` de fato descarta alguma — as outras três já tinham dez na origem.
+ *
+ * ⚠️ Duas coisas que este bloco JÁ AFIRMOU ERRADO, e que ficam registradas
+ * porque o erro foi do mesmo tipo nas duas vezes — número exato sobre a
+ * população errada:
+ *
+ *  - "a ficha mais fotografada tem 29 fotos (o Camaro `8324691`)". O `8324691`
+ *    está `arquivado`, e `getEstoque` só devolve `publicado` — ele não tem
+ *    ficha nenhuma. Contar a tabela inteira não é contar o que o site serve.
+ *  - "corta 72 dos 83 disponíveis". Aquele 83 era `vendido = false` na tabela
+ *    toda, incluindo os arquivados; a frase ficava duas linhas abaixo de "59
+ *    fichas" e lia-se como a mesma população.
+ *
+ * E o teto continua sendo ESCOLHA, não fato medido: a primeira versão dizia que
+ * "da décima em diante são detalhe de porta-malas e pneu", e ninguém auditou o
+ * conteúdo das fotos para poder dizer isso. O que se sabe é que a ordem do
+ * cadastro é a ordem de vender. Se alguém medir e a 12ª costumar ser o
+ * interior, o número sobe.
+ */
+export const MAXIMO_DE_IMAGENS = 10;
+
+/**
+ * As fotos do veículo, na ordem do cadastro.
+ *
+ * Até 2026-09-05 o `Car` publicava **uma**: `web_full_images[0]`. A ficha
+ * mostra a galeria inteira, e o schema dizia que existia uma foto — quem lê o
+ * dado estruturado (Google Imagens, painel de conhecimento, assistente) via um
+ * carro com uma foto só.
+ *
+ * `web_full_images` primeiro porque é a versão de site; as do WhatsApp são o
+ * fallback de quem ainda não tem o conjunto completo, e são as mesmas fotos em
+ * outra resolução. Concatenar os dois duplicaria a mesma imagem em duas URLs —
+ * por isso é `||`, e não `[...a, ...b]`.
+ *
+ * Filtra vazio e duplicata: URL repetida no array é a mesma foto declarada duas
+ * vezes, e alguns validadores reclamam.
+ */
+export function galeriaDoSchema(
+  veiculo: Pick<Veiculo, "web_full_images" | "whatsapp_images">,
+): string[] {
+  const fonte = veiculo.web_full_images?.length
+    ? veiculo.web_full_images
+    : veiculo.whatsapp_images ?? [];
+
+  const limpas = (fonte ?? [])
+    .map((u) => (typeof u === "string" ? u.trim() : ""))
+    .filter(Boolean);
+
+  return [...new Set(limpas)].slice(0, MAXIMO_DE_IMAGENS);
+}
+
 export interface OpcoesDoSchemaDoVeiculo {
   /** Caminho da ficha, como `getVeiculoPdpUrl` devolve. */
   caminho: string;
@@ -70,7 +133,7 @@ export function schemaDoVeiculo(veiculo: Veiculo, opcoes: OpcoesDoSchemaDoVeicul
   const temDesconto =
     veiculo.preco_promocional > 0 && veiculo.preco_promocional < veiculo.preco_original;
   const preco = temDesconto ? veiculo.preco_promocional : veiculo.preco_original;
-  const imagem = veiculo.web_full_images?.[0] || veiculo.whatsapp_images?.[0] || "";
+  const imagens = galeriaDoSchema(veiculo);
   const motor = (veiculo.motor ?? "").trim();
   const donos = Number(veiculo.donos_anteriores);
 
@@ -82,7 +145,7 @@ export function schemaDoVeiculo(veiculo: Veiculo, opcoes: OpcoesDoSchemaDoVeicul
     "@id": `${url}#car`,
     name: nomeComAno(veiculo),
     url,
-    image: imagem || undefined,
+    image: imagens.length > 0 ? imagens : undefined,
     description:
       veiculo.descricao_seo ||
       veiculo.descricao ||
@@ -136,3 +199,4 @@ export function schemaDoVeiculo(veiculo: Veiculo, opcoes: OpcoesDoSchemaDoVeicul
     },
   };
 }
+
