@@ -234,8 +234,15 @@ Tokens: `{Marca}`, `{Modelo}`, `{MarcaModelo}`.
 > **Sem taxa, sem compromisso.**
 
 **Painel:** "Busca sob encomenda — {MarcaModelo}"
-**Rodapé:** "A Motors Store não cobra pela busca. Você só decide quando o carro
-estiver na sua frente, com o laudo cautelar independente."
+**Rodapé:** "A Motors Store não cobra pela busca. Só entra na sua frente o que
+passou na perícia, com o laudo cautelar independente na ficha."
+
+> A primeira redação — *"você só decide quando o carro estiver na sua frente,
+> com o laudo cautelar independente"* — prometia o documento sem a ressalva que
+> as outras 12 citações do repositório carregam, sobre um carro que ainda nem
+> foi encontrado. Reescrita por decisão do dono em 2026-09-06, na revisão da
+> Task 3: agora a frase afirma o processo (só se oferece o que passou) e o
+> documento, sem promessa pendurada em veículo não periciado.
 **Confirmação:** "Recebido. Um consultor vai te chamar no WhatsApp com o que
 encontrar."
 

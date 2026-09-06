@@ -842,6 +842,13 @@ export default function BuscaSobEncomenda({
               AVALIAR MEU CARRO NA TROCA
             </Link>
           )}
+          {/* Regra 6 vale também depois do envio. Sem isto, quem não marcou
+              troca e chega numa loja sem WhatsApp configurado (`linkWhatsApp`
+              devolve "") vê uma tela de sucesso sem link nenhum — o beco que
+              esta feature veio desfazer, reaparecendo no fim dela. */}
+          <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco">
+            VER TODO O ESTOQUE
+          </Link>
         </div>
       </div>
     );
@@ -1063,9 +1070,13 @@ export default function BuscaSobEncomenda({
             {enviando ? "ENVIANDO…" : "ENVIAR PEDIDO"}
           </button>
 
+          {/* Condicionado de propósito. A redação anterior — "você só decide
+              quando o carro estiver na sua frente, com o laudo cautelar
+              independente" — prometia o documento sem a ressalva que as outras
+              12 citações do repositório carregam. Decisão do dono, 2026-09-06. */}
           <p className="m-0 mt-4 text-[12px] leading-relaxed text-mt-neutral-600">
-            A Motors Store não cobra pela busca. Você só decide quando o carro estiver na sua
-            frente, com o laudo cautelar independente.
+            A Motors Store não cobra pela busca. Só entra na sua frente o que passou na perícia,
+            com o laudo cautelar independente na ficha.
           </p>
         </form>
       )}
