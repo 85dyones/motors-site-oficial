@@ -15,6 +15,9 @@ Contexto completo em [`VIRADA_DE_DOMINIO.md`](VIRADA_DE_DOMINIO.md) →
 | Páginas do alias → apex | **308**, desde 19/08 (`next.config.ts`) |
 | Workflows do n8n no alias | **zero ativos**, desde 06/09 |
 | Cópias JSON no repo | alinhadas ao apex |
+| Token do motor do Ciclo (Tarefa A) | **resolvido** em 06/09 — 200 |
+| Credencial dos nós de desfecho | **corrigida** em 06/09 — ver Tarefa A |
+| Feed do Meta | conferido: não usa o nosso site (Tarefa B) |
 
 O que **não** está feito é a exceção `(?!api/)` do `next.config.ts`: enquanto
 ela existir, `/api/*` continua respondendo 200 pelo alias. Ela só cai depois
@@ -22,49 +25,72 @@ da Tarefa B abaixo.
 
 ---
 
-## Tarefa A — o token do motor do Ciclo · **urgente, e independente do alias**
+## ✅ Tarefa A — RESOLVIDA em 2026-09-06
 
-**O sintoma:** o Orquestrador Diário do Ciclo tem **zero execuções bem-sucedidas
-em todo o histórico**. Todo dia às 9h ele bate em `/api/ciclo/motor/fila` e
-recebe `401 {"error":"Não autorizado"}`. O mesmo vale para o Aviso de
-Verificação, às 9h30. O padrão aparece desde 25/08 no histórico do n8n, e
-**não** é sequela da recriação dos workflows em 04/09.
+**O motor do Ciclo autenticou pela primeira vez.** Até hoje ele tinha zero
+execuções `success` em todo o histórico: todo dia às 9h batia em
+`/api/ciclo/motor/fila` e levava `401 {"error":"Não autorizado"}`.
 
-**A causa, isolada:** `src/lib/ciclo/autorizacaoDoMotor.ts` responde **503**
-quando `CICLO_MOTOR_TOKEN` está ausente e **401** quando o cabeçalho não
-confere. Veio 401 ⇒ a variável **existe** na Vercel; o valor que o n8n manda é
-que não bate. (A credencial do n8n foi editada em 03/09 e continuou errada.)
+A causa era a esperada — o valor do `Authorization` no n8n não batia com o
+`CICLO_MOTOR_TOKEN` da Vercel. O dono corrigiu a credencial às 13:43 e a
+verificação deu **200**:
 
-### O passo
+```
+{"ok":true,"pendentes":0,"mensagem":null,"itens":[]}
+```
 
-1. **Vercel** → o projeto → Settings → Environment Variables → `CICLO_MOTOR_TOKEN`,
-   ambiente **Production**. Revele e copie o valor.
-2. **n8n** (`n8n.v2o5.com.br`) → Credentials → **`CICLO_MOTOR_TOKEN`**
-   (tipo *Header Auth*, id `gtQsydcfsiaOUHNl`). Dois campos:
-   - **Name:** `Authorization`
-   - **Value:** `Bearer <o valor copiado>` — **com o `Bearer ` na frente**.
-     A rota compara contra a string inteira `Bearer ${token}`; o valor cru,
-     sem o prefixo, dá exatamente o mesmo 401.
-3. Salve.
+`pendentes: 0` é o esperado: as tabelas do Ciclo estão vazias. A porta abriu; a
+fila é que ainda não tem ninguém.
 
-> Se preferir girar o segredo em vez de descobrir o atual: escolha um valor
-> novo, grave nos **dois** lugares e **redeploy** a Vercel (variável de
-> servidor vale no próximo deploy).
+### E o segundo defeito, que só apareceu depois
 
-### Como conferir
+Com a porta aberta, ficou visível que **os dois nós de desfecho do Orquestrador
+usavam a credencial errada** — `Motors — Webhooks do site (Bearer)`, e não
+`CICLO_MOTOR_TOKEN`. Provado antes de corrigir: aquela credencial, apontada
+para a rota do motor, devolve **401**.
 
-No n8n, abra `Motors Ciclo — Aviso de Verificação (equipe)` e clique em
-**Execute Workflow**. O nó `Ler a fila de verificação` tem `neverError`, então
-ele **não fica vermelho** — abra a saída dele e olhe o `statusCode`:
+É resquício de antes de **2026-08-18**. Até lá `/api/ciclo/motor/*` aceitava o
+mesmo segredo da consulta de margens; o achado #9 daquela revisão fechou a
+brecha — "segredo mede acesso: dado de cliente e ficha de margem são acessos
+diferentes" (ver o cabeçalho de `src/lib/ciclo/autorizacaoDoMotor.ts`). A rota
+mudou, o workflow não.
 
-- `200` → resolvido.
-- `401` → o valor ainda não bate (confira o prefixo `Bearer `).
-- `503` → a variável sumiu da Vercel.
+O efeito seria silencioso e caro: o motor **leria** a fila e **enviaria** o
+WhatsApp, mas não conseguiria registrar `falha_envio`. Cada envio que falhasse
+deixaria o cliente contando como contatado sem ter sido — exatamente o
+`desfechos_nao_registrados` do `MOTOR_DE_GATILHOS.md`.
 
-Escolha esse workflow, e não o Orquestrador: ele só **lê**. Ver o aviso sobre
-`reservar` na Tarefa D.
+Corrigido no mesmo dia: os dois nós passaram a usar `CICLO_MOTOR_TOKEN`.
+Conferido com o **nó real**, mandando `evento_id` vazio — que para no **422**
+antes do RPC, sem escrever nada:
 
----
+```
+HTTP 422 · {"error":"evento_id é obrigatório."}
+```
+
+422 e não 401 é a prova: a autorização passou.
+
+### Como reconferir, se um dia voltar a falhar
+
+```bash
+curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" \
+  "https://n8n.v2o5.com.br/api/v1/executions?workflowId=9zYClIJd22nEBWQO&limit=3&status=success"
+```
+
+Contagem `> 0` é o único sinal que vale. `active: true` não prova nada, e o
+`neverError` dos nós HTTP faz o workflow terminar **verde** mesmo levando 401 —
+foi assim que isto passou semanas sem ninguém ver.
+
+Se precisar diagnosticar de novo, a régua é:
+
+| Resposta | Significa |
+|---|---|
+| `503` | `CICLO_MOTOR_TOKEN` ausente na Vercel |
+| `401` | o `Authorization` do n8n não bate — falta o prefixo `Bearer `, ou sobrou espaço |
+| `200` / `422` | autenticou |
+
+A comparação é byte a byte (`tokenConfere`, com hash e `timingSafeEqual`): o
+lado da Vercel passa por `.trim()`, **o cabeçalho recebido não**.
 
 ## Tarefa B — a URL do feed no Google Merchant · **destrava fechar a exceção**
 
@@ -106,9 +132,10 @@ não há ferramenta de Merchant Center do meu lado, só de Meta.
 
 ### Depois da B, a exceção cai
 
-**Só a B trava.** A Tarefa A é urgente, mas independente: os workflows do motor já
-chamam o apex, então o token não muda nada no 301. Fechada a B, some o motivo
-de `/api/*` escapar. São duas linhas:
+**Só a B trava** — e ela encolheu para o Google Merchant. A Tarefa A, já
+resolvida, nunca travou isto: os workflows do motor chamam o apex, então o
+token não muda nada no 301. Fechada a B, some o motivo de `/api/*` escapar.
+São duas linhas:
 
 - `next.config.ts`: o `source` vira `/:caminho*` (sem o `(?!api/)`).
 - `tests/redirect-do-alias.test.ts`: o caso *"NÃO toca em /api"* hoje **exige**
