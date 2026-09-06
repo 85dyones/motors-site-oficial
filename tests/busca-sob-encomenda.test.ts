@@ -7,6 +7,7 @@ import {
   type PedidoDeBusca,
 } from "../src/lib/buscaSobEncomenda";
 import { ACOES, ACOES_DE_LEADS } from "../src/lib/turnstile";
+import { ler } from "./fonte";
 
 /**
  * A Busca sob encomenda é o que responde a metade dos hubs que está sem carro
@@ -187,5 +188,38 @@ describe("a ação do Turnstile", () => {
 describe("o canal", () => {
   it("é o rótulo que o consultor vê no kanban", () => {
     expect(CANAL_BUSCA_ENCOMENDA).toBe("Busca sob encomenda");
+  });
+});
+
+/**
+ * A rota é testada pela FONTE, e não por importação, porque `POST` depende de
+ * `next/server` e de `cookies()` — montar isso no vitest testaria o mock, não a
+ * rota. O que precisa ser verdade aqui é estrutural: as colunas novas são
+ * escritas SOB CONDIÇÃO, e a condição é o bloco no corpo.
+ */
+describe("a rota /api/leads", () => {
+  const fonte = ler("src/app/api/leads/route.ts");
+
+  it("grava as três colunas do pedido", () => {
+    expect(fonte).toContain("colunasDoPedido");
+  });
+
+  it("condiciona a gravação ao bloco no corpo — PDP e pop-up não regridem", () => {
+    // A regra 7 do CLAUDE.md: o que já está em produção não muda de forma.
+    // Um spread incondicional mandaria `modelo_interesse` e
+    // `disponivel_estoque: false` em TODO lead, inclusive os da ficha.
+    //
+    // Substring exata, e não regex de espaçamento: uma expressão que tolera
+    // `\s*` fica verde para qualquer formatação e vermelha quando o prettier
+    // quebra a linha — o oposto do que se quer de uma trava.
+    expect(fonte).toContain("...(pedidoDeBusca ? colunasDoPedido(pedidoDeBusca) : {})");
+  });
+
+  it("manda content_category para o CAPI sem tocar no evento da ficha", () => {
+    expect(fonte).toContain("content_category");
+    expect(fonte).toContain("busca-encomenda");
+    // O evento da ficha continua mandando o id e o preço do veículo.
+    expect(fonte).toContain("content_ids");
+    expect(fonte).toContain("value: veiculo?.preco");
   });
 });

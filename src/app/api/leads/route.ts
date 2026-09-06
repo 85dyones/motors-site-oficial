@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
+import { colunasDoPedido, mensagemDoPedido } from "../../../lib/buscaSobEncomenda";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,16 @@ export async function POST(request: NextRequest) {
     }
 
     const { cliente, veiculo, utm, intencao_busca, agUid, webhookUrl, turnstileToken } = body;
+
+    /**
+     * Busca sob encomenda — o pedido de um carro que a loja NÃO tem.
+     *
+     * Nasce nos hubs de marca e modelo sem estoque (metade deles). Não tem
+     * tabela própria de propósito: em `leads` ele cai no kanban A1/A8 que a
+     * loja já abre, com etapa, responsável e desfecho. Ver o desenho em
+     * `docs/superpowers/specs/2026-09-06-busca-sob-encomenda-design.md`.
+     */
+    const pedidoDeBusca = body.busca_encomenda ?? null;
 
     // 1. Captcha — exigido por PADRÃO, com lista de isenções
     //
@@ -168,6 +179,7 @@ export async function POST(request: NextRequest) {
       // "Interesse" é o que a pessoa quer, na melhor forma disponível: o
       // veículo da ficha, senão o que ela digitou, senão a busca que fazia.
       const interesse =
+        (pedidoDeBusca && mensagemDoPedido(pedidoDeBusca)) ||
         (veiculo && [veiculo.marca, veiculo.modelo, veiculo.versao].filter(Boolean).join(" ")) ||
         body.mensagem ||
         (intencao_busca && Object.values(intencao_busca).filter(Boolean).join(" · ")) ||
@@ -215,6 +227,16 @@ export async function POST(request: NextRequest) {
          * ninguém, e para `count(ag_uid)` continuar significando o que parece.
          */
         ag_uid: resolvedAgUid !== "ag_ref_nao_localizado" ? resolvedAgUid : null,
+        /**
+         * As três colunas do pedido, e só quando há pedido.
+         *
+         * Spread condicional, não incondicional: `disponivel_estoque: false`
+         * em todo lead diria que a ficha de um carro à venda nasceu sem
+         * estoque, e `modelo_interesse` vazio apagaria a coluna para quem vier
+         * a preenchê-la por outro caminho. Regra 7 do CLAUDE.md — o que está em
+         * produção não muda de forma.
+         */
+        ...(pedidoDeBusca ? colunasDoPedido(pedidoDeBusca) : {}),
       });
 
       if (erroLead) {
@@ -247,7 +269,14 @@ export async function POST(request: NextRequest) {
           customData: {
             content_ids: veiculo?.id ? [String(veiculo.id)] : undefined,
             content_type: META_CONTENT_TYPE,
-            content_name: veiculo ? `${veiculo.marca} ${veiculo.modelo}` : undefined,
+            content_name: pedidoDeBusca
+              ? colunasDoPedido(pedidoDeBusca).modelo_interesse
+              : veiculo
+                ? `${veiculo.marca} ${veiculo.modelo}`
+                : undefined,
+            // Separa a conversão do carro que a loja TEM da do carro que ela
+            // foi buscar. Sem isto as duas viram o mesmo público no Meta.
+            content_category: pedidoDeBusca ? "busca-encomenda" : undefined,
             value: veiculo?.preco,
             currency: "BRL",
           },
