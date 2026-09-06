@@ -57,6 +57,9 @@ presença local e processo**.
 >   Canonical e URL não mudaram, então não há reindexação envolvida.
 > - **P4 ✅** o 301 do alias entrou em `next.config.ts`, por host,
 >   **excluindo `/api/`** — os workflows do n8n seguem entrando pelo alias.
+>   *(Metade 2, em 2026-09-06: os workflows saíram do alias. A exceção
+>   `/api/` continua até o feed do Meta/Merchant ser conferido — ver
+>   "O alias saiu do circuito" em `VIRADA_DE_DOMINIO.md`.)*
 > - **P6 ✅** motos ganharam segmento próprio: `/motos/…`. A rota virou um
 >   segmento dinâmico único, e quem chegar pelo segmento errado leva 308.
 >   Feito com 4 motos no estoque, que é quando custa menos.
@@ -115,9 +118,24 @@ nova. O que só o dono pode fazer:
 4. `node conteudo-seo/configurar-gsc.js <caminho-do-json>`.
 5. Enviar o sitemap (`https://motorsstore.com.br/sitemap.xml`) na interface.
 
-Nota: a integração do Semrush foi tentada hoje e a conta está **sem créditos
-de API**. Não faz falta agora: para uma loja de 41 carros, o dado do próprio
-site (grátis) vale mais que estimativa de mercado (paga).
+Nota: o Semrush saiu do plano — a conta está sem créditos de API e a
+assinatura não se justifica aqui. Onde precisarmos de volume de busca por
+região, a fonte é o **Planejador de Palavras-Chave** do Google Ads: de graça,
+dentro da conta `830-658-0678` que a loja já tem, com a localização travada em
+Curitiba/PR. Uma ressalva para não ler o número errado: enquanto a conta não
+estiver veiculando, ele devolve **faixas** ("100 – 1 mil"), não média mensal
+exata — serve para ordenar prioridade, não para projetar lead.
+
+Isso está automatizado em `conteudo-seo/planejador.js`, irmão do `gsc.js` e
+com a mesma conta de serviço. Falta um pré-requisito que não é código: a
+Google Ads API exige **token de desenvolvedor**, que só sai de conta
+administradora (MCC) e passa por aprovação. `--conferir` diz o que falta.
+
+E a ordem entre as duas fontes continua a mesma: o Planejador é estimativa de
+mercado e serve para **descobrir** termo que ainda não temos; o Search Console
+é o que a motorsstore.com.br de fato recebeu e serve para **ordenar** o que já
+temos. Para uma loja de 41 carros, o segundo pesa mais — por isso ele é o P1 e
+o Planejador não é prioridade nenhuma.
 
 ### P2 — Perfil da Empresa no Google · Dono · 1–2 h · R$ 0
 
@@ -150,6 +168,13 @@ title ficou de fora na época por ser decisão de SEO em produção.
 não mudam — risco baixo, efeito direto no CTR.
 
 ### P4 — 301 do alias da Vercel, com o desvio das APIs · Código · pequeno, com cuidado
+
+> **Fechado em 2026-09-06.** O texto abaixo é o diagnóstico original, de
+> 2026-08-18. Estado hoje: as páginas do alias levam 308 para o apex desde
+> 19/08, e os workflows do n8n saíram do alias em 06/09 — nenhum workflow
+> **ativo** chama mais o endereço da Vercel. O que sobra é a exceção
+> `(?!api/)`, com três confirmações pendentes fora do repositório, listadas
+> em `VIRADA_DE_DOMINIO.md` → "O alias saiu do circuito".
 
 `motors-site-oficial.vercel.app` segue servindo 200 em tudo (medido hoje) —
 conteúdo duplicado aos olhos do Google, mitigado pelo canonical, mas mitigado
