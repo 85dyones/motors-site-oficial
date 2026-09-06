@@ -56,11 +56,15 @@ export default function ModalDeDesfecho({
   motivos: MotivoDoFunil[];
   /**
    * `canal` é o que diz se esta pessoa quer COMPRAR um carro ou VENDER o dela
-   * — e portanto qual lista de motivos faz sentido oferecer. Opcional porque
-   * um lead antigo pode não ter canal; `escopoDoLead` cai em compra, o funil
-   * padrão.
+   * — e portanto qual lista de motivos faz sentido oferecer. Obrigatório, e
+   * não opcional: a coluna no banco nunca está AUSENTE, só pode estar `null`
+   * — é o caso do lead antigo, de antes de ela existir. Deixar o campo
+   * opcional aqui deixaria um chamador parar de passar o canal e compilar em
+   * silêncio, exatamente o gesto que já vazou `preco_compra` na fronteira de
+   * um client component deste repositório. `null` continua tratado:
+   * `escopoDoLead` cai em compra, o funil padrão.
    */
-  lead: { nome: string; interesse?: string | null; canal?: string | null };
+  lead: { nome: string; interesse?: string | null; canal: string | null };
   aoConfirmar: (escolha: DesfechoEscolhido) => void;
   aoCancelar: () => void;
 }) {
@@ -104,11 +108,15 @@ export default function ModalDeDesfecho({
   const caixa = useRef<HTMLDivElement>(null);
 
   // `etapa.tipo` é `TipoDeEtapa`, que inclui "aberta" — e `motivosVisiveis` só
-  // aceita desfecho. Na prática o `[]` nunca acontece: este componente só é
-  // montado a partir de uma etapa terminal (`LeadsKanban.tsx` chama
-  // `setFechando` para ganho, perdido ou descarte, nunca para "aberta"). A
-  // guarda é para o TIPO, não para um caso real — e, se algum dia cair, o
-  // estado vazio que a caixa já desenha cobre a tela.
+  // aceita desfecho. Hoje só ganho e perdido chegam a montar esta caixa:
+  // `LeadsKanban.tsx:247` testa `etapa.tipo === "ganho" || etapa.tipo ===
+  // "perdido"`, os tipos nominalmente, sem `descartado`. O ramo de descarte
+  // já existe aqui — rótulos, cor da moldura, `ehDescarte` acima — e está
+  // pronto para receber etapa; só não é alcançado ainda por aquele chamador.
+  // É defeito pré-existente do `LeadsKanban.tsx`, tarefa própria, e não se
+  // resolve mexendo nesta caixa. A guarda abaixo é para o TIPO, não para um
+  // caso real — e, se algum dia cair, o estado vazio que a caixa já desenha
+  // cobre a tela.
   const disponiveis = useMemo(
     () =>
       ehTipoDeDesfecho(etapa.tipo)

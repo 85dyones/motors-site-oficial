@@ -5,6 +5,7 @@ import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
   ETAPAS_PADRAO,
+  ESCOPOS_DE_MOTIVO,
   TIPOS_DE_DESFECHO,
   agruparPorMotivo,
   ehDescarte,
@@ -1007,7 +1008,12 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
     ).replace(/\r\n/g, "\n");
 
     expect(fonte).toContain("motivosVisiveis(");
-    expect(fonte).toContain("escopoDoLead(");
+    // Não basta chamar `escopoDoLead` — tem que ler `lead.canal`. Uma
+    // asserção que só procurasse "escopoDoLead(" ficaria verde mesmo se o
+    // campo lido virasse `lead.interesse` por engano: a função ainda seria
+    // chamada, só que com o dado errado, e todo lead voltaria a cair em
+    // `compra` sem nenhum teste acusar.
+    expect(fonte).toContain("escopoDoLead(lead.canal)");
 
     // O filtro velho não pode ter sobrevivido ao lado do novo: dois caminhos
     // para a mesma lista é como o escopo volta a ser ignorado em silêncio.
@@ -1038,5 +1044,18 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
     // coluna. Nascer em `compra` esconderia do funil de avaliação um motivo
     // que a pessoa acabou de criar.
     expect(fonte).toMatch(/escopo:\s*"ambos"/);
+
+    // Cada valor de `ESCOPOS_DE_MOTIVO` precisa virar uma <option> na tela —
+    // varrendo a CONSTANTE, e não os três rótulos escritos à mão, porque é
+    // isso que faz a asserção crescer sozinha se o vocabulário crescer. Uma
+    // lista fixa ("compra", "avaliacao", "ambos") continuaria verde no dia em
+    // que um quarto escopo entrasse em `ESCOPOS_DE_MOTIVO` e no CHECK do
+    // banco sem opção nenhuma aqui — o operador veria um valor que o sistema
+    // aceita e a tela não oferece.
+    for (const escopo of ESCOPOS_DE_MOTIVO) {
+      expect(fonte, `falta <option value="${escopo}"> no seletor de escopo`).toContain(
+        `value="${escopo}"`,
+      );
+    }
   });
 });
