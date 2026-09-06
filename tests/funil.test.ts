@@ -891,6 +891,23 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
     }
   });
 
+  it("a rota de configuração recusa escopo desconhecido, não converte", () => {
+    const fonte = readFileSync(
+      join(__dirname, "..", "src", "app", "api", "funil", "config", "route.ts"),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+
+    // O guarda tem que ser chamado, e o escopo tem que chegar ao upsert.
+    expect(fonte).toContain("ehEscopoDeMotivo");
+    expect(fonte).toMatch(/escopo:/);
+
+    // E não pode existir ternário de fallback sobre escopo. É exatamente o
+    // defeito que o `funil.ts` já documenta: o `m.tipo === "ganho" ? … : …`
+    // que, no dia em que entrou o terceiro desfecho, converteria todo motivo
+    // de descarte em motivo de perda, sem erro e sem aviso.
+    expect(fonte).not.toMatch(/escopo\s*===\s*["'][a-z]+["']\s*\?/);
+  });
+
   describe("motivosVisiveis", () => {
     const m = (
       chave: string,
