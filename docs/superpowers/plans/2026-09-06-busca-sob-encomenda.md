@@ -19,7 +19,7 @@
 - **Vocabulário travado:** "perícia cautelar independente" é o processo; "laudo cautelar independente" é o documento. Sempre por extenso. Nunca "laudo cautelar" sozinho, nunca "preço fechado".
 - **Copy proibida:** não prometer preço, desconto ou valor abaixo da FIPE; não prometer prazo de entrega do veículo (só de retorno do consultor); não dizer "garantimos que encontramos"; a oferta é sempre do **consultor**, nunca de um sistema.
 - **Não citar os canais de busca** (decisão do dono, 2026-09-06). "Rede de repasse", "desmobilização de frota" e equivalentes ficam fora.
-- **Prazo:** "em até 48h úteis", sempre como retorno do consultor.
+- **A copy NÃO crava prazo de resposta.** Decisão do dono em 2026-09-06, revendo o §14.2 do handoff: "Retorno em até 48h úteis" batia em `tests/promessa-publica.test.ts` (trava de 04/09 contra prazo de resposta que o sistema não mede) — e "hora útil" não é calculada em lugar nenhum. O selo é só **"Sem taxa, sem compromisso."** O prazo volta quando o follow-up do n8n medir de verdade.
 - **Regra 6 do `CLAUDE.md`:** "Ver todo o estoque" tem que continuar acessível em toda variante.
 - **Regra 7 do `CLAUDE.md`:** eventos de tracking existentes não mudam de nome nem de forma. O que existe hoje na ficha, no pop-up e no `/contato` sai byte por byte igual.
 - **Idioma:** código, nomes e commits em português, no padrão do repositório.
@@ -174,8 +174,12 @@ describe("textoDaBusca — variante de marca", () => {
     expect(semQualificar).not.toContain("laudo");
   });
 
-  it("promete retorno do consultor, não entrega do veículo", () => {
-    expect(carro.selo).toContain("48h úteis");
+  it("não crava prazo de resposta nenhum", () => {
+    // `tests/promessa-publica.test.ts` (04/09) proíbe afirmar tempo de retorno
+    // que nada mede, e "hora útil" não é calculada em lugar nenhum. O funil
+    // mede tempo até o primeiro contato, mas em relógio, não em hora comercial.
+    expect(carro.selo).toBe("Sem taxa, sem compromisso.");
+    expect(carro.selo).not.toMatch(/\d+\s*(h|hora|min)/i);
     expect(carro.selo.toLowerCase()).not.toContain("entrega");
   });
 });
@@ -398,7 +402,12 @@ export function textoDaBusca(alvo: {
   genero: Genero;
 }): TextoDaBusca {
   const { marca, modelo, genero } = alvo;
-  const selo = "Sem taxa, sem compromisso. Retorno em até 48h úteis.";
+  // Sem prazo de resposta. `tests/promessa-publica.test.ts` (04/09) proíbe
+  // afirmar tempo de retorno que nada mede, e "hora útil" não é calculada em
+  // lugar nenhum do sistema — o funil mede tempo até o primeiro contato
+  // (`ultimo_contato_em`) em relógio, não em hora comercial. Decisão do dono
+  // em 2026-09-06, revendo o §14.2 do handoff.
+  const selo = "Sem taxa, sem compromisso.";
 
   if (!modelo) {
     return {
@@ -417,10 +426,14 @@ export function textoDaBusca(alvo: {
     titulo:
       `${concordar(genero, "Nenhum", "Nenhuma")} ${marca} ${modelo} no estoque agora. ` +
       "Quer que a gente ache?",
+    // "assim que aprovado" NÃO é enfeite: `tests/coerencia-da-pericia.test.ts`
+    // exige a ressalva em toda promessa de laudo, porque afirmar laudo limpo
+    // sobre carro que ainda não passou na perícia é passivo de CDC. A variante
+    // de marca já a trazia; a de modelo terminava em "na ficha." e reprovava.
     paragrafo:
       "Diz o ano, a versão e o quanto pretende investir. Um consultor procura e te chama no " +
       "WhatsApp com o que encontrar — depois da perícia cautelar independente, com o laudo " +
-      "cautelar independente na ficha.",
+      "cautelar independente na ficha assim que aprovado.",
     selo,
     rotuloPrimario: `PROCURE ${concordar(genero, "ESSE", "ESSA")} ${modelo.toUpperCase()} PRA MIM`,
   };
@@ -811,8 +824,7 @@ export default function BuscaSobEncomenda({
       <div className="border-b border-mt-regua-fina py-10">
         <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Recebido.</h2>
         <p className="m-0 mt-3 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800">
-          Um consultor vai te chamar no WhatsApp em até 48h úteis com o que encontrar. Se aparecer
-          algo antes, chega antes.
+          Um consultor vai te chamar no WhatsApp com o que encontrar.
         </p>
         <div className="mt-6 flex flex-wrap gap-0.5">
           {avisarHref && (
@@ -1234,7 +1246,7 @@ describe("o bloco no HTML do servidor", () => {
   it("traz a oferta e o botão prontos, sem depender de hidratação", () => {
     const html = montar({ buscaSobEncomenda: alvoDeMarca });
     expect(html).toContain("PROCURE ESSE CARRO PRA MIM");
-    expect(html).toContain("48h úteis");
+    expect(html).toContain("Sem taxa, sem compromisso.");
   });
 
   it("usa a variante de modelo quando há modelo", () => {

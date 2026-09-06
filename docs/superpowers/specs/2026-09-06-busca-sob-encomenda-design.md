@@ -221,22 +221,23 @@ Tokens: `{Marca}`, `{Modelo}`, `{MarcaModelo}`.
 > independente** por que passa todo veículo antes da vitrine, com o **laudo
 > cautelar independente** na ficha assim que aprovado.
 >
-> **Sem taxa, sem compromisso.** Retorno em até 48h úteis.
+> **Sem taxa, sem compromisso.**
 
 **Modelo:**
 
 > ### Nenhum {MarcaModelo} no estoque agora. Quer que a gente ache?
 > Diz o ano, a versão e o quanto pretende investir. Um consultor procura e te
 > chama no WhatsApp com o que encontrar — depois da **perícia cautelar
-> independente**, com o **laudo cautelar independente** na ficha.
+> independente**, com o **laudo cautelar independente** na ficha assim que
+> aprovado.
 >
-> **Sem taxa, sem compromisso.** Retorno em até 48h úteis.
+> **Sem taxa, sem compromisso.**
 
 **Painel:** "Busca sob encomenda — {MarcaModelo}"
 **Rodapé:** "A Motors Store não cobra pela busca. Você só decide quando o carro
 estiver na sua frente, com o laudo cautelar independente."
-**Confirmação:** "Recebido. Um consultor vai te chamar no WhatsApp em até 48h
-úteis com o que encontrar. Se aparecer algo antes, chega antes."
+**Confirmação:** "Recebido. Um consultor vai te chamar no WhatsApp com o que
+encontrar."
 
 ### 4.1 Perícia e laudo são complementares, não sinônimos
 
@@ -264,8 +265,27 @@ Decisão do dono em 2026-09-06 (§14.1 do handoff): **não citar os canais de
 busca.** A versão do handoff — "rede de repasse entre lojistas e desmobilizações
 de frota" — sai. O consultor "procura e volta com o que encontrar".
 
-Prazo de retorno de 48h úteis: **confirmado** pelo dono (§14.2). É prazo de
-retorno do consultor, nunca de entrega do veículo.
+**A copy não crava prazo de resposta** — revisão da decisão do §14.2, tomada em
+2026-09-06 durante a implementação.
+
+O dono tinha confirmado "retorno em até 48h úteis". A frase reprovou em
+`tests/promessa-publica.test.ts`, trava de 04/09 que proíbe afirmar prazo de
+resposta que o sistema não mede — construída depois que *"proposta em menos de
+10 minutos"* apareceu em doze superfícies sem nada medindo o tempo.
+
+O levantamento: o funil **mede** tempo até o primeiro contato
+(`leads.ultimo_contato_em`, prazo por etapa em `funil_etapas`, card parado
+pintado no kanban) — mas em relógio. **"Hora útil" não é calculada em lugar
+nenhum**, e é justamente a parte que a promessa qualificava. Somado a isso, o
+follow-up de 48h que daria corpo ao número vive no n8n (§8.1) e está fora do
+escopo de código.
+
+Decisão do dono: o selo fica em **"Sem taxa, sem compromisso."** O prazo volta
+quando houver medição de hora útil. As três alternativas consideradas — trocar
+por "em até 2 dias" (que o funil mede e a trava não alcança) ou isentar o
+arquivo — foram recusadas: a primeira mantém uma promessa sem o mecanismo, a
+segunda abriria a primeira exceção de superfície pública numa lista feita para
+arquivo interno.
 
 Proibições herdadas do `/avaliacao`, valendo aqui: não prometer preço, desconto
 ou valor abaixo da FIPE; não prometer prazo de entrega; não dizer "garantimos
