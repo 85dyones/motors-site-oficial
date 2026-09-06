@@ -968,4 +968,32 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
       ]);
     });
   });
+
+  /**
+   * Asserção de FONTE, no padrão de `turnstile-estabilidade` e
+   * `nomenclatura-estoque`.
+   *
+   * Testar `motivosVisiveis` isolada não prova que a CAIXA a chama — mutar a
+   * função e ver o teste vermelho só prova a função. O ponto de chamada é o
+   * que apodrece: basta alguém reescrever o `useMemo` e o escopo deixa de
+   * valer, sem teste nenhum ficar vermelho.
+   *
+   * O repositório não tem jsdom nem plugin React (`vitest.config.ts` roda em
+   * `environment: "node"` e o `include` nem pega `.tsx`), então montar o
+   * componente exigiria infraestrutura nova. Esta é a prova disponível hoje —
+   * e o dia em que o render existir, este teste vira teste de render.
+   */
+  it("a caixa de desfecho pede a lista a motivosVisiveis, e não filtra por conta própria", () => {
+    const fonte = readFileSync(
+      join(__dirname, "..", "src", "components", "admin", "ModalDeDesfecho.tsx"),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+
+    expect(fonte).toContain("motivosVisiveis(");
+    expect(fonte).toContain("escopoDoLead(");
+
+    // O filtro velho não pode ter sobrevivido ao lado do novo: dois caminhos
+    // para a mesma lista é como o escopo volta a ser ignorado em silêncio.
+    expect(fonte).not.toMatch(/m\.tipo\s*===\s*etapa\.tipo/);
+  });
 });

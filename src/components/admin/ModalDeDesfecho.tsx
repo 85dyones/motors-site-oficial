@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ehDescarte, type EtapaDoFunil, type MotivoDoFunil } from "../../lib/funil";
+import {
+  ehDescarte,
+  ehTipoDeDesfecho,
+  escopoDoLead,
+  motivosVisiveis,
+  type EtapaDoFunil,
+  type MotivoDoFunil,
+} from "../../lib/funil";
 
 /**
  * A caixa que pergunta POR QUÊ antes de fechar o negócio.
@@ -47,7 +54,13 @@ export default function ModalDeDesfecho({
 }: {
   etapa: EtapaDoFunil;
   motivos: MotivoDoFunil[];
-  lead: { nome: string; interesse?: string | null };
+  /**
+   * `canal` é o que diz se esta pessoa quer COMPRAR um carro ou VENDER o dela
+   * — e portanto qual lista de motivos faz sentido oferecer. Opcional porque
+   * um lead antigo pode não ter canal; `escopoDoLead` cai em compra, o funil
+   * padrão.
+   */
+  lead: { nome: string; interesse?: string | null; canal?: string | null };
   aoConfirmar: (escolha: DesfechoEscolhido) => void;
   aoCancelar: () => void;
 }) {
@@ -90,9 +103,18 @@ export default function ModalDeDesfecho({
   const [nota, setNota] = useState("");
   const caixa = useRef<HTMLDivElement>(null);
 
+  // `etapa.tipo` é `TipoDeEtapa`, que inclui "aberta" — e `motivosVisiveis` só
+  // aceita desfecho. Na prática o `[]` nunca acontece: este componente só é
+  // montado a partir de uma etapa terminal (`LeadsKanban.tsx` chama
+  // `setFechando` para ganho, perdido ou descarte, nunca para "aberta"). A
+  // guarda é para o TIPO, não para um caso real — e, se algum dia cair, o
+  // estado vazio que a caixa já desenha cobre a tela.
   const disponiveis = useMemo(
-    () => motivos.filter((m) => m.ativo && m.tipo === etapa.tipo).sort((a, b) => a.ordem - b.ordem),
-    [motivos, etapa.tipo],
+    () =>
+      ehTipoDeDesfecho(etapa.tipo)
+        ? motivosVisiveis(motivos, etapa.tipo, escopoDoLead(lead.canal))
+        : [],
+    [motivos, etapa.tipo, lead.canal],
   );
 
   useEffect(() => {
