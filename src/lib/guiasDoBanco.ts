@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 import type { Guia, SecaoDoGuia } from "./guias";
 import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque";
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
+import { ehCaminhoInterno } from "./guiaValidacao";
 
 /**
  * Os guias, lidos da tabela `guias`.
@@ -89,7 +90,11 @@ function normalizar(linha: LinhaDeGuia): Guia {
 
   const saidaBruta = linha.saida as Guia["saida"] | null;
   const saida =
-    saidaBruta && typeof saidaBruta.href === "string" && saidaBruta.href.startsWith("/")
+    // A MESMA régua da escrita, pela mesma função. Enquanto eram duas checagens
+    // soltas elas divergiram: a API passou a recusar `//exemplo.com` e esta
+    // linha, que só fazia `startsWith("/")`, continuou aceitando — leitura mais
+    // frouxa que escrita deixa passar a linha que já estava gravada.
+    saidaBruta && typeof saidaBruta.href === "string" && ehCaminhoInterno(saidaBruta.href)
       ? saidaBruta
       : // Sem saída válida, o guia manda para o estoque. Guia sem destino é
         // conteúdo que não devolve nada — e um `href` quebrado é pior que o

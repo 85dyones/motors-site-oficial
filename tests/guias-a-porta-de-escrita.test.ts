@@ -195,3 +195,100 @@ describe("os validadores da escrita", () => {
     expect(problemas).toHaveLength(4);
   });
 });
+
+describe("a classe inteira de fuga do site, não só a grafia //", () => {
+  /**
+   * A primeira correção fechou `//` e deixou a CLASSE aberta — a revisão provou
+   * quatro cargas que ainda resolviam para outro domínio, medidas no HTML
+   * renderizado:
+   *
+   *   `/\exemplo.com/promo`  · `/<TAB>/exemplo.com`
+   *   `/<LF>/exemplo.com`    · `/<CR>/exemplo.com`
+   *
+   * O parser da WHATWG trata `\` como `/` em esquema especial, e REMOVE
+   * tabulação e quebra de linha antes de parsear. `trim()` não pega: os
+   * caracteres estão no meio.
+   */
+  const FUGAS = [
+    "//exemplo.com/promo",
+    "/\\exemplo.com/promo",
+    "/\t/exemplo.com",
+    "/\n/exemplo.com",
+    "/\r/exemplo.com",
+    "/\\\\exemplo.com",
+    "https://exemplo.com",
+  ];
+
+  it("nenhuma carga conhecida vira saída comercial", async () => {
+    const { normalizarSaida } = await import("../src/lib/guiaValidacao");
+
+    for (const href of FUGAS) {
+      expect(normalizarSaida({ href, rotulo: "Oferta" }), `passou: ${JSON.stringify(href)}`).toBeNull();
+    }
+  });
+
+  it("e o critério é o destino real, não a lista", async () => {
+    const { ehCaminhoInterno } = await import("../src/lib/guiaValidacao");
+
+    // A prova que não depende de eu ter lembrado da carga certa: o que o
+    // aceitador deixa passar tem que resolver para o próprio domínio.
+    for (const href of [...FUGAS, "/garantia", "/estoque?x=1", "/estoque#a", "/"]) {
+      if (!ehCaminhoInterno(href)) continue;
+      expect(
+        new URL(href, "https://motorsstore.com.br").origin,
+        `aceitou ${JSON.stringify(href)}, que sai do site`,
+      ).toBe("https://motorsstore.com.br");
+    }
+  });
+
+  it("caminho interno de verdade continua passando", async () => {
+    const { ehCaminhoInterno } = await import("../src/lib/guiaValidacao");
+
+    for (const href of ["/garantia", "/estoque", "/estoque?x=1", "/estoque#a", "/", "/guias/x-y"]) {
+      expect(ehCaminhoInterno(href), `recusou ${href}`).toBe(true);
+    }
+  });
+
+  it("a LEITURA usa a mesma régua da escrita", async () => {
+    // Enquanto eram duas checagens soltas, elas divergiram: a API recusava `//`
+    // e `guiasDoBanco` aceitava — leitura mais frouxa deixa passar a linha que
+    // já estava gravada.
+    const { ehCaminhoInterno } = await import("../src/lib/guiaValidacao");
+    const fonte = (await import("node:fs")).readFileSync("src/lib/guiasDoBanco.ts", "utf8");
+
+    expect(fonte).toContain("ehCaminhoInterno(saidaBruta.href)");
+    expect(fonte).not.toContain('saidaBruta.href.startsWith("/")');
+    expect(ehCaminhoInterno("/\\exemplo.com")).toBe(false);
+  });
+});
+
+describe("o JSON-LD não deixa fechar o <script>", () => {
+  /**
+   * `blocoJsonLd` escapa `<` como `\u003c`. A correção subiu sem teste no
+   * repositório — a revisão provou que funciona, mas nada impedia alguém de
+   * tirar a linha. Dado que a tese desta entrega inteira é "a porta nova não
+   * tinha trava", o par faltava.
+   */
+  it("texto com </script> não fecha o bloco, e o JSON continua válido", async () => {
+    const { blocoJsonLd } = await import("../src/lib/schemaListagem");
+    const veneno = "</script><img src=x onerror=alert(1)>";
+
+    const bloco = blocoJsonLd([{ "@type": "Article", headline: veneno }]);
+
+    expect(bloco).not.toContain("</script>");
+    expect(bloco).not.toContain("<img");
+    // E continua sendo JSON: o consumidor recebe o texto original de volta.
+    expect(JSON.parse(bloco)[0].headline).toBe(veneno);
+  });
+
+  it("nenhum `<` sobrevive, venha de onde vier", async () => {
+    const { blocoJsonLd } = await import("../src/lib/schemaListagem");
+
+    const bloco = blocoJsonLd([
+      { a: "<!--", b: "]]>", c: "<svg/onload=x>", d: { e: ["<script>"] } },
+    ]);
+
+    expect(bloco.includes("<")).toBe(false);
+    expect(() => JSON.parse(bloco)).not.toThrow();
+  });
+});

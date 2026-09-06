@@ -75,8 +75,14 @@ create table if not exists public.guias (
   -- não abre, e o erro só apareceria no build.
   --
   -- O teto de 90 é o mesmo `slice(0, 90)` de `normalizarSlug`, em
-  -- `app/api/guias/route.ts`: número menor aqui transformaria um título longo
+  -- `src/lib/guiaValidacao.ts`: número menor aqui transformaria um título longo
   -- em erro cru do Postgres na tela de quem escreve, em vez de um slug servível.
+  --
+  -- (A função nasceu em `app/api/guias/route.ts` e saiu de lá no mesmo dia:
+  -- route handler do Next só exporta verbo HTTP, e enquanto ela morava ali não
+  -- dava para testá-la a não ser pela porta HTTP. O ponteiro é corrigido AGORA
+  -- porque migração aplicada é registro histórico — depois de gravada não se
+  -- edita, e um caminho errado aqui envelhece para sempre.)
   slug text primary key
     constraint guias_slug_formato
       check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(slug) <= 90),
