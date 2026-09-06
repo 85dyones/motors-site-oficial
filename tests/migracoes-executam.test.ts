@@ -82,6 +82,11 @@ const CADEIA = [
   // aceite dela prova um CHECK novo tentando INSERIR o valor inválido — e
   // `check_violation` só acontece contra um Postgres de verdade.
   "20260905120000_motivo_por_escopo.sql",
+  // sem_resposta vai para o fim das duas listas (2026-09-06). Entra na cadeia
+  // porque o aceite só existe comparando `ordem` contra as linhas que a
+  // migração de escopo, acima, inseriu — sem rodar as duas em sequência não
+  // há "último motivo de avaliação" nenhum para comparar.
+  "20260906120000_sem_retorno_por_ultimo.sql",
 ];
 
 /**
