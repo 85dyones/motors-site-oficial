@@ -18,6 +18,14 @@ import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque"
  *    escritórios de advocacia) — as duas cadeiras já ocupadas na busca;
  *  · cada um com uma saída comercial definida: nenhum termina sem destino.
  *
+ * ⚠️ **Este argumento não se autoriza sozinho.** O precedente do repositório —
+ * as páginas-cidade, em `docs/RECOMENDACAO_SEO.md` — é que exceção ao "O que
+ * NÃO fazer" vira emenda datada NAQUELE documento, por decisão do dono, e não
+ * por raciocínio num docblock de código. A proposta está escrita lá, marcada
+ * como PENDENTE, com as duas ressalvas: a condição da regra é "antes de o
+ * Search Console medir", e não há credencial de GSC no ambiente para verificar
+ * se a medição já começou.
+ *
  * ---------------------------------------------------------------------------
  * ⚠️ O que NÃO entra, e por quê
  * ---------------------------------------------------------------------------
@@ -73,11 +81,25 @@ export interface Guia {
  * e prepara o terreno para `/garantia`, que cobre exatamente o que a perícia
  * não vê.
  *
- * Nada aqui afirma número que o repositório não sustente. As únicas
- * afirmações da casa são "de cada dez avaliados, três entram"
- * (`conteudo-seo/POSICIONAMENTO.md`) e a perícia em 100% do estoque, que o dono
- * confirmou em 2026-08-17 — a mesma nota que autoriza afirmar que todo veículo
- * PASSA pelo exame, mantendo condicional só o laudo publicado.
+ * As afirmações da casa que este texto usa, e onde cada uma se sustenta:
+ * "de cada dez avaliados, três entram" e a perícia em 100% do estoque
+ * (`conteudo-seo/POSICIONAMENTO.md`, com a nota do dono de 2026-08-17 que
+ * autoriza dizer que todo veículo PASSA pelo exame, mantendo condicional só o
+ * laudo publicado); e o crivo técnico de mais de 120 pontos antes da entrega,
+ * que `/sobre` e `/garantia` já publicam.
+ *
+ * ⚠️ **Ranking de motivo de reprovação, nunca.** A primeira versão da última
+ * FAQ listava três causas como "as mais comuns" — que é exatamente a
+ * distribuição que o docblock do topo deste arquivo declara inexistente. A
+ * revisão pegou; escrever a justificativa e contrariá-la 140 linhas abaixo é
+ * pior do que não ter escrito nenhuma.
+ *
+ * ⚠️ **A metade mecânica tem TRÊS instrumentos, não dois.** A primeira versão
+ * dizia que "a resposta para essa metade não é um laudo — é garantia", e
+ * omitia o crivo técnico de showroom, que `/sobre` e `/garantia` publicam. Duas
+ * superfícies do mesmo site respondendo diferente à mesma pergunta é o molde do
+ * defeito que `coerencia-da-pericia` existe para fechar — e ainda jogava fora o
+ * argumento mais forte da casa no ponto exato em que o texto o levanta.
  */
 const PERICIA_O_QUE_NAO_VERIFICA: Guia = {
   slug: "o-que-a-pericia-cautelar-nao-verifica",
@@ -120,28 +142,30 @@ const PERICIA_O_QUE_NAO_VERIFICA: Guia = {
     {
       titulo: "Por que aqui o exame vem antes do anúncio",
       paragrafos: [
-        "Na maioria das lojas o laudo é etapa de negociação: o cliente pede, alguém providencia, e " +
-          "o resultado aparece perto de fechar. Aqui o exame vem antes do anúncio, em todo o " +
-          "estoque, por um motivo simples — se o resultado importa, ele precisa poder mudar a " +
-          "decisão de comprar o carro. Depois que a unidade está no pátio, ninguém quer ouvir que " +
-          "ela não deveria ter entrado.",
-        "É daí que sai a conta de que, de cada dez veículos avaliados, três entram. Os outros sete " +
-          "não são necessariamente carros ruins — vários são carros que alguém compra e revende sem " +
-          "problema nenhum. Eles só não passam no filtro que a gente escolheu aplicar antes de pôr " +
-          "o nome na frente.",
-        "O laudo fica na ficha do carro assim que a perícia é aprovada, junto do preço. Não é " +
-          "documento que se pede: está publicado.",
+        "É comum que o laudo seja etapa de negociação: o cliente pede, alguém providencia, e o " +
+          "resultado aparece perto de fechar. Aqui o exame vem antes do anúncio, em todo o estoque, " +
+          "por um motivo simples — se o resultado importa, ele precisa poder mudar a decisão de " +
+          "comprar o carro. Depois que a unidade está no pátio, ninguém quer ouvir que ela não " +
+          "deveria ter entrado.",
+        "É por isso que, de cada dez veículos avaliados, três entram. Os outros sete não são " +
+          "necessariamente carros ruins — vários são revendidos sem problema nenhum por outra " +
+          "loja. Eles só não passam no filtro que a gente escolheu aplicar antes de pôr o nome na " +
+          "frente.",
+        "E o laudo fica na ficha do carro assim que a perícia é aprovada, junto do preço — não " +
+          "depende de pedir.",
       ],
     },
     {
       titulo: "O que responde pela outra metade",
       paragrafos: [
-        "Como o exame de procedência não fala do estado mecânico, a resposta para essa metade não é " +
-          "um laudo — é garantia. É ela que responde por motor e câmbio depois que o carro sai da " +
-          "loja, e é a peça que faz sentido ler junto com o laudo, não no lugar dele.",
-        "O comprador que entende a diferença faz as duas perguntas certas na hora certa: pede o " +
-          "laudo para saber de onde o carro vem, e lê a garantia para saber quem responde pelo que " +
-          "vier depois.",
+        "Como o exame de procedência não fala do estado mecânico, essa metade se responde de outro " +
+          "jeito, e em dois tempos. Antes da entrega, o carro passa pelo crivo técnico de showroom: " +
+          "mais de 120 pontos mecânicos e eletrônicos conferidos, que é onde aparece o que a " +
+          "cautelar não olha. Depois da entrega, quem responde por motor e câmbio é a garantia.",
+        "São três instrumentos com funções distintas, e é assim que faz sentido lê-los: a perícia " +
+          "cautelar conta de onde o carro vem, o crivo de showroom diz em que estado ele sai daqui, " +
+          "e a garantia diz quem paga a conta se algo aparecer depois. Nenhum substitui o outro, e " +
+          "quem trata um deles como se cobrisse os três vai descobrir o buraco no pior momento.",
       ],
     },
   ],
@@ -168,10 +192,17 @@ const PERICIA_O_QUE_NAO_VERIFICA: Guia = {
     },
     {
       pergunta: "Por que sete de cada dez carros avaliados não entram no estoque?",
+      // ⚠️ Nada de ranking de motivos aqui. A primeira versão desta resposta
+      // dizia "os motivos mais comuns são passagem por leilão, sinistro de
+      // médio porte, divergência de numeração" — que é exatamente a
+      // distribuição das reprovações, o dado que o docblock deste arquivo diz
+      // não existir no repositório. Escrever a justificativa e contrariá-la
+      // 140 linhas abaixo é pior do que não ter escrito nenhuma.
       resposta:
-        "Porque o filtro é aplicado antes da compra, e não depois. Os motivos mais comuns são de " +
-        "procedência — passagem por leilão, sinistro de médio porte, divergência de numeração — e " +
-        "são exatamente o que a perícia cautelar existe para encontrar.",
+        "Porque o filtro é aplicado antes da compra, e não depois. Alguns não passam na perícia " +
+        "cautelar, outros não passam no crivo técnico, e outros simplesmente não são bons o " +
+        "bastante para levar o nome da loja. O que os sete têm em comum não é serem carros ruins " +
+        "— vários são revendidos sem problema por outra loja. É não terem passado neste filtro.",
     },
   ],
   saida: {

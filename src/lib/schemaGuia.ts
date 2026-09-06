@@ -2,6 +2,7 @@ import type { CompanySettings } from "../types";
 import type { Guia } from "./guias";
 import { REFERENCIA_DA_LOJA, schemaDaLoja, schemaDoSite } from "./schemaLoja";
 import { schemaDePerguntas, schemaDeTrilha } from "./schemaListagem";
+import { urlDoCardGerado } from "./compartilhamento";
 import { SITE_URL } from "./site";
 
 /**
@@ -48,10 +49,28 @@ export function grafoDoGuia(opcoes: {
       publisher: REFERENCIA_DA_LOJA,
       mainEntityOfPage: url,
       url,
-      // A imagem sai do gerador de OG do próprio site, com o título do guia —
-      // é a mesma que o card de WhatsApp usa, então schema e compartilhamento
-      // nunca divergem.
-      image: `${SITE_URL}/og?titulo=${encodeURIComponent(guia.titulo)}`,
+      /**
+       * A imagem sai da MESMA função que monta o card de compartilhamento.
+       *
+       * A primeira versão montava a URL à mão com `encodeURIComponent` e
+       * afirmava que "schema e compartilhamento nunca divergem". Divergiam já
+       * no caso base, e a revisão mediu: `URLSearchParams` codifica espaço como
+       * `+` e a mão codificava como `%20`, e o card carrega `&rotulo=Guia` que
+       * a versão à mão não tinha.
+       *
+       * Com `urlDoCardGerado` as duas batem enquanto o painel não tiver arte
+       * própria. Se a loja subir uma, o `og:image` passa a ser a arte e este
+       * campo continua o card gerado — o que é aceitável (o `Article.image`
+       * não precisa ser idêntico ao `og`), e é por isso que a frase "nunca
+       * divergem" não voltou.
+       *
+       * O `SITE_URL` na frente NÃO é redundante: `urlDoCardGerado` devolve
+       * caminho relativo, que serve ao `next/metadata` (ele absolutiza pelo
+       * `metadataBase`) e não serve ao JSON-LD — `image` de schema.org precisa
+       * ser URL absoluta. Sem esta linha o campo saía `/og?titulo=…`, medido no
+       * HTML construído.
+       */
+      image: `${SITE_URL}${urlDoCardGerado(guia.titulo, "Guia")}`,
       about: guia.sobre.map((name) => ({ "@type": "Thing", name })),
     },
     schemaDeTrilha([

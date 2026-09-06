@@ -6,15 +6,29 @@ import { getCachedSettings } from "../../../lib/settings";
 import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import { blocoJsonLd } from "../../../lib/schemaListagem";
 import { grafoDoGuia } from "../../../lib/schemaGuia";
-import { segmentarComLinks } from "../../../lib/linksNoTexto";
+import { criarLinkador } from "../../../lib/linksNoTexto";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-// Conteúdo editorial não gira com o estoque: um dia é folgado, e mantém a
-// página fora do caminho de qualquer leitura de banco que possa falhar.
-export const revalidate = 86400;
+/**
+ * Uma hora, e não um dia — porque um dia não teria efeito.
+ *
+ * A primeira versão declarava `86400` com um comentário dizendo que conteúdo
+ * editorial não gira com o estoque e que isso mantinha a página "fora do
+ * caminho de qualquer leitura de banco". As duas metades eram falsas, e a
+ * revisão mediu na tabela do build: a rota saía com **Revalidate 1h**.
+ *
+ * O motivo é que `getCachedSettings` é `unstable_cache` com `revalidate: 3600`
+ * (`lib/settings.ts`), e o revalidate efetivo é o MENOR da cadeia. E a página
+ * chama `getCachedSettings()` duas vezes — no metadata e no render —, então a
+ * exposição a uma falha de leitura é a mesma de `/garantia`.
+ *
+ * Declarar o número real é melhor que declarar um teto decorativo: quem ler
+ * daqui a seis meses precisa saber o que a rota faz, não o que se desejou.
+ */
+export const revalidate = 3600;
 export const dynamicParams = false;
 
 export function generateStaticParams() {
@@ -49,11 +63,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * grafo em `lib/schemaGuia.ts`. O que sobra aqui é layout — e é o que permite
  * ao teste renderizar a página inteira com um mock só.
  *
- * O texto passa por `segmentarComLinks`, o mesmo da F1: "perícia cautelar" e
- * "Avaliação Express" viram link para as páginas que respondem por elas, uma
- * vez por página. Sem `caminhoAtual` — nenhum guia é destino de termo —, e a
- * string nunca é alterada, porque as respostas do FAQ vão inteiras para o
- * `FAQPage` do JSON-LD.
+ * O texto passa pelo linkador da F1: "perícia cautelar" e "Avaliação Express"
+ * viram link para as páginas que respondem por elas. Sem `caminhoAtual` —
+ * nenhum guia é destino de termo —, e a string nunca é alterada, porque as
+ * respostas do FAQ vão inteiras para o `FAQPage` do JSON-LD.
+ *
+ * ⚠️ Use `criarLinkador()`, e não `segmentarComLinks` direto. A primeira
+ * versão desta rota chamou a segunda por parágrafo, e o comentário dizia "uma
+ * vez por página" — falso: seis âncoras para `/garantia` no corpo do guia, sete
+ * com o rodapé. O limite de `segmentarComLinks` é por STRING; num texto longo,
+ * que é o que um guia é, a régua por página é a única que vale.
  */
 export default async function GuiaPage({ params }: PageProps) {
   const { slug } = await params;
@@ -63,8 +82,17 @@ export default async function GuiaPage({ params }: PageProps) {
   const { companySettings } = await getCachedSettings();
   const grafo = grafoDoGuia({ guia, empresa: companySettings });
 
+  // Um linkador para a PAGINA inteira, nao um por paragrafo.
+  //
+  // A primeira versao chamava `segmentarComLinks` direto em cada bloco, e o
+  // docblock acima dizia "uma vez por pagina". Era falso: a revisao mediu SEIS
+  // ancoras para `/garantia` no corpo, sete com o rodape. E o defeito exato que
+  // `criarLinkador` existe para fechar -- o limite de `segmentarComLinks` e por
+  // STRING, e a regua certa e por pagina.
+  const linkar = criarLinkador();
+
   const comLinks = (texto: string, chave: string) =>
-    segmentarComLinks(texto).map((parte, i) =>
+    linkar(texto).map((parte, i) =>
       parte.href ? (
         <Link
           key={`${chave}-${i}`}

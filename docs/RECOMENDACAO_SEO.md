@@ -196,6 +196,21 @@ crescer primeiro e a decisão vir depois.
   o diferencial real da Motors é o texto por veículo — que o vizinho não tem —
   e a única afirmação que nenhum concorrente pode copiar: *3 de cada 10
   entram*.
+  → **Proposta de emenda, 2026-09-05 — PENDENTE DE DECISÃO DO DONO.** O cluster
+  `/guias` entrou com um texto ("O que a perícia cautelar não verifica") sob o
+  argumento de que ele é o oposto do blog que esta linha proíbe: assunto que a
+  loja pratica em 100% do estoque, escrito do lado de quem **paga** o exame e
+  recusa o carro — cadeira que a busca local tem vazia, já que as ocupadas são
+  as das empresas de vistoria (que vendem o exame) e as dos escritórios de
+  advocacia (que vendem litígio). Cada guia tem uma saída comercial definida.
+  **Duas ressalvas que só o dono resolve:** (1) a condição desta linha é *"antes
+  de o Search Console medir"*, e não há credencial de GSC no ambiente — não deu
+  para verificar se a medição já começou; (2) os dois tópicos de maior valor do
+  plano ficaram de fora por dependerem de dado da operação (a distribuição real
+  das reprovações) e de preço de terceiros. Se a decisão for segurar o cluster
+  até o GSC ter baseline, o que está no ar é uma rota e um texto — sai com um
+  `git revert`. O precedente é o das páginas-cidade, logo abaixo: exceção vira
+  emenda datada **por decisão do dono**, não por argumento em docblock.
 - **Não criar páginas-cidade** ("seminovos em São José dos Pinhais") com o
   mesmo estoque de 41 carros — conteúdo raso aos olhos do Google; o raio de
   50 km se resolve melhor no Perfil da Empresa e no texto dos veículos.

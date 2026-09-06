@@ -164,3 +164,43 @@ describe("o índice do cluster", () => {
     }
   });
 });
+
+describe("o que a revisão pegou, e não pode voltar", () => {
+  it("um link por destino no CORPO — não um por parágrafo", async () => {
+    const html = await guiaRenderizado(GUIAS[0].slug);
+    // Só o corpo e o FAQ: a saída comercial abaixo é link estrutural, e o
+    // rodapé não é renderizado aqui.
+    const corpo = html.slice(0, html.indexOf("A saída comercial") + 1 || html.length);
+    const contagem: Record<string, number> = {};
+    for (const m of corpo.matchAll(/<a[^>]*href="(\/[a-z-]*)"/g)) {
+      contagem[m[1]] = (contagem[m[1]] ?? 0) + 1;
+    }
+
+    // A primeira versão chamava `segmentarComLinks` por parágrafo e saía com
+    // SEIS âncoras para `/garantia` no corpo.
+    for (const [href, n] of Object.entries(contagem)) {
+      expect(n, `${href} aparece ${n}x no corpo`).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("a imagem do Article é URL absoluta", async () => {
+    const artigo = nos(await guiaRenderizado(GUIAS[0].slug)).find((n) => n["@type"] === "Article")!;
+
+    // `urlDoCardGerado` devolve caminho relativo — serve ao `next/metadata`,
+    // que absolutiza pelo `metadataBase`, e não serve ao JSON-LD.
+    expect(String(artigo.image)).toMatch(/^https?:\/\//);
+  });
+
+  it("nenhuma FAQ afirma ranking de motivo de reprovação", async () => {
+    // O dado não existe no repositório, e o docblock de `lib/guias.ts` declara
+    // isso. A primeira versão da última resposta listava três causas como "as
+    // mais comuns" — a distribuição, em granularidade grossa.
+    const respostas = GUIAS.flatMap((g) => g.faq.map((f) => f.resposta));
+
+    for (const resposta of respostas) {
+      expect(resposta, `ranking em: ${resposta.slice(0, 50)}`).not.toMatch(
+        /mais comuns|mais frequentes|principais motivos|na maioria dos casos/i,
+      );
+    }
+  });
+});
