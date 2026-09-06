@@ -48,7 +48,10 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
       // `indexOf` devolvia -1, o `slice(0, -1)` recortava daqui até o fim do
       // arquivo, e o "corpo" desta função passava a conter as seguintes. Com o
       // `\n` na frente a âncora casa nos dois finais de linha.
-      const corpo = bloco.slice(0, bloco.indexOf("\n}"));
+      const fim = bloco.indexOf("\n}");
+      expect(fim, `não achei o fim de ${fn}`).toBeGreaterThan(0);
+
+      const corpo = bloco.slice(0, fim);
       expect(corpo, fn).toContain('lead_type: "contato"');
     }
   });
@@ -57,7 +60,13 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
     // Antes do spread, um chamador poderia sobrescrever — e voltaria a
     // flutuar, que é exatamente o defeito. A ordem é a correção.
     const bloco = fonte.slice(fonte.indexOf("export function pushCliqueWhatsApp"));
-    const corpo = bloco.slice(0, bloco.indexOf("\n}"));
+    // O sentinela do recorte também precisa de guarda: um -1 aqui não estoura,
+    // vira `slice(0, -1)` e reconstrói exatamente o corpo inflado que a âncora
+    // acima acabou de consertar.
+    const fimDoCorpo = bloco.indexOf("\n}");
+    expect(fimDoCorpo, "não achei o fim de pushCliqueWhatsApp").toBeGreaterThan(0);
+
+    const corpo = bloco.slice(0, fimDoCorpo);
     const spread = corpo.indexOf("...contexto");
     const forcado = corpo.indexOf('lead_type: "contato"');
     // O irmão desta asserção — o `pushLead` logo abaixo — já guardava os dois

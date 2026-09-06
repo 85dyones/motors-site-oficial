@@ -72,10 +72,11 @@ describe("a coluna existe de verdade", () => {
     //
     // As duas guardas abaixo não são zelo: `indexOf` devolve -1 quando não
     // acha, e -1 é menor que qualquer posição válida — a comparação de ordem
-    // passaria justamente no caso que ela existe para pegar. E a busca é por
-    // regex insensível porque o SQL não distingue caixa: com âncora literal, a
-    // guarda reprovaria uma migração correta escrita em minúsculas.
-    const iColuna = migracao.search(/add column if not exists descricao_seo/i);
+    // passaria justamente no caso que ela existe para pegar. E a busca é a
+    // mesma regex tolerante de `colunasDeMigracoes` lá em cima, porque o SQL
+    // não distingue caixa nem conta espaços: com âncora literal, a guarda
+    // passaria a reprovar migração correta escrita de outro jeito.
+    const iColuna = migracao.search(/ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?descricao_seo/i);
     const iFuncao = migracao.search(/create or replace function/i);
     expect(iColuna, "a criação da coluna sumiu da migração").toBeGreaterThanOrEqual(0);
     expect(iFuncao, "a recriação da função sumiu da migração").toBeGreaterThanOrEqual(0);

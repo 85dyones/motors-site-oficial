@@ -390,20 +390,28 @@ describe("quem manda o evento: o código ou o container", () => {
 
     // E a única que sobra é a do formulário: vem depois de `pushLead`, não
     // depois de `pushCliqueWhatsApp`.
-    const antesDoUnico = fonte.slice(0, geraLead[0].index);
-    const iLead = antesDoUnico.lastIndexOf("pushLead");
-    const iClique = antesDoUnico.lastIndexOf("pushCliqueWhatsApp");
+    // A comparação anterior — o último `pushLead` antes do evento vindo depois
+    // do último `pushCliqueWhatsApp` — media outra coisa: não há chamada de
+    // `pushCliqueWhatsApp` antes do evento, então o índice resolvia para a
+    // LINHA DE IMPORT no topo do arquivo. Afirmava um fato sobre uma
+    // declaração de import, e um `import * as` a derrubaria sem que nada da
+    // invariante tivesse mudado.
+    //
+    // Como o `toHaveLength(1)` acima já garante que só existe um, dizer onde
+    // esse um mora é a afirmação inteira: no corpo do formulário, e por
+    // consequência fora do ramo do clique.
+    const inicio = fonte.indexOf("export function trackLeadSubmission");
+    expect(inicio, "`trackLeadSubmission` sumiu de telemetry.ts")
+      .toBeGreaterThanOrEqual(0);
 
-    // `lastIndexOf` devolve -1 quando não acha, e -1 é menor que qualquer
-    // posição válida. Sem as guardas, basta o nome do clique não aparecer
-    // antes do evento — uma renomeação, por exemplo — para a comparação passar
-    // sem ter comparado nada, e é por essa porta que o `generate_lead`
-    // voltaria para o ramo do clique com o teste verde.
-    expect(iLead, "`pushLead` não aparece antes do único generate_lead")
-      .toBeGreaterThanOrEqual(0);
-    expect(iClique, "`pushCliqueWhatsApp` não aparece antes do único generate_lead")
-      .toBeGreaterThanOrEqual(0);
-    expect(iLead).toBeGreaterThan(iClique);
+    const bloco = fonte.slice(inicio);
+    const fim = bloco.indexOf("\n}");
+    expect(fim, "não achei o fim de `trackLeadSubmission`").toBeGreaterThan(0);
+
+    expect(
+      bloco.slice(0, fim),
+      "o único generate_lead saiu do formulário — voltou para o clique?",
+    ).toContain('window.gtag("event", "generate_lead"');
   });
 
   it("view_item, search e complete_registration continuam SEM gate", () => {
