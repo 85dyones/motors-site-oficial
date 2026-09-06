@@ -1026,7 +1026,13 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
 
     // O seletor é condicional: ganho e descarte são todos `ambos` por decisão
     // do dono, e um seletor com um valor válido só é ruído na tela.
-    expect(fonte).toMatch(/tipo\s*===\s*"perdido"/);
+    //
+    // `toContain` de string LITERAL, não regex: `/tipo\s*===\s*"perdido"/`
+    // também casa com `e.tipo === "perdido"` de `comoFunciona()`, um trecho
+    // pré-existente e sem relação com o seletor — a regex ficava verde mesmo
+    // com o `<select>` renderizando nas três colunas, a regressão que esta
+    // asserção existe para travar. Âncora na forma exata do guard novo.
+    expect(fonte).toContain('{tipo === "perdido" && (');
 
     // Motivo novo nasce em `ambos` — a mesma posição segura do default da
     // coluna. Nascer em `compra` esconderia do funil de avaliação um motivo
