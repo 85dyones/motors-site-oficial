@@ -1,3 +1,4 @@
+import { GUIAS, guiasAtualizadosEm } from "../lib/guias";
 import { MetadataRoute } from "next";
 import {
   getCarimbosDeConteudo,
@@ -157,6 +158,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly" as const,
       priority: 0.3,
     },
+    {
+      // O índice do cluster de guias — a porta do único conteúdo editorial do
+      // site. Mesma prioridade de `/garantia` e `/avaliacao`.
+      url: `${SITE_URL}/guias`,
+      lastModified: guiasAtualizadosEm(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    },
+    // Cada guia com o carimbo do PRÓPRIO texto, e não o do inventário: guia não
+    // gira com o estoque, e `lastModified` que mente é pior que ausente — foi a
+    // lição do sitemap em 2026-08-17.
+    ...GUIAS.map((guia) => ({
+      url: `${SITE_URL}/guias/${guia.slug}`,
+      lastModified: guia.atualizadoEm,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
     // Landings de destaque: são recortes do estoque, então mudam com ele.
     ...destaques.map((slug) => ({
       url: `${SITE_URL}/destaques/${slug}`,

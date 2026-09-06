@@ -47,6 +47,11 @@ export function colunasDoRodape(companySettings: CompanySettings): ColunaDoRodap
         { rotulo: "Avaliação Express", href: "/avaliacao" },
         { rotulo: "Financiamento", href: "/financiamento" },
         { rotulo: "Garantia", href: "/garantia" },
+        // Os guias entram no rodapé desde o primeiro, e não a partir do
+        // terceiro: sem uma entrada em todas as páginas, o cluster nasceria
+        // acessível só pelo sitemap. É o mesmo defeito que a F1 corrigiu na
+        // `/avaliacao`.
+        { rotulo: "Guias de procedência", href: "/guias" },
         // `/contato` entrou em 2026-09-05, e a razão é MENOR do que a primeira
         // versão deste comentário dizia. Ele afirmava "recebia um único link em
         // todo o site, de /sobre" — falso: `Header.tsx` já a lista no NAV de

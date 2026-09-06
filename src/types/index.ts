@@ -48,6 +48,8 @@ export interface CompartilhamentoSettings {
   contato?: CardCompartilhamento;
   destaques?: CardCompartilhamento;
   privacidade?: CardCompartilhamento;
+  /** O índice `/guias` e cada guia — um card para o cluster inteiro. */
+  guias?: CardCompartilhamento;
 }
 
 export interface CompanySettings {

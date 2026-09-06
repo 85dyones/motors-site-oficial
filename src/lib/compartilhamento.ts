@@ -126,6 +126,18 @@ export const PAGINAS_COMPARTILHAVEIS = [
     descricaoPadrao:
       "Como a Motors Store coleta, usa e protege seus dados pessoais, e como exercer seus direitos sob a LGPD.",
   },
+  {
+    // Um id serve o índice e cada guia. Os guias sobrepõem `tituloPadrao` e
+    // `descricaoPadrao` com os seus — o texto de fábrica abaixo aparece no
+    // índice, e vira a rede se algum guia esquecer de sobrepor.
+    id: "guias",
+    nome: "Guias",
+    caminho: "/guias",
+    rotuloCard: "Guia",
+    tituloPadrao: "Guias de procedência de seminovos",
+    descricaoPadrao:
+      "O que a perícia cautelar encontra, o que ela não encontra, e o que isso muda na hora de comprar um seminovo.",
+  },
 ] as const;
 
 export type IdPaginaCompartilhavel =
