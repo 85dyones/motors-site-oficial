@@ -214,15 +214,17 @@ export const ACOES = {
   popup: "popup",
   avaliacao: "avaliacao",
   avaliacaoWhatsapp: "avaliacao_whatsapp",
+  buscaEncomenda: "busca_encomenda",
 } as const;
 
-/** `/api/leads` atende cinco superfícies; todas com o mesmo valor de lead. */
+/** `/api/leads` atende seis superfícies; todas com o mesmo valor de lead. */
 export const ACOES_DE_LEADS = [
   ACOES.contato,
   ACOES.pdp,
   ACOES.carmatch,
   ACOES.popup,
   ACOES.avaliacaoWhatsapp,
+  ACOES.buscaEncomenda,
 ] as const;
 
 /** `/api/avaliacao` atende uma só. */
