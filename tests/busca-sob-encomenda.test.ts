@@ -223,3 +223,43 @@ describe("a rota /api/leads", () => {
     expect(fonte).toContain("value: veiculo?.preco");
   });
 });
+
+describe("o envio do formulário", () => {
+  const fonte = ler("src/components/BuscaSobEncomenda.tsx");
+
+  it("posta no funil que já existe, não num endpoint próprio", () => {
+    expect(fonte).toContain('fetch("/api/leads"');
+    expect(fonte).not.toContain("/api/busca-encomenda");
+  });
+
+  it("manda o bloco que a rota lê e o canal que o kanban mostra", () => {
+    expect(fonte).toContain("busca_encomenda: pedido");
+    expect(fonte).toContain("canal: CANAL_BUSCA_ENCOMENDA");
+  });
+
+  it("compartilha o event_id com o Pixel, para o CAPI deduplicar", () => {
+    expect(fonte).toContain("trackLeadSubmission");
+    expect(fonte).toContain("eventId,");
+  });
+
+  it("reseta o Turnstile quando o envio falha", () => {
+    // Token do Turnstile é de uso único. Sem o reset, o segundo clique manda o
+    // mesmo token queimado, leva 403, e o visitante fica preso até recarregar.
+    expect(fonte).toContain("turnstileRef.current?.reset()");
+  });
+
+  it("oferece o wa.me quando o endpoint falha — nunca se perde o contato", () => {
+    // A guarda vem ANTES da fatia. Com `indexOf` em -1, `slice(-1, 499)`
+    // devolve o último caractere do arquivo — uma string que não contém
+    // "avisarHref" e faz o teste falhar pelo motivo errado, escondendo que o
+    // bloco de erro nem existe.
+    const inicio = fonte.indexOf("{erro &&");
+    expect(inicio).toBeGreaterThan(-1);
+    expect(fonte.slice(inicio, inicio + 500)).toContain("avisarHref");
+  });
+
+  it("some em silêncio quando o honeypot vem preenchido", () => {
+    // Dizer "recusado" ensina o robô a tentar de novo sem o campo.
+    expect(fonte).toContain("apelido.trim() !== \"\"");
+  });
+});
