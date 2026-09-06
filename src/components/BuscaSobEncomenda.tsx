@@ -169,7 +169,7 @@ export default function BuscaSobEncomenda({
   if (enviado) {
     const resumo = encodeURIComponent(mensagemDoPedido(enviado));
     return (
-      <div className="border-b border-mt-regua-fina py-10">
+      <div>
         <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Recebido.</h2>
         <p className="m-0 mt-3 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800">
           Um consultor vai te chamar no WhatsApp com o que encontrar.
@@ -203,7 +203,7 @@ export default function BuscaSobEncomenda({
   }
 
   return (
-    <div className="border-b border-mt-regua-fina py-10">
+    <div>
       <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">{texto.titulo}</h2>
       <p className="m-0 mt-3 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800">
         {texto.paragrafo}
