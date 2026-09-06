@@ -66,29 +66,49 @@ Escolha esse workflow, e não o Orquestrador: ele só **lê**. Ver o aviso sobre
 
 ---
 
-## Tarefa B — a URL do feed no Meta e no Google · **destrava fechar a exceção**
+## Tarefa B — a URL do feed no Google Merchant · **destrava fechar a exceção**
 
-**Por que existe:** o feed do catálogo é servido por `/api/feed/xml`. Se o Meta
-ou o Merchant ainda buscam esse endereço **pelo alias**, fechar a exceção
-`(?!api/)` faria o catálogo passar a depender de o buscador seguir um 308 — e
-catálogo é anúncio no ar. Não dá para conferir isso do repositório: só os dois
-painéis sabem qual URL está cadastrada.
+**Por que existe:** o feed do catálogo é servido por `/api/feed/xml`. Se o
+Merchant ainda busca esse endereço **pelo alias**, fechar a exceção `(?!api/)`
+faria o catálogo passar a depender de o buscador seguir um 308 — e catálogo é
+anúncio no ar.
 
-### O passo
+### ✅ O lado do Meta já foi conferido (2026-09-06) — e não é bloqueio
 
-1. **Meta** → Commerce Manager → o catálogo → *Fontes de dados* → o feed →
-   veja a URL agendada.
-2. **Google** → Merchant Center → *Produtos* → *Feeds* → o feed → veja a URL.
-3. Onde disser `motors-site-oficial.vercel.app`, troque para
-   **`https://motorsstore.com.br/api/feed/xml`**.
+Lido pela API do Meta. **Nenhum feed do Meta aponta para o nosso site**, nem
+pelo alias, nem pelo apex:
+
+| Catálogo | Feeds | URL agendada |
+|---|---|---|
+| Dyones Oliveira Motors Store (`1669630410945715`, *vehicles*) | 1, semanal (sex 16:25) | `app.revendamais.com.br/…/610b8629….xml` |
+| Estoque Motors Store (`617519794775501`, *commerce*) | 4 | **nenhum tem agendamento** — carga manual |
+
+O Meta consome o XML da **RevendaMais**, não o nosso. Fechar a exceção não o
+afeta.
+
+> ⚠️ **Achado colateral, e vale mais que a tarefa:** esses catálogos estão
+> quebrados. O único feed agendado falha desde **10/07** (`result: failed`, 0
+> itens). O feed principal do outro catálogo falhou em **25/08**, também com 0
+> itens, e os 45 produtos que ele mostra vêm de uma carga manual que não se
+> renova — o site tem ~38. Se há anúncio dinâmico rodando, está sobre dado
+> velho. Isto é tarefa própria, não deste handoff.
+
+### O passo que sobrou
+
+**Google** → Merchant Center → *Produtos* → *Feeds* → o feed → veja a URL. Se
+disser `motors-site-oficial.vercel.app`, troque para
+**`https://motorsstore.com.br/api/feed/xml`**. Só este ficou por sua conta:
+não há ferramenta de Merchant Center do meu lado, só de Meta.
 
 > **Anúncio ativo não recomeça do zero.** O `g:id` do feed é o id do veículo,
-> não a URL — os dois reaproveitam os produtos existentes e só atualizam os
-> links. Isso já foi verificado na virada de 15/08.
+> não a URL — o Merchant reaproveita os produtos existentes e só atualiza os
+> links. Já verificado na virada de 15/08.
 
-### Depois das duas, a exceção cai
+### Depois da B, a exceção cai
 
-Com A e B fechadas, some o motivo de `/api/*` escapar do 301. São duas linhas:
+**Só a B trava.** A Tarefa A é urgente, mas independente: os workflows do motor já
+chamam o apex, então o token não muda nada no 301. Fechada a B, some o motivo
+de `/api/*` escapar. São duas linhas:
 
 - `next.config.ts`: o `source` vira `/:caminho*` (sem o `(?!api/)`).
 - `tests/redirect-do-alias.test.ts`: o caso *"NÃO toca em /api"* hoje **exige**
