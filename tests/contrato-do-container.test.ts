@@ -391,9 +391,19 @@ describe("quem manda o evento: o código ou o container", () => {
     // E a única que sobra é a do formulário: vem depois de `pushLead`, não
     // depois de `pushCliqueWhatsApp`.
     const antesDoUnico = fonte.slice(0, geraLead[0].index);
-    expect(antesDoUnico.lastIndexOf("pushLead")).toBeGreaterThan(
-      antesDoUnico.lastIndexOf("pushCliqueWhatsApp"),
-    );
+    const iLead = antesDoUnico.lastIndexOf("pushLead");
+    const iClique = antesDoUnico.lastIndexOf("pushCliqueWhatsApp");
+
+    // `lastIndexOf` devolve -1 quando não acha, e -1 é menor que qualquer
+    // posição válida. Sem as guardas, basta o nome do clique não aparecer
+    // antes do evento — uma renomeação, por exemplo — para a comparação passar
+    // sem ter comparado nada, e é por essa porta que o `generate_lead`
+    // voltaria para o ramo do clique com o teste verde.
+    expect(iLead, "`pushLead` não aparece antes do único generate_lead")
+      .toBeGreaterThanOrEqual(0);
+    expect(iClique, "`pushCliqueWhatsApp` não aparece antes do único generate_lead")
+      .toBeGreaterThanOrEqual(0);
+    expect(iLead).toBeGreaterThan(iClique);
   });
 
   it("view_item, search e complete_registration continuam SEM gate", () => {

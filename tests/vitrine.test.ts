@@ -924,6 +924,16 @@ describe("a caixa da busca existe no HTML servido, com a mesma altura", () => {
     const catalogo = doFallback.indexOf("<Catalogo");
     const fallback = doFallback.indexOf("fallback={");
 
+    // As três guardas vêm antes da ordem porque `indexOf` devolve -1 quando
+    // não acha, e -1 é menor que qualquer posição válida. Sem a primeira,
+    // apagar o `<Suspense>` — o boundary sem o qual o `useSearchParams()` do
+    // Catálogo derruba o prerender da rota inteira — deixa `fallback` em -1 e
+    // a comparação seguinte vira tautologia: verde sem ter olhado nada.
+    expect(fallback, "o fallback do <Suspense> sumiu da página")
+      .toBeGreaterThanOrEqual(0);
+    expect(campo, "o campo servido sumiu da página").toBeGreaterThanOrEqual(0);
+    expect(catalogo, "o <Catalogo> sumiu da página").toBeGreaterThanOrEqual(0);
+
     expect(campo).toBeGreaterThan(fallback);
     expect(campo).toBeLessThan(catalogo);
   });

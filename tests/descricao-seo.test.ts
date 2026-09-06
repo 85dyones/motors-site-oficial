@@ -69,9 +69,17 @@ describe("a coluna existe de verdade", () => {
     // A coluna precisa nascer ANTES da função que a cita: entre as duas
     // migrações não pode existir instante em que o trigger referencie campo
     // inexistente, senão todo UPDATE na tabela quebra no intervalo.
-    expect(migracao.indexOf("ADD COLUMN IF NOT EXISTS descricao_seo")).toBeLessThan(
-      migracao.indexOf("create or replace function")
-    );
+    //
+    // As duas guardas abaixo não são zelo: `indexOf` devolve -1 quando não
+    // acha, e -1 é menor que qualquer posição válida — a comparação de ordem
+    // passaria justamente no caso que ela existe para pegar. E a busca é por
+    // regex insensível porque o SQL não distingue caixa: com âncora literal, a
+    // guarda reprovaria uma migração correta escrita em minúsculas.
+    const iColuna = migracao.search(/add column if not exists descricao_seo/i);
+    const iFuncao = migracao.search(/create or replace function/i);
+    expect(iColuna, "a criação da coluna sumiu da migração").toBeGreaterThanOrEqual(0);
+    expect(iFuncao, "a recriação da função sumiu da migração").toBeGreaterThanOrEqual(0);
+    expect(iColuna).toBeLessThan(iFuncao);
   });
 });
 

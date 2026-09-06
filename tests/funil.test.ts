@@ -548,8 +548,17 @@ describe("o terceiro desfecho: não é uma oportunidade de negócio", () => {
     // `else` que engole tudo que não é ganho transforma descarte em perda de
     // novo, e cobra o vendedor por um robô.
     const bloco = rota.slice(rota.indexOf("const porVendedor"), rota.indexOf("resposta.por_vendedor"));
-    expect(bloco.indexOf('desfecho === "descartado") continue'))
-      .toBeLessThan(bloco.indexOf("atual.perdidos += 1"));
+    const iDescarte = bloco.indexOf('desfecho === "descartado") continue');
+    const iPerda = bloco.indexOf("atual.perdidos += 1");
+    // As duas linhas abaixo não são zelo: `indexOf` devolve -1 quando não
+    // acha, e -1 é MENOR que qualquer índice válido. Sem elas, a comparação de
+    // ordem passa justamente no caso em que devia gritar — o `continue` some
+    // do recorte e o descarte volta a ser cobrado do vendedor como perda.
+    expect(iDescarte, "o `continue` do descarte sumiu do recorte por vendedor")
+      .toBeGreaterThanOrEqual(0);
+    expect(iPerda, "a contagem de perdidos sumiu do recorte por vendedor")
+      .toBeGreaterThanOrEqual(0);
+    expect(iDescarte).toBeLessThan(iPerda);
   });
 
   it("o vocabulário é lista, não ternário", () => {

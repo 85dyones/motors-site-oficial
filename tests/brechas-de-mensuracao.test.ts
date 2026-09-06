@@ -44,7 +44,11 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
   it("os dois cliques declaram `lead_type` explicitamente", () => {
     for (const fn of ["pushCliqueWhatsApp", "pushCliqueTelefone"]) {
       const bloco = fonte.slice(fonte.indexOf(`export function ${fn}`));
-      const corpo = bloco.slice(0, bloco.indexOf("}\n"));
+      // `"}\n"` não casa com o CRLF que o checkout entrega no Windows: o
+      // `indexOf` devolvia -1, o `slice(0, -1)` recortava daqui até o fim do
+      // arquivo, e o "corpo" desta função passava a conter as seguintes. Com o
+      // `\n` na frente a âncora casa nos dois finais de linha.
+      const corpo = bloco.slice(0, bloco.indexOf("\n}"));
       expect(corpo, fn).toContain('lead_type: "contato"');
     }
   });
@@ -53,8 +57,19 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
     // Antes do spread, um chamador poderia sobrescrever — e voltaria a
     // flutuar, que é exatamente o defeito. A ordem é a correção.
     const bloco = fonte.slice(fonte.indexOf("export function pushCliqueWhatsApp"));
-    const corpo = bloco.slice(0, bloco.indexOf("}\n"));
-    expect(corpo.indexOf("...contexto")).toBeLessThan(corpo.indexOf('lead_type: "contato"'));
+    const corpo = bloco.slice(0, bloco.indexOf("\n}"));
+    const spread = corpo.indexOf("...contexto");
+    const forcado = corpo.indexOf('lead_type: "contato"');
+    // O irmão desta asserção — o `pushLead` logo abaixo — já guardava os dois
+    // índices. Aqui faltava, e sem a guarda a comparação passa quando o spread
+    // some do corpo: -1 é menor que qualquer posição válida, então o teste
+    // ficava verde justamente no dia em que o valor voltasse a ser
+    // sobrescrevível pelo chamador.
+    expect(spread, "não achei o spread do contexto em pushCliqueWhatsApp")
+      .toBeGreaterThanOrEqual(0);
+    expect(forcado, "não achei o lead_type forçado em pushCliqueWhatsApp")
+      .toBeGreaterThanOrEqual(0);
+    expect(spread).toBeLessThan(forcado);
   });
 
   it("`pushLead` também põe o lead_type depois do spread", () => {
