@@ -1070,13 +1070,16 @@ export default function BuscaSobEncomenda({
             {enviando ? "ENVIANDO…" : "ENVIAR PEDIDO"}
           </button>
 
-          {/* Condicionado de propósito. A redação anterior — "você só decide
-              quando o carro estiver na sua frente, com o laudo cautelar
-              independente" — prometia o documento sem a ressalva que as outras
-              12 citações do repositório carregam. Decisão do dono, 2026-09-06. */}
+          {/* Duas cláusulas, e a segunda é a frase canônica da casa — a mesma
+              que aparece em outras 12 superfícies. A redação original ("você só
+              decide quando o carro estiver na sua frente, com o laudo cautelar
+              independente") prometia o documento sem ressalva, sobre um carro
+              que ainda nem foi encontrado; `tests/coerencia-da-pericia.test.ts`
+              exige "aprovad" perto de "laudo…ficha" justamente por isso.
+              Decisão do dono, 2026-09-06. */}
           <p className="m-0 mt-4 text-[12px] leading-relaxed text-mt-neutral-600">
-            A Motors Store não cobra pela busca. Só entra na sua frente o que passou na perícia,
-            com o laudo cautelar independente na ficha.
+            A Motors Store não cobra pela busca. Você só decide com o carro na sua frente — e o
+            laudo cautelar independente fica na ficha assim que aprovado.
           </p>
         </form>
       )}

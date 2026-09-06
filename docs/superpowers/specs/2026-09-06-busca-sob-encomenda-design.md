@@ -234,15 +234,21 @@ Tokens: `{Marca}`, `{Modelo}`, `{MarcaModelo}`.
 > **Sem taxa, sem compromisso.**
 
 **Painel:** "Busca sob encomenda — {MarcaModelo}"
-**Rodapé:** "A Motors Store não cobra pela busca. Só entra na sua frente o que
-passou na perícia, com o laudo cautelar independente na ficha."
+**Rodapé:** "A Motors Store não cobra pela busca. Você só decide com o carro na
+sua frente — e o laudo cautelar independente fica na ficha assim que aprovado."
 
 > A primeira redação — *"você só decide quando o carro estiver na sua frente,
 > com o laudo cautelar independente"* — prometia o documento sem a ressalva que
 > as outras 12 citações do repositório carregam, sobre um carro que ainda nem
 > foi encontrado. Reescrita por decisão do dono em 2026-09-06, na revisão da
-> Task 3: agora a frase afirma o processo (só se oferece o que passou) e o
-> documento, sem promessa pendurada em veículo não periciado.
+> Task 3.
+>
+> A segunda cláusula é a **frase canônica da casa**, verbatim. A tentativa
+> intermediária ("só entra na sua frente o que passou na perícia, com o laudo
+> cautelar independente na ficha") reprovava na mesma trava que buscava
+> respeitar: `tests/coerencia-da-pericia.test.ts` exige a raiz "aprovad" perto
+> de "laudo…ficha", e ela terminava antes. Emendar ", já aprovado" no fim
+> passava, mas deixava um aposto pendurado e redundante numa nota de 12px.
 **Confirmação:** "Recebido. Um consultor vai te chamar no WhatsApp com o que
 encontrar."
 
