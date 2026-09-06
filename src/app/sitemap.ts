@@ -1,4 +1,4 @@
-import { GUIAS, guiasAtualizadosEm } from "../lib/guias";
+import { listarGuiasPublicados } from "../lib/guiasDoBanco";
 import { MetadataRoute } from "next";
 import {
   getCarimbosDeConteudo,
@@ -75,13 +75,21 @@ const ATUALIZACAO_INSTITUCIONAL = new Date("2026-08-15T00:00:00Z");
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // As leituras que alimentam o `lastmod`, a carência e as páginas perenes.
   // Independentes entre si, então vão juntas.
-  const [carimbos, datasDeVenda, ultimasPresencas, destaques, recortes] = await Promise.all([
-    getCarimbosDeConteudo(),
-    getDatasDeVenda(),
-    getUltimasPresencas(),
-    destaquesParaSitemap(),
-    recortesDoEstoque(),
-  ]);
+  const [carimbos, datasDeVenda, ultimasPresencas, destaques, recortes, guiasPublicados] =
+    await Promise.all([
+      getCarimbosDeConteudo(),
+      getDatasDeVenda(),
+      getUltimasPresencas(),
+      destaquesParaSitemap(),
+      recortesDoEstoque(),
+      // Falha aqui não pode tirar o resto do site do sitemap: o cluster some
+      // desta geração e volta na próxima, como `destaquesParaSitemap` já faz.
+      // O oposto — deixar estourar — apagaria 176 URLs por causa de uma.
+      listarGuiasPublicados().catch((erro) => {
+        console.error("[Sitemap] Falha ao ler os guias:", (erro as Error).message);
+        return [];
+      }),
+    ]);
 
   /** Carimbo do veículo, ou nada. Sem invenção — ver `getCarimbosDeConteudo`. */
   const carimboDe = (id: string): Date | undefined => {
@@ -161,15 +169,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     {
       // O índice do cluster de guias — a porta do único conteúdo editorial do
       // site. Mesma prioridade de `/garantia` e `/avaliacao`.
+      //
+      // Entra mesmo sem nenhum guia publicado: é rota perene, e página que some
+      // do sitemap quando esvazia volta a ser efêmera — a mesma regra dos hubs.
       url: `${SITE_URL}/guias`,
-      lastModified: guiasAtualizadosEm(),
+      lastModified: guiasPublicados[0]?.atualizadoEm,
       changeFrequency: "monthly" as const,
       priority: 0.7,
     },
     // Cada guia com o carimbo do PRÓPRIO texto, e não o do inventário: guia não
     // gira com o estoque, e `lastModified` que mente é pior que ausente — foi a
     // lição do sitemap em 2026-08-17.
-    ...GUIAS.map((guia) => ({
+    //
+    // Só os PUBLICADOS: `listarGuiasPublicados` filtra, e a RLS filtra de novo.
+    // Rascunho no sitemap seria convidar o Google a indexar texto pela metade.
+    ...guiasPublicados.map((guia) => ({
       url: `${SITE_URL}/guias/${guia.slug}`,
       lastModified: guia.atualizadoEm,
       changeFrequency: "monthly" as const,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { GUIAS } from "../src/lib/guias";
+import type { Guia } from "../src/lib/guias";
 import { SITE_URL } from "../src/lib/site";
 
 /**
@@ -40,6 +40,25 @@ vi.mock("../src/lib/publicacao", () => ({
   decidirPublicacao: () => ({ indisponivel: false, noindex: false, rotulo: "" }),
 }));
 
+const GUIA = {
+  slug: "guia-de-teste",
+  titulo: "Um guia de teste",
+  tituloSeo: "Um guia de teste | Motors Store",
+  descricao: "Descricao",
+  publicadoEm: "2026-09-05T09:00:00-03:00",
+  atualizadoEm: "2026-09-06T09:00:00-03:00",
+  corpo: [],
+  faq: [],
+  saida: { rotulo: "Ver", href: "/estoque", apoio: "..." },
+  sobre: [],
+} as Guia;
+
+vi.mock("../src/lib/guiasDoBanco", () => ({
+  listarGuiasPublicados: async () => [GUIA],
+  buscarGuiaPublicado: async () => GUIA,
+  GuiasIndisponiveisError: class extends Error {},
+}));
+
 vi.mock("../src/lib/settings", () => ({
   getCachedSettings: async () => ({ companySettings: { name: "Motors Store" } }),
 }));
@@ -59,8 +78,8 @@ describe("o sitemap anuncia o cluster de guias", () => {
   it("cada guia publicado está lá", async () => {
     const urls = (await sitemapMontado()).map((r) => r.url);
 
-    expect(GUIAS.length).toBeGreaterThan(0);
-    for (const guia of GUIAS) {
+    
+    for (const guia of [GUIA]) {
       expect(urls, `guia fora do sitemap: ${guia.slug}`).toContain(
         `${SITE_URL}/guias/${guia.slug}`,
       );
@@ -69,7 +88,7 @@ describe("o sitemap anuncia o cluster de guias", () => {
 
   it("o lastmod do guia é o carimbo do texto, não o do inventário", async () => {
     const rotas = await sitemapMontado();
-    const guia = GUIAS[0];
+    const guia = GUIA;
     const entrada = rotas.find((r) => r.url.endsWith(`/guias/${guia.slug}`));
 
     // Guia não gira com o estoque. `lastModified` que mente é pior que ausente
@@ -83,6 +102,6 @@ describe("o sitemap anuncia o cluster de guias", () => {
     const urls = (await sitemapMontado()).map((r) => r.url);
 
     expect(urls).toContain(`${SITE_URL}/guias`);
-    expect(urls).toContain(`${SITE_URL}/guias/${GUIAS[0].slug}`);
+    expect(urls).toContain(`${SITE_URL}/guias/${GUIA.slug}`);
   });
 });

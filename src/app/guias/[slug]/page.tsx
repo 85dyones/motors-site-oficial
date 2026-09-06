@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { acharGuia, GUIAS } from "../../../lib/guias";
+import { buscarGuiaPublicado, listarGuiasPublicados } from "../../../lib/guiasDoBanco";
 import { getCachedSettings } from "../../../lib/settings";
 import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import { blocoJsonLd } from "../../../lib/schemaListagem";
@@ -29,15 +29,32 @@ interface PageProps {
  * daqui a seis meses precisa saber o que a rota faz, não o que se desejou.
  */
 export const revalidate = 3600;
-export const dynamicParams = false;
+/**
+ * `true`, e mudou com o editor do painel.
+ *
+ * Era `false` quando os guias viviam num array de código: a lista era conhecida
+ * no build, e slug fora dela é 404 na hora. Agora o dono publica pelo painel, e
+ * `false` faria o guia novo responder 404 até o próximo deploy — que é
+ * exatamente o que o editor existe para evitar.
+ *
+ * Slug inexistente continua 404: `buscarGuiaPublicado` devolve `null` e a rota
+ * chama `notFound()`. E rascunho também, porque a RLS não o entrega.
+ */
+export const dynamicParams = true;
 
-export function generateStaticParams() {
-  return GUIAS.map((g) => ({ slug: g.slug }));
+export async function generateStaticParams() {
+  // Falha aqui não pode derrubar o build inteiro: sem params, as rotas nascem
+  // sob demanda em vez de prerenderizadas — o site continua servindo.
+  try {
+    return (await listarGuiasPublicados()).map((g) => ({ slug: g.slug }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const guia = acharGuia(slug);
+  const guia = await buscarGuiaPublicado(slug);
   if (!guia) return { title: "Guia não encontrado | Motors Store" };
 
   const { companySettings } = await getCachedSettings();
@@ -76,7 +93,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  */
 export default async function GuiaPage({ params }: PageProps) {
   const { slug } = await params;
-  const guia = acharGuia(slug);
+  // Estoura se a LEITURA falhar, e devolve `null` só quando o guia não existe
+  // mesmo — a distinção está em `lib/guiasDoBanco.ts`, e ela evita servir 404
+  // de uma página viva.
+  const guia = await buscarGuiaPublicado(slug);
   if (!guia) notFound();
 
   const { companySettings } = await getCachedSettings();

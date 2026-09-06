@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { GUIAS } from "../../lib/guias";
+import { listarGuiasPublicados } from "../../lib/guiasDoBanco";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd } from "../../lib/schemaListagem";
@@ -46,8 +46,11 @@ export async function generateMetadata(): Promise<Metadata> {
  * tem — e inventar número é o que a regra do `CLAUDE.md` proíbe.
  */
 export default async function GuiasPage() {
-  const { companySettings } = await getCachedSettings();
-  const grafo = grafoDoIndiceDeGuias({ guias: GUIAS, empresa: companySettings });
+  const [{ companySettings }, guias] = await Promise.all([
+    getCachedSettings(),
+    listarGuiasPublicados(),
+  ]);
+  const grafo = grafoDoIndiceDeGuias({ guias, empresa: companySettings });
 
   return (
     <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
@@ -75,7 +78,7 @@ export default async function GuiasPage() {
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
         <div className="grid gap-4 md:grid-cols-2">
-          {GUIAS.map((guia) => (
+          {guias.map((guia) => (
             <Link
               key={guia.slug}
               href={`/guias/${guia.slug}`}
