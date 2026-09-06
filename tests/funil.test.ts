@@ -1013,4 +1013,24 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
     // para a mesma lista é como o escopo volta a ser ignorado em silêncio.
     expect(fonte).not.toMatch(/m\.tipo\s*===\s*etapa\.tipo/);
   });
+
+  it("a tela Configurar funil deixa escolher o escopo, e só na coluna Perdido", () => {
+    const fonte = readFileSync(
+      join(__dirname, "..", "src", "components", "admin", "FunilEditor.tsx"),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+
+    // As três opções escritas como quem opera lê, não como o banco guarda.
+    expect(fonte).toContain("Quem quer comprar");
+    expect(fonte).toContain("Quem quer vender");
+
+    // O seletor é condicional: ganho e descarte são todos `ambos` por decisão
+    // do dono, e um seletor com um valor válido só é ruído na tela.
+    expect(fonte).toMatch(/tipo\s*===\s*"perdido"/);
+
+    // Motivo novo nasce em `ambos` — a mesma posição segura do default da
+    // coluna. Nascer em `compra` esconderia do funil de avaliação um motivo
+    // que a pessoa acabou de criar.
+    expect(fonte).toMatch(/escopo:\s*"ambos"/);
+  });
 });

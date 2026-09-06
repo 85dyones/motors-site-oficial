@@ -9,6 +9,7 @@ import {
   ordenarEtapas,
   separarPrazo,
   validarFunil,
+  type EscopoDeMotivo,
   type EtapaDoFunil,
   type MotivoDoFunil,
   type TipoDeDesfecho,
@@ -226,6 +227,7 @@ export default function FunilEditor() {
         tipo,
         ordem: atual.filter((m) => m.tipo === tipo).length + 1,
         ativo: true,
+        escopo: "ambos",
       },
     ]);
 
@@ -441,7 +443,9 @@ export default function FunilEditor() {
         </div>
         <p className="max-w-[620px] text-[11px] leading-relaxed text-mt-neutral-700">
           São eles que o relatório agrupa. Lista curta funciona melhor que lista completa: motivo
-          que ninguém escolhe vira ruído, e motivo demais faz o vendedor clicar no primeiro.
+          que ninguém escolhe vira ruído, e motivo demais faz o vendedor clicar no primeiro.{" "}
+          <strong>Para quem vale</strong> decide em qual caixa o motivo aparece: quem chegou
+          querendo comprar um carro, quem chegou querendo vender o dele, ou os dois.
         </p>
 
         <div className="grid gap-6 md:grid-cols-3">
@@ -485,6 +489,23 @@ export default function FunilEditor() {
                         m.ativo ? "text-mt-ink" : "text-mt-neutral-500 line-through"
                       }`}
                     />
+                    {tipo === "perdido" && (
+                      <select
+                        value={m.escopo ?? "ambos"}
+                        onChange={(ev) =>
+                          alterarMotivo(m.chave, {
+                            escopo: ev.target.value as EscopoDeMotivo,
+                          })
+                        }
+                        disabled={!podeEditar}
+                        aria-label={`Para quem vale o motivo ${m.rotulo}`}
+                        className="mt-foco w-[132px] shrink-0 cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1.5 text-[11px] text-mt-neutral-800"
+                      >
+                        <option value="compra">Quem quer comprar</option>
+                        <option value="avaliacao">Quem quer vender</option>
+                        <option value="ambos">Os dois</option>
+                      </select>
+                    )}
                   </div>
                 ))}
             </div>
