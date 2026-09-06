@@ -68,9 +68,9 @@ export function precoValidoAte(base = new Date()): string {
  * de vinte fotos.
  *
  * Dez é o teto prático que o Google usa em galeria de produto, e mantém a
- * primeira posição — a imagem principal — intocada. **O teto atua em 56 das 59
- * fichas**, medido no HTML construído em 05/09/2026: são as que publicam
- * exatamente dez.
+ * primeira posição — a imagem principal — intocada. Medido no HTML construído
+ * em 05/09/2026: **56 das 59 fichas publicam exatamente dez** fotos, e em **53**
+ * o `slice` de fato descarta alguma — as outras três já tinham dez na origem.
  *
  * ⚠️ Duas coisas que este bloco JÁ AFIRMOU ERRADO, e que ficam registradas
  * porque o erro foi do mesmo tipo nas duas vezes — número exato sobre a

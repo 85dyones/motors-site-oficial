@@ -315,8 +315,13 @@ export default async function CarDetailsPage({ params }: PageProps) {
    *
    * Array de nós escrito direto no JSX é montagem sem teste: remover um nó não
    * quebra tipo, render nem teste, e a página segue publicando JSON-LD válido —
-   * só que mudo. Foi exatamente assim que a `Offer` desta ficha passou duas
-   * semanas referenciando um `#dealer` que a própria ficha não emitia.
+   * só que mudo. Foi exatamente assim que a `Offer` desta ficha passou 11 dias
+   * (25/08 a 05/09/2026) referenciando um `#dealer` que a própria ficha não
+   * emitia.
+   *
+   * Extrair não basta: quem guarda o resultado é
+   * `tests/ficha-publica-o-grafo.test.ts`, que renderiza esta rota e conta os
+   * nós servidos. Ver `grafoDaFicha`.
    */
   const grafo = grafoDaFicha({
     veiculo,

@@ -13,9 +13,13 @@ import type { CompanySettings, Veiculo } from "../src/types";
  *
  * A ficha volta a publicar só o `Car`, o `#dealer` volta a ser órfão — e a
  * suíte inteira ficou verde. É o mesmo defeito que a extração para
- * `lib/grafoDaFicha.ts` diz existir para fechar, vivo um nível acima; e é a
- * terceira vez que este repositório o encontra no mesmo lugar: a lógica com
- * bateria completa, a chamada sem ninguém.
+ * `lib/grafoDaFicha.ts` diz existir para fechar, vivo um nível acima: a lógica
+ * com bateria completa, a chamada sem ninguém.
+ *
+ * (Esta frase dizia "é a terceira vez que este repositório o encontra". O
+ * mesmo commit que a escreveu já retratava a contagem "três vezes" em
+ * `grafoDaFicha.ts` — o branch se contradizia consigo mesmo. O que se
+ * verifica é UMA ocorrência documentada, a do `#dealer`.)
  *
  * Renderizar a rota exige mock de seis dependências de I/O. Vale o preço: é a
  * única forma de contar o que a página realmente serve.

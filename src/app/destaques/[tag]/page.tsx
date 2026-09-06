@@ -167,9 +167,6 @@ export default async function DestaquesPage({ params }: PageProps) {
   return (
     // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
     <div className="flex min-h-screen flex-col bg-mt-bg text-mt-ink">
-      {/* A lista, a loja e o site. As landings de destaque sao indexaveis e
-          entram no sitemap: sem o `AutoDealer`, cada uma anunciava um recorte
-          do estoque sem dizer de quem e a loja. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: grafo }}

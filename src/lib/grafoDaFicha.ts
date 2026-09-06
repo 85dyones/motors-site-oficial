@@ -19,11 +19,30 @@ import { schemaDoVeiculo } from "./schemaVeiculo";
  * guarda o resultado é `tests/ficha-publica-o-grafo.test.ts`, que renderiza a
  * ficha e conta os nós servidos. Esta função organiza; o teste é que protege.
  *
- * O mesmo par existe para `/sobre`, `/contato` e `/estoque` em
- * `tests/paginas-de-entidade.test.ts`. **A home não tem**, e é decisão
- * declarada: ela puxa reputação do Google e curadoria do Instagram além do
- * estoque, e o teste precisaria de mais mock do que asserção. Quem mexer no
- * grafo de `src/app/page.tsx` não tem rede.
+ * ---------------------------------------------------------------------------
+ * O que TEM rede, e o que não tem — medido, não estimado
+ * ---------------------------------------------------------------------------
+ * **14 rotas** chamam `schemaDoSite`. Quatro têm teste que renderiza a página e
+ * CONTA os nós servidos: esta ficha, `/sobre`, `/contato` e `/estoque` (as três
+ * últimas em `tests/paginas-de-entidade.test.ts`).
+ *
+ * As outras **dez não têm**: a home, `/avaliacao` (o teste dela confere
+ * `AutoDealer` e `BreadcrumbList`, não o `WebSite`), `/carro-perfeito`,
+ * `/privacidade`, `/destaques/[tag]`, `PaginaGeoView` — que serve
+ * `/seminovos-curitiba` e `/seminovos-bacacheri` —, `/garantia`,
+ * `/financiamento`, `/estoque/[recorte]`, `/[categoria]/[marca]` e
+ * `/[categoria]/[marca]/[modelo]`. A revisão da F2 provou: removendo
+ * `schemaDoSite` das dez de uma vez, a suíte fica verde.
+ *
+ * Uma versão anterior deste parágrafo dizia que só a home estava descoberta.
+ * Estava errada por dez rotas, e um mapa errado é pior que mapa nenhum — é ele
+ * que a próxima pessoa vai ler antes de mexer.
+ *
+ * O critério de onde investir foi tráfego e custo do mock: a ficha e `/estoque`
+ * são as páginas que mais recebem, `/sobre` e `/contato` são as de entidade, e
+ * as quatro custam dois ou três mocks. A home custaria mais — puxa reputação do
+ * Google e curadoria do Instagram além do estoque —, e mock demais transforma
+ * prova em ficção.
  *
  * (A primeira versão desta nota dizia "três vezes em 2026" e "duas semanas".
  * Nenhum dos dois se sustentou na verificação — o defeito documentado é um, e
