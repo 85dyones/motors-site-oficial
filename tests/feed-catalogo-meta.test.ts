@@ -65,11 +65,14 @@ vi.mock("../src/lib/publicacao", async (original) => {
   return { ...real, getDatasDeVenda: async () => datasDeVenda };
 });
 
-async function gerarFeed(veiculos: Veiculo[]): Promise<string> {
+async function gerarResposta(veiculos: Veiculo[]): Promise<Response> {
   estoque = veiculos;
   const { GET } = await import("../src/app/api/feed/xml/route");
-  const res = await GET(new Request("https://motorsstore.com.br/api/feed/xml"));
-  return await res.text();
+  return await GET(new Request("https://motorsstore.com.br/api/feed/xml"));
+}
+
+async function gerarFeed(veiculos: Veiculo[]): Promise<string> {
+  return await (await gerarResposta(veiculos)).text();
 }
 
 /**
@@ -293,10 +296,37 @@ describe("as fotos", () => {
   it("carro só com foto relativa fica FORA do catálogo", async () => {
     // `/logo.png` é o último degrau do mapper. Item com caminho relativo é item
     // sem foto para o portal — melhor faltar do que entrar reprovado.
-    const xml = await gerarFeed([carro({ whatsapp_images: ["/logo.png"], web_full_images: [] })]);
+    const xml = await gerarFeed([
+      carro({ whatsapp_images: ["/logo.png"], web_full_images: [] }),
+      carro({ id: "999" }),
+    ]);
 
     expect(xml).not.toContain("<g:id>8335204</g:id>");
     expect(xml).not.toContain("/logo.png");
+    expect(xml).toContain("<g:id>999</g:id>");
+  });
+
+  it("pátio cheio e catálogo vazio devolve 500, nunca um feed vazio com 200", async () => {
+    // Carga vazia com HTTP 200 é CACHEADA (`s-maxage=10800`) e diz ao Meta que
+    // a loja não tem carro — ele apaga os 36 itens. O 500 deixa o
+    // `stale-while-revalidate` servindo a última carga boa. É o mesmo estrago
+    // que `getEstoque` estourando, só que chegando pela porta silenciosa.
+    const res = await gerarResposta([
+      carro({ id: "1", whatsapp_images: ["/logo.png"], web_full_images: [] }),
+      carro({ id: "2", whatsapp_images: [], web_full_images: [] }),
+    ]);
+
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain("<rss");
+  });
+
+  it("estoque legitimamente vazio continua devolvendo 200", async () => {
+    // A distinção: pátio vazio é um fato sobre a loja; pátio cheio com
+    // catálogo vazio é defeito nosso. Só o segundo derruba a carga.
+    const res = await gerarResposta([]);
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("</rss>");
   });
 });
 

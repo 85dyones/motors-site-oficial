@@ -127,12 +127,22 @@ export function truncarEmPalavra(texto: string, maximo: number): string {
 /**
  * Quantas fotos cabem num item — capa mais adicionais.
  *
- * É o teto do `additional_image_link` do Meta (10 no total). O feed de
- * veículos do AIA aceita 20 por `image[N].url`, e por isso a constante mora
- * aqui e não numa expressão solta: quando aquele feed existir, ele vai querer
- * o seu próprio número, e os dois não podem virar o mesmo literal espalhado.
+ * Esta rota serve DOIS consumidores pelo mesmo XML (namespace `g:`), e cada um
+ * tem seu teto de `additional_image_link`:
+ *
+ *   Meta ............ 20 adicionais (21 no total)
+ *   Google Merchant . 10 adicionais (11 no total)
+ *
+ * Vale o menor, senão o Merchant Center reprova por excesso. Onze no total =
+ * 1 capa + 10 adicionais. (Antes esta constante dizia 10 "porque é o teto do
+ * Meta" — o número era conservador e a justificativa, errada: deixava uma foto
+ * na mesa por item.)
+ *
+ * O feed de veículos do AIA aceita 20 por `image[N].url` e vai querer o seu
+ * próprio número — por isso isto é uma constante nomeada e não um literal
+ * solto no meio da montagem.
  */
-export const MAXIMO_DE_IMAGENS = 10;
+export const MAXIMO_DE_IMAGENS = 11;
 
 /** Só endereço absoluto serve num feed: o portal busca a imagem de fora. */
 function ehUrlAbsoluta(url: string): boolean {

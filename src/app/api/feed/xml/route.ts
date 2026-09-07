@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { getEstoque, getVeiculoPdpUrl } from '../../../../lib/supabase';
 import { nomeDoVeiculo } from '../../../../lib/nomeDoVeiculo';
 import { rotuloDoModelo } from '../../../../lib/hubsDeEstoque';
@@ -42,6 +42,28 @@ export const dynamic = 'force-dynamic';
  * que sobra para cá é a falha do `unstable_cache` em si — a que aparece fora do
  * contexto de requisição do Next.
  */
+/**
+ * Avisa depois de a resposta ir — e nunca derruba o feed por causa do aviso.
+ *
+ * Duas armadilhas, nesta ordem:
+ *
+ * 1. `alertarFalha` sozinho não termina. A resposta deste feed sai antes de o
+ *    POST ao webhook resolver, a plataforma congela a instância, e o alerta
+ *    morre pela metade. Daí o `after()`, como em `/api/capi`.
+ * 2. `after()` **estoura** fora de um escopo de requisição. Em produção sempre
+ *    há um, mas em teste, num script ou numa chamada direta do handler, não —
+ *    e a exceção subiria para o `try` do `GET`, derrubando o catálogo inteiro.
+ *    Um alerta que mata aquilo que estava reportando é o pior resultado
+ *    possível: o aviso é o melhor-esforço, o feed é o compromisso.
+ */
+function avisarDepois(assunto: string, detalhe: string): void {
+  try {
+    after(() => alertarFalha(assunto, detalhe));
+  } catch (erro) {
+    console.warn('[XML Feed] alerta "%s" não pôde ser agendado:', assunto, erro);
+  }
+}
+
 async function datasDeVendaOuVazio(): Promise<Record<string, string>> {
   try {
     return await getDatasDeVenda();
@@ -49,8 +71,13 @@ async function datasDeVendaOuVazio(): Promise<Record<string, string>> {
     const detalhe = erro instanceof Error ? erro.message : String(erro);
     console.warn('[XML Feed] sem as datas de venda (%s) — todo vendido sai na hora.', detalhe);
     // Degradar em silêncio é como a carência do vendido ficaria desligada por
-    // semanas sem ninguém saber. O alerta tem `throttle` por assunto.
-    void alertarFalha('Feed do catálogo sem as datas de venda', detalhe);
+    // semanas sem ninguém saber.
+    //
+    // Dentro de `after()`, e não solto: a resposta deste feed sai antes de o
+    // POST ao webhook resolver, e sem `after()` a plataforma congela a
+    // instância com o alerta pela metade. Alerta silenciado é pior que alerta
+    // nenhum — dá a sensação de estar coberto. Mesmo padrão de `/api/capi`.
+    avisarDepois('feed-catalogo-datas-de-venda', detalhe);
     return {};
   }
 }
@@ -77,6 +104,10 @@ export async function GET(request: Request) {
     <link>${escaparXml(siteUrl)}</link>
     <description>Estoque dinâmico de veículos para campanhas e anúncios.</description>
 `;
+
+    /** Ids que o laço derrubou por falta de foto utilizável. Avisados no fim. */
+    const semFoto: string[] = [];
+    let itensEmitidos = 0;
 
     for (const car of vehicles) {
       // O vendido não some da noite para o dia. Ver `decidirNoFeed`: para o
@@ -106,13 +137,13 @@ export async function GET(request: Request) {
         // Mas emitir `<g:image_link></g:image_link>` reprova o item em silêncio,
         // e um caminho relativo (`/logo.png`, o último degrau do mapper) é foto
         // que o portal não consegue buscar. Melhor faltar o item e dizer o id.
+        //
+        // O aviso é juntado e sai UMA vez depois do laço: alertando aqui
+        // dentro, a carência de 30 minutos por assunto engoliria do segundo
+        // carro em diante, e o segundo é justamente o que diz que o problema
+        // não é de um cadastro só.
         console.warn('[XML Feed] veículo %s sem foto absoluta — fora do catálogo', car.id);
-        // Um carro sumindo do catálogo PAGO é exatamente o tipo de coisa que
-        // não pode ficar só no log de uma função serverless.
-        void alertarFalha(
-          'Veículo fora do catálogo de anúncios',
-          `O veículo ${car.id} não tem nenhuma foto com endereço absoluto e ficou fora do feed.`,
-        );
+        semFoto.push(String(car.id));
         continue;
       }
 
@@ -238,6 +269,31 @@ export async function GET(request: Request) {
       <g:custom_label_1>${carroceria}</g:custom_label_1>` : ''
       }
     </item>`;
+      itensEmitidos += 1;
+    }
+
+    if (semFoto.length > 0) {
+      avisarDepois(
+        'feed-catalogo-sem-foto',
+        `${semFoto.length} veículo(s) ficaram fora do catálogo de anúncios por não terem ` +
+          `nenhuma foto com endereço absoluto: ${semFoto.join(', ')}.`,
+      );
+    }
+
+    // Piso da carga: pátio cheio e catálogo vazio é o mesmo estrago que o
+    // `getEstoque` estourando — dizer ao Meta que a loja não tem carro, e ele
+    // apaga os 36 itens. Só que aqui chegaríamos com HTTP 200 e `s-maxage`,
+    // então a carga vazia seria CACHEADA. Devolver 500 deixa o
+    // `stale-while-revalidate` servindo a última carga boa enquanto alguém
+    // olha. O caminho é improvável (o gate de publicação já exige 4 fotos),
+    // e é justamente por isso que ninguém o veria acontecer.
+    if (itensEmitidos === 0 && vehicles.length > 0) {
+      const detalhe =
+        `O estoque devolveu ${vehicles.length} veículo(s) e nenhum sobreviveu à montagem do ` +
+        `feed. O catálogo NÃO foi atualizado, para não apagar os anúncios.`;
+      console.error('[XML Feed] %s', detalhe);
+      avisarDepois('feed-catalogo-vazio', detalhe);
+      return new NextResponse('Feed vazio com estoque cheio', { status: 500 });
     }
 
     xml += `

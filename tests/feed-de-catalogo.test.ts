@@ -146,9 +146,10 @@ describe("imagensDoAnuncio", () => {
 
   it("respeita o teto do Meta", () => {
     // O valor exato, e não só a coerência consigo mesmo: com a constante usada
-    // dos dois lados, trocar 10 por 40 passava verde — e o Meta simplesmente
-    // ignora o excedente de `additional_image_link`.
-    expect(MAXIMO_DE_IMAGENS).toBe(10);
+    // dos dois lados, trocar 11 por 40 passava verde. Onze = 1 capa + 10
+    // adicionais, o teto do Google Merchant, que é o menor dos dois
+    // consumidores deste mesmo XML (o Meta aceita 21).
+    expect(MAXIMO_DE_IMAGENS).toBe(11);
 
     const muitas = Array.from({ length: MAXIMO_DE_IMAGENS + 5 }, (_, i) => url(i));
     expect(imagensDoAnuncio(muitas, [])).toHaveLength(MAXIMO_DE_IMAGENS);
