@@ -127,6 +127,13 @@ export type Publicacao = {
  *
  * O corta-fogo imediato continua existindo e não passa por aqui: arquivar no
  * painel muda `estado_cadastro` e o carro sai de `getEstoque` na hora.
+ *
+ * **Decisão do dono em 2026-09-07**, junto com o fato operacional que a
+ * sustenta: a loja marca vendido e arquiva **depois de um tempo**, não no mesmo
+ * dia. Isso importa porque, se arquivasse junto, o corta-fogo venceria a
+ * carência sempre e esta janela seria letra morta. As duas únicas vendas que
+ * passaram pelo histórico até aqui (`8321599` e `8250159`) terminaram
+ * arquivadas, o que dava a impressão contrária — daí a pergunta.
  */
 export const CARENCIA_VENDIDO_NO_FEED_DIAS = 7;
 
