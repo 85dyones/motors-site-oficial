@@ -1,3 +1,4 @@
+import { nomeTemOAno } from "./nomeDoVeiculo";
 import type { Publicacao } from "./publicacao";
 
 /**
@@ -78,7 +79,18 @@ export function montarTextosDaFicha(entrada: {
      esta página e, nela, os similares. Trocar tudo por "veículo vendido, veja
      outras opções" jogaria fora o que a carência existe para preservar.
      O que some é só o preço. */
-  const tracos = [String(ano), cor, km ? `${km.toLocaleString("pt-BR")} km` : ""]
+  /* O ano só entra nos traços se o nome ainda não o carregar. O RevendaMais
+     embute o ano no `modelo` em parte do cadastro, do mesmo jeito que embute a
+     versão, e o `nome` que chega aqui já veio deduplicado — mas só da versão.
+     Medido em 2026-09-07, a ficha do Nissan March `8006476` publicava:
+
+       Nissan March 1.6 Rio 2016 2016, preto, 90.660 km — vendido.
+
+     A pergunta mora em `lib/nomeDoVeiculo.ts`, junto da de versão, para as
+     duas não divergirem. */
+  const anoNoTraco = nomeTemOAno(nome, ano) ? "" : String(ano);
+
+  const tracos = [anoNoTraco, cor, km ? `${km.toLocaleString("pt-BR")} km` : ""]
     .filter(Boolean)
     .join(", ");
 

@@ -16,11 +16,45 @@
  * Não importa nada de propósito — serve servidor e cliente.
  */
 
-interface VeiculoNomeavel {
+export interface VeiculoNomeavel {
   marca: string;
   modelo: string;
   versao?: string | null;
   ano?: number | string | null;
+}
+
+/**
+ * A versão já está embutida neste nome?
+ *
+ * Por SUBSTRING, e não por palavra como o ano: a versão é uma expressão
+ * inteira ("1.6 Rio 2016"), e o `modelo` do RevendaMais a embute com a mesma
+ * pontuação e outra caixa. Comparar por token exigiria casar a sequência toda,
+ * que é o que o `includes` já faz.
+ *
+ * Exportado porque quem monta texto FORA daqui precisa da mesma pergunta — o
+ * card de compartilhamento tem uma linha só para a versão, e ela não pode
+ * repetir o que a linha do carro já disse.
+ */
+export function nomeTemAVersao(nome: string, versao: string | null | undefined): boolean {
+  const v = (versao ?? "").trim();
+  return v !== "" && nome.toLowerCase().includes(v.toLowerCase());
+}
+
+/**
+ * O ano já está neste nome?
+ *
+ * Por PALAVRA INTEIRA, ao contrário da versão: "2016" dentro de "2016V" ou de
+ * uma cilindrada não é o ano do carro, e suprimir por substring tiraria o ano
+ * de quem precisava dele — falha silenciosa e na direção errada. Dividir por
+ * espaço também dispensa montar regex com dado do cadastro.
+ *
+ * Exportado pelo mesmo motivo do irmão acima: `lib/tituloDaFicha.ts` monta a
+ * meta description com o ano num traço separado, e precisa saber se o nome já
+ * o carrega.
+ */
+export function nomeTemOAno(nome: string, ano: number | string | null | undefined): boolean {
+  const a = String(ano ?? "").trim();
+  return a !== "" && nome.split(/\s+/).includes(a);
 }
 
 /** "Jeep Renegade S T270 1.3 Tb 4x4 Flex Aut" — sem repetir a versão. */
@@ -29,9 +63,7 @@ export function nomeDoVeiculo(veiculo: VeiculoNomeavel): string {
   const versao = (veiculo.versao ?? "").trim();
 
   if (!versao) return marcaModelo;
-  return marcaModelo.toLowerCase().includes(versao.toLowerCase())
-    ? marcaModelo
-    : `${marcaModelo} ${versao}`;
+  return nomeTemAVersao(marcaModelo, versao) ? marcaModelo : `${marcaModelo} ${versao}`;
 }
 
 /**
@@ -66,5 +98,5 @@ export function nomeComAno(veiculo: VeiculoNomeavel): string {
   const ano = String(veiculo.ano ?? "").trim();
   if (!ano) return nome;
 
-  return nome.split(/\s+/).includes(ano) ? nome : `${nome} ${ano}`;
+  return nomeTemOAno(nome, ano) ? nome : `${nome} ${ano}`;
 }

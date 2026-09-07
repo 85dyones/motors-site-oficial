@@ -299,6 +299,41 @@ describe("o que a ficha anuncia fora da página", () => {
     expect(t.descricao).not.toMatch(/R\$/);
   });
 
+  it("não repete o ano quando ele já está no nome", () => {
+    /* O RevendaMais embute o ano no `modelo` em parte do cadastro, do mesmo
+       jeito que embute a versão. O Nissan March `8006476` (vendido, publicado)
+       tem `modelo = "March 1.6 Rio 2016"` e `ano = 2016`, e a meta description
+       da ficha dele publica hoje:
+
+         Nissan March 1.6 Rio 2016 2016, preto, 90.660 km — vendido.
+
+       Medido na base em 2026-09-07: 2 das 110 linhas, os dois o mesmo March. */
+    const t = montarTextosDaFicha({
+      ...base,
+      nome: "Nissan March 1.6 Rio 2016",
+      ano: 2016,
+      cor: "Preto",
+      km: 90660,
+      publicacao: { indisponivel: true, rotulo: "VENDIDO" },
+    });
+
+    expect(t.descricao).not.toMatch(/2016\s*,?\s+2016/);
+    // E o carro continua descrito: some a repetição, não o traço.
+    expect(t.descricao).toContain("Preto");
+    expect(t.descricao).toContain("90.660 km");
+  });
+
+  it("o ano CONTINUA no texto quando ele não está no nome", () => {
+    // A guarda não pode virar "nunca põe o ano": ele é o traço que separa dois
+    // carros do mesmo modelo na cauda longa que a carência existe para pegar.
+    const t = montarTextosDaFicha({
+      ...base,
+      publicacao: { indisponivel: true, rotulo: "VENDIDO" },
+    });
+
+    expect(t.descricao).toContain("2014");
+  });
+
   it("cor e km ausentes não deixam buraco no texto", () => {
     // Campo vazio é comum no feed; a frase não pode sair com vírgula solta.
     const t = montarTextosDaFicha({
