@@ -44,7 +44,8 @@
 -- VAZIA**. O site não muda de aparência no dia em que ela roda; ela só abre a
 -- porta. Semear as duas constantes aqui criaria uma segunda cópia do mesmo
 -- texto — duas verdades que divergem no primeiro PR que tocar o arquivo, sem
--- que nada acuse. O aceite no fim exige a tabela vazia ao fim da transação.
+-- que nada acuse. O aceite no fim exige que a tabela termine como começou —
+-- vazia na primeira aplicação, e ver a seção seguinte para as outras.
 --
 -- É também o motivo de NULO e VAZIO significarem a mesma coisa: "use o texto
 -- do código". A tela grava '' quando o operador limpa o campo, e limpar tem de
@@ -53,6 +54,49 @@
 -- estrutura, colapsando '' e '   ' em NULO. Um estado ausente só, em vez de
 -- três formas de dizer a mesma coisa — e uma delas, o espaço solitário, passa
 -- por qualquer teste de valor-falso e vira título em branco na aba.
+--
+-- ---------------------------------------------------------------------------
+-- Rodar de novo não pode apagar o texto do dono
+-- ---------------------------------------------------------------------------
+-- O arquivo é re-executável de ponta a ponta (`if not exists`, `or replace`,
+-- `drop … if exists`, rodapé com `on conflict do nothing`) e
+-- `supabase/manutencao/aplicar-migracao.js` roda o SQL que recebe sem consultar
+-- o livro-razão — o `on conflict do nothing` do rodapé protege a LINHA do razão,
+-- não a execução do corpo. Rodar duas vezes é caminho real, e o aceite abaixo
+-- ESCREVE: na linha única de chave fixa `guias`, que é a MESMA que o dono usa.
+--
+-- As duas migrações irmãs escapam disso escopando a limpeza por chave própria
+-- (`guias` apaga por `slug in (…)`, `textos_de_hub` por
+-- `caminho like '/carros/aceite/%'`). Aqui não há escapatória por chave: existe
+-- uma chave possível, e ela é a do dono.
+--
+-- Escolha: **fotografar e repor**. Antes do aceite, a linha pré-existente é
+-- copiada para uma tabela temporária (`select *`, que pega toda coluna sem
+-- listar nenhuma — não apodrece quando uma migração aditiva acrescentar a
+-- próxima). O aceite então esvazia a tabela e roda inteiro contra ela vazia,
+-- idêntico à primeira aplicação, sem caminho de teste que só exista na segunda
+-- vez. No fim ele repõe a cópia, e um bloco SEPARADO confere que a linha voltou
+-- igual, campo por campo.
+--
+-- Três peças (copiar, repor, conferir) e nenhuma delas guarda a outra: apagar
+-- QUALQUER uma faz a migração parar. Sem o retrato, os dois blocos recusam-se a
+-- rodar (`to_regclass` nulo → exceção) em vez de esvaziar a tabela às cegas;
+-- sem a reposição, a conferência acusa; sem a conferência, a reposição ainda
+-- está lá. Perder o texto do dono exige três remoções deliberadas, não um
+-- descuido.
+--
+-- A outra saída considerada era pular o aceite quando já houvesse linha. Ela
+-- também protegeria o texto, e custaria caro: o ensaio contra a produção é o
+-- único staging deste projeto, e no dia em que o dono gravasse o cabeçalho o
+-- aceite ficaria PULADO para sempre — o arquivo deixaria de provar qualquer
+-- coisa exatamente no ambiente onde ele é provado. Fotografando, o aceite
+-- continua rodando inteiro e passa a provar uma coisa a mais: que reaplicar
+-- devolve a linha do dono como estava.
+--
+-- A rede de baixo é a transação. O aplicador roda tudo em BEGIN/COMMIT, então
+-- qualquer falha entre o retrato e a conferência — e a conferência é `raise
+-- exception`, não contagem de falha — reverte a exclusão junto. Não existe
+-- estado intermediário commitado.
 --
 -- ---------------------------------------------------------------------------
 -- O teto é de sanidade. 155 NÃO vira constraint
@@ -213,6 +257,26 @@ create trigger trg_carimbar_cabecalho_dos_guias
   for each row execute function public.carimbar_cabecalho_dos_guias();
 
 -- ---------------------------------------------------------------------------
+-- RETRATO — a linha que já estiver gravada sai daqui como entrou
+-- ---------------------------------------------------------------------------
+-- Tirado ANTES de qualquer escrita, e fora do bloco de aceite de propósito:
+-- assim a cópia, o uso e a conferência são três peças separadas, e apagar
+-- qualquer UMA delas faz a migração parar em vez de apagar o texto do dono.
+--
+-- `select *` copia a linha coluna a coluna sem nomear nenhuma: a coluna que uma
+-- migração aditiva acrescentar amanhã entra no retrato sozinha, que é
+-- justamente o que uma lista escrita à mão perderia em silêncio. `on commit
+-- drop` garante que a cópia não sobrevive à transação — nem no pooler, que
+-- reaproveita sessão.
+--
+-- O `drop` antes do `create` não é zelo: com `if not exists`, uma segunda
+-- execução na MESMA sessão guardaria o retrato velho (vazio) e a conferência do
+-- fim acusaria diferença onde não há. O retrato é sempre o de agora.
+drop table if exists pg_temp.retrato_cabecalho_dos_guias;
+create temp table retrato_cabecalho_dos_guias on commit drop as
+  select * from public.cabecalho_dos_guias;
+
+-- ---------------------------------------------------------------------------
 -- Aceite — prova por COMPORTAMENTO, lendo e escrevendo como gente
 -- ---------------------------------------------------------------------------
 -- Nada aqui consulta `pg_policies` ou `information_schema`: policy correta e
@@ -230,7 +294,20 @@ declare
   carimbo timestamptz;
   sobraram int;
   ausentes int;
+  havia_cabecalho boolean;
 begin
+  -- FALHA FECHADA. O aceite esvazia a tabela três linhas abaixo; se o retrato
+  -- não foi tirado, o certo é parar aqui — nunca seguir e descobrir depois.
+  if to_regclass('pg_temp.retrato_cabecalho_dos_guias') is null then
+    raise exception 'TRAVA AUSENTE: o aceite esvazia o cabeçalho e não há retrato para repor. Alguém tirou o `create temp table retrato_cabecalho_dos_guias` daqui de cima — reponha antes de rodar, senão uma segunda execução apaga o texto que está no ar.';
+  end if;
+  select exists (select 1 from pg_temp.retrato_cabecalho_dos_guias) into havia_cabecalho;
+
+  -- Esvaziar faz a segunda execução ser IDÊNTICA à primeira: o aceite inteiro
+  -- roda contra a tabela vazia, sem ramo que só existe na reaplicação. A
+  -- reposição está no passo 10 e a conferência, no bloco depois deste.
+  delete from public.cabecalho_dos_guias;
+
   -- O staff precisa existir EM `auth.users`: `atualizado_por` tem FK para lá,
   -- e um perfil órfão faria o teste de escrita falhar por outro motivo.
   select p.id into id_staff
@@ -262,6 +339,22 @@ begin
   insert into public.cabecalho_dos_guias (titulo_seo, resumo, atualizado_por, atualizado_em)
     values ('Aceite: título da aba', 'Aceite: resumo da seção.',
             id_anterior, '2020-01-01T00:00:00-03:00'::timestamptz);
+
+  -- … e o INSERT tem de PRESERVAR a data e o autor informados. É o que permite
+  -- migrar um texto sem reescrever a data dele para "agora", e é o outro lado
+  -- do `if tg_op = 'UPDATE'` do gatilho. Sem esta asserção, tirar aquele `if`
+  -- sobrevive ao aceite inteiro: a semente nasceria com `now()` e o passo 7
+  -- (carimbo maior que 2020) continuaria verdadeiro pelo motivo errado.
+  select atualizado_em, atualizado_por into carimbo, autor
+    from public.cabecalho_dos_guias;
+  if carimbo is distinct from '2020-01-01T00:00:00-03:00'::timestamptz then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: o INSERT reescreveu a data informada (gravou %) — o carimbo deixou de ser só de UPDATE', carimbo;
+  end if;
+  if autor is distinct from id_anterior then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: o INSERT não preservou o autor informado (gravou %, esperado %)', autor, id_anterior;
+  end if;
 
   -- 2. LINHA ÚNICA (b). A segunda linha bate na chave primária.
   begin
@@ -352,15 +445,41 @@ begin
   end;
   reset role;
 
+  -- UPDATE e DELETE do anônimo têm de morrer no PRIVILÉGIO, e a diferença
+  -- importa: sem o `revoke`, o `pg_default_acl` do Supabase entrega a escrita a
+  -- `anon`, a RLS filtra, e o comando volta ZERO LINHA SEM ERRO — um teste que
+  -- só olha `found` passaria com a porta destrancada, exatamente como a RLS
+  -- silenciosa já enganou este projeto antes. Por isso, aqui, não levantar
+  -- exceção conta como falha.
   set local role anon;
   begin
     update public.cabecalho_dos_guias set titulo_seo = 'invadido';
-    if found then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: anon não foi barrado por privilégio no UPDATE — o `revoke` caiu e só a RLS separa o texto publicado de um visitante';
+  exception
+    when insufficient_privilege then
+      null;
+    when others then
       falhas := falhas + 1;
-      raise warning 'FALHOU: anon editou o cabeçalho do site';
-    end if;
-  exception when insufficient_privilege then
-    null;
+      raise warning 'FALHOU: anon foi barrado por % e não por privilégio no UPDATE', sqlstate;
+  end;
+  reset role;
+
+  -- DELETE entra porque está no `revoke` E na policy de escrita, e apagar a
+  -- linha é apagar o texto publicado — o mesmo estrago de um UPDATE. Sem esta
+  -- asserção, tirar `delete` do `revoke` atravessava o aceite inteiro sem
+  -- ninguém notar: o ato nunca era tentado.
+  set local role anon;
+  begin
+    delete from public.cabecalho_dos_guias;
+    falhas := falhas + 1;
+    raise warning 'FALHOU: anon não foi barrado por privilégio no DELETE — o `revoke` caiu e apagar o cabeçalho do site virou uma questão de policy';
+  exception
+    when insufficient_privilege then
+      null;
+    when others then
+      falhas := falhas + 1;
+      raise warning 'FALHOU: anon foi barrado por % e não por privilégio no DELETE', sqlstate;
   end;
   reset role;
 
@@ -443,10 +562,40 @@ begin
     raise warning 'FALHOU: o INSERT do staff não carimbou o autor (gravado: %)', autor;
   end if;
 
-  -- 9. A TABELA TERMINA VAZIA. Não é limpeza de teste: é o estado de entrega.
-  --    Vazio significa "use o texto do código", e o código é o que está no ar
-  --    hoje. Uma linha de aceite esquecida aqui poria "Criado pelo painel" no
-  --    `<title>` de `/guias` em produção.
+  -- 8-b. E CRIA COM CAMPO LIMPO. O passo 4 provou a normalização no UPDATE;
+  --      esta é a outra metade da afirmação lá de cima ("um estado ausente, e
+  --      não três") — e é a metade MAIS provável, porque a tabela nasce vazia:
+  --      o primeiro save do painel com um campo limpo é um INSERT com ''.
+  --      Sem esta asserção, prender a normalização a `tg_op = 'UPDATE'`
+  --      atravessa o aceite inteiro, e o `<title>` de `/guias` vira um espaço
+  --      em branco na aba de quem buscou a loja.
+  delete from public.cabecalho_dos_guias;
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', id_staff::text, 'role', 'authenticated')::text, true);
+  begin
+    insert into public.cabecalho_dos_guias (titulo_seo, resumo) values ('', '   ');
+  exception when others then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: o primeiro save com campos limpos foi recusado: %', sqlerrm;
+  end;
+  reset role;
+
+  select count(*) into ausentes
+    from public.cabecalho_dos_guias
+   where titulo_seo is null and resumo is null;
+  if ausentes <> 1 then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: o INSERT não colapsou vazio e espaço em NULO (linhas ausentes: %)', ausentes;
+  end if;
+
+  -- 9. NENHUMA LINHA DE ACEITE SOBREVIVE. Não é limpeza de teste: é o estado de
+  --    entrega. Vazio significa "use o texto do código", e o código é o que
+  --    está no ar hoje. Uma linha de aceite esquecida aqui poria "Criado pelo
+  --    painel" no `<title>` de `/guias` em produção. (Este `delete` é sem
+  --    `where` de propósito: neste ponto toda linha da tabela foi escrita pelo
+  --    próprio aceite — o retrato do topo tirou a do dono da frente, e é ele
+  --    que a repõe no passo 10.)
   delete from public.cabecalho_dos_guias;
   select count(*) into sobraram from public.cabecalho_dos_guias;
   if sobraram <> 0 then
@@ -454,11 +603,72 @@ begin
     raise warning 'FALHOU: sobraram % linha(s) de aceite — o site serviria texto de teste', sobraram;
   end if;
 
+  -- 10. A LINHA DO DONO VOLTA. Rodar esta migração de novo não pode mexer no
+  --     texto que está no ar, e a reposição é `select *` pelo mesmo motivo que
+  --     o retrato: coluna nova entra sozinha.
+  --
+  --     Claims vazias antes do INSERT porque o gatilho carimba o autor quando
+  --     `auth.uid()` existe, e o passo 8 deixou a sessão como staff — repor com
+  --     o autor errado seria estragar a linha por outro caminho, mais discreto.
+  --     A data volta sozinha: o carimbo é só de UPDATE.
+  --
+  --     Quem CONFERE é o bloco seguinte, e não este: a reposição e a prova dela
+  --     não podem cair juntas na mesma edição distraída.
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.cabecalho_dos_guias
+    select * from pg_temp.retrato_cabecalho_dos_guias;
+
   if falhas > 0 then
     raise exception 'ACEITE FALHOU: % problema(s) no cabeçalho editável dos guias', falhas;
   end if;
 
-  raise notice 'Cabeçalho dos guias OK: linha única imposta (CHECK e PK), anon lê e não escreve, não-staff não escreve, staff cria e edita com carimbo de autor e data, vazio/nulo/espaço voltam ao texto do código, teto recusa 301 e aceita 158, e a tabela é entregue vazia.';
+  raise notice 'Cabeçalho dos guias OK: linha única imposta (CHECK e PK), anon lê e não escreve (nem UPDATE, nem DELETE — barrado no privilégio), não-staff não escreve, staff cria e edita com carimbo de autor e data, INSERT preserva a data informada, vazio/nulo/espaço voltam ao texto do código no INSERT e no UPDATE, teto recusa 301 e aceita 158, e a tabela termina %.',
+    case when havia_cabecalho
+      then 'com o cabeçalho que o dono já tinha gravado, reposto do retrato'
+      else 'VAZIA, que é o estado de entrega' end;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Conferência da reaplicação — a linha do dono voltou IGUAL?
+-- ---------------------------------------------------------------------------
+-- Bloco separado de propósito. O aceite acima escreve e apaga a linha única de
+-- chave fixa `guias` — a MESMA que o dono usa —, então "a tabela terminou como
+-- foi encontrada" é afirmação sobre dado de produção, e afirmação sobre dado de
+-- produção se confere de fora, com o retrato na mão.
+--
+-- A comparação é de LINHA INTEIRA nos dois sentidos (`except all` de ida e de
+-- volta), não dos campos que alguém lembrou de listar: autor e data contam
+-- tanto quanto o texto. E o desfecho é `raise exception`, não contagem de
+-- falha — dado do dono não entra na aritmética do aceite. Qualquer diferença
+-- derruba a transação inteira, e é a transação voltando atrás que garante que
+-- nada se perdeu.
+do $$
+declare
+  diferentes int;
+  linhas int;
+begin
+  if to_regclass('pg_temp.retrato_cabecalho_dos_guias') is null then
+    raise exception 'TRAVA AUSENTE: sem o retrato não há como afirmar que o cabeçalho gravado sobreviveu ao aceite. Nada deve ser gravado assim.';
+  end if;
+
+  select count(*) into diferentes from (
+    (select * from pg_temp.retrato_cabecalho_dos_guias
+      except all select * from public.cabecalho_dos_guias)
+    union all
+    (select * from public.cabecalho_dos_guias
+      except all select * from pg_temp.retrato_cabecalho_dos_guias)
+  ) d;
+
+  if diferentes > 0 then
+    raise exception 'REAPLICAÇÃO DESTRUTIVA: o cabeçalho que já estava gravado não voltou igual (% linha(s) de diferença). O aceite mexeu no texto que está no ar em /guias. A transação inteira volta atrás — nada foi perdido, e nada deve ser gravado até isto ser corrigido.', diferentes;
+  end if;
+
+  select count(*) into linhas from pg_temp.retrato_cabecalho_dos_guias;
+  if linhas = 0 then
+    raise notice 'Reaplicação conferida: a tabela foi encontrada vazia e termina vazia — /guias segue com o cabeçalho do código.';
+  else
+    raise notice 'Reaplicação conferida: o cabeçalho que já estava gravado voltou idêntico, campo por campo (% linha(s)) — nada do texto do dono foi tocado.', linhas;
+  end if;
 end $$;
 
 insert into supabase_migrations.schema_migrations (version, name)
