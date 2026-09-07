@@ -67,6 +67,17 @@ const paraParagrafos = (texto: string) =>
     .map((p) => p.trim())
     .filter(Boolean);
 
+/** O cabeçalho da seção, como a tela o manipula: vazio = volta ao automático. */
+interface CabecalhoNaTela {
+  tituloSeo: string;
+  resumo: string;
+}
+
+const SEM_CABECALHO: CabecalhoNaTela = { tituloSeo: "", resumo: "" };
+
+/** A régua da meta description. Aviso, não trava — quem decide o texto é o dono. */
+const REGUA_DESCRIPTION = 155;
+
 export default function EditorDeGuias() {
   const [guias, setGuias] = useState<GuiaDoPainel[]>([]);
   const [regua, setRegua] = useState<string[]>([]);
@@ -76,6 +87,11 @@ export default function EditorDeGuias() {
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string; itens?: string[] } | null>(
     null,
   );
+  // O que está GRAVADO (campo vazio = automático) e o que o CÓDIGO usa quando
+  // está vazio. São coisas diferentes de propósito: o segundo vira `placeholder`,
+  // para o campo em branco não parecer página sem texto.
+  const [cabecalho, setCabecalho] = useState<CabecalhoNaTela>(SEM_CABECALHO);
+  const [padrao, setPadrao] = useState<CabecalhoNaTela>(SEM_CABECALHO);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -85,6 +101,14 @@ export default function EditorDeGuias() {
       if (!r.ok) throw new Error(dados.error || "Falha ao carregar");
       setGuias(dados.guias ?? []);
       setRegua(dados.regua ?? []);
+      setCabecalho({
+        tituloSeo: dados.cabecalho?.tituloSeo ?? "",
+        resumo: dados.cabecalho?.resumo ?? "",
+      });
+      setPadrao({
+        tituloSeo: dados.padrao?.tituloSeo ?? "",
+        resumo: dados.padrao?.resumo ?? "",
+      });
       if (dados.error) setAviso({ tipo: "erro", texto: dados.error });
     } catch (e) {
       setAviso({ tipo: "erro", texto: (e as Error).message });
@@ -92,6 +116,35 @@ export default function EditorDeGuias() {
       setCarregando(false);
     }
   }, []);
+
+  async function salvarCabecalho() {
+    setSalvando(true);
+    try {
+      const r = await fetch("/api/guias/secao", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cabecalho),
+      });
+      const dados = await r.json();
+      if (!r.ok) throw new Error(dados.error || "Falha ao salvar o cabeçalho");
+      setCabecalho({
+        tituloSeo: dados.cabecalho?.titulo_seo ?? "",
+        resumo: dados.cabecalho?.resumo ?? "",
+      });
+      const voltouAoPadrao = !dados.cabecalho?.titulo_seo && !dados.cabecalho?.resumo;
+      setAviso({
+        tipo: "ok",
+        texto: voltouAoPadrao
+          ? "Cabeçalho de volta ao texto padrão. /guias já mostra a alteração."
+          : "Cabeçalho salvo. /guias já mostra a alteração.",
+        itens: dados.avisos?.length ? dados.avisos : undefined,
+      });
+    } catch (e) {
+      setAviso({ tipo: "erro", texto: (e as Error).message });
+    } finally {
+      setSalvando(false);
+    }
+  }
 
   useEffect(() => {
     void carregar();
@@ -212,6 +265,76 @@ export default function EditorDeGuias() {
           </ul>
         </div>
       )}
+
+      {/* O cabeçalho da SEÇÃO — não de um guia. Fica acima da lista porque é o
+          que o visitante lê antes de escolher qual guia abrir, e porque a
+          pergunta "o que esta seção é?" vem antes de "que guias ela tem?".
+
+          O nome "Guias Motors" não está aqui de propósito: ele alimenta seis
+          superfícies do site travadas por teste, e um campo aqui tiraria essa
+          trava do caminho. Decisão do dono em 07/09. */}
+      <section className="border border-mt-regua p-4">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h2 className="mt-titulo m-0 text-[16px]">Cabeçalho da seção</h2>
+          <span className="text-[12px] text-mt-neutral-700">
+            O que aparece no topo de <code>/guias</code> e na busca. Campo vazio volta ao texto
+            padrão.
+          </span>
+        </div>
+
+        <label className="mt-3 block text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-neutral-700">
+          Título da aba e da busca
+          <input
+            className={`${CAMPO} mt-1 normal-case`}
+            value={cabecalho.tituloSeo}
+            placeholder={padrao.tituloSeo}
+            maxLength={300}
+            onChange={(e) => setCabecalho((c) => ({ ...c, tituloSeo: e.target.value }))}
+          />
+        </label>
+        <p className="m-0 mt-1 text-[11px] text-mt-neutral-700">
+          O site acrescenta <code>| Motors Store</code> no fim — não precisa repetir.
+        </p>
+
+        <label className="mt-3 block text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-neutral-700">
+          Parágrafo de abertura
+          <textarea
+            className={`${CAMPO} mt-1 min-h-[88px] normal-case`}
+            value={cabecalho.resumo}
+            placeholder={padrao.resumo}
+            maxLength={300}
+            onChange={(e) => setCabecalho((c) => ({ ...c, resumo: e.target.value }))}
+          />
+        </label>
+        <p className="m-0 mt-1 text-[11px] text-mt-neutral-700">
+          Aparece em quatro lugares: sob o título da página, no resultado do Google, no card do
+          WhatsApp e no preview aqui do painel.{" "}
+          {/* Contador, e não bloqueio: o teto do banco é 300 e a régua da busca é
+              155. Recusar por três caracteres seria pior que uma description
+              cortada — quem decide o texto é quem escreve. */}
+          <span
+            className={
+              cabecalho.resumo.length > REGUA_DESCRIPTION ? "font-bold text-mt-accent" : ""
+            }
+          >
+            {cabecalho.resumo.length}/{REGUA_DESCRIPTION} caracteres
+            {cabecalho.resumo.length > REGUA_DESCRIPTION ? " — a busca pode cortar o fim." : ""}
+          </span>
+        </p>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className={BOTAO} onClick={salvarCabecalho} disabled={salvando || carregando}>
+            Salvar cabeçalho
+          </button>
+          <button
+            className={BOTAO}
+            onClick={() => setCabecalho(SEM_CABECALHO)}
+            disabled={salvando || carregando || (!cabecalho.tituloSeo && !cabecalho.resumo)}
+          >
+            Voltar ao padrão
+          </button>
+        </div>
+      </section>
 
       {aviso && (
         <div

@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { revalidatePath } from "next/cache";
-import { createServerSupabaseClient } from "../../../lib/supabase-server";
-import { ehStaff, perfisDe, podeFazer } from "../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../lib/erroDeSchema";
 import { REGUA_DO_GUIA } from "../../../lib/guias";
+import { autorizarConteudo, revalidarCluster } from "../../../lib/portaDeGuias";
+import { CABECALHO_PADRAO, lerCabecalhoGravado } from "../../../lib/secaoDeGuias";
 import {
   normalizarCorpo,
   normalizarFaq,
@@ -39,64 +38,50 @@ export const dynamic = "force-dynamic";
  * texto dos hubs: escrever cópia de site é trabalho de quem escreve anúncio.
  */
 
-const ACAO = "Editar opcionais e destaques rápidos";
-
-
-async function autorizar() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { erro: NextResponse.json({ error: "Não autenticado" }, { status: 401 }) };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, papeis")
-    .eq("id", user.id)
-    .single();
-
-  const perfil = perfisDe(profile);
-  if (!ehStaff(profile) || podeFazer(perfil, ACAO) !== "faz") {
-    return { erro: NextResponse.json({ error: "Sem permissão" }, { status: 403 }) };
-  }
-  return { supabase, user };
-}
-
-/** Descarta do cache tudo que muda quando um guia muda. */
-function revalidarCluster(slug?: string) {
-  revalidatePath("/guias");
-  if (slug) revalidatePath(`/guias/${slug}`);
-  // O sitemap lista os guias publicados, e declara `revalidate = 3600`: sem
-  // esta linha, um guia recém-publicado demora até uma hora para ser anunciado.
-  //
-  // É a única rota do repositório que revalida o sitemap — `/api/hubs/textos`
-  // não precisa, porque hub já está lá com ou sem texto próprio. A primeira
-  // versão deste comentário creditava a ideia àquele conserto de 01/09, que na
-  // verdade revalidava só o caminho editado.
-  revalidatePath("/sitemap.xml");
-}
+// `autorizar` e `revalidarCluster` moravam aqui e saíram em 07/09 para
+// `lib/portaDeGuias.ts`, quando o cabeçalho da seção ganhou rota própria e
+// passou a precisar dos dois. O docblock de lá explica por que copiar seria o
+// começo de um erro conhecido.
+const autorizar = autorizarConteudo;
 
 /** Lista TODOS os guias — rascunho incluso. A tela precisa dos dois. */
 export async function GET() {
   const auth = await autorizar();
   if (auth.erro) return auth.erro;
 
-  const { data, error } = await auth.supabase!
-    .from("guias")
-    .select("*")
-    .order("atualizado_em", { ascending: false });
+  // O cabeçalho da seção vem JUNTO, e não numa segunda chamada: é a mesma tela
+  // e o mesmo carregamento. Ele é override — a leitura nunca estoura, então não
+  // entra no `Promise.all` correndo risco de derrubar a listagem.
+  const [{ data, error }, cabecalho] = await Promise.all([
+    auth.supabase!.from("guias").select("*").order("atualizado_em", { ascending: false }),
+    lerCabecalhoGravado(),
+  ]);
 
   if (error) {
     if (ehTabelaOuColunaAusente(error)) {
       return NextResponse.json(
-        { error: "A tabela de guias ainda não existe neste ambiente.", guias: [], regua: REGUA_DO_GUIA },
+        {
+          error: "A tabela de guias ainda não existe neste ambiente.",
+          guias: [],
+          regua: REGUA_DO_GUIA,
+          cabecalho,
+          padrao: CABECALHO_PADRAO,
+        },
         { status: 200 },
       );
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ guias: data ?? [], regua: REGUA_DO_GUIA });
+  // `padrao` viaja junto para a tela poder mostrar o texto do código como
+  // sugestão no campo vazio. Sem ele o operador veria uma caixa em branco e
+  // concluiria que a página está sem texto — quando ela está no automático.
+  return NextResponse.json({
+    guias: data ?? [],
+    regua: REGUA_DO_GUIA,
+    cabecalho,
+    padrao: CABECALHO_PADRAO,
+  });
 }
 
 /** Cria um guia novo. Nasce SEMPRE rascunho. */

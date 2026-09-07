@@ -30,6 +30,13 @@ interface CardsCompartilhamentoProps {
    * preview mostraria o texto de fábrica e o site publicaria outro.
    */
   tituloDaAba?: string;
+  /**
+   * O cabeçalho de `/guias` como o site o publica. Mesma história do campo
+   * acima, um nível adiante: o texto daquela seção passou a ser editável em
+   * `/admin/guias` (07/09), e sem isto o preview mostraria a versão de fábrica
+   * de `PAGINAS_COMPARTILHAVEIS` enquanto o site publica a do banco.
+   */
+  cabecalhoDosGuias?: { tituloSeo: string; resumo: string };
   /** Devolve a URL pública da arte já recortada em 1200×630. */
   aoEnviarImagem: (arquivo: File) => Promise<string>;
   aoSalvar: (valor: CompartilhamentoSettings) => Promise<void>;
@@ -44,6 +51,7 @@ export default function CardsCompartilhamento({
   valor,
   nomeLoja,
   tituloDaAba,
+  cabecalhoDosGuias,
   aoEnviarImagem,
   aoSalvar,
 }: CardsCompartilhamentoProps) {
@@ -63,13 +71,23 @@ export default function CardsCompartilhamento({
   const card: CardCompartilhamento = rascunho[selecionada] ?? {};
   const artePadrao = rascunho.padrao?.imagemUrl?.trim() || "";
 
+  // A "fábrica" de cada página não é só a constante: home e guias têm texto que
+  // o painel edita em OUTRA tela, e é ele que o site publica quando esta aqui
+  // não sobrescreve. Sem isto o preview mostra uma coisa e o site outra.
   const tituloDeFabrica =
     selecionada === "home" && tituloDaAba?.trim()
       ? tituloDaAba.trim()
-      : pagina.tituloPadrao;
+      : selecionada === "guias" && cabecalhoDosGuias?.tituloSeo.trim()
+        ? cabecalhoDosGuias.tituloSeo.trim()
+        : pagina.tituloPadrao;
+
+  const descricaoDeFabrica =
+    selecionada === "guias" && cabecalhoDosGuias?.resumo.trim()
+      ? cabecalhoDosGuias.resumo.trim()
+      : pagina.descricaoPadrao;
 
   const tituloExibido = card.titulo?.trim() || tituloDeFabrica;
-  const descricaoExibida = card.descricao?.trim() || pagina.descricaoPadrao;
+  const descricaoExibida = card.descricao?.trim() || descricaoDeFabrica;
 
   // Qual imagem o site vai publicar para esta página, na mesma ordem da
   // cascata de `montarCompartilhamento`.

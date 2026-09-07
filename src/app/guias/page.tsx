@@ -5,7 +5,8 @@ import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd } from "../../lib/schemaListagem";
 import { grafoDoIndiceDeGuias } from "../../lib/schemaGuia";
-import { NOME_DA_SECAO, RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "../../lib/guias";
+import { NOME_DA_SECAO } from "../../lib/guias";
+import { cabecalhoDosGuias } from "../../lib/secaoDeGuias";
 
 const CAMINHO = "/guias";
 
@@ -20,18 +21,25 @@ const CAMINHO = "/guias";
 export const revalidate = 3600;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { companySettings } = await getCachedSettings();
+  const [{ companySettings }, cabecalho] = await Promise.all([
+    getCachedSettings(),
+    cabecalhoDosGuias(),
+  ]);
 
   return {
-    // A aba NÃO repete o `<h1>`, e é de propósito — ver `TITULO_SEO_DA_SECAO`.
-    title: `${TITULO_SEO_DA_SECAO} | Motors Store`,
-    description: RESUMO_DA_SECAO,
+    // O sufixo " | Motors Store" é da PÁGINA, e não do campo: o painel edita o
+    // assunto, não a assinatura. Assim ninguém precisa lembrar de repetir o
+    // nome da loja, e ninguém consegue removê-lo sem querer.
+    //
+    // A aba não repete o `<h1>`, e é de propósito — ver `TITULO_SEO_DA_SECAO`.
+    title: `${cabecalho.tituloSeo} | Motors Store`,
+    description: cabecalho.resumo,
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "guias",
-      tituloPadrao: TITULO_SEO_DA_SECAO,
-      descricaoPadrao: RESUMO_DA_SECAO,
+      tituloPadrao: cabecalho.tituloSeo,
+      descricaoPadrao: cabecalho.resumo,
       caminho: CAMINHO,
     }),
   };
@@ -52,9 +60,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * tem — e inventar número é o que a regra do `CLAUDE.md` proíbe.
  */
 export default async function GuiasPage() {
-  const [{ companySettings }, guias] = await Promise.all([
+  const [{ companySettings }, guias, cabecalho] = await Promise.all([
     getCachedSettings(),
     listarGuiasPublicados(),
+    cabecalhoDosGuias(),
   ]);
   const grafo = grafoDoIndiceDeGuias({ guias, empresa: companySettings });
 
@@ -76,7 +85,7 @@ export default async function GuiasPage() {
 
         <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">{NOME_DA_SECAO}</h1>
         <p className="m-0 mt-4 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          {RESUMO_DA_SECAO}
+          {cabecalho.resumo}
         </p>
       </div>
 
