@@ -19,11 +19,29 @@ import { textoDeFabricaDaPagina } from "../src/lib/compartilhamento";
  * aquilo — a revisão cortou a passagem da prop nos três pontos do caminho, um
  * de cada vez, e a suíte inteira ficou verde nos três.
  *
- * Este arquivo fecha as duas pontas do caminho: quem PRODUZ o valor (a página
- * de configurações, no servidor) e quem o CONSOME (o card). O elo do meio — o
- * `ConfiguracoesClientWrapper` repassando a prop — continua sem trava própria:
- * é um componente de 1500 linhas preso a dois contextos, e montá-lo em teste
- * custaria mais do que a linha que ele encaminha. Fica dito, e não escondido.
+ * O que este arquivo cobre, e o que não cobre — a primeira versão desta lista
+ * afirmava demais, e a revisão mediu:
+ *
+ *   · quem PRODUZ o valor (a página de configurações, no servidor) — coberto,
+ *     inclusive contra passar outro valor não-nulo;
+ *   · a DECISÃO de qual texto é o de fábrica — coberta na função pura, com os
+ *     ramos de guias, de home e de qualquer outra página;
+ *   · o CONSUMO pelo componente — coberto pelo ramo da home, que é o único
+ *     alcançável por render (`selecionada` nasce `"home"`). A mesma linha serve
+ *     os guias, então cortá-la derruba o teste;
+ *   · o ELO DO MEIO — o `ConfiguracoesClientWrapper` repassando a prop —
+ *     **não coberto**. São 1500 linhas presas a dois contextos, e montá-lo
+ *     custaria mais que a linha que ele encaminha;
+ *   · o ramo dos GUIAS dentro do componente — **não coberto** por render, pelo
+ *     estado interno. Só pela função pura.
+ *   · o `placeholder` do campo Descrição — **não cobrível**. Ele passou a ler
+ *     `fabrica.descricao` (era `pagina.descricaoPadrao`, e este branch tornou
+ *     essa linha falsa: na aba Guias com resumo gravado, o campo sugeria o
+ *     texto do código enquanto a prévia logo abaixo mostrava o do banco). Para
+ *     a HOME os dois são a mesma string — `textoDeFabricaDaPagina` só troca o
+ *     título ali —, então a mutação é EQUIVALENTE no único ramo alcançável por
+ *     render. Medido: trocar de volta deixa a suíte verde. A correção está
+ *     certa por construção, e não por teste.
  */
 
 const EMPRESA: CompanySettings = {
@@ -133,27 +151,54 @@ describe("o texto de fábrica de cada página", () => {
   });
 });
 
-describe("o card monta sem quebrar com e sem a prop", () => {
-  // O componente escolhe a página por estado interno, então o render não
-  // alcança o ramo dos guias — quem prova aquilo é o bloco acima. O que este
-  // teste guarda é que a prop nova não derruba a montagem.
-  async function card(cabecalhoDosGuias?: { tituloSeo: string; resumo: string }): Promise<string> {
+describe("o componente CONSOME a fábrica, e não a constante", () => {
+  /**
+   * O ramo alcançável por render é o da HOME, porque `selecionada` nasce
+   * `"home"`. É pouco, e é o suficiente para a mutação que importa: trocar a
+   * chamada de `textoDeFabricaDaPagina` por `{titulo: pagina.tituloPadrao, …}`
+   * derruba este teste — e é a MESMA linha que serve o ramo dos guias.
+   *
+   * A revisão anterior tinha razão em reprovar o que estava aqui: um
+   * `toContain("Motors Store")` que é verdadeiro com ou sem a prop ser usada,
+   * vendido como asserção de consumo. Isto aqui não é isso: o texto afirmado só
+   * aparece se o componente tiver passado pela função.
+   *
+   * O ramo dos guias em si continua inalcançável por render (estado interno,
+   * sem harness de interação) — quem o prova é o bloco de cima, na função pura.
+   */
+  async function card(props: {
+    tituloDaAba?: string;
+    cabecalhoDosGuias?: { tituloSeo: string; resumo: string };
+  }): Promise<string> {
     const { default: Cards } = await import("../src/components/admin/CardsCompartilhamento");
     return renderToStaticMarkup(
       createElement(Cards, {
         valor: {},
         nomeLoja: EMPRESA.name,
-        cabecalhoDosGuias,
+        ...props,
         aoEnviarImagem: async () => "",
         aoSalvar: async () => {},
       }),
     );
   }
 
-  it.each([["sem a prop", undefined], ["com a prop", { tituloSeo: "T", resumo: "R" }]])(
-    "%s",
-    async (_caso, prop) => {
-      expect(await card(prop as never)).toContain("Motors Store");
-    },
-  );
+  it("a frase da aba chega ao preview da home", async () => {
+    const html = await card({ tituloDaAba: "Frase da aba escrita no painel" });
+
+    expect(html).toContain("Frase da aba escrita no painel");
+  });
+
+  it("sem a frase da aba, aparece o texto de fábrica da home", async () => {
+    // Controle: prova que o teste acima mede a passagem pela função, e não algo
+    // que apareceria de qualquer jeito.
+    const html = await card({});
+
+    expect(html).not.toContain("Frase da aba escrita no painel");
+  });
+
+  it("a prop dos guias não derruba a montagem", async () => {
+    expect(await card({ cabecalhoDosGuias: { tituloSeo: "T", resumo: "R" } })).toContain(
+      "Motors Store",
+    );
+  });
 });

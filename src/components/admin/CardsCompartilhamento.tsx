@@ -226,7 +226,7 @@ export default function CardsCompartilhamento({
             rows={3}
             value={card.descricao ?? ""}
             maxLength={LIMITE_DESCRICAO}
-            placeholder={pagina.descricaoPadrao}
+            placeholder={fabrica.descricao}
             onChange={(e) => alterar(selecionada, "descricao", e.target.value)}
           />
           <div className="mt-1 text-right text-[10px] text-mt-neutral-700">

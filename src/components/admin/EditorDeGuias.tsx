@@ -10,6 +10,7 @@ import {
   salvarCabecalho,
   type CabecalhoNaTela,
 } from "../../lib/salvarCabecalho";
+import { carregarPainel, type GuiaDoPainel } from "../../lib/carregarPainelDeGuias";
 
 /**
  * O editor de guias.
@@ -47,19 +48,7 @@ import {
  *    tira uma página indexada do ar.
  */
 
-interface GuiaDoPainel {
-  slug: string;
-  titulo: string;
-  titulo_seo: string | null;
-  descricao: string;
-  corpo: { titulo: string; paragrafos: string[] }[];
-  faq: { pergunta: string; resposta: string }[];
-  saida: { rotulo: string; href: string; apoio: string } | null;
-  sobre: string[] | null;
-  estado: EstadoDoGuia;
-  publicado_em: string | null;
-  atualizado_em: string;
-}
+
 
 const CAMPO =
   "w-full border border-mt-regua-fina bg-mt-bg px-3 py-2 text-[13px] text-mt-ink outline-none focus:border-mt-accent";
@@ -88,29 +77,37 @@ export default function EditorDeGuias() {
   // para o campo em branco não parecer página sem texto.
   const [cabecalho, setCabecalho] = useState<CabecalhoNaTela>(SEM_CABECALHO);
   const [padrao, setPadrao] = useState<CabecalhoNaTela>(SEM_CABECALHO);
+  /**
+   * O cabeçalho foi LIDO com sucesso? Falso trava o salvamento.
+   *
+   * Não é zelo: sem isto havia um caminho vivo de PERDA. `carregar()` estoura
+   * antes de `setCabecalho` quando o GET falha; os campos ficam vazios, o
+   * `finally` libera a tela, e o botão Salvar continua habilitado. Como o PUT
+   * substitui a linha inteira, um clique depois de uma falha de leitura apaga o
+   * cabeçalho que está no ar — e a tela não tem como distinguir "está vazio" de
+   * "não consegui ler". A revisão de 07/09 achou; nada acusava.
+   */
+  const [cabecalhoLido, setCabecalhoLido] = useState(false);
 
+  // A chamada e a leitura do corpo moram em `lib/carregarPainelDeGuias.ts`,
+  // com teste próprio — a metade que apagava texto era esta.
   const carregar = useCallback(async () => {
     setCarregando(true);
-    try {
-      const r = await fetch("/api/guias", { cache: "no-store" });
-      const dados = await r.json();
-      if (!r.ok) throw new Error(dados.error || "Falha ao carregar");
-      setGuias(dados.guias ?? []);
-      setRegua(dados.regua ?? []);
-      setCabecalho({
-        tituloSeo: dados.cabecalho?.tituloSeo ?? "",
-        resumo: dados.cabecalho?.resumo ?? "",
-      });
-      setPadrao({
-        tituloSeo: dados.padrao?.tituloSeo ?? "",
-        resumo: dados.padrao?.resumo ?? "",
-      });
-      if (dados.error) setAviso({ tipo: "erro", texto: dados.error });
-    } catch (e) {
-      setAviso({ tipo: "erro", texto: (e as Error).message });
-    } finally {
-      setCarregando(false);
+    const r = await carregarPainel();
+    if (r.ok) {
+      setGuias(r.guias);
+      setRegua(r.regua);
+      setCabecalho(r.cabecalho);
+      setPadrao(r.padrao);
+      setCabecalhoLido(true);
+      if (r.aviso) setAviso({ tipo: "erro", texto: r.aviso });
+    } else {
+      // Travar em vez de gravar por cima: uma recarga que falha depois de uma
+      // que deu certo deixaria texto velho na mão, e o PUT substitui a linha.
+      setCabecalhoLido(false);
+      setAviso({ tipo: "erro", texto: r.texto });
     }
+    setCarregando(false);
   }, []);
 
   // A chamada, o tratamento de erro e a escolha da mensagem moram em
@@ -305,14 +302,37 @@ export default function EditorDeGuias() {
           </span>
         </p>
 
+        {!cabecalhoLido && !carregando && (
+          // O aviso existe porque um botão desabilitado sem explicação é pior
+          // que um botão que apaga: quem não sabe por que não pode salvar
+          // recarrega, tenta de novo, e conclui que o painel está quebrado.
+          <p className="m-0 mt-3 border-l-[3px] border-mt-accent bg-mt-surface px-3 py-2 text-[12px] text-mt-neutral-800">
+            Não consegui ler o cabeçalho que está no ar, então travei o
+            salvamento. Os campos acima estão vazios por isso — não porque a
+            seção esteja sem texto. Recarregue a página; se persistir, o texto
+            no site continua o mesmo.
+          </p>
+        )}
+
         <div className="mt-3 flex flex-wrap gap-2">
-          <button className={BOTAO} onClick={aoSalvarCabecalho} disabled={salvando || carregando}>
+          <button
+            className={BOTAO}
+            onClick={aoSalvarCabecalho}
+            // `cabecalhoLido` é a trava contra apagar o que está no ar depois
+            // de uma falha de leitura — o PUT substitui a linha inteira.
+            disabled={salvando || carregando || !cabecalhoLido}
+          >
             Salvar cabeçalho
           </button>
           <button
             className={BOTAO}
             onClick={() => setCabecalho(SEM_CABECALHO)}
-            disabled={salvando || carregando || (!cabecalho.tituloSeo && !cabecalho.resumo)}
+            disabled={
+              salvando ||
+              carregando ||
+              !cabecalhoLido ||
+              (!cabecalho.tituloSeo && !cabecalho.resumo)
+            }
           >
             Voltar ao padrão
           </button>

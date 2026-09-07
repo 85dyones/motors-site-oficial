@@ -38,8 +38,17 @@ export async function autorizarConteudo() {
     .eq("id", user.id)
     .single();
 
-  // `ehStaff` ANTES de `perfisDe`: cliente da Garagem autentica no mesmo pool, e
-  // `normalizarPerfil` promoveria um cliente a "comercial". Régua do CLAUDE.md.
+  // A primeira versão deste comentário dizia "`ehStaff` ANTES de `perfisDe`,
+  // senão `normalizarPerfil` promoveria um cliente a comercial". A ordem no
+  // código é a inversa, e `normalizarPerfil` não é chamado aqui — o comentário
+  // descrevia a régua do CLAUDE.md, não este arquivo.
+  //
+  // Aqui as duas metades são independentes e a ordem não importa: `perfisDe`
+  // devolve `[]` para quem não é staff, e `podeFazer([], …)` já responde
+  // `nao_ve`. Medido: tirar `!ehStaff(profile) ||` deixa a suíte verde — é
+  // mutante equivalente, não brecha. `ehStaff` fica porque diz a intenção em
+  // voz alta, e porque a segunda metade depende da tabela de papéis continuar
+  // negando o que hoje nega.
   const perfil = perfisDe(profile);
   if (!ehStaff(profile) || podeFazer(perfil, ACAO_DE_CONTEUDO) !== "faz") {
     return { erro: NextResponse.json({ error: "Sem permissão" }, { status: 403 }) };
