@@ -227,11 +227,19 @@ describe("a classe inteira de fuga do site, não só a grafia //", () => {
     }
   });
 
-  it("e o critério é o destino real, não a lista", async () => {
+  it("o que passa resolve para o próprio domínio", async () => {
     const { ehCaminhoInterno } = await import("../src/lib/guiaValidacao");
 
-    // A prova que não depende de eu ter lembrado da carga certa: o que o
-    // aceitador deixa passar tem que resolver para o próprio domínio.
+    // ⚠️ Este caso é COROLÁRIO do de cima, não rede independente: ele itera a
+    // mesma `FUGAS` fixa, então nunca falha sozinho — cai sempre junto com o
+    // anterior. O que ele acrescenta é o CRITÉRIO por escrito: a régua não é
+    // "recuse esta lista", é "o que passar tem que resolver para cá".
+    //
+    // A prova generativa que de fato não depende da lista existe, e é da
+    // revisão: ~9,4 milhões de entradas (todo code point nas posições 1 a 3,
+    // pares, e fuzz sobre alfabeto perigoso) contra o parser do Node, com zero
+    // fugas — e um controle negativo em que a regra antiga acusa 9 famílias.
+    // Ela não está aqui porque levaria minutos em toda rodada da suíte.
     for (const href of [...FUGAS, "/garantia", "/estoque?x=1", "/estoque#a", "/"]) {
       if (!ehCaminhoInterno(href)) continue;
       expect(
@@ -249,16 +257,80 @@ describe("a classe inteira de fuga do site, não só a grafia //", () => {
     }
   });
 
-  it("a LEITURA usa a mesma régua da escrita", async () => {
-    // Enquanto eram duas checagens soltas, elas divergiram: a API recusava `//`
-    // e `guiasDoBanco` aceitava — leitura mais frouxa deixa passar a linha que
-    // já estava gravada.
-    const { ehCaminhoInterno } = await import("../src/lib/guiaValidacao");
-    const fonte = (await import("node:fs")).readFileSync("src/lib/guiasDoBanco.ts", "utf8");
+  /**
+   * A LEITURA, testada pelo comportamento e não por `grep`.
+   *
+   * A primeira versão deste caso procurava a substring `ehCaminhoInterno(...)`
+   * no fonte de `guiasDoBanco.ts`. A revisão mostrou o que isso vale: trocando
+   * a guarda por `(ehCaminhoInterno(href) || true)`, a substring continua lá, a
+   * guarda fica COMPLETAMENTE desligada, e a suíte cheia passa — 127 arquivos,
+   * 2202 testes.
+   *
+   * E é a guarda que mais precisa de rede, porque é a defesa contra a linha JÁ
+   * GRAVADA: a API não é a única escritora, e o CHECK `guias_saida_forma` da
+   * migração valida o TIPO do jsonb, não o conteúdo do `href`.
+   */
+  describe("a leitura recusa href gravado que sai do site", () => {
+    function comLinhaGravada(href: unknown) {
+      const linha = {
+        slug: "g",
+        titulo: "T",
+        titulo_seo: null,
+        descricao: "D",
+        corpo: [],
+        faq: [],
+        saida: { rotulo: "Ir", href, apoio: "a" },
+        sobre: [],
+        publicado_em: "2026-09-05T09:00:00-03:00",
+        atualizado_em: "2026-09-05T09:00:00-03:00",
+      };
+      vi.doMock("../src/lib/supabase", () => ({
+        supabase: {
+          from: () => ({
+            select: () => ({
+              eq: () => ({
+                order: async () => ({ data: [linha] }),
+                eq: () => ({ maybeSingle: async () => ({ data: linha }) }),
+              }),
+            }),
+          }),
+        },
+      }));
+    }
 
-    expect(fonte).toContain("ehCaminhoInterno(saidaBruta.href)");
-    expect(fonte).not.toContain('saidaBruta.href.startsWith("/")');
-    expect(ehCaminhoInterno("/\\exemplo.com")).toBe(false);
+    beforeEach(() => {
+      vi.resetModules();
+    });
+
+    it("href envenenado vira o destino genérico", async () => {
+      comLinhaGravada("/\\exemplo.com/promo");
+      const { buscarGuiaPublicado } = await import("../src/lib/guiasDoBanco");
+
+      const guia = await buscarGuiaPublicado("g");
+      expect(guia!.saida.href).toBe("/estoque");
+    });
+
+    it("e o mesmo vale para tab no meio", async () => {
+      comLinhaGravada("/\t/exemplo.com");
+      const { buscarGuiaPublicado } = await import("../src/lib/guiasDoBanco");
+
+      expect((await buscarGuiaPublicado("g"))!.saida.href).toBe("/estoque");
+    });
+
+    it("href legítimo chega intacto", async () => {
+      comLinhaGravada("/garantia");
+      const { buscarGuiaPublicado } = await import("../src/lib/guiasDoBanco");
+
+      const guia = await buscarGuiaPublicado("g");
+      expect(guia!.saida).toMatchObject({ href: "/garantia", rotulo: "Ir" });
+    });
+
+    it("href de tipo errado também cai no genérico", async () => {
+      comLinhaGravada(42);
+      const { buscarGuiaPublicado } = await import("../src/lib/guiasDoBanco");
+
+      expect((await buscarGuiaPublicado("g"))!.saida.href).toBe("/estoque");
+    });
   });
 });
 
