@@ -143,6 +143,10 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // opcionais e destaques rápidos" da A17 que a tela exige. Repetir a
         // lista criaria duas cópias da mesma régua para divergirem depois.
         { name: "Texto das páginas", href: "/admin/hubs" },
+        // Guias é vizinho de "Texto das páginas" e mesma régua de papel, mas a
+        // diferença importa para quem procura: lá se CORRIGE o texto de uma
+        // página que já existe; aqui se CRIA a página.
+        { name: "Guias", href: "/admin/guias" },
         { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
         { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
         { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
