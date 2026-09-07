@@ -220,8 +220,10 @@ describe("a decisão de habilitar o salvamento", () => {
   it("voltar ao padrão herda a mesma trava, e só age se houver o que limpar", () => {
     const base = { salvando: false, carregando: false };
 
-    // Sem leitura, nem limpar: "Voltar ao padrão" grava pela mesma rota, e
-    // gravar sem saber o que está no ar é o defeito.
+    // Sem leitura, nem limpar. O botão não grava sozinho — ele esvazia a tela,
+    // e quem grava é o Salvar em seguida. Ele herda a trava porque limpar um
+    // campo cujo conteúdo real eu não consegui ler faz a tela AFIRMAR "está no
+    // automático" sobre uma seção que pode ter texto.
     expect(
       podeVoltarAoPadrao({
         ...base,

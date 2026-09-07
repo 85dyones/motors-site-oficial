@@ -59,6 +59,16 @@ function comoVisitante() {
 
 /** Staff com a linha da A17 que governa cópia de site. Guarda o que foi gravado. */
 let gravado: Record<string, unknown> | null = null;
+/**
+ * As COLUNAS que a rota pede de volta ao gravar.
+ *
+ * O dublê devolve o mesmo objeto qualquer que seja o `select`, então trocar
+ * `resumo` por `resumo as texto` na rota não mudava nada aqui — e em produção
+ * mudaria tudo: `dados.cabecalho.resumo` viria `undefined`, e desde o conserto
+ * do 200-ilegível isso faz a tela travar e exigir recarga a cada gravação.
+ * Guardar o argumento é o que torna essa troca visível.
+ */
+let colunasPedidas: string | null = null;
 
 function comoEditor() {
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "staff-1" } } });
@@ -74,12 +84,15 @@ function comoEditor() {
       upsert: (linha: Record<string, unknown>) => {
         gravado = linha;
         return {
-          select: () => ({
-            single: async () => ({
-              data: { titulo_seo: linha.titulo_seo || null, resumo: linha.resumo || null },
-              error: null,
-            }),
-          }),
+          select: (colunas: string) => {
+            colunasPedidas = colunas;
+            return {
+              single: async () => ({
+                data: { titulo_seo: linha.titulo_seo || null, resumo: linha.resumo || null },
+                error: null,
+              }),
+            };
+          },
         };
       },
     };
@@ -101,6 +114,7 @@ async function put(corpo: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   gravado = null;
+  colunasPedidas = null;
   revalidados.length = 0;
 });
 
@@ -195,6 +209,79 @@ describe("o editor grava, e limpar volta ao automático", () => {
     const dados = await r.json();
 
     expect(dados.avisos ?? []).toHaveLength(0);
+  });
+});
+
+describe("a rota e o cliente falam a mesma língua", () => {
+  /**
+   * O contrato ficou NU justamente quando passou a importar.
+   *
+   * O conserto do 200-ilegível (B13) tornou `dados.cabecalho` obrigatório no
+   * corpo da resposta — sem ele, `salvarCabecalho` devolve `exigeRecarga` e a
+   * tela trava. Mas nada guardava quem PRODUZ esse campo: renomear a chave na
+   * rota, ou trocar o `select`, deixava a suíte inteira verde e matava a
+   * feature em produção — toda gravação passaria a exigir recarga, com o texto
+   * já no banco.
+   *
+   * Os dois lados tinham teste e nenhum olhava o outro: a porta afirmava
+   * `status` e o que foi gravado; o cliente afirmava contra um dublê escrito
+   * por mim, que só provava que eu sou consistente comigo mesmo.
+   *
+   * Aqui a resposta REAL da rota alimenta o cliente REAL.
+   */
+  it("o corpo que a rota devolve é o que o cliente sabe ler", async () => {
+    comoEditor();
+    const resposta = await put({ tituloSeo: "Título gravado", resumo: "Resumo gravado." });
+    const corpo = await resposta.json();
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({ ok: true, json: async () => corpo })) as never;
+    try {
+      const { salvarCabecalho } = await import("../src/lib/salvarCabecalho");
+      const r = await salvarCabecalho({ tituloSeo: "Título gravado", resumo: "Resumo gravado." });
+
+      // Se a rota renomear a chave ou o `select` mudar o nome da coluna, isto
+      // vira `exigeRecarga` e o teste cai — que é exatamente o sintoma que o
+      // operador veria.
+      expect(r.ok, "o cliente precisa entender o corpo da rota").toBe(true);
+      expect(r.ok && r.cabecalho).toEqual({
+        tituloSeo: "Título gravado",
+        resumo: "Resumo gravado.",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("a rota pede de volta as colunas que o cliente sabe ler", async () => {
+    comoEditor();
+    await put({ tituloSeo: "x", resumo: "y" });
+
+    // Nomes EXATOS: o cliente lê `titulo_seo` e `resumo` do corpo. Um alias no
+    // `select` renomearia a chave e a tela passaria a exigir recarga a cada
+    // gravação, com o texto já no banco.
+    expect(colunasPedidas).toContain("titulo_seo");
+    expect(colunasPedidas).toContain("resumo");
+    expect(colunasPedidas, "alias muda o nome da chave no corpo").not.toContain(" as ");
+  });
+
+  it("e o caminho de limpar também: nulo no banco vira vazio na tela", async () => {
+    comoEditor();
+    const resposta = await put({ tituloSeo: "", resumo: "" });
+    const corpo = await resposta.json();
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({ ok: true, json: async () => corpo })) as never;
+    try {
+      const { salvarCabecalho } = await import("../src/lib/salvarCabecalho");
+      const r = await salvarCabecalho({ tituloSeo: "", resumo: "" });
+
+      expect(r.ok).toBe(true);
+      expect(r.ok && r.cabecalho).toEqual({ tituloSeo: "", resumo: "" });
+      expect(r.ok && r.texto).toContain("de volta ao texto padrão");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

@@ -8,8 +8,9 @@ import { salvarCabecalho } from "../src/lib/salvarCabecalho";
  * A tela `/admin/guias`, renderizada de verdade.
  *
  * Nasce de um achado que é o inverso exato do da véspera. Ali a trava olhava o
- * DADO e não o USO, e uma linha no `Header` apagava o link do menu com a suíte
- * verde. Aqui havia trava para tudo que o SITE renderiza — página, grafo,
+ * DADO e não o USO, e uma linha apagava o link de `/guias` do RODAPÉ com a
+ * suíte verde — o rodapé, e não o cabeçalho: o item de menu é de outro branch.
+ * Aqui havia trava para tudo que o SITE renderiza — página, grafo,
  * sitemap, rota de escrita — e nenhuma para a TELA. A revisão apagou as 70
  * linhas do bloco "Cabeçalho da seção", que é literalmente a entrega que o dono
  * pediu, e mediu: **129 arquivos, 2229 testes, todos verdes**, e `tsc` exit 0

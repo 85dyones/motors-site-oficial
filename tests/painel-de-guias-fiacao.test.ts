@@ -23,7 +23,8 @@ import { createRoot, type Root } from "react-dom/client";
  * `jsdom` entrou em 07/09 por decisão do dono, exatamente para fechar isto.
  * O `vitest.config.ts` já o antecipava por escrito ("testes de componente vão
  * precisar de `environment: jsdom` — adicionar quando chegarem"). O ambiente é
- * declarado NO ARQUIVO, então os outros 132 continuam em `node`, sem risco.
+ * declarado NO ARQUIVO — dos 134 arquivos de teste, só este o pede, e os
+ * outros 133 continuam em `node`, sem risco.
  *
  * Aqui nada é mockado do lado do app: o componente de verdade, a lib de
  * verdade, e só o `fetch` é dublê. É o que torna a fiação observável.
@@ -36,8 +37,9 @@ import { createRoot, type Root } from "react-dom/client";
  */
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const RESPOSTAS: { get: unknown; put: unknown; putOk: boolean } = {
+const RESPOSTAS: { get: unknown; getOk: boolean; put: unknown; putOk: boolean } = {
   get: {},
+  getOk: true,
   put: {},
   putOk: true,
 };
@@ -54,7 +56,7 @@ function dublarFetch() {
     if (String(url).includes("/api/guias/secao")) {
       return { ok: RESPOSTAS.putOk, json: async () => RESPOSTAS.put };
     }
-    return { ok: true, json: async () => RESPOSTAS.get };
+    return { ok: RESPOSTAS.getOk, json: async () => RESPOSTAS.get };
   }) as never;
 }
 
@@ -92,8 +94,27 @@ function campo(rotulo: string): HTMLInputElement | HTMLTextAreaElement {
   return entrada as HTMLInputElement | HTMLTextAreaElement;
 }
 
+/**
+ * Digitar de verdade num campo controlado do React.
+ *
+ * `entrada.value = "x"` sozinho não funciona: o React guarda o valor anterior
+ * no nó e ignora a mudança, então o `onChange` não dispara e o teste mede o
+ * estado antigo. O caminho é chamar o setter NATIVO do protótipo — o que o
+ * React substituiu — e só então emitir o evento que ele escuta.
+ */
+function digitar(entrada: HTMLInputElement | HTMLTextAreaElement, texto: string) {
+  const proto =
+    entrada instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, "value")!.set!;
+  setter.call(entrada, texto);
+  entrada.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 beforeEach(() => {
   chamadas = [];
+  RESPOSTAS.getOk = true;
   RESPOSTAS.putOk = true;
   RESPOSTAS.put = { cabecalho: { titulo_seo: "gravado", resumo: "gravado" } };
   RESPOSTAS.get = {
@@ -145,6 +166,70 @@ describe("o servidor dizendo que NÃO leu trava a tela", () => {
     });
 
     expect(chamadas.filter((c) => c.metodo === "PUT")).toHaveLength(0);
+  });
+
+  it("o GET falhando INTEIRO também trava — e é a porta que faltava", async () => {
+    // A quinta porta do mesmo defeito, e a revisão reproduziu o payload: com o
+    // GET em 500/403/sessão caída, `carregar()` cai no ramo `ok: false`, os
+    // campos ficam em branco, e trocar `setCabecalhoLido(false)` por `true`
+    // ali liberava o botão. O clique mandava
+    // `PUT {tituloSeo:"", resumo:""}` — apagando o texto do dono e indo ao ar
+    // no mesmo request pelo `revalidarCluster`.
+    //
+    // Os dois casos acima cobrem o GET que RESPONDE dizendo que não leu o
+    // cabeçalho; este cobre o GET que não responde nada.
+    RESPOSTAS.getOk = false;
+    RESPOSTAS.get = { error: "Falha no banco" };
+    await montar();
+
+    expect(botao("Salvar cabeçalho").disabled).toBe(true);
+    expect(botao("Voltar ao padrão").disabled).toBe(true);
+    expect(container.textContent).toContain("Não consegui ler o cabeçalho que está no ar");
+
+    await act(async () => {
+      botao("Salvar cabeçalho").click();
+    });
+    expect(chamadas.filter((c) => c.metodo === "PUT")).toHaveLength(0);
+  });
+});
+
+describe("digitar chega ao estado, e do estado ao banco", () => {
+  it("o que se escreve no campo é o que vai no PUT", async () => {
+    // Sem isto, `aoMudar={() => {}}` passava verde: o campo congelava, a
+    // entrega inteira que o dono pediu morria, e a suíte não piscava. O arquivo
+    // que existe para provar fiação clicava em dois botões e nunca escrevia
+    // numa caixa.
+    await montar();
+
+    await act(async () => {
+      digitar(campo("Título da aba"), "Escrito à mão");
+      digitar(campo("Parágrafo de abertura"), "Parágrafo à mão.");
+    });
+
+    expect(campo("Título da aba").value).toBe("Escrito à mão");
+
+    await act(async () => {
+      botao("Salvar cabeçalho").click();
+    });
+
+    const put = chamadas.find((c) => c.metodo === "PUT");
+    expect(put!.corpo).toEqual({
+      tituloSeo: "Escrito à mão",
+      resumo: "Parágrafo à mão.",
+    });
+  });
+
+  it("o contador acompanha o que está sendo escrito", async () => {
+    await montar();
+
+    await act(async () => {
+      digitar(campo("Parágrafo de abertura"), "x".repeat(160));
+    });
+
+    expect(container.textContent).toContain("160/155 caracteres");
+    expect(container.textContent).toContain("a busca pode cortar o fim");
+    // Aviso, nunca trava.
+    expect(botao("Salvar cabeçalho").disabled).toBe(false);
   });
 });
 

@@ -9,8 +9,11 @@ import tsconfigPaths from "vite-tsconfig-paths";
  * infraestrutura — até aqui o projeto não tinha nenhuma.
  *
  * Ambiente `node` por PADRÃO: a maior parte dos testes cobre lógica pura,
- * migrações e invariantes do repositório, e `jsdom` custa ~17 s de ambiente por
- * arquivo que o use.
+ * migrações e invariantes do repositório, e `jsdom` cobra ~1 s de ambiente no
+ * arquivo que o declara — medido três vezes, 1,03 a 1,05 s. (A primeira versão
+ * desta linha dizia "~17 s". Era número inventado, e a revisão mediu: o
+ * `environment` somado dos 134 arquivos é 3,1 s, então 17 não cabia nem no
+ * total. Número sem medição num docblock é o que o CLAUDE.md proíbe.)
  *
  * Ele chegou em 07/09, por decisão do dono, e chegou por necessidade e não por
  * gosto: quatro rodadas de revisão mostraram que a FIAÇÃO de um client
