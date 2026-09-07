@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CompanySettings } from "../src/types";
 import type { Guia } from "../src/lib/guias";
+import { NOME_DA_SECAO } from "../src/lib/guias";
+import { colunasDoRodape } from "../src/lib/colunasDoRodape";
 
 /**
  * Os guias renderizados — o `<script>` de verdade, e o texto que ele marca.
@@ -93,17 +95,31 @@ function nos(html: string): Record<string, unknown>[] {
 }
 
 function limpar(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, "")
-    .replace(/&#x27;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&#x2F;/g, "/");
+  return (
+    html
+      .replace(/<[^>]+>/g, "")
+      .replace(/&#x27;/g, "'")
+      .replace(/&quot;/g, '"')
+      // `&lt;` e `&gt;` entraram em 07/09: o último degrau da trilha da ficha é
+      // `{guia.titulo}`, texto que o dono DIGITA no painel. Um guia chamado
+      // "Seminovos < 100 mil km" deixava a suíte vermelha acusando divergência
+      // de trilha onde não havia nenhuma — o defeito era do decodificador.
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      // `&amp;` por último: decodificar antes transformaria `&amp;lt;` em `<`.
+      .replace(/&amp;/g, "&")
+      .replace(/&#x2F;/g, "/")
+  );
 }
 
 async function guiaRenderizado(slug = GUIA.slug): Promise<string> {
   const { default: GuiaPage } = await import("../src/app/guias/[slug]/page");
   return renderToStaticMarkup(await GuiaPage({ params: Promise.resolve({ slug }) }));
+}
+
+async function indice(): Promise<string> {
+  const { default: GuiasPage } = await import("../src/app/guias/page");
+  return renderToStaticMarkup(await GuiasPage());
 }
 
 describe("o guia publica o grafo inteiro", () => {
@@ -201,11 +217,6 @@ describe("slug que não existe", () => {
 });
 
 describe("o índice do cluster", () => {
-  async function indice(): Promise<string> {
-    const { default: GuiasPage } = await import("../src/app/guias/page");
-    return renderToStaticMarkup(await GuiasPage());
-  }
-
   it("lista os guias publicados", async () => {
     const hrefs = [...(await indice()).matchAll(/<a[^>]*href="([^"]+)"/g)].map((m) => m[1]);
 
@@ -232,6 +243,159 @@ describe("o índice do cluster", () => {
 
     for (const destino of ["/estoque", "/garantia", "/avaliacao"]) {
       expect(hrefs).toContain(destino);
+    }
+  });
+});
+
+/**
+ * O nome da seção sai de UM lugar, e as cinco pontas provam isso.
+ *
+ * Em 07/09 a seção deixou de se chamar "Guias de procedência" e passou a ser
+ * "Guias Motors": o rótulo antigo anunciava um assunto só, num link presente em
+ * todas as páginas, e a seção virou o conteúdo editorial da loja inteira.
+ *
+ * A primeira versão desta trava amarrava um par — a trilha desenhada contra a
+ * marcada — e a revisão adversarial mostrou que isso não é uma trava, é um
+ * pedaço dela: desfazendo a renomeação no `<h1>`, no `CollectionPage.name`, no
+ * rodapé e nos textos de compartilhamento, a suíte cheia (2207 testes) ficou
+ * VERDE nas quatro. O site serviria quatro nomes diferentes para a mesma seção
+ * sem ninguém notar — e o `<h1>` podia divergir da trilha logo acima dele.
+ *
+ * Agora a fonte é `NOME_DA_SECAO`, e cada teste aqui afirma que a saída
+ * RENDERIZADA de uma ponta é igual a ela. Renomear de novo é mexer na
+ * constante; escrever o nome à mão em qualquer ponta fica vermelho.
+ */
+describe("o nome da seção sai de um lugar só", () => {
+  interface DegrauMarcado {
+    name: string;
+    item: string;
+    position: number;
+  }
+
+  function degrausMarcados(html: string): DegrauMarcado[] {
+    const trilha = nos(html).find((n) => n["@type"] === "BreadcrumbList") as
+      | { itemListElement: DegrauMarcado[] }
+      | undefined;
+    expect(trilha, "a página precisa publicar um BreadcrumbList").toBeDefined();
+
+    const degraus = trilha!.itemListElement;
+    // Sem esta guarda o resto vira teatro por vazio: uma trilha de nomes em
+    // branco viraria " / " dos dois lados e casaria com ela mesma.
+    for (const d of degraus) expect(d.name.trim().length).toBeGreaterThan(0);
+    return degraus;
+  }
+
+  function navDa(html: string): string {
+    const nav = html.match(/<nav[^>]*aria-label="Trilha"[\s\S]*?<\/nav>/);
+    expect(nav, "a página precisa renderizar a trilha").not.toBeNull();
+    return nav![0];
+  }
+
+  function trilhaVisivel(html: string): string {
+    return limpar(navDa(html)).replace(/\s+/g, " ").trim();
+  }
+
+  /**
+   * O segundo degrau, nas duas rotas.
+   *
+   * `HOME` é o primeiro e `/guias` é o segundo tanto no índice quanto na ficha,
+   * então a posição serve de endereço e não depende da FORMA do elemento — que
+   * difere: no índice o degrau é um `<span>` (página atual) e na ficha é um
+   * `<a href="/guias">`. Fatiar por posição também é imune a um título de guia
+   * que contenha " / ", porque o título é o terceiro.
+   */
+  function degrauVisivelDosGuias(html: string): string {
+    const degraus = trilhaVisivel(html).split(" / ");
+    expect(degraus.length).toBeGreaterThan(1);
+    return degraus[1];
+  }
+
+  it("o <h1> do índice", async () => {
+    const h1 = (await indice()).match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+    expect(h1, "o índice precisa ter um <h1>").not.toBeNull();
+    expect(limpar(h1![1]).trim()).toBe(NOME_DA_SECAO);
+  });
+
+  it("o degrau visível da trilha, nas duas rotas", async () => {
+    // Comparação SENSÍVEL a caixa: desde 07/09 as duas rotas emitem o nome em
+    // caixa mista e deixam o `uppercase` para o CSS. É o DOM que o leitor de
+    // tela e o rastreador leem — a ficha mandava `GUIAS MOTORS` literal, e a
+    // mesma seção chegava em duas grafias com os pixels iguais.
+    expect(degrauVisivelDosGuias(await indice())).toBe(NOME_DA_SECAO);
+    expect(degrauVisivelDosGuias(await guiaRenderizado())).toBe(NOME_DA_SECAO);
+  });
+
+  it("o CollectionPage.name", async () => {
+    const pagina = nos(await indice()).find((n) => n["@type"] === "CollectionPage") as {
+      name: string;
+    };
+
+    expect(pagina.name).toBe(NOME_DA_SECAO);
+  });
+
+  it("o degrau do BreadcrumbList, nas duas rotas", async () => {
+    for (const html of [await indice(), await guiaRenderizado()]) {
+      const degrau = degrausMarcados(html).find((d) => d.item.endsWith("/guias"));
+      expect(degrau, "o BreadcrumbList precisa ter o degrau de /guias").toBeDefined();
+      expect(degrau!.name).toBe(NOME_DA_SECAO);
+    }
+  });
+
+  it("o rótulo no rodapé de todas as páginas", () => {
+    const itens = colunasDoRodape(EMPRESA).flatMap((c) => c.itens);
+    const guias = itens.find((i) => i.href === "/guias");
+
+    expect(guias, "o rodapé precisa linkar /guias").toBeDefined();
+    expect(guias!.rotulo).toBe(NOME_DA_SECAO);
+  });
+
+  /**
+   * A trilha inteira, e não um degrau.
+   *
+   * A primeira versão usava `toContain` e a mutação provou que era teatro:
+   * encurtando o degrau marcado para "Guias", continuava verde — "GUIAS" é
+   * substring de "GUIAS MOTORS". Afirmar menos que a condição inteira deixa
+   * passar exatamente o encurtamento que o teste existe para pegar.
+   *
+   * Aqui a comparação é INSENSÍVEL a caixa, e só aqui: `HOME` está escrito em
+   * caixa alta no JSX das duas rotas enquanto o `BreadcrumbList` diz `Home`. O
+   * degrau que importa já é comparado exatamente no teste acima, então uma
+   * grafia esganiçada no schema não escapa por esta porta.
+   */
+  function concordam(html: string) {
+    const marcada = degrausMarcados(html)
+      .map((d) => d.name)
+      .join(" / ");
+    expect(trilhaVisivel(html).toUpperCase()).toBe(marcada.toUpperCase());
+  }
+
+  it("a trilha visível não diverge da marcada — índice", async () => concordam(await indice()));
+
+  it("a trilha visível não diverge da marcada — ficha", async () =>
+    concordam(await guiaRenderizado()));
+
+  it("o `position` é a ordem do array, que é o que o teste acima assume", async () => {
+    // A versão anterior ordenava por `position` e o comentário dizia que isso
+    // protegia contra array e `position` discordarem. Não protegia nada:
+    // `schemaDeTrilha` DERIVA `position: i + 1` do índice do array, então os
+    // dois não podem divergir. O sort era inerte. A afirmação honesta é esta —
+    // se a derivação mudar, é aqui que quebra, e não em silêncio.
+    for (const html of [await indice(), await guiaRenderizado()]) {
+      expect(degrausMarcados(html).map((d) => d.position)).toEqual(
+        degrausMarcados(html).map((_, i) => i + 1),
+      );
+    }
+  });
+
+  it("o degrau da trilha não é escondido do leitor", async () => {
+    // O docblock justifica esta trava dizendo que o Google compara o
+    // `BreadcrumbList` com o que está NA TELA. `trilhaVisivel` lê o texto do
+    // markup, e texto no markup não é texto na tela: trocar o degrau por
+    // `<span className="sr-only">` deixava tudo verde com um degrau que
+    // ninguém vê. `hidden lg:block` num breadcrumb responsivo é padrão desta
+    // casa e cairia no mesmo buraco.
+    for (const html of [await indice(), await guiaRenderizado()]) {
+      expect(navDa(html)).not.toMatch(/class="[^"]*\b(sr-only|hidden)\b/);
     }
   });
 });

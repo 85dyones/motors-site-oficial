@@ -5,12 +5,9 @@ import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd } from "../../lib/schemaListagem";
 import { grafoDoIndiceDeGuias } from "../../lib/schemaGuia";
+import { NOME_DA_SECAO, RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "../../lib/guias";
 
 const CAMINHO = "/guias";
-
-const DESCRICAO =
-  "O que a perícia cautelar encontra, o que ela não encontra, e o que isso muda na hora de " +
-  "comprar um seminovo. Escrito por quem paga o exame em todo o estoque.";
 
 /**
  * 3600, e nao 86400 -- pelo mesmo motivo que a rota do guia ja documentava.
@@ -26,14 +23,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const { companySettings } = await getCachedSettings();
 
   return {
-    title: "Guias sobre procedência de seminovos | Motors Store",
-    description: DESCRICAO,
+    // A aba NÃO repete o `<h1>`, e é de propósito — ver `TITULO_SEO_DA_SECAO`.
+    title: `${TITULO_SEO_DA_SECAO} | Motors Store`,
+    description: RESUMO_DA_SECAO,
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "guias",
-      tituloPadrao: "Guias sobre procedência de seminovos",
-      descricaoPadrao: DESCRICAO,
+      tituloPadrao: TITULO_SEO_DA_SECAO,
+      descricaoPadrao: RESUMO_DA_SECAO,
       caminho: CAMINHO,
     }),
   };
@@ -73,14 +71,12 @@ export default async function GuiasPage() {
             HOME
           </Link>
           {" / "}
-          <span className="uppercase text-mt-ink">Guias</span>
+          <span className="uppercase text-mt-ink">{NOME_DA_SECAO}</span>
         </nav>
 
-        <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">
-          Guias de procedência
-        </h1>
+        <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">{NOME_DA_SECAO}</h1>
         <p className="m-0 mt-4 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          {DESCRICAO}
+          {RESUMO_DA_SECAO}
         </p>
       </div>
 

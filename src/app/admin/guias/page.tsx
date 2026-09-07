@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Guias — Motors Store",
-  description: "Criar e editar os guias de procedência publicados em /guias.",
+  description: "Criar e editar os Guias Motors publicados em /guias.",
 };
 
 /**

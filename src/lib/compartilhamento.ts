@@ -4,6 +4,7 @@ import type {
   CompanySettings,
   CompartilhamentoSettings,
 } from "../types";
+import { NOME_DA_SECAO, RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "./guias";
 
 /**
  * Prévia de link — o que WhatsApp, Facebook, Instagram e LinkedIn mostram
@@ -130,13 +131,24 @@ export const PAGINAS_COMPARTILHAVEIS = [
     // Um id serve o índice e cada guia. Os guias sobrepõem `tituloPadrao` e
     // `descricaoPadrao` com os seus — o texto de fábrica abaixo aparece no
     // índice, e vira a rede se algum guia esquecer de sobrepor.
+    //
+    // CORREÇÃO de 07/09, achada pela revisão: o comentário acima chama isto de
+    // "rede", e para os guias ela é INALCANÇÁVEL. Um guia não pode esquecer de
+    // sobrepor — `[slug]/page.tsx` passa `guia.titulo` e `guia.descricao`
+    // incondicionalmente, `guiaValidacao` recusa publicar sem descrição, e o
+    // CHECK `guias_publicado_tem_texto` da migração recusa no banco. Então
+    // estas duas strings NÃO são publicadas por rota nenhuma.
+    //
+    // Quem as lê é o preview do painel (`CardsCompartilhamento.tsx`), e o
+    // docblock lá em cima promete que o preview "mostre exatamente o que o site
+    // publica". Por isso elas apontam para as MESMAS constantes que o índice
+    // usa: divergir aqui não quebra o site — faz o painel mentir.
     id: "guias",
-    nome: "Guias",
+    nome: NOME_DA_SECAO,
     caminho: "/guias",
     rotuloCard: "Guia",
-    tituloPadrao: "Guias de procedência de seminovos",
-    descricaoPadrao:
-      "O que a perícia cautelar encontra, o que ela não encontra, e o que isso muda na hora de comprar um seminovo.",
+    tituloPadrao: TITULO_SEO_DA_SECAO,
+    descricaoPadrao: RESUMO_DA_SECAO,
   },
 ] as const;
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { EstadoDoGuia } from "../../lib/guias";
+import { NOME_DA_SECAO } from "../../lib/guias";
 
 /**
  * O editor de guias.
@@ -193,7 +194,9 @@ export default function EditorDeGuias() {
   return (
     <div className="flex w-full flex-col gap-5">
       <div className="flex flex-wrap items-baseline gap-2">
-        <h1 className="mt-titulo m-0 text-[24px]">Guias</h1>
+        {/* A tela nomeia a seção que ela edita — o menu lateral fica "Guias",
+            que é rótulo de navegação e vive entre outros nove. */}
+        <h1 className="mt-titulo m-0 text-[24px]">{NOME_DA_SECAO}</h1>
         <span className="text-[12px] text-mt-neutral-700">
           O conteúdo de <code>/guias</code>. Rascunho não aparece no site nem no sitemap.
         </span>

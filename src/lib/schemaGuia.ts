@@ -1,5 +1,6 @@
 import type { CompanySettings } from "../types";
 import type { Guia } from "./guias";
+import { NOME_DA_SECAO } from "./guias";
 import { REFERENCIA_DA_LOJA, schemaDaLoja, schemaDoSite } from "./schemaLoja";
 import { schemaDePerguntas, schemaDeTrilha } from "./schemaListagem";
 import { urlDoCardGerado } from "./compartilhamento";
@@ -75,7 +76,10 @@ export function grafoDoGuia(opcoes: {
     },
     schemaDeTrilha([
       { nome: "Home", caminho: "/" },
-      { nome: "Guias", caminho: "/guias" },
+      // Bate com a trilha VISÍVEL das duas páginas. O Google compara o
+      // `BreadcrumbList` com o que está na tela, e um degrau que diverge é pior
+      // que degrau nenhum.
+      { nome: NOME_DA_SECAO, caminho: "/guias" },
       { nome: guia.titulo, caminho: `/guias/${guia.slug}` },
     ]),
     // O `FAQPage` do guia carrega as MESMAS perguntas que a página renderiza —
@@ -108,7 +112,10 @@ export function grafoDoIndiceDeGuias(opcoes: {
       "@type": "CollectionPage",
       "@id": `${SITE_URL}/guias#page`,
       url: `${SITE_URL}/guias`,
-      name: "Guias sobre procedência de seminovos",
+      // O `name` da coleção é o NOME DA PÁGINA — a mesma string do `<h1>`, e
+      // por isso a mesma constante. Os termos buscáveis ficam no `<title>`,
+      // que é onde eles trabalham.
+      name: NOME_DA_SECAO,
       inLanguage: "pt-BR",
       mainEntity: {
         "@type": "ItemList",
@@ -122,7 +129,10 @@ export function grafoDoIndiceDeGuias(opcoes: {
     },
     schemaDeTrilha([
       { nome: "Home", caminho: "/" },
-      { nome: "Guias", caminho: "/guias" },
+      // Bate com a trilha VISÍVEL das duas páginas. O Google compara o
+      // `BreadcrumbList` com o que está na tela, e um degrau que diverge é pior
+      // que degrau nenhum.
+      { nome: NOME_DA_SECAO, caminho: "/guias" },
     ]),
     schemaDaLoja(empresa),
     schemaDoSite(empresa),

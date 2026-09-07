@@ -7,6 +7,7 @@ import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import { blocoJsonLd } from "../../../lib/schemaListagem";
 import { grafoDoGuia } from "../../../lib/schemaGuia";
 import { criarLinkador } from "../../../lib/linksNoTexto";
+import { NOME_DA_SECAO } from "../../../lib/guias";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -74,7 +75,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /**
- * Um guia do cluster de procedência.
+ * Um guia dos Guias Motors.
  *
  * A rota é fina de propósito: o conteúdo vem da tabela `guias` por
  * `lib/guiasDoBanco.ts`, o grafo sai de `lib/schemaGuia.ts`, e o que sobra aqui
@@ -143,11 +144,18 @@ export default async function GuiaPage({ params }: PageProps) {
             HOME
           </Link>
           {" / "}
+          {/*
+            `uppercase` no CSS, e não a string em caixa alta no JSX — que era
+            como este degrau estava escrito. A diferença não é estética: o DOM
+            é o que o leitor de tela e o rastreador leem, e ter `GUIAS MOTORS`
+            aqui e `Guias Motors` no índice fazia a MESMA seção chegar em duas
+            grafias para quem lê o texto, mesmo com os pixels iguais.
+          */}
           <Link
             href="/guias"
-            className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink"
+            className="mt-foco uppercase text-mt-neutral-600 no-underline hover:text-mt-ink"
           >
-            GUIAS
+            {NOME_DA_SECAO}
           </Link>
           {" / "}
           <span className="uppercase text-mt-ink">{guia.titulo}</span>
