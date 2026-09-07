@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
 import { linkWhatsApp } from "../lib/whatsapp";
+import { MENU_DO_CABECALHO } from "../lib/menuDoCabecalho";
 
 /**
  * Cabeçalho Modernist (redesign 2026).
@@ -32,13 +33,11 @@ const LOGO_POR_TEMA: Record<string, string> = {
   "sport-nardo": "/motors-store-logo-3.png",
 };
 
-const NAV = [
-  { href: "/estoque", rotulo: "ESTOQUE" },
-  { href: "/carro-perfeito", rotulo: "CARRO PERFEITO" },
-  { href: "/avaliacao", rotulo: "AVALIE SEU CARRO" },
-  { href: "/sobre", rotulo: "A MOTORS" },
-  { href: "/contato", rotulo: "CONTATO" },
-];
+// A lista saiu daqui em 07/09 e virou dado em `lib/menuDoCabecalho.ts`, pelo
+// mesmo motivo que as colunas do rodapé: este arquivo é client component e usa
+// `useTheme()`, então guarda aqui dentro só daria para ler a fonte. O docblock
+// de lá tem a ordem, e a medição que provou que o sexto item cabe na barra.
+const NAV = MENU_DO_CABECALHO;
 
 export default function Header() {
   const { theme, companySettings } = useTheme();

@@ -4,6 +4,7 @@ import type { CompanySettings } from "../src/types";
 import type { Guia } from "../src/lib/guias";
 import { NOME_DA_SECAO } from "../src/lib/guias";
 import { colunasDoRodape } from "../src/lib/colunasDoRodape";
+import { MENU_DO_CABECALHO } from "../src/lib/menuDoCabecalho";
 
 /**
  * Os guias renderizados — o `<script>` de verdade, e o texto que ele marca.
@@ -347,6 +348,31 @@ describe("o nome da seção sai de um lugar só", () => {
 
     expect(guias, "o rodapé precisa linkar /guias").toBeDefined();
     expect(guias!.rotulo).toBe(NOME_DA_SECAO);
+  });
+
+  it("o rótulo no menu do cabeçalho", () => {
+    const item = MENU_DO_CABECALHO.find((i) => i.href === "/guias");
+
+    expect(item, "o cabeçalho precisa linkar /guias").toBeDefined();
+    // Caixa alta é a convenção dos outros cinco rótulos do menu, que não passam
+    // por `uppercase` do CSS — por isso a comparação é com a constante em caixa
+    // alta, e não com ela crua.
+    expect(item!.rotulo).toBe(NOME_DA_SECAO.toUpperCase());
+  });
+
+  it("o menu põe os guias depois das telas de ação e antes das institucionais", () => {
+    const ordem = MENU_DO_CABECALHO.map((i) => i.href);
+
+    // A guarda vem antes da ordem, e não é zelo: `indexOf` devolve -1 quando
+    // não acha, e -1 é menor que qualquer índice válido — sem isto, apagar
+    // `/guias` do menu deixaria as duas asserções abaixo VERDES, que é o caso
+    // exato que este teste existe para gritar.
+    for (const href of ["/avaliacao", "/guias", "/sobre"]) {
+      expect(ordem).toContain(href);
+    }
+
+    expect(ordem.indexOf("/guias")).toBeGreaterThan(ordem.indexOf("/avaliacao"));
+    expect(ordem.indexOf("/guias")).toBeLessThan(ordem.indexOf("/sobre"));
   });
 
   /**
