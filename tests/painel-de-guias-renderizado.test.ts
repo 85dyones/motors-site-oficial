@@ -186,4 +186,35 @@ describe("o salvamento do cabeçalho", () => {
     expect(r.ok).toBe(false);
     expect(!r.ok && r.texto).toBe("Failed to fetch");
   });
+
+  it.each([
+    ["corpo ilegível", {}],
+    ["200 sem o campo cabecalho", { avisos: [] }],
+  ])("%s: grava mas NÃO afirma o que ficou, e exige recarga", async (_caso, corpo) => {
+    // A última porta de apagamento que a revisão achou, e a mais sutil: o PUT
+    // GRAVOU (foi 200), mas o corpo não diz o quê. Antes, os dois campos caíam
+    // para "" e a tela dizia "de volta ao texto padrão" — mentira sobre o que
+    // aconteceu —, com o botão habilitado e os campos em branco. Ou seja, o
+    // estado que o `cabecalhoLido` existe para tornar impossível, alcançado
+    // pelo caminho de ESCRITA. O clique seguinte apagaria o texto de verdade.
+    respondendo(corpo);
+    const r = await salvarCabecalho({ tituloSeo: "T", resumo: "R" });
+
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.exigeRecarga).toBe(true);
+    expect(!r.ok && r.texto).toContain("Recarregue");
+    // E não pode dizer que voltou ao padrão: era essa frase que empurrava o
+    // operador para o clique destrutivo.
+    expect(!r.ok && r.texto).not.toContain("de volta ao texto padrão");
+  });
+
+  it("200 com cabeçalho presente continua sendo sucesso", async () => {
+    // Controle: a guarda acima não pode ter transformado o caminho feliz em
+    // erro. `resumo: null` é o gatilho normalizando vazio, e é legítimo.
+    respondendo({ cabecalho: { titulo_seo: null, resumo: null } });
+    const r = await salvarCabecalho({ tituloSeo: "", resumo: "" });
+
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.texto).toContain("de volta ao texto padrão");
+  });
 });

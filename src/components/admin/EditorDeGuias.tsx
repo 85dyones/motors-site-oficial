@@ -3,16 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EstadoDoGuia } from "../../lib/guias";
 import { NOME_DA_SECAO } from "../../lib/guias";
-import {
-  REGUA_DESCRIPTION,
-  SEM_CABECALHO,
-  TETO_DO_CAMPO,
-  podeSalvarCabecalho,
-  podeVoltarAoPadrao,
-  salvarCabecalho,
-  type CabecalhoNaTela,
-} from "../../lib/salvarCabecalho";
+import { SEM_CABECALHO, salvarCabecalho, type CabecalhoNaTela } from "../../lib/salvarCabecalho";
 import { carregarPainel, type GuiaDoPainel } from "../../lib/carregarPainelDeGuias";
+import CabecalhoDaSecao from "./CabecalhoDaSecao";
 
 /**
  * O editor de guias.
@@ -135,6 +128,10 @@ export default function EditorDeGuias() {
       setCabecalho(r.cabecalho);
       setAviso({ tipo: "ok", texto: r.texto, itens: r.avisos });
     } else {
+      // Gravou e não deu para confirmar o quê: trava até reler. Os campos ficam
+      // como estão — limpar aqui seria afirmar "está no automático" sobre uma
+      // seção que pode ter acabado de receber texto.
+      if (r.exigeRecarga) setCabecalhoLido(false);
       setAviso({ tipo: "erro", texto: r.texto });
     }
     setSalvando(false);
@@ -264,89 +261,24 @@ export default function EditorDeGuias() {
           que o visitante lê antes de escolher qual guia abrir, e porque a
           pergunta "o que esta seção é?" vem antes de "que guias ela tem?".
 
-          O nome "Guias Motors" não está aqui de propósito: ele alimenta seis
+          O nome "Guias Motors" não está lá de propósito: ele alimenta seis
           superfícies do site travadas por teste, e um campo aqui tiraria essa
-          trava do caminho. Decisão do dono em 07/09. */}
-      <section className="border border-mt-regua p-4">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <h2 className="mt-titulo m-0 text-[16px]">Cabeçalho da seção</h2>
-          <span className="text-[12px] text-mt-neutral-700">
-            O que aparece no topo de <code>/guias</code> e na busca. Campo vazio volta ao texto
-            padrão.
-          </span>
-        </div>
+          trava do caminho. Decisão do dono em 07/09.
 
-        <label className="mt-3 block text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-neutral-700">
-          Título da aba e da busca
-          <input
-            className={`${CAMPO} mt-1 normal-case`}
-            value={cabecalho.tituloSeo}
-            placeholder={padrao.tituloSeo}
-            maxLength={TETO_DO_CAMPO}
-            onChange={(e) => setCabecalho((c) => ({ ...c, tituloSeo: e.target.value }))}
-          />
-        </label>
-        <p className="m-0 mt-1 text-[11px] text-mt-neutral-700">
-          O site acrescenta <code>| Motors Store</code> no fim — não precisa repetir.
-        </p>
-
-        <label className="mt-3 block text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-neutral-700">
-          Parágrafo de abertura
-          <textarea
-            className={`${CAMPO} mt-1 min-h-[88px] normal-case`}
-            value={cabecalho.resumo}
-            placeholder={padrao.resumo}
-            maxLength={TETO_DO_CAMPO}
-            onChange={(e) => setCabecalho((c) => ({ ...c, resumo: e.target.value }))}
-          />
-        </label>
-        <p className="m-0 mt-1 text-[11px] text-mt-neutral-700">
-          Aparece em quatro lugares: sob o título da página, no resultado do Google, no card do
-          WhatsApp e no preview aqui do painel.{" "}
-          {/* Contador, e não bloqueio: o teto do banco é 300 e a régua da busca é
-              155. Recusar por três caracteres seria pior que uma description
-              cortada — quem decide o texto é quem escreve. */}
-          <span
-            className={
-              cabecalho.resumo.length > REGUA_DESCRIPTION ? "font-bold text-mt-accent" : ""
-            }
-          >
-            {cabecalho.resumo.length}/{REGUA_DESCRIPTION} caracteres
-            {cabecalho.resumo.length > REGUA_DESCRIPTION ? " — a busca pode cortar o fim." : ""}
-          </span>
-        </p>
-
-        {!cabecalhoLido && !carregando && (
-          // O aviso existe porque um botão desabilitado sem explicação é pior
-          // que um botão que apaga: quem não sabe por que não pode salvar
-          // recarrega, tenta de novo, e conclui que o painel está quebrado.
-          <p className="m-0 mt-3 border-l-[3px] border-mt-accent bg-mt-surface px-3 py-2 text-[12px] text-mt-neutral-800">
-            Não consegui ler o cabeçalho que está no ar, então travei o
-            salvamento. Os campos acima estão vazios por isso — não porque a
-            seção esteja sem texto. Recarregue a página; se persistir, o texto
-            no site continua o mesmo.
-          </p>
-        )}
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            className={BOTAO}
-            onClick={aoSalvarCabecalho}
-            // `cabecalhoLido` é a trava contra apagar o que está no ar depois
-            // de uma falha de leitura — o PUT substitui a linha inteira.
-            disabled={!podeSalvarCabecalho({ salvando, carregando, cabecalhoLido })}
-          >
-            Salvar cabeçalho
-          </button>
-          <button
-            className={BOTAO}
-            onClick={() => setCabecalho(SEM_CABECALHO)}
-            disabled={!podeVoltarAoPadrao({ salvando, carregando, cabecalhoLido, cabecalho })}
-          >
-            Voltar ao padrão
-          </button>
-        </div>
-      </section>
+          Componente separado, e sem estado próprio, para as travas serem
+          alcançáveis: aqui `carregando` nasce `true` e desabilita tudo, então
+          nenhum render provava a guarda de `cabecalhoLido`. Ver o docblock de
+          `CabecalhoDaSecao`. */}
+      <CabecalhoDaSecao
+        cabecalho={cabecalho}
+        padrao={padrao}
+        salvando={salvando}
+        carregando={carregando}
+        cabecalhoLido={cabecalhoLido}
+        aoMudar={(troca) => setCabecalho((c) => ({ ...c, ...troca }))}
+        aoLimpar={() => setCabecalho(SEM_CABECALHO)}
+        aoSalvar={aoSalvarCabecalho}
+      />
 
       {aviso && (
         <div

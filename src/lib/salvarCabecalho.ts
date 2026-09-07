@@ -22,7 +22,15 @@ export interface CabecalhoNaTela {
 
 export type ResultadoDoSalvamento =
   | { ok: true; cabecalho: CabecalhoNaTela; texto: string; avisos?: string[] }
-  | { ok: false; texto: string };
+  | {
+      ok: false;
+      texto: string;
+      /**
+       * Gravou, mas não deu para confirmar O QUÊ. A tela tem de travar até
+       * reler — ver o docblock de `salvarCabecalho`.
+       */
+      exigeRecarga?: true;
+    };
 
 /** Campo vazio significa "volte ao automático" — em toda a cadeia. */
 export const SEM_CABECALHO: CabecalhoNaTela = { tituloSeo: "", resumo: "" };
@@ -55,10 +63,17 @@ export function podeSalvarCabecalho(estado: {
 }
 
 /**
- * E pode devolver ao padrão?
+ * E pode LIMPAR os campos, para depois salvar o padrão?
  *
- * Tudo que trava o salvamento trava isto também — "Voltar ao padrão" grava pela
- * mesma rota. Só acrescenta que não faz sentido limpar o que já está limpo.
+ * O botão não grava nada sozinho — ele só esvazia a tela, e quem grava é o
+ * Salvar em seguida. (A primeira versão deste docblock dizia "grava pela mesma
+ * rota", e era falso: a revisão pegou.)
+ *
+ * Mesmo assim ele herda a trava de `podeSalvarCabecalho`, e a razão é de
+ * interface: limpar um campo cujo conteúdo real eu não consegui ler faz a tela
+ * afirmar "está no automático" sobre uma seção que pode ter texto. É a mesma
+ * confusão entre "vazio" e "não sei" que o resto deste módulo existe para
+ * desfazer. Acrescenta só que não faz sentido limpar o que já está limpo.
  */
 export function podeVoltarAoPadrao(estado: {
   salvando: boolean;
@@ -82,6 +97,29 @@ export async function salvarCabecalho(
     const dados = await r.json().catch(() => ({}));
     if (!r.ok) {
       return { ok: false, texto: dados.error || "Falha ao salvar o cabeçalho" };
+    }
+
+    // 200 SEM `cabecalho` no corpo — HTML de borda da CDN, proxy cortando, JSON
+    // ilegível. A revisão achou aqui a última porta de apagamento, e ela é a
+    // mesma forma do B9: campo ausente virando afirmação definitiva.
+    //
+    // O que acontecia: o PUT GRAVOU (foi 200), mas `dados.cabecalho` é
+    // `undefined`, os dois campos caíam para `""`, a tela dizia "de volta ao
+    // texto padrão" — mentira sobre o que aconteceu — e o botão continuava
+    // habilitado com os campos em branco. Ou seja, o estado exato que o
+    // `cabecalhoLido` existe para tornar impossível, alcançado pelo caminho de
+    // escrita. O clique seguinte apagaria o texto de verdade.
+    //
+    // Sem saber o que ficou gravado, o único desfecho honesto é travar até
+    // reler. Os campos NÃO são limpos: o que a pessoa digitou continua na tela.
+    if (!dados.cabecalho || typeof dados.cabecalho !== "object") {
+      return {
+        ok: false,
+        exigeRecarga: true,
+        texto:
+          "Enviei o texto e o servidor aceitou, mas não consegui confirmar o que ficou gravado. " +
+          "Recarregue a página antes de editar de novo — o que está no ar pode ser o texto novo.",
+      };
     }
 
     const salvo: CabecalhoNaTela = {
