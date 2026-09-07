@@ -96,9 +96,20 @@ export default function Header() {
 
         {/* A barra tem 68px e uma linha só de rótulo. Sem `whitespace-nowrap`
             os três rótulos de duas palavras quebram em duas linhas na faixa
-            1024–1280px — o tablet de balcão da loja. `CONTATO` sai abaixo de
-            1280px inclusive porque é o único item cujo destino já está no rodapé e no
-            botão de WhatsApp ao lado, como na tela 09 do design doc. */}
+            1024–1280px — o tablet de balcão da loja.
+
+            `CONTATO` sobe de `desktop:` (1281px) para `2xl:` (1536px) em 07/09,
+            quando `GUIAS MOTORS` entrou no menu. A razão é a mesma que já o
+            fazia sair abaixo de 1280: é o único item cujo destino já está no
+            rodapé e no botão de WhatsApp ao lado, como na tela 09 do design
+            doc — e agora ele disputava espaço com um item que não tem esse
+            substituto no cabeçalho.
+
+            Não é preferência: com os dois, a folga da barra caía para 0,4px em
+            1290px e ficava NEGATIVA entre 1281 e 1289, onde o Chrome liga o
+            `desktop:` pelo `innerWidth` e faz layout com 15px a menos — o
+            telefone partia em duas linhas. A conta e a medição estão no
+            docblock de `lib/menuDoCabecalho.ts`. Decisão do dono em 07/09. */}
         <nav className="flex items-center gap-4 desktop:gap-7">
           {NAV.map((item) => (
             <Link
@@ -106,7 +117,7 @@ export default function Header() {
               href={item.href}
               aria-current={ativo(item.href) ? "page" : undefined}
               className={`mt-foco whitespace-nowrap border-b-2 pb-[3px] text-[11px] font-semibold tracking-[.14em] no-underline transition-colors ${
-                item.href === "/contato" ? "hidden desktop:block" : ""
+                item.href === "/contato" ? "hidden 2xl:block" : ""
               } ${
                 ativo(item.href)
                   ? "border-mt-accent text-mt-inverso"

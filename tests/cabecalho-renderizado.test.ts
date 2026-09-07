@@ -90,6 +90,26 @@ describe("o menu chega ao HTML servido", () => {
     expect(link![1].replace(/<[^>]+>/g, "").trim()).toBe(NOME_DA_SECAO.toUpperCase());
   });
 
+  it("o CONTATO só aparece a partir de 2xl, e não do degrau desktop", async () => {
+    // A troca de 07/09: com seis itens a barra ficava NEGATIVA entre 1281 e
+    // 1289px e o telefone partia em duas linhas. O `CONTATO` é o item que o
+    // design já elegeu como descartável — o destino dele está no rodapé e no
+    // botão de WhatsApp ao lado. Decisão do dono.
+    //
+    // Este teste afirma a CLASSE SERVIDA, que é o que decide o comportamento.
+    // Que a classe vira regra de CSS é outra pergunta, e ela foi respondida
+    // pelo build: `.\32 xl\:block{display:block}` dentro de
+    // `@media (min-width:96rem)`. Precisou de `.next` limpo para aparecer — o
+    // build reusa o CSS em cache, e a primeira leitura dizia que a regra não
+    // existia.
+    const html = await cabecalho();
+    const link = html.match(/<a[^>]*href="\/contato"[^>]*>/);
+
+    expect(link, "o cabeçalho precisa linkar /contato").not.toBeNull();
+    expect(link![0]).toContain("2xl:block");
+    expect(link![0]).not.toContain("desktop:block");
+  });
+
   it("o item ativo é marcado, e só ele", async () => {
     // `aria-current="page"` é o que diz ao leitor de tela onde a pessoa está.
     // Com `usePathname()` em "/", nenhum item do menu é a página atual.
