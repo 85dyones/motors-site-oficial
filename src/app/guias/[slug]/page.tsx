@@ -7,6 +7,7 @@ import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import { blocoJsonLd } from "../../../lib/schemaListagem";
 import { grafoDoGuia } from "../../../lib/schemaGuia";
 import { criarLinkador } from "../../../lib/linksNoTexto";
+import { NOME_DA_SECAO } from "../../../lib/guias";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -143,11 +144,18 @@ export default async function GuiaPage({ params }: PageProps) {
             HOME
           </Link>
           {" / "}
+          {/*
+            `uppercase` no CSS, e não a string em caixa alta no JSX — que era
+            como este degrau estava escrito. A diferença não é estética: o DOM
+            é o que o leitor de tela e o rastreador leem, e ter `GUIAS MOTORS`
+            aqui e `Guias Motors` no índice fazia a MESMA seção chegar em duas
+            grafias para quem lê o texto, mesmo com os pixels iguais.
+          */}
           <Link
             href="/guias"
-            className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink"
+            className="mt-foco uppercase text-mt-neutral-600 no-underline hover:text-mt-ink"
           >
-            GUIAS MOTORS
+            {NOME_DA_SECAO}
           </Link>
           {" / "}
           <span className="uppercase text-mt-ink">{guia.titulo}</span>

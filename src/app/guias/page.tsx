@@ -5,27 +5,9 @@ import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd } from "../../lib/schemaListagem";
 import { grafoDoIndiceDeGuias } from "../../lib/schemaGuia";
+import { NOME_DA_SECAO, RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "../../lib/guias";
 
 const CAMINHO = "/guias";
-
-/**
- * O escopo da seção, e por que ele é largo.
- *
- * Até 07/09 este parágrafo era só sobre perícia cautelar — e ele aparece em
- * TRÊS lugares (sob o `<h1>`, na meta description e no card de
- * compartilhamento), então era ele, mais do que o título, que prendia a seção a
- * um assunto. Decisão do dono no mesmo dia: `/guias` é o conteúdo editorial da
- * loja inteira — mercado, veículos, procedência, financiamento, tendências.
- *
- * O que NÃO se alargou foi o ângulo. `REGUA_DO_GUIA` continua exigindo assunto
- * que a loja pratica, e a segunda frase daqui é o contrato disso: o assunto é
- * amplo, o ponto de vista é o de quem paga o exame e recusa o carro. Sem isso a
- * seção vira conteúdo genérico disputando com portal, onde a Motors perde por
- * autoridade de domínio.
- */
-const DESCRICAO =
-  "Procedência, mercado e financiamento na hora de comprar ou vender um seminovo. " +
-  "Escrito por quem paga o exame em todo o estoque e recusa o carro que não passa.";
 
 /**
  * 3600, e nao 86400 -- pelo mesmo motivo que a rota do guia ja documentava.
@@ -41,18 +23,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const { companySettings } = await getCachedSettings();
 
   return {
-    // A aba NÃO repete o `<h1>`, e é de propósito. "Guias Motors" é o nome da
-    // seção — bom no rodapé e na trilha, e com demanda de busca zero: ninguém
-    // digita isso. O `<title>` é o sinal mais forte de tema da página, então
-    // aqui vão os termos que alguém procura. Decisão do dono em 07/09.
-    title: "Guias sobre seminovos, mercado e procedência | Motors Store",
-    description: DESCRICAO,
+    // A aba NÃO repete o `<h1>`, e é de propósito — ver `TITULO_SEO_DA_SECAO`.
+    title: `${TITULO_SEO_DA_SECAO} | Motors Store`,
+    description: RESUMO_DA_SECAO,
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "guias",
-      tituloPadrao: "Guias sobre seminovos, mercado e procedência",
-      descricaoPadrao: DESCRICAO,
+      tituloPadrao: TITULO_SEO_DA_SECAO,
+      descricaoPadrao: RESUMO_DA_SECAO,
       caminho: CAMINHO,
     }),
   };
@@ -92,14 +71,12 @@ export default async function GuiasPage() {
             HOME
           </Link>
           {" / "}
-          <span className="uppercase text-mt-ink">Guias Motors</span>
+          <span className="uppercase text-mt-ink">{NOME_DA_SECAO}</span>
         </nav>
 
-        <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">
-          Guias Motors
-        </h1>
+        <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">{NOME_DA_SECAO}</h1>
         <p className="m-0 mt-4 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          {DESCRICAO}
+          {RESUMO_DA_SECAO}
         </p>
       </div>
 

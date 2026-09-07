@@ -97,7 +97,7 @@ describe("o rodapé entrega links, não parágrafos", () => {
     // número exato é a trava: um item que deixa de virar link some daqui.
     //
     // Eram seis institucionais até 2026-09-05: `/contato` entrou naquele dia, e
-    // `/guias` logo depois, com o primeiro guia do cluster de procedência.
+    // `/guias` logo depois, com o primeiro guia dos Guias Motors.
     expect(await ancoras()).toHaveLength(12);
   });
 

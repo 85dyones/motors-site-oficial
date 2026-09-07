@@ -53,6 +53,67 @@ export interface Guia {
 export type EstadoDoGuia = "rascunho" | "publicado";
 
 /**
+ * O nome da seção, num lugar só.
+ *
+ * Até 07/09 ela se chamava "Guias de procedência" — um nome que anunciava UM
+ * assunto num link presente em todas as páginas. O dono decidiu que `/guias` é
+ * o conteúdo editorial da loja inteira (mercado, veículos, procedência,
+ * financiamento, tendências), e o nome virou "Guias Motors".
+ *
+ * A constante existe porque a renomeação mostrou o custo do contrário: o mesmo
+ * nome aparece em CINCO pontos que ninguém abre juntos — o `<h1>`, o degrau
+ * visível da trilha nas duas rotas, o `CollectionPage.name`, o degrau do
+ * `BreadcrumbList` e o rótulo do rodapé. A revisão do `qa-guardian` desfez a
+ * renomeação em seis desses pontos, um a um, e a suíte cheia (2207 testes)
+ * ficou verde nas seis: o site serviria quatro nomes diferentes para a mesma
+ * seção sem ninguém notar.
+ *
+ * `tests/guias-publicam-o-grafo.test.ts` afirma que a saída RENDERIZADA de
+ * cada ponto é igual a esta string. Renomear de novo é mexer aqui; escrever o
+ * nome à mão em qualquer um dos pontos fica vermelho.
+ *
+ * NÃO é o `<title>` da aba, que é outra coisa de propósito: nome de seção não
+ * tem demanda de busca, e o `<title>` é o sinal mais forte de tema da página.
+ * Ver `app/guias/page.tsx`.
+ */
+export const NOME_DA_SECAO = "Guias Motors";
+
+/**
+ * O `<title>` da aba do índice — e por que ele NÃO é `NOME_DA_SECAO`.
+ *
+ * "Guias Motors" é o nome da seção e tem demanda de busca zero: ninguém digita
+ * isso. O `<title>` é o sinal mais forte de tema da página, então aqui vão os
+ * termos que alguém procura. Decisão do dono em 07/09.
+ *
+ * Nenhuma trava do projeto exige `<title>` == `<h1>`, e `tituloSeo` de cada
+ * guia já documenta a mesma divergência ("pode divergir do `<h1>` quando o SERP
+ * pede"). O índice passou a fazer o que os guias já faziam.
+ */
+export const TITULO_SEO_DA_SECAO = "Guias sobre seminovos, mercado e procedência";
+
+/**
+ * O resumo da seção. Aparece em QUATRO lugares, e é por isso que mora aqui.
+ *
+ * Sob o `<h1>`, na meta description, no card de compartilhamento do site e no
+ * preview desse card no painel. Até 07/09 ele era 100% perícia cautelar — e era
+ * ele, mais do que o título, que prendia a seção a um assunto só: trocar o nome
+ * e deixar este parágrafo embaixo daria uma seção de procedência com nome novo.
+ *
+ * O que NÃO se alargou foi o ângulo. `REGUA_DO_GUIA` continua exigindo assunto
+ * que a loja pratica, e a segunda frase é o contrato disso: assunto amplo,
+ * ponto de vista de quem paga o exame e recusa o carro. Sem isso a seção vira
+ * conteúdo genérico disputando com portal, onde a Motors perde por autoridade
+ * de domínio.
+ *
+ * Cabe em 155 caracteres — a régua de meta description da casa, em
+ * `conteudo-seo/rascunhos.json` e em `tests/promessa-publica.test.ts`. A versão
+ * que a revisão pegou tinha 158 e o corte caía dentro de "passa".
+ */
+export const RESUMO_DA_SECAO =
+  "Procedência, mercado e financiamento para comprar ou vender um seminovo. " +
+  "Escrito por quem paga o exame em todo o estoque e recusa o carro que não passa.";
+
+/**
  * O que a régua de entrada exige de um guia — e o que ela proíbe.
  *
  * Está aqui, e não só na cabeça de quem escreve, porque a tela do painel vai
