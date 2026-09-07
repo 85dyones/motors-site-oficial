@@ -85,6 +85,14 @@
 -- está lá. Perder o texto do dono exige três remoções deliberadas, não um
 -- descuido.
 --
+-- E o retrato só significa alguma coisa com a janela FECHADA: `select *` não
+-- tranca nada, e o COMMIT de outra sessão entre a foto e a reposição faria o
+-- passo 10 repor a versão velha com a conferência aprovando — ela compara com o
+-- retrato, não com a verdade. Por isso a cópia é precedida de `lock table … in
+-- share row exclusive mode`: a escrita vizinha espera esta transação terminar, a
+-- leitura do site não. O porquê do modo, e a honestidade sobre o que essa linha
+-- muda hoje, ficam na seção do retrato.
+--
 -- A outra saída considerada era pular o aceite quando já houvesse linha. Ela
 -- também protegeria o texto, e custaria caro: o ensaio contra a produção é o
 -- único staging deste projeto, e no dia em que o dono gravasse o cabeçalho o
@@ -273,6 +281,56 @@ create trigger trg_carimbar_cabecalho_dos_guias
 -- execução na MESMA sessão guardaria o retrato velho (vazio) e a conferência do
 -- fim acusaria diferença onde não há. O retrato é sempre o de agora.
 drop table if exists pg_temp.retrato_cabecalho_dos_guias;
+
+-- A trava vem ANTES do retrato, e é de TABELA — não de linha
+-- ---------------------------------------------------------------------------
+-- `select *` não tranca nada. Entre o retrato e o `delete` do aceite cabe o
+-- COMMIT de outra sessão: se alguém salvar o cabeçalho pelo painel nessa
+-- fresta, o passo 10 repõe a versão VELHA e a conferência do fim diz "voltou
+-- idêntico" — porque ela compara com o RETRATO, não com a verdade. Janela de
+-- ~1 segundo, só na reaplicação, e o que se perde é o texto do dono.
+--
+-- `for update` no retrato foi descartado, e não por gosto: ele prende as linhas
+-- QUE EXISTEM. Esta tabela entrega VAZIA — é o estado normal —, então o caso
+-- mais provável da corrida é o PRIMEIRO save do painel ENTRANDO na janela, e aí
+-- não há linha para prender. Medido em 07/09 contra a produção, com duas
+-- conexões e uma tabela dormente: com o retrato tirado `for update` de um
+-- conjunto vazio, a escrita vizinha passa NA HORA, sem esperar nada.
+--
+-- `share row exclusive` cobre a tabela inteira — inclusive a linha que ainda
+-- não existe — e é o modo mais fraco que serve:
+--   · conflita com `row exclusive` → INSERT/UPDATE/DELETE de outra sessão
+--     esperam esta transação terminar (medido: a vizinha morre no
+--     `lock_timeout`, 55P03, e passa assim que esta transação solta);
+--   · NÃO conflita com `access share` → `/guias` continua sendo lido pelo
+--     `anon` enquanto a migração roda (medido: a leitura vizinha passa na hora);
+--   · conflita CONSIGO MESMO → duas execuções deste arquivo entram em fila. Com
+--     `share`, que também barra escrita e deixa ler, as duas pegariam a trava
+--     juntas e travariam uma na outra no `delete`: deadlock em vez de fila.
+--
+-- E a honestidade sobre o que esta linha muda HOJE: nada em tempo de execução,
+-- e o comentário não vai fingir o contrário. Quando o fluxo chega aqui, esta
+-- transação já segura `AccessExclusiveLock` sobre a tabela desde o `alter table
+-- … enable row level security` lá de cima — mais forte, e que já barra a
+-- escrita vizinha (medido: só com aquele ALTER, a escrita de outra conexão bate
+-- no `lock_timeout`). A janela está fechada por ACIDENTE do DDL. Esta linha
+-- existe para que ela siga fechada quando o acidente acabar: no dia em que
+-- alguém condicionar aquele `alter table`, mover o retrato para cima dele ou
+-- separar o aceite em outro arquivo, a garantia viaja junto de quem depende
+-- dela.
+--
+-- Por isso, e sem fingir cobertura: **esta linha não tem mutante
+-- determinístico**. Apagá-la não deixa o aceite vermelho — o lock mais forte de
+-- cima continua segurando —, e corrida de ~1 segundo não se reproduz de dentro
+-- de uma sessão só. A prova é de fora, com duas conexões, e fica no PR. O que
+-- dá para afirmar aqui dentro é POSSE de trava, e está na guarda do aceite, ao
+-- lado do `to_regclass`.
+--
+-- (Fora de transação isto falha com 25P01 — `LOCK TABLE` só existe dentro de
+-- uma. É o desfecho certo: o retrato inteiro depende do BEGIN/COMMIT único do
+-- aplicador.)
+lock table public.cabecalho_dos_guias in share row exclusive mode;
+
 create temp table retrato_cabecalho_dos_guias on commit drop as
   select * from public.cabecalho_dos_guias;
 
@@ -295,12 +353,52 @@ declare
   sobraram int;
   ausentes int;
   havia_cabecalho boolean;
+  trava text;
+  nao_staff_exercido boolean := false;
 begin
   -- FALHA FECHADA. O aceite esvazia a tabela três linhas abaixo; se o retrato
   -- não foi tirado, o certo é parar aqui — nunca seguir e descobrir depois.
   if to_regclass('pg_temp.retrato_cabecalho_dos_guias') is null then
     raise exception 'TRAVA AUSENTE: o aceite esvazia o cabeçalho e não há retrato para repor. Alguém tirou o `create temp table retrato_cabecalho_dos_guias` daqui de cima — reponha antes de rodar, senão uma segunda execução apaga o texto que está no ar.';
   end if;
+
+  -- E a janela do retrato tem de estar SELADA. Um retrato só vale se ninguém
+  -- puder gravar entre a cópia e a reposição do passo 10; sem trava, o `delete`
+  -- logo abaixo enxerga o COMMIT de outra sessão e a conferência do fim aprova
+  -- a perda, porque ela compara com o retrato.
+  --
+  -- Isto é o único observável de DENTRO de uma sessão, e a afirmação é medida
+  -- pelo que ela é: POSSE de trava que conflita com `row exclusive` — o modo que
+  -- todo INSERT/UPDATE/DELETE precisa pegar. NÃO afirma que a sessão vizinha
+  -- bloqueia; isso se prova com duas conexões, fora daqui, e está no PR.
+  --
+  -- (`pg_locks` não é a exceção que o cabeçalho desta seção proíbe. A regra de
+  -- não consultar catálogo vale para policy e GRANT, que se parecem no catálogo
+  -- e se distinguem no ato. Trava não tem ato observável de dentro da própria
+  -- transação: quem a exerce é outra sessão.)
+  --
+  -- Até onde esta guarda alcança, medido e não suposto: na PRIMEIRA aplicação
+  -- ela não tem como falhar — o `create table` acima já pega
+  -- `AccessExclusiveLock` sobre a tabela que ele mesmo criou. Ela guarda a
+  -- REAPLICAÇÃO, que é o caminho onde a corrida existe: lá a tabela vem
+  -- commitada de antes, e quem segura é o `lock table` do retrato ou o `alter
+  -- table … enable row level security`. Some com os dois e este bloco para a
+  -- migração em vez de esvaziar a tabela com a porta aberta. Que o predicado
+  -- separa os dois estados está medido: contra uma tabela dormente, ele acusa
+  -- depois de um `select` puro e passa depois do `lock table`.
+  select string_agg(distinct l.mode, ', ' order by l.mode) into trava
+    from pg_locks l
+   where l.pid = pg_backend_pid()
+     and l.locktype = 'relation'
+     and l.relation = 'public.cabecalho_dos_guias'::regclass
+     and l.granted
+     and l.mode in ('ShareLock', 'ShareRowExclusiveLock',
+                    'ExclusiveLock', 'AccessExclusiveLock');
+  if trava is null then
+    raise exception 'JANELA ABERTA: nada nesta transação barra a escrita vizinha em cabecalho_dos_guias, e o retrato acima vira ficção — o painel pode gravar o cabeçalho entre a cópia e a reposição, e a conferência do fim compararia com o retrato, não com a verdade. Reponha o `lock table public.cabecalho_dos_guias in share row exclusive mode` antes do retrato.';
+  end if;
+  raise notice 'Janela do retrato selada: a transação segura % sobre cabecalho_dos_guias; todo modo listado conflita com o `row exclusive` que qualquer escrita vizinha precisa pegar.', trava;
+
   select exists (select 1 from pg_temp.retrato_cabecalho_dos_guias) into havia_cabecalho;
 
   -- Esvaziar faz a segunda execução ser IDÊNTICA à primeira: o aceite inteiro
@@ -500,6 +598,9 @@ begin
       null;
     end;
     reset role;
+    -- O ato foi exercido. Só a partir daqui o notice do fim pode dizer que
+    -- não-staff não escreve — ver a nota junto dele.
+    nao_staff_exercido := true;
   else
     raise notice 'Sem usuário não-staff na base: a asserção de RLS por papel não pôde ser exercida.';
   end if;
@@ -622,7 +723,16 @@ begin
     raise exception 'ACEITE FALHOU: % problema(s) no cabeçalho editável dos guias', falhas;
   end if;
 
-  raise notice 'Cabeçalho dos guias OK: linha única imposta (CHECK e PK), anon lê e não escreve (nem UPDATE, nem DELETE — barrado no privilégio), não-staff não escreve, staff cria e edita com carimbo de autor e data, INSERT preserva a data informada, vazio/nulo/espaço voltam ao texto do código no INSERT e no UPDATE, teto recusa 301 e aceita 158, e a tabela termina %.',
+  -- O notice diz o que CORREU, e não o que o arquivo pretende. A asserção de
+  -- RLS por papel depende de existir usuário fora do staff nesta base: quando
+  -- não existe, ela é PULADA lá em cima — e afirmar "não-staff não escreve"
+  -- aqui seria a mesma doença que este arquivo persegue no código, um relatório
+  -- verde sobre um teste que não rodou. Em produção ela roda; num banco recém
+  -- semeado, não.
+  raise notice 'Cabeçalho dos guias OK: linha única imposta (CHECK e PK), anon lê e não escreve (nem UPDATE, nem DELETE — barrado no privilégio), %, staff cria e edita com carimbo de autor e data, INSERT preserva a data informada, vazio/nulo/espaço voltam ao texto do código no INSERT e no UPDATE, teto recusa 301 e aceita 158, e a tabela termina %.',
+    case when nao_staff_exercido
+      then 'não-staff não escreve'
+      else 'a RLS por papel NÃO PÔDE SER EXERCIDA nesta execução (sem usuário fora do staff na base) — nada foi provado sobre não-staff' end,
     case when havia_cabecalho
       then 'com o cabeçalho que o dono já tinha gravado, reposto do retrato'
       else 'VAZIA, que é o estado de entrega' end;
