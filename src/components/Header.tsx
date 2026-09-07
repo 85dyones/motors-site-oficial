@@ -17,8 +17,10 @@ import { MENU_DO_CABECALHO } from "../lib/menuDoCabecalho";
  * produção — fica à direita, reescrito na linguagem do sistema (quadrado,
  * contorno de 1px).
  *
- * A barra completa só liga em `lg:` (1024px): logo, quatro links em
- * `whitespace-nowrap`, painel e CTA de WhatsApp somam ~950px, e como o
+ * A barra completa só liga em `lg:` (1024px): logo, CINCO links em
+ * `whitespace-nowrap` (`CONTATO` é o sexto e só entra em `2xl:`), painel e CTA
+ * de WhatsApp somam ~950px — eram quatro links até 07/09, e `GUIAS MOTORS`
+ * ocupou a folga que o `CONTATO` deixou. Como o
  * globals.css corta `overflow-x` no <html>, o excedente era amputado sem
  * rolagem — em tablet retrato e celular deitado o WhatsApp e o painel caíam
  * fora da tela. Abaixo de `lg:` vale o cabeçalho compacto de hambúrguer.
@@ -33,10 +35,8 @@ const LOGO_POR_TEMA: Record<string, string> = {
   "sport-nardo": "/motors-store-logo-3.png",
 };
 
-// A lista saiu daqui em 07/09 e virou dado em `lib/menuDoCabecalho.ts`, pelo
-// mesmo motivo que as colunas do rodapé: este arquivo é client component e usa
-// `useTheme()`, então guarda aqui dentro só daria para ler a fonte. O docblock
-// de lá tem a ordem, e a medição que provou que o sexto item cabe na barra.
+// A lista saiu daqui em 07/09 e virou dado em `lib/menuDoCabecalho.ts`. O
+// docblock de lá tem a ordem, o porquê da extração e a medição de largura.
 const NAV = MENU_DO_CABECALHO;
 
 export default function Header() {
@@ -131,8 +131,11 @@ export default function Header() {
 
         <span className="h-[26px] w-px bg-[#444141]" aria-hidden="true" />
 
-        {/* Só a partir de `xl:`: entre 1024 e 1280px o telefone empurrava a
-            barra além do viewport e o CTA de WhatsApp saía da tela. */}
+        {/* Só a partir de `xl:` (1280px): entre 1024 e 1279px o telefone
+            empurrava a barra além do viewport e o CTA de WhatsApp saía da
+            tela. A faixa fecha em 1279 porque `xl:` liga EM 1280 — a linha de
+            1280px da tabela de `menuDoCabecalho.ts` só bate com o telefone
+            já visível. */}
         <a
           href={`tel:${(companySettings?.phone || "").replace(/\D/g, "")}`}
           className="mt-foco hidden text-[13px] text-mt-neutral-300 no-underline hover:text-mt-inverso xl:block"

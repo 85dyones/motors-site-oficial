@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CompanySettings } from "../src/types";
 import { NOME_DA_SECAO } from "../src/lib/guias";
+import { MENU_DO_CABECALHO } from "../src/lib/menuDoCabecalho";
 
 /**
  * O cabeçalho, renderizado de verdade.
@@ -24,15 +25,25 @@ import { NOME_DA_SECAO } from "../src/lib/guias";
  * O que este arquivo NÃO prova
  * ---------------------------------------------------------------------------
  * O menu mobile só existe depois do clique (`mobileMenuOpen`), então o HTML de
- * servidor traz apenas a barra do desktop. Uma mutação que filtrasse SÓ o
- * `NAV.map` do mobile escaparia daqui. Fica dito em vez de sugerido: a trava
- * cobre a barra, e a barra é onde a lista chega primeiro.
+ * servidor traz apenas a barra do desktop. **Nada do mobile é provado aqui** —
+ * e o buraco é maior do que "uma mutação que filtrasse o `NAV.map`", que era
+ * como esta seção o descrevia. A revisão mediu quatro, todas VERDES na suíte
+ * cheia: apagar o `aria-current` do map do mobile, trocar as classes de ativo e
+ * inativo dele, filtrar `/guias` fora, e — a pior — trocar a lista por `[]`,
+ * deixando o menu do celular VAZIO.
  *
- * E o rótulo é comparado com `NOME_DA_SECAO.toUpperCase()`, o que prova que o
- * texto servido é o certo — não que ele foi LIDO da constante. Escrever
- * `"GUIAS MOTORS"` à mão passa verde hoje; o que fica coberto é o dia em que a
- * constante mudar e o literal ficar para trás, que é o cenário do PR #55. A
- * mensagem do commit anterior afirmou mais do que isso, e estava errada.
+ * Fechar isso exige `jsdom` + testing-library, que o `vitest.config.ts` adia
+ * explicitamente ("adicionar quando chegarem"), ou forçar `mobileMenuOpen`
+ * mockando o `useState` do React. Nenhum dos dois cabe num PR de menu, e por
+ * isso fica ESCRITO — o que não pode é a próxima pessoa ler "a trava cobre a
+ * barra" e supor que cobre o resto.
+ *
+ * A outra lacuna é de acoplamento, não de superfície: os rótulos são comparados
+ * com `MENU_DO_CABECALHO`, e o de `/guias` com `NOME_DA_SECAO.toUpperCase()`.
+ * Isso prova que o texto SERVIDO é o certo, não que ele foi LIDO da constante —
+ * escrever `"GUIAS MOTORS"` à mão passa verde hoje. O que fica coberto é o dia
+ * em que a constante mudar e o literal ficar para trás, que é o cenário do
+ * PR #55.
  */
 
 const EMPRESA: CompanySettings = {
@@ -94,6 +105,30 @@ describe("o menu chega ao HTML servido", () => {
     ]);
   });
 
+  it("o que a barra serve como rótulo é o `rotulo` do dado, na ordem", async () => {
+    // O que este teste prova, e o que NÃO prova.
+    //
+    // Ele compara o render com a MESMA constante que alimenta o render, então
+    // é tautológico para o VALOR: trocar "ESTOQUE" por "XXXXX" no dado muda os
+    // dois lados e passa verde — medido. A revisão sugeriu esta comparação
+    // justamente para pegar aquilo, e ela não pega.
+    //
+    // O que ele pega é o acoplamento: trocar `{item.rotulo}` por uma string
+    // fixa no componente derruba 2. Ou seja, guarda que a barra serve o campo
+    // `rotulo`, na ordem da lista — não que os textos sejam estes.
+    //
+    // Travar os valores exigiria repetir os seis literais aqui, e aí renomear
+    // um item legítimo ficaria vermelho sem invariante nenhuma ter mudado. O
+    // `main` também não cobria rótulo de cabeçalho, então não há regressão.
+    const html = await cabecalho();
+    const nav = html.match(/<nav[\s\S]*?<\/nav>/)![0];
+    const rotulos = [...nav.matchAll(/<a[^>]*>([\s\S]*?)<\/a>/g)].map((m) =>
+      m[1].replace(/<[^>]+>/g, "").trim(),
+    );
+
+    expect(rotulos).toEqual(MENU_DO_CABECALHO.map((i) => i.rotulo));
+  });
+
   it("o link dos guias leva o nome da seção", async () => {
     const html = await cabecalho();
     const link = html.match(/<a[^>]*href="\/guias"[^>]*>([\s\S]*?)<\/a>/);
@@ -109,16 +144,21 @@ describe("o menu chega ao HTML servido", () => {
     // botão de WhatsApp ao lado. Decisão do dono.
     //
     // Este teste afirma a CLASSE SERVIDA, que é o que decide o comportamento.
-    // Que a classe vira regra de CSS é outra pergunta, e quem respondeu foi o
-    // `next build` com `.next` APAGADO: `.\32 xl\:block{display:block}` dentro
-    // de `@media (min-width:96rem)`, e o navegador confirmando `display:none`
-    // em 1535 e `display:block` em 1536.
+    // Que a classe vira regra de CSS é outra pergunta, e ela está respondida:
     //
-    // Sobre o build com cache a regra não aparecia. Eu escrevi que "o build
-    // reusa o CSS"; a revisão mostrou que a explicação não fecha — rodando o
-    // Tailwind avulso sobre o mesmo `globals.css` a regra também não saiu,
-    // mesmo com o scanner tendo lido este arquivo. O comportamento está
-    // provado; o mecanismo, não.
+    //     @media (min-width:96rem){.\32 xl\:block{display:block}}
+    //
+    // no bundle do `next build`, com o navegador confirmando `display:none` em
+    // 1535 e `display:block` em 1536 — e o `@tailwindcss/postcss` avulso emite
+    // a mesma regra, bastando o `Header.tsx` guardar a string. O mecanismo é
+    // trivial: o scanner lê este arquivo.
+    //
+    // Eu afirmei duas vezes o contrário aqui — primeiro que a regra não existia,
+    // depois que existia por motivo desconhecido. As duas leituras negativas
+    // eram artefato de BUSCA: seletor não pode começar com dígito, então a
+    // classe sai escapada como `.\32 xl\:block`, e procurar por `2xl` — ou por
+    // `xl:block` sem contar a contrabarra — não acha nada num arquivo que a
+    // contém.
     const html = await cabecalho();
     const link = html.match(/<a[^>]*href="\/contato"[^>]*>/);
 
