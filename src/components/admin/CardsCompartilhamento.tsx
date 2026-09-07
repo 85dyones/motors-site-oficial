@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   PAGINAS_COMPARTILHAVEIS,
+  textoDeFabricaDaPagina,
   urlDoCardGerado,
   type IdPaginaCompartilhavel,
 } from "../../lib/compartilhamento";
@@ -73,21 +74,18 @@ export default function CardsCompartilhamento({
 
   // A "fábrica" de cada página não é só a constante: home e guias têm texto que
   // o painel edita em OUTRA tela, e é ele que o site publica quando esta aqui
-  // não sobrescreve. Sem isto o preview mostra uma coisa e o site outra.
-  const tituloDeFabrica =
-    selecionada === "home" && tituloDaAba?.trim()
-      ? tituloDaAba.trim()
-      : selecionada === "guias" && cabecalhoDosGuias?.tituloSeo.trim()
-        ? cabecalhoDosGuias.tituloSeo.trim()
-        : pagina.tituloPadrao;
+  // não sobrescreve. A escolha mora em `lib/compartilhamento.ts` porque a
+  // página selecionada é estado interno — como função pura, todos os ramos
+  // ficam alcançáveis por teste.
+  const fabrica = textoDeFabricaDaPagina({
+    id: selecionada,
+    pagina,
+    tituloDaAba,
+    cabecalhoDosGuias,
+  });
 
-  const descricaoDeFabrica =
-    selecionada === "guias" && cabecalhoDosGuias?.resumo.trim()
-      ? cabecalhoDosGuias.resumo.trim()
-      : pagina.descricaoPadrao;
-
-  const tituloExibido = card.titulo?.trim() || tituloDeFabrica;
-  const descricaoExibida = card.descricao?.trim() || descricaoDeFabrica;
+  const tituloExibido = card.titulo?.trim() || fabrica.titulo;
+  const descricaoExibida = card.descricao?.trim() || fabrica.descricao;
 
   // Qual imagem o site vai publicar para esta página, na mesma ordem da
   // cascata de `montarCompartilhamento`.
@@ -209,7 +207,7 @@ export default function CardsCompartilhamento({
             className="mt-campo-caixa mt-1"
             value={card.titulo ?? ""}
             maxLength={LIMITE_TITULO}
-            placeholder={tituloDeFabrica}
+            placeholder={fabrica.titulo}
             onChange={(e) => alterar(selecionada, "titulo", e.target.value)}
           />
           <div className="mt-1 text-right text-[10px] text-mt-neutral-700">

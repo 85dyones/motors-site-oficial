@@ -23,9 +23,25 @@ vi.mock("../src/lib/supabase-server", () => ({
   createServerSupabaseClient: async () => CLIENTE,
 }));
 
-// A rota revalida o índice ao gravar. Fora de uma requisição do Next isso
-// estoura, e não é o assunto deste arquivo.
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+/**
+ * `revalidatePath` é ESPIONADO, e não silenciado.
+ *
+ * A primeira versão deste arquivo mockava com `() => {}` "porque fora de uma
+ * requisição do Next isso estoura". Verdade — e a revisão mostrou o preço:
+ * esvaziando o corpo de `revalidarCluster` a suíte inteira (2229 testes)
+ * ficava verde, e a função serve DUAS rotas desde a extração. Um no-op sem
+ * cobertura silenciava as duas pontas de uma vez.
+ *
+ * O custo está escrito no docblock de `portaDeGuias.ts`: guia recém-publicado
+ * espera até uma hora no sitemap, e quem acabou de salvar vê a página velha e
+ * conclui que não salvou.
+ */
+const revalidados: string[] = [];
+vi.mock("next/cache", () => ({
+  revalidatePath: (caminho: string) => {
+    revalidados.push(caminho);
+  },
+}));
 
 function semSessao() {
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: null } });
@@ -85,6 +101,7 @@ async function put(corpo: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   gravado = null;
+  revalidados.length = 0;
 });
 
 describe("a rota do cabeçalho não escreve sem autorização", () => {
@@ -102,6 +119,30 @@ describe("a rota do cabeçalho não escreve sem autorização", () => {
     expect((await put({ resumo: "invadido" })).status).toBe(403);
     expect(gravado, "nada pode ter sido gravado").toBeNull();
   });
+
+  /**
+   * Staff DE VERDADE, mas sem a linha da A17 que governa cópia de site.
+   *
+   * Sem este caso, metade da régua não tem mutante: reduzir a condição a
+   * `if (!ehStaff(profile))` deixava a suíte inteira verde e abria a escrita
+   * para GESTOR e FINANCEIRO, nas duas rotas. Os dois casos acima não pegam
+   * porque em ambos `perfisDe` devolve `[]` — `podeFazer` já responderia
+   * `nao_ve` sozinho, e a segunda metade nunca é exercitada.
+   */
+  it.each([["gestor"], ["financeiro"]])(
+    "%s é staff, mas não escreve cópia de site",
+    async (papel) => {
+      CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "u2" } } });
+      CLIENTE.from.mockReturnValue({
+        select: () => ({
+          eq: () => ({ single: async () => ({ data: { role: papel, papeis: [papel] } }) }),
+        }),
+      });
+
+      expect((await put({ resumo: "fora da alçada" })).status).toBe(403);
+      expect(gravado, "nada pode ter sido gravado").toBeNull();
+    },
+  );
 });
 
 describe("o editor grava, e limpar volta ao automático", () => {
@@ -154,5 +195,26 @@ describe("o editor grava, e limpar volta ao automático", () => {
     const dados = await r.json();
 
     expect(dados.avisos ?? []).toHaveLength(0);
+  });
+});
+
+describe("gravar tira o índice do cache", () => {
+  it("o índice e o sitemap saem, e a ficha de guia não é tocada", async () => {
+    comoEditor();
+    await put({ resumo: "Texto novo." });
+
+    // `/guias` porque é onde o texto aparece; `/sitemap.xml` porque ele declara
+    // `revalidate = 3600` e é a única rota do repositório que precisa disso.
+    // A ficha de um guia NÃO entra: o cabeçalho da seção não muda o conteúdo
+    // de guia nenhum, e revalidar 1..N fichas por uma edição de cabeçalho seria
+    // descartar cache que ninguém pediu.
+    expect(revalidados).toEqual(["/guias", "/sitemap.xml"]);
+  });
+
+  it("quem não passou pela porta não descarta cache nenhum", async () => {
+    semSessao();
+    await put({ resumo: "invadido" });
+
+    expect(revalidados).toEqual([]);
   });
 });

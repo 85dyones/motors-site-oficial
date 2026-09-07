@@ -156,6 +156,51 @@ export type IdPaginaCompartilhavel =
   (typeof PAGINAS_COMPARTILHAVEIS)[number]["id"];
 
 /**
+ * O texto de fábrica DE VERDADE de uma página — o que o site publica quando o
+ * painel não escreveu um card próprio para ela.
+ *
+ * Nem sempre é a constante acima, e é aí que mora o defeito que esta função
+ * existe para fechar. Duas páginas têm o texto editável em OUTRA tela:
+ *
+ *   · **home** — "Frase da aba do navegador", em Dados da concessionária.
+ *   · **guias** — o cabeçalho da seção, em `/admin/guias` (desde 07/09).
+ *
+ * O preview do painel lia só as constantes, então quem editasse via o site
+ * mudar e o painel continuar mostrando o antigo. O docblock de `tituloDaAba`
+ * em `CardsCompartilhamento` já descrevia isso para a home — e nada guardava:
+ * a revisão cortou a passagem do valor nos três pontos do caminho e a suíte
+ * ficou verde nos três.
+ *
+ * Mora aqui, e não dentro do componente, porque o componente escolhe a página
+ * por estado interno (`useState("home")`) — sem harness de interação, um teste
+ * de render nunca alcançaria o ramo dos guias. Como função pura, os ramos são
+ * todos alcançáveis.
+ */
+export function textoDeFabricaDaPagina(opcoes: {
+  id: IdPaginaCompartilhavel;
+  pagina: { tituloPadrao: string; descricaoPadrao: string };
+  tituloDaAba?: string;
+  cabecalhoDosGuias?: { tituloSeo: string; resumo: string };
+}): { titulo: string; descricao: string } {
+  const { id, pagina, tituloDaAba, cabecalhoDosGuias } = opcoes;
+
+  // `trim()` em cada um: campo em branco no painel significa "não escrevi",
+  // e não "publique vazio".
+  if (id === "home" && tituloDaAba?.trim()) {
+    return { titulo: tituloDaAba.trim(), descricao: pagina.descricaoPadrao };
+  }
+
+  if (id === "guias") {
+    return {
+      titulo: cabecalhoDosGuias?.tituloSeo.trim() || pagina.tituloPadrao,
+      descricao: cabecalhoDosGuias?.resumo.trim() || pagina.descricaoPadrao,
+    };
+  }
+
+  return { titulo: pagina.tituloPadrao, descricao: pagina.descricaoPadrao };
+}
+
+/**
  * A página do veículo não é customizável no painel: ela compartilha a foto e
  * o preço do próprio carro, que é sempre melhor do que qualquer arte fixa.
  * Só participa da cascata para herdar a arte padrão quando o veículo chega

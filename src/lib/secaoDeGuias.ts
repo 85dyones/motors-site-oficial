@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { supabase } from "./supabase";
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
 import { RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "./guias";
@@ -107,7 +108,15 @@ export function resolverCabecalho(gravado: CabecalhoGravado): CabecalhoServido {
   };
 }
 
-/** Atalho para as rotas públicas: lê e resolve. */
-export async function cabecalhoDosGuias(): Promise<CabecalhoServido> {
+/**
+ * Atalho para as rotas públicas: lê e resolve.
+ *
+ * `cache()` porque `/guias` chama isto DUAS vezes por render — uma em
+ * `generateMetadata`, para o `<title>` e a description, e outra no corpo, para
+ * o parágrafo. Sem ele são duas idas ao banco para a mesma linha, na mesma
+ * requisição. Fora de uma requisição (a rota de API, um teste) o `cache` não
+ * deduplica nada e a função se comporta como antes.
+ */
+export const cabecalhoDosGuias = cache(async (): Promise<CabecalhoServido> => {
   return resolverCabecalho(await lerCabecalhoGravado());
-}
+});

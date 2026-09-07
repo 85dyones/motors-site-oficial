@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EstadoDoGuia } from "../../lib/guias";
 import { NOME_DA_SECAO } from "../../lib/guias";
+import {
+  REGUA_DESCRIPTION,
+  SEM_CABECALHO,
+  TETO_DO_CAMPO,
+  salvarCabecalho,
+  type CabecalhoNaTela,
+} from "../../lib/salvarCabecalho";
 
 /**
  * O editor de guias.
@@ -67,17 +74,6 @@ const paraParagrafos = (texto: string) =>
     .map((p) => p.trim())
     .filter(Boolean);
 
-/** O cabeçalho da seção, como a tela o manipula: vazio = volta ao automático. */
-interface CabecalhoNaTela {
-  tituloSeo: string;
-  resumo: string;
-}
-
-const SEM_CABECALHO: CabecalhoNaTela = { tituloSeo: "", resumo: "" };
-
-/** A régua da meta description. Aviso, não trava — quem decide o texto é o dono. */
-const REGUA_DESCRIPTION = 155;
-
 export default function EditorDeGuias() {
   const [guias, setGuias] = useState<GuiaDoPainel[]>([]);
   const [regua, setRegua] = useState<string[]>([]);
@@ -117,33 +113,20 @@ export default function EditorDeGuias() {
     }
   }, []);
 
-  async function salvarCabecalho() {
+  // A chamada, o tratamento de erro e a escolha da mensagem moram em
+  // `lib/salvarCabecalho.ts`, com teste próprio: `renderToStaticMarkup` não
+  // enxerga `onClick`, então o que ficaria descoberto aqui seria comportamento,
+  // e não um identificador. Ver o docblock de lá.
+  async function aoSalvarCabecalho() {
     setSalvando(true);
-    try {
-      const r = await fetch("/api/guias/secao", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cabecalho),
-      });
-      const dados = await r.json();
-      if (!r.ok) throw new Error(dados.error || "Falha ao salvar o cabeçalho");
-      setCabecalho({
-        tituloSeo: dados.cabecalho?.titulo_seo ?? "",
-        resumo: dados.cabecalho?.resumo ?? "",
-      });
-      const voltouAoPadrao = !dados.cabecalho?.titulo_seo && !dados.cabecalho?.resumo;
-      setAviso({
-        tipo: "ok",
-        texto: voltouAoPadrao
-          ? "Cabeçalho de volta ao texto padrão. /guias já mostra a alteração."
-          : "Cabeçalho salvo. /guias já mostra a alteração.",
-        itens: dados.avisos?.length ? dados.avisos : undefined,
-      });
-    } catch (e) {
-      setAviso({ tipo: "erro", texto: (e as Error).message });
-    } finally {
-      setSalvando(false);
+    const r = await salvarCabecalho(cabecalho);
+    if (r.ok) {
+      setCabecalho(r.cabecalho);
+      setAviso({ tipo: "ok", texto: r.texto, itens: r.avisos });
+    } else {
+      setAviso({ tipo: "erro", texto: r.texto });
     }
+    setSalvando(false);
   }
 
   useEffect(() => {
@@ -288,7 +271,7 @@ export default function EditorDeGuias() {
             className={`${CAMPO} mt-1 normal-case`}
             value={cabecalho.tituloSeo}
             placeholder={padrao.tituloSeo}
-            maxLength={300}
+            maxLength={TETO_DO_CAMPO}
             onChange={(e) => setCabecalho((c) => ({ ...c, tituloSeo: e.target.value }))}
           />
         </label>
@@ -302,7 +285,7 @@ export default function EditorDeGuias() {
             className={`${CAMPO} mt-1 min-h-[88px] normal-case`}
             value={cabecalho.resumo}
             placeholder={padrao.resumo}
-            maxLength={300}
+            maxLength={TETO_DO_CAMPO}
             onChange={(e) => setCabecalho((c) => ({ ...c, resumo: e.target.value }))}
           />
         </label>
@@ -323,7 +306,7 @@ export default function EditorDeGuias() {
         </p>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <button className={BOTAO} onClick={salvarCabecalho} disabled={salvando || carregando}>
+          <button className={BOTAO} onClick={aoSalvarCabecalho} disabled={salvando || carregando}>
             Salvar cabeçalho
           </button>
           <button
