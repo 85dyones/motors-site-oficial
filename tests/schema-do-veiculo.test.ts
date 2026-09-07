@@ -87,6 +87,70 @@ describe("o nome não repete a versão", () => {
     );
     expect(nomeComAno(RENEGADE)).toMatch(/2022$/);
   });
+
+  /**
+   * O ano é o mesmo caso da versão, e passou batido quando a deduplicação
+   * nasceu.
+   *
+   * O RevendaMais embute o ano no `modelo` em parte do cadastro, do mesmo jeito
+   * que embute a versão. Medido no estoque em 2026-09-07: o Nissan March
+   * `8203724` tem `modelo = "March 1.6 Rio 2016"` e `ano = 2016`, e a ficha dele
+   * publica hoje, no `Car.name` do JSON-LD:
+   *
+   *   Nissan March 1.6 Rio 2016 2016
+   *
+   * Não é hipótese sobre um feed novo — está no ar. Um de 36 publicáveis hoje
+   * (2 de 110 linhas da tabela, contando o vendido); nada garante que continue
+   * sendo um.
+   *
+   * A `description` do schema chama a mesma função, mas no terceiro degrau de
+   * `descricao_seo || descricao || fallback` — só 2 linhas chegam lá, e nenhuma
+   * é um March. O caso da descrição abaixo é guarda, não defeito visto.
+   */
+  const MARCH = {
+    marca: "Nissan",
+    modelo: "March 1.6 Rio 2016",
+    versao: "1.6 Rio 2016",
+    ano: 2016,
+  };
+
+  it("não repete o ano que já está no nome", () => {
+    expect(nomeComAno(MARCH)).toBe("Nissan March 1.6 Rio 2016");
+  });
+
+  it("o ano repetido não vaza para o `Car.name` nem para a descrição", () => {
+    const schema = schemaDoVeiculo({ ...RENEGADE, ...MARCH } as Veiculo, {
+      caminho: CAMINHO,
+      indisponivel: false,
+    });
+
+    expect(schema.name).not.toMatch(/2016\s+2016/);
+    expect(String(schema.description)).not.toMatch(/2016\s+2016/);
+  });
+
+  it("continua acrescentando o ano quando ele NÃO está no nome", () => {
+    // A guarda não pode virar "nunca põe o ano": o ano é o que separa dois
+    // carros de mesmo modelo, e some do título de quase todo o pátio se a
+    // condição for escrita ao contrário.
+    expect(nomeComAno({ marca: "Jeep", modelo: "Compass", versao: "Longitude 1.3", ano: 2022 }))
+      .toBe("Jeep Compass Longitude 1.3 2022");
+  });
+
+  it("veículo sem ano não ganha espaço sobrando no fim", () => {
+    // Sem a guarda de `ano` vazio, o retorno vira "Jeep Compass " — e
+    // `"".split(/\s+/)` é `[""]`, que não casa com `""` pelo `includes`. Ramo
+    // inalcançável hoje (o mapper coage `ano` a número), e por isso mesmo o
+    // tipo de coisa que ninguém veria quebrar.
+    expect(nomeComAno({ marca: "Jeep", modelo: "Compass", ano: null })).toBe("Jeep Compass");
+  });
+
+  it("não confunde ano com um número parecido no meio do nome", () => {
+    // "2016" dentro de "T2016" ou de uma cilindrada não é o ano do carro. A
+    // comparação tem de ser por palavra inteira, senão o ano some de um carro
+    // que precisava dele — falha silenciosa e na direção errada.
+    expect(nomeComAno({ marca: "Fiat", modelo: "Ducato", versao: "Maxicargo 2016V", ano: 2016 }))
+      .toBe("Fiat Ducato Maxicargo 2016V 2016");
+  });
 });
 
 describe("o `Car` traz os campos que faltavam", () => {
