@@ -323,6 +323,24 @@ describe("o que a ficha anuncia fora da página", () => {
     expect(t.descricao).toContain("90.660 km");
   });
 
+  it("nome com ano, sem cor e sem km: nenhum espaço duplo", () => {
+    /* O traço pode ficar VAZIO desde que o ano deixou de entrar sempre — basta
+       um carro cujo nome já traz o ano e que esteja sem cor e sem km. A frase
+       saía com dois espaços antes do travessão. Regressão introduzida junto
+       com a supressão do ano, e é o caso que o texto não tinha antes. */
+    const t = montarTextosDaFicha({
+      ...base,
+      nome: "Nissan March 1.6 Rio 2016",
+      ano: 2016,
+      cor: null,
+      km: null,
+      publicacao: { indisponivel: true, rotulo: "VENDIDO" },
+    });
+
+    expect(t.descricao).not.toMatch(/\s{2}/);
+    expect(t.descricao).toContain("Nissan March 1.6 Rio 2016 — vendido");
+  });
+
   it("o ano CONTINUA no texto quando ele não está no nome", () => {
     // A guarda não pode virar "nunca põe o ano": ele é o traço que separa dois
     // carros do mesmo modelo na cauda longa que a carência existe para pegar.

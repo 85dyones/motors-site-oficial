@@ -94,10 +94,16 @@ export function montarTextosDaFicha(entrada: {
     .filter(Boolean)
     .join(", ");
 
+  /* `tracos` pode sair VAZIO desde que o ano deixou de entrar sempre: basta um
+     carro cujo nome já traz o ano e que esteja sem cor e sem km no cadastro.
+     `${nome} ${tracos} —` produzia dois espaços antes do travessão. É a mesma
+     família do "não deixa buraco no texto" logo abaixo, e nasceu aqui. */
+  const descrito = [nome, tracos].filter(Boolean).join(" ");
+
   return {
     titulo: `${nome} — ${rotulo} | Motors Store`,
     descricao:
-      `${nome} ${tracos} — ${rotulo.toLowerCase()}. ` +
+      `${descrito} — ${rotulo.toLowerCase()}. ` +
       "Veja opções semelhantes no estoque da Motors Store, em Bacacheri, Curitiba.",
     tituloDoCard: `${nome} — ${rotulo}`,
   };
