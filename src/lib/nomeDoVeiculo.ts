@@ -16,7 +16,7 @@
  * Não importa nada de propósito — serve servidor e cliente.
  */
 
-interface VeiculoNomeavel {
+export interface VeiculoNomeavel {
   marca: string;
   modelo: string;
   versao?: string | null;
