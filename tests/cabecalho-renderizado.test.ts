@@ -51,7 +51,19 @@ vi.mock("../src/app/ThemeContext", () => ({
   useTheme: () => ({ theme: "motors-modernist", companySettings: EMPRESA }),
 }));
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+/**
+ * O caminho da vez. Mutável de propósito.
+ *
+ * Enquanto era a constante `"/"`, o ramo ATIVO do componente nunca renderizava
+ * — e a única asserção possível era "não existe `aria-current`", que só detecta
+ * marcação a MAIS. A revisão mediu o buraco: apagar o `aria-current` dos dois
+ * `NAV.map`, ou trocar as classes de ativo e inativo entre si, deixava a suíte
+ * inteira verde. O cabeçalho podia perder a marcação de página atual em todo o
+ * site, para quem usa leitor de tela, sem um vermelho.
+ */
+let caminho = "/";
+
+vi.mock("next/navigation", () => ({ usePathname: () => caminho }));
 
 // Mesma razão do rodapé: telemetria só roda no clique, e o cabeçalho não é o
 // lugar de testá-la.
@@ -97,11 +109,16 @@ describe("o menu chega ao HTML servido", () => {
     // botão de WhatsApp ao lado. Decisão do dono.
     //
     // Este teste afirma a CLASSE SERVIDA, que é o que decide o comportamento.
-    // Que a classe vira regra de CSS é outra pergunta, e ela foi respondida
-    // pelo build: `.\32 xl\:block{display:block}` dentro de
-    // `@media (min-width:96rem)`. Precisou de `.next` limpo para aparecer — o
-    // build reusa o CSS em cache, e a primeira leitura dizia que a regra não
-    // existia.
+    // Que a classe vira regra de CSS é outra pergunta, e quem respondeu foi o
+    // `next build` com `.next` APAGADO: `.\32 xl\:block{display:block}` dentro
+    // de `@media (min-width:96rem)`, e o navegador confirmando `display:none`
+    // em 1535 e `display:block` em 1536.
+    //
+    // Sobre o build com cache a regra não aparecia. Eu escrevi que "o build
+    // reusa o CSS"; a revisão mostrou que a explicação não fecha — rodando o
+    // Tailwind avulso sobre o mesmo `globals.css` a regra também não saiu,
+    // mesmo com o scanner tendo lido este arquivo. O comportamento está
+    // provado; o mecanismo, não.
     const html = await cabecalho();
     const link = html.match(/<a[^>]*href="\/contato"[^>]*>/);
 
@@ -110,10 +127,52 @@ describe("o menu chega ao HTML servido", () => {
     expect(link![0]).not.toContain("desktop:block");
   });
 
-  it("o item ativo é marcado, e só ele", async () => {
-    // `aria-current="page"` é o que diz ao leitor de tela onde a pessoa está.
-    // Com `usePathname()` em "/", nenhum item do menu é a página atual.
+  it("fora do menu, nenhum item é a página atual", async () => {
+    // `usePathname()` em "/" — a home não está no NAV. Esta metade só detecta
+    // marcação a MAIS, e sozinha ela é teatro: era o teste inteiro até a
+    // revisão de 07/09 mostrar que apagar o `aria-current` dos dois `NAV.map`
+    // passava verde. A metade que guarda é a de baixo.
+    caminho = "/";
+    expect(await cabecalho()).not.toContain('aria-current="page"');
+  });
+
+  it("dentro do menu, o item ativo é marcado — e só ele", async () => {
+    caminho = "/guias";
     const html = await cabecalho();
-    expect(html).not.toContain('aria-current="page"');
+
+    // UM `aria-current` por render do cabeçalho. O menu mobile não existe no
+    // HTML de servidor (`mobileMenuOpen` nasce falso), então um é o número
+    // certo aqui — se ele virar dois, é porque o mobile passou a renderizar e
+    // este teste precisa ser relido, não silenciado.
+    const marcados = [...html.matchAll(/<a[^>]*aria-current="page"[^>]*href="([^"]*)"|<a[^>]*href="([^"]*)"[^>]*aria-current="page"/g)]
+      .map((m) => m[1] ?? m[2]);
+
+    expect(marcados).toEqual(["/guias"]);
+  });
+
+  it("o item ativo também é marcado visualmente", async () => {
+    // `aria-current` serve o leitor de tela; a borda serve quem enxerga. Sem
+    // esta asserção, trocar as classes de ativo e inativo entre si passava
+    // verde — o menu inteiro apontaria a página errada, para todo mundo.
+    caminho = "/guias";
+    const html = await cabecalho();
+    const ativo = html.match(/<a[^>]*href="\/guias"[^>]*>/);
+    const inativo = html.match(/<a[^>]*href="\/estoque"[^>]*>/);
+
+    expect(ativo, "o link ativo precisa existir").not.toBeNull();
+    expect(inativo, "o link inativo precisa existir").not.toBeNull();
+    expect(ativo![0]).toContain("border-mt-accent");
+    expect(inativo![0]).toContain("border-transparent");
+  });
+
+  it("a ficha de um guia mantém a seção marcada no menu", async () => {
+    // `ativo()` casa por prefixo: quem está lendo um guia continua vendo a
+    // seção acesa. É o comportamento que o componente já tinha — aqui ele passa
+    // a ter testemunha.
+    caminho = "/guias/o-que-a-pericia-cautelar-nao-verifica";
+    const html = await cabecalho();
+    const link = html.match(/<a[^>]*href="\/guias"[^>]*>/);
+
+    expect(link![0]).toContain('aria-current="page"');
   });
 });

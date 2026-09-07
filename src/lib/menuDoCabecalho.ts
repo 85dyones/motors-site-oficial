@@ -27,49 +27,50 @@ export interface ItemDoMenu {
  * e não converteu é exatamente quem o conteúdo atende.
  *
  * ---------------------------------------------------------------------------
- * Cabe na barra? A primeira medição estava errada
+ * Cabe na barra? Estes números são do código que está no ar
  * ---------------------------------------------------------------------------
- * A barra tem 68px e uma linha só, e o `CONTATO` já sai abaixo de 1280px por
- * falta de espaço — então o sexto item pedia prova. A prova que eu escrevi aqui
- * na primeira versão dizia "sobram 218px no pior caso", e a revisão a derrubou:
- * eu somava a largura dos FILHOS da barra e subtraía do total, ignorando os
- * `px-10` (80px) e os `gap` entre eles (20px abaixo do degrau `desktop:`, 36px
- * acima). A folga verdadeira, com o item novo no lugar:
+ * A barra tem 68px e uma linha só, então o sexto item pedia prova. Medido em
+ * janela REAL do Chrome (a barra de rolagem clássica come 15px, e é ela que
+ * cria a diferença entre a largura que a media query vê e a que o layout tem),
+ * varrendo 1266–1300 e 1528–1553 de 1 em 1 px:
  *
- *     viewport   nav antes   nav depois   folga que eu disse   folga REAL
- *     1024px     420,8px     538,5px      218px                 57,8px
- *     1280px     420,8px     538,5px      388px                208,0px
- *     1281px     546,4px     676,0px      —                    NEGATIVA (ver abaixo)
- *     1290px     546,4px     676,0px      260px                  0,4px
- *     1366px     546,4px     676,0px      336px                 76,4px
+ *     viewport   CONTATO    nav       folga na barra
+ *     1024px     oculto     538,5px     59px      ← o ponto mais apertado
+ *     1280px     oculto     538,5px    209px
+ *     1281px     oculto     586,5px     82px      ← degrau `desktop:`, gap 36px
+ *     1366px     oculto     586,5px    167px
+ *     1535px     oculto     586,5px    336px
+ *     1536px     visível    676,0px    247px      ← `2xl:`, o CONTATO volta
+ *     1920px     visível    676,0px    326px
  *
- * As larguras do nav estão certas — foram conferidas contra o render real de
- * seis itens, sem clone. O que estava errado era a coluna que sustentava a
- * decisão.
+ * O telefone fica em UMA linha em toda largura, e a barra em 68px em todas. O
+ * ponto mais apertado é 1024px, e ele é anterior a este item.
  *
  * ---------------------------------------------------------------------------
- * A faixa de 1281–1289px, que ficou por decidir
+ * O histórico desta tabela, porque ele é a lição
  * ---------------------------------------------------------------------------
- * O Chrome avalia `min-width` contra `innerWidth` e faz o layout com
- * `clientWidth` — 15px a menos, por causa da barra de rolagem clássica. Nesses
- * ~9px o degrau `desktop:` já ligou (gap 36px, `CONTATO` visível) e o `xl:` do
- * telefone também, mas a largura prometida não chegou: a barra fica ~8,6px em
- * déficit, e o flex comprime o único filho encolhível com texto — o
- * `<a href="tel:">`, que parte em duas linhas dentro de uma barra de 68px.
+ * Ela esteve errada DUAS vezes, de jeitos diferentes, e as duas foram pegas na
+ * revisão e não por mim:
  *
- * Sem o item novo isso não acontece. Medido em janela real do Chrome, em
- * `/sobre`: innerWidth 1281–1289 quebra o telefone, 1290 não.
+ * 1. **Conta errada.** A primeira versão dizia "sobram 218px no pior caso": eu
+ *    somava a largura dos FILHOS da barra e subtraía do total, ignorando os
+ *    `px-10` (80px) e os `gap` (20px abaixo do degrau `desktop:`, 36px acima).
+ *    A folga real a 1024px era 57,8px, não 218.
  *
- * É cosmético e mora numa faixa estreita, mas o que ele denuncia não é: a folga
- * acima de 1281px caiu para quase zero, então qualquer crescimento futuro —
- * telefone com DDI, logo mais largo, um CTA maior — cai direto na quebra.
+ * 2. **Conta certa, código velho.** A correção media o código de então, em que
+ *    `CONTATO` aparecia a partir de 1281px: com os dois itens a folga caía para
+ *    0,4px em 1290 e ficava NEGATIVA entre 1281 e 1289 — o Chrome liga o
+ *    `desktop:` pelo `innerWidth` e faz layout com 15px a menos, a barra entra
+ *    em déficit e o flex comprime o único filho encolhível com texto: o
+ *    `<a href="tel:">`, que partia em duas linhas.
  *
- * As saídas custam coisas diferentes e a escolha é de produto, não de código:
- * trocar `CONTATO` por `GUIAS MOTORS` na faixa 1281–1535px (o `CONTATO` é o
- * item que o design já elegeu como descartável, porque o destino dele está no
- * rodapé e no botão de WhatsApp ao lado), ou segurar o item novo até `2xl`, ou
- * aceitar a quebra. Enquanto não houver decisão, fica ESCRITO aqui — que é o
- * contrário de estar escondido num número errado.
+ *    Aquilo foi resolvido no commit seguinte — `CONTATO` subiu para `2xl:`,
+ *    decisão do dono em 07/09 — e a tabela ficou descrevendo o código que
+ *    deixou de existir. Um docblock que o `Header.tsx` cita como prova.
+ *
+ * A moral vale mais que os números: medição envelhece em um commit, e prova
+ * citada por outro arquivo envelhece junto. Quem mexer no menu ou no degrau do
+ * `CONTATO` remede e reescreve isto aqui.
  */
 export const MENU_DO_CABECALHO: ItemDoMenu[] = [
   { href: "/estoque", rotulo: "ESTOQUE" },
