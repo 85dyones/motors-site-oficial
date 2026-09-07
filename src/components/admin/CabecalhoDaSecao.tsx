@@ -21,12 +21,10 @@ import {
  * aparece no markup estático (isso a revisão mediu — o que não aparece é
  * `onClick`). A trava que impede apagar o texto do dono passa a ter testemunha.
  *
- * O que continua fora de alcance sem harness de interação: a FIAÇÃO em
- * `EditorDeGuias` — `onClick={aoSalvarCabecalho}` e o
- * `setCabecalhoLido(r.cabecalhoLido)` que alimenta este `cabecalhoLido`.
- * Está declarado em `tests/painel-de-guias-renderizado.test.ts`, e fechá-lo
- * exige `jsdom`, que o `vitest.config.ts` antecipa por escrito e o projeto
- * ainda não adotou.
+ * A FIAÇÃO em `EditorDeGuias` — `onClick={aoSalvar}` e o
+ * `setCabecalhoLido(r.cabecalhoLido)` que alimenta este `cabecalhoLido` — não
+ * é assunto daqui, e tem arquivo próprio desde 07/09:
+ * `tests/painel-de-guias-fiacao.test.ts`, em `jsdom`.
  */
 
 const CAMPO =

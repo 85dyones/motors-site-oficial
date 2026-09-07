@@ -3,16 +3,14 @@
  *
  * A revisão de 07/09 mostrou que o bloco inteiro do painel podia sair da
  * árvore com a suíte verde, e que trocar `onClick={aoSalvarCabecalho}` por um
- * `() => {}` também passava. A primeira metade se resolve renderizando a tela
- * em teste; a segunda, não — `renderToStaticMarkup` produz texto, e `onClick`
- * não aparece em texto. Provar aquilo exigiria um harness de interação que o
- * projeto não tem.
+ * `() => {}` também passava.
  *
- * Então o que dá para tirar do escuro sai daqui: a chamada, o tratamento de
- * erro e a escolha da mensagem viram função pura de entrada e saída, com teste
- * próprio. O que sobra descoberto no componente é um identificador, e não um
- * comportamento — e essa é a diferença entre uma lacuna que se declara e uma
- * que se descobre em produção.
+ * A lógica saiu para cá — a chamada, o tratamento de erro e a escolha da
+ * mensagem viram função pura de entrada e saída, com teste próprio. Isso
+ * resolve metade: prova a função, não prova que alguém a usa. A revisão cobrou
+ * essa distinção quatro vezes, e ela é o assunto de
+ * `tests/painel-de-guias-fiacao.test.ts`, que monta a tela em `jsdom` e clica
+ * de verdade. As duas metades têm mutante.
  */
 
 export interface CabecalhoNaTela {

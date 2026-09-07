@@ -24,23 +24,26 @@ import { salvarCabecalho } from "../src/lib/salvarCabecalho";
  * ---------------------------------------------------------------------------
  * O que este arquivo NÃO alcança, dito antes que perguntem
  * ---------------------------------------------------------------------------
- * `renderToStaticMarkup` produz TEXTO. `onClick` não aparece no texto, então
- * trocar `onClick={aoSalvarCabecalho}` por `onClick={() => {}}` — botão morto —
- * passa aqui. Provar isso exigiria um harness de interação (jsdom ou
- * `@testing-library`) que o projeto não tem, e adotá-lo é decisão maior que
- * este PR.
+ * `renderToStaticMarkup` produz TEXTO: `onClick` não aparece, e o estado
+ * inicial da tela (`carregando = true`) desabilita os botões de qualquer jeito.
+ * Este arquivo cobre o que ESTÁ no HTML servido — o bloco, os campos, as
+ * frases de contrato — e a lógica do salvamento, que mora em
+ * `lib/salvarCabecalho.ts`.
  *
- * O que dá para fazer sem ele está feito: a LÓGICA do salvamento mora em
- * `lib/salvarCabecalho.ts` e tem teste próprio, então o que fica descoberto é
- * um identificador, e não um comportamento.
+ * A FIAÇÃO — o `onClick`, o `setCabecalhoLido`, a carga preenchendo os campos —
+ * é assunto de `tests/painel-de-guias-fiacao.test.ts`, que monta a tela em
+ * `jsdom` e clica de verdade. Ela ficou descoberta por quatro rodadas de
+ * revisão, e era onde morava o clique que apagava o texto do dono.
  *
  * Também não aparece aqui o `placeholder` com o texto padrão: ele vem do
  * `fetch` do `useEffect`, que não roda no servidor.
  *
- * O que DEIXOU de ser lacuna: a trava que impede gravar por cima do que está no
- * ar quando a leitura falha. Ela não mora mais numa expressão do `disabled` —
- * apagá-la de lá deixava a suíte verde —, e sim em `podeSalvarCabecalho` e
- * `podeVoltarAoPadrao`, com teste em `carga-do-painel-de-guias.test.ts`.
+ * A trava que impede gravar por cima do que está no ar tem, hoje, testemunha
+ * nas três camadas: a decisão em `podeSalvarCabecalho`
+ * (`carga-do-painel-de-guias.test.ts`), o `disabled` servido
+ * (`cabecalho-da-secao-na-tela.test.ts`) e a fiação que liga uma coisa à outra
+ * (`painel-de-guias-fiacao.test.ts`). Cada camada ficou verde sozinha em
+ * alguma rodada — foi preciso as três.
  */
 
 async function tela(): Promise<string> {
