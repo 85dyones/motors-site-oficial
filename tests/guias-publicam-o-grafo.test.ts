@@ -106,6 +106,11 @@ async function guiaRenderizado(slug = GUIA.slug): Promise<string> {
   return renderToStaticMarkup(await GuiaPage({ params: Promise.resolve({ slug }) }));
 }
 
+async function indice(): Promise<string> {
+  const { default: GuiasPage } = await import("../src/app/guias/page");
+  return renderToStaticMarkup(await GuiasPage());
+}
+
 describe("o guia publica o grafo inteiro", () => {
   it("emite Article, BreadcrumbList, FAQPage, AutoDealer e WebSite", async () => {
     const tipos = nos(await guiaRenderizado()).map((n) => n["@type"]);
@@ -201,11 +206,6 @@ describe("slug que não existe", () => {
 });
 
 describe("o índice do cluster", () => {
-  async function indice(): Promise<string> {
-    const { default: GuiasPage } = await import("../src/app/guias/page");
-    return renderToStaticMarkup(await GuiasPage());
-  }
-
   it("lista os guias publicados", async () => {
     const hrefs = [...(await indice()).matchAll(/<a[^>]*href="([^"]+)"/g)].map((m) => m[1]);
 
@@ -234,4 +234,74 @@ describe("o índice do cluster", () => {
       expect(hrefs).toContain(destino);
     }
   });
+});
+
+/**
+ * A trilha VISÍVEL e a MARCADA dizem o mesmo nome.
+ *
+ * Em 07/09 a seção deixou de se chamar "Guias de procedência" e passou a ser
+ * "Guias Motors" — o rótulo antigo anunciava um assunto só, e a seção virou o
+ * conteúdo editorial da loja inteira. A troca espalhou o mesmo nome por dois
+ * arquivos que ninguém é obrigado a abrir junto: o degrau desenhado vive no JSX
+ * de cada rota, e o degrau marcado vive em `lib/schemaGuia.ts`.
+ *
+ * É divergência de graça, e ela é CARA: o Google compara o `BreadcrumbList`
+ * com o que está na tela, e trilha marcada que não bate com a visível é motivo
+ * de perder o rich result — pior do que não ter marcação nenhuma.
+ *
+ * Por isso o teste não afirma a string "Guias Motors". Ele afirma que as duas
+ * pontas CONCORDAM: renomear a seção de novo passa verde desde que os dois
+ * lados mudem juntos, e só fica vermelho quando um lado esquece o outro — que
+ * é exatamente o defeito que existe para pegar.
+ */
+describe("a trilha visível concorda com a marcada", () => {
+  /**
+   * A trilha marcada, em ordem, como texto: `Home / Guias Motors / ...`.
+   *
+   * `position` manda na ordem, e não a ordem do array: o schema.org permite os
+   * dois, e ordenar aqui impede que uma reordenação no código passe despercebida
+   * por o array e o `position` discordarem.
+   */
+  function trilhaMarcada(html: string): string {
+    const trilha = nos(html).find((n) => n["@type"] === "BreadcrumbList") as
+      | { itemListElement: { name: string; item: string; position: number }[] }
+      | undefined;
+    expect(trilha, "a página precisa publicar um BreadcrumbList").toBeDefined();
+
+    const degraus = [...trilha!.itemListElement].sort((a, b) => a.position - b.position);
+    expect(degraus.some((d) => d.item.endsWith("/guias"))).toBe(true);
+
+    // Sem esta guarda o teste vira teatro por vazio: uma trilha de nomes em
+    // branco viraria " / " dos dois lados e casaria com ela mesma.
+    for (const d of degraus) expect(d.name.trim().length).toBeGreaterThan(0);
+
+    return degraus.map((d) => d.name).join(" / ");
+  }
+
+  function trilhaVisivel(html: string): string {
+    const nav = html.match(/<nav[^>]*aria-label="Trilha"[\s\S]*?<\/nav>/);
+    expect(nav, "a página precisa renderizar a trilha").not.toBeNull();
+    return limpar(nav![0]).replace(/\s+/g, " ").trim();
+  }
+
+  /**
+   * Igualdade da trilha INTEIRA, e não `toContain` de um degrau.
+   *
+   * A primeira versão deste teste usava `toContain`, e a mutação provou que
+   * era teatro: trocando o degrau marcado para "Guias", a asserção continuava
+   * verde — porque "GUIAS" é substring de "GUIAS MOTORS". Afirmar menos que a
+   * condição inteira deixa passar exatamente o encurtamento que o teste existe
+   * para pegar.
+   *
+   * Maiúscula não conta: no índice o degrau é `Guias Motors` sob um `uppercase`
+   * do CSS, e na ficha está escrito `GUIAS MOTORS` no JSX. O texto que o leitor
+   * de tela e o rastreador recebem é o mesmo nos dois casos.
+   */
+  function concordam(html: string) {
+    expect(trilhaVisivel(html).toUpperCase()).toBe(trilhaMarcada(html).toUpperCase());
+  }
+
+  it("no índice", async () => concordam(await indice()));
+
+  it("na ficha do guia", async () => concordam(await guiaRenderizado()));
 });

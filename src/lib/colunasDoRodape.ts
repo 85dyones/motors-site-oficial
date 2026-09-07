@@ -51,7 +51,12 @@ export function colunasDoRodape(companySettings: CompanySettings): ColunaDoRodap
         // terceiro: sem uma entrada em todas as páginas, o cluster nasceria
         // acessível só pelo sitemap. É o mesmo defeito que a F1 corrigiu na
         // `/avaliacao`.
-        { rotulo: "Guias de procedência", href: "/guias" },
+        //
+        // "Guias Motors", e não "Guias de procedência": o rótulo antigo
+        // anunciava UM assunto num link que aparece em todas as páginas do
+        // site, e a seção passou a ser o conteúdo editorial da loja inteira
+        // (07/09). Nome de seção não fecha pauta; nome de assunto fecha.
+        { rotulo: "Guias Motors", href: "/guias" },
         // `/contato` entrou em 2026-09-05, e a razão é MENOR do que a primeira
         // versão deste comentário dizia. Ele afirmava "recebia um único link em
         // todo o site, de /sobre" — falso: `Header.tsx` já a lista no NAV de

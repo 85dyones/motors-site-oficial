@@ -130,13 +130,17 @@ export const PAGINAS_COMPARTILHAVEIS = [
     // Um id serve o índice e cada guia. Os guias sobrepõem `tituloPadrao` e
     // `descricaoPadrao` com os seus — o texto de fábrica abaixo aparece no
     // índice, e vira a rede se algum guia esquecer de sobrepor.
+    //
+    // Por ser a REDE, o texto de fábrica é o da seção, não o de um assunto: um
+    // guia sobre financiamento que esquecesse de sobrepor herdaria um card
+    // falando de perícia, que foi o risco até 07/09.
     id: "guias",
-    nome: "Guias",
+    nome: "Guias Motors",
     caminho: "/guias",
     rotuloCard: "Guia",
-    tituloPadrao: "Guias de procedência de seminovos",
+    tituloPadrao: "Guias Motors",
     descricaoPadrao:
-      "O que a perícia cautelar encontra, o que ela não encontra, e o que isso muda na hora de comprar um seminovo.",
+      "Procedência, mercado e financiamento na hora de comprar ou vender um seminovo, do lado de quem pericia e recusa.",
   },
 ] as const;
 

@@ -74,7 +74,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /**
- * Um guia do cluster de procedência.
+ * Um guia dos Guias Motors.
  *
  * A rota é fina de propósito: o conteúdo vem da tabela `guias` por
  * `lib/guiasDoBanco.ts`, o grafo sai de `lib/schemaGuia.ts`, e o que sobra aqui
@@ -147,7 +147,7 @@ export default async function GuiaPage({ params }: PageProps) {
             href="/guias"
             className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink"
           >
-            GUIAS
+            GUIAS MOTORS
           </Link>
           {" / "}
           <span className="uppercase text-mt-ink">{guia.titulo}</span>
