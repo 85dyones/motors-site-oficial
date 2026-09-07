@@ -19,8 +19,8 @@ import { MENU_DO_CABECALHO } from "../lib/menuDoCabecalho";
  *
  * A barra completa só liga em `lg:` (1024px): logo, CINCO links em
  * `whitespace-nowrap` (`CONTATO` é o sexto e só entra em `2xl:`), painel e CTA
- * de WhatsApp somam ~950px — eram quatro links até 07/09, e `GUIAS MOTORS`
- * ocupou a folga que o `CONTATO` deixou. Como o
+ * de WhatsApp ocupam ~870px com os espaçamentos — eram quatro links e ~950px
+ * até 07/09, quando `GUIAS MOTORS` entrou e o `CONTATO` cedeu a faixa. Como o
  * globals.css corta `overflow-x` no <html>, o excedente era amputado sem
  * rolagem — em tablet retrato e celular deitado o WhatsApp e o painel caíam
  * fora da tela. Abaixo de `lg:` vale o cabeçalho compacto de hambúrguer.
@@ -95,8 +95,10 @@ export default function Header() {
         </Link>
 
         {/* A barra tem 68px e uma linha só de rótulo. Sem `whitespace-nowrap`
-            os três rótulos de duas palavras quebram em duas linhas na faixa
-            1024–1280px — o tablet de balcão da loja.
+            os rótulos de mais de uma palavra quebram em duas linhas na faixa
+            1024–1280px — o tablet de balcão da loja. Eram três até 07/09
+            (`CARRO PERFEITO`, `AVALIE SEU CARRO`, `A MOTORS`); com
+            `GUIAS MOTORS` são quatro.
 
             `CONTATO` sobe de `desktop:` (1281px) para `2xl:` (1536px) em 07/09,
             quando `GUIAS MOTORS` entrou no menu. A razão é a mesma que já o
@@ -105,8 +107,8 @@ export default function Header() {
             doc — e agora ele disputava espaço com um item que não tem esse
             substituto no cabeçalho.
 
-            Não é preferência: com os dois, a folga da barra caía para 0,4px em
-            1290px e ficava NEGATIVA entre 1281 e 1289, onde o Chrome liga o
+            Não é preferência: com os dois, a folga da barra caía para ≈1px em
+            1290px e ficava NEGATIVA abaixo disso, onde o Chrome liga o
             `desktop:` pelo `innerWidth` e faz layout com 15px a menos — o
             telefone partia em duas linhas. A conta e a medição estão no
             docblock de `lib/menuDoCabecalho.ts`. Decisão do dono em 07/09. */}

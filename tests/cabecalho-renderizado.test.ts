@@ -159,6 +159,12 @@ describe("o menu chega ao HTML servido", () => {
     // classe sai escapada como `.\32 xl\:block`, e procurar por `2xl` — ou por
     // `xl:block` sem contar a contrabarra — não acha nada num arquivo que a
     // contém.
+    //
+    // Uma armadilha que veio junto: a asserção abaixo contém o literal
+    // "2xl:block", e o scanner do Tailwind lê arquivos de teste. Ou seja, ESTE
+    // arquivo sozinho faz a regra ser emitida — então o CSS jamais poderia
+    // acusar o `Header.tsx` perdendo a classe. Quem guarda isso é a asserção
+    // sobre o HTML SERVIDO, logo abaixo. O CSS responde outra pergunta.
     const html = await cabecalho();
     const link = html.match(/<a[^>]*href="\/contato"[^>]*>/);
 
