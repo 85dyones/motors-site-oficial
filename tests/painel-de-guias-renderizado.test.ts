@@ -25,7 +25,7 @@ import { salvarCabecalho } from "../src/lib/salvarCabecalho";
  * O que este arquivo NÃO alcança, dito antes que perguntem
  * ---------------------------------------------------------------------------
  * `renderToStaticMarkup` produz TEXTO. `onClick` não aparece no texto, então
- * trocar `onClick={salvarCabecalho}` por `onClick={() => {}}` — botão morto —
+ * trocar `onClick={aoSalvarCabecalho}` por `onClick={() => {}}` — botão morto —
  * passa aqui. Provar isso exigiria um harness de interação (jsdom ou
  * `@testing-library`) que o projeto não tem, e adotá-lo é decisão maior que
  * este PR.
@@ -36,6 +36,11 @@ import { salvarCabecalho } from "../src/lib/salvarCabecalho";
  *
  * Também não aparece aqui o `placeholder` com o texto padrão: ele vem do
  * `fetch` do `useEffect`, que não roda no servidor.
+ *
+ * O que DEIXOU de ser lacuna: a trava que impede gravar por cima do que está no
+ * ar quando a leitura falha. Ela não mora mais numa expressão do `disabled` —
+ * apagá-la de lá deixava a suíte verde —, e sim em `podeSalvarCabecalho` e
+ * `podeVoltarAoPadrao`, com teste em `carga-do-painel-de-guias.test.ts`.
  */
 
 async function tela(): Promise<string> {

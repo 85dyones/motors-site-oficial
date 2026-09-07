@@ -7,6 +7,8 @@ import {
   REGUA_DESCRIPTION,
   SEM_CABECALHO,
   TETO_DO_CAMPO,
+  podeSalvarCabecalho,
+  podeVoltarAoPadrao,
   salvarCabecalho,
   type CabecalhoNaTela,
 } from "../../lib/salvarCabecalho";
@@ -80,12 +82,21 @@ export default function EditorDeGuias() {
   /**
    * O cabeçalho foi LIDO com sucesso? Falso trava o salvamento.
    *
-   * Não é zelo: sem isto havia um caminho vivo de PERDA. `carregar()` estoura
-   * antes de `setCabecalho` quando o GET falha; os campos ficam vazios, o
-   * `finally` libera a tela, e o botão Salvar continua habilitado. Como o PUT
-   * substitui a linha inteira, um clique depois de uma falha de leitura apaga o
-   * cabeçalho que está no ar — e a tela não tem como distinguir "está vazio" de
-   * "não consegui ler". A revisão de 07/09 achou; nada acusava.
+   * Não é zelo: sem isto havia um caminho vivo de PERDA, e ele levou DUAS
+   * rodadas de revisão para fechar.
+   *
+   * Na primeira, `carregar()` estourava antes de preencher o cabeçalho quando o
+   * GET falhava — campos vazios, tela liberada, Salvar habilitado. Na segunda,
+   * com a trava já no lugar, a revisão reproduziu o mesmo desfecho por outra
+   * porta: a resposta tem DUAS metades com clientes diferentes (os guias pela
+   * sessão, o cabeçalho pelo `anon`), e um timeout só na segunda devolvia 200
+   * com os campos nulos — indistinguível de "sem override". A tela concluía que
+   * tinha lido.
+   *
+   * Como o PUT substitui a linha inteira, um clique nesse estado apaga o texto
+   * que está no ar, e vai ao ar no mesmo request por causa do
+   * `revalidarCluster`. Hoje o valor vem do servidor (`cabecalhoLido`), e a
+   * decisão de habilitar mora em `podeSalvarCabecalho`, que tem teste.
    */
   const [cabecalhoLido, setCabecalhoLido] = useState(false);
 
@@ -99,7 +110,10 @@ export default function EditorDeGuias() {
       setRegua(r.regua);
       setCabecalho(r.cabecalho);
       setPadrao(r.padrao);
-      setCabecalhoLido(true);
+      // E NÃO `true`: a resposta pode trazer a listagem e falhar só na metade
+      // do cabeçalho — clientes diferentes, uma cai sozinha. Assumir que leu
+      // era o caminho que apagava o texto do dono.
+      setCabecalhoLido(r.cabecalhoLido);
       if (r.aviso) setAviso({ tipo: "erro", texto: r.aviso });
     } else {
       // Travar em vez de gravar por cima: uma recarga que falha depois de uma
@@ -320,19 +334,14 @@ export default function EditorDeGuias() {
             onClick={aoSalvarCabecalho}
             // `cabecalhoLido` é a trava contra apagar o que está no ar depois
             // de uma falha de leitura — o PUT substitui a linha inteira.
-            disabled={salvando || carregando || !cabecalhoLido}
+            disabled={!podeSalvarCabecalho({ salvando, carregando, cabecalhoLido })}
           >
             Salvar cabeçalho
           </button>
           <button
             className={BOTAO}
             onClick={() => setCabecalho(SEM_CABECALHO)}
-            disabled={
-              salvando ||
-              carregando ||
-              !cabecalhoLido ||
-              (!cabecalho.tituloSeo && !cabecalho.resumo)
-            }
+            disabled={!podeVoltarAoPadrao({ salvando, carregando, cabecalhoLido, cabecalho })}
           >
             Voltar ao padrão
           </button>

@@ -14,7 +14,9 @@ import { SEM_CABECALHO, type CabecalhoNaTela } from "./salvarCabecalho";
  *
  * O conserto tem duas peças: o componente trava o salvamento enquanto a leitura
  * não deu certo, e a leitura em si vira função pura, testável, que diz
- * EXPLICITAMENTE se deu certo em vez de comunicar isso por exceção.
+ * EXPLICITAMENTE se deu certo em vez de comunicar isso por exceção — e isso
+ * vale para as DUAS metades: o HTTP e a leitura do cabeçalho, que a revisão
+ * mostrou serem falhas independentes, com clientes diferentes.
  */
 
 export interface GuiaDoPainel {
@@ -38,6 +40,16 @@ export type ResultadoDaCarga =
       regua: string[];
       cabecalho: CabecalhoNaTela;
       padrao: CabecalhoNaTela;
+      /**
+       * O CABEÇALHO foi lido, ou só a listagem?
+       *
+       * A resposta tem duas metades com clientes diferentes, e uma pode cair
+       * sozinha. `ok: true` com `cabecalhoLido: false` é exatamente esse caso:
+       * a tela funciona, a lista aparece, e o salvamento do cabeçalho fica
+       * travado — porque os campos em branco ali não significam "não há
+       * texto", significam "não sei o que tem".
+       */
+      cabecalhoLido: boolean;
       /** A rota devolve 200 com aviso quando a tabela ainda não existe. */
       aviso?: string;
     }
@@ -69,6 +81,11 @@ export async function carregarPainel(): Promise<ResultadoDaCarga> {
       // Sem `padrao` a tela mostra campo em branco sem sugestão, e quem edita
       // não tem como saber qual é o texto que o site publica hoje.
       padrao: dados.padrao ? comoCabecalho(dados.padrao) : SEM_CABECALHO,
+      // `=== true` e não coerção: uma resposta ANTIGA, de um servidor sem este
+      // campo, chega como `undefined` — e `undefined` tem de significar "não
+      // sei se li", que trava o salvamento. Coagir para `true` no otimismo é
+      // exatamente o erro que este campo existe para desfazer.
+      cabecalhoLido: dados.cabecalhoLido === true,
       aviso: typeof dados.error === "string" ? dados.error : undefined,
     };
   } catch (e) {

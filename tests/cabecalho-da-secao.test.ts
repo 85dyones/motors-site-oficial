@@ -149,6 +149,52 @@ describe("limpar o campo volta ao automático", () => {
   });
 });
 
+describe("a leitura separa 'não há override' de 'não consegui ler'", () => {
+  /**
+   * A raiz do defeito que levou duas rodadas para fechar.
+   *
+   * A mesma função serve a página pública e o painel, e os dois querem coisas
+   * opostas: a página precisa CAIR NO PADRÃO em qualquer tropeço, e o painel
+   * precisa SABER que tropeçou — porque lá o campo em branco vira um clique que
+   * grava `""` e apaga o texto do dono.
+   *
+   * Enquanto os dois desfechos colapsavam num valor só, o painel não tinha como
+   * distinguir. E a mutação que os colapsa de novo passava verde na suíte
+   * inteira, porque o teste da carga mocka esta função — ela era a única ponta
+   * sem trava própria.
+   */
+  it("erro de verdade devolve `lido: false`, com o motivo", async () => {
+    erro = { code: "57014", message: "canceling statement due to statement timeout" };
+    const { lerCabecalhoGravado } = await import("../src/lib/secaoDeGuias");
+
+    const r = await lerCabecalhoGravado();
+    expect(r.lido).toBe(false);
+    expect(!r.lido && r.motivo).toContain("timeout");
+  });
+
+  it("tabela ausente devolve `lido: true` — é o ambiente antes da migração", async () => {
+    // Aqui "não há override" é a VERDADE, não uma falha: a tabela nasce vazia e
+    // o site roda no texto do código. Travar o painel neste caso seria impedir
+    // a primeira escrita justamente no dia em que ela é possível.
+    erro = { code: "PGRST205", message: "Could not find the table" };
+    const { lerCabecalhoGravado } = await import("../src/lib/secaoDeGuias");
+
+    const r = await lerCabecalhoGravado();
+    expect(r.lido).toBe(true);
+    expect(r.lido && r.cabecalho).toEqual({ tituloSeo: null, resumo: null });
+  });
+
+  it("leitura boa devolve `lido: true` com o que está gravado", async () => {
+    linha = { titulo_seo: "Gravado", resumo: "  " };
+    const { lerCabecalhoGravado } = await import("../src/lib/secaoDeGuias");
+
+    const r = await lerCabecalhoGravado();
+    // Espaços em branco continuam colapsando em nulo: é o mesmo estado
+    // "automático" que o gatilho do banco impõe na gravação.
+    expect(r.lido && r.cabecalho).toEqual({ tituloSeo: "Gravado", resumo: null });
+  });
+});
+
 describe("falha de leitura não derruba a página", () => {
   it("cai no texto do código, e o índice continua servindo os guias", async () => {
     // Aqui o banco é OVERRIDE, e é o oposto de `guiasDoBanco`: lá falha de

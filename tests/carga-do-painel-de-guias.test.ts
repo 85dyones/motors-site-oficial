@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { carregarPainel } from "../src/lib/carregarPainelDeGuias";
+import { podeSalvarCabecalho, podeVoltarAoPadrao } from "../src/lib/salvarCabecalho";
 
 /**
  * A LEITURA da tela de guias — a metade que apagava texto.
@@ -28,12 +29,22 @@ vi.mock("../src/lib/supabase-server", () => ({
   createServerSupabaseClient: async () => CLIENTE,
 }));
 
-/** O que `lerCabecalhoGravado` devolve nesta rodada. */
-let gravado = { tituloSeo: null as string | null, resumo: null as string | null };
+/**
+ * O que `lerCabecalhoGravado` devolve nesta rodada.
+ *
+ * A forma tem os dois desfechos separados de propósito: `lido: false` é "não
+ * consegui ler", e é DIFERENTE de `lido: true` com os campos nulos, que é "não
+ * há override". Enquanto os dois colapsavam num valor só, existia um caminho
+ * em que a tela concluía ter lido e o Salvar apagava o texto do dono.
+ */
+let leitura: { lido: true; cabecalho: { tituloSeo: string | null; resumo: string | null } } | { lido: false; motivo: string } = {
+  lido: true,
+  cabecalho: { tituloSeo: null, resumo: null },
+};
 
 vi.mock("../src/lib/secaoDeGuias", async (original) => {
   const real = (await original()) as Record<string, unknown>;
-  return { ...real, lerCabecalhoGravado: async () => gravado };
+  return { ...real, lerCabecalhoGravado: async () => leitura };
 });
 
 describe("carregarPainel lê o cabeçalho junto da lista", () => {
@@ -95,18 +106,45 @@ describe("carregarPainel lê o cabeçalho junto da lista", () => {
   it("200 com aviso de tabela ausente carrega e avisa", async () => {
     // A rota devolve 200 com `error` quando a migração ainda não rodou. É carga
     // BOA — a tela precisa funcionar — mas com recado.
-    respondendo({ guias: [], regua: [], error: "A tabela de guias ainda não existe" });
+    respondendo({
+      guias: [],
+      regua: [],
+      cabecalhoLido: true,
+      error: "A tabela de guias ainda não existe",
+    });
     const r = await carregarPainel();
 
     expect(r.ok).toBe(true);
     expect(r.ok && r.aviso).toContain("ainda não existe");
+    // Tabela ausente é o estado do ambiente antes da migração, e ali "não há
+    // override" é a VERDADE — então a leitura deu certo e o painel não trava.
+    expect(r.ok && r.cabecalhoLido).toBe(true);
+  });
+
+  it("propaga que o cabeçalho NÃO foi lido, com a listagem intacta", async () => {
+    respondendo({ guias: [{ slug: "x" }], regua: ["r"], cabecalho: null, cabecalhoLido: false });
+    const r = await carregarPainel();
+
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.cabecalhoLido).toBe(false);
+    expect(r.ok && r.guias).toHaveLength(1);
+  });
+
+  it("resposta SEM o campo trava o salvamento, em vez de assumir que leu", async () => {
+    // Servidor antigo, deploy pela metade, proxy que corta o corpo: `undefined`
+    // tem de significar "não sei se li". Coagir para `true` no otimismo é
+    // exatamente o erro que este campo existe para desfazer.
+    respondendo({ guias: [], regua: [] });
+    const r = await carregarPainel();
+
+    expect(r.ok && r.cabecalhoLido).toBe(false);
   });
 });
 
 describe("o GET de /api/guias entrega o cabeçalho", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    gravado = { tituloSeo: null, resumo: null };
+    leitura = { lido: true, cabecalho: { tituloSeo: null, resumo: null } };
     CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "staff-1" } } });
     CLIENTE.from.mockImplementation((tabela: string) => {
       if (tabela === "profiles") {
@@ -126,13 +164,86 @@ describe("o GET de /api/guias entrega o cabeçalho", () => {
   }
 
   it("devolve o gravado e o padrão do código", async () => {
-    gravado = { tituloSeo: "Gravado", resumo: null };
+    leitura = { lido: true, cabecalho: { tituloSeo: "Gravado", resumo: null } };
     const corpo = await get();
 
     expect(corpo.cabecalho).toEqual({ tituloSeo: "Gravado", resumo: null });
+    expect(corpo.cabecalhoLido).toBe(true);
     // O padrão viaja junto porque a tela não tem outra forma de saber qual é o
     // texto que o site publica quando o campo está vazio.
     expect(corpo.padrao?.tituloSeo).toBeTruthy();
     expect(corpo.padrao?.resumo).toBeTruthy();
+  });
+
+  it("leitura do cabeçalho falhando NÃO vira 'sem override'", async () => {
+    // O caminho que a revisão reproduziu, e o mais caro do branch. A resposta
+    // tem duas metades com clientes DIFERENTES — os guias pela sessão, o
+    // cabeçalho pelo `anon`. Um timeout só na segunda devolvia 200 com os
+    // campos nulos, indistinguível de "não há override": a tela concluía que
+    // tinha lido, liberava o Salvar, e o clique gravava "" nos dois campos,
+    // apagando o texto do dono e indo ao ar no mesmo request.
+    leitura = { lido: false, motivo: "canceling statement due to statement timeout" };
+    const corpo = await get();
+
+    expect(corpo.cabecalhoLido).toBe(false);
+    expect(corpo.cabecalho).toBeNull();
+    // A listagem continua servida: uma metade caiu, não a tela inteira.
+    expect(corpo.guias).toEqual([]);
+    expect(corpo.regua.length).toBeGreaterThan(0);
+  });
+});
+
+describe("a decisão de habilitar o salvamento", () => {
+  // Mora numa função pura porque `disabled` não aparece em markup estático:
+  // a revisão apagou as DUAS guardas de `cabecalhoLido` do JSX e a suíte
+  // inteira ficou verde — e essas guardas são a correção do defeito que
+  // apagava texto.
+  it("não salva enquanto o cabeçalho não foi lido", () => {
+    expect(
+      podeSalvarCabecalho({ salvando: false, carregando: false, cabecalhoLido: false }),
+    ).toBe(false);
+  });
+
+  it.each([
+    ["carregando", { salvando: false, carregando: true, cabecalhoLido: true }],
+    ["salvando", { salvando: true, carregando: false, cabecalhoLido: true }],
+  ])("não salva enquanto está %s", (_caso, estado) => {
+    expect(podeSalvarCabecalho(estado)).toBe(false);
+  });
+
+  it("salva quando leu e está parada", () => {
+    expect(podeSalvarCabecalho({ salvando: false, carregando: false, cabecalhoLido: true })).toBe(
+      true,
+    );
+  });
+
+  it("voltar ao padrão herda a mesma trava, e só age se houver o que limpar", () => {
+    const base = { salvando: false, carregando: false };
+
+    // Sem leitura, nem limpar: "Voltar ao padrão" grava pela mesma rota, e
+    // gravar sem saber o que está no ar é o defeito.
+    expect(
+      podeVoltarAoPadrao({
+        ...base,
+        cabecalhoLido: false,
+        cabecalho: { tituloSeo: "tem texto", resumo: "" },
+      }),
+    ).toBe(false);
+
+    expect(
+      podeVoltarAoPadrao({
+        ...base,
+        cabecalhoLido: true,
+        cabecalho: { tituloSeo: "", resumo: "" },
+      }),
+    ).toBe(false);
+
+    expect(
+      podeVoltarAoPadrao({
+        ...base,
+        cabecalhoLido: true,
+        cabecalho: { tituloSeo: "", resumo: "tem texto" },
+      }),
+    ).toBe(true);
   });
 });

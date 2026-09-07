@@ -50,12 +50,20 @@ export async function GET() {
   if (auth.erro) return auth.erro;
 
   // O cabeçalho da seção vem JUNTO, e não numa segunda chamada: é a mesma tela
-  // e o mesmo carregamento. Ele é override — a leitura nunca estoura, então não
-  // entra no `Promise.all` correndo risco de derrubar a listagem.
-  const [{ data, error }, cabecalho] = await Promise.all([
+  // e o mesmo carregamento. A leitura dele nunca estoura, então não derruba a
+  // listagem — mas ela pode FALHAR, e a resposta precisa dizer isso.
+  const [{ data, error }, leitura] = await Promise.all([
     auth.supabase!.from("guias").select("*").order("atualizado_em", { ascending: false }),
     lerCabecalhoGravado(),
   ]);
+
+  // `cabecalhoLido` é o campo que impede a tela de gravar por cima do que está
+  // no ar. Sem ele, um timeout SÓ na metade do cabeçalho devolvia 200 com os
+  // campos nulos — indistinguível de "sem override" —, a tela liberava o Salvar
+  // e o clique apagava o texto do dono. As duas metades usam clientes
+  // diferentes, então uma pode cair sozinha.
+  const cabecalho = leitura.lido ? leitura.cabecalho : null;
+  const cabecalhoLido = leitura.lido;
 
   if (error) {
     if (ehTabelaOuColunaAusente(error)) {
@@ -65,6 +73,7 @@ export async function GET() {
           guias: [],
           regua: REGUA_DO_GUIA,
           cabecalho,
+          cabecalhoLido,
           padrao: CABECALHO_PADRAO,
         },
         { status: 200 },
@@ -80,6 +89,7 @@ export async function GET() {
     guias: data ?? [],
     regua: REGUA_DO_GUIA,
     cabecalho,
+    cabecalhoLido,
     padrao: CABECALHO_PADRAO,
   });
 }

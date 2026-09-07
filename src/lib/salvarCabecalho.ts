@@ -2,7 +2,7 @@
  * O salvamento do cabeçalho da seção, fora do componente.
  *
  * A revisão de 07/09 mostrou que o bloco inteiro do painel podia sair da
- * árvore com a suíte verde, e que trocar `onClick={salvarCabecalho}` por um
+ * árvore com a suíte verde, e que trocar `onClick={aoSalvarCabecalho}` por um
  * `() => {}` também passava. A primeira metade se resolve renderizando a tela
  * em teste; a segunda, não — `renderToStaticMarkup` produz texto, e `onClick`
  * não aparece em texto. Provar aquilo exigiria um harness de interação que o
@@ -32,6 +32,43 @@ export const REGUA_DESCRIPTION = 155;
 
 /** O teto do banco. A tela corta antes para o Postgres não recusar na cara de quem digita. */
 export const TETO_DO_CAMPO = 300;
+
+/**
+ * A tela pode gravar o cabeçalho agora?
+ *
+ * Função, e não expressão solta no `disabled`, porque a revisão mediu: apagar
+ * as duas guardas de `cabecalhoLido` do JSX deixava a suíte inteira verde, e
+ * essas guardas SÃO a correção do defeito que apagava o texto do dono. `onClick`
+ * e `disabled` não aparecem em markup estático; a decisão, aqui, aparece.
+ *
+ * `cabecalhoLido` é o que separa "o campo está em branco porque a seção está no
+ * automático" de "o campo está em branco porque eu não consegui ler". No
+ * segundo caso o PUT — que substitui a linha inteira — apagaria o que está no
+ * ar.
+ */
+export function podeSalvarCabecalho(estado: {
+  salvando: boolean;
+  carregando: boolean;
+  cabecalhoLido: boolean;
+}): boolean {
+  return !estado.salvando && !estado.carregando && estado.cabecalhoLido;
+}
+
+/**
+ * E pode devolver ao padrão?
+ *
+ * Tudo que trava o salvamento trava isto também — "Voltar ao padrão" grava pela
+ * mesma rota. Só acrescenta que não faz sentido limpar o que já está limpo.
+ */
+export function podeVoltarAoPadrao(estado: {
+  salvando: boolean;
+  carregando: boolean;
+  cabecalhoLido: boolean;
+  cabecalho: CabecalhoNaTela;
+}): boolean {
+  if (!podeSalvarCabecalho(estado)) return false;
+  return Boolean(estado.cabecalho.tituloSeo || estado.cabecalho.resumo);
+}
 
 export async function salvarCabecalho(
   cabecalho: CabecalhoNaTela,

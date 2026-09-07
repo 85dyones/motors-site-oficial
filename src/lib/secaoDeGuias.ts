@@ -74,9 +74,34 @@ export function normalizarCabecalho(linha: {
   return { tituloSeo: ouNulo(linha.titulo_seo), resumo: ouNulo(linha.resumo) };
 }
 
-/** O que gravaram, campo a campo — para a TELA, que precisa distinguir vazio. */
-export async function lerCabecalhoGravado(): Promise<CabecalhoGravado> {
-  if (!supabase) return VAZIO;
+/**
+ * A leitura, com os dois desfechos SEPARADOS.
+ *
+ * `lido: false` significa "não consegui ler", e é diferente de "não há
+ * override" — que é `lido: true` com os dois campos nulos. Enquanto os dois
+ * colapsavam em `VAZIO`, existia um caminho de PERDA que a primeira correção
+ * não fechou, e a revisão o reproduziu:
+ *
+ *   O GET do painel monta a resposta com DUAS metades e clientes diferentes —
+ *   os guias pelo cliente da sessão, o cabeçalho pelo `anon` daqui. Um timeout
+ *   só nesta metade devolvia 200, sem erro, com o cabeçalho indistinguível de
+ *   "sem override". A tela concluía que tinha lido, liberava o Salvar, e o
+ *   clique gravava `""` nos dois campos — apagando o texto do dono, e indo ao
+ *   ar no mesmo request por causa do `revalidarCluster`.
+ *
+ * Tabela ausente NÃO é falha de leitura: é o estado do ambiente antes da
+ * migração, e ali "não há override" é a verdade. Só o resto vira `lido: false`.
+ */
+export type LeituraDoCabecalho =
+  | { lido: true; cabecalho: CabecalhoGravado }
+  | { lido: false; motivo: string };
+
+export async function lerCabecalhoGravado(): Promise<LeituraDoCabecalho> {
+  if (!supabase) {
+    // Sem cliente configurado o site inteiro roda em fixtures; a página cai no
+    // padrão e o painel não existe. Não é falha de leitura desta tabela.
+    return { lido: true, cabecalho: VAZIO };
+  }
 
   const { data, error } = await supabase
     .from("cabecalho_dos_guias")
@@ -85,14 +110,11 @@ export async function lerCabecalhoGravado(): Promise<CabecalhoGravado> {
     .maybeSingle();
 
   if (error) {
-    // Tabela ausente é ambiente atrasado, não defeito — e qualquer outro
-    // tropeço (RLS, rede) também cai no padrão, porque este texto é override.
-    if (!ehTabelaOuColunaAusente(error)) {
-      console.warn("[Guias] Não deu para ler o cabeçalho da seção:", error.message);
-    }
-    return VAZIO;
+    if (ehTabelaOuColunaAusente(error)) return { lido: true, cabecalho: VAZIO };
+    console.warn("[Guias] Não deu para ler o cabeçalho da seção:", error.message);
+    return { lido: false, motivo: error.message };
   }
-  return normalizarCabecalho(data);
+  return { lido: true, cabecalho: normalizarCabecalho(data) };
 }
 
 /**
@@ -118,5 +140,10 @@ export function resolverCabecalho(gravado: CabecalhoGravado): CabecalhoServido {
  * deduplica nada e a função se comporta como antes.
  */
 export const cabecalhoDosGuias = cache(async (): Promise<CabecalhoServido> => {
-  return resolverCabecalho(await lerCabecalhoGravado());
+  const leitura = await lerCabecalhoGravado();
+  // A PÁGINA PÚBLICA engole a falha de propósito — aqui o banco é override, e
+  // derrubar `/guias` por um parágrafo opcional seria trocar um texto por uma
+  // página fora do ar. Quem NÃO pode engolir é o painel, porque lá a mesma
+  // ausência vira um clique que apaga. Ver `LeituraDoCabecalho`.
+  return resolverCabecalho(leitura.lido ? leitura.cabecalho : VAZIO);
 });
