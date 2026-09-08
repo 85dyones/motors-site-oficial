@@ -896,6 +896,15 @@ describe("a trava do sync não pode se desmontar por descuido", () => {
       method?: string;
       body?: string;
       headerParameters?: { parameters: Cabecalho[] };
+      /**
+       * Como o nó HTTP se autentica. `predefinedCredentialType` é a forma
+       * atual do upsert: o n8n injeta o segredo da credencial armazenada na
+       * requisição, e ele deixa de aparecer no JSON — que é a vantagem, e o
+       * motivo de a asserção de autenticação aceitar duas formas.
+       */
+      authentication?: string;
+      /** O nome da credencial armazenada — `supabaseApi` no upsert do sync. */
+      nodeCredentialType?: string;
     };
   };
 
