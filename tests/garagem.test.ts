@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { semComentarios } from "./fonte";
+import { bloqueiosPorGrupo } from "./robotsTxt";
 
 /**
  * A Garagem Motors — manual v1.1 §6.3, fase 1.
@@ -33,7 +34,6 @@ const entrada = ler("src", "components", "garagem", "GaragemEntrada.tsx");
 const veiculoComp = ler("src", "components", "garagem", "GaragemVeiculo.tsx");
 const rotaKm = ler("src", "app", "api", "garagem", "km", "route.ts");
 const rotaRevisoes = ler("src", "app", "api", "garagem", "revisoes", "route.ts");
-const robots = ler("src", "app", "robots.ts");
 const proxy = ler("src", "proxy.ts");
 const fundacao = ler("supabase", "migrations", "20260813150000_ciclo_fundacao_de_dados.sql");
 
@@ -281,10 +281,14 @@ describe("o fim do acompanhamento — o carro que saiu da Garagem", () => {
 
 describe("o entorno", () => {
   it("/garagem está fora de busca", () => {
-    const disallows = robots.match(/disallow: \[[^\]]*\]/gi) ?? [];
-    expect(disallows.length).toBeGreaterThanOrEqual(2);
-    for (const linha of disallows) {
-      expect(linha).toContain('"/garagem"');
+    // Afirmado sobre o robots.txt GERADO, não sobre a grafia do arquivo.
+    // A versão anterior casava `disallow: [...]` no fonte e exigia a lista
+    // literal em dois lugares — o que reprovou a mudança de 2026-09-08, que
+    // uniu os dois grupos numa constante só justamente para eles não voltarem
+    // a divergir. Grafia é detalhe; a condição é "todo grupo bloqueia".
+    expect(bloqueiosPorGrupo().length).toBeGreaterThanOrEqual(2);
+    for (const bloqueios of bloqueiosPorGrupo()) {
+      expect(bloqueios).toContain("/garagem");
     }
     expect(paginaGaragem).toContain("index: false");
   });
