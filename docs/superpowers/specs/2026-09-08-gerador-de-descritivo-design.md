@@ -37,12 +37,12 @@ Dois botões na aba "Texto e SEO" do editor de veículo. Cada um gera uma sugest
               ├─ auth + perfil (mesmo preâmbulo do PATCH em api/estoque/[id]/route.ts)
               ├─ lê o veículo DO BANCO — não confia no corpo da requisição
               ├─ montarDossie(veiculo)
-              ├─ chama o Claude com dossiê + briefing
+              ├─ chama o modelo com dossiê + briefing
               ├─ validarDescritivo(texto, dossie, campo)
               └─ 200 { texto, caracteres, afirmacoes }
                  422 { motivos }  reprovado na validação
-                 502 { motivo }   a API da Anthropic falhou
-                 503 { motivo }   falta ANTHROPIC_API_KEY
+                 502 { motivo }   a API do fornecedor falhou
+                 503 { motivo }   falta OPENAI_API_KEY
                         │
               [painel de sugestão sob o campo]
                         └─ "Usar este texto" → preenche o campo → salvar pelo botão existente
@@ -59,7 +59,7 @@ Rota de API, e não Server Action: é o padrão do repositório (`src/app/action
 | `src/lib/descritivo/dossie.ts` | `montarDossie(veiculo)` — função pura, sem rede |
 | `src/lib/descritivo/briefing.ts` | o texto do system prompt, constante |
 | `src/lib/descritivo/validacao.ts` | `validarDescritivo(texto, dossie, campo)` — função pura |
-| `src/lib/descritivo/gerar.ts` | fronteira com a API da Anthropic; recebe o cliente por injeção |
+| `src/lib/descritivo/gerar.ts` | fronteira com a API do fornecedor, por `fetch`; recebe o transporte por injeção |
 | `src/app/api/estoque/[id]/descritivo/route.ts` | auth, perfil, orquestração |
 | `src/components/admin/EditorDeVeiculo.tsx` | os dois botões e o painel de sugestão |
 
@@ -75,13 +75,16 @@ Junto dos fatos vai uma lista explícita de **afirmações autorizadas**:
 - **FIPE não entra**, ainda que `valor_fipe` esteja na tabela: decisão do dono em 2026-08-17.
 - **Preço** entra como número do anúncio. Nunca como julgamento ("oportunidade", "abaixo da tabela").
 
-## 5. O prompt
+## 5. O prompt e o fornecedor
 
-- **System:** `POSICIONAMENTO.md` na íntegra mais a seção "Como escrever — o padrão" do `BRIEFING.md`. Os dois já existem em `conteudo-seo/` e já foram aprovados pelo dono em 2026-08-17. Copiados para `briefing.ts` como constante e marcados com `cache_control` — é o mesmo texto em toda chamada.
+O texto é gerado pela **API da OpenAI**, com a chave que o dono já tem. Decisão de 2026-09-08.
+
+- **System:** `POSICIONAMENTO.md` na íntegra mais a seção "Como escrever — o padrão" do `BRIEFING.md`. Os dois já existem em `conteudo-seo/`, versionados, e já foram aprovados pelo dono em 2026-08-17. Copiados para `briefing.ts` como constante — é o mesmo texto em toda chamada, e essa estabilidade de prefixo é o que deixa o cache de prompt do fornecedor agir sozinho.
 - **User:** o dossiê serializado mais o campo pedido, com o formato-alvo de cada um.
-- **Modelo:** `claude-opus-5`.
+- **Transporte:** o `fetch` do próprio Node, sem SDK. O projeto tem 8 dependências e nenhuma é de LLM; a chamada é um POST só. Retry e timeout ficam explícitos em `gerar.ts`, que é o único arquivo que sabe qual é o fornecedor.
+- **Modelo:** **pendente**, e resolvido por medição, não por memória — assim que `OPENAI_API_KEY` estiver em `.env.local`, o modelo sai de um `GET /v1/models` contra a própria conta. Fica em `briefing.ts` como constante nomeada, num lugar só, para trocar sem caçar string pelo código.
 
-Custo estimado a partir da tabela de preços vigente (US$ 5 por milhão de tokens de entrada, US$ 25 por milhão de saída): da ordem de US$ 0,03 por texto sem cache. Gerar os dois textos dos 85 veículos, uma vez, fica na ordem de US$ 5. É estimativa, não medição.
+Custo por texto depende do modelo escolhido e será estimado quando ele for cravado. A ordem de grandeza do trabalho já é conhecida: cerca de 4 mil tokens de entrada por chamada (o briefing domina) e algumas centenas de saída; 170 chamadas cobrem os dois campos dos 85 veículos, uma vez.
 
 ## 6. Validação da resposta
 
@@ -102,16 +105,16 @@ O botão fica acima do campo correspondente. A sugestão aparece **num painel ab
 
 ## 8. Falha
 
-Sem `ANTHROPIC_API_KEY` — em desenvolvimento, ou na Vercel antes de o dono configurar — a rota responde **503 com o motivo nomeado**, e o painel diz qual é a falta. O botão não some, não fica inerte e não devolve sugestão vazia.
+Sem `OPENAI_API_KEY` — em desenvolvimento, ou na Vercel antes de o dono configurar — a rota responde **503 com o motivo nomeado**, e o painel diz qual é a falta. O botão não some, não fica inerte e não devolve sugestão vazia.
 
-Erro da API (429, 5xx, timeout) vira 502 com o motivo. O painel mostra e oferece nova tentativa.
+Erro da API (429, 5xx, timeout) vira 502 com o motivo. O painel mostra e oferece nova tentativa. O timeout é nosso, explícito: sem SDK não há um padrão herdado.
 
 ## 9. Testes
 
 - `montarDossie`: campo vazio não entra; perícia diferente de "PERÍCIA APROVADA" não autoriza a afirmação; `valor_fipe` preenchido não entra no dossiê.
 - `validarDescritivo`: uma regra por teste, medindo a saída da função e não a forma do arquivo.
 - Rota: 401 sem sessão, 403 para gestor e financeiro, 503 sem chave, 422 com texto reprovado.
-- Nenhuma chamada de rede na suíte — `gerar.ts` recebe o cliente da Anthropic por injeção.
+- Nenhuma chamada de rede na suíte — `gerar.ts` recebe o transporte por injeção, e o teste passa um dublê. O dublê responde a forma real da API, não uma forma conveniente: a memória do projeto sobre dublê mais permissivo que o servidor nasceu de um teste verde sobre resposta que o servidor nunca daria.
 
 ## 10. Fora do escopo
 
@@ -120,9 +123,10 @@ Erro da API (429, 5xx, timeout) vira 502 com o motivo. O painel mostra e oferece
 - **Histórico próprio de versões do texto.** O histórico do veículo já registra a mudança na gravação.
 - **Geração no cadastro de veículo novo** (`CadastroDeVeiculo.tsx`), onde o veículo ainda não tem `id`. Fica para depois de o botão do editor provar o formato.
 
-## 11. Pendência do dono
+## 11. Pendências do dono
 
-`ANTHROPIC_API_KEY` nas variáveis de ambiente da Vercel. Sem ela a ferramenta sobe e explica por que não gera.
+1. **`OPENAI_API_KEY` em `.env.local`**, para desenvolvimento — é o que destrava cravar o modelo (§5).
+2. **`OPENAI_API_KEY` nas variáveis de ambiente da Vercel**, para produção. Sem ela a ferramenta sobe e explica por que não gera.
 
 ## 12. Decisões tomadas nesta conversa
 
@@ -130,5 +134,9 @@ Erro da API (429, 5xx, timeout) vira 502 com o motivo. O painel mostra e oferece
 |---|---|
 | Onde vive | Botão no editor do veículo, um carro por vez |
 | Quais campos | Dois botões separados, um por campo |
-| Motor do texto | Dossiê factual + Claude, com validação determinística na volta |
+| Motor do texto | Dossiê factual + modelo de linguagem, com validação determinística na volta |
 | Sobrescrita | Sugestão em painel; nada é sobrescrito sem comando |
+| Fornecedor | OpenAI — o dono já tem a chave |
+| Cliente | `fetch` do Node, sem SDK e sem dependência nova |
+
+A troca de fornecedor foi feita depois de a arquitetura estar fechada e **não mexeu em nada além de `gerar.ts`, do nome da env e do modelo**. O dossiê, a validação, a rota, as permissões e os testes ficaram idênticos. Se o fornecedor mudar de novo, o custo é o mesmo arquivo.
