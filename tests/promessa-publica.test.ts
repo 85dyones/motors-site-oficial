@@ -531,19 +531,32 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
    * Não é teto contra teto; é mira contra serviço, em superfícies diferentes,
    * de propósito.
    *
-   * O que fica registrado no lugar da pendência: **não existia UM padrão de
-   * fecho.** Os 41 textos fecham de oito formas — 23 só com o local, e os 18
-   * que citam alcance dizem isso de sete jeitos ("com entrega para todo o
-   * Paraná", "para o Paraná e Santa Catarina até Balneário Camboriú", "e
-   * entrega em todo o Paraná"…). O lote 3 canoniza a forma que o dono ditou,
-   * palavra por palavra:
+   * O que apareceu no lugar da pendência, e foi resolvido na mesma data: **não
+   * existia UM padrão de fecho.** Os 41 textos fechavam de OITO formas — 23 só
+   * com o local, e os 18 que citam alcance dizendo isso de sete jeitos ("com
+   * entrega para todo o Paraná", "para o Paraná e Santa Catarina até Balneário
+   * Camboriú", "e entrega em todo o Paraná"…). As sete viraram uma, na forma
+   * que o dono ditou, palavra por palavra. Restam duas:
    *
-   *   Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná e no
-   *   litoral catarinense até Balneário Camboriú.
+   *   LOCAL   Showroom no Bacacheri, em Curitiba.
+   *   REGIÃO  Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná
+   *           e no litoral catarinense até Balneário Camboriú.
    *
-   * Uniformizar os 18 antigos custa uma passada de `aplicar-rascunhos.js`, e
-   * vale — não por estarem errados, mas porque sete redações da mesma frase é
-   * ruído para quem lê o feed dos portais lado a lado.
+   * ---------------------------------------------------------------------------
+   * Qual das duas usar, e por que o corte não é opinião
+   * ---------------------------------------------------------------------------
+   * O `POSICIONAMENTO.md` diz que "o regional entra quando o veículo justifica
+   * deslocamento: acima de R$ 100 mil, nicho, colecionável ou km muito baixa".
+   * Isso soa como régua frouxa até você medir os 41 textos que já existiam:
+   *
+   *   23 com fecho LOCAL   → mediana R$ 55.900, MÁXIMO R$ 89.900
+   *   18 com fecho REGIÃO  → mediana R$ 97.900
+   *
+   * O máximo de um grupo está abaixo da mediana do outro. A régua já estava
+   * sendo seguida com disciplina — ela só nunca tinha sido escrita como
+   * número. Quem escrever o lote 4 usa isso: abaixo da faixa dos R$ 90 mil, o
+   * fecho é o local, e a exceção (nicho, colecionável, km muito baixa) precisa
+   * de motivo dito em voz alta.
    */
   const ALCANCE = /entregamos para todo o Brasil/i;
 
