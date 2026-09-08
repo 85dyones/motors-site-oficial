@@ -5,6 +5,7 @@ import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import { mascararTelefone, normalizarNumero } from "../lib/whatsapp";
 import { IconeWhatsApp } from "./modernist/primitivos";
 import SaidaDoCaptcha from "./SaidaDoCaptcha";
+import { nomeComAno } from "../lib/nomeDoVeiculo";
 
 export interface LeadCaptureModalProps {
   isOpen: boolean;
@@ -23,6 +24,12 @@ export interface LeadCaptureModalProps {
   vehicleInfo?: {
     marca: string;
     modelo: string;
+    /**
+     * Opcional porque nem todo chamador tem versão: a `/avaliacao` descreve o
+     * carro DO CLIENTE e o popup descreve uma campanha. Quando vem, é ela que
+     * distingue o carro — o pátio tem três Ford Ka.
+     */
+    versao?: string | null;
     ano?: string | number;
   };
 }
@@ -356,8 +363,11 @@ export default function LeadCaptureModal({
             {captchaBloqueado && (
               <SaidaDoCaptcha
                 mensagem={
+                  /* Pelo `nomeComAno`, e não montado aqui: esta mensagem vai
+                     para o WhatsApp quando o Turnstile bloqueia, e ia sem a
+                     versão — "Ford Ka", com três no pátio. */
                   vehicleInfo
-                    ? `Olá! Tenho interesse no ${vehicleInfo.marca} ${vehicleInfo.modelo}${vehicleInfo.ano ? ` ${vehicleInfo.ano}` : ""} anunciado no site.`
+                    ? `Olá! Tenho interesse no ${nomeComAno(vehicleInfo)} anunciado no site.`
                     : undefined
                 }
                 onTentarNovamente={() => {
