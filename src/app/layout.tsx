@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Archivo } from "next/font/google";
+import { Geist, Archivo } from "next/font/google";
 import "./globals.css";
 import AntigravityTracker from "../components/AntigravityTracker";
 import Header from "../components/Header";
@@ -9,6 +9,7 @@ import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import CamadaDeDados from "../components/CamadaDeDados";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
@@ -19,11 +20,18 @@ const geistSans = Geist({
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
+/* A Geist Mono saiu daqui em 2026-09-08.
+ *
+ * `next/font` monta o `<link rel="preload">` da fonte no layout raiz, então
+ * uma família declarada aqui é uma família baixada em TODA página — inclusive
+ * nas que não têm um único `font-mono`. E no site público `font-mono` aparece
+ * em dois lugares: a placa na ficha e os campos da Garagem. Todo o resto está
+ * no /admin, atrás de sessão.
+ *
+ * `--font-mono` passou a ser a pilha do sistema, em `globals.css`. A troca é
+ * invisível fora dessas duas telas, e nelas a diferença entre Geist Mono e
+ * Consolas numa placa de sete caracteres não é o que sustenta a marca —
+ * Archivo é, e ela fica. */
 
 // Tipografia do redesign Modernist. Os três pesos são os que o design doc
 // usa: 400 corrido, 600 rótulos em versalete, 800 títulos e botões.
@@ -105,7 +113,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} ${archivo.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${archivo.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       {/* GA4/Meta/Google Ads são inicializados exclusivamente pelo <IntegrationsTracker />,
@@ -173,6 +181,23 @@ export default async function RootLayout({
           <CamadaDeDados />
           <IntegrationsTracker />
           <AntigravityTracker />
+          {/* Core Web Vitals de CAMPO — o que o comprador sente, no aparelho
+              dele. Todo diagnóstico de desempenho feito neste projeto até
+              2026-09-08 foi de laboratório (`next build` e tamanho por rota),
+              que mede a máquina do build. É o campo que entra no sinal de
+              busca, e é dele que depende a decisão de partir a ficha em
+              `dynamic()`: sem saber o INP real em mobile, aquilo é palpite.
+
+              Fica FORA do `<CookieConsentBanner>` e do `IntegrationsTracker`
+              de propósito. Speed Insights não identifica pessoa — mede tempo
+              de render do próprio site, sem cookie e sem id. Condicioná-lo ao
+              aceite mediria só quem aceita, que é o pior recorte possível para
+              uma métrica de performance.
+
+              ⚠️ O componente sozinho não coleta: Speed Insights precisa estar
+              ligado no projeto, no painel da Vercel. Sem isso o script sobe e
+              o painel fica vazio. */}
+          <SpeedInsights />
           <MolduraDoSite>
             <Header />
           </MolduraDoSite>
