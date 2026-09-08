@@ -30,7 +30,14 @@ export type ResultadoDoSalvamento =
       exigeRecarga?: true;
     };
 
-/** Campo vazio significa "volte ao automático" — em toda a cadeia. */
+/**
+ * O par vazio: nenhum override.
+ *
+ * É o que a tela mostra antes de carregar, quando o banco não tem texto, e
+ * depois de apagar. Campo em branco NÃO significa sozinho “volte ao padrão” —
+ * o que devolve uma coluna ao texto do código é esvaziá-la e salvar, ou o
+ * DELETE. Ver `camposAlterados`.
+ */
 export const SEM_CABECALHO: CabecalhoNaTela = { tituloSeo: "", resumo: "" };
 
 /** A régua da meta description. Aviso, nunca trava: quem decide o texto é quem escreve. */
@@ -183,6 +190,22 @@ export async function voltarAoPadrao(): Promise<ResultadoDoSalvamento> {
     if (!r.ok) {
       return { ok: false, texto: dados.error || "Falha ao voltar ao texto padrão" };
     }
+
+    // O servidor diz SE apagou, e não só que rodou — pelo caderno do projeto,
+    // RLS não devolve erro, devolve vazio. Só o botão que enxerga override
+    // liberado chega aqui, então "não apaguei nada" é anomalia: ou outra pessoa
+    // já apagou, ou a gravação foi recusada. Nos dois casos a tela está velha, e
+    // anunciar "voltou ao padrão" seria a mentira que o `.select()` da rota
+    // existe para impedir.
+    if (dados.apagou !== true) {
+      return {
+        ok: false,
+        texto:
+          "Não apaguei nada — a seção pode já estar no texto padrão, ou a gravação foi recusada. Recarregue para ver o que está no ar.",
+        exigeRecarga: true,
+      };
+    }
+
     return {
       ok: true,
       cabecalho: SEM_CABECALHO,

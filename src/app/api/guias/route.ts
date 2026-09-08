@@ -57,11 +57,14 @@ export async function GET() {
     lerCabecalhoGravado(),
   ]);
 
-  // `cabecalhoLido` é o campo que impede a tela de gravar por cima do que está
-  // no ar. Sem ele, um timeout SÓ na metade do cabeçalho devolvia 200 com os
-  // campos nulos — indistinguível de "sem override" —, a tela liberava o Salvar
-  // e o clique apagava o texto do dono. As duas metades usam clientes
-  // diferentes, então uma pode cair sozinha.
+  // `cabecalhoLido` diz se ESTA metade da resposta é confiável. As duas usam
+  // clientes diferentes — a listagem vai pelo cliente da sessão, o cabeçalho
+  // pelo `anon` de `secaoDeGuias` —, então uma pode cair sozinha, e um timeout
+  // só aqui devolvia 200 com os campos nulos, indistinguível de "sem override".
+  // Enquanto salvar substituía a linha inteira, esse era o caminho para o
+  // clique que apagava o texto do dono. Hoje o PUT grava só o que foi enviado, e
+  // o campo governa outra coisa: a tela não oferece "Voltar ao padrão" sobre um
+  // estado que não conseguiu ler, e diz por quê em vez de ficar cinza.
   const cabecalho = leitura.lido ? leitura.cabecalho : null;
   const cabecalhoLido = leitura.lido;
 

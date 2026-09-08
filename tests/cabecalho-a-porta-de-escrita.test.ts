@@ -77,6 +77,21 @@ let gravado: Record<string, unknown> | null = null;
  * do 200-ilegível isso faz a tela travar e exigir recarga a cada gravação.
  */
 let colunasPedidas: string | null = null;
+/**
+ * Quantas vezes a rota TENTOU inserir.
+ *
+ * É o que denuncia o filtro errado no UPDATE sem depender do desfecho: com a
+ * linha já no banco, um INSERT é sempre uma tentativa que o Postgres vai
+ * recusar. O retry de 23505 esconde o sintoma de quem olha só o status.
+ */
+let tentativasDeInsert = 0;
+/**
+ * A corrida: a linha NASCE entre o UPDATE e o INSERT desta requisição.
+ *
+ * É o único jeito de exercitar o retry de 23505 — sem isto, o UPDATE encontra
+ * a linha e o INSERT nunca acontece, e o teste da corrida seria enfeite.
+ */
+let corridaArmada = false;
 
 function comoEditor() {
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "staff-1" } } });
@@ -88,24 +103,78 @@ function comoEditor() {
         }),
       };
     }
+    // O FILTRO é respeitado. Ignorá-lo deixava passar `.eq("secao","guia")` na
+    // rota: todo save cairia no INSERT e, do segundo em diante, 23505 — com a
+    // suíte verde. E no DELETE, apagar nada e responder "pronto".
+    const filtroCerto = (coluna: string, valor: string) =>
+      tabela === "cabecalho_dos_guias" && coluna === "secao" && valor === "guias";
     const devolver = (colunas: string) => {
       colunasPedidas = colunas;
       return { maybeSingle: async () => ({ data: linhaNoBanco, error: null }) };
     };
     return {
-      update: (troca: Record<string, unknown>) => {
-        gravado = troca;
-        // Sem linha, o UPDATE não afeta nada — é o que faz a rota cair no INSERT.
+      update: (troca: Record<string, unknown>) => ({
+        eq: (coluna: string, valor: string) => {
+          if (filtroCerto(coluna, valor)) {
+            if (corridaArmada) {
+              // A outra gravação ainda não chegou: este UPDATE não acha nada.
+              // Ela chega logo em seguida, e a linha passa a existir.
+              corridaArmada = false;
+              linhaNoBanco = { titulo_seo: null, resumo: "Quem chegou primeiro" };
+              return {
+                select: (colunas: string) => {
+                  colunasPedidas = colunas;
+                  return { maybeSingle: async () => ({ data: null, error: null }) };
+                },
+              };
+            }
+            gravado = troca;
+            // Sem linha, o UPDATE não afeta nada — é o que faz a rota cair no
+            // INSERT.
+            if (linhaNoBanco) {
+              linhaNoBanco = {
+                titulo_seo:
+                  "titulo_seo" in troca
+                    ? ((troca.titulo_seo as string) || null)
+                    : linhaNoBanco.titulo_seo,
+                resumo:
+                  "resumo" in troca ? ((troca.resumo as string) || null) : linhaNoBanco.resumo,
+              };
+            }
+            return { select: devolver };
+          }
+          // Filtro errado: zero linha afetada, e SEM erro — é o que o
+          // PostgREST faz, e é o que torna o defeito silencioso.
+          return {
+            select: (colunas: string) => {
+              colunasPedidas = colunas;
+              return { maybeSingle: async () => ({ data: null, error: null }) };
+            },
+          };
+        },
+      }),
+      insert: (linha: Record<string, unknown>) => {
+        tentativasDeInsert += 1;
+        // A chave primária é REAL no dublê. Sem ela, inserir por cima da linha
+        // existente parecia funcionar aqui e devolvia 23505 em produção — que
+        // é o desfecho de `.eq()` com o valor errado no UPDATE.
         if (linhaNoBanco) {
-          linhaNoBanco = {
-            titulo_seo:
-              "titulo_seo" in troca ? ((troca.titulo_seo as string) || null) : linhaNoBanco.titulo_seo,
-            resumo: "resumo" in troca ? ((troca.resumo as string) || null) : linhaNoBanco.resumo,
+          return {
+            select: (colunas: string) => {
+              colunasPedidas = colunas;
+              return {
+                maybeSingle: async () => ({
+                  data: null,
+                  error: {
+                    code: "23505",
+                    message:
+                      'duplicate key value violates unique constraint "cabecalho_dos_guias_pkey"',
+                  },
+                }),
+              };
+            },
           };
         }
-        return { eq: () => ({ select: devolver }) };
-      },
-      insert: (linha: Record<string, unknown>) => {
         gravado = linha;
         linhaNoBanco = {
           titulo_seo: (linha.titulo_seo as string) || null,
@@ -114,10 +183,16 @@ function comoEditor() {
         return { select: devolver };
       },
       delete: () => ({
-        eq: async () => {
-          linhaNoBanco = null;
-          return { error: null };
-        },
+        eq: (coluna: string, valor: string) => ({
+          select: async (colunas: string) => {
+            colunasPedidas = colunas;
+            if (!filtroCerto(coluna, valor) || !linhaNoBanco) {
+              return { data: [], error: null };
+            }
+            linhaNoBanco = null;
+            return { data: [{ secao: "guias" }], error: null };
+          },
+        }),
       }),
     };
   });
@@ -135,11 +210,18 @@ async function put(corpo: unknown) {
   return PUT(pedido(corpo));
 }
 
+async function apagar() {
+  const { DELETE } = await import("../src/app/api/guias/secao/route");
+  return DELETE();
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   gravado = null;
   colunasPedidas = null;
   linhaNoBanco = null;
+  tentativasDeInsert = 0;
+  corridaArmada = false;
   revalidados.length = 0;
 });
 
@@ -318,9 +400,101 @@ describe("apagar é um verbo separado", () => {
     semSessao();
     linhaNoBanco = { titulo_seo: "Escrito no painel", resumo: "" };
 
-    const { DELETE } = await import("../src/app/api/guias/secao/route");
-    expect((await DELETE()).status).toBe(401);
+    expect((await apagar()).status).toBe(401);
     expect(linhaNoBanco, "nada pode ter sido apagado").not.toBeNull();
+  });
+
+  it("a resposta diz se APAGOU alguma coisa, e não só que rodou", async () => {
+    // Pelo caderno do projeto, RLS não devolve erro — devolve VAZIO. Um DELETE
+    // que olha só o `error` responde 200 depois de não apagar nada, e a tela
+    // anuncia "voltou ao texto padrão" com o texto ainda no ar.
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "No ar", resumo: "No ar" };
+
+    const corpo = await (await apagar()).json();
+
+    expect(corpo.apagou).toBe(true);
+  });
+
+  it("sem override, apaga nada — e diz isso, sem descartar cache", async () => {
+    // Desfecho legítimo: a seção já estava no automático. Mas é diferente de
+    // "apaguei", e revalidar aqui seria jogar fora o cache de /guias por uma
+    // ação que não mudou uma vírgula.
+    comoEditor();
+    linhaNoBanco = null;
+
+    const resposta = await apagar();
+    const corpo = await resposta.json();
+
+    expect(resposta.status).toBe(200);
+    expect(corpo.apagou).toBe(false);
+    expect(revalidados, "nada mudou, nada sai do cache").toEqual([]);
+  });
+});
+
+describe("o filtro da linha é o que faz a rota achar o que já existe", () => {
+  /**
+   * O mutante que a suíte deixava passar até 08/09.
+   *
+   * Trocar `.eq("secao", "guias")` por `"guia"` no UPDATE não quebra a
+   * PRIMEIRA gravação: sem linha, o caminho é o INSERT de qualquer jeito. Ele
+   * quebra a SEGUNDA — o UPDATE não acha nada, a rota tenta inserir por cima
+   * da chave primária e o Postgres devolve 23505. Em produção isso é o painel
+   * gravando uma vez e falhando em toda edição seguinte.
+   *
+   * Um teste de uma gravação só nunca veria. Este grava DUAS vezes.
+   */
+  it("a segunda gravação atualiza a linha, em vez de tentar criar outra", async () => {
+    comoEditor();
+    linhaNoBanco = null;
+
+    expect((await put({ resumo: "Primeiro texto" })).status).toBe(200);
+    const segunda = await put({ resumo: "Segundo texto" });
+
+    expect(segunda.status, "a segunda gravação não pode falhar").toBe(200);
+    expect(linhaNoBanco).toEqual({ titulo_seo: null, resumo: "Segundo texto" });
+  });
+
+  it("e o DELETE apaga a linha DESTA seção, não uma que não existe", async () => {
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "No ar", resumo: "No ar" };
+
+    await apagar();
+
+    expect(linhaNoBanco).toBeNull();
+  });
+
+  it("gravar sobre linha existente NÃO tenta inserir", async () => {
+    // O que denuncia o filtro errado sem depender do desfecho. Com `"guia"` no
+    // lugar de `"guias"`, o UPDATE não acha a linha que está ali e a rota vai
+    // ao INSERT — três statements por gravação, um deles condenado a 23505.
+    // O retry conserta a resposta, então o status não conta essa história.
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "No ar", resumo: "No ar" };
+
+    await put({ resumo: "Editado" });
+
+    expect(tentativasDeInsert, "a linha já existe: era para o UPDATE achá-la").toBe(0);
+  });
+
+  it("corrida de duas gravações na tabela vazia não estoura na cara de ninguém", async () => {
+    // A linha NASCE entre o UPDATE e o INSERT: as duas gravações viram a
+    // tabela vazia e as duas tentam inserir. A perdedora recebe 23505 e refaz
+    // o UPDATE, que agora encontra a linha. Sem o retry, o operador leria
+    // "duplicate key value violates unique constraint" depois de escrever um
+    // parágrafo.
+    comoEditor();
+    linhaNoBanco = null;
+    corridaArmada = true;
+
+    const resposta = await put({ resumo: "Quem chegou depois" });
+    const corpo = await resposta.json();
+
+    expect(resposta.status, "23505 não pode chegar à tela").toBe(200);
+    expect(tentativasDeInsert, "o INSERT tem de ter acontecido e falhado").toBe(1);
+    expect(linhaNoBanco).toEqual({ titulo_seo: null, resumo: "Quem chegou depois" });
+    // E o corpo continua legível pelo cliente — senão a tela exige recarga.
+    expect(corpo.cabecalho).toEqual({ titulo_seo: null, resumo: "Quem chegou depois" });
   });
 });
 
@@ -360,6 +534,36 @@ describe("a rota e o cliente falam a mesma língua", () => {
         tituloSeo: "Título gravado",
         resumo: "Resumo gravado.",
       });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("o corpo do DELETE também: o cliente só diz \"pronto\" se a rota disser que apagou", async () => {
+    // O outro lado do `.select()` da rota. Sem `apagou` no corpo — ou com ele
+    // em `false` porque a RLS recusou em silêncio —, o cliente não pode
+    // anunciar que a seção voltou ao padrão. Aqui a resposta REAL da rota
+    // alimenta o cliente REAL, nos dois desfechos.
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "No ar", resumo: "No ar" };
+    const apagou = await (await apagar()).json();
+
+    // Segunda chamada: já não há linha, e a rota diz isso.
+    const semNada = await (await apagar()).json();
+
+    const originalFetch = globalThis.fetch;
+    try {
+      const { voltarAoPadrao } = await import("../src/lib/salvarCabecalho");
+
+      globalThis.fetch = (async () => ({ ok: true, json: async () => apagou })) as never;
+      const primeiro = await voltarAoPadrao();
+      expect(primeiro.ok, "apagou de verdade").toBe(true);
+      expect(primeiro.ok && primeiro.texto).toContain("voltou ao texto padrão");
+
+      globalThis.fetch = (async () => ({ ok: true, json: async () => semNada })) as never;
+      const segundo = await voltarAoPadrao();
+      expect(segundo.ok, "não apagou nada: não pode dizer que apagou").toBe(false);
+      expect(segundo.texto).toContain("Não apaguei nada");
     } finally {
       globalThis.fetch = originalFetch;
     }

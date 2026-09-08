@@ -20,7 +20,8 @@ import {
  *
  * Com o estado vindo por PROPS, cada combinação é um render, e `disabled`
  * aparece no markup estático (isso a revisão mediu — o que não aparece é
- * `onClick`). A trava que impede apagar o texto do dono passa a ter testemunha.
+ * `onClick`). As decisões do bloco — o que libera cada botão — passam a ter
+ * testemunha.
  *
  * A FIAÇÃO em `EditorDeGuias` — `onClick={aoSalvar}` e o
  * `setCabecalhoLido(r.cabecalhoLido)` que alimenta este `cabecalhoLido` — não
@@ -74,8 +75,8 @@ export default function CabecalhoDaSecao({
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="mt-titulo m-0 text-[16px]">Cabeçalho da seção</h2>
         <span className="text-[12px] text-mt-neutral-700">
-          O que aparece no topo de <code>/guias</code> e na busca. Campo vazio volta ao texto
-          padrão.
+          O que aparece no topo de <code>/guias</code> e na busca. Salvar manda só os campos
+          que você mudou; esvaziar um campo e salvar devolve aquele campo ao texto padrão.
         </span>
       </div>
 

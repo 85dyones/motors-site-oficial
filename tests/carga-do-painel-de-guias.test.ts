@@ -39,8 +39,11 @@ vi.mock("../src/lib/supabase-server", () => ({
  *
  * A forma tem os dois desfechos separados de propósito: `lido: false` é "não
  * consegui ler", e é DIFERENTE de `lido: true` com os campos nulos, que é "não
- * há override". Enquanto os dois colapsavam num valor só, existia um caminho
- * em que a tela concluía ter lido e o Salvar apagava o texto do dono.
+ * há override". Enquanto os dois colapsavam num valor só, a tela concluía ter
+ * lido sem ter lido — e, no desenho anterior a 07/09, o Salvar apagava o texto
+ * do dono. Hoje o PUT grava só o que foi enviado e apagar é um DELETE à parte,
+ * então a distinção governa outra coisa: oferecer ou não o “Voltar ao padrão”, e
+ * avisar quem olha campos em branco que não sabemos o que há no ar.
  */
 let leitura: { lido: true; cabecalho: { tituloSeo: string | null; resumo: string | null } } | { lido: false; motivo: string } = {
   lido: true,
@@ -91,7 +94,9 @@ describe("carregarPainel lê o cabeçalho junto da lista", () => {
 
   it("erro do servidor NÃO vira carga bem-sucedida vazia", async () => {
     // Este é o teste que a entrega não tinha. Devolver `ok: true` com campos
-    // vazios aqui é exatamente o caminho que apagava o texto do dono.
+    // vazios aqui é afirmar que se leu o que está no ar sem ter lido: sumiria o
+    // aviso e liberaria o “Voltar ao padrão”. No desenho anterior a 07/09, era
+    // também o caminho que apagava o texto do dono.
     respondendo({ error: "Falha no banco" }, false);
     const r = await carregarPainel();
 
@@ -219,7 +224,9 @@ describe("o que se grava é a DIFERENÇA, não a linha inteira", () => {
   it("formulário em branco POR FALHA DE LEITURA não pede nada", () => {
     // O caso que motivou tudo. Sem leitura, o carregado é vazio e os campos
     // também: a diferença é `{}`, e `{}` não muda nada no banco. Antes, este
-    // mesmo estado mandava `{tituloSeo:"", resumo:""}` e apagava o texto do ar.
+    // mesmo estado mandava `{tituloSeo:"", resumo:""}` e apagava o texto do ar —
+    // e nenhuma trava de interface o alcançava por inteiro, porque cada rodada
+    // de revisão achava outra porta até ele.
     expect(camposAlterados(SEM_CABECALHO, SEM_CABECALHO)).toEqual({});
   });
 

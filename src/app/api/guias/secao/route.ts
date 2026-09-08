@@ -7,11 +7,17 @@ export const dynamic = "force-dynamic";
 /**
  * O cabeçalho da seção `/guias` — gravar.
  *
- * Só PUT, e a razão é a mesma que faz `/api/hubs/textos` não ter POST nem
- * DELETE: aqui o banco é OVERRIDE. A linha ou existe ou não, o texto do código
- * é o padrão, e não há o que criar nem o que apagar — só o que sobrescrever.
- * Limpar os dois campos devolve a seção ao automático, e é por isso que a rota
- * ACEITA string vazia em vez de recusá-la como o publicador de guia faz.
+ * Dois verbos, e a diferença entre eles é o desenho inteiro desta rota:
+ *
+ *   · **PUT** grava SÓ as colunas que vierem no corpo. Chave ausente significa
+ *     “não mexa nesta coluna”, então um formulário em branco por falha de
+ *     leitura não tem como apagar nada.
+ *   · **DELETE** devolve a seção ao texto do código. É a única forma de tirar o
+ *     override do ar, e a tela pede confirmação antes.
+ *
+ * Aqui o banco é OVERRIDE: a linha ou existe ou não, e o texto do código é o
+ * padrão. Por isso o PUT ACEITA string vazia em vez de recusá-la como o
+ * publicador de guia faz — esvaziar um campo que se leu é edição legítima.
  *
  * A leitura não mora aqui: a página pública lê direto do banco por
  * `lib/secaoDeGuias.ts`, e a tela do painel recebe o gravado junto da listagem
@@ -112,6 +118,19 @@ export async function PUT(request: NextRequest) {
       .insert({ secao: "guias", ...carimbo })
       .select("titulo_seo, resumo")
       .maybeSingle());
+
+    // 23505 = a chave primária já existe. Acontece quando duas gravações
+    // chegam juntas na tabela vazia: as duas veem o UPDATE sem linha e as
+    // duas tentam inserir. A perdedora refaz o UPDATE, que agora encontra a
+    // linha — em vez de devolver "duplicate key value violates unique
+    // constraint" na cara de quem escreveu um parágrafo.
+    if (error?.code === "23505") {
+      ({ data, error } = await tabela
+        .update(carimbo)
+        .eq("secao", "guias")
+        .select("titulo_seo, resumo")
+        .maybeSingle());
+    }
     if (error) return falha(error);
   }
 
@@ -145,13 +164,25 @@ export async function DELETE() {
   const auth = await autorizarConteudo();
   if (auth.erro) return auth.erro;
 
-  const { error } = await auth
+  // `.select()` no delete, e não só o `error`: pelo caderno do projeto, RLS
+  // não devolve erro — devolve VAZIO. Sem conferir o que saiu, uma policy
+  // divergente faria o painel anunciar "voltou ao texto padrão" com o texto
+  // ainda no ar. Zero linha aqui é desfecho legítimo (não havia override), mas
+  // é diferente de "apaguei", e a resposta diz qual foi.
+  const { data, error } = await auth
     .supabase!.from("cabecalho_dos_guias")
     .delete()
-    .eq("secao", "guias");
+    .eq("secao", "guias")
+    .select("secao");
 
   if (error) return falha(error);
 
-  revalidarCluster();
-  return NextResponse.json({ cabecalho: { titulo_seo: null, resumo: null }, avisos: [] });
+  const apagou = Array.isArray(data) && data.length > 0;
+  if (apagou) revalidarCluster();
+
+  return NextResponse.json({
+    cabecalho: { titulo_seo: null, resumo: null },
+    apagou,
+    avisos: [],
+  });
 }

@@ -175,6 +175,11 @@ export default function EditorDeGuias() {
       setCarregado(r.cabecalho);
       setAviso({ tipo: "ok", texto: r.texto });
     } else {
+      // O servidor não confirmou o que apagou: o que a tela mostra pode estar
+      // velho, então ela para de afirmar que leu — some o Voltar ao padrão e
+      // aparece o aviso de releitura. Mesmo tratamento do salvamento sem
+      // confirmação.
+      if (r.exigeRecarga) setCabecalhoLido(false);
       setAviso({ tipo: "erro", texto: r.texto });
     }
     setSalvando(false);

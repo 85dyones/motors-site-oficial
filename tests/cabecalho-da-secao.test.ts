@@ -53,12 +53,35 @@ const GUIA: Guia = {
 let linha: { titulo_seo: string | null; resumo: string | null } | null = null;
 let erro: { code?: string; message: string } | null = null;
 
+/**
+ * O dublê RESPEITA a tabela, as colunas e o filtro.
+ *
+ * A revisão de 07/09 mostrou o custo de ignorá-los: trocar `.eq("secao","guias")`
+ * por `"guia"` em `secaoDeGuias` deixava a suíte inteira verde, e em produção
+ * `/guias` nunca acharia a linha — o painel diria "salvo, já está no ar" e a
+ * página mostraria o texto do código para sempre. O mesmo com um alias no
+ * `select`.
+ *
+ * Um dublê mais permissivo que o Postgres não é dublê: é um espelho de quem o
+ * escreveu.
+ */
 vi.mock("../src/lib/supabase", () => ({
   supabase: {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: linha, error: erro }),
+    from: (tabela: string) => ({
+      select: (colunas: string) => ({
+        eq: (coluna: string, valor: string) => ({
+          maybeSingle: async () => {
+            const certo =
+              tabela === "cabecalho_dos_guias" &&
+              coluna === "secao" &&
+              valor === "guias" &&
+              colunas.includes("titulo_seo") &&
+              colunas.includes("resumo") &&
+              !colunas.includes(" as ");
+            // Filtro que não casa devolve VAZIO, não erro — é o que o PostgREST
+            // faz, e é o que torna o defeito silencioso em produção.
+            return certo ? { data: linha, error: erro } : { data: null, error: erro };
+          },
         }),
       }),
     }),
@@ -155,8 +178,9 @@ describe("a leitura separa 'não há override' de 'não consegui ler'", () => {
    *
    * A mesma função serve a página pública e o painel, e os dois querem coisas
    * opostas: a página precisa CAIR NO PADRÃO em qualquer tropeço, e o painel
-   * precisa SABER que tropeçou — porque lá o campo em branco vira um clique que
-   * grava `""` e apaga o texto do dono.
+   * precisa SABER que tropeçou — porque lá o campo em branco não é “não há
+   * texto”, é “não sei o que tem”, e as duas coisas levam a decisões diferentes
+   * de quem está na frente da tela.
    *
    * Enquanto os dois desfechos colapsavam num valor só, o painel não tinha como
    * distinguir. E a mutação que os colapsa de novo passava verde na suíte

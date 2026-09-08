@@ -34,7 +34,8 @@ import { salvarCabecalho } from "../src/lib/salvarCabecalho";
  * A FIAÇÃO — o `onClick`, o `setCabecalhoLido`, a carga preenchendo os campos —
  * é assunto de `tests/painel-de-guias-fiacao.test.ts`, que monta a tela em
  * `jsdom` e clica de verdade. Ela ficou descoberta por quatro rodadas de
- * revisão, e era onde morava o clique que apagava o texto do dono.
+ * revisão, e era onde morava o clique que, no desenho antigo, apagava o texto
+ * do dono.
  *
  * Também não aparece aqui o `placeholder` com o texto padrão: ele vem do
  * `fetch` do `useEffect`, que não roda no servidor.
@@ -88,10 +89,15 @@ describe("o bloco do cabeçalho da seção chega à tela", () => {
     expect(html).toMatch(/<textarea[^>]*maxlength="300"/i);
   });
 
-  it("diz que campo vazio volta ao padrão", async () => {
-    // É o contrato inteiro da tela numa frase. Sem ela, quem limpa o campo não
-    // tem como saber se apagou o texto do site ou se voltou ao automático.
-    expect(texto(await tela())).toContain("Campo vazio volta ao texto padrão");
+  it("diz o que salvar faz, e o que esvaziar um campo faz", async () => {
+    // É o contrato da tela numa frase, e ele mudou em 07/09. “Campo vazio volta
+    // ao padrão” descrevia o desenho antigo, em que a requisição levava sempre
+    // os dois campos. Hoje viaja só o que a pessoa mudou, e é preciso dizer
+    // isso — senão quem vê os campos em branco depois de uma falha de leitura
+    // conclui que salvar vai apagar o site.
+    const html = texto(await tela());
+    expect(html).toContain("Salvar manda só os campos que você mudou");
+    expect(html).toContain("esvaziar um campo e salvar devolve aquele campo ao texto padrão");
   });
 
   it("avisa que o sufixo da loja é da página, não do campo", async () => {
@@ -203,9 +209,12 @@ describe("o salvamento do cabeçalho", () => {
     // A última porta de apagamento que a revisão achou, e a mais sutil: o PUT
     // GRAVOU (foi 200), mas o corpo não diz o quê. Antes, os dois campos caíam
     // para "" e a tela dizia "de volta ao texto padrão" — mentira sobre o que
-    // aconteceu —, com o botão habilitado e os campos em branco. Ou seja, o
-    // estado que o `cabecalhoLido` existe para tornar impossível, alcançado
-    // pelo caminho de ESCRITA. O clique seguinte apagaria o texto de verdade.
+    // aconteceu —, e o clique seguinte apagaria o texto de verdade.
+    //
+    // Com o desenho de 07/09 o clique seguinte não apaga mais nada, e a mentira
+    // continua sendo mentira: a tela estaria afirmando um estado do banco que
+    // ninguém confirmou. Por isso o desfecho é `exigeRecarga`, e não um "salvo"
+    // otimista.
     respondendo(corpo);
     const r = await salvarCabecalho({ tituloSeo: "T", resumo: "R" });
 

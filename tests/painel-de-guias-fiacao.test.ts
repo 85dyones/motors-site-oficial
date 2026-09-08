@@ -37,11 +37,20 @@ import { createRoot, type Root } from "react-dom/client";
  */
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const RESPOSTAS: { get: unknown; getOk: boolean; put: unknown; putOk: boolean } = {
+const RESPOSTAS: {
+  get: unknown;
+  getOk: boolean;
+  put: unknown;
+  putOk: boolean;
+  delete: unknown;
+  deleteOk: boolean;
+} = {
   get: {},
   getOk: true,
   put: {},
   putOk: true,
+  delete: {},
+  deleteOk: true,
 };
 let chamadas: { url: string; metodo: string; corpo?: unknown }[] = [];
 
@@ -55,7 +64,10 @@ function dublarFetch() {
     });
     if (String(url).includes("/api/guias/secao")) {
       if (metodo === "DELETE") {
-        return { ok: true, json: async () => ({ cabecalho: { titulo_seo: null, resumo: null } }) };
+        // O corpo é o da rota de verdade, `apagou` incluso: sem esse campo o
+        // cliente devolve "não apaguei nada", e um dublê mais generoso que o
+        // servidor esconderia isso.
+        return { ok: RESPOSTAS.deleteOk, json: async () => RESPOSTAS.delete };
       }
       return { ok: RESPOSTAS.putOk, json: async () => RESPOSTAS.put };
     }
@@ -120,6 +132,8 @@ beforeEach(() => {
   RESPOSTAS.getOk = true;
   RESPOSTAS.putOk = true;
   RESPOSTAS.put = { cabecalho: { titulo_seo: "gravado", resumo: "gravado" } };
+  RESPOSTAS.deleteOk = true;
+  RESPOSTAS.delete = { cabecalho: { titulo_seo: null, resumo: null }, apagou: true };
   RESPOSTAS.get = {
     guias: [],
     regua: [],
@@ -281,6 +295,11 @@ describe("o botão está ligado na função que grava", () => {
 
     expect(campo("Título da aba").value).toBe("gravado");
     expect(container.textContent).toContain("Cabeçalho salvo");
+    // E o Salvar volta a travar: o que está no campo passou a ser o que está
+    // no ar. Sem `setCarregado`, a tela seguiria oferecendo para gravar de novo
+    // o texto que acabou de gravar — e o teste do valor não veria, porque quem
+    // escreve o campo é o `setCabecalho`.
+    expect(botao("Salvar cabeçalho").disabled, "nada mais a salvar").toBe(true);
   });
 
   it("200 sem corpo utilizável trava e não mente", async () => {
@@ -299,6 +318,14 @@ describe("o botão está ligado na função que grava", () => {
     expect(container.textContent).not.toContain("no texto padrão");
     // O que a pessoa digitou continua ali.
     expect(campo("Título da aba").value).toBe("Novo título");
+    // E a tela para de afirmar que leu: o Voltar ao padrão trava e o aviso
+    // aparece. Sem isso, o botão de apagar seguiria liberado sobre uma leitura
+    // que a própria tela acabou de admitir que não confere — e a frase
+    // "Recarregue a página" vem da lib, não deste estado.
+    expect(botao("Voltar ao padrão").disabled, "não dá para apagar sobre leitura velha").toBe(
+      true,
+    );
+    expect(container.textContent).toContain("Não consegui ler o cabeçalho que está no ar");
   });
 });
 
@@ -321,10 +348,47 @@ describe("voltar ao padrão é ação com nome próprio", () => {
       botao("Voltar ao padrão").click();
     });
 
+    const del = chamadas.find((c) => c.metodo === "DELETE");
     expect(chamadas.filter((c) => c.metodo === "DELETE")).toHaveLength(1);
     expect(chamadas.filter((c) => c.metodo === "PUT")).toHaveLength(0);
+    // O ENDEREÇO também: nada afirmava para onde o DELETE ia, e trocá-lo por
+    // outra rota do painel deixava a suíte verde.
+    expect(del!.url).toContain("/api/guias/secao");
     expect(campo("Título da aba").value).toBe("");
     expect(container.textContent).toContain("voltou ao texto padrão");
+    // E o botão trava: não há mais override no banco para apagar. É a
+    // testemunha do `setCarregado` deste caminho — o valor do campo é escrito
+    // pelo `setCabecalho`, e sozinho não distingue os dois.
+    expect(botao("Voltar ao padrão").disabled, "não há mais o que apagar").toBe(true);
+  });
+
+  it('servidor que não confirma o apagamento não vira "pronto" na tela', async () => {
+    // `apagou: false` com o botão liberado é anomalia: ou outra pessoa apagou
+    // antes, ou a gravação foi recusada em silêncio — que é como RLS responde,
+    // segundo o caderno do projeto. A tela não pode anunciar o que não
+    // aconteceu, e passa a admitir que o que mostra pode estar velho.
+    RESPOSTAS.get = {
+      guias: [],
+      regua: [],
+      cabecalho: { tituloSeo: "Tem no banco", resumo: "" },
+      padrao: { tituloSeo: "Do código", resumo: "Resumo do código" },
+      cabecalhoLido: true,
+    };
+    RESPOSTAS.delete = { cabecalho: { titulo_seo: null, resumo: null }, apagou: false };
+    window.confirm = () => true;
+    await montar();
+
+    await act(async () => {
+      botao("Voltar ao padrão").click();
+    });
+
+    expect(container.textContent).toContain("Não apaguei nada");
+    expect(container.textContent).not.toContain("voltou ao texto padrão");
+    // O campo não é limpo: o texto pode continuar no ar.
+    expect(campo("Título da aba").value).toBe("Tem no banco");
+    // E a tela para de afirmar que leu, até alguém recarregar.
+    expect(container.textContent).toContain("Não consegui ler o cabeçalho que está no ar");
+    expect(botao("Voltar ao padrão").disabled).toBe(true);
   });
 
   it("recusar a confirmação não manda nada", async () => {
