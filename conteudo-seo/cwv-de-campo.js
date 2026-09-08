@@ -51,17 +51,37 @@
  * o valor aparece na terceira medição.
  *
  * ---------------------------------------------------------------------------
- * O limite honesto desta fonte
+ * ⚠️ MEDIDO EM 2026-09-08: hoje este script não tem o que devolver
  * ---------------------------------------------------------------------------
- * O CrUX exige amostra mínima. Origem com pouco tráfego responde no TOTAL do
- * domínio e não por URL — e é justamente a URL de ficha que o item 3.3 pede.
- * Quando a linha da ficha vier "sem amostra", não é erro do script: é o CrUX
- * dizendo que não há visitas suficientes naquela URL.
+ * O CrUX exige amostra mínima, e `motorsstore.com.br` **não a alcança — nem no
+ * nível da ORIGEM**. Com a chave válida, as quatro rotas e as duas estratégias
+ * voltaram "sem amostra", e `originLoadingExperience` veio ausente, que é como
+ * a API diz "este domínio não está no CrUX".
  *
- * Nesse caso o caminho seguinte é `web-vitals` → `dataLayer` → GA4: mede por
- * rota, sem mínimo de amostra, é primeira-parte, e o GTM já está no ar. Custa
- * uma tag e um punhado de linhas — mais trabalho que este script, e a única
- * forma de ter o INP da ficha se o tráfego não bastar.
+ * Não é bug daqui, e isso foi provado com um controle: a MESMA chave e o MESMO
+ * caminho de código, apontados para um site de tráfego alto, devolvem o
+ * registro completo (INP p75 = 147 ms, cinco métricas). O sinal é real.
+ *
+ * A consequência prática, e ela é grande: **o relatório de Core Web Vitals do
+ * Search Console também estará vazio**, porque bebe da mesma fonte. O caminho
+ * "de graça pelo CrUX" não responde ao item 3.3 hoje, e só vai responder
+ * quando o tráfego crescer o bastante para o domínio entrar na amostra.
+ *
+ * Este script FICA — ele é a forma barata de descobrir que isso mudou. Rodá-lo
+ * de tempos em tempos custa uma chamada; o dia em que uma linha deixar de
+ * dizer "sem amostra" é o dia em que o Search Console também passa a ter o
+ * relatório.
+ *
+ * ---------------------------------------------------------------------------
+ * O que resta, e por que é o único caminho
+ * ---------------------------------------------------------------------------
+ * `web-vitals` → `dataLayer` → GA4. Mede por rota, **sem mínimo de amostra**,
+ * é primeira-parte, e o GTM já está no ar. Custa uma tag e um punhado de
+ * linhas.
+ *
+ * É também o que explica por que o Speed Insights parecia a resposta: ele é
+ * RUM de primeira parte, que é exatamente a categoria que funciona para um
+ * site deste tamanho. A diferença é que ele cobra plano e este caminho não.
  */
 const fs = require("fs");
 const path = require("path");
