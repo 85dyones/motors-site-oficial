@@ -1,0 +1,77 @@
+{
+  "_leia": "RASCUNHO do guia do cluster B, peça 3 (item 5.1 do HANDOFF_SEO_08SET). Formato da tabela `guias` — mesmos campos de `src/lib/guias.ts`. Publicar pelo painel /admin/guias, DEPOIS da revisão do dono. Nasce como `rascunho`: rascunho não sai no site nem no sitemap.",
+  "_base": "Escrito a partir do que o site JÁ afirma em /financiamento (múltiplos bancos, quem fecha condição é o banco, a simulação não promete aprovação) e de mecânica pública de crédito. NÃO usa dado do funil: a tabela `leads` tinha 3 registros em 2026-09-08, nenhum com motivo de perda preenchido, e o BRIEFING.md não trata de financiamento. Nenhum número de taxa, prazo, idade máxima de veículo ou percentual de aprovação foi escrito, porque nenhum deles existe medido aqui.",
+  "_revisar": "O dono precisa conferir três afirmações operacionais antes de publicar: (1) a loja de fato envia a proposta para mais de um banco por cliente; (2) a loja aceita comprovação de renda de autônomo/MEI; (3) a loja não cobra nada para 'analisar crédito'. Se alguma não for verdade, o parágrafo correspondente sai.",
+
+  "slug": "financiamento-de-carro-com-credito-apertado",
+  "estado": "rascunho",
+  "titulo": "Financiamento de carro com crédito apertado",
+  "tituloSeo": "Financiamento de carro com crédito apertado | Motors Store",
+  "descricao": "Quem decide o financiamento é o banco, não a loja — e bancos diferentes leem o mesmo CPF de formas diferentes. O que a análise olha, o que você controla e o que é sinal de golpe.",
+  "sobre": ["Financiamento de veículos", "Análise de crédito", "Compra de carro seminovo"],
+  "saida": {
+    "rotulo": "Simular financiamento",
+    "href": "/financiamento",
+    "apoio": "A parcela com o estoque real da loja, e um consultor para levar a proposta aos bancos."
+  },
+
+  "corpo": [
+    {
+      "titulo": "Quem aprova não é a loja",
+      "paragrafos": [
+        "A frase mais útil sobre financiamento de carro é também a mais desconfortável para quem vende: a loja não aprova crédito. Quem aprova é o banco, com o seu CPF na frente, e a loja é quem monta a proposta e a leva. Isso muda o que adianta fazer — não existe conversa com o vendedor que mude uma negativa, e existe muita coisa na proposta que muda o resultado.",
+        "É por isso que a resposta honesta para \"vocês aprovam com o nome sujo?\" nunca é sim nem não. É: depende do que está no seu nome, de qual banco olha, de quanto entra de entrada e de qual carro é. Quem responde sim de imediato está vendendo outra coisa.",
+        "O que a loja controla é o caminho da proposta: para quantos bancos ela vai, como a renda é apresentada, qual veículo é escolhido e qual entrada é montada. Nada disso é detalhe — é onde a resposta muda."
+      ]
+    },
+    {
+      "titulo": "Três situações diferentes que todo mundo chama de \"crédito apertado\"",
+      "paragrafos": [
+        "A primeira é **restrição ativa**: existe uma anotação em aberto no seu CPF. Enquanto ela estiver lá, a maioria das análises para antes de começar. O caminho aqui é resolver a anotação ou financiar em nome de outra pessoa que participe da compra — não há atalho, e quem oferece um está cobrando por ele.",
+        "A segunda é **score baixo sem restrição**: nada em aberto, mas o histórico é curto, irregular ou tem atraso recente. Este é o caso em que o banco importa mais do que tudo, porque cada um pesa esse histórico de um jeito. É também o caso em que entrada maior costuma resolver, porque ela reduz o que o banco tem a perder.",
+        "A terceira é **renda difícil de comprovar**: autônomo, MEI, comissionado, renda informal. Aqui o problema não é o seu crédito, é o formato do documento. Extrato bancário, DECORE, declaração de imposto de renda e faturamento de MEI são lidos de formas diferentes por bancos diferentes — e a proposta montada com o documento certo é outra proposta."
+      ]
+    },
+    {
+      "titulo": "O que você controla, em ordem de peso",
+      "paragrafos": [
+        "**A entrada.** É o que mais move a análise, e move por um motivo mecânico: quanto maior a entrada, menor o valor financiado em relação ao que o carro vale, e menor o risco que o banco assume. Seu carro atual entra aqui — a avaliação vira entrada no financiamento do próximo, sem precisar de dinheiro no bolso.",
+        "**O carro.** O ano e o valor do veículo entram na conta junto com o seu perfil: quanto mais velho o carro, menos banco topa financiar e por prazo menor. Trocar o modelo pretendido por outro mais novo, ou mais barato, às vezes destrava uma análise que o mesmo CPF não destravava.",
+        "**O prazo.** Prazo maior derruba a parcela e sobe o custo total; prazo menor faz o contrário e é lido melhor pela análise. Vale simular os dois antes de escolher, porque a parcela que cabe hoje e o valor que você vai pagar no fim são duas decisões, não uma.",
+        "**Para quantos bancos a proposta vai.** Cada banco tem política própria de crédito, e a mesma pessoa recebe respostas diferentes de dois deles no mesmo dia. Quem manda para um só e para na primeira negativa nunca descobre isso — e é o erro mais comum e mais caro dessa conversa."
+      ]
+    },
+    {
+      "titulo": "O que é sinal de golpe",
+      "paragrafos": [
+        "**\"Aprovação garantida\".** Ninguém pode garantir aprovação antes da análise, porque quem decide é o banco. Anúncio que promete isso está prometendo o que não é dele para prometer.",
+        "**Cobrança antecipada para \"liberar\" ou \"analisar\" o crédito.** Análise de crédito não se compra. Qualquer pedido de pagamento antes da aprovação — taxa de cadastro, seguro obrigatório para destravar, depósito de boa-fé — é o golpe mais antigo do setor.",
+        "**\"Limpamos seu nome\".** Não existe serviço que apague uma anotação legítima. O que existe é negociar a dívida com quem a registrou, e isso você faz direto, de graça, nos canais do próprio credor.",
+        "Aqui, a simulação não promete aprovação e o preço está no anúncio. O número que o simulador mostra é estimativa com TAC e IOF incluídos — não é proposta, e a proposta quem faz é o banco."
+      ]
+    }
+  ],
+
+  "faq": [
+    {
+      "pergunta": "Dá para financiar carro com nome sujo?",
+      "resposta": "Com restrição ativa no CPF, a maioria das análises não avança — e nenhuma loja pode mudar isso, porque quem decide é o banco. Os caminhos reais são resolver a anotação ou incluir outra pessoa na compra. Quem promete aprovação com nome sujo antes da análise está prometendo o que não é dele para prometer."
+    },
+    {
+      "pergunta": "Score baixo reprova o financiamento?",
+      "resposta": "Não automaticamente. Score é um dos itens da análise, e cada banco pesa o histórico de um jeito — a mesma pessoa costuma receber respostas diferentes de bancos diferentes. Entrada maior é o que mais ajuda nesse caso, porque reduz o valor financiado em relação ao que o carro vale."
+    },
+    {
+      "pergunta": "Sou autônomo e não tenho holerite. Consigo financiar?",
+      "resposta": "Consegue apresentar renda de outras formas: extrato bancário, declaração de imposto de renda, DECORE e faturamento de MEI. O que muda de banco para banco é qual desses documentos ele aceita e como lê. Aqui o consultor monta a proposta com o documento que o banco pede, antes de enviar."
+    },
+    {
+      "pergunta": "A Motors Store cobra alguma coisa para analisar meu crédito?",
+      "resposta": "Não. Análise de crédito não se cobra, e pedido de pagamento antes da aprovação — taxa para liberar, depósito de boa-fé, seguro para destravar — é golpe. A simulação do site é gratuita e não promete aprovação: ela mostra a parcela estimada, com TAC e IOF, para você decidir antes de falar com alguém."
+    },
+    {
+      "pergunta": "Meu carro atual serve como entrada?",
+      "resposta": "Serve, e é o caminho que mais destrava análise apertada, porque entrada maior reduz o risco que o banco assume. A avaliação sai pela Avaliação Express, com base na Tabela FIPE e no giro do estoque, e o valor aprovado entra como entrada no financiamento do próximo carro."
+    }
+  ]
+}
