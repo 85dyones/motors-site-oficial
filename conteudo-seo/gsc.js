@@ -43,6 +43,34 @@
  *   node conteudo-seo/gsc.js --veiculos         # só as PDPs de carro
  */
 const fs = require("fs");
+const path = require("path");
+
+/*
+ * O `.env.local` entra em `process.env` ANTES de qualquer leitura.
+ *
+ * Sem isto, este era o único script da pasta que NÃO lia o arquivo — e o
+ * efeito é pior do que parece: `configurar-gsc.js` grava `GSC_CLIENT_EMAIL` e
+ * `GSC_PRIVATE_KEY` exatamente aí, então o caminho oficial de configuração
+ * terminava com o `gsc.js` respondendo "faltam variáveis" e mandando definir
+ * o que já estava definido. Medido em 2026-09-08, com a credencial certa na
+ * mão. É a convenção de `levantar-estoque.js`, `conferir-feed.js` e
+ * `planejador.js`, copiada deste último.
+ *
+ * Arquivo ausente não é erro: quem exporta a env na mão continua funcionando.
+ * E a env REAL vence a do arquivo — daí o `!== undefined` antes de escrever,
+ * senão passar a variável no comando não teria como sobrepor o arquivo.
+ */
+(function carregarEnvLocal() {
+  const arquivo = path.join(__dirname, "..", ".env.local");
+  if (!fs.existsSync(arquivo)) return;
+  for (const linha of fs.readFileSync(arquivo, "utf8").split(/\r?\n/)) {
+    if (!linha || linha.startsWith("#") || !linha.includes("=")) continue;
+    const i = linha.indexOf("=");
+    const nome = linha.slice(0, i).trim();
+    if (process.env[nome] !== undefined) continue;
+    process.env[nome] = linha.slice(i + 1).replace(/^["']|["']$/g, "");
+  }
+})();
 
 const CHAVE = process.env.GSC_CHAVE;
 const SITE = process.env.GSC_SITE;
