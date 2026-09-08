@@ -65,12 +65,19 @@ export async function POST(
       );
     }
 
-    const { data: veiculo } = await supabase
+    const { data: veiculo, error: erroVeiculo } = await supabase
       .from("estoque_motors")
       .select("*")
       .eq("id", normalizarId(id))
       .maybeSingle();
 
+    // Mesma ordem da rota irmã (GET de api/estoque/[id]/route.ts): falha de
+    // banco, de rede ou bloqueio de RLS é 500 com a mensagem, não 404. Sem
+    // isto, `data: null` por erro de leitura respondia "Veículo não
+    // encontrado" para um carro que a pessoa está editando naquele instante.
+    if (erroVeiculo) {
+      return NextResponse.json({ error: erroVeiculo.message }, { status: 500 });
+    }
     if (!veiculo) {
       return NextResponse.json({ error: "Veículo não encontrado" }, { status: 404 });
     }

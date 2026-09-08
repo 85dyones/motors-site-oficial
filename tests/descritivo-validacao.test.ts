@@ -86,6 +86,40 @@ describe("regra: perícia", () => {
   it("aceita falar do processo sem o dado", () => {
     expect(motivos("Passa por perícia independente antes de entrar na vitrine.")).not.toContain("perícia");
   });
+
+  /**
+   * A janela de 40 caracteres da versão antiga não alcançava "aprovado"
+   * nestas duas frases — medido pelo revisor em 08/09/2026. As duas afirmam
+   * laudo aprovado num carro cuja perícia está "Em análise" (49 dos 85
+   * veículos à venda naquele dia) e chegariam ao painel sem reprovação.
+   */
+  it("reprova afirmação de aprovação longe do gatilho, na mesma frase", () => {
+    expect(
+      motivos("Perícia cautelar independente feita por empresa credenciada, com resultado aprovado."),
+    ).toContain("perícia");
+  });
+  it("reprova afirmação de aprovação separada por dois-pontos, na mesma frase", () => {
+    expect(
+      motivos("Laudo cautelar realizado por empresa credenciada junto ao Detran: aprovado."),
+    ).toContain("perícia");
+  });
+  it("aceita as duas frases longas quando o dossiê autoriza", () => {
+    expect(
+      motivos("Perícia cautelar independente feita por empresa credenciada, com resultado aprovado.", APROVADO),
+    ).not.toContain("perícia");
+    expect(
+      motivos("Laudo cautelar realizado por empresa credenciada junto ao Detran: aprovado.", APROVADO),
+    ).not.toContain("perícia");
+  });
+
+  /**
+   * O outro lado do mesmo defeito: esta frase NEGA aprovação, e reprovava
+   * antes da correção — a régua via "laudo ... aprovado" e ignorava o "não"
+   * entre os dois. `NEGA_APROVACAO` (a régua de `formatPericia`) desconta.
+   */
+  it("NÃO reprova frase que nega a aprovação", () => {
+    expect(motivos("O laudo ainda não está aprovado.")).not.toContain("perícia");
+  });
 });
 
 describe("regra: status interno", () => {

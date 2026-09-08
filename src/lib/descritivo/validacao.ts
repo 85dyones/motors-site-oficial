@@ -1,12 +1,18 @@
 import { ROTULOS, temRotulo, type Dossie } from "./dossie";
+import { NEGA_APROVACAO } from "../supabase";
 
 /**
  * Reprova texto fora do padrão antes de ele chegar à tela.
  *
- * Toda regra de substring usa `\b`. Sem isso, /pendente/ reprova
- * "perícia independente" e a validação passa a reprovar tudo — defeito medido
- * em 08/09/2026, que fez uma tabela de resultados parecer "cinco modelos
- * ruins" antes de a causa aparecer.
+ * STATUS_INTERNO usa `\bpendente\b` por causa de um defeito medido em
+ * 08/09/2026: sem a fronteira de palavra, /pendente/ reprovava "perícia
+ * independente" e a validação passava a reprovar tudo — a tabela de
+ * resultados chegou a ser lida como "cinco modelos ruins" antes de a causa
+ * aparecer. Isso NÃO generaliza: nem toda regra de substring usa `\b` —
+ * AFIRMA_PERICIA, GARANTIA, DONOS, EQUIPAMENTOS e a primeira alternativa do
+ * próprio STATUS_INTERNO ("em an[áa]lise") não usam —, então uma regra nova
+ * precisa avaliar caso a caso se corre o mesmo risco, em vez de supor que o
+ * arquivo inteiro já se protege sozinho.
  *
  * LIMITE CONHECIDO: nada aqui detecta TROCA DE CAMPO — "motor manual" quando
  * o manual é o câmbio. As duas frases são bem-formadas e nenhuma regex as
@@ -34,7 +40,21 @@ export function aberturaDe(texto: string): string {
 }
 
 const VOCABULARIO = /\b(premium|luxo|exclusiv[oa]s?|consulte-nos)\b|melhor pre[çc]o/i;
-const AFIRMA_PERICIA = /(laudo|per[íi]cia|cautelar)[^.!?]{0,40}(aprovad|100%|sem apontament)/i;
+/**
+ * Gatilho (laudo/perícia/cautelar) e afirmação de aprovação NA MESMA FRASE —
+ * `[^.!?]*`, não uma janela de caracteres.
+ *
+ * Até 08/09/2026 a janela era `{0,40}`, curta demais: "Perícia cautelar
+ * independente feita por empresa credenciada, com resultado aprovado." e
+ * "Laudo cautelar realizado por empresa credenciada junto ao Detran:
+ * aprovado." passavam direto, afirmando laudo aprovado num carro cuja perícia
+ * está "Em análise" — medido em 49 dos 85 veículos à venda naquele dia.
+ *
+ * O match ainda precisa passar pelo desconto de negação logo abaixo: sozinho,
+ * ele reprovaria "O laudo ainda não está aprovado." — a frase que NEGA a
+ * aprovação, não que a afirma.
+ */
+const AFIRMA_PERICIA = /(laudo|per[íi]cia|cautelar)[^.!?]*(aprovad|100%|sem apontament)/i;
 const STATUS_INTERNO = /em an[áa]lise|\bpendente\b|aguardando/i;
 const ALCANCE = /todo o brasil|\bnacional\b|santa catarina(?!.{0,40}balne[áa]rio)/i;
 const MARKDOWN = /\*\*|^#{1,6}\s|\[.+\]\(.+\)|^\s*[-*]\s/m;
@@ -61,8 +81,20 @@ export function validarDescritivo(
     add("vocabulário", 'Usa palavra que o posicionamento da loja barra ("premium", "luxo", "consulte-nos").');
   }
 
-  if (!dossie.periciaAprovada && AFIRMA_PERICIA.test(texto)) {
-    add("perícia", "Afirma laudo aprovado, e a perícia deste veículo não está aprovada.");
+  if (!dossie.periciaAprovada) {
+    const gatilho = texto.match(AFIRMA_PERICIA);
+    if (gatilho) {
+      // "sem apontamentos" É a afirmação (perícia limpa) — descarta essa
+      // frase do trecho casado ANTES de perguntar se ele nega aprovação.
+      // Sem isto, o "sem" de "sem apontamentos" soa como a mesma negação que
+      // NEGA_APROVACAO existe para pegar em "não está aprovado", e o caso
+      // real ("Laudo cautelar aprovado sem apontamentos.") deixaria de
+      // reprovar — o oposto do que esta regra existe para fazer.
+      const semOIdiomaDeAprovacaoLimpa = gatilho[0].toLowerCase().replace(/sem apontament\w*/g, "");
+      if (!NEGA_APROVACAO.test(semOIdiomaDeAprovacaoLimpa)) {
+        add("perícia", "Afirma laudo aprovado, e a perícia deste veículo não está aprovada.");
+      }
+    }
   }
 
   if (STATUS_INTERNO.test(texto)) {

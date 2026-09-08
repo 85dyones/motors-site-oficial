@@ -28,6 +28,7 @@ export function SugestaoDeTexto({
   const [carregando, setCarregando] = useState(false);
   const [texto, setTexto] = useState<string | null>(null);
   const [caracteres, setCaracteres] = useState(0);
+  const [periciaAprovada, setPericiaAprovada] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [motivos, setMotivos] = useState<Motivo[]>([]);
 
@@ -50,6 +51,10 @@ export function SugestaoDeTexto({
       }
       setTexto(j.texto);
       setCaracteres(j.caracteres ?? String(j.texto ?? "").length);
+      // A rota lê a perícia do BANCO (nunca do corpo da requisição) e devolve
+      // o que o texto está autorizado a afirmar — é o que quem revisa precisa
+      // conferir antes de clicar "Usar este texto" (spec §7).
+      setPericiaAprovada(Boolean(j.periciaAprovada));
     } catch (e: any) {
       setErro(e?.message ?? "Falha ao chamar o gerador");
     } finally {
@@ -86,9 +91,15 @@ export function SugestaoDeTexto({
       {texto && (
         <div className="mt-3 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5">
           <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{texto}</p>
-          <p className="mt-2 text-[11px] text-mt-neutral-700">
-            {caracteres} caracteres. Leia antes de usar: a conferência automática não detecta
-            troca de campo — &quot;motor manual&quot; quando o manual é o câmbio, por exemplo.
+          <p className="mt-2 text-[11px] font-semibold text-mt-neutral-800">
+            {caracteres} caracteres.{" "}
+            {periciaAprovada
+              ? "Pode afirmar perícia aprovada — a vistoria deste veículo já aprovou."
+              : "Não afirma perícia aprovada — a vistoria deste veículo ainda não aprovou."}
+          </p>
+          <p className="mt-1 text-[11px] text-mt-neutral-700">
+            Leia antes de usar: a conferência automática não detecta troca de campo —
+            &quot;motor manual&quot; quando o manual é o câmbio, por exemplo.
           </p>
           <div className="mt-3 flex gap-2">
             <button

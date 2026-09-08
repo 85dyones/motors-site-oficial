@@ -87,6 +87,11 @@ export function montarDossie(v: VeiculoParaDossie): Dossie {
   por(ROTULOS.cor, v.cor);
   por(ROTULOS.carroceria, v.tipo);
   por(ROTULOS.motorizacao, v.motor);
+  // `portas` NÃO é código morto: a coluna existe em produção (medido em
+  // 2026-09-08 — smallint, preenchida em 41 dos 85 veículos à venda), só que
+  // sem migração versionada que a crie. É divergência entre o schema real e
+  // o histórico do repositório — dívida do repositório, não deste branch.
+  // Não remover por não achar a migração.
   por(ROTULOS.portas, v.portas);
   por(ROTULOS.donos, v.donos_anteriores);
   por(ROTULOS.garantia, v.garantia_fabrica);

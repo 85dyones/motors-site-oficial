@@ -199,11 +199,23 @@ const formatCombustivel = (c: string): string => {
  *
  * "Aprovado com observação" conta como aprovado: decisão do dono em 2026-09-08.
  */
+/**
+ * Palavras que negam aprovação — "não aprovado", "sem aprovação", "reprovado",
+ * "pendente", "negado", "indeferido".
+ *
+ * EXPORTADA desde 2026-09-08 porque `src/lib/descritivo/validacao.ts` (regra
+ * `perícia`) faz a mesma pergunta sobre texto livre: "isto nega aprovação?".
+ * Duplicar o literal ali criaria uma segunda régua sobre o mesmo fato — o
+ * mesmo problema que `montarDossie` já evita reusando `formatPericia` em vez
+ * de reimplementar a normalização.
+ */
+export const NEGA_APROVACAO = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/;
+
 export const formatPericia = (p: string): string => {
   const val = (p || "").toLowerCase().trim();
   if (!val) return "EM ANÁLISE";
 
-  const nega = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/.test(val);
+  const nega = NEGA_APROVACAO.test(val);
   if (!nega && /aprovad/.test(val)) return "PERÍCIA APROVADA";
   if (/analise|análise/.test(val)) return "EM ANÁLISE";
 

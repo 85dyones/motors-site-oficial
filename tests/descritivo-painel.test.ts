@@ -143,4 +143,24 @@ describe("SugestaoDeTexto", () => {
     await clicar(botao("gerar"));
     expect(naTela().toLowerCase()).toContain("troca de campo");
   });
+
+  /**
+   * A rota devolve `periciaAprovada` e, até esta correção, o painel lia
+   * `texto`, `caracteres`, `error` e `motivos` — e ignorava o terceiro. A
+   * spec §7 manda a tela dizer "o que ele afirma": é a conferência que quem
+   * revisa precisa antes de clicar "Usar este texto".
+   */
+  it("diz que o texto PODE afirmar perícia aprovada quando o dossiê autoriza", async () => {
+    RESPOSTA = { ok: true, status: 200, corpo: { texto: "Texto sugerido.", caracteres: 15, periciaAprovada: true } };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela().toLowerCase()).toContain("pode afirmar perícia aprovada");
+  });
+
+  it("diz que o texto NÃO afirma perícia aprovada quando o dossiê não autoriza", async () => {
+    RESPOSTA = { ok: true, status: 200, corpo: { texto: "Texto sugerido.", caracteres: 15, periciaAprovada: false } };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela().toLowerCase()).toContain("não afirma perícia aprovada");
+  });
 });
