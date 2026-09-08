@@ -12,7 +12,6 @@ import CamadaDeDados from "../components/CamadaDeDados";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -192,28 +191,28 @@ export default async function RootLayout({
             <LeadPopup />
             <CookieConsentBanner />
           </MolduraDoSite>
-          {/* Core Web Vitals de CAMPO — o que o comprador sente, no aparelho e
-              na rede dele. Todo diagnóstico de desempenho feito neste projeto
-              até 2026-09-08 foi de laboratório (`next build` e tamanho por
-              rota), que mede a máquina do build. É o campo que entra no sinal
-              de busca, e é dele que depende a decisão de partir a ficha em
-              `dynamic()`: sem saber o INP real em mobile, aquilo é palpite.
-
-              Instalado pelo PR #24, e este PR NÃO o instala de novo. A versão
-              anterior deste branch trazia o próprio `<SpeedInsights />` — os
-              dois mesclavam LIMPO no git, por estarem em linhas diferentes, e
-              o resultado tinha o mesmo identificador importado duas vezes.
-              Build quebrado numa mescla que o git aprova.
-
-              Fica FORA do `<CookieConsentBanner>` e do `IntegrationsTracker`
-              de propósito: Speed Insights não identifica pessoa — mede tempo
-              de render do próprio site, sem cookie e sem id. Condicioná-lo ao
-              aceite mediria só quem aceita, que é o pior recorte possível para
-              uma métrica de performance.
-
-              ⚠️ O componente sozinho não coleta: Speed Insights precisa estar
-              ligado no projeto, no painel da Vercel. */}
-          <SpeedInsights />
+          {/* Core Web Vitals de CAMPO: NÃO se mede aqui — 2026-09-08.
+           *
+           * O `<SpeedInsights />` da Vercel esteve nesta posição por meio dia,
+           * entre o PR #24 e este. Saiu porque exige um plano acima do que a
+           * conta tem: sem o produto ligado no painel ele injeta
+           * `/_vercel/speed-insights/script.js` em toda página e não coleta
+           * nada. Script morto no caminho crítico é o oposto do que um pacote
+           * de desempenho deveria fazer.
+           *
+           * A medição não foi abandonada, mudou de porta — e a porta nova é
+           * melhor, não só mais barata: o CrUX é o dado que o BUSCADOR enxerga.
+           * Ferramenta de fornecedor mede o que ela mede; o relatório de Core
+           * Web Vitals do Search Console mede o que decide o ranking.
+           *
+           *   - leitura humana: Search Console → Core Web Vitals
+           *   - série histórica: `node conteudo-seo/cwv-de-campo.js`
+           *
+           * Se um dia voltar um coletor aqui, ele entra FORA do
+           * `<CookieConsentBanner>` e do `IntegrationsTracker`, como este
+           * estava: métrica de performance não identifica pessoa, e
+           * condicioná-la ao aceite mediria só quem aceita — o pior recorte
+           * possível. `tests/telemetria-de-campo.test.ts` guarda a decisão. */}
         </ThemeProvider>
       </body>
     </html>

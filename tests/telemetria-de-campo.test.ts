@@ -1,90 +1,125 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { lerCodigo } from "./fonte";
 
 /**
- * Core Web Vitals de CAMPO — o número que ninguém no projeto tem.
+ * Core Web Vitals de CAMPO — pelo caminho que não custa plano.
  *
- * Todo diagnóstico de desempenho feito aqui até 2026-09-08 foi de laboratório:
- * `next build` e a tabela de tamanho por rota. Laboratório mede o que a
- * máquina que roda o build sente. Campo mede o que o comprador sente, no
- * aparelho dele, na rede dele — e é o campo que entra no sinal de busca.
+ * ---------------------------------------------------------------------------
+ * O problema, que continua de pé
+ * ---------------------------------------------------------------------------
+ * Todo diagnóstico de desempenho feito neste projeto foi de LABORATÓRIO:
+ * `next build` e a tabela de tamanho por rota. Laboratório mede a máquina que
+ * roda o build. Campo mede o que o comprador sente, no aparelho e na rede
+ * dele — e é o campo que entra no sinal de busca.
  *
- * A consequência prática da ausência: a decisão de partir mais pedaços do
- * `PDPClientWrapper` em `next/dynamic` (item 3.3 do handoff de 08/09) não tem
- * como ser tomada. Ela depende de saber se a ficha passa de 200 ms de INP em
- * mobile, e isso não é observável em laboratório. Por isso 3.3 fica
- * condicionado a este item e não sobe junto — o wrapper já carrega o
- * `LeadCaptureModal` sob demanda desde antes, então o que está em jogo é a
- * galeria, o simulador e os similares, que disparam evento de tracking.
+ * A consequência prática: a decisão de partir a ficha em `next/dynamic` (item
+ * 3.3 do handoff de 08/09) depende de saber se ela passa de 200 ms de INP em
+ * mobile, e isso não é observável em laboratório.
  *
- * Não existe teste aqui cobrando que 3.3 NÃO seja feito: seria uma trava
- * reprovando trabalho legítimo no dia em que o dado chegar. A sequência é nota,
- * não invariante.
+ * ---------------------------------------------------------------------------
+ * Por que o `@vercel/speed-insights` saiu
+ * ---------------------------------------------------------------------------
+ * Ele entrou pelo PR #24 e saiu em 2026-09-08: **o dono informou que Speed
+ * Insights exige um plano acima do que a conta tem.** Sem o produto ligado no
+ * painel, o componente não coleta nada — ele apenas injeta
+ * `/_vercel/speed-insights/script.js` em toda página. Script morto no caminho
+ * crítico é o oposto do que um pacote de desempenho deveria fazer.
  *
- * GA4 já está no site e mede audiência; não mede CWV por rota. As duas
- * ferramentas não se sobrepõem — e é por isso que `@vercel/analytics` NÃO
- * entra: seria um segundo contador de pageview em cima do GA4, ruído sem
- * pergunta a responder.
+ * ---------------------------------------------------------------------------
+ * O que entrou no lugar, e por que é melhor e não só mais barato
+ * ---------------------------------------------------------------------------
+ * O CrUX — o mesmo dado de campo que alimenta o relatório de Core Web Vitals
+ * do Search Console e que o Google usa como sinal. Duas portas:
+ *
+ *   1. **Search Console → Core Web Vitals.** Zero credencial, zero código: o
+ *      dono abre e lê, separado por mobile e desktop, agrupado por grupo de
+ *      URL. É onde olhar primeiro.
+ *   2. **`conteudo-seo/cwv-de-campo.js`**, para a série histórica. Lê o mesmo
+ *      CrUX pela API do PageSpeed e imprime LCP, INP e CLS por rota. Precisa
+ *      de uma chave gratuita (`PAGESPEED_API_KEY`): sem chave a API responde
+ *      **429**, porque a cota anônima é compartilhada com o mundo inteiro e
+ *      vive esgotada — medido em 08/09.
+ *
+ * A vantagem sobre o Speed Insights não é o preço: é que o CrUX é o dado que o
+ * BUSCADOR enxerga. Uma ferramenta de fornecedor mede o que ela mede; o
+ * relatório do Search Console mede o que decide o ranking.
+ *
+ * O limite honesto: o CrUX exige amostra mínima por URL. Origem com pouco
+ * tráfego responde no total do domínio e não por ficha — e é justamente a
+ * ficha que o item 3.3 precisa. Se o script voltar "sem amostra" para a rota
+ * de ficha depois da chave, o caminho seguinte é `web-vitals` → `dataLayer` →
+ * GA4: primeira-parte, por rota, sem mínimo, e o GTM já está no ar.
  */
 
 const LAYOUT = "src/app/layout.tsx";
+const COLETOR = "conteudo-seo/cwv-de-campo.js";
 
 const pacote = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
 };
 
-describe("o site coleta Web Vitals de campo", () => {
-  it("o pacote do Speed Insights é dependência de produção", () => {
-    // Em devDependencies o build da Vercel não o instala e o componente
-    // quebra o build — falha barulhenta, mas na hora errada.
-    expect(pacote.dependencies ?? {}).toHaveProperty("@vercel/speed-insights");
+const dependencias = { ...pacote.dependencies, ...pacote.devDependencies };
+const layout = lerCodigo(LAYOUT);
+
+describe("nenhuma telemetria de fornecedor entra pela metade", () => {
+  it.each(["@vercel/speed-insights", "@vercel/analytics"])(
+    "%s: declarado no package.json e montado no layout andam juntos",
+    (pkg) => {
+      /*
+       * O estado meio-a-meio é o que passa despercebido: dependência instalada
+       * e componente não montado é peso no `node_modules` sem efeito;
+       * componente montado sem a dependência quebra o build da Vercel, que
+       * instala só o que o `package.json` declara.
+       */
+      const declarado = pkg in dependencias;
+      const montado = layout.includes(pkg);
+
+      expect(
+        declarado,
+        `\`${pkg}\` está ${declarado ? "declarado" : "ausente"} e ${montado ? "montado" : "não montado"} — os dois estados têm de bater`,
+      ).toBe(montado);
+    },
+  );
+});
+
+describe("hoje o site não carrega nenhuma das duas", () => {
+  it("Speed Insights fora — exige plano que a conta não tem", () => {
+    expect(dependencias).not.toHaveProperty("@vercel/speed-insights");
+    expect(layout).not.toMatch(/SpeedInsights/);
   });
 
-  it("o layout raiz monta o coletor, e UMA vez só", () => {
-    // No layout RAIZ e não numa página: CWV por rota só existe se o coletor
-    // estiver em todas elas.
-    //
-    // A contagem não é preciosismo. Este branch e o PR #24 instalaram o mesmo
-    // componente em linhas diferentes do mesmo arquivo, e o git mesclou os
-    // dois LIMPO: o resultado importava o mesmo identificador duas vezes, o
-    // que não é conflito para o git e é erro de compilação para o TypeScript.
-    // Mescla que o git aprova e o build recusa não tem quem a pegue, a não ser
-    // uma trava que conte.
-    const codigo = lerCodigo(LAYOUT);
-    // Aspas simples ou duplas: o import veio do PR da Vercel com simples, e o
-    // resto do arquivo usa duplas. Proibir uma das grafias faria esta trava
-    // reprovar uma reformatação legítima.
-    const importes = codigo.match(/from\s+['"]@vercel\/speed-insights\/next['"]/g) ?? [];
-    const montagens = codigo.match(/<SpeedInsights\s*\/>/g) ?? [];
-
-    expect(importes, "import do Speed Insights").toHaveLength(1);
-    expect(montagens, "`<SpeedInsights />` montado").toHaveLength(1);
-  });
-
-  it("não entra um segundo contador de audiência junto", () => {
-    // `@vercel/analytics` é o pacote vizinho, e a tentação é instalar os dois.
-    // A audiência já está no GA4; dois contadores de pageview é ruído.
-    expect(pacote.dependencies ?? {}).not.toHaveProperty("@vercel/analytics");
-    expect(lerCodigo(LAYOUT)).not.toMatch(/@vercel\/analytics/);
-  });
-
-  it("o coletor fica fora do que o consentimento controla", () => {
-    // Speed Insights não identifica pessoa: mede tempo de render do próprio
-    // site, sem cookie e sem id de usuário. Envolvê-lo no gate de marketing
-    // faria a medição de desempenho depender de aceite — e mediria só quem
-    // aceita, que é o pior recorte possível para uma métrica de performance.
-    const codigo = lerCodigo(LAYOUT);
-    const posicao = codigo.indexOf("<SpeedInsights");
-
-    expect(posicao).toBeGreaterThan(-1);
-    // Não pode estar dentro do banner de consentimento.
-    const banner = /<CookieConsentBanner[\s\S]*?\/>/.exec(codigo);
-    if (banner) {
-      expect(posicao < banner.index || posicao > banner.index + banner[0].length).toBe(true);
-    }
+  it("Analytics fora — a audiência já está no GA4", () => {
+    // Este NÃO é sobre plano, e por isso continua valendo se o plano mudar:
+    // dois contadores de pageview é ruído, não redundância.
+    expect(dependencias).not.toHaveProperty("@vercel/analytics");
+    expect(layout).not.toMatch(/@vercel\/analytics/);
   });
 });
 
+describe("o caminho de graça existe e é executável", () => {
+  it("o coletor de CrUX está no repositório", () => {
+    // Tirar o Speed Insights sem pôr nada no lugar deixaria o projeto sem
+    // resposta para a mesma pergunta — e a pergunta é que importa, não a
+    // ferramenta.
+    expect(existsSync(join(process.cwd(), COLETOR)), `${COLETOR} não existe`).toBe(true);
+  });
+
+  it("ele lê a chave da env e não a carrega escrita", () => {
+    const codigo = readFileSync(join(process.cwd(), COLETOR), "utf8");
+
+    expect(codigo).toMatch(/PAGESPEED_API_KEY/);
+    // Uma chave de API colada no repositório é o defeito clássico deste tipo
+    // de script utilitário — e este arquivo é público.
+    expect(codigo).not.toMatch(/AIza[0-9A-Za-z_-]{10}/);
+  });
+
+  it("ele explica o 429, que é o erro que qualquer um vai encontrar primeiro", () => {
+    // Sem chave a API responde 429 pela cota anônima compartilhada, e a
+    // mensagem do Google fala de "project_number" — não diz "falta chave".
+    // Quem topar com isso sem aviso conclui que o domínio não tem dado.
+    expect(readFileSync(join(process.cwd(), COLETOR), "utf8")).toMatch(/429/);
+  });
+});
