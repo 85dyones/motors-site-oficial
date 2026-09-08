@@ -73,6 +73,8 @@ Junto dos fatos vai uma lista explícita de **afirmações autorizadas**:
 
   **A normalização não é detalhe: nenhum veículo tem a string `"PERÍCIA APROVADA"` no banco.** Os valores reais, medidos nos 85 à venda em 2026-09-08, são `Em análise` (49), `Aprovado` (34) e `Aprovado com observação` (2). Comparar a coluna crua liberaria a afirmação para zero veículos — e o gerador chama a mesma função do selo, nunca uma régua paralela, para não criar mais uma verdade sobre a perícia.
 
+  `Aprovado com observação` conta como aprovado, e o texto pode afirmá-lo: **decisão do dono em 2026-09-08**. É o que `formatPericia` já faz e o que o selo do site já pratica, então os 36 veículos aprovados hoje são os 34 mais esses 2.
+
   **O texto também não pode expor o status interno.** Dizer "o exame está em análise" é honesto e comercialmente errado num anúncio: não se vende um carro anunciando que a perícia não fechou. O silêncio sobre o resultado é a única saída quando ele não existe.
 
 - **`laudo_pericia` não entra no dossiê enquanto a perícia não estiver aprovada.** O BMW X1 `7803195` prova por quê: `pericia` é `Em análise`, mas `laudo_pericia` diz *"Laudo cautelar completo — estrutura, chassi e histórico de sinistro auditados por empresa credenciada junto ao Detran"*. O texto descreve um exame cujo resultado ainda não saiu; passá-lo ao modelo é convidar a afirmação que a régua acabou de negar.
@@ -167,8 +169,11 @@ Erro da API (429, 5xx, timeout) vira 502 com o motivo. O painel mostra e oferece
 ## 11. Pendências do dono
 
 1. **`OPENAI_API_KEY` em `.env.local`** — feito em 2026-09-08; foi o que permitiu escolher o modelo por medição.
-2. **`OPENAI_API_KEY` na Vercel** — o dono informa que está lá. Falta confirmar duas coisas que o conector não expõe: se o **nome** é exatamente `OPENAI_API_KEY`, e se ela vale para **Preview** além de Production. Nome divergente não quebra o build: dá 503 em produção com a chave presente, do lado de fora do nome que o código procura.
-3. **"Aprovado com observação" pode ser anunciado como aprovado?** Dois veículos estão nesse estado hoje. `formatPericia` já os normaliza para `PERÍCIA APROVADA`, então **o selo do site já os trata como aprovados** — o gerador apenas herda essa decisão. Se a resposta for não, a correção é em `formatPericia`, num lugar só, valendo para selo e texto ao mesmo tempo. Mudar só no gerador criaria mais uma verdade sobre a perícia, e já há verdades demais nesse campo.
+2. **`OPENAI_API_KEY` na Vercel** — presente, e o nome foi **confirmado pelo dono em 2026-09-08** como exatamente `OPENAI_API_KEY`. Fica um ponto de operação a conferir no primeiro PR: se a variável vale para **Preview** além de Production. Se não valer, o deploy de preview responde 503 e a ferramenta só pode ser provada depois do merge — o que inverte a ordem de conferir antes de publicar.
+
+### Resolvido em 2026-09-08
+
+**"Aprovado com observação" pode ser anunciado como aprovado — decisão do dono.** Dois veículos estão nesse estado. Isso confirma o comportamento que `formatPericia` já tem e que o selo do site já pratica: **nada muda no código.** A decisão fica registrada aqui porque o contrário exigiria mexer em `formatPericia`, e a mudança valeria para o selo e para o texto ao mesmo tempo — nunca só para o gerador.
 
 ## 12. Decisões tomadas nesta conversa
 
