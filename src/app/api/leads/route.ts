@@ -247,7 +247,19 @@ export async function POST(request: NextRequest) {
           customData: {
             content_ids: veiculo?.id ? [String(veiculo.id)] : undefined,
             content_type: META_CONTENT_TYPE,
-            content_name: veiculo ? `${veiculo.marca} ${veiculo.modelo}` : undefined,
+            /**
+             * `contentName` é a saída de quem NÃO tem veículo — a encomenda do
+             * hub sem estoque, onde o carro é justamente o que não existe no
+             * pátio. Sem ela, o evento de SERVIDOR chegava ao Meta sem nome de
+             * conteúdo enquanto o do NAVEGADOR chegava com um: os dois lados do
+             * mesmo `event_id` descrevendo coisas diferentes.
+             *
+             * Aditivo, e nesta ordem de propósito: quando há veículo, ele
+             * continua mandando. Nenhum evento é renomeado (regra 7).
+             */
+            content_name: veiculo
+              ? `${veiculo.marca} ${veiculo.modelo}`
+              : body.contentName || undefined,
             value: veiculo?.preco,
             currency: "BRL",
           },

@@ -72,6 +72,23 @@ export interface PaginaDeEstoqueProps {
    * erro, que é pior do que não oferecer.
    */
   avisarHref?: string;
+  /**
+   * O formulário de encomenda do hub sem estoque — "Encomende seu carro".
+   *
+   * Entra como nó pronto, e não como um par de strings, porque é client
+   * component com Turnstile e `fetch`: montá-lo aqui dentro obrigaria esta
+   * página inteira a virar cliente.
+   *
+   * A GUARDA fica aqui, junto do desenho: é renderizado só no ramo de grade
+   * vazia, a mesma condição que já governa o bloco de saída. Deixar a decisão
+   * na rota faria cada hub escolher por conta própria, e o primeiro refactor
+   * do hub de modelo esqueceria dela sem nada quebrar na tela — um formulário
+   * a mais numa página com estoque não parece defeito, parece escolha.
+   *
+   * Ele SUBSTITUI o `avisarHref` nos hubs de marca e modelo, e convive com ele
+   * nos recortes de `/estoque`, que continuam com o botão de WhatsApp.
+   */
+  encomenda?: ReactNode;
   blocos?: BlocoDeLinks[];
   faq?: PerguntaFrequente[];
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
@@ -130,6 +147,7 @@ export default function PaginaDeEstoque({
   alternativos = [],
   rotuloAlternativos = "Enquanto isso, do mesmo perfil",
   avisarHref = "",
+  encomenda,
   blocos = [],
   faq = [],
   acao,
@@ -307,6 +325,13 @@ export default function PaginaDeEstoque({
               {textoSemEstoque ??
                 "Sem unidades disponíveis neste momento. O estoque gira toda semana — fale com um consultor e avisamos quando entrar."}
             </p>
+            {/* O formulário vem ANTES dos botões, e é a saída nº 1 do bloco.
+                O `wa.me` que ocupava esse lugar captava no canal que a loja
+                atende — e fora do sistema: sem linha em `leads`, sem CAPI, sem
+                Kanban. Quem chega num hub sem estoque é o lead mais
+                qualificado do site; ele merece o primeiro campo, não um link. */}
+            {encomenda && <div className="mt-6">{encomenda}</div>}
+
             <div className="mt-6 flex flex-wrap gap-0.5">
               {avisarHref && (
                 <BotaoWhatsApp
@@ -316,6 +341,8 @@ export default function PaginaDeEstoque({
                   className="mt-btn mt-btn-primario mt-foco"
                 />
               )}
+              {/* Regra 6: a vitrine ordena, nunca esconde. Esta saída não some
+                  nem quando o formulário está ali em cima. */}
               <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco">
                 VER TODO O ESTOQUE
               </Link>
