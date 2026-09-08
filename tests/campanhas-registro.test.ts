@@ -6,6 +6,7 @@ import {
   campanhaPorSlug,
   campanhaEstaViva,
   campanhasVivas,
+  campanhaAcabou,
   caminhoDaCampanha,
   ehRotaDeCampanha,
   type Campanha,
@@ -45,6 +46,35 @@ describe("a vigência respeita o fuso de Curitiba", () => {
 
   it("ainda não vive na véspera", () => {
     expect(campanhaEstaViva(campanha(), new Date("2026-09-11T23:00:00-03:00"))).toBe(false);
+  });
+});
+
+describe("antes do início NÃO é a mesma coisa que depois do fim", () => {
+  /*
+   * O defeito que motivou `campanhaAcabou`, pego no navegador em 08/09: a
+   * página usava `!campanhaEstaViva` e respondia 308 PERMANENTE também antes
+   * do início. 308 o navegador guarda para sempre — quem abrisse o link na
+   * véspera ficaria com o redirect gravado e não veria a LP nem durante o
+   * feirão. A função estava certa; o uso é que estava errado.
+   */
+  it("não acabou na véspera, ainda que também não esteja viva", () => {
+    const vespera = new Date("2026-09-11T10:00:00-03:00");
+    expect(campanhaEstaViva(campanha(), vespera)).toBe(false);
+    expect(campanhaAcabou(campanha(), vespera)).toBe(false);
+  });
+
+  it("não acabou às 23h do último dia", () => {
+    expect(campanhaAcabou(campanha(), new Date("2026-09-20T23:00:00-03:00"))).toBe(false);
+  });
+
+  it("acabou na madrugada seguinte", () => {
+    expect(campanhaAcabou(campanha(), new Date("2026-09-21T00:30:00-03:00"))).toBe(true);
+  });
+
+  it("a página só chama permanentRedirect no caso de ter ACABADO", () => {
+    const pagina = lerCodigo("src/app/(campanha)/pole-position-2026/page.tsx");
+    expect(pagina).toMatch(/campanhaAcabou\(/);
+    expect(pagina).not.toMatch(/!campanhaEstaViva/);
   });
 });
 

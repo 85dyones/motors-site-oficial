@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 import { useTheme } from "../../app/ThemeContext";
 import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../../lib/telemetry";
@@ -33,10 +33,18 @@ export default function CtaDeCampanha({
   campanha,
   rotulo,
   className,
+  style,
 }: {
   campanha: Campanha;
   rotulo?: string;
   className?: string;
+  /**
+   * Cor do botão por `style`, e não por classe arbitrária do Tailwind.
+   * `bg-[#EC3013]` chega ao elemento mas a regra CSS pode não ser gerada — já
+   * aconteceu neste repositório, e o sintoma é uma classe presente sem efeito
+   * nenhum, com as vizinhas funcionando.
+   */
+  style?: CSSProperties;
 }) {
   const { companySettings } = useTheme();
   const [aberto, setAberto] = useState(false);
@@ -107,7 +115,7 @@ export default function CtaDeCampanha({
 
   return (
     <>
-      <button type="button" onClick={() => setAberto(true)} className={className}>
+      <button type="button" onClick={() => setAberto(true)} className={className} style={style}>
         {rotulo ?? `Quero as condições do ${campanha.nome}`}
       </button>
       <LeadCaptureModal

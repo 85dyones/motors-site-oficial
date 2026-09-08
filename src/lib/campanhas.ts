@@ -54,7 +54,20 @@ export interface Campanha {
   fraseDoCliente: string;
 }
 
-export const CAMPANHAS: Campanha[] = [];
+export const CAMPANHAS: Campanha[] = [
+  {
+    slug: "pole-position-2026",
+    nome: "Pole Position",
+    inicio: "2026-09-12",
+    fim: "2026-09-20",
+    destinoAposFim: "/estoque",
+    descricao:
+      "Pole Position na Motors Store: lives com ofertas relâmpago, primeira parcela em até 120 dias " +
+      "e transferência por nossa conta em veículos selecionados. De 12 a 20 de setembro, em Curitiba.",
+    // Escrita pelo dono em 08/09. É o que chega no WhatsApp e vira `interesse`.
+    fraseDoCliente: "Olá, vi sobre o feirão Pole Position Motors e quero saber as condições",
+  },
+];
 
 export function campanhaPorSlug(slug: string): Campanha | undefined {
   return CAMPANHAS.find((c) => c.slug === slug);
@@ -76,6 +89,29 @@ export function campanhaEstaViva(campanha: Campanha, agora: Date): boolean {
 
 export function campanhasVivas(agora: Date): Campanha[] {
   return CAMPANHAS.filter((c) => campanhaEstaViva(c, agora));
+}
+
+/**
+ * Já passou do último dia?
+ *
+ * Existe separado de `campanhaEstaViva` por causa de um defeito real, pego na
+ * verificação de 08/09: a página respondia **308 permanente** também ANTES do
+ * início, e 308 o navegador guarda para sempre. Quem abrisse o link no dia 9
+ * — o dono conferindo, um consultor, alguém que recebeu o card adiantado —
+ * ficaria com o redirect gravado e **a LP não abriria para essa pessoa nem
+ * durante o feirão**.
+ *
+ * A régua certa não é "está viva", é "já acabou":
+ *   - **acabou** → 308, e aí permanente é o correto: não volta mesmo;
+ *   - **ainda não começou** → a página ABRE, dizendo a data. É destino de
+ *     anúncio, e anúncio se monta e se revisa antes de começar a rodar.
+ *
+ * Não estar no ar cedo demais é problema do sitemap, e ele já resolve sozinho:
+ * `campanhasVivas` só lista as vigentes.
+ */
+export function campanhaAcabou(campanha: Campanha, agora: Date): boolean {
+  const fecha = new Date(`${campanha.fim}T23:59:59.999${FUSO}`).getTime();
+  return agora.getTime() > fecha;
 }
 
 export function caminhoDaCampanha(campanha: Campanha): string {
