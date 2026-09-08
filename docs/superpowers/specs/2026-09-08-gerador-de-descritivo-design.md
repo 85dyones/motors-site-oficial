@@ -39,7 +39,7 @@ Dois botões na aba "Texto e SEO" do editor de veículo. Cada um gera uma sugest
               ├─ montarDossie(veiculo)
               ├─ chama o modelo com dossiê + briefing
               ├─ validarDescritivo(texto, dossie, campo)
-              └─ 200 { texto, caracteres, afirmacoes }
+              └─ 200 { texto, caracteres, periciaAprovada }
                  422 { motivos }  reprovado na validação
                  502 { motivo }   a API do fornecedor falhou
                  503 { motivo }   falta OPENAI_API_KEY
