@@ -10,7 +10,7 @@ import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, getMatchParamsRespeitandoRecusa, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
-import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
+import { nomeComAno, nomeDoVeiculo } from "../lib/nomeDoVeiculo";
 import {
   mensagemDeDuvidas,
   mensagemDeInteresse,
@@ -1545,7 +1545,7 @@ export default function PDPClientWrapper({
           vehicleId={veiculo.id}
           vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
           vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
-          vehicleName={`${veiculo.marca} ${veiculo.modelo}`}
+          vehicleName={nomeComAno(veiculo)}
           onSimulateClick={(msg, simulacaoData) => {
             if (typeof window !== "undefined") {
               setActiveChannel("Simulação de Financiamento");
@@ -1593,6 +1593,7 @@ export default function PDPClientWrapper({
         vehicleInfo={{
           marca: veiculo.marca,
           modelo: veiculo.modelo,
+          versao: veiculo.versao,
           ano: veiculo.ano
         }}
       />

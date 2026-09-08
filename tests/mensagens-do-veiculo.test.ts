@@ -129,19 +129,60 @@ describe("a ficha usa estas funções — e não monta o nome por conta própria
    * exercitam o módulo puro, e o defeito vivia na ficha. Já aconteceu neste
    * repositório de uma função nova passar semanas ao lado do código velho.
    *
-   * A asserção afirma a CONDIÇÃO inteira — nenhuma superfície monta o nome à
-   * mão —, e não uma grafia proibida. `lerCodigo` desconta comentários: a nota
-   * que explica a remoção cita o código removido.
+   * A primeira versão desta trava era uma regex de ADJACÊNCIA
+   * (`marca` → `modelo` → ano), e a revisão a derrubou: bastou inserir
+   * `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ${veiculo.ano}` —
+   * com a versão no meio — para os 13 testes ficarem verdes. A trava protegia
+   * os cinco pontos existentes e não impedia um sexto, que era exatamente o
+   * caso vivo no mesmo arquivo (`vehicleName` e `vehicleInfo`).
+   *
+   * Agora a régua é outra e vale para o arquivo inteiro: **nenhum literal de
+   * template pode citar marca e ano juntos**. Quem nomeia o carro com o ano
+   * está montando o nome, e isso é trabalho do módulo. O `alt` das imagens usa
+   * marca + modelo SEM ano e continua livre, que é o recorte certo.
+   *
+   * `lerCodigo` desconta comentários: a nota que explica a remoção cita o
+   * código removido.
    */
   const WRAPPER = "src/components/PDPClientWrapper.tsx";
 
-  it("nenhuma mensagem interpola marca, modelo e ano à mão", async () => {
+  it("nenhum texto do arquivo monta o nome do carro com o ano", async () => {
     const { lerCodigo } = await import("./fonte");
 
-    // Qualquer ordem, com ou sem parênteses/hífen entre modelo e ano.
-    expect(lerCodigo(WRAPPER)).not.toMatch(
-      /\$\{veiculo\.marca\}\s*\$\{veiculo\.modelo\}\s*[-(\s]*\$\{veiculo\.ano\}/,
+    const literais = lerCodigo(WRAPPER).match(/`[^`]*`/g) ?? [];
+    const infratores = literais.filter(
+      (l) => l.includes("veiculo.marca") && l.includes("veiculo.ano"),
     );
+
+    expect(infratores, "monte o nome em lib/mensagensDoVeiculo.ts").toEqual([]);
+  });
+
+  it("a calculadora de financiamento recebe o nome COMPLETO", async () => {
+    /* A sétima mensagem da ficha, e a que eu não tinha visto:
+       `CalculadoraFinanciamento` monta "Olá! Tenho interesse no {vehicleName}
+       e fiz uma simulação…" — a ação de maior intenção da página. A prop
+       recebia `${marca} ${modelo}`: sem versão E sem ano, pior que as outras
+       seis.
+
+       ⚠️ A régua do teste acima (marca + ano no mesmo literal) NÃO pega este
+       caso, porque o literal antigo não citava o ano. Provado por mutação. Daí
+       a asserção específica: a prop não pode ser texto montado à mão. */
+    const { lerCodigo } = await import("./fonte");
+    const fonte = lerCodigo(WRAPPER);
+
+    expect(fonte).toContain("vehicleName={nomeComAno(veiculo)}");
+    expect(fonte, "vehicleName voltou a ser montado à mão").not.toMatch(/vehicleName=\{`/);
+  });
+
+  it("o modal de lead recebe a versão, para a saída do captcha nomear o carro", async () => {
+    /* `vehicleInfo` alimenta a mensagem que o `SaidaDoCaptcha` manda para o
+       WhatsApp quando o Turnstile bloqueia o visitante — caminho alcançável
+       sempre que o desafio falha. Ia sem a versão. */
+    const { lerCodigo } = await import("./fonte");
+    const bloco = lerCodigo(WRAPPER).split("vehicleInfo={{")[1] ?? "";
+
+    expect(bloco, "vehicleInfo não é mais passado na ficha").not.toBe("");
+    expect(bloco.slice(0, 200)).toContain("versao: veiculo.versao");
   });
 
   it("os cinco textos saem do módulo", async () => {
