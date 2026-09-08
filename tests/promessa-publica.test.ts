@@ -516,25 +516,34 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
    * o assistente não vê essa contradição — quem vê é o leitor e o Google.
    *
    * ---------------------------------------------------------------------------
-   * 2026-09-08: o dono FOI consultado, e a pendência ficou menor
+   * 2026-09-08: o dono foi consultado, e a pendência não era pendência
    * ---------------------------------------------------------------------------
-   * *"O SEO é focado no regional, mas de fato temos rede de entrega nacional."*
-   * É a mesma decisão de 04/09 dita de outro jeito, e ela fecha a dúvida que o
-   * parágrafo acima deixava em aberto: o regional é onde a loja COMPETE e mira
-   * o conteúdo; o nacional é até onde ela ENTREGA. Não são dois tetos brigando,
-   * são duas coisas diferentes — e a frase de mídia nunca deveria ter virado
-   * frase de serviço numa meta description.
+   * Duas falas dele, que juntas fecham o assunto:
    *
-   * O que já mudou: o lote novo (`conteudo-seo/rascunhos-lote3.json`, seis
-   * fichas) fecha com a âncora local mais "com entrega para todo o Brasil" —
-   * a MESMA frase que o FAQ de `/garantia` usa, para não nascer uma terceira
-   * variante do alcance.
+   *   *"O SEO é focado no regional, mas de fato temos rede de entrega
+   *   nacional."*
+   *   *"Todo o Paraná e o litoral catarinense é isso mesmo, use o padrão."*
    *
-   * O que CONTINUA pendente: as 28 metas já em produção. Elas não ficaram
-   * erradas — ficaram SUBDIZENDO o alcance, que é um defeito mais barato e
-   * ainda assim um defeito, porque lido isolado o regional soa como teto. As
-   * 18 que têm fonte versionada saem com uma passada de `aplicar-rascunhos.js`;
-   * as outras 10 só existem no banco e precisam do painel.
+   * Então o parágrafo acima estava certo no fato e errado na conclusão. As 28
+   * metas regionais **não são defeito e não são pendência**: a meta de ficha é
+   * peça de SEO, e o alvo do SEO é a praça. Quem afirma o alcance do SERVIÇO é
+   * o FAQ — deste bloco e das páginas geo —, e continua sendo "todo o Brasil".
+   * Não é teto contra teto; é mira contra serviço, em superfícies diferentes,
+   * de propósito.
+   *
+   * O que fica registrado no lugar da pendência: **não existia UM padrão de
+   * fecho.** Os 41 textos fecham de oito formas — 23 só com o local, e os 18
+   * que citam alcance dizem isso de sete jeitos ("com entrega para todo o
+   * Paraná", "para o Paraná e Santa Catarina até Balneário Camboriú", "e
+   * entrega em todo o Paraná"…). O lote 3 canoniza a forma que o dono ditou,
+   * palavra por palavra:
+   *
+   *   Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná e no
+   *   litoral catarinense até Balneário Camboriú.
+   *
+   * Uniformizar os 18 antigos custa uma passada de `aplicar-rascunhos.js`, e
+   * vale — não por estarem errados, mas porque sete redações da mesma frase é
+   * ruído para quem lê o feed dos portais lado a lado.
    */
   const ALCANCE = /entregamos para todo o Brasil/i;
 
