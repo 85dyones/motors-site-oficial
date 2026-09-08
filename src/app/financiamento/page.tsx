@@ -7,7 +7,7 @@ import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import { precoVigente } from "../../lib/regrasEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDePerguntas, schemaDeTrilha } from "../../lib/schemaListagem";
-import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDeServico, schemaDoSite } from "../../lib/schemaLoja";
 import { PERGUNTAS_DE_FINANCIAMENTO, TEXTO_DE_FINANCIAMENTO } from "../../lib/paginasInstitucionais";
 
 /**
@@ -80,6 +80,18 @@ export default async function FinanciamentoPage() {
     ]),
     schemaDeListagem("Seminovos para financiar em Curitiba", paraGrade),
     schemaDePerguntas(PERGUNTAS_DE_FINANCIAMENTO),
+    // O que esta página FAZ. Sem este nó ela era, para o grafo, uma página da
+    // Motors com uma lista e um FAQ — o serviço que a justifica não estava
+    // declarado em lugar nenhum. `provider` aponta por `@id` para o `#dealer`
+    // que `schemaDaLoja` emite logo abaixo; sem preço e sem nota, pelas razões
+    // que a nota de `schemaDeServico` registra.
+    schemaDeServico({
+      tipo: "Financiamento de veículos",
+      nome: "Financiamento de seminovos em Curitiba",
+      descricao:
+        "Simulação e encaminhamento de crédito para a compra de um seminovo do estoque, " +
+        "com análise junto aos bancos parceiros da loja.",
+    }),
     schemaDaLoja(settings.companySettings, { disponiveis }),
     schemaDoSite(settings.companySettings),
   ]);
