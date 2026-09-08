@@ -29,6 +29,7 @@ import {
 } from "../../lib/estadoDoCadastro";
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
 import GaleriaDeFotos from "./GaleriaDeFotos";
+import { SugestaoDeTexto } from "./SugestaoDeTexto";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -1162,6 +1163,11 @@ export default function EditorDeVeiculo({
                 placeholder="Texto que abre a página do veículo."
                 className="mt-campo-caixa mt-foco resize-y leading-relaxed"
               />
+              <SugestaoDeTexto
+                veiculoId={v.id}
+                campo="descricao"
+                onUsar={(t) => set("descricao", t)}
+              />
               <div className="mt-rotulo mb-3 mt-6">Descrição para portais e busca</div>
               <textarea
                 rows={3}
@@ -1176,6 +1182,11 @@ export default function EditorDeVeiculo({
                 frase genérica. O Google mostra cerca de 155 caracteres.
                 {v.descricao_seo ? ` Atual: ${v.descricao_seo.length}.` : ""}
               </p>
+              <SugestaoDeTexto
+                veiculoId={v.id}
+                campo="descricao_seo"
+                onUsar={(t) => set("descricao_seo", t)}
+              />
 
               <div className="mt-rotulo mb-3 mt-6">Laudo cautelar</div>
               <textarea
