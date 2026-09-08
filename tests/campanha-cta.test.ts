@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { ACOES, ACOES_DE_LEADS } from "../src/lib/turnstile";
 import { mensagemDaCampanha, montarLeadDeCampanha } from "../src/lib/leadDeCampanha";
 import { lerCodigo } from "./fonte";
-import type { Campanha } from "../src/lib/campanhas";
+import { CAMPANHAS, type Campanha } from "../src/lib/campanhas";
 import type { UtmParameters } from "../src/lib/telemetry";
 
 const POLE: Campanha = {
@@ -68,21 +68,53 @@ describe("a mensagem é a voz do cliente", () => {
   it("cita a campanha pelo nome", () => {
     expect(mensagemDaCampanha(POLE)).toContain("Pole Position");
   });
+});
 
-  /*
-   * A frase vira `interesse` no banco e é lida por um consultor. Escrita na voz
-   * da LOJA ("separei ótimas opções para você") grava um lead que mente sobre
-   * quem falou — a mesma regra que `mensagemDaEncomenda` e o CarMatch seguem.
-   */
-  it("não fala na voz da loja", () => {
-    const frase = mensagemDaCampanha(POLE).toLowerCase();
-    expect(frase).not.toMatch(/separei|preparei|selecionamos para você/);
+/*
+ * As proibições rodam sobre `CAMPANHAS` — o registro REAL —, e não sobre a
+ * fixture acima.
+ *
+ * A primeira versão testava só o `POLE` local, e a revisão provou o buraco por
+ * mutação: trocar a frase de verdade em `src/lib/campanhas.ts` por "Separei
+ * ótimas opções para você: entrega em 3 dias, tudo abaixo da tabela FIPE"
+ * deixava estes testes inteiramente verdes. Testar a cópia não guarda o
+ * original.
+ */
+describe("nenhuma frase do registro promete o que a loja não controla", () => {
+  it("o registro não está vazio — senão tudo abaixo passa por vacuidade", () => {
+    expect(CAMPANHAS.length).toBeGreaterThan(0);
   });
 
-  it("não promete prazo nem cita FIPE ou desconto", () => {
-    const frase = mensagemDaCampanha(POLE).toLowerCase();
-    expect(frase).not.toMatch(/fipe|abaixo da tabela|desconto|em \d+ dias/);
-  });
+  it.each(CAMPANHAS.map((c) => [c.slug, c] as const))(
+    "%s: não fala na voz da loja",
+    (_slug, campanha) => {
+      /*
+       * A frase vira `interesse` no banco e é lida por um consultor. Escrita
+       * na voz da LOJA ("separei ótimas opções para você") grava um lead que
+       * mente sobre quem falou — mesma regra de `mensagemDaEncomenda`.
+       */
+      expect(mensagemDaCampanha(campanha).toLowerCase()).not.toMatch(
+        /separei|preparei|selecionei|selecionamos para voc|reservei/,
+      );
+    },
+  );
+
+  it.each(CAMPANHAS.map((c) => [c.slug, c] as const))(
+    "%s: não cita FIPE, desconto nem prazo",
+    (_slug, campanha) => {
+      const frase = mensagemDaCampanha(campanha).toLowerCase();
+      expect(frase).not.toMatch(/fipe|abaixo da tabela|desconto|\d+\s*(dias?|horas?|minutos?)/);
+    },
+  );
+
+  it.each(CAMPANHAS.map((c) => [c.slug, c] as const))(
+    "%s: a descrição pública também não promete recompra nem FIPE",
+    (_slug, campanha) => {
+      // `descricao` é og:description e entra no sitemap: é comunicação pública,
+      // e a regra 5 do CLAUDE.md vale para ela igual.
+      expect(campanha.descricao.toLowerCase()).not.toMatch(/recompra|fipe/);
+    },
+  );
 });
 
 describe("o corpo do POST", () => {
@@ -124,6 +156,22 @@ describe("o corpo do POST", () => {
 
   it("omite e-mail vazio em vez de gravar string vazia", () => {
     expect(corpo.cliente.email).toBeUndefined();
+  });
+
+  /*
+   * Sem `contentName`, `/api/leads` cai em `undefined` e a CAPI do SERVIDOR
+   * manda o evento sem nome de conteúdo, enquanto o pixel do NAVEGADOR manda
+   * "Pole Position Campanha" pelo mesmo `event_id`. Dois lados descrevendo
+   * coisas diferentes é o que a deduplicação do Meta não perdoa — e é o mesmo
+   * defeito que `src/lib/encomenda.ts` já corrige na superfície irmã.
+   */
+  it("manda contentName — senão a CAPI vai sem nome de conteúdo", () => {
+    expect(corpo.contentName).toBeTruthy();
+    expect(corpo.contentName).toContain("Pole Position");
+  });
+
+  it("e a rota realmente lê esse campo quando não há veículo", () => {
+    expect(lerCodigo("src/app/api/leads/route.ts")).toMatch(/content_name:[^,]*contentName/);
   });
 
   it("mas leva o e-mail quando ele existe", () => {

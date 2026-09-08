@@ -33,7 +33,24 @@ describe("a página", () => {
 
   it("declara card de compartilhamento com arte própria", () => {
     expect(codigo()).toMatch(/montarCompartilhamento/);
-    expect(codigo()).toMatch(/imagemPreferida/);
+    /*
+     * `imagemPreferida:` COM os dois-pontos. Sem eles, a regex casa com
+     * `imagemPreferidaSemDimensao`, que fica na linha de baixo — e apagar a
+     * arte deixava o teste verde, com o card caindo no padrão do painel.
+     * Provado por mutação na revisão.
+     */
+    expect(codigo()).toMatch(/imagemPreferida:\s*["']\/campanhas\//);
+  });
+
+  /*
+   * `pagina: "sobre"` faria um card de "Quem Somos" customizado no painel
+   * VENCER o título e a descrição desta LP — `montarCompartilhamento` resolve
+   * `limpar(proprio.titulo) || limpar(tituloPadrao)`, e só `"pdp"` zera o
+   * `proprio`. O card da campanha é o que circula no WhatsApp.
+   */
+  it("o card da campanha não pode ser sobrescrito pelo painel", () => {
+    expect(codigo()).toMatch(/pagina:\s*["']pdp["']/);
+    expect(codigo()).not.toMatch(/pagina:\s*["']sobre["']/);
   });
 
   /*
@@ -41,11 +58,21 @@ describe("a página", () => {
    * navegador e chega SEM IMAGEM no WhatsApp — que é justamente por onde a
    * campanha circula.
    */
-  it("a imagem do card não fica sob /api/", () => {
-    const caminhos = codigo().match(/["'](\/[^"']+\.(?:jpg|jpeg|png|webp))["']/gi) ?? [];
+  /*
+   * `robots.ts` bloqueia `/api/`. Um og:image servido dali responde 200 no
+   * navegador e chega SEM IMAGEM no WhatsApp — que é justamente por onde a
+   * campanha circula.
+   *
+   * A primeira versão só olhava caminhos com extensão de imagem, e por isso
+   * deixava passar `imagemPreferida: "/api/og?titulo=..."` — que é exatamente
+   * a forma que `urlDoCardGerado` produz e exatamente a que o robots bloqueia.
+   * Agora varre TODO caminho absoluto citado no arquivo.
+   */
+  it("nenhum caminho da página aponta para /api/", () => {
+    const caminhos = [...codigo().matchAll(/["'](\/[^"'\s]*)["']/g)].map((m) => m[1]);
     expect(caminhos.length).toBeGreaterThan(0);
     for (const caminho of caminhos) {
-      expect(caminho).not.toMatch(/\/api\//);
+      expect(caminho, `caminho sob /api/: ${caminho}`).not.toMatch(/^\/api\//);
     }
   });
 
@@ -85,7 +112,18 @@ describe("a página", () => {
    * `stealth-dark` salvo.
    */
   it("não usa os tokens de tema, que o visitante controla", () => {
-    expect(codigo()).not.toMatch(/--brand-|bg-brand-|text-brand-/);
+    const texto = codigo();
+    expect(texto).not.toMatch(/--brand-|bg-brand-|text-brand-|border-brand-/);
+    /*
+     * A família `mt-*` conta como token: `modernist.css` define
+     * `--mt-bg: var(--brand-background, …)`, então `bg-mt-surface` segue o tema
+     * salvo no navegador do mesmo jeito. E é como o resto do repositório
+     * escreve — logo, é o jeito provável de a próxima LP nascer quebrada.
+     */
+    expect(texto).not.toMatch(/--mt-|\b(?:bg|text|border|fill|stroke)-mt-/);
+    // E a paleta literal continua declarada, para o teste não passar por um
+    // arquivo que simplesmente perdeu as cores.
+    expect(texto).toMatch(/#[0-9A-Fa-f]{6}/);
   });
 
   it("o endereço vem das configurações, e não escrito na página", () => {
@@ -114,11 +152,33 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
       ["seleção", /escolhido e avaliado criteriosamente/i],
       ["120 dias", /at[ée] 120 dias para come[çc]ar a pagar/i],
       ["transferência", /transfer[êe]ncia fica por nossa conta/i],
-      ["garantia", /garantia\s+["+\s]*Motors Store/i],
+      ["garantia", /garantia de motor e c[âa]mbio/i],
       ["perícia", /per[íi]cia cautelar independente/i],
     ] as const) {
       expect(marca.test(texto), `faltou o argumento: ${rotulo}`).toBe(true);
     }
+  });
+
+  /*
+   * "garantia Motors Store" não existe em lugar nenhum do repositório — era
+   * nome inventado, e num anúncio pago sem link de saída o visitante não tem
+   * como descobrir o escopo. O que a loja dá está em `paginasInstitucionais`:
+   * motor e câmbio, sem carência e sem franquia.
+   */
+  it("nomeia a garantia pelo escopo real, não por um nome inventado", () => {
+    const texto = codigo();
+    expect(texto).not.toMatch(/garantia\s+Motors\s+Store/i);
+    expect(texto).toMatch(/motor e c[âa]mbio/i);
+    expect(texto).toMatch(/sem car[êe]ncia e sem franquia/i);
+  });
+
+  /*
+   * Um título é lido sozinho. "Perícia cautelar aprovada" afirma que a perícia
+   * DESTE carro está aprovada — o que o site nunca afirma e a medição
+   * desmentiu. A afirmação de PROCESSO ("passa por perícia") é a verdadeira.
+   */
+  it("não afirma no título que a perícia está aprovada", () => {
+    expect(codigo()).not.toMatch(/titulo:\s*["'][^"']*per[íi]cia[^"']*aprovad/i);
   });
 
   /*

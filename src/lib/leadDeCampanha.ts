@@ -57,6 +57,17 @@ export function montarLeadDeCampanha(
     // A etiqueta que o consultor lê no Kanban antes de abrir a conversa.
     canal: campanha.nome,
     mensagem: mensagemDaCampanha(campanha),
+    /*
+     * `contentName` é a saída de quem NÃO tem veículo. Sem ele, `/api/leads`
+     * cai em `undefined` e a CAPI do servidor manda o evento sem nome de
+     * conteúdo — enquanto o pixel do NAVEGADOR manda "Pole Position Campanha"
+     * pelo mesmo `event_id`. Dois lados descrevendo coisas diferentes é
+     * exatamente o que a deduplicação do Meta não perdoa.
+     *
+     * O custo que o dono aceitou foi CAPI sem `content_ids` — não sem
+     * `content_name`. `src/lib/encomenda.ts` resolve igual na superfície irmã.
+     */
+    contentName: `${campanha.nome} Campanha`,
     cliente: {
       nome: dados.nome.trim(),
       whatsapp: dados.whatsapp.trim(),

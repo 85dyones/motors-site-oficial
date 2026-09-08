@@ -51,7 +51,15 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,
-      pagina: "sobre",
+      /*
+       * `"pdp"` e não `"sobre"`, e o motivo é mecânico: `montarCompartilhamento`
+       * faz `proprio = pagina === "pdp" ? {} : config[pagina] ?? {}`, e depois
+       * `limpar(proprio.titulo) || limpar(tituloPadrao)`. Com `"sobre"`, um card
+       * de "Quem Somos" customizado no painel VENCERIA o título e a descrição
+       * desta LP — o card do WhatsApp da campanha viraria o texto institucional.
+       * `"pdp"` zera esse override e deixa os padrões abaixo mandarem.
+       */
+      pagina: "pdp",
       tituloPadrao: "Pole Position — a largada para grandes oportunidades",
       descricaoPadrao: CAMPANHA.descricao,
       caminho: CAMINHO,
@@ -102,13 +110,35 @@ const ARGUMENTOS = [
       "com o tanque cheio.",
   },
   {
-    titulo: "Garantia",
+    titulo: "Garantia de motor e câmbio",
+    /*
+     * O folder titula só "GARANTIA" e o corpo dizia "a garantia Motors Store"
+     * — nome que não existe em lugar nenhum do repositório, e escopo omitido
+     * em página de tráfego pago sem link de saída para `/garantia`. O que a
+     * loja realmente dá está em `paginasInstitucionais.ts`: motor e câmbio,
+     * três meses, sem carência e sem franquia.
+     *
+     * O PRAZO fica de fora de propósito: `POSICIONAMENTO.md` é explícito que
+     * 90 dias é o mínimo legal de PJ e não se vende como diferencial. Afirma-se
+     * o escopo, que é o que o cliente precisa saber; o diferencial fica na
+     * perícia.
+     */
     texto:
-      "Seu próximo carro vai acompanhado da segurança que você merece. Conte com a garantia " +
-      "Motors Store para comprar com mais confiança.",
+      "Seu próximo carro sai com garantia de motor e câmbio, contratada na entrega, " +
+      "sem carência e sem franquia.",
   },
   {
-    titulo: "Perícia cautelar aprovada",
+    /*
+     * "independente", e não "aprovada" como no folder. Um título é lido
+     * sozinho, e "Perícia cautelar aprovada" afirma que a perícia DESTE carro
+     * está aprovada — o que o site nunca afirma, e que a medição desmentiu
+     * (19 de 36 na conferência que originou a trava do `llms.txt`).
+     *
+     * O que é verdadeiro e continua dito é a afirmação de PROCESSO: todo
+     * veículo PASSA por perícia antes da vitrine (decisão do dono em 04/09).
+     * "Independente" carrega o diferencial real sem prometer o resultado.
+     */
+    titulo: "Perícia cautelar independente",
     /*
      * "assim que aprovada" não é enfeite: o laudo só abre na ficha depois da
      * perícia aprovada, e prometer o laudo sem a condição é o que a trava

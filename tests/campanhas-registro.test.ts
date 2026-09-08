@@ -1,6 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import MolduraDoSite, { AvisoLegalDoSite } from "../src/components/MolduraDoSite";
 import {
   CAMPANHAS,
   campanhaPorSlug,
@@ -94,9 +97,20 @@ describe("o caminho e a resolução", () => {
 
   it("campanhasVivas devolve só as vigentes na data dada", () => {
     const instante = new Date("2026-09-15T12:00:00-03:00");
-    for (const c of campanhasVivas(instante)) {
+    const vivas = campanhasVivas(instante);
+    /*
+     * A guarda de não-vacuidade. Sem ela, `campanhasVivas` devolvendo SEMPRE
+     * vazio deixa este laço verde — e a campanha some do `sitemap.ts`, que
+     * lê exatamente esta função, sem ninguém saber. Provado por mutação.
+     */
+    expect(vivas.map((c) => c.slug)).toContain("pole-position-2026");
+    for (const c of vivas) {
       expect(campanhaEstaViva(c, instante)).toBe(true);
     }
+  });
+
+  it("campanhasVivas fica vazia depois do fim de todas", () => {
+    expect(campanhasVivas(new Date("2027-01-01T12:00:00-03:00"))).toEqual([]);
   });
 });
 
@@ -151,21 +165,78 @@ describe("o registro se mantém honesto", () => {
   });
 });
 
-describe("a moldura sabe o que é campanha", () => {
-  it("MolduraDoSite consulta o registro", () => {
-    expect(lerCodigo("src/components/MolduraDoSite.tsx")).toMatch(/ehRotaDeCampanha/);
+/*
+ * A moldura, testada pelo COMPORTAMENTO e não pela fonte.
+ *
+ * A primeira versão destes testes fazia `toMatch(/ehRotaDeCampanha/)` sobre o
+ * arquivo — e casava com a linha do `import`. Provado por mutação: apagar o
+ * `if (ehRotaDeCampanha(pathname)) return null;` deixava a suíte inteira verde,
+ * com o cabeçalho e o pop-up de lead voltando para a LP sem nenhum sinal.
+ *
+ * `usePathname` é mockado porque os dois componentes são client components que
+ * decidem SÓ com base na rota: dado o pathname, a saída é determinística.
+ */
+const rotaAtual = { valor: "/" };
+vi.mock("next/navigation", () => ({
+  usePathname: () => rotaAtual.valor,
+}));
+
+function renderizar(Componente: (p: { children: ReactNode }) => ReactNode, rota: string) {
+  rotaAtual.valor = rota;
+  return renderToStaticMarkup(
+    createElement(Componente as never, { children: createElement("i", null, "MARCA") }),
+  );
+}
+
+describe("a moldura de navegação some na campanha e fica na loja", () => {
+  it("some na rota de campanha — senão o pop-up compete com o CTA do anúncio", () => {
+    for (const c of CAMPANHAS) {
+      expect(renderizar(MolduraDoSite, caminhoDaCampanha(c))).not.toContain("MARCA");
+    }
   });
 
+  it("some fora da loja, como antes", () => {
+    expect(renderizar(MolduraDoSite, "/admin/estoque")).not.toContain("MARCA");
+    expect(renderizar(MolduraDoSite, "/vitrine")).not.toContain("MARCA");
+  });
+
+  it("FICA nas rotas da loja", () => {
+    for (const rota of ["/", "/estoque", "/garantia", "/login"]) {
+      expect(renderizar(MolduraDoSite, rota), rota).toContain("MARCA");
+    }
+  });
+});
+
+describe("o aviso legal segue outra régua", () => {
   /*
-   * O aviso de cookies NÃO some junto com o header. Antes desta mudança os
-   * quatro (header, rodapé, popup e cookies) saíam no mesmo pacote; numa LP
-   * pública isso é perda de conformidade, não de estilo.
+   * A regressão que este bloco existe para pegar: acrescentar a guarda de
+   * campanha ao `AvisoLegalDoSite` faria a LP perder o banner de cookies.
+   * Largar o cabeçalho é design; largar o aviso seria conformidade.
    */
-  it("o aviso de cookies sai do pacote da moldura no layout raiz", () => {
+  it("FICA na landing page de campanha", () => {
+    for (const c of CAMPANHAS) {
+      expect(renderizar(AvisoLegalDoSite, caminhoDaCampanha(c))).toContain("MARCA");
+    }
+  });
+
+  it("continua fora de /vitrine e /admin — são aparelhos da loja, não do cliente", () => {
+    expect(renderizar(AvisoLegalDoSite, "/vitrine")).not.toContain("MARCA");
+    expect(renderizar(AvisoLegalDoSite, "/admin")).not.toContain("MARCA");
+  });
+
+  it("fica nas rotas da loja", () => {
+    expect(renderizar(AvisoLegalDoSite, "/estoque")).toContain("MARCA");
+  });
+
+  it("o layout raiz monta o banner dentro do wrapper legal, e não da navegação", () => {
     const layout = lerCodigo("src/app/layout.tsx");
-    expect(layout).toMatch(/AvisoLegalDoSite/);
     expect(layout).toMatch(
       /<AvisoLegalDoSite>[\s\S]*?<CookieConsentBanner \/>[\s\S]*?<\/AvisoLegalDoSite>/,
     );
+    // E NÃO sobrou uma segunda montagem dentro da moldura de navegação.
+    const dentroDaMoldura = layout.match(/<MolduraDoSite>[\s\S]*?<\/MolduraDoSite>/g) ?? [];
+    for (const bloco of dentroDaMoldura) {
+      expect(bloco).not.toMatch(/CookieConsentBanner/);
+    }
   });
 });
