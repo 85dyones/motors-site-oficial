@@ -24,6 +24,7 @@ const APROVADO = montarDossie({
   marca: "fiat", modelo: "titano volcano", ano: 2025, preco: "170900.00",
   quilometragem: 42000, cambio: "automatico", cor: "vermelha", tipo: "Picape",
   pericia: "Aprovado", opcionais: "couro, ar-condicionado digital",
+  garantia_fabrica: "12 meses ou 20.000 km", donos_anteriores: 1,
 });
 
 const motivos = (t: string, d = SEM_NADA, campo: "descricao" | "descricao_seo" = "descricao_seo") =>
@@ -45,6 +46,24 @@ describe("regra: abertura em 155 caracteres", () => {
   });
   it("aceita abertura dentro do limite", () => {
     expect(motivos("Honda NXR 160 Bros 2022. Passa por perícia independente.")).not.toContain("abertura");
+  });
+  /**
+   * O dossiê formata preço e km com `toLocaleString("pt-BR")` — ponto como
+   * separador de milhar. Bug medido em 08/09/2026: o split de frases tratava
+   * esse ponto como fim de frase, "R$ 89.900,00" virava dois fragmentos, e a
+   * segunda frase real ("Aceita troca...") caía fora da contagem — a
+   * abertura real tem 158 caracteres e devia reprovar, mas `aberturaDe`
+   * devolvia só os primeiros 34.
+   */
+  it("reprova abertura com preço em formato brasileiro que soma 158 caracteres", () => {
+    const texto =
+      "Honda Civic 2022 por R$ 89.900,00. Aceita troca, financiamento facilitado e entrega para toda a região metropolitana de Curitiba, com garantia de procedência.";
+    expect(motivos(texto)).toContain("abertura");
+  });
+  it("aceita abertura curta com preço e km em formato brasileiro", () => {
+    const texto =
+      "BMW X1 sDrive 20i 2022, por R$ 179.900, com 70.700 km rodados. Aceita troca e financiamento facilitado.";
+    expect(motivos(texto)).not.toContain("abertura");
   });
 });
 
@@ -109,6 +128,12 @@ describe("regra: fato fora do dossiê", () => {
   });
   it("aceita opcional que está no dossiê", () => {
     expect(motivos("Bancos em couro e ar-condicionado digital.", APROVADO)).not.toContain("fato fora do dossiê");
+  });
+  it("aceita garantia quando o dossiê tem Garantia de fábrica", () => {
+    expect(motivos("Com garantia de motor e câmbio.", APROVADO)).not.toContain("fato fora do dossiê");
+  });
+  it("aceita único dono quando o dossiê tem Donos anteriores", () => {
+    expect(motivos("Único dono, sempre na concessionária.", APROVADO)).not.toContain("fato fora do dossiê");
   });
 });
 

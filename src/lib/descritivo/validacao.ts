@@ -22,7 +22,13 @@ export type Reprovacao = { regra: string; motivo: string };
 
 /** As duas primeiras frases — o que o Google mostra. */
 export function aberturaDe(texto: string): string {
-  const frases = texto.replace(/\s+/g, " ").trim().match(/[^.!?]+[.!?]+/g);
+  // Um ponto entre dígitos é separador de milhar — `toLocaleString("pt-BR")`
+  // formata preço e km assim no dossiê — e não pode contar como fim de frase.
+  // Sem a exceção `(?<=\d)\.(?=\d)`, "R$ 89.900,00." quebrava em dois
+  // fragmentos ali no meio do número, e a segunda frase real da abertura
+  // caía fora da contagem: bug medido em 08/09/2026 (abertura real de 158
+  // caracteres, que devia reprovar, lida como 34).
+  const frases = texto.replace(/\s+/g, " ").trim().match(/(?:[^.!?]|(?<=\d)\.(?=\d))+[.!?]+/g);
   if (!frases || frases.length === 0) return texto.replace(/\s+/g, " ").trim();
   return frases.slice(0, 2).join("").trim();
 }
