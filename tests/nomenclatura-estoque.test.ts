@@ -131,7 +131,7 @@ describe("nomenclatura da tabela de inventário", () => {
     // o PREÇO é gravável (só no veículo do painel — no do feed o sync
     // desfaria). A leitura é do BANCO de propósito: aceitar `origem` do corpo
     // deixaria qualquer um reprecificar carro do RevendaMais.
-    expect(comAcesso.length).toBe(10);
+    expect(comAcesso.length).toBe(11);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -145,6 +145,13 @@ describe("nomenclatura da tabela de inventário", () => {
     // ficha. `getSinaisDeEstoque` responde a mesma pergunta para um id só, e
     // o sitemap precisa de todos — chamá-la em laço seria uma ida ao banco
     // por veículo, a cada revalidação.
-    expect(total).toBe(18);
+    //
+    // E o décimo primeiro arquivo, acesso nº 19, em 2026-09-08:
+    // `api/estoque/[id]/descritivo/route.ts`, a rota do gerador de descritivo
+    // (Tarefa 4). Único `.from("estoque_motors")` do arquivo, e é um SELECT —
+    // a rota nunca grava. O veículo é lido do BANCO de propósito, e não do
+    // corpo da requisição: aceitar `pericia` do corpo deixaria qualquer um
+    // liberar a afirmação de laudo aprovado num carro cujo exame não fechou.
+    expect(total).toBe(19);
   });
 });
