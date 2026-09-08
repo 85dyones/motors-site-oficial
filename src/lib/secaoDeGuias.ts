@@ -9,17 +9,22 @@ import { RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "./guias";
  * Pedido do dono em 07/09, apontando o parágrafo sob o `<h1>`: *"preciso ser
  * capaz de editar o texto geral no painel, além de editar e escrever novos
  * guias"*. Ele escolheu o escopo: estes DOIS. O nome da seção
- * (`NOME_DA_SECAO`) fica no código, porque alimenta seis superfícies públicas —
+ * (`NOME_DA_SECAO`) fica no código, porque alimenta SETE superfícies públicas —
  * o `<h1>` do índice, a trilha do índice, a trilha da ficha, os degraus do
- * `BreadcrumbList`, o `CollectionPage.name` e o rótulo do rodapé —, mais o
- * `<h1>` do painel e o nome em `PAGINAS_COMPARTILHAVEIS`. Todas travadas por
- * teste que compara a saída renderizada. Um campo de painel tiraria essa trava
- * do caminho.
+ * `BreadcrumbList`, o `CollectionPage.name`, o rótulo do rodapé e o item do
+ * menu do cabeçalho —, mais o `<h1>` do painel e o nome em
+ * `PAGINAS_COMPARTILHAVEIS`. Todas travadas por teste que compara a saída
+ * renderizada. Um campo de painel tiraria essa trava do caminho.
  *
- * (A primeira versão desta lista citava "o menu do cabeçalho". Ele não existe
- * neste branch — o item de menu é de `seo/guias-no-menu`, e o link que existe
- * aqui é o do RODAPÉ. A contagem fechava porque a enumeração trocava a trilha
- * da ficha, que é real, por uma superfície que não estava no código.)
+ * (Esta contagem já esteve errada duas vezes, nos dois sentidos. A primeira
+ * versão citava o menu quando ele ainda não existia — e fechava em seis porque
+ * trocava a trilha da ficha, que é real, por uma superfície que não estava no
+ * código. A segunda tirou o menu e voltou a seis, o que era verdade enquanto
+ * `seo/guias-no-menu` era outro branch. Ele entrou no mesmo merge que este
+ * arquivo, e a conta virou sete. O comentário da migração
+ * `20260907120000_cabecalho_dos_guias.sql` ainda diz seis: ela já está aplicada
+ * em produção, e migração aplicada não se reescreve — o número dela é o do dia
+ * em que rodou.)
  *
  * ---------------------------------------------------------------------------
  * Aqui o banco é OVERRIDE — o oposto de `guiasDoBanco.ts`
