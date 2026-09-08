@@ -392,10 +392,27 @@ describe("o teto do campo é o teto do banco, e não uma segunda opinião", () =
 
   it("e a régua da busca é aviso nos dois lados, com o mesmo número", async () => {
     // 155 vive na rota e na tela. O banco NÃO a conhece de propósito: um CHECK
-    // de 155 recusaria o texto do dono na cara dele. A migração diz isso por
-    // escrito, e é essa afirmação que a trava confere.
-    expect(MIGRACAO).toMatch(/155 NÃO vira constraint/);
-    expect(MIGRACAO, "155 não pode virar CHECK").not.toMatch(/length\([a-z_]+\) <= 155/);
+    // de 155 recusaria o texto do dono na cara dele, no meio da edição.
+    //
+    // A primeira versão desta trava afirmava isso por GREP, e a revisão mediu o
+    // preço nos dois sentidos: reescrever o comentário da migração deixava a
+    // suíte vermelha, e um CHECK de 155 escrito noutra grafia
+    // (`length(coalesce(resumo,'')) <= 155`) passava verde. Reprovava a mudança
+    // legítima e deixava passar a variante — o defeito que o caderno do projeto
+    // chama de "afirme a condição inteira".
+    //
+    // Quem garante o invariante é o ACEITE da migração, que RODA: ele grava 158
+    // caracteres e conta falha se o banco recusar OU se o valor não persistir, e
+    // qualquer falha vira `raise exception` que derruba a transação. Um CHECK de
+    // 155 não chega à produção por aquele arquivo, escrito como for. O que este
+    // teste ancora é a existência desse aceite — não a prosa em volta dele.
+    expect(
+      MIGRACAO,
+      "o aceite precisa gravar um resumo maior que a régua, para provar que ela não virou trava",
+    ).toMatch(/repeat\('a', 158\)/);
+    expect(MIGRACAO, "e precisa CONTAR a falha, não só tentar").toMatch(
+      /falhas := falhas \+ 1;[\s\S]{0,200}a régua de 155 virou trava/,
+    );
 
     const { REGUA_DESCRIPTION } = await import("../src/lib/salvarCabecalho");
     comoEditor();
