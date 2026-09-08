@@ -514,6 +514,27 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
    *
    * O plano de ingestão aprovado exclui ficha de veículo e hub de modelo, então
    * o assistente não vê essa contradição — quem vê é o leitor e o Google.
+   *
+   * ---------------------------------------------------------------------------
+   * 2026-09-08: o dono FOI consultado, e a pendência ficou menor
+   * ---------------------------------------------------------------------------
+   * *"O SEO é focado no regional, mas de fato temos rede de entrega nacional."*
+   * É a mesma decisão de 04/09 dita de outro jeito, e ela fecha a dúvida que o
+   * parágrafo acima deixava em aberto: o regional é onde a loja COMPETE e mira
+   * o conteúdo; o nacional é até onde ela ENTREGA. Não são dois tetos brigando,
+   * são duas coisas diferentes — e a frase de mídia nunca deveria ter virado
+   * frase de serviço numa meta description.
+   *
+   * O que já mudou: o lote novo (`conteudo-seo/rascunhos-lote3.json`, seis
+   * fichas) fecha com a âncora local mais "com entrega para todo o Brasil" —
+   * a MESMA frase que o FAQ de `/garantia` usa, para não nascer uma terceira
+   * variante do alcance.
+   *
+   * O que CONTINUA pendente: as 28 metas já em produção. Elas não ficaram
+   * erradas — ficaram SUBDIZENDO o alcance, que é um defeito mais barato e
+   * ainda assim um defeito, porque lido isolado o regional soa como teto. As
+   * 18 que têm fonte versionada saem com uma passada de `aplicar-rascunhos.js`;
+   * as outras 10 só existem no banco e precisam do painel.
    */
   const ALCANCE = /entregamos para todo o Brasil/i;
 
