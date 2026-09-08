@@ -16,6 +16,22 @@ vi.mock("../src/lib/descritivo/gerar", () => ({ gerarTexto: (...a: any[]) => ger
 
 const { POST } = await import("../src/app/api/estoque/[id]/descritivo/route");
 
+/**
+ * Espiões de escrita, PRESENTES em toda chamada de `.from(...)` — não ausentes
+ * como antes. Um stub que nunca define `update`/`insert`/`upsert` faz a rota
+ * estourar `TypeError` se algum dia chamar um deles; o erro cai no catch da
+ * rota (vira 500) e o teste antigo, que só olhava as chaves do valor de
+ * retorno de `.from()`, nunca via a escrita. Com os três presentes como
+ * `vi.fn()`, uma chamada real fica registrada e verificável por
+ * `toHaveBeenCalled()`, em vez de invisível atrás de um crash engolido.
+ */
+const respostaDeEscrita = () => ({ eq: () => Promise.resolve({ error: null, data: null }) });
+const ESCRITAS = {
+  update: vi.fn(respostaDeEscrita),
+  insert: vi.fn(respostaDeEscrita),
+  upsert: vi.fn(respostaDeEscrita),
+};
+
 const VEICULO = {
   id: 7803195, marca: "bmw", modelo: "x1", ano: 2022, preco: "179900.00",
   quilometragem: 70700, cambio: "automatico", cor: "cinza", tipo: "SUV",
@@ -28,9 +44,15 @@ function comPerfil(papeis: string[] | null) {
   );
   CLIENTE.from.mockImplementation((tabela: string) => {
     if (tabela === "profiles") {
-      return { select: () => ({ eq: () => ({ single: async () => ({ data: { role: papeis?.[0] ?? null, papeis, full_name: "Teste" } }) }) }) };
+      return {
+        select: () => ({ eq: () => ({ single: async () => ({ data: { role: papeis?.[0] ?? null, papeis, full_name: "Teste" } }) }) }),
+        ...ESCRITAS,
+      };
     }
-    return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: VEICULO }) }) }) };
+    return {
+      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: VEICULO }) }) }),
+      ...ESCRITAS,
+    };
   });
 }
 
@@ -105,9 +127,11 @@ describe("POST /api/estoque/[id]/descritivo", () => {
   it("nunca grava no banco", async () => {
     comPerfil(["admin"]);
     await chamar();
-    const escreveu = CLIENTE.from.mock.results.some(
-      (r: any) => r.value && ("update" in r.value || "insert" in r.value || "upsert" in r.value),
-    );
-    expect(escreveu).toBe(false);
+    // update/insert/upsert existem no stub (são vi.fn() chamáveis); a prova
+    // de que a rota não escreve é que nenhum deles foi de fato invocado — não
+    // que o valor de retorno de .from() careça dessas chaves.
+    expect(ESCRITAS.update).not.toHaveBeenCalled();
+    expect(ESCRITAS.insert).not.toHaveBeenCalled();
+    expect(ESCRITAS.upsert).not.toHaveBeenCalled();
   });
 });
