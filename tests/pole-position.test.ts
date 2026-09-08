@@ -170,6 +170,27 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
     expect(texto).not.toMatch(/garantia\s+Motors\s+Store/i);
     expect(texto).toMatch(/motor e c[âa]mbio/i);
     expect(texto).toMatch(/sem car[êe]ncia e sem franquia/i);
+    /*
+     * O prazo entra no CORPO. Omiti-lo por completo deixava "contratada na
+     * entrega, sem carência e sem franquia" ler como garantia aberta — e a
+     * `/garantia` diz três meses. No título ele não pode entrar (é mínimo legal
+     * de PJ e não se vende como diferencial); no corpo, é informação devida.
+     */
+    expect(texto).toMatch(/por tr[êe]s meses/i);
+  });
+
+  /*
+   * `/_next/image` já respondeu 402 em produção nesta conta, e por isso as
+   * fotos próprias do site vão com `unoptimized`. O herói de uma LP paga de
+   * nove dias não pode depender de cota de otimização.
+   */
+  it("as artes próprias não dependem da cota de otimização da Vercel", () => {
+    const texto = codigo();
+    const imagens = (texto.match(/<Image[\s\S]*?\/>/g) ?? []);
+    expect(imagens.length).toBeGreaterThan(0);
+    for (const img of imagens) {
+      expect(img, `<Image> sem unoptimized: ${img.slice(0, 60)}`).toMatch(/unoptimized/);
+    }
   });
 
   /*

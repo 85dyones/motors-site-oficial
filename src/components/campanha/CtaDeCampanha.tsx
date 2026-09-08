@@ -79,10 +79,27 @@ export default function CtaDeCampanha({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(corpo),
       });
+      /*
+       * 403 é o token do Turnstile recusado — expirado, ou reenviado depois de
+       * gasto. Nada foi persistido: sem linha em `leads`, sem UTM, sem
+       * `ag_uid`, sem n8n e sem CAPI.
+       *
+       * Engolir aqui e seguir contaria uma conversão FANTASMA no Ads e no Meta,
+       * em tráfego pago, para um lead que não existe em lugar nenhum — e
+       * contradiria o docblock acima. Lançar devolve o controle ao
+       * `LeadCaptureModal`, que descarta o token, remonta o desafio e diz ao
+       * visitante o que houve. É o que `EncomendaDeCarro` faz no mesmo caso.
+       */
+      if (resposta.status === 403) {
+        throw new Error("turnstile-recusado");
+      }
       if (!resposta.ok) {
         console.warn("[CtaDeCampanha] /api/leads recusou (não bloqueante):", resposta.status);
       }
     } catch (erro) {
+      if (erro instanceof Error && erro.message === "turnstile-recusado") throw erro;
+      // Falha de REDE continua não bloqueando: o visitante está a caminho do
+      // WhatsApp, e perder o registro é ruim, mas travar o contato é pior.
       console.warn("[CtaDeCampanha] rede falhou (não bloqueante):", erro);
     }
 

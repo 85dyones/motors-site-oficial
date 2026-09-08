@@ -126,6 +126,19 @@ describe("o registro se mantém honesto", () => {
     }
   });
 
+  /*
+   * `descricao` é `og:description` e vai no sitemap. A régua de 155 é a mesma
+   * do resto do site: acima disso o Google corta, e o corte cai no meio da
+   * frase. A anterior tinha 187 e perdia justamente a data da campanha.
+   */
+  it("a descrição cabe em 155 caracteres, e a data não é o que se perde", () => {
+    for (const c of CAMPANHAS) {
+      expect(c.descricao.length, `${c.slug}: ${c.descricao.length} caracteres`).toBeLessThanOrEqual(
+        155,
+      );
+    }
+  });
+
   it("nenhum slug se repete — o 308 fica em cache eterno no navegador", () => {
     const slugs = CAMPANHAS.map((c) => c.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
@@ -237,6 +250,25 @@ describe("o aviso legal segue outra régua", () => {
     const dentroDaMoldura = layout.match(/<MolduraDoSite>[\s\S]*?<\/MolduraDoSite>/g) ?? [];
     for (const bloco of dentroDaMoldura) {
       expect(bloco).not.toMatch(/CookieConsentBanner/);
+    }
+  });
+
+  /*
+   * A FIAÇÃO, e não só o invólucro.
+   *
+   * Os testes acima provam que `MolduraDoSite` esconde os filhos que recebe —
+   * mas nada provava que cabeçalho, rodapé e pop-up SÃO esses filhos. A revisão
+   * mostrou o buraco: mover `<LeadPopup />` para fora do invólucro deixava a
+   * suíte inteira verde, e o pop-up voltava a competir com o CTA na LP paga.
+   * É o tipo de coisa que uma resolução de conflito em `layout.tsx` faz sem
+   * querer — e o main anda durante o PR.
+   */
+  it("cabeçalho, rodapé e pop-up estão DENTRO da moldura de navegação", () => {
+    const layout = lerCodigo("src/app/layout.tsx");
+    const blocos = (layout.match(/<MolduraDoSite>[\s\S]*?<\/MolduraDoSite>/g) ?? []).join("\n");
+    expect(blocos, "nenhum bloco <MolduraDoSite> no layout").not.toBe("");
+    for (const peca of ["<Header />", "<Footer", "<LeadPopup />"]) {
+      expect(blocos, `${peca} saiu de dentro de <MolduraDoSite>`).toContain(peca);
     }
   });
 });

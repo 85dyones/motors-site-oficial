@@ -61,9 +61,19 @@ export const CAMPANHAS: Campanha[] = [
     inicio: "2026-09-12",
     fim: "2026-09-20",
     destinoAposFim: "/estoque",
+    /*
+     * Sob 155 caracteres, com a DATA cedo e a condicional colada ao número.
+     *
+     * A versão anterior tinha 187: o corte da régua caía em "De 1" e comia
+     * *"2 a 20 de setembro"* — a data, que é o argumento inteiro do snippet de
+     * uma campanha de nove dias. E este mesmo texto é o `og:description`, o
+     * card que circula no WhatsApp: dizer "primeira parcela em até 120 dias"
+     * ali sem a ressalva repetiria, no card, o erro que a página corrigiu no
+     * título. Um card também é lido sozinho.
+     */
     descricao:
-      "Pole Position na Motors Store: lives com ofertas relâmpago, primeira parcela em até 120 dias " +
-      "e transferência por nossa conta em veículos selecionados. De 12 a 20 de setembro, em Curitiba.",
+      "Pole Position, 12 a 20 de setembro em Curitiba: ofertas relâmpago nas lives e primeira " +
+      "parcela em até 120 dias, conforme o financiamento.",
     // Escrita pelo dono em 08/09. É o que chega no WhatsApp e vira `interesse`.
     fraseDoCliente: "Olá, vi sobre o feirão Pole Position Motors e quero saber as condições",
   },

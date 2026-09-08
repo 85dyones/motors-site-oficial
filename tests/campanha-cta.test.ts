@@ -201,6 +201,27 @@ describe("o CTA não contorna o funil", () => {
    * Um `generate_lead` por tentativa infla a conversão e ensina o Ads a
    * comprar clique de quem desiste no meio. A ordem é: grava, conta, abre.
    */
+  /*
+   * 403 é o token do Turnstile recusado, e nada foi persistido: sem lead, sem
+   * UTM, sem CAPI. Engolir e seguir contaria uma conversão FANTASMA no Ads e
+   * no Meta, em tráfego pago, para um contato que não existe em lugar nenhum.
+   * Lançar devolve o controle ao modal, que remonta o desafio.
+   */
+  it("no 403 do captcha ele LANÇA, em vez de contar conversão fantasma", () => {
+    const texto = codigo();
+    expect(texto).toMatch(/status === 403/);
+    const lanca = texto.indexOf("throw new Error");
+    const conversao = texto.indexOf("trackLeadSubmission(");
+    expect(lanca, "o componente não lança em nenhum caso").toBeGreaterThan(-1);
+    expect(conversao).toBeGreaterThan(-1);
+    // E lança ANTES de contar — senão o throw não impede coisa nenhuma.
+    expect(lanca).toBeLessThan(conversao);
+  });
+
+  it("mas falha de REDE continua não bloqueando o contato", () => {
+    expect(codigo()).toMatch(/n[ãa]o bloqueante/);
+  });
+
   it("conta a conversão depois do POST, não no clique do botão", () => {
     const texto = codigo();
     /*

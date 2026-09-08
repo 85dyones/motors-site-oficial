@@ -124,8 +124,8 @@ const ARGUMENTOS = [
      * perícia.
      */
     texto:
-      "Seu próximo carro sai com garantia de motor e câmbio, contratada na entrega, " +
-      "sem carência e sem franquia.",
+      "Seu próximo carro sai com garantia de motor e câmbio por três meses, contratada na " +
+      "entrega, sem carência e sem franquia.",
   },
   {
     /*
@@ -221,6 +221,7 @@ export default async function PolePosition() {
             width={900}
             height={912}
             priority
+            unoptimized
             sizes="(max-width: 768px) 90vw, 45vw"
             className="h-auto w-full"
           />
@@ -273,6 +274,7 @@ export default async function PolePosition() {
           width={1600}
           height={400}
           sizes="100vw"
+          unoptimized
           className="absolute inset-0 -z-10 h-full w-full object-cover opacity-25"
         />
         <div className="mx-auto w-full max-w-6xl px-6 py-16 text-center md:py-20">
