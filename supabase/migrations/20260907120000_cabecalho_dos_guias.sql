@@ -15,9 +15,10 @@
 -- O que NÃO entra: o nome da seção. E isso é decisão, não esquecimento
 -- ---------------------------------------------------------------------------
 -- `NOME_DA_SECAO` ("Guias Motors") fica no código. Ele alimenta SEIS
--- superfícies que ninguém abre juntas — o `<h1>` do índice, a trilha do
--- índice, a trilha da ficha, os degraus do `BreadcrumbList`, o
--- `CollectionPage.name` e o rótulo do rodapé.
+-- superfícies PÚBLICAS que ninguém abre juntas — o `<h1>` do índice, a trilha
+-- do índice, a trilha da ficha, os degraus do `BreadcrumbList`, o
+-- `CollectionPage.name` e o rótulo do rodapé. Fora dessas seis ele ainda
+-- alimenta o `<h1>` do painel e o nome em `PAGINAS_COMPARTILHAVEIS`.
 --
 -- (A primeira versão desta lista citava "o menu do cabeçalho". Ele não existe
 -- neste branch — o item de menu é de `seo/guias-no-menu` —, e a contagem

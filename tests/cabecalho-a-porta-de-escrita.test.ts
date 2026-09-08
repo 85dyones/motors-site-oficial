@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * A porta de escrita do cabeçalho da seção.
@@ -75,9 +77,11 @@ let gravado: Record<string, unknown> | null = null;
  * `lerColunas`, que monta a resposta com as CHAVES que aquele `select`
  * produziria. A versão anterior deste comentário previa o sintoma errado: um
  * alias não faz a tela "exigir recarga" — `dados.cabecalho` continua sendo
- * objeto, a guarda do 200-ilegível não dispara, e o operador vê os dois campos
- * em branco com um "Salvo. A seção está no texto padrão" em verde, com o texto
- * dele no ar.
+ * objeto, a guarda do 200-ilegível não dispara, e o campo atingido some da
+ * tela debaixo de uma mensagem VERDE, com o texto do operador gravado e no ar.
+ * (Atingindo as duas colunas a mensagem vira "Salvo. A seção está no texto
+ * padrão"; atingindo uma, continua o "Cabeçalho salvo" de sempre. Medido — a
+ * versão anterior desta frase também errava a quantidade.)
  */
 let colunasPedidas: string | null = null;
 
@@ -115,11 +119,17 @@ const COLUNAS_DA_TABELA = [
  * renomeada vira `lido: true` com o cabeçalho VAZIO — `/guias` volta ao texto
  * do código, o painel mostra campos em branco SEM o aviso, e ninguém percebe.
  *
- * Projetar em vez de vigiar também tira a sobre-especificação: `select("*")`
- * passa, porque em produção passaria.
+ * `select("*")` é o caso em que este arquivo DIVERGE do dublê da leitura
+ * pública, e a divergência é decisão, não descuido. Lá `*` passa, porque em
+ * produção passaria e ninguém se importa. Aqui ele é REPROVADO, e por dois
+ * testes: o corpo desta rota é contrato com o BROWSER, e `*` mandaria
+ * `atualizado_por` — o uuid de quem gravou, um usuário de staff — para dentro
+ * do painel. O projeto já pagou esse ingresso uma vez, com `preco_compra`
+ * vazando num prop de client component. O recorte é a proteção, e trocá-lo por
+ * `*` tem de doer.
  *
- * (`resumo::text` e recurso embutido — `autor:profiles(nome)` — dariam
- * falso-vermelho aqui. Nenhum dos dois é usado nesta feature.)
+ * (`resumo::text`, recurso embutido — `autor:profiles(nome)` — e dois-pontos
+ * a mais em `a:b:c` dariam falso-vermelho aqui. Nenhum é usado nesta feature.)
  */
 function lerColunas(
   linha: Record<string, unknown> | null,
@@ -292,11 +302,20 @@ function comoEditor() {
           select: async (colunas: string) => {
             colunasPedidas = colunas;
             if (erroDoBanco) return { data: null, error: erroDoBanco };
+            // A MESMA checagem de coluna dos outros dois verbos. Ela ficou de
+            // fora numa rodada e o `.select("lixo")` sobreviveu: em produção
+            // isso é 42703, que `falha()` lê como schema ausente — o "Voltar
+            // ao padrão" passaria a responder 503 "a tabela ainda não existe"
+            // com a tabela aplicada. Um dublê que respeita as colunas em dois
+            // verbos e não no terceiro é pior que um que não respeita em
+            // nenhum: o docblock passa a mentir sobre a cobertura.
+            const conferido = lerColunas({ secao: "guias" }, colunas);
+            if (conferido.error) return { data: null, error: conferido.error };
             if (!filtroCerto(coluna, valor) || !linhaNoBanco) {
               return { data: [], error: null };
             }
             linhaNoBanco = null;
-            return { data: [{ secao: "guias" }], error: null };
+            return { data: [conferido.data], error: null };
           },
         }),
       }),
@@ -331,6 +350,60 @@ beforeEach(() => {
   erroDoBanco = null;
   erroNoInsert = null;
   revalidados.length = 0;
+});
+
+describe("o teto do campo é o teto do banco, e não uma segunda opinião", () => {
+  /**
+   * O 300 vive em TRÊS lugares: o CHECK da migração, o corte da rota
+   * (`TETO`) e o corte da tela (`TETO_DO_CAMPO`, que vira `maxLength` no
+   * campo). Hoje concordam por coincidência de digitação — a nona revisão
+   * mediu: subir só o da tela para 500 deixava a suíte inteira verde.
+   *
+   * Não é número de negócio (não tem vigência, não é comissão nem deságio),
+   * então não vai para tabela. Mas divergir é invisível e o sintoma é feio:
+   * com a tela acima do banco, quem escreve 400 caracteres leva um erro cru
+   * do Postgres no clique; com a tela abaixo, o campo trunca sem explicar.
+   *
+   * A trava lê o CHECK da MIGRAÇÃO e compara — a fonte é o banco, não uma
+   * quarta cópia escrita aqui.
+   */
+  const MIGRACAO = readFileSync(
+    join(process.cwd(), "supabase/migrations/20260907120000_cabecalho_dos_guias.sql"),
+    "utf8",
+  );
+
+  it("o CHECK da migração é o mesmo número da rota e da tela", async () => {
+    // Duas colunas, dois CHECKs; os dois têm de bater com o mesmo teto.
+    const tetos = [...MIGRACAO.matchAll(/length\((?:titulo_seo|resumo)\) <= (\d+)/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(tetos, "a migração precisa ter os dois CHECKs de comprimento").toHaveLength(2);
+    expect(new Set(tetos).size, "as duas colunas têm de ter o mesmo teto").toBe(1);
+
+    const { TETO_DO_CAMPO } = await import("../src/lib/salvarCabecalho");
+    expect(TETO_DO_CAMPO, "a tela corta no teto do banco").toBe(tetos[0]);
+
+    // A rota não exporta a constante — ela é interna de propósito. O que dá
+    // para observar é o efeito: mandar mais do que o teto e ver o que chega.
+    comoEditor();
+    await put({ resumo: "x".repeat(tetos[0] + 200) });
+    expect(String(gravado?.resumo), "a rota corta no teto do banco").toHaveLength(tetos[0]);
+  });
+
+  it("e a régua da busca é aviso nos dois lados, com o mesmo número", async () => {
+    // 155 vive na rota e na tela. O banco NÃO a conhece de propósito: um CHECK
+    // de 155 recusaria o texto do dono na cara dele. A migração diz isso por
+    // escrito, e é essa afirmação que a trava confere.
+    expect(MIGRACAO).toMatch(/155 NÃO vira constraint/);
+    expect(MIGRACAO, "155 não pode virar CHECK").not.toMatch(/length\([a-z_]+\) <= 155/);
+
+    const { REGUA_DESCRIPTION } = await import("../src/lib/salvarCabecalho");
+    comoEditor();
+    const corpo = await (await put({ resumo: "x".repeat(REGUA_DESCRIPTION + 1) })).json();
+    expect(corpo.avisos?.join(" "), "a rota avisa com a régua da tela").toContain(
+      String(REGUA_DESCRIPTION),
+    );
+  });
 });
 
 describe("a rota do cabeçalho não escreve sem autorização", () => {
@@ -695,14 +768,18 @@ describe("a rota e o cliente falam a mesma língua", () => {
    *
    *   · renomear a chave `cabecalho` na resposta → `exigeRecarga`: a tela
    *     trava e pede recarga a cada gravação, com o texto já no banco;
-   *   · trocar o `select` (alias, coluna a menos) → a chave continua lá, a
-   *     guarda do 200-ilegível NÃO dispara, e a tela mostra os dois campos em
-   *     branco anunciando "Salvo. A seção está no texto padrão" em verde, com
-   *     o texto do operador gravado e no ar.
+   *   · trocar o `select` (alias, coluna a menos) → a chave `cabecalho`
+   *     continua lá, a guarda do 200-ilegível NÃO dispara, e o campo atingido
+   *     some da tela debaixo de uma mensagem verde, com o texto do operador
+   *     gravado e no ar. Atingindo os dois campos a mensagem vira "Salvo. A
+   *     seção está no texto padrão"; atingindo um, continua o "Cabeçalho
+   *     salvo" de sempre.
    *
-   * O segundo é o pior dos dois, e é o que a revisão de 08/09 mediu. A versão
-   * anterior deste bloco previa `exigeRecarga` para os dois — e foi essa
-   * previsão que fez a trava do alias olhar a coisa errada por duas rodadas.
+   * O segundo é o pior dos dois. As versões anteriores deste bloco erraram
+   * DUAS vezes seguidas sobre ele — primeiro previram `exigeRecarga`, depois
+   * quantificaram como se sempre atingisse os dois campos. A previsão que fez
+   * a trava do alias olhar a coisa errada por duas rodadas nasceu do mesmo
+   * hábito: escrever o sintoma em vez de medi-lo.
    *
    * Os dois lados tinham teste e nenhum olhava o outro: a porta afirmava
    * `status` e o que foi gravado; o cliente afirmava contra um dublê escrito
@@ -773,7 +850,7 @@ describe("a rota e o cliente falam a mesma língua", () => {
     // cliente lê `titulo_seo` e `resumo`, e um alias no `select` (`x:resumo`,
     // que é a sintaxe do PostgREST) troca o nome da chave sem tirar nenhuma
     // das duas palavras da string do `select`. Foi assim que a trava anterior
-    // deixou o alias passar. Ver `projetar`.
+    // deixou o alias passar. Ver `lerColunas`.
     const corpo = await (await put({ tituloSeo: "a", resumo: "b" })).json();
     expect(Object.keys(corpo.cabecalho).sort()).toEqual(["resumo", "titulo_seo"]);
     expect(colunasPedidas, "e a rota precisa ter pedido alguma coisa").not.toBeNull();

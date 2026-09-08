@@ -88,7 +88,9 @@ const COLUNAS_DA_TABELA = [
  * do código, o painel mostra campos em branco SEM o aviso, e ninguém percebe.
  *
  * Projetar em vez de vigiar também tira a sobre-especificação: `select("*")`
- * passa, porque em produção passaria.
+ * passa AQUI, porque em produção passaria e esta leitura só entrega dois
+ * campos adiante. Na ROTA ele é reprovado de propósito, e o dublê de lá
+ * explica por quê: aquele corpo vai para o browser.
  *
  * (`resumo::text` e recurso embutido — `autor:profiles(nome)` — dariam
  * falso-vermelho aqui. Nenhum dos dois é usado nesta feature.)
@@ -133,7 +135,7 @@ function lerColunas(
  * verde, e em produção `/guias` nunca acharia a linha — o painel diria "salvo,
  * já está no ar" e a página mostraria o texto do código para sempre. A de 08/09
  * mostrou o mesmo para as COLUNAS, e a trava que eu tinha escrito olhava a
- * grafia errada. Ver `projetar`.
+ * grafia errada. Ver `lerColunas`.
  *
  * Um dublê mais permissivo que o Postgres não é dublê: é um espelho de quem o
  * escreveu.
