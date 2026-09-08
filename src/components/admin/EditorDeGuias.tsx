@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EstadoDoGuia } from "../../lib/guias";
 import { NOME_DA_SECAO } from "../../lib/guias";
+import {
+  SEM_CABECALHO,
+  camposAlterados,
+  salvarCabecalho,
+  voltarAoPadrao,
+  type CabecalhoNaTela,
+} from "../../lib/salvarCabecalho";
+import { carregarPainel, type GuiaDoPainel } from "../../lib/carregarPainelDeGuias";
+import CabecalhoDaSecao from "./CabecalhoDaSecao";
 
 /**
  * O editor de guias.
@@ -40,19 +49,7 @@ import { NOME_DA_SECAO } from "../../lib/guias";
  *    tira uma página indexada do ar.
  */
 
-interface GuiaDoPainel {
-  slug: string;
-  titulo: string;
-  titulo_seo: string | null;
-  descricao: string;
-  corpo: { titulo: string; paragrafos: string[] }[];
-  faq: { pergunta: string; resposta: string }[];
-  saida: { rotulo: string; href: string; apoio: string } | null;
-  sobre: string[] | null;
-  estado: EstadoDoGuia;
-  publicado_em: string | null;
-  atualizado_em: string;
-}
+
 
 const CAMPO =
   "w-full border border-mt-regua-fina bg-mt-bg px-3 py-2 text-[13px] text-mt-ink outline-none focus:border-mt-accent";
@@ -76,22 +73,123 @@ export default function EditorDeGuias() {
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string; itens?: string[] } | null>(
     null,
   );
+  // Três coisas diferentes, de propósito: o RASCUNHO nos campos, o que o
+  // servidor devolveu na última leitura, e o texto do CÓDIGO, que vira
+  // `placeholder` para o campo em branco não parecer página sem texto.
+  const [cabecalho, setCabecalho] = useState<CabecalhoNaTela>(SEM_CABECALHO);
+  /**
+   * O que o servidor devolveu na última leitura ou gravação.
+   *
+   * A diferença entre este e `cabecalho` é EXATAMENTE o que se grava, e é a
+   * peça que tornou o apagamento acidental inexpressável: com a leitura
+   * falhando os dois ficam vazios, a diferença é `{}`, e `{}` não muda nada no
+   * banco. Ver `camposAlterados`.
+   */
+  const [carregado, setCarregado] = useState<CabecalhoNaTela>(SEM_CABECALHO);
+  const [padrao, setPadrao] = useState<CabecalhoNaTela>(SEM_CABECALHO);
+  /**
+   * O cabeçalho foi LIDO com sucesso?
+   *
+   * Hoje governa duas: se o "Voltar ao padrão" está disponível, e se a tela
+   * avisa que os campos em branco são ignorância, não ausência de texto.
+   * Oferecer "apagar" — ou ficar calado — sobre um estado que não se conseguiu
+   * ler é o mesmo erro de sempre.
+   *
+   * E ele não vem só da carga: um salvamento ou um apagamento que o servidor
+   * não confirma também o derrubam, porque dali em diante a tela não sabe mais
+   * o que está no ar.
+   *
+   * Ele JÁ FOI a trava de segurança do salvamento, e a história explica por que
+   * deixou de ser. O PUT substituía a linha inteira, então um formulário em
+   * branco por falha de leitura apagava o texto do ar — e cinco rodadas de
+   * revisão acharam cinco caminhos até esse estado: o GET falhando inteiro, o
+   * GET falhando só na metade do cabeçalho (são clientes diferentes, uma cai
+   * sozinha), a resposta 200 com corpo ilegível. Cada caminho pedia uma trava
+   * nova.
+   *
+   * O dono cortou o nó em 07/09: em vez de cercar os caminhos, mudar a forma da
+   * requisição. Hoje o PUT manda SÓ o que mudou, e um formulário em branco
+   * produz `{}` — não há o que apagar. A trava virou conveniência.
+   */
+  const [cabecalhoLido, setCabecalhoLido] = useState(false);
 
+  // A chamada e a leitura do corpo moram em `lib/carregarPainelDeGuias.ts`,
+  // com teste próprio — a metade que apagava texto era esta.
   const carregar = useCallback(async () => {
     setCarregando(true);
-    try {
-      const r = await fetch("/api/guias", { cache: "no-store" });
-      const dados = await r.json();
-      if (!r.ok) throw new Error(dados.error || "Falha ao carregar");
-      setGuias(dados.guias ?? []);
-      setRegua(dados.regua ?? []);
-      if (dados.error) setAviso({ tipo: "erro", texto: dados.error });
-    } catch (e) {
-      setAviso({ tipo: "erro", texto: (e as Error).message });
-    } finally {
-      setCarregando(false);
+    const r = await carregarPainel();
+    if (r.ok) {
+      setGuias(r.guias);
+      setRegua(r.regua);
+      setCabecalho(r.cabecalho);
+      // O rascunho e o LIDO nascem iguais: sem diferença, não há o que gravar.
+      setCarregado(r.cabecalho);
+      setPadrao(r.padrao);
+      // E NÃO `true`: a resposta pode trazer a listagem e falhar só na metade
+      // do cabeçalho — clientes diferentes, uma cai sozinha.
+      setCabecalhoLido(r.cabecalhoLido);
+      if (r.aviso) setAviso({ tipo: "erro", texto: r.aviso });
+    } else {
+      setCabecalhoLido(false);
+      setAviso({ tipo: "erro", texto: r.texto });
     }
+    setCarregando(false);
   }, []);
+
+  // A chamada, o tratamento de erro e a escolha da mensagem moram em
+  // `lib/salvarCabecalho.ts`, com teste próprio: `renderToStaticMarkup` não
+  // enxerga `onClick`, então o que ficaria descoberto aqui seria comportamento,
+  // e não um identificador. Ver o docblock de lá.
+  async function aoSalvarCabecalho() {
+    setSalvando(true);
+    // SÓ o que mudou entre o lido e os campos. É esta linha que torna o
+    // apagamento acidental inexpressável — ver `camposAlterados`.
+    const r = await salvarCabecalho(camposAlterados(cabecalho, carregado));
+    if (r.ok) {
+      setCabecalho(r.cabecalho);
+      setCarregado(r.cabecalho);
+      setAviso({ tipo: "ok", texto: r.texto, itens: r.avisos });
+    } else {
+      // Gravou e não deu para confirmar o quê: trava o "voltar ao padrão" até
+      // reler. Os campos ficam como estão.
+      if (r.exigeRecarga) setCabecalhoLido(false);
+      setAviso({ tipo: "erro", texto: r.texto });
+    }
+    setSalvando(false);
+  }
+
+  /**
+   * Devolver a seção ao texto do código — ação com nome próprio, e confirmada.
+   *
+   * Enquanto isto era "esvaziar os campos e salvar", era alcançável por acidente
+   * toda vez que a tela não conseguia ler o que estava no ar. Hoje é um DELETE
+   * pedido de propósito. A confirmação existe porque tira do ar um texto que
+   * alguém escreveu — mesmo que o site siga funcionando com o padrão.
+   */
+  async function aoVoltarAoPadrao() {
+    if (
+      !window.confirm(
+        "Isto apaga o cabeçalho escrito no painel e devolve /guias ao texto padrão do site. Continuar?",
+      )
+    ) {
+      return;
+    }
+    setSalvando(true);
+    const r = await voltarAoPadrao();
+    if (r.ok) {
+      setCabecalho(r.cabecalho);
+      setCarregado(r.cabecalho);
+      setAviso({ tipo: "ok", texto: r.texto });
+    } else {
+      // O servidor não confirmou o que apagou: o que a tela mostra pode estar
+      // velho, então ela para de afirmar que leu — some o Voltar ao padrão e
+      // aparece o aviso de releitura. Mesmo tratamento do salvamento sem
+      // confirmação.
+      if (r.exigeRecarga) setCabecalhoLido(false);
+      setAviso({ tipo: "erro", texto: r.texto });
+    }
+    setSalvando(false);
+  }
 
   useEffect(() => {
     void carregar();
@@ -212,6 +310,30 @@ export default function EditorDeGuias() {
           </ul>
         </div>
       )}
+
+      {/* O cabeçalho da SEÇÃO — não de um guia. Fica acima da lista porque é o
+          que o visitante lê antes de escolher qual guia abrir, e porque a
+          pergunta "o que esta seção é?" vem antes de "que guias ela tem?".
+
+          O nome "Guias Motors" não está lá de propósito: ele alimenta seis
+          superfícies do site travadas por teste, e um campo aqui tiraria essa
+          trava do caminho. Decisão do dono em 07/09.
+
+          Componente separado, e sem estado próprio, para as travas serem
+          alcançáveis: aqui `carregando` nasce `true` e desabilita tudo, então
+          nenhum render provava a guarda de `cabecalhoLido`. Ver o docblock de
+          `CabecalhoDaSecao`. */}
+      <CabecalhoDaSecao
+        cabecalho={cabecalho}
+        carregado={carregado}
+        padrao={padrao}
+        salvando={salvando}
+        carregando={carregando}
+        cabecalhoLido={cabecalhoLido}
+        aoMudar={(troca) => setCabecalho((c) => ({ ...c, ...troca }))}
+        aoVoltarAoPadrao={aoVoltarAoPadrao}
+        aoSalvar={aoSalvarCabecalho}
+      />
 
       {aviso && (
         <div

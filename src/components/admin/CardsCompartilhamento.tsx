@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   PAGINAS_COMPARTILHAVEIS,
+  textoDeFabricaDaPagina,
   urlDoCardGerado,
   type IdPaginaCompartilhavel,
 } from "../../lib/compartilhamento";
@@ -30,6 +31,13 @@ interface CardsCompartilhamentoProps {
    * preview mostraria o texto de fábrica e o site publicaria outro.
    */
   tituloDaAba?: string;
+  /**
+   * O cabeçalho de `/guias` como o site o publica. Mesma história do campo
+   * acima, um nível adiante: o texto daquela seção passou a ser editável em
+   * `/admin/guias` (07/09), e sem isto o preview mostraria a versão de fábrica
+   * de `PAGINAS_COMPARTILHAVEIS` enquanto o site publica a do banco.
+   */
+  cabecalhoDosGuias?: { tituloSeo: string; resumo: string };
   /** Devolve a URL pública da arte já recortada em 1200×630. */
   aoEnviarImagem: (arquivo: File) => Promise<string>;
   aoSalvar: (valor: CompartilhamentoSettings) => Promise<void>;
@@ -44,6 +52,7 @@ export default function CardsCompartilhamento({
   valor,
   nomeLoja,
   tituloDaAba,
+  cabecalhoDosGuias,
   aoEnviarImagem,
   aoSalvar,
 }: CardsCompartilhamentoProps) {
@@ -63,13 +72,20 @@ export default function CardsCompartilhamento({
   const card: CardCompartilhamento = rascunho[selecionada] ?? {};
   const artePadrao = rascunho.padrao?.imagemUrl?.trim() || "";
 
-  const tituloDeFabrica =
-    selecionada === "home" && tituloDaAba?.trim()
-      ? tituloDaAba.trim()
-      : pagina.tituloPadrao;
+  // A "fábrica" de cada página não é só a constante: home e guias têm texto que
+  // o painel edita em OUTRA tela, e é ele que o site publica quando esta aqui
+  // não sobrescreve. A escolha mora em `lib/compartilhamento.ts` porque a
+  // página selecionada é estado interno — como função pura, todos os ramos
+  // ficam alcançáveis por teste.
+  const fabrica = textoDeFabricaDaPagina({
+    id: selecionada,
+    pagina,
+    tituloDaAba,
+    cabecalhoDosGuias,
+  });
 
-  const tituloExibido = card.titulo?.trim() || tituloDeFabrica;
-  const descricaoExibida = card.descricao?.trim() || pagina.descricaoPadrao;
+  const tituloExibido = card.titulo?.trim() || fabrica.titulo;
+  const descricaoExibida = card.descricao?.trim() || fabrica.descricao;
 
   // Qual imagem o site vai publicar para esta página, na mesma ordem da
   // cascata de `montarCompartilhamento`.
@@ -191,7 +207,7 @@ export default function CardsCompartilhamento({
             className="mt-campo-caixa mt-1"
             value={card.titulo ?? ""}
             maxLength={LIMITE_TITULO}
-            placeholder={tituloDeFabrica}
+            placeholder={fabrica.titulo}
             onChange={(e) => alterar(selecionada, "titulo", e.target.value)}
           />
           <div className="mt-1 text-right text-[10px] text-mt-neutral-700">
@@ -210,7 +226,7 @@ export default function CardsCompartilhamento({
             rows={3}
             value={card.descricao ?? ""}
             maxLength={LIMITE_DESCRICAO}
-            placeholder={pagina.descricaoPadrao}
+            placeholder={fabrica.descricao}
             onChange={(e) => alterar(selecionada, "descricao", e.target.value)}
           />
           <div className="mt-1 text-right text-[10px] text-mt-neutral-700">
