@@ -111,9 +111,30 @@ export const ACOES_DE_LEADS = [ /* … */ ACOES.campanha ] as const;
 Sem isso o token é recusado na origem — que é exatamente a trava projetada para
 superfície nova não nascer sem conferência.
 
-`canal` **não muda**: continua `"site"`. Ele alimenta o funil e relatórios
-existentes; carimbar a campanha ali quebraria leitura em produção sem
-necessidade, porque `interesse` e as UTM já contam a mesma história.
+**Correção sobre `canal`, feita ao ler o código.** O rascunho deste spec dizia
+para deixar `canal` como `"site"`. Está errado, e o próprio repositório refuta:
+`src/lib/encomenda.ts` — escrito em 08/09, no PR #59 — estabelece o padrão oposto
+e o documenta, *"o lead da encomenda cai no mesmo Kanban, e o que o distingue é
+`canal`"*, gravando `canal: "Encomenda"`. A LP segue esse padrão: **`canal`
+recebe o nome da campanha**, que é a etiqueta lida no Kanban antes de abrir a
+conversa.
+
+A divisão entre os três campos, então:
+
+| campo | valor | quem lê |
+|-------|-------|---------|
+| `canal` | `"Pole Position"` | o consultor, no Kanban |
+| `mensagem` → `interesse` | frase **na voz do cliente** | o consultor, ao abrir |
+| `intencao_busca` | `{ campanha: slug, caminho }` | n8n e Motor de Gatilhos |
+
+`mensagem` não é etiqueta. `mensagemDaEncomenda` documenta que a frase se escreve
+na voz do cliente — é ele quem manda o texto — e a da campanha segue a mesma
+regra e as mesmas proibições: sem prazo que a loja não controla, sem FIPE, sem
+"abaixo da tabela".
+
+**O modal serve sem adaptação:** `isEmailValid` é `!email.trim() || regex`, isto
+é, e-mail vazio é válido. Nome e WhatsApp bastam, e a LP não paga fricção de um
+campo a mais.
 
 ### 3.4 A metadata, que é obrigatória e não opcional
 
