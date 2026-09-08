@@ -3,6 +3,7 @@
 import {
   REGUA_DESCRIPTION,
   TETO_DO_CAMPO,
+  camposAlterados,
   podeSalvarCabecalho,
   podeVoltarAoPadrao,
   type CabecalhoNaTela,
@@ -33,30 +34,40 @@ const BOTAO =
   "border border-mt-regua px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink hover:border-mt-accent disabled:opacity-40";
 
 export interface CabecalhoDaSecaoProps {
-  /** O que está gravado. Campo vazio = a seção usa o texto do código. */
+  /** O que está NOS CAMPOS agora — o rascunho de quem edita. */
   cabecalho: CabecalhoNaTela;
+  /**
+   * O que foi LIDO do servidor. A diferença entre os dois é o que se grava.
+   *
+   * Sem isto o botão mandava a linha inteira, e um formulário em branco por
+   * falha de leitura apagava o texto do ar. Ver `camposAlterados`.
+   */
+  carregado: CabecalhoNaTela;
   /** O texto do código, que vira `placeholder`. Campo em branco não é "sem texto". */
   padrao: CabecalhoNaTela;
   salvando: boolean;
   carregando: boolean;
-  /** Falso trava tudo: em branco aqui significa "não sei", não "não tem". */
+  /** Se a leitura deu certo. Hoje só governa o "voltar ao padrão". */
   cabecalhoLido: boolean;
   aoMudar: (troca: Partial<CabecalhoNaTela>) => void;
-  aoLimpar: () => void;
+  /** Devolve a seção ao texto do código — ação com nome próprio, e confirmada. */
+  aoVoltarAoPadrao: () => void;
   aoSalvar: () => void;
 }
 
 export default function CabecalhoDaSecao({
   cabecalho,
+  carregado,
   padrao,
   salvando,
   carregando,
   cabecalhoLido,
   aoMudar,
-  aoLimpar,
+  aoVoltarAoPadrao,
   aoSalvar,
 }: CabecalhoDaSecaoProps) {
   const passouDaRegua = cabecalho.resumo.length > REGUA_DESCRIPTION;
+  const alteracoes = camposAlterados(cabecalho, carregado);
 
   return (
     <section className="border border-mt-regua p-4">
@@ -105,13 +116,15 @@ export default function CabecalhoDaSecao({
       </p>
 
       {!cabecalhoLido && !carregando && (
-        // O aviso existe porque um botão desabilitado sem explicação é pior que
-        // um botão que apaga: quem não sabe por que não pode salvar recarrega,
-        // tenta de novo, e conclui que o painel está quebrado.
+        // O aviso continua, e o texto mudou junto com o desenho: hoje ele não
+        // anuncia uma trava, e sim o que os campos em branco significam. Salvar
+        // aqui não apaga nada — só o que a pessoa DIGITAR é enviado —, mas
+        // quem vê dois campos vazios precisa saber que isso não é "a seção
+        // está sem texto".
         <p className="m-0 mt-3 border-l-[3px] border-mt-accent bg-mt-surface px-3 py-2 text-[12px] text-mt-neutral-800">
-          Não consegui ler o cabeçalho que está no ar, então travei o salvamento. Os campos acima
-          estão vazios por isso — não porque a seção esteja sem texto. Recarregue a página; se
-          persistir, o texto no site continua o mesmo.
+          Não consegui ler o cabeçalho que está no ar. Os campos acima estão vazios por isso — não
+          porque a seção esteja sem texto. O que você escrever aqui será salvo normalmente, e os
+          campos que não tocar ficam como estão no site.
         </p>
       )}
 
@@ -119,16 +132,17 @@ export default function CabecalhoDaSecao({
         <button
           className={BOTAO}
           onClick={aoSalvar}
-          // A trava contra apagar o que está no ar depois de uma falha de
-          // leitura — o PUT substitui a linha inteira.
-          disabled={!podeSalvarCabecalho({ salvando, carregando, cabecalhoLido })}
+          // Habilitado quando há diferença entre o que foi lido e o que está
+          // nos campos. Deixou de ser trava de segurança: o PUT manda só o que
+          // mudou, então não há o que travar.
+          disabled={!podeSalvarCabecalho({ salvando, carregando, alteracoes })}
         >
           Salvar cabeçalho
         </button>
         <button
           className={BOTAO}
-          onClick={aoLimpar}
-          disabled={!podeVoltarAoPadrao({ salvando, carregando, cabecalhoLido, cabecalho })}
+          onClick={aoVoltarAoPadrao}
+          disabled={!podeVoltarAoPadrao({ salvando, carregando, cabecalhoLido, carregado })}
         >
           Voltar ao padrão
         </button>

@@ -57,16 +57,24 @@ function comoVisitante() {
   });
 }
 
-/** Staff com a linha da A17 que governa cópia de site. Guarda o que foi gravado. */
+/**
+ * O banco de mentira, com ESTADO — a linha existe ou não.
+ *
+ * Precisa de estado porque a rota deixou de substituir a linha inteira: ela
+ * faz UPDATE do que veio e, só se não houver linha, INSERT. Um dublê sem
+ * memória não distingue os dois caminhos, e é justamente essa distinção que
+ * torna o apagamento acidental inexpressável.
+ */
+let linhaNoBanco: { titulo_seo: string | null; resumo: string | null } | null = null;
+/** O que a rota MANDOU escrever nesta chamada — só as colunas alteradas. */
 let gravado: Record<string, unknown> | null = null;
 /**
  * As COLUNAS que a rota pede de volta ao gravar.
  *
- * O dublê devolve o mesmo objeto qualquer que seja o `select`, então trocar
- * `resumo` por `resumo as texto` na rota não mudava nada aqui — e em produção
+ * O dublê devolveria o mesmo objeto qualquer que fosse o `select`, então trocar
+ * `resumo` por `resumo as texto` na rota não mudaria nada aqui — e em produção
  * mudaria tudo: `dados.cabecalho.resumo` viria `undefined`, e desde o conserto
  * do 200-ilegível isso faz a tela travar e exigir recarga a cada gravação.
- * Guardar o argumento é o que torna essa troca visível.
  */
 let colunasPedidas: string | null = null;
 
@@ -80,21 +88,37 @@ function comoEditor() {
         }),
       };
     }
+    const devolver = (colunas: string) => {
+      colunasPedidas = colunas;
+      return { maybeSingle: async () => ({ data: linhaNoBanco, error: null }) };
+    };
     return {
-      upsert: (linha: Record<string, unknown>) => {
-        gravado = linha;
-        return {
-          select: (colunas: string) => {
-            colunasPedidas = colunas;
-            return {
-              single: async () => ({
-                data: { titulo_seo: linha.titulo_seo || null, resumo: linha.resumo || null },
-                error: null,
-              }),
-            };
-          },
-        };
+      update: (troca: Record<string, unknown>) => {
+        gravado = troca;
+        // Sem linha, o UPDATE não afeta nada — é o que faz a rota cair no INSERT.
+        if (linhaNoBanco) {
+          linhaNoBanco = {
+            titulo_seo:
+              "titulo_seo" in troca ? ((troca.titulo_seo as string) || null) : linhaNoBanco.titulo_seo,
+            resumo: "resumo" in troca ? ((troca.resumo as string) || null) : linhaNoBanco.resumo,
+          };
+        }
+        return { eq: () => ({ select: devolver }) };
       },
+      insert: (linha: Record<string, unknown>) => {
+        gravado = linha;
+        linhaNoBanco = {
+          titulo_seo: (linha.titulo_seo as string) || null,
+          resumo: (linha.resumo as string) || null,
+        };
+        return { select: devolver };
+      },
+      delete: () => ({
+        eq: async () => {
+          linhaNoBanco = null;
+          return { error: null };
+        },
+      }),
     };
   });
 }
@@ -115,6 +139,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   gravado = null;
   colunasPedidas = null;
+  linhaNoBanco = null;
   revalidados.length = 0;
 });
 
@@ -212,6 +237,93 @@ describe("o editor grava, e limpar volta ao automático", () => {
   });
 });
 
+describe("a rota grava SÓ o que veio no corpo", () => {
+  /**
+   * O desenho que substituiu cinco travas de interface, em 07/09.
+   *
+   * Antes, o corpo trazia sempre os dois campos e vazio significava "volte ao
+   * padrão" — então "apague o meu texto" e "não sei o que tem lá" eram a mesma
+   * requisição. A segunda acontecia toda vez que a tela não conseguia ler, e
+   * cada caminho até ela exigia uma trava nova.
+   *
+   * Agora chave ausente significa "não mexa nesta coluna", e o estado ruim
+   * deixou de ser expressável.
+   */
+  it("campo que não veio não é escrito", async () => {
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "Título que estava no ar", resumo: "Resumo antigo" };
+
+    await put({ resumo: "Resumo novo" });
+
+    expect(gravado, "só a coluna enviada").not.toHaveProperty("titulo_seo");
+    expect(linhaNoBanco).toEqual({
+      titulo_seo: "Título que estava no ar",
+      resumo: "Resumo novo",
+    });
+  });
+
+  it("corpo vazio não grava nada, e diz isso", async () => {
+    // É o formulário em branco por falha de leitura chegando ao servidor. Ele
+    // não pode virar uma gravação, e a tela não pode ouvir "salvo".
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "Intacto", resumo: "Intacto" };
+
+    const r = await put({});
+
+    expect(r.status).toBe(400);
+    expect(gravado, "nada pode ter sido escrito").toBeNull();
+    expect(linhaNoBanco).toEqual({ titulo_seo: "Intacto", resumo: "Intacto" });
+  });
+
+  it("string vazia É uma alteração — limpar um campo lido continua valendo", async () => {
+    // A diferença entre "apaguei de propósito" e "nunca soube o que tinha" é a
+    // CHAVE estar presente. Presente com `""` é edição de verdade.
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "Tinha título", resumo: "Tinha resumo" };
+
+    await put({ tituloSeo: "" });
+
+    expect(linhaNoBanco).toEqual({ titulo_seo: null, resumo: "Tinha resumo" });
+  });
+
+  it("sem linha no banco, a primeira gravação insere", async () => {
+    // A migração entrega a tabela vazia de propósito. O UPDATE não afeta nada,
+    // e a rota cai no INSERT sem a tela precisar saber a diferença.
+    comoEditor();
+    linhaNoBanco = null;
+
+    const r = await put({ resumo: "Primeiro texto" });
+
+    expect(r.status).toBe(200);
+    expect(gravado).toMatchObject({ secao: "guias", resumo: "Primeiro texto" });
+    expect(linhaNoBanco).toEqual({ titulo_seo: null, resumo: "Primeiro texto" });
+  });
+});
+
+describe("apagar é um verbo separado", () => {
+  it("o DELETE remove o override", async () => {
+    comoEditor();
+    linhaNoBanco = { titulo_seo: "Escrito no painel", resumo: "Também escrito" };
+
+    const { DELETE } = await import("../src/app/api/guias/secao/route");
+    const r = await DELETE();
+
+    expect(r.status).toBe(200);
+    expect(linhaNoBanco, "a linha tem de sair do banco").toBeNull();
+    // E o índice sai do cache, senão /guias segue mostrando o texto apagado.
+    expect(revalidados).toContain("/guias");
+  });
+
+  it("e ninguém apaga sem passar pela porta", async () => {
+    semSessao();
+    linhaNoBanco = { titulo_seo: "Escrito no painel", resumo: "" };
+
+    const { DELETE } = await import("../src/app/api/guias/secao/route");
+    expect((await DELETE()).status).toBe(401);
+    expect(linhaNoBanco, "nada pode ter sido apagado").not.toBeNull();
+  });
+});
+
 describe("a rota e o cliente falam a mesma língua", () => {
   /**
    * O contrato ficou NU justamente quando passou a importar.
@@ -278,7 +390,10 @@ describe("a rota e o cliente falam a mesma língua", () => {
 
       expect(r.ok).toBe(true);
       expect(r.ok && r.cabecalho).toEqual({ tituloSeo: "", resumo: "" });
-      expect(r.ok && r.texto).toContain("de volta ao texto padrão");
+      // A frase distingue os desfechos sem prometer o que não aconteceu:
+      // esvaziar os dois campos deixa a seção NO padrão, mas quem apaga o
+      // override é o DELETE, que tem botão próprio.
+      expect(r.ok && r.texto).toContain("no texto padrão");
     } finally {
       globalThis.fetch = originalFetch;
     }

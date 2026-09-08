@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EstadoDoGuia } from "../../lib/guias";
 import { NOME_DA_SECAO } from "../../lib/guias";
-import { SEM_CABECALHO, salvarCabecalho, type CabecalhoNaTela } from "../../lib/salvarCabecalho";
+import {
+  SEM_CABECALHO,
+  camposAlterados,
+  salvarCabecalho,
+  voltarAoPadrao,
+  type CabecalhoNaTela,
+} from "../../lib/salvarCabecalho";
 import { carregarPainel, type GuiaDoPainel } from "../../lib/carregarPainelDeGuias";
 import CabecalhoDaSecao from "./CabecalhoDaSecao";
 
@@ -67,29 +73,37 @@ export default function EditorDeGuias() {
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string; itens?: string[] } | null>(
     null,
   );
-  // O que está GRAVADO (campo vazio = automático) e o que o CÓDIGO usa quando
-  // está vazio. São coisas diferentes de propósito: o segundo vira `placeholder`,
-  // para o campo em branco não parecer página sem texto.
+  // Três coisas diferentes, de propósito: o RASCUNHO nos campos, o que o
+  // servidor devolveu na última leitura, e o texto do CÓDIGO, que vira
+  // `placeholder` para o campo em branco não parecer página sem texto.
   const [cabecalho, setCabecalho] = useState<CabecalhoNaTela>(SEM_CABECALHO);
+  /**
+   * O que o servidor devolveu na última leitura ou gravação.
+   *
+   * A diferença entre este e `cabecalho` é EXATAMENTE o que se grava, e é a
+   * peça que tornou o apagamento acidental inexpressável: com a leitura
+   * falhando os dois ficam vazios, a diferença é `{}`, e `{}` não muda nada no
+   * banco. Ver `camposAlterados`.
+   */
+  const [carregado, setCarregado] = useState<CabecalhoNaTela>(SEM_CABECALHO);
   const [padrao, setPadrao] = useState<CabecalhoNaTela>(SEM_CABECALHO);
   /**
-   * O cabeçalho foi LIDO com sucesso? Falso trava o salvamento.
+   * O cabeçalho foi LIDO com sucesso?
    *
-   * Não é zelo: sem isto havia um caminho vivo de PERDA, e ele levou DUAS
-   * rodadas de revisão para fechar.
+   * Hoje governa uma coisa só: se o "Voltar ao padrão" está disponível. Oferecer
+   * "apagar" sobre um estado que não se conseguiu ler é o mesmo erro de sempre.
    *
-   * Na primeira, `carregar()` estourava antes de preencher o cabeçalho quando o
-   * GET falhava — campos vazios, tela liberada, Salvar habilitado. Na segunda,
-   * com a trava já no lugar, a revisão reproduziu o mesmo desfecho por outra
-   * porta: a resposta tem DUAS metades com clientes diferentes (os guias pela
-   * sessão, o cabeçalho pelo `anon`), e um timeout só na segunda devolvia 200
-   * com os campos nulos — indistinguível de "sem override". A tela concluía que
-   * tinha lido.
+   * Ele JÁ FOI a trava de segurança do salvamento, e a história explica por que
+   * deixou de ser. O PUT substituía a linha inteira, então um formulário em
+   * branco por falha de leitura apagava o texto do ar — e cinco rodadas de
+   * revisão acharam cinco caminhos até esse estado: o GET falhando inteiro, o
+   * GET falhando só na metade do cabeçalho (são clientes diferentes, uma cai
+   * sozinha), a resposta 200 com corpo ilegível. Cada caminho pedia uma trava
+   * nova.
    *
-   * Como o PUT substitui a linha inteira, um clique nesse estado apaga o texto
-   * que está no ar, e vai ao ar no mesmo request por causa do
-   * `revalidarCluster`. Hoje o valor vem do servidor (`cabecalhoLido`), e a
-   * decisão de habilitar mora em `podeSalvarCabecalho`, que tem teste.
+   * O dono cortou o nó em 07/09: em vez de cercar os caminhos, mudar a forma da
+   * requisição. Hoje o PUT manda SÓ o que mudou, e um formulário em branco
+   * produz `{}` — não há o que apagar. A trava virou conveniência.
    */
   const [cabecalhoLido, setCabecalhoLido] = useState(false);
 
@@ -102,15 +116,14 @@ export default function EditorDeGuias() {
       setGuias(r.guias);
       setRegua(r.regua);
       setCabecalho(r.cabecalho);
+      // O rascunho e o LIDO nascem iguais: sem diferença, não há o que gravar.
+      setCarregado(r.cabecalho);
       setPadrao(r.padrao);
       // E NÃO `true`: a resposta pode trazer a listagem e falhar só na metade
-      // do cabeçalho — clientes diferentes, uma cai sozinha. Assumir que leu
-      // era o caminho que apagava o texto do dono.
+      // do cabeçalho — clientes diferentes, uma cai sozinha.
       setCabecalhoLido(r.cabecalhoLido);
       if (r.aviso) setAviso({ tipo: "erro", texto: r.aviso });
     } else {
-      // Travar em vez de gravar por cima: uma recarga que falha depois de uma
-      // que deu certo deixaria texto velho na mão, e o PUT substitui a linha.
       setCabecalhoLido(false);
       setAviso({ tipo: "erro", texto: r.texto });
     }
@@ -123,15 +136,45 @@ export default function EditorDeGuias() {
   // e não um identificador. Ver o docblock de lá.
   async function aoSalvarCabecalho() {
     setSalvando(true);
-    const r = await salvarCabecalho(cabecalho);
+    // SÓ o que mudou entre o lido e os campos. É esta linha que torna o
+    // apagamento acidental inexpressável — ver `camposAlterados`.
+    const r = await salvarCabecalho(camposAlterados(cabecalho, carregado));
     if (r.ok) {
       setCabecalho(r.cabecalho);
+      setCarregado(r.cabecalho);
       setAviso({ tipo: "ok", texto: r.texto, itens: r.avisos });
     } else {
-      // Gravou e não deu para confirmar o quê: trava até reler. Os campos ficam
-      // como estão — limpar aqui seria afirmar "está no automático" sobre uma
-      // seção que pode ter acabado de receber texto.
+      // Gravou e não deu para confirmar o quê: trava o "voltar ao padrão" até
+      // reler. Os campos ficam como estão.
       if (r.exigeRecarga) setCabecalhoLido(false);
+      setAviso({ tipo: "erro", texto: r.texto });
+    }
+    setSalvando(false);
+  }
+
+  /**
+   * Devolver a seção ao texto do código — ação com nome próprio, e confirmada.
+   *
+   * Enquanto isto era "esvaziar os campos e salvar", era alcançável por acidente
+   * toda vez que a tela não conseguia ler o que estava no ar. Hoje é um DELETE
+   * pedido de propósito. A confirmação existe porque tira do ar um texto que
+   * alguém escreveu — mesmo que o site siga funcionando com o padrão.
+   */
+  async function aoVoltarAoPadrao() {
+    if (
+      !window.confirm(
+        "Isto apaga o cabeçalho escrito no painel e devolve /guias ao texto padrão do site. Continuar?",
+      )
+    ) {
+      return;
+    }
+    setSalvando(true);
+    const r = await voltarAoPadrao();
+    if (r.ok) {
+      setCabecalho(r.cabecalho);
+      setCarregado(r.cabecalho);
+      setAviso({ tipo: "ok", texto: r.texto });
+    } else {
       setAviso({ tipo: "erro", texto: r.texto });
     }
     setSalvando(false);
@@ -271,12 +314,13 @@ export default function EditorDeGuias() {
           `CabecalhoDaSecao`. */}
       <CabecalhoDaSecao
         cabecalho={cabecalho}
+        carregado={carregado}
         padrao={padrao}
         salvando={salvando}
         carregando={carregando}
         cabecalhoLido={cabecalhoLido}
         aoMudar={(troca) => setCabecalho((c) => ({ ...c, ...troca }))}
-        aoLimpar={() => setCabecalho(SEM_CABECALHO)}
+        aoVoltarAoPadrao={aoVoltarAoPadrao}
         aoSalvar={aoSalvarCabecalho}
       />
 

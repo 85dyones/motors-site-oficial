@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { carregarPainel } from "../src/lib/carregarPainelDeGuias";
-import { podeSalvarCabecalho, podeVoltarAoPadrao } from "../src/lib/salvarCabecalho";
+import {
+  SEM_CABECALHO,
+  camposAlterados,
+  podeSalvarCabecalho,
+  podeVoltarAoPadrao,
+} from "../src/lib/salvarCabecalho";
 
 /**
  * A LEITURA da tela de guias — a metade que apagava texto.
@@ -193,58 +198,86 @@ describe("o GET de /api/guias entrega o cabeçalho", () => {
   });
 });
 
-describe("a decisão de habilitar o salvamento", () => {
-  // Mora numa função pura porque `disabled` não aparece em markup estático:
-  // a revisão apagou as DUAS guardas de `cabecalhoLido` do JSX e a suíte
-  // inteira ficou verde — e essas guardas são a correção do defeito que
-  // apagava texto.
-  it("não salva enquanto o cabeçalho não foi lido", () => {
+describe("o que se grava é a DIFERENÇA, não a linha inteira", () => {
+  /**
+   * A peça que tornou o defeito inexpressável, em 07/09, por decisão do dono.
+   *
+   * Antes, salvar mandava os dois campos sempre, e vazio significava "volte ao
+   * padrão". Isso fazia duas intenções opostas produzirem a mesma requisição —
+   * "apague o meu texto" e "não sei o que tem lá" —, e a segunda acontecia
+   * sempre que a tela não conseguia ler. Cinco rodadas de revisão acharam cinco
+   * caminhos até ela, e cada um pedia uma trava nova.
+   */
+  it("campo intocado não viaja", () => {
+    const carregado = { tituloSeo: "Título do ar", resumo: "Resumo do ar" };
+    const atual = { tituloSeo: "Título do ar", resumo: "Resumo NOVO" };
+
+    // Só `resumo`. `tituloSeo` ausente significa "não mexa nesta coluna".
+    expect(camposAlterados(atual, carregado)).toEqual({ resumo: "Resumo NOVO" });
+  });
+
+  it("formulário em branco POR FALHA DE LEITURA não pede nada", () => {
+    // O caso que motivou tudo. Sem leitura, o carregado é vazio e os campos
+    // também: a diferença é `{}`, e `{}` não muda nada no banco. Antes, este
+    // mesmo estado mandava `{tituloSeo:"", resumo:""}` e apagava o texto do ar.
+    expect(camposAlterados(SEM_CABECALHO, SEM_CABECALHO)).toEqual({});
+  });
+
+  it("esvaziar um campo QUE FOI LIDO continua sendo uma edição de verdade", () => {
+    // A diferença entre "apaguei de propósito" e "nunca soube o que tinha" é
+    // justamente ter lido antes. Aqui houve leitura, então o vazio vai.
+    const carregado = { tituloSeo: "Tinha texto", resumo: "Tinha resumo" };
+    const atual = { tituloSeo: "", resumo: "Tinha resumo" };
+
+    expect(camposAlterados(atual, carregado)).toEqual({ tituloSeo: "" });
+  });
+});
+
+describe("a decisão de habilitar os botões", () => {
+  it("sem diferença, não há o que salvar", () => {
     expect(
-      podeSalvarCabecalho({ salvando: false, carregando: false, cabecalhoLido: false }),
+      podeSalvarCabecalho({ salvando: false, carregando: false, alteracoes: {} }),
     ).toBe(false);
   });
 
   it.each([
-    ["carregando", { salvando: false, carregando: true, cabecalhoLido: true }],
-    ["salvando", { salvando: true, carregando: false, cabecalhoLido: true }],
+    ["carregando", { salvando: false, carregando: true }],
+    ["salvando", { salvando: true, carregando: false }],
   ])("não salva enquanto está %s", (_caso, estado) => {
-    expect(podeSalvarCabecalho(estado)).toBe(false);
+    // Não é segurança — é não mandar duas requisições com dois cliques.
+    expect(podeSalvarCabecalho({ ...estado, alteracoes: { resumo: "x" } })).toBe(false);
   });
 
-  it("salva quando leu e está parada", () => {
-    expect(podeSalvarCabecalho({ salvando: false, carregando: false, cabecalhoLido: true })).toBe(
-      true,
-    );
+  it("com diferença e parada, salva", () => {
+    expect(
+      podeSalvarCabecalho({ salvando: false, carregando: false, alteracoes: { resumo: "x" } }),
+    ).toBe(true);
   });
 
-  it("voltar ao padrão herda a mesma trava, e só age se houver o que limpar", () => {
+  it("voltar ao padrão exige ter lido, e ter o que apagar", () => {
     const base = { salvando: false, carregando: false };
 
-    // Sem leitura, nem limpar. O botão não grava sozinho — ele esvazia a tela,
-    // e quem grava é o Salvar em seguida. Ele herda a trava porque limpar um
-    // campo cujo conteúdo real eu não consegui ler faz a tela AFIRMAR "está no
-    // automático" sobre uma seção que pode ter texto.
+    // Sem leitura, não: oferecer "apagar" sobre um estado que não se conseguiu
+    // ler é o mesmo erro de sempre, com outro nome.
     expect(
       podeVoltarAoPadrao({
         ...base,
         cabecalhoLido: false,
-        cabecalho: { tituloSeo: "tem texto", resumo: "" },
+        carregado: { tituloSeo: "tem texto", resumo: "" },
       }),
     ).toBe(false);
 
+    // Sem override gravado, a seção já está no automático — não há o que apagar.
+    expect(
+      podeVoltarAoPadrao({ ...base, cabecalhoLido: true, carregado: SEM_CABECALHO }),
+    ).toBe(false);
+
+    // E o que decide é o CARREGADO, não o rascunho: apagar age sobre o banco.
     expect(
       podeVoltarAoPadrao({
         ...base,
         cabecalhoLido: true,
-        cabecalho: { tituloSeo: "", resumo: "" },
-      }),
-    ).toBe(false);
-
-    expect(
-      podeVoltarAoPadrao({
-        ...base,
-        cabecalhoLido: true,
-        cabecalho: { tituloSeo: "", resumo: "tem texto" },
+        carregado: { tituloSeo: "", resumo: "tem texto" },
       }),
     ).toBe(true);
   });

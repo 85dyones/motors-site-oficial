@@ -54,6 +54,9 @@ function dublarFetch() {
       corpo: opcoes?.body ? JSON.parse(String(opcoes.body)) : undefined,
     });
     if (String(url).includes("/api/guias/secao")) {
+      if (metodo === "DELETE") {
+        return { ok: true, json: async () => ({ cabecalho: { titulo_seo: null, resumo: null } }) };
+      }
       return { ok: RESPOSTAS.putOk, json: async () => RESPOSTAS.put };
     }
     return { ok: RESPOSTAS.getOk, json: async () => RESPOSTAS.get };
@@ -234,11 +237,18 @@ describe("digitar chega ao estado, e do estado ao banco", () => {
 });
 
 describe("o botão está ligado na função que grava", () => {
-  it("clicar manda PUT com o que está nos campos", async () => {
-    // Mata `onClick={() => {}}` — o botão morto que passava verde por
-    // `renderToStaticMarkup` não enxergar `onClick`.
+  it("clicar manda PUT com SÓ o que foi editado", async () => {
+    // Mata `onClick={() => {}}` — botão morto passava verde porque
+    // `renderToStaticMarkup` não enxerga `onClick`.
+    //
+    // E prova o desenho de 07/09 de ponta a ponta: o corpo traz apenas o campo
+    // tocado. O título, que ninguém mexeu, não viaja — e o que não viaja não
+    // pode ser apagado.
     await montar();
 
+    await act(async () => {
+      digitar(campo("Parágrafo de abertura"), "Só o resumo mudou.");
+    });
     await act(async () => {
       botao("Salvar cabeçalho").click();
     });
@@ -246,11 +256,25 @@ describe("o botão está ligado na função que grava", () => {
     const put = chamadas.find((c) => c.metodo === "PUT");
     expect(put, "o clique precisa mandar um PUT").toBeDefined();
     expect(put!.url).toContain("/api/guias/secao");
-    expect(put!.corpo).toEqual({ tituloSeo: "Do banco", resumo: "Resumo do banco" });
+    expect(put!.corpo).toEqual({ resumo: "Só o resumo mudou." });
+  });
+
+  it("sem editar nada, o clique não sai — e o botão nem está disponível", async () => {
+    await montar();
+
+    expect(botao("Salvar cabeçalho").disabled).toBe(true);
+    await act(async () => {
+      botao("Salvar cabeçalho").click();
+    });
+
+    expect(chamadas.filter((c) => c.metodo === "PUT")).toHaveLength(0);
   });
 
   it("depois de gravar, a tela mostra o que o servidor confirmou", async () => {
     await montar();
+    await act(async () => {
+      digitar(campo("Título da aba"), "Novo título");
+    });
     await act(async () => {
       botao("Salvar cabeçalho").click();
     });
@@ -259,36 +283,66 @@ describe("o botão está ligado na função que grava", () => {
     expect(container.textContent).toContain("Cabeçalho salvo");
   });
 
-  it("200 sem corpo utilizável trava a tela em vez de mentir", async () => {
-    // O B13, agora provado ponta a ponta: gravou, não dá para confirmar o quê,
-    // e a tela NÃO pode dizer "de volta ao texto padrão" nem limpar os campos.
+  it("200 sem corpo utilizável trava e não mente", async () => {
+    // Gravou, não dá para confirmar o quê: a tela não pode dizer que voltou ao
+    // padrão nem limpar os campos.
     RESPOSTAS.put = {};
     await montar();
+    await act(async () => {
+      digitar(campo("Título da aba"), "Novo título");
+    });
     await act(async () => {
       botao("Salvar cabeçalho").click();
     });
 
     expect(container.textContent).toContain("Recarregue a página");
-    expect(container.textContent).not.toContain("de volta ao texto padrão");
+    expect(container.textContent).not.toContain("no texto padrão");
     // O que a pessoa digitou continua ali.
-    expect(campo("Título da aba").value).toBe("Do banco");
-    // E a tela travou: sem saber o que está no ar, salvar de novo apagaria.
-    expect(botao("Salvar cabeçalho").disabled).toBe(true);
+    expect(campo("Título da aba").value).toBe("Novo título");
   });
 });
 
-describe("o Voltar ao padrão limpa a tela, e não grava sozinho", () => {
-  it("esvazia os campos sem mandar PUT", async () => {
+describe("voltar ao padrão é ação com nome próprio", () => {
+  it("pede confirmação e manda DELETE — não um PUT de campos vazios", async () => {
+    // O coração da mudança de 07/09. Enquanto apagar era "salvar dois campos
+    // vazios", acontecia por acidente sempre que a tela não conseguia ler o que
+    // estava no ar. Agora é um verbo separado, e é preciso confirmar.
+    RESPOSTAS.get = {
+      guias: [],
+      regua: [],
+      cabecalho: { tituloSeo: "Tem no banco", resumo: "" },
+      padrao: { tituloSeo: "Do código", resumo: "Resumo do código" },
+      cabecalhoLido: true,
+    };
+    window.confirm = () => true;
     await montar();
 
     await act(async () => {
       botao("Voltar ao padrão").click();
     });
 
-    expect(campo("Título da aba").value).toBe("");
-    expect(campo("Parágrafo de abertura").value).toBe("");
-    // A primeira versão do docblock dizia que ele "grava pela mesma rota".
-    // Não grava: quem grava é o Salvar em seguida.
+    expect(chamadas.filter((c) => c.metodo === "DELETE")).toHaveLength(1);
     expect(chamadas.filter((c) => c.metodo === "PUT")).toHaveLength(0);
+    expect(campo("Título da aba").value).toBe("");
+    expect(container.textContent).toContain("voltou ao texto padrão");
+  });
+
+  it("recusar a confirmação não manda nada", async () => {
+    RESPOSTAS.get = {
+      guias: [],
+      regua: [],
+      cabecalho: { tituloSeo: "Tem no banco", resumo: "" },
+      padrao: { tituloSeo: "Do código", resumo: "Resumo do código" },
+      cabecalhoLido: true,
+    };
+    window.confirm = () => false;
+    await montar();
+
+    await act(async () => {
+      botao("Voltar ao padrão").click();
+    });
+
+    expect(chamadas.filter((c) => c.metodo === "DELETE")).toHaveLength(0);
+    expect(campo("Título da aba").value).toBe("Tem no banco");
   });
 });

@@ -17,14 +17,23 @@ import { SEM_CABECALHO } from "../src/lib/salvarCabecalho";
  * mediu: `disabled` APARECE em `renderToStaticMarkup`. O que não aparece é
  * `onClick`.
  *
- * Com props, cada combinação é um render, e a trava que impede apagar o texto
- * do dono passa a ter testemunha.
+ * Com props, cada combinação é um render, e as decisões da tela passam a ter
+ * testemunha.
+ *
+ * O que essas decisões SÃO mudou em 07/09, por escolha do dono. Elas eram
+ * travas de segurança contra apagar o texto do ar; hoje a segurança está na
+ * forma da requisição — salvar manda só a diferença, e apagar é um verbo
+ * separado. O `disabled` do Salvar virou "há algo para gravar", e o do Voltar
+ * ao padrão, "existe override no banco".
  */
 
 const PADRAO = { tituloSeo: "Título do código", resumo: "Resumo do código" };
 
 function bloco(estado: {
+  /** O rascunho nos campos. Sem `carregado`, é igual a ele — nada a salvar. */
   cabecalho?: { tituloSeo: string; resumo: string };
+  /** O que veio do servidor. A diferença entre os dois é o que se grava. */
+  carregado?: { tituloSeo: string; resumo: string };
   salvando?: boolean;
   carregando?: boolean;
   cabecalhoLido: boolean;
@@ -32,12 +41,13 @@ function bloco(estado: {
   return renderToStaticMarkup(
     createElement(CabecalhoDaSecao, {
       cabecalho: estado.cabecalho ?? SEM_CABECALHO,
+      carregado: estado.carregado ?? SEM_CABECALHO,
       padrao: PADRAO,
       salvando: estado.salvando ?? false,
       carregando: estado.carregando ?? false,
       cabecalhoLido: estado.cabecalhoLido,
       aoMudar: () => {},
-      aoLimpar: () => {},
+      aoVoltarAoPadrao: () => {},
       aoSalvar: () => {},
     }),
   );
@@ -60,21 +70,20 @@ function desabilitado(html: string, rotulo: string): boolean {
   return /\sdisabled=""/.test(tag);
 }
 
-describe("sem ter lido o cabeçalho, a tela não grava", () => {
-  it("os dois botões saem desabilitados", () => {
-    // É a trava contra apagar o que está no ar: o PUT substitui a linha
-    // inteira, e campo em branco aqui significa "não sei", não "não tem".
+describe("sem ter lido o cabeçalho", () => {
+  it("nada a salvar e nada a apagar", () => {
+    // Campos vazios porque a leitura falhou: não há diferença para gravar, e
+    // não se sabe se existe override para apagar.
     const html = bloco({ cabecalhoLido: false });
 
     expect(desabilitado(html, "Salvar cabeçalho")).toBe(true);
     expect(desabilitado(html, "Voltar ao padrão")).toBe(true);
   });
 
-  it("o Voltar ao padrão fica travado MESMO com texto no campo", () => {
-    // O caso que discrimina, e sem ele a trava do Limpar não tinha mutante:
-    // com os campos vazios, "não li" e "não há o que limpar" chegam ao mesmo
-    // `disabled`, e trocar uma condição pela outra passava verde. Aqui há texto
-    // digitado, então só a falta de leitura pode travar.
+  it("o Voltar ao padrão fica travado MESMO com texto digitado", () => {
+    // O caso que discrimina: com tudo vazio, "não li" e "não há o que apagar"
+    // chegam ao mesmo `disabled`, e trocar uma condição pela outra passaria
+    // verde. Aqui há texto no rascunho, então só a falta de leitura pode travar.
     const html = bloco({ cabecalhoLido: false, cabecalho: { tituloSeo: "digitei", resumo: "" } });
 
     expect(desabilitado(html, "Voltar ao padrão")).toBe(true);
@@ -97,25 +106,90 @@ describe("sem ter lido o cabeçalho, a tela não grava", () => {
     expect(html).not.toContain("Não consegui ler o cabeçalho");
     expect(desabilitado(html, "Salvar cabeçalho")).toBe(true);
   });
+
+  it("e o aviso explica o que os campos em branco significam", () => {
+    // O texto mudou junto com o desenho: hoje ele não anuncia uma trava, e sim
+    // que salvar dali não apaga nada — só o que for digitado é enviado.
+    const html = bloco({ cabecalhoLido: false });
+
+    expect(html).toContain("O que você escrever aqui será salvo normalmente");
+    expect(html).toContain("os campos que não tocar ficam como estão no site");
+  });
 });
 
-describe("tendo lido, a tela grava", () => {
-  it("o Salvar libera", () => {
-    expect(desabilitado(bloco({ cabecalhoLido: true }), "Salvar cabeçalho")).toBe(false);
+describe("o Salvar segue a DIFERENÇA, não o estado da leitura", () => {
+  const carregado = { tituloSeo: "Do ar", resumo: "Resumo do ar" };
+
+  it("sem nada editado, não há o que salvar", () => {
+    // Mudança de desenho em 07/09: o botão deixou de ser trava de segurança e
+    // virou sinal de "há algo para gravar". A segurança mora na FORMA da
+    // requisição — só o que mudou viaja.
+    const html = bloco({ cabecalhoLido: true, cabecalho: carregado, carregado });
+
+    expect(desabilitado(html, "Salvar cabeçalho")).toBe(true);
+  });
+
+  it("com um campo editado, libera", () => {
+    const html = bloco({
+      cabecalhoLido: true,
+      carregado,
+      cabecalho: { ...carregado, resumo: "Resumo NOVO" },
+    });
+
+    expect(desabilitado(html, "Salvar cabeçalho")).toBe(false);
+  });
+
+  it("edição SEM leitura também libera — e não apaga nada", () => {
+    // O caso que antes era proibido e hoje é seguro: a leitura falhou, os
+    // campos vieram vazios, e a pessoa escreve um título. Só esse campo viaja;
+    // o resumo, que ela não tocou, fica como está no site.
+    const html = bloco({
+      cabecalhoLido: false,
+      carregado: SEM_CABECALHO,
+      cabecalho: { tituloSeo: "Escrevi mesmo sem ler", resumo: "" },
+    });
+
+    expect(desabilitado(html, "Salvar cabeçalho")).toBe(false);
   });
 
   it("mas trava enquanto uma gravação está em curso", () => {
-    expect(desabilitado(bloco({ cabecalhoLido: true, salvando: true }), "Salvar cabeçalho")).toBe(
-      true,
-    );
+    const html = bloco({
+      cabecalhoLido: true,
+      carregado,
+      cabecalho: { ...carregado, resumo: "NOVO" },
+      salvando: true,
+    });
+
+    expect(desabilitado(html, "Salvar cabeçalho")).toBe(true);
+  });
+});
+
+describe("o Voltar ao padrão olha o BANCO, não o rascunho", () => {
+  it("sem override gravado, não há o que apagar", () => {
+    const html = bloco({ cabecalhoLido: true, carregado: SEM_CABECALHO });
+
+    expect(desabilitado(html, "Voltar ao padrão")).toBe(true);
   });
 
-  it("o Voltar ao padrão só libera se houver o que limpar", () => {
-    const vazio = bloco({ cabecalhoLido: true, cabecalho: SEM_CABECALHO });
-    expect(desabilitado(vazio, "Voltar ao padrão")).toBe(true);
+  it("com override gravado, libera", () => {
+    const html = bloco({
+      cabecalhoLido: true,
+      carregado: { tituloSeo: "", resumo: "tem no banco" },
+    });
 
-    const cheio = bloco({ cabecalhoLido: true, cabecalho: { tituloSeo: "", resumo: "tem" } });
-    expect(desabilitado(cheio, "Voltar ao padrão")).toBe(false);
+    expect(desabilitado(html, "Voltar ao padrão")).toBe(false);
+  });
+
+  it("texto só no RASCUNHO não habilita — ainda não está no ar", () => {
+    // O que discrimina: apagar age sobre o banco. Se a pessoa digitou e não
+    // salvou, não existe override para apagar.
+    const html = bloco({
+      cabecalhoLido: true,
+      carregado: SEM_CABECALHO,
+      cabecalho: { tituloSeo: "só digitei", resumo: "" },
+    });
+
+    expect(desabilitado(html, "Voltar ao padrão")).toBe(true);
   });
 });
 

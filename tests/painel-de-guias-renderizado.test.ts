@@ -136,14 +136,16 @@ describe("o salvamento do cabeçalho", () => {
     return espia;
   }
 
-  it("manda PUT para a rota da seção, com os dois campos", async () => {
-    const espia = respondendo({ cabecalho: { titulo_seo: "T", resumo: "R" } });
-    await salvarCabecalho({ tituloSeo: "T", resumo: "R" });
+  it("manda PUT com EXATAMENTE o que recebeu, e nada além", async () => {
+    // O corpo é o diff, montado por `camposAlterados`. Acrescentar campo aqui
+    // desfaria o desenho: chave presente significa "escreva nesta coluna".
+    const espia = respondendo({ cabecalho: { titulo_seo: null, resumo: "R" } });
+    await salvarCabecalho({ resumo: "R" });
 
     const [url, opcoes] = espia.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("/api/guias/secao");
     expect(opcoes.method).toBe("PUT");
-    expect(JSON.parse(String(opcoes.body))).toEqual({ tituloSeo: "T", resumo: "R" });
+    expect(JSON.parse(String(opcoes.body))).toEqual({ resumo: "R" });
   });
 
   it("devolve à tela o que o servidor gravou, e não o que foi digitado", async () => {
@@ -155,13 +157,16 @@ describe("o salvamento do cabeçalho", () => {
     expect(r.ok && r.cabecalho).toEqual({ tituloSeo: "cortado", resumo: "" });
   });
 
-  it("distingue salvar de voltar ao padrão", async () => {
+  it("a mensagem diz em que estado a seção ficou", async () => {
+    // Sem os dois textos, quem esvazia os campos fica sem saber se apagou o
+    // conteúdo do site ou se a seção voltou ao automático. A frase não promete
+    // que APAGOU o override — quem faz isso é o DELETE, com botão próprio.
     respondendo({ cabecalho: { titulo_seo: null, resumo: null } });
     const vazio = await salvarCabecalho({ tituloSeo: "", resumo: "" });
-    expect(vazio.ok && vazio.texto).toContain("de volta ao texto padrão");
+    expect(vazio.ok && vazio.texto).toContain("no texto padrão");
 
     respondendo({ cabecalho: { titulo_seo: null, resumo: "Tem texto." } });
-    const cheio = await salvarCabecalho({ tituloSeo: "", resumo: "Tem texto." });
+    const cheio = await salvarCabecalho({ resumo: "Tem texto." });
     expect(cheio.ok && cheio.texto).toContain("Cabeçalho salvo");
   });
 
@@ -219,6 +224,6 @@ describe("o salvamento do cabeçalho", () => {
     const r = await salvarCabecalho({ tituloSeo: "", resumo: "" });
 
     expect(r.ok).toBe(true);
-    expect(r.ok && r.texto).toContain("de volta ao texto padrão");
+    expect(r.ok && r.texto).toContain("no texto padrão");
   });
 });
