@@ -62,8 +62,13 @@ export function colunasDoRodape(companySettings: CompanySettings): ColunaDoRodap
         // `/contato` entrou em 2026-09-05, e a razão é MENOR do que a primeira
         // versão deste comentário dizia. Ele afirmava "recebia um único link em
         // todo o site, de /sobre" — falso: `Header.tsx` já a lista no NAV de
-        // toda página (escondida por `hidden desktop:block` abaixo do desktop,
-        // mas presente no HTML), e `/privacidade` também linka.
+        // toda página (escondida por `hidden 2xl:block` abaixo de 1536px, mas
+        // presente no HTML), e `/privacidade` também linka.
+        //
+        // O degrau era `desktop:` (1281px) até 07/09, quando `GUIAS MOTORS`
+        // entrou no menu e o `CONTATO` cedeu a faixa — o que torna ESTA linha
+        // mais necessária, não menos: são 255px a mais de largura em que o
+        // cabeçalho não mostra o contato.
         //
         // Fica porque a coluna INSTITUCIONAL é onde se procura contato depois
         // que o cabeçalho rolou para fora da tela — não porque a página
