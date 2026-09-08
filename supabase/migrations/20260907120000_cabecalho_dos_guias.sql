@@ -15,9 +15,15 @@
 -- O que NÃO entra: o nome da seção. E isso é decisão, não esquecimento
 -- ---------------------------------------------------------------------------
 -- `NOME_DA_SECAO` ("Guias Motors") fica no código. Ele alimenta SEIS
--- superfícies que ninguém abre juntas — o `<h1>`, o degrau visível da trilha
--- nas duas rotas, o degrau do `BreadcrumbList`, o `CollectionPage.name`, o
--- rótulo do rodapé e o menu do cabeçalho.
+-- superfícies que ninguém abre juntas — o `<h1>` do índice, a trilha do
+-- índice, a trilha da ficha, os degraus do `BreadcrumbList`, o
+-- `CollectionPage.name` e o rótulo do rodapé.
+--
+-- (A primeira versão desta lista citava "o menu do cabeçalho". Ele não existe
+-- neste branch — o item de menu é de `seo/guias-no-menu` —, e a contagem
+-- fechava porque a enumeração trocava a trilha da ficha, que é real, por uma
+-- superfície que não estava no código. Mesmo erro corrigido em
+-- `src/lib/secaoDeGuias.ts`.)
 --
 -- A renomeação de 07/09 mostrou o custo de errar isso: a revisão do
 -- `qa-guardian` desfez a troca em seis pontos, um a um, e a suíte cheia (2207

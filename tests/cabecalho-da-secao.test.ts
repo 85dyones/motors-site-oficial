@@ -54,7 +54,24 @@ let linha: { titulo_seo: string | null; resumo: string | null } | null = null;
 let erro: { code?: string; message: string } | null = null;
 
 /**
- * O que o PostgREST DEVOLVERIA para este `select` — chaves inclusive.
+ * As colunas que a tabela TEM. Pedir outra é `42703`, não `undefined`.
+ *
+ * A lista vem da migração `20260907120000_cabecalho_dos_guias.sql`, e é a
+ * mesma nos dois dublês desta feature (aqui e em
+ * `cabecalho-a-porta-de-escrita.test.ts`). Se a migração ganhar coluna, as
+ * duas mudam juntas.
+ */
+const COLUNAS_DA_TABELA = [
+  "secao",
+  "titulo_seo",
+  "resumo",
+  "atualizado_por",
+  "atualizado_em",
+  "criado_em",
+];
+
+/**
+ * O que o PostgREST DEVOLVERIA para este `select` — chaves e erro inclusive.
  *
  * A sétima revisão mostrou por que a trava anterior não servia: ela proibia
  * `resumo as texto`, e essa grafia não existe no PostgREST — o parser do
@@ -63,23 +80,49 @@ let erro: { code?: string; message: string } | null = null;
  * qualquer que seja o `select`, é mais generoso que o servidor, e foi assim
  * que o alias de verdade sobreviveu a duas rodadas.
  *
+ * A oitava cobrou a outra metade: coluna que não existe. O dublê devolvia a
+ * chave `undefined`, o `JSON.stringify` a comia, e o mutante sobrevivia — em
+ * produção o PostgREST responde `42703`. Na LEITURA isso é pior que parece:
+ * `42703` está dentro de `ehTabelaOuColunaAusente`, então uma coluna
+ * renomeada vira `lido: true` com o cabeçalho VAZIO — `/guias` volta ao texto
+ * do código, o painel mostra campos em branco SEM o aviso, e ninguém percebe.
+ *
  * Projetar em vez de vigiar também tira a sobre-especificação: `select("*")`
  * passa, porque em produção passaria.
+ *
+ * (`resumo::text` e recurso embutido — `autor:profiles(nome)` — dariam
+ * falso-vermelho aqui. Nenhum dos dois é usado nesta feature.)
  */
-function projetar(
+function lerColunas(
   linha: Record<string, unknown> | null,
   colunas: string,
-): Record<string, unknown> | null {
-  if (!linha) return null;
-  if (colunas.trim() === "*") return { ...linha };
-  const saida: Record<string, unknown> = {};
-  for (const pedaco of colunas.split(",")) {
-    const campo = pedaco.trim();
-    if (!campo) continue;
-    const [apelido, coluna] = campo.includes(":") ? campo.split(":") : [campo, campo];
-    saida[apelido.trim()] = linha[coluna.trim()];
+): { data: Record<string, unknown> | null; error: { code: string; message: string } | null } {
+  const pedidas =
+    colunas.trim() === "*"
+      ? COLUNAS_DA_TABELA
+      : colunas
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+
+  for (const campo of pedidas) {
+    const coluna = campo.includes(":") ? campo.split(":")[1].trim() : campo;
+    if (!COLUNAS_DA_TABELA.includes(coluna)) {
+      return {
+        data: null,
+        error: { code: "42703", message: `column cabecalho_dos_guias.${coluna} does not exist` },
+      };
+    }
   }
-  return saida;
+
+  if (!linha) return { data: null, error: null };
+
+  const saida: Record<string, unknown> = {};
+  for (const campo of pedidas) {
+    const [apelido, coluna] = campo.includes(":") ? campo.split(":") : [campo, campo];
+    saida[apelido.trim()] = linha[coluna.trim()] ?? null;
+  }
+  return { data: saida, error: null };
 }
 
 /**
@@ -103,9 +146,11 @@ vi.mock("../src/lib/supabase", () => ({
           maybeSingle: async () => {
             const casa =
               tabela === "cabecalho_dos_guias" && coluna === "secao" && valor === "guias";
+            const lido = lerColunas(casa ? linha : null, colunas);
             // Filtro que não casa devolve VAZIO, não erro — é o que o PostgREST
-            // faz, e é o que torna o defeito silencioso em produção.
-            return { data: casa ? projetar(linha, colunas) : null, error: erro };
+            // faz, e é o que torna o defeito silencioso em produção. Coluna
+            // inexistente é o contrário: erro, e o teste tem de ver.
+            return { data: lido.data, error: erro ?? lido.error };
           },
         }),
       }),

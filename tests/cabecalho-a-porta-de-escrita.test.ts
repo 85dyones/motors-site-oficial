@@ -71,17 +71,35 @@ let gravado: Record<string, unknown> | null = null;
 /**
  * As COLUNAS que a rota pede de volta ao gravar.
  *
- * Guardadas para a mensagem de erro; quem faz o trabalho é `projetar`, que
- * monta a resposta com as CHAVES que aquele `select` produziria. A versão
- * anterior deste comentário previa o sintoma errado: um alias não faz a tela
- * "exigir recarga" — `dados.cabecalho` continua sendo objeto, a guarda do
- * 200-ilegível não dispara, e o operador vê os dois campos em branco com um
- * "Salvo. A seção está no texto padrão" em verde, com o texto dele no ar.
+ * Guardadas só para uma asserção de sanidade: quem faz o trabalho é
+ * `lerColunas`, que monta a resposta com as CHAVES que aquele `select`
+ * produziria. A versão anterior deste comentário previa o sintoma errado: um
+ * alias não faz a tela "exigir recarga" — `dados.cabecalho` continua sendo
+ * objeto, a guarda do 200-ilegível não dispara, e o operador vê os dois campos
+ * em branco com um "Salvo. A seção está no texto padrão" em verde, com o texto
+ * dele no ar.
  */
 let colunasPedidas: string | null = null;
 
 /**
- * O que o PostgREST DEVOLVERIA para este `select` — chaves inclusive.
+ * As colunas que a tabela TEM. Pedir outra é `42703`, não `undefined`.
+ *
+ * A lista vem da migração `20260907120000_cabecalho_dos_guias.sql`, e é a
+ * mesma nos dois dublês desta feature (aqui e em
+ * `cabecalho-da-secao.test.ts`). Se a migração ganhar coluna, as
+ * duas mudam juntas.
+ */
+const COLUNAS_DA_TABELA = [
+  "secao",
+  "titulo_seo",
+  "resumo",
+  "atualizado_por",
+  "atualizado_em",
+  "criado_em",
+];
+
+/**
+ * O que o PostgREST DEVOLVERIA para este `select` — chaves e erro inclusive.
  *
  * A sétima revisão mostrou por que a trava anterior não servia: ela proibia
  * `resumo as texto`, e essa grafia não existe no PostgREST — o parser do
@@ -90,23 +108,49 @@ let colunasPedidas: string | null = null;
  * qualquer que seja o `select`, é mais generoso que o servidor, e foi assim
  * que o alias de verdade sobreviveu a duas rodadas.
  *
+ * A oitava cobrou a outra metade: coluna que não existe. O dublê devolvia a
+ * chave `undefined`, o `JSON.stringify` a comia, e o mutante sobrevivia — em
+ * produção o PostgREST responde `42703`. Na LEITURA isso é pior que parece:
+ * `42703` está dentro de `ehTabelaOuColunaAusente`, então uma coluna
+ * renomeada vira `lido: true` com o cabeçalho VAZIO — `/guias` volta ao texto
+ * do código, o painel mostra campos em branco SEM o aviso, e ninguém percebe.
+ *
  * Projetar em vez de vigiar também tira a sobre-especificação: `select("*")`
  * passa, porque em produção passaria.
+ *
+ * (`resumo::text` e recurso embutido — `autor:profiles(nome)` — dariam
+ * falso-vermelho aqui. Nenhum dos dois é usado nesta feature.)
  */
-function projetar(
+function lerColunas(
   linha: Record<string, unknown> | null,
   colunas: string,
-): Record<string, unknown> | null {
-  if (!linha) return null;
-  if (colunas.trim() === "*") return { ...linha };
-  const saida: Record<string, unknown> = {};
-  for (const pedaco of colunas.split(",")) {
-    const campo = pedaco.trim();
-    if (!campo) continue;
-    const [apelido, coluna] = campo.includes(":") ? campo.split(":") : [campo, campo];
-    saida[apelido.trim()] = linha[coluna.trim()];
+): { data: Record<string, unknown> | null; error: { code: string; message: string } | null } {
+  const pedidas =
+    colunas.trim() === "*"
+      ? COLUNAS_DA_TABELA
+      : colunas
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+
+  for (const campo of pedidas) {
+    const coluna = campo.includes(":") ? campo.split(":")[1].trim() : campo;
+    if (!COLUNAS_DA_TABELA.includes(coluna)) {
+      return {
+        data: null,
+        error: { code: "42703", message: `column cabecalho_dos_guias.${coluna} does not exist` },
+      };
+    }
   }
-  return saida;
+
+  if (!linha) return { data: null, error: null };
+
+  const saida: Record<string, unknown> = {};
+  for (const campo of pedidas) {
+    const [apelido, coluna] = campo.includes(":") ? campo.split(":") : [campo, campo];
+    saida[apelido.trim()] = linha[coluna.trim()] ?? null;
+  }
+  return { data: saida, error: null };
 }
 
 /**
@@ -132,6 +176,16 @@ let corridaArmada = false;
  * aplicada, então hoje este é o desfecho de todo clique em Salvar.
  */
 let erroDoBanco: { code: string; message: string } | null = null;
+/**
+ * Erro SÓ no INSERT, com o UPDATE passando.
+ *
+ * Precisa ser separado de `erroDoBanco`: com os dois statements falhando, o
+ * `if (error)` do UPDATE devolve antes e o ramo do INSERT nunca é alcançado —
+ * foi assim que o meu primeiro teste do B13 ficou verde com o mutante vivo.
+ * O estado que ele modela é real: a tabela existe, o UPDATE não acha linha, e
+ * o INSERT é recusado (RLS que mudou, timeout, deadlock).
+ */
+let erroNoInsert: { code: string; message: string } | null = null;
 
 function comoEditor() {
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "staff-1" } } });
@@ -150,7 +204,7 @@ function comoEditor() {
       tabela === "cabecalho_dos_guias" && coluna === "secao" && valor === "guias";
     const devolver = (colunas: string) => {
       colunasPedidas = colunas;
-      return { maybeSingle: async () => ({ data: projetar(linhaNoBanco, colunas), error: null }) };
+      return { maybeSingle: async () => lerColunas(linhaNoBanco, colunas) };
     };
     return {
       update: (troca: Record<string, unknown>) => ({
@@ -165,7 +219,6 @@ function comoEditor() {
               // A outra gravação ainda não chegou: este UPDATE não acha nada.
               // Ela chega logo em seguida, e a linha passa a existir.
               corridaArmada = false;
-  erroDoBanco = null;
               linhaNoBanco = { titulo_seo: null, resumo: "Quem chegou primeiro" };
               return {
                 select: (colunas: string) => {
@@ -201,6 +254,12 @@ function comoEditor() {
       }),
       insert: (linha: Record<string, unknown>) => {
         tentativasDeInsert += 1;
+        const erro = erroDoBanco ?? erroNoInsert;
+        if (erro) {
+          return {
+            select: () => ({ maybeSingle: async () => ({ data: null, error: erro }) }),
+          };
+        }
         // A chave primária é REAL no dublê. Sem ela, inserir por cima da linha
         // existente parecia funcionar aqui e devolvia 23505 em produção — que
         // é o desfecho de `.eq()` com o valor errado no UPDATE.
@@ -270,6 +329,7 @@ beforeEach(() => {
   tentativasDeInsert = 0;
   corridaArmada = false;
   erroDoBanco = null;
+  erroNoInsert = null;
   revalidados.length = 0;
 });
 
@@ -522,6 +582,25 @@ describe("antes da migração, a rota diz o que está acontecendo", () => {
     expect((await r.json()).error).toContain("ainda não existe neste ambiente");
   });
 
+  it("erro no INSERT também chega inteiro — e o cache NÃO é descartado", async () => {
+    // O terceiro ponto de chamada do `falha()`, o único que estava sem
+    // testemunha. Sem ele, um erro que não seja 23505 no INSERT — RLS negando,
+    // timeout, o retry estourando de novo — vira 200 com `cabecalho: null` E
+    // um `revalidarCluster()`: o cache de /guias e do sitemap vai fora por uma
+    // gravação que não aconteceu, e a tela diz "o servidor aceitou, mas não
+    // consegui confirmar o que ficou gravado". O servidor não aceitou.
+    comoEditor();
+    linhaNoBanco = null;
+    erroNoInsert = { code: "57014", message: "canceling statement due to statement timeout" };
+
+    const r = await put({ resumo: "Texto novo" });
+
+    expect(tentativasDeInsert, "o teste precisa CHEGAR ao INSERT").toBe(1);
+    expect(r.status).toBe(500);
+    expect((await r.json()).error).toContain("timeout");
+    expect(revalidados, "nada foi gravado: nada sai do cache").toEqual([]);
+  });
+
   it("e erro DE VERDADE continua sendo 500, com o motivo", async () => {
     // O que discrimina: sem esta metade, devolver 503 para tudo passaria — e o
     // 503 diz "falta uma peça do ambiente", que é mentira num timeout.
@@ -611,10 +690,19 @@ describe("a rota e o cliente falam a mesma língua", () => {
    *
    * O conserto do 200-ilegível (B13) tornou `dados.cabecalho` obrigatório no
    * corpo da resposta — sem ele, `salvarCabecalho` devolve `exigeRecarga` e a
-   * tela trava. Mas nada guardava quem PRODUZ esse campo: renomear a chave na
-   * rota, ou trocar o `select`, deixava a suíte inteira verde e matava a
-   * feature em produção — toda gravação passaria a exigir recarga, com o texto
-   * já no banco.
+   * tela trava. Mas nada guardava quem PRODUZ esse campo, e os dois defeitos
+   * possíveis têm sintomas DIFERENTES:
+   *
+   *   · renomear a chave `cabecalho` na resposta → `exigeRecarga`: a tela
+   *     trava e pede recarga a cada gravação, com o texto já no banco;
+   *   · trocar o `select` (alias, coluna a menos) → a chave continua lá, a
+   *     guarda do 200-ilegível NÃO dispara, e a tela mostra os dois campos em
+   *     branco anunciando "Salvo. A seção está no texto padrão" em verde, com
+   *     o texto do operador gravado e no ar.
+   *
+   * O segundo é o pior dos dois, e é o que a revisão de 08/09 mediu. A versão
+   * anterior deste bloco previa `exigeRecarga` para os dois — e foi essa
+   * previsão que fez a trava do alias olhar a coisa errada por duas rodadas.
    *
    * Os dois lados tinham teste e nenhum olhava o outro: a porta afirmava
    * `status` e o que foi gravado; o cliente afirmava contra um dublê escrito
@@ -633,9 +721,10 @@ describe("a rota e o cliente falam a mesma língua", () => {
       const { salvarCabecalho } = await import("../src/lib/salvarCabecalho");
       const r = await salvarCabecalho({ tituloSeo: "Título gravado", resumo: "Resumo gravado." });
 
-      // Se a rota renomear a chave ou o `select` mudar o nome da coluna, isto
-      // vira `exigeRecarga` e o teste cai — que é exatamente o sintoma que o
-      // operador veria.
+      // Renomear a chave `cabecalho` derruba a linha de baixo (`r.ok` vira
+      // `false`, com `exigeRecarga`); um alias no `select` derruba a de cima —
+      // `r.ok` continua `true` e o que cai é o CONTEÚDO, com os dois campos em
+      // branco. São sintomas diferentes, e a asserção precisa das duas.
       expect(r.ok, "o cliente precisa entender o corpo da rota").toBe(true);
       expect(r.ok && r.cabecalho).toEqual({
         tituloSeo: "Título gravado",

@@ -15,12 +15,18 @@ export const dynamic = "force-dynamic";
  *   · **DELETE** apaga a LINHA. É a única forma de tirar o registro do banco,
  *     e a tela pede confirmação antes.
  *
- * As duas devolvem a seção ao texto do código, e a diferença importa: esvaziar
- * os dois campos pelo PUT deixa a linha lá, com as colunas nulas (o gatilho
- * normaliza `''` para NULO), e o site passa a servir o padrão. O DELETE tira a
- * linha. Para quem lê `/guias` o efeito é o mesmo; para quem opera o painel,
- * não — só depois do DELETE o "Voltar ao padrão" some, porque não há mais o que
- * apagar.
+ * As duas devolvem a seção ao texto do código, e a diferença NÃO está na tela:
+ * esvaziar os dois campos pelo PUT deixa a linha lá, com as colunas nulas (o
+ * gatilho normaliza `''` para NULO); o DELETE tira a linha. O painel mostra o
+ * mesmo estado nos dois casos — `podeVoltarAoPadrao` olha o texto carregado, e
+ * "sem texto" é "sem texto" venha de onde vier.
+ *
+ * O que muda é o BANCO: sobrevivem ao PUT o registro e o carimbo
+ * (`atualizado_por`, `atualizado_em`), que dizem quem mexeu por último; o
+ * DELETE devolve a tabela ao estado em que a migração a entrega, vazia. É por
+ * isso que o verbo separado vale a pena mesmo sem efeito visível: quem apaga
+ * está dizendo "não quero mais um texto meu aqui", e não "quero este texto em
+ * branco".
  *
  * Aqui o banco é OVERRIDE: a linha ou existe ou não, e o texto do código é o
  * padrão. Por isso o PUT ACEITA string vazia em vez de recusá-la como o
