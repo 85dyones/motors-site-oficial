@@ -190,7 +190,16 @@ const formatCombustivel = (c: string): string => {
  *
  * Valores reais em produção (2026-08-06): "Aprovado" e "Em análise".
  */
-const formatPericia = (p: string): string => {
+/**
+ * Normaliza o status da perícia. EXPORTADA desde 2026-09-08 porque o gerador
+ * de descritivo precisa da MESMA régua que acende o selo — nenhum veículo tem
+ * a string "PERÍCIA APROVADA" no banco (são "Aprovado", "Em análise" e
+ * "Aprovado com observação"), e uma segunda régua criaria mais uma verdade
+ * sobre a perícia.
+ *
+ * "Aprovado com observação" conta como aprovado: decisão do dono em 2026-09-08.
+ */
+export const formatPericia = (p: string): string => {
   const val = (p || "").toLowerCase().trim();
   if (!val) return "EM ANÁLISE";
 
