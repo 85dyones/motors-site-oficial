@@ -17,7 +17,28 @@ const nextConfig: NextConfig = {
         hostname: "*.supabase.co",
       },
     ],
-    dangerouslyAllowSVG: true,
+    /*
+     * `dangerouslyAllowSVG` saiu em 2026-09-08, e o "dangerously" no nome é
+     * literal: SVG é XML que pode conter `<script>`, e servido pelo
+     * `/_next/image` ele sai do NOSSO domínio — script com a origem da página,
+     * ou seja, XSS de mesma origem. O `remotePatterns` acima inclui
+     * `*.supabase.co`, que é o bucket de upload de fotos: conteúdo que o painel
+     * grava, não conteúdo que este repositório revisa.
+     *
+     * Medido antes de remover: zero `.svg` em `public/` e em `src/`, e zero
+     * entre as 3.186 URLs de foto do estoque (2.136 jpeg, 525 jpg, 525 webp).
+     * A flag não estava habilitando nada — só o risco.
+     *
+     * Para voltar (um ícone que precise passar pelo otimizador), ela vem
+     * acompanhada, nunca sozinha:
+     *
+     *     dangerouslyAllowSVG: true,
+     *     contentDispositionType: "attachment",
+     *     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+     *
+     * `tests/otimizador-de-imagem.test.ts` cobra exatamente isso: ele não
+     * proíbe a flag, proíbe a flag desacompanhada.
+     */
   },
 
   /**
