@@ -98,8 +98,9 @@ export function podeSalvarCabecalho(estado: {
  * ser o efeito colateral de salvar campos vazios. Só faz sentido quando existe
  * override GRAVADO: sem linha no banco, a seção já está no automático.
  *
- * O `cabecalhoLido` continua aqui, e só aqui: oferecer "apagar" sobre um estado
- * que não se conseguiu ler é o mesmo erro de sempre, com outro nome.
+ * O `cabecalhoLido` entra aqui porque oferecer "apagar" sobre um estado que não
+ * se conseguiu ler é o mesmo erro de sempre, com outro nome. Ele também decide
+ * o aviso da tela — a decisão é uma só, mostrada em dois lugares.
  */
 export function podeVoltarAoPadrao(estado: {
   salvando: boolean;

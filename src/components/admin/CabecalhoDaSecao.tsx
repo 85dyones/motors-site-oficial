@@ -48,7 +48,14 @@ export interface CabecalhoDaSecaoProps {
   padrao: CabecalhoNaTela;
   salvando: boolean;
   carregando: boolean;
-  /** Se a leitura deu certo. Hoje só governa o "voltar ao padrão". */
+  /**
+   * Se a leitura deu certo.
+   *
+   * Governa DUAS coisas: se o "Voltar ao padrão" está disponível, e se a tela
+   * avisa que os campos em branco são ignorância, não ausência de texto. As
+   * duas saem da mesma pergunta — não dá para oferecer "apagar" nem para ficar
+   * calado sobre um estado que não se conseguiu ler.
+   */
   cabecalhoLido: boolean;
   aoMudar: (troca: Partial<CabecalhoNaTela>) => void;
   /** Devolve a seção ao texto do código — ação com nome próprio, e confirmada. */

@@ -90,8 +90,14 @@ export default function EditorDeGuias() {
   /**
    * O cabeçalho foi LIDO com sucesso?
    *
-   * Hoje governa uma coisa só: se o "Voltar ao padrão" está disponível. Oferecer
-   * "apagar" sobre um estado que não se conseguiu ler é o mesmo erro de sempre.
+   * Hoje governa duas: se o "Voltar ao padrão" está disponível, e se a tela
+   * avisa que os campos em branco são ignorância, não ausência de texto.
+   * Oferecer "apagar" — ou ficar calado — sobre um estado que não se conseguiu
+   * ler é o mesmo erro de sempre.
+   *
+   * E ele não vem só da carga: um salvamento ou um apagamento que o servidor
+   * não confirma também o derrubam, porque dali em diante a tela não sabe mais
+   * o que está no ar.
    *
    * Ele JÁ FOI a trava de segurança do salvamento, e a história explica por que
    * deixou de ser. O PUT substituía a linha inteira, então um formulário em

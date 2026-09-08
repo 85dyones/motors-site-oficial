@@ -71,12 +71,44 @@ let gravado: Record<string, unknown> | null = null;
 /**
  * As COLUNAS que a rota pede de volta ao gravar.
  *
- * O dublê devolveria o mesmo objeto qualquer que fosse o `select`, então trocar
- * `resumo` por `resumo as texto` na rota não mudaria nada aqui — e em produção
- * mudaria tudo: `dados.cabecalho.resumo` viria `undefined`, e desde o conserto
- * do 200-ilegível isso faz a tela travar e exigir recarga a cada gravação.
+ * Guardadas para a mensagem de erro; quem faz o trabalho é `projetar`, que
+ * monta a resposta com as CHAVES que aquele `select` produziria. A versão
+ * anterior deste comentário previa o sintoma errado: um alias não faz a tela
+ * "exigir recarga" — `dados.cabecalho` continua sendo objeto, a guarda do
+ * 200-ilegível não dispara, e o operador vê os dois campos em branco com um
+ * "Salvo. A seção está no texto padrão" em verde, com o texto dele no ar.
  */
 let colunasPedidas: string | null = null;
+
+/**
+ * O que o PostgREST DEVOLVERIA para este `select` — chaves inclusive.
+ *
+ * A sétima revisão mostrou por que a trava anterior não servia: ela proibia
+ * `resumo as texto`, e essa grafia não existe no PostgREST — o parser do
+ * `select` recusaria com 400. Alias ali é `apelido:coluna`, e a chave que
+ * chega ao código é o APELIDO. Um dublê que devolve sempre `titulo_seo`,
+ * qualquer que seja o `select`, é mais generoso que o servidor, e foi assim
+ * que o alias de verdade sobreviveu a duas rodadas.
+ *
+ * Projetar em vez de vigiar também tira a sobre-especificação: `select("*")`
+ * passa, porque em produção passaria.
+ */
+function projetar(
+  linha: Record<string, unknown> | null,
+  colunas: string,
+): Record<string, unknown> | null {
+  if (!linha) return null;
+  if (colunas.trim() === "*") return { ...linha };
+  const saida: Record<string, unknown> = {};
+  for (const pedaco of colunas.split(",")) {
+    const campo = pedaco.trim();
+    if (!campo) continue;
+    const [apelido, coluna] = campo.includes(":") ? campo.split(":") : [campo, campo];
+    saida[apelido.trim()] = linha[coluna.trim()];
+  }
+  return saida;
+}
+
 /**
  * Quantas vezes a rota TENTOU inserir.
  *
@@ -92,6 +124,14 @@ let tentativasDeInsert = 0;
  * a linha e o INSERT nunca acontece, e o teste da corrida seria enfeite.
  */
 let corridaArmada = false;
+/**
+ * O erro que o PostgREST devolve quando a tabela não existe.
+ *
+ * `PGRST205`, e não `42P01` — o código do Postgres nunca chega ao cliente
+ * (caderno do projeto). É o estado do ambiente ENQUANTO a migração não for
+ * aplicada, então hoje este é o desfecho de todo clique em Salvar.
+ */
+let erroDoBanco: { code: string; message: string } | null = null;
 
 function comoEditor() {
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "staff-1" } } });
@@ -110,16 +150,22 @@ function comoEditor() {
       tabela === "cabecalho_dos_guias" && coluna === "secao" && valor === "guias";
     const devolver = (colunas: string) => {
       colunasPedidas = colunas;
-      return { maybeSingle: async () => ({ data: linhaNoBanco, error: null }) };
+      return { maybeSingle: async () => ({ data: projetar(linhaNoBanco, colunas), error: null }) };
     };
     return {
       update: (troca: Record<string, unknown>) => ({
         eq: (coluna: string, valor: string) => {
+          if (erroDoBanco) {
+            return {
+              select: () => ({ maybeSingle: async () => ({ data: null, error: erroDoBanco }) }),
+            };
+          }
           if (filtroCerto(coluna, valor)) {
             if (corridaArmada) {
               // A outra gravação ainda não chegou: este UPDATE não acha nada.
               // Ela chega logo em seguida, e a linha passa a existir.
               corridaArmada = false;
+  erroDoBanco = null;
               linhaNoBanco = { titulo_seo: null, resumo: "Quem chegou primeiro" };
               return {
                 select: (colunas: string) => {
@@ -186,6 +232,7 @@ function comoEditor() {
         eq: (coluna: string, valor: string) => ({
           select: async (colunas: string) => {
             colunasPedidas = colunas;
+            if (erroDoBanco) return { data: null, error: erroDoBanco };
             if (!filtroCerto(coluna, valor) || !linhaNoBanco) {
               return { data: [], error: null };
             }
@@ -222,6 +269,7 @@ beforeEach(() => {
   linhaNoBanco = null;
   tentativasDeInsert = 0;
   corridaArmada = false;
+  erroDoBanco = null;
   revalidados.length = 0;
 });
 
@@ -432,17 +480,76 @@ describe("apagar é um verbo separado", () => {
   });
 });
 
+describe("antes da migração, a rota diz o que está acontecendo", () => {
+  /**
+   * O estado do ambiente ENQUANTO a tabela não existir — que é agora.
+   *
+   * A sétima revisão apontou que este ramo não tinha testemunha, e ele importa
+   * mais que o normal justamente por isso: entre o deploy e a migração, ESTE é
+   * o desfecho de todo clique em Salvar. Sem ele, o operador leria a mensagem
+   * crua do PostgREST ("Could not find the table 'public.cabecalho_dos_guias'")
+   * e abriria chamado.
+   *
+   * 503 e não 500: o servidor está bem, falta uma peça do ambiente — e a
+   * diferença é o que diz a quem opera se adianta tentar de novo.
+   */
+  const AUSENTE = {
+    code: "PGRST205",
+    message: "Could not find the table 'public.cabecalho_dos_guias' in the schema cache",
+  };
+
+  it("salvar responde 503 com frase, não a mensagem crua do banco", async () => {
+    comoEditor();
+    erroDoBanco = AUSENTE;
+
+    const r = await put({ resumo: "Texto novo" });
+    const corpo = await r.json();
+
+    expect(r.status).toBe(503);
+    expect(corpo.error).toContain("ainda não existe neste ambiente");
+    expect(corpo.error, "a mensagem do PostgREST não vai para a tela").not.toContain(
+      "schema cache",
+    );
+  });
+
+  it("apagar responde igual — a régua é a mesma nos dois verbos", async () => {
+    comoEditor();
+    erroDoBanco = AUSENTE;
+
+    const r = await apagar();
+
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toContain("ainda não existe neste ambiente");
+  });
+
+  it("e erro DE VERDADE continua sendo 500, com o motivo", async () => {
+    // O que discrimina: sem esta metade, devolver 503 para tudo passaria — e o
+    // 503 diz "falta uma peça do ambiente", que é mentira num timeout.
+    comoEditor();
+    erroDoBanco = { code: "57014", message: "canceling statement due to statement timeout" };
+
+    const r = await put({ resumo: "Texto novo" });
+
+    expect(r.status).toBe(500);
+    expect((await r.json()).error).toContain("timeout");
+  });
+});
+
 describe("o filtro da linha é o que faz a rota achar o que já existe", () => {
   /**
    * O mutante que a suíte deixava passar até 08/09.
    *
    * Trocar `.eq("secao", "guias")` por `"guia"` no UPDATE não quebra a
-   * PRIMEIRA gravação: sem linha, o caminho é o INSERT de qualquer jeito. Ele
-   * quebra a SEGUNDA — o UPDATE não acha nada, a rota tenta inserir por cima
-   * da chave primária e o Postgres devolve 23505. Em produção isso é o painel
-   * gravando uma vez e falhando em toda edição seguinte.
+   * PRIMEIRA gravação: sem linha, o caminho é o INSERT de qualquer jeito. Da
+   * SEGUNDA em diante o UPDATE não acha nada, a rota tenta inserir por cima da
+   * chave primária, o Postgres devolve 23505 — e o retry logo abaixo salva a
+   * resposta. Ou seja: em produção o sintoma NÃO é falhar, é gastar três
+   * statements e uma violação de PK por gravação, em silêncio.
    *
-   * Um teste de uma gravação só nunca veria. Este grava DUAS vezes.
+   * Por isso o desfecho não é a trava deste bloco. Quem mata o mutante é o
+   * `tentativasDeInsert` do teste seguinte, que olha o que a rota FEZ e não o
+   * que ela respondeu. Este aqui guarda o desfecho: seja qual for o caminho, a
+   * segunda gravação não pode falhar nem duplicar linha.
    */
   it("a segunda gravação atualiza a linha, em vez de tentar criar outra", async () => {
     comoEditor();
@@ -573,12 +680,14 @@ describe("a rota e o cliente falam a mesma língua", () => {
     comoEditor();
     await put({ tituloSeo: "x", resumo: "y" });
 
-    // Nomes EXATOS: o cliente lê `titulo_seo` e `resumo` do corpo. Um alias no
-    // `select` renomearia a chave e a tela passaria a exigir recarga a cada
-    // gravação, com o texto já no banco.
-    expect(colunasPedidas).toContain("titulo_seo");
-    expect(colunasPedidas).toContain("resumo");
-    expect(colunasPedidas, "alias muda o nome da chave no corpo").not.toContain(" as ");
+    // O CONJUNTO INTEIRO de chaves do corpo, e não uma substring proibida: o
+    // cliente lê `titulo_seo` e `resumo`, e um alias no `select` (`x:resumo`,
+    // que é a sintaxe do PostgREST) troca o nome da chave sem tirar nenhuma
+    // das duas palavras da string do `select`. Foi assim que a trava anterior
+    // deixou o alias passar. Ver `projetar`.
+    const corpo = await (await put({ tituloSeo: "a", resumo: "b" })).json();
+    expect(Object.keys(corpo.cabecalho).sort()).toEqual(["resumo", "titulo_seo"]);
+    expect(colunasPedidas, "e a rota precisa ter pedido alguma coisa").not.toBeNull();
   });
 
   it("e o caminho de limpar também: nulo no banco vira vazio na tela", async () => {

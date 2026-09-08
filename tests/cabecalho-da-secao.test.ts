@@ -54,13 +54,43 @@ let linha: { titulo_seo: string | null; resumo: string | null } | null = null;
 let erro: { code?: string; message: string } | null = null;
 
 /**
- * O dublê RESPEITA a tabela, as colunas e o filtro.
+ * O que o PostgREST DEVOLVERIA para este `select` — chaves inclusive.
  *
- * A revisão de 07/09 mostrou o custo de ignorá-los: trocar `.eq("secao","guias")`
- * por `"guia"` em `secaoDeGuias` deixava a suíte inteira verde, e em produção
- * `/guias` nunca acharia a linha — o painel diria "salvo, já está no ar" e a
- * página mostraria o texto do código para sempre. O mesmo com um alias no
- * `select`.
+ * A sétima revisão mostrou por que a trava anterior não servia: ela proibia
+ * `resumo as texto`, e essa grafia não existe no PostgREST — o parser do
+ * `select` recusaria com 400. Alias ali é `apelido:coluna`, e a chave que
+ * chega ao código é o APELIDO. Um dublê que devolve sempre `titulo_seo`,
+ * qualquer que seja o `select`, é mais generoso que o servidor, e foi assim
+ * que o alias de verdade sobreviveu a duas rodadas.
+ *
+ * Projetar em vez de vigiar também tira a sobre-especificação: `select("*")`
+ * passa, porque em produção passaria.
+ */
+function projetar(
+  linha: Record<string, unknown> | null,
+  colunas: string,
+): Record<string, unknown> | null {
+  if (!linha) return null;
+  if (colunas.trim() === "*") return { ...linha };
+  const saida: Record<string, unknown> = {};
+  for (const pedaco of colunas.split(",")) {
+    const campo = pedaco.trim();
+    if (!campo) continue;
+    const [apelido, coluna] = campo.includes(":") ? campo.split(":") : [campo, campo];
+    saida[apelido.trim()] = linha[coluna.trim()];
+  }
+  return saida;
+}
+
+/**
+ * O dublê RESPEITA a tabela, o filtro e as colunas pedidas.
+ *
+ * A revisão de 07/09 mostrou o custo de ignorar o filtro: trocar
+ * `.eq("secao","guias")` por `"guia"` em `secaoDeGuias` deixava a suíte inteira
+ * verde, e em produção `/guias` nunca acharia a linha — o painel diria "salvo,
+ * já está no ar" e a página mostraria o texto do código para sempre. A de 08/09
+ * mostrou o mesmo para as COLUNAS, e a trava que eu tinha escrito olhava a
+ * grafia errada. Ver `projetar`.
  *
  * Um dublê mais permissivo que o Postgres não é dublê: é um espelho de quem o
  * escreveu.
@@ -71,16 +101,11 @@ vi.mock("../src/lib/supabase", () => ({
       select: (colunas: string) => ({
         eq: (coluna: string, valor: string) => ({
           maybeSingle: async () => {
-            const certo =
-              tabela === "cabecalho_dos_guias" &&
-              coluna === "secao" &&
-              valor === "guias" &&
-              colunas.includes("titulo_seo") &&
-              colunas.includes("resumo") &&
-              !colunas.includes(" as ");
+            const casa =
+              tabela === "cabecalho_dos_guias" && coluna === "secao" && valor === "guias";
             // Filtro que não casa devolve VAZIO, não erro — é o que o PostgREST
             // faz, e é o que torna o defeito silencioso em produção.
-            return certo ? { data: linha, error: erro } : { data: null, error: erro };
+            return { data: casa ? projetar(linha, colunas) : null, error: erro };
           },
         }),
       }),

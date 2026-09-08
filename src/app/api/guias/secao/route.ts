@@ -12,8 +12,15 @@ export const dynamic = "force-dynamic";
  *   · **PUT** grava SÓ as colunas que vierem no corpo. Chave ausente significa
  *     “não mexa nesta coluna”, então um formulário em branco por falha de
  *     leitura não tem como apagar nada.
- *   · **DELETE** devolve a seção ao texto do código. É a única forma de tirar o
- *     override do ar, e a tela pede confirmação antes.
+ *   · **DELETE** apaga a LINHA. É a única forma de tirar o registro do banco,
+ *     e a tela pede confirmação antes.
+ *
+ * As duas devolvem a seção ao texto do código, e a diferença importa: esvaziar
+ * os dois campos pelo PUT deixa a linha lá, com as colunas nulas (o gatilho
+ * normaliza `''` para NULO), e o site passa a servir o padrão. O DELETE tira a
+ * linha. Para quem lê `/guias` o efeito é o mesmo; para quem opera o painel,
+ * não — só depois do DELETE o "Voltar ao padrão" some, porque não há mais o que
+ * apagar.
  *
  * Aqui o banco é OVERRIDE: a linha ou existe ou não, e o texto do código é o
  * padrão. Por isso o PUT ACEITA string vazia em vez de recusá-la como o
