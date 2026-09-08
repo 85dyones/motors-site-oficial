@@ -43,13 +43,25 @@ describe("o site coleta Web Vitals de campo", () => {
     expect(pacote.dependencies ?? {}).toHaveProperty("@vercel/speed-insights");
   });
 
-  it("o layout raiz monta o coletor", () => {
+  it("o layout raiz monta o coletor, e UMA vez só", () => {
     // No layout RAIZ e não numa página: CWV por rota só existe se o coletor
     // estiver em todas elas.
+    //
+    // A contagem não é preciosismo. Este branch e o PR #24 instalaram o mesmo
+    // componente em linhas diferentes do mesmo arquivo, e o git mesclou os
+    // dois LIMPO: o resultado importava o mesmo identificador duas vezes, o
+    // que não é conflito para o git e é erro de compilação para o TypeScript.
+    // Mescla que o git aprova e o build recusa não tem quem a pegue, a não ser
+    // uma trava que conte.
     const codigo = lerCodigo(LAYOUT);
+    // Aspas simples ou duplas: o import veio do PR da Vercel com simples, e o
+    // resto do arquivo usa duplas. Proibir uma das grafias faria esta trava
+    // reprovar uma reformatação legítima.
+    const importes = codigo.match(/from\s+['"]@vercel\/speed-insights\/next['"]/g) ?? [];
+    const montagens = codigo.match(/<SpeedInsights\s*\/>/g) ?? [];
 
-    expect(codigo).toMatch(/from\s+"@vercel\/speed-insights\/next"/);
-    expect(codigo).toMatch(/<SpeedInsights\s*\/>/);
+    expect(importes, "import do Speed Insights").toHaveLength(1);
+    expect(montagens, "`<SpeedInsights />` montado").toHaveLength(1);
   });
 
   it("não entra um segundo contador de audiência junto", () => {

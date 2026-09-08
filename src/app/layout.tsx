@@ -9,11 +9,10 @@ import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import CamadaDeDados from "../components/CamadaDeDados";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
-import { SpeedInsights } from '@vercel/speed-insights/next';
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -182,23 +181,6 @@ export default async function RootLayout({
           <CamadaDeDados />
           <IntegrationsTracker />
           <AntigravityTracker />
-          {/* Core Web Vitals de CAMPO — o que o comprador sente, no aparelho
-              dele. Todo diagnóstico de desempenho feito neste projeto até
-              2026-09-08 foi de laboratório (`next build` e tamanho por rota),
-              que mede a máquina do build. É o campo que entra no sinal de
-              busca, e é dele que depende a decisão de partir a ficha em
-              `dynamic()`: sem saber o INP real em mobile, aquilo é palpite.
-
-              Fica FORA do `<CookieConsentBanner>` e do `IntegrationsTracker`
-              de propósito. Speed Insights não identifica pessoa — mede tempo
-              de render do próprio site, sem cookie e sem id. Condicioná-lo ao
-              aceite mediria só quem aceita, que é o pior recorte possível para
-              uma métrica de performance.
-
-              ⚠️ O componente sozinho não coleta: Speed Insights precisa estar
-              ligado no projeto, no painel da Vercel. Sem isso o script sobe e
-              o painel fica vazio. */}
-          <SpeedInsights />
           <MolduraDoSite>
             <Header />
           </MolduraDoSite>
@@ -210,6 +192,27 @@ export default async function RootLayout({
             <LeadPopup />
             <CookieConsentBanner />
           </MolduraDoSite>
+          {/* Core Web Vitals de CAMPO — o que o comprador sente, no aparelho e
+              na rede dele. Todo diagnóstico de desempenho feito neste projeto
+              até 2026-09-08 foi de laboratório (`next build` e tamanho por
+              rota), que mede a máquina do build. É o campo que entra no sinal
+              de busca, e é dele que depende a decisão de partir a ficha em
+              `dynamic()`: sem saber o INP real em mobile, aquilo é palpite.
+
+              Instalado pelo PR #24, e este PR NÃO o instala de novo. A versão
+              anterior deste branch trazia o próprio `<SpeedInsights />` — os
+              dois mesclavam LIMPO no git, por estarem em linhas diferentes, e
+              o resultado tinha o mesmo identificador importado duas vezes.
+              Build quebrado numa mescla que o git aprova.
+
+              Fica FORA do `<CookieConsentBanner>` e do `IntegrationsTracker`
+              de propósito: Speed Insights não identifica pessoa — mede tempo
+              de render do próprio site, sem cookie e sem id. Condicioná-lo ao
+              aceite mediria só quem aceita, que é o pior recorte possível para
+              uma métrica de performance.
+
+              ⚠️ O componente sozinho não coleta: Speed Insights precisa estar
+              ligado no projeto, no painel da Vercel. */}
           <SpeedInsights />
         </ThemeProvider>
       </body>
