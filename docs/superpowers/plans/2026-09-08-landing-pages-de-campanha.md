@@ -62,7 +62,7 @@ Valem para toda tarefa deste plano.
 **Interfaces:**
 - Consome: nada de tarefas anteriores.
 - Produz, e as tarefas 2 e 3 dependem destes nomes exatos:
-  - `interface Campanha { slug, nome, inicio, fim, destinoAposFim, descricao: string }`
+  - `interface Campanha { slug, nome, inicio, fim, destinoAposFim, descricao, fraseDoCliente: string }`
   - `const CAMPANHAS: Campanha[]`
   - `campanhaPorSlug(slug: string): Campanha | undefined`
   - `campanhaEstaViva(campanha: Campanha, agora: Date): boolean`
@@ -97,6 +97,7 @@ function campanha(parcial: Partial<Campanha> = {}): Campanha {
     fim: "2026-09-20",
     destinoAposFim: "/estoque",
     descricao: "Uma campanha de teste.",
+    fraseDoCliente: "Olá, vi sobre o Teste e quero saber as condições",
     ...parcial,
   };
 }
@@ -152,6 +153,7 @@ describe("o registro se mantém honesto", () => {
       expect(c.slug.trim()).not.toBe("");
       expect(c.nome.trim()).not.toBe("");
       expect(c.descricao.trim()).not.toBe("");
+      expect(c.fraseDoCliente.trim()).not.toBe("");
       expect(c.destinoAposFim.startsWith("/")).toBe(true);
       expect(new Date(c.fim).getTime()).toBeGreaterThanOrEqual(new Date(c.inicio).getTime());
     }
@@ -253,6 +255,17 @@ export interface Campanha {
   destinoAposFim: string;
   /** Uma linha, para o sitemap e para o card de compartilhamento. */
   descricao: string;
+  /**
+   * A frase que vai no WhatsApp e vira `interesse` no banco — **na voz do
+   * cliente**, porque é ele quem manda o texto.
+   *
+   * Campo, e não template. `Olá, vi sobre o feirão ${nome}…` funcionaria para
+   * a Pole Position e sairia errado na primeira campanha que não for feirão —
+   * uma condição de mês, uma parceria. Cada campanha declara a sua, e o teste
+   * cobra as proibições: sem prazo que a loja não controla, sem FIPE, sem
+   * "abaixo da tabela", sem falar na voz da loja.
+   */
+  fraseDoCliente: string;
 }
 
 export const CAMPANHAS: Campanha[] = [];
@@ -518,6 +531,7 @@ const POLE: Campanha = {
   fim: "2026-09-20",
   destinoAposFim: "/estoque",
   descricao: "A largada para grandes oportunidades.",
+  fraseDoCliente: "Olá, vi sobre o feirão Pole Position Motors e quero saber as condições",
 };
 
 const EXTRAS = {
@@ -658,7 +672,7 @@ export interface DadosDoLeadDeCampanha {
  *  - **recompra** — regra 5 do `CLAUDE.md`, proibida em comunicação pública.
  */
 export function mensagemDaCampanha(campanha: Campanha): string {
-  return `Olá! Vi o ${campanha.nome} no site e quero saber as condições.`;
+  return campanha.fraseDoCliente;
 }
 
 /**
@@ -1033,6 +1047,8 @@ export const CAMPANHAS: Campanha[] = [
     descricao:
       "Pole Position na Motors Store: lives com ofertas relâmpago, primeira parcela em até 120 dias " +
       "e transferência por nossa conta em veículos selecionados. De 12 a 20 de setembro, em Curitiba.",
+    // Escrita pelo dono em 08/09. É o que chega no WhatsApp e vira `interesse`.
+    fraseDoCliente: "Olá, vi sobre o feirão Pole Position Motors e quero saber as condições",
   },
 ];
 ```
