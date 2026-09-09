@@ -165,10 +165,16 @@ function estadoDaPericia(veiculo: Veiculo): string {
   // SOLICITAR O LAUDO AO VENDEDOR. O vendedor é o Ney. Ele respondia "o laudo
   // entra na ficha assim que aprovada" — devolvia o cliente para a página de
   // onde ele acabou de vir, e o caminho morria no salto seguinte. Mandar de
-  // volta ao site é uma das proibições escritas nas diretrizes dele.
+  // volta ao site é uma das proibições escritas nas diretrizes dele (que vivem
+  // no Chatwoot, não aqui — este comentário cita, não prova).
+  //
+  // "É só pedir", e NÃO "eu envio": o Captain não anexa arquivo, e todo o resto
+  // dos dois documentos dele manda encaminhar ao humano ("quem confirma é o
+  // consultor"). Prometer entrega — por qual canal, em quanto tempo — seria
+  // compromisso novo que ninguém na loja assumiu por escrito.
   return veiculo.pericia === "PERÍCIA APROVADA"
     ? "laudo na ficha do carro, perícia aprovada"
-    : "feita — todo carro passa antes da vitrine; o laudo fica com a loja e eu envio para quem pedir";
+    : "feita — todo carro passa antes da vitrine; o laudo fica com a loja e é só pedir";
 }
 
 function ficha(veiculo: Veiculo, orcamentoDeOpcionais: number): string {

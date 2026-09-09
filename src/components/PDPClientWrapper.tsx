@@ -18,6 +18,27 @@ import { ACOES } from "../lib/turnstile";
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
 
+/**
+ * O que a ficha diz quando o laudo NÃO está publicado nela.
+ *
+ * Mora aqui fora, e não dentro do JSX, porque a trava que guarda esta frase
+ * (`tests/coerencia-da-pericia.test.ts`) precisa lê-la sem depender de layout.
+ * Enquanto o teste recortava a janela por `indexOf("</div>")` a partir do
+ * título do bloco, bastava embrulhar um pedaço num `<div>` para o resto da
+ * frase sair do alcance das guardas: a revisão de 09/09 provou isso com um
+ * bloco que afirmava "foi aprovado, sem apontamento" e mantinha a suíte
+ * inteira verde. Layout mudando não pode cegar uma trava de conteúdo.
+ *
+ * O preço da extração é a fiação ficar nua — uma constante que ninguém
+ * renderiza passaria em qualquer teste de texto, e um `<p>` novo com texto
+ * cru ao lado dela escaparia por fora. Por isso a trava confere as duas
+ * pontas: o que a frase diz E o JSX do bloco em que ela é usada.
+ */
+const TEXTO_LAUDO_PENDENTE =
+  "Este veículo passa por perícia cautelar independente antes de entrar na vitrine — " +
+  "estrutura, chassi e histórico de sinistro. O laudo está disponível para consulta, " +
+  "solicite ao vendedor a qualquer tempo.";
+
 interface PDPClientWrapperProps {
   veiculo: Veiculo;
   /** Três veículos próximos deste, resolvidos no servidor. */
@@ -1241,18 +1262,22 @@ export default function PDPClientWrapper({
               carro que saiu do pátio não ajuda ninguém a decidir nada; aqui o
               silêncio é honesto, porque não há mais compra para apoiar. O
               bloco do laudo APROVADO segue aparecendo no vendido: aquele é
-              documento que existe e está publicado, não promessa. */}
+              documento que existe e está publicado, não promessa.
+
+              A guarda é `indisponivel`, e ela é MAIS LARGA que "vendido": vale
+              também para o carro que sumiu do feed, cujo motivo o próprio
+              `publicacao.ts` diz não saber ("pode ser repasse, reserva ou
+              anúncio expirado, e o carro pode voltar"). É de propósito, e é a
+              mesma régua do CTA logo acima — se a página já parou de vender
+              aquele carro, ela também para de prometer atendimento sobre ele.
+              Quando o carro volta ao feed, o bloco volta junto. */}
           {!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && (
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border p-5 max-sm:p-4 print-avoid-break">
               <p className="uppercase tracking-widest text-sm max-sm:text-xs font-black text-brand-text">
                 Laudo cautelar
               </p>
-              <p className="mt-2 text-sm text-brand-text/70">
-                Este veículo passa por perícia cautelar independente antes de entrar na vitrine —
-                estrutura, chassi e histórico de sinistro. O laudo está disponível para consulta,
-                solicite ao vendedor a qualquer tempo.
-              </p>
+              <p className="mt-2 text-sm text-brand-text/70">{TEXTO_LAUDO_PENDENTE}</p>
             </div>
           </div>
           )}

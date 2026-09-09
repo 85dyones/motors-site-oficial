@@ -202,16 +202,51 @@ describe("a ficha diz o estado real da perícia", () => {
        Afirmar "em andamento" sobre exame já concluído é inventar processo a
        partir de ausência de dado — o mesmo erro do bloco do laudo aprovado,
        invertido. */
-    const i = pdp.indexOf("                Laudo cautelar");
-    expect(i, "o bloco do laudo pendente sumiu").toBeGreaterThan(-1);
-    /* Janela pelo FIM do bloco e espaço NORMALIZADO. Medir em caracteres
-       apodrece a cada reflow, e o JSX quebra a frase no meio — "…para
-       consulta,\n solicite ao vendedor" — então comparar com o texto cru
-       falha por um espaço. */
-    const fim = pdp.indexOf("</div>", i);
-    const bloco = pdp.slice(i, fim > i ? fim + 6 : i + 700).replace(/\s+/g, " ");
+    /* A janela é a CONSTANTE, não um recorte do JSX.
 
-    expect(bloco, "voltou a afirmar estado de processo").not.toMatch(/em andamento|em análise/i);
+       Até 09/09 este teste fatiava de "Laudo cautelar" até o primeiro
+       `</div>`, e a revisão furou isso sem tocar em uma vírgula do texto:
+       basta embrulhar o pedido num `<div>` próprio para o resto da frase
+       cair fora da janela. O mutante afirmava "foi aprovado, sem apontamento"
+       — as duas coisas que as guardas abaixo proíbem — com a suíte inteira
+       verde. Trava de conteúdo que depende de layout não é trava.
+
+       Por isso o texto virou `TEXTO_LAUDO_PENDENTE` no componente, e aqui se
+       lê a constante. A leitura desfaz a concatenação e as aspas; o `\s+`
+       continua porque a frase é quebrada em três linhas de fonte. */
+    const declaracao = pdp.match(/const TEXTO_LAUDO_PENDENTE\s*=([\s\S]*?);\r?\n/);
+    expect(declaracao, "a constante do texto pendente sumiu do componente").not.toBeNull();
+    const bloco = declaracao![1]
+      .replace(/"\s*\+\s*/g, "")
+      .replace(/"/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    /* A fiação, que a extração deixou nua: constante que ninguém renderiza
+       passa em qualquer asserção de texto. As duas pontas, então — o que a
+       frase diz, e que ela é usada DEPOIS da guarda do bloco pendente. */
+    const usa = pdp.indexOf("{TEXTO_LAUDO_PENDENTE}");
+    const guarda = pdp.indexOf("!indisponivel && !(veiculo.laudo_pericia");
+    expect(usa, "a constante existe mas ninguém a renderiza").toBeGreaterThan(-1);
+    expect(usa, "o texto saiu de dentro do bloco guardado").toBeGreaterThan(guarda);
+
+    /* E o JSX do bloco vai junto, porque só ler a constante MOVE o furo em vez
+       de fechá-lo: um `<p>` novo com texto cru dentro do mesmo bloco não passa
+       por constante nenhuma. Aqui o recorte começa no título e termina no `)}`
+       que fecha o bloco — embrulhar em `<div>` não desloca nenhum dos dois, que
+       era exatamente a fragilidade da janela velha. A condição da guarda fica
+       de fora de propósito: ela contém "PERÍCIA APROVADA" e acusaria a si
+       mesma. */
+    const inicio = pdp.indexOf("                Laudo cautelar");
+    expect(inicio, "o bloco do laudo pendente sumiu").toBeGreaterThan(-1);
+    const fecho = pdp.indexOf("\n          )}", inicio);
+    const jsx = pdp.slice(inicio, fecho > inicio ? fecho : inicio + 1200).replace(/\s+/g, " ");
+    const tudo = `${bloco} ${jsx}`;
+
+    // E o bloco continua falando do laudo, em vez de virar um CTA genérico.
+    expect(bloco).toMatch(/laudo/i);
+
+    expect(tudo, "voltou a afirmar estado de processo").not.toMatch(/em andamento|em análise/i);
     /* E continua sem afirmar RESULTADO, que é o que de fato não se sabe.
 
        `aprovad[oa]`, e não `aprovada`: a estreiteza no feminino não era
@@ -221,8 +256,19 @@ describe("a ficha diz o estado real da perícia", () => {
        desculpa saiu junto, e a guarda ficou meio cega por herança: "O laudo
        cautelar foi aprovado e está disponível para consulta" passava pelas
        três asserções — afirmação de RESULTADO, que é o defeito dos 88
-       veículos com selo fabricado, dito no gênero que o regex não olhava. */
-    expect(bloco).not.toMatch(/sem apontamento|livre de sinistro|impecável|aprovad[oa]\b/i);
+       veículos com selo fabricado, dito no gênero que o regex não olhava.
+
+       O `s?` veio na rodada seguinte, pelo mesmo tipo de furo uma casa
+       adiante: consertar o gênero deixou o NÚMERO aberto, e "os veículos da
+       vitrine são aprovados na perícia" passava — o `\b` de `aprovado`
+       falha entre o "o" e o "s".
+
+       ⚠️ Isto é uma lista de cinco expressões, não uma prova. Afirmação de
+       resultado escrita com outras palavras ("a perícia não encontrou
+       passagem por leilão") passa, e nenhuma janela finita fecha isso. A
+       rede pega a reincidência das frases conhecidas; ler o texto continua
+       sendo trabalho de gente. */
+    expect(tudo).not.toMatch(/sem apontamento|livre de sinistro|impecável|aprovad[oa]s?\b/i);
     /* O bloco tem que terminar num caminho que o cliente percorre HOJE.
        Até 2026-09-08 ele dizia "publicado aqui na ficha assim que aprovado", e
        essa promessa só se cumpre quando o feed traz a perícia aprovada — nas
@@ -235,9 +281,18 @@ describe("a ficha diz o estado real da perícia", () => {
        reprovava "peça ao seu consultor pelo WhatsApp", que é a mesma decisão
        dita melhor. Exigir a grafia de três palavras é o erro que este
        repositório já pagou do outro lado: a asserção tem que afirmar a
-       condição inteira, não a frase que a cumpria naquele dia. */
+       condição inteira, não a frase que a cumpria naquele dia.
+
+       E a primeira tentativa de consertar isso ainda reprovava "é só PEDIR
+       ao vendedor" — a redação que este mesmo PR publicou em `/sobre` e no
+       card dos guias. `pe(ç|c)\w+` casa "peça" e não casa "pedir": a trava
+       reprovava, na ficha, a voz que a casa adotou nas outras superfícies.
+       Daí `ped\w+`. A cauda de 40 entre o verbo e o destinatário também é
+       curta demais para frase com aposto, e continua sendo o limite: se um
+       texto legítimo esbarrar nela, aproxime o destinatário do verbo — é o
+       que se quer no texto de qualquer jeito. */
     expect(bloco, "o bloco voltou a deixar o cliente sem caminho").toMatch(
-      /(?:solicit\w+|pe(?:ç|c)\w+|pergunt\w+|procur\w+|fale|chame)[^.]{0,40}\b(?:vendedor|consultor|loja|equipe|atendimento|whatsapp)\b/i,
+      /(?:solicit\w+|ped\w+|pe(?:ç|c)\w+|pergunt\w+|procur\w+|fale|chame)[^.]{0,40}\b(?:vendedor|consultor|loja|equipe|atendimento|whatsapp)\b/i,
     );
   });
 });
