@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { montarDestaquesDaSemana, VAGAS_NA_GRADE, embaralhar } from "../src/lib/destaquesDaSemana";
+import { montarDestaquesDaSemana, VAGAS_NA_GRADE } from "../src/lib/destaquesDaSemana";
 import type { Veiculo } from "../src/types";
+import { lerCodigo } from "./fonte";
 
 /**
  * A grade "Destaques da semana" é a área mais nobre da home e até 2026-09-09
@@ -168,30 +169,25 @@ describe("montarDestaquesDaSemana", () => {
 
     expect(primeira.map((v) => v.id)).toEqual(segunda.map((v) => v.id));
   });
-});
 
-/**
- * `embaralhar` é testado à parte, e não só por dentro de
- * `montarDestaquesDaSemana`.
- *
- * Motivo: `montarDestaquesDaSemana` sempre chama `disponiveis.filter(...)`
- * antes de embaralhar, e `Array.prototype.filter` devolve um array NOVO mesmo
- * quando nenhum item é removido — inclusive quando `selecionados` e `excluir`
- * estão vazios. Por isso `embaralhar` nunca recebe `disponiveis` pela mesma
- * referência, e o teste "não mexe na lista que recebeu" (acima) não tem como
- * enxergar a cópia defensiva de `embaralhar`: ela é estruturalmente
- * inalcançável de fora, para qualquer combinação de entradas de
- * `montarDestaquesDaSemana`. Confirmado com `const copia = lista;` no passo de
- * mutação — sobrevive sempre, sem exceção, porque não é falso negativo, é
- * ausência real de cobertura.
- */
-describe("embaralhar", () => {
-  it("não muta a lista recebida", () => {
-    const lista = ["a", "b", "c", "d", "e"];
-    const antes = [...lista];
+  it("embaralhar copia a lista antes de mexer — a caixa-preta não alcança isso", () => {
+    // `montarDestaquesDaSemana` sempre entrega a `embaralhar` o resultado de um
+    // `.filter()`, e `filter` devolve array novo mesmo sem remover nada. Não
+    // existe entrada que faça `embaralhar` receber a lista original por
+    // referência — logo nenhum teste de comportamento sobre a função pública
+    // alcança esta cópia. Sem esta asserção, tirar o `[...lista]` passaria
+    // despercebido até alguém chamar `embaralhar` de outro lugar.
+    //
+    // A asserção afirma a CONDIÇÃO (copiou antes de mexer), não uma grafia:
+    // spread, `slice()` e `Array.from()` passam igual. Prender uma grafia
+    // reprovaria reescrita legítima, que é o defeito oposto e igualmente caro.
+    //
+    // `lerCodigo` descarta comentários, então a menção à forma mutada dentro
+    // do próprio módulo não é confundida com o código.
+    const fonte = lerCodigo("src/lib/destaquesDaSemana.ts");
 
-    embaralhar(lista, sorteadorFixo([0.9, 0.1, 0.7, 0.3]));
-
-    expect(lista).toEqual(antes);
+    expect(fonte, "embaralhar deixou de copiar a lista antes de reordenar").toMatch(
+      /const copia = (\[\.\.\.lista\]|lista\.slice\(\)|Array\.from\(lista\))/,
+    );
   });
 });

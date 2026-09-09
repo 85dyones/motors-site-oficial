@@ -37,19 +37,8 @@ export interface EntradaDosDestaques {
  *
  * A lista de entrada é a mesma que a home usa no hero, na busca e no contador
  * de estoque: embaralhar no lugar mudaria a página inteira.
- *
- * Exportada (além de `montarDestaquesDaSemana` e `VAGAS_NA_GRADE`, os dois
- * nomes que o brief desta tarefa fixa como contrato para as tarefas 3 e 4) só
- * para o teste de mutação alcançar esta cópia defensiva: `montarDestaquesDaSemana`
- * sempre chama `disponiveis.filter(...)` antes de embaralhar, e `.filter`
- * devolve um array novo mesmo quando nada é removido — então, por essa porta
- * pública, `embaralhar` nunca recebe `disponiveis` por referência, e nenhum
- * teste de caixa-preta sobre `montarDestaquesDaSemana` consegue provar que esta
- * função copia antes de trocar posições. Sem este export o passo 5 do brief
- * (mutação `const copia = lista;`) sobrevive sempre — não por falso negativo de
- * cache, mas porque a cópia interna é estruturalmente inalcançável de fora.
  */
-export function embaralhar<T>(lista: T[], sortear: () => number): T[] {
+function embaralhar<T>(lista: T[], sortear: () => number): T[] {
   const copia = [...lista];
   for (let i = copia.length - 1; i > 0; i--) {
     // `Math.min(..., i)` porque um dublê pode devolver 1 — `Math.random()`
