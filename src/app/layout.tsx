@@ -6,7 +6,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LeadPopup from "../components/LeadPopup";
 import CookieConsentBanner from "../components/CookieConsentBanner";
-import MolduraDoSite from "../components/MolduraDoSite";
+import MolduraDoSite, { AvisoLegalDoSite } from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import CamadaDeDados from "../components/CamadaDeDados";
 import { ThemeProvider } from "./ThemeContext";
@@ -190,8 +190,14 @@ export default async function RootLayout({
           <MolduraDoSite>
             <Footer navegacao={navegacaoDoRodape} />
             <LeadPopup />
-            <CookieConsentBanner />
           </MolduraDoSite>
+          {/* Fora da moldura de NAVEGAÇÃO, e de propósito: a landing page de
+              campanha larga cabeçalho, rodapé e pop-up, mas o aviso de cookies
+              acompanha o visitante. Largar o cabeçalho é design; largar o
+              aviso seria conformidade. */}
+          <AvisoLegalDoSite>
+            <CookieConsentBanner />
+          </AvisoLegalDoSite>
           {/* Core Web Vitals de CAMPO — o que o comprador sente, no aparelho e
               na rede dele. Todo diagnóstico de desempenho feito neste projeto
               até 2026-09-08 foi de laboratório (`next build` e tamanho por
