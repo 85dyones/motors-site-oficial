@@ -5,7 +5,7 @@ Três arquivos por campanha, e os três saem de **uma foto só**. O nome é semp
 
 | arquivo | medida | onde aparece |
 |---|---|---|
-| `<slug>-carro.jpg` | **1600 × 1600** (quadrado 1:1) | **o banner do topo**, ao lado do título |
+| `<slug>-carro.jpg` | **2400 × 800** (faixa 3:1) | **o banner de largura total**, entre o texto e a zebra |
 | `<slug>-og.jpg` | **1200 × 630** (paisagem ~1,91:1) | o card do WhatsApp, do Facebook e do Instagram |
 | `<slug>-pista.jpg` | **1600 × 400** (faixa 4:1) | fundo do bloco final, a 25% de opacidade |
 
@@ -30,11 +30,11 @@ substituídos. Conferindo, repita com `--gravar` no fim.
 
 ## O que mandar
 
-- **Tamanho mínimo: 1600 px no lado maior.** Foto de celular passa folgado. O
+- **Tamanho mínimo: 2400 px de largura.** Foto de celular passa folgado. O
   script recusa abaixo disso, porque ampliar borra.
-- **O assunto no centro.** O recorte é sempre central: o que está nas pontas é
-  o que se perde ao virar quadrado, e depois faixa. Um carro encostado na borda
-  esquerda sai cortado no card.
+- **O assunto nos DOIS TERÇOS centrais.** O recorte é sempre central, e o
+  celular corta as laterais: o banner é 3:1 no desktop e 2:1 no telefone, então
+  um carro que encoste nas pontas perde a asa dianteira no celular.
 - **JPG, PNG ou WebP.** Arquivo de material impresso costuma vir em **CMYK** — o
   script detecta e converte. Sem isso as cores chegam invertidas ao navegador,
   e um carro branco aparece azul-petróleo.
@@ -45,10 +45,12 @@ substituídos. Conferindo, repita com `--gravar` no fim.
 
 ## A disposição, em uma frase cada
 
-**Banner (1:1).** Coluna direita do topo, ao lado de "POLE POSITION" e do botão.
-No celular ele desce para baixo do texto, na largura toda. O bloco tem altura
-fixa e a foto se acomoda dentro dele (`object-cover`, centralizada) — é assim
-justamente para que trocar a foto **não mexa no layout da página**.
+**Banner (3:1).** Faixa de **largura total**, entre o texto de abertura e a
+zebra. Fica fora do container de propósito: dentro dele pararia na margem e não
+seria largura total. O bloco tem altura fixa e a foto se acomoda dentro
+(`object-cover`, centralizada) — é assim justamente para que trocar a foto **não
+mexa no layout da página**. No celular a faixa fica **2:1**, porque 3:1 numa
+tela de 390px daria 130px de altura, baixo demais para se ver um carro.
 
 **Card (1200 × 630).** Não aparece na página: é o que o WhatsApp mostra quando
 alguém manda o link. Vale tratá-lo como uma peça própria — muita gente vê só

@@ -4,7 +4,7 @@
  *
  * A LP usa três imagens, e nenhuma delas é a foto crua:
  *
- *   <slug>-carro.jpg  1600×1600  o banner do topo, na coluna direita
+ *   <slug>-carro.jpg  2400×800   o banner de largura total, entre o texto e a zebra
  *   <slug>-og.jpg     1200×630   o card do WhatsApp, Facebook e Instagram
  *   <slug>-pista.jpg  1600×400   a faixa de fundo do fecho da página
  *
@@ -25,7 +25,7 @@
  *
  * O QUE ELE ACEITA
  *
- * Qualquer JPG, PNG ou WebP acima de 1600px no lado maior. Foto de celular
+ * Qualquer JPG, PNG ou WebP acima de 2400px no lado maior. Foto de celular
  * serve. O recorte é sempre pelo CENTRO (`fit: cover`), então o assunto tem de
  * estar no meio do quadro — o que sobra nas pontas é o que se perde.
  *
@@ -48,7 +48,7 @@ const DESTINO = path.join(process.cwd(), "public", "campanhas");
  * aparecer como um retângulo contra o fundo da página.
  */
 const SAIDAS = [
-  { sufixo: "carro", largura: 1600, altura: 1600, nota: "banner do topo" },
+  { sufixo: "carro", largura: 2400, altura: 800, nota: "banner de largura total" },
   { sufixo: "og", largura: 1200, altura: 630, nota: "card de compartilhamento" },
   { sufixo: "pista", largura: 1600, altura: 400, nota: "faixa do fecho" },
 ];
@@ -88,9 +88,9 @@ async function main() {
   console.log(`\norigem: ${origem}`);
   console.log(`        ${meta.width}×${meta.height}, espaço de cor ${meta.space}`);
 
-  if (maior < 1600) {
+  if (maior < 2400) {
     uso(
-      `a foto tem ${maior}px no lado maior, e o banner precisa de 1600. ` +
+      `a foto tem ${maior}px no lado maior, e o banner precisa de 2400. ` +
         `Ampliar borra: mande uma maior.`,
     );
   }

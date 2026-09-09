@@ -179,8 +179,8 @@ export default async function PolePosition() {
       {/* ---------------------------------------------------------------- */}
       {/* Abertura                                                          */}
       {/* ---------------------------------------------------------------- */}
-      <section className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 px-6 pb-4 pt-12 md:grid-cols-2 md:gap-4 md:pt-20">
-        <div>
+      <section className="mx-auto w-full max-w-6xl px-6 pb-10 pt-12 md:pb-12 md:pt-20">
+        <div className="max-w-2xl">
           <div className="mb-5 h-1 w-12" style={{ backgroundColor: VERMELHO }} />
           <p className="text-xs font-semibold tracking-[0.35em]" style={{ color: CARVAO }}>
             MOTORS STORE
@@ -214,34 +214,38 @@ export default async function PolePosition() {
           </div>
         </div>
 
-        {/*
-          O BANNER — a única imagem que se troca sem tocar em código.
-          Medidas e recorte em `public/campanhas/LEIA-ME.md`; para gerar as três
-          artes de uma foto só, `scripts/preparar-arte-de-campanha.js`.
-
-          `aspect-square` + `object-cover` de propósito, e não `h-auto`: com
-          altura automática é a PROPORÇÃO DO ARQUIVO que decide a altura do
-          hero, então trocar a foto por uma de outro formato mexeria no layout
-          inteiro — o texto ao lado subiria ou desceria. Medido: com o bloco
-          fixo, uma foto 4:1 no lugar da 1:1 deixa a página com a mesma altura
-          ao pixel.
-
-          A arte de campanha (de fundo integrado) e uma foto de carro de
-          verdade funcionam as duas aqui: a primeira se dissolve no creme, a
-          segunda fica como um bloco de foto, que é um elemento legítimo.
-        */}
-        <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden md:max-w-none">
-          <Image
-            src="/campanhas/pole-position-2026-carro.jpg"
-            alt="Fórmula 1 branco e vermelho visto de cima, alinhado na pista"
-            fill
-            priority
-            unoptimized
-            sizes="(max-width: 768px) 90vw, 45vw"
-            className="object-cover object-center"
-          />
-        </div>
       </section>
+
+      {/*
+        O BANNER — largura total, entre o texto e a zebra. É a única imagem que
+        se troca sem tocar em código: medidas e recorte em
+        `public/campanhas/LEIA-ME.md`, e `scripts/preparar-arte-de-campanha.js`
+        gera banner e card de uma foto só.
+
+        Fica FORA do `max-w-6xl` de propósito — dentro do container ele pararia
+        na margem e não seria "largura total".
+
+        Proporção fixa e `object-cover`, nunca `h-auto`: com altura automática é
+        a PROPORÇÃO DO ARQUIVO que decide a altura, e trocar a foto empurraria a
+        página inteira. Medido: com o bloco fixo, uma foto de proporção
+        completamente diferente deixa a página com a mesma altura ao pixel.
+
+        **2:1 no celular, 3:1 no desktop.** 3:1 numa tela de 390px daria uma
+        faixa de 130px — baixa demais para se ver um carro. Como o recorte é
+        central, o assunto precisa caber nos DOIS TERÇOS centrais da foto para
+        sobreviver ao corte lateral do celular.
+      */}
+      <div className="relative aspect-[2/1] w-full overflow-hidden md:aspect-[3/1]">
+        <Image
+          src="/campanhas/pole-position-2026-carro.jpg"
+          alt="Fórmula 1 branco e vermelho visto de cima, alinhado na pista"
+          fill
+          priority
+          unoptimized
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+      </div>
 
       {/* Zebra de autódromo — o divisor que o folder usa. */}
       <div

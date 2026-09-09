@@ -57,11 +57,6 @@ describe("a página", () => {
    * `robots.ts` bloqueia `/api/`. Um og:image servido dali responde 200 no
    * navegador e chega SEM IMAGEM no WhatsApp — que é justamente por onde a
    * campanha circula.
-   */
-  /*
-   * `robots.ts` bloqueia `/api/`. Um og:image servido dali responde 200 no
-   * navegador e chega SEM IMAGEM no WhatsApp — que é justamente por onde a
-   * campanha circula.
    *
    * A primeira versão só olhava caminhos com extensão de imagem, e por isso
    * deixava passar `imagemPreferida: "/api/og?titulo=..."` — que é exatamente
@@ -193,13 +188,20 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
    */
   it("o banner tem bloco de proporção fixa, para a troca de foto não mexer no layout", () => {
     const texto = codigo();
-    expect(texto).toMatch(/aspect-square/);
+    /*
+     * Qualquer `aspect-*`, e não `aspect-square` literal: a proporção do banner
+     * já mudou uma vez (era 1:1 ao lado do texto, virou 3:1 em largura total) e
+     * uma trava presa à grafia reprovaria a mudança legítima enquanto deixaria
+     * passar a perda da proporção fixa, que é o que de fato importa.
+     */
+    expect(texto).toMatch(/aspect-(square|\[)/);
     expect(texto).toMatch(/object-cover/);
-    // `fill` e `h-auto` são mutuamente exclusivos aqui: o segundo é o que
-    // devolveria o controle da altura para o arquivo.
+    // `h-auto` é o que devolveria o controle da altura para o ARQUIVO — e aí
+    // trocar a foto mexeria na página inteira.
     const banner = texto.match(/<Image[\s\S]*?carro\.jpg[\s\S]*?\/>/)?.[0] ?? "";
     expect(banner, "o <Image> do banner não foi encontrado").not.toBe("");
     expect(banner).not.toMatch(/h-auto/);
+    expect(banner).toMatch(/fill/);
   });
 
   it("o formato das artes está documentado onde a loja vai procurar", () => {
@@ -207,7 +209,7 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
     expect(fs.existsSync(leiaMe), "falta public/campanhas/LEIA-ME.md").toBe(true);
     const texto = fs.readFileSync(leiaMe, "utf8");
     // As três medidas que o script gera precisam bater com as documentadas.
-    for (const medida of ["1600 × 1600", "1200 × 630", "1600 × 400"]) {
+    for (const medida of ["2400 × 800", "1200 × 630", "1600 × 400"]) {
       expect(texto, `o LEIA-ME não cita ${medida}`).toContain(medida);
     }
     expect(texto).toContain("preparar-arte-de-campanha.js");
@@ -224,7 +226,7 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
   it("as artes no disco têm as medidas documentadas", async () => {
     const sharp = (await import("sharp")).default;
     const esperado = [
-      ["carro", 1600, 1600],
+      ["carro", 2400, 800],
       ["og", 1200, 630],
       ["pista", 1600, 400],
     ] as const;
@@ -264,7 +266,7 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
   it("o script de preparo declara as mesmas três medidas", () => {
     const script = lerCodigo("scripts/preparar-arte-de-campanha.js");
     for (const [l, a] of [
-      [1600, 1600],
+      [2400, 800],
       [1200, 630],
       [1600, 400],
     ]) {
