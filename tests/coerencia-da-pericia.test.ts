@@ -199,15 +199,32 @@ describe("a ficha diz o estado real da perícia", () => {
     const bloco = pdp.slice(i, fim > i ? fim + 6 : i + 700).replace(/\s+/g, " ");
 
     expect(bloco, "voltou a afirmar estado de processo").not.toMatch(/em andamento|em análise/i);
-    // E continua sem afirmar RESULTADO, que é o que de fato não se sabe.
-    expect(bloco).not.toMatch(/sem apontamento|livre de sinistro|impecável|aprovada\b/i);
+    /* E continua sem afirmar RESULTADO, que é o que de fato não se sabe.
+
+       `aprovad[oa]`, e não `aprovada`: a estreiteza no feminino não era
+       escolha, era imposição da asserção que existia logo abaixo. Enquanto o
+       bloco tinha que CONTER "assim que aprovado", proibir o masculino aqui
+       faria o teste brigar consigo mesmo. Quando a frase saiu (08/09) a
+       desculpa saiu junto, e a guarda ficou meio cega por herança: "O laudo
+       cautelar foi aprovado e está disponível para consulta" passava pelas
+       três asserções — afirmação de RESULTADO, que é o defeito dos 88
+       veículos com selo fabricado, dito no gênero que o regex não olhava. */
+    expect(bloco).not.toMatch(/sem apontamento|livre de sinistro|impecável|aprovad[oa]\b/i);
     /* O bloco tem que terminar num caminho que o cliente percorre HOJE.
        Até 2026-09-08 ele dizia "publicado aqui na ficha assim que aprovado", e
        essa promessa só se cumpre quando o feed traz a perícia aprovada — nas
        outras fichas era espera sem prazo, exatamente o silêncio que este bloco
        veio quebrar. Decisão do dono nessa data: o laudo existe desde antes da
-       vitrine e fica com a loja, então a ficha manda pedir. A trava guarda a
-       SAÍDA (para quem o cliente pergunta), não a redação. */
-    expect(bloco, "o bloco voltou a deixar o cliente sem caminho").toMatch(/solicite ao vendedor/i);
+       vitrine e fica com a loja, então a ficha manda pedir.
+
+       A trava guarda a SAÍDA — um pedido, e a quem fazê-lo —, não a redação.
+       A primeira versão exigia a grafia "solicite ao vendedor", e com isso
+       reprovava "peça ao seu consultor pelo WhatsApp", que é a mesma decisão
+       dita melhor. Exigir a grafia de três palavras é o erro que este
+       repositório já pagou do outro lado: a asserção tem que afirmar a
+       condição inteira, não a frase que a cumpria naquele dia. */
+    expect(bloco, "o bloco voltou a deixar o cliente sem caminho").toMatch(
+      /(?:solicit\w+|pe(?:ç|c)\w+|pergunt\w+|procur\w+|fale|chame)[^.]{0,40}\b(?:vendedor|consultor|loja|equipe|atendimento|whatsapp)\b/i,
+    );
   });
 });
