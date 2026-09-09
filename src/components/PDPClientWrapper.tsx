@@ -1225,7 +1225,14 @@ export default function PDPClientWrapper({
               em 2026-09-04) — o que falta é o RESULTADO chegar, porque o sync
               do RevendaMais não traz o campo. Afirmar "em andamento" sobre um
               exame já concluído é o mesmo erro do bloco acima, invertido:
-              inventar estado de processo a partir de ausência de dado. */}
+              inventar estado de processo a partir de ausência de dado.
+
+              Desde 2026-09-08, por decisão do dono, a ficha não promete mais
+              publicação: manda PEDIR. O laudo existe desde antes da vitrine e
+              fica com a loja — dizer "é publicado aqui assim que aprovado" só
+              se cumpria nas fichas em que o feed traz a perícia aprovada; nas
+              outras virava espera sem prazo, que é o defeito que este bloco
+              veio corrigir. O caminho agora é o vendedor, a qualquer tempo. */}
           {!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && (
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border p-5 max-sm:p-4 print-avoid-break">
@@ -1234,8 +1241,8 @@ export default function PDPClientWrapper({
               </p>
               <p className="mt-2 text-sm text-brand-text/70">
                 Este veículo passa por perícia cautelar independente antes de entrar na vitrine —
-                estrutura, chassi e histórico de sinistro. O laudo é publicado aqui na ficha assim
-                que aprovado.
+                estrutura, chassi e histórico de sinistro. O laudo está disponível para consulta,
+                solicite ao vendedor a qualquer tempo.
               </p>
             </div>
           </div>
