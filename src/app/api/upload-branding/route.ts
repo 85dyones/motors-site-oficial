@@ -121,7 +121,16 @@ export async function POST(request: Request) {
           .from('branding')
           .upload(filePath, buffer, {
             contentType: file.type || "image/webp",
-            upsert: true
+            upsert: true,
+            // 1 ano. A logo vai em 100% das páginas e sai direto do bucket
+            // (o `Header` manda `unoptimized`), com o padrão de 1 h do
+            // Storage — era o carimbo mais caro do site por visita.
+            //
+            // O `upsert: true` acima não substitui nada: `fileName` já é
+            // único por envio (`${type}-${Date.now()}-${randomBytes(4)}`),
+            // então trocar a logo gera outra URL. Ele está ali contra
+            // colisão de nome, não como reescrita.
+            cacheControl: "31536000"
           });
 
         if (uploadError) {
@@ -134,7 +143,9 @@ export async function POST(request: Request) {
                 .from('branding')
                 .upload(filePath, buffer, {
                   contentType: file.type || "image/webp",
-                  upsert: true
+                  upsert: true,
+                  // Mesmo carimbo do ramo acima — o caminho continua único.
+                  cacheControl: "31536000"
                 });
               uploadError = retryError;
             } catch (bErr: any) {
