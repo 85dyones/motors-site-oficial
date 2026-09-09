@@ -57,7 +57,7 @@ export async function gerarTexto(opts: {
       headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: MODELO,
-        instructions: montarInstrucoes(dossie),
+        instructions: montarInstrucoes(),
         input: montarEntrada(dossie, campo),
       }),
       signal: controle.signal,

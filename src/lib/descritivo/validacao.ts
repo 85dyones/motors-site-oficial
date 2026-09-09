@@ -8,11 +8,12 @@ import { ROTULOS, temRotulo, type Dossie } from "./dossie";
  * independente" e a validação passava a reprovar tudo — a tabela de
  * resultados chegou a ser lida como "cinco modelos ruins" antes de a causa
  * aparecer. Isso NÃO generaliza: nem toda regra de substring usa `\b` —
- * GATILHO_DE_PERICIA, AFIRMA_APROVACAO, GARANTIA, DONOS, os equipamentos e a
- * primeira alternativa do próprio STATUS_INTERNO ("em an[áa]lise") não usam —,
- * então uma regra nova precisa avaliar caso a caso se corre o mesmo risco, em
- * vez de supor que o arquivo inteiro já se protege sozinho. `ALCANCE` é a
- * terceira vítima da mesma família (08/09/2026): `\bnacional\b` tinha a
+ * GARANTIA, DONOS, os equipamentos e a primeira alternativa do próprio
+ * STATUS_INTERNO ("em an[áa]lise") não usam —, então uma regra nova precisa
+ * avaliar caso a caso se corre o mesmo risco, em vez de supor que o arquivo
+ * inteiro já se protege sozinho. `MENCIONA_PERICIA` usa: "laudo" é substring
+ * de "aplaudo", e sem fronteira a régua reprovaria um elogio à loja. `ALCANCE`
+ * é a terceira vítima da mesma família (08/09/2026): `\bnacional\b` tinha a
  * fronteira e ainda assim reprovava "Picape nacional, feita em Betim", porque
  * o problema ali não era o recorte da palavra e sim o SENTIDO dela.
  *
@@ -38,9 +39,9 @@ export type Reprovacao = { regra: string; motivo: string };
  * contagem: bug medido em 08/09/2026 (abertura real de 158 caracteres, que
  * devia reprovar, lida como 34).
  *
- * A constante existe para que `aberturaDe` e `frasesDe` NÃO tenham duas
- * versões da mesma exceção — corrigir o separador de milhar num lugar e
- * esquecer o outro seria a mesma classe de defeito de novo.
+ * Usada só por `aberturaDe` desde 09/09/2026. A régua de perícia deixou de
+ * segmentar por frase (ver MENCIONA_PERICIA logo abaixo), e `frasesDe`, a
+ * função que existia só para ela, saiu junto.
  */
 const CORPO_DA_FRASE = "(?:[^.!?]|(?<=\\d)\\.(?=\\d))+";
 
@@ -54,92 +55,40 @@ export function aberturaDe(texto: string): string {
   return frases.slice(0, 2).join("").trim();
 }
 
-/**
- * Todas as frases do texto, INCLUSIVE a última sem pontuação final.
- *
- * A diferença para `aberturaDe` é `[.!?]*` no lugar de `[.!?]+`: ali só
- * interessa o que o Google mostra, e frase inacabada não conta; aqui interessa
- * TUDO que o texto afirma, e "Laudo cautelar aprovado" sem ponto final afirma
- * exatamente o mesmo que com ponto final.
- */
-function frasesDe(texto: string): string[] {
-  const limpo = texto.replace(/\s+/g, " ").trim();
-  const frases = limpo.match(new RegExp(CORPO_DA_FRASE + "[.!?]*", "g"));
-  return (frases ?? [limpo]).map((f) => f.trim()).filter(Boolean);
-}
-
 const VOCABULARIO =
   /\b(premium|luxo|exclusiv[oa]s?|consulte-nos)\b|melhor pre[çc]o|proced[êe]ncia garantida|garantia de proced[êe]ncia|melhor estoque/i;
 
 /**
- * A régua da perícia, em três peças — gatilho, afirmação e negação.
+ * O texto do anúncio não fala de perícia. Ponto.
  *
- * O que ela impede: o texto público dizer que o laudo APROVOU um veículo cuja
- * vistoria não aprovou (49 dos 85 à venda em 08/09/2026). O texto vai para o
- * `<g:description>` dos portais e para a meta description do Google, e o painel
- * imprime "Não afirma perícia aprovada" ao lado dele — quem revisa confia nessa
- * frase, então uma passagem aqui não é só um texto errado: é a tela declarando
- * ter conferido o eixo que vazou.
+ * Substitui, em 09/09/2026, uma régua de DETECÇÃO DE AFIRMAÇÃO — "o texto diz
+ * que o laudo aprovou?" — que foi reescrita quatro vezes e vazou nas quatro.
+ * A última passagem, medida pelo portão, deixava passar limpos seis
+ * descritivos inteiros que afirmavam aprovação: radical incompleto
+ * (`aprovad\w*` não pegava "aprovou"), gatilho e afirmação em frases
+ * diferentes, sinônimos que a lista de gatilho não conhecia ("vistoria",
+ * "inspeção"), resultado limpo dito sem a palavra "aprovado" ("nada consta",
+ * "sem restrições"). Detectar AFIRMAÇÃO DE APROVAÇÃO em texto livre é
+ * indecidível na prática — decisão do dono, 09/09/2026.
  *
- * DUAS PASSAGENS FECHADAS EM 08/09/2026, as duas executadas pelo portão:
+ * A régua nova não tenta decidir SE o texto afirma aprovação; decide SE o
+ * texto toca no assunto. Reprova sempre, com a perícia aprovada ou não — a
+ * frase sobre vistoria virou padrão e vive no campo `laudo_pericia` (ver
+ * `laudoPadrao.ts`), nunca mais no texto do anúncio. Por isso esta regra,
+ * ao contrário da antiga, não olha `dossie.periciaAprovada`.
  *
- * 1. A ORDEM. A régua antiga era `gatilho[^.!?]*afirmação` e exigia o gatilho
- *    ANTES: "Aprovado na perícia cautelar independente." e "Aprovado em perícia
- *    cautelar, o carro está pronto para transferência." passavam inteiras. Agora
- *    a pergunta é de PRESENÇA na mesma frase, nos dois sentidos.
+ * NÃO pode entrar aqui o verbo "passou" sozinho: é a frase-mãe do
+ * posicionamento da loja ("o carro que passou", "de cada dez avaliados, três
+ * passam") e fala do FILTRO DE SELEÇÃO da loja, não da perícia. Proibir os
+ * SUBSTANTIVOS — perícia, laudo, cautelar, vistoria, inspeção — resolve os
+ * dois lados de uma vez: "Passou na perícia cautelar" reprova por conter
+ * "perícia" e "cautelar"; "o carro que passou" não contém nenhum dos cinco e
+ * segue de pé.
  *
- * 2. A NEGAÇÃO. O desconto antigo reusava `NEGA_APROVACAO` de `lib/supabase.ts`,
- *    que contém `\bsem\b`. Aquela régua foi escrita para a COLUNA DE STATUS do
- *    banco, onde "sem" só aparece em "sem aprovação"; jogada contra frase livre,
- *    qualquer "sem «coisa boa»" desligava a regra — "Perícia cautelar
- *    independente, sem sinistro registrado, com resultado aprovado.", "Laudo
- *    cautelar sem restrições e aprovado por empresa credenciada." e "Laudo
- *    cautelar completo, sem histórico de leilão, aprovado." passavam as três.
- *    Reusar a régua do status foi o erro: ela responde a outra pergunta. Aqui a
- *    negação é ESTRUTURAL e ADJACENTE ao verbo — "não aprovado", "ainda não está
- *    aprovado", "não foi aprovado", "sem aprovação" —, nunca uma varredura de
- *    "sem" pela frase inteira.
- *
- * Duas armadilhas que qualquer mexida aqui tem de respeitar:
- *
- * - "sem apontamentos" é AFIRMAÇÃO de perícia limpa, não negação: "Laudo
- *   cautelar aprovado sem apontamentos." tem de continuar reprovando.
- * - "reprovado" NÃO contém "aprovad" (r-e-p-r-o-v-a-d-o), então não há colisão —
- *   verificado, não suposto. Uma frase que só diz "reprovado" não casa com
- *   nenhuma afirmação e por isso passa, que é o desfecho certo.
+ * `\b` na frente de cada termo — sem ela, "laudo" reprovaria "aplaudo".
  */
-const GATILHO_DE_PERICIA = /laudo|per[íi]cia|cautelar/i;
-
-/** O que, dito de uma perícia, afirma que ela aprovou. */
-const AFIRMA_APROVACAO = /aprovad\w*|aprova[çc][ãa]o|100%|sem apontament\w*/gi;
-
-/**
- * A negação, colada no verbo — é o que separa "não está aprovado" de
- * "sem sinistro registrado, com resultado aprovado".
- *
- * Casa só no FIM do trecho que antecede a afirmação: ou uma palavra de negação
- * seguida apenas de auxiliares ("não foi", "ainda não está", "não tem"), ou o
- * "sem" imediatamente grudado ("sem aprovação"). Substantivo no meio — "sem
- * sinistro registrado, com resultado" — desqualifica a negação, que é
- * exatamente o buraco de 08/09/2026.
- */
-const AUXILIARES =
-  "(?:\\s+(?:ainda|j[áa]|foi|for|foram|[ée]|s[ãa]o|ser[áa]|sendo|est[áa]|est[ãa]o|estava|estavam|era|eram|tem|t[êe]m|teve|tinha|h[áa]|houve|possui|se|o|a|que))*";
-const NEGACAO_ADJACENTE = new RegExp(
-  `(?:\\b(?:n[ãa]o|nem|nunca|jamais)\\b${AUXILIARES}|\\bsem)\\s*$`,
-  "i",
-);
-
-/** O texto afirma, em alguma frase, que a perícia aprovou? */
-function afirmaPericiaAprovada(texto: string): boolean {
-  return frasesDe(texto).some((frase) => {
-    if (!GATILHO_DE_PERICIA.test(frase)) return false;
-    for (const achado of frase.matchAll(AFIRMA_APROVACAO)) {
-      if (!NEGACAO_ADJACENTE.test(frase.slice(0, achado.index))) return true;
-    }
-    return false;
-  });
-}
+const MENCIONA_PERICIA =
+  /\bper[íi]ci\w*|\blaudo\w*|\bcautelar\w*|\bvistoria\w*|\binspe[çc][ãa]o\w*/i;
 
 const STATUS_INTERNO = /em an[áa]lise|\bpendente\b|aguardando/i;
 
@@ -154,10 +103,20 @@ const STATUS_INTERNO = /em an[áa]lise|\bpendente\b|aguardando/i;
  * sentido que importa é o de ONDE A LOJA ENTREGA. Por isso "nacional" só conta
  * perto de uma palavra de entrega, nos dois sentidos — "entrega nacional" e
  * "cobertura nacional para entrega".
+ *
+ * SEGUNDA REGRESSÃO (09/09/2026): a janela entre a palavra de entrega e
+ * `nacional` tinha ficado em 15 caracteres — curta demais para "Fazemos
+ * entrega em todo o território nacional.", "Entregamos para todo o
+ * território nacional." e "Fazemos frete para qualquer ponto do território
+ * nacional.", que passavam sem reprovação (medido pelo portão). Subiu para
+ * 40, a mesma janela da exceção de Balneário Camboriú logo abaixo — as duas
+ * frases de fabricação ("Picape nacional, feita em Betim.") continuam
+ * passando porque não têm palavra de entrega NENHUMA na frase, e é a
+ * AUSÊNCIA da palavra-gatilho que as livra, não o tamanho da janela.
  */
 const PALAVRA_DE_ENTREGA = "entrega|entregamos|envio|frete|alcance|cobertura|atendimento|transporte";
 const ALCANCE = new RegExp(
-  `todo o brasil|(?:em|para) todo o pa[íi]s|(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,15}\\bnacional\\b|\\bnacional\\b[^.!?]{0,15}(?:${PALAVRA_DE_ENTREGA})|santa catarina(?!.{0,40}balne[áa]rio)`,
+  `todo o brasil|(?:em|para) todo o pa[íi]s|(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,40}\\bnacional\\b|\\bnacional\\b[^.!?]{0,40}(?:${PALAVRA_DE_ENTREGA})|santa catarina(?!.{0,40}balne[áa]rio)`,
   "i",
 );
 const MARKDOWN = /\*\*|^#{1,6}\s|\[.+\]\(.+\)|^\s*[-*]\s/m;
@@ -227,8 +186,11 @@ export function validarDescritivo(
     );
   }
 
-  if (!dossie.periciaAprovada && afirmaPericiaAprovada(texto)) {
-    add("perícia", "Afirma laudo aprovado, e a perícia deste veículo não está aprovada.");
+  if (MENCIONA_PERICIA.test(texto)) {
+    add(
+      "perícia",
+      "Fala de perícia. Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
+    );
   }
 
   if (STATUS_INTERNO.test(texto)) {

@@ -38,11 +38,18 @@ describe("montarEntrada", () => {
   it("libera até 3 opcionais quando existem", () => {
     expect(montarEntrada(COM_TUDO, "descricao_seo")).toContain("no máximo 3 opcionais");
   });
-  it("proíbe afirmar perícia quando o dossiê não autoriza", () => {
-    expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("NÃO afirme aprovação");
+  /**
+   * Até 09/09/2026 este par era condicional ao dossiê — "PODE afirmar" com a
+   * perícia aprovada, "NÃO afirme" sem ela. A validação parou de tentar
+   * distinguir afirmação de MENÇÃO (MENCIONA_PERICIA, em validacao.ts), e a
+   * proibição do prompt parou de distinguir também: mesma frase nos dois
+   * estados.
+   */
+  it("proíbe menção a perícia com a perícia aprovada", () => {
+    expect(montarEntrada(COM_TUDO, "descricao_seo")).toContain("NÃO mencione perícia");
   });
-  it("libera a afirmação quando o dossiê autoriza", () => {
-    expect(montarEntrada(COM_TUDO, "descricao_seo")).toContain("PODE afirmar");
+  it("proíbe menção a perícia sem a perícia aprovada", () => {
+    expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("NÃO mencione perícia");
   });
   /**
    * As três proibições que nasciam da AUSÊNCIA de um rótulo, cada uma nos dois
@@ -78,30 +85,28 @@ describe("montarEntrada", () => {
 });
 
 /**
- * O `instructions` (system) — e a contradição que ele carregava.
+ * O `instructions` (system) — e a contradição que ele CARREGAVA.
  *
- * A linha "Use: passou, aprovado, ..." ia igual para os 85 veículos, inclusive
- * os 49 em análise, enquanto o prompt de USUÁRIO proibia afirmar aprovação. Duas
- * instruções opostas no mesmo pedido, e a que empurrava para a violação estava
- * no campo de mais peso. A poda é por veículo.
+ * Até 09/09/2026, a linha "Use: passou, aprovado, ..." ia igual para os 85
+ * veículos, inclusive os 49 em análise, enquanto o prompt de USUÁRIO proibia
+ * afirmar aprovação. Duas instruções opostas no mesmo pedido, e a que
+ * empurrava para a violação estava no campo de mais peso — a poda era por
+ * veículo. A correção de 09/09/2026 tira a contradição pela raiz: a função
+ * não recebe mais o dossiê, porque a lista "Use" não muda mais com a perícia
+ * (ver o docblock de PALAVRAS_DA_CASA em briefing.ts).
  */
 describe("montarInstrucoes", () => {
-  it("mantém 'aprovado' entre as palavras da casa quando a perícia aprovou", () => {
-    expect(montarInstrucoes(COM_TUDO)).toContain("Use: passou, aprovado, selecionado,");
+  it("usa 'aprovado' entre as palavras da casa — não depende mais da perícia", () => {
+    expect(montarInstrucoes()).toContain("Use: passou, aprovado, selecionado, procedência, preço no anúncio.");
   });
 
-  it("poda 'aprovado' da lista 'Use' quando a perícia não aprovou", () => {
-    const i = montarInstrucoes(SEM_NADA);
-    // A lista continua inteira menos a palavra — não é a linha que sumiu.
-    expect(i).toContain("Use: passou, selecionado, procedência, perícia cautelar independente, preço no anúncio.");
-    expect(i).not.toMatch(/Use:[^\n]*aprovado/);
+  it("não tem mais 'perícia cautelar independente' na lista Use — o assunto é proibido agora", () => {
+    expect(montarInstrucoes()).not.toContain("perícia cautelar independente");
   });
 
-  it("o resto do posicionamento não muda com a perícia", () => {
-    for (const dossie of [SEM_NADA, COM_TUDO]) {
-      expect(montarInstrucoes(dossie)).toContain("o carro que passou");
-      expect(montarInstrucoes(dossie)).toContain("Nunca use: premium, luxo, exclusivo");
-    }
+  it("o posicionamento não muda — a função não recebe mais o dossiê", () => {
+    expect(montarInstrucoes()).toContain("o carro que passou");
+    expect(montarInstrucoes()).toContain("Nunca use: premium, luxo, exclusivo");
   });
 });
 

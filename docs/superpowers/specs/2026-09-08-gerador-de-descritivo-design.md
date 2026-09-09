@@ -39,10 +39,13 @@ Dois botões na aba "Texto e SEO" do editor de veículo. Cada um gera uma sugest
               ├─ montarDossie(veiculo)
               ├─ chama o modelo com dossiê + briefing
               ├─ validarDescritivo(texto, dossie, campo)
-              └─ 200 { texto, caracteres, periciaAprovada }
+              └─ 200 { texto, caracteres }
                  422 { motivos }  reprovado na validação
                  502 { motivo }   a API do fornecedor falhou
                  503 { motivo }   falta OPENAI_API_KEY
+
+[09/09/2026: `periciaAprovada` SAIU da resposta — ver "Emenda de 09/09/2026"
+no §11 deste doc. Emitir um campo sem consumidor é pior que não emitir.]
                         │
               [painel de sugestão sob o campo]
                         └─ "Usar este texto" → preenche o campo → salvar pelo botão existente
@@ -178,6 +181,18 @@ Erro da API (429, 5xx, timeout) vira 502 com o motivo. O painel mostra e oferece
 ### Resolvido em 2026-09-08
 
 **"Aprovado com observação" pode ser anunciado como aprovado — decisão do dono.** Dois veículos estão nesse estado. Isso confirma o comportamento que `formatPericia` já tem e que o selo do site já pratica: **nada muda no código.** A decisão fica registrada aqui porque o contrário exigiria mexer em `formatPericia`, e a mudança valeria para o selo e para o texto ao mesmo tempo — nunca só para o gerador.
+
+### Emenda de 09/09/2026 — de detecção para proibição
+
+As seções acima (§4, §6.1, §7 e a tabela de testes) descrevem a régua de perícia como ela nasceu: DETECTAR se o texto afirma indevidamente que o laudo aprovou. Essa régua foi reescrita quatro vezes entre 08/09 e 09/09/2026 e vazou nas quatro — a última passagem, medida pelo qa-guardian, deixava seis descritivos inteiros afirmarem aprovação e passarem limpos (radical incompleto, gatilho e afirmação em frases diferentes, sinônimos que a lista de gatilho não conhecia). Ver `.superpowers/sdd/2026-09-08-gerador-de-descritivo/progress.md`.
+
+**Decisão do dono, 09/09/2026: inverter a dificuldade.** Detectar se um texto *afirma aprovação* é indecidível na prática; detectar se um texto *menciona* perícia é trivial. `descricao` e `descricao_seo` passam a proibir o assunto inteiro — perícia, laudo, cautelar, vistoria, inspeção —, aprovada ou não. A frase sobre perícia aprovada vira **texto padrão, determinístico**, num campo próprio (`laudo_pericia`, fonte em `src/lib/descritivo/laudoPadrao.ts`), nunca mais gerada pelo modelo.
+
+Consequências no código, para quem ler §4/§6.1/§7 depois desta emenda:
+- `validacao.ts`: `GATILHO_DE_PERICIA`, `AFIRMA_APROVACAO`, a negação estrutural e a segmentação por frase (`frasesDe`) saíram. Uma regex só, `MENCIONA_PERICIA`, substitui as três peças.
+- `briefing.ts`: a poda condicional de "aprovado" em `montarInstrucoes(dossie)` saiu — a função não recebe mais o dossiê. O par "PODE afirmar" / "NÃO afirme" em `montarEntrada` virou uma proibição única, sempre presente.
+- A resposta da rota perdeu `periciaAprovada` (ver a nota no diagrama do §3, acima) e o painel perdeu a linha "Pode/Não afirma perícia aprovada".
+- §4 (Perícia), §6.1 e a tabela de testes do §7 continuam corretos como REGISTRO HISTÓRICO de por que a primeira versão da régua existia e como ela vazou — não como descrição do comportamento atual.
 
 ## 12. Decisões tomadas nesta conversa
 

@@ -101,7 +101,6 @@ export async function POST(
     return NextResponse.json({
       texto: saida.texto,
       caracteres: saida.texto.length,
-      periciaAprovada: dossie.periciaAprovada,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? "Falha inesperada" }, { status: 500 });

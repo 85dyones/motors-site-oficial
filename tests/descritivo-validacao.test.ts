@@ -38,6 +38,14 @@ const COM_OPCIONAIS = montarDossie({
 const motivos = (t: string, d = SEM_NADA, campo: "descricao" | "descricao_seo" = "descricao_seo") =>
   validarDescritivo(t, d, campo).map((r) => r.regra);
 
+/** Como `motivos`, mas devolve `{ regra, motivo }` inteiro — para conferir o
+ *  TEXTO do motivo, não só que a regra disparou. */
+const motivosCompletos = (
+  t: string,
+  d = SEM_NADA,
+  campo: "descricao" | "descricao_seo" = "descricao_seo",
+) => validarDescritivo(t, d, campo);
+
 describe("aberturaDe", () => {
   it("devolve as duas primeiras frases", () => {
     expect(aberturaDe("Uma. Duas. Três.")).toBe("Uma. Duas.");
@@ -108,86 +116,92 @@ describe("regra: vocabulário", () => {
 });
 
 /**
- * A regra que impede o texto público de dizer que o laudo aprovou um veículo
- * cuja vistoria não aprovou — 49 dos 85 à venda em 08/09/2026.
+ * A regra que impede o texto público de FALAR de perícia — não só de afirmar
+ * aprovação.
  *
- * É a regra mais cara do arquivo, e não por causa do texto: o painel imprime
- * "Não afirma perícia aprovada — a vistoria deste veículo ainda não aprovou"
- * AO LADO do texto gerado. Uma passagem aqui não entrega só um anúncio errado;
- * entrega uma tela afirmando ter conferido justamente o que vazou, para uma
- * pessoa que confia nela antes de clicar "Usar este texto".
+ * Substitui, em 09/09/2026, uma régua de DETECÇÃO DE AFIRMAÇÃO que foi
+ * reescrita quatro vezes e vazou nas quatro — a última passagem (medida pelo
+ * portão) deixava seis descritivos inteiros afirmarem aprovação e passarem
+ * limpos. Decisão do dono: em vez de tentar decidir SE o texto afirma
+ * aprovação, a régua decide SE o texto toca no assunto. A frase sobre
+ * vistoria virou padrão e vive no campo `laudo_pericia` (`laudoPadrao.ts`).
  *
- * As oito frases abaixo foram EXECUTADAS contra as versões anteriores da régua
- * e todas passaram em alguma delas. Cada uma é um caso próprio de propósito: no
- * `it.each` uma frase que volte a passar aponta a si mesma no relatório.
+ * Por isso as seis frases abaixo reprovam com QUALQUER dossiê — a perícia
+ * aprovada não abre exceção, porque o assunto simplesmente não é do texto do
+ * anúncio.
  */
 describe("regra: perícia", () => {
-  const AFIRMAM_APROVACAO = [
-    "Laudo cautelar aprovado sem apontamentos.",
-    "Perícia cautelar independente feita por empresa credenciada, com resultado aprovado.",
-    "Laudo cautelar realizado por empresa credenciada junto ao Detran: aprovado.",
-    // As duas seguintes são a PASSAGEM DA ORDEM: a régua antiga exigia o
-    // gatilho (laudo/perícia/cautelar) ANTES da afirmação, e aqui ele vem
-    // depois. As duas passavam inteiras.
-    "Aprovado na perícia cautelar independente.",
-    "Aprovado em perícia cautelar, o carro está pronto para transferência.",
-    // E estas três são a PASSAGEM DA NEGAÇÃO: o desconto reusava
-    // `NEGA_APROVACAO` de `lib/supabase.ts`, que tem `\bsem\b` porque foi
-    // escrita para a COLUNA DE STATUS. Contra frase livre, qualquer "sem «coisa
-    // boa»" desligava a regra inteira.
-    "Perícia cautelar independente, sem sinistro registrado, com resultado aprovado.",
-    "Laudo cautelar sem restrições e aprovado por empresa credenciada.",
-    "Laudo cautelar completo, sem histórico de leilão, aprovado.",
-  ];
-
-  it.each(AFIRMAM_APROVACAO)("reprova sem o dado: %s", (frase) => {
-    expect(motivos(frase)).toContain("perícia");
-  });
-
-  it.each(AFIRMAM_APROVACAO)("aceita quando o dossiê autoriza: %s", (frase) => {
-    expect(motivos(frase, APROVADO)).not.toContain("perícia");
-  });
-
-  /**
-   * O outro lado, que é o que impede a régua de virar um "reprova tudo": as
-   * três dizem a verdade de um carro em análise, e a primeira NEGA a aprovação
-   * com o "não" entre o gatilho e a palavra.
-   */
-  const NAO_AFIRMAM = [
-    "O laudo ainda não está aprovado.",
+  const FALAM_DE_PERICIA = [
+    "A perícia cautelar independente aprovou este carro antes da vitrine.",
+    "Passou na perícia cautelar independente e está pronto para transferência.",
+    "Vistoria independente aprovada, carro pronto para transferência.",
+    "Laudo cautelar independente sem restrições, feito por empresa credenciada.",
+    "Perícia cautelar independente: nada consta.",
+    // Reprova mesmo sem afirmar aprovação nenhuma: o texto do anúncio não
+    // fala de perícia, nem para dizer que ela existe.
     "Passa por perícia independente antes de entrar na vitrine.",
-    "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine.",
   ];
 
-  it.each(NAO_AFIRMAM)("NÃO reprova sem o dado: %s", (frase) => {
+  it.each(FALAM_DE_PERICIA)("reprova com dossiê SEM perícia aprovada: %s", (frase) => {
+    expect(motivos(frase, SEM_NADA)).toContain("perícia");
+  });
+
+  it.each(FALAM_DE_PERICIA)("reprova IGUAL com dossiê COM perícia aprovada: %s", (frase) => {
+    expect(motivos(frase, APROVADO)).toContain("perícia");
+  });
+
+  const NAO_FALAM_DE_PERICIA = [
+    "O carro que passou pela seleção da Motors Store.",
+    "De cada dez avaliados, três passam.",
+    "SUV cinza com 70.700 km e câmbio automático, procedência rastreada.",
+  ];
+
+  it.each(NAO_FALAM_DE_PERICIA)("NÃO reprova — não fala de perícia: %s", (frase) => {
     expect(motivos(frase)).not.toContain("perícia");
   });
 
   /**
-   * A armadilha que a correção da negação podia reabrir: "sem apontamentos" é
-   * AFIRMAÇÃO de perícia limpa. Se ele voltar a contar como negação, o primeiro
-   * caso da lista de cima para de reprovar — e é o caso mais comum de todos.
+   * O motivo mudou de natureza: não é mais sobre o que o texto AFIRMA, é
+   * sobre o que o texto TOCA. "Perícia cautelar independente: aprovação
+   * negada." reprova hoje pelo mesmo motivo de qualquer outra menção — não
+   * porque nega ou afirma nada.
    */
-  it("'sem apontamentos' afirma, não nega — mesmo sozinho na frase", () => {
-    expect(motivos("Laudo cautelar sem apontamentos.")).toContain("perícia");
+  it("reprova mesmo quando o texto NEGA a aprovação — o assunto é que está proibido", () => {
+    const r = motivosCompletos("Perícia cautelar independente: aprovação negada.", SEM_NADA);
+    expect(r.map((x) => x.regra)).toContain("perícia");
+    expect(r.find((x) => x.regra === "perícia")?.motivo).toContain("Fala de perícia");
   });
 
-  /** "sem aprovação" é a negação de verdade: colada na palavra, não a três
-   *  substantivos de distância. */
-  it("NÃO reprova 'sem aprovação', que é negação adjacente", () => {
-    expect(motivos("Laudo cautelar entregue sem aprovação.")).not.toContain("perícia");
+  /**
+   * O motivo antigo era "Afirma laudo aprovado" e citava especificamente
+   * "100%" como gatilho de afirmação. Isso não existe mais: o motivo agora é
+   * sempre o mesmo, texto genérico sobre MENCIONAR o assunto.
+   */
+  it("'100%' junto de termo de perícia reprova com o motivo novo, não mais 'Afirma laudo aprovado'", () => {
+    const r = motivosCompletos("Aprovação de 100% no laudo cautelar.", SEM_NADA);
+    const motivo = r.find((x) => x.regra === "perícia")?.motivo ?? "";
+    expect(motivo).not.toContain("Afirma laudo aprovado");
+    expect(motivo).toContain("Fala de perícia");
   });
 
-  /** "reprovado" não contém "aprovad" — verificado, não suposto. */
-  it("NÃO reprova frase que diz que o laudo reprovou", () => {
-    expect(motivos("Laudo cautelar reprovado pela vistoria.")).not.toContain("perícia");
-  });
-
-  /** Gatilho numa frase e afirmação em OUTRA não é afirmação sobre a perícia. */
-  it("NÃO reprova gatilho e afirmação em frases diferentes", () => {
-    expect(
-      motivos("Passa por perícia cautelar independente. O preço está aprovado pela gerência."),
-    ).not.toContain("perícia");
+  /**
+   * Cobertura de cada termo da lista da tarefa, com acento/caixa variando —
+   * prova que MENCIONA_PERICIA pega os oito, não só os que aparecem nas
+   * frases obrigatórias acima.
+   */
+  it.each([
+    ["perícia", "A perícia foi feita ontem."],
+    ["pericial", "Laudo pericial concluído semana passada."],
+    ["laudo", "O laudo chegou hoje."],
+    ["cautelar", "Exame cautelar realizado na entrada."],
+    ["vistoria", "A vistoria começou de manhã."],
+    ["vistoriado", "Carro vistoriado na semana passada."],
+    ["inspeção", "Passou por inspeção completa no pátio."],
+    ["periciado", "Veículo periciado com cuidado."],
+    ["PERICIA (maiúsculo, sem acento)", "Item PERICIA aprovado pela loja."],
+    ["inspecao (sem cedilha nem til)", "Fizemos inspecao completa ontem."],
+  ])("reprova por conter '%s'", (_termo, frase) => {
+    expect(motivos(frase)).toContain("perícia");
   });
 });
 
@@ -223,6 +237,17 @@ describe("regra: alcance", () => {
     expect(motivos("Entrega nacional a partir de Curitiba.")).toContain("alcance");
     expect(motivos("Cobertura nacional para entrega.")).toContain("alcance");
     expect(motivos("Fazemos entrega em todo o país.")).toContain("alcance");
+  });
+
+  /**
+   * SEGUNDA REGRESSÃO (09/09/2026): a janela entre a palavra de entrega e
+   * `nacional` tinha caído para 15 caracteres — curta demais para "todo o
+   * território nacional", que passava sem reprovação (medido pelo portão).
+   */
+  it("reprova 'todo o território nacional' — a janela larga o suficiente", () => {
+    expect(motivos("Fazemos entrega em todo o território nacional.")).toContain("alcance");
+    expect(motivos("Entregamos para todo o território nacional.")).toContain("alcance");
+    expect(motivos("Fazemos frete para qualquer ponto do território nacional.")).toContain("alcance");
   });
 });
 
@@ -284,7 +309,11 @@ describe("regra: fato fora do dossiê", () => {
 
 describe("texto limpo", () => {
   it("não devolve reprovação nenhuma", () => {
-    const bom = "Honda NXR 160 Bros ESDD 2022 com 29.300 km e câmbio manual, em pintura branca. Passa por perícia independente antes de entrar na vitrine. Showroom no Bacacheri, Curitiba.";
+    // Até 08/09/2026 esta fixture dizia "Passa por perícia independente antes
+    // de entrar na vitrine" — texto que, com a régua nova (09/09/2026), passou
+    // a reprovar por MENCIONAR perícia. Trocado por uma frase que fala da
+    // seleção da loja, que é o assunto que "passou" continua descrevendo.
+    const bom = "Honda NXR 160 Bros ESDD 2022 com 29.300 km e câmbio manual, em pintura branca. O carro que passou pela seleção da Motors Store. Showroom no Bacacheri, Curitiba.";
     expect(validarDescritivo(bom, SEM_NADA, "descricao_seo")).toEqual([]);
   });
 });

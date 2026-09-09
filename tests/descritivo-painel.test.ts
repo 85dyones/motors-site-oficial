@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SugestaoDeTexto } from "../src/components/admin/SugestaoDeTexto";
+import { SugestaoDeLaudoPadrao } from "../src/components/admin/SugestaoDeLaudoPadrao";
+import { LAUDO_APROVADO_PADRAO } from "../src/lib/descritivo/laudoPadrao";
 import EditorDeVeiculo from "../src/components/admin/EditorDeVeiculo";
 
 /**
@@ -146,23 +148,67 @@ describe("SugestaoDeTexto", () => {
   });
 
   /**
-   * A rota devolve `periciaAprovada` e, até esta correção, o painel lia
-   * `texto`, `caracteres`, `error` e `motivos` — e ignorava o terceiro. A
-   * spec §7 manda a tela dizer "o que ele afirma": é a conferência que quem
-   * revisa precisa antes de clicar "Usar este texto".
+   * Até 09/09/2026 a rota devolvia `periciaAprovada` e o painel imprimia
+   * "Pode afirmar" / "Não afirma perícia aprovada" ao lado do texto — uma
+   * FALSA GARANTIA, porque dizia ter conferido justamente o eixo que vazou
+   * quatro vezes seguidas (ver o docblock de MENCIONA_PERICIA em
+   * validacao.ts). Com o texto proibido de tocar no assunto, a linha perdeu
+   * o objeto: `periciaAprovada` saiu da resposta da rota, e este teste tranca
+   * a ausência para a linha não voltar em silêncio.
    */
-  it("diz que o texto PODE afirmar perícia aprovada quando o dossiê autoriza", async () => {
-    RESPOSTA = { ok: true, status: 200, corpo: { texto: "Texto sugerido.", caracteres: 15, periciaAprovada: true } };
+  it("não imprime mais a linha de pode/não afirma perícia aprovada", async () => {
     montar();
     await clicar(botao("gerar"));
-    expect(naTela().toLowerCase()).toContain("pode afirmar perícia aprovada");
+    expect(naTela().toLowerCase()).not.toContain("afirma perícia aprovada");
+  });
+});
+
+/**
+ * O painel do campo "Laudo cautelar" — sem IA, sem `fetch`, sem estado de
+ * carregamento. A frase está pronta no primeiro render; só falta provar que
+ * ela aparece (ou não) e que "usar"/"limpar" nunca disparam sozinhos.
+ */
+describe("SugestaoDeLaudoPadrao", () => {
+  function montarLaudo(pericia: string | null, valorAtual: string | null, onUsar: (t: string) => void = () => {}) {
+    act(() => {
+      root.render(createElement(SugestaoDeLaudoPadrao, { pericia, valorAtual, onUsar }));
+    });
+  }
+
+  it("perícia aprovada: oferece a frase padrão e um botão para usá-la", () => {
+    montarLaudo("Aprovado", null);
+    expect(naTela()).toContain(LAUDO_APROVADO_PADRAO);
+    expect(() => botao("usar este texto")).not.toThrow();
   });
 
-  it("diz que o texto NÃO afirma perícia aprovada quando o dossiê não autoriza", async () => {
-    RESPOSTA = { ok: true, status: 200, corpo: { texto: "Texto sugerido.", caracteres: 15, periciaAprovada: false } };
-    montar();
-    await clicar(botao("gerar"));
-    expect(naTela().toLowerCase()).toContain("não afirma perícia aprovada");
+  it("a frase entregue ao clicar é exatamente a constante — nada de paráfrase", async () => {
+    const usados: string[] = [];
+    montarLaudo("Aprovado", null, (t) => usados.push(t));
+    await clicar(botao("usar este texto"));
+    expect(usados).toEqual([LAUDO_APROVADO_PADRAO]);
+  });
+
+  it("perícia em análise: NÃO oferece botão de preencher", () => {
+    montarLaudo("Em análise", null);
+    expect(() => botao("usar este texto")).toThrow();
+    expect(naTela().toLowerCase()).toContain("fica vazio quando a perícia não está aprovada");
+  });
+
+  it("perícia em análise, campo já com texto: oferece limpar", async () => {
+    const usados: string[] = [];
+    montarLaudo("Em análise", "Texto antigo de uma perícia que já foi aprovada.", (t) => usados.push(t));
+    await clicar(botao("limpar"));
+    expect(usados).toEqual([""]);
+  });
+
+  it("perícia em análise, campo vazio: NÃO oferece limpar — nada para limpar", () => {
+    montarLaudo("Em análise", null);
+    expect(() => botao("limpar")).toThrow();
+  });
+
+  it("perícia aprovada NÃO oferece limpar — o caminho ali é 'usar', nunca apagar", () => {
+    montarLaudo("Aprovado", "Algum texto já escrito.");
+    expect(() => botao("limpar")).toThrow();
   });
 });
 
@@ -226,5 +272,25 @@ describe("os dois painéis, atrás da permissão do editor", () => {
     // Controle: a aba ABRIU. Sem isto, um zero por aba fechada passaria por
     // guarda funcionando, e a guarda poderia estar apagada.
     expect(naTela()).toContain("Descrição editorial");
+  });
+
+  /**
+   * O terceiro painel — `SugestaoDeLaudoPadrao` — está atrás da MESMA régua,
+   * `podeGravar("laudo_pericia")`, que fica na mesma linha da matriz A17 que
+   * `descricao`/`descricao_seo` ("Editar opcionais e destaques rápidos").
+   *
+   * O `VEICULO` da fixture não tem `pericia`, então `formatPericia("")` cai
+   * em "EM ANÁLISE" — o painel, quando visível, mostra o ramo da nota (não o
+   * da frase pronta). É esse texto que serve de sinal de presença aqui: não
+   * há botão "gerar" neste painel para contar como nos outros dois.
+   */
+  it("marketing vê também o painel do laudo padrão", async () => {
+    await abrirAbaDeTexto(["marketing"]);
+    expect(naTela().toLowerCase()).toContain("fica vazio quando a perícia não está aprovada");
+  });
+
+  it("gestor não vê o painel do laudo padrão", async () => {
+    await abrirAbaDeTexto(["gestor"]);
+    expect(naTela().toLowerCase()).not.toContain("fica vazio quando a perícia não está aprovada");
   });
 });

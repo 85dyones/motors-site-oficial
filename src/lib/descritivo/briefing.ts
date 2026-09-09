@@ -14,17 +14,26 @@ export const MODELO = "gpt-4.1-mini";
 /**
  * As palavras da casa — a linha "Use" do VOCABULÁRIO.
  *
- * `aprovado` é a única que NÃO vale para todo veículo: dizer "aprovado" de um
- * carro cuja perícia está em análise é exatamente a afirmação que a régua de
- * `validacao.ts` reprova. Por isso a lista é montada por veículo — ver
- * `montarInstrucoes`.
+ * Fixa para todo veículo desde 09/09/2026. Até essa correção, "aprovado"
+ * saía da lista quando a perícia não tinha aprovado, e a poda era condicional
+ * ao dossiê — ver `montarInstrucoes`. Essa poda foi o que empurrou o modelo
+ * para "passou na perícia cautelar independente": a lista "Use" continuava
+ * anunciando "perícia cautelar independente" no MESMO prompt que proibia
+ * afirmar aprovação, e a lista viaja no `instructions` (system), que pesa
+ * mais que o prompt de usuário onde a proibição mora.
+ *
+ * A correção de 09/09/2026 é sobre o ASSUNTO inteiro — perícia, laudo,
+ * vistoria, cautelar, inspeção —, não sobre a palavra "aprovado" isolada.
+ * "Perícia cautelar independente" SAIU da lista por ser, ela mesma, o
+ * assunto proibido (ver MENCIONA_PERICIA em `validacao.ts`). "aprovado"
+ * FICOU: continua valendo para a seleção da loja ("de cada dez avaliados,
+ * três entram"), que é outro fato e continua sendo o assunto.
  */
 const PALAVRAS_DA_CASA = [
   "passou",
   "aprovado",
   "selecionado",
   "procedência",
-  "perícia cautelar independente",
   "preço no anúncio",
 ] as const;
 
@@ -40,17 +49,13 @@ const PALAVRAS_DA_CASA = [
  * gpt-4o-mini copiou a frase para um BMW que não tem esse dado. Exemplo fixo
  * em diretriz vira bordão.
  *
- * PODA POR VEÍCULO (08/09/2026): até esta correção a linha "Use" mandava usar
- * `aprovado` para TODOS — inclusive os 49 de 85 em análise —, e ela viaja no
- * `instructions` (system), que pesa mais que o prompt de usuário onde a
- * proibição mora. O prompt dizia as duas coisas ao mesmo tempo, e o lado que
- * empurrava para a violação estava no campo mais forte.
+ * NÃO depende mais do veículo desde 09/09/2026 — ver o docblock de
+ * PALAVRAS_DA_CASA. A poda condicional de "aprovado" saiu porque deixou de
+ * ser necessária: o que empurrava o modelo para a violação era a MENÇÃO à
+ * perícia, não a palavra "aprovado", e a menção agora é proibida sempre (ver
+ * `montarEntrada`).
  */
-function posicionamento(periciaAprovada: boolean): string {
-  const use = periciaAprovada
-    ? PALAVRAS_DA_CASA
-    : PALAVRAS_DA_CASA.filter((p) => p !== "aprovado");
-
+function posicionamento(): string {
   return `
 A Motors Store é uma revenda de seminovos em Curitiba/PR, com showroom na Rua
 Ernesto Piazzetta, 98 — Bacacheri.
@@ -59,7 +64,7 @@ O ativo da loja não é o carro que ela vende, é o carro que ela RECUSA: de cad
 dez veículos avaliados, três entram. A frase-mãe é "o carro que passou".
 
 VOCABULÁRIO
-Use: ${use.join(", ")}.
+Use: ${PALAVRAS_DA_CASA.join(", ")}.
 Nunca use: premium, luxo, exclusivo, "consulte-nos", "melhor preço",
 "procedência garantida", "o melhor estoque da região".
 
@@ -97,17 +102,17 @@ Comece pelo veículo e pelo fato mais forte dele, não pela loja.
 /**
  * O `instructions` (system) da chamada.
  *
- * Recebe o dossiê porque o posicionamento NÃO é o mesmo para todo veículo: a
- * palavra `aprovado` sai da lista "Use" quando a perícia não aprovou. Sem isso
- * o mesmo prompt mandava usar a palavra e proibia a afirmação — e a instrução
- * que empurra para a violação ficava no campo de mais peso.
+ * NÃO recebe mais o dossiê desde 09/09/2026 — a assinatura mudou de
+ * `montarInstrucoes(dossie)` para `montarInstrucoes()` junto com a poda
+ * condicional que saiu de PALAVRAS_DA_CASA/`posicionamento`. Ao mexer aqui,
+ * confira todo chamador: `gerar.ts` é o único fora dos testes.
  */
-export function montarInstrucoes(dossie: Dossie): string {
+export function montarInstrucoes(): string {
   return [
     "Você escreve anúncios de veículos para a Motors Store, revenda de seminovos em Curitiba/PR.",
     "Siga o posicionamento abaixo à risca.",
     "",
-    posicionamento(dossie.periciaAprovada),
+    posicionamento(),
   ].join("\n");
 }
 
@@ -119,13 +124,15 @@ export function montarInstrucoes(dossie: Dossie): string {
 export function montarEntrada(dossie: Dossie, campo: CampoDeTexto): string {
   const regras: string[] = [];
 
-  if (dossie.periciaAprovada) {
-    regras.push("Você PODE afirmar que a perícia cautelar independente foi APROVADA — o dado sustenta.");
-  } else {
-    regras.push(
-      'NÃO afirme aprovação de laudo ou perícia. Fale só do PROCESSO: "passa por perícia independente antes de entrar na vitrine". E NÃO diga que o exame está em análise, pendente ou aguardando: isso é status interno da loja.',
-    );
-  }
+  // Sempre, com a perícia aprovada ou não: o assunto não é do texto do
+  // anúncio. Até 09/09/2026 este bloco era condicional — um par "PODE
+  // afirmar" / "NÃO afirme" — porque a validação tentava DETECTAR afirmação
+  // indevida. A régua nova (MENCIONA_PERICIA, em validacao.ts) não distingue
+  // afirmação de menção: qualquer toque no assunto reprova. A proibição do
+  // prompt parou de distinguir também.
+  regras.push(
+    "NÃO mencione perícia, laudo, vistoria, cautelar ou inspeção, em nenhuma hipótese: esse assunto tem frase padrão em outro campo do sistema, e o texto do anúncio não trata dele.",
+  );
 
   if (dossie.opcionais.length === 0) {
     regras.push("NÃO cite nenhum opcional, equipamento ou acessório: não há dado.");

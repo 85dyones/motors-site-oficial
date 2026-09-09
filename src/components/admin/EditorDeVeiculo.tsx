@@ -30,6 +30,7 @@ import {
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
 import GaleriaDeFotos from "./GaleriaDeFotos";
 import { SugestaoDeTexto } from "./SugestaoDeTexto";
+import { SugestaoDeLaudoPadrao } from "./SugestaoDeLaudoPadrao";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -1205,6 +1206,13 @@ export default function EditorDeVeiculo({
                 a perícia como aprovada — texto aqui não liga selo, para não afirmar ao cliente
                 algo que a vistoria não disse.
               </p>
+              {podeGravar("laudo_pericia") && (
+                <SugestaoDeLaudoPadrao
+                  pericia={v.pericia}
+                  valorAtual={v.laudo_pericia}
+                  onUsar={(t) => set("laudo_pericia", t)}
+                />
+              )}
             </>
           )}
         </div>
