@@ -24,7 +24,8 @@ import { laudoPadraoDe } from "../../lib/descritivo/laudoPadrao";
  * aprovada" e oferecia um botão "Limpar" quando já havia texto. As duas
  * coisas desfaziam a migração `20260901120000_laudo_cautelar_texto_padrao`
  * (01/09/2026), que preencheu `laudo_pericia` em toda linha vazia DE
- * PROPÓSITO — perícia aprovada ou não, ~43 veículos "Em análise" inclusos.
+ * PROPÓSITO — perícia aprovada ou não, 69 veículos "Em análise" inclusos,
+ * 62 deles com texto no campo hoje (medido em 09/09/2026).
  * "Limpar" apagaria esse texto padrão ou, pior, uma customização como a da
  * Saveiro 8358193 — a própria migração a nomeia como "o caso que uma
  * migração descuidada apagaria" — sem caminho de volta, porque a allowlist
@@ -62,12 +63,11 @@ export function SugestaoDeLaudoPadrao({
   return (
     <div className="mt-3 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5">
       <p className="text-[11px] leading-relaxed text-mt-neutral-700">
-        Este campo já tem o texto padrão desde 01/09 — de propósito. Preencher
-        não é exibir: a ficha só mostra o bloco do laudo quando a perícia está
-        aprovada, e nada é afirmado ao cliente enquanto o exame não fecha.
-        Quando a perícia aprovar, o bloco acende sozinho. Aqui é o campo de
-        apontamentos específicos deste veículo — escreva algo próprio e ele
-        substitui o padrão.
+        Preencher não é exibir: a ficha só acende o bloco do laudo quando há
+        texto aqui e a perícia está aprovada — nada é afirmado ao cliente
+        enquanto o exame não fecha. Desde 01/09 quase todo veículo já tem um
+        texto padrão neste campo, de propósito. Este é o campo de
+        apontamentos deste veículo: o que você escrever substitui o padrão.
       </p>
     </div>
   );

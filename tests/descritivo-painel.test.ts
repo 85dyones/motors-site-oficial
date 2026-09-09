@@ -208,7 +208,7 @@ describe("SugestaoDeLaudoPadrao", () => {
   it("perícia em análise: a nota explica que o padrão já está preenchido e que preencher não é exibir", () => {
     montarLaudo("Em análise");
     const tela = naTela().toLowerCase();
-    expect(tela).toContain("já tem o texto padrão desde 01/09");
+    expect(tela).toContain("desde 01/09 quase todo veículo já tem um texto padrão");
     expect(tela).toContain("preencher não é exibir");
   });
 
