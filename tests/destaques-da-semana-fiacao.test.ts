@@ -61,3 +61,48 @@ describe("a chave destaquesDaSemana está fiada de ponta a ponta", () => {
     expect(JSON.stringify(publico)).not.toContain("8256747");
   });
 });
+
+describe("a home monta a grade pela regra, não por slice", () => {
+  const home = lerCodigo("src/app/page.tsx");
+
+  it("não fatia mais o estoque à mão", () => {
+    expect(
+      home,
+      "`disponiveis.slice(0, 6)` voltou — a grade deixou de ter curadoria",
+    ).not.toMatch(/disponiveis\.slice\(\s*0\s*,\s*6\s*\)/);
+  });
+
+  it("chama a regra com a seleção e com o que está no banner", () => {
+    const chamada = home.match(/montarDestaquesDaSemana\(\{[\s\S]*?\}\)/);
+
+    expect(chamada, "a home não chama montarDestaquesDaSemana").not.toBeNull();
+    expect(chamada![0], "sem a seleção do painel, a grade ignora a curadoria").toMatch(
+      /selecionados:/,
+    );
+    expect(
+      chamada![0],
+      "sem `excluir`, o sorteio repete na grade o carro que está no banner logo acima",
+    ).toMatch(/excluir:/);
+  });
+
+  it("a grade renderizada é o que a regra devolveu", () => {
+    // A trava do `slice` acima não basta: alguém poderia chamar a função,
+    // ignorar o resultado e renderizar outra lista.
+    const secao = home.slice(
+      home.indexOf("01 — ESTOQUE SELECIONADO"),
+      home.indexOf("02 — CONSULTORIA"),
+    );
+
+    expect(secao, "a grade não percorre destaquesSemana").toMatch(
+      /destaquesSemana\.map\(/,
+    );
+  });
+
+  it("o link ao lado do título continua prometendo o estoque inteiro", () => {
+    // Regra 6 do CLAUDE.md: a vitrine ordena, nunca esconde. `destaquesSemana`
+    // é um recorte de 6; `total` é o estoque. Trocar um pelo outro faria o
+    // link prometer seis carros.
+    expect(home).not.toMatch(/VER OS \{destaquesSemana\.length\}/);
+    expect(home).toMatch(/VER OS \{total\} VEÍCULOS/);
+  });
+});
