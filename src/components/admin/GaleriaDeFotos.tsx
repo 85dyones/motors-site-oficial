@@ -187,6 +187,22 @@ export default function GaleriaDeFotos({
             .upload(caminhos[variante], versoes[variante], {
               contentType: versoes[variante].type,
               upsert: false,
+// 1 ano, e não a 1 h que o Storage carimba por padrão.
+              //
+              // A foto do card sai DIRETO do bucket — o card manda `unoptimized`
+              // para foto nossa —, então quem decide o cache dela é este carimbo.
+              // Com `max-age=3600`, navegador e borda rebaixam a MESMA foto de
+              // hora em hora: egress que o plano free do Supabase (5 GB/mês) não
+              // tem para gastar. Medido em 2026-09-09: 137 KB de média por foto de
+              // card, ~8 por visita à home.
+              //
+              // ⚠️ Vale para o que subir DAQUI PARA A FRENTE. Os ~1.050 arquivos
+              // que entraram em 31/08 ficaram com o padrão de 1 h e só mudam se
+              // forem reescritos de propósito — ver a nota no script de migração.
+              //
+              // Seguro porque `novoLote()` + `upsert: false` dão caminho novo a
+              // cada envio: foto trocada nasce com outra URL.
+              cacheControl: "31536000",
             });
           if (error) throw new Error(error.message);
         }
