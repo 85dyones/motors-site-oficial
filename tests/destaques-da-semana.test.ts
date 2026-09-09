@@ -24,7 +24,9 @@ function sorteadorFixo(valores: number[]): () => number {
   return () => valores[Math.min(i++, valores.length - 1)];
 }
 
-/** Sempre 0: no Fisher-Yates, mantém a ordem de entrada — previsível. */
+/** Sempre 0: embaralhamento determinístico (cada passo troca com a posição 0,
+ *  o que dá uma rotação). Os casos que usam este dublê medem seleção, teto e
+ *  exclusão — nunca a ordem do trecho sorteado. */
 const semSorte = () => 0;
 
 describe("montarDestaquesDaSemana", () => {
@@ -198,10 +200,13 @@ describe("montarDestaquesDaSemana", () => {
     // preço efetivo — o `slice(0, 6)` que este módulo existe para matar, de
     // volta com outro endereço.
     //
-    // `0.5`, e não `0`: com `0` — e também com `0.99` — o Fisher-Yates É a
-    // identidade nesta implementação, então os dublês dos outros casos são
-    // cegos a esta regressão de propósito. Eles medem seleção e teto; este
-    // mede o embaralhamento.
+    // `0.5`, e não um valor perto de 1: com `0.99` ou `1`, o
+    // `Math.min(Math.floor(s * (i + 1)), i)` devolve sempre `i` e o
+    // Fisher-Yates vira identidade — o dublê passaria a concordar com o
+    // defeito. Com `0` ele não é identidade (é uma rotação: `abcdefg` sai
+    // `bcdefga`); o que cega os outros casos não é o valor, é que nenhum
+    // deles afirma a ordem do trecho sorteado. Medido rodando `embaralhar`
+    // isolada, 2026-09-09.
     const entrada = ["a", "b", "c", "d", "e", "f", "g"];
 
     const grade = montarDestaquesDaSemana({
