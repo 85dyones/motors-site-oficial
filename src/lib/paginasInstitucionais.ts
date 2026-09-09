@@ -150,8 +150,8 @@ export const TEXTO_DE_GARANTIA: string[] = [
     "estiver claro. Se um vendedor não deixa você ler o termo com calma, o problema não é o termo.",
   "O que faz diferença de verdade, porém, acontece antes da garantia. Todo veículo passa por " +
     "perícia cautelar independente antes de entrar na vitrine — estrutura, chassi e histórico de sinistro auditados por " +
-    "laboratório credenciado — e o laudo fica publicado na ficha do carro assim que é aprovado, " +
-    "não guardado numa gaveta para mostrar depois da proposta. De cada dez veículos avaliados, " +
+    "laboratório credenciado — e o laudo fica publicado na ficha do carro assim que é aprovado; " +
+    "antes disso, é só pedir. Nada de gaveta para mostrar depois da proposta. De cada dez veículos avaliados, " +
     "três entram no estoque. Os outros sete vão para repasse.",
   "Antes da entrega, o carro ainda passa pelo crivo técnico de showroom: mais de 120 pontos " +
     "mecânicos e eletrônicos conferidos. Garantia é a rede embaixo do trapézio — ela existe para " +
@@ -185,7 +185,7 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        momento. "Assim que a perícia é aprovada" descreve o que o site faz. */
     resposta:
       "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente e o laudo fica na ficha " +
-      "do veículo, no site, assim que é aprovada — dá para ler antes de vir à loja.",
+      "do veículo, no site, assim que é aprovada — e, enquanto não está lá, é só pedir ao vendedor.",
   },
   {
     pergunta: "A garantia vale se eu comprar de outra cidade?",
