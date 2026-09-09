@@ -18,6 +18,7 @@ import {
 import { SITE_URL } from "../lib/site";
 import { caminhosDosHubs, recortesDoEstoque } from "../lib/hubsDeEstoque";
 import { CAMINHOS_GEO } from "../lib/paginasGeo";
+import { campanhasVivas, caminhoDaCampanha } from "../lib/campanhas";
 
 /**
  * O sitemap acompanha o banco, não o build.
@@ -195,6 +196,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: inventarioMudouEm,
       changeFrequency: "weekly" as const,
       priority: 0.9,
+    })),
+    /**
+     * Campanhas VIGENTES hoje — feirão, lote, condição de mês.
+     *
+     * Somem daqui sozinhas quando a data vence, porque é o mesmo registro que
+     * faz a página responder 308: sitemap e site não têm como discordar sobre
+     * o que está no ar.
+     *
+     * Nota honesta: campanha de uma semana dificilmente chega a ranquear.
+     * Estar aqui serve para não haver leitura de conteúdo duplicado enquanto
+     * ela vive, e para o 308 ter o que preservar depois.
+     */
+    ...campanhasVivas(new Date()).map((campanha) => ({
+      url: `${SITE_URL}${caminhoDaCampanha(campanha)}`,
+      lastModified: new Date(`${campanha.inicio}T00:00:00.000-03:00`),
+      changeFrequency: "daily" as const,
+      priority: 0.8,
     })),
     /**
      * Páginas de bairro e cidade.
