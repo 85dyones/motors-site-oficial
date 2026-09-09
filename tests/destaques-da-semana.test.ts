@@ -190,4 +190,30 @@ describe("montarDestaquesDaSemana", () => {
       /const copia = (\[\.\.\.lista\]|lista\.slice\(\)|Array\.from\(lista\))/,
     );
   });
+
+  it("o sorteio embaralha de verdade — não devolve a ordem de entrada", () => {
+    // Sem este caso, trocar o Fisher-Yates por permutação identidade
+    // (`const j = i;`) passa nos outros 13 e na suíte inteira: o preenchimento
+    // volta a ser "os primeiros de `disponiveis`", que já vem ordenado por
+    // preço efetivo — o `slice(0, 6)` que este módulo existe para matar, de
+    // volta com outro endereço.
+    //
+    // `0.5`, e não `0`: com `0` — e também com `0.99` — o Fisher-Yates É a
+    // identidade nesta implementação, então os dublês dos outros casos são
+    // cegos a esta regressão de propósito. Eles medem seleção e teto; este
+    // mede o embaralhamento.
+    const entrada = ["a", "b", "c", "d", "e", "f", "g"];
+
+    const grade = montarDestaquesDaSemana({
+      disponiveis: estoque(...entrada),
+      selecionados: [],
+      sortear: () => 0.5,
+    });
+
+    expect(grade).toHaveLength(VAGAS_NA_GRADE);
+    expect(
+      grade.map((v) => v.id),
+      "o preenchimento saiu na ordem de entrada — o sorteio virou identidade",
+    ).not.toEqual(entrada.slice(0, VAGAS_NA_GRADE));
+  });
 });

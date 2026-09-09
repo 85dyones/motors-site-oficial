@@ -663,7 +663,7 @@ export default function TabelaDeEstoque({
                7º carro marcado não aparece na home, e sem esta linha ninguém
                descobre por quê. */
             <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
-              {naSemana.length} marcados · a grade mostra {VAGAS_NA_GRADE}
+              {naSemana.length} marcados · a grade mostra até {VAGAS_NA_GRADE}
             </span>
           )}
 

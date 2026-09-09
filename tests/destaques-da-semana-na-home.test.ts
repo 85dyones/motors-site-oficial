@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactElement } from "react";
 import { CardVeiculo } from "../src/components/modernist/primitivos";
 import type { Veiculo } from "../src/types";
@@ -44,6 +44,15 @@ vi.mock("../src/lib/settings", async (original) => ({
     destaquesDaSemana: ["c9", "c7", "c5"],
   }),
 }));
+
+beforeEach(() => {
+  // A home não injeta sorteador — `montarDestaquesDaSemana` cai em
+  // `Math.random`. Sem travar isso, a guarda do `excluir` abaixo só acusa a
+  // regressão em ~76% das rodadas: medido, 3 verdes em 12 execuções com a
+  // fiação quebrada. Uma guarda que passa 1 em cada 4 vezes que deveria
+  // reprovar não é guarda.
+  vi.spyOn(Math, "random").mockReturnValue(0);
+});
 
 /**
  * Todo `CardVeiculo` da árvore, na ordem em que aparece.
