@@ -179,80 +179,87 @@ export default async function PolePosition() {
       {/* ---------------------------------------------------------------- */}
       {/* Abertura                                                          */}
       {/* ---------------------------------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-6 pb-10 pt-12 md:pb-12 md:pt-20">
-        <div className="max-w-2xl">
-          <div className="mb-5 h-1 w-12" style={{ backgroundColor: VERMELHO }} />
-          <p className="text-xs font-semibold tracking-[0.35em]" style={{ color: CARVAO }}>
-            MOTORS STORE
-          </p>
-          <h1 className="mt-4 text-5xl font-extrabold leading-[0.92] tracking-tight sm:text-6xl md:text-7xl">
-            POLE
-            <br />
-            POSITION
-          </h1>
-          <p className="mt-5 max-w-md text-xl leading-snug sm:text-2xl" style={{ color: CINZA }}>
-            A largada para grandes oportunidades.
-          </p>
+      <section className="relative w-full">
+        {/*
+          A ARTE COMO FUNDO, em todas as larguras.
 
-          <p
-            className="mt-7 inline-block px-5 py-3 text-base font-bold text-white sm:text-lg"
-            style={{ backgroundColor: VERMELHO }}
-          >
-            12 a 20 de setembro
-          </p>
+          A arte foi desenhada com a área lisa à esquerda reservada para texto,
+          e é essa área que o título ocupa. Como o bloco é `absolute inset-0`,
+          ele não empurra nada: a altura continua vindo do texto, e trocar a
+          foto não mexe no layout.
 
-          <div className="mt-8">
-            <CtaDeCampanha
-              campanha={CAMPANHA}
-              rotulo="Quero as condições do Pole Position"
-              style={{ backgroundColor: VERMELHO }}
-              className="w-full rounded-sm px-8 py-4 text-base font-bold text-white transition-transform hover:scale-[1.02] sm:w-auto sm:text-lg"
-            />
-            <p className="mt-3 text-sm" style={{ color: CINZA }}>
-              Condições exclusivas por uma semana.
-            </p>
-          </div>
+          `object-right` porque o carro ocupa de 81% a 94% da largura da arte —
+          medido. Ancorar ao centro o deixaria fora do quadro no celular.
+        */}
+        <div className="absolute inset-0">
+          <Image
+            src="/campanhas/pole-position-2026-carro.jpg"
+            alt=""
+            aria-hidden
+            fill
+            priority
+            unoptimized
+            sizes="100vw"
+            className="object-cover object-right"
+          />
+          {/*
+            O VÉU, e por que ele existe só até `md`.
+
+            No desktop a coluna de texto cai sobre a área lisa da arte e não
+            precisa de nada. No CELULAR não há essa folga: a largura inteira
+            mostra a faixa ancorada à direita, e o título cairia sobre o carro —
+            texto escuro sobre pneu preto não se lê.
+
+            Gradiente, e não uma cor chapada: opaco onde o texto começa,
+            transparente onde o carro está. Assim a legibilidade é resolvida sem
+            lavar a arte inteira.
+          */}
+          <div
+            aria-hidden
+            className="absolute inset-0 md:hidden"
+            style={{
+              background: `linear-gradient(to right, ${CREME} 0%, ${CREME} 42%, ${CREME}D9 62%, ${CREME}00 100%)`,
+            }}
+          />
         </div>
 
+        <div className="relative mx-auto w-full max-w-6xl px-6 pb-10 pt-12 md:pb-28 md:pt-28">
+          <div className="max-w-2xl">
+            <div className="mb-5 h-1 w-12" style={{ backgroundColor: VERMELHO }} />
+            <p className="text-xs font-semibold tracking-[0.35em]" style={{ color: CARVAO }}>
+              MOTORS STORE
+            </p>
+            <h1 className="mt-4 text-5xl font-extrabold leading-[0.92] tracking-tight sm:text-6xl md:text-7xl">
+              POLE
+              <br />
+              POSITION
+            </h1>
+            <p className="mt-5 max-w-md text-xl leading-snug sm:text-2xl" style={{ color: CINZA }}>
+              A largada para grandes oportunidades.
+            </p>
+
+            <p
+              className="mt-7 inline-block px-5 py-3 text-base font-bold text-white sm:text-lg"
+              style={{ backgroundColor: VERMELHO }}
+            >
+              12 a 20 de setembro
+            </p>
+
+            <div className="mt-8">
+              <CtaDeCampanha
+                campanha={CAMPANHA}
+                rotulo="Quero as condições do Pole Position"
+                style={{ backgroundColor: VERMELHO }}
+                className="w-full rounded-sm px-8 py-4 text-base font-bold text-white transition-transform hover:scale-[1.02] sm:w-auto sm:text-lg"
+              />
+              <p className="mt-3 text-sm" style={{ color: CINZA }}>
+                Condições exclusivas por uma semana.
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/*
-        O BANNER — largura total, entre o texto e a zebra. É a única imagem que
-        se troca sem tocar em código: medidas e recorte em
-        `public/campanhas/LEIA-ME.md`, e `scripts/preparar-arte-de-campanha.js`
-        gera banner e card de uma foto só.
-
-        Fica FORA do `max-w-6xl` de propósito — dentro do container ele pararia
-        na margem e não seria "largura total".
-
-        Proporção fixa e `object-cover`, nunca `h-auto`: com altura automática é
-        a PROPORÇÃO DO ARQUIVO que decide a altura, e trocar a foto empurraria a
-        página inteira. Medido: com o bloco fixo, uma foto de proporção
-        completamente diferente deixa a página com a mesma altura ao pixel.
-
-        **2:1 no celular, 3:1 no desktop.** 3:1 numa tela de 390px daria uma
-        faixa de 130px — baixa demais para se ver um carro.
-
-        **`object-right`, e não `object-center`.** Na arte desta campanha o
-        carro fica entre 81% e 94% da largura, com a área lisa à esquerda. Medi:
-        o recorte 2:1 CENTRAL do celular pega de 17% a 83% da imagem — cortaria
-        o carro quase inteiro, deixando na tela só fundo vazio. Ancorado à
-        direita, o corte cai sobre a área lisa, que é o que pode se perder.
-
-        Se a próxima campanha trouxer arte com o assunto ao centro ou à
-        esquerda, é esta classe que muda.
-      */}
-      <div className="relative aspect-[2/1] w-full overflow-hidden md:aspect-[3/1]">
-        <Image
-          src="/campanhas/pole-position-2026-carro.jpg"
-          alt="Fórmula 1 branco e vermelho visto de cima, alinhado na pista"
-          fill
-          priority
-          unoptimized
-          sizes="100vw"
-          className="object-cover object-right"
-        />
-      </div>
 
       {/* Zebra de autódromo — o divisor que o folder usa. */}
       <div

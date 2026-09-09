@@ -186,22 +186,47 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
    * defeito que só aparece depois da troca, quando ninguém está olhando o
    * código. Bloco de proporção fixa + `object-cover` resolve.
    */
-  it("o banner tem bloco de proporção fixa, para a troca de foto não mexer no layout", () => {
+  /*
+   * A REGRA, que sobreviveu a três layouts: a foto do banner nunca decide a
+   * altura da página.
+   *
+   * Ela já foi bloco 1:1 ao lado do texto, faixa 3:1 de largura total, e agora
+   * é fundo absoluto com o texto por cima. O que não pode mudar é o efeito —
+   * trocar a foto não mexe no layout. Duas formas satisfazem isso, e a trava
+   * aceita as duas:
+   *
+   *   `absolute inset-0` + `fill`  → a imagem sai do fluxo e não empurra nada
+   *   `aspect-*` + `object-cover`  → o bloco tem altura própria
+   *
+   * O que reprova é `h-auto`, que devolve o controle da altura ao ARQUIVO.
+   */
+  it("a foto do banner não decide a altura da página", () => {
     const texto = codigo();
-    /*
-     * Qualquer `aspect-*`, e não `aspect-square` literal: a proporção do banner
-     * já mudou uma vez (era 1:1 ao lado do texto, virou 3:1 em largura total) e
-     * uma trava presa à grafia reprovaria a mudança legítima enquanto deixaria
-     * passar a perda da proporção fixa, que é o que de fato importa.
-     */
-    expect(texto).toMatch(/aspect-(square|\[)/);
-    expect(texto).toMatch(/object-cover/);
-    // `h-auto` é o que devolveria o controle da altura para o ARQUIVO — e aí
-    // trocar a foto mexeria na página inteira.
     const banner = texto.match(/<Image[\s\S]*?carro\.jpg[\s\S]*?\/>/)?.[0] ?? "";
     expect(banner, "o <Image> do banner não foi encontrado").not.toBe("");
     expect(banner).not.toMatch(/h-auto/);
-    expect(banner).toMatch(/fill/);
+    expect(banner).toMatch(/\bfill\b/);
+    expect(texto).toMatch(/object-cover/);
+
+    const foraDoFluxo = /absolute inset-0/.test(texto);
+    const proporcaoFixa = /aspect-(square|\[)/.test(texto);
+    expect(
+      foraDoFluxo || proporcaoFixa,
+      "a foto precisa estar fora do fluxo (absolute inset-0) ou num bloco de proporção fixa",
+    ).toBe(true);
+  });
+
+  /*
+   * O texto fica SOBRE a arte, e a arte tem carro escuro à direita. No celular
+   * não há a folga que o desktop tem, então o título cairia sobre o pneu.
+   * O véu é o que resolve — e some no desktop, onde não é preciso lavar a arte.
+   */
+  it("no celular há véu por trás do texto, e ele não vai para o desktop", () => {
+    const texto = codigo();
+    expect(texto).toMatch(/linear-gradient/);
+    expect(texto, "o véu precisa sumir a partir de md").toMatch(
+      /absolute inset-0 md:hidden/,
+    );
   });
 
   it("o formato das artes está documentado onde a loja vai procurar", () => {
