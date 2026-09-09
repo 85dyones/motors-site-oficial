@@ -214,16 +214,31 @@ export default async function PolePosition() {
           </div>
         </div>
 
-        <div className="relative mx-auto w-full max-w-sm md:max-w-none">
+        {/*
+          O BANNER — a única imagem que se troca sem tocar em código.
+          Medidas e recorte em `public/campanhas/LEIA-ME.md`; para gerar as três
+          artes de uma foto só, `scripts/preparar-arte-de-campanha.js`.
+
+          `aspect-square` + `object-cover` de propósito, e não `h-auto`: com
+          altura automática é a PROPORÇÃO DO ARQUIVO que decide a altura do
+          hero, então trocar a foto por uma de outro formato mexeria no layout
+          inteiro — o texto ao lado subiria ou desceria. Medido: com o bloco
+          fixo, uma foto 4:1 no lugar da 1:1 deixa a página com a mesma altura
+          ao pixel.
+
+          A arte de campanha (de fundo integrado) e uma foto de carro de
+          verdade funcionam as duas aqui: a primeira se dissolve no creme, a
+          segunda fica como um bloco de foto, que é um elemento legítimo.
+        */}
+        <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden md:max-w-none">
           <Image
             src="/campanhas/pole-position-2026-carro.jpg"
             alt="Fórmula 1 branco e vermelho visto de cima, alinhado na pista"
-            width={900}
-            height={912}
+            fill
             priority
             unoptimized
             sizes="(max-width: 768px) 90vw, 45vw"
-            className="h-auto w-full"
+            className="object-cover object-center"
           />
         </div>
       </section>

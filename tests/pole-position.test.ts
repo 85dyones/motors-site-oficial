@@ -184,6 +184,96 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
    * fotos próprias do site vão com `unoptimized`. O herói de uma LP paga de
    * nove dias não pode depender de cota de otimização.
    */
+  /*
+   * O banner é a única imagem que a loja troca sem tocar em código, então o
+   * layout não pode depender da PROPORÇÃO do arquivo. Com `h-auto`, uma foto
+   * de outro formato mudaria a altura do hero e empurraria o texto ao lado —
+   * defeito que só aparece depois da troca, quando ninguém está olhando o
+   * código. Bloco de proporção fixa + `object-cover` resolve.
+   */
+  it("o banner tem bloco de proporção fixa, para a troca de foto não mexer no layout", () => {
+    const texto = codigo();
+    expect(texto).toMatch(/aspect-square/);
+    expect(texto).toMatch(/object-cover/);
+    // `fill` e `h-auto` são mutuamente exclusivos aqui: o segundo é o que
+    // devolveria o controle da altura para o arquivo.
+    const banner = texto.match(/<Image[\s\S]*?carro\.jpg[\s\S]*?\/>/)?.[0] ?? "";
+    expect(banner, "o <Image> do banner não foi encontrado").not.toBe("");
+    expect(banner).not.toMatch(/h-auto/);
+  });
+
+  it("o formato das artes está documentado onde a loja vai procurar", () => {
+    const leiaMe = path.join(process.cwd(), "public", "campanhas", "LEIA-ME.md");
+    expect(fs.existsSync(leiaMe), "falta public/campanhas/LEIA-ME.md").toBe(true);
+    const texto = fs.readFileSync(leiaMe, "utf8");
+    // As três medidas que o script gera precisam bater com as documentadas.
+    for (const medida of ["1600 × 1600", "1200 × 630", "1600 × 400"]) {
+      expect(texto, `o LEIA-ME não cita ${medida}`).toContain(medida);
+    }
+    expect(texto).toContain("preparar-arte-de-campanha.js");
+  });
+
+  /*
+   * As medidas dos ARQUIVOS, e não só as documentadas. Escrevi o LEIA-ME
+   * dizendo 1600×1600 enquanto o banner no disco tinha 900×912 — documentação
+   * e realidade discordando no mesmo commit. Isso mede o disco.
+   *
+   * Também é a trava que pega foto trocada à mão, sem passar pelo script: ela
+   * chega com a proporção errada e o `object-cover` a corta em silêncio.
+   */
+  it("as artes no disco têm as medidas documentadas", async () => {
+    const sharp = (await import("sharp")).default;
+    const esperado = [
+      ["carro", 1600, 1600],
+      ["og", 1200, 630],
+      ["pista", 1600, 400],
+    ] as const;
+
+    for (const [sufixo, largura, altura] of esperado) {
+      const arquivo = path.join(
+        process.cwd(),
+        "public",
+        "campanhas",
+        `${SLUG}-${sufixo}.jpg`,
+      );
+      expect(fs.existsSync(arquivo), `falta a arte: ${sufixo}`).toBe(true);
+      const meta = await sharp(arquivo).metadata();
+      expect(
+        `${meta.width}x${meta.height}`,
+        `${sufixo}: o arquivo não bate com o LEIA-ME`,
+      ).toBe(`${largura}x${altura}`);
+      // sRGB, não CMYK: arte de material impresso chega com as cores
+      // invertidas ao navegador se ninguém converter.
+      expect(meta.space, `${sufixo}: espaço de cor não é sRGB`).toBe("srgb");
+    }
+  });
+
+  /*
+   * O banner é a maior imagem da página e vai com `priority` — é o LCP no
+   * celular, de onde vem quase todo o tráfego de campanha. Como as artes vão
+   * com `unoptimized`, o navegador baixa exatamente estes bytes.
+   */
+  it("nenhuma arte passa de 300 KB", () => {
+    for (const sufixo of ["carro", "og", "pista"]) {
+      const arquivo = path.join(process.cwd(), "public", "campanhas", `${SLUG}-${sufixo}.jpg`);
+      const kb = Math.round(fs.statSync(arquivo).size / 1024);
+      expect(kb, `${sufixo}: ${kb} KB`).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("o script de preparo declara as mesmas três medidas", () => {
+    const script = lerCodigo("scripts/preparar-arte-de-campanha.js");
+    for (const [l, a] of [
+      [1600, 1600],
+      [1200, 630],
+      [1600, 400],
+    ]) {
+      expect(script, `o script não gera ${l}×${a}`).toMatch(
+        new RegExp(`largura:\\s*${l},\\s*altura:\\s*${a}`),
+      );
+    }
+  });
+
   it("as artes próprias não dependem da cota de otimização da Vercel", () => {
     const texto = codigo();
     const imagens = (texto.match(/<Image[\s\S]*?\/>/g) ?? []);
