@@ -179,6 +179,24 @@ const formatCombustivel = (c: string): string => {
 };
 
 /**
+ * Palavras que negam aprovação NA COLUNA DE STATUS — "não aprovado", "sem
+ * aprovação", "reprovado", "pendente", "negado", "indeferido".
+ *
+ * O `\bsem\b` só é seguro porque o domínio é o valor de `pericia`, um
+ * vocabulário fechado onde "sem" aparece em "sem aprovação" e em nada mais.
+ *
+ * Foi EXPORTADA em 2026-09-08 para `src/lib/descritivo/validacao.ts` reusar, e
+ * a exportação foi desfeita no mesmo dia: aplicada a uma FRASE LIVRE de
+ * anúncio, ela desligava a regra da perícia em qualquer "sem «coisa boa»" —
+ * "sem sinistro registrado", "sem restrições", "sem histórico de leilão" —, e
+ * o texto saía afirmando laudo aprovado num carro em análise. Ela não responde
+ * "esta frase nega a aprovação?", e sim "este STATUS nega a aprovação?". Duas
+ * perguntas, duas réguas: a de texto livre mora em `validacao.ts`, com negação
+ * estrutural adjacente ao verbo.
+ */
+const NEGA_APROVACAO = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/;
+
+/**
  * Status de perícia do veículo, a partir do campo `pericia` do feed.
  *
  * Só aprova com afirmação EXPLÍCITA de aprovação, e nunca quando há negação
@@ -189,12 +207,19 @@ const formatCombustivel = (c: string): string => {
  * default promocional do mapper: aprovação por conteúdo de marketing.
  *
  * Valores reais em produção (2026-08-06): "Aprovado" e "Em análise".
+ *
+ * EXPORTADA desde 2026-09-08 porque o gerador de descritivo precisa da MESMA
+ * régua que acende o selo — nenhum veículo tem a string "PERÍCIA APROVADA" no
+ * banco (são "Aprovado", "Em análise" e "Aprovado com observação"), e uma
+ * segunda régua criaria mais uma verdade sobre a perícia.
+ *
+ * "Aprovado com observação" conta como aprovado: decisão do dono em 2026-09-08.
  */
-const formatPericia = (p: string): string => {
+export const formatPericia = (p: string): string => {
   const val = (p || "").toLowerCase().trim();
   if (!val) return "EM ANÁLISE";
 
-  const nega = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/.test(val);
+  const nega = NEGA_APROVACAO.test(val);
   if (!nega && /aprovad/.test(val)) return "PERÍCIA APROVADA";
   if (/analise|análise/.test(val)) return "EM ANÁLISE";
 
