@@ -14,9 +14,13 @@ import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
 import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
 import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
 import { ACOES } from "../lib/turnstile";
+// O bloco de laudo pendente é componente próprio, e o porquê está escrito lá:
+// é o que deixa a trava RENDERIZAR o texto em vez de garimpá-lo na fonte.
+import BlocoLaudoPendente from "./BlocoLaudoPendente";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
+
 
 interface PDPClientWrapperProps {
   veiculo: Veiculo;
@@ -1225,21 +1229,32 @@ export default function PDPClientWrapper({
               em 2026-09-04) — o que falta é o RESULTADO chegar, porque o sync
               do RevendaMais não traz o campo. Afirmar "em andamento" sobre um
               exame já concluído é o mesmo erro do bloco acima, invertido:
-              inventar estado de processo a partir de ausência de dado. */}
-          {!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && (
-          <div className="px-4 md:px-0 print:px-0">
-            <div className="bg-brand-card border border-brand-card-border p-5 max-sm:p-4 print-avoid-break">
-              <p className="uppercase tracking-widest text-sm max-sm:text-xs font-black text-brand-text">
-                Laudo cautelar
-              </p>
-              <p className="mt-2 text-sm text-brand-text/70">
-                Este veículo passa por perícia cautelar independente antes de entrar na vitrine —
-                estrutura, chassi e histórico de sinistro. O laudo é publicado aqui na ficha assim
-                que aprovado.
-              </p>
-            </div>
-          </div>
-          )}
+              inventar estado de processo a partir de ausência de dado.
+
+              Desde 2026-09-08, por decisão do dono, a ficha não promete mais
+              publicação: manda PEDIR. O laudo existe desde antes da vitrine e
+              fica com a loja — dizer "é publicado aqui assim que aprovado" só
+              se cumpria nas fichas em que o feed traz a perícia aprovada; nas
+              outras virava espera sem prazo, que é o defeito que este bloco
+              veio corrigir. O caminho agora é o vendedor, a qualquer tempo.
+
+              E por isso o bloco passou a olhar `indisponivel` (09/09): "a
+              qualquer tempo" é compromisso em aberto, e na ficha de um carro
+              VENDIDO — que fica no ar durante a carência — ele ficava ao lado
+              de um botão que já diz "CONSULTAR SIMILARES". Prometer laudo de
+              carro que saiu do pátio não ajuda ninguém a decidir nada; aqui o
+              silêncio é honesto, porque não há mais compra para apoiar. O
+              bloco do laudo APROVADO segue aparecendo no vendido: aquele é
+              documento que existe e está publicado, não promessa.
+
+              A guarda é `indisponivel`, e ela é MAIS LARGA que "vendido": vale
+              também para o carro que sumiu do feed, cujo motivo o próprio
+              `publicacao.ts` diz não saber ("pode ser repasse, reserva ou
+              anúncio expirado, e o carro pode voltar"). É de propósito, e é a
+              mesma régua do CTA logo acima — se a página já parou de vender
+              aquele carro, ela também para de prometer atendimento sobre ele.
+              Quando o carro volta ao feed, o bloco volta junto. */}
+          {!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && <BlocoLaudoPendente />}
 
         </div>
 

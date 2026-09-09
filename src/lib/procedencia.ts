@@ -19,7 +19,7 @@ export const PROCEDENCIA_PADRAO: ItemProcedencia[] = [
     id: "laudo",
     titulo: "Laudo cautelar completo",
     descricao:
-      "Estrutura, chassi e histórico de sinistro auditados por laboratório credenciado.",
+      "Estrutura, chassi e histórico de sinistro auditados por empresa independente, credenciada junto ao Detran.",
     ativo: true,
   },
   {
