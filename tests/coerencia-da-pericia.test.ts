@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { lerCodigo, ler } from "./fonte";
+import { TEXTO_LAUDO_PENDENTE } from "../src/lib/textoDoLaudo";
 
 /**
  * O site tem uma verdade só sobre a perícia cautelar.
@@ -132,7 +133,8 @@ describe("a promessa do laudo carrega a condição", () => {
 
          120 é o melhor ponto medido, não uma cura: zero falso positivo no
          repositório e pega o caso acima. A margem é medida, não chutada — dos
-         20 trechos que casam hoje, o `aprovad` mais distante está no offset 78
+         19 trechos que casam hoje (eram 20 até a reescrita do `value1` de
+         `/sobre`), o `aprovad` mais distante está no offset 78
          (`paginasGeo.ts`). Se um texto novo legítimo passar de 120, o certo é
          aproximar a ressalva da promessa, não esticar este número.
 
@@ -202,45 +204,40 @@ describe("a ficha diz o estado real da perícia", () => {
        Afirmar "em andamento" sobre exame já concluído é inventar processo a
        partir de ausência de dado — o mesmo erro do bloco do laudo aprovado,
        invertido. */
-    /* A janela é a CONSTANTE, não um recorte do JSX.
+    /* Três tentativas de janela, três furos — este é o desenho que sobrou.
 
-       Até 09/09 este teste fatiava de "Laudo cautelar" até o primeiro
-       `</div>`, e a revisão furou isso sem tocar em uma vírgula do texto:
-       basta embrulhar o pedido num `<div>` próprio para o resto da frase
-       cair fora da janela. O mutante afirmava "foi aprovado, sem apontamento"
-       — as duas coisas que as guardas abaixo proíbem — com a suíte inteira
-       verde. Trava de conteúdo que depende de layout não é trava.
+       1ª · recorte de "Laudo cautelar" até o primeiro `</div>`: bastava
+            embrulhar o pedido num `<div>` para o resto sair do alcance.
+       2ª · ler a constante por regex até o `;` da linha: bastava um template
+            literal para a cauda escapar; e uma SEGUNDA constante ao lado,
+            renderizada num `<p>` a mais, não passava por leitura nenhuma.
+       3ª · recorte começando no TÍTULO: o que ficasse entre o `(` da guarda e
+            o título — quatro linhas acima — nunca era lido.
 
-       Por isso o texto virou `TEXTO_LAUDO_PENDENTE` no componente, e aqui se
-       lê a constante. A leitura desfaz a concatenação e as aspas; o `\s+`
-       continua porque a frase é quebrada em três linhas de fonte. */
-    const declaracao = pdp.match(/const TEXTO_LAUDO_PENDENTE\s*=([\s\S]*?);\r?\n/);
-    expect(declaracao, "a constante do texto pendente sumiu do componente").not.toBeNull();
-    const bloco = declaracao![1]
-      .replace(/"\s*\+\s*/g, "")
-      .replace(/"/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
+       O que fecha as três: o texto é IMPORTADO (nada de garimpo na fonte), o
+       recorte começa na GUARDA e vai até o `)}` que fecha o bloco, e dentro
+       dele a única interpolação aceita é a do texto conferido. Assim não
+       existe canto do bloco fora de vista, nem porta dos fundos por onde uma
+       frase nova entre sem passar pelas guardas.
+
+       A condição da guarda sai do recorte de propósito: ela contém "PERÍCIA
+       APROVADA" e acusaria a si mesma. */
+    const CONDICAO = '!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA")';
+    const guarda = pdp.indexOf(CONDICAO);
+    expect(guarda, "a guarda do bloco pendente sumiu").toBeGreaterThan(-1);
+    const fecho = pdp.indexOf("\n          )}", guarda);
+    expect(fecho, "não achei o fim do bloco pendente").toBeGreaterThan(guarda);
+    const jsx = pdp.slice(guarda, fecho).replace(CONDICAO, "").replace(/\s+/g, " ");
 
     /* A fiação, que a extração deixou nua: constante que ninguém renderiza
-       passa em qualquer asserção de texto. As duas pontas, então — o que a
-       frase diz, e que ela é usada DEPOIS da guarda do bloco pendente. */
-    const usa = pdp.indexOf("{TEXTO_LAUDO_PENDENTE}");
-    const guarda = pdp.indexOf("!indisponivel && !(veiculo.laudo_pericia");
-    expect(usa, "a constante existe mas ninguém a renderiza").toBeGreaterThan(-1);
-    expect(usa, "o texto saiu de dentro do bloco guardado").toBeGreaterThan(guarda);
+       passa em qualquer asserção de texto. Exigir que a ÚNICA interpolação do
+       bloco seja esta cobre as duas pontas de uma vez — prova que o texto é
+       usado aqui dentro, e barra `{OUTRA_CONSTANTE}` entrando ao lado. */
+    expect(jsx.match(/\{[A-Za-z_$][\w$]*\}/g) ?? [], "interpolação não conferida dentro do bloco").toEqual([
+      "{TEXTO_LAUDO_PENDENTE}",
+    ]);
 
-    /* E o JSX do bloco vai junto, porque só ler a constante MOVE o furo em vez
-       de fechá-lo: um `<p>` novo com texto cru dentro do mesmo bloco não passa
-       por constante nenhuma. Aqui o recorte começa no título e termina no `)}`
-       que fecha o bloco — embrulhar em `<div>` não desloca nenhum dos dois, que
-       era exatamente a fragilidade da janela velha. A condição da guarda fica
-       de fora de propósito: ela contém "PERÍCIA APROVADA" e acusaria a si
-       mesma. */
-    const inicio = pdp.indexOf("                Laudo cautelar");
-    expect(inicio, "o bloco do laudo pendente sumiu").toBeGreaterThan(-1);
-    const fecho = pdp.indexOf("\n          )}", inicio);
-    const jsx = pdp.slice(inicio, fecho > inicio ? fecho : inicio + 1200).replace(/\s+/g, " ");
+    const bloco = TEXTO_LAUDO_PENDENTE;
     const tudo = `${bloco} ${jsx}`;
 
     // E o bloco continua falando do laudo, em vez de virar um CTA genérico.
