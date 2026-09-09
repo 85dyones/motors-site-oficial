@@ -52,6 +52,27 @@ export function transmissaoDoSchema(cambio: string | null | undefined): string |
  * que envelhece em silêncio. Trinta dias à frente, recalculados a cada
  * revalidação da ficha (de hora em hora), é a janela que corresponde ao ritmo
  * real de reprecificação de um estoque de seminovos.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que NÃO é `first_seen_at + 90 dias`
+ * ---------------------------------------------------------------------------
+ * O handoff de SEO de 08/09/2026 propôs trocar esta janela rolante por
+ * `first_seen_at + 90 dias`, omitindo o campo quando a coluna fosse nula.
+ * Medido no banco no mesmo dia, antes de mexer:
+ *
+ *   85 veículos à venda · 75 deles com `first_seen_at` NULO · registro mais
+ *   antigo em 2026-08-26 (a coluna só passou a ser preenchida a partir dali)
+ *
+ * Ou seja, a troca tiraria o `priceValidUntil` de 88% do catálogo — devolvendo
+ * exatamente o aviso de oferta incompleta que este campo existe para evitar —
+ * e, nos 10 restantes, trocaria uma data que sempre está no futuro por uma que
+ * começa a vencer em 24/11/2026, um carro de cada vez, em silêncio.
+ *
+ * A proposta descreve um problema que já estava resolvido: conferido no HTML
+ * servido em 08/09, a ficha do Titano publicava `"priceValidUntil":"2026-10-08"`.
+ * Se um dia a validade precisar refletir a idade do anúncio, o piso tem de ser
+ * `max(first_seen_at + janela, hoje + margem)` — nunca uma data que possa
+ * nascer no passado.
  */
 export function precoValidoAte(base = new Date()): string {
   const data = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);

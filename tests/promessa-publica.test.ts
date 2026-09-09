@@ -514,6 +514,49 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
    *
    * O plano de ingestão aprovado exclui ficha de veículo e hub de modelo, então
    * o assistente não vê essa contradição — quem vê é o leitor e o Google.
+   *
+   * ---------------------------------------------------------------------------
+   * 2026-09-08: o dono foi consultado, e a pendência não era pendência
+   * ---------------------------------------------------------------------------
+   * Duas falas dele, que juntas fecham o assunto:
+   *
+   *   *"O SEO é focado no regional, mas de fato temos rede de entrega
+   *   nacional."*
+   *   *"Todo o Paraná e o litoral catarinense é isso mesmo, use o padrão."*
+   *
+   * Então o parágrafo acima estava certo no fato e errado na conclusão. As 28
+   * metas regionais **não são defeito e não são pendência**: a meta de ficha é
+   * peça de SEO, e o alvo do SEO é a praça. Quem afirma o alcance do SERVIÇO é
+   * o FAQ — deste bloco e das páginas geo —, e continua sendo "todo o Brasil".
+   * Não é teto contra teto; é mira contra serviço, em superfícies diferentes,
+   * de propósito.
+   *
+   * O que apareceu no lugar da pendência, e foi resolvido na mesma data: **não
+   * existia UM padrão de fecho.** Os 41 textos fechavam de OITO formas — 23 só
+   * com o local, e os 18 que citam alcance dizendo isso de sete jeitos ("com
+   * entrega para todo o Paraná", "para o Paraná e Santa Catarina até Balneário
+   * Camboriú", "e entrega em todo o Paraná"…). As sete viraram uma, na forma
+   * que o dono ditou, palavra por palavra. Restam duas:
+   *
+   *   LOCAL   Showroom no Bacacheri, em Curitiba.
+   *   REGIÃO  Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná
+   *           e no litoral catarinense até Balneário Camboriú.
+   *
+   * ---------------------------------------------------------------------------
+   * Qual das duas usar, e por que o corte não é opinião
+   * ---------------------------------------------------------------------------
+   * O `POSICIONAMENTO.md` diz que "o regional entra quando o veículo justifica
+   * deslocamento: acima de R$ 100 mil, nicho, colecionável ou km muito baixa".
+   * Isso soa como régua frouxa até você medir os 41 textos que já existiam:
+   *
+   *   23 com fecho LOCAL   → mediana R$ 55.900, MÁXIMO R$ 89.900
+   *   18 com fecho REGIÃO  → mediana R$ 97.900
+   *
+   * O máximo de um grupo está abaixo da mediana do outro. A régua já estava
+   * sendo seguida com disciplina — ela só nunca tinha sido escrita como
+   * número. Quem escrever o lote 4 usa isso: abaixo da faixa dos R$ 90 mil, o
+   * fecho é o local, e a exceção (nicho, colecionável, km muito baixa) precisa
+   * de motivo dito em voz alta.
    */
   const ALCANCE = /entregamos para todo o Brasil/i;
 

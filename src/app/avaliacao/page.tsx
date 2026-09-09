@@ -4,7 +4,7 @@ import AutoAvaliacao from "../../components/AutoAvaliacao";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd, schemaDeTrilha } from "../../lib/schemaListagem";
-import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDeServico, schemaDoSite } from "../../lib/schemaLoja";
 
 const CAMINHO = "/avaliacao";
 
@@ -105,6 +105,17 @@ export default async function AvaliacaoPage() {
       { nome: "Home", caminho: "/" },
       { nome: "Avaliação Express", caminho: CAMINHO },
     ]),
+    // O que esta página FAZ. Ver a nota de `schemaDeServico`: `provider` por
+    // `@id`, mesmas cidades da loja, e nada de preço — a avaliação não tem um,
+    // e o valor de compra nunca aparece para o cliente no site (é o consultor
+    // que decide, depois da vistoria).
+    schemaDeServico({
+      tipo: "Avaliação de veículo para troca",
+      nome: "Avaliação de veículo para troca ou venda",
+      descricao:
+        "Avaliação do veículo do cliente para troca por um seminovo do estoque ou para " +
+        "venda direta à loja, com vistoria presencial no showroom do Bacacheri.",
+    }),
     schemaDaLoja(companySettings),
     schemaDoSite(companySettings),
   ]);

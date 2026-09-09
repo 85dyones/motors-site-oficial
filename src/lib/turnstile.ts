@@ -214,15 +214,25 @@ export const ACOES = {
   popup: "popup",
   avaliacao: "avaliacao",
   avaliacaoWhatsapp: "avaliacao_whatsapp",
+  /** Formulário do hub sem estoque — "Encomende seu carro" (2026-09-08). */
+  encomenda: "encomenda",
 } as const;
 
-/** `/api/leads` atende cinco superfícies; todas com o mesmo valor de lead. */
+/**
+ * `/api/leads` atende SEIS superfícies; todas com o mesmo valor de lead.
+ *
+ * Esquecer de listar aqui a ação de uma superfície nova não dá erro de
+ * compilação e não quebra a tela: o widget resolve o desafio, o token viaja, e
+ * o `siteverify` recusa pela action — o visitante leva 403 num formulário que
+ * parece funcionar. Por isso a lista é conferida por teste junto com `ACOES`.
+ */
 export const ACOES_DE_LEADS = [
   ACOES.contato,
   ACOES.pdp,
   ACOES.carmatch,
   ACOES.popup,
   ACOES.avaliacaoWhatsapp,
+  ACOES.encomenda,
 ] as const;
 
 /** `/api/avaliacao` atende uma só. */

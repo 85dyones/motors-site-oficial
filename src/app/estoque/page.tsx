@@ -24,6 +24,7 @@ import { perguntasDeCategoria } from "../../lib/textoDosHubs";
 import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { criarLinkador } from "../../lib/linksNoTexto";
 import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
+import MarcasQueJaPassaram from "../../components/modernist/MarcasQueJaPassaram";
 import {
   CAIXA_DA_BUSCA,
   CONTAINER_DA_BUSCA,
@@ -333,6 +334,17 @@ export default async function EstoquePage() {
             </div>
           </section>
         )}
+
+        {/* O bloco de cima filtra `veiculos.length > 0`, e continua filtrando:
+            marca com e sem carro na mesma lista confunde quem compra, e a
+            contagem "0" ao lado do nome comunica loja vazia.
+
+            O efeito colateral disso é que a marca sem estoque perdia o único
+            link interno que tinha — hub perene no sitemap, alcançável por
+            ninguém. Este segundo bloco assume essas, com peso visual menor.
+            Ele varre os DOIS segmentos por conta própria; ver a nota do
+            componente sobre por que a assinatura não aceita um. */}
+        <MarcasQueJaPassaram historico={historico} disponiveis={disponiveis} />
 
         {carrocerias.length > 0 && (
           <section className="mt-8">

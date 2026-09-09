@@ -1,0 +1,58 @@
+{
+  "_leia": "RASCUNHO dos textos próprios de hub de modelo (item 5.2 do HANDOFF_SEO_08SET). Formato da tabela `textos_de_hub` — `caminho`, `titulo`, `paragrafos[]`. Publicar pelo painel de hubs, DEPOIS da revisão do dono. O texto da loja SOBRESCREVE o gerado por inteiro (ver `resolverTextoDoHub`): quem edita escreve o corpo todo, não parágrafo a parágrafo.",
+
+  "_base": "O handoff mandava escolher os hubs pelos '5 modelos mais vendidos', consultando o histórico de vendas. ESSE RANKING NÃO EXISTE: medido em 2026-09-08, o topo de vendas é 2 unidades (Prisma, EcoSport, Fit, 208) e todo o resto é 1 — não há diferença estatística para ordenar nada, e escolher cinco dali seria inventar um critério. A base usada no lugar é verificável e diz a mesma coisa de forma honesta: quantas unidades daquele modelo JÁ PASSARAM pela loja, vendidas e à venda somadas. É o que a loja de fato negocia.",
+
+  "_ranking": [
+    { "hub": "/carros/chevrolet/onix", "ja_passaram": 6, "a_venda": 2, "anos": "2015–2025" },
+    { "hub": "/carros/ford/ecosport", "ja_passaram": 5, "vendidos": 2, "a_venda": 1, "anos": "2012–2019" },
+    { "hub": "/carros/volkswagen/saveiro", "ja_passaram": 5, "a_venda": 2, "anos": "2013–2023" },
+    { "hub": "/carros/hyundai/hb20", "ja_passaram": 3, "vendidos": 1, "a_venda": 2, "anos": "2014–2022" },
+    { "hub": "/carros/ford/ka", "ja_passaram": 3, "a_venda": 2, "anos": "2020–2021" }
+  ],
+
+  "_revisar": "O handoff pedia o frame 'por que a loja escolhe esse modelo, o que REPROVA nele na cautelar'. A segunda metade não foi escrita como afirmação: eu não tenho o dado de quais defeitos reprovaram quais modelos aqui, e inventar isso seria pôr na boca da loja uma estatística que ela não mediu. O segundo parágrafo de cada hub diz O QUE SE OLHA naquele modelo — verdadeiro, útil e não numérico. Onde a loja tiver o caso real ('o que mais reprova Saveiro aqui é X'), ele vale mais do que o que está escrito e deve substituir a frase.",
+
+  "textos": [
+    {
+      "caminho": "/carros/chevrolet/onix",
+      "titulo": "Chevrolet Onix seminovo em Curitiba",
+      "paragrafos": [
+        "O Onix foi o carro mais vendido do Brasil por quase uma década, e isso muda o que significa comprar um usado: a oferta é enorme e desigual. Seis passaram por aqui, de 2015 a 2025 — o suficiente para saber que a diferença entre um bom e um ruim não está no modelo, está no histórico de cada unidade.",
+        "Duas gerações convivem no mesmo nome, e elas são carros diferentes. Até 2019 é o 1.0 e o 1.4 aspirados, mecânica simples e barata de manter. De 2020 em diante é o turbo de três cilindros, mais rápido e mais exigente com a manutenção — sobretudo com o intervalo de óleo. Antes de comparar preço entre dois Onix, vale conferir de qual dos dois carros se está falando."
+      ]
+    },
+    {
+      "caminho": "/carros/ford/ecosport",
+      "titulo": "Ford EcoSport seminova em Curitiba",
+      "paragrafos": [
+        "A EcoSport inventou o SUV compacto no Brasil e passou uma década sendo comprada por dois públicos muito diferentes: família e frota. Cinco passaram por aqui, de 2012 a 2019, e duas foram vendidas — é um carro que sai. O que a gente olha primeiro nele é justamente qual das duas vidas ele teve.",
+        "Quilometragem alta numa EcoSport não é problema por si só; quilometragem alta rodada em uso de frota é outra conversa, e aparece no desgaste de banco, pedal e suspensão antes de aparecer no motor. A geração 2012 em diante também trouxe o estepe na tampa traseira, que é peso na dobradiça: é um ponto que a gente confere fechado e aberto, não só na foto."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/saveiro",
+      "titulo": "Volkswagen Saveiro seminova em Curitiba",
+      "paragrafos": [
+        "A Saveiro é comprada para trabalhar, e é isso que separa uma boa de uma ruim. Cinco passaram por aqui, de 2013 a 2023 — cabine simples, estendida e dupla. O ano e a quilometragem contam pouco sozinhos: uma Saveiro que carregou peso a vida inteira e uma que carregou prancha têm a mesma idade e não têm o mesmo estado.",
+        "Por isso a caçamba e o que está embaixo dela são o primeiro exame aqui, antes do motor. Assoalho, longarinas, pontos de fixação e a altura da suspensão traseira contam a história de carga que o hodômetro não conta — e é nessa região que um reparo estrutural mal feito costuma se esconder, que é o que a perícia cautelar existe para achar."
+      ]
+    },
+    {
+      "caminho": "/carros/hyundai/hb20",
+      "titulo": "Hyundai HB20 seminovo em Curitiba",
+      "paragrafos": [
+        "O HB20 é o hatch que a Hyundai projetou e fabrica no Brasil, em Piracicaba, e isso importa mais do que parece na hora de comprar usado: peça de reposição é nacional, chega rápido e não depende de câmbio. Três passaram por aqui, de 2014 a 2022, e dois estão à venda agora.",
+        "É um carro de manutenção previsível, e o que a gente confere com atenção é o histórico de revisão — não porque ele quebre, mas porque é justamente o carro que o dono trata como eletrodoméstico e esquece. Nota de revisão, etiqueta de troca de óleo e a coerência entre quilometragem e desgaste dizem mais sobre um HB20 do que a ficha técnica."
+      ]
+    },
+    {
+      "caminho": "/carros/ford/ka",
+      "titulo": "Ford Ka seminovo em Curitiba",
+      "paragrafos": [
+        "Os Ka que passam por aqui são da última geração, 2020 e 2021 — os últimos antes de a Ford encerrar a produção no Brasil, em 2021. Três passaram pela loja e dois estão à venda. É um hatch bem resolvido de dirigir, e o mercado o precifica abaixo dos concorrentes diretos por causa da saída da marca, não por causa do carro.",
+        "Essa diferença de preço é oportunidade para quem vai usar e cautela para quem pensa em revender rápido. Peça continua existindo e a rede de assistência continua atendendo, mas a liquidez na revenda é menor — então o que a gente confere aqui é o básico feito direito: procedência, histórico de manutenção e coerência de quilometragem. Comprar bem é o que compensa a revenda mais lenta."
+      ]
+    }
+  ]
+}
