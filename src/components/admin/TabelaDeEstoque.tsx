@@ -17,6 +17,7 @@ import {
   type LinhaDeEstoque,
 } from "../../lib/estoqueTabela";
 import { CAMPO_DO_ESTADO, type EstadoCadastro } from "../../lib/estadoDoCadastro";
+import { VAGAS_NA_GRADE } from "../../lib/destaquesDaSemana";
 import type { StockOverrides } from "../../types";
 
 /**
@@ -55,6 +56,7 @@ interface TabelaDeEstoqueProps {
   linhas: LinhaDeEstoque[];
   quickTagsDisponiveis: Array<{ id: string; nome: string }>;
   destacadosIniciais: string[];
+  naSemanaIniciais: string[];
   overridesIniciais: StockOverrides;
   /** `false` = GA4 sem credencial; a coluna de visitas mostra "—". */
   visitasDisponiveis: boolean;
@@ -143,6 +145,7 @@ export default function TabelaDeEstoque({
   linhas: linhasIniciais,
   quickTagsDisponiveis,
   destacadosIniciais,
+  naSemanaIniciais,
   overridesIniciais,
   visitasDisponiveis,
   podeCriar,
@@ -152,6 +155,7 @@ export default function TabelaDeEstoque({
   const [linhas, setLinhas] = useState<LinhaDeEstoque[]>(linhasIniciais);
   const [overrides, setOverrides] = useState<StockOverrides>(overridesIniciais);
   const [destacados, setDestacados] = useState<string[]>(destacadosIniciais);
+  const [naSemana, setNaSemana] = useState<string[]>(naSemanaIniciais);
 
   const [filtro, setFiltro] = useState<FiltroDeEstado>("todos");
   const [busca, setBusca] = useState("");
@@ -309,6 +313,28 @@ export default function TabelaDeEstoque({
     if (!ok) {
       setDestacados(anterior);
       setLinhas((prev) => prev.map((l) => ({ ...l, destacado: anterior.includes(l.id) })));
+    }
+  };
+
+  /** A curadoria da GRADE da home. Gêmea de `alternarDestaqueNaHome`, que
+   *  cuida do banner — duas listas, dois destinos, o mesmo caminho de salvar. */
+  const alternarDestaqueDaSemana = async (marcar: boolean) => {
+    if (selecionadosVisiveis.length === 0) return;
+    const proximos = marcar
+      ? [...new Set([...naSemana, ...selecionadosVisiveis])]
+      : naSemana.filter((id) => !selecionadosVisiveis.includes(id));
+
+    const anterior = naSemana;
+    setNaSemana(proximos);
+    setLinhas((prev) => prev.map((l) => ({ ...l, naSemana: proximos.includes(l.id) })));
+
+    const ok = await salvarSettings(
+      { destaquesDaSemana: proximos },
+      marcar ? "Postos nos destaques da semana" : "Tirados dos destaques da semana",
+    );
+    if (!ok) {
+      setNaSemana(anterior);
+      setLinhas((prev) => prev.map((l) => ({ ...l, naSemana: anterior.includes(l.id) })));
     }
   };
 
@@ -618,6 +644,29 @@ export default function TabelaDeEstoque({
             Tirar da home
           </button>
 
+          <button
+            disabled={semSelecao}
+            onClick={() => alternarDestaqueDaSemana(true)}
+            className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Pôr nos destaques da semana
+          </button>
+          <button
+            disabled={semSelecao}
+            onClick={() => alternarDestaqueDaSemana(false)}
+            className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Tirar dos destaques da semana
+          </button>
+          {naSemana.length > VAGAS_NA_GRADE && (
+            /* Campo que some sem avisar é defeito conhecido deste painel: o
+               7º carro marcado não aparece na home, e sem esta linha ninguém
+               descobre por quê. */
+            <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
+              {naSemana.length} marcados · a grade mostra {VAGAS_NA_GRADE}
+            </span>
+          )}
+
           <select
             disabled={semSelecao}
             defaultValue=""
@@ -784,6 +833,7 @@ export default function TabelaDeEstoque({
                             </span>
                           )}
                           {l.destacado && <span className="text-mt-accent">· na home</span>}
+                          {l.naSemana && <span className="text-mt-accent">· na semana</span>}
                           {l.quickTags.length > 0 && <span>· {l.quickTags.length} destaque(s)</span>}
                         </div>
                       </div>
