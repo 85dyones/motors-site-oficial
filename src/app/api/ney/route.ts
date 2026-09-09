@@ -153,15 +153,22 @@ function linha(rotulo: string, valor: string | number | null | undefined): strin
  * está publicado, e a diferença importa para quem pergunta.
  */
 function estadoDaPericia(veiculo: Veiculo): string {
-  // A ressalva vem DEPOIS de "na ficha" nas duas frases, e não por estilo:
-  // `tests/coerencia-da-pericia.test.ts` varre o repositório atrás de
-  // "laudo … na ficha" sem "aprovad" nos 60 caracteres seguintes, e pegou a
-  // primeira versão desta rota. A trava está certa — a promessa do laudo só
-  // vale com a condição colada nela, e uma frase que a carrega antes lê bem
-  // aqui e mal quando o Captain recorta o pedaço.
+  // Na frase do carro aprovado a ressalva vem DEPOIS de "na ficha", e não por
+  // estilo: `tests/coerencia-da-pericia.test.ts` varre o repositório atrás de
+  // "laudo … na ficha" sem "aprovad" na cauda, e pegou a primeira versão desta
+  // rota. A trava está certa — a promessa do laudo só vale com a condição
+  // colada nela, e uma frase que a carrega antes lê bem aqui e mal quando o
+  // Captain recorta o pedaço.
+  //
+  // A frase do carro NÃO aprovado mudou em 2026-09-09, e o motivo é de
+  // operação, não de trava: desde 08/09 a ficha desses carros manda o cliente
+  // SOLICITAR O LAUDO AO VENDEDOR. O vendedor é o Ney. Ele respondia "o laudo
+  // entra na ficha assim que aprovada" — devolvia o cliente para a página de
+  // onde ele acabou de vir, e o caminho morria no salto seguinte. Mandar de
+  // volta ao site é uma das proibições escritas nas diretrizes dele.
   return veiculo.pericia === "PERÍCIA APROVADA"
     ? "laudo na ficha do carro, perícia aprovada"
-    : "feita — todo carro passa antes da vitrine; o laudo entra na ficha assim que aprovada";
+    : "feita — todo carro passa antes da vitrine; o laudo fica com a loja e eu envio para quem pedir";
 }
 
 function ficha(veiculo: Veiculo, orcamentoDeOpcionais: number): string {
