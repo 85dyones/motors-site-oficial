@@ -25,6 +25,7 @@ export const getCachedSettings = unstable_cache(
     let instagramCuradoria = null;
     let areasHome = null;
     let ga4 = null;
+    let destaquesDaSemana = null;
     let fetchedFromSupabase = false;
 
     // A chave de SERVIÇO é a primeira opção, não um extra.
@@ -67,6 +68,10 @@ export const getCachedSettings = unstable_cache(
           const quickTagsRow = data.find((row) => row.id === "quick_tags");
           const stockOverridesRow = data.find((row) => row.id === "stock_overrides");
           const carouselRow = data.find((row) => row.id === "carousel_vehicles");
+          // A curadoria da GRADE da home ("Destaques da semana"), separada da
+          // do banner de propósito: o dono pediu listas independentes para não
+          // repetir na mesma tela o carro que acabou de passar no carrossel.
+          const destaquesDaSemanaRow = data.find((row) => row.id === "destaques_da_semana");
           const bankBalancesRow = data.find((row) => row.id === "bank_balances");
           const procedenciaRow = data.find((row) => row.id === "procedencia");
           const instagramRow = data.find((row) => row.id === "instagram_curadoria");
@@ -85,6 +90,7 @@ export const getCachedSettings = unstable_cache(
           if (quickTagsRow) quickTags = quickTagsRow.data;
           if (stockOverridesRow) stockOverrides = stockOverridesRow.data;
           if (carouselRow) carouselVehicleIds = carouselRow.data;
+          if (destaquesDaSemanaRow) destaquesDaSemana = destaquesDaSemanaRow.data;
           if (bankBalancesRow) bankBalances = bankBalancesRow.data;
           if (procedenciaRow) procedencia = procedenciaRow.data;
           if (instagramRow) instagramCuradoria = instagramRow.data;
@@ -123,6 +129,7 @@ export const getCachedSettings = unstable_cache(
       instagramCuradoria,
       areasHome,
       ga4,
+      destaquesDaSemana,
     };
   },
   ["site-settings"],
