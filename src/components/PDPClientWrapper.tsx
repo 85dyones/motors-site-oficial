@@ -1232,8 +1232,17 @@ export default function PDPClientWrapper({
               fica com a loja — dizer "é publicado aqui assim que aprovado" só
               se cumpria nas fichas em que o feed traz a perícia aprovada; nas
               outras virava espera sem prazo, que é o defeito que este bloco
-              veio corrigir. O caminho agora é o vendedor, a qualquer tempo. */}
-          {!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && (
+              veio corrigir. O caminho agora é o vendedor, a qualquer tempo.
+
+              E por isso o bloco passou a olhar `indisponivel` (09/09): "a
+              qualquer tempo" é compromisso em aberto, e na ficha de um carro
+              VENDIDO — que fica no ar durante a carência — ele ficava ao lado
+              de um botão que já diz "CONSULTAR SIMILARES". Prometer laudo de
+              carro que saiu do pátio não ajuda ninguém a decidir nada; aqui o
+              silêncio é honesto, porque não há mais compra para apoiar. O
+              bloco do laudo APROVADO segue aparecendo no vendido: aquele é
+              documento que existe e está publicado, não promessa. */}
+          {!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && (
           <div className="px-4 md:px-0 print:px-0">
             <div className="bg-brand-card border border-brand-card-border p-5 max-sm:p-4 print-avoid-break">
               <p className="uppercase tracking-widest text-sm max-sm:text-xs font-black text-brand-text">

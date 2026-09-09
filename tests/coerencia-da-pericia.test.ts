@@ -179,6 +179,19 @@ describe("a ficha diz o estado real da perícia", () => {
        prometia o laudo, e a ficha não explicava a ausência. */
     expect(pdp).toContain('!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA")');
     expect(pdp).toContain("Laudo cautelar");
+    /* ...mas cala no carro que já saiu (09/09). Desde que o bloco passou a
+       dizer "solicite ao vendedor a qualquer tempo", ele virou compromisso em
+       aberto, e numa ficha de VENDIDO — que fica no ar durante a carência —
+       ficava ao lado do botão "CONSULTAR SIMILARES". Aqui o silêncio é
+       honesto: não há compra para apoiar.
+
+       Isto prende a expressão, e não o comportamento, porque o componente é
+       lido como fonte no arquivo inteiro. Quem reordenar a guarda vai ver
+       este teste falhar — o que se quer é que a remoção do gate não passe
+       calada, não que a linha nunca mude. */
+    expect(pdp, "o bloco pendente deixou de olhar se o carro já saiu").toContain(
+      "!indisponivel && !(veiculo.laudo_pericia",
+    );
   });
 
   it("o texto fala do LAUDO, e não inventa estado da perícia", () => {
