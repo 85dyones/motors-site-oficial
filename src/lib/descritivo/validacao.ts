@@ -80,15 +80,27 @@ const VOCABULARIO =
  * NÃO pode entrar aqui o verbo "passou" sozinho: é a frase-mãe do
  * posicionamento da loja ("o carro que passou", "de cada dez avaliados, três
  * passam") e fala do FILTRO DE SELEÇÃO da loja, não da perícia. Proibir os
- * SUBSTANTIVOS — perícia, laudo, cautelar, vistoria, inspeção — resolve os
- * dois lados de uma vez: "Passou na perícia cautelar" reprova por conter
- * "perícia" e "cautelar"; "o carro que passou" não contém nenhum dos cinco e
- * segue de pé.
+ * SUBSTANTIVOS — perícia, laudo, cautelar, vistoria, inspeção, perito —
+ * resolve os dois lados de uma vez: "Passou na perícia cautelar" reprova por
+ * conter "perícia" e "cautelar"; "o carro que passou" não contém nenhum
+ * deles e segue de pé.
  *
  * `\b` na frente de cada termo — sem ela, "laudo" reprovaria "aplaudo".
+ *
+ * Ampliado em 09/09/2026 (item menor do portão): a lista original não pegava
+ * "inspeções" (plural com "õ" — "inspe[çc][ãa]o" exige literalmente "ão", e o
+ * plural de palavra em "-ção" é "-ções", nunca "-ãoes"), nem os verbos
+ * "inspecionado"/"inspecionar" (raiz "inspecion", com "c" antes de "i" — outra
+ * grafia da mesma "inspeção"), nem "perito"/"peritagem" (raiz "perit",
+ * diferente de "períci" — mesmo assunto, palavra distinta), nem "revistoriado"
+ * (o prefixo "re-" quebra o `\b` que precede "vistoria"). Cada termo novo
+ * ganhou seu próprio `\b`, pela mesma razão do de cima: "revistoria" tem
+ * fronteira própria em vez de a de "vistoria" ser removida, porque remover
+ * fronteira reabriria o risco que "aplaudo" já mostrou — um `\w*` sem `\b`
+ * também casaria por dentro de palavra nenhuma relacionada.
  */
 const MENCIONA_PERICIA =
-  /\bper[íi]ci\w*|\blaudo\w*|\bcautelar\w*|\bvistoria\w*|\binspe[çc][ãa]o\w*/i;
+  /\bper[íi]ci\w*|\bperit\w*|\blaudo\w*|\bcautelar\w*|\bvistoria\w*|\brevistoria\w*|\binspe[çc](?:[ãa]o|[õo]es)\w*|\binspecion\w*/i;
 
 const STATUS_INTERNO = /em an[áa]lise|\bpendente\b|aguardando/i;
 

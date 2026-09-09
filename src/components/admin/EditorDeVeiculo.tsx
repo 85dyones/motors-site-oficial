@@ -1209,7 +1209,6 @@ export default function EditorDeVeiculo({
               {podeGravar("laudo_pericia") && (
                 <SugestaoDeLaudoPadrao
                   pericia={v.pericia}
-                  valorAtual={v.laudo_pericia}
                   onUsar={(t) => set("laudo_pericia", t)}
                 />
               )}

@@ -154,6 +154,10 @@ describe("regra: perícia", () => {
     "O carro que passou pela seleção da Motors Store.",
     "De cada dez avaliados, três passam.",
     "SUV cinza com 70.700 km e câmbio automático, procedência rastreada.",
+    // Item menor do portão (09/09/2026): "laudo" é substring de "aplaudo", e
+    // sem o `\b` na frente do termo a régua reprovaria um elogio à loja.
+    "Eu aplaudo o cuidado da loja com cada carro que entra na vitrine.",
+    "Dá vontade de aplaudir o cuidado da loja com cada carro na entrega.",
   ];
 
   it.each(NAO_FALAM_DE_PERICIA)("NÃO reprova — não fala de perícia: %s", (frase) => {
@@ -201,6 +205,23 @@ describe("regra: perícia", () => {
     ["PERICIA (maiúsculo, sem acento)", "Item PERICIA aprovado pela loja."],
     ["inspecao (sem cedilha nem til)", "Fizemos inspecao completa ontem."],
   ])("reprova por conter '%s'", (_termo, frase) => {
+    expect(motivos(frase)).toContain("perícia");
+  });
+
+  /**
+   * Item menor do portão (09/09/2026): seis formas que a lista original não
+   * pegava — plural em "-ções" (não é "-ãoes"), verbo "inspecionar" (raiz com
+   * "c", não "ç"), a raiz "perit" (palavra diferente de "períci") e o prefixo
+   * "re-" quebrando o `\b` de "vistoria".
+   */
+  it.each([
+    ["inspeções (plural com õ)", "O pátio passou por inspeções rigorosas este mês."],
+    ["inspecionado", "Todo carro chega inspecionado antes da vitrine."],
+    ["inspecionar", "A equipe volta a inspecionar o veículo na entrada."],
+    ["perito", "Um perito credenciado assinou o exame."],
+    ["peritagem", "A peritagem foi concluída na semana passada."],
+    ["revistoriado", "O carro foi revistoriado depois do reparo."],
+  ])("reprova por conter '%s' (item menor, ampliação de 09/09/2026)", (_termo, frase) => {
     expect(motivos(frase)).toContain("perícia");
   });
 });

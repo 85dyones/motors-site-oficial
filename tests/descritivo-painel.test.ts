@@ -166,48 +166,59 @@ describe("SugestaoDeTexto", () => {
 /**
  * O painel do campo "Laudo cautelar" — sem IA, sem `fetch`, sem estado de
  * carregamento. A frase está pronta no primeiro render; só falta provar que
- * ela aparece (ou não) e que "usar"/"limpar" nunca disparam sozinhos.
+ * ela aparece (ou não) e que "usar" nunca dispara sozinho.
+ *
+ * C1 do portão de qualidade (09/09/2026): a versão anterior do ramo sem
+ * perícia aprovada afirmava "este campo fica vazio quando a perícia não está
+ * aprovada" e oferecia um botão "Limpar" quando já havia texto — as duas
+ * coisas desfaziam a migração `20260901120000_laudo_cautelar_texto_padrao`,
+ * que preencheu `laudo_pericia` de propósito em toda linha vazia, aprovada
+ * ou não, e cuja escrita não tem volta pelo caminho normal (a allowlist do
+ * sync não inclui `laudo_pericia`). Os testes abaixo agora travam a AUSÊNCIA
+ * de qualquer botão de escrita ou limpeza nesse ramo — não mais a presença
+ * condicional de "limpar".
  */
 describe("SugestaoDeLaudoPadrao", () => {
-  function montarLaudo(pericia: string | null, valorAtual: string | null, onUsar: (t: string) => void = () => {}) {
+  function montarLaudo(pericia: string | null, onUsar: (t: string) => void = () => {}) {
     act(() => {
-      root.render(createElement(SugestaoDeLaudoPadrao, { pericia, valorAtual, onUsar }));
+      root.render(createElement(SugestaoDeLaudoPadrao, { pericia, onUsar }));
     });
   }
 
   it("perícia aprovada: oferece a frase padrão e um botão para usá-la", () => {
-    montarLaudo("Aprovado", null);
+    montarLaudo("Aprovado");
     expect(naTela()).toContain(LAUDO_APROVADO_PADRAO);
     expect(() => botao("usar este texto")).not.toThrow();
   });
 
   it("a frase entregue ao clicar é exatamente a constante — nada de paráfrase", async () => {
     const usados: string[] = [];
-    montarLaudo("Aprovado", null, (t) => usados.push(t));
+    montarLaudo("Aprovado", (t) => usados.push(t));
     await clicar(botao("usar este texto"));
     expect(usados).toEqual([LAUDO_APROVADO_PADRAO]);
   });
 
-  it("perícia em análise: NÃO oferece botão de preencher", () => {
-    montarLaudo("Em análise", null);
+  it("perícia em análise: NÃO oferece botão nenhum — nem preencher, nem limpar", () => {
+    montarLaudo("Em análise");
     expect(() => botao("usar este texto")).toThrow();
-    expect(naTela().toLowerCase()).toContain("fica vazio quando a perícia não está aprovada");
-  });
-
-  it("perícia em análise, campo já com texto: oferece limpar", async () => {
-    const usados: string[] = [];
-    montarLaudo("Em análise", "Texto antigo de uma perícia que já foi aprovada.", (t) => usados.push(t));
-    await clicar(botao("limpar"));
-    expect(usados).toEqual([""]);
-  });
-
-  it("perícia em análise, campo vazio: NÃO oferece limpar — nada para limpar", () => {
-    montarLaudo("Em análise", null);
     expect(() => botao("limpar")).toThrow();
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it("perícia em análise: a nota explica que o padrão já está preenchido e que preencher não é exibir", () => {
+    montarLaudo("Em análise");
+    const tela = naTela().toLowerCase();
+    expect(tela).toContain("já tem o texto padrão desde 01/09");
+    expect(tela).toContain("preencher não é exibir");
+  });
+
+  it("perícia em análise: não afirma mais que o campo 'fica vazio' — isso deixou de ser verdade em 01/09", () => {
+    montarLaudo("Em análise");
+    expect(naTela().toLowerCase()).not.toContain("fica vazio quando a perícia não está aprovada");
   });
 
   it("perícia aprovada NÃO oferece limpar — o caminho ali é 'usar', nunca apagar", () => {
-    montarLaudo("Aprovado", "Algum texto já escrito.");
+    montarLaudo("Aprovado");
     expect(() => botao("limpar")).toThrow();
   });
 });
@@ -286,11 +297,11 @@ describe("os dois painéis, atrás da permissão do editor", () => {
    */
   it("marketing vê também o painel do laudo padrão", async () => {
     await abrirAbaDeTexto(["marketing"]);
-    expect(naTela().toLowerCase()).toContain("fica vazio quando a perícia não está aprovada");
+    expect(naTela().toLowerCase()).toContain("preencher não é exibir");
   });
 
   it("gestor não vê o painel do laudo padrão", async () => {
     await abrirAbaDeTexto(["gestor"]);
-    expect(naTela().toLowerCase()).not.toContain("fica vazio quando a perícia não está aprovada");
+    expect(naTela().toLowerCase()).not.toContain("preencher não é exibir");
   });
 });

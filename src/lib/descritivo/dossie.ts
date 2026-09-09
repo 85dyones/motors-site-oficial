@@ -30,7 +30,6 @@ export const ROTULOS = {
   donos: "Donos anteriores",
   garantia: "Garantia de fábrica",
   opcionais: "Opcionais declarados",
-  laudo: "Laudo da perícia",
 } as const;
 
 export type Rotulo = (typeof ROTULOS)[keyof typeof ROTULOS];
@@ -59,7 +58,6 @@ export type VeiculoParaDossie = {
   donos_anteriores?: number | string | null;
   garantia_fabrica?: string | null;
   pericia?: string | null;
-  laudo_pericia?: string | null;
   opcionais?: string | null;
 };
 
@@ -103,10 +101,20 @@ export function montarDossie(v: VeiculoParaDossie): Dossie {
 
   const periciaAprovada = formatPericia(v.pericia ?? "") === "PERÍCIA APROVADA";
 
-  // O laudo só entra COM a perícia aprovada. O X1 7803195 é o caso real: a
-  // perícia está "Em análise" e o laudo descreve um exame completo — passá-lo
-  // ao modelo é convidar a afirmação que a régua acabou de negar.
-  if (periciaAprovada) por(ROTULOS.laudo, v.laudo_pericia);
+  // I3 do portão de qualidade (09/09/2026): o laudo NUNCA entra no dossiê,
+  // com a perícia aprovada ou não — removido, não mais condicionado. Até
+  // aqui, com a perícia aprovada, o rótulo "Laudo da perícia" entrava com o
+  // texto CRU de `laudo_pericia`, três linhas antes de `montarEntrada`
+  // (`briefing.ts`) proibir o modelo de mencionar laudo em qualquer
+  // hipótese — instrução contraditória no mesmo prompt, com o lado que
+  // empurra para a violação servido como fato rotulado. Agravante medido:
+  // `laudo_pericia` carrega fatos FORA do dossiê estruturado — um laudo que
+  // diz "Garantia de fábrica ativa até julho de 2026" fornece a garantia
+  // dentro da linha do laudo, driblando a proibição condicional de
+  // `ROTULOS.garantia`. O modelo não precisa do laudo para nada: o assunto
+  // já tem frase padrão própria (`laudoPadraoDe`, em `laudoPadrao.ts`) e
+  // nunca deve aparecer no texto do anúncio. `laudo_pericia` saiu de
+  // `VeiculoParaDossie` junto — o dossiê não lê mais esse campo.
 
   return { linhas, periciaAprovada, opcionais };
 }

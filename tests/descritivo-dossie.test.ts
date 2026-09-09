@@ -59,18 +59,29 @@ describe("montarDossie", () => {
   });
 
   /**
+   * I3 do portão de qualidade (09/09/2026): o laudo NUNCA entra no dossiê,
+   * com a perícia aprovada ou não. Até aqui só a perícia "Em análise" era
+   * coberta por teste — o caso aprovado (abaixo) ainda EXIGIA o laudo no
+   * texto, o oposto do que devia. O rótulo "Laudo da perícia" entrava com o
+   * texto CRU de `laudo_pericia`, e o prompt em `briefing.ts` proíbe
+   * mencionar laudo em qualquer hipótese, três linhas abaixo — instrução
+   * contraditória no mesmo pedido. Agravante: `laudo_pericia` pode carregar
+   * fatos fora do dossiê estruturado (ex.: "Garantia de fábrica ativa até
+   * julho de 2026"), furando a proibição condicional de `ROTULOS.garantia`.
+   *
    * O X1 7803195 é o caso real: `pericia` está "Em análise", mas
-   * `laudo_pericia` descreve um exame completo. Passar esse texto ao modelo é
-   * convidar a afirmação que a régua acabou de negar.
+   * `laudo_pericia` descreve um exame completo.
    */
-  it("não passa o laudo ao dossiê enquanto a perícia não estiver aprovada", () => {
+  it("não passa o laudo ao dossiê com a perícia em análise", () => {
     const texto = dossieEmTexto(montarDossie(X1));
     expect(texto).not.toContain("Laudo cautelar completo");
+    expect(texto).not.toContain("Laudo da perícia");
   });
 
-  it("passa o laudo quando a perícia está aprovada", () => {
+  it("não passa o laudo ao dossiê nem com a perícia aprovada — o modelo não precisa dele", () => {
     const texto = dossieEmTexto(montarDossie({ ...X1, pericia: "Aprovado" }));
-    expect(texto).toContain("Laudo cautelar completo");
+    expect(texto).not.toContain("Laudo cautelar completo");
+    expect(texto).not.toContain("Laudo da perícia");
   });
 
   it("quebra os opcionais em lista", () => {

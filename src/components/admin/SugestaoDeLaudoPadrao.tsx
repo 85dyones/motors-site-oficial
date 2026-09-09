@@ -15,20 +15,29 @@ import { laudoPadraoDe } from "../../lib/descritivo/laudoPadrao";
  * `fetch`, ficou mais simples que encaixar um modo "sem IA" dentro de
  * `SugestaoDeTexto` — ver o relatório da tarefa para o porquê por extenso.
  *
- * O invariante continua o mesmo dos outros dois painéis: nada é escrito no
- * campo sem clique. Com a perícia aprovada, a frase aparece com um botão
- * "Usar este texto". Sem a aprovação, não há botão de preencher — só a nota
- * explicando por que o campo fica vazio — e, se já houver texto ali (de uma
- * perícia que era aprovada e deixou de ser, por exemplo), um botão "Limpar"
- * que também espera o clique.
+ * O invariante: nada é escrito no campo sem clique. Com a perícia aprovada,
+ * a frase aparece com um botão "Usar este texto". Sem a aprovação, o ramo
+ * abaixo não oferece NENHUM botão — nem para preencher, nem para limpar.
+ *
+ * Correção de 09/09/2026 (C1 do portão de qualidade): a versão anterior
+ * deste ramo afirmava "este campo fica vazio quando a perícia não está
+ * aprovada" e oferecia um botão "Limpar" quando já havia texto. As duas
+ * coisas desfaziam a migração `20260901120000_laudo_cautelar_texto_padrao`
+ * (01/09/2026), que preencheu `laudo_pericia` em toda linha vazia DE
+ * PROPÓSITO — perícia aprovada ou não, ~43 veículos "Em análise" inclusos.
+ * "Limpar" apagaria esse texto padrão ou, pior, uma customização como a da
+ * Saveiro 8358193 — a própria migração a nomeia como "o caso que uma
+ * migração descuidada apagaria" — sem caminho de volta, porque a allowlist
+ * do sync não inclui `laudo_pericia`. A premissa que faltava: PREENCHER NÃO
+ * É EXIBIR. `PDPClientWrapper` só abre o bloco do laudo na ficha quando há
+ * texto E a perícia do feed lê como aprovada — então nada é afirmado ao
+ * cliente enquanto o exame não fecha, com o campo preenchido ou não.
  */
 export function SugestaoDeLaudoPadrao({
   pericia,
-  valorAtual,
   onUsar,
 }: {
   pericia: string | null | undefined;
-  valorAtual: string | null | undefined;
   onUsar: (texto: string) => void;
 }) {
   const frase = laudoPadraoDe(pericia);
@@ -53,21 +62,13 @@ export function SugestaoDeLaudoPadrao({
   return (
     <div className="mt-3 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5">
       <p className="text-[11px] leading-relaxed text-mt-neutral-700">
-        Este campo fica vazio quando a perícia não está aprovada. A ficha do
-        carro já diz ao cliente que a perícia acontece e que o laudo pode ser
-        pedido ao vendedor.
+        Este campo já tem o texto padrão desde 01/09 — de propósito. Preencher
+        não é exibir: a ficha só mostra o bloco do laudo quando a perícia está
+        aprovada, e nada é afirmado ao cliente enquanto o exame não fecha.
+        Quando a perícia aprovar, o bloco acende sozinho. Aqui é o campo de
+        apontamentos específicos deste veículo — escreva algo próprio e ele
+        substitui o padrão.
       </p>
-      {valorAtual && (
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => onUsar("")}
-            className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
-          >
-            Limpar
-          </button>
-        </div>
-      )}
     </div>
   );
 }
