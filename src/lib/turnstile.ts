@@ -216,10 +216,12 @@ export const ACOES = {
   avaliacaoWhatsapp: "avaliacao_whatsapp",
   /** Formulário do hub sem estoque — "Encomende seu carro" (2026-09-08). */
   encomenda: "encomenda",
+  /** CTA das landing pages de campanha — `src/app/(campanha)/` (2026-09-08). */
+  campanha: "campanha",
 } as const;
 
 /**
- * `/api/leads` atende SEIS superfícies; todas com o mesmo valor de lead.
+ * `/api/leads` atende SETE superfícies; todas com o mesmo valor de lead.
  *
  * Esquecer de listar aqui a ação de uma superfície nova não dá erro de
  * compilação e não quebra a tela: o widget resolve o desafio, o token viaja, e
@@ -233,6 +235,7 @@ export const ACOES_DE_LEADS = [
   ACOES.popup,
   ACOES.avaliacaoWhatsapp,
   ACOES.encomenda,
+  ACOES.campanha,
 ] as const;
 
 /** `/api/avaliacao` atende uma só. */
