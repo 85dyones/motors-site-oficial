@@ -1,8 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { lerCodigo, ler } from "./fonte";
-import { TEXTO_LAUDO_PENDENTE } from "../src/lib/textoDoLaudo";
+import BlocoLaudoPendente from "../src/components/BlocoLaudoPendente";
+
+/** O que o leitor vê: marcação fora, espaço normalizado. */
+const texto = (html: string) =>
+  html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&mdash;|&#x2014;/g, "—")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /**
  * O site tem uma verdade só sobre a perícia cautelar.
@@ -180,7 +191,12 @@ describe("a ficha diz o estado real da perícia", () => {
     /* O silêncio era o outro lado do mesmo problema: a FAQ da mesma página
        prometia o laudo, e a ficha não explicava a ausência. */
     expect(pdp).toContain('!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA")');
-    expect(pdp).toContain("Laudo cautelar");
+    /* O título mora no componente desde 09/09, então quem responde por ele é
+       a renderização — a PDP só precisa montá-lo. Procurar "Laudo cautelar"
+       na fonte da PDP passaria a medir onde o texto está escrito, não se o
+       cliente o vê. */
+    expect(pdp, "a ficha parou de montar o bloco pendente").toContain("<BlocoLaudoPendente />");
+    expect(texto(renderToStaticMarkup(createElement(BlocoLaudoPendente)))).toContain("Laudo cautelar");
     /* ...mas cala no carro que já saiu (09/09). Desde que o bloco passou a
        dizer "solicite ao vendedor a qualquer tempo", ele virou compromisso em
        aberto, e numa ficha de VENDIDO — que fica no ar durante a carência —
@@ -204,44 +220,52 @@ describe("a ficha diz o estado real da perícia", () => {
        Afirmar "em andamento" sobre exame já concluído é inventar processo a
        partir de ausência de dado — o mesmo erro do bloco do laudo aprovado,
        invertido. */
-    /* Três tentativas de janela, três furos — este é o desenho que sobrou.
+    /* QUATRO desenhos de janela furaram antes deste, e vale a lista porque
+       cada um parecia fechado no dia em que foi escrito:
 
-       1ª · recorte de "Laudo cautelar" até o primeiro `</div>`: bastava
-            embrulhar o pedido num `<div>` para o resto sair do alcance.
-       2ª · ler a constante por regex até o `;` da linha: bastava um template
-            literal para a cauda escapar; e uma SEGUNDA constante ao lado,
-            renderizada num `<p>` a mais, não passava por leitura nenhuma.
-       3ª · recorte começando no TÍTULO: o que ficasse entre o `(` da guarda e
-            o título — quatro linhas acima — nunca era lido.
+       1º · do título até o primeiro `</div>` — embrulhar o pedido num `<div>`
+            jogava o resto para fora.
+       2º · ler a constante por regex até o `;` da linha — template literal
+            fazia a cauda escapar, e uma SEGUNDA constante ao lado passava.
+       3º · recorte começando no TÍTULO — o que ficasse entre o `(` da guarda
+            e o título, quatro linhas acima, nunca era lido.
+       4º · recorte da guarda até o primeiro `\n          )}` — este arquivo
+            não indenta corpo de condicional, então um condicional aninhado
+            fecha na mesma coluna e trunca a janela. E `{OBJ.prop}`,
+            `{fn(x)}` ou um `<Componente />` nunca entravam na lista de
+            interpolações conferidas.
 
-       O que fecha as três: o texto é IMPORTADO (nada de garimpo na fonte), o
-       recorte começa na GUARDA e vai até o `)}` que fecha o bloco, e dentro
-       dele a única interpolação aceita é a do texto conferido. Assim não
-       existe canto do bloco fora de vista, nem porta dos fundos por onde uma
-       frase nova entre sem passar pelas guardas.
+       Todos ficaram VERDES com um `<p>` afirmando "foi aprovado, sem
+       apontamento" na tela do cliente. A conclusão é a mesma das quatro
+       vezes: recorte de fonte por texto tem sempre uma borda a mais, e a
+       falha é silenciosamente PERMISSIVA — a janela encolhe e ninguém avisa.
 
-       A condição da guarda sai do recorte de propósito: ela contém "PERÍCIA
-       APROVADA" e acusaria a si mesma. */
-    const CONDICAO = '!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA")';
-    const guarda = pdp.indexOf(CONDICAO);
-    expect(guarda, "a guarda do bloco pendente sumiu").toBeGreaterThan(-1);
-    const fecho = pdp.indexOf("\n          )}", guarda);
-    expect(fecho, "não achei o fim do bloco pendente").toBeGreaterThan(guarda);
-    const jsx = pdp.slice(guarda, fecho).replace(CONDICAO, "").replace(/\s+/g, " ");
+       Então o bloco virou componente e aqui se RENDERIZA. O que se mede é o
+       que chega na tela: `div` a mais, condicional aninhado, objeto, chamada
+       de função ou componente filho — tudo aparece no texto renderizado.
 
-    /* A fiação, que a extração deixou nua: constante que ninguém renderiza
-       passa em qualquer asserção de texto. Exigir que a ÚNICA interpolação do
-       bloco seja esta cobre as duas pontas de uma vez — prova que o texto é
-       usado aqui dentro, e barra `{OUTRA_CONSTANTE}` entrando ao lado. */
-    expect(jsx.match(/\{[A-Za-z_$][\w$]*\}/g) ?? [], "interpolação não conferida dentro do bloco").toEqual([
-      "{TEXTO_LAUDO_PENDENTE}",
-    ]);
+       Da fonte sobra só a FIAÇÃO, e por asserção exata em vez de janela:
+       a PDP tem que montar o bloco numa linha inteira, sozinho dentro da
+       guarda (qualquer coisa acrescentada ao lado muda a linha e reprova), e
+       a guarda tem que aparecer UMA vez (bloco duplicado com texto próprio
+       reprova). Asserção exata falha fechando; janela falha abrindo. */
+    const bloco = texto(renderToStaticMarkup(createElement(BlocoLaudoPendente)));
 
-    const bloco = TEXTO_LAUDO_PENDENTE;
-    const tudo = `${bloco} ${jsx}`;
+    const FIACAO =
+      '{!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && <BlocoLaudoPendente />}';
+    expect(pdp, "a fiação do bloco pendente mudou — confira o que entrou junto").toContain(FIACAO);
+    expect(pdp.split("BlocoLaudoPendente />").length - 1, "o bloco pendente foi montado mais de uma vez").toBe(1);
 
-    // E o bloco continua falando do laudo, em vez de virar um CTA genérico.
-    expect(bloco).toMatch(/laudo/i);
+    const tudo = bloco;
+
+    /* E o CORPO continua falando do laudo, em vez de virar um CTA genérico.
+       Sem tirar o título, esta asserção passou a se satisfazer sozinha: o
+       cabeçalho "Laudo cautelar" entra no texto renderizado, e um corpo que
+       dissesse só "agende a visita, procure a loja no Bacacheri" ficava
+       verde. Foi o preço escondido de trocar constante por renderização — a
+       bateria de mutação pegou no mesmo dia. */
+    const corpo = bloco.replace("Laudo cautelar", "").trim();
+    expect(corpo, "o corpo do bloco parou de falar do laudo").toMatch(/laudo/i);
 
     expect(tudo, "voltou a afirmar estado de processo").not.toMatch(/em andamento|em análise/i);
     /* E continua sem afirmar RESULTADO, que é o que de fato não se sabe.
