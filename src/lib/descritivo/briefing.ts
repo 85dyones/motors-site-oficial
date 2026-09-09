@@ -12,6 +12,23 @@ import type { CampoDeTexto } from "./validacao";
 export const MODELO = "gpt-4.1-mini";
 
 /**
+ * As palavras da casa — a linha "Use" do VOCABULÁRIO.
+ *
+ * `aprovado` é a única que NÃO vale para todo veículo: dizer "aprovado" de um
+ * carro cuja perícia está em análise é exatamente a afirmação que a régua de
+ * `validacao.ts` reprova. Por isso a lista é montada por veículo — ver
+ * `montarInstrucoes`.
+ */
+const PALAVRAS_DA_CASA = [
+  "passou",
+  "aprovado",
+  "selecionado",
+  "procedência",
+  "perícia cautelar independente",
+  "preço no anúncio",
+] as const;
+
+/**
  * O posicionamento da loja, aprovado pelo dono em 2026-08-17.
  *
  * É cópia deliberada de `conteudo-seo/POSICIONAMENTO.md`, e não leitura do
@@ -22,8 +39,19 @@ export const MODELO = "gpt-4.1-mini";
  * Saveiro e afirma "garantia de motor e câmbio"; medido em 08/09/2026,
  * gpt-4o-mini copiou a frase para um BMW que não tem esse dado. Exemplo fixo
  * em diretriz vira bordão.
+ *
+ * PODA POR VEÍCULO (08/09/2026): até esta correção a linha "Use" mandava usar
+ * `aprovado` para TODOS — inclusive os 49 de 85 em análise —, e ela viaja no
+ * `instructions` (system), que pesa mais que o prompt de usuário onde a
+ * proibição mora. O prompt dizia as duas coisas ao mesmo tempo, e o lado que
+ * empurrava para a violação estava no campo mais forte.
  */
-const POSICIONAMENTO = `
+function posicionamento(periciaAprovada: boolean): string {
+  const use = periciaAprovada
+    ? PALAVRAS_DA_CASA
+    : PALAVRAS_DA_CASA.filter((p) => p !== "aprovado");
+
+  return `
 A Motors Store é uma revenda de seminovos em Curitiba/PR, com showroom na Rua
 Ernesto Piazzetta, 98 — Bacacheri.
 
@@ -31,8 +59,7 @@ O ativo da loja não é o carro que ela vende, é o carro que ela RECUSA: de cad
 dez veículos avaliados, três entram. A frase-mãe é "o carro que passou".
 
 VOCABULÁRIO
-Use: passou, aprovado, selecionado, procedência, perícia cautelar
-independente, preço no anúncio.
+Use: ${use.join(", ")}.
 Nunca use: premium, luxo, exclusivo, "consulte-nos", "melhor preço",
 "procedência garantida", "o melhor estoque da região".
 
@@ -49,6 +76,7 @@ O QUE O TEXTO PRECISA FAZER
 O veículo é o assunto; a loja é o contexto. Nada de despejo de ficha técnica,
 e nada de texto institucional que serviria para qualquer carro.
 `.trim();
+}
 
 const FORMATO: Record<CampoDeTexto, string> = {
   descricao_seo: `
@@ -66,12 +94,20 @@ Comece pelo veículo e pelo fato mais forte dele, não pela loja.
 `.trim(),
 };
 
-export function montarInstrucoes(): string {
+/**
+ * O `instructions` (system) da chamada.
+ *
+ * Recebe o dossiê porque o posicionamento NÃO é o mesmo para todo veículo: a
+ * palavra `aprovado` sai da lista "Use" quando a perícia não aprovou. Sem isso
+ * o mesmo prompt mandava usar a palavra e proibia a afirmação — e a instrução
+ * que empurra para a violação ficava no campo de mais peso.
+ */
+export function montarInstrucoes(dossie: Dossie): string {
   return [
     "Você escreve anúncios de veículos para a Motors Store, revenda de seminovos em Curitiba/PR.",
     "Siga o posicionamento abaixo à risca.",
     "",
-    POSICIONAMENTO,
+    posicionamento(dossie.periciaAprovada),
   ].join("\n");
 }
 

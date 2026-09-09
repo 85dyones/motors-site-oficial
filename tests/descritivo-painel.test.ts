@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SugestaoDeTexto } from "../src/components/admin/SugestaoDeTexto";
+import EditorDeVeiculo from "../src/components/admin/EditorDeVeiculo";
 
 /**
  * A FIAÇÃO do painel de sugestão.
@@ -162,5 +163,68 @@ describe("SugestaoDeTexto", () => {
     montar();
     await clicar(botao("gerar"));
     expect(naTela().toLowerCase()).toContain("não afirma perícia aprovada");
+  });
+});
+
+/**
+ * A guarda dos dois botões, medida PELO EDITOR.
+ *
+ * O bloco acima monta `SugestaoDeTexto` direto, e por isso não alcança o que
+ * governa quem o vê: os dois painéis estão atrás de `podeGravar("descricao")` e
+ * `podeGravar("descricao_seo")` em `EditorDeVeiculo`. Montar o componente
+ * filho prova o componente, não prova a fiação — apagar as duas guardas deixava
+ * a suíte inteira verde e entregava o gerador a quem a matriz A17 nega o campo.
+ *
+ * `descricao` e `descricao_seo` estão na linha "Editar opcionais e destaques
+ * rápidos": Admin, Marketing e Comercial FAZEM; Gestor e Financeiro não veem.
+ * Marketing é o dono natural do texto, e é ele que abre esta aba.
+ *
+ * A aba "Texto e SEO" aparece para os dois perfis — o que muda é o que ela
+ * desenha —, então o teste clica nela antes de contar.
+ */
+describe("os dois painéis, atrás da permissão do editor", () => {
+  const VEICULO = {
+    id: 7803195,
+    marca: "bmw",
+    modelo: "x1",
+    versao: "sdrive 20i",
+    ano_fabricacao: 2021,
+    ano_modelo: 2022,
+    preco: 179900,
+    estado_cadastro: "publicado",
+    origem: "revendamais",
+    whatsapp_images: [],
+  };
+
+  async function abrirAbaDeTexto(perfil: string[]) {
+    await act(async () => {
+      root.render(
+        createElement(EditorDeVeiculo as never, {
+          inicial: VEICULO as never,
+          visitas30Dias: null,
+          perfil: perfil as never,
+        }),
+      );
+    });
+    await clicar(botao("texto e seo"));
+  }
+
+  /** Um por campo — o texto do botão é o mesmo nos dois, então conta-se. */
+  const paineisDeSugestao = () =>
+    Array.from(container.querySelectorAll("button")).filter((b) =>
+      (b.textContent ?? "").toLowerCase().includes("gerar sugestão"),
+    );
+
+  it("marketing vê os dois — um para cada campo de texto", async () => {
+    await abrirAbaDeTexto(["marketing"]);
+    expect(paineisDeSugestao()).toHaveLength(2);
+  });
+
+  it("gestor não vê nenhum", async () => {
+    await abrirAbaDeTexto(["gestor"]);
+    expect(paineisDeSugestao()).toHaveLength(0);
+    // Controle: a aba ABRIU. Sem isto, um zero por aba fechada passaria por
+    // guarda funcionando, e a guarda poderia estar apagada.
+    expect(naTela()).toContain("Descrição editorial");
   });
 });

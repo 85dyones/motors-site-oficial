@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { montarEntrada, MODELO } from "../src/lib/descritivo/briefing";
+import { montarEntrada, montarInstrucoes, MODELO } from "../src/lib/descritivo/briefing";
 import { gerarTexto, type Transporte } from "../src/lib/descritivo/gerar";
 import { montarDossie } from "../src/lib/descritivo/dossie";
 
@@ -19,6 +19,10 @@ const COM_TUDO = montarDossie({
   marca: "fiat", modelo: "titano", ano: 2025, preco: "170900.00",
   quilometragem: 42000, cambio: "automatico", cor: "vermelha", tipo: "Picape",
   pericia: "Aprovado", opcionais: "couro, ar digital", garantia_fabrica: "até 2027",
+  // Donos e motorização entraram em 08/09/2026: sem eles, as proibições
+  // correspondentes não tinham como ser testadas no sentido "o dado existe,
+  // some a proibição" — e eram as duas que nenhum teste do repositório citava.
+  donos_anteriores: 1, motor: "2.2 turbodiesel",
 });
 
 const respostaOk = (texto: string): Transporte => async () =>
@@ -40,15 +44,64 @@ describe("montarEntrada", () => {
   it("libera a afirmação quando o dossiê autoriza", () => {
     expect(montarEntrada(COM_TUDO, "descricao_seo")).toContain("PODE afirmar");
   });
-  it("não proíbe garantia quando o veículo tem", () => {
-    expect(montarEntrada(COM_TUDO, "descricao_seo")).not.toContain("NÃO cite garantia");
+  /**
+   * As três proibições que nasciam da AUSÊNCIA de um rótulo, cada uma nos dois
+   * sentidos.
+   *
+   * Até 08/09/2026 só a de garantia era citada, e por um `not.toContain`
+   * sozinho — asserção vácua: `not.toContain` fica verde quando a string nunca
+   * é emitida, então apagar o bloco inteiro em `briefing.ts` deixava a suíte
+   * verde. Donos e motorização não eram citadas por teste NENHUM do
+   * repositório. Sem o par (ausente → aparece / presente → some), o teste mede
+   * a própria ausência.
+   */
+  const PROIBICOES = [
+    ["garantia", "NÃO cite garantia de fábrica"],
+    ["donos", "NÃO cite número de donos"],
+    ["motorização", "NÃO descreva a motorização"],
+  ] as const;
+
+  it.each(PROIBICOES)("proíbe %s quando não há o dado", (_rotulo, frase) => {
+    expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain(frase);
   });
+  it.each(PROIBICOES)("não proíbe %s quando o veículo tem o dado", (_rotulo, frase) => {
+    expect(montarEntrada(COM_TUDO, "descricao_seo")).not.toContain(frase);
+  });
+
   it("manda o dossiê em linhas rotuladas", () => {
     expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("Cor da pintura: branca");
   });
   it("pede formato diferente para cada campo", () => {
     expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("155 caracteres");
     expect(montarEntrada(SEM_NADA, "descricao")).toContain("ABRE a página");
+  });
+});
+
+/**
+ * O `instructions` (system) — e a contradição que ele carregava.
+ *
+ * A linha "Use: passou, aprovado, ..." ia igual para os 85 veículos, inclusive
+ * os 49 em análise, enquanto o prompt de USUÁRIO proibia afirmar aprovação. Duas
+ * instruções opostas no mesmo pedido, e a que empurrava para a violação estava
+ * no campo de mais peso. A poda é por veículo.
+ */
+describe("montarInstrucoes", () => {
+  it("mantém 'aprovado' entre as palavras da casa quando a perícia aprovou", () => {
+    expect(montarInstrucoes(COM_TUDO)).toContain("Use: passou, aprovado, selecionado,");
+  });
+
+  it("poda 'aprovado' da lista 'Use' quando a perícia não aprovou", () => {
+    const i = montarInstrucoes(SEM_NADA);
+    // A lista continua inteira menos a palavra — não é a linha que sumiu.
+    expect(i).toContain("Use: passou, selecionado, procedência, perícia cautelar independente, preço no anúncio.");
+    expect(i).not.toMatch(/Use:[^\n]*aprovado/);
+  });
+
+  it("o resto do posicionamento não muda com a perícia", () => {
+    for (const dossie of [SEM_NADA, COM_TUDO]) {
+      expect(montarInstrucoes(dossie)).toContain("o carro que passou");
+      expect(montarInstrucoes(dossie)).toContain("Nunca use: premium, luxo, exclusivo");
+    }
   });
 });
 
