@@ -73,7 +73,16 @@ async function main() {
   if (args.includes("--help") || args.includes("-h")) uso();
 
   const gravar = args.includes("--gravar");
-  const [origem, slug] = args.filter((a) => !a.startsWith("--"));
+  /*
+   *  existe porque UMA foto raramente serve as três posições.
+   * A arte do banner é uma faixa 3:1 com o carro na direita; recortá-la em
+   * 1,9:1 para o card cortaria justamente o carro. Cada peça pode vir de uma
+   * foto própria, e esta opção é o que torna isso possível sem sobrescrever as
+   * outras duas.
+   */
+  const apenasIdx = args.indexOf("--apenas");
+  const apenas = apenasIdx >= 0 ? args[apenasIdx + 1] : null;
+  const [origem, slug] = args.filter((a, i) => !a.startsWith("--") && i !== apenasIdx + 1);
 
   if (!origem) uso("falta o caminho da foto");
   if (!slug) uso("falta o slug da campanha");
@@ -103,9 +112,15 @@ async function main() {
     console.log("        CMYK detectado — será convertido para sRGB");
   }
 
+  const alvos = apenas ? SAIDAS.filter((s) => s.sufixo === apenas) : SAIDAS;
+  if (apenas && alvos.length === 0) {
+    const nomes = SAIDAS.map((s) => s.sufixo).join(", ");
+    uso(`peça desconhecida: "${apenas}". Use uma de: ${nomes}`);
+  }
+
   console.log(gravar ? "\nGRAVANDO:" : "\nENSAIO (nada foi gravado):");
 
-  for (const saida of SAIDAS) {
+  for (const saida of alvos) {
     const nome = `${slug}-${saida.sufixo}.jpg`;
     const caminho = path.join(DESTINO, nome);
     const existia = fs.existsSync(caminho);

@@ -231,9 +231,16 @@ export default async function PolePosition() {
         completamente diferente deixa a página com a mesma altura ao pixel.
 
         **2:1 no celular, 3:1 no desktop.** 3:1 numa tela de 390px daria uma
-        faixa de 130px — baixa demais para se ver um carro. Como o recorte é
-        central, o assunto precisa caber nos DOIS TERÇOS centrais da foto para
-        sobreviver ao corte lateral do celular.
+        faixa de 130px — baixa demais para se ver um carro.
+
+        **`object-right`, e não `object-center`.** Na arte desta campanha o
+        carro fica entre 81% e 94% da largura, com a área lisa à esquerda. Medi:
+        o recorte 2:1 CENTRAL do celular pega de 17% a 83% da imagem — cortaria
+        o carro quase inteiro, deixando na tela só fundo vazio. Ancorado à
+        direita, o corte cai sobre a área lisa, que é o que pode se perder.
+
+        Se a próxima campanha trouxer arte com o assunto ao centro ou à
+        esquerda, é esta classe que muda.
       */}
       <div className="relative aspect-[2/1] w-full overflow-hidden md:aspect-[3/1]">
         <Image
@@ -243,7 +250,7 @@ export default async function PolePosition() {
           priority
           unoptimized
           sizes="100vw"
-          className="object-cover object-center"
+          className="object-cover object-right"
         />
       </div>
 
