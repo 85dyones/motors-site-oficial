@@ -42,10 +42,13 @@ export default function Error({
 
       <h1 className="mt-titulo mt-6">Esta página não carregou.</h1>
 
+      {/* A frase NÃO promete que fomos avisados. Enquanto `OBSERVABILIDADE`
+          estiver vazia — que é o estado em que este pacote entra — ninguém foi.
+          Página de erro que mente sobre o próprio erro é o começo de tudo que
+          este trabalho existe para corrigir. */}
       <p className="mt-6 max-w-prose text-mt-neutral-800">
-        O problema é nosso, não seu — e já fomos avisados. Tente de novo em alguns
-        segundos; se continuar, o estoque inteiro segue disponível pelo caminho de
-        sempre.
+        O problema é nosso, não seu. Tente de novo em alguns segundos; se continuar,
+        o estoque inteiro segue disponível pelo caminho de sempre.
       </p>
 
       <div className="mt-10 flex flex-wrap items-center gap-8">

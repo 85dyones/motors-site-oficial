@@ -267,6 +267,61 @@ describe("PII não vaza por acidente", () => {
     expect(corpo).not.toContain("5541999998888");
   });
 
+  it("o stack que vem PELO CONTEXTO também é higienizado", async () => {
+    /* Bloqueio B1 da revisão de 2026-09-10. `higienizar` rodava só no ramo em
+       que `detalhe` é um `Error` — e é o ramo do SERVIDOR. O caminho do
+       navegador manda `detalhe` como string e o stack por `contexto.stack`,
+       que passava cru.
+
+       É o único campo que um estranho controla, numa porta pública sem
+       autenticação e com 90 dias de retenção. E a promessa de mascaramento
+       está escrita em três lugares deste pacote: no `comment on table` da
+       migração, no docblock da costura e na §12 da spec. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "navegador:erro", "mensagem qualquer", {
+      origem: "navegador",
+      stack: "at f (/app.js) — lead 5541999998888 / silvio@motorsstore.com.br",
+    });
+
+    const linha = corpoDe(idasAoBanco(chamou)[0]);
+    expect(String(linha.stack), "telefone gravado cru").not.toContain("5541999998888");
+    expect(String(linha.stack), "e-mail gravado cru").not.toContain("silvio@motorsstore.com.br");
+  });
+
+  it("o caminho da url também é higienizado, não só a query", async () => {
+    // Ressalva R3: cortar a query não basta — PII cabe em segmento de caminho.
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "navegador:erro", "x", {
+      url: "https://motorsstore.com.br/lead/5541999998888/ficha",
+    });
+
+    expect(String(corpoDe(idasAoBanco(chamou)[0]).url)).not.toContain("5541999998888");
+  });
+
+  it("o `extra` é higienizado e tem teto", async () => {
+    /* Ressalva R2. Hoje só o hook preenche `extra`, com dado inofensivo — mas
+       o PR 3 vai pôr 43 `catch` jogando contexto de requisição aqui. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "servidor:route", "x", {
+      extra: { quem: "silvio@motorsstore.com.br", tel: "5541999998888", lixo: "x".repeat(50_000) },
+    });
+
+    const linha = corpoDe(idasAoBanco(chamou)[0]);
+    const comoTexto = JSON.stringify(linha.extra);
+    expect(comoTexto).not.toContain("5541999998888");
+    expect(comoTexto).not.toContain("silvio@motorsstore.com.br");
+    expect(comoTexto.length, "extra sem teto infla o corpo do INSERT").toBeLessThan(4000);
+  });
+
   it("a query da url é cortada — é onde mora utm, telefone e token", async () => {
     ambienteCompleto();
     const chamou = fetchDosDoisDestinos();
@@ -380,6 +435,87 @@ describe("o vigia não dorme junto com o vigiado", () => {
     /* Sem disjuntor, com o Supabase fora, CADA requisição da vitrine pagaria o
        teto de 2 s de novo — e o Next await-a o hook. */
     expect(idasAoBanco(chamou), "o disjuntor não abriu").toHaveLength(1);
+  });
+
+  it("corpo que o Postgres RECUSA não abre o disjuntor", async () => {
+    /* Bloqueio B2 da revisão de 2026-09-10, e é o mais perigoso dos dois.
+       O byte zero (NUL) e o substituto UTF-16 solto chegam ao corpo do INSERT vindos da
+       porta pública, e o Postgres os recusa com 22P05 / 22P02. O disjuntor
+       abria em QUALQUER erro — então uma requisição por minuto, de qualquer
+       pessoa, calava a fila de triagem indefinidamente E fazia o dono receber
+       "erros-indisponivel" no WhatsApp dizendo que o banco caiu.
+
+       Alerta que mente e não pode ser desligado é o "alerta que ensina a
+       pessoa a ignorar alerta" que a §1 da spec nomeia como a doença.
+
+       A régua: o banco RESPONDEU, com um código. Isso não é banco fora — é
+       dado malformado, e a culpa não é da rede. Disjuntor só para transporte. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos({
+      banco: async () =>
+        new Response(
+          JSON.stringify({ code: "22P05", message: "unsupported Unicode escape sequence" }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
+    });
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "navegador:erro", "veneno");
+    // O erro REAL, logo depois, tem de chegar ao banco.
+    await registrarFalha("quebra", "servidor:route", "erro-real-de-producao");
+
+    expect(
+      idasAoBanco(chamou),
+      "o disjuntor abriu por dado malformado e o erro real de produção se perdeu",
+    ).toHaveLength(2);
+  });
+
+  it("caractere que o Postgres recusa é saneado ANTES de gravar", async () => {
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "navegador:erro", `antes${String.fromCharCode(0)}depois`, {
+      // Substituto alto solto — o que sobra de um emoji cortado no teto.
+      stack: "cauda\ud83d",
+    });
+
+    const enviado = String((idasAoBanco(chamou)[0] as unknown as [string, RequestInit])[1].body);
+    expect(enviado, "NUL foi para o corpo do INSERT").not.toContain("\\u0000");
+    expect(enviado, "substituto solto foi para o corpo do INSERT").not.toContain("\\ud83d");
+  });
+
+  it("o que o disjuntor engoliu é CONTADO, e o número vai no aviso", async () => {
+    /* Ressalva R1: 200 erros sumiam sem número enquanto o disjuntor estava
+       aberto. O número NÃO entra em `suprimidas` de propósito — aquela coluna
+       significa "quantos erros IDÊNTICOS foram engolidos antes desta linha", e
+       somar ali perdas de outros erros corromperia o sentido dela.
+
+       Vai no texto do aviso, que é onde uma pessoa lê: "e mais 20 não
+       gravados" é a diferença entre "olho amanhã" e "paro tudo agora". Mesma
+       régua das suprimidas de `alertaDeFalha.ts`. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos({
+      banco: async () => {
+        throw new TypeError("fetch failed");
+      },
+    });
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "servidor:route", "a que derrubou");
+    for (let i = 0; i < 20; i++) {
+      await registrarFalha("quebra", `servidor:render-${i}`, "engolida pelo disjuntor");
+    }
+
+    // Passada a janela do disjuntor, a próxima falha leva a conta.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 61_000);
+    await registrarFalha("quebra", "servidor:action", "a de depois");
+    vi.useRealTimers();
+
+    const avisos = idasAoWebhook(chamou);
+    const ultimo = String((avisos[avisos.length - 1] as unknown as [string, RequestInit])[1].body);
+    expect(ultimo, "o que o disjuntor engoliu sumiu sem deixar número").toContain("20");
   });
 
   it("com os dois destinos fora, não lança", async () => {

@@ -66,8 +66,8 @@ export default function GlobalError({
           </h1>
 
           <p style={{ margin: "1.5rem 0 0", lineHeight: 1.6, color: "#44403c" }}>
-            O problema é nosso, não seu — e já fomos avisados. Tente recarregar; se
-            continuar, fale com a gente pelo WhatsApp de sempre.
+            O problema é nosso, não seu. Tente recarregar; se continuar, fale com a
+            gente pelo WhatsApp de sempre.
           </p>
 
           <div style={{ marginTop: "2.5rem", display: "flex", gap: "2rem", flexWrap: "wrap" }}>

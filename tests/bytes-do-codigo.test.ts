@@ -93,8 +93,20 @@ describe("os bytes do código", () => {
     /* Trava que varre e não acha nada fica verde para sempre. Se este número
        desabar, o problema é o varredor, não o repositório. */
     expect(arquivos.length, "a varredura não achou código").toBeGreaterThan(200);
-    expect(arquivos).toContain("src/lib/observabilidade.ts");
-    expect(arquivos).toContain("supabase/migrations/20260807210000_leads.sql");
+
+    /* Uma âncora POR ALVO, e não só duas no total.
+       A primeira versão ancorava em `src/` e em `supabase/migrations/`, e
+       sozinhos eles já passavam de 200 — então apagar `"tests"` de `ALVOS`
+       deixava o teste VERDE varrendo um terço a menos. Provado por mutação na
+       revisão de 2026-09-10.
+
+       A régua: se um alvo pode sumir sem a trava reclamar, ele não está
+       protegido — está só listado. */
+    expect(arquivos, "src/ saiu da varredura").toContain("src/lib/observabilidade.ts");
+    expect(arquivos, "tests/ saiu da varredura").toContain("tests/bytes-do-codigo.test.ts");
+    expect(arquivos, "supabase/migrations/ saiu da varredura").toContain(
+      "supabase/migrations/20260807210000_leads.sql",
+    );
   });
 
   it("nenhum arquivo carrega BOM nem byte de controle", () => {

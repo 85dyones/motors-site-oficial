@@ -79,9 +79,14 @@ export const onRequestError: Instrumentation.onRequestError = async (
       metodo: requisicao.method,
       navegador: primeiro(requisicao.headers["user-agent"]),
       ag_uid: cookie(requisicao.headers["cookie"], "ag_uid"),
-      digest: typeof erro === "object" && erro !== null && "digest" in erro
-        ? String((erro as { digest?: unknown }).digest)
-        : null,
+      // `"digest" in erro` é verdadeiro mesmo com o valor `undefined`, e aí
+      // `String(undefined)` grava a palavra "undefined" como se fosse um
+      // código real — que alguém depois procuraria na tabela.
+      digest: (() => {
+        if (typeof erro !== "object" || erro === null) return null;
+        const d = (erro as { digest?: unknown }).digest;
+        return typeof d === "string" && d ? d : null;
+      })(),
       extra: {
         renderSource: contexto.renderSource ?? null,
         revalidateReason: contexto.revalidateReason ?? null,

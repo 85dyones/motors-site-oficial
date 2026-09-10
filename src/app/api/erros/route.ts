@@ -49,14 +49,14 @@ const TETOS = { mensagem: 500, stack: 4000, url: 500, navegador: 300, digest: 64
 const TIPOS = new Set(["erro", "rejeicao", "boundary"]);
 
 let porIp: Ratelimit | null = null;
-let global: Ratelimit | null = null;
+let porTodos: Ratelimit | null = null;
 
 function limitadores() {
-  if (porIp && global) return { porIp, global };
+  if (porIp && porTodos) return { porIp, porTodos };
 
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return { porIp: null, global: null };
+  if (!url || !token) return { porIp: null, porTodos: null };
 
   try {
     const redis = new Redis({ url, token });
@@ -68,16 +68,16 @@ function limitadores() {
     // Teto GLOBAL, de chave fixa: o limite por IP não segura uma botnet, e sem
     // ele a tabela cresceria sem fim. 600/h é ~14 mil linhas por dia no pior
     // caso — muito acima do tráfego real e ainda assim finito.
-    global = new Ratelimit({
+    porTodos = new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(600, "1 h"),
       prefix: "@upstash/ratelimit/erros-global",
     });
-    return { porIp, global };
+    return { porIp, porTodos };
   } catch {
     // Redis fora é bypass, como em `src/proxy.ts:80-82`. A retenção de 90 dias
     // é a rede por baixo.
-    return { porIp: null, global: null };
+    return { porIp: null, porTodos: null };
   }
 }
 
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const { porIp: limiteIp, global: limiteGlobal } = limitadores();
+    const { porIp: limiteIp, porTodos: limiteGlobal } = limitadores();
     if (limiteIp && limiteGlobal) {
       const ip = ipDoVisitante(request as { headers: Headers }) ?? "sem-ip";
       const [umIp, todos] = await Promise.all([

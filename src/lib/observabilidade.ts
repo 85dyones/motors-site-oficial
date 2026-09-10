@@ -103,16 +103,90 @@ const CARENCIA_POR_HASH_MS = 10_000;
 const TETO_ASSUNTO = 80;
 const TETO_MENSAGEM = 2000;
 const TETO_STACK = 8000;
+/** `extra` é jsonb livre: sem teto, um `catch` distraído infla o INSERT. */
+const TETO_EXTRA = 2000;
 
 let bancoIndisponivelAte = 0;
+/** Quantos erros o disjuntor engoliu desde o último aviso. Ver `gravar`. */
+let perdidosPeloDisjuntor = 0;
 const ultimaGravacao = new Map<string, { em: number; suprimidas: number }>();
 let clienteDeServico: SupabaseClient | null = null;
 
 /** Zera disjuntor, carência e o cliente. Existe para o teste. */
 export function esquecerEstado(): void {
   bancoIndisponivelAte = 0;
+  perdidosPeloDisjuntor = 0;
   ultimaGravacao.clear();
   clienteDeServico = null;
+}
+
+/**
+ * Tira o que o Postgres RECUSA dentro de uma string JSON.
+ *
+ * Dois casos, e os dois chegam da porta pública:
+ *
+ *  - **o byte zero (NUL, 0x00)** — o Postgres devolve `22P05` ("unsupported Unicode escape
+ *    sequence"). Nenhum texto legítimo o carrega.
+ *  - **substituto UTF-16 solto** — `22P02` ("invalid input syntax for json").
+ *    É o que sobra quando um emoji é cortado ao meio pelo teto por campo:
+ *    `"a".repeat(499) + "🚗"` cortado em 500 deixa metade do par, e o
+ *    `JSON.stringify` a emite como `\ud83d`.
+ *
+ * Por que isto importa muito mais do que parece: sem saneamento, uma
+ * requisição por minuto — de qualquer pessoa, sem autenticação — fazia o
+ * INSERT ser recusado, o disjuntor abrir e a fila de triagem morrer, com o
+ * dono recebendo no WhatsApp que o banco tinha caído. Alerta que mente e não
+ * se desliga é a doença que este pacote existe para curar.
+ *
+ * Escrito com varredura explícita, e não regex: `\uD800` numa expressão
+ * regular já foi comido por camada de shell neste repositório, e o resultado
+ * foi uma regex verde casando com nada.
+ */
+function sanearParaJson(texto: string): string {
+  let saida = "";
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charCodeAt(i);
+
+    // Controle, menos tab, quebra de linha e retorno — que são legítimos num
+    // stack trace.
+    if ((c < 0x20 && c !== 9 && c !== 10 && c !== 13) || c === 0x7f) {
+      saida += " ";
+      continue;
+    }
+
+    // Substituto ALTO: só passa se o par estiver completo.
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const proximo = texto.charCodeAt(i + 1);
+      if (proximo >= 0xdc00 && proximo <= 0xdfff) {
+        saida += texto[i] + texto[i + 1];
+        i += 1;
+        continue;
+      }
+      saida += "�";
+      continue;
+    }
+
+    // Substituto BAIXO sem alto antes: órfão.
+    if (c >= 0xdc00 && c <= 0xdfff) {
+      saida += "�";
+      continue;
+    }
+
+    saida += texto[i];
+  }
+  return saida;
+}
+
+/**
+ * O tratamento completo de todo texto que vai para a tabela: mascara o que não
+ * devia ter sido escrito e tira o que o banco recusa.
+ *
+ * Uma função só, e chamada num lugar só por campo, porque a versão anterior
+ * aplicava `higienizar` em UM dos dois ramos — e o ramo esquecido era
+ * justamente o do navegador, o único que um estranho controla.
+ */
+function limpar(texto: string): string {
+  return sanearParaJson(higienizar(texto));
 }
 
 /**
@@ -181,6 +255,28 @@ function descrever(detalhe: unknown): { mensagem: string; stack: string | null }
   }
 }
 
+/**
+ * `extra` mascarado e com teto.
+ *
+ * Serializa uma vez, trata como texto (é assim que o PII entra: pelo VALOR,
+ * não pela chave) e devolve ao formato. Se não couber no teto, vira um
+ * marcador em vez de um objeto pela metade — jsonb truncado não é jsonb.
+ */
+function extraSeguro(extra: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!extra) return {};
+  try {
+    const texto = limpar(JSON.stringify(extra));
+    if (texto.length > TETO_EXTRA) {
+      return { truncado: true, tamanho: texto.length };
+    }
+    return JSON.parse(texto) as Record<string, unknown>;
+  } catch {
+    // Referência circular, `BigInt`, getter que lança — nada disso pode
+    // derrubar o registro de um erro que já aconteceu.
+    return { ilegivel: true };
+  }
+}
+
 /** Corta a query — é onde moram utm, telefone e token. */
 function urlSemQuery(url: string | undefined): string | null {
   if (!url) return null;
@@ -230,7 +326,16 @@ async function gravar(
 
   const agora = Date.now();
   if (agora < bancoIndisponivelAte) {
-    return { ok: false, motivo: "disjuntor aberto" };
+    /* Conta o que se perde. Sem isto, 200 erros somem enquanto o disjuntor
+       está aberto e a próxima linha gravada não diz nada sobre eles — é a
+       diferença entre "olho isso amanhã" e "paro tudo agora", que é o mesmo
+       argumento que `alertaDeFalha.ts` já usa para as suprimidas dele.
+
+       Sem `motivo`: o aviso já saiu quando o disjuntor abriu, e repeti-lo a
+       cada erro é a enxurrada que se está tentando evitar. O número viaja no
+       PRÓXIMO aviso. */
+    perdidosPeloDisjuntor += 1;
+    return { ok: false };
   }
 
   const hash = hashDeAgrupamento([assunto, mensagem]);
@@ -256,7 +361,9 @@ async function gravar(
         stack: stack ? stack.slice(0, TETO_STACK) : null,
         rota: contexto.rota ?? null,
         metodo: contexto.metodo ?? null,
-        url: urlSemQuery(contexto.url),
+        // Higienizada também no CAMINHO, não só cortada na query: PII cabe em
+        // segmento de rota (`/lead/5541999998888/ficha`).
+        url: contexto.url ? limpar(urlSemQuery(contexto.url) ?? "") : null,
         navegador: contexto.navegador ?? null,
         release: contexto.release ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
         ambiente: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "desconhecido",
@@ -265,16 +372,27 @@ async function gravar(
         lead_id: contexto.lead_id ?? null,
         hash_agrupamento: hash,
         suprimidas,
-        extra: contexto.extra ?? {},
+        // `extra` é jsonb livre. Hoje só o hook o preenche, com dado
+        // inofensivo — mas o PR 3 vai pôr 43 `catch` jogando contexto de
+        // requisição aqui, e aí ele precisa das mesmas duas garantias que os
+        // campos de texto já têm: mascarado e com teto.
+        extra: extraSeguro(contexto.extra),
       })
       .abortSignal(AbortSignal.timeout(TETO_INSERT_MS));
 
     if (error) {
-      bancoIndisponivelAte = Date.now() + DISJUNTOR_MS;
+      /* O banco RESPONDEU, e com código — `22P05`, `PGRST205`, o que for.
+         Isso NÃO é banco fora: é dado que ele recusou, ou schema que falta.
+         Abrir o disjuntor aqui deixaria qualquer visitante calar a fila de
+         triagem por 60 s com um corpo malformado, e ainda fazer o dono
+         receber que o banco caiu. Disjuntor é para transporte. */
+      const bancoRespondeu = typeof error.code === "string" && error.code !== "";
+      if (!bancoRespondeu) bancoIndisponivelAte = Date.now() + DISJUNTOR_MS;
       return { ok: false, motivo: error.message };
     }
     return { ok: true };
   } catch (erro) {
+    // Aqui é transporte de verdade: `fetch` estourou, ou o teto abortou.
     bancoIndisponivelAte = Date.now() + DISJUNTOR_MS;
     return { ok: false, motivo: erro instanceof Error ? erro.message : String(erro) };
   }
@@ -300,8 +418,19 @@ export async function registrarFalha(
 ): Promise<void> {
   try {
     const bruto = descrever(detalhe);
-    const mensagem = higienizar(bruto.mensagem);
-    const stack = bruto.stack ? higienizar(bruto.stack) : (contexto.stack ?? null);
+    const mensagem = limpar(bruto.mensagem);
+
+    /* ⚠️ O stack tem DUAS origens, e a versão anterior tratava só uma.
+       `bruto.stack` é o do servidor, quando `detalhe` é um `Error`.
+       `contexto.stack` é o do NAVEGADOR: a porta pública manda `detalhe` como
+       string, então `bruto.stack` vem nulo e tudo entra por aqui.
+
+       O ramo esquecido era justamente o único que um estranho controla, numa
+       rota sem autenticação e com 90 dias de retenção. Por isso `limpar` é
+       aplicado ao RESULTADO da escolha, e não dentro de um dos ramos: não há
+       caminho que escape. */
+    const stackBruto = bruto.stack ?? contexto.stack ?? null;
+    const stack = stackBruto ? limpar(stackBruto) : null;
 
     const tarefas: Promise<unknown>[] = [];
 
@@ -312,11 +441,18 @@ export async function registrarFalha(
     if (natureza === "quebra" || natureza === "ambos") {
       tarefas.push(
         gravar(natureza, assunto, mensagem, stack, contexto).then(async (r) => {
-          // A gravação falhou. O aviso sai pelo outro caminho — e com assunto
-          // próprio, para ter carência independente e não se confundir com o
-          // erro original.
+          /* A gravação falhou. O aviso sai pelo outro caminho — e com assunto
+             próprio, para ter carência independente e não se confundir com o
+             erro original.
+
+             O número de perdidos vai junto: uma mensagem dizendo "e mais 200
+             não gravados" informa mais, e incomoda menos, que 200 mensagens.
+             É a mesma régua de `alertaDeFalha.ts`. */
           if (!r.ok && r.motivo) {
-            await alertarFalha("erros-indisponivel", `${assunto}: ${r.motivo}`);
+            const perdidos = perdidosPeloDisjuntor;
+            perdidosPeloDisjuntor = 0;
+            const cauda = perdidos > 0 ? ` — e ${perdidos} não gravado(s) desde o último aviso` : "";
+            await alertarFalha("erros-indisponivel", `${assunto}: ${r.motivo}${cauda}`);
           }
         }),
       );
