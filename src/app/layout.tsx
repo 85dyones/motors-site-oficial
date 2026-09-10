@@ -9,6 +9,7 @@ import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite, { AvisoLegalDoSite } from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import CamadaDeDados from "../components/CamadaDeDados";
+import CapturaDeErros from "../components/CapturaDeErros";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
@@ -181,6 +182,15 @@ export default async function RootLayout({
           <CamadaDeDados />
           <IntegrationsTracker />
           <AntigravityTracker />
+          {/* Depois do rastreamento, e de propósito: o que traz o lead vem
+              primeiro na fila de montagem. A env é de SERVIDOR — lida aqui e
+              passada por prop, em vez de `NEXT_PUBLIC_`, para que a mesma
+              variável sirva a este componente, a `/api/erros` e ao ramo de
+              gravação da costura. */}
+          <CapturaDeErros
+            ativo={process.env.OBSERVABILIDADE === "1"}
+            release={process.env.VERCEL_GIT_COMMIT_SHA ?? null}
+          />
           <MolduraDoSite>
             <Header />
           </MolduraDoSite>
