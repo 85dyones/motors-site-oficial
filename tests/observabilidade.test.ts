@@ -462,6 +462,140 @@ describe("os interruptores", () => {
   });
 });
 
+describe("o hook do servidor", () => {
+  /**
+   * `onRequestError` é hook NATIVO do Next — não precisa de SDK e não toca o
+   * `next.config.ts`, que carrega o redirect do alias de que quatro workflows
+   * do n8n dependem.
+   *
+   * O Next **await-a** esta função (`base-server.js:450`), então o teto de
+   * gravação entra no tempo da resposta de erro. É a razão do disjuntor.
+   */
+  const REQUISICAO = {
+    path: "/estoque?utm_source=meta&telefone=5541999998888",
+    method: "GET",
+    headers: {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0)",
+      cookie: "ag_uid=ag-abc123; sb-zwbq-auth-token=SEGREDO-DA-SESSAO-DO-STAFF",
+      authorization: "Bearer TOKEN-QUE-NAO-PODE-VAZAR",
+    },
+  } as const;
+
+  const CONTEXTO = {
+    routerKind: "App Router",
+    routePath: "/estoque",
+    routeType: "render",
+    renderSource: "server-rendering",
+    revalidateReason: undefined,
+  } as const;
+
+  async function hookLimpo() {
+    vi.resetModules();
+    return import("../src/instrumentation");
+  }
+
+  it("grava a rota, o método e o tipo — e o assunto é o routeType", async () => {
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { onRequestError } = await hookLimpo();
+
+    await onRequestError(new Error("estourou no render"), REQUISICAO, CONTEXTO);
+
+    const linha = corpoDe(idasAoBanco(chamou)[0]);
+    /* `routerKind` seria sempre "App Router" e não distinguiria nada.
+       `routeType` separa render de route, de action e de proxy — que é a
+       primeira pergunta de quem abre a triagem. */
+    expect(linha.assunto).toBe("servidor:render");
+    expect(linha.rota).toBe("/estoque");
+    expect(linha.metodo).toBe("GET");
+    expect(linha.origem).toBe("servidor");
+  });
+
+  it("leva o ag_uid do cookie — o elo com quem virou lead", async () => {
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { onRequestError } = await hookLimpo();
+
+    await onRequestError(new Error("x"), REQUISICAO, CONTEXTO);
+
+    expect(corpoDe(idasAoBanco(chamou)[0]).ag_uid).toBe("ag-abc123");
+  });
+
+  it("NUNCA leva o cookie de sessão nem o Authorization", async () => {
+    /* `headers` é um dicionário inteiro, e nele vem o `sb-*-auth-token` de
+       quem está logado no painel. Gravar o dict é gravar a sessão do staff
+       numa tabela que a própria equipe consulta. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { onRequestError } = await hookLimpo();
+
+    await onRequestError(new Error("x"), REQUISICAO, CONTEXTO);
+
+    const inteiro = JSON.stringify(corpoDe(idasAoBanco(chamou)[0]));
+    expect(inteiro, "a sessão do staff foi gravada").not.toContain("SEGREDO-DA-SESSAO-DO-STAFF");
+    expect(inteiro, "o Authorization foi gravado").not.toContain("TOKEN-QUE-NAO-PODE-VAZAR");
+    // O user-agent pode: é o que diz em qual navegador o defeito acontece.
+    expect(inteiro).toContain("Mozilla/5.0");
+  });
+
+  it("a query da url não é gravada", async () => {
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { onRequestError } = await hookLimpo();
+
+    await onRequestError(new Error("x"), REQUISICAO, CONTEXTO);
+
+    const linha = corpoDe(idasAoBanco(chamou)[0]);
+    expect(linha.url).toBe("/estoque");
+    expect(JSON.stringify(linha)).not.toContain("5541999998888");
+  });
+
+  it("o digest viaja — é o que liga esta linha à do navegador", async () => {
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { onRequestError } = await hookLimpo();
+
+    const erro = Object.assign(new Error("x"), { digest: "3350458554" });
+    await onRequestError(erro, REQUISICAO, CONTEXTO);
+
+    expect(corpoDe(idasAoBanco(chamou)[0]).digest).toBe("3350458554");
+  });
+
+  it("erro DENTRO de /api/erros não se realimenta", async () => {
+    /* A porta de erro não pode gerar erro que volte pela própria porta: seria
+       um laço que enche a tabela sozinho. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { onRequestError } = await hookLimpo();
+
+    await onRequestError(
+      new Error("a própria porta quebrou"),
+      { ...REQUISICAO, path: "/api/erros", method: "POST" },
+      { ...CONTEXTO, routeType: "route", routePath: "/api/erros" },
+    );
+
+    expect(idasAoBanco(chamou), "a porta de erro se realimentou").toHaveLength(0);
+  });
+
+  it("não lança nem quando o destino está fora", async () => {
+    // O Next await-a o hook; se ele lançar, a resposta de erro fica pior do
+    // que já estava.
+    ambienteCompleto();
+    fetchDosDoisDestinos({
+      banco: async () => {
+        throw new TypeError("fetch failed");
+      },
+      webhook: async () => {
+        throw new TypeError("fetch failed");
+      },
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { onRequestError } = await hookLimpo();
+
+    await expect(onRequestError(new Error("x"), REQUISICAO, CONTEXTO)).resolves.toBeUndefined();
+  });
+});
+
 describe("a fronteira do módulo", () => {
   const fonte = lerCodigo("src/lib/observabilidade.ts");
 

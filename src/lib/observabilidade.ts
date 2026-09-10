@@ -79,7 +79,10 @@ export type Contexto = {
   /** O elo entre quem navegou e quem virou lead. Vem do cookie. */
   ag_uid?: string | null;
   origem?: "servidor" | "navegador";
-  navegador?: string;
+  // `null` é admitido junto com `undefined` porque quem preenche estes campos
+  // lê cabeçalho e cookie, e "não veio" ali é `null`. Obrigar `?? undefined`
+  // em cada ponto de chamada seria ruído sem ganho.
+  navegador?: string | null;
   release?: string | null;
   /** O `digest` do Next liga a linha do navegador à do servidor. */
   digest?: string | null;
