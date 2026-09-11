@@ -203,6 +203,17 @@ export default async function PrivacidadePage() {
                 <strong className="text-mt-ink">Segurança.</strong> Prevenir envio automatizado
                 de formulários, spam e uso abusivo.
               </li>
+              {/* Entra em 2026-09-11, junto da tabela `erros`. A finalidade precisa
+                  estar declarada ANTES de a coleta começar — é a régua da §2.3 do
+                  spec de observabilidade, e o motivo de este parágrafo não ter
+                  ficado para depois. */}
+              <li>
+                <strong className="text-mt-ink">Consertar o que quebra.</strong> Quando uma
+                página apresenta falha, registramos o que aconteceu — a mensagem técnica do erro,
+                o endereço da página, o navegador usado e o identificador anônimo de navegação —
+                para conseguir reproduzir e corrigir o problema. Esse registro não guarda o que
+                você digitou em formulários.
+              </li>
             </ul>
           </Secao>
 
@@ -352,12 +363,36 @@ export default async function PrivacidadePage() {
               Dados de navegação e publicidade seguem os prazos de retenção definidos pelas próprias
               plataformas Google e Meta.
             </p>
+            {/* O registro técnico de erro, e a RESSALVA que ele obriga.
+                A frase seguinte dizia, sem qualificar, que atendido o pedido não
+                fica cópia nenhuma. Com a tabela `erros` isso deixaria de ser
+                verdade: o identificador anônimo de navegação sobrevive na linha
+                técnica até a janela de 90 dias fechar. Declarar é o que torna a
+                coleta legítima; calar seria a política mentir sobre a base. */}
+            {/* O prazo vai em PROSA, sem `<strong>` ao redor do número.
+                `>90 dias<` casa com a trava "prazo renderizado como
+                estatística" de `promessa-publica.test.ts`, que existe para
+                impedir que promessa de atendimento volte em forma de número
+                solto numa superfície pública. Aqui o número é retenção legal e
+                não promessa de serviço, mas a régua olha a FORMA — e enfraquecer
+                uma guarda de página pública por causa de um negrito seria a
+                troca errada. O destaque que importa já está no sujeito da
+                frase. */}
+            <p>
+              <strong className="text-mt-ink">Registros técnicos de erro</strong> ficam
+              guardados por 90 dias e depois são apagados automaticamente. Eles contêm a
+              mensagem do erro, a página, o navegador e o identificador anônimo de
+              navegação — não o conteúdo dos formulários.
+            </p>
             <p>
               Você pode pedir a eliminação a qualquer momento, pelos canais da seção{" "}
               <a href="#contato" className="underline underline-offset-2">
                 Como falar conosco
               </a>
-              . Atendido o pedido, o registro é apagado — não fica cópia em nossa base.
+              . Atendido o pedido, seu cadastro de contato é apagado. Um registro técnico de erro
+              gerado antes do pedido pode conter o identificador anônimo de navegação e permanecer
+              até o fim dos 90 dias — ele não tem seu nome nem seu telefone, e some sozinho no
+              prazo.
             </p>
           </Secao>
 
