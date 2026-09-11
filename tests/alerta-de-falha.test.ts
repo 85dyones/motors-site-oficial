@@ -149,18 +149,42 @@ describe("a CAPI aciona o aviso nos QUATRO pontos de perda", () => {
        ida à rede e recebendo de volta um erro que fala do pixel.
 
        A contagem trava o conjunto: cobrir três e esquecer uma deixa
-       exatamente o buraco que este trabalho existe para fechar. */
-    const avisos = lib.split("alertarFalha(").length - 1;
+       exatamente o buraco que este trabalho existe para fechar.
+
+       Desde 2026-09-10 a chamada passa por `registrarFalha`, com natureza
+       explícita. A intenção da trava é a mesma; o que mudou é a forma.
+
+       A contagem é sobre `registrarFalha(` e não sobre `registrarFalha("parada", `:
+       uma das quatro chamadas é multilinha, e trava que casa com o espaçamento
+       mede formatação em vez de decisão — reprovaria um `prettier` e passaria
+       um ponto de perda apagado. Que as quatro sejam PARADA é o `it` seguinte. */
+    const avisos = lib.split("registrarFalha(").length - 1;
     expect(avisos, "um dos pontos de perda parou de avisar").toBe(4);
-    expect(lib).toContain('alertarFalha("meta-capi-configuracao"');
-    expect(lib).toContain('alertarFalha("meta-capi"');
+    expect(lib).toContain('registrarFalha("parada", "meta-capi-configuracao"');
+    expect(lib).toContain('registrarFalha("parada", "meta-capi"');
+  });
+
+  it("os quatro são PARADA, e não quebra", () => {
+    /* Falha de entrega da CAPI não lança: o `fetch` volta 401 e o código lê o
+       status. Classificar isso como `quebra` mandaria para a fila de triagem
+       o aviso que precisa procurar a pessoa — foi assim que a CAPI ficou dois
+       dias parada com o log inteiro disponível. */
+    expect(lib).not.toMatch(/registrarFalha\("(quebra|ambos)"/);
+  });
+
+  it("o aviso não volta a sair por fora da costura", () => {
+    // `alertarFalha` continua existindo e continua sendo o destino — mas quem
+    // decide é `registrarFalha`. Chamada direta aqui devolveria ao ponto de
+    // chamada a decisão que a costura existe para obrigar.
+    expect(lib).not.toContain("alertarFalha(");
+    expect(lib).not.toContain('from "./alertaDeFalha"');
   });
 
   it("o assunto NÃO carrega o código de status", () => {
     // A carência agrupa por assunto. Se o status entrasse na chave, um token
     // expirado alternando 400/401 furaria a contenção e viraria enxurrada.
-    expect(lib).not.toMatch(/alertarFalha\(`meta-capi/);
-    expect(lib).not.toMatch(/alertarFalha\("meta-capi-\$\{/);
+    expect(lib).not.toMatch(/registrarFalha\("parada", `meta-capi/);
+    expect(lib).not.toMatch(/registrarFalha\("parada", "meta-capi-\$\{/);
   });
 
 });

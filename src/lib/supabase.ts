@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { alertarFalha } from "./alertaDeFalha";
+import { registrarFalha } from "./observabilidade";
 import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
 import { publicavel } from "./coerenciaDoCadastro";
@@ -880,7 +880,7 @@ async function estoqueIndisponivel(motivo: string): Promise<Veiculo[]> {
   console.error(`[Supabase] FALHA — estoque indisponível: ${motivo}.`);
   // O aviso procura a pessoa. Sem ele isto é mais um log que ninguém lê — que
   // foi exatamente como a CAPI ficou um mês parada.
-  await alertarFalha("estoque-indisponivel", motivo);
+  await registrarFalha("parada", "estoque-indisponivel", motivo);
   throw new EstoqueIndisponivelError(motivo);
 }
 

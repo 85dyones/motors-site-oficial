@@ -78,8 +78,12 @@ describe("falha de leitura para a página", () => {
     // Log que ninguém lê foi como a CAPI ficou um mês parada. Aqui o mesmo
     // erro seria pior: some a vitrine inteira.
     const i = supa.indexOf("async function estoqueIndisponivel");
+    expect(i, "a função sumiu — a janela abaixo mediria o arquivo inteiro").toBeGreaterThan(-1);
     const corpo = supa.slice(i, i + 700);
-    expect(corpo).toContain('alertarFalha("estoque-indisponivel"');
+    // Desde 2026-09-10 o aviso sai pela costura, com natureza explícita. É
+    // PARADA: a vitrine sumir não lança nada aqui — a leitura volta vazia — e
+    // quem precisa saber é a loja, agora, não a fila de triagem.
+    expect(corpo).toContain('registrarFalha("parada", "estoque-indisponivel"');
     expect(corpo).toContain("console.error");
     expect(corpo).toContain("throw new EstoqueIndisponivelError");
   });
