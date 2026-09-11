@@ -106,7 +106,13 @@ export async function POST(request: Request) {
       } catch {
         return new NextResponse(null, { status: 204 });
       }
-      if (host !== nosso && !host.startsWith("localhost")) {
+      /* Igualdade exata, e `localhost` com porta opcional — `startsWith` daria
+         passagem a `localhost.evil.com`, porque `new URL(...).host` devolve o
+         domínio inteiro. Guarda cosmética (a rota é pública e aceita `Origin`
+         ausente), mas comentário que promete guarda tem de descrever a guarda
+         que existe. */
+      const local = host === "localhost" || host.startsWith("localhost:");
+      if (host !== nosso && !local) {
         return new NextResponse(null, { status: 204 });
       }
     }

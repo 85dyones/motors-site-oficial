@@ -103,6 +103,8 @@ const CARENCIA_POR_HASH_MS = 10_000;
 const TETO_ASSUNTO = 80;
 const TETO_MENSAGEM = 2000;
 const TETO_STACK = 8000;
+/** Rota, url e navegador — texto de uma linha, nunca documento. */
+const TETO_CURTO = 500;
 /** `extra` é jsonb livre: sem teto, um `catch` distraído infla o INSERT. */
 const TETO_EXTRA = 2000;
 
@@ -190,6 +192,70 @@ function limpar(texto: string): string {
 }
 
 /**
+ * ⚠️ A FRONTEIRA. Todo campo de texto que entra na tabela sai daqui.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que existe, e por que a ORDEM importa
+ * ---------------------------------------------------------------------------
+ * A versão de 2026-09-10 aplicava `limpar` em quatro pontos de ENTRADA
+ * (mensagem, stack, url, extra) e cortava com `slice` depois, na montagem do
+ * INSERT. Isso produziu três defeitos de uma vez, todos encontrados na revisão
+ * adversarial do mesmo dia:
+ *
+ *  1. **Vizinho esquecido.** `navegador` e `digest` — os dois únicos campos em
+ *     que a porta pública aceita texto LIVRE do visitante, sem regex de forma —
+ *     nunca foram tocados. A promessa de mascaramento estava escrita em três
+ *     lugares e era falsa justamente onde um estranho escreve.
+ *  2. **O corte desfazia a limpeza.** `slice` parte par substituto ao meio, e
+ *     o `JSON.stringify` emite a metade órfã. O saneamento tinha acabado de
+ *     tirar exatamente isso, três linhas antes.
+ *  3. **Limpar antes de cortar alimenta o regex sem teto** — ver `higienizar`.
+ *
+ * Daí a ordem ser **cortar → limpar**, e não o contrário: o corte parte o par,
+ * e a limpeza vem depois e conserta. E daí ser UMA função, chamada em UM
+ * lugar: a lista de campos do INSERT é o único ponto onde se pode conferir, de
+ * relance, que nenhum ficou de fora.
+ *
+ * `null` entra e `null` sai — a coluna é anulável e "não veio" não é "vazio".
+ */
+function campo(valor: string | null | undefined, teto: number): string | null {
+  if (valor === null || valor === undefined) return null;
+  const cortado = valor.slice(0, teto);
+  if (!cortado) return null;
+  return limpar(cortado);
+}
+
+/**
+ * A outra metade da fronteira: campo de FORMA FECHADA.
+ *
+ * `release`, `digest` e `ag_uid` são identificadores opacos, não texto livre —
+ * e por isso NÃO passam por `limpar`. O motivo é concreto: o `digest` do Next
+ * é uma corrida de dígitos (`"3350458554"`), e `higienizar` mascara sequência
+ * de 8 dígitos ou mais. Higienizar aqui apagaria justamente o elo que liga a
+ * linha do navegador à linha que o servidor gravou pelo mesmo erro — o campo
+ * viraria `<numero>` e o pacote perderia a razão de ter a coluna.
+ *
+ * A defesa deles é outra, e é mais forte: quem não casa a forma vira `null`,
+ * em vez de virar campo de texto livre disfarçado de identificador.
+ */
+function identificador(
+  valor: string | null | undefined,
+  teto: number,
+  forma: RegExp,
+): string | null {
+  if (valor === null || valor === undefined) return null;
+  const cortado = valor.slice(0, teto).trim();
+  return cortado && forma.test(cortado) ? cortado : null;
+}
+
+/** SHA da Vercel, ou o que o usuário puser na env — hex, 7 a 40. */
+const FORMA_RELEASE = /^[0-9a-f]{7,40}$/;
+/** O `digest` do Next: dígitos. Nada além disso é digest de verdade. */
+const FORMA_DIGEST = /^\d{1,64}$/;
+/** `ag_uid`: letra, dígito, sublinhado e traço. Mesma régua da porta pública. */
+const FORMA_AG_UID = /^[\w-]{1,64}$/;
+
+/**
  * Máscara para o que não devia ter sido escrito.
  *
  * O erro do PostgREST cita valores — `Key (telefone)=(5541999998888)` é uma
@@ -201,7 +267,13 @@ function limpar(texto: string): string {
  */
 export function higienizar(texto: string): string {
   return texto
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "<email>")
+    /* Quantificadores LIMITADOS, e não `+`.
+       A versão com `+` fazia backtracking catastrófico numa corrida longa de
+       `[\w.+-]` sem `@`: 50 mil caracteres custavam 2,9 s de CPU SÍNCRONA —
+       fora do alcance do `AbortSignal`, dentro de um hook que o Next `await`-a.
+       Os limites vêm da própria forma de um e-mail (64 antes da arroba, 63 por
+       rótulo de domínio, RFC 1035), então não recusam nada real. */
+    .replace(/[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,3}/g, "<email>")
     .replace(/\d[\d\s().-]{6,}\d/g, (trecho) =>
       // O trecho casa por FORMA (dígitos com separadores), mas o que decide é a
       // quantidade de dígitos de verdade: `(41) 99999-8888` tem 11, enquanto
@@ -265,11 +337,15 @@ function descrever(detalhe: unknown): { mensagem: string; stack: string | null }
 function extraSeguro(extra: Record<string, unknown> | undefined): Record<string, unknown> {
   if (!extra) return {};
   try {
-    const texto = limpar(JSON.stringify(extra));
-    if (texto.length > TETO_EXTRA) {
-      return { truncado: true, tamanho: texto.length };
+    /* CORTA ANTES de limpar, e a ordem não é detalhe: `limpar` passa por
+       `higienizar`, e alimentar um regex com entrada ilimitada foi o que
+       transformou um `extra` grande em segundos de CPU síncrona. O teto é
+       checado no texto BRUTO; só o que couber é limpo. */
+    const bruto = JSON.stringify(extra) ?? "";
+    if (bruto.length > TETO_EXTRA) {
+      return { truncado: true, tamanho: bruto.length };
     }
-    return JSON.parse(texto) as Record<string, unknown>;
+    return JSON.parse(limpar(bruto)) as Record<string, unknown>;
   } catch {
     // Referência circular, `BigInt`, getter que lança — nada disso pode
     // derrubar o registro de um erro que já aconteceu.
@@ -356,19 +432,30 @@ async function gravar(
       .insert({
         origem: contexto.origem ?? "servidor",
         natureza,
-        assunto: assunto.slice(0, TETO_ASSUNTO),
-        mensagem: mensagem.slice(0, TETO_MENSAGEM),
-        stack: stack ? stack.slice(0, TETO_STACK) : null,
-        rota: contexto.rota ?? null,
-        metodo: contexto.metodo ?? null,
-        // Higienizada também no CAMINHO, não só cortada na query: PII cabe em
-        // segmento de rota (`/lead/5541999998888/ficha`).
-        url: contexto.url ? limpar(urlSemQuery(contexto.url) ?? "") : null,
-        navegador: contexto.navegador ?? null,
-        release: contexto.release ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        // ⚠️ TODO campo de texto sai de `campo()`. Ver o comentário dela: a
+        // versão anterior aplicava a limpeza em quatro pontos de ENTRADA e
+        // esquecia os vizinhos, e o `slice` que vinha depois desfazia o que a
+        // limpeza tinha feito. Campo novo aqui sem `campo()` é regressão, e há
+        // teste varrendo todos eles.
+        assunto: campo(assunto, TETO_ASSUNTO),
+        mensagem: campo(mensagem, TETO_MENSAGEM),
+        stack: campo(stack, TETO_STACK),
+        rota: campo(contexto.rota, TETO_CURTO),
+        metodo: campo(contexto.metodo, 10),
+        // Sem a query — é onde moram utm, telefone e token —, e higienizada
+        // também no CAMINHO: PII cabe em segmento de rota.
+        url: campo(urlSemQuery(contexto.url), TETO_CURTO),
+        navegador: campo(contexto.navegador, TETO_CURTO),
+        // Estes três são identificadores opacos, e por isso vão por forma e
+        // não por limpeza — ver `identificador`.
+        release: identificador(
+          contexto.release ?? process.env.VERCEL_GIT_COMMIT_SHA,
+          64,
+          FORMA_RELEASE,
+        ),
         ambiente: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "desconhecido",
-        digest: contexto.digest ?? null,
-        ag_uid: contexto.ag_uid ?? null,
+        digest: identificador(contexto.digest, 64, FORMA_DIGEST),
+        ag_uid: identificador(contexto.ag_uid, 64, FORMA_AG_UID),
         lead_id: contexto.lead_id ?? null,
         hash_agrupamento: hash,
         suprimidas,
@@ -386,13 +473,35 @@ async function gravar(
          Abrir o disjuntor aqui deixaria qualquer visitante calar a fila de
          triagem por 60 s com um corpo malformado, e ainda fazer o dono
          receber que o banco caiu. Disjuntor é para transporte. */
+      /* ⚠️ Este `code` é a ÚNICA proteção contra banco pendurado, e é preciso
+         saber por quê antes de "simplificar" a linha.
+
+         O postgrest-js (2.110) converte TODA rejeição de `fetch` — incluindo o
+         aborto do nosso teto — em `{ error: { code: "" } }`, em vez de lançar.
+         Logo, timeout e host morto chegam por AQUI, não pelo `catch` lá
+         embaixo. Trocar este teste por algo como `code !== "22P05"` faria
+         `code: ""` passar por "o banco respondeu" e o disjuntor nunca mais
+         abriria no caso que ele existe para cobrir. Há teste travando os dois
+         lados. */
       const bancoRespondeu = typeof error.code === "string" && error.code !== "";
       if (!bancoRespondeu) bancoIndisponivelAte = Date.now() + DISJUNTOR_MS;
       return { ok: false, motivo: error.message };
     }
+    /* Gravou: o apagão acabou, e só AQUI a conta de perdidos zera.
+       Zerá-la ao montar o aviso (como fazia até 2026-09-11) jogava fora a
+       contagem toda vez que a carência de 30 min do `alertaDeFalha` engolia a
+       mensagem — o disjuntor reabre a cada 60 s, então quase todo ciclo caía
+       nisso. Medido: 320 erros num apagão de 31 minutos, e o aviso informava
+       NOVE. Número errado num alerta é pior que alerta nenhum: decide errado a
+       diferença entre "olho amanhã" e "paro tudo agora". */
+    perdidosPeloDisjuntor = 0;
     return { ok: true };
   } catch (erro) {
-    // Aqui é transporte de verdade: `fetch` estourou, ou o teto abortou.
+    /* Rede de segurança, e não o caminho normal: o postgrest-js não lança em
+       falha de transporte (ver a nota no `bancoRespondeu` acima). O que cai
+       aqui é o inesperado — `createClient` recusando a URL, um `throw` de
+       dentro do próprio cliente. Abrir o disjuntor é a resposta certa para
+       ambos, e por isso o ramo fica. */
     bancoIndisponivelAte = Date.now() + DISJUNTOR_MS;
     return { ok: false, motivo: erro instanceof Error ? erro.message : String(erro) };
   }
@@ -449,9 +558,15 @@ export async function registrarFalha(
              não gravados" informa mais, e incomoda menos, que 200 mensagens.
              É a mesma régua de `alertaDeFalha.ts`. */
           if (!r.ok && r.motivo) {
-            const perdidos = perdidosPeloDisjuntor;
-            perdidosPeloDisjuntor = 0;
-            const cauda = perdidos > 0 ? ` — e ${perdidos} não gravado(s) desde o último aviso` : "";
+            /* A conta NÃO é zerada aqui. `alertarFalha` tem carência própria de
+               30 min e pode engolir esta mensagem; zerar agora perderia o
+               número que ela nem chegou a levar. Quem zera é a gravação
+               bem-sucedida — ou seja, o fim do apagão. Até lá o total só
+               cresce, e o primeiro aviso que de fato sair carrega tudo. */
+            const cauda =
+              perdidosPeloDisjuntor > 0
+                ? ` — e ${perdidosPeloDisjuntor} não gravado(s) desde o último aviso`
+                : "";
             await alertarFalha("erros-indisponivel", `${assunto}: ${r.motivo}${cauda}`);
           }
         }),

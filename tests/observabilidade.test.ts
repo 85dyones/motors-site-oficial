@@ -336,6 +336,115 @@ describe("PII não vaza por acidente", () => {
   });
 });
 
+describe("a fronteira: NENHUM campo escapa", () => {
+  /**
+   * A trava que faltava, e que teria evitado três defeitos numa rodada só.
+   *
+   * Em 2026-09-10 a limpeza era aplicada em quatro pontos de ENTRADA, campo a
+   * campo. A revisão adversarial encontrou, no mesmo commit: `navegador` e
+   * `digest` nunca tocados (e são os dois únicos campos onde a porta pública
+   * aceita texto LIVRE do visitante); o `slice` posterior recriando o
+   * substituto solto que o saneamento tinha tirado; e `assunto` fora de tudo.
+   *
+   * Teste por campo lembrado só cobre o campo que alguém lembrou. Este varre a
+   * LISTA INTEIRA e falha no campo novo que entrar sem passar pela fronteira —
+   * que é o cenário real, porque o PR 3 vai pôr 43 pontos de chamada novos.
+   */
+
+  const TELEFONE = "5541999998888";
+  const EMAIL = "silvio@motorsstore.com.br";
+  const NUL = String.fromCharCode(0);
+  const SUBSTITUTO_SOLTO = String.fromCharCode(0xd83d);
+  const VENENO = `${TELEFONE} ${EMAIL}${NUL}${SUBSTITUTO_SOLTO}`;
+
+  /** Todo campo de texto que alguém de fora consegue influenciar. */
+  const CAMPOS = [
+    ["stack", (v: string) => ({ stack: v })],
+    ["rota", (v: string) => ({ rota: v })],
+    ["metodo", (v: string) => ({ metodo: v })],
+    ["url", (v: string) => ({ url: `https://motorsstore.com.br/${v}` })],
+    ["navegador", (v: string) => ({ navegador: v })],
+    ["release", (v: string) => ({ release: v })],
+    ["digest", (v: string) => ({ digest: v })],
+    ["ag_uid", (v: string) => ({ ag_uid: v })],
+  ] as const;
+
+  it.each(CAMPOS)("`%s` não leva PII nem byte que o Postgres recusa", async (nome, montar) => {
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "servidor:route", "mensagem limpa", montar(VENENO));
+
+    const enviado = String((idasAoBanco(chamou)[0] as unknown as [string, RequestInit])[1].body);
+    expect(enviado, `${nome}: telefone gravado cru`).not.toContain(TELEFONE);
+    expect(enviado, `${nome}: e-mail gravado cru`).not.toContain(EMAIL);
+    expect(enviado, `${nome}: NUL no corpo do INSERT (o Postgres recusa com 22P05)`).not.toContain(
+      "\\u0000",
+    );
+    expect(enviado, `${nome}: substituto solto (o Postgres recusa com 22P02)`).not.toContain(
+      "\\ud83d",
+    );
+  });
+
+  it("`assunto` e `mensagem` — os dois posicionais — também passam", async () => {
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", `assunto ${VENENO}`, `mensagem ${VENENO}`);
+
+    const enviado = String((idasAoBanco(chamou)[0] as unknown as [string, RequestInit])[1].body);
+    expect(enviado).not.toContain(TELEFONE);
+    expect(enviado).not.toContain(EMAIL);
+    expect(enviado).not.toContain("\\u0000");
+    expect(enviado).not.toContain("\\ud83d");
+  });
+
+  it("o CORTE não ressuscita o substituto que a limpeza tirou", async () => {
+    /* O defeito exato de 2026-09-10: `limpar` rodava antes, `slice` depois, e
+       o corte partia um emoji ao meio deixando a metade órfã. Vale para os
+       três tetos, porque os três cortam. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha(
+      "quebra",
+      `${"a".repeat(79)}🚗`, // teto do assunto: 80
+      `${"m".repeat(1999)}🚗`, // teto da mensagem: 2000
+      { stack: `${"s".repeat(7999)}🚗` }, // teto do stack: 8000
+    );
+
+    const enviado = String((idasAoBanco(chamou)[0] as unknown as [string, RequestInit])[1].body);
+    expect(enviado, "o slice partiu o par e ninguém consertou depois").not.toContain("\\ud83d");
+  });
+
+  it("a limpeza não estraga texto legítimo", async () => {
+    /* Filtro de mais esconde o defeito. Emoji inteiro, acento e pontuação têm
+       de atravessar — senão a triagem passa a mostrar mensagem mutilada e
+       ninguém confia mais nela. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "servidor:route", "Configuração inválida 🚗 — ação nº 3");
+
+    const linha = corpoDe(idasAoBanco(chamou)[0]);
+    expect(linha.mensagem).toBe("Configuração inválida 🚗 — ação nº 3");
+  });
+
+  it("higienizar não trava com entrada longa sem arroba", async () => {
+    /* O regex de e-mail tinha backtracking catastrófico: 50 mil caracteres
+       custavam 2,9 s de CPU SÍNCRONA — fora do alcance do `AbortSignal`, e
+       dentro de um hook que o Next `await`-a. */
+    const { higienizar } = await moduloLimpo();
+    const comecou = Date.now();
+    higienizar("a.b+c-d".repeat(8000));
+    expect(Date.now() - comecou, "o regex voltou a fazer backtracking").toBeLessThan(200);
+  });
+});
+
 describe("o agrupamento", () => {
   it("normaliza número e uuid — o mesmo defeito com ids diferentes é um grupo só", async () => {
     const { hashDeAgrupamento } = await moduloLimpo();
@@ -485,15 +594,23 @@ describe("o vigia não dorme junto com o vigiado", () => {
     expect(enviado, "substituto solto foi para o corpo do INSERT").not.toContain("\\ud83d");
   });
 
-  it("o que o disjuntor engoliu é CONTADO, e o número vai no aviso", async () => {
-    /* Ressalva R1: 200 erros sumiam sem número enquanto o disjuntor estava
-       aberto. O número NÃO entra em `suprimidas` de propósito — aquela coluna
-       significa "quantos erros IDÊNTICOS foram engolidos antes desta linha", e
-       somar ali perdas de outros erros corromperia o sentido dela.
+  /* O teste que estava aqui — "passada a janela do disjuntor, a próxima falha
+     leva a conta" — media algo que NÃO ACONTECE, e foi removido em 11/09.
+     Ele avançava o relógio 61 s, que vence o disjuntor mas não a carência de
+     30 min do `alertaDeFalha`: o segundo aviso é engolido, e o "último aviso"
+     que ele inspecionava era o PRIMEIRO, de quando ainda não havia nada
+     engolido. Ficava verde só porque afirmava `toContain("20")`, que casava
+     com o `2026` do carimbo de tempo.
 
-       Vai no texto do aviso, que é onde uma pessoa lê: "e mais 20 não
-       gravados" é a diferença entre "olho amanhã" e "paro tudo agora". Mesma
-       régua das suprimidas de `alertaDeFalha.ts`. */
+     Quem cobre a regra de verdade é o teste abaixo, que atravessa as DUAS
+     carências e por isso descreve o apagão como ele é. */
+
+  it("a conta ATRAVESSA a carência do aviso — apagão longo não perde o número", async () => {
+    /* O defeito que a primeira correção deixou passar, e que o teste
+       falso-verde escondeu: a conta era zerada ao MONTAR o aviso, não ao
+       enviá-lo. O disjuntor reabre a cada 60 s; o aviso tem carência de 30 min.
+       Cada ciclo engolido pela carência jogava a própria conta fora — 320 erros
+       num apagão de 31 minutos viravam um aviso dizendo NOVE. */
     ambienteCompleto();
     const chamou = fetchDosDoisDestinos({
       banco: async () => {
@@ -502,20 +619,50 @@ describe("o vigia não dorme junto com o vigiado", () => {
     });
     const { registrarFalha } = await moduloLimpo();
 
-    await registrarFalha("quebra", "servidor:route", "a que derrubou");
-    for (let i = 0; i < 20; i++) {
-      await registrarFalha("quebra", `servidor:render-${i}`, "engolida pelo disjuntor");
-    }
-
-    // Passada a janela do disjuntor, a próxima falha leva a conta.
+    const inicio = Date.now();
     vi.useFakeTimers();
-    vi.setSystemTime(Date.now() + 61_000);
-    await registrarFalha("quebra", "servidor:action", "a de depois");
+    // Cinco ciclos de disjuntor. Só o primeiro aviso escapa da carência de 30
+    // min do `alertaDeFalha`; os outros quatro são engolidos por ela.
+    for (let ciclo = 0; ciclo < 5; ciclo++) {
+      vi.setSystemTime(inicio + ciclo * 61_000);
+      for (let i = 0; i < 10; i++) {
+        await registrarFalha("quebra", `servidor:render-${ciclo}-${i}`, "no apagão");
+      }
+    }
+    // Passada a carência do aviso, a próxima falha leva a conta acumulada.
+    vi.setSystemTime(inicio + 31 * 60_000);
+    await registrarFalha("quebra", "servidor:action", "depois da carência");
     vi.useRealTimers();
 
     const avisos = idasAoWebhook(chamou);
     const ultimo = String((avisos[avisos.length - 1] as unknown as [string, RequestInit])[1].body);
-    expect(ultimo, "o que o disjuntor engoliu sumiu sem deixar número").toContain("20");
+    const conta = Number(/e (\d+) não gravado/.exec(ultimo)?.[1] ?? 0);
+    expect(
+      conta,
+      "a conta foi zerada por um aviso que a carência engoliu — o dono lê um número que mente",
+    ).toBeGreaterThan(30);
+  });
+
+  it("o disjuntor abre no banco PENDURADO, que chega como erro sem código", async () => {
+    /* O postgrest-js converte toda rejeição de `fetch` — inclusive o aborto do
+       nosso teto — em `{error:{code:""}}`, em vez de lançar. Então é o
+       `code === ""` que protege o caso mais importante, e não o `catch`.
+       Trocar o teste por `code !== "22P05"` faria o disjuntor nunca abrir no
+       timeout, e nenhum teste de tempo acusaria. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos({
+      banco: async () =>
+        new Response(JSON.stringify({ message: "canceling statement", code: "" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "servidor:route", "primeira");
+    await registrarFalha("quebra", "servidor:render", "segunda");
+
+    expect(idasAoBanco(chamou), "o disjuntor não abriu com o banco pendurado").toHaveLength(1);
   });
 
   it("com os dois destinos fora, não lança", async () => {
@@ -695,6 +842,22 @@ describe("o hook do servidor", () => {
     await onRequestError(erro, REQUISICAO, CONTEXTO);
 
     expect(corpoDe(idasAoBanco(chamou)[0]).digest).toBe("3350458554");
+  });
+
+  it("chave `digest` presente e VAZIA não vira a palavra 'undefined'", async () => {
+    /* `"digest" in erro` é verdadeiro mesmo com o valor `undefined`, e
+       `String(undefined)` grava a string "undefined" como se fosse um código
+       real — que alguém depois procuraria na tabela e não acharia em lugar
+       nenhum. O teste anterior usava um erro COM digest, então sobrevivia a
+       qualquer mutação aqui. */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { onRequestError } = await hookLimpo();
+
+    const erro = Object.assign(new Error("x"), { digest: undefined });
+    await onRequestError(erro, REQUISICAO, CONTEXTO);
+
+    expect(corpoDe(idasAoBanco(chamou)[0]).digest).toBeNull();
   });
 
   it("erro DENTRO de /api/erros não se realimenta", async () => {
