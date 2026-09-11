@@ -266,6 +266,128 @@ describe("o envio", () => {
   });
 });
 
+describe("a fiação — quem arma a captura, e quando", () => {
+  /**
+   * A trava que faltava, e a ausência dela custou uma regressão.
+   *
+   * Até 11/09 a captura era montada por um `useEffect` de `<CapturaDeErros>`,
+   * dentro do layout raiz. NENHUM teste importava esse componente, nem
+   * `error.tsx`, nem `global-error.tsx` — apagar o efeito deixava os 2727
+   * testes verdes. E foi assim que passou o defeito:
+   *
+   *   `global-error.tsx` SUBSTITUI o layout raiz. O React destrói a subárvore
+   *   onde o componente morava e roda a limpeza dela — que zerava o capturador
+   *   — antes de montar o fallback. A ponte caía num no-op exatamente no
+   *   cenário para o qual ela existe.
+   *
+   * Testar a biblioteca e não testar a fiação é o buraco que estes `it`
+   * fecham. O que se afirma aqui é o COMPORTAMENTO depois da montagem, não o
+   * texto do arquivo.
+   */
+
+  function comoNavegador() {
+    const ouvintes: string[] = [];
+    (globalThis as unknown as { window: unknown }).window = globalThis;
+    (globalThis as { addEventListener?: unknown }).addEventListener = (t: string) =>
+      void ouvintes.push(t);
+    (globalThis as { removeEventListener?: unknown }).removeEventListener = () => {};
+    (globalThis as { location?: unknown }).location = { href: "https://motorsstore.com.br/estoque" };
+    (globalThis as { document?: unknown }).document = { cookie: "ag_uid=ag-1" };
+    return ouvintes;
+  }
+
+  function limparNavegador() {
+    for (const k of ["window", "addEventListener", "removeEventListener", "location", "document"]) {
+      delete (globalThis as Record<string, unknown>)[k];
+    }
+  }
+
+  it("`instrumentation-client` arma os ouvintes ao ser CARREGADO", async () => {
+    /* Não é um componente: o Next exige este módulo em `app-next.js:10`, antes
+       do `appBootstrap`. O efeito colateral acontece no import. */
+    const ouvintes = comoNavegador();
+    try {
+      vi.resetModules();
+      await import("../src/instrumentation-client");
+      expect(ouvintes).toEqual(["error", "unhandledrejection"]);
+    } finally {
+      limparNavegador();
+    }
+  });
+
+  it("depois de carregado, a ponte dos boundaries REPORTA", async () => {
+    /* A regressão em uma linha: `capturarErroDeBoundary` é no-op enquanto
+       ninguém tiver chamado `configurar`. Com a montagem num componente do
+       layout raiz, no cenário do `global-error` ninguém tinha. */
+    comoNavegador();
+    /* Medido pelo caminho do `fetch`, e não do `sendBeacon`: no Node 24
+       `globalThis.navigator` existe e IGNORA atribuição — só tem getter. Um
+       teste que tentasse dublá-lo por cima ficaria verde medindo o navegador
+       do Node. O `enviarPorBeacon` cai para o `fetch` quando não há
+       `sendBeacon`, que é justamente o caso aqui. */
+    const chamou = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    try {
+      vi.resetModules();
+      await import("../src/instrumentation-client");
+      const { capturarErroDeBoundary } = await import("../src/lib/observabilidade-cliente");
+
+      capturarErroDeBoundary(
+        Object.assign(new Error("a raiz quebrou"), { digest: "123@E61" }),
+        "global-error",
+      );
+
+      expect(chamou, "o boundary chamou a ponte e nada saiu").toHaveBeenCalledTimes(1);
+      const [url, init] = chamou.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe("/api/erros");
+      const evento = JSON.parse(String(init.body));
+      expect(evento.tipo).toBe("boundary");
+      expect(evento.digest).toBe("123@E61");
+    } finally {
+      chamou.mockRestore();
+      limparNavegador();
+    }
+  });
+
+  it("o módulo NUNCA propaga erro — a hidratação depende disso", async () => {
+    /* O Next faz `require` cru deste módulo (`lib/require-instrumentation-client.js`),
+       sem `try` em volta, ANTES do `hydrate`. Se ele lançar, a página fica
+       servida e morta — e numa página morta o formulário de lead não envia. */
+    (globalThis as unknown as { window: unknown }).window = globalThis;
+    (globalThis as { addEventListener?: unknown }).addEventListener = () => {
+      throw new Error("o navegador recusou o ouvinte");
+    };
+    try {
+      vi.resetModules();
+      await expect(import("../src/instrumentation-client")).resolves.toBeDefined();
+    } finally {
+      limparNavegador();
+    }
+  });
+
+  it("os dois boundaries chamam a ponte", () => {
+    /* Trava de fonte, e ela é o complemento do comportamento acima: garante
+       que os arquivos que o Next monta como fallback de fato chamam a ponte.
+       Sem isto, a captura existe e ninguém a aciona. */
+    for (const arquivo of ["src/app/error.tsx", "src/app/global-error.tsx"]) {
+      const fonte = lerCodigo(arquivo);
+      expect(fonte, `${arquivo} não relata o erro que exibe`).toContain(
+        "capturarErroDeBoundary(",
+      );
+      expect(fonte, `${arquivo} precisa do efeito para relatar`).toContain("useEffect(");
+    }
+  });
+
+  it("a montagem não voltou para dentro da árvore React", () => {
+    /* `src/components/CapturaDeErros.tsx` foi removido em 11/09. Recriá-lo e
+       montá-lo no layout reintroduz os dois buracos: a janela pré-hidratação e
+       o `global-error` mudo. */
+    expect(lerCodigo("src/app/layout.tsx")).not.toContain("CapturaDeErros");
+    expect(lerCodigo("src/instrumentation-client.ts")).toContain("configurar(");
+  });
+});
+
 describe("a regra que manda no desenho", () => {
   const fonte = lerCodigo("src/lib/observabilidade-cliente.ts");
 
