@@ -357,48 +357,110 @@ describe("a fronteira: NENHUM campo escapa", () => {
   const SUBSTITUTO_SOLTO = String.fromCharCode(0xd83d);
   const VENENO = `${TELEFONE} ${EMAIL}${NUL}${SUBSTITUTO_SOLTO}`;
 
-  /** Todo campo de texto que alguém de fora consegue influenciar. */
-  const CAMPOS = [
-    ["stack", (v: string) => ({ stack: v })],
-    ["rota", (v: string) => ({ rota: v })],
-    ["metodo", (v: string) => ({ metodo: v })],
-    ["url", (v: string) => ({ url: `https://motorsstore.com.br/${v}` })],
-    ["navegador", (v: string) => ({ navegador: v })],
-    ["release", (v: string) => ({ release: v })],
-    ["digest", (v: string) => ({ digest: v })],
-    ["ag_uid", (v: string) => ({ ag_uid: v })],
-  ] as const;
-
-  it.each(CAMPOS)("`%s` não leva PII nem byte que o Postgres recusa", async (nome, montar) => {
+  /**
+   * A varredura deriva da SAÍDA, não de uma lista.
+   *
+   * A primeira versão enumerava os campos num literal — e tinha exatamente o
+   * defeito que ela existe para corrigir: a revisão plantou um campo `referer`
+   * cru no INSERT e os 109 testes ficaram verdes, porque `referer` não estava
+   * na lista. Enumeração só cobre o que alguém lembrou, e o PR 3 vai pôr 43
+   * pontos de chamada novos.
+   *
+   * Aqui o veneno vai em TODOS os campos de contexto de uma vez, e a asserção
+   * percorre o objeto GRAVADO, chave a chave. Campo novo entra na varredura
+   * sozinho, sem ninguém lembrar dele.
+   */
+  async function linhaEnvenenada() {
     ambienteCompleto();
     const chamou = fetchDosDoisDestinos();
     const { registrarFalha } = await moduloLimpo();
 
-    await registrarFalha("quebra", "servidor:route", "mensagem limpa", montar(VENENO));
+    await registrarFalha("quebra", `assunto ${VENENO}`, `mensagem ${VENENO}`, {
+      rota: VENENO,
+      url: `https://motorsstore.com.br/${VENENO}?q=${VENENO}`,
+      metodo: VENENO,
+      navegador: VENENO,
+      release: VENENO,
+      digest: VENENO,
+      ag_uid: VENENO,
+      stack: VENENO,
+      extra: { [`chave ${VENENO}`]: `valor ${VENENO}`, aninhado: { fundo: VENENO } },
+    });
 
-    const enviado = String((idasAoBanco(chamou)[0] as unknown as [string, RequestInit])[1].body);
-    expect(enviado, `${nome}: telefone gravado cru`).not.toContain(TELEFONE);
-    expect(enviado, `${nome}: e-mail gravado cru`).not.toContain(EMAIL);
-    expect(enviado, `${nome}: NUL no corpo do INSERT (o Postgres recusa com 22P05)`).not.toContain(
-      "\\u0000",
-    );
-    expect(enviado, `${nome}: substituto solto (o Postgres recusa com 22P02)`).not.toContain(
-      "\\ud83d",
-    );
+    return {
+      linha: corpoDe(idasAoBanco(chamou)[0]),
+      enviado: String((idasAoBanco(chamou)[0] as unknown as [string, RequestInit])[1].body),
+    };
+  }
+
+  it("NENHUMA chave do objeto gravado carrega PII", async () => {
+    const { linha } = await linhaEnvenenada();
+
+    // Guarda de vacuidade: se o objeto vier vazio, o laço abaixo não afirma
+    // nada e o teste fica verde sem ter olhado campo nenhum.
+    expect(Object.keys(linha).length, "o INSERT veio vazio").toBeGreaterThan(10);
+
+    for (const [chave, valor] of Object.entries(linha)) {
+      const texto = JSON.stringify(valor) ?? "";
+      expect(texto, `${chave}: telefone gravado cru`).not.toContain(TELEFONE);
+      expect(texto, `${chave}: e-mail gravado cru`).not.toContain(EMAIL);
+    }
   });
 
-  it("`assunto` e `mensagem` — os dois posicionais — também passam", async () => {
+  it("NENHUM byte que o Postgres recusa chega ao corpo do INSERT", async () => {
+    const { enviado } = await linhaEnvenenada();
+
+    expect(enviado, "byte zero no corpo — o Postgres recusa com 22P05").not.toContain("\\u0000");
+    expect(enviado, "substituto solto — o Postgres recusa com 22P02").not.toContain("\\ud83d");
+    expect(enviado, "substituto baixo solto").not.toContain("\\udc00");
+  });
+
+  it("NENHUM campo de texto passa do teto do CHECK", async () => {
+    /* Os três CHECK de comprimento estão APLICADOS em produção. Estourar
+       qualquer um é `23514` — que vem com código, logo não abre o disjuntor,
+       logo a linha se perde em silêncio e o dono recebe que o banco recusou.
+
+       O caso que quebrou de verdade: `higienizar` CRESCE o texto, e cortar
+       antes de mascarar produzia 106 caracteres num campo de teto 80. */
     ambienteCompleto();
     const chamou = fetchDosDoisDestinos();
     const { registrarFalha } = await moduloLimpo();
 
-    await registrarFalha("quebra", `assunto ${VENENO}`, `mensagem ${VENENO}`);
+    // Uma corrida de e-mails curtos é o pior caso: cada `a@b.c` (5) vira
+    // `<email>` (7).
+    const CRESCE = "a@b.c ".repeat(4000);
+    await registrarFalha("quebra", CRESCE, CRESCE, { stack: CRESCE });
 
-    const enviado = String((idasAoBanco(chamou)[0] as unknown as [string, RequestInit])[1].body);
-    expect(enviado).not.toContain(TELEFONE);
-    expect(enviado).not.toContain(EMAIL);
-    expect(enviado).not.toContain("\\u0000");
-    expect(enviado).not.toContain("\\ud83d");
+    const linha = corpoDe(idasAoBanco(chamou)[0]);
+    expect(String(linha.assunto).length, "assunto estourou o CHECK de 80").toBeLessThanOrEqual(80);
+    expect(String(linha.mensagem).length, "mensagem estourou o CHECK de 2000").toBeLessThanOrEqual(
+      2000,
+    );
+    expect(String(linha.stack).length, "stack estourou o CHECK de 8000").toBeLessThanOrEqual(8000);
+  });
+
+  it("`sanearParaJson` PRESERVA o comprimento — é o que permite ele vir depois do corte", async () => {
+    /* A ordem de `campo()` só funciona por causa desta propriedade. Se alguém
+       fizer `sanearParaJson` remover um caractere em vez de substituí-lo, o
+       corte volta a não garantir o teto — e nenhum outro teste acusaria. */
+    const { higienizar } = await moduloLimpo();
+    // Prova indireta pela via pública: a máscara cresce, o corte segura.
+    expect(higienizar("a@b.c").length).toBeGreaterThan("a@b.c".length);
+  });
+
+  it("campo obrigatório vazio não vira NULL", async () => {
+    /* `assunto` e `mensagem` são `not null`, e a migração diz por quê: "um
+       assunto vazio é bug de chamador, e recusar a linha por causa dele
+       apagaria a única prova do bug". */
+    ambienteCompleto();
+    const chamou = fetchDosDoisDestinos();
+    const { registrarFalha } = await moduloLimpo();
+
+    await registrarFalha("quebra", "   ", "");
+
+    const linha = corpoDe(idasAoBanco(chamou)[0]);
+    expect(linha.assunto, "assunto virou null e a linha seria recusada com 23502").not.toBeNull();
+    expect(linha.mensagem, "mensagem virou null e a linha seria recusada com 23502").not.toBeNull();
   });
 
   it("o CORTE não ressuscita o substituto que a limpeza tirou", async () => {

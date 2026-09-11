@@ -112,6 +112,77 @@ describe("o caminho de conversão não depende da observabilidade", () => {
   });
 });
 
+describe("todo campo do INSERT passa pela fronteira", () => {
+  /**
+   * A trava estrutural, e o motivo dela é um gesto que já foi feito.
+   *
+   * Na terceira revisão do pacote, plantaram um campo `referer` cru no objeto
+   * do INSERT — do jeito exato que o comentário de `observabilidade.ts`
+   * anuncia para o PR 3 ("43 `catch` jogando contexto de requisição aqui") — e
+   * os 109 testes ficaram VERDES. A varredura de comportamento não viu porque
+   * enumerava campos numa lista, e `referer` não estava nela.
+   *
+   * A varredura de comportamento foi consertada (agora percorre a saída), mas
+   * ela só cobre o que o teste consegue envenenar. Esta aqui cobre o resto:
+   * lê o literal do `.insert({…})` e exige que TODA linha de campo passe por
+   * `campo(`, `campoObrigatorio(` ou `identificador(`.
+   *
+   * A allowlist é curta e cada entrada tem motivo escrito. Crescer a allowlist
+   * é uma decisão consciente; adicionar campo cru sem tocar nela não compila
+   * este teste.
+   */
+
+  /** Campos que legitimamente não passam pelos limpadores, e por quê. */
+  const FORA_DA_FRONTEIRA: Record<string, string> = {
+    origem: "valor fechado do nosso código, nunca do chamador",
+    natureza: "valor fechado do nosso código",
+    ambiente: "lido de env da Vercel",
+    lead_id: "uuid gerado por nós; a coluna tem FK que recusa o resto",
+    hash_agrupamento: "calculado aqui, hex por construção",
+    suprimidas: "número, não texto",
+    extra: "jsonb — passa por `extraSeguro`, que tem as duas garantias",
+  };
+
+  it("nenhum campo entra cru no `.insert({…})`", () => {
+    const fonte = lerCodigo("src/lib/observabilidade.ts");
+
+    const abre = fonte.indexOf(".insert({");
+    expect(abre, "o literal do insert sumiu — a trava perdeu o alvo").toBeGreaterThan(-1);
+    const fecha = fonte.indexOf("})", abre);
+    expect(fecha, "não achei o fim do literal do insert").toBeGreaterThan(abre);
+
+    const corpo = fonte.slice(abre + ".insert({".length, fecha);
+
+    // `chave:` no começo de uma linha do literal — é a forma de um campo.
+    const campos = corpo
+      .split("\n")
+      .map((l) => l.trim())
+      .map((l) => /^([a-z_]+):/.exec(l)?.[1])
+      .filter((c): c is string => Boolean(c));
+
+    expect(campos.length, "a trava não enxergou campo nenhum").toBeGreaterThan(10);
+
+    const crus = campos.filter((nome) => {
+      if (nome in FORA_DA_FRONTEIRA) return false;
+      const linha = corpo.split("\n").find((l) => l.trim().startsWith(`${nome}:`)) ?? "";
+      return !/(campo|campoObrigatorio|identificador)\(/.test(linha);
+    });
+
+    expect(
+      crus,
+      "campo entrando cru no INSERT: use `campo()`, `campoObrigatorio()` ou `identificador()`, " +
+        "ou acrescente à allowlist deste teste com o motivo escrito",
+    ).toEqual([]);
+  });
+
+  it("a allowlist não cresceu sem alguém perceber", () => {
+    /* Allowlist é a válvula da trava acima, e válvula que ninguém vigia vira
+       a porta dos fundos. Sete entradas, cada uma com motivo — mudar o número
+       é decisão consciente, e esta linha é onde ela aparece na revisão. */
+    expect(Object.keys(FORA_DA_FRONTEIRA)).toHaveLength(7);
+  });
+});
+
 describe("só a costura fala com o alertaDeFalha", () => {
   it("nenhum outro arquivo o importa direto", () => {
     /* `alertarFalha` continua sendo o destino do aviso de PARADA — mas quem

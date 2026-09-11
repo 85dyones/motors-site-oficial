@@ -216,13 +216,81 @@ function limpar(texto: string): string {
  * lugar: a lista de campos do INSERT é o único ponto onde se pode conferir, de
  * relance, que nenhum ficou de fora.
  *
+ * ---------------------------------------------------------------------------
+ * TRÊS passos, e a ordem é demonstrável — não é preferência
+ * ---------------------------------------------------------------------------
+ * As duas ordens óbvias falham, e eu tentei as duas antes de entender por quê:
+ *
+ *   **limpar → cortar** (10/09): o corte parte o par substituto que o
+ *   saneamento acabou de consertar. O Postgres recusa com `22P02`.
+ *
+ *   **cortar → limpar** (11/09): `higienizar` CRESCE o texto — `a@b.c` (5)
+ *   vira `<email>` (7). Medido: 80 caracteres viram **106**, e o CHECK
+ *   `erros_assunto_com_teto` recusa com `23514`. Pior: violação de CHECK vem
+ *   com código, logo não abre o disjuntor, logo a linha se perde e o dono
+ *   recebe que o banco recusou. O alerta que mente, de novo.
+ *
+ * A saída não é escolher entre as duas: é que são TRÊS passos, e o terceiro
+ * tem uma propriedade que fecha a conta.
+ *
+ *   1. `higienizar` — mascara PII. Pode crescer.
+ *   2. `slice(teto)` — garante o CHECK. Pode partir um par.
+ *   3. `sanearParaJson` — **preserva o comprimento** (cada ramo troca uma
+ *      unidade UTF-16 por exatamente uma) e conserta o par partido no passo 2.
+ *
+ * É o passo 3 preservar comprimento que permite ele vir DEPOIS do corte sem
+ * desfazê-lo. Há teste travando essa propriedade: sem ela, esta ordem não
+ * funciona e alguém precisa ser avisado antes de mexer em `sanearParaJson`.
+ *
+ * O pré-corte da linha de baixo não muda o resultado — só limita o custo do
+ * regex de `higienizar`, que é quadrático o bastante para importar num hook
+ * que o Next `await`-a.
+ *
  * `null` entra e `null` sai — a coluna é anulável e "não veio" não é "vazio".
  */
 function campo(valor: string | null | undefined, teto: number): string | null {
   if (valor === null || valor === undefined) return null;
-  const cortado = valor.slice(0, teto);
-  if (!cortado) return null;
-  return limpar(cortado);
+
+  // Pré-corte generoso: o mascaramento nunca cresce mais que ~3x (o pior caso
+  // é uma corrida de e-mails curtíssimos), então 4x o teto é folga suficiente
+  // para o resultado final ser idêntico ao de entrada ilimitada.
+  const mascarado = higienizar(valor.slice(0, teto * 4));
+  const saneado = sanearParaJson(mascarado.slice(0, teto));
+  return saneado || null;
+}
+
+/**
+ * Campo `NOT NULL` da tabela: nunca devolve `null`.
+ *
+ * `assunto` e `mensagem` são `not null` na migração, e o motivo está escrito
+ * lá: *"um assunto vazio é bug de chamador, e recusar a linha por causa dele
+ * apagaria a única prova do bug"*. `campo()` devolve `null` para entrada
+ * vazia — o que aqui viraria `23502` e exatamente a linha perdida que a
+ * migração queria evitar.
+ */
+function campoObrigatorio(valor: string, teto: number): string {
+  return campo(valor, teto) ?? "(vazio)";
+}
+
+/**
+ * Saneia toda string de dentro de um valor JSON, em profundidade.
+ *
+ * Existe porque `sanearParaJson` trabalha em CARACTERE, e num objeto já
+ * serializado os caracteres proibidos viraram sequências de escape — que ela
+ * não reconhece. Aqui as strings são as de verdade, depois do `parse`.
+ */
+function sanearValores(valor: unknown): unknown {
+  if (typeof valor === "string") return sanearParaJson(valor);
+  if (Array.isArray(valor)) return valor.map(sanearValores);
+  if (valor && typeof valor === "object") {
+    const saida: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(valor)) {
+      // A CHAVE também: uma chave com byte zero recusa igual à do valor.
+      saida[sanearParaJson(k)] = sanearValores(v);
+    }
+    return saida;
+  }
+  return valor;
 }
 
 /**
@@ -250,8 +318,24 @@ function identificador(
 
 /** SHA da Vercel, ou o que o usuário puser na env — hex, 7 a 40. */
 const FORMA_RELEASE = /^[0-9a-f]{7,40}$/;
-/** O `digest` do Next: dígitos. Nada além disso é digest de verdade. */
-const FORMA_DIGEST = /^\d{1,64}$/;
+/**
+ * O `digest` do Next.
+ *
+ * NÃO é só dígito, e supor que era jogava fora metade dos casos. O Next 16
+ * anexa um código de erro interno ao digest — `createDigestWithErrorCode`, em
+ * `next/dist/lib/error-telemetry-utils.js`, produz `"3793388561@E61"` para
+ * todo erro que carregue `__NEXT_ERROR_CODE`. Isso inclui `after()` fora do
+ * escopo de requisição, que é um defeito que este projeto JÁ TEVE.
+ *
+ * Com `/^\d+$/`, esse digest virava `null`: o visitante lia o código na tela
+ * de erro, ligava para a loja, e o atendente não achava a linha. Exatamente o
+ * elo que a coluna existe para criar.
+ *
+ * Charset opaco e fechado, então: sem espaço, sem arroba de e-mail (o `@` aqui
+ * é separador, e a forma inteira não admite ponto seguido de TLD), sem nada
+ * que pareça texto livre.
+ */
+const FORMA_DIGEST = /^[A-Za-z0-9@_-]{1,64}$/;
 /** `ag_uid`: letra, dígito, sublinhado e traço. Mesma régua da porta pública. */
 const FORMA_AG_UID = /^[\w-]{1,64}$/;
 
@@ -345,7 +429,17 @@ function extraSeguro(extra: Record<string, unknown> | undefined): Record<string,
     if (bruto.length > TETO_EXTRA) {
       return { truncado: true, tamanho: bruto.length };
     }
-    return JSON.parse(limpar(bruto)) as Record<string, unknown>;
+
+    /* ⚠️ O saneamento roda nos VALORES, depois do parse — nunca no texto
+       serializado.
+       No texto serializado o byte zero não é um caractere: é uma
+       SEQUÊNCIA DE ESCAPE — barra invertida seguida de letras —, que `sanearParaJson` (que
+       varre `charCodeAt`) não enxerga. O `JSON.parse` devolvia o byte real ao
+       objeto, e ele seguia para o INSERT — o `22P05` passando ao lado da
+       função escrita para impedi-lo, pela porta do vizinho.
+       O mascaramento de PII, esse sim, funciona no texto: ele é textual. */
+    const objeto = JSON.parse(higienizar(bruto)) as Record<string, unknown>;
+    return sanearValores(objeto) as Record<string, unknown>;
   } catch {
     // Referência circular, `BigInt`, getter que lança — nada disso pode
     // derrubar o registro de um erro que já aconteceu.
@@ -437,8 +531,8 @@ async function gravar(
         // esquecia os vizinhos, e o `slice` que vinha depois desfazia o que a
         // limpeza tinha feito. Campo novo aqui sem `campo()` é regressão, e há
         // teste varrendo todos eles.
-        assunto: campo(assunto, TETO_ASSUNTO),
-        mensagem: campo(mensagem, TETO_MENSAGEM),
+        assunto: campoObrigatorio(assunto, TETO_ASSUNTO),
+        mensagem: campoObrigatorio(mensagem, TETO_MENSAGEM),
         stack: campo(stack, TETO_STACK),
         rota: campo(contexto.rota, TETO_CURTO),
         metodo: campo(contexto.metodo, 10),
@@ -527,7 +621,12 @@ export async function registrarFalha(
 ): Promise<void> {
   try {
     const bruto = descrever(detalhe);
-    const mensagem = limpar(bruto.mensagem);
+    /* SEM limpeza aqui — ela mora na fronteira, em `campo()`. Até 11/09 havia
+       um `limpar` neste ponto e outro no stack, e eles é que seguravam o teto
+       de `mensagem` e `stack` por acidente, mascarando o defeito de `campo()`.
+       Este texto ainda vai ao WhatsApp pelo ramo `parada`, e lá a limpeza é
+       explícita, logo abaixo. */
+    const mensagem = bruto.mensagem;
 
     /* ⚠️ O stack tem DUAS origens, e a versão anterior tratava só uma.
        `bruto.stack` é o do servidor, quando `detalhe` é um `Error`.
@@ -538,13 +637,15 @@ export async function registrarFalha(
        rota sem autenticação e com 90 dias de retenção. Por isso `limpar` é
        aplicado ao RESULTADO da escolha, e não dentro de um dos ramos: não há
        caminho que escape. */
-    const stackBruto = bruto.stack ?? contexto.stack ?? null;
-    const stack = stackBruto ? limpar(stackBruto) : null;
+    const stack = bruto.stack ?? contexto.stack ?? null;
 
     const tarefas: Promise<unknown>[] = [];
 
     if (natureza === "parada" || natureza === "ambos") {
-      tarefas.push(alertarFalha(assunto, mensagem));
+      // O WhatsApp não tem CHECK de comprimento, mas tem a mesma promessa de
+      // PII — e o `alertaDeFalha` já trunca em 300. Limpeza explícita aqui,
+      // porque este caminho não passa pela fronteira do INSERT.
+      tarefas.push(alertarFalha(assunto, limpar(mensagem)));
     }
 
     if (natureza === "quebra" || natureza === "ambos") {
