@@ -47,11 +47,32 @@ export async function POST(
       return NextResponse.json({ error: porta.motivo }, { status: porta.status });
     }
 
-    const corpo = await request.json().catch(() => ({}));
-    // `=== true` e não coerção: um corpo malformado tem de significar a ação
-    // menos destrutiva. Aqui as duas são reversíveis, mas a regra vale igual —
-    // reabrir apaga o carimbo de quem resolveu.
-    const resolver = corpo?.resolver === true;
+    // Corpo ilegível NÃO escolhe ação nenhuma.
+    //
+    // A primeira versão caía em `{}` e seguia com `resolver = false`, sob o
+    // argumento de que era "a ação menos destrutiva". Não era: `false` é
+    // REABRIR, um UPDATE em lote que apaga `resolvido_em` e `resolvido_por` de
+    // todas as linhas do grupo — o carimbo de quem triou, que é o único dado
+    // desta tela que não se recupera do erro original. O ramo "menos
+    // destrutivo" de verdade é não gravar.
+    //
+    // Continua valendo o que a versão antiga acertava: nada de coerção. `"1"`,
+    // `"sim"` e `1` não viram `true` — mas agora também não viram `false`.
+    let corpo: unknown;
+    try {
+      corpo = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Corpo inválido." }, { status: 400 });
+    }
+
+    const pedido = (corpo as { resolver?: unknown } | null)?.resolver;
+    if (typeof pedido !== "boolean") {
+      return NextResponse.json(
+        { error: "Informe `resolver` como true (resolver) ou false (reabrir)." },
+        { status: 400 },
+      );
+    }
+    const resolver = pedido;
 
     const r = await resolverGrupoDeErros(porta.supabase, {
       hash,

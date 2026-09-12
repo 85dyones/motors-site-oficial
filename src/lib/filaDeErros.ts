@@ -67,20 +67,47 @@ import { perfisDe } from "./permissoes";
    ──────────────────────────────────────────────────────────────────────── */
 
 /**
- * Quem enxerga a fila.
+ * Quem enxerga a fila **por esta tela**.
  *
- * O banco libera a leitura para **todo** o staff (`is_staff(auth.uid())`), e a
- * tela é mais estreita que ele de propósito — três razões:
+ * ---------------------------------------------------------------------------
+ * Esta constante não é uma trava de segurança. Leia antes de confiar nela.
+ * ---------------------------------------------------------------------------
+ * A policy de leitura de `erros` é `is_staff(auth.uid()) and org_id =
+ * org_padrao()`, e `is_staff` aprova cinco papéis: `admin`, `gestor`,
+ * `comercial`, `financeiro`, `marketing` (com `is_active = true`).
  *
+ * Medido contra a produção em 2026-09-12: **7 pessoas ativas** passam por
+ * `is_staff()` hoje — 2 admin, 1 gestor, 4 comercial, 3 financeiro, 2 marketing
+ * (alguns acumulam papel). Esta constante deixa **2** entrarem.
+ *
+ * As outras 5 não perdem o acesso ao DADO: perdem o acesso à TELA. Com a sessão
+ * que já têm, um GET no PostgREST devolve `mensagem` e `stack` de todas as
+ * linhas. Não há passo extra, não há credencial nova — é a mesma sessão do
+ * painel contra o mesmo endpoint que a tela usa.
+ *
+ * Então a frase que estava aqui — "a A17 mantém Marketing longe do contato
+ * individual do lead, uma stack seria a porta lateral" — estava errada no
+ * sentido que importa: a porta lateral **está aberta**, e justamente para as 2
+ * pessoas de marketing que ela dizia barrar. Estreitar a tela reduz exposição
+ * ACIDENTAL (ninguém tropeça numa stack abrindo o menu); não impede leitura
+ * deliberada.
+ *
+ * Fechar de verdade é estreitar a POLICY para os papéis de triagem — migração
+ * própria, e decisão do dono, porque muda quem lê uma tabela que já está no ar.
+ * Está anotado como pendência, não como feito.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a tela é estreita mesmo assim
+ * ---------------------------------------------------------------------------
  * 1. A decisão que sai daqui ("corrigir agora") é de quem mexe no código.
- * 2. `mensagem` e `stack` podem carregar PII por acidente: o próprio
- *    `comment on table` avisa que um erro do PostgREST cita valores
- *    (`Key (telefone)=(5541…) already exists`). A A17 já mantém Marketing longe
- *    do contato individual do lead — uma stack seria a porta lateral.
+ * 2. Exposição acidental conta: `mensagem` e `stack` podem carregar PII por
+ *    acidente — o próprio `comment on table` avisa que um erro do PostgREST
+ *    cita valores (`Key (telefone)=(5541…) already exists`). Menos gente
+ *    esbarrando nisso sem querer é ganho real, só não é barreira.
  * 3. "O que for negado some da interface, não fica cinza" (A17): o trilho e a
  *    página usam ESTA constante, então as duas camadas não têm como divergir.
  *
- * Não há linha na `MATRIZ_DE_PERMISSOES` para "triar erro do site", e não fui
+ * Não há linha na `MATRIZ_DE_PERMISSOES` para "triar erro do site", e não sou
  * eu que vou inventá-la: cada acréscimo àquela matriz carrega um pedido datado
  * do dono. Enquanto ele não existir, a régua é esta lista — conservadora, no
  * sentido que o cabeçalho de `permissoes.ts` manda (errar para baixo).

@@ -144,15 +144,46 @@ describe("a rota grava a triagem, e só ela", () => {
     expect(carga).toEqual({ resolvido_em: null, resolvido_por: null });
   });
 
-  it("corpo malformado não vira resolução acidental", async () => {
-    // `=== true`, não coerção: "1", "sim" e um corpo sem JSON caem no ramo
-    // menos destrutivo — reabrir, que só apaga carimbo de triagem.
-    await pedido({ resolver: "sim" });
-    const carga = passosDe(consultaDe("erros")[0], "update")[0].args[0] as Record<
-      string,
-      unknown
-    >;
-    expect(carga.resolvido_em).toBeNull();
+  it("corpo malformado não grava NADA — nem resolver, nem reabrir", async () => {
+    /* Este teste já existiu exigindo o defeito.
+
+       A versão anterior mandava `{ resolver: "sim" }` e afirmava
+       `carga.resolvido_em === null` — ou seja, exigia que a rota EXECUTASSE um
+       UPDATE de reabertura. O comentário que a acompanhava chamava isso de "o
+       ramo menos destrutivo", repetindo a mesma frase errada que estava na
+       rota.
+
+       Reabrir não é o ramo menos destrutivo: é um UPDATE em lote que apaga
+       `resolvido_em` e `resolvido_por` de todas as linhas do grupo. O carimbo
+       de quem triou é o único dado desta tela que não se reconstrói a partir do
+       erro original — a mensagem e a stack continuam lá, quem resolveu não.
+
+       Um pedido que a rota não entende tem de parar antes do banco. */
+    for (const naoBooleano of [{ resolver: "sim" }, { resolver: 1 }, { resolver: null }, {}]) {
+      CONSULTAS.length = 0;
+      const res = await pedido(naoBooleano);
+      expect(res.status, `${JSON.stringify(naoBooleano)} devia ser recusado`).toBe(400);
+      expect(
+        consultaDe("erros"),
+        `${JSON.stringify(naoBooleano)} encostou no banco`,
+      ).toHaveLength(0);
+    }
+  });
+
+  it("corpo que nem é JSON para antes do banco", async () => {
+    /* `request.json()` lançando não pode virar `{}` e seguir: era assim que um
+       POST truncado no caminho reabria um grupo inteiro em silêncio. */
+    CONSULTAS.length = 0;
+    const res = await POST(
+      new Request("http://localhost/api/erros/x/resolver", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{isto nao e json",
+      }),
+      { params: Promise.resolve({ hash: HASH }) },
+    );
+    expect(res.status).toBe(400);
+    expect(consultaDe("erros")).toHaveLength(0);
   });
 });
 

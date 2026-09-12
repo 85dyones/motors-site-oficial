@@ -167,18 +167,19 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // de "Integrações e webhooks", que é a vizinha de linha. Erro do site é
         // OPERAÇÃO — nada nele é financeiro, e nenhum número dele é dinheiro.
         //
-        // `roles` no item estreita o grupo para Admin, por duas razões que se
-        // somam. A decisão que sai da tela — "corrigir agora" — é de quem mexe no
-        // código, e é o dono quem abre. E `mensagem`/`stack` podem carregar PII
-        // por acidente: o `comment on table` de `erros` avisa que um erro do
-        // PostgREST cita valores (`Key (telefone)=(5541…)`), e a A17 já mantém
-        // quem vê volume de lead longe do contato individual — uma stack seria a
-        // porta lateral.
+        // `roles` no item estreita o grupo para Admin. A decisão que sai da tela
+        // — "corrigir agora" — é de quem mexe no código, e é o dono quem abre. E
+        // `mensagem`/`stack` podem carregar PII por acidente: o `comment on
+        // table` de `erros` avisa que um erro do PostgREST cita valores
+        // (`Key (telefone)=(5541…)`).
         //
-        // O BANCO é mais largo que isto (a RLS libera para todo `is_staff`), de
-        // propósito: lá a régua é grossa por natureza. A página aplica esta mesma
-        // lista (`PERFIS_QUE_TRIAM_ERROS`), então as duas camadas não divergem —
-        // quem não vê o item também não entra pela URL.
+        // ATENÇÃO: isto esconde o ITEM, não fecha o DADO. A RLS de `erros`
+        // libera leitura para todo `is_staff` — 7 pessoas ativas contra as 2
+        // desta lista, medido em 2026-09-12 —, e quem tem sessão de painel lê a
+        // tabela direto no PostgREST sem passar por aqui. O porquê, os números e
+        // o que faltaria para fechar de verdade estão no cabeçalho de
+        // `PERFIS_QUE_TRIAM_ERROS` (`src/lib/filaDeErros.ts`); esta lista é a
+        // mesma que a página aplica, então trilho e página não divergem.
         {
           name: "Erros do site",
           href: "/admin/erros",
