@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ler } from "./fonte";
+import { lerCodigo } from "./fonte";
 
 /**
  * A declaração que torna a coleta de erro legítima.
@@ -29,8 +29,22 @@ import { ler } from "./fonte";
 
 const POLITICA = "src/app/privacidade/page.tsx";
 
+/**
+ * ⚠️ `lerCodigo`, e NÃO `ler` — a primeira versão usou `ler` e a revisão
+ * derrubou a trava inteira com uma mutação de duas linhas.
+ *
+ * `ler` devolve o arquivo COM comentários (`tests/fonte.ts:20`). E o comentário
+ * que este PR escreveu logo acima do parágrafo cita "90 dias" duas vezes, para
+ * explicar por que o número está ali. Resultado medido: trocar as duas
+ * ocorrências VISÍVEIS para "30 dias" deixava a suíte cheia verde — 2684
+ * testes passando com a política dizendo um prazo e o banco outro.
+ *
+ * É a armadilha que `tests/fonte.ts` existe para desarmar, e que o cabeçalho
+ * dele descreve com todas as letras: a nota que explica uma regra quase sempre
+ * CITA o que a regra guarda. Escrevi a nota e caí nela no mesmo dia.
+ */
 describe("a política declara o registro técnico de erro", () => {
-  const texto = ler(POLITICA);
+  const texto = lerCodigo(POLITICA);
 
   it("a FINALIDADE está declarada", () => {
     /* Sem finalidade declarada não há base legal — e o `legítimo interesse`
@@ -41,31 +55,66 @@ describe("a política declara o registro técnico de erro", () => {
     );
   });
 
-  it("diz o que o registro CONTÉM, e o que não contém", () => {
-    expect(texto).toMatch(/mensagem técnica do erro/);
+  it("a ENUMERAÇÃO cobre o que a tabela guarda de verdade", () => {
+    /* A primeira versão listava "mensagem, página, navegador, identificador" e
+       parava aí. A tabela também guarda `stack` — que é onde a mensagem inteira
+       reaparece —, `metodo` e `release`. Política que enumera MENOS do que o
+       sistema guarda descreve outro tratamento, não o nosso. */
+    expect(texto).toMatch(/rastreamento do erro/);
     expect(texto).toMatch(/identificador anônimo de navegação/);
-    // O que NÃO contém importa tanto quanto: é a diferença entre diagnóstico e
-    // vigilância de formulário.
-    expect(texto, "a política precisa dizer que o conteúdo do formulário fica de fora").toMatch(
-      /não guarda o que\s+você digitou em formulários|não o conteúdo dos formulários/,
+    expect(texto).toMatch(/navegador/);
+    expect(texto).toMatch(/método/);
+    expect(texto).toMatch(/versão do site/);
+  });
+
+  it("NÃO afirma de forma absoluta o que o sistema não garante", () => {
+    /* Bloqueio da revisão de 11/09, e é o mais sério deste PR.
+
+       `higienizar` mascara e-mail e corrida de 8+ dígitos (telefone, CPF,
+       CNPJ). NOME não é mascarado — e um erro do PostgREST como
+       `Key (nome)=(Maria da Silva) already exists` atravessa inteiro e fica 90
+       dias na linha. O próprio `comment on table` da migração diz isso: "a
+       higienização é da APLICAÇÃO, o banco não garante".
+
+       Então "não tem seu nome nem seu telefone" era falso, e "não guarda o que
+       você digitou" também: o valor citado pelo banco VEM do que a pessoa
+       digitou. A forma honesta é compromisso de esforço mais a ressalva — que
+       é como a migração já se descreve. */
+    for (const absoluta of [
+      /não tem seu nome nem seu telefone/,
+      /não guarda o que\s+você digitou em formulários/,
+      /não o conteúdo dos formulários/,
+    ]) {
+      expect(texto, `afirmação absoluta voltou: ${absoluta}`).not.toMatch(absoluta);
+    }
+
+    // O compromisso de esforço, e a ressalva que o acompanha.
+    expect(texto).toMatch(/mascaramos telefone, CPF, CNPJ e e-mail antes de gravar/);
+    expect(texto, "a ressalva sobre o valor citado pelo banco sumiu").toMatch(
+      /pode citar um valor por acidente/,
     );
   });
 
-  it("o PRAZO de 90 dias está escrito", () => {
-    /* O número é o que transforma "guardamos" em promessa verificável — e é o
-       mesmo do default de `limpar_erros_antigos`. Se um mudar sem o outro, a
-       política mente. */
+  it("o PRAZO de 90 dias está escrito, e tem executor", () => {
+    /* O número é o mesmo do default de `limpar_erros_antigos`. Se um mudar sem
+       o outro, a política mente — e esta asserção só serve porque o arquivo é
+       lido SEM comentários (ver o cabeçalho deste describe). */
     expect(texto).toMatch(/90 dias/);
+    /* "apagados por rotina automática", e não "apagados automaticamente":
+       a revisão mediu que `cron.job` em produção tinha DOIS jobs, nenhum de
+       retenção. A frase só volta a ser verdadeira com o agendamento que este
+       PR acrescenta — e nomear a rotina é o que liga a promessa ao executor. */
+    expect(texto).toMatch(/apagados por rotina automática/);
   });
 
   it("a promessa de eliminação foi QUALIFICADA, não mantida como estava", () => {
-    /* A frase absoluta não pode voltar: ela é falsa enquanto a tabela de erro
-       existir. */
     expect(texto, "a promessa absoluta voltou — e ela é falsa").not.toMatch(
       /o registro é apagado — não fica cópia em nossa base/,
     );
     expect(texto, "a ressalva sobre o registro técnico sumiu").toMatch(
-      /pode conter o identificador anônimo de navegação e permanecer/,
+      /pode permanecer até o fim dos 90 dias/,
     );
+    // E a saída para quem não quer esperar o prazo.
+    expect(texto, "não oferece apagar antes do prazo").toMatch(/antes do prazo, peça/);
   });
 });

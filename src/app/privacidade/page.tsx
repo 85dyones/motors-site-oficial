@@ -209,10 +209,12 @@ export default async function PrivacidadePage() {
                   ficado para depois. */}
               <li>
                 <strong className="text-mt-ink">Consertar o que quebra.</strong> Quando uma
-                página apresenta falha, registramos o que aconteceu — a mensagem técnica do erro,
-                o endereço da página, o navegador usado e o identificador anônimo de navegação —
-                para conseguir reproduzir e corrigir o problema. Esse registro não guarda o que
-                você digitou em formulários.
+                página apresenta falha, registramos o diagnóstico técnico — a mensagem e o
+                rastreamento do erro, o endereço da página, o navegador, o método e a versão do
+                site, além do identificador anônimo de navegação — para conseguir reproduzir e
+                corrigir o problema. Não registramos o conteúdo dos formulários de propósito, e
+                mascaramos telefone, CPF, CNPJ e e-mail antes de gravar; ainda assim, uma mensagem
+                de erro do banco de dados pode citar um valor por acidente.
               </li>
             </ul>
           </Secao>
@@ -380,9 +382,9 @@ export default async function PrivacidadePage() {
                 frase. */}
             <p>
               <strong className="text-mt-ink">Registros técnicos de erro</strong> ficam
-              guardados por 90 dias e depois são apagados automaticamente. Eles contêm a
-              mensagem do erro, a página, o navegador e o identificador anônimo de
-              navegação — não o conteúdo dos formulários.
+              guardados por 90 dias e depois são apagados por rotina automática. Eles contêm a
+              mensagem e o rastreamento do erro, a página, o navegador, o método, a versão do site
+              e o identificador anônimo de navegação.
             </p>
             <p>
               Você pode pedir a eliminação a qualquer momento, pelos canais da seção{" "}
@@ -390,9 +392,11 @@ export default async function PrivacidadePage() {
                 Como falar conosco
               </a>
               . Atendido o pedido, seu cadastro de contato é apagado. Um registro técnico de erro
-              gerado antes do pedido pode conter o identificador anônimo de navegação e permanecer
-              até o fim dos 90 dias — ele não tem seu nome nem seu telefone, e some sozinho no
-              prazo.
+              gerado antes do pedido pode permanecer até o fim dos 90 dias, e some sozinho no
+              prazo: ele guarda o identificador anônimo de navegação e, nos casos em que a
+              mensagem do banco de dados cita um valor, pode conter um dado seu que escapou do
+              mascaramento. Se quiser que apaguemos esses registros antes do prazo, peça pelos
+              mesmos canais.
             </p>
           </Secao>
 
