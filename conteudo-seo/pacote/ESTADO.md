@@ -1,5 +1,9 @@
 # Estado do pacote contra o repositório — conferência de 2026-09-11
 
+> A fila do que falta, com os branches em aberto e as armadilhas de ambiente,
+> está em [`PROXIMOS_PASSOS.md`](PROXIMOS_PASSOS.md). Este arquivo é o retrato;
+> aquele é o handoff.
+
 O pacote foi escrito contra uma foto do site que envelheceu. Este arquivo diz o
 que **já está no ar**, o que **continua aberto** e o que **foi decidido
 diferente** — para ninguém reimplementar o que existe nem esperar por algo que
