@@ -395,9 +395,14 @@ export default async function PrivacidadePage() {
               gerado antes do pedido pode permanecer até o fim dos 90 dias, e some sozinho no
               prazo: ele guarda o identificador anônimo de navegação e, nos casos em que a
               mensagem do banco de dados cita um valor, pode conter um dado seu que escapou do
-              mascaramento. Se quiser que apaguemos esses registros antes do prazo, peça pelos
-              mesmos canais.
+              mascaramento.
             </p>
+            {/* Sem oferta de apagar esses registros mais cedo, a pedido. A frase
+                existia, e a revisão de 13/09 mediu que nada a cumpria: o painel não
+                tem DELETE em `erros`, a exclusão do lead não encosta na tabela, e
+                depois dela o elo (`leads.ag_uid`) some junto, então nem SQL acha as
+                linhas. A oferta volta junto com o executor, num PR próprio (decisão
+                do dono, 13/09). */}
           </Secao>
 
           <Secao id="direitos" titulo="Seus direitos como titular">

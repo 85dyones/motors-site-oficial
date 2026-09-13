@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { lerCodigo } from "./fonte";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { ler, lerCodigo } from "./fonte";
 
 /**
  * A declaração que torna a coleta de erro legítima.
@@ -29,6 +31,35 @@ import { lerCodigo } from "./fonte";
 
 const POLITICA = "src/app/privacidade/page.tsx";
 
+/** A chamada que o pg_cron executa, e o padrão com que a migração confere a própria agenda. */
+const AGENDA = /\$cron\$\s*select\s+public\.limpar_erros_antigos\((\d+)\)\s*;?\s*\$cron\$/gi;
+const AUTOCONFERENCIA = /ilike\s+'%limpar_erros_antigos\((\d+)\)%'/gi;
+
+/**
+ * A migração mais recente que agenda a rotina — e não a de 12/09 pelo nome.
+ *
+ * Se uma migração posterior reagendar, é a agenda dela que o banco executa.
+ * Abrir o arquivo pelo nome deixaria esta trava verde guardando uma agenda
+ * morta, que é o `create or replace` numa migração posterior que já pegou este
+ * repositório uma vez. Os comentários `--` saem antes da busca, porque a nota
+ * que explica a agenda costuma citar a agenda.
+ */
+function agendaViva(): { arquivo: string; sql: string } {
+  const agendam = readdirSync(join(__dirname, "..", "supabase", "migrations"))
+    .filter((arquivo) => arquivo.endsWith(".sql"))
+    .sort()
+    .map((arquivo) => ({
+      arquivo,
+      sql: ler(`supabase/migrations/${arquivo}`).replace(/--.*$/gm, ""),
+    }))
+    .filter(({ sql }) => [...sql.matchAll(AGENDA)].length > 0);
+  expect(
+    agendam.length,
+    'nenhuma migração agenda limpar_erros_antigos: a "rotina automática" da política não tem executor',
+  ).toBeGreaterThan(0);
+  return agendam[agendam.length - 1];
+}
+
 /**
  * ⚠️ `lerCodigo`, e NÃO `ler` — a primeira versão usou `ler` e a revisão
  * derrubou a trava inteira com uma mutação de duas linhas.
@@ -42,6 +73,11 @@ const POLITICA = "src/app/privacidade/page.tsx";
  * É a armadilha que `tests/fonte.ts` existe para desarmar, e que o cabeçalho
  * dele descreve com todas as letras: a nota que explica uma regra quase sempre
  * CITA o que a regra guarda. Escrevi a nota e caí nela no mesmo dia.
+ *
+ * E `lerCodigo` fechou só metade do furo. A revisão de 13/09 mediu a outra
+ * metade nos arquivos reais: uma ocorrência de "90 dias" bastava, e a ressalva
+ * a fornecia sozinha; e a migração nem era lida. O teste do PRAZO, abaixo,
+ * fecha essa metade.
  */
 describe("a política declara o registro técnico de erro", () => {
   const texto = lerCodigo(POLITICA);
@@ -95,26 +131,63 @@ describe("a política declara o registro técnico de erro", () => {
     );
   });
 
-  it("o PRAZO de 90 dias está escrito, e tem executor", () => {
-    /* O número é o mesmo do default de `limpar_erros_antigos`. Se um mudar sem
-       o outro, a política mente — e esta asserção só serve porque o arquivo é
-       lido SEM comentários (ver o cabeçalho deste describe). */
-    expect(texto).toMatch(/90 dias/);
-    /* "apagados por rotina automática", e não "apagados automaticamente":
-       a revisão mediu que `cron.job` em produção tinha DOIS jobs, nenhum de
-       retenção. A frase só volta a ser verdadeira com o agendamento que este
-       PR acrescenta — e nomear a rotina é o que liga a promessa ao executor. */
-    expect(texto).toMatch(/apagados por rotina automática/);
+  it("o PRAZO é um número só: o que a política declara é o que a rotina agenda", () => {
+    /* Bloqueio da revisão de 13/09. A versão anterior pedia `/90 dias/` uma
+       vez, e a ressalva do parágrafo seguinte já a satisfazia sozinha: trocar
+       só a frase da retenção para "30 dias" ficava verde. A migração nem era
+       lida, então agendar `limpar_erros_antigos(30)` também passava. As duas
+       mutações foram medidas nos arquivos reais antes desta versão.
+
+       Agora o número sai da frase da retenção e é exigido igual na ressalva,
+       na agenda e na autoconferência da migração. Mudar o prazo continua
+       possível, mas só mudando os lugares juntos.
+
+       "apagados por rotina automática", e não "apagados automaticamente": a
+       revisão mediu que `cron.job` em produção tinha DOIS jobs, nenhum de
+       retenção. Nomear a rotina é o que liga a promessa ao executor, e por
+       isso a frase inteira é a âncora. */
+    const retencao = texto.match(
+      /guardados\s+por\s+(\d+)\s+dias\s+e\s+depois\s+são\s+apagados\s+por\s+rotina\s+automática/,
+    );
+    expect(retencao, "a frase da retenção sumiu, ou deixou de nomear a rotina").not.toBeNull();
+    const prazo = retencao![1];
+
+    const ressalva = texto.match(/pode\s+permanecer\s+até\s+o\s+fim\s+dos\s+(\d+)\s+dias/);
+    expect(ressalva, "a ressalva sobre o registro técnico sumiu").not.toBeNull();
+    expect(ressalva![1], "a ressalva cita um prazo e a retenção, outro").toBe(prazo);
+
+    const { arquivo, sql } = agendaViva();
+    const agendados = [...sql.matchAll(AGENDA)].map((m) => m[1]);
+    expect(agendados, `${arquivo} agenda um prazo e a política declara outro`).toEqual(
+      agendados.map(() => prazo),
+    );
+    const conferidos = [...sql.matchAll(AUTOCONFERENCIA)].map((m) => m[1]);
+    expect(conferidos, `a autoconferência de ${arquivo} confere outro prazo`).toEqual(
+      conferidos.map(() => prazo),
+    );
   });
 
-  it("a promessa de eliminação foi QUALIFICADA, não mantida como estava", () => {
+  it("a promessa de eliminação foi QUALIFICADA, e não oferece o que nada cumpre", () => {
     expect(texto, "a promessa absoluta voltou — e ela é falsa").not.toMatch(
       /o registro é apagado — não fica cópia em nossa base/,
     );
     expect(texto, "a ressalva sobre o registro técnico sumiu").toMatch(
-      /pode permanecer até o fim dos 90 dias/,
+      /pode\s+permanecer\s+até\s+o\s+fim\s+dos\s+\d+\s+dias/,
     );
-    // E a saída para quem não quer esperar o prazo.
-    expect(texto, "não oferece apagar antes do prazo").toMatch(/antes do prazo, peça/);
+    /* Bloqueio da revisão de 13/09: esta asserção EXIGIA o defeito. Ela pedia
+       "se quiser que apaguemos esses registros antes do prazo, peça pelos
+       mesmos canais", e nada cumpre isso: o painel não tem DELETE em `erros`,
+       a exclusão do lead (`api/leads/gerenciar`) não encosta na tabela, e
+       depois dela o elo `leads.ag_uid` some junto, então nem SQL acha as
+       linhas. A oferta volta junto com o executor, num PR próprio (decisão do
+       dono, 13/09).
+
+       O limite desta trava: ela pega a frase antiga e qualquer variação que
+       fale em "antes do prazo". Uma oferta nova com outra redação passa, e
+       tem que chegar com o executor no mesmo PR. */
+    expect(
+      texto,
+      "a política voltou a oferecer apagar antes do prazo, e nada cumpre isso",
+    ).not.toMatch(/antes\s+do\s+prazo/);
   });
 });
