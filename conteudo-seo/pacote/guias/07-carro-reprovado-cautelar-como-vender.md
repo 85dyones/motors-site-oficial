@@ -102,7 +102,9 @@ O que a gente não faz, em nenhuma hipótese, é receber o carro sem te dizer o 
 
 Comece sabendo o que você tem. Se ainda não fez a perícia, faça — [onde fazer em Curitiba](/guias/pericia-cautelar-curitiba). Se já fez, leia o documento inteiro e identifique em qual dos casos acima você está.
 
-Depois disso, peça avaliação. A nossa é gratuita, sai por escrito, e você fica sabendo exatamente o que foi encontrado — entrando no nosso estoque ou não.
+Depois disso, peça avaliação, você fica sabendo exatamente o que foi encontrado — entrando no nosso estoque ou não.
+
+A Motors faz perícia em todos os carrros, então você pode optar por fazer conosco. Seja durante o processo ou depois para ratificar a avaliação, caso o carro seja aprovado, não há valor cobrado pelo serviço.
 
 [Pedir avaliação do meu carro →](/avaliacao)
 
@@ -120,7 +122,7 @@ Sim. Omitir defeito que você conhece configura vício oculto e pode gerar resci
 Varia demais conforme o motivo, o modelo e a documentação disponível. Um apontamento estético e um sinistro de média monta não se comparam. [A diferença entre os tipos de resultado](/guias/resultados-laudo-cautelar) é o que determina a faixa.
 
 **A Motors Store compra carro reprovado?**
-Não para a vitrine — o critério ali é fechado. Dependendo do caso pode haver outro caminho, e a avaliação é gratuita de qualquer forma. Quando não houver, a gente diz o motivo.
+Não para a vitrine — o critério ali é fechado. Dependendo do caso pode haver outro caminho,quando não houver, a gente diz o motivo.
 
 ---
 
@@ -148,8 +150,8 @@ Não para a vitrine — o critério ali é fechado. Dependendo do caso pode have
 ## Pendências antes de publicar
 
 - [ ] **Verificação de T3 sobre repasse.** A `/garantia` afirma "sem termo de isenção — nunca pedimos". Se o repasse entre lojistas usa termo de isenção de garantia, decidir a redação: ou a frase da `/garantia` fica explicitamente restrita à venda ao consumidor, ou este guia não menciona repasse como caminho. Hoje o texto cita "outro caminho comercial" sem detalhar condições — é a redação mais segura, mas a decisão é sua
-- [ ] Confirmar que "avaliação gratuita mesmo quando o carro não entra" corresponde à prática
-- [ ] Revisão jurídica do bloco sobre dever de informar
+- [x] Confirmar que "avaliação gratuita mesmo quando o carro não entra" corresponde à prática
+- [x] Revisão jurídica do bloco sobre dever de informar
 
 ## Conferência editorial
 
