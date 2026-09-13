@@ -6,6 +6,7 @@ import {
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
+  SECOES_DE_GARANTIA,
 } from "../src/lib/paginasInstitucionais";
 
 /**
@@ -92,6 +93,21 @@ describe("a fonte é a mesma que o site publica", () => {
     expect(fonte).toMatch(/TEXTO_DE_FINANCIAMENTO/);
     expect(fonte).toMatch(/PERGUNTAS_DE_GARANTIA/);
     expect(fonte).toMatch(/PERGUNTAS_DE_FINANCIAMENTO/);
+    expect(fonte).toMatch(/SECOES_DE_GARANTIA/);
+  });
+
+  it("as seções da /garantia entram, com título e texto", () => {
+    // Desde 2026-09-13 a página tem seções com `<h2>` — o que fazer se algo
+    // falhar, por que a perícia vem antes. Assistente que lesse só a abertura
+    // responderia "como aciono a garantia?" sem o "avise antes de mexer", que é
+    // o passo que evita o reparo feito por terceiro.
+    expect(SECOES_DE_GARANTIA.length).toBeGreaterThan(0);
+    for (const secao of SECOES_DE_GARANTIA) {
+      expect(texto, secao.titulo).toContain(secao.titulo);
+      for (const paragrafo of secao.paragrafos) {
+        expect(texto, secao.titulo).toContain(paragrafo.slice(0, 40));
+      }
+    }
   });
 
   it("todas as perguntas do site entram, nenhuma fica de fora", () => {

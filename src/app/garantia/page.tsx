@@ -7,7 +7,11 @@ import { normalizarProcedencia } from "../../lib/procedencia";
 import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import { blocoJsonLd, schemaDePerguntas, schemaDeTrilha } from "../../lib/schemaListagem";
 import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
-import { PERGUNTAS_DE_GARANTIA, TEXTO_DE_GARANTIA } from "../../lib/paginasInstitucionais";
+import {
+  PERGUNTAS_DE_GARANTIA,
+  SECOES_DE_GARANTIA,
+  TEXTO_DE_GARANTIA,
+} from "../../lib/paginasInstitucionais";
 
 /**
  * `/garantia` — destino de sitelink e resposta à objeção mais comum do balcão.
@@ -23,6 +27,9 @@ import { PERGUNTAS_DE_GARANTIA, TEXTO_DE_GARANTIA } from "../../lib/paginasInsti
  * 2. **Reaproveita a faixa de procedência da ficha** em vez de reescrever as
  *    mesmas quatro promessas. Ela é editável no painel — se a loja mudar o que
  *    promete, muda num lugar só e as duas páginas acompanham.
+ * 3. **Tem seções com `<h2>` desde 2026-09-13**, na estrutura da proposta do
+ *    pacote de conteúdo. O que entrou dela, o que ficou de fora e por quê está
+ *    no docblock de `GARANTIA_MESES`, em `lib/paginasInstitucionais.ts`.
  *
  * Sem grade de veículos: aqui o estoque não é o argumento.
  */
@@ -75,9 +82,10 @@ export default async function GarantiaPage() {
         trilha={[{ rotulo: "Home", href: "/" }]}
         titulo="Garantia do seminovo"
         introducao={TEXTO_DE_GARANTIA}
+        secoes={SECOES_DE_GARANTIA}
         contagem={false}
         veiculos={[]}
-        textoSemEstoque="Veja o estoque disponível; o laudo de perícia fica na ficha assim que aprovado."
+        textoSemEstoque="Todo carro do nosso estoque passou por perícia antes de entrar, e sai com garantia por escrito."
         conteudo={<FaixaProcedencia itens={normalizarProcedencia(settings.procedencia)} />}
         blocos={[
           {

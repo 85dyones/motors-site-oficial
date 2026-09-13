@@ -1,4 +1,4 @@
-import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque";
+import type { PerguntaFrequente, SecaoDeTexto } from "../components/modernist/PaginaDeEstoque";
 
 /**
  * O texto das páginas institucionais — `/financiamento` e `/garantia`.
@@ -136,47 +136,119 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  * cobertas seria afirmar condição contratual que este arquivo não tem como
  * confirmar, e errar para qualquer um dos dois lados é passivo: prometer o que
  * a loja não cumpre, ou negar o que ela cobre.
+ *
+ * ---------------------------------------------------------------------------
+ * A revisão de 2026-09-13 — alinhada às peças da Onda 1
+ * ---------------------------------------------------------------------------
+ * Pedido: *"precisamos rever este texto do /garantia, alinhar com o restante
+ * das peças conforme o proposto"*. A proposta é
+ * `conteudo-seo/pacote/paginas/garantia.md`, versão 3, camada 1. Fonte do que
+ * mudou:
+ *
+ * - **as três seções** (a garantia · o que fazer se algo falhar · por que a
+ *   perícia vem antes) → estrutura da proposta;
+ * - **"na venda ao consumidor, não pedimos termo de isenção"** → proposta,
+ *   RESTRITA à venda ao consumidor pela pendência de T3 da peça 07: o repasse
+ *   entre lojistas pode usar esse termo, e o "Nunca pedimos" absoluto da
+ *   proposta afirmaria o contrário;
+ * - **"avise antes de mexer" e "guarde tudo"** → proposta; são orientação ao
+ *   cliente, não condição contratual;
+ * - **"empresa independente, credenciada junto ao Detran"** → redação fixada
+ *   pelo dono em 09/09 (`LAUDO_APROVADO_PADRAO`), no lugar de "laboratório
+ *   credenciado";
+ * - **sai a explicação da lei** ("a lei já garante prazo para reclamar de
+ *   vício…") → decisão editorial T8 do pacote: a página descreve o que a loja
+ *   entrega, não ensina garantia legal. FICA o "soma-se aos seus direitos — não
+ *   os substitui", que é o que impede a garantia de parecer a única cobertura.
+ *
+ * O que a proposta tem e NÃO entrou, de propósito:
+ *
+ * - **a tabela "o que está coberto e o que não está"** — é exatamente a lista
+ *   de exclusões que a decisão acima proíbe. Fica para decisão do dono;
+ * - **"sem custo de mão de obra"** — condição contratual nova, sem procedência
+ *   neste arquivo além da proposta. Mesma régua da tabela;
+ * - **a FAQ "loja é obrigada a dar garantia em carro usado?"** — a própria
+ *   proposta a marca "para sua decisão";
+ * - **os blocos `[C2]`** de garantia estendida — dependem de parceria que não
+ *   existe;
+ * - **o crivo técnico de showroom** a proposta omite, e aqui ele FICA:
+ *   `/sobre` publica o mesmo crivo, e `tabela-de-guias.test.ts` já tratou a
+ *   omissão dele como defeito de coerência.
  */
 export const GARANTIA_MESES = 3;
 
+/** A abertura, sob o `<h1>`. */
 export const TEXTO_DE_GARANTIA: string[] = [
-  "Todo carro vendido pela Motors Store sai com garantia de motor e câmbio por três meses, " +
-    "contratada na entrega, sem carência e sem franquia. Sem carência significa que ela vale " +
-    "desde o dia em que você pega a chave; sem franquia, que não há valor a pagar para acionar.",
-  "Essa cobertura contratada soma-se aos seus direitos de consumidor — não os substitui. A lei " +
-    "já garante prazo para reclamar de vício em produto durável comprado de pessoa jurídica, e " +
-    "nada aqui reduz isso. O escopo do que a garantia de motor e câmbio cobre e o que fica de " +
-    "fora está no termo que acompanha a venda: leia antes de assinar, e pergunte o que não " +
-    "estiver claro. Se um vendedor não deixa você ler o termo com calma, o problema não é o termo.",
-  "O que faz diferença de verdade, porém, acontece antes da garantia. Todo veículo passa por " +
-    "perícia cautelar independente antes de entrar na vitrine — estrutura, chassi e histórico de sinistro auditados por " +
-    "laboratório credenciado — e o laudo fica publicado na ficha do carro assim que é aprovado, " +
-    "não guardado numa gaveta para mostrar depois da proposta. De cada dez veículos avaliados, " +
-    "três entram no estoque. Os outros sete vão para repasse.",
-  "Antes da entrega, o carro ainda passa pelo crivo técnico de showroom: mais de 120 pontos " +
-    "mecânicos e eletrônicos conferidos. Garantia é a rede embaixo do trapézio — ela existe para " +
-    "o caso raro. O trabalho de verdade é fazer com que ela quase nunca precise ser usada.",
+  "Todo carro vendido pela Motors Store sai com três meses de garantia de motor e câmbio, " +
+    "contados da entrega, sem carência e sem franquia. Deu problema nesses dois conjuntos " +
+    "dentro do prazo, a gente resolve.",
+  "Antes disso, o carro passou por perícia cautelar independente — e só entrou na vitrine " +
+    "porque passou: de cada dez veículos avaliados, três entram. A garantia existe para o que " +
+    "a perícia não tem como enxergar.",
+  "Essa cobertura soma-se aos seus direitos de consumidor — não os substitui. O que ela cobre, " +
+    "item por item, está no termo que acompanha a venda: leia antes de assinar e pergunte o que " +
+    "não estiver claro.",
+];
+
+/** O corpo, em `<h2>` — a estrutura da proposta do pacote. */
+export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
+  {
+    titulo: "A garantia da Motors Store",
+    paragrafos: [
+      "Três meses, motor e câmbio, contados da entrega. Sem carência: vale desde o primeiro " +
+        "dia, sem período de espera. Sem franquia: você não paga parte do conserto, nem taxa " +
+        "para acionar.",
+      "Na venda ao consumidor, não pedimos assinatura de termo de isenção — nenhum papel que " +
+        "reduza aquilo a que você tem direito.",
+      "É o padrão do mercado, cumprido de verdade. A diferença não está no prazo: está em " +
+        "conseguir acionar sem discussão, e sem descobrir depois uma cláusula que ninguém " +
+        "mostrou na hora da venda.",
+    ],
+  },
+  {
+    titulo: "O que fazer se algo falhar",
+    paragrafos: [
+      "Avise antes de mexer. Fale com a gente antes de levar o carro a uma oficina por conta " +
+        "própria: reparo feito sem comunicação prévia dificulta a análise e pode agravar o problema.",
+      "A gente avalia e, dentro do prazo e do escopo do termo, conserta sem franquia.",
+      "Guarde tudo: nota, contrato, laudo da perícia, ordem de serviço e a conversa por escrito.",
+    ],
+  },
+  {
+    titulo: "Por que a perícia vem antes da garantia",
+    paragrafos: [
+      "Garantia é o que a gente faz quando algo dá errado. Perícia cautelar é o que a gente faz " +
+        "para que não dê.",
+      "Todo veículo passa pela perícia antes de entrar na vitrine — estrutura, chassi e " +
+        "histórico de sinistro auditados por empresa independente, credenciada junto ao Detran — " +
+        "e o laudo fica publicado na ficha do carro assim que é aprovado. Os sete de cada dez " +
+        "que não entram são recusados por sinistro estrutural, passagem por leilão, adulteração " +
+        "de numeração ou desgaste crônico grave.",
+      "Nenhuma perícia prevê tudo. Ela verifica estrutura, identificação e histórico — não abre " +
+        "motor, não mede compressão de cilindro, não avalia bomba de alta pressão.",
+      "Por isso, antes da entrega, o carro ainda passa pelo crivo técnico de showroom: mais de " +
+        "120 pontos mecânicos e eletrônicos conferidos. E a garantia responde pelo que nem a " +
+        "inspeção mais cuidadosa tem como enxergar.",
+    ],
+  },
 ];
 
 export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
   {
-    pergunta: "Qual o prazo da garantia?",
+    /* A primeira pergunta é a específica da página, e as outras vêm depois —
+       a régua do pacote (§2.5) para o FAQ que se repete entre páginas. */
+    pergunta: "O que a garantia cobre, exatamente?",
     resposta:
-      "Três meses de garantia de motor e câmbio, contados da entrega do veículo. É cobertura " +
-      "contratada, sem carência e sem franquia, e ela se soma aos seus direitos de consumidor.",
-  },
-  {
-    pergunta: "O que exatamente a garantia cobre?",
-    resposta:
-      "Motor e câmbio. O detalhamento do que está coberto e do que fica de fora é o do termo " +
-      "entregue junto com a venda — peça para ler antes de assinar. Nossa equipe explica cada " +
-      "item na entrega, sem pressa.",
+      "Motor e câmbio, por três meses contados da entrega, sem carência e sem franquia: falha " +
+      "nesses dois conjuntos, dentro do prazo, a loja resolve. O detalhamento item por item " +
+      "está no termo entregue junto com a venda — peça para ler antes de assinar.",
   },
   {
     pergunta: "Preciso pagar algo para acionar?",
     resposta:
       "Não há franquia. Se algo dentro da cobertura acontecer no período, fale com a loja pelo " +
-      "WhatsApp com o carro e a nota em mãos que orientamos o passo seguinte.",
+      "WhatsApp antes de levar o carro a outra oficina — com o carro e a nota em mãos, " +
+      "orientamos o passo seguinte.",
   },
   {
     pergunta: "Todos os carros passam por perícia cautelar?",
@@ -184,7 +256,7 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        com a perícia APROVADA, e parte da vitrine está em análise a qualquer
        momento. "Assim que a perícia é aprovada" descreve o que o site faz. */
     resposta:
-      "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente e o laudo fica na ficha " +
+      "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente, credenciada junto ao Detran, e o laudo fica na ficha " +
       "do veículo, no site, assim que é aprovada — dá para ler antes de vir à loja.",
   },
   {

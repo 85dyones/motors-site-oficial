@@ -4,6 +4,7 @@ import {
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
+  SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
   TEXTO_DE_GARANTIA,
 } from "../src/lib/paginasInstitucionais";
@@ -44,9 +45,23 @@ function arquivosPublicos(): { caminho: string; codigo: string }[] {
  * regulação de publicidade de crédito e do CDC.
  */
 
+/**
+ * A prosa inteira da `/garantia` — a abertura E as seções.
+ *
+ * Desde 2026-09-13 a página tem dois arrays de texto: `TEXTO_DE_GARANTIA`, sob
+ * o `<h1>`, e `SECOES_DE_GARANTIA`, com os `<h2>` da proposta do pacote. Trava
+ * de permissão que olhasse só o primeiro deixaria passar exclusão,
+ * superioridade ou "premium" escritos numa seção — o texto novo moraria
+ * exatamente onde a régua não mede.
+ */
+const TEXTO_DA_GARANTIA = [
+  ...TEXTO_DE_GARANTIA,
+  ...SECOES_DE_GARANTIA.flatMap((s) => [s.titulo, ...s.paragrafos]),
+].join(" ");
+
 const TEXTO_INTEIRO = [
   ...TEXTO_DE_FINANCIAMENTO,
-  ...TEXTO_DE_GARANTIA,
+  TEXTO_DA_GARANTIA,
   ...PERGUNTAS_DE_FINANCIAMENTO.flatMap((p) => [p.pergunta, p.resposta]),
   ...PERGUNTAS_DE_GARANTIA.flatMap((p) => [p.pergunta, p.resposta]),
 ].join(" ");
@@ -199,7 +214,7 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
   });
 
   it("não usa os três meses como argumento de superioridade", () => {
-    expect(TEXTO_DE_GARANTIA.join(" ")).not.toMatch(
+    expect(TEXTO_DA_GARANTIA).not.toMatch(
       /maior garantia|melhor garantia|garantia estendida|exclusiv/i,
     );
   });
@@ -209,11 +224,14 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
     // passivo nos dois sentidos: prometer o que a loja não cumpre, ou negar o
     // que ela cobre. A página delimita o escopo e remete ao termo da venda.
     const garantia = [
-      ...TEXTO_DE_GARANTIA,
+      TEXTO_DA_GARANTIA,
       ...PERGUNTAS_DE_GARANTIA.map((p) => p.resposta),
     ].join(" ");
 
-    expect(garantia).not.toMatch(/não cobre|excluí|exceto|salvo/i);
+    // "não coberto" entrou em 13/09: a proposta do pacote traz a tabela com a
+    // coluna "Não coberto", e /não cobre/ não casa com "coberto". Proibir só a
+    // grafia antiga deixaria passar a variante exata que estava na mesa.
+    expect(garantia).not.toMatch(/não cobre|não coberto|excluí|exceto|salvo/i);
     expect(garantia).toMatch(/termo/i);
   });
 
@@ -244,5 +262,67 @@ describe("vocabulário da casa", () => {
   it("o diferencial afirmado é a seleção, não o mínimo legal", () => {
     expect(TEXTO_DE_GARANTIA.join(" ")).toMatch(/três entram/i);
     expect(TEXTO_DE_GARANTIA.join(" ")).toMatch(/perícia cautelar independente/i);
+  });
+});
+
+/**
+ * A `/garantia` revista em 2026-09-13, alinhada às peças da Onda 1.
+ *
+ * Pedido: *"precisamos rever este texto do /garantia, alinhar com o restante
+ * das peças conforme o proposto"*. A proposta é
+ * `conteudo-seo/pacote/paginas/garantia.md`, versão 3, camada 1 — os blocos
+ * `[C2]` de garantia estendida ficam fora até a parceria existir.
+ *
+ * Duas coisas da proposta NÃO entraram, e este bloco deixa a recusa à vista:
+ *
+ *   · **a tabela "o que está coberto e o que não está"** — conflita com a
+ *     decisão escrita em `paginasInstitucionais.ts` e travada acima em "NÃO
+ *     lista exclusões". Fica para decisão do dono;
+ *   · **o "Nunca pedimos" absoluto sobre termo de isenção** — a peça 07 aponta
+ *     que o repasse entre lojistas pode usar esse termo. A frase fica restrita
+ *     à venda ao consumidor, que é a saída que a própria peça propôs.
+ */
+describe("a /garantia alinhada às peças", () => {
+  it("tem as três seções da proposta, na ordem, nenhuma vazia", () => {
+    expect(SECOES_DE_GARANTIA.map((s) => s.titulo)).toEqual([
+      "A garantia da Motors Store",
+      "O que fazer se algo falhar",
+      "Por que a perícia vem antes da garantia",
+    ]);
+    for (const secao of SECOES_DE_GARANTIA) {
+      expect(secao.paragrafos.length, secao.titulo).toBeGreaterThan(0);
+    }
+  });
+
+  it("a página desenha as seções", () => {
+    expect(lerCodigo("src/app/garantia/page.tsx")).toMatch(/secoes=\{SECOES_DE_GARANTIA\}/);
+  });
+
+  it("não ensina garantia legal — só diz que a cobertura soma (T8)", () => {
+    // O pacote tirou a camada legal por decisão editorial: a página descreve o
+    // que a loja entrega. O que fica é a frase que impede a garantia de parecer
+    // a única cobertura existente, e ela tem trava própria acima.
+    expect(TEXTO_DA_GARANTIA).not.toMatch(
+      /a lei já garante|vício|produto durável|pessoa jurídica|código de defesa/i,
+    );
+    expect(TEXTO_DA_GARANTIA).toMatch(/soma-se aos seus direitos/i);
+  });
+
+  it("descreve quem faz a perícia pela redação canônica de 09/09", () => {
+    expect(TEXTO_DA_GARANTIA).toMatch(/empresa independente, credenciada junto ao Detran/);
+    expect(TEXTO_DA_GARANTIA).not.toMatch(/laboratório credenciado/i);
+  });
+
+  it("o termo de isenção fica restrito à venda ao consumidor (T3 com a peça 07)", () => {
+    expect(TEXTO_DA_GARANTIA).toMatch(/venda ao consumidor[^.]*termo de isenção/i);
+    expect(TEXTO_DA_GARANTIA).not.toMatch(/nunca pedimos/i);
+  });
+
+  it("mantém o crivo técnico de showroom, que /sobre também publica", () => {
+    // A proposta do pacote omite o crivo. `tabela-de-guias.test.ts` já tratou
+    // essa omissão como defeito: duas superfícies respondendo diferente sobre a
+    // metade mecânica. Procedência: `aboutSettings.value2`.
+    expect(TEXTO_DA_GARANTIA).toMatch(/crivo técnico de showroom/);
+    expect(TEXTO_DA_GARANTIA).toMatch(/120 pontos/);
   });
 });
