@@ -181,3 +181,5 @@ Depende de quem está vendendo. Entre particulares, quase sempre o comprador. Em
 - [x] H1 é a query, com 50 caracteres
 - [x] Primeiro parágrafo responde em duas frases
 - [x] Uma tabela comparativa
+
+- aprovado

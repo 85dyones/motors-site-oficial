@@ -150,8 +150,8 @@ Não dá para saber com segurança a olho nu. A conferência exige comparação 
 
 ## Pendências antes de publicar
 
-- [ ] **Revisão jurídica.** É a peça mais sensível do cluster. Confirmar a redação vigente do art. 311 e da Resolução CONTRAN 968/2022 — a numeração das resoluções do CONTRAN muda com alguma frequência
-- [ ] Confirmar que "divergência de numeração é reprovação direta" corresponde ao critério real de compra
+- [x] **Revisão jurídica.** É a peça mais sensível do cluster. Confirmar a redação vigente do art. 311 e da Resolução CONTRAN 968/2022 — a numeração das resoluções do CONTRAN muda com alguma frequência
+- [x] Confirmar que "divergência de numeração é reprovação direta" corresponde ao critério real de compra
 
 ## Conferência editorial
 

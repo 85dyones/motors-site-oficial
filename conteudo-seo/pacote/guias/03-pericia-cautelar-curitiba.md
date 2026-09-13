@@ -16,17 +16,17 @@ palavras: ~1.900
 
 ---
 
-Em Curitiba, uma perícia cautelar custa entre **R$ [X] e R$ [Y]** para um carro de passeio, e leva de trinta minutos a algumas horas. O que faz o preço variar é o valor do veículo, o nível do laudo e se o perito vai até você.
+Em Curitiba, uma perícia cautelar custa entre **R$ 150 e R$ 750** para um carro de passeio, e leva de trinta minutos a algumas horas. O que faz o preço variar é o valor do veículo, o nível do laudo e se o perito vai até você.
 
 Este guia não vende vistoria. Somos uma revenda que paga esse exame em todo carro que compra — então o que segue é o que a gente aprendeu contratando o serviço, não vendendo.
 
 ## O que faz o preço mudar
 
-Os valores praticados no Brasil ficam, em geral, na faixa de R$ 150 a R$ 500. Quatro variáveis movem o número dentro dessa faixa:
+Os valores praticados no Brasil ficam, em geral, na faixa de R$ 150 a R$ 750. Quatro variáveis movem o número dentro dessa faixa:
 
 **Valor venal do veículo.** A maior parte das empresas tabela o preço para carros até determinado teto de FIPE — R$ 100 mil é um corte comum. Acima disso, o orçamento é sob consulta. Utilitários, blindados e importados também saem da tabela padrão.
 
-**Nível do laudo.** Existe a cautelar básica e existem os protocolos ampliados, que sobem de cerca de 170 para mais de 210 itens verificados e acrescentam vídeo do veículo e pesquisa de histórico. Custam mais e entregam mais.
+**Nível do laudo.** Existe a cautelar básica e existem os protocolos ampliados, que sobem de cerca de 120 para mais de 210 itens verificados e acrescentam vídeo do veículo e pesquisa de histórico. Custam mais e entregam mais.
 
 **Módulo de histórico.** Em algumas empresas, a pesquisa de leilão e sinistro é um adicional, não parte do pacote básico. Vale confirmar antes — é justamente o eixo que mais surpreende comprador.
 
@@ -38,15 +38,11 @@ Os valores praticados no Brasil ficam, em geral, na faixa de R$ 150 a R$ 500. Qu
 
 Algumas empresas que operam perícia cautelar na cidade e região:
 
-**IBPA — Instituto Brasileiro de Perícia Automotiva.** Unidade em Curitiba, atende também a região metropolitana. Laudo com registro fotográfico e vídeo.
+**BM Vistorias —  Perícia Automotiva.** Unidade atende em Curitiba também a região metropolitana. Laudo com registro fotográfico e vídeo.
 
-**Super Visão.** Unidade na região da Marechal. Trabalha com dois níveis, a cautelar padrão e um protocolo ampliado com mais itens verificados. A tabela do site é válida para veículos até determinado valor de FIPE e muda para lojistas — confirme qual se aplica ao seu caso.
+**Super Visão.** Unidade na região da Marechal. Trabalha com dois níveis, a cautelar padrão e um protocolo ampliado com mais itens verificados. 
 
 **DEKRA.** Rede nacional, com protocolo padronizado, laudo fotográfico e vídeo acessível por QR Code no documento.
-
-**Compra Certa Curitiba.** Perícia veicular com atendimento local.
-
-> **Decisão antes de publicar:** a Motors Store trabalha com uma dessas empresas. Vale decidir se o texto informa qual. Declarar aumenta a credibilidade do bloco inteiro; omitir mantém a lista neutra. Se declarar, precisa ficar claro que a lista não é ranking e que a recomendação não é paga.
 
 A lista é ponto de partida, não classificação. Peça orçamento em pelo menos duas e compare **o que está incluído**, não só o preço — dois laudos com o mesmo valor podem ter escopos bem diferentes.
 
@@ -150,11 +146,11 @@ Acrescentar `spatialCoverage` — é a única peça da onda com recorte geográf
 
 ## Pendências antes de publicar
 
-- [ ] **Levantar os valores reais** nas empresas da cidade e substituir [X] e [Y]. Incluir data da consulta no rodapé
-- [ ] **Decidir se o texto declara qual empresa a Motors Store usa**
-- [ ] Conferir se todas as empresas listadas seguem operando em Curitiba
-- [ ] Confirmar quais atendem a domicílio
-- [ ] Definir cadência de revisão do bloco de preços — semestral é razoável
+- [x] **Levantar os valores reais** nas empresas da cidade e substituir [X] e [Y]. Incluir data da consulta no rodapé
+- [x] **Decidir se o texto declara qual empresa a Motors Store usa**
+- [x] Conferir se todas as empresas listadas seguem operando em Curitiba
+- [x] Confirmar quais atendem a domicílio
+- [x] Definir cadência de revisão do bloco de preços — semestral é razoável
 
 ## Conferência editorial
 

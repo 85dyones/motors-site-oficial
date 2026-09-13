@@ -153,8 +153,8 @@ Em geral sim, se estiver regularizado, mas as condições costumam ser piores e 
 
 ## Pendências antes de publicar
 
-- [ ] **Verificação de T3** sobre a origem dos lotes de frota, descrita no corpo do texto
-- [ ] Confirmar a redação de "leilão de seguradora com dano estrutural é recusa" contra o critério real de compra
+- [x] **Verificação de T3** sobre a origem dos lotes de frota, descrita no corpo do texto
+- [x] Confirmar a redação de "leilão de seguradora com dano estrutural é recusa" contra o critério real de compra
 
 ## Conferência editorial
 

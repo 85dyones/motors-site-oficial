@@ -141,8 +141,8 @@ Pode pegar, porque confere numeração de chassi e motor. Adulteração bem exec
 
 ## Pendências antes de publicar
 
-- [ ] **Confirmar prazo e taxas no portal do Detran-PR.** O texto cita 60 dias com base em despacho da autarquia; prazos e valores mudam. Incluir data da consulta
-- [ ] Revisar o bloco "No Paraná" a cada seis meses
+- [x] **Confirmar prazo e taxas no portal do Detran-PR.** O texto cita 60 dias com base em despacho da autarquia; prazos e valores mudam. Incluir data da consulta
+- [x] Revisar o bloco "No Paraná" a cada seis meses
 
 ## Conferência editorial
 
