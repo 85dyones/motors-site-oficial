@@ -50,12 +50,19 @@ const caminho = vi.hoisted(() => ({ atual: "/carros/volkswagen/modelo3/vw-modelo
  * `Modelo1` é o mais CARO e o mais ANTIGO, `Modelo9` o mais barato e o mais
  * recente. Assim nenhuma delas pode ser confundida com a outra por acaso:
  *
+ * Com as duas motos e o City abaixo, são doze veículos, e as três ordens dão:
+ *
  *   · preço desc (o que `getEstoque` devolve) → Modelo1…Modelo6
  *   · chegada (a correção que o dado derrubou) → Modelo9…Modelo4
- *   · amostra por preço (a que ficou)         → 9, 7, 6, 4, 3, 1
+ *   · amostra por preço (a que ficou)         → ADV, City, 8, 5, 3, 1
  *
  * `first_seen_at` fica na fixture justamente porque ninguém deve lê-lo: é ele
- * que faz `Modelo8` denunciar uma volta à ordem por chegada.
+ * que faz `Modelo7` denunciar uma volta à ordem por chegada.
+ *
+ * ⚠️ **Mexer no pátio reindexa a amostra.** Os discriminadores das asserções
+ * são escolhidos à mão contra ESTA tabela; somar um veículo muda as posições
+ * sorteadas. Foi o que aconteceu ao entrar o City: `Modelo9` saiu da amostra e
+ * `Modelo8` entrou. Recalcule a tabela antes de acreditar num vermelho.
  */
 const carro = (n: number): Veiculo =>
   ({
@@ -103,10 +110,27 @@ const moto = (modelo: string, preco: number): Veiculo =>
     first_seen_at: "2026-01-01T00:00:00Z",
   }) as unknown as Veiculo;
 
+/**
+ * Honda tem carro E moto no pátio real — foi o que expôs, no preview da Vercel,
+ * dois links com o mesmo texto "HONDA" apontando para segmentos diferentes.
+ * Nenhuma fixture tinha carro e moto da mesma marca, então o defeito passou
+ * pela suíte e pelo build local.
+ */
+const CITY = {
+  ...carro(1),
+  id: "honda-city",
+  marca: "Honda",
+  modelo: "City",
+  tipo: "Sedan",
+  preco_original: 100000,
+  first_seen_at: "2026-01-01T00:00:00Z",
+} as unknown as Veiculo;
+
 const DISPONIVEIS = [
   ...Array.from({ length: 9 }, (_, i) => carro(i + 1)),
   moto("ADV", 30000),
   moto("CG 160", 40000),
+  CITY,
 ];
 
 /** Já teve, não tem: é ela que torna verdadeira a frase "avisamos quando entrar". */
@@ -228,6 +252,32 @@ describe("a ficha que não existe", () => {
     expect(html).toContain("até R$ 60 mil");
   });
 
+  /**
+   * O bloco de marcas não mistura segmentos.
+   *
+   * A primeira versão juntava os hubs de `carros` e `motos` no mesmo bloco, e
+   * com o pátio real saíram dois links com o texto HONDA — um para
+   * `/carros/honda`, outro para `/motos/honda`. Âncora que não descreve o
+   * destino (R7), e o mesmo aconteceria com qualquer marca que tenha carro e
+   * moto.
+   *
+   * O bloco segue `/estoque/[recorte]`, que é o único outro "Marcas em
+   * estoque" do site: só `carros`. A moto não fica sem saída — entra na grade
+   * amostrada e no "ver todo o estoque".
+   */
+  it("o bloco de marcas não repete nome entre carro e moto (R7)", async () => {
+    const html = await paginaRenderizada();
+    const inicio = html.indexOf("Marcas em estoque");
+
+    // Guarda o -1: sem ela, `slice(-1)` pega o último caractere e a asserção
+    // negativa passaria numa página sem o bloco.
+    expect(inicio).toBeGreaterThan(-1);
+    const bloco = html.slice(inicio);
+
+    expect(bloco).toContain('href="/carros/honda"');
+    expect(bloco).not.toMatch(/href="\/motos\//);
+  });
+
   it("mostra o pátio sem virar um segundo /estoque", async () => {
     expect(new Set(fichasLinkadas(await paginaRenderizada())).size).toBeLessThanOrEqual(6);
   });
@@ -237,15 +287,15 @@ describe("a ficha que não existe", () => {
     const fichas = fichasLinkadas(html);
 
     expect(html).toContain("Do pátio de hoje, em todas as faixas");
-    // As duas pontas entram: `Modelo9` é o mais barato, `Modelo1` o mais caro.
-    expect(fichas).toContain("modelo9");
+    // As duas pontas entram: a ADV é o veículo mais barato, `Modelo1` o mais caro.
+    expect(fichas).toContain("adv");
     expect(fichas).toContain("modelo1");
     /* `Modelo2` separa amostra de TOPO: o `slice(0, 6)` sobre a ordem de
        `getEstoque` (preço desc) devolveria `Modelo1`…`Modelo6`, com o 2. */
     expect(fichas).not.toContain("modelo2");
-    /* `Modelo8` separa amostra de CHEGADA: ordenar por `first_seen_at` desc
-       devolveria `Modelo9`…`Modelo4`, com o 8 logo em segundo. */
-    expect(fichas).not.toContain("modelo8");
+    /* `Modelo7` separa amostra de CHEGADA: ordenar por `first_seen_at` desc
+       devolveria `Modelo9`…`Modelo4`, com o 7 dentro. */
+    expect(fichas).not.toContain("modelo7");
   });
 });
 

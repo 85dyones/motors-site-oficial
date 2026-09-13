@@ -134,7 +134,14 @@ export default async function FichaNaoEncontrada() {
   const carrocerias = hubsDeCarroceria(historico, disponiveis).filter(
     (c) => c.veiculos.length > 0,
   );
-  const marcasComEstoque = hubs.filter((h) => h.veiculos.length > 0);
+  /* Só carros, como `/estoque/[recorte]` — o único outro "Marcas em estoque"
+     do site. Juntar os dois segmentos pôs, com o pátio real do preview, dois
+     links com o texto HONDA: um para `/carros/honda`, outro para
+     `/motos/honda` (R7). O índice `marcas`, acima, continua com os dois: é
+     ele que resolve o caminho de moto e o link do hub de moto. */
+  const marcasComEstoque = hubs.filter(
+    (h) => h.segmento === "carros" && h.veiculos.length > 0,
+  );
 
   return (
     <PaginaDeEstoque
