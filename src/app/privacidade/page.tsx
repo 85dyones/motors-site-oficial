@@ -400,9 +400,10 @@ export default async function PrivacidadePage() {
             {/* Sem oferta de apagar esses registros mais cedo, a pedido. A frase
                 existia, e a revisão de 13/09 mediu que nada a cumpria: o painel não
                 tem DELETE em `erros`, a exclusão do lead não encosta na tabela, e
-                depois dela o elo (`leads.ag_uid`) some junto, então nem SQL acha as
-                linhas. A oferta volta junto com o executor, num PR próprio (decisão
-                do dono, 13/09). */}
+                depois dela o elo (`leads.ag_uid`) some junto: a loja perde o único
+                jeito de achar as linhas, e o `ag_uid` fica só no cookie do titular.
+                A oferta volta junto com o executor, num PR próprio (decisão do
+                dono, 13/09). */}
           </Secao>
 
           <Secao id="direitos" titulo="Seus direitos como titular">

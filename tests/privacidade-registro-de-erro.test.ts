@@ -36,28 +36,41 @@ const AGENDA = /\$cron\$\s*select\s+public\.limpar_erros_antigos\((\d+)\)\s*;?\s
 const AUTOCONFERENCIA = /ilike\s+'%limpar_erros_antigos\((\d+)\)%'/gi;
 
 /**
- * A migração mais recente que agenda a rotina — e não a de 12/09 pelo nome.
+ * A agenda que o banco executa, lida da migração mais recente que agenda a
+ * rotina — e não da de 12/09 pelo nome.
  *
- * Se uma migração posterior reagendar, é a agenda dela que o banco executa.
- * Abrir o arquivo pelo nome deixaria esta trava verde guardando uma agenda
- * morta, que é o `create or replace` numa migração posterior que já pegou este
- * repositório uma vez. Os comentários `--` saem antes da busca, porque a nota
- * que explica a agenda costuma citar a agenda.
+ * O limite, medido na revisão de 13/09: a busca só LÊ uma forma, a chamada
+ * direta dentro de `$cron$`. Um reagendamento futuro por outra forma (função
+ * portão, que é como 2 dos 3 jobs do banco são agendados; aspas simples; `$$`;
+ * ou um `cron.unschedule`) faria a busca voltar para a migração de 12/09 e
+ * ficar verde guardando uma agenda morta. Por isso a segunda regra: a última
+ * migração que CITA a rotina ou o job tem de ser a mesma que a busca leu. Se
+ * não for, a trava reprova e manda ler a migração nova à mão.
+ *
+ * Os comentários `--` saem antes da busca, porque a nota que explica a agenda
+ * costuma citar a agenda.
  */
 function agendaViva(): { arquivo: string; sql: string } {
-  const agendam = readdirSync(join(__dirname, "..", "supabase", "migrations"))
+  const migracoes = readdirSync(join(__dirname, "..", "supabase", "migrations"))
     .filter((arquivo) => arquivo.endsWith(".sql"))
     .sort()
     .map((arquivo) => ({
       arquivo,
       sql: ler(`supabase/migrations/${arquivo}`).replace(/--.*$/gm, ""),
-    }))
-    .filter(({ sql }) => [...sql.matchAll(AGENDA)].length > 0);
+    }));
+  const agendam = migracoes.filter(({ sql }) => [...sql.matchAll(AGENDA)].length > 0);
+  const citam = migracoes.filter(({ sql }) => /limpar_erros_antigos|retencao-de-erros/i.test(sql));
   expect(
     agendam.length,
     'nenhuma migração agenda limpar_erros_antigos: a "rotina automática" da política não tem executor',
   ).toBeGreaterThan(0);
-  return agendam[agendam.length - 1];
+  const lida = agendam[agendam.length - 1];
+  const ultimaQueCita = citam[citam.length - 1];
+  expect(
+    ultimaQueCita.arquivo,
+    `${ultimaQueCita.arquivo} mexe na rotina de retenção numa forma que esta trava não lê: confira à mão se a agenda e o prazo da política continuam iguais, e ensine a forma nova a AGENDA`,
+  ).toBe(lida.arquivo);
+  return lida;
 }
 
 /**
@@ -178,16 +191,23 @@ describe("a política declara o registro técnico de erro", () => {
        "se quiser que apaguemos esses registros antes do prazo, peça pelos
        mesmos canais", e nada cumpre isso: o painel não tem DELETE em `erros`,
        a exclusão do lead (`api/leads/gerenciar`) não encosta na tabela, e
-       depois dela o elo `leads.ag_uid` some junto, então nem SQL acha as
-       linhas. A oferta volta junto com o executor, num PR próprio (decisão do
-       dono, 13/09).
+       depois dela o elo `leads.ag_uid` some junto. A loja perde o único jeito
+       de achar as linhas, e o `ag_uid` fica só no cookie do próprio titular.
+       A oferta volta junto com o executor, num PR próprio (decisão do dono,
+       13/09).
 
-       O limite desta trava: ela pega a frase antiga e qualquer variação que
-       fale em "antes do prazo". Uma oferta nova com outra redação passa, e
-       tem que chegar com o executor no mesmo PR. */
+       O alcance desta trava: o trecho da seção "Por quanto tempo guardamos",
+       de `id="retencao"` até `id="direitos"`, sem diferenciar maiúscula. Ela
+       pega a frase antiga e as variações que falem em "antes do prazo" ali.
+       Uma oferta com outra redação passa, e tem que chegar com o executor no
+       mesmo PR. Outra seção pode falar de prazo à vontade. */
+    const inicio = texto.indexOf('id="retencao"');
+    const fim = texto.indexOf('id="direitos"');
+    expect(inicio, 'a seção id="retencao" sumiu da política').toBeGreaterThan(-1);
+    expect(fim, 'a seção id="direitos" sumiu, ou veio antes da retenção').toBeGreaterThan(inicio);
     expect(
-      texto,
-      "a política voltou a oferecer apagar antes do prazo, e nada cumpre isso",
-    ).not.toMatch(/antes\s+do\s+prazo/);
+      texto.slice(inicio, fim),
+      "a retenção voltou a oferecer apagar antes do prazo, e nada cumpre isso",
+    ).not.toMatch(/antes\s+do\s+prazo/i);
   });
 });
