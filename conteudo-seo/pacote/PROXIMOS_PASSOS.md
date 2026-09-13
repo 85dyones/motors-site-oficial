@@ -13,10 +13,13 @@ repo. Este arquivo é a fila.
 
 `origin/main` = `d70e2e3` (conferido em 11/09, não andou durante o trabalho).
 
-| Branch | SHA | Estado |
+| Branch | PR | Estado em 13/09 |
 |---|---|---|
-| `feat/ficha-sem-carro-nao-e-beco` | `2085a11` | **empurrado**, PR não aberto |
-| `docs/pacote-de-conteudo` | `212d65a` | **empurrado**, PR não aberto |
+| `feat/ficha-sem-carro-nao-e-beco` | [#70](https://github.com/85dyones/motors-site-oficial/pull/70) | aberto, head `b9602ed`, deploy de preview verde |
+| `docs/pacote-de-conteudo` | [#71](https://github.com/85dyones/motors-site-oficial/pull/71) | aberto — é o PR deste arquivo |
+
+(Sem SHA para o #71 de propósito: um arquivo não consegue citar o commit que o
+contém sem ficar velho no mesmo instante.)
 
 Worktrees usados (podem ser descartados depois do merge):
 
@@ -36,21 +39,27 @@ troca o branch embaixo de você. Abra worktree próprio.
 
 ## 2. O que trava agora
 
-**Abrir os dois PRs.** Os branches estão no remoto; os PRs, não. Duas portas fechadas:
+**Só o merge, e ele é do dono.** Os dois PRs estão abertos (#70 e #71). Nenhum
+tem review nem CI além do deploy da Vercel — o repo não tem `.github/workflows`,
+hook de git, nem migração nestes branches.
 
-- **Claude in Chrome não conecta** — sem ele, não há sessão logada do GitHub.
-- **`gh` não está autenticado** e não há `GH_TOKEN`/`GITHUB_TOKEN` no ambiente. O
-  `git push` passa porque usa o Windows Credential Manager; o `gh` não usa.
-
-Destrava com `gh auth login` num terminal interativo, ou abrindo na mão:
+**Antes de abrir PR, confira se ele já existe.** Este arquivo já disse "PR não
+aberto" dois dias depois de os dois terem sido abertos. A API pública responde
+sem login:
 
 ```
-https://github.com/85dyones/motors-site-oficial/compare/main...feat/ficha-sem-carro-nao-e-beco?quick_pull=1
-https://github.com/85dyones/motors-site-oficial/compare/main...docs/pacote-de-conteudo?quick_pull=1
+curl -s "https://api.github.com/repos/85dyones/motors-site-oficial/pulls?head=85dyones:<branch>&state=all"
 ```
 
-> **Não busque a credencial guardada para chamar a API por fora.** Foi decidido
-> assim nesta sessão: mexer no cofre de senhas por conta própria não é papel do
+**Para verificar um preview**, `curl` não serve: a Vercel protege os deploys de
+branch e tudo volta 302 para `vercel.com/sso-api` — inclusive a home, então não é
+a página. O `web_fetch_vercel_url` também parou na mesma proteção em 13/09. O
+que passou foi a sessão logada do Chrome.
+
+> Se o `gh` precisar abrir PR: ele não está autenticado e não há
+> `GH_TOKEN`/`GITHUB_TOKEN`; o `git push` passa porque usa o Windows Credential
+> Manager, que o `gh` não usa. **Não busque a credencial guardada para chamar a
+> API por fora** — mexer no cofre de senhas por conta própria não é papel do
 > agente, nem com o PR pedido.
 
 ---
@@ -76,6 +85,13 @@ uma vez, e **não** rouba o da ficha — o boundary mais próximo vence, e o de
 
 **A copy é outra**, não reaproveite a da ficha: marca que a loja nunca teve não é
 "endereço que não abre ficha". E vale reler a armadilha de `usePathname` em 3.4.
+
+**Se a página listar marcas, filtre o segmento.** A 404 da ficha juntou os hubs de
+carro e de moto no mesmo bloco e saiu HONDA duas vezes, para `/carros/honda` e
+`/motos/honda` — âncora que não descreve o destino (R7). Nenhuma fixture tinha
+carro e moto da mesma marca; só o preview com o pátio real mostrou. Corrigido no
+#70 (`b9602ed`) seguindo `/estoque/[recorte]`: o bloco lista só `carros`. Ponha
+um carro e uma moto da mesma marca na fixture desde o primeiro teste.
 
 ### 3.2 Link contextual na ficha — R4 e R8, o maior item aberto de linkagem
 
