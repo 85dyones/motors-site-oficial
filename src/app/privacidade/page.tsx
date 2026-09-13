@@ -399,11 +399,12 @@ export default async function PrivacidadePage() {
             </p>
             {/* Sem oferta de apagar esses registros mais cedo, a pedido. A frase
                 existia, e a revisão de 13/09 mediu que nada a cumpria: o painel não
-                tem DELETE em `erros`, a exclusão do lead não encosta na tabela, e
-                depois dela o elo (`leads.ag_uid`) some junto: a loja perde o único
-                jeito de achar as linhas, e o `ag_uid` fica só no cookie do titular.
-                A oferta volta junto com o executor, num PR próprio (decisão do
-                dono, 13/09). */}
+                tem DELETE em `erros`, e a exclusão do lead não encosta na tabela.
+                Depois dela some o elo direto (`leads.ag_uid`). O identificador segue
+                no cookie e no localStorage do titular e em cópias fora do banco: o
+                JSON do lead enviado adiante, a nota do Chatwoot e a forma curta na
+                mensagem de WhatsApp. A oferta volta junto com um executor, num PR
+                próprio (decisão do dono, 13/09). */}
           </Secao>
 
           <Secao id="direitos" titulo="Seus direitos como titular">

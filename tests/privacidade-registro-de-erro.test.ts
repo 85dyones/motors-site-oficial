@@ -36,6 +36,18 @@ const AGENDA = /\$cron\$\s*select\s+public\.limpar_erros_antigos\((\d+)\)\s*;?\s
 const AUTOCONFERENCIA = /ilike\s+'%limpar_erros_antigos\((\d+)\)%'/gi;
 
 /**
+ * Migrações que citam a rotina de retenção SEM reagendá-la: um `comment on
+ * function` reescrito, uma redefinição da função. Cada uma entra aqui pelo nome
+ * do arquivo, depois de alguém conferir à mão que a agenda e o prazo da política
+ * seguem iguais.
+ *
+ * Hoje está vazia. A primeira candidata é a migração que reescrever o
+ * `comment on function public.limpar_erros_antigos`, que ainda nomeia o n8n como
+ * chamador — a `20260912120000` deixou isso anotado no cabeçalho, de propósito.
+ */
+const CITAM_SEM_REAGENDAR: string[] = [];
+
+/**
  * A agenda que o banco executa, lida da migração mais recente que agenda a
  * rotina — e não da de 12/09 pelo nome.
  *
@@ -44,8 +56,13 @@ const AUTOCONFERENCIA = /ilike\s+'%limpar_erros_antigos\((\d+)\)%'/gi;
  * portão, que é como 2 dos 3 jobs do banco são agendados; aspas simples; `$$`;
  * ou um `cron.unschedule`) faria a busca voltar para a migração de 12/09 e
  * ficar verde guardando uma agenda morta. Por isso a segunda regra: a última
- * migração que CITA a rotina ou o job tem de ser a mesma que a busca leu. Se
- * não for, a trava reprova e manda ler a migração nova à mão.
+ * migração que CITA a rotina ou o job tem de ser a mesma que a busca leu, ou
+ * estar em `CITAM_SEM_REAGENDAR`. Se não for, a trava reprova e manda ler a
+ * migração nova à mão.
+ *
+ * O que ela ainda não pega, porque olha o arquivo e não o SQL: um
+ * `cron.unschedule` pelo id numérico, que não cita o job nem a função; e uma
+ * forma não lida no MESMO arquivo que também tem a forma lida.
  *
  * Os comentários `--` saem antes da busca, porque a nota que explica a agenda
  * costuma citar a agenda.
@@ -59,16 +76,24 @@ function agendaViva(): { arquivo: string; sql: string } {
       sql: ler(`supabase/migrations/${arquivo}`).replace(/--.*$/gm, ""),
     }));
   const agendam = migracoes.filter(({ sql }) => [...sql.matchAll(AGENDA)].length > 0);
-  const citam = migracoes.filter(({ sql }) => /limpar_erros_antigos|retencao-de-erros/i.test(sql));
   expect(
     agendam.length,
     'nenhuma migração agenda limpar_erros_antigos: a "rotina automática" da política não tem executor',
   ).toBeGreaterThan(0);
   const lida = agendam[agendam.length - 1];
+  expect(
+    CITAM_SEM_REAGENDAR,
+    `${lida.arquivo} agenda a rotina, e por isso não pode estar em CITAM_SEM_REAGENDAR`,
+  ).not.toContain(lida.arquivo);
+
+  const citam = migracoes.filter(
+    ({ arquivo, sql }) =>
+      /limpar_erros_antigos|retencao-de-erros/i.test(sql) && !CITAM_SEM_REAGENDAR.includes(arquivo),
+  );
   const ultimaQueCita = citam[citam.length - 1];
   expect(
     ultimaQueCita.arquivo,
-    `${ultimaQueCita.arquivo} mexe na rotina de retenção numa forma que esta trava não lê: confira à mão se a agenda e o prazo da política continuam iguais, e ensine a forma nova a AGENDA`,
+    `${ultimaQueCita.arquivo} cita a rotina de retenção depois da agenda que esta trava lê (${lida.arquivo}). Se ela reagenda, ensine a forma nova a AGENDA. Se só comenta ou redefine a função, confira à mão que a agenda e o prazo da política seguem iguais e registre o arquivo em CITAM_SEM_REAGENDAR.`,
   ).toBe(lida.arquivo);
   return lida;
 }
@@ -184,29 +209,37 @@ describe("a política declara o registro técnico de erro", () => {
     expect(texto, "a promessa absoluta voltou — e ela é falsa").not.toMatch(
       /o registro é apagado — não fica cópia em nossa base/,
     );
-    expect(texto, "a ressalva sobre o registro técnico sumiu").toMatch(
-      /pode\s+permanecer\s+até\s+o\s+fim\s+dos\s+\d+\s+dias/,
-    );
     /* Bloqueio da revisão de 13/09: esta asserção EXIGIA o defeito. Ela pedia
        "se quiser que apaguemos esses registros antes do prazo, peça pelos
        mesmos canais", e nada cumpre isso: o painel não tem DELETE em `erros`,
-       a exclusão do lead (`api/leads/gerenciar`) não encosta na tabela, e
-       depois dela o elo `leads.ag_uid` some junto. A loja perde o único jeito
-       de achar as linhas, e o `ag_uid` fica só no cookie do próprio titular.
-       A oferta volta junto com o executor, num PR próprio (decisão do dono,
-       13/09).
+       e a exclusão do lead (`api/leads/gerenciar`) não encosta na tabela.
+       Depois dela some o elo direto (`leads.ag_uid`). O identificador segue no
+       cookie e no localStorage do titular e em cópias fora do banco (o JSON do
+       lead enviado adiante, a nota do Chatwoot, a forma curta na mensagem de
+       WhatsApp), e um executor futuro teria de guardá-lo antes de apagar o
+       lead. A oferta volta junto com esse executor, num PR próprio (decisão do
+       dono, 13/09).
 
-       O alcance desta trava: o trecho da seção "Por quanto tempo guardamos",
-       de `id="retencao"` até `id="direitos"`, sem diferenciar maiúscula. Ela
-       pega a frase antiga e as variações que falem em "antes do prazo" ali.
-       Uma oferta com outra redação passa, e tem que chegar com o executor no
-       mesmo PR. Outra seção pode falar de prazo à vontade. */
+       O alcance desta trava: a seção "Por quanto tempo guardamos", de
+       `id="retencao"` até `id="direitos"`, sem diferenciar maiúscula. Os dois
+       parágrafos do registro técnico têm de estar DENTRO dela: movidos para
+       outra seção, sairiam da janela com a negativa verde. Ela pega a frase
+       antiga e as variações que falem em "antes do prazo" ali. Uma oferta com
+       outra redação passa, e tem que chegar com o executor no mesmo PR. */
     const inicio = texto.indexOf('id="retencao"');
     const fim = texto.indexOf('id="direitos"');
     expect(inicio, 'a seção id="retencao" sumiu da política').toBeGreaterThan(-1);
     expect(fim, 'a seção id="direitos" sumiu, ou veio antes da retenção').toBeGreaterThan(inicio);
+    const secao = texto.slice(inicio, fim);
+
+    expect(secao, "o registro técnico de erro saiu da seção de retenção").toMatch(
+      /Registros técnicos de erro/,
+    );
+    expect(secao, "a ressalva sobre o registro técnico saiu da seção de retenção").toMatch(
+      /pode\s+permanecer\s+até\s+o\s+fim\s+dos\s+\d+\s+dias/,
+    );
     expect(
-      texto.slice(inicio, fim),
+      secao,
       "a retenção voltou a oferecer apagar antes do prazo, e nada cumpre isso",
     ).not.toMatch(/antes\s+do\s+prazo/i);
   });
