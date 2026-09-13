@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Veiculo } from "../types";
 import { getEstoque } from "./supabase";
 import { CARROCERIAS } from "./classificacaoVeiculo";
@@ -467,23 +468,44 @@ export { disponiveisDe };
  * `disponiveis` é o que a grade mostra. Trocar um pelo outro faz o hub sumir
  * junto com o último carro da marca, que é exatamente o que ele existe para
  * impedir. As duas leituras são independentes, então vão em paralelo.
+ *
+ * ---------------------------------------------------------------------------
+ * `cache()`, desde 2026-09-13
+ * ---------------------------------------------------------------------------
+ * O hub chama isto DUAS vezes por render — no `generateMetadata` e na página —,
+ * e cada chamada eram duas consultas `select *` a `estoque_motors`. O `cache`
+ * do React memoiza dentro de UMA requisição, e só nela: entre requisições nada
+ * é guardado, e o site continua lendo o estoque fresco. Mesmo recurso de
+ * `lib/secaoDeGuias.ts`.
+ *
+ * Duas consequências que valem saber:
+ *   - fora de um render (rota de API, sitemap, script, teste) o `cache` não
+ *     deduplica nada, e a função se comporta como antes;
+ *   - dentro de um render, o MESMO array chega a todo mundo que chamar. Nenhum
+ *     consumidor ordena ou muta `historico`/`disponiveis` no lugar (varrido em
+ *     13/09); quem precisar ordenar copia antes, como `patioEmDestaque`.
+ *
+ * O teste é `tests/recortes-do-estoque-uma-leitura.test.ts`, com o `cache`
+ * dublado — no vitest, `react` é o build de cliente, que não memoiza.
  */
-export async function recortesDoEstoque(): Promise<{
-  historico: Veiculo[];
-  disponiveis: Veiculo[];
-}> {
-  const [historico, vivos] = await Promise.all([
-    // `incluirNaoPublicaveis` no HISTÓRICO, e só nele: o papel dele é dizer
-    // quais páginas já tiveram razão de existir. Um carro com fotos faltando
-    // hoje pode ganhá-las amanhã, e um vendido em 2024 pode ser o único
-    // registro de um modelo — filtrar aqui apagaria hub indexado por um
-    // bloqueio reversível. `disponiveis`, que preenche as grades, respeita o
-    // bloqueio porque vem de `getEstoque()` sem opção.
-    getEstoque({ incluirForaDoFeed: true, incluirNaoPublicaveis: true }),
-    getEstoque(),
-  ]);
-  return { historico, disponiveis: disponiveisDe(vivos) };
-}
+export const recortesDoEstoque = cache(
+  async (): Promise<{
+    historico: Veiculo[];
+    disponiveis: Veiculo[];
+  }> => {
+    const [historico, vivos] = await Promise.all([
+      // `incluirNaoPublicaveis` no HISTÓRICO, e só nele: o papel dele é dizer
+      // quais páginas já tiveram razão de existir. Um carro com fotos faltando
+      // hoje pode ganhá-las amanhã, e um vendido em 2024 pode ser o único
+      // registro de um modelo — filtrar aqui apagaria hub indexado por um
+      // bloqueio reversível. `disponiveis`, que preenche as grades, respeita o
+      // bloqueio porque vem de `getEstoque()` sem opção.
+      getEstoque({ incluirForaDoFeed: true, incluirNaoPublicaveis: true }),
+      getEstoque(),
+    ]);
+    return { historico, disponiveis: disponiveisDe(vivos) };
+  },
+);
 
 /**
  * Os hubs de faixa de preço.
