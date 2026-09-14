@@ -32,7 +32,7 @@ Fonte do defeito: `PROXIMOS_PASSOS.md` §3.1 (branch `docs/pacote-de-conteudo`, 
 ## Decisões do dono (13/09)
 
 1. O 1.6 **sai empilhado no #70**. Antes dele, fecham-se no #70 as duas pendências dele, que valem igual para os hubs.
-2. **Dois arquivos de não encontrado**, um para marca e um para modelo, cada um com título e texto próprios já no HTML servido.
+2. **Dois arquivos de não encontrado**, um para marca e um para modelo, cada um com título e texto próprios já no HTML servido. *(Nota de 14/09: o HTML servido de um `notFound()` é a casca de erro do Next, e título e texto são conferidos no payload — ver "Achado de 14/09". E o corpo de cada `not-found.tsx` roda também nas páginas 200 da subárvore, com custo medido e aceito pelo dono — ver o docblock de `NaoEncontradoNoEstoque`.)*
 3. **Cache só no não encontrado.** O resto continua lendo fresco. Na pane, o não encontrado segue 404 com moldura. Sem `error.tsx`.
 
 ## Parte 1 — as pendências do #70 (no branch do #70)
@@ -60,7 +60,7 @@ Fonte do defeito: `PROXIMOS_PASSOS.md` §3.1 (branch `docs/pacote-de-conteudo`, 
 3. **`src/app/[categoria]/[marca]/[modelo]/not-found.tsx`** cobre modelo que nunca passou pelo estoque.
    - Título: **"Não encontramos este modelo"**. Texto: **"Este endereço não abre nenhuma página de modelo."** O resto é igual.
    - O bloco do cliente lê o caminho. Se a marca tem estoque, mostra o link no formato do #70 — "Ver 2 Volkswagen no estoque", "Ver Honda no estoque" — e não o literal "Ver {Marca} no estoque (N)". Se a marca está zerada, só leva a marca ao formulário. O modelo digitado nunca é usado.
-4. **`src/lib/fichaPerdida.ts`** ganha a leitura de caminho de 3 segmentos, com o mesmo formato de retorno. Hoje ele devolve vazio abaixo de 4. O bloco do cliente do #70 recebe o nível ("ficha" ou "modelo") como prop serializável, nunca como função.
+4. **`src/lib/fichaPerdida.ts`** ganha a leitura de caminho de 3 segmentos, com o mesmo formato de retorno. Hoje ele devolve vazio abaixo de 4. O bloco do cliente do #70 recebe o nível ("ficha", "modelo" ou "marca" — o terceiro desde a decisão de 14/09, ver o item 2) como prop serializável, nunca como função.
 5. **Metadata:** sem mudança.
 
 ## Testes

@@ -52,7 +52,10 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * ---------------------------------------------------------------------------
  * A leitura é `recorteDoNaoEncontrado`: o recorte pronto, guardado por uma
  * hora, e não o estoque — caminho falso é ilimitado, e a decisão do dono foi
- * cache só no não encontrado. O porquê e o tamanho medido estão lá.
+ * cache só no não encontrado. O porquê e o tamanho medido estão lá. O cache
+ * pesa mais do que o docblock de lá conta: esta leitura roda também em toda
+ * ficha e todo hub que respondem 200 (ver a seção abaixo). Tirá-lo põe a
+ * leitura do estoque em cada uma dessas páginas.
  *
  * Na pane do Supabase a leitura estoura `EstoqueIndisponivelError`, e não há
  * `error.tsx` em `src/app` (decisão de 13/09). O componente captura SÓ esse
@@ -60,6 +63,38 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * sem blocos e sem `textoDaAmostra`, que anuncia a amostra que a pane não
  * mostra (T3). Qualquer outra exceção sobe. A exceção não entra no cache, e a
  * requisição seguinte tenta de novo.
+ *
+ * ---------------------------------------------------------------------------
+ * O custo nas páginas que existem (medido em 2026-09-14)
+ * ---------------------------------------------------------------------------
+ * `not-found.tsx` não roda só no 404. O Next monta o elemento do not-found de
+ * cada segmento em todo render (`create-component-tree.js:310-316`, em
+ * `next/dist/server/app-render/`) e o entrega ao LayoutRouter dos filhos
+ * (`:336`). Como este componente é assíncrono, o corpo inteiro — leitura,
+ * amostra, blocos, índice e formulário — roda e entra no payload RSC de toda
+ * página da subárvore, inclusive das que respondem 200. A ficha carrega três
+ * corpos (ficha, modelo e marca), o hub de modelo carrega dois e o de marca,
+ * um.
+ *
+ * Medido no Toyota Corolla Cross, tudo 200, contra a produção sem nenhum
+ * not-found — comprimido, e entre parênteses sem compressão:
+ *
+ *   ficha          22,3 KB → 26,4 KB   (147 KB → 241 KB)
+ *   hub de modelo  11,9 KB → 15,3 KB   ( 72 KB → 134 KB)
+ *   hub de marca   12,2 KB → 15,3 KB   ( 76 KB → 108 KB)
+ *
+ * Os corpos repetidos quase somem na compressão: o primeiro custa 3 a 4 KB, e o
+ * #70 sozinho já somava 3,7 KB em toda ficha. A ficha também passou a carregar
+ * um chunk de JavaScript a mais, de 6,5 KB sem compressão. A decisão do dono
+ * (14/09) foi aceitar o custo e deixá-lo escrito aqui.
+ *
+ * O risco que vem junto: `lerRecorte` relança toda exceção que não seja
+ * `EstoqueIndisponivelError`, e agora isso acontece dentro do render de toda
+ * ficha e todo hub. No build e na revalidação do ISR o Next prerenderiza a
+ * página (`app-render.js:1402-1404`) e falha a geração quando o render teve
+ * erro inesperado (`:1421-1430`). Um defeito de programação aqui derruba a
+ * geração da página que existe, e não só o 404. Antes de pôr mais peso ou outra
+ * leitura neste componente — ou um quarto `not-found.tsx` —, conte com isso.
  *
  * ---------------------------------------------------------------------------
  * Chamado como função pelas páginas

@@ -11,7 +11,10 @@ import NaoEncontradoNoEstoque from "../../../components/NaoEncontradoNoEstoque";
  * link, dentro da moldura do site — a R5 do guia normativo, o mesmo defeito
  * que o #70 fechou para a ficha. Status e metadata não mudam: o `notFound()` e
  * o "Marca não encontrada | Motors Store", com `index: false`, continuam em
- * `page.tsx`. Esta página troca só o corpo.
+ * `page.tsx`. O corpo, porém, não custa só no 404: o Next renderiza este
+ * arquivo em TODA página da subárvore de `[marca]`, inclusive nas que
+ * respondem 200 — ver "O custo nas páginas que existem", em
+ * `components/NaoEncontradoNoEstoque.tsx`.
  *
  * ---------------------------------------------------------------------------
  * Quem cai aqui
@@ -27,10 +30,11 @@ import NaoEncontradoNoEstoque from "../../../components/NaoEncontradoNoEstoque";
  * ---------------------------------------------------------------------------
  * Lê só o primeiro segmento (14/09)
  * ---------------------------------------------------------------------------
- * A primeira versão não lia o caminho: formulário sempre com `caminho: ""` e
- * `segmento: "carros"`. Ficou errado assim que o endereço era `/motos/…` — o
- * formulário falava em "carro" — e o lead não dizia de que endereço morto ele
- * veio, ao contrário da ficha e do modelo.
+ * O plano de 13/09 previa não ler o caminho: formulário sempre com
+ * `caminho: ""` e `segmento: "carros"`. A decisão do dono de 14/09 trocou isso
+ * antes de a página existir — em `/motos/…` o formulário falaria em "carro", e
+ * o lead não diria de que endereço morto veio, ao contrário da ficha e do
+ * modelo.
  *
  * A correção é montar o mesmo bloco deles, `EncomendaDaFichaPerdida`, com
  * `nivel="marca"` (Task 9). Nesse nível a regra pura não olha além do primeiro

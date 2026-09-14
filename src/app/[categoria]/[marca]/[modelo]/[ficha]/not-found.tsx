@@ -10,9 +10,11 @@ import NaoEncontradoNoEstoque from "../../../../../components/NaoEncontradoNoEst
  * Não havia `not-found.tsx` em branch nenhum do repositório, então a rota caía
  * no 404 de fábrica do Next. Em produção, em 2026-09-11, a resposta era 404 e
  * a tela, "404: This page could not be found" — em inglês, em system-ui, sem
- * link nenhum, dentro do cabeçalho e do rodapé da marca. Esta página troca só
- * o CORPO: status, metadata e o resto do comportamento da rota ficam onde
- * estavam.
+ * link nenhum, dentro do cabeçalho e do rodapé da marca. Esta página troca o
+ * CORPO do 404: status e metadata ficam onde estavam. O corpo, porém, não
+ * custa só no 404: o Next renderiza este arquivo em TODA ficha, inclusive nas
+ * que respondem 200 — ver "O custo nas páginas que existem", em
+ * `components/NaoEncontradoNoEstoque.tsx`.
  *
  * ---------------------------------------------------------------------------
  * O HTML servido é uma casca vazia — e não é defeito desta página

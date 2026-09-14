@@ -18,11 +18,12 @@ import type { Veiculo } from "../src/types";
  * ---------------------------------------------------------------------------
  * Lê o caminho — mas só o primeiro segmento (14/09)
  * ---------------------------------------------------------------------------
- * A primeira versão desta página não lia o caminho: formulário genérico, com
- * `caminho: ""` e `segmento: "carros"` fixo. Isso perdia o segmento certo em
- * `/motos/…` (o formulário falava em "carro" para quem procurava moto) e não
- * gravava no lead o endereço que a pessoa abriu — os dois pontos que o #70 já
- * resolvia na ficha.
+ * O plano de 13/09 previa uma página que não lia o caminho: formulário
+ * genérico, com `caminho: ""` e `segmento: "carros"` fixo. A decisão do dono
+ * de 14/09 trocou isso antes de a página existir, porque perderia o segmento
+ * certo em `/motos/…` (o formulário falaria em "carro" para quem procura moto)
+ * e não gravaria no lead o endereço que a pessoa abriu — os dois pontos que o
+ * #70 já resolvia na ficha.
  *
  * A página passou a montar `EncomendaDaFichaPerdida` com `nivel="marca"`, o
  * mesmo bloco da ficha e do modelo. Nesse nível a regra pura

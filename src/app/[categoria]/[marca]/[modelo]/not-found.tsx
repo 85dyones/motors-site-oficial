@@ -11,7 +11,9 @@ import NaoEncontradoNoEstoque from "../../../../components/NaoEncontradoNoEstoqu
  * inglês, sem link, dentro da moldura do site — a R5, o mesmo defeito que o #70
  * fechou para a ficha. Status e metadata não mudam: o `notFound()` e o "Modelo
  * não encontrado | Motors Store", com `index: false`, continuam em `page.tsx`.
- * Esta página troca só o corpo.
+ * O corpo, porém, não custa só no 404: o Next renderiza este arquivo em TODA
+ * página da subárvore de `[modelo]`, inclusive nas que respondem 200 — ver "O
+ * custo nas páginas que existem", em `components/NaoEncontradoNoEstoque.tsx`.
  *
  * ---------------------------------------------------------------------------
  * Quem cai aqui
