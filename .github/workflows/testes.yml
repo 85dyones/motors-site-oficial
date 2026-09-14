@@ -8,6 +8,9 @@
 # Sem segredo nenhum: `vitest.config.ts` não carrega `.env`, e chave de
 # produção não entra aqui. Teste que precisa de variável define a própria.
 #
+# O fuso é o do runner (UTC), o mesmo da Vercel: teste que só passa no fuso
+# de Curitiba falha aqui antes de errar em produção.
+#
 # O `tsc` fica de fora até o PR #62 entrar: hoje ele é vermelho no `main` por
 # 2 erros em `tests/f0-nucleo.test.ts`.
 name: testes
@@ -21,21 +24,23 @@ on:
 permissions:
   contents: read
 
-# Um push num branch com PR aberto dispara push e pull_request para o mesmo
-# commit. O grupo pelo commit deixa seguir só a execução mais recente.
+# Push e pull_request testam árvores diferentes: o push testa o commit do
+# branch, e o pull_request testa `refs/pull/N/merge`, o branch somado à base.
+# Por isso ficam em grupos separados, e cada grupo só cancela a execução
+# anterior do mesmo evento no mesmo ref.
 concurrency:
-  group: testes-${{ github.event.pull_request.head.sha || github.sha }}
+  group: testes-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   vitest:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      # O fuso da máquina local é o de Curitiba; o runner vem em UTC.
-      TZ: America/Sao_Paulo
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Nenhum passo precisa do token depois do checkout.
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
