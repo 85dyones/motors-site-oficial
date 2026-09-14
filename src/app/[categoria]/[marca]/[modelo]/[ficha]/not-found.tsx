@@ -1,12 +1,11 @@
 import PaginaDeEstoque from "../../../../../components/modernist/PaginaDeEstoque";
 import EncomendaDaFichaPerdida from "../../../../../components/EncomendaDaFichaPerdida";
-import { indiceDeMarcas, patioEmDestaque } from "../../../../../lib/fichaPerdida";
 import {
   FAIXAS_DE_PRECO,
-  hubsDeCarroceria,
-  hubsDeMarca,
-  recortesDoEstoque,
+  recorteDoNaoEncontrado,
+  type RecorteDoNaoEncontrado,
 } from "../../../../../lib/hubsDeEstoque";
+import { EstoqueIndisponivelError } from "../../../../../lib/supabase";
 
 /**
  * A ficha que não existe — `notFound()` da rota do veículo.
@@ -72,29 +71,42 @@ import {
  * medição está no docblock de `EncomendaDaFichaPerdida`.
  *
  * ---------------------------------------------------------------------------
- * O que esta página passou a custar, medido
+ * A leitura: o recorte guardado, e só aqui (2026-09-13)
  * ---------------------------------------------------------------------------
- * `recortesDoEstoque` são DUAS leituras de `estoque_motors` com `select *`:
- * ~489 KB cada, ~977 KB por render. É o mesmo custo de qualquer hub — a
- * diferença é o espaço de endereços. Os 103 hubs são finitos; caminho falso é
- * ilimitado, e com ISR de 1 hora cada caminho inédito rende uma vez. Contra o
- * teto de 5 GB do Supabase free, da ordem de 5 mil caminhos distintos no mês
- * consomem a cota. Antes deste arquivo, a 404 custava zero.
+ * A primeira versão desta página chamava `recortesDoEstoque`: duas leituras de
+ * `estoque_motors` com `select *`, ~489 KB cada, ~977 KB por render. É o custo
+ * de qualquer hub — a diferença é o espaço de endereços. Os 103 hubs são
+ * finitos; caminho falso é ilimitado, e com ISR de 1 hora cada caminho inédito
+ * rende uma vez. Contra o teto de 5 GB do Supabase free, da ordem de 5 mil
+ * caminhos distintos no mês consomem a cota.
  *
- * Fica registrado, e não resolvido: `getEstoque` não tem cache em lugar nenhum
- * do projeto, e criar um só para esta rota resolveria o sintoma no lugar
- * errado. Se o egress apertar, o conserto é a leitura, não a página.
+ * A decisão do dono em 13/09 foi cache SÓ no não encontrado: esta página lê
+ * `recorteDoNaoEncontrado`, que guarda por uma hora o recorte pronto (amostra,
+ * índice e links), e não o estoque. O resto do site continua lendo fresco. O
+ * preço disso está escrito lá: a amostra pode ter até uma hora de atraso.
  *
  * ---------------------------------------------------------------------------
- * Duas coisas que esta página NÃO resolve
+ * A pane: 404 com moldura, sem amostra (2026-09-13)
  * ---------------------------------------------------------------------------
- * **Pane do Supabase virou 500, e antes era 404.** `getVeiculoById` engole a
- * falha e cai na contingência, que devolve `[]` em produção — daí o
- * `notFound()`. Aí esta página chama `recortesDoEstoque()`, que na mesma pane
- * ESTOURA `EstoqueIndisponivelError`, e não há `error.tsx` em `src/app`. É a
- * troca coerente com a decisão de 2026-09 ("leitura que falha PARA a página, em
- * vez de fingir pátio vazio"), mas é uma troca, e ninguém a tinha escrito.
+ * `getVeiculoById` engole a falha do Supabase e cai na contingência, que
+ * devolve `[]` em produção — daí o `notFound()`. Na mesma pane a leitura do
+ * estoque ESTOURA `EstoqueIndisponivelError`, e na primeira versão desta
+ * página isso virava 500 sem moldura, porque não há `error.tsx` em `src/app`
+ * (e não vai haver: decisão de 13/09). Antes do #70 a mesma URL dava 404.
  *
+ * Agora a página captura SÓ `EstoqueIndisponivelError` e responde com título,
+ * a primeira frase do texto e o "ver todo o estoque". A segunda frase fica de
+ * fora de propósito: ela anuncia "abaixo, uma amostra do pátio", e na pane não
+ * há amostra — página que afirma o que não mostra é a T3. Qualquer outra
+ * exceção sobe: defeito de programação não se passa por endereço torto.
+ *
+ * A exceção não entra no cache, então a requisição seguinte tenta de novo. Com
+ * item velho no cache o Next serve o velho e engole a falha da revalidação — a
+ * versão de pane só aparece com o cache frio.
+ *
+ * ---------------------------------------------------------------------------
+ * O que esta página NÃO resolve
+ * ---------------------------------------------------------------------------
  * **O lead daqui não se distingue do lead de hub.** `canal` é `"Encomenda"`
  * nos dois, porque quem o escreve é `montarEncomenda`, compartilhado. O que
  * separa hoje é o `caminho`, que leva o endereço morto que a pessoa abriu —
@@ -102,89 +114,64 @@ import {
  * casa para superfície nova de lead é o `canal`; mudá-lo mexe nas outras
  * superfícies e é decisão do dono, não deste PR.
  */
+
+const TITULO = "Não encontramos este veículo";
+
+/* A frase se divide em duas porque só a primeira vale sempre. A segunda
+   descreve a grade que vem abaixo, e já mudou junto com ela: falava em "o que
+   entrou por último" desde a versão que ordenava por chegada — ordem que
+   `patioEmDestaque` recusa, com o dado, no próprio arquivo que monta essa
+   grade. Página que afirma duas coisas sobre a mesma tela é a T3, e foi assim
+   que a primeira correção desta copy reabriu o defeito que ela fechava. Na
+   pane não há grade, e a segunda frase fica de fora. */
+const TEXTO =
+  "Este endereço não abre nenhuma ficha do nosso estoque — costuma ser link antigo ou endereço incompleto.";
+const TEXTO_DA_AMOSTRA = "Abaixo, uma amostra do pátio de hoje e as trilhas para o resto dele.";
+
+const TRILHA = [
+  { rotulo: "Home", href: "/" },
+  { rotulo: "Estoque", href: "/estoque" },
+];
+
+/** O recorte guardado, ou `null` na pane do estoque — e só nela. */
+async function lerRecorte(): Promise<RecorteDoNaoEncontrado | null> {
+  try {
+    return await recorteDoNaoEncontrado();
+  } catch (erro) {
+    if (erro instanceof EstoqueIndisponivelError) return null;
+    throw erro;
+  }
+}
+
 export default async function FichaNaoEncontrada() {
-  const { historico, disponiveis } = await recortesDoEstoque();
+  const recorte = await lerRecorte();
 
-  const hubs = [
-    ...hubsDeMarca(historico, disponiveis, "carros"),
-    ...hubsDeMarca(historico, disponiveis, "motos"),
-  ];
-
-  /* O índice atravessa a fronteira do client component, então sai daqui já
-     recortado: `slug` e `nome`. `HubDeMarca` carrega `Veiculo[]` em dois
-     níveis, e prop de client component é payload público — foi assim que
-     `preco_compra` saiu no HTML do `/estoque`. */
-  const marcas = indiceDeMarcas(hubs);
-
-  /* Seis, e amostrados ao longo do preço.
-
-     O TETO existe porque despejar o pátio inteiro transforma a 404 num segundo
-     `/estoque`, e boa parte de quem cai aqui veio de anúncio clicando num carro
-     específico. A AMOSTRA existe porque `disponiveis` vem de `getEstoque`, que
-     ordena por `preco desc`: sem reordenar, a página abria com os seis carros
-     mais caros do pátio. As duas medições estão em `patioEmDestaque`, inclusive
-     a que derrubou a correção óbvia (ordenar por chegada).
-
-     A spec do pacote (`conteudo-seo/pacote/produto/02-not-found-ficha.md`) pede
-     "de 4 a 6 veículos similares", com cascata de carroceria e faixa. Ficou o
-     teto; a régua de semelhança, não — ela parte do veículo da página, e esta
-     página existe justamente quando não há veículo. */
-  const patio = patioEmDestaque(disponiveis, 6);
-
-  const carrocerias = hubsDeCarroceria(historico, disponiveis).filter(
-    (c) => c.veiculos.length > 0,
-  );
-  /* Só carros, como `/estoque/[recorte]` — o único outro "Marcas em estoque"
-     do site. Juntar os dois segmentos pôs, com o pátio real do preview, dois
-     links com o texto HONDA: um para `/carros/honda`, outro para
-     `/motos/honda` (R7). O índice `marcas`, acima, continua com os dois: é
-     ele que resolve o caminho de moto e o link do hub de moto. */
-  const marcasComEstoque = hubs.filter(
-    (h) => h.segmento === "carros" && h.veiculos.length > 0,
-  );
+  if (!recorte) {
+    return (
+      <PaginaDeEstoque trilha={TRILHA} titulo={TITULO} veiculos={[]} textoSemEstoque={TEXTO} />
+    );
+  }
 
   return (
     <PaginaDeEstoque
-      trilha={[
-        { rotulo: "Home", href: "/" },
-        { rotulo: "Estoque", href: "/estoque" },
-      ]}
-      titulo="Não encontramos este veículo"
+      trilha={TRILHA}
+      titulo={TITULO}
       veiculos={[]}
-      /* A frase descreve a grade que vem abaixo, e por isso mudou junto com
-         ela: falava em "o que entrou por último" desde a versão que ordenava
-         por chegada — ordem que `patioEmDestaque` recusa, com o dado, no
-         próprio arquivo que monta essa grade. Página que afirma duas coisas
-         sobre a mesma tela é a T3, e foi assim que a primeira correção desta
-         copy reabriu o defeito que ela fechava. */
-      textoSemEstoque="Este endereço não abre nenhuma ficha do nosso estoque — costuma ser link antigo ou endereço incompleto. Abaixo, uma amostra do pátio de hoje e as trilhas para o resto dele."
-      encomenda={<EncomendaDaFichaPerdida marcas={marcas} />}
-      alternativos={patio}
+      textoSemEstoque={`${TEXTO} ${TEXTO_DA_AMOSTRA}`}
+      /* O índice atravessa a fronteira do client component, e por isso chega
+         já recortado pelo `recorteDoNaoEncontrado`: slug, nome e contagem.
+         Prop de client component é payload público — foi assim que
+         `preco_compra` saiu no HTML do `/estoque`. */
+      encomenda={<EncomendaDaFichaPerdida marcas={recorte.marcas} />}
+      alternativos={recorte.patio}
       rotuloAlternativos="Do pátio de hoje, em todas as faixas"
       blocos={[
         {
           titulo: "Por faixa de preço",
-          links: FAIXAS_DE_PRECO.map((f) => ({
-            rotulo: f.nome,
-            href: `/estoque/${f.slug}`,
-          })),
+          links: FAIXAS_DE_PRECO.map((f) => ({ rotulo: f.nome, href: `/estoque/${f.slug}` })),
         },
-        {
-          titulo: "Por carroceria",
-          links: carrocerias.map((c) => ({
-            rotulo: c.nome,
-            href: `/estoque/${c.slug}`,
-            total: c.veiculos.length,
-          })),
-        },
-        {
-          titulo: "Marcas em estoque",
-          links: marcasComEstoque.map((m) => ({
-            rotulo: m.nome,
-            href: `/${m.segmento}/${m.slug}`,
-            total: m.veiculos.length,
-          })),
-        },
+        { titulo: "Por carroceria", links: recorte.carrocerias },
+        { titulo: "Marcas em estoque", links: recorte.marcasComEstoque },
       ]}
     />
   );

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Veiculo } from "../src/types";
+import { EstoqueIndisponivelError } from "../src/lib/supabase";
 
 /**
  * A ficha que não existe deixa de ser beco — e deixa de ser em inglês.
@@ -28,6 +29,9 @@ import type { Veiculo } from "../src/types";
  *    devolve por `preco desc`, então `slice` cru abria a 404 com os seis carros
  *    mais caros do pátio.
  * 4. **A saída personalizada não promete o que a página desmente.**
+ * 5. **Lê o recorte guardado, e não o estoque inteiro** — pendência do #70: o
+ *    HTML das duas leituras é idêntico, e só o contador denuncia a troca.
+ * 6. **Na pane do estoque, segue com saída** — e só essa pane vira página.
  *
  * ---------------------------------------------------------------------------
  * ⚠️ O que o item 4 NÃO prova
@@ -142,13 +146,41 @@ const PICANTO = {
   tipo: "Hatch",
 } as unknown as Veiculo;
 
-vi.mock("../src/lib/hubsDeEstoque", async (original) => ({
-  ...(await original<Record<string, unknown>>()),
-  recortesDoEstoque: async () => ({
-    historico: [...DISPONIVEIS, PICANTO],
-    disponiveis: DISPONIVEIS,
-  }),
+/**
+ * Quantas vezes a página leu o quê — e se a leitura com cache falha.
+ *
+ * O dublê do recorte com cache não é constante: ele roda o
+ * `montarRecorteDoNaoEncontrado` de verdade sobre o pátio acima e devolve o
+ * resultado depois da ida e volta por JSON, que é o que o cache de dados do
+ * Next entrega num acerto. A grade, os blocos e o índice que as asserções
+ * medem continuam saindo da regra, e não de um objeto escrito à mão.
+ *
+ * `recortesDoEstoque` continua dublado para CONTAR: se a página voltar a ler o
+ * estoque inteiro, o contador acusa mesmo com o HTML idêntico.
+ */
+const leituras = vi.hoisted(() => ({
+  recortes: 0,
+  naoEncontrado: 0,
+  falha: null as Error | null,
 }));
+
+vi.mock("../src/lib/hubsDeEstoque", async (original) => {
+  const real = await original<typeof import("../src/lib/hubsDeEstoque")>();
+  return {
+    ...real,
+    recortesDoEstoque: async () => {
+      leituras.recortes += 1;
+      return { historico: [...DISPONIVEIS, PICANTO], disponiveis: DISPONIVEIS };
+    },
+    recorteDoNaoEncontrado: async () => {
+      leituras.naoEncontrado += 1;
+      if (leituras.falha) throw leituras.falha;
+      return JSON.parse(
+        JSON.stringify(real.montarRecorteDoNaoEncontrado([...DISPONIVEIS, PICANTO], DISPONIVEIS)),
+      );
+    },
+  };
+});
 
 /* O caminho é a única entrada de contexto que a `not-found.tsx` tem — ela não
    recebe `params`. Aqui ele é fixado por caso; quem o lê de verdade é
@@ -201,6 +233,9 @@ function fichasLinkadas(html: string): string[] {
 
 beforeEach(() => {
   caminho.atual = "/carros/volkswagen/modelo3/vw-modelo3-999999999";
+  leituras.recortes = 0;
+  leituras.naoEncontrado = 0;
+  leituras.falha = null;
 });
 
 describe("a ficha que não existe", () => {
@@ -367,5 +402,70 @@ describe("a saída personalizada, lida do caminho", () => {
     // Sem artigo: "os 2 Honda" erraria o gênero no segmento de moto.
     expect(html).toContain("Ver 2 Honda no estoque");
     expect(html).toContain('href="/motos/honda"');
+  });
+});
+
+/**
+ * A leitura que a página faz — a primeira pendência do #70.
+ *
+ * O HTML não denuncia a troca: a página que lê o estoque inteiro e a que lê o
+ * recorte guardado renderizam igual, e as quinze asserções acima ficam verdes
+ * nas duas. Quem denuncia é o contador.
+ */
+describe("a leitura da página", () => {
+  it("lê o recorte com cache, uma vez, e nunca o estoque inteiro", async () => {
+    await paginaRenderizada();
+
+    expect(leituras.naoEncontrado).toBe(1);
+    expect(leituras.recortes).toBe(0);
+  });
+});
+
+/**
+ * A pane do Supabase — a segunda pendência do #70.
+ *
+ * `getVeiculoById` engole a falha e a rota chama `notFound()`; na mesma pane a
+ * leitura do estoque estoura `EstoqueIndisponivelError`. Sem `error.tsx` em
+ * `src/app` (decisão de 13/09), estourar aqui era 500 sem moldura. A página
+ * segue 404 com título, a primeira frase e o catálogo — e nada que anuncie a
+ * amostra que ela não tem.
+ */
+describe("na pane do estoque", () => {
+  const pane = () => new EstoqueIndisponivelError("o banco recusou a consulta — teste");
+
+  it("segue com título e saída pelo catálogo, sem amostra e sem blocos", async () => {
+    leituras.falha = pane();
+    const html = await paginaRenderizada();
+
+    // Chegou ao ramo: a leitura com cache foi tentada, e foi ela que falhou.
+    expect(leituras.naoEncontrado).toBe(1);
+    expect(html).toContain("Não encontramos este veículo");
+    const inicio = html.indexOf("Este endereço não abre");
+    expect(inicio).toBeGreaterThan(-1);
+    expect(html.slice(inicio)).toContain('href="/estoque"');
+    expect(html).toContain("VER TODO O ESTOQUE");
+    expect(fichasLinkadas(html)).toEqual([]);
+    expect(html).not.toContain("Do pátio de hoje, em todas as faixas");
+    expect(html).not.toContain("Por faixa de preço");
+    expect(html).not.toContain("Por carroceria");
+    expect(html).not.toContain("Marcas em estoque");
+    expect(html).not.toContain('data-encomenda="1"');
+  });
+
+  it("não anuncia a amostra que não mostra", async () => {
+    leituras.falha = pane();
+    const html = await paginaRenderizada();
+
+    expect(html).toContain(
+      "Este endereço não abre nenhuma ficha do nosso estoque — costuma ser link antigo ou endereço incompleto.",
+    );
+    expect(html).not.toContain("Abaixo, uma amostra do pátio de hoje");
+  });
+
+  it("outra falha não vira página: sobe para o Next", async () => {
+    leituras.falha = new Error("defeito de programação");
+
+    await expect(paginaRenderizada()).rejects.toThrow("defeito de programação");
+    expect(leituras.naoEncontrado).toBe(1);
   });
 });
