@@ -100,6 +100,6 @@ export default async function FichaNaoEncontrada() {
       { rotulo: "Home", href: "/" },
       { rotulo: "Estoque", href: "/estoque" },
     ],
-    encomenda: (marcas) => <EncomendaDaFichaPerdida marcas={marcas} />,
+    encomenda: (marcas) => <EncomendaDaFichaPerdida marcas={marcas} nivel="ficha" />,
   });
 }
