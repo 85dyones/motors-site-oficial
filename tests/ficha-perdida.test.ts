@@ -14,12 +14,12 @@ import type { Veiculo } from "../src/types";
  * ---------------------------------------------------------------------------
  * O defeito que isto existe para impedir
  * ---------------------------------------------------------------------------
- * A rota da ficha chama `notFound()`, e até 2026-09-11 o corpo servido era o
- * 404 nativo do Next — `404: This page could not be found.`, em inglês, dentro
- * da moldura da marca. Verificado em produção:
- *
- *     curl -s https://motorsstore.com.br/carros/volkswagen/nivus/…-999999999
- *     → 404, "404: This page could not be found"
+ * A rota da ficha chama `notFound()`, e até 2026-09-11 a tela era o 404 nativo
+ * do Next — `404: This page could not be found.`, em inglês, dentro da moldura
+ * da marca. Em produção a resposta é 404, e o texto viaja no payload RSC: o
+ * HTML servido é a casca `<html id="__next_error__">`, de corpo vazio, e o
+ * navegador desenha a página a partir do payload (medido em 2026-09-14; a nota
+ * longa está no docblock de `not-found.tsx` da ficha).
  *
  * A página nova precisa do contexto para não ser genérica, e o contexto só
  * existe no CAMINHO: `not-found.tsx` não recebe `params`. Daí esta função.

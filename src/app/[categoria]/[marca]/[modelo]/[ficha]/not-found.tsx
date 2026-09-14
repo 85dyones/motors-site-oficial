@@ -14,21 +14,36 @@ import { EstoqueIndisponivelError } from "../../../../../lib/supabase";
  * O que havia aqui antes: nada
  * ---------------------------------------------------------------------------
  * Não havia `not-found.tsx` em branch nenhum do repositório, então a rota caía
- * no 404 de fábrica do Next. Verificado em produção em 2026-09-11:
+ * no 404 de fábrica do Next. Em produção, em 2026-09-11, a resposta era 404 e
+ * a tela, "404: This page could not be found" — em inglês, em system-ui, sem
+ * link nenhum, dentro do cabeçalho e do rodapé da marca. Esta página troca só
+ * o CORPO: status, metadata e o resto do comportamento da rota ficam onde
+ * estavam.
  *
- *     curl -s https://motorsstore.com.br/carros/volkswagen/nivus/…-999999999
- *     → 404 · "404: This page could not be found"
+ * ---------------------------------------------------------------------------
+ * O HTML servido é uma casca vazia — e não é defeito desta página
+ * ---------------------------------------------------------------------------
+ * Medido em 2026-09-14 com curl, na produção, no preview do #70 e no desta
+ * página: `notFound()` numa rota casada responde 404 com
+ * `<html id="__next_error__">`, `noindex` no head e o `<body>` vazio. No Next
+ * 16.2.6 o erro escapa do SSR, e o catch de
+ * `next/dist/server/app-render/app-render.js` manda essa casca com o payload
+ * RSC da renderização normal inline. O navegador desenha a página inteira a
+ * partir dele: cabeçalho, rodapé, título, grade e links. Nenhum `notFound()`
+ * põe o corpo no HTML. Com 404 e `noindex` a página fica fora do índice de
+ * qualquer jeito; o custo que sobra é a tela em branco até o JavaScript rodar.
  *
- * Em inglês, em system-ui, sem link nenhum — dentro do cabeçalho e do rodapé
- * da marca, que renderizam em volta. Esta página troca só o CORPO: status,
- * metadata e o resto do comportamento da rota ficam onde estavam.
+ * Por isso a conferência no preview não procura texto no HTML inteiro:
+ * `includes` acha tudo dentro de `self.__next_f` e fica verde — inclusive o
+ * "This page could not be found" do layout raiz, que viaja no payload como
+ * prop e não aparece na tela. A decisão do dono, em 14/09, foi conferir o
+ * payload e deixar a casca escrita.
  *
  * O metadata continua saindo de `generateMetadata`, na rota ("Veículo não
- * encontrado | Motors Store"). Uma ressalva medida, para quem vier atrás:
- * ele chega pelo streaming de metadata do Next, no payload RSC — o `<title>`
- * do primeiro HTML ainda é o padrão do layout ("Motors Store | Fora da
- * Curva"), e o título certo entra depois. Com 404 no status a diferença não
- * tem custo de busca; virar 200 nesta rota, algum dia, muda isso.
+ * encontrado | Motors Store"), e também só chega pelo payload: o `<title>` da
+ * casca é o padrão do layout ("Motors Store | Fora da Curva"), e o título
+ * certo entra quando o navegador desenha a página. Com 404 no status a
+ * diferença não tem custo de busca; virar 200 nesta rota, algum dia, muda isso.
  *
  * ---------------------------------------------------------------------------
  * Quem cai aqui, hoje
@@ -65,10 +80,10 @@ import { EstoqueIndisponivelError } from "../../../../../lib/supabase";
  * uma prop. O único código novo é `EncomendaDaFichaPerdida`, e ele existe por
  * uma limitação do framework: `not-found.tsx` não recebe `params`.
  *
- * Esse formulário — e só ele — chega ao navegador DEPOIS, pelo cliente:
- * `usePathname` não sobrevive ao prerender. Tudo o que segura a R5 (título,
- * grade do pátio, recortes, "ver todo o estoque") sai daqui, do servidor. A
- * medição está no docblock de `EncomendaDaFichaPerdida`.
+ * Tudo o que segura a R5 (título, grade do pátio, recortes, "ver todo o
+ * estoque") é server component e sai daqui, sem depender do caminho; o
+ * formulário é o único bloco que precisa de `usePathname`. Nenhum dos dois
+ * está no HTML servido — ver a casca, acima.
  *
  * ---------------------------------------------------------------------------
  * A leitura: o recorte guardado, e só aqui (2026-09-13)

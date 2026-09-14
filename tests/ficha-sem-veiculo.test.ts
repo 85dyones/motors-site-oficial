@@ -12,11 +12,14 @@ import { EstoqueIndisponivelError } from "../src/lib/supabase";
  * ---------------------------------------------------------------------------
  *     curl -s https://motorsstore.com.br/carros/volkswagen/nivus/…-999999999
  *     → HTTP 404
- *     → "404: This page could not be found"   ← corpo nativo do Next
+ *     → "404: This page could not be found"   ← no payload RSC, não no HTML
  *
- * O `<body>` era o 404 de fábrica, em system-ui e em inglês, emoldurado pelo
- * cabeçalho e pelo rodapé da marca. Não havia `not-found.tsx` em lugar nenhum
- * do repositório — conferido em TODOS os branches, não só no `main`.
+ * Na tela, o 404 de fábrica, em system-ui e em inglês, emoldurado pelo
+ * cabeçalho e pelo rodapé da marca. O HTML servido é a casca
+ * `<html id="__next_error__">`, de `<body>` vazio, e o navegador desenha a
+ * página pelo payload (medido em 2026-09-14). Não havia `not-found.tsx` em
+ * lugar nenhum do repositório — conferido em TODOS os branches, não só no
+ * `main`.
  *
  * ---------------------------------------------------------------------------
  * O que este arquivo trava
@@ -34,17 +37,19 @@ import { EstoqueIndisponivelError } from "../src/lib/supabase";
  * 6. **Na pane do estoque, segue com saída** — e só essa pane vira página.
  *
  * ---------------------------------------------------------------------------
- * ⚠️ O que o item 4 NÃO prova
+ * ⚠️ O que este arquivo NÃO prova
  * ---------------------------------------------------------------------------
- * Aqui `usePathname` é dublado, então a árvore inteira renderiza em memória.
- * No build de produção esse bloco **não sai no HTML da primeira resposta**:
- * `usePathname` numa rota prerenderizada faz o Next adiar a subárvore para o
- * cliente. Conferido com `next build` + `curl` em 2026-09-11 — sem `<form>` no
- * HTML, com formulário na tela depois da hidratação.
+ * Aqui a página renderiza em memória, com `usePathname` dublado. No servidor
+ * de verdade NADA disto sai no HTML da primeira resposta: `notFound()` numa
+ * rota casada responde com a casca `<html id="__next_error__">`, e o navegador
+ * desenha a página pelo payload RSC da mesma resposta. Medido com curl em
+ * 2026-09-14 — e o `<form>` que faltava no HTML em 11/09, atribuído a
+ * `usePathname`, é a mesma casca.
  *
- * Então o item 4 mede FIAÇÃO, não HTML servido. Quem garante que a página tem
- * saída sem JavaScript são os itens 1 a 3, e esses o servidor entrega — a nota
- * longa está em `components/EncomendaDaFichaPerdida.tsx`.
+ * Então os seis itens medem a página renderizada, não o HTML servido, e nenhum
+ * garante saída sem JavaScript: em 404 de rota casada essa saída não existe. O
+ * que a pessoa vê se confere no navegador; a nota longa está no docblock de
+ * `not-found.tsx` da ficha.
  */
 
 const caminho = vi.hoisted(() => ({ atual: "/carros/volkswagen/modelo3/vw-modelo3-999999999" }));

@@ -35,29 +35,32 @@ import { contextoDaFichaPerdida, type MarcaConhecida } from "../lib/fichaPerdida
  * e um contexto vazio; hub zerado devolve o contexto e nenhum link.
  *
  * ---------------------------------------------------------------------------
- * ⚠️ Este bloco NÃO está no HTML da primeira resposta
+ * ⚠️ Nada desta página está no HTML da primeira resposta — nem este bloco
  * ---------------------------------------------------------------------------
  * Medido no build de produção (`next build` + `next start`, 2026-09-11):
  *
  *   curl …/carros/volkswagen/nivus/…-999999999 | grep "<form"   → nada
- *   no navegador, depois da hidratação                          → o form existe
+ *   no navegador, depois de renderizar                          → o form existe
  *
- * A causa é `usePathname` numa rota PRERENDERIZADA: o caminho não existe no
- * momento do build, então o Next adia esta subárvore para o cliente e manda
- * uma referência no payload RSC no lugar do HTML. Não é defeito e não tem
- * conserto sem abrir mão do contexto — é o preço de personalizar uma página que
- * o framework prerenderiza.
+ * A primeira leitura pôs a culpa em `usePathname`, e estava errada. Medido de
+ * novo em 2026-09-14, com curl, na produção e nos previews: `notFound()` numa
+ * rota casada responde com a casca `<html id="__next_error__">` e o `<body>`
+ * vazio, e o navegador desenha a página INTEIRA pelo payload RSC que vem na
+ * mesma resposta — título, grade e links também, não só este bloco.
+ * `usePathname` nunca foi isolado como causa. A nota longa está no docblock
+ * de `not-found.tsx` da ficha.
  *
- * O que isso obriga: **nenhuma saída da página pode depender deste bloco.**
- * Título, grade do pátio, recortes e o "ver todo o estoque" saem do servidor, e
+ * O que continua valendo: **nenhuma saída da página pode depender deste
+ * bloco.** Ele depende do caminho e do índice de marcas; título, grade do
+ * pátio, recortes e o "ver todo o estoque" não dependem de nenhum dos dois, e
  * é neles que a R5 se apoia. Este é a melhor saída, não a única — e o
  * formulário já precisava de JavaScript de qualquer forma, por causa do
  * Turnstile.
  *
  * O teste em `tests/ficha-sem-veiculo.test.ts` renderiza a árvore com
  * `usePathname` dublado: ele prova a FIAÇÃO (o índice chega, a marca certa
- * sai), não que o bloco esteja no HTML servido. Os dois fatos convivem;
- * confundi-los é ler verde onde o servidor manda vazio.
+ * sai), não o HTML servido. `includes` no HTML inteiro também não prova — acha
+ * o texto dentro de `self.__next_f` e fica verde onde o servidor manda a casca.
  */
 export default function EncomendaDaFichaPerdida({ marcas }: { marcas: MarcaConhecida[] }) {
   const caminho = usePathname() ?? "";

@@ -592,7 +592,7 @@ export interface LinkContado {
  * evitar.
  */
 export interface RecorteDoNaoEncontrado {
-  /** Até seis carros, amostrados ao longo do preço — ver `patioEmDestaque`. */
+  /** Até seis veículos, amostrados ao longo do preço — ver `patioEmDestaque`. */
   patio: Veiculo[];
   /** O índice que atravessa para o bloco do cliente: slug, nome e contagem. */
   marcas: MarcaConhecida[];
@@ -614,6 +614,11 @@ export interface RecorteDoNaoEncontrado {
  * reordenar, a página abria com os seis carros mais caros do pátio. As duas
  * medições estão em `patioEmDestaque`, inclusive a que derrubou a correção
  * óbvia (ordenar por chegada).
+ *
+ * A spec do pacote (`conteudo-seo/pacote/produto/02-not-found-ficha.md`) pede
+ * "de 4 a 6 veículos similares", com cascata de carroceria e faixa. Ficou o
+ * teto; a régua de semelhança, não — ela parte do veículo da página, e a
+ * página de não encontrado existe justamente quando não há veículo.
  *
  * **"Marcas em estoque" é só de carros**, como `/estoque/[recorte]` — o único
  * outro "Marcas em estoque" do site. Juntar os dois segmentos pôs, com o pátio
