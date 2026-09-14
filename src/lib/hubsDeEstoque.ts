@@ -659,7 +659,9 @@ export function montarRecorteDoNaoEncontrado(
  * continua lendo fresco.
  *
  * O que se guarda é o recorte PRONTO, e não o estoque, para o item ficar longe
- * do teto de 2 MB por item do cache de dados.
+ * do teto de 2 MB por item do cache de dados. Medido em 2026-09-14 contra a
+ * produção, com 114 veículos no histórico e 43 à venda:
+ * 33915 bytes de JSON (33.1 KB). Campo novo no recorte refaz a medição.
  *
  * ---------------------------------------------------------------------------
  * A troca aceita
