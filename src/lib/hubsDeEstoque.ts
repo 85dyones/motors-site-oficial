@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { Veiculo } from "../types";
 import { getEstoque } from "./supabase";
 import { CARROCERIAS } from "./classificacaoVeiculo";
@@ -8,6 +9,9 @@ import { PERFIS_DE_USO, type PerfilDeUso } from "./perfisDeUso";
 // e a etiqueta de promoção acabam discordando na mesma tela.
 import { precoVigente } from "./regrasEstoque";
 import { FAIXAS_DE_PRECO, type FaixaDePreco } from "./faixasDePreco";
+// `fichaPerdida` importa daqui SÓ tipos (ele é lido por um client component e
+// não pode arrastar o Supabase). A volta, de valores, é deste lado — servidor.
+import { indiceDeMarcas, patioEmDestaque, type MarcaConhecida } from "./fichaPerdida";
 // A concordância sai daqui, e é calculada a partir do HISTÓRICO — ver a nota
 // em `generoDeModelo` mais abaixo, no ponto em que o hub é montado.
 import {
@@ -565,3 +569,128 @@ export function destinoDoVeiculoArquivado(
   }
   return "/estoque";
 }
+
+/**
+ * Um link de hub pronto para o bloco da página: rótulo, destino e contagem.
+ *
+ * É o formato de `LinkDeNavegacao` (`components/modernist/PaginaDeEstoque`),
+ * declarado aqui para a biblioteca não depender de componente.
+ */
+export interface LinkContado {
+  rotulo: string;
+  href: string;
+  total: number;
+}
+
+/**
+ * Tudo o que a página de não encontrado mostra do estoque, e nada além.
+ *
+ * `Veiculo` só na amostra, que a grade precisa inteiro para desenhar o card.
+ * Hub de marca e de carroceria entram já como link contado: `HubDeMarca` e
+ * `HubDeCarroceria` carregam `Veiculo[]`, e guardá-los levaria o estoque
+ * inteiro para dentro do item do cache — o oposto do que ele existe para
+ * evitar.
+ */
+export interface RecorteDoNaoEncontrado {
+  /** Até seis carros, amostrados ao longo do preço — ver `patioEmDestaque`. */
+  patio: Veiculo[];
+  /** O índice que atravessa para o bloco do cliente: slug, nome e contagem. */
+  marcas: MarcaConhecida[];
+  /** "Por carroceria": só as que têm carro hoje. */
+  carrocerias: LinkContado[];
+  /** "Marcas em estoque": só `carros`, e só com carro hoje. */
+  marcasComEstoque: LinkContado[];
+}
+
+/**
+ * O recorte montado, sem leitura nenhuma — a regra, testável sem cache.
+ *
+ * Saiu de `[ficha]/not-found.tsx` (#70) sem mudar o que calcula.
+ *
+ * **Seis, e amostrados ao longo do preço.** O TETO existe porque despejar o
+ * pátio inteiro transforma a 404 num segundo `/estoque`, e boa parte de quem
+ * cai aqui veio de anúncio clicando num carro específico. A AMOSTRA existe
+ * porque `disponiveis` vem de `getEstoque`, que ordena por `preco desc`: sem
+ * reordenar, a página abria com os seis carros mais caros do pátio. As duas
+ * medições estão em `patioEmDestaque`, inclusive a que derrubou a correção
+ * óbvia (ordenar por chegada).
+ *
+ * **"Marcas em estoque" é só de carros**, como `/estoque/[recorte]` — o único
+ * outro "Marcas em estoque" do site. Juntar os dois segmentos pôs, com o pátio
+ * real do preview, dois links com o texto HONDA: um para `/carros/honda`, outro
+ * para `/motos/honda` (R7). O índice `marcas` continua com os dois: é ele que
+ * resolve o caminho de moto e o link do hub de moto.
+ *
+ * **O índice sai recortado** (`indiceDeMarcas`): ele atravessa a fronteira do
+ * client component, e prop de client component é payload público — foi assim
+ * que `preco_compra` saiu no HTML do `/estoque`.
+ */
+export function montarRecorteDoNaoEncontrado(
+  historico: Veiculo[],
+  disponiveis: Veiculo[],
+): RecorteDoNaoEncontrado {
+  const hubs = [
+    ...hubsDeMarca(historico, disponiveis, "carros"),
+    ...hubsDeMarca(historico, disponiveis, "motos"),
+  ];
+
+  return {
+    patio: patioEmDestaque(disponiveis, 6),
+    marcas: indiceDeMarcas(hubs),
+    carrocerias: hubsDeCarroceria(historico, disponiveis)
+      .filter((c) => c.veiculos.length > 0)
+      .map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })),
+    marcasComEstoque: hubs
+      .filter((h) => h.segmento === "carros" && h.veiculos.length > 0)
+      .map((h) => ({ rotulo: h.nome, href: `/${h.segmento}/${h.slug}`, total: h.veiculos.length })),
+  };
+}
+
+/**
+ * A leitura que só as páginas de não encontrado fazem — guardada por uma hora.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que cache aqui, e só aqui
+ * ---------------------------------------------------------------------------
+ * `recortesDoEstoque` são duas leituras de `estoque_motors` com `select *`,
+ * ~977 KB por render. Nos hubs o custo é limitado, porque os hubs são finitos.
+ * Aqui não: caminho falso é ilimitado, e cada caminho inédito rende uma vez. A
+ * decisão do dono em 13/09 foi cache SÓ no não encontrado; o resto do site
+ * continua lendo fresco.
+ *
+ * O que se guarda é o recorte PRONTO, e não o estoque, para o item ficar longe
+ * do teto de 2 MB por item do cache de dados.
+ *
+ * ---------------------------------------------------------------------------
+ * A troca aceita
+ * ---------------------------------------------------------------------------
+ * A amostra pode ter até uma hora de atraso. Um carro vendido nessa janela
+ * ainda aparece aqui; a ficha dele responde 200 com o selo de vendido, então o
+ * link não morre.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚠️ Nenhum `catch` aqui dentro
+ * ---------------------------------------------------------------------------
+ * Na pane, `recortesDoEstoque` estoura `EstoqueIndisponivelError`, e a exceção
+ * tem de ATRAVESSAR: o `unstable_cache` não grava o resultado de callback que
+ * lançou, então a requisição seguinte tenta de novo. Quem decide o que mostrar
+ * na pane é a página. Um `catch` que devolvesse recorte vazio seria gravado e
+ * servido por uma hora — é o que `navegacaoDoRodape.ts` faz com o rodapé, e é
+ * o desenho que aqui não se copia.
+ *
+ * Com item VELHO no cache, o Next engole a falha da revalidação e serve o velho
+ * (`unstable-cache.js`, l. 179-184): a página de pane só aparece com o cache
+ * frio.
+ *
+ * Nada fora de uma requisição do Next chama isto — em teste e em script o
+ * `unstable_cache` estoura (`Invariant: incrementalCache missing`). Os testes
+ * dublam `next/cache`.
+ */
+export const recorteDoNaoEncontrado = unstable_cache(
+  async (): Promise<RecorteDoNaoEncontrado> => {
+    const { historico, disponiveis } = await recortesDoEstoque();
+    return montarRecorteDoNaoEncontrado(historico, disponiveis);
+  },
+  ["recorte-do-nao-encontrado"],
+  { revalidate: 3600 },
+);
