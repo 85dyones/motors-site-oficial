@@ -221,8 +221,21 @@ const STATUS_INTERNO = new RegExp(
  * "Levamos seu carro em qualquer estado" fala da condição do carro. Tubarão
  * ficou na lista, também por decisão do dono, mesmo colidindo com o apelido do
  * Opala.
+ *
+ * Re-revisão da tarefa (15/09/2026, decisão do dono): as duas retiradas
+ * abriram buracos, e cada uma voltou só onde fecha o seu.
+ * - Sem "atendemos", "Atendemos em Minas Gerais também." e "Atendemos clientes
+ *   de Santa Catarina." passavam. "atendemos" voltou só antes de lugar
+ *   (`PALAVRA_ANTES_DE_LUGAR`, nos ramos dos lugares fora do recorte e de Santa
+ *   Catarina sem Balneário) e fica fora dos ramos do "nacional": "Atendemos com
+ *   garantia nacional de peças" continua passando.
+ * - Sem "qualquer estado", "Levamos até qualquer estado do Brasil." passava.
+ *   "qualquer estado do Brasil" e "qualquer estado do país" ganharam ramo
+ *   próprio, sem palavra de entrega, como "todo o Brasil"; "Levamos seu carro em
+ *   qualquer estado" continua passando.
  */
 const PALAVRA_DE_ENTREGA = "entreg\\w*|envi[ao]\\w*|frete\\w*|levamos|cobertura|transporte";
+const PALAVRA_ANTES_DE_LUGAR = `${PALAVRA_DE_ENTREGA}|atendemos`;
 const FORA_DO_RECORTE = [
   "s[ãa]o paulo",
   "rio de janeiro",
@@ -264,10 +277,11 @@ const ALCANCE = new RegExp(
     "todo o pa[íi]s",
     "todo o territ[óo]rio nacional",
     "qualquer (?:lugar|ponto|parte|canto) do (?:brasil|pa[íi]s|territ[óo]rio)",
+    "qualquer estado do (?:brasil|pa[íi]s)",
     `\\b(?:${PALAVRA_DE_ENTREGA})\\b[^.!?]{0,40}\\bnacional\\b`,
     `\\bnacional\\b[^.!?]{0,40}\\b(?:${PALAVRA_DE_ENTREGA})`,
-    `\\b(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,40}\\b(?:${FORA_DO_RECORTE})`,
-    `\\b(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,40}\\bsanta catarina(?![^.!?]{0,40}balne[áa]rio)`,
+    `\\b(?:${PALAVRA_ANTES_DE_LUGAR})[^.!?]{0,40}\\b(?:${FORA_DO_RECORTE})`,
+    `\\b(?:${PALAVRA_ANTES_DE_LUGAR})[^.!?]{0,40}\\bsanta catarina(?![^.!?]{0,40}balne[áa]rio)`,
   ].join("|"),
   "i",
 );

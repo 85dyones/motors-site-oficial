@@ -446,7 +446,9 @@ describe("regra: alcance", () => {
    * reprovava e fica como guarda: Santa Catarina com palavra de entrega e sem
    * Balneário continua fora do recorte. "Entregamos em todos os estados."
    * também fica como guarda: a revisão de 15/09/2026 tirou "qualquer estado",
-   * não os estados.
+   * não os estados. As quatro últimas passavam depois dessa revisão e voltaram
+   * a reprovar na re-revisão do mesmo dia: "atendemos" antes de lugar fora do
+   * recorte, e "qualquer estado do Brasil/do país" em ramo próprio.
    */
   it.each([
     "Atendemos clientes de todo o país.",
@@ -455,6 +457,10 @@ describe("regra: alcance", () => {
     "Enviamos para outros estados.",
     "Entrega em Santa Catarina inteira.",
     "Entregamos em todos os estados.",
+    "Atendemos em Minas Gerais também.",
+    "Atendemos clientes de Santa Catarina.",
+    "Levamos até qualquer estado do Brasil.",
+    "Entregamos para qualquer estado do país.",
   ])("reprova alcance fora do recorte: %s", (frase) => {
     expect(motivos(frase)).toContain("alcance");
   });
@@ -465,7 +471,10 @@ describe("regra: alcance", () => {
    * metropolitana (São José dos Pinhais é dela), o litoral até Balneário e a
    * frase de alcance dos rascunhos aprovados pelo dono em 17/08. "Levamos seu
    * carro em qualquer estado." e "Atendemos com garantia nacional de peças."
-   * reprovavam na primeira entrega desta tarefa (revisão de 15/09/2026).
+   * reprovavam na primeira entrega desta tarefa (revisão de 15/09/2026) e
+   * seguem passando depois da re-revisão do mesmo dia. A última é a guarda do
+   * "atendemos" antes de lugar: Santa Catarina até Balneário continua dentro do
+   * recorte.
    */
   it.each([
     "Veio de Santa Catarina com manual e chave reserva.",
@@ -477,6 +486,7 @@ describe("regra: alcance", () => {
     "Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná e no litoral catarinense até Balneário Camboriú.",
     "Levamos seu carro em qualquer estado.",
     "Atendemos com garantia nacional de peças.",
+    "Atendemos clientes de Santa Catarina até Balneário Camboriú.",
   ])("NÃO reprova: %s", (frase) => {
     expect(motivos(frase)).not.toContain("alcance");
   });
