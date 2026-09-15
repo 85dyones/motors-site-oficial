@@ -140,9 +140,12 @@ export function montarEntrada(dossie: Dossie, campo: CampoDeTexto): string {
   // afirmar" / "NÃO afirme" — porque a validação tentava DETECTAR afirmação
   // indevida. A régua nova (MENCIONA_PERICIA, em validacao.ts) não distingue
   // afirmação de menção: qualquer toque no assunto reprova. A proibição do
-  // prompt parou de distinguir também.
+  // prompt parou de distinguir também. Desde 14/09/2026 ela nomeia também o
+  // que o laudo atesta — sinistro, leilão, Detran, "nada consta" —, porque a
+  // trava passou a reprovar esses termos, e termo que a trava reprova sem o
+  // prompt nomear vira 422 no clique.
   regras.push(
-    "NÃO mencione perícia, laudo, vistoria, cautelar ou inspeção, em nenhuma hipótese: esse assunto tem frase padrão em outro campo do sistema, e o texto do anúncio não trata dele.",
+    'NÃO mencione perícia, laudo, vistoria, cautelar, inspeção, sinistro, leilão, Detran, "nada consta" ou restrição de documentação, em nenhuma hipótese: esse assunto tem frase padrão em outro campo do sistema, e o texto do anúncio não trata dele.',
   );
 
   if (dossie.opcionais.length === 0) {

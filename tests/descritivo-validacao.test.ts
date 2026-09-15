@@ -291,6 +291,37 @@ describe("regra: perícia", () => {
   ])("reprova por conter '%s' (item menor, ampliação de 09/09/2026)", (_termo, frase) => {
     expect(motivos(frase)).toContain("perícia");
   });
+
+  /**
+   * Segunda ampliação (14/09/2026, qa-guardian): o verbo "vistoriou" e a frase
+   * padrão do campo Laudo cautelar dita sem os substantivos passavam limpos.
+   */
+  it.each([
+    ["vistoriou", "Nossa equipe vistoriou cada detalhe."],
+    [
+      "a frase padrão do laudo sem os substantivos",
+      "Estrutura, chassi e histórico de sinistro auditados por empresa independente, credenciada junto ao Detran.",
+    ],
+    ["nada consta", "Documentação sem restrições e nada consta."],
+    ["documentação sem restrições", "Documentação sem restrições."],
+    ["aprovado na avaliação técnica", "Aprovado na avaliação técnica de 120 itens."],
+    ["avaliação técnica aprovada", "Avaliação técnica de 120 itens, toda aprovada."],
+    ["leilão", "Sem passagem por leilão."],
+  ])("reprova por falar do que o laudo atesta: %s", (_caso, frase) => {
+    expect(motivos(frase)).toContain("perícia");
+  });
+
+  /**
+   * Guarda de regressão: "sem restrição" e "avaliação técnica" só contam presos
+   * ao contexto do laudo. Soltos, são frase de venda.
+   */
+  it.each([
+    "Avaliação do seu usado na hora.",
+    "Fazemos avaliação técnica do seu usado na hora.",
+    "Aceita troca sem restrição de ano.",
+  ])("NÃO reprova — frase de venda com palavra vizinha do laudo: %s", (frase) => {
+    expect(motivos(frase)).not.toContain("perícia");
+  });
 });
 
 describe("regra: status interno", () => {
@@ -300,6 +331,29 @@ describe("regra: status interno", () => {
   /** "perícia independente" contém "pendente" — a armadilha que reprovava tudo. */
   it("NÃO reprova 'perícia independente'", () => {
     expect(motivos("Passa por perícia independente antes de entrar na vitrine.")).not.toContain("status interno");
+  });
+
+  /**
+   * Revisão de 14/09/2026 (qa-guardian). "O resultado do exame ainda não saiu"
+   * passava. As outras três já reprovavam e ficam como guarda: a revisão não
+   * pode abrir "Veículo em análise" ao prender a regra ao contexto.
+   */
+  it.each([
+    "O resultado do exame ainda não saiu.",
+    "Veículo em análise.",
+    "Aguardando o resultado do exame.",
+    "Documentação pendente de transferência.",
+  ])("reprova: %s", (frase) => {
+    expect(motivos(frase)).toContain("status interno");
+  });
+
+  /** Frases de venda que a regra antiga reprovava. */
+  it.each([
+    "Está aguardando você no showroom.",
+    "Crédito em análise na hora.",
+    "Financiamento em análise na hora, sem burocracia.",
+  ])("NÃO reprova — frase de venda: %s", (frase) => {
+    expect(motivos(frase)).not.toContain("status interno");
   });
 });
 

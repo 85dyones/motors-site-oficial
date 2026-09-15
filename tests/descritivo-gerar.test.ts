@@ -52,6 +52,16 @@ describe("montarEntrada", () => {
     expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("NÃO mencione perícia");
   });
   /**
+   * O prompt nomeia o que a trava reprova (14/09/2026). Termo que
+   * MENCIONA_PERICIA reprova e o prompt não nomeia — "sem passagem por leilão"
+   * — vira 422 no clique.
+   */
+  it("nomeia no prompt o que o laudo atesta", () => {
+    expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain(
+      'sinistro, leilão, Detran, "nada consta" ou restrição de documentação',
+    );
+  });
+  /**
    * As três proibições que nasciam da AUSÊNCIA de um rótulo, cada uma nos dois
    * sentidos.
    *

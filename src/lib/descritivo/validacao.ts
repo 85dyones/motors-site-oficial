@@ -105,11 +105,63 @@ const VOCABULARIO =
  * fronteira própria em vez de a de "vistoria" ser removida, porque remover
  * fronteira reabriria o risco que "aplaudo" já mostrou — um `\w*` sem `\b`
  * também casaria por dentro de palavra nenhuma relacionada.
+ *
+ * SEGUNDA AMPLIAÇÃO (14/09/2026, qa-guardian). `vistoria\w*` exigia a palavra
+ * inteira e deixava passar "vistoriou": a raiz agora é `vistori`. E a frase
+ * padrão do campo Laudo cautelar (`LAUDO_APROVADO_PADRAO`, em `laudoPadrao.ts`)
+ * passava limpa quando dita sem os substantivos: "estrutura, chassi e
+ * histórico de sinistro auditados por empresa independente, credenciada junto
+ * ao Detran". Entra o que o laudo atesta: sinistro, auditado, Detran, leilão e
+ * "nada consta". Duas formas só contam presas ao contexto, porque soltas são
+ * frase de venda: "sem restrição" só depois de "documentação" ("aceita troca
+ * sem restrição de ano" passa) e "avaliação técnica" só perto de "aprovado"
+ * ("avaliação técnica do seu usado" passa).
  */
-const MENCIONA_PERICIA =
-  /\bper[íi]ci\w*|\bperit\w*|\blaudo\w*|\bcautelar\w*|\bvistoria\w*|\brevistoria\w*|\binspe[çc](?:[ãa]o|[õo]es)\w*|\binspecion\w*/i;
+const MENCIONA_PERICIA = new RegExp(
+  [
+    "\\bper[íi]ci\\w*",
+    "\\bperit\\w*",
+    "\\blaudo\\w*",
+    "\\bcautelar\\w*",
+    "\\bvistori\\w*",
+    "\\brevistori\\w*",
+    "\\binspe[çc](?:[ãa]o|[õo]es)\\w*",
+    "\\binspecion\\w*",
+    "\\bsinistr\\w*",
+    "\\bauditad\\w*",
+    "\\bdetran\\b",
+    "\\bleil(?:[ãa]o|[õo]es)",
+    "\\bnada consta\\b",
+    "\\bdocumenta[çc][ãa]o\\b[^.!?]{0,15}\\bsem restri[çc]",
+    "\\baprovad\\w*[^.!?]{0,30}\\bavalia[çc][ãa]o t[ée]cnica",
+    "\\bavalia[çc][ãa]o t[ée]cnica[^.!?]{0,30}\\baprovad",
+  ].join("|"),
+  "i",
+);
 
-const STATUS_INTERNO = /em an[áa]lise|\bpendente\b|aguardando/i;
+/**
+ * Andamento do exame exposto no texto.
+ *
+ * Revisto em 14/09/2026 (qa-guardian), nos dois sentidos. "aguardando" solto
+ * reprovava "Está aguardando você no showroom": agora só conta com o objeto
+ * do exame logo depois. "em análise" reprovava "Crédito em análise na hora",
+ * que é frase de venda: o crédito e o financiamento ficam de fora. E "O
+ * resultado do exame ainda não saiu" passava sem nenhuma das três palavras.
+ *
+ * "em análise" continua valendo em qualquer outra frase, de propósito: é o
+ * rótulo cru da coluna `pericia`, e prendê-lo ao objeto do exame deixaria
+ * passar "Veículo em análise".
+ */
+const OBJETO_DO_EXAME = "resultado|exame|laudo|per[íi]cia|vistoria|documenta[çc][ãa]o";
+const STATUS_INTERNO = new RegExp(
+  [
+    "(?<!(?:cr[ée]dito|financiamento|cadastro|proposta)[^.!?]{0,20})em an[áa]lise",
+    "\\bpendente\\b",
+    `\\baguardando\\s+(?:(?:o|a|os|as)\\s+)?(?:${OBJETO_DO_EXAME}|aprova[çc][ãa]o|libera[çc][ãa]o)`,
+    `\\b(?:${OBJETO_DO_EXAME})\\b[^.!?]{0,30}\\bn[ãa]o (?:saiu|ficou pronto|chegou|foi conclu[íi]d[oa])`,
+  ].join("|"),
+  "i",
+);
 
 /**
  * Alcance de ENTREGA maior que o recorte da loja.
@@ -208,7 +260,7 @@ export function validarDescritivo(
   if (MENCIONA_PERICIA.test(texto)) {
     add(
       "perícia",
-      "Fala de perícia. Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
+      "Fala de perícia ou do que o laudo atesta (sinistro, leilão, restrição, Detran). Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
     );
   }
 
