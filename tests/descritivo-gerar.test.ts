@@ -58,7 +58,7 @@ describe("montarEntrada", () => {
    */
   it("nomeia no prompt o que o laudo atesta", () => {
     expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain(
-      'sinistro, leilão, Detran, "nada consta" ou restrição de documentação',
+      'sinistro, leilão, Detran, auditado, "nada consta", restrição de documentação ou avaliação técnica',
     );
   });
   /**

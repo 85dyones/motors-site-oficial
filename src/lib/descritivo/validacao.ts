@@ -144,7 +144,9 @@ const MENCIONA_PERICIA = new RegExp(
  *
  * Revisto em 14/09/2026 (qa-guardian), nos dois sentidos. "aguardando" solto
  * reprovava "Está aguardando você no showroom": agora só conta com o objeto
- * do exame logo depois. "em análise" reprovava "Crédito em análise na hora",
+ * do exame logo depois, ou com a aprovação ou a liberação DELE ("Aguardando
+ * liberação da documentação" reprova; "Aguardando aprovação do financiamento",
+ * frase de venda, passa). "em análise" reprovava "Crédito em análise na hora",
  * que é frase de venda: o crédito e o financiamento ficam de fora. E "O
  * resultado do exame ainda não saiu" passava sem nenhuma das três palavras.
  *
@@ -157,7 +159,7 @@ const STATUS_INTERNO = new RegExp(
   [
     "(?<!(?:cr[ée]dito|financiamento|cadastro|proposta)[^.!?]{0,20})em an[áa]lise",
     "\\bpendente\\b",
-    `\\baguardando\\s+(?:(?:o|a|os|as)\\s+)?(?:${OBJETO_DO_EXAME}|aprova[çc][ãa]o|libera[çc][ãa]o)`,
+    `\\baguardando\\s+(?:(?:o|a|os|as)\\s+)?(?:(?:aprova[çc][ãa]o|libera[çc][ãa]o)\\s+d[oa]s?\\s+)?(?:${OBJETO_DO_EXAME})`,
     `\\b(?:${OBJETO_DO_EXAME})\\b[^.!?]{0,30}\\bn[ãa]o (?:saiu|ficou pronto|chegou|foi conclu[íi]d[oa])`,
   ].join("|"),
   "i",
@@ -260,7 +262,7 @@ export function validarDescritivo(
   if (MENCIONA_PERICIA.test(texto)) {
     add(
       "perícia",
-      "Fala de perícia ou do que o laudo atesta (sinistro, leilão, restrição, Detran). Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
+      "Fala de perícia ou do que o laudo atesta (sinistro, leilão, restrição, Detran, auditado, avaliação técnica). Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
     );
   }
 

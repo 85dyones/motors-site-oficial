@@ -302,7 +302,8 @@ describe("regra: perícia", () => {
       "a frase padrão do laudo sem os substantivos",
       "Estrutura, chassi e histórico de sinistro auditados por empresa independente, credenciada junto ao Detran.",
     ],
-    ["nada consta", "Documentação sem restrições e nada consta."],
+    ["nada consta e documentação sem restrições", "Documentação sem restrições e nada consta."],
+    ["nada consta sozinho", "Nada consta em nome do proprietário."],
     ["documentação sem restrições", "Documentação sem restrições."],
     ["aprovado na avaliação técnica", "Aprovado na avaliação técnica de 120 itens."],
     ["avaliação técnica aprovada", "Avaliação técnica de 120 itens, toda aprovada."],
@@ -322,6 +323,14 @@ describe("regra: perícia", () => {
   ])("NÃO reprova — frase de venda com palavra vizinha do laudo: %s", (frase) => {
     expect(motivos(frase)).not.toContain("perícia");
   });
+
+  /** O motivo nomeia o que o laudo atesta, como o prompt (revisão da tarefa, 15/09/2026). */
+  it("o motivo da perícia nomeia auditado e avaliação técnica", () => {
+    const r = motivosCompletos("Veículo auditado por profissionais antes da venda.");
+    const motivo = r.find((x) => x.regra === "perícia")?.motivo ?? "";
+    expect(motivo).toContain("auditado");
+    expect(motivo).toContain("avaliação técnica");
+  });
 });
 
 describe("regra: status interno", () => {
@@ -335,14 +344,16 @@ describe("regra: status interno", () => {
 
   /**
    * Revisão de 14/09/2026 (qa-guardian). "O resultado do exame ainda não saiu"
-   * passava. As outras três já reprovavam e ficam como guarda: a revisão não
-   * pode abrir "Veículo em análise" ao prender a regra ao contexto.
+   * passava. As outras já reprovavam e ficam como guarda: a revisão não pode
+   * abrir "Veículo em análise" ao prender a regra ao contexto, nem "Aguardando
+   * liberação da documentação" ao prender a aprovação e a liberação ao exame.
    */
   it.each([
     "O resultado do exame ainda não saiu.",
     "Veículo em análise.",
     "Aguardando o resultado do exame.",
     "Documentação pendente de transferência.",
+    "Aguardando liberação da documentação.",
   ])("reprova: %s", (frase) => {
     expect(motivos(frase)).toContain("status interno");
   });
@@ -352,6 +363,9 @@ describe("regra: status interno", () => {
     "Está aguardando você no showroom.",
     "Crédito em análise na hora.",
     "Financiamento em análise na hora, sem burocracia.",
+    "Aguardando aprovação do financiamento, sem burocracia.",
+    "Aguardando a aprovação do banco para liberar o carro.",
+    "Aguardando liberação do crédito.",
   ])("NÃO reprova — frase de venda: %s", (frase) => {
     expect(motivos(frase)).not.toContain("status interno");
   });
