@@ -631,13 +631,23 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
  *      derruba a trava. É mais forte que a lista literal e não substitui
  *      as seis frases: a lista nomeia o que aconteceu, o `/aceit/i` fecha o
  *      que a lista não previu.
- *   2. Um segundo controle positivo, perto do fim do trecho reescrito
- *      ("Usamos estas ferramentas:"), ao lado do controle que já existia
- *      ("carregadas desde o início da visita", perto do início). Sem ele, o
- *      `not.toMatch(/aceit/i)` passaria em falso caso a leitura parasse de
- *      alcançar a segunda metade do texto reescrito — um arquivo truncado ou
- *      um `lerCodigo` que devolvesse só o começo teria zero "aceit" e o
- *      teste ficaria verde sem ter lido nada.
+ *   2. Três controles positivos, não dois — a re-revisão de c27e5e8 mediu que
+ *      o segundo não provava nada: "Usamos estas ferramentas:" fica na
+ *      posição 10.115 de 17.562 do texto visível, no MEIO da página, e depois
+ *      dele ainda vêm duas regiões que este PR reescreveu e que o `/aceit/i`
+ *      também vigia — a orientação de revogação (`page.tsx:426`) e o bullet
+ *      de Compartilhamento (`page.tsx:453-457`). Uma leitura que parasse
+ *      logo depois de `page.tsx:391` deixaria as duas verdes por engano: zero
+ *      "aceit" porque nada foi lido, não porque nada sobrou. O terceiro
+ *      controle é o rodapé — "Podemos atualizar esta política"
+ *      (`page.tsx:630`), a ÚLTIMA frase visível da página — e só com ele o
+ *      `not.toMatch(/aceit/i)` cobre as três âncoras de verdade:
+ *        · "carregadas desde o início da visita" — começo da seção de cookies;
+ *        · "Usamos estas ferramentas:" — meio, fim da lista de ferramentas;
+ *        · "Podemos atualizar esta política" — rodapé, fim de tudo.
+ *      As duas primeiras não bastavam porque as duas regiões que motivaram
+ *      esta trava inteira (revogação e Compartilhamento) ficam DEPOIS da
+ *      segunda âncora e ANTES da terceira.
  */
 describe("B.6 · a política não deixou sobra do regime de aceite", () => {
   const politica = lerCodigo("src/app/privacidade/page.tsx");
@@ -657,16 +667,24 @@ describe("B.6 · a política não deixou sobra do regime de aceite", () => {
    */
   const semQuebras = politica.replace(/\s+/g, " ");
 
-  it("controle: a leitura alcança o arquivo certo, do início ao fim do trecho reescrito", () => {
+  it("controle: a leitura alcança o arquivo certo, da seção de cookies ao rodapé", () => {
     // Sem isto, as negativas abaixo passariam por estarem lendo o arquivo
     // errado — ou um arquivo vazio, ou truncado — e não porque o texto de
     // fato mudou. É o mesmo controle positivo que o teste vizinho, "a
     // política admite que o rastreamento começa ANTES da resposta", já faz.
-    // Duas âncoras, uma perto do início da seção de cookies e outra perto do
-    // fim: o `not.toMatch(/aceit/i)` abaixo só vale alguma coisa se a leitura
-    // realmente alcançar as duas pontas do trecho que este PR reescreveu.
-    expect(semQuebras).toContain("carregadas desde o início da visita");
-    expect(semQuebras).toContain("Usamos estas ferramentas:");
+    //
+    // Três âncoras, não duas — a re-revisão de c27e5e8 mediu a segunda
+    // ("Usamos estas ferramentas:") no MEIO do texto visível (posição 10.115
+    // de 17.562) e apontou que a revogação (`page.tsx:426`) e o
+    // Compartilhamento (`page.tsx:453-457`) ficam DEPOIS dela. Sem uma
+    // terceira âncora no fim de tudo, uma leitura truncada logo depois da
+    // segunda deixaria o `not.toMatch(/aceit/i)` passar em falso — zero
+    // "aceit" por não ter lido, não por não ter sobrado. A terceira âncora é
+    // o rodapé, a ÚLTIMA frase visível da página: só com ela o `/aceit/i`
+    // vale para a revogação e o Compartilhamento também.
+    expect(semQuebras).toContain("carregadas desde o início da visita"); // começo da seção de cookies
+    expect(semQuebras).toContain("Usamos estas ferramentas:"); // meio — fim da lista de ferramentas
+    expect(semQuebras).toContain("Podemos atualizar esta política"); // rodapé — fim da página inteira
   });
 
   it("nenhuma frase do regime de aceite revogado sobrou", () => {

@@ -263,9 +263,15 @@ export default async function PrivacidadePage() {
                 já visitou o site" (remarketing, `finalidades` acima) ficou
                 sem base legal: o texto anterior só dizia "medir" e
                 "entender o uso". O remarketing é real — `Ads - Remarketing
-                dinamico` em `docs/GTM_CONFIGURACAO.md`, disparada pelo
-                `view_vehicle`/`page_context` que `trackVehicleView` empurra
-                para o `dataLayer`. Acrescentado aqui, no Compartilhamento
+                dinamico` em `docs/GTM_CONFIGURACAO.md`. Dois eventos a
+                alimentam, de dois lugares diferentes: `view_vehicle`, que
+                `trackVehicleView` empurra ao abrir uma ficha
+                (`telemetry.ts:587`, `dataLayer.ts:331`), e `page_context`,
+                que `CamadaDeDados` empurra a CADA página, não só fichas
+                (`CamadaDeDados.tsx:28`, `dataLayer.ts:235`). (Correção de
+                rodada 3: a versão anterior deste comentário atribuía os dois
+                eventos a `trackVehicleView` — só o `view_vehicle` é dele.)
+                Acrescentado aqui, no Compartilhamento
                 (`#compartilhamento`) e, por coerência, no primeiro parágrafo
                 da seção de cookies abaixo. */}
             <ul className="list-disc pl-5 flex flex-col gap-2">
@@ -378,9 +384,10 @@ export default async function PrivacidadePage() {
               você chega, antes da sua resposta ao aviso</strong> — para que o anúncio não perca
               o crédito pela visita, inclusive numa visita futura. E ele não espera
               formulário: o Google Analytics, o Google Ads e o Meta Pixel, ativos desde a
-              chegada, podem recebê-lo na própria medição deles, e os nossos servidores o
-              repassam à Meta (Conversions API) quando você abre a página de um veículo, usa
-              o Match de Garagem ou toca num botão de contato.{" "}
+              chegada, podem recebê-lo na própria medição deles, e os nossos servidores
+              repassam à Meta (Conversions API) o código dos anúncios dela, o{" "}
+              <code>fbclid</code>, quando você abre a página de um veículo, usa o Match de
+              Garagem ou toca num botão de contato.{" "}
               <strong className="text-mt-ink">Se você recusar, ele é apagado deste navegador na hora</strong>;
               o que já chegou ao Google e à Meta segue os prazos de retenção deles.
             </p>
