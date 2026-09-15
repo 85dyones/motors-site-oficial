@@ -62,8 +62,16 @@ export function primeiraFraseDe(texto: string): string {
   return frase ? frase[0].trim() : corrido;
 }
 
+/**
+ * O vocabulário que o POSICIONAMENTO barra.
+ *
+ * Revisto em 14/09/2026 (qa-guardian), nos dois sentidos. Passavam "luxuoso",
+ * "os melhores preços", "consulte condições" e "exclusividade". Reprovava
+ * "preço no anúncio, sem consulte-nos", que é frase da casa e está num
+ * rascunho aprovado pelo dono em 17/08 (veículo 8324691).
+ */
 const VOCABULARIO =
-  /\b(premium|luxo|exclusiv[oa]s?|consulte-nos)\b|melhor pre[çc]o|proced[êe]ncia garantida|garantia de proced[êe]ncia|melhor estoque/i;
+  /\b(?:premium|luxo|luxuos[oa]s?|exclusiv\w*)\b|(?<!\bsem\s)\bconsulte(?:-nos)?\b|\bmelhor(?:es)? pre[çc]os?\b|proced[êe]ncia garantida|garantia de proced[êe]ncia|melhor estoque/i;
 
 /**
  * O texto do anúncio não fala de perícia. Ponto.
@@ -186,10 +194,69 @@ const STATUS_INTERNO = new RegExp(
  * frases de fabricação ("Picape nacional, feita em Betim.") continuam
  * passando porque não têm palavra de entrega NENHUMA na frase, e é a
  * AUSÊNCIA da palavra-gatilho que as livra, não o tamanho da janela.
+ *
+ * TERCEIRA REVISÃO (14/09/2026, qa-guardian), nos dois sentidos.
+ * - Passavam: "Atendemos clientes de todo o país" (a regra exigia "em" ou
+ *   "para" antes de "todo o país"), "Entregamos em São Paulo" e "Entrega em
+ *   Florianópolis" (nenhum lugar de fora era nomeado).
+ * - Reprovavam: "Veio de Santa Catarina com manual e chave reserva" (qualquer
+ *   Santa Catarina sem Balneário depois), "Híbrido nacional com alcance de
+ *   600 km" e "Motor nacional, com peças e atendimento fáceis de achar"
+ *   ("alcance" e "atendimento" contavam como palavra de entrega).
+ * Santa Catarina e os lugares de fora só contam depois de uma palavra de
+ * entrega. A lista tem os estados e as cidades catarinenses ao sul de
+ * Balneário Camboriú. Ficam de fora "Pará" e "Acre", que colidem com "para" e
+ * "acre", e "São José", porque São José dos Pinhais é da região metropolitana
+ * de Curitiba.
  */
-const PALAVRA_DE_ENTREGA = "entrega|entregamos|envio|frete|alcance|cobertura|atendimento|transporte";
+const PALAVRA_DE_ENTREGA = "entreg\\w*|envi[ao]\\w*|frete\\w*|levamos|atendemos|cobertura|transporte";
+const FORA_DO_RECORTE = [
+  "s[ãa]o paulo",
+  "rio de janeiro",
+  "minas gerais",
+  "esp[íi]rito santo",
+  "rio grande do sul",
+  "rio grande do norte",
+  "mato grosso",
+  "goi[áa]s",
+  "distrito federal",
+  "bras[íi]lia",
+  "bahia",
+  "sergipe",
+  "alagoas",
+  "pernambuco",
+  "para[íi]ba",
+  "cear[áa]",
+  "piau[íi]",
+  "maranh[ãa]o",
+  "tocantins",
+  "amazonas",
+  "rond[ôo]nia",
+  "roraima",
+  "amap[áa]",
+  "florian[óo]polis",
+  "palho[çc]a",
+  "crici[úu]ma",
+  "chapec[óo]",
+  "lages",
+  "tubar[ãa]o",
+  "outros estados",
+  "qualquer estado",
+  "todos os estados",
+  "todo o sul",
+  "toda a regi[ãa]o sul",
+].join("|");
 const ALCANCE = new RegExp(
-  `todo o brasil|(?:em|para) todo o pa[íi]s|(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,40}\\bnacional\\b|\\bnacional\\b[^.!?]{0,40}(?:${PALAVRA_DE_ENTREGA})|santa catarina(?!.{0,40}balne[áa]rio)`,
+  [
+    "todo o brasil",
+    "todo o pa[íi]s",
+    "todo o territ[óo]rio nacional",
+    "qualquer (?:lugar|ponto|parte|canto) do (?:brasil|pa[íi]s|territ[óo]rio)",
+    `\\b(?:${PALAVRA_DE_ENTREGA})\\b[^.!?]{0,40}\\bnacional\\b`,
+    `\\bnacional\\b[^.!?]{0,40}\\b(?:${PALAVRA_DE_ENTREGA})`,
+    `\\b(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,40}\\b(?:${FORA_DO_RECORTE})`,
+    `\\b(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,40}\\bsanta catarina(?![^.!?]{0,40}balne[áa]rio)`,
+  ].join("|"),
   "i",
 );
 const MARKDOWN = /\*\*|^#{1,6}\s|\[.+\]\(.+\)|^\s*[-*]\s/m;

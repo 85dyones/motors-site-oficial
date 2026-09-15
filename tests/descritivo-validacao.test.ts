@@ -180,6 +180,26 @@ describe("regra: vocabulário", () => {
   it("aceita 'procedência' e 'estoque' sozinhas, que são palavras da casa", () => {
     expect(motivos("Procedência rastreada, e o estoque inteiro está no site.")).not.toContain("vocabulário");
   });
+
+  /**
+   * Revisão de 14/09/2026 (qa-guardian): as variações que a lista antiga não
+   * pegava. "Consulte-nos para mais detalhes." já reprovava e fica como guarda
+   * da exceção de "sem consulte-nos" logo abaixo.
+   */
+  it.each([
+    "Acabamento luxuoso.",
+    "Os melhores preços da cidade.",
+    "Consulte condições.",
+    "Exclusividade para você.",
+    "Consulte-nos para mais detalhes.",
+  ])("reprova a variação do vocabulário barrado: %s", (frase) => {
+    expect(motivos(frase)).toContain("vocabulário");
+  });
+
+  /** A frase da casa, num rascunho aprovado pelo dono em 17/08 (8324691). */
+  it("aceita 'sem consulte-nos'", () => {
+    expect(motivos("Preço no anúncio, sem consulte-nos.")).not.toContain("vocabulário");
+  });
 });
 
 /**
@@ -404,6 +424,40 @@ describe("regra: alcance", () => {
     expect(motivos("Fazemos entrega em todo o território nacional.")).toContain("alcance");
     expect(motivos("Entregamos para todo o território nacional.")).toContain("alcance");
     expect(motivos("Fazemos frete para qualquer ponto do território nacional.")).toContain("alcance");
+  });
+
+  /**
+   * TERCEIRA REVISÃO (14/09/2026, qa-guardian): "todo o país" sem preposição e
+   * lugar fora do recorte passavam. "Entrega em Santa Catarina inteira." já
+   * reprovava e fica como guarda: Santa Catarina com palavra de entrega e sem
+   * Balneário continua fora do recorte.
+   */
+  it.each([
+    "Atendemos clientes de todo o país.",
+    "Entregamos em São Paulo e no Rio Grande do Sul.",
+    "Entrega em Florianópolis.",
+    "Enviamos para outros estados.",
+    "Entrega em Santa Catarina inteira.",
+  ])("reprova alcance fora do recorte: %s", (frase) => {
+    expect(motivos(frase)).toContain("alcance");
+  });
+
+  /**
+   * As três primeiras reprovavam: Santa Catarina de procedência, "alcance" de
+   * autonomia e "atendimento" de oficina. As outras são guarda: a região
+   * metropolitana (São José dos Pinhais é dela), o litoral até Balneário e a
+   * frase de alcance dos rascunhos aprovados pelo dono em 17/08.
+   */
+  it.each([
+    "Veio de Santa Catarina com manual e chave reserva.",
+    "Híbrido nacional com alcance de 600 km.",
+    "Motor nacional, com peças e atendimento fáceis de achar.",
+    "Entrega em Curitiba e região metropolitana.",
+    "Entrega em São José dos Pinhais.",
+    "Entrega em Joinville e Balneário Camboriú.",
+    "Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná e no litoral catarinense até Balneário Camboriú.",
+  ])("NÃO reprova: %s", (frase) => {
+    expect(motivos(frase)).not.toContain("alcance");
   });
 });
 
