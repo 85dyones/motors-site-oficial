@@ -134,6 +134,65 @@ describe("SugestaoDeTexto", () => {
     expect(naTela()).toContain("Usa palavra barrada.");
   });
 
+  /**
+   * O 422 traz o texto que reprovou. Até 14/09/2026 o painel o jogava fora, e
+   * quem lia "abertura: A abertura tem 184 caracteres" não tinha como conferir
+   * se a régua errou ou se o texto estourou de fato.
+   */
+  it("mostra o texto reprovado junto dos motivos", async () => {
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "abertura", motivo: "A primeira frase tem 171 caracteres e o Google corta em 155." }],
+        texto: "Texto que estourou a régua.",
+      },
+    };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela()).toContain("A primeira frase tem 171 caracteres");
+    expect(naTela()).toContain("Texto reprovado");
+    expect(naTela()).toContain("Texto que estourou a régua.");
+  });
+
+  it("não oferece 'usar este texto' para o texto reprovado", async () => {
+    const usados: string[] = [];
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "vocabulário", motivo: "Usa palavra barrada." }],
+        texto: "SUV premium.",
+      },
+    };
+    montar((t) => usados.push(t));
+    await clicar(botao("gerar"));
+    // Controle: o texto reprovado CHEGOU à tela. Sem isto, a ausência do
+    // botão passaria também num painel que não mostra nada.
+    expect(naTela()).toContain("SUV premium.");
+    expect(() => botao("usar este texto")).toThrow();
+    expect(usados).toEqual([]);
+  });
+
+  it("apaga o texto reprovado quando a geração seguinte passa", async () => {
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "vocabulário", motivo: "Usa palavra barrada." }],
+        texto: "SUV premium.",
+      },
+    };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela()).toContain("SUV premium.");
+
+    RESPOSTA = { ok: true, status: 200, corpo: { texto: "Honda NXR 160 Bros 2022.", caracteres: 24 } };
+    await clicar(botao("gerar outro"));
+    expect(naTela()).not.toContain("SUV premium.");
+    expect(naTela()).toContain("Honda NXR 160 Bros 2022.");
+  });
+
   it("não oferece 'usar este texto' quando a geração falhou", async () => {
     RESPOSTA = { ok: false, status: 502, corpo: { error: "A OpenAI recusou a chamada" } };
     montar();
