@@ -83,14 +83,25 @@ e nada de texto institucional que serviria para qualquer carro.
 `.trim();
 }
 
+/**
+ * O formato pedido para cada campo.
+ *
+ * `descricao_seo` pede a PRIMEIRA frase em 155 desde 14/09/2026, a mesma régua
+ * de `primeiraFraseDe` (`validacao.ts`). A mira fica abaixo do teto de
+ * propósito: o modelo não conta caracteres, e não há segunda tentativa. Até
+ * ali o prompt pedia as duas primeiras frases "entre 130 e 155", colado no
+ * teto, e todo estouro chegava ao painel como erro. A faixa de 100 a 140 é a
+ * dos rascunhos que o dono aprovou em 17/08: a primeira frase deles tem
+ * mediana 130, p25 108 e p75 141.
+ */
 const FORMATO: Record<CampoDeTexto, string> = {
   descricao_seo: `
 Escreva o campo \`descricao_seo\`: a frase de anúncio que vai para o feed dos
 portais e para a descrição que aparece na busca do Google.
 
-REGRA DURA: as duas primeiras frases precisam caber em 155 caracteres, porque
-é onde o Google corta. APROVEITE o espaço — mire entre 130 e 155, não 70.
-O texto inteiro pode passar disso; a ABERTURA não pode.
+REGRA DURA: a PRIMEIRA frase cabe em 155 caracteres e termina com ponto final,
+porque é ali que o Google corta. Mire entre 100 e 140 caracteres nessa frase.
+Não use reticências. Depois do primeiro ponto final, o texto pode seguir.
 `.trim(),
   descricao: `
 Escreva o campo \`descricao\`: o texto editorial que ABRE a página do veículo.

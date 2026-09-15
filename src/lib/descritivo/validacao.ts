@@ -35,24 +35,31 @@ export type Reprovacao = { regra: string; motivo: string };
  * Um ponto entre dígitos é separador de milhar — `toLocaleString("pt-BR")`
  * formata preço e km assim no dossiê — e não pode contar como fim de frase.
  * Sem a exceção `(?<=\d)\.(?=\d)`, "R$ 89.900,00." quebrava em dois fragmentos
- * ali no meio do número, e a segunda frase real da abertura caía fora da
- * contagem: bug medido em 08/09/2026 (abertura real de 158 caracteres, que
- * devia reprovar, lida como 34).
+ * ali no meio do número: bug medido em 08/09/2026. A mesma armadilha pegou o
+ * `conteudo-seo/aplicar-rascunhos.js` de 17/08, que procura o último ponto
+ * antes do caractere 155: ele aceitou três rascunhos cuja primeira frase passa
+ * de 155, porque o ponto que achou era o de "53.200 km".
  *
- * Usada só por `aberturaDe` desde 09/09/2026. A régua de perícia deixou de
- * segmentar por frase (ver MENCIONA_PERICIA logo abaixo), e `frasesDe`, a
- * função que existia só para ela, saiu junto.
+ * Reticências ("…") fecham frase desde 14/09/2026, como o ponto. Antes não
+ * fechavam, e a frase seguinte entrava na conta.
+ *
+ * LIMITE CONHECIDO: ponto ou exclamação dentro de nome encerra a frase cedo —
+ * "VW up!" mede 6 caracteres. O erro é para o lado de aceitar.
  */
-const CORPO_DA_FRASE = "(?:[^.!?]|(?<=\\d)\\.(?=\\d))+";
+const CORPO_DA_FRASE = "(?:[^.!?…]|(?<=\\d)\\.(?=\\d))+";
 
-/** As duas primeiras frases — o que o Google mostra. */
-export function aberturaDe(texto: string): string {
-  const frases = texto
-    .replace(/\s+/g, " ")
-    .trim()
-    .match(new RegExp(CORPO_DA_FRASE + "[.!?]+", "g"));
-  if (!frases || frases.length === 0) return texto.replace(/\s+/g, " ").trim();
-  return frases.slice(0, 2).join("").trim();
+/**
+ * A primeira frase — o que precisa fechar antes do corte do Google.
+ *
+ * Decisão do dono em 14/09/2026, a mesma regra dos rascunhos de 17/08: "a
+ * primeira frase fecha sozinha". Até ali a régua eram as DUAS primeiras frases
+ * em 155, que reprovava 41 dos 47 rascunhos aprovados pelo próprio dono; a da
+ * primeira frase reprova 3, e os três passam de 155 de verdade.
+ */
+export function primeiraFraseDe(texto: string): string {
+  const corrido = texto.replace(/\s+/g, " ").trim();
+  const frase = corrido.match(new RegExp(CORPO_DA_FRASE + "[.!?…]+"));
+  return frase ? frase[0].trim() : corrido;
 }
 
 const VOCABULARIO =
@@ -185,9 +192,9 @@ export function validarDescritivo(
   const add = (regra: string, motivo: string) => r.push({ regra, motivo });
 
   if (campo === "descricao_seo") {
-    const ab = aberturaDe(texto).length;
-    if (ab > LIMITE_META) {
-      add("abertura", `A abertura tem ${ab} caracteres e o Google corta em ${LIMITE_META}.`);
+    const pf = primeiraFraseDe(texto).length;
+    if (pf > LIMITE_META) {
+      add("abertura", `A primeira frase tem ${pf} caracteres e o Google corta em ${LIMITE_META}.`);
     }
   }
 

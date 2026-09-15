@@ -82,6 +82,20 @@ describe("montarEntrada", () => {
     expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("155 caracteres");
     expect(montarEntrada(SEM_NADA, "descricao")).toContain("ABRE a página");
   });
+
+  /**
+   * O prompt mede o que a validação mede desde 14/09/2026: a PRIMEIRA frase.
+   * Um prompt pedindo duas frases faria o modelo mirar uma coisa e a
+   * conferência cobrar outra — e a mira antiga, "entre 130 e 155", ficava
+   * colada no teto, sem segunda tentativa.
+   */
+  it("pede a primeira frase em 155, com a mira abaixo do teto", () => {
+    const entrada = montarEntrada(SEM_NADA, "descricao_seo");
+    expect(entrada).toContain("a PRIMEIRA frase cabe em 155 caracteres e termina com ponto final");
+    expect(entrada).toContain("Mire entre 100 e 140 caracteres");
+    expect(entrada).not.toContain("duas primeiras frases");
+    expect(entrada).not.toContain("entre 130 e 155");
+  });
 });
 
 /**

@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { validarDescritivo, aberturaDe, LIMITE_META } from "../src/lib/descritivo/validacao";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { validarDescritivo, primeiraFraseDe, LIMITE_META } from "../src/lib/descritivo/validacao";
 import { montarDossie } from "../src/lib/descritivo/dossie";
 
 /**
@@ -46,47 +48,112 @@ const motivosCompletos = (
   campo: "descricao" | "descricao_seo" = "descricao_seo",
 ) => validarDescritivo(t, d, campo);
 
-describe("aberturaDe", () => {
-  it("devolve as duas primeiras frases", () => {
-    expect(aberturaDe("Uma. Duas. Três.")).toBe("Uma. Duas.");
+describe("primeiraFraseDe", () => {
+  it("devolve só a primeira frase", () => {
+    expect(primeiraFraseDe("Uma. Duas. Três.")).toBe("Uma.");
   });
   it("devolve o texto inteiro quando não há pontuação", () => {
-    expect(aberturaDe("sem ponto final")).toBe("sem ponto final");
+    expect(primeiraFraseDe("sem ponto final")).toBe("sem ponto final");
+  });
+  /**
+   * O dossiê formata preço e km com `toLocaleString("pt-BR")`, ponto como
+   * separador de milhar. Bug medido em 08/09/2026: o ponto de "89.900" fechava
+   * a frase no meio do número.
+   */
+  it("não fecha a frase no ponto de milhar", () => {
+    expect(primeiraFraseDe("BMW X1 2022 por R$ 179.900, com 70.700 km. Aceita troca.")).toBe(
+      "BMW X1 2022 por R$ 179.900, com 70.700 km.",
+    );
+  });
+  /** Até 14/09/2026 "…" não fechava frase, e a frase seguinte entrava na conta. */
+  it("fecha a frase nas reticências", () => {
+    expect(primeiraFraseDe("Jeep Compass Limited 2021… o SUV que passou pela seleção.")).toBe(
+      "Jeep Compass Limited 2021…",
+    );
+  });
+  /** A meta description junta as linhas; a medida junta também. */
+  it("junta a quebra de linha sem ponto na mesma frase", () => {
+    expect(primeiraFraseDe("Toyota Corolla XEi 2020\nO sedan que passou pela seleção. Aceita troca.")).toBe(
+      "Toyota Corolla XEi 2020 O sedan que passou pela seleção.",
+    );
   });
 });
 
-describe("regra: abertura em 155 caracteres", () => {
-  it("reprova abertura maior que o corte do Google", () => {
+/**
+ * A régua é a PRIMEIRA frase em 155 desde 14/09/2026 — decisão do dono, a
+ * regra dos rascunhos de 17/08. Com as duas primeiras frases, o botão reprovava
+ * quase tudo: 4 das 6 gerações registradas na Vercel em 13 e 14/09 deram 422.
+ */
+describe("regra: primeira frase em 155 caracteres", () => {
+  it("reprova primeira frase maior que o corte do Google", () => {
     const longa = "A".repeat(LIMITE_META + 5) + ". Segunda.";
     expect(motivos(longa)).toContain("abertura");
   });
-  it("aceita abertura dentro do limite", () => {
+  it("diz no motivo quantos caracteres a primeira frase tem", () => {
+    const longa = "A".repeat(LIMITE_META + 5) + ". Segunda.";
+    const r = motivosCompletos(longa).find((x) => x.regra === "abertura");
+    expect(r?.motivo).toBe(`A primeira frase tem ${LIMITE_META + 6} caracteres e o Google corta em ${LIMITE_META}.`);
+  });
+  it("aceita primeira frase dentro do limite", () => {
     expect(motivos("Honda NXR 160 Bros 2022. Passa por perícia independente.")).not.toContain("abertura");
   });
   /**
-   * O dossiê formata preço e km com `toLocaleString("pt-BR")` — ponto como
-   * separador de milhar. Bug medido em 08/09/2026: o split de frases tratava
-   * esse ponto como fim de frase, "R$ 89.900,00" virava dois fragmentos, e a
-   * segunda frase real ("Aceita troca...") caía fora da contagem — a
-   * abertura real tem 158 caracteres e devia reprovar, mas `aberturaDe`
-   * devolvia só os primeiros 34.
+   * O que a decisão mudou: duas frases que somam mais de 155 passam quando a
+   * primeira cabe. Pela régua de duas frases, este texto reprovava.
    */
-  it("reprova abertura com preço em formato brasileiro que soma 158 caracteres", () => {
-    // A fixture dizia "com garantia de procedência" — o mesmo chavão que o
-    // POSICIONAMENTO barra, escrito ao contrário. Ela media a ABERTURA e por
-    // isso continuava verde, mas era um texto proibido servindo de exemplo.
-    // Trocado por frase legítima do mesmo tamanho (27 caracteres), para o total
-    // seguir sendo os 158 que o caso descreve.
+  it("aceita duas frases que somam mais de 155 quando a primeira cabe", () => {
     const texto =
-      "Honda Civic 2022 por R$ 89.900,00. Aceita troca, financiamento facilitado e entrega para toda a região metropolitana de Curitiba, com histórico de manutenção.";
-    expect(texto).toHaveLength(158);
-    expect(motivos(texto)).toContain("abertura");
-    expect(motivos(texto)).not.toContain("vocabulário");
+      "Chevrolet Onix 2021 prata, manual, com 51.000 km. Aceita troca e financiamento facilitado, com entrega combinada no showroom do Bacacheri, em Curitiba, sem pressa nenhuma.";
+    expect(texto).toHaveLength(171);
+    expect(motivos(texto)).not.toContain("abertura");
   });
-  it("aceita abertura curta com preço e km em formato brasileiro", () => {
+  /**
+   * O ponto de milhar DENTRO da primeira frase. Se ele fechasse a frase (o bug
+   * de 08/09/2026), a medida seria "Honda Civic Touring 2018 por R$ 132." e o
+   * texto passaria.
+   */
+  it("reprova primeira frase de 164 caracteres com preço e km em formato brasileiro", () => {
+    const texto =
+      "Honda Civic Touring 2018 por R$ 132.900, com 70.700 km, câmbio CVT, bancos confortáveis, central de mídia e rodas de liga leve, pronto para rodar muitos anos ainda. Aceita troca.";
+    expect(primeiraFraseDe(texto)).toHaveLength(164);
+    expect(motivos(texto)).toContain("abertura");
+  });
+  it("aceita primeira frase curta com preço e km em formato brasileiro", () => {
     const texto =
       "BMW X1 sDrive 20i 2022, por R$ 179.900, com 70.700 km rodados. Aceita troca e financiamento facilitado.";
     expect(motivos(texto)).not.toContain("abertura");
+  });
+  it("não mede a primeira frase no campo descricao", () => {
+    const longa = "A".repeat(LIMITE_META + 5) + ". Segunda.";
+    expect(motivos(longa)).toContain("abertura");
+    expect(motivos(longa, SEM_NADA, "descricao")).not.toContain("abertura");
+  });
+});
+
+/**
+ * A régua contra TEXTO REAL: os 47 `descricao_seo` que o dono aprovou em
+ * 17/08/2026 (`conteudo-seo/rascunhos*.json`). A régua de duas frases reprovava
+ * 41. A da primeira frase reprova só estes três, e os três passam de 155 de
+ * verdade (171, 181 e 162 caracteres).
+ */
+describe("régua da primeira frase contra os rascunhos aprovados em 17/08", () => {
+  const pasta = join(__dirname, "..", "conteudo-seo");
+  const rascunhos = readdirSync(pasta)
+    .filter((f) => f.startsWith("rascunhos") && f.endsWith(".json"))
+    .flatMap((f) =>
+      Object.entries(JSON.parse(readFileSync(join(pasta, f), "utf-8")).textos as Record<string, string>),
+    );
+
+  it("lê os 47", () => {
+    expect(rascunhos).toHaveLength(47);
+  });
+
+  it("reprova só os três cuja primeira frase passa de 155", () => {
+    const reprovados = rascunhos
+      .filter(([, texto]) => motivos(texto).includes("abertura"))
+      .map(([id]) => id)
+      .sort();
+    expect(reprovados).toEqual(["7447739", "8059102", "8252763"]);
   });
 });
 
