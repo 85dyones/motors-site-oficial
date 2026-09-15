@@ -120,6 +120,89 @@ export interface LinhaDeEstoque {
    * mesma tela em que se decide quanto investir nele.
    */
   diasEmEstoque: number | null;
+  /**
+   * Há quantos dias o feed do RevendaMais deixou de confirmar este veículo.
+   * `null` = veio no ciclo mais recente, ou não há como saber (veículo do
+   * painel, que nunca esteve no feed, e linha sem carimbo).
+   *
+   * É AVISO, nunca etiqueta — ver `diasForaDoFeed` para o porquê.
+   */
+  diasForaDoFeed: number | null;
+}
+
+/**
+ * Quanto atraso já não é ruído.
+ *
+ * O cron do n8n roda de seis em seis horas, então vinte e quatro horas são
+ * QUATRO ciclos seguidos sem o carro aparecer. Um ciclo perdido é rotina — a
+ * coleta morre no meio, o RevendaMais oscila; quatro é a loja ter tirado o
+ * anúncio do ar.
+ *
+ * A margem larga é o que torna este sinal seguro onde o antigo não era: uma
+ * importação parcial move a âncora, e com margem de um ciclo ela acusaria o
+ * estoque inteiro de uma vez.
+ */
+export const MARGEM_FORA_DO_FEED_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * O carimbo mais recente da tabela — a régua contra a qual o atraso é medido.
+ *
+ * Contra a própria tabela, e nunca contra `Date.now()`: se o n8n parar, o
+ * relógio de parede acusaria o estoque INTEIRO de ter saído do feed, quando o
+ * que saiu do ar foi o robô. Assim, sync parado não produz acusação nenhuma —
+ * todo mundo fica à mesma distância da âncora, que é a verdade.
+ */
+export function ancoraDoFeed(linhas: Array<{ last_seen_at?: string | null }>): number | null {
+  let maior: number | null = null;
+  for (const linha of linhas) {
+    if (!linha.last_seen_at) continue;
+    const t = new Date(linha.last_seen_at).getTime();
+    if (Number.isFinite(t) && (maior === null || t > maior)) maior = t;
+  }
+  return maior;
+}
+
+/**
+ * Dias fora do feed, ou `null` quando não há o que avisar.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que isto volta, e por que NÃO volta como estado
+ * ---------------------------------------------------------------------------
+ * `fora_do_feed` era um `EstadoDoVeiculo` e saiu em 30/08 com razão: ele
+ * ESCONDIA carro. Derivado de `apenasDoUltimoSync`, uma importação parcial o
+ * fazia engolir a vitrine inteira de uma vez, e o painel passava a discordar do
+ * site sobre dezenas de carros sem ninguém ter mexido em nada.
+ *
+ * O que volta aqui é de outra natureza. Não é etiqueta, não entra em
+ * `decidirEstado`, não compete com `publicado` nem filtra linha nenhuma: é uma
+ * observação ao lado da linha que já existe. O pior caso de um erro de medida
+ * passou a ser um aviso a mais numa tela que uma pessoa lê — não um carro que
+ * some da vitrine em silêncio.
+ *
+ * Ele existe porque o outro lado do buraco ficou aberto: desde 30/08 nada
+ * arquiva o carro que sai do feed, e arquivar é ato de gente (decisão do dono,
+ * 15/09). Ato de gente precisa de alguém avisado — medido em 15/09, nove carros
+ * publicados já não estavam no RevendaMais, um deles havia dezesseis dias, e o
+ * site seguia anunciando os nove.
+ *
+ * `origem = 'painel'` nunca acusa: o veículo nativo nasce com `last_seen_at`
+ * nulo de propósito, porque nunca esteve em feed nenhum. Cobrar dele presença
+ * no RevendaMais mandaria o operador procurar um anúncio que não existe.
+ */
+export function diasForaDoFeed(
+  veiculo: { last_seen_at?: string | null; origem?: string | null },
+  ancora: number | null,
+): number | null {
+  if (ancora === null) return null;
+  if (veiculo.origem === "painel") return null;
+  if (!veiculo.last_seen_at) return null;
+
+  const visto = new Date(veiculo.last_seen_at).getTime();
+  if (!Number.isFinite(visto)) return null;
+
+  const atraso = ancora - visto;
+  if (atraso < MARGEM_FORA_DO_FEED_MS) return null;
+  return Math.floor(atraso / 86_400_000);
 }
 
 /**

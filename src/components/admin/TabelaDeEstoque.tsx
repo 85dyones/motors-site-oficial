@@ -885,6 +885,29 @@ export default function TabelaDeEstoque({
                         divergente
                       </span>
                     )}
+                    {/* O RevendaMais parou de confirmar este carro.
+                        AVISO, e não etiqueta: nada some da vitrine por causa
+                        deste número — ver `diasForaDoFeed`. Arquivar continua
+                        sendo ato de gente, e ato de gente precisa de alguém
+                        avisado: sem esta linha, o carro que a loja tirou do
+                        RevendaMais seguia publicado no site sem nenhum sinal em
+                        lugar nenhum (nove deles em 15/09, um havia dezesseis
+                        dias).
+
+                        Calado em `arquivado` e em `vendido`: nos dois a
+                        ausência no feed é CONSEQUÊNCIA esperada, e avisar ali
+                        seria cobrar uma decisão que já foi tomada. */}
+                    {l.diasForaDoFeed !== null &&
+                      l.estadoCadastro !== "arquivado" &&
+                      !l.vendido && (
+                        <span
+                          className="mt-1 block text-[9px] font-bold uppercase leading-snug tracking-[.08em] text-mt-accent"
+                          title="O feed do RevendaMais não traz mais este anúncio. Se o carro saiu do estoque, arquive-o — nada o tira do site sozinho."
+                        >
+                          fora do feed há {l.diasForaDoFeed}{" "}
+                          {l.diasForaDoFeed === 1 ? "dia" : "dias"}
+                        </span>
+                      )}
                   </td>
 
                   <td className="py-2.5 text-right">

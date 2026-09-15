@@ -6,8 +6,10 @@ import { normalizarQuickTags, normalizarStockOverrides } from "../../../lib/dest
 import { bloqueiosDePublicacao } from "../../../lib/coerenciaDoCadastro";
 import { normalizarEstadoCadastro } from "../../../lib/estadoDoCadastro";
 import {
+  ancoraDoFeed,
   classificarEstado,
   contarLeadsPorVeiculo,
+  diasForaDoFeed,
   mapaDeVisitas,
   versaoParaExibir,
   type LinhaDeEstoque,
@@ -126,6 +128,11 @@ export default async function AdminEstoquePage() {
     ? (settings.carouselVehicleIds as string[]).map(String)
     : [];
 
+  // O carimbo mais recente da tabela, medido uma vez. É contra ele — e nunca
+  // contra o relógio de parede — que o atraso de cada linha é lido: sync parado
+  // não pode acusar o estoque inteiro de ter saído do feed.
+  const ancora = ancoraDoFeed(linhasDoBanco);
+
   const linhas: LinhaDeEstoque[] = linhasDoBanco.map((bruto) => {
     const v = mapVeiculoDbToVeiculo(bruto);
     const id = String(bruto.id);
@@ -187,6 +194,10 @@ export default async function AdminEstoquePage() {
       quickTags: overrides[id]?.quick_tags ?? [],
       // Da linha crua: `first_seen_at` é carimbo de banco, não vem do feed.
       diasEmEstoque: diasEmEstoque(bruto.first_seen_at),
+      // Aviso, não etiqueta — ver `diasForaDoFeed`. A âncora sai da tabela
+      // inteira e é calculada UMA vez, fora do `map`: dentro dele seriam N
+      // varreduras de N linhas para responder sempre a mesma pergunta.
+      diasForaDoFeed: diasForaDoFeed(bruto, ancora),
     };
   });
 

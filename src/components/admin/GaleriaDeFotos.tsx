@@ -65,6 +65,8 @@ type Estado =
   | { tipo: "parado" }
   | { tipo: "enviando"; feito: number; total: number; etapa: string }
   | { tipo: "gravando" }
+  /** Buscando o anúncio no feed do RevendaMais — só em `origem = 'sync'`. */
+  | { tipo: "importando" }
   | { tipo: "erro"; mensagem: string };
 
 export default function GaleriaDeFotos({
@@ -93,7 +95,8 @@ export default function GaleriaDeFotos({
   const entrada = useRef<HTMLInputElement>(null);
 
   const doPainel = origem === "painel";
-  const ocupado = estado.tipo === "enviando" || estado.tipo === "gravando";
+  const ocupado =
+    estado.tipo === "enviando" || estado.tipo === "gravando" || estado.tipo === "importando";
   const faltam = Math.max(0, MINIMO_DE_FOTOS - fotos.length);
 
   /**
@@ -145,6 +148,46 @@ export default function GaleriaDeFotos({
     },
     [estoqueId, aoGravar],
   );
+
+  /**
+   * Traz as fotos que o anúncio tem AGORA no RevendaMais.
+   *
+   * A saída do impasse que prendeu carro com dezessete fotos no feed em
+   * `rascunho` por uma semana: desde 30/08 a trava do banco descarta a foto
+   * que o sync manda, e esta galeria recusava o envio por ser carro do feed —
+   * ninguém conseguia gravar. Ver `lib/feedRevendaMais.ts`.
+   *
+   * Quem decide a hora é a pessoa, e é isso que separa este botão de reabrir a
+   * coluna para o robô: o ciclo de seis horas passaria por cima da galeria
+   * calado, e aqui a importação só acontece no clique.
+   *
+   * Não manda lista nenhuma no corpo — a rota vai à fonte e lê. O corpo viria
+   * do navegador, e aceitar URL de fora abriria na galeria do carro do feed a
+   * porta que `camposGravaveis` fecha.
+   */
+  const importarDoFeed = useCallback(async () => {
+    setEstado({ tipo: "importando" });
+    try {
+      const res = await fetch(`/api/estoque/${estoqueId}/fotos-do-feed`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Falha ao importar as fotos do feed.");
+
+      aoGravar({
+        whatsapp_images: data.whatsapp_images,
+        web_full_images: data.web_full_images,
+        url_imagem: data.url_imagem,
+      });
+      setGravadoEm(
+        new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      );
+      setEstado({ tipo: "parado" });
+    } catch (e: unknown) {
+      setEstado({
+        tipo: "erro",
+        mensagem: mensagemDoErro(e, "Não deu para importar as fotos do feed."),
+      });
+    }
+  }, [estoqueId, aoGravar]);
 
   /**
    * Sobe os arquivos escolhidos, um a um, e grava a lista no fim.
@@ -329,6 +372,11 @@ export default function GaleriaDeFotos({
           Gravando as fotos no anúncio…
         </div>
       )}
+      {estado.tipo === "importando" && (
+        <div className="mb-4 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5 text-[11px] text-mt-neutral-800">
+          Lendo o feed do RevendaMais…
+        </div>
+      )}
       {estado.tipo === "erro" && (
         <div
           role="alert"
@@ -421,19 +469,48 @@ export default function GaleriaDeFotos({
         </div>
       )}
 
-      {/* A explicação de por que o carro do feed não recebe foto aqui.
-          Ela é a mesma nota que existia antes do storage próprio — continua
-          verdadeira, só que agora apenas para `origem = 'sync'`. */}
+      {/* O carro do feed: a fonte da foto é o RevendaMais, e a vinda é por ato.
+          Até 30/08 esta nota prometia que o sync repunha a galeria sozinho a
+          cada ciclo, e por isso o envio daqui se perderia. A trava do banco
+          virou allowlist de seis colunas naquele dia e a foto ficou de fora: o
+          robô tenta gravar de seis em seis horas e o banco descarta em
+          silêncio. A promessa velha, somada à recusa de envio, fechou a porta
+          dos dois lados — carro com dezessete fotos no RevendaMais ficou uma
+          semana em `rascunho`, abaixo do mínimo, invisível no site. Um teste
+          trava a volta daquela frase (`tests/fotos-do-veiculo.test.ts`). */}
       {!doPainel && (
         <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
           <p className="text-xs leading-relaxed text-mt-neutral-800">
-            As fotos deste veículo vêm do <strong>feed do RevendaMais</strong> e são
-            reescritas a cada sincronização — por isso enviar, reordenar ou remover aqui{" "}
-            <strong>não é possível</strong>: a mudança se perderia no ciclo seguinte, em
-            silêncio, e o carro sairia da vitrine sem ninguém ligar uma coisa à outra.
-            Suba as fotos no RevendaMais. O envio pelo painel vale para o veículo
-            cadastrado aqui, que o sincronizador não toca.
+            As fotos deste veículo vêm do <strong>feed do RevendaMais</strong> — é lá
+            que elas se sobem, e não aqui. O que este botão faz é{" "}
+            <strong>trazer para o site as fotos que o anúncio tem agora</strong> lá.
+            Ele existe porque o sincronizador não consegue gravar foto: o anúncio
+            que entra no feed antes das fotos fica parado sem elas até alguém
+            importar.
           </p>
+          {podeEditar && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={ocupado}
+                onClick={importarDoFeed}
+                className={`mt-btn mt-btn-primario mt-foco px-5 py-2.5 text-[11px] ${
+                  ocupado ? "pointer-events-none opacity-45" : ""
+                }`}
+              >
+                {estado.tipo === "importando" ? "Buscando no feed…" : "Importar fotos do feed"}
+              </button>
+              <span className="text-[11px] leading-snug text-mt-neutral-700">
+                substitui a galeria pela lista do RevendaMais · a primeira de lá vira a capa
+              </span>
+            </div>
+          )}
+          {!podeEditar && (
+            <p className="mt-3 text-[11px] leading-relaxed text-mt-neutral-700">
+              Seu perfil vê as fotos e não as altera. Importar do feed é de Marketing,
+              Comercial e Admin (matriz A17).
+            </p>
+          )}
         </div>
       )}
       {doPainel && !podeEditar && (
