@@ -48,7 +48,7 @@ const breadcrumbSchema = {
 
 // Data da última revisão do texto. Atualizar sempre que o conteúdo mudar —
 // a LGPD espera que o titular consiga saber qual versão aceitou.
-const ULTIMA_ATUALIZACAO = "1º de agosto de 2026";
+const ULTIMA_ATUALIZACAO = "15 de setembro de 2026";
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
@@ -203,6 +203,19 @@ export default async function PrivacidadePage() {
                 <strong className="text-mt-ink">Segurança.</strong> Prevenir envio automatizado
                 de formulários, spam e uso abusivo.
               </li>
+              {/* Entra em 2026-09-11, junto da tabela `erros`. A finalidade precisa
+                  estar declarada ANTES de a coleta começar — é a régua da §2.3 do
+                  spec de observabilidade, e o motivo de este parágrafo não ter
+                  ficado para depois. */}
+              <li>
+                <strong className="text-mt-ink">Consertar o que quebra.</strong> Quando uma
+                página apresenta falha, registramos o diagnóstico técnico — a mensagem e o
+                rastreamento do erro, o endereço da página, o navegador, o método e a versão do
+                site, além do identificador anônimo de navegação — para conseguir reproduzir e
+                corrigir o problema. Não registramos o conteúdo dos formulários de propósito, e
+                mascaramos telefone, CPF, CNPJ e e-mail antes de gravar; ainda assim, uma mensagem
+                de erro do banco de dados pode citar um valor por acidente.
+              </li>
             </ul>
           </Secao>
 
@@ -223,7 +236,7 @@ export default async function PrivacidadePage() {
               </li>
               <li>
                 <strong className="text-mt-ink">Legítimo interesse</strong> — para segurança
-                do site e prevenção a fraudes.
+                do site, prevenção a fraudes e diagnóstico de falhas.
               </li>
               <li>
                 <strong className="text-mt-ink">Obrigação legal</strong> — para guardar
@@ -352,13 +365,46 @@ export default async function PrivacidadePage() {
               Dados de navegação e publicidade seguem os prazos de retenção definidos pelas próprias
               plataformas Google e Meta.
             </p>
+            {/* O registro técnico de erro, e a RESSALVA que ele obriga.
+                A frase seguinte dizia, sem qualificar, que atendido o pedido não
+                fica cópia nenhuma. Com a tabela `erros` isso deixaria de ser
+                verdade: o identificador anônimo de navegação sobrevive na linha
+                técnica até a janela de 90 dias fechar. Declarar é o que torna a
+                coleta legítima; calar seria a política mentir sobre a base. */}
+            {/* O prazo vai em PROSA, sem `<strong>` ao redor do número.
+                `>90 dias<` casa com a trava "prazo renderizado como
+                estatística" de `promessa-publica.test.ts`, que existe para
+                impedir que promessa de atendimento volte em forma de número
+                solto numa superfície pública. Aqui o número é retenção legal e
+                não promessa de serviço, mas a régua olha a FORMA — e enfraquecer
+                uma guarda de página pública por causa de um negrito seria a
+                troca errada. O destaque que importa já está no sujeito da
+                frase. */}
+            <p>
+              <strong className="text-mt-ink">Registros técnicos de erro</strong> ficam
+              guardados por 90 dias e depois são apagados por rotina automática. Eles contêm a
+              mensagem e o rastreamento do erro, a página, o navegador, o método, a versão do site
+              e o identificador anônimo de navegação.
+            </p>
             <p>
               Você pode pedir a eliminação a qualquer momento, pelos canais da seção{" "}
               <a href="#contato" className="underline underline-offset-2">
                 Como falar conosco
               </a>
-              . Atendido o pedido, o registro é apagado — não fica cópia em nossa base.
+              . Atendido o pedido, seu cadastro de contato é apagado. Um registro técnico de erro
+              gerado antes do pedido pode permanecer até o fim dos 90 dias, e some sozinho no
+              prazo: ele guarda o identificador anônimo de navegação e, nos casos em que a
+              mensagem do banco de dados cita um valor, pode conter um dado seu que escapou do
+              mascaramento.
             </p>
+            {/* Sem oferta de apagar esses registros mais cedo, a pedido. A frase
+                existia, e a revisão de 13/09 mediu que nada a cumpria: o painel não
+                tem DELETE em `erros`, e a exclusão do lead não encosta na tabela.
+                Depois dela some o elo direto (`leads.ag_uid`). O identificador segue
+                no cookie e no localStorage do titular e em cópias fora do banco: o
+                JSON do lead enviado adiante, a nota do Chatwoot e a forma curta na
+                mensagem de WhatsApp. A oferta volta junto com um executor, num PR
+                próprio (decisão do dono, 13/09). */}
           </Secao>
 
           <Secao id="direitos" titulo="Seus direitos como titular">
