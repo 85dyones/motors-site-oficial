@@ -4,7 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import EncomendaDeCarro from "./EncomendaDeCarro";
-import { contextoDaFichaPerdida, type MarcaConhecida } from "../lib/fichaPerdida";
+import {
+  contextoDaFichaPerdida,
+  type MarcaConhecida,
+  type NivelDoCaminho,
+} from "../lib/fichaPerdida";
 
 /**
  * A saída personalizada da página da ficha que não existe.
@@ -61,10 +65,26 @@ import { contextoDaFichaPerdida, type MarcaConhecida } from "../lib/fichaPerdida
  * `usePathname` dublado: ele prova a FIAÇÃO (o índice chega, a marca certa
  * sai), não o HTML servido. `includes` no HTML inteiro também não prova — acha
  * o texto dentro de `self.__next_f` e fica verde onde o servidor manda a casca.
+ *
+ * ---------------------------------------------------------------------------
+ * Serve a três níveis (2026-09-13, marca em 14/09)
+ * ---------------------------------------------------------------------------
+ * A ficha, o hub de modelo e o hub de marca que não existem montam este mesmo
+ * bloco; `nivel` diz qual caminho ler — e, na marca, que não ler além do
+ * primeiro segmento. Ele é obrigatório de propósito: com o padrão da regra
+ * pura, uma montagem que esquecesse de escolher leria o caminho do modelo no
+ * nível da ficha, e a página perderia o link em silêncio.
  */
-export default function EncomendaDaFichaPerdida({ marcas }: { marcas: MarcaConhecida[] }) {
+export default function EncomendaDaFichaPerdida({
+  marcas,
+  nivel,
+}: {
+  marcas: MarcaConhecida[];
+  /** Em que nível o caminho morreu — string, porque é prop de client component. */
+  nivel: NivelDoCaminho;
+}) {
   const caminho = usePathname() ?? "";
-  const { encomenda, hubComEstoque } = contextoDaFichaPerdida(caminho, marcas);
+  const { encomenda, hubComEstoque } = contextoDaFichaPerdida(caminho, marcas, nivel);
 
   return (
     <div className="grid gap-6">

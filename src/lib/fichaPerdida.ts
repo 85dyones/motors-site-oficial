@@ -18,6 +18,12 @@ import { ehSegmentoDePdp, type SegmentoDePdp } from "./veiculoUrl";
  * sai —, e ela é o que o teste cobre. O componente só amarra `usePathname` a
  * esta função.
  *
+ * Desde 13/09 o mesmo vale para o hub de modelo que não existe
+ * (`[modelo]/not-found.tsx`): o caminho tem três segmentos, e quem diz em que
+ * nível lê-lo é `NivelDoCaminho`. Desde 14/09 o hub de marca
+ * (`[marca]/not-found.tsx`) usa o mesmo bloco no nível `"marca"`, que só lê o
+ * primeiro segmento.
+ *
  * ---------------------------------------------------------------------------
  * ⚠️ Nada aqui pode arrastar o Supabase para o bundle
  * ---------------------------------------------------------------------------
@@ -56,6 +62,19 @@ export interface FichaPerdida {
   encomenda: ContextoDaEncomenda;
   hubComEstoque: HubComEstoque | null;
 }
+
+/**
+ * Em que nível o caminho morreu: a ficha (`/carros/{marca}/{modelo}/{ficha}`),
+ * o hub de modelo (`/carros/{marca}/{modelo}`) ou o hub de marca
+ * (`/carros/{marca}`).
+ *
+ * No nível da marca a regra não lê além do primeiro segmento — o `vazio` já a
+ * atende, porque só depende dele.
+ *
+ * String, e não função, de propósito: atravessa a fronteira do client
+ * component como prop serializável.
+ */
+export type NivelDoCaminho = "ficha" | "modelo" | "marca";
 
 /**
  * O recorte público das marcas — `slug`, `nome` e a contagem.
@@ -112,10 +131,22 @@ export function indiceDeMarcas(hubs: HubDeMarca[]): MarcaConhecida[] {
  *
  * O `caminho` é sempre o que a pessoa abriu, e não o hub: é ele que conta ao
  * consultor que o clique veio de um endereço morto.
+ *
+ * ---------------------------------------------------------------------------
+ * Os níveis de modelo e de marca (2026-09-13, marca em 14/09)
+ * ---------------------------------------------------------------------------
+ * Com `nivel: "modelo"` o caminho tem três segmentos e a regra encurta: a marca
+ * com carro vira link, a marca zerada vai ao formulário, e o modelo digitado
+ * nunca é usado. Com `nivel: "marca"` a regra nem olha o resto do caminho: sai
+ * direto o `vazio`, que já carrega o `segmento` do primeiro segmento e o
+ * `caminho` inteiro — é o que faz o formulário da marca levar o endereço certo
+ * sem nunca ler a marca digitada. O padrão é `"ficha"`, que mantém a leitura
+ * do #70.
  */
 export function contextoDaFichaPerdida(
   caminho: string,
   marcas: MarcaConhecida[],
+  nivel: NivelDoCaminho = "ficha",
 ): FichaPerdida {
   const partes = caminho.toLowerCase().split("/").filter(Boolean);
   const [primeiro, slugMarca, slugModelo] = partes;
@@ -127,16 +158,38 @@ export function contextoDaFichaPerdida(
     hubComEstoque: null,
   };
 
-  // Quatro segmentos é a forma da ficha: `/carros/{marca}/{modelo}/{ficha}`.
-  // Menos que isso é hub, e hub tem página própria — não cai aqui.
-  if (partes.length < 4) return vazio;
+  // No nível da marca o caminho não é lido além do primeiro segmento — a marca
+  // e o modelo digitados nunca viram nome, só o `segmento` (dentro de `vazio`).
+  if (nivel === "marca") return vazio;
+
+  // Quatro segmentos (ou mais: o endereço legado de cinco cai no mesmo
+  // boundary) é a forma da ficha: `/carros/{marca}/{modelo}/{ficha}`. Três,
+  // exatos, é a do hub de modelo. O hub de marca já saiu acima — não cai aqui.
+  if (nivel === "ficha" ? partes.length < 4 : partes.length !== 3) return vazio;
   if (!primeiro || !ehSegmentoDePdp(primeiro)) return vazio;
 
   const marca = marcas.find((m) => m.slug === slugMarca && m.segmento === segmento);
   if (!marca) return vazio;
 
-  const modelo = marca.modelos.find((m) => m.slug === slugModelo);
   const caminhoDaMarca = `/${segmento}/${marca.slug}`;
+
+  // No nível do modelo, o modelo digitado nunca é usado: o hub dele acabou de
+  // responder 404, e o índice pode ter até uma hora de atraso contra a página
+  // (`recorteDoNaoEncontrado`). Sobra a marca — link quando tem carro hoje,
+  // formulário quando não tem.
+  if (nivel === "modelo") {
+    return marca.total > 0
+      ? {
+          encomenda: { marca: "", modelo: null, caminho, segmento },
+          hubComEstoque: { rotulo: marca.nome, href: caminhoDaMarca, total: marca.total },
+        }
+      : {
+          encomenda: { marca: marca.nome, modelo: null, caminho, segmento },
+          hubComEstoque: null,
+        };
+  }
+
+  const modelo = marca.modelos.find((m) => m.slug === slugModelo);
 
   if (modelo && modelo.total > 0) {
     return {

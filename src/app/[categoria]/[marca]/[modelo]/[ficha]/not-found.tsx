@@ -1,11 +1,5 @@
-import PaginaDeEstoque from "../../../../../components/modernist/PaginaDeEstoque";
 import EncomendaDaFichaPerdida from "../../../../../components/EncomendaDaFichaPerdida";
-import {
-  FAIXAS_DE_PRECO,
-  recorteDoNaoEncontrado,
-  type RecorteDoNaoEncontrado,
-} from "../../../../../lib/hubsDeEstoque";
-import { EstoqueIndisponivelError } from "../../../../../lib/supabase";
+import NaoEncontradoNoEstoque from "../../../../../components/NaoEncontradoNoEstoque";
 
 /**
  * A ficha que não existe — `notFound()` da rota do veículo.
@@ -16,9 +10,11 @@ import { EstoqueIndisponivelError } from "../../../../../lib/supabase";
  * Não havia `not-found.tsx` em branch nenhum do repositório, então a rota caía
  * no 404 de fábrica do Next. Em produção, em 2026-09-11, a resposta era 404 e
  * a tela, "404: This page could not be found" — em inglês, em system-ui, sem
- * link nenhum, dentro do cabeçalho e do rodapé da marca. Esta página troca só
- * o CORPO: status, metadata e o resto do comportamento da rota ficam onde
- * estavam.
+ * link nenhum, dentro do cabeçalho e do rodapé da marca. Esta página troca o
+ * CORPO do 404: status e metadata ficam onde estavam. O corpo, porém, não
+ * custa só no 404: o Next renderiza este arquivo em TODA ficha, inclusive nas
+ * que respondem 200 — ver "O custo nas páginas que existem", em
+ * `components/NaoEncontradoNoEstoque.tsx`.
  *
  * ---------------------------------------------------------------------------
  * O HTML servido é uma casca vazia — e não é defeito desta página
@@ -71,53 +67,14 @@ import { EstoqueIndisponivelError } from "../../../../../lib/supabase";
  * as trilhas para chegar nele.
  *
  * ---------------------------------------------------------------------------
- * Componente nenhum novo na tela
+ * O corpo mora em `NaoEncontradoNoEstoque` (2026-09-13)
  * ---------------------------------------------------------------------------
- * `PaginaDeEstoque` com a grade VAZIA é exatamente o desenho do hub sem carro
- * — formulário de encomenda, alternativas com card e preço, e o catálogo
- * inteiro. Foi desenhado em 01/09 para o mesmo problema desta página ("quem
- * procurou uma coisa específica e não achou"), já tem teste, e reusá-lo custa
- * uma prop. O único código novo é `EncomendaDaFichaPerdida`, e ele existe por
- * uma limitação do framework: `not-found.tsx` não recebe `params`.
- *
- * Tudo o que segura a R5 (título, grade do pátio, recortes, "ver todo o
- * estoque") é server component e sai daqui, sem depender do caminho; o
- * formulário é o único bloco que precisa de `usePathname`. Nenhum dos dois
- * está no HTML servido — ver a casca, acima.
- *
- * ---------------------------------------------------------------------------
- * A leitura: o recorte guardado, e só aqui (2026-09-13)
- * ---------------------------------------------------------------------------
- * A primeira versão desta página chamava `recortesDoEstoque`: duas leituras de
- * `estoque_motors` com `select *`, ~489 KB cada, ~977 KB por render. É o custo
- * de qualquer hub — a diferença é o espaço de endereços. Os 103 hubs são
- * finitos; caminho falso é ilimitado, e com ISR de 1 hora cada caminho inédito
- * rende uma vez. Contra o teto de 5 GB do Supabase free, da ordem de 5 mil
- * caminhos distintos no mês consomem a cota.
- *
- * A decisão do dono em 13/09 foi cache SÓ no não encontrado: esta página lê
- * `recorteDoNaoEncontrado`, que guarda por uma hora o recorte pronto (amostra,
- * índice e links), e não o estoque. O resto do site continua lendo fresco. O
- * preço disso está escrito lá: a amostra pode ter até uma hora de atraso.
- *
- * ---------------------------------------------------------------------------
- * A pane: 404 com moldura, sem amostra (2026-09-13)
- * ---------------------------------------------------------------------------
- * `getVeiculoById` engole a falha do Supabase e cai na contingência, que
- * devolve `[]` em produção — daí o `notFound()`. Na mesma pane a leitura do
- * estoque ESTOURA `EstoqueIndisponivelError`, e na primeira versão desta
- * página isso virava 500 sem moldura, porque não há `error.tsx` em `src/app`
- * (e não vai haver: decisão de 13/09). Antes do #70 a mesma URL dava 404.
- *
- * Agora a página captura SÓ `EstoqueIndisponivelError` e responde com título,
- * a primeira frase do texto e o "ver todo o estoque". A segunda frase fica de
- * fora de propósito: ela anuncia "abaixo, uma amostra do pátio", e na pane não
- * há amostra — página que afirma o que não mostra é a T3. Qualquer outra
- * exceção sobe: defeito de programação não se passa por endereço torto.
- *
- * A exceção não entra no cache, então a requisição seguinte tenta de novo. Com
- * item velho no cache o Next serve o velho e engole a falha da revalidação — a
- * versão de pane só aparece com o cache frio.
+ * A leitura com cache, a pane, a amostra e os blocos são os mesmos da marca e
+ * do modelo que não existem, e saíram daqui para
+ * `components/NaoEncontradoNoEstoque.tsx` sem mudar o que esta página
+ * renderiza — a prova é `tests/ficha-sem-veiculo.test.ts`, que não mudou. Aqui
+ * fica o que só a ficha sabe: a copy e o bloco de encomenda, que lê o caminho
+ * de quatro segmentos.
  *
  * ---------------------------------------------------------------------------
  * O que esta página NÃO resolve
@@ -129,65 +86,22 @@ import { EstoqueIndisponivelError } from "../../../../../lib/supabase";
  * casa para superfície nova de lead é o `canal`; mudá-lo mexe nas outras
  * superfícies e é decisão do dono, não deste PR.
  */
-
-const TITULO = "Não encontramos este veículo";
-
-/* A frase se divide em duas porque só a primeira vale sempre. A segunda
-   descreve a grade que vem abaixo, e já mudou junto com ela: falava em "o que
-   entrou por último" desde a versão que ordenava por chegada — ordem que
-   `patioEmDestaque` recusa, com o dado, no próprio arquivo que monta essa
-   grade. Página que afirma duas coisas sobre a mesma tela é a T3, e foi assim
-   que a primeira correção desta copy reabriu o defeito que ela fechava. Na
-   pane não há grade, e a segunda frase fica de fora. */
-const TEXTO =
-  "Este endereço não abre nenhuma ficha do nosso estoque — costuma ser link antigo ou endereço incompleto.";
-const TEXTO_DA_AMOSTRA = "Abaixo, uma amostra do pátio de hoje e as trilhas para o resto dele.";
-
-const TRILHA = [
-  { rotulo: "Home", href: "/" },
-  { rotulo: "Estoque", href: "/estoque" },
-];
-
-/** O recorte guardado, ou `null` na pane do estoque — e só nela. */
-async function lerRecorte(): Promise<RecorteDoNaoEncontrado | null> {
-  try {
-    return await recorteDoNaoEncontrado();
-  } catch (erro) {
-    if (erro instanceof EstoqueIndisponivelError) return null;
-    throw erro;
-  }
-}
-
 export default async function FichaNaoEncontrada() {
-  const recorte = await lerRecorte();
-
-  if (!recorte) {
-    return (
-      <PaginaDeEstoque trilha={TRILHA} titulo={TITULO} veiculos={[]} textoSemEstoque={TEXTO} />
-    );
-  }
-
-  return (
-    <PaginaDeEstoque
-      trilha={TRILHA}
-      titulo={TITULO}
-      veiculos={[]}
-      textoSemEstoque={`${TEXTO} ${TEXTO_DA_AMOSTRA}`}
-      /* O índice atravessa a fronteira do client component, e por isso chega
-         já recortado pelo `recorteDoNaoEncontrado`: slug, nome e contagem.
-         Prop de client component é payload público — foi assim que
-         `preco_compra` saiu no HTML do `/estoque`. */
-      encomenda={<EncomendaDaFichaPerdida marcas={recorte.marcas} />}
-      alternativos={recorte.patio}
-      rotuloAlternativos="Do pátio de hoje, em todas as faixas"
-      blocos={[
-        {
-          titulo: "Por faixa de preço",
-          links: FAIXAS_DE_PRECO.map((f) => ({ rotulo: f.nome, href: `/estoque/${f.slug}` })),
-        },
-        { titulo: "Por carroceria", links: recorte.carrocerias },
-        { titulo: "Marcas em estoque", links: recorte.marcasComEstoque },
-      ]}
-    />
-  );
+  return NaoEncontradoNoEstoque({
+    titulo: "Não encontramos este veículo",
+    /* A frase se divide em duas porque só a primeira vale sempre. A segunda
+       descreve a grade que vem abaixo, e já mudou junto com ela: falava em "o
+       que entrou por último" desde a versão que ordenava por chegada — ordem
+       que `patioEmDestaque` recusa, com o dado, no próprio arquivo que monta
+       essa grade. Página que afirma duas coisas sobre a mesma tela é a T3. Na
+       pane não há grade, e a segunda frase fica de fora. */
+    texto:
+      "Este endereço não abre nenhuma ficha do nosso estoque — costuma ser link antigo ou endereço incompleto.",
+    textoDaAmostra: "Abaixo, uma amostra do pátio de hoje e as trilhas para o resto dele.",
+    trilha: [
+      { rotulo: "Home", href: "/" },
+      { rotulo: "Estoque", href: "/estoque" },
+    ],
+    encomenda: (marcas) => <EncomendaDaFichaPerdida marcas={marcas} nivel="ficha" />,
+  });
 }
