@@ -81,6 +81,9 @@ function linha(parcial: Partial<LinhaDeEstoque> = {}): LinhaDeEstoque {
     vendido: false,
     bloqueios: [],
     diasEmEstoque: null,
+    // O padrão é "veio no ciclo mais recente" — o caso que não avisa nada.
+    // Quem testa o aviso passa o número, como em `diasEmEstoque`.
+    diasForaDoFeed: null,
     tipo: "SUV",
     perfisUso: [],
     placa: "",

@@ -131,7 +131,19 @@ describe("nomenclatura da tabela de inventário", () => {
     // o PREÇO é gravável (só no veículo do painel — no do feed o sync
     // desfaria). A leitura é do BANCO de propósito: aceitar `origem` do corpo
     // deixaria qualquer um reprecificar carro do RevendaMais.
-    expect(comAcesso.length).toBe(11);
+    //
+    // Em 2026-09-15 entrou o décimo segundo: `api/estoque/[id]/fotos-do-feed`,
+    // a rota que importa para o banco as fotos que o anúncio tem AGORA no
+    // RevendaMais. Único `.from("estoque_motors")` do arquivo, e é um SELECT de
+    // `id, origem` — a gravação em si passa por `aplicarNosVeiculos`, como toda
+    // escrita do painel, para as três colunas entrarem no histórico do veículo.
+    //
+    // Ela existe porque desde 30/08 a foto do carro do feed não tinha dono: a
+    // trava do banco virou allowlist de seis colunas (sem foto) e descarta a
+    // gravação do sync em silêncio, enquanto a galeria recusava o envio pelo
+    // painel. Os dois "não" prenderam carro com 17 fotos no RevendaMais em
+    // `rascunho`, abaixo do mínimo, invisível no site por uma semana.
+    expect(comAcesso.length).toBe(12);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -152,6 +164,11 @@ describe("nomenclatura da tabela de inventário", () => {
     // a rota nunca grava. O veículo é lido do BANCO de propósito, e não do
     // corpo da requisição: aceitar `pericia` do corpo deixaria qualquer um
     // liberar a afirmação de laudo aprovado num carro cujo exame não fechou.
-    expect(total).toBe(19);
+    // E o acesso nº 20, em 2026-09-15, com o arquivo novo acima: o SELECT de
+    // `id, origem` da rota de importação de fotos. A origem é lida do BANCO, e
+    // não aceita do corpo, pela mesma razão do nº 17 — senão bastaria mandar
+    // `origem:"sync"` para a rota ir buscar no feed um veículo que nasceu no
+    // painel e não existe no RevendaMais.
+    expect(total).toBe(20);
   });
 });
