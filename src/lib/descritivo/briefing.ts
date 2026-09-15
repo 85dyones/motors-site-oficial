@@ -83,14 +83,27 @@ e nada de texto institucional que serviria para qualquer carro.
 `.trim();
 }
 
+/**
+ * O formato pedido para cada campo.
+ *
+ * `descricao_seo` pede a PRIMEIRA frase em 155 desde 14/09/2026, a mesma régua
+ * de `primeiraFraseDe` (`validacao.ts`). A mira fica abaixo do teto de
+ * propósito: o modelo não conta caracteres, e não há segunda tentativa. Até
+ * ali o prompt pedia as duas primeiras frases "entre 130 e 155", colado no
+ * teto, e todo estouro chegava ao painel como erro. A faixa de 100 a 140
+ * cobre 26 dos 47 rascunhos que o dono aprovou em 17/08 — 13 passam de 140. A
+ * primeira frase deles tem mediana 130 e p75 141; o p25 bruto é 108, puxado
+ * pelo 8109647, que mede 6 por causa de "VW up!" e tem frase real de 136 —
+ * corrigido, o p25 dá 112 (revisão final, 15/09/2026).
+ */
 const FORMATO: Record<CampoDeTexto, string> = {
   descricao_seo: `
 Escreva o campo \`descricao_seo\`: a frase de anúncio que vai para o feed dos
 portais e para a descrição que aparece na busca do Google.
 
-REGRA DURA: as duas primeiras frases precisam caber em 155 caracteres, porque
-é onde o Google corta. APROVEITE o espaço — mire entre 130 e 155, não 70.
-O texto inteiro pode passar disso; a ABERTURA não pode.
+REGRA DURA: a PRIMEIRA frase cabe em 155 caracteres e termina com ponto final,
+porque é ali que o Google corta. Mire entre 100 e 140 caracteres nessa frase.
+Não use reticências. Depois do primeiro ponto final, o texto pode seguir.
 `.trim(),
   descricao: `
 Escreva o campo \`descricao\`: o texto editorial que ABRE a página do veículo.
@@ -129,9 +142,22 @@ export function montarEntrada(dossie: Dossie, campo: CampoDeTexto): string {
   // afirmar" / "NÃO afirme" — porque a validação tentava DETECTAR afirmação
   // indevida. A régua nova (MENCIONA_PERICIA, em validacao.ts) não distingue
   // afirmação de menção: qualquer toque no assunto reprova. A proibição do
-  // prompt parou de distinguir também.
+  // prompt parou de distinguir também. Desde 14/09/2026 ela nomeia também o
+  // que o laudo atesta — sinistro, leilão, Detran, auditado, "nada consta",
+  // avaliação técnica —, porque a trava passou a reprovar esses termos, e
+  // termo que a trava reprova sem o prompt nomear vira 422 no clique.
   regras.push(
-    "NÃO mencione perícia, laudo, vistoria, cautelar ou inspeção, em nenhuma hipótese: esse assunto tem frase padrão em outro campo do sistema, e o texto do anúncio não trata dele.",
+    'NÃO mencione perícia, perito, laudo, vistoria, cautelar, inspeção, sinistro, leilão, Detran, auditado, "nada consta", restrição de documentação ou avaliação técnica, em nenhuma hipótese: esse assunto tem frase padrão em outro campo do sistema, e o texto do anúncio não trata dele.',
+  );
+
+  // Vocabulário: a trava (VOCABULARIO, em validacao.ts) reprova "consulte" em
+  // qualquer forma fora de "sem consulte-nos", "luxuoso", "os melhores
+  // preços" e "exclusividade" — nenhum tinha nome aqui, só "consulte-nos" e
+  // "exclusivo" (posicionamento(), acima). Mesma classe do bloco de perícia:
+  // achado da revisão final (15/09/2026), sonda "Consulte condições de
+  // financiamento." passa no main e reprova em 7c39cc8 sem nome no prompt.
+  regras.push(
+    'NÃO use "consulte" em nenhuma forma, nem "luxuoso", "os melhores preços" ou "exclusividade": o posicionamento da loja barra essas expressões.',
   );
 
   if (dossie.opcionais.length === 0) {

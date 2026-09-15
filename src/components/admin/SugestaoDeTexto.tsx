@@ -12,6 +12,11 @@ import { useState } from "react";
  * A revisão humana também é a ÚNICA defesa contra troca de campo — "motor
  * manual" quando o manual é o câmbio. Nenhuma regra determinística pega isso
  * (ver o docblock de `lib/descritivo/validacao.ts`).
+ *
+ * O texto REPROVADO aparece desde 14/09/2026, sem o botão de usar. Até ali o
+ * 422 da rota já trazia o `texto`, e o painel o descartava: as reprovações de
+ * 13 e 14/09 chegaram à tela só com o motivo, e ninguém tinha como saber se a
+ * régua errou ou se o texto estourou de fato.
  */
 
 type Motivo = { regra: string; motivo: string };
@@ -30,12 +35,16 @@ export function SugestaoDeTexto({
   const [caracteres, setCaracteres] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [motivos, setMotivos] = useState<Motivo[]>([]);
+  // O texto que a conferência reprovou: fica à vista para quem revisa saber o
+  // QUE reprovou, e nunca ganha o botão "Usar este texto".
+  const [reprovado, setReprovado] = useState<string | null>(null);
 
   async function gerar() {
     setCarregando(true);
     setErro(null);
     setMotivos([]);
     setTexto(null);
+    setReprovado(null);
     try {
       const r = await fetch(`/api/estoque/${veiculoId}/descritivo`, {
         method: "POST",
@@ -46,6 +55,7 @@ export function SugestaoDeTexto({
       if (!r.ok) {
         setErro(j?.error ?? `Falhou com HTTP ${r.status}`);
         setMotivos(Array.isArray(j?.motivos) ? j.motivos : []);
+        setReprovado(typeof j?.texto === "string" && j.texto.trim() ? j.texto : null);
         return;
       }
       setTexto(j.texto);
@@ -65,7 +75,7 @@ export function SugestaoDeTexto({
         disabled={carregando}
         className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:opacity-45"
       >
-        {carregando ? "Gerando…" : texto ? "Gerar outro" : "Gerar sugestão"}
+        {carregando ? "Gerando…" : texto || reprovado ? "Gerar outro" : "Gerar sugestão"}
       </button>
 
       {erro && (
@@ -79,6 +89,14 @@ export function SugestaoDeTexto({
                 </li>
               ))}
             </ul>
+          )}
+          {reprovado && (
+            <div className="mt-2">
+              <div className="font-medium">
+                Texto reprovado ({reprovado.length} caracteres), só para leitura:
+              </div>
+              <p className="mt-1 whitespace-pre-wrap">{reprovado}</p>
+            </div>
           )}
         </div>
       )}

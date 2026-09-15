@@ -8,7 +8,7 @@ import { ROTULOS, temRotulo, type Dossie } from "./dossie";
  * independente" e a validação passava a reprovar tudo — a tabela de
  * resultados chegou a ser lida como "cinco modelos ruins" antes de a causa
  * aparecer. Isso NÃO generaliza: nem toda regra de substring usa `\b` —
- * GARANTIA, DONOS, os equipamentos e a primeira alternativa do próprio
+ * GARANTIA, DONOS e a primeira alternativa do próprio
  * STATUS_INTERNO ("em an[áa]lise") não usam —, então uma regra nova precisa
  * avaliar caso a caso se corre o mesmo risco, em vez de supor que o arquivo
  * inteiro já se protege sozinho. `MENCIONA_PERICIA` usa: "laudo" é substring
@@ -35,28 +35,50 @@ export type Reprovacao = { regra: string; motivo: string };
  * Um ponto entre dígitos é separador de milhar — `toLocaleString("pt-BR")`
  * formata preço e km assim no dossiê — e não pode contar como fim de frase.
  * Sem a exceção `(?<=\d)\.(?=\d)`, "R$ 89.900,00." quebrava em dois fragmentos
- * ali no meio do número, e a segunda frase real da abertura caía fora da
- * contagem: bug medido em 08/09/2026 (abertura real de 158 caracteres, que
- * devia reprovar, lida como 34).
+ * ali no meio do número: bug medido em 08/09/2026. A mesma armadilha pegou o
+ * `conteudo-seo/aplicar-rascunhos.js` de 17/08, que procura o último ponto
+ * antes do caractere 155: ele aceitou três rascunhos cuja primeira frase passa
+ * de 155, porque tomou por fim de frase o ponto de um número: "53.200 km"
+ * (8252763), "21.705 km" (7447739) e "1.0" (8059102).
  *
- * Usada só por `aberturaDe` desde 09/09/2026. A régua de perícia deixou de
- * segmentar por frase (ver MENCIONA_PERICIA logo abaixo), e `frasesDe`, a
- * função que existia só para ela, saiu junto.
+ * Reticências ("…") fecham frase desde 14/09/2026, como o ponto. Antes não
+ * fechavam, e a frase seguinte entrava na conta.
+ *
+ * LIMITE CONHECIDO: ponto ou exclamação dentro de nome encerra a frase cedo —
+ * "VW up!" mede 6 caracteres. Abreviação corta a frase do mesmo jeito —
+ * "…visto na Av." mede 64. O erro é para o lado de aceitar.
  */
-const CORPO_DA_FRASE = "(?:[^.!?]|(?<=\\d)\\.(?=\\d))+";
+const CORPO_DA_FRASE = "(?:[^.!?…]|(?<=\\d)\\.(?=\\d))+";
 
-/** As duas primeiras frases — o que o Google mostra. */
-export function aberturaDe(texto: string): string {
-  const frases = texto
-    .replace(/\s+/g, " ")
-    .trim()
-    .match(new RegExp(CORPO_DA_FRASE + "[.!?]+", "g"));
-  if (!frases || frases.length === 0) return texto.replace(/\s+/g, " ").trim();
-  return frases.slice(0, 2).join("").trim();
+/**
+ * A primeira frase — o que precisa fechar antes do corte do Google.
+ *
+ * Decisão do dono em 14/09/2026, a mesma regra dos rascunhos de 17/08: "a
+ * primeira frase fecha sozinha". Até ali a régua eram as DUAS primeiras frases
+ * em 155, que reprovava 41 dos 47 rascunhos aprovados pelo próprio dono; a da
+ * primeira frase reprova 3, e os três passam de 155 de verdade.
+ */
+export function primeiraFraseDe(texto: string): string {
+  const corrido = texto.replace(/\s+/g, " ").trim();
+  const frase = corrido.match(new RegExp(CORPO_DA_FRASE + "[.!?…]+"));
+  return frase ? frase[0].trim() : corrido;
 }
 
+/**
+ * O vocabulário que o POSICIONAMENTO barra.
+ *
+ * Revisto em 14/09/2026 (qa-guardian), nos dois sentidos. Passavam "luxuoso",
+ * "os melhores preços", "consulte condições" e "exclusividade". Reprovava
+ * "preço no anúncio, sem consulte-nos", que é frase da casa e está num
+ * rascunho aprovado pelo dono em 17/08 (veículo 8324691).
+ *
+ * A família de "exclusivo" é fechada — exclusivo, exclusiva, os plurais e
+ * exclusividade —, porque "Exclusive" é nome de versão (Nissan Versa, Kicks,
+ * Sentra). Com `exclusiv\w*`, o rascunho aprovado 8440875 (Versa Exclusive)
+ * reprovava (medido em 15/09/2026, decisão do dono).
+ */
 const VOCABULARIO =
-  /\b(premium|luxo|exclusiv[oa]s?|consulte-nos)\b|melhor pre[çc]o|proced[êe]ncia garantida|garantia de proced[êe]ncia|melhor estoque/i;
+  /\b(?:premium|luxo|luxuos[oa]s?|exclusiv(?:[oa]s?|idade))\b|(?<!\bsem\s)\bconsulte(?:-nos)?\b|\bmelhor(?:es)? pre[çc]os?\b|proced[êe]ncia garantida|garantia de proced[êe]ncia|melhor estoque/i;
 
 /**
  * O texto do anúncio não fala de perícia. Ponto.
@@ -98,11 +120,65 @@ const VOCABULARIO =
  * fronteira própria em vez de a de "vistoria" ser removida, porque remover
  * fronteira reabriria o risco que "aplaudo" já mostrou — um `\w*` sem `\b`
  * também casaria por dentro de palavra nenhuma relacionada.
+ *
+ * SEGUNDA AMPLIAÇÃO (14/09/2026, qa-guardian). `vistoria\w*` exigia a palavra
+ * inteira e deixava passar "vistoriou": a raiz agora é `vistori`. E a frase
+ * padrão do campo Laudo cautelar (`LAUDO_APROVADO_PADRAO`, em `laudoPadrao.ts`)
+ * passava limpa quando dita sem os substantivos: "estrutura, chassi e
+ * histórico de sinistro auditados por empresa independente, credenciada junto
+ * ao Detran". Entra o que o laudo atesta: sinistro, auditado, Detran, leilão e
+ * "nada consta". Duas formas só contam presas ao contexto, porque soltas são
+ * frase de venda: "sem restrição" só depois de "documentação" ("aceita troca
+ * sem restrição de ano" passa) e "avaliação técnica" só perto de "aprovado"
+ * ("avaliação técnica do seu usado" passa).
  */
-const MENCIONA_PERICIA =
-  /\bper[íi]ci\w*|\bperit\w*|\blaudo\w*|\bcautelar\w*|\bvistoria\w*|\brevistoria\w*|\binspe[çc](?:[ãa]o|[õo]es)\w*|\binspecion\w*/i;
+const MENCIONA_PERICIA = new RegExp(
+  [
+    "\\bper[íi]ci\\w*",
+    "\\bperit\\w*",
+    "\\blaudo\\w*",
+    "\\bcautelar\\w*",
+    "\\bvistori\\w*",
+    "\\brevistori\\w*",
+    "\\binspe[çc](?:[ãa]o|[õo]es)\\w*",
+    "\\binspecion\\w*",
+    "\\bsinistr\\w*",
+    "\\bauditad\\w*",
+    "\\bdetran\\b",
+    "\\bleil(?:[ãa]o|[õo]es|o\\w+)",
+    "\\bnada consta\\b",
+    "\\bdocumenta[çc][ãa]o\\b[^.!?]{0,15}\\bsem restri[çc]",
+    "\\baprovad\\w*[^.!?]{0,30}\\bavalia[çc][ãa]o t[ée]cnica",
+    "\\bavalia[çc][ãa]o t[ée]cnica[^.!?]{0,30}\\baprovad",
+  ].join("|"),
+  "i",
+);
 
-const STATUS_INTERNO = /em an[áa]lise|\bpendente\b|aguardando/i;
+/**
+ * Andamento do exame exposto no texto.
+ *
+ * Revisto em 14/09/2026 (qa-guardian), nos dois sentidos. "aguardando" solto
+ * reprovava "Está aguardando você no showroom": agora só conta com o objeto
+ * do exame logo depois, ou com a aprovação ou a liberação DELE ("Aguardando
+ * liberação da documentação" reprova; "Aguardando aprovação do financiamento",
+ * frase de venda, passa). "em análise" reprovava "Crédito em análise na hora",
+ * que é frase de venda: o crédito e o financiamento ficam de fora. E "O
+ * resultado do exame ainda não saiu" passava sem nenhuma das três palavras.
+ *
+ * "em análise" continua valendo em qualquer outra frase, de propósito: é o
+ * rótulo cru da coluna `pericia`, e prendê-lo ao objeto do exame deixaria
+ * passar "Veículo em análise".
+ */
+const OBJETO_DO_EXAME = "resultado|exame|laudo|per[íi]cia|vistoria|documenta[çc][ãa]o";
+const STATUS_INTERNO = new RegExp(
+  [
+    "(?<!(?:cr[ée]dito|financiamento|cadastro|proposta)[^.!?]{0,20})em an[áa]lise",
+    "\\bpendente\\b",
+    `\\baguardando\\s+(?:(?:o|a|os|as)\\s+)?(?:(?:aprova[çc][ãa]o|libera[çc][ãa]o)\\s+d[oa]s?\\s+)?(?:${OBJETO_DO_EXAME})`,
+    `\\b(?:${OBJETO_DO_EXAME})\\b[^.!?]{0,30}\\bn[ãa]o (?:saiu|ficou pronto|chegou|foi conclu[íi]d[oa])`,
+  ].join("|"),
+  "i",
+);
 
 /**
  * Alcance de ENTREGA maior que o recorte da loja.
@@ -125,10 +201,92 @@ const STATUS_INTERNO = /em an[áa]lise|\bpendente\b|aguardando/i;
  * frases de fabricação ("Picape nacional, feita em Betim.") continuam
  * passando porque não têm palavra de entrega NENHUMA na frase, e é a
  * AUSÊNCIA da palavra-gatilho que as livra, não o tamanho da janela.
+ *
+ * TERCEIRA REVISÃO (14/09/2026, qa-guardian), nos dois sentidos.
+ * - Passavam: "Atendemos clientes de todo o país" (a regra exigia "em" ou
+ *   "para" antes de "todo o país"), "Entregamos em São Paulo" e "Entrega em
+ *   Florianópolis" (nenhum lugar de fora era nomeado).
+ * - Reprovavam: "Veio de Santa Catarina com manual e chave reserva" (qualquer
+ *   Santa Catarina sem Balneário depois), "Híbrido nacional com alcance de
+ *   600 km" e "Motor nacional, com peças e atendimento fáceis de achar"
+ *   ("alcance" e "atendimento" contavam como palavra de entrega).
+ * Santa Catarina e os lugares de fora só contam depois de uma palavra de
+ * entrega. A lista tem os estados e 6 cidades catarinenses (Florianópolis,
+ * Palhoça, Criciúma, Chapecó, Lages, Tubarão) — NÃO é a cobertura completa do
+ * litoral ao sul de Balneário Camboriú: "Entregamos em Itapema e Porto Belo."
+ * e "Entregamos em Brusque e Laguna." passam sem reprovar. Ficam de fora
+ * "Pará" e "Acre", que colidem com "para" e "acre", e "São José", porque São
+ * José dos Pinhais é da região metropolitana de Curitiba.
+ *
+ * Revisão da tarefa (15/09/2026, decisão do dono): "atendemos" saiu das
+ * palavras de entrega, porque "Atendemos com garantia nacional de peças" fala
+ * de garantia, não de entrega; "Atendemos clientes de todo o país" continua
+ * reprovando por "todo o país". "qualquer estado" saiu dos lugares, porque
+ * "Levamos seu carro em qualquer estado" fala da condição do carro. Tubarão
+ * ficou na lista, também por decisão do dono, mesmo colidindo com o apelido do
+ * Opala.
+ *
+ * Re-revisão da tarefa (15/09/2026, decisão do dono): as duas retiradas
+ * abriram buracos, e cada uma voltou só onde fecha o seu.
+ * - Sem "atendemos", "Atendemos em Minas Gerais também." e "Atendemos clientes
+ *   de Santa Catarina." passavam. "atendemos" voltou só antes de lugar
+ *   (`PALAVRA_ANTES_DE_LUGAR`, nos ramos dos lugares fora do recorte e de Santa
+ *   Catarina sem Balneário) e fica fora dos ramos do "nacional": "Atendemos com
+ *   garantia nacional de peças" continua passando.
+ * - Sem "qualquer estado", "Levamos até qualquer estado do Brasil." passava.
+ *   "qualquer estado do Brasil" e "qualquer estado do país" ganharam ramo
+ *   próprio, sem palavra de entrega, como "todo o Brasil"; "Levamos seu carro em
+ *   qualquer estado" continua passando.
  */
-const PALAVRA_DE_ENTREGA = "entrega|entregamos|envio|frete|alcance|cobertura|atendimento|transporte";
+const PALAVRA_DE_ENTREGA = "entreg\\w*|envi[ao]\\w*|frete\\w*|levamos|cobertura|transporte";
+const PALAVRA_ANTES_DE_LUGAR = `${PALAVRA_DE_ENTREGA}|atendemos`;
+const FORA_DO_RECORTE = [
+  "s[ãa]o paulo",
+  "rio de janeiro",
+  "minas gerais",
+  "esp[íi]rito santo",
+  "rio grande do sul",
+  "rio grande do norte",
+  "mato grosso",
+  "goi[áa]s",
+  "distrito federal",
+  "bras[íi]lia",
+  "bahia",
+  "sergipe",
+  "alagoas",
+  "pernambuco",
+  "para[íi]ba",
+  "cear[áa]",
+  "piau[íi]",
+  "maranh[ãa]o",
+  "tocantins",
+  "amazonas",
+  "rond[ôo]nia",
+  "roraima",
+  "amap[áa]",
+  "florian[óo]polis",
+  "palho[çc]a",
+  "crici[úu]ma",
+  "chapec[óo]",
+  "lages",
+  "tubar[ãa]o",
+  "outros estados",
+  "todos os estados",
+  "todo o sul",
+  "toda a regi[ãa]o sul",
+].join("|");
 const ALCANCE = new RegExp(
-  `todo o brasil|(?:em|para) todo o pa[íi]s|(?:${PALAVRA_DE_ENTREGA})[^.!?]{0,40}\\bnacional\\b|\\bnacional\\b[^.!?]{0,40}(?:${PALAVRA_DE_ENTREGA})|santa catarina(?!.{0,40}balne[áa]rio)`,
+  [
+    "todo o brasil",
+    "todo o pa[íi]s",
+    "todo o territ[óo]rio nacional",
+    "qualquer (?:lugar|ponto|parte|canto) do (?:brasil|pa[íi]s|territ[óo]rio)",
+    "qualquer estado do (?:brasil|pa[íi]s)",
+    `\\b(?:${PALAVRA_DE_ENTREGA})\\b[^.!?]{0,40}\\bnacional\\b`,
+    `\\bnacional\\b[^.!?]{0,40}\\b(?:${PALAVRA_DE_ENTREGA})`,
+    `\\b(?:${PALAVRA_ANTES_DE_LUGAR})[^.!?]{0,40}\\b(?:${FORA_DO_RECORTE})`,
+    `\\b(?:${PALAVRA_ANTES_DE_LUGAR})[^.!?]{0,40}\\bsanta catarina(?![^.!?]{0,40}balne[áa]rio)`,
+  ].join("|"),
   "i",
 );
 const MARKDOWN = /\*\*|^#{1,6}\s|\[.+\]\(.+\)|^\s*[-*]\s/m;
@@ -145,35 +303,48 @@ const DONOS = /[úu]nico dono|[úu]nica dona/i;
  * portão com o dossiê `["Vidros elétricos","Ar-condicionado"]` e o texto "Traz
  * teto solar, bancos em couro e central multimídia": nenhuma reprovação. Ter um
  * opcional declarado não autoriza os outros.
- */
-const EQUIPAMENTOS_FONTE =
-  "teto solar|teto panor[âa]mico|banco[s]? em couro|couro|multim[íi]dia|c[âa]mera de r[ée]|sensor de estacionamento|ar-condicionado digital";
-const TODOS_OS_EQUIPAMENTOS = new RegExp(EQUIPAMENTOS_FONTE, "gi");
-
-/** Caixa e acento fora: "Ar-condicionado" do dossiê é "ar-condicionado" no texto. */
-const semAcento = (s: string) =>
-  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-
-/**
- * O equipamento citado está entre os opcionais declarados?
  *
- * A comparação vale nos dois sentidos porque os dois lados recortam diferente:
- * o texto diz "bancos em couro" onde o dossiê diz "Couro", e o dossiê diz
- * "Central multimídia" onde o texto diz "multimídia".
+ * CATÁLOGO desde 14/09/2026 (qa-guardian). A versão anterior comparava o
+ * trecho citado com cada opcional por `includes`, nos dois sentidos, e errava
+ * para os dois lados:
+ * - o opcional "Ar" liberava "teto solar", porque "teto solar" contém "ar";
+ * - "Ar-condicionado" liberava "ar-condicionado digital", que é outro fato;
+ * - "Bancos de couro", "Câmera traseira" e "Ar condicionado digital" não
+ *   liberavam "bancos em couro", "câmera de ré" e "ar-condicionado digital".
+ * Agora o texto e os opcionais passam pelo mesmo catálogo, e a comparação é
+ * pelo nome do item. As grafias vêm dos opcionais gravados em produção (SQL
+ * de 14/09/2026, 38 veículos com opcionais): "teto solar panoramico" conta
+ * como teto solar e como teto panorâmico, "kit multimídia" é central
+ * multimídia, e "sensor de iluminacao" não é sensor de estacionamento.
+ *
+ * "sensor" e "câmera" sem complemento não contam: não dá para saber qual
+ * equipamento é.
+ *
+ * Depois de "ré" vai `(?!\p{L})`, com a flag `u`, e não `\b`: o `\b` do
+ * JavaScript só conhece `[A-Za-z0-9_]`, e "ré\b" nunca casa.
  */
-function equipamentoDeclarado(citado: string, opcionais: string[]): boolean {
-  const c = semAcento(citado);
-  return opcionais.some((o) => {
-    const d = semAcento(o);
-    // Opcional vazio casaria com tudo e desligaria a regra em silêncio.
-    return d.length > 0 && (d.includes(c) || c.includes(d));
-  });
-}
+const CATALOGO_DE_EQUIPAMENTOS: { item: string; grafia: RegExp }[] = [
+  { item: "teto solar", grafia: /\bteto solar\b/iu },
+  { item: "teto panorâmico", grafia: /\bteto (?:solar )?panor[âa]mico\b/iu },
+  { item: "bancos em couro", grafia: /\bcouro\b/iu },
+  { item: "central multimídia", grafia: /\bmultim[íi]dia\b/iu },
+  { item: "câmera de ré", grafia: /\bc[âa]mera (?:de r[ée]|traseira)(?!\p{L})/iu },
+  { item: "câmera 360", grafia: /\bc[âa]meras? (?:de )?360\b/iu },
+  {
+    item: "sensor de estacionamento",
+    grafia: /\bsensor(?:es)? (?:de estacionamento|de r[ée](?!\p{L})|traseiros?|dianteiros?)/iu,
+  },
+  { item: "ar-condicionado digital", grafia: /\bar[- ]condicionado digital\b/iu },
+];
 
-/** Os equipamentos que o texto cita e o dossiê não sustenta. */
+/** Os itens do catálogo que o texto cita e os opcionais não declaram. */
 function equipamentosForaDoDossie(texto: string, opcionais: string[]): string[] {
-  const citados = Array.from(texto.matchAll(TODOS_OS_EQUIPAMENTOS), (m) => m[0]);
-  return [...new Set(citados.filter((c) => !equipamentoDeclarado(c, opcionais)))];
+  const declarados = new Set(
+    CATALOGO_DE_EQUIPAMENTOS.filter((e) => opcionais.some((o) => e.grafia.test(o))).map((e) => e.item),
+  );
+  return CATALOGO_DE_EQUIPAMENTOS.filter((e) => e.grafia.test(texto) && !declarados.has(e.item)).map(
+    (e) => e.item,
+  );
 }
 
 export function validarDescritivo(
@@ -185,23 +356,23 @@ export function validarDescritivo(
   const add = (regra: string, motivo: string) => r.push({ regra, motivo });
 
   if (campo === "descricao_seo") {
-    const ab = aberturaDe(texto).length;
-    if (ab > LIMITE_META) {
-      add("abertura", `A abertura tem ${ab} caracteres e o Google corta em ${LIMITE_META}.`);
+    const pf = primeiraFraseDe(texto).length;
+    if (pf > LIMITE_META) {
+      add("abertura", `A primeira frase tem ${pf} caracteres e o Google corta em ${LIMITE_META}.`);
     }
   }
 
   if (VOCABULARIO.test(texto)) {
     add(
       "vocabulário",
-      'Usa expressão que o posicionamento da loja barra ("premium", "luxo", "consulte-nos", "procedência garantida", "o melhor estoque da região").',
+      'Usa expressão que o posicionamento da loja não permite ("premium", "luxo", "luxuoso", "consulte" em qualquer forma, "os melhores preços", "exclusividade", "procedência garantida", "o melhor estoque da região").',
     );
   }
 
   if (MENCIONA_PERICIA.test(texto)) {
     add(
       "perícia",
-      "Fala de perícia. Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
+      "Fala de perícia, perito ou do que o laudo atesta (sinistro, leilão, restrição, Detran, auditado, avaliação técnica). Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
     );
   }
 
