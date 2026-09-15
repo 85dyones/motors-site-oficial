@@ -147,7 +147,17 @@ export function montarEntrada(dossie: Dossie, campo: CampoDeTexto): string {
   // avaliação técnica —, porque a trava passou a reprovar esses termos, e
   // termo que a trava reprova sem o prompt nomear vira 422 no clique.
   regras.push(
-    'NÃO mencione perícia, laudo, vistoria, cautelar, inspeção, sinistro, leilão, Detran, auditado, "nada consta", restrição de documentação ou avaliação técnica, em nenhuma hipótese: esse assunto tem frase padrão em outro campo do sistema, e o texto do anúncio não trata dele.',
+    'NÃO mencione perícia, perito, laudo, vistoria, cautelar, inspeção, sinistro, leilão, Detran, auditado, "nada consta", restrição de documentação ou avaliação técnica, em nenhuma hipótese: esse assunto tem frase padrão em outro campo do sistema, e o texto do anúncio não trata dele.',
+  );
+
+  // Vocabulário: a trava (VOCABULARIO, em validacao.ts) reprova "consulte" em
+  // qualquer forma fora de "sem consulte-nos", "luxuoso", "os melhores
+  // preços" e "exclusividade" — nenhum tinha nome aqui, só "consulte-nos" e
+  // "exclusivo" (posicionamento(), acima). Mesma classe do bloco de perícia:
+  // achado da revisão final (15/09/2026), sonda "Consulte condições de
+  // financiamento." passa no main e reprova em 7c39cc8 sem nome no prompt.
+  regras.push(
+    'NÃO use "consulte" em nenhuma forma, nem "luxuoso", "os melhores preços" ou "exclusividade": o posicionamento da loja barra essas expressões.',
   );
 
   if (dossie.opcionais.length === 0) {

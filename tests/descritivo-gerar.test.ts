@@ -62,6 +62,22 @@ describe("montarEntrada", () => {
     );
   });
   /**
+   * Mesma classe do teste acima, achada na revisão final (15/09/2026):
+   * VOCABULARIO (validacao.ts) reprova "consulte" em qualquer forma fora de
+   * "sem consulte-nos", "luxuoso", "os melhores preços" e "exclusividade", e
+   * MENCIONA_PERICIA reprova "perito" — nenhum dos cinco tinha nome aqui.
+   * Sonda: "Consulte condições de financiamento." passa no main e reprova em
+   * 7c39cc8, sem nome no prompt — vira 422 no clique.
+   */
+  it("nomeia no prompt o vocabulário barrado que ainda não tinha nome, e 'perito'", () => {
+    const entrada = montarEntrada(SEM_NADA, "descricao_seo");
+    expect(entrada).toContain("consulte");
+    expect(entrada).toContain("luxuoso");
+    expect(entrada).toContain("os melhores preços");
+    expect(entrada).toContain("exclusividade");
+    expect(entrada).toContain("perito");
+  });
+  /**
    * As três proibições que nasciam da AUSÊNCIA de um rótulo, cada uma nos dois
    * sentidos.
    *

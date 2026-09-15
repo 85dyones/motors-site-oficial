@@ -145,7 +145,7 @@ const MENCIONA_PERICIA = new RegExp(
     "\\bsinistr\\w*",
     "\\bauditad\\w*",
     "\\bdetran\\b",
-    "\\bleil(?:[ãa]o|[õo]es)",
+    "\\bleil(?:[ãa]o|[õo]es|o\\w+)",
     "\\bnada consta\\b",
     "\\bdocumenta[çc][ãa]o\\b[^.!?]{0,15}\\bsem restri[çc]",
     "\\baprovad\\w*[^.!?]{0,30}\\bavalia[çc][ãa]o t[ée]cnica",
@@ -365,14 +365,14 @@ export function validarDescritivo(
   if (VOCABULARIO.test(texto)) {
     add(
       "vocabulário",
-      'Usa expressão que o posicionamento da loja barra ("premium", "luxo", "consulte-nos", "procedência garantida", "o melhor estoque da região").',
+      'Usa expressão que o posicionamento da loja não permite ("premium", "luxo", "luxuoso", "consulte" em qualquer forma, "os melhores preços", "exclusividade", "procedência garantida", "o melhor estoque da região").',
     );
   }
 
   if (MENCIONA_PERICIA.test(texto)) {
     add(
       "perícia",
-      "Fala de perícia ou do que o laudo atesta (sinistro, leilão, restrição, Detran, auditado, avaliação técnica). Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
+      "Fala de perícia, perito ou do que o laudo atesta (sinistro, leilão, restrição, Detran, auditado, avaliação técnica). Esse assunto tem frase padrão e vive no campo Laudo cautelar — o texto do anúncio não trata dele.",
     );
   }
 

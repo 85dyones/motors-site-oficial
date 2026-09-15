@@ -343,6 +343,10 @@ describe("regra: perícia", () => {
     ["aprovado na avaliação técnica", "Aprovado na avaliação técnica de 120 itens."],
     ["avaliação técnica aprovada", "Avaliação técnica de 120 itens, toda aprovada."],
     ["leilão", "Sem passagem por leilão."],
+    // Item menor da revisão final (15/09/2026): mesmo vazamento por flexão já
+    // corrigido em "vistoriou" — \bleil(?:[ãa]o|[õo]es) não pegava "leiloado"
+    // nem "leiloou".
+    ["leiloado", "Carro nunca foi leiloado."],
   ])("reprova por falar do que o laudo atesta: %s", (_caso, frase) => {
     expect(motivos(frase)).toContain("perícia");
   });
