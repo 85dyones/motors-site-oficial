@@ -60,11 +60,17 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * `cache()` de `recortesDoEstoque` (`hubsDeEstoque.ts:495`) faz este corpo
  * reaproveitar a leitura do mesmo render. Nas páginas 200 o `unstable_cache`
  * poupa só recalcular o recorte em cada corpo. Onde ele poupa leitura é nas
- * respostas que chegam ao corpo sem ter lido o estoque: o 404 e o 308 da ficha,
- * que saem antes da leitura (`[ficha]/page.tsx:236`, `:250` e `:259`), e toda
- * resposta da rota legada de cinco segmentos (`[ficha]/[legado]/page.tsx`,
- * `force-dynamic`, que não lê o estoque e responde 404 ou 308). São justamente
- * os caminhos falsos e velhos, que não têm limite.
+ * respostas que chegam ao corpo sem ter lido o estoque:
+ *
+ *   - o 404 dos hubs com categoria inválida, como `/foo/volkswagen`, que sai
+ *     antes da leitura (`[marca]/page.tsx:48`, `[modelo]/page.tsx:43`);
+ *   - o 404 e o 308 da ficha, que também saem antes dela
+ *     (`[ficha]/page.tsx:236`, `:250` e `:259`);
+ *   - toda resposta da rota legada de cinco segmentos
+ *     (`[ficha]/[legado]/page.tsx`, `force-dynamic`, que não lê o estoque e
+ *     responde 404 ou 308).
+ *
+ * São justamente os caminhos falsos e velhos, que não têm limite.
  *
  * Na pane do Supabase a leitura estoura `EstoqueIndisponivelError`, e não há
  * `error.tsx` em `src/app` (decisão de 13/09). O componente captura SÓ esse
