@@ -616,6 +616,28 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
  * `ler` (comentários inclusos) faria esta trava reprovar contra sua própria
  * explicação. `lerCodigo` descarta comentário de bloco e de linha antes de
  * procurar.
+ *
+ * ---------------------------------------------------------------------------
+ * 15/09/2026, rodada 2 — a revisão adversarial achou a lista literal frágil
+ * ---------------------------------------------------------------------------
+ * As seis frases pegam a redação exata de hoje, mas não uma variação —
+ * "Se você <strong>aceitar</strong>, usamos:", "Caso você aceite, usamos:",
+ * "mediante o seu consentimento". Duas guardas novas fecham isso:
+ *
+ *   1. Um `not.toMatch(/aceit/i)` sobre o texto visível inteiro. O texto de
+ *      hoje tem ZERO ocorrências de "aceit" fora de comentário — medido
+ *      antes de escrever esta trava — então qualquer variação de "aceite"/
+ *      "aceitar"/"aceitou" que reapareça na política, em QUALQUER redação,
+ *      derruba a trava. É mais forte que a lista literal e não substitui
+ *      as seis frases: a lista nomeia o que aconteceu, o `/aceit/i` fecha o
+ *      que a lista não previu.
+ *   2. Um segundo controle positivo, perto do fim do trecho reescrito
+ *      ("Usamos estas ferramentas:"), ao lado do controle que já existia
+ *      ("carregadas desde o início da visita", perto do início). Sem ele, o
+ *      `not.toMatch(/aceit/i)` passaria em falso caso a leitura parasse de
+ *      alcançar a segunda metade do texto reescrito — um arquivo truncado ou
+ *      um `lerCodigo` que devolvesse só o começo teria zero "aceit" e o
+ *      teste ficaria verde sem ter lido nada.
  */
 describe("B.6 · a política não deixou sobra do regime de aceite", () => {
   const politica = lerCodigo("src/app/privacidade/page.tsx");
@@ -635,12 +657,16 @@ describe("B.6 · a política não deixou sobra do regime de aceite", () => {
    */
   const semQuebras = politica.replace(/\s+/g, " ");
 
-  it("controle: a leitura alcança o arquivo certo, com conteúdo de verdade", () => {
+  it("controle: a leitura alcança o arquivo certo, do início ao fim do trecho reescrito", () => {
     // Sem isto, as negativas abaixo passariam por estarem lendo o arquivo
-    // errado — ou um arquivo vazio — e não porque o texto de fato mudou. É o
-    // mesmo controle positivo que o teste vizinho, "a política admite que o
-    // rastreamento começa ANTES da resposta", já faz.
+    // errado — ou um arquivo vazio, ou truncado — e não porque o texto de
+    // fato mudou. É o mesmo controle positivo que o teste vizinho, "a
+    // política admite que o rastreamento começa ANTES da resposta", já faz.
+    // Duas âncoras, uma perto do início da seção de cookies e outra perto do
+    // fim: o `not.toMatch(/aceit/i)` abaixo só vale alguma coisa se a leitura
+    // realmente alcançar as duas pontas do trecho que este PR reescreveu.
     expect(semQuebras).toContain("carregadas desde o início da visita");
+    expect(semQuebras).toContain("Usamos estas ferramentas:");
   });
 
   it("nenhuma frase do regime de aceite revogado sobrou", () => {
@@ -669,6 +695,15 @@ describe("B.6 · a política não deixou sobra do regime de aceite", () => {
         frase,
       );
     }
+  });
+
+  it("nenhuma variação de 'aceit' sobrou no texto visível", () => {
+    // Mais forte que a lista literal acima: pega qualquer redação nova que
+    // reintroduza a ideia de aceite — "aceite", "aceitar", "aceitou",
+    // "Aceitar" em negrito, "caso aceite" — sem precisar prever a frase
+    // exata. Ver o controle de leitura, no `it` anterior, para o motivo de
+    // não bastar sozinho.
+    expect(semQuebras).not.toMatch(/aceit/i);
   });
 });
 
