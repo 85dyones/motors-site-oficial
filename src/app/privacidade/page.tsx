@@ -48,7 +48,7 @@ const breadcrumbSchema = {
 
 // Data da última revisão do texto. Atualizar sempre que o conteúdo mudar —
 // a LGPD espera que o titular consiga saber qual versão aceitou.
-const ULTIMA_ATUALIZACAO = "1º de agosto de 2026";
+const ULTIMA_ATUALIZACAO = "15 de setembro de 2026";
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
@@ -236,7 +236,7 @@ export default async function PrivacidadePage() {
               </li>
               <li>
                 <strong className="text-mt-ink">Legítimo interesse</strong> — para segurança
-                do site e prevenção a fraudes.
+                do site, prevenção a fraudes e diagnóstico de falhas.
               </li>
               <li>
                 <strong className="text-mt-ink">Obrigação legal</strong> — para guardar
