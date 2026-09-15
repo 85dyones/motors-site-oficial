@@ -8,7 +8,7 @@ import { ROTULOS, temRotulo, type Dossie } from "./dossie";
  * independente" e a validação passava a reprovar tudo — a tabela de
  * resultados chegou a ser lida como "cinco modelos ruins" antes de a causa
  * aparecer. Isso NÃO generaliza: nem toda regra de substring usa `\b` —
- * GARANTIA, DONOS, os equipamentos e a primeira alternativa do próprio
+ * GARANTIA, DONOS e a primeira alternativa do próprio
  * STATUS_INTERNO ("em an[áa]lise") não usam —, então uma regra nova precisa
  * avaliar caso a caso se corre o mesmo risco, em vez de supor que o arquivo
  * inteiro já se protege sozinho. `MENCIONA_PERICIA` usa: "laudo" é substring
@@ -299,35 +299,48 @@ const DONOS = /[úu]nico dono|[úu]nica dona/i;
  * portão com o dossiê `["Vidros elétricos","Ar-condicionado"]` e o texto "Traz
  * teto solar, bancos em couro e central multimídia": nenhuma reprovação. Ter um
  * opcional declarado não autoriza os outros.
- */
-const EQUIPAMENTOS_FONTE =
-  "teto solar|teto panor[âa]mico|banco[s]? em couro|couro|multim[íi]dia|c[âa]mera de r[ée]|sensor de estacionamento|ar-condicionado digital";
-const TODOS_OS_EQUIPAMENTOS = new RegExp(EQUIPAMENTOS_FONTE, "gi");
-
-/** Caixa e acento fora: "Ar-condicionado" do dossiê é "ar-condicionado" no texto. */
-const semAcento = (s: string) =>
-  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-
-/**
- * O equipamento citado está entre os opcionais declarados?
  *
- * A comparação vale nos dois sentidos porque os dois lados recortam diferente:
- * o texto diz "bancos em couro" onde o dossiê diz "Couro", e o dossiê diz
- * "Central multimídia" onde o texto diz "multimídia".
+ * CATÁLOGO desde 14/09/2026 (qa-guardian). A versão anterior comparava o
+ * trecho citado com cada opcional por `includes`, nos dois sentidos, e errava
+ * para os dois lados:
+ * - o opcional "Ar" liberava "teto solar", porque "teto solar" contém "ar";
+ * - "Ar-condicionado" liberava "ar-condicionado digital", que é outro fato;
+ * - "Bancos de couro", "Câmera traseira" e "Ar condicionado digital" não
+ *   liberavam "bancos em couro", "câmera de ré" e "ar-condicionado digital".
+ * Agora o texto e os opcionais passam pelo mesmo catálogo, e a comparação é
+ * pelo nome do item. As grafias vêm dos opcionais gravados em produção (SQL
+ * de 14/09/2026, 38 veículos com opcionais): "teto solar panoramico" conta
+ * como teto solar e como teto panorâmico, "kit multimídia" é central
+ * multimídia, e "sensor de iluminacao" não é sensor de estacionamento.
+ *
+ * "sensor" e "câmera" sem complemento não contam: não dá para saber qual
+ * equipamento é.
+ *
+ * Depois de "ré" vai `(?!\p{L})`, com a flag `u`, e não `\b`: o `\b` do
+ * JavaScript só conhece `[A-Za-z0-9_]`, e "ré\b" nunca casa.
  */
-function equipamentoDeclarado(citado: string, opcionais: string[]): boolean {
-  const c = semAcento(citado);
-  return opcionais.some((o) => {
-    const d = semAcento(o);
-    // Opcional vazio casaria com tudo e desligaria a regra em silêncio.
-    return d.length > 0 && (d.includes(c) || c.includes(d));
-  });
-}
+const CATALOGO_DE_EQUIPAMENTOS: { item: string; grafia: RegExp }[] = [
+  { item: "teto solar", grafia: /\bteto solar\b/iu },
+  { item: "teto panorâmico", grafia: /\bteto (?:solar )?panor[âa]mico\b/iu },
+  { item: "bancos em couro", grafia: /\bcouro\b/iu },
+  { item: "central multimídia", grafia: /\bmultim[íi]dia\b/iu },
+  { item: "câmera de ré", grafia: /\bc[âa]mera (?:de r[ée]|traseira)(?!\p{L})/iu },
+  { item: "câmera 360", grafia: /\bc[âa]meras? (?:de )?360\b/iu },
+  {
+    item: "sensor de estacionamento",
+    grafia: /\bsensor(?:es)? (?:de estacionamento|de r[ée](?!\p{L})|traseiros?|dianteiros?)/iu,
+  },
+  { item: "ar-condicionado digital", grafia: /\bar[- ]condicionado digital\b/iu },
+];
 
-/** Os equipamentos que o texto cita e o dossiê não sustenta. */
+/** Os itens do catálogo que o texto cita e os opcionais não declaram. */
 function equipamentosForaDoDossie(texto: string, opcionais: string[]): string[] {
-  const citados = Array.from(texto.matchAll(TODOS_OS_EQUIPAMENTOS), (m) => m[0]);
-  return [...new Set(citados.filter((c) => !equipamentoDeclarado(c, opcionais)))];
+  const declarados = new Set(
+    CATALOGO_DE_EQUIPAMENTOS.filter((e) => opcionais.some((o) => e.grafia.test(o))).map((e) => e.item),
+  );
+  return CATALOGO_DE_EQUIPAMENTOS.filter((e) => e.grafia.test(texto) && !declarados.has(e.item)).map(
+    (e) => e.item,
+  );
 }
 
 export function validarDescritivo(

@@ -546,6 +546,69 @@ describe("regra: fato fora do dossiê", () => {
   it("aceita único dono quando o dossiê tem Donos anteriores", () => {
     expect(motivos("Único dono, sempre na concessionária.", APROVADO)).not.toContain("fato fora do dossiê");
   });
+
+  /**
+   * CATÁLOGO (14/09/2026, qa-guardian). As grafias dos opcionais vêm de
+   * produção: 38 veículos com opcionais, SQL de 14/09.
+   */
+  const comOpcionais = (opcionais: string) =>
+    montarDossie({
+      marca: "chevrolet", modelo: "onix", ano: 2021, preco: "72900.00",
+      quilometragem: 51000, cambio: "manual", cor: "prata", tipo: "Hatch",
+      pericia: "Em análise", opcionais,
+    });
+
+  /**
+   * Outra grafia do mesmo item libera o item. Cada caso prova primeiro que o
+   * texto É lido como aquele equipamento (reprova sem o opcional) e só depois
+   * que a outra grafia o libera. Sem a primeira asserção, um texto que a regra
+   * nem enxergasse passaria por motivo nenhum.
+   *
+   * "Central multimídia." com "Kit multimídia" já passava pela régua antiga e
+   * fica como guarda.
+   */
+  it.each([
+    ["Bancos em couro.", "Bancos de couro"],
+    ["Banco em couro.", "bancos em couro"],
+    ["Com sensores traseiros.", "Sensor de estacionamento"],
+    ["Ar-condicionado digital.", "Ar condicionado digital"],
+    ["Com câmera de ré.", "Câmera traseira"],
+    ["Com teto panorâmico.", "Teto solar panoramico"],
+    ["Central multimídia.", "Kit multimídia"],
+    ["Câmera 360.", "Camera 360 graus"],
+  ])("'%s' reprova sem opcional e passa com '%s'", (texto, opcional) => {
+    expect(motivos(texto, SEM_NADA, "descricao")).toContain("fato fora do dossiê");
+    expect(motivos(texto, comOpcionais(opcional), "descricao")).not.toContain("fato fora do dossiê");
+  });
+
+  /**
+   * Opcional parecido NÃO libera o vizinho. Os três primeiros passavam pela
+   * régua antiga, que comparava por `includes`: "teto solar" contém "ar".
+   * "Sensor de iluminacao" já reprovava e fica como guarda.
+   */
+  it.each([
+    ["Com teto solar.", "Ar", "teto solar"],
+    ["Ar-condicionado digital.", "Ar-condicionado", "ar-condicionado digital"],
+    ["Com teto solar panorâmico.", "Teto solar", "teto panorâmico"],
+    ["Com sensor de estacionamento.", "Sensor de iluminacao", "sensor de estacionamento"],
+  ])("'%s' reprova com o opcional vizinho '%s'", (texto, opcional, item) => {
+    const r = validarDescritivo(texto, comOpcionais(opcional), "descricao");
+    expect(r.find((x) => x.regra === "fato fora do dossiê")?.motivo).toContain(item);
+  });
+
+  it("'Teto solar panoramico' declara o teto solar também", () => {
+    expect(motivos("Com teto solar.", SEM_NADA, "descricao")).toContain("fato fora do dossiê");
+    expect(motivos("Com teto solar.", comOpcionais("Teto solar panoramico"), "descricao")).not.toContain(
+      "fato fora do dossiê",
+    );
+  });
+
+  it("não conta sensor de chuva nem 'sensores' sem complemento", () => {
+    // Controle: o sensor de estacionamento É contado.
+    expect(motivos("Com sensor de estacionamento.", SEM_NADA, "descricao")).toContain("fato fora do dossiê");
+    expect(motivos("Com sensor de chuva.", SEM_NADA, "descricao")).not.toContain("fato fora do dossiê");
+    expect(motivos("Com sensores.", SEM_NADA, "descricao")).not.toContain("fato fora do dossiê");
+  });
 });
 
 describe("texto limpo", () => {
