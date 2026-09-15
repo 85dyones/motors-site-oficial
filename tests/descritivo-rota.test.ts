@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 
 /**
  * A porta do gerador.
@@ -169,5 +169,89 @@ describe("POST /api/estoque/[id]/descritivo", () => {
     const r = await chamar();
     expect(r.status).toBe(500);
     expect((await r.json()).error).toBe("o banco recusou a consulta");
+  });
+});
+
+/**
+ * O registro por geração (decisão do dono, 14/09/2026). Até ali a rota não
+ * registrava nada, e o log da Vercel mostrava quatro 422 em 13 e 14/09 sem
+ * dizer o campo, a regra, os tokens ou o tempo.
+ *
+ * O espião fica mudo para não sujar a saída da suíte, e volta ao `console`
+ * depois de cada teste.
+ */
+describe("registro por geração", () => {
+  let espiao: MockInstance<typeof console.info>;
+  beforeEach(() => {
+    espiao = vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    espiao.mockRestore();
+  });
+
+  /** As linhas `[descritivo]` que a rota escreveu, já lidas do JSON. */
+  const registros = () =>
+    espiao.mock.calls.filter((c) => c[0] === "[descritivo]").map((c) => JSON.parse(String(c[1])));
+
+  it("registra campo, status, tokens e duração quando o texto passa", async () => {
+    comPerfil(["admin"]);
+    await chamar();
+    const linhas = registros();
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0]).toMatchObject({
+      veiculo: "7803195",
+      campo: "descricao_seo",
+      status: 200,
+      regras: [],
+      caracteres: "Texto limpo do anúncio.".length,
+      primeiraFrase: "Texto limpo do anúncio.".length,
+      tokensEntrada: 2200,
+      tokensSaida: 80,
+    });
+    expect(typeof linhas[0].ms).toBe("number");
+    expect(linhas[0].ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it("registra as regras que reprovaram, no 422", async () => {
+    comPerfil(["admin"]);
+    gerarTexto.mockResolvedValue({ ok: true, texto: "SUV premium com garantia de motor e câmbio.", entrada: 1900, saida: 60 });
+    expect((await chamar()).status).toBe(422);
+    expect(registros()).toEqual([
+      expect.objectContaining({
+        status: 422,
+        regras: ["vocabulário", "fato fora do dossiê"],
+        tokensEntrada: 1900,
+        tokensSaida: 60,
+      }),
+    ]);
+  });
+
+  it("registra o motivo quando a geração falha, sem tokens", async () => {
+    comPerfil(["admin"]);
+    gerarTexto.mockResolvedValue({ ok: false, status: 502, motivo: "A OpenAI recusou a chamada: modelo inexistente" });
+    expect((await chamar()).status).toBe(502);
+    const linhas = registros();
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0]).toMatchObject({
+      campo: "descricao_seo",
+      status: 502,
+      motivo: "A OpenAI recusou a chamada: modelo inexistente",
+    });
+    expect(linhas[0]).not.toHaveProperty("tokensEntrada");
+  });
+
+  it("não põe o texto gerado no registro", async () => {
+    comPerfil(["admin"]);
+    await chamar();
+    // Controle: a linha existe. Sem isto, o `not.toContain` passaria com o
+    // registro apagado.
+    expect(registros()).toHaveLength(1);
+    expect(JSON.stringify(registros())).not.toContain("Texto limpo do anúncio.");
+  });
+
+  it("não registra quem é barrado antes da geração", async () => {
+    comPerfil(null);
+    expect((await chamar()).status).toBe(401);
+    expect(registros()).toEqual([]);
   });
 });
