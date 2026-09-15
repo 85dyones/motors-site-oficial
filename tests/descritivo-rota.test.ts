@@ -66,10 +66,22 @@ const chamar = (corpo: any = { campo: "descricao_seo" }) =>
     method: "POST", body: JSON.stringify(corpo), headers: { "content-type": "application/json" },
   }) as any, { params: Promise.resolve({ id: "7803195" }) });
 
+/**
+ * Toda chamada que chega à geração escreve uma linha `[descritivo]`. O espião
+ * do `console.info` vale para o arquivo inteiro, mudo, para nenhum teste sujar
+ * a saída da suíte; o `describe("registro por geração")` lê as chamadas dele.
+ */
+let espiao: MockInstance<typeof console.info>;
+
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.OPENAI_API_KEY = "sk-teste";
   gerarTexto.mockResolvedValue({ ok: true, texto: "Texto limpo do anúncio.", entrada: 2200, saida: 80 });
+  espiao = vi.spyOn(console, "info").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  espiao.mockRestore();
 });
 
 describe("POST /api/estoque/[id]/descritivo", () => {
@@ -177,18 +189,10 @@ describe("POST /api/estoque/[id]/descritivo", () => {
  * registrava nada, e o log da Vercel mostrava quatro 422 em 13 e 14/09 sem
  * dizer o campo, a regra, os tokens ou o tempo.
  *
- * O espião fica mudo para não sujar a saída da suíte, e volta ao `console`
- * depois de cada teste.
+ * O espião é o do arquivo inteiro (ver o `beforeEach` do topo): mudo, e
+ * devolvido ao `console` depois de cada teste.
  */
 describe("registro por geração", () => {
-  let espiao: MockInstance<typeof console.info>;
-  beforeEach(() => {
-    espiao = vi.spyOn(console, "info").mockImplementation(() => {});
-  });
-  afterEach(() => {
-    espiao.mockRestore();
-  });
-
   /** As linhas `[descritivo]` que a rota escreveu, já lidas do JSON. */
   const registros = () =>
     espiao.mock.calls.filter((c) => c[0] === "[descritivo]").map((c) => JSON.parse(String(c[1])));
