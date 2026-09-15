@@ -136,8 +136,9 @@ describe("SugestaoDeTexto", () => {
 
   /**
    * O 422 traz o texto que reprovou. Até 14/09/2026 o painel o jogava fora, e
-   * quem lia "abertura: A abertura tem 184 caracteres" não tinha como conferir
-   * se a régua errou ou se o texto estourou de fato.
+   * quem lia "A abertura tem 184 caracteres e o Google corta em 155" — motivo
+   * do print do painel que o dono mandou em 14/09/2026 — não tinha como
+   * conferir se a régua errou ou se o texto estourou de fato.
    */
   it("mostra o texto reprovado junto dos motivos", async () => {
     RESPOSTA = {

@@ -81,8 +81,9 @@ describe("primeiraFraseDe", () => {
 
 /**
  * A régua é a PRIMEIRA frase em 155 desde 14/09/2026 — decisão do dono, a
- * regra dos rascunhos de 17/08. Com as duas primeiras frases, o botão reprovava
- * quase tudo: 4 das 6 gerações registradas na Vercel em 13 e 14/09 deram 422.
+ * regra dos rascunhos de 17/08. O log da Vercel de 13 e 14/09 registrou 6
+ * gerações em 3 veículos, 4 delas com 422 — nenhuma linha nomeia o campo nem
+ * a regra.
  */
 describe("regra: primeira frase em 155 caracteres", () => {
   it("reprova primeira frase maior que o corte do Google", () => {

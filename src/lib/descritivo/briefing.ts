@@ -90,9 +90,11 @@ e nada de texto institucional que serviria para qualquer carro.
  * de `primeiraFraseDe` (`validacao.ts`). A mira fica abaixo do teto de
  * propósito: o modelo não conta caracteres, e não há segunda tentativa. Até
  * ali o prompt pedia as duas primeiras frases "entre 130 e 155", colado no
- * teto, e todo estouro chegava ao painel como erro. A faixa de 100 a 140 é a
- * dos rascunhos que o dono aprovou em 17/08: a primeira frase deles tem
- * mediana 130, p25 108 e p75 141.
+ * teto, e todo estouro chegava ao painel como erro. A faixa de 100 a 140
+ * cobre 26 dos 47 rascunhos que o dono aprovou em 17/08 — 13 passam de 140. A
+ * primeira frase deles tem mediana 130 e p75 141; o p25 bruto é 108, puxado
+ * pelo 8109647, que mede 6 por causa de "VW up!" e tem frase real de 136 —
+ * corrigido, o p25 dá 112 (revisão final, 15/09/2026).
  */
 const FORMATO: Record<CampoDeTexto, string> = {
   descricao_seo: `

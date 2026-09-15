@@ -38,13 +38,15 @@ export type Reprovacao = { regra: string; motivo: string };
  * ali no meio do número: bug medido em 08/09/2026. A mesma armadilha pegou o
  * `conteudo-seo/aplicar-rascunhos.js` de 17/08, que procura o último ponto
  * antes do caractere 155: ele aceitou três rascunhos cuja primeira frase passa
- * de 155, porque o ponto que achou era o de "53.200 km".
+ * de 155, porque tomou por fim de frase o ponto de um número: "53.200 km"
+ * (8252763), "21.705 km" (7447739) e "1.0" (8059102).
  *
  * Reticências ("…") fecham frase desde 14/09/2026, como o ponto. Antes não
  * fechavam, e a frase seguinte entrava na conta.
  *
  * LIMITE CONHECIDO: ponto ou exclamação dentro de nome encerra a frase cedo —
- * "VW up!" mede 6 caracteres. O erro é para o lado de aceitar.
+ * "VW up!" mede 6 caracteres. Abreviação corta a frase do mesmo jeito —
+ * "…visto na Av." mede 64. O erro é para o lado de aceitar.
  */
 const CORPO_DA_FRASE = "(?:[^.!?…]|(?<=\\d)\\.(?=\\d))+";
 
@@ -209,10 +211,12 @@ const STATUS_INTERNO = new RegExp(
  *   600 km" e "Motor nacional, com peças e atendimento fáceis de achar"
  *   ("alcance" e "atendimento" contavam como palavra de entrega).
  * Santa Catarina e os lugares de fora só contam depois de uma palavra de
- * entrega. A lista tem os estados e as cidades catarinenses ao sul de
- * Balneário Camboriú. Ficam de fora "Pará" e "Acre", que colidem com "para" e
- * "acre", e "São José", porque São José dos Pinhais é da região metropolitana
- * de Curitiba.
+ * entrega. A lista tem os estados e 6 cidades catarinenses (Florianópolis,
+ * Palhoça, Criciúma, Chapecó, Lages, Tubarão) — NÃO é a cobertura completa do
+ * litoral ao sul de Balneário Camboriú: "Entregamos em Itapema e Porto Belo."
+ * e "Entregamos em Brusque e Laguna." passam sem reprovar. Ficam de fora
+ * "Pará" e "Acre", que colidem com "para" e "acre", e "São José", porque São
+ * José dos Pinhais é da região metropolitana de Curitiba.
  *
  * Revisão da tarefa (15/09/2026, decisão do dono): "atendemos" saiu das
  * palavras de entrega, porque "Atendemos com garantia nacional de peças" fala

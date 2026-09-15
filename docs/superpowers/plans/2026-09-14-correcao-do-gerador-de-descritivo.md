@@ -21,7 +21,7 @@
 
 - **Rascunhos aprovados.** `conteudo-seo/rascunhos*.json` guarda os 47 `descricao_seo` que o dono aprovou em 17/08.
   - A régua de duas frases reprova 41 deles. A da primeira frase reprova 3: 8252763 (171), 7447739 (181) e 8059102 (162).
-  - Os três passam de 155 de verdade. O `aplicar-rascunhos.js` de 17/08 os aceitou porque tomou o ponto de "53.200 km" por fim de frase.
+  - Os três passam de 155 de verdade. O `aplicar-rascunhos.js` de 17/08 os aceitou porque tomou por fim de frase o ponto de um número: "53.200 km" (8252763), "21.705 km" (7447739) e "1.0" (8059102).
   - A primeira frase dos 47 tem mediana 130, p25 108 e p75 141.
 - **Log da Vercel, 13 e 14/09.** Houve 6 chamadas em 3 veículos, 4 delas com 422. Nenhuma linha diz o campo nem a regra.
 - **Opcionais em produção** (SQL só leitura, 14/09, 38 veículos com opcionais):
