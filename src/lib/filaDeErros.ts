@@ -165,6 +165,29 @@ export function ehHashDeAgrupamento(valor: unknown): valor is string {
   return typeof valor === "string" && FORMA_DO_HASH.test(valor);
 }
 
+/**
+ * A FORMA do `digest` do Next — NÃO é a forma do hash acima.
+ *
+ * O Next 16.2.6 anexa um código de erro interno ao digest
+ * (`createDigestWithErrorCode`, em `next/dist/lib/error-telemetry-utils.js`),
+ * e o resultado é `"<hash>@E<código>"` — com `@`, que `FORMA_DO_HASH` recusa
+ * por não ser hex, e às vezes com menos de 8 caracteres, que ela recusa por
+ * ser curto demais. Validar o digest com a forma do hash descarta em silêncio
+ * justo os casos que o botão de digest precisa linkar (B1, #72).
+ *
+ * Repete de propósito `FORMA_DIGEST` de `observabilidade.ts` (#68) — o
+ * gravador e quem lê o `?digest=` têm de concordar sobre o que é um digest
+ * válido. Não é importada de lá: este arquivo é o que `SidebarNav` (client
+ * component) importa por `PERFIS_QUE_TRIAM_ERROS` (ver o cabeçalho do
+ * arquivo), e ele fica deliberadamente sem outra dependência além do próprio
+ * vocabulário. Se as duas formas divergirem é bug — mantenha-as iguais.
+ */
+const FORMA_DO_DIGEST = /^[A-Za-z0-9@_-]{1,64}$/;
+
+export function ehDigest(valor: unknown): valor is string {
+  return typeof valor === "string" && FORMA_DO_DIGEST.test(valor);
+}
+
 /* ────────────────────────────────────────────────────────────────────────
    Projeções — a lista sem `stack`, o detalhe com ele
    ──────────────────────────────────────────────────────────────────────── */
@@ -564,7 +587,7 @@ export function filtrosDaBusca(busca: Record<string, string | string[] | undefin
     ambiente: ambiente === "todos" ? "" : ambiente || AMBIENTE_PADRAO,
     estado: estado === "todos" ? "todos" : "abertos",
     janela: (JANELAS as readonly number[]).includes(janela) ? janela : JANELA_PADRAO,
-    digest: ehHashDeAgrupamento(digest) ? digest : undefined,
+    digest: ehDigest(digest) ? digest : undefined,
   };
 }
 

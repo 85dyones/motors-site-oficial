@@ -144,7 +144,7 @@ export default function DetalheDoGrupoDeErros({
             {digestsNaPagina.map((d) => (
               <Link
                 key={d}
-                href={`/admin/erros/${hash}?digest=${d}`}
+                href={`/admin/erros/${hash}?digest=${encodeURIComponent(d)}`}
                 className={`mt-foco border px-2.5 py-1 font-mono text-[10px] no-underline transition-colors ${
                   d === digest
                     ? "border-mt-accent bg-mt-accent-100 text-mt-accent"

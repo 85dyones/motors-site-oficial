@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import DetalheDoGrupoDeErros from "../../../../components/admin/DetalheDoGrupoDeErros";
-import { ehHashDeAgrupamento } from "../../../../lib/filaDeErros";
+import { ehDigest, ehHashDeAgrupamento } from "../../../../lib/filaDeErros";
 import {
   autorizarTriagemDeErros,
   lerGrupoDeErros,
@@ -46,9 +46,12 @@ export default async function GrupoDeErrosPage({
 
   const pagina = Math.max(1, Number(um("pagina")) || 1);
   const digestBruto = um("digest");
-  // O digest do Next é hexadecimal, como o hash de agrupamento — a mesma forma
-  // serve de validação, e nada além dela entra num filtro.
-  const digest = ehHashDeAgrupamento(digestBruto) ? digestBruto : undefined;
+  // O digest do Next 16 NÃO é hexadecimal: o Next anexa um código de erro
+  // interno (`"<hash>@E<código>"`, com `@`), e `ehDigest` repete a forma que
+  // o gravador do #68 usa para gravá-lo. Usar a forma do HASH aqui descartava
+  // em silêncio todo digest com esse sufixo (B1, #72) — nada além da forma
+  // certa entra num filtro.
+  const digest = ehDigest(digestBruto) ? digestBruto : undefined;
 
   const resultado = await lerGrupoDeErros(porta.supabase, hash, { pagina, digest });
 

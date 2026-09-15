@@ -13,6 +13,7 @@ import {
   agruparErros,
   cargaDeResolucao,
   coletaDeErrosLigada,
+  ehDigest,
   ehHashDeAgrupamento,
   explicarVazio,
   filtrosDaBusca,
@@ -478,6 +479,24 @@ describe("ehHashDeAgrupamento repete a forma do CHECK do banco", () => {
   });
 });
 
+describe("ehDigest repete a forma do gravador (#68), não a do hash", () => {
+  it("aceita o digest do Next 16, com o código de erro anexado", () => {
+    // `createDigestWithErrorCode`, em next/dist/lib/error-telemetry-utils.js,
+    // produz "<hash>@E<código>" — o "@" que `ehHashDeAgrupamento` recusa.
+    expect(ehDigest("3793388561@E61")).toBe(true);
+    expect(ehDigest("3350458554")).toBe(true);
+    // A prova do defeito do B1: um digest válido e curto não é um hash.
+    expect(ehHashDeAgrupamento("3793388561@E61")).toBe(false);
+  });
+  it("recusa o que o gravador recusaria", () => {
+    expect(ehDigest("")).toBe(false);
+    expect(ehDigest("tem espaço")).toBe(false);
+    expect(ehDigest("a".repeat(65))).toBe(false);
+    expect(ehDigest(null)).toBe(false);
+    expect(ehDigest(undefined)).toBe(false);
+  });
+});
+
 /* ────────────────────────────────────────────────────────────────────────
    5. O recorte que vem da URL
    ──────────────────────────────────────────────────────────────────────── */
@@ -492,7 +511,11 @@ describe("filtrosDaBusca", () => {
   });
 
   it("vocabulário fechado: o que não é da lista não vira filtro", () => {
-    const f = filtrosDaBusca({ origem: "n8n", janela: "999999", digest: "zzz" });
+    // O digest usa "<script>" (fora da forma em qualquer versão) e não "zzz":
+    // desde a correção do B1 (#72), "zzz" É um digest de forma válida — três
+    // letras cabem em `[A-Za-z0-9@_-]{1,64}` — e não seria mais um exemplo de
+    // lixo descartado.
+    const f = filtrosDaBusca({ origem: "n8n", janela: "999999", digest: "<script>" });
     expect(f.origem).toBe("");
     expect(f.janela).toBe(JANELA_PADRAO);
     expect(f.digest).toBeUndefined();
@@ -501,6 +524,14 @@ describe("filtrosDaBusca", () => {
   it('"todos" no ambiente é o jeito de dizer sem recorte', () => {
     expect(filtrosDaBusca({ ambiente: "todos" }).ambiente).toBe("");
     expect(filtrosDaBusca({ estado: "todos" }).estado).toBe("todos");
+  });
+
+  it("aceita o digest do Next 16, que tem '@' e não é hexadecimal (B1)", () => {
+    // `createDigestWithErrorCode`, em next/dist/lib/error-telemetry-utils.js,
+    // produz "<hash>@E<código>". Validar com a forma do HASH (só hex, 8-64)
+    // descartava em silêncio todo digest com esse sufixo — o defeito do B1.
+    const f = filtrosDaBusca({ digest: "3793388561@E61" });
+    expect(f.digest).toBe("3793388561@E61");
   });
 });
 
