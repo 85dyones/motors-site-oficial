@@ -15,11 +15,12 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * Por que um componente, e o que fica em cada página
  * ---------------------------------------------------------------------------
  * `not-found.tsx` não recebe params: cada página só sabe quem ela é — o título,
- * o texto e o bloco de encomenda. Tudo o que vem do estoque (a amostra do
- * pátio, as faixas, as carrocerias, as marcas) e o tratamento da pane são
- * iguais nas três, e moram aqui. A primeira versão, só da ficha, é a do #70; a
- * extração não mudou o que a ficha renderiza, e a prova é
- * `tests/ficha-sem-veiculo.test.ts` sem uma linha alterada.
+ * o texto e o bloco de encomenda. O que vem do estoque (a amostra do pátio, as
+ * carrocerias, as marcas), as faixas de preço, que são fixas
+ * (`FAIXAS_DE_PRECO`), e o tratamento da pane são iguais nas três, e moram
+ * aqui. A primeira versão, só da ficha, é a do #70; a extração não mudou o que
+ * a ficha renderiza, e a prova é `tests/ficha-sem-veiculo.test.ts` sem uma
+ * linha alterada.
  *
  * ---------------------------------------------------------------------------
  * Componente nenhum novo na tela
@@ -58,9 +59,12 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * (`[marca]/page.tsx:49`, `[modelo]/page.tsx:45`, `[ficha]/page.tsx:263`), e o
  * `cache()` de `recortesDoEstoque` (`hubsDeEstoque.ts:495`) faz este corpo
  * reaproveitar a leitura do mesmo render. Nas páginas 200 o `unstable_cache`
- * poupa só recalcular o recorte em cada corpo. Onde ele poupa leitura é no 404
- * da ficha, que sai antes de ler o estoque (`[ficha]/page.tsx:236` e `:250`) —
- * justamente o caminho falso, que é ilimitado.
+ * poupa só recalcular o recorte em cada corpo. Onde ele poupa leitura é nas
+ * respostas que chegam ao corpo sem ter lido o estoque: o 404 e o 308 da ficha,
+ * que saem antes da leitura (`[ficha]/page.tsx:236`, `:250` e `:259`), e toda
+ * resposta da rota legada de cinco segmentos (`[ficha]/[legado]/page.tsx`,
+ * `force-dynamic`, que não lê o estoque e responde 404 ou 308). São justamente
+ * os caminhos falsos e velhos, que não têm limite.
  *
  * Na pane do Supabase a leitura estoura `EstoqueIndisponivelError`, e não há
  * `error.tsx` em `src/app` (decisão de 13/09). O componente captura SÓ esse
@@ -78,9 +82,10 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * `next/dist/server/app-render/`), reserva-o para o slot dos filhos (`:336`) e
  * o passa ao LayoutRouter na prop `notFound` (`:473`). É um elemento de
  * componente de servidor nas props de um componente de cliente, e o RSC o
- * renderiza de qualquer jeito — ser assíncrono não muda nada. O corpo inteiro
- * (leitura, amostra, blocos, índice e formulário) roda e entra no payload de
- * toda página da subárvore, inclusive das que respondem 200. A ficha carrega
+ * renderiza de qualquer jeito — ser assíncrono não muda nada. A leitura, a
+ * amostra, os blocos e o índice rodam no servidor e entram no payload de toda
+ * página da subárvore, inclusive das que respondem 200. O formulário, que é
+ * componente de cliente, entra como referência, com as props. A ficha carrega
  * três corpos (ficha, modelo e marca), o hub de modelo carrega dois e o de
  * marca, um.
  *
@@ -100,9 +105,11 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * `EstoqueIndisponivelError`, e agora isso acontece dentro do render de toda
  * ficha e todo hub. No build e na revalidação do ISR o Next prerenderiza a
  * página (`app-render.js:1402-1404`) e falha a geração quando o render teve
- * erro inesperado (`:1421-1430`). Um defeito de programação aqui derruba a
- * geração da página que existe, e não só o 404. Antes de pôr mais peso ou outra
- * leitura neste componente — ou um quarto `not-found.tsx` —, conte com isso.
+ * erro inesperado (`:1421-1430`). Isso vale para a ficha, gerada por ISR (● no
+ * build): um defeito de programação aqui derruba a geração da ficha que
+ * existe, e não só o 404. Os hubs são dinâmicos (ƒ no build) e não passam por
+ * esse prerender. Antes de pôr mais peso ou outra leitura neste componente — ou
+ * um quarto `not-found.tsx` —, conte com isso.
  *
  * ---------------------------------------------------------------------------
  * Chamado como função pelas páginas
