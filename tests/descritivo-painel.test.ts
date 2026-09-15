@@ -193,6 +193,35 @@ describe("SugestaoDeTexto", () => {
     expect(naTela()).toContain("Honda NXR 160 Bros 2022.");
   });
 
+  /**
+   * O `setReprovado(null)` do começo de `gerar()` é o que impede o texto
+   * reprovado antigo de voltar sob um erro que não traz texto: a queda de rede
+   * cai no `catch`, que não mexe em `reprovado`. O sucesso seguinte não prova
+   * isso, porque `setErro(null)` já esconde a caixa do erro inteira.
+   */
+  it("não traz de volta o texto reprovado quando a geração seguinte cai na rede", async () => {
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "vocabulário", motivo: "Usa palavra barrada." }],
+        texto: "SUV premium.",
+      },
+    };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela()).toContain("SUV premium.");
+
+    globalThis.fetch = (async () => {
+      throw new Error("Falha de rede simulada");
+    }) as unknown as typeof fetch;
+    await clicar(botao("gerar outro"));
+    // Controle: o erro novo chegou à tela.
+    expect(naTela()).toContain("Falha de rede simulada");
+    expect(naTela()).not.toContain("SUV premium.");
+    expect(() => botao("gerar sugestão")).not.toThrow();
+  });
+
   it("não oferece 'usar este texto' quando a geração falhou", async () => {
     RESPOSTA = { ok: false, status: 502, corpo: { error: "A OpenAI recusou a chamada" } };
     montar();
