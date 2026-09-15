@@ -223,20 +223,32 @@ export default async function PrivacidadePage() {
             <p>
               A LGPD exige que todo tratamento tenha uma justificativa legal. As nossas são:
             </p>
+            {/* Até 31/08/2026 havia aqui um item "Consentimento" para cookies
+                de publicidade e análise — descrevia um aceite que a decisão
+                do dono, na mesma data, revogou. QA encontrou a sobra em
+                15/09/2026: nenhum tratamento desta página depende mais de
+                consentimento, então o item saiu, e a medição de anúncios e de
+                uso do site entrou no legítimo interesse, junto do que já
+                estava lá. A seção "Seus direitos como titular", abaixo, não
+                muda — os direitos que a LGPD associa a consentimento
+                continuam existindo em tese, mesmo sem tratamento que os use
+                hoje. Se algum dia voltar a haver cookie sob consentimento, o
+                item volta junto. */}
             <ul className="list-disc pl-5 flex flex-col gap-2">
-              <li>
-                <strong className="text-mt-ink">Consentimento</strong> — para cookies de
-                publicidade e análise. Só são ativados depois que você clica em &ldquo;Aceitar&rdquo;
-                no aviso de cookies, e você pode mudar de ideia a qualquer momento.
-              </li>
               <li>
                 <strong className="text-mt-ink">Execução de contrato e procedimentos
                 preliminares</strong> — para tratar os dados que você nos envia com o objetivo de
                 comprar, vender ou avaliar um veículo.
               </li>
               <li>
-                <strong className="text-mt-ink">Legítimo interesse</strong> — para segurança
-                do site, prevenção a fraudes e diagnóstico de falhas.
+                <strong className="text-mt-ink">Legítimo interesse</strong> — para medir o
+                desempenho dos nossos anúncios, entender como o site é usado, segurança do
+                site, prevenção a fraudes e diagnóstico de falhas. Você pode se opor a
+                qualquer momento, pelo botão da seção{" "}
+                <a href="#cookies" className="underline underline-offset-2">
+                  Cookies e tecnologias de rastreamento
+                </a>
+                .
               </li>
               <li>
                 <strong className="text-mt-ink">Obrigação legal</strong> — para guardar
@@ -274,19 +286,38 @@ export default async function PrivacidadePage() {
                 que `lib/telemetry.ts` passou a fazer na mesma rodada. Se a
                 gravação na chegada voltar a esperar o aceite, este texto tem de
                 sair junto — política e código contando histórias diferentes é
-                pior do que qualquer das duas escolhas. */}
+                pior do que qualquer das duas escolhas.
+
+                15/09/2026 — QA encontrou duas frases que a decisão de 31/08 já
+                tinha tornado falsas: "caso você aceite mais tarde" (não há mais
+                aceite para esperar) e "não é enviado a ninguém enquanto você não
+                enviar um formulário" (havia — quando ainda havia portão de
+                aceite para o Pixel e o gtag). Conferido em
+                `IntegrationsTracker.tsx`: `persistirFbc()` grava o `_fbc` a
+                partir do `fbclid` e, na sequência do mesmo `checkAndInitTrackors`,
+                sem nada entre os dois além da recusa explícita, inicializa o
+                Meta Pixel — cujo próprio script dispara `fbq('track',
+                'PageView')` de imediato, já com o `_fbc` presente no navegador.
+                GA4 e Google Ads são inicializados do mesmo jeito, e o gtag deles
+                lê `gclid`/`gbraid`/`wbraid` da URL por conta própria. Nenhum dos
+                dois caminhos passa por formulário. Reescrito para dizer isso. */}
             <p>
               Uma exceção, para você saber exatamente o que acontece: quando você chega ao site
               por um anúncio, o endereço traz um código que identifica de qual anúncio veio o
               clique (por exemplo <code>gclid</code> ou <code>fbclid</code>).{" "}
               <strong className="text-mt-ink">Esse código é guardado no seu navegador assim que
-              você chega, antes da sua resposta ao aviso</strong> — é o que nos permite saber
-              qual anúncio funcionou caso você aceite mais tarde, inclusive numa visita futura.
-              Ele fica só no seu dispositivo e não é enviado a ninguém enquanto você não
-              enviar um formulário por vontade própria.{" "}
+              você chega, antes da sua resposta ao aviso</strong> — para que o anúncio não perca
+              o crédito pela visita, inclusive numa visita futura. Como o Google Analytics, o
+              Google Ads e o Meta Pixel já estão ativos desde a chegada (seção acima), esse
+              código pode chegar a eles como parte da própria medição automática desses
+              serviços — não só quando você envia um formulário.{" "}
               <strong className="text-mt-ink">Se você recusar, ele é apagado na hora.</strong>
             </p>
-            <p>Se você aceitar, usamos:</p>
+            {/* Até 15/09/2026 dizia "Se você aceitar, usamos:" — não há mais
+                aceite para condicionar a lista a ele. As ferramentas abaixo
+                carregam desde o início da visita, como o parágrafo do topo
+                desta seção já diz; esta linha só introduz a lista. */}
+            <p>Usamos estas ferramentas:</p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>
                 <strong className="text-mt-ink">Google Analytics 4</strong> — mede audiência e
@@ -310,10 +341,22 @@ export default async function PrivacidadePage() {
                 quem preenche o formulário é uma pessoa, não um robô.
               </li>
             </ul>
+            {/* Até 15/09/2026 esta orientação dizia "para revogar o
+                consentimento, apague os dados de navegação" — instrução de um
+                regime de aceite que não existe mais. Conferido contra
+                `ControleDeRastreamento.tsx`: quem se opõe é quem grava
+                `ag_cookie_consent = "rejected"` no `localStorage`, pelo botão
+                acima; apagar dados do navegador NÃO grava isso — ao
+                contrário, apaga a chave se ela já existir, e a ausência da
+                chave é lida como "não recusou" (`rastreamentoRecusado()` em
+                `lib/telemetry.ts`). A orientação antiga fazia prometer o
+                oposto do que o código faz. */}
             <p>
-              Para revogar o consentimento, apague os dados de navegação (cookies e armazenamento
-              local) deste site no seu navegador. O aviso aparecerá de novo na próxima visita e você
-              poderá recusar.
+              Para se opor ao rastreamento, use o botão acima. A escolha fica gravada neste
+              navegador e vale para as próximas visitas. Apagar os dados de navegação (cookies e
+              armazenamento local) deste site tem o efeito contrário do que parece: apaga também
+              essa escolha, e o rastreamento volta a ficar ativo por padrão — se for esse o caso,
+              use o botão acima de novo para se opor.
             </p>
           </Secao>
 
@@ -323,9 +366,16 @@ export default async function PrivacidadePage() {
               apenas com quem é necessário para o site funcionar:
             </p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
+              {/* Até 15/09/2026: "mediante seu consentimento" — a medição de
+                  anúncios não depende de consentimento desde 31/08. */}
               <li>
                 <strong className="text-mt-ink">Google e Meta</strong> — dados de navegação e
-                identificadores embaralhados, para medição de anúncios, mediante seu consentimento.
+                identificadores embaralhados, para medição de anúncios, com base no legítimo
+                interesse e respeitando a oposição da seção{" "}
+                <a href="#cookies" className="underline underline-offset-2">
+                  Cookies e tecnologias de rastreamento
+                </a>
+                .
               </li>
               <li>
                 <strong className="text-mt-ink">Provedores de infraestrutura</strong> —

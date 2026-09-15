@@ -580,6 +580,100 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
 
 
 /**
+ * B.6 · a política não pode deixar sobra do regime de aceite que 31/08
+ * revogou.
+ *
+ * ---------------------------------------------------------------------------
+ * O que aconteceu
+ * ---------------------------------------------------------------------------
+ * A reescrita de 31/08/2026 corrigiu a seção de cookies — "carregadas desde
+ * o início da visita" — mas deixou frases de ANTES espalhadas pelo resto da
+ * página, todas descrevendo um aceite que já não existe:
+ *
+ *   · Bases legais tinha um item "Consentimento" — "Só são ativados depois
+ *     que você clica em 'Aceitar'".
+ *   · A lista de ferramentas abria com "Se você aceitar, usamos:".
+ *   · A orientação de revogação mandava apagar dados do navegador — o que
+ *     hoje faz o oposto: apaga a oposição gravada, se houver uma.
+ *   · Compartilhamento dizia que Google e Meta recebiam dado "mediante seu
+ *     consentimento".
+ *   · O parágrafo do `gclid`/`fbclid` dizia que o código ajudava a saber
+ *     "qual anúncio funcionou caso você aceite mais tarde" e que "não é
+ *     enviado a ninguém enquanto você não enviar um formulário" — falso: com
+ *     o Pixel e o gtag carregados desde a chegada, o identificador pode
+ *     chegar ao Google e à Meta na própria medição automática deles.
+ *
+ * QA encontrou a contradição em 15/09/2026. Nenhuma das seis é verdade hoje:
+ * o portão é só a recusa explícita (`ag_cookie_consent === "rejected"`), e a
+ * base declarada é legítimo interesse (LGPD art. 7º, IX), não consentimento.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que `lerCodigo`, e não `ler`
+ * ---------------------------------------------------------------------------
+ * Os comentários que a própria correção deixou no JSX CITAM as frases antigas
+ * para explicar o que mudou — é a armadilha que `tests/fonte.ts` descreve: a
+ * nota que explica uma regra quase sempre cita o que a regra proíbe. Ler com
+ * `ler` (comentários inclusos) faria esta trava reprovar contra sua própria
+ * explicação. `lerCodigo` descarta comentário de bloco e de linha antes de
+ * procurar.
+ */
+describe("B.6 · a política não deixou sobra do regime de aceite", () => {
+  const politica = lerCodigo("src/app/privacidade/page.tsx");
+
+  /**
+   * O JSX quebra linha no meio de frase por largura de coluna, não por
+   * sentido — "desde o início da\n              visita" é o mesmo texto que
+   * o leitor vê como "desde o início da visita". `lerCodigo` devolve a fonte
+   * crua, sem passar pelo JSX, então um `toContain` literal comparando com a
+   * fonte perderia qualquer frase que a formatação tenha partido ao meio —
+   * como partiu a segunda frase proibida abaixo ("não é enviado a
+   * ninguém... enquanto você não\n              enviar um formulário").
+   * Colapsar toda sequência de espaço em branco (quebras de linha inclusas)
+   * para um espaço só resolve os dois lados: o `toContain` do controle
+   * positivo e o `not.toContain` de cada frase proibida comparam pelo texto
+   * como o leitor o vê, não pela quebra de linha de hoje.
+   */
+  const semQuebras = politica.replace(/\s+/g, " ");
+
+  it("controle: a leitura alcança o arquivo certo, com conteúdo de verdade", () => {
+    // Sem isto, as negativas abaixo passariam por estarem lendo o arquivo
+    // errado — ou um arquivo vazio — e não porque o texto de fato mudou. É o
+    // mesmo controle positivo que o teste vizinho, "a política admite que o
+    // rastreamento começa ANTES da resposta", já faz.
+    expect(semQuebras).toContain("carregadas desde o início da visita");
+  });
+
+  it("nenhuma frase do regime de aceite revogado sobrou", () => {
+    const FRASES_DO_ACEITE_REMOVIDO = [
+      // Bases legais — item "Consentimento", removido: nada nesta página
+      // depende mais dele.
+      "Só são ativados depois que você clica",
+      // Introdução da lista de ferramentas, que condicionava tudo ao aceite.
+      "Se você aceitar, usamos",
+      // Orientação de revogação: apagar dados do navegador nunca foi o que
+      // desliga o rastreamento neste regime — e hoje até desfaz uma oposição
+      // já registrada.
+      "Para revogar o consentimento",
+      // Compartilhamento: a medição de anúncios é legítimo interesse, não
+      // consentimento.
+      "mediante seu consentimento",
+      // Parágrafo do gclid/fbclid — as duas frases que 31/08 tornou falsas.
+      // A segunda quebra de linha no meio ("você não\nenviar"), por isso a
+      // comparação é contra `semQuebras`, não contra `politica` crua.
+      "caso você aceite mais tarde",
+      "não é enviado a ninguém enquanto você não enviar um formulário",
+    ];
+
+    for (const frase of FRASES_DO_ACEITE_REMOVIDO) {
+      expect(semQuebras, `frase do regime de aceite voltou à política: "${frase}"`).not.toContain(
+        frase,
+      );
+    }
+  });
+});
+
+
+/**
  * B.5 · a jornada que se perdia: navegar antes de decidir.
  *
  * O pedido foi "se melhora a métrica, grave antes do aceite". Gravar no

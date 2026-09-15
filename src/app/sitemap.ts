@@ -71,7 +71,7 @@ async function destaquesParaSitemap(): Promise<string[]> {
  * /contato ou /privacidade precisa subir esta data junto. É pouco, e o esquecimento
  * erra para o lado seguro — anuncia antigo demais, nunca recente demais.
  */
-const ATUALIZACAO_INSTITUCIONAL = new Date("2026-08-15T00:00:00Z");
+const ATUALIZACAO_INSTITUCIONAL = new Date("2026-09-15T00:00:00Z");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // As leituras que alimentam o `lastmod`, a carência e as páginas perenes.
