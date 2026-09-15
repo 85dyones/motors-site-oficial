@@ -200,6 +200,20 @@ describe("regra: vocabulário", () => {
   it("aceita 'sem consulte-nos'", () => {
     expect(motivos("Preço no anúncio, sem consulte-nos.")).not.toContain("vocabulário");
   });
+
+  /**
+   * "Exclusive" é nome de versão (Nissan Versa, Kicks, Sentra), não o chavão
+   * "exclusivo". Com `exclusiv\w*`, o rascunho aprovado 8440875 reprovava
+   * (revisão da tarefa, 15/09/2026).
+   */
+  it.each([
+    "Nissan Versa 1.6 Exclusive 2022, azul, câmbio automático CVT.",
+    "Nissan Kicks Exclusive com câmbio CVT.",
+  ])("aceita o nome de versão Exclusive: %s", (frase) => {
+    // Controle: o chavão "exclusivo" continua reprovando.
+    expect(motivos("Carro exclusivo para você.")).toContain("vocabulário");
+    expect(motivos(frase)).not.toContain("vocabulário");
+  });
 });
 
 /**
@@ -430,7 +444,9 @@ describe("regra: alcance", () => {
    * TERCEIRA REVISÃO (14/09/2026, qa-guardian): "todo o país" sem preposição e
    * lugar fora do recorte passavam. "Entrega em Santa Catarina inteira." já
    * reprovava e fica como guarda: Santa Catarina com palavra de entrega e sem
-   * Balneário continua fora do recorte.
+   * Balneário continua fora do recorte. "Entregamos em todos os estados."
+   * também fica como guarda: a revisão de 15/09/2026 tirou "qualquer estado",
+   * não os estados.
    */
   it.each([
     "Atendemos clientes de todo o país.",
@@ -438,6 +454,7 @@ describe("regra: alcance", () => {
     "Entrega em Florianópolis.",
     "Enviamos para outros estados.",
     "Entrega em Santa Catarina inteira.",
+    "Entregamos em todos os estados.",
   ])("reprova alcance fora do recorte: %s", (frase) => {
     expect(motivos(frase)).toContain("alcance");
   });
@@ -446,7 +463,9 @@ describe("regra: alcance", () => {
    * As três primeiras reprovavam: Santa Catarina de procedência, "alcance" de
    * autonomia e "atendimento" de oficina. As outras são guarda: a região
    * metropolitana (São José dos Pinhais é dela), o litoral até Balneário e a
-   * frase de alcance dos rascunhos aprovados pelo dono em 17/08.
+   * frase de alcance dos rascunhos aprovados pelo dono em 17/08. "Levamos seu
+   * carro em qualquer estado." e "Atendemos com garantia nacional de peças."
+   * reprovavam na primeira entrega desta tarefa (revisão de 15/09/2026).
    */
   it.each([
     "Veio de Santa Catarina com manual e chave reserva.",
@@ -456,6 +475,8 @@ describe("regra: alcance", () => {
     "Entrega em São José dos Pinhais.",
     "Entrega em Joinville e Balneário Camboriú.",
     "Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná e no litoral catarinense até Balneário Camboriú.",
+    "Levamos seu carro em qualquer estado.",
+    "Atendemos com garantia nacional de peças.",
   ])("NÃO reprova: %s", (frase) => {
     expect(motivos(frase)).not.toContain("alcance");
   });

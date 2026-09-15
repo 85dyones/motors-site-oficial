@@ -69,9 +69,14 @@ export function primeiraFraseDe(texto: string): string {
  * "os melhores preços", "consulte condições" e "exclusividade". Reprovava
  * "preço no anúncio, sem consulte-nos", que é frase da casa e está num
  * rascunho aprovado pelo dono em 17/08 (veículo 8324691).
+ *
+ * A família de "exclusivo" é fechada — exclusivo, exclusiva, os plurais e
+ * exclusividade —, porque "Exclusive" é nome de versão (Nissan Versa, Kicks,
+ * Sentra). Com `exclusiv\w*`, o rascunho aprovado 8440875 (Versa Exclusive)
+ * reprovava (medido em 15/09/2026, decisão do dono).
  */
 const VOCABULARIO =
-  /\b(?:premium|luxo|luxuos[oa]s?|exclusiv\w*)\b|(?<!\bsem\s)\bconsulte(?:-nos)?\b|\bmelhor(?:es)? pre[çc]os?\b|proced[êe]ncia garantida|garantia de proced[êe]ncia|melhor estoque/i;
+  /\b(?:premium|luxo|luxuos[oa]s?|exclusiv(?:[oa]s?|idade))\b|(?<!\bsem\s)\bconsulte(?:-nos)?\b|\bmelhor(?:es)? pre[çc]os?\b|proced[êe]ncia garantida|garantia de proced[êe]ncia|melhor estoque/i;
 
 /**
  * O texto do anúncio não fala de perícia. Ponto.
@@ -208,8 +213,16 @@ const STATUS_INTERNO = new RegExp(
  * Balneário Camboriú. Ficam de fora "Pará" e "Acre", que colidem com "para" e
  * "acre", e "São José", porque São José dos Pinhais é da região metropolitana
  * de Curitiba.
+ *
+ * Revisão da tarefa (15/09/2026, decisão do dono): "atendemos" saiu das
+ * palavras de entrega, porque "Atendemos com garantia nacional de peças" fala
+ * de garantia, não de entrega; "Atendemos clientes de todo o país" continua
+ * reprovando por "todo o país". "qualquer estado" saiu dos lugares, porque
+ * "Levamos seu carro em qualquer estado" fala da condição do carro. Tubarão
+ * ficou na lista, também por decisão do dono, mesmo colidindo com o apelido do
+ * Opala.
  */
-const PALAVRA_DE_ENTREGA = "entreg\\w*|envi[ao]\\w*|frete\\w*|levamos|atendemos|cobertura|transporte";
+const PALAVRA_DE_ENTREGA = "entreg\\w*|envi[ao]\\w*|frete\\w*|levamos|cobertura|transporte";
 const FORA_DO_RECORTE = [
   "s[ãa]o paulo",
   "rio de janeiro",
@@ -241,7 +254,6 @@ const FORA_DO_RECORTE = [
   "lages",
   "tubar[ãa]o",
   "outros estados",
-  "qualquer estado",
   "todos os estados",
   "todo o sul",
   "toda a regi[ãa]o sul",
