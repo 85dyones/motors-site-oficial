@@ -52,10 +52,15 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * ---------------------------------------------------------------------------
  * A leitura é `recorteDoNaoEncontrado`: o recorte pronto, guardado por uma
  * hora, e não o estoque — caminho falso é ilimitado, e a decisão do dono foi
- * cache só no não encontrado. O porquê e o tamanho medido estão lá. O cache
- * pesa mais do que o docblock de lá conta: esta leitura roda também em toda
- * ficha e todo hub que respondem 200 (ver a seção abaixo). Tirá-lo põe a
- * leitura do estoque em cada uma dessas páginas.
+ * cache só no não encontrado. O porquê e o tamanho medido estão lá. Esta
+ * leitura roda também em toda ficha e todo hub que respondem 200 (ver a seção
+ * abaixo), mas ali ela não custa leitura nova: essas páginas já leem o estoque
+ * (`[marca]/page.tsx:49`, `[modelo]/page.tsx:45`, `[ficha]/page.tsx:263`), e o
+ * `cache()` de `recortesDoEstoque` (`hubsDeEstoque.ts:495`) faz este corpo
+ * reaproveitar a leitura do mesmo render. Nas páginas 200 o `unstable_cache`
+ * poupa só recalcular o recorte em cada corpo. Onde ele poupa leitura é no 404
+ * da ficha, que sai antes de ler o estoque (`[ficha]/page.tsx:236` e `:250`) —
+ * justamente o caminho falso, que é ilimitado.
  *
  * Na pane do Supabase a leitura estoura `EstoqueIndisponivelError`, e não há
  * `error.tsx` em `src/app` (decisão de 13/09). O componente captura SÓ esse
@@ -65,16 +70,19 @@ import { EstoqueIndisponivelError } from "../lib/supabase";
  * requisição seguinte tenta de novo.
  *
  * ---------------------------------------------------------------------------
- * O custo nas páginas que existem (medido em 2026-09-14)
+ * O custo nas páginas que existem (2026-09-14: números medidos, risco lido na
+ * fonte do Next)
  * ---------------------------------------------------------------------------
- * `not-found.tsx` não roda só no 404. O Next monta o elemento do not-found de
- * cada segmento em todo render (`create-component-tree.js:310-316`, em
- * `next/dist/server/app-render/`) e o entrega ao LayoutRouter dos filhos
- * (`:336`). Como este componente é assíncrono, o corpo inteiro — leitura,
- * amostra, blocos, índice e formulário — roda e entra no payload RSC de toda
- * página da subárvore, inclusive das que respondem 200. A ficha carrega três
- * corpos (ficha, modelo e marca), o hub de modelo carrega dois e o de marca,
- * um.
+ * `not-found.tsx` não roda só no 404. O Next cria o elemento do not-found de
+ * cada segmento em todo render (`create-component-tree.js:310-316` e `:800`, em
+ * `next/dist/server/app-render/`), reserva-o para o slot dos filhos (`:336`) e
+ * o passa ao LayoutRouter na prop `notFound` (`:473`). É um elemento de
+ * componente de servidor nas props de um componente de cliente, e o RSC o
+ * renderiza de qualquer jeito — ser assíncrono não muda nada. O corpo inteiro
+ * (leitura, amostra, blocos, índice e formulário) roda e entra no payload de
+ * toda página da subárvore, inclusive das que respondem 200. A ficha carrega
+ * três corpos (ficha, modelo e marca), o hub de modelo carrega dois e o de
+ * marca, um.
  *
  * Medido no Toyota Corolla Cross, tudo 200, contra a produção sem nenhum
  * not-found — comprimido, e entre parênteses sem compressão:
