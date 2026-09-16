@@ -43,7 +43,7 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 | `src/lib/meta-capi.ts` | Envio server-side ao Meta, com hash de PII (Fase 2) |
 | `src/app/api/leads/route.ts` | Recebe lead, valida Turnstile, envia para webhook n8n e espelha `Lead` no CAPI |
 | `src/app/api/capi/route.ts` | Rota genérica de CAPI, com whitelist de eventos; posta no webhook de fila do n8n (ou direto no Meta, se ele não estiver configurado) |
-| `src/app/api/feed/xml/route.ts` | Gera feed do catálogo; emite `<g:id>${car.id}</g:id>`; pula `car.vendido` |
+| `src/app/api/feed/xml/route.ts` | Gera feed do catálogo; emite `<g:id>${car.id}</g:id>`; o vendido sai por `decidirNoFeed` — fica alguns dias como `out_of_stock` antes de deixar a carga (era `continue` no dia da venda até 2026-09-06) |
 | `src/app/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx` | PDP (página de detalhe do veículo) |
 
 **Superfícies que disparam evento hoje** — todas passam `eventId`, `fbp`, `fbc`
