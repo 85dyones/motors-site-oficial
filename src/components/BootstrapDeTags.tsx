@@ -50,8 +50,11 @@ import {
  * ---------------------------------------------------------------------------
  * Tudo o mais: Meta Pixel, `_fbc`, parâmetros de campanha, e a reconfiguração
  * do GA4 quando o visitante navega sem recarregar. Aquele componente pula GA4 e
- * GTM quando encontra `window.__mtTagsNoAto`, que este script marca — sem isso
- * o container entraria duas vezes e todo evento contaria em dobro.
+ * GTM quando encontra em `window.__mtTagsNoAto` o que este script de fato
+ * injetou — sem isso o container entraria duas vezes e todo evento contaria em
+ * dobro. O marcador só recebe um id DEPOIS da injeção daquela tag: marcador
+ * que promete o que não entrou faz o tracker pular, e a tag não sobe por
+ * ninguém.
  *
  * `CamadaDeDados` idem: lê `window.__mtTipoJaPublicado` para não repetir o
  * `page_context` da primeira página. Push com `event` aciona gatilho, então
@@ -74,9 +77,13 @@ export default async function BootstrapDeTags() {
     return null;
   }
 
-  // O GTM exige os dois, como no `IntegrationsTracker`: o id e o consentimento
-  // explícito de que o container assume os eventos. Ligar o container sem isso
-  // foi o que, em 26/08, fez `generate_lead` parar de chegar ao GA4.
+  // Aqui o GTM exige os dois: o id e o consentimento explícito de que o
+  // container assume os eventos. Ligar o container sem isso foi o que, em
+  // 26/08, fez `generate_lead` parar de chegar ao GA4.
+  //
+  // O `IntegrationsTracker` não exige o segundo: ele sobe o container só com o
+  // id. Então, sem `gtmAssumeEventos`, o GTM não entra no parse, mas entra na
+  // hidratação, pelo tracker, uma vez — como antes desta mudança.
   const gtmLigado = Boolean(gtmId) && assumeEventos;
   if (!ga4Id && !gtmLigado) return null;
 
@@ -87,12 +94,28 @@ export default async function BootstrapDeTags() {
   // permite executá-lo num DOM de mentira — e é assim que
   // `tests/tags-no-ato.test.ts` prova o comportamento, já que o `preview_start`
   // deste projeto só alcança o diretório primário.
+  //
+  // O marcador `__mtTagsNoAto` diz o que ENTROU, não o que o servidor mandou
+  // subir. Até a revisão do PR #46 ele era gravado no fim do script, com os ids
+  // da configuração, tivesse o `try` de cada tag dado certo ou não: se a
+  // injeção lançasse, o tracker lia "já subiu", pulava, e a tag não subia por
+  // ninguém. Agora ele nasce vazio logo depois da oposição (quem se opôs não
+  // ganha marcador), e cada id é gravado na ÚLTIMA linha do `try` da própria
+  // tag, depois do `appendChild`.
+  //
+  // No GTM, o `gtm.start` vai depois do `appendChild`, e não antes como no
+  // snippet oficial. Se a injeção lançar, não fica na fila um `gtm.js` órfão
+  // para somar ao que o tracker empurra quando sobe o container, e é nesse
+  // evento que disparam os gatilhos de carregamento de página. O script é
+  // `async` e só executa depois deste bloco inteiro, então a ordem não muda o
+  // que o container encontra na fila.
   const script = `(function(){
   try{
     if(localStorage.getItem('ag_cookie_consent')==='rejected')return;
   }catch(e){}
   var w=window,d=document;
   w.dataLayer=w.dataLayer||[];
+  var m=w.__mtTagsNoAto={ga4:null,gtm:null};
   try{
     var tipoDa=${fonteDoTipoDePagina()};
     var caminho=w.location.pathname;
@@ -111,20 +134,21 @@ export default async function BootstrapDeTags() {
     w.gtag=w.gtag||gtag;
     w.gtag('js',new Date());
     w.gtag('config','${ga4Id}',{page_path:w.location.pathname});
+    m.ga4='${ga4Id}';
   }catch(e){}`
       : ""
   }
   ${
     gtmLigado
       ? `try{
-    w.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});
     var j=d.createElement('script');j.async=true;
     j.src='https://www.googletagmanager.com/gtm.js?id=${gtmId}';
     d.head.appendChild(j);
+    w.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+    m.gtm='${gtmId}';
   }catch(e){}`
       : ""
   }
-  w.__mtTagsNoAto={ga4:${JSON.stringify(ga4Id || null)},gtm:${JSON.stringify(gtmLigado ? gtmId : null)}};
 })();`;
 
   return <script dangerouslySetInnerHTML={{ __html: script }} />;
