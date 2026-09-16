@@ -204,7 +204,7 @@ describe("caminhos sem sessão", () => {
  * As credenciais S3 do Storage moram DENTRO de `company` — a granularidade de
  * linha da RLS e dos dois testes acima não as enxerga. Foi por essa fresta que
  * um `GET /api/settings` anônimo devolveu `s3AccessKeyId` e
- * `s3SecretAccessKey` em texto puro até 2026-08-26 (docs/DIAGNOSTICO_IMAGENS.md,
+ * `s3SecretAccessKey` em texto puro até 2026-09-16 (diagnóstico de imagens de 26/08,
  * achado nº 2): o recorte entregava `completo.companySettings` inteiro.
  */
 describe("credenciais S3 dentro de company", () => {

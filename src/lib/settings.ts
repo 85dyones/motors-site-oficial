@@ -211,7 +211,7 @@ function filtrarOverridesPublicos(bruto: unknown): unknown {
  *  - `s3AccessKeyId`/`s3SecretAccessKey` de dentro de `company` — as credenciais
  *    S3 do Storage do Supabase, que o painel digita e o upload de branding usa.
  *    Removê-las AQUI, e não só na linha, porque moram dentro do objeto
- *    `company` que o recorte entrega inteiro: até 2026-08-26 um `GET
+ *    `company` que o recorte entrega inteiro: até 2026-09-16 um `GET
  *    /api/settings` anônimo devolvia as duas em texto puro. Quem tem sessão de
  *    staff recebe `completo` e não passa por este recorte — o painel de
  *    configurações continua enxergando as chaves.
