@@ -80,11 +80,33 @@ describe("limite de geração — configuração", () => {
   });
 });
 
-describe("maxDuration — compatível com a latência medida", () => {
-  it("declara maxDuration = 30, cobrindo o TIMEOUT_MS de gerar.ts (também 30s)", () => {
+describe("maxDuration — folga sobre o TIMEOUT_MS de gerar.ts", () => {
+  /**
+   * Ajuste do coordenador em 16/09/2026 (dúvida 1 da entrega original, que
+   * usava `maxDuration = 30` — igual ao `TIMEOUT_MS`). Com os dois tetos
+   * IGUAIS, o abort interno de `gerar.ts` e o limite da função na Vercel
+   * disparavam praticamente juntos, e a mensagem genérica de timeout podia
+   * não terminar de sair antes da Vercel encerrar a função.
+   *
+   * Em vez de travar um par de números fixos — o que a versão anterior deste
+   * teste fazia, e que a própria correção mostrou frágil: os dois podiam
+   * mudar independente um do outro e o teste continuava verde —, lê os dois
+   * valores do código e trava a RELAÇÃO: `maxDuration` tem que sobrar pelo
+   * menos 5 s depois do `TIMEOUT_MS` interno. Se `TIMEOUT_MS` mudar um dia
+   * sem `maxDuration` acompanhar, a folga encolhe e o teste acusa — em vez de
+   * regredir em silêncio.
+   */
+  it("maxDuration fica pelo menos 5s acima de TIMEOUT_MS", () => {
     const rota = lerCodigo(ARQUIVO);
-    expect(rota).toContain("export const maxDuration = 30");
     const gerar = lerCodigo("src/lib/descritivo/gerar.ts");
-    expect(gerar).toContain("const TIMEOUT_MS = 30_000");
+
+    const maxDuration = rota.match(/export const maxDuration = (\d+);/);
+    const timeoutMs = gerar.match(/const TIMEOUT_MS = ([\d_]+);/);
+    expect(maxDuration, "maxDuration não achado em route.ts").not.toBeNull();
+    expect(timeoutMs, "TIMEOUT_MS não achado em gerar.ts").not.toBeNull();
+
+    const maxDurationS = Number(maxDuration![1]);
+    const timeoutS = Number(timeoutMs![1].replace(/_/g, "")) / 1000;
+    expect(maxDurationS).toBeGreaterThanOrEqual(timeoutS + 5);
   });
 });

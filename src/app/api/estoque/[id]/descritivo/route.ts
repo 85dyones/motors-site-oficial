@@ -11,12 +11,21 @@ import { gerarTexto } from "../../../../../lib/descritivo/gerar";
 export const dynamic = "force-dynamic";
 
 /**
- * Endurecimento de 16/09/2026 (revisão final do #76). Gerações medidas em
- * produção desde o #76: 1,1 a 4,3 s — 30 s dá ~7x de folga sobre o pior caso
- * e ainda cobre o `TIMEOUT_MS` de `gerar.ts` (também 30 s), que é quem de
- * fato encerra a chamada à OpenAI antes da Vercel encerrar a função.
+ * Endurecimento de 16/09/2026 (revisão final do #76; ajustado no mesmo dia
+ * de 30 para 35, decisão do coordenador sobre a dúvida 1 da entrega). Gerações
+ * medidas em produção desde o #76: 1,1 a 4,3 s — folga grande sobre qualquer
+ * um dos dois valores.
+ *
+ * 35, e não 30: o `TIMEOUT_MS` de `gerar.ts` (30 s) é quem de fato aborta a
+ * chamada à OpenAI. Com os dois tetos iguais, o abort interno e o limite da
+ * função na Vercel disparavam praticamente juntos, e a mensagem genérica de
+ * timeout podia não terminar de sair antes da Vercel encerrar a função. Os 5
+ * s a mais são a folga para a rota montar e devolver essa resposta DEPOIS do
+ * abort — `tests/descritivo-limite.test.ts` trava essa relação lendo os dois
+ * valores do código (`maxDuration` >= `TIMEOUT_MS` / 1000 + 5), não um número
+ * fixo, para a folga não regredir em silêncio se `TIMEOUT_MS` mudar.
  */
-export const maxDuration = 30;
+export const maxDuration = 35;
 
 /**
  * Gera uma SUGESTÃO de texto para o veículo. NÃO grava.
