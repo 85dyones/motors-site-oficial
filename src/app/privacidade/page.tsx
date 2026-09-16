@@ -48,7 +48,7 @@ const breadcrumbSchema = {
 
 // Data da última revisão do texto. Atualizar sempre que o conteúdo mudar —
 // a LGPD espera que o titular consiga saber qual versão aceitou.
-const ULTIMA_ATUALIZACAO = "15 de setembro de 2026";
+const ULTIMA_ATUALIZACAO = "16 de setembro de 2026";
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
@@ -312,7 +312,31 @@ export default async function PrivacidadePage() {
                 Se algum dia o carregamento voltar a esperar o aceite, este
                 texto tem de voltar junto. `tests/brechas-de-mensuracao.test.ts`
                 amarra as duas pontas: política e código não podem contar
-                histórias diferentes. */}
+                histórias diferentes.
+
+                16/09/2026 — o benefício vem primeiro, e a oposição fica neutra
+                e breve. Decisão do dono: *"não quero que o texto induza a
+                pessoa a clicar em não permitir, tem que ser o contrário"*. O
+                parágrafo da oposição dizia "funciona de verdade" e "o site
+                continua funcionando igual": nada ali era falso, mas o tom era
+                de convite a desligar, no lugar onde a pessoa decide.
+
+                Os limites que a reescrita não cruza: a base legal e o que é
+                carregado continuam no parágrafo do legítimo interesse; a
+                oposição continua escrita, com o nome da ação que o controle
+                mostra e com o que ela apaga; e o benefício só promete o que a
+                medição entrega — anúncios que PODEM mostrar carros ligados ao
+                que a pessoa viu aqui (o remarketing descrito em Finalidades) e
+                o que aprendemos com as visitas. A trava "o texto não empurra
+                para desligar", em `tests/brechas-de-mensuracao.test.ts`, segura
+                as frases antigas fora e o nome da ação dentro. */}
+            <p>
+              <strong className="text-mt-ink">A medição ajuda a deixar os anúncios e o site mais
+              úteis para você.</strong> Com ela, os anúncios da {nome} no Google, no Facebook e no
+              Instagram podem mostrar carros do seu perfil, parecidos com os que você viu aqui. E
+              nós entendemos quais carros e páginas mais interessam, para melhorar o site e o
+              atendimento.
+            </p>
             <p>
               Ao entrar no site você vê um aviso sobre cookies.{" "}
               <strong className="text-mt-ink">As ferramentas de análise e de publicidade —
@@ -323,10 +347,10 @@ export default async function PrivacidadePage() {
               site e entender como o site é usado.
             </p>
             <p>
-              <strong className="text-mt-ink">Você pode se opor a qualquer momento</strong>, e a
-              oposição funciona de verdade: o botão abaixo interrompe o rastreamento e apaga na
-              hora os identificadores de campanha guardados no seu navegador. O site continua
-              funcionando igual, e a escolha vale para as próximas visitas neste dispositivo.
+              Se você preferir não participar, pode se opor a esse uso em
+              &ldquo;Desligar neste navegador&rdquo;, logo abaixo. A opção interrompe a medição
+              neste navegador e apaga na hora os identificadores de campanha guardados nele, e a
+              escolha vale para as próximas visitas neste dispositivo.
             </p>
             <ControleDeRastreamento />
             {/* Este parágrafo entrou em 28/08 e não é redação: ele descreve o
@@ -375,7 +399,11 @@ export default async function PrivacidadePage() {
                 recebido. Corrigido para dizer isso, mantendo as duas
                 âncoras que `tests/brechas-de-mensuracao.test.ts` (B.4)
                 exige: "antes da sua resposta ao aviso" e "recusar, ele é
-                apagado". */}
+                apagado".
+
+                16/09/2026 — "Se você recusar" virou "Se você desligar a
+                medição": é o nome da ação no controle acima, e não há mais
+                recusa no aviso. A âncora da B.4 acompanhou a frase. */}
             <p>
               Um detalhe, para você saber exatamente o que acontece: quando você chega ao site
               por um anúncio, o endereço traz um código que identifica de qual anúncio veio o
@@ -388,7 +416,7 @@ export default async function PrivacidadePage() {
               repassam à Meta (Conversions API) o código dos anúncios dela, o{" "}
               <code>fbclid</code>, quando você abre a página de um veículo, usa o Match de
               Garagem ou toca num botão de contato.{" "}
-              <strong className="text-mt-ink">Se você recusar, ele é apagado deste navegador na hora</strong>;
+              <strong className="text-mt-ink">Se você desligar a medição, ele é apagado deste navegador na hora</strong>;
               o que já chegou ao Google e à Meta segue os prazos de retenção deles.
             </p>
             {/* Até 15/09/2026 dizia "Se você aceitar, usamos:" — não há mais
@@ -428,13 +456,18 @@ export default async function PrivacidadePage() {
                 contrário, apaga a chave se ela já existir, e a ausência da
                 chave é lida como "não recusou" (`rastreamentoRecusado()` em
                 `lib/telemetry.ts`). A orientação antiga fazia prometer o
-                oposto do que o código faz. */}
+                oposto do que o código faz.
+
+                16/09/2026 — a orientação ficou só com a ressalva. O caminho
+                para se opor já está no parágrafo antes do controle, com o nome
+                da ação; dito de novo aqui, duas vezes, virava insistência em
+                desligar. A informação que só este parágrafo dá continua
+                inteira: apagar os dados do site apaga a escolha, e a medição
+                volta ao padrão. */}
             <p>
-              Para se opor ao rastreamento, use o botão acima. A escolha fica gravada neste
-              navegador e vale para as próximas visitas. Apagar os dados de navegação (cookies e
-              armazenamento local) deste site tem o efeito contrário do que parece: apaga também
-              essa escolha, e o rastreamento volta a ficar ativo por padrão — se for esse o caso,
-              use o botão acima de novo para se opor.
+              A escolha de desligar fica gravada neste navegador. Apagar os dados de navegação
+              deste site (cookies e armazenamento local) apaga também essa escolha, e a medição
+              volta a ficar ligada, que é o padrão; para se opor de novo, use o controle acima.
             </p>
           </Secao>
 

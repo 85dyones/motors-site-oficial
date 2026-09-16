@@ -550,8 +550,15 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
 
     expect(politica, "a política não avisa que grava antes da resposta")
       .toMatch(/antes da sua resposta ao aviso/);
-    expect(politica, "a política não avisa que a recusa apaga")
-      .toMatch(/apagados na hora|recusar, ele é apagado/);
+    // A âncora mudou em 2026-09-16, junto com a frase: "Se você recusar" virou
+    // "Se você desligar a medição", que é o nome da ação no controle. E a
+    // alternativa antiga, "apagados na hora", não casava com texto nenhum da
+    // página. Agora são duas afirmações, cada uma presa à sua frase: o
+    // parágrafo da oposição, logo acima do controle, e o do código do anúncio.
+    expect(politica, "a política não avisa que a oposição apaga os identificadores")
+      .toMatch(/interrompe\s+a\s+medição\s+neste\s+navegador\s+e\s+apaga\s+na\s+hora\s+os\s+identificadores/);
+    expect(politica, "a política não avisa que desligar apaga o código do anúncio")
+      .toMatch(/desligar\s+a\s+medição,\s+ele\s+é\s+apagado/);
   });
 
   it("a política admite que o rastreamento começa ANTES da resposta", async () => {
@@ -616,6 +623,53 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     expect(banner, "sumiu o caminho para ajustar").toMatch(/Ajustar detalhes/);
     expect(banner, "o link do ajuste não aponta para a política")
       .toMatch(/href="\/privacidade"/);
+  });
+
+  it("o texto não empurra para desligar — e a oposição continua à vista", async () => {
+    // Decisão do dono em 2026-09-16: *"não quero que o texto induza a pessoa a
+    // clicar em não permitir, tem que ser o contrário"*. As três frases abaixo
+    // estavam na política e no controle até essa data. Nenhuma mentia — a
+    // oposição apaga, e o site segue igual para quem desliga —, mas as três
+    // eram convite a desligar, escrito no lugar onde a pessoa decide.
+    //
+    // O outro lado também é trava, porque a LGPD cobra oposição fácil de quem
+    // usa legítimo interesse: a política continua dizendo onde se desliga, e o
+    // controle continua oferecendo as duas ações. É também o controle de
+    // leitura: sem ele, as negativas passariam lendo o arquivo errado.
+    //
+    // O texto é lido como a pessoa o vê: sem comentário, sem tag e com o
+    // espaço colapsado. "Você pode <strong>desligar</strong> agora" é a mesma
+    // frase na tela.
+    const comoNaTela = (caminho: string) =>
+      lerCodigo(caminho)
+        .replace(/\{"\s*"\}/g, " ")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ");
+    const telas = {
+      "a política": comoNaTela("src/app/privacidade/page.tsx"),
+      "o controle": comoNaTela("src/components/ControleDeRastreamento.tsx"),
+      "o aviso": comoNaTela("src/components/CookieConsentBanner.tsx"),
+    };
+
+    const CONVITES_A_DESLIGAR = [
+      /funciona de verdade/i,
+      /continua funcionando igual/i,
+      /pode desligar agora/i,
+    ];
+    for (const [onde, texto] of Object.entries(telas)) {
+      for (const convite of CONVITES_A_DESLIGAR) {
+        expect(texto, `${onde} voltou a convidar a desligar: ${convite}`).not.toMatch(convite);
+      }
+    }
+
+    expect(telas["a política"], "a política parou de dizer onde se desliga")
+      .toContain("Desligar neste navegador");
+    expect(telas["o controle"], "o controle parou de oferecer o desligar")
+      .toContain("Desligar neste navegador");
+    expect(telas["o controle"], "o controle desligado parou de oferecer o religar")
+      .toContain("Ligar a medição");
+    expect(telas["o aviso"], "a leitura do aviso não alcança o texto dele")
+      .toContain("Ajustar detalhes");
   });
 
   it("a escolha existe de verdade — só mudou de lugar", async () => {
