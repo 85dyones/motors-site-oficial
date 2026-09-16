@@ -1014,7 +1014,21 @@ export async function getEstoque(
 // Helper to query a single vehicle by ID
 export async function getVeiculoById(id: string): Promise<Veiculo | null> {
   let car: Veiculo | null = null;
-  if (isSupabaseConfigured && supabase) {
+  // Só vai ao banco com id que a coluna aceita.
+  //
+  // `estoque_motors.id` é INTEGER. Texto ali o Postgres recusa com `22P02`, o
+  // PostgREST devolve 400 e o `error` nunca foi lido: `data` vinha nulo e a
+  // busca seguia como "não achei". Como a ficha pede primeiro pelo slug inteiro
+  // e só depois pelo número do fim, TODA renderização dela — página e
+  // `generateMetadata` — gastava uma ida ao banco que falhava por construção:
+  // dezenas de linhas ERROR no log do Postgres em 2026-09-12.
+  //
+  // A guarda fica aqui, e não nas chamadas: o id de texto ainda precisa chegar
+  // ao `estoqueDeContingencia()` abaixo, que é quem abre os mocks do dev. E
+  // inverter a ordem nas chamadas não bastaria — o slug voltaria ao banco toda
+  // vez que o número não achasse o carro. Ver
+  // `tests/ficha-consulta-o-banco-so-com-numero.test.ts`.
+  if (isSupabaseConfigured && supabase && /^\d+$/.test(id)) {
     try {
       // First try to match string ID directly
       let { data, error } = await supabase
