@@ -25,7 +25,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://motors-site-oficial.vercel.app/api/ciclo/vendas-incompletas",
+        "url": "https://motorsstore.com.br/api/ciclo/vendas-incompletas",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {

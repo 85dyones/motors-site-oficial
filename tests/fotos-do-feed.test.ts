@@ -193,8 +193,10 @@ describe("a costura: o que vem do feed destrava a publicação", () => {
 describe("a rota de importação — as travas escritas", () => {
   it("é POST e não aceita a lista pelo corpo", () => {
     expect(rota).toContain("export async function POST");
-    // A rota vai à fonte. Aceitar URL do navegador abriria na galeria do carro
-    // do feed a porta que `camposGravaveis` fecha para `origem = 'sync'`.
+    // A rota vai à fonte: o que ela promete é a lista do anúncio AGORA. Aceitar
+    // URL do navegador faria dela uma segunda porta genérica de foto, sem essa
+    // garantia — e a galeria já tem a sua, o PATCH que `camposGravaveis` abre
+    // para qualquer origem desde a fusão com o #45 (16/09).
     expect(rota).not.toContain("await request.json()");
     expect(rota).toContain("buscarFotosNoFeed(id)");
   });

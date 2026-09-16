@@ -25,7 +25,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://motors-site-oficial.vercel.app/api/funil/alertas",
+        "url": "https://motorsstore.com.br/api/funil/alertas",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,

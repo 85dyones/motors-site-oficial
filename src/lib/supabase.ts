@@ -154,6 +154,34 @@ const MOCK_ESTOQUE: Veiculo[] = [
   }
 ];
 
+/** Os ids dos carros fictícios, derivados do próprio mock — nunca cravados. */
+const IDS_DE_CONTINGENCIA = new Set(MOCK_ESTOQUE.map((v) => String(v.id)));
+
+/**
+ * A lista recebida é o catálogo fictício, e não o pátio?
+ *
+ * Existe para quem consome `getEstoque()` FORA do Next — hoje só
+ * `npm run auditoria:estoque`, que precisa se recusar a relatar sobre carro que
+ * a loja não tem. O site não usa: lá a regra é outra, e está em
+ * `estoqueDeContingencia` mais abaixo.
+ *
+ * Mora aqui, colada ao `MOCK_ESTOQUE`, por uma razão só: quem um dia editar os
+ * cinco carros de demonstração vê esta função na mesma tela e a atualiza junto.
+ * Longe daqui ela apodrece calada — e um detector de dado falso que parou de
+ * detectar é pior que nenhum, porque dá a sensação de estar protegido.
+ *
+ * A régua é **algum** id pertencer ao conjunto, não a lista inteira coincidir:
+ * assim pega também contingência parcial, e não há colisão possível — id real é
+ * inteiro do RevendaMais ou da faixa ≥ 900000001 do painel, nunca
+ * `porsche-911-carrera-s-2023`.
+ *
+ * Lista vazia devolve `false` de propósito. Vazio não é dado fictício; é outro
+ * problema, com outra mensagem — e quem chama precisa poder distinguir os dois.
+ */
+export function ehEstoqueDeContingencia(lista: readonly Pick<Veiculo, "id">[]): boolean {
+  return lista.some((v) => IDS_DE_CONTINGENCIA.has(String(v.id)));
+}
+
 const formatCambio = (c: string): string => {
   if (!c) return "Automático";
   const val = c.toLowerCase().trim();
@@ -434,6 +462,19 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     // migração 20260817130000 esta coluna não existia e o valor era `undefined`
     // em silêncio, que é como todo anúncio do feed acabou com a mesma frase.
     descricao_seo: textoUtil(dbItem.descricao_seo),
+    /**
+     * Portas — inteiro positivo, ou ausente.
+     *
+     * `Number.isInteger` e `> 0` juntos, e não `Number(x) || undefined`: o
+     * banco guarda `NULL` para moto (o feed manda `0` e a importação converte),
+     * e um `0` que escapasse viraria `numberOfDoors: 0` no JSON-LD — afirmação
+     * falsa, não campo vazio. A régua é a mesma do comentário de
+     * `schemaVeiculo.ts`: schema errado é pior que campo ausente.
+     */
+    portas:
+      Number.isInteger(dbItem.portas) && Number(dbItem.portas) > 0
+        ? Number(dbItem.portas)
+        : undefined,
     cabine_premium: hasCabinePremium,
     tecnologia_embarcada: hasTech,
     conducao_dinamica: hasConducaoDinamica,
@@ -1014,7 +1055,21 @@ export async function getEstoque(
 // Helper to query a single vehicle by ID
 export async function getVeiculoById(id: string): Promise<Veiculo | null> {
   let car: Veiculo | null = null;
-  if (isSupabaseConfigured && supabase) {
+  // Só vai ao banco com id que a coluna aceita.
+  //
+  // `estoque_motors.id` é INTEGER. Texto ali o Postgres recusa com `22P02`, o
+  // PostgREST devolve 400 e o `error` nunca foi lido: `data` vinha nulo e a
+  // busca seguia como "não achei". Como a ficha pede primeiro pelo slug inteiro
+  // e só depois pelo número do fim, TODA renderização dela — página e
+  // `generateMetadata` — gastava uma ida ao banco que falhava por construção:
+  // dezenas de linhas ERROR no log do Postgres em 2026-09-12.
+  //
+  // A guarda fica aqui, e não nas chamadas: o id de texto ainda precisa chegar
+  // ao `estoqueDeContingencia()` abaixo, que é quem abre os mocks do dev. E
+  // inverter a ordem nas chamadas não bastaria — o slug voltaria ao banco toda
+  // vez que o número não achasse o carro. Ver
+  // `tests/ficha-consulta-o-banco-so-com-numero.test.ts`.
+  if (isSupabaseConfigured && supabase && /^\d+$/.test(id)) {
     try {
       // First try to match string ID directly
       let { data, error } = await supabase

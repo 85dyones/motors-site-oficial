@@ -46,6 +46,13 @@ variável de ambiente, não um commit.
 > ser alterados**; trocar para o domínio novo é cosmético e mexe em workflow
 > ativo — não vale o risco enquanto o alias existir.
 >
+> ⚠️ **Os dois últimos períodos deixaram de valer.** Em 2026-08-19 as páginas
+> do alias passaram a levar 308 para o apex (P4), e em **2026-09-06** os
+> workflows saíram do alias — ver "O alias saiu do circuito", no fim deste
+> arquivo. "Cosmético" era verdade enquanto só o Google se importava; virou
+> dívida quando a exceção `/api/*` do 301 passou a existir só por causa
+> deles.
+>
 > Fica pendente só o **301 de `www` para o apex** (hoje os dois servem 200).
 > Com o canonical correto não há prejuízo de indexação; é acabamento.
 
@@ -380,13 +387,71 @@ Só depois de confirmar que a conta nova entra no `/admin` é que vale remover
 ## Depois da virada
 
 - ~~Redirecionamento 301 do endereço da Vercel para o domínio novo.~~
-  **Não é acabamento — tem trava.** Quatro workflows do n8n chamam o alias
-  `motors-site-oficial.vercel.app` (ver `:44-47` e
-  `MOTOR_DE_GATILHOS.md`), e um 301 ingênuo os derruba. Confirmado em
-  2026-08-18 lendo o export do orquestrador: os três nós que falam com o
-  site apontam para o alias. A saída é redirecionar **só as rotas de
-  página**, preservando `/api/*` — ver P4 em `RECOMENDACAO_SEO.md`.
+  **Feito em duas metades** — ver "O alias saiu do circuito" abaixo.
 - Google Search Console: propriedade nova, e o sitemap reenviado.
 - A célula do QR na vitrine de TV (`VitrineTV.tsx`) hoje mostra o código do
   veículo porque não havia domínio para imprimir. Com o domínio no ar, ela
   pode virar o QR que o design doc pede — o endereço sai de `lib/site.ts`.
+
+## O alias saiu do circuito (2026-09-06)
+
+O `motors-site-oficial.vercel.app` não morre sozinho — a Vercel serve o alias
+enquanto o projeto existir. Tirá-lo de circulação foi feito em duas metades,
+e a ordem importava: **primeiro as páginas, depois os chamadores**.
+
+### Metade 1 — as páginas (P4, 2026-08-19)
+
+`next.config.ts` redireciona por host, com `permanent: true`, tudo que **não**
+começa em `api/`. O Google consolida a autoridade no apex e o conteúdo
+duplicado acaba. O comportamento está travado em
+`tests/redirect-do-alias.test.ts` — teste de comportamento, compilando a rota
+com o mesmo `path-to-regexp` do Next, porque casar a string do padrão passaria
+mesmo se ele parasse de excluir a API.
+
+A exceção `/api/*` não era zelo: cliente HTTP costuma descartar o cabeçalho
+`Authorization` ao trocar de host, e alguns não repetem `POST` depois de
+redirect. Um 301 abrangente teria deixado o motor do Ciclo em silêncio.
+
+### Metade 2 — os chamadores (2026-09-06)
+
+Cinco nós HTTP em três workflows do n8n passaram a chamar `motorsstore.com.br`:
+
+| Workflow | Estado | Nós |
+|---|---|---|
+| Motors Ciclo — Orquestrador Diário (`9zYClIJd22nEBWQO`) | ativo, 9h | `/api/ciclo/motor/fila`, `/api/ciclo/motor/desfecho` ×2 |
+| Motors Ciclo — Aviso de Verificação (`3XdmPXpPxoiP4JWe`) | ativo, 9h30 seg–sáb | `/api/ciclo/motor/verificacao` |
+| Motors Ciclo — Vendas Incompletas (`4pksuDAXYvQHoVtO`) | inativo | `/api/ciclo/vendas-incompletas` |
+
+Feito por `scripts/migrar-workflows-para-o-dominio.js` (ensaio por padrão,
+`--gravar` para escrever). Conferido relendo do servidor: as três credenciais
+`httpHeaderAuth` sobreviveram ao `PUT`, as conexões ficaram idênticas e a
+única diferença em todos os nós foram as cinco URLs.
+
+**Fora da lista, de propósito:** `Consulta Margens Mínimo - Motors`
+(`CksEZVqbldVmQur3`, inativo) aponta para `/api/financeiro/margens/consulta`,
+que responde **404** desde a aposentadoria do financeiro (2026-08-28). Trocar
+o host ali seria mudar um ponteiro morto de endereço — e dar a impressão de
+que ele voltou a funcionar. Os dois `ZZ …` também ficam: são as cópias
+aposentadas do incidente de cron de 04/09.
+
+### O que ainda falta para desligar o alias de vez
+
+A exceção `(?!api/)` no `next.config.ts` **continua lá**, e deve continuar até
+que estas três estejam confirmadas — nenhuma delas é verificável do
+repositório:
+
+1. **A URL do feed no Meta Commerce Manager e no Google Merchant.** Se algum
+   deles busca `/api/feed/xml` pelo alias, fechar a exceção passa a fazer o
+   catálogo depender de o buscador seguir 308. Confira e troque para o apex.
+2. **Supabase → Authentication → Redirect URLs.** A entrada
+   `https://motors-site-oficial.vercel.app/api/auth/callback` foi deixada de
+   propósito na virada, para não quebrar link mágico já enviado. Três semanas
+   depois ela é só superfície — remova quando ninguém mais puder ter link
+   antigo na caixa de entrada.
+3. **`TURNSTILE_HOSTNAMES`** (env da Vercel) e o widget na Cloudflare listam o
+   alias. Sem páginas servidas por ele, o hostname não aparece mais — é
+   limpeza, não risco.
+
+Com as três fechadas, o passo final é uma linha: trocar o `source` da regra de
+`/:caminho((?!api/).*)` para `/:caminho*` e ajustar
+`tests/redirect-do-alias.test.ts`, que hoje **exige** a exceção.

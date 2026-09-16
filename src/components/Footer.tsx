@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
@@ -18,6 +19,26 @@ import { trackContactClick } from "../lib/telemetry";
  * interno mais repetido do site não era rastreável. A regra e a história estão
  * em `lib/navegacaoDoRodape.ts`.
  */
+
+/**
+ * Ano do copyright — só depois da hidratação (mesma causa do #418 na ficha,
+ * ver comentário de `GeradoEm` em `PDPClientWrapper.tsx`).
+ *
+ * `new Date().getFullYear()` direto no render diverge entre servidor e
+ * cliente perto da virada do ano: a partir das ~21h de 31/12 em fusos
+ * adiantados sobre o UTC, o servidor ainda serve o ano velho e o cliente já
+ * calcula o novo. Este rodapé está em TODA página do site — sem isto, o
+ * réveillon derrubaria a hidratação site inteiro, não só a ficha.
+ */
+const semAssinatura = () => () => {};
+function AnoAtual() {
+  const ano = useSyncExternalStore(
+    semAssinatura,
+    () => new Date().getFullYear(),
+    () => null,
+  );
+  return <>{ano}</>;
+}
 
 export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape }) {
   const { companySettings } = useTheme();
@@ -143,7 +164,7 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
 
         <div className="flex flex-col gap-2 pt-4 text-[11px] tracking-[.06em] md:flex-row md:justify-between">
           <span>
-            © {new Date().getFullYear()} {companySettings.name.toUpperCase()}
+            © <AnoAtual /> {companySettings.name.toUpperCase()}
             {companySettings.cnpj ? ` · CNPJ ${companySettings.cnpj}` : ""}
           </span>
           <span className="md:text-right">
