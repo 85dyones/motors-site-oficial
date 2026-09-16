@@ -37,7 +37,8 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 
 | Arquivo | Papel |
 |---|---|
-| `src/components/IntegrationsTracker.tsx` | Inicializa GA4, Google Ads e Meta Pixel; dispara PageView; persiste `_fbc` a partir do `fbclid` |
+| `src/components/BootstrapDeTags.tsx` | Sobe GA4 e GTM no `<head>` servido, antes da hidratação (PR #46). O `config` do GA4 feito aqui manda o `page_view` da chegada |
+| `src/components/IntegrationsTracker.tsx` | Inicializa Google Ads e Meta Pixel, e GA4 e GTM quando o `BootstrapDeTags` não os subiu; manda `page_view` e `PageView` a cada troca de caminho; persiste `_fbc` a partir do `fbclid` |
 | `src/lib/telemetry.ts` | Funções client-side de tracking (`trackVehicleView`, `trackLeadSubmission`, `trackContactClick`, `trackCarMatch`, `trackAppraisalSubmit`) |
 | `src/lib/tracking-identity.ts` | `generateEventId` e leitura de `_fbp`/`_fbc` (Fase 1) |
 | `src/lib/meta-capi.ts` | Envio server-side ao Meta, com hash de PII (Fase 2) |
@@ -45,6 +46,19 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 | `src/app/api/capi/route.ts` | Rota genérica de CAPI, com whitelist de eventos; posta no webhook de fila do n8n (ou direto no Meta, se ele não estiver configurado) |
 | `src/app/api/feed/xml/route.ts` | Gera feed do catálogo; emite `<g:id>${car.id}</g:id>`; o vendido sai por `decidirNoFeed` — fica alguns dias como `out_of_stock` antes de deixar a carga (era `continue` no dia da venda até 2026-09-06) |
 | `src/app/carros/[marca]/[modelo]/[versao]/[slug_completo_com_id]/page.tsx` | PDP (página de detalhe do veículo) |
+
+> **Visualização de página: uma por página vista (corrigido em 2026-09-16).**
+> A página em que cada tag sobe é contada pela própria subida: o `config` do
+> GA4 (no `BootstrapDeTags` ou no tracker) manda o `page_view`, e o snippet do
+> Meta manda o `PageView`. O `IntegrationsTracker` conta só as trocas de
+> caminho seguintes, lidas de `usePathname`. Mudança só de query string ou de
+> hash não conta. Antes da correção, a chegada saía em dobro sempre que o
+> `/api/settings` trocava um id do `companySettings.json` (em produção, o
+> `metaPixelId`, vazio no JSON): o GA4 recebia dois `page_view` e o Meta, duas
+> chamadas de `PageView`. Até o deploy da correção, as visualizações do GA4
+> estão infladas, e a taxa de engajamento junto, porque sessão com duas
+> visualizações conta como engajada. Travado por
+> `tests/page-view-uma-vez.test.ts`.
 
 **Superfícies que disparam evento hoje** — todas passam `eventId`, `fbp`, `fbc`
 e `eventSourceUrl` no POST para `/api/leads`:
