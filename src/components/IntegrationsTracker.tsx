@@ -53,7 +53,8 @@ export default function IntegrationsTracker() {
   const initializedGTM = useRef(false);
   const initializedMeta = useRef(false);
   const initializedGAds = useRef(false);
-  const isFirstPathnameRun = useRef(true);
+  // O último caminho que o efeito de navegação viu. Ver o efeito, no fim.
+  const ultimoCaminhoVisto = useRef<string | null>(null);
 
   /**
    * Avisa o `telemetry.ts` de que o container assumiu os eventos.
@@ -348,17 +349,52 @@ export default function IntegrationsTracker() {
     };
   }, [ga4Id, gtmId, metaPixelId, googleAdsId]);
 
-  // Track dynamic PageView changes when pathname changes
+  /**
+   * `page_view` e `PageView` a cada TROCA DE CAMINHO, e só nela.
+   *
+   * A página em que cada tag sobe é contada pela própria subida: o `config` do
+   * GA4 (no `BootstrapDeTags` ou na inicialização acima) manda um `page_view`,
+   * e o snippet do Meta manda um `PageView`. Este efeito conta o que vem
+   * depois, a navegação no cliente, que troca a URL sem recarregar. Mudança só
+   * de query string ou de hash não conta, porque `usePathname` não as traz.
+   *
+   * ---------------------------------------------------------------------------
+   * Por que um ref com o caminho, e não "pular a primeira execução"
+   * ---------------------------------------------------------------------------
+   * Medido em produção em 16/09/2026: toda chegada mandava dois `page_view` ao
+   * GA4. Este efeito pulava só a primeira execução, com uma marca booleana, e
+   * disparava em qualquer outra. Só que ele também reexecuta quando um id muda:
+   * o `ThemeContext` começa com o `companySettings.json` do repositório
+   * (`metaPixelId: ""`), e o `/api/settings` troca pelo id do painel. Sem
+   * navegação nenhuma, saíam um segundo `page_view` e um segundo `PageView`. No
+   * GA4, sessão com duas visualizações conta como engajada, então volume,
+   * engajamento e rejeição erravam juntos. O StrictMode do `next dev`, que
+   * monta o efeito duas vezes, dava o mesmo dobro.
+   *
+   * Agora o disparo exige que o caminho tenha mudado. Os ids continuam na lista
+   * de dependências porque o efeito os lê; quem decide se dispara é o ref, não
+   * a lista.
+   *
+   * O ref é gravado ANTES do portão da oposição, e de propósito: ele guarda o
+   * caminho VISTO, não o medido. Quem navega com a oposição ligada, retira a
+   * oposição (a subida das tags conta a página em que está) e volta à página
+   * anterior fez uma navegação, e ela conta. Gravar só depois de medir deixaria
+   * essa volta sem visualização.
+   *
+   * `tests/page-view-uma-vez.test.ts` monta este componente e conta.
+   */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // The first run coincides with the initial mount/init above, which already
-    // sends its own PageView (via fbq('track','PageView') and gtag('config', ...)).
-    // Skip it here to avoid double-counting; only real pathname changes should fire.
-    if (isFirstPathnameRun.current) {
-      isFirstPathnameRun.current = false;
-      return;
-    }
+    const caminhoAnterior = ultimoCaminhoVisto.current;
+    ultimoCaminhoVisto.current = pathname;
+
+    // Chegada: a subida das tags já contou esta página.
+    if (caminhoAnterior === null) return;
+
+    // Reexecução sem navegação: um id chegou do painel, ou o StrictMode montou
+    // o efeito de novo.
+    if (caminhoAnterior === pathname) return;
 
     // Mesma régua da inicialização (31/08): só a recusa explícita barra. Se
     // este ficasse em `!== "accepted"`, o primeiro PageView entraria e os das
