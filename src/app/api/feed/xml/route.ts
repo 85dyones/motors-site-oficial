@@ -207,7 +207,7 @@ export async function GET(request: Request) {
       const descricaoDoAnuncio =
         car.descricao_seo ||
         car.descricao ||
-        `${car.marca} ${car.modelo} ${car.ano} com perícia cautelar independente e laudo na ficha assim que aprovado. ` +
+        `${car.marca} ${car.modelo} ${car.ano} com perícia cautelar independente e laudo disponível para consulta com o vendedor. ` +
           `Leve ${concordar(generoDoCarro, "o seu", "a sua")} com garantia e financiamento, em Curitiba.`;
 
       // O texto editorial da PDP pode vir com HTML do painel; o feed é XML e
