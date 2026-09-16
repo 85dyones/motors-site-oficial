@@ -205,12 +205,40 @@ function filtrarOverridesPublicos(bruto: unknown): unknown {
  * A lista acima é descritiva: o que garante a exclusão é a função ser
  * WHITELIST. Linha nova de `site_settings` nasce fora do recorte — foi assim
  * que `ga4` entrou sem precisar de nenhuma linha aqui.
+ *
+ * Removidos de DENTRO de uma linha que o recorte entrega — onde a whitelist
+ * por linha não alcança, e por isso a remoção é explícita:
+ *  - `s3AccessKeyId`/`s3SecretAccessKey` de dentro de `company` — as credenciais
+ *    S3 do Storage do Supabase, que o painel digita e o upload de branding usa.
+ *    Removê-las AQUI, e não só na linha, porque moram dentro do objeto
+ *    `company` que o recorte entrega inteiro: até 2026-09-16 um `GET
+ *    /api/settings` anônimo devolvia as duas em texto puro. Quem tem sessão de
+ *    staff recebe `completo` e não passa por este recorte — o painel de
+ *    configurações continua enxergando as chaves.
  */
+
+/**
+ * Campos de `company` que nunca saem para quem não tem sessão.
+ *
+ * Lista nomeada em vez de desestruturação para que o teste de regressão em
+ * `tests/settings-leitura-privilegiada.test.ts` possa lê-la, e para que quem
+ * acrescentar uma credencial nova em `CompanySettings` tenha um lugar óbvio
+ * onde registrá-la.
+ */
+const CREDENCIAIS_DE_STORAGE = ["s3AccessKeyId", "s3SecretAccessKey"] as const;
+
 export function recortePublicoDeSettings(
   completo: Awaited<ReturnType<typeof getCachedSettings>>
 ) {
+  let companySemSegredos = completo.companySettings;
+  if (companySemSegredos && typeof companySemSegredos === "object") {
+    const copia = { ...(companySemSegredos as Record<string, unknown>) };
+    for (const credencial of CREDENCIAIS_DE_STORAGE) delete copia[credencial];
+    companySemSegredos = copia as typeof completo.companySettings;
+  }
+
   return {
-    companySettings: completo.companySettings,
+    companySettings: companySemSegredos,
     aboutSettings: completo.aboutSettings,
     popups: completo.popups,
     quickTags: completo.quickTags,
