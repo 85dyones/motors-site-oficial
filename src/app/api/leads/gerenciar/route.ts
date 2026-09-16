@@ -83,31 +83,63 @@ export async function GET(request: NextRequest) {
     //
     // A conversa mais RECENTE ganha: um cliente que volta meses depois abre
     // conversa nova, e é nela que o consultor tem de responder.
-    const conversaPorLead = new Map<string, number>();
+    /**
+     * Do atendimento mais recente vêm TRÊS coisas, não uma.
+     *
+     * Além do id da conversa, o estado do assistente: `com_assistente` e
+     * `humano_assumiu_em` (decisão do dono em 2026-09-05 — o SLA só conta
+     * depois que o Ney sai do circuito). Sem eles aqui, `montar_fila_do_funil`
+     * tira o lead da fila e o card continua pintando "3 dias parado": banco e
+     * tela discordando sobre o mesmo lead, que é exatamente o que o cabeçalho
+     * de `lib/funil.ts` existe para impedir.
+     *
+     * O `not is null` saiu do `chatwoot_conversation_id`: um atendimento pode
+     * existir com o assistente conversando ANTES de a conversa ter id
+     * espelhado, e filtrá-lo aqui apagaria o único sinal que pausa o relógio.
+     * Quem decide se há link é `linkDeConversa`, que já cai no `wa.me`.
+     */
+    interface DoAtendimento {
+      conversa: number | null;
+      comAssistente: boolean;
+      humanoAssumiuEm: string | null;
+    }
+    const atendimentoPorLead = new Map<string, DoAtendimento>();
     if (leads.length > 0) {
       const { data: atendimentos, error: erroAtendimento } = await supabase
         .from("atendimentos")
-        .select("lead_id, chatwoot_conversation_id, iniciado_em, created_at")
-        .in("lead_id", leads.map((l: { id: string }) => l.id))
-        .not("chatwoot_conversation_id", "is", null);
+        .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at")
+        .in("lead_id", leads.map((l: { id: string }) => l.id));
 
       if (erroAtendimento) {
         console.warn("[Leads] Sem atendimento do Chatwoot:", erroAtendimento.message);
       } else {
+        // A MESMA régua do `montar_fila_do_funil`: `coalesce(iniciado_em,
+        // created_at)` decrescente. Duas réguas de "mais recente" no mesmo
+        // sistema é o motor escolhendo uma conversa e a tela outra.
         const maisRecentePrimeiro = [...(atendimentos ?? [])].sort((a, b) =>
           String(b.iniciado_em ?? b.created_at ?? "").localeCompare(
             String(a.iniciado_em ?? a.created_at ?? ""),
           ),
         );
         for (const a of maisRecentePrimeiro) {
-          if (a.lead_id && !conversaPorLead.has(a.lead_id)) {
-            conversaPorLead.set(a.lead_id, Number(a.chatwoot_conversation_id));
+          if (a.lead_id && !atendimentoPorLead.has(a.lead_id)) {
+            atendimentoPorLead.set(a.lead_id, {
+              conversa: a.chatwoot_conversation_id ? Number(a.chatwoot_conversation_id) : null,
+              // `=== true` e não coerção: coluna ausente num ambiente atrasado
+              // devolve `undefined`, e `undefined` tem de significar relógio
+              // rodando — a mesma direção segura do `default false` no banco.
+              comAssistente: a.com_assistente === true,
+              humanoAssumiuEm: a.humano_assumiu_em ?? null,
+            });
           }
         }
       }
     }
     for (const l of leads as Array<Record<string, unknown>>) {
-      l.chatwoot_conversation_id = conversaPorLead.get(String(l.id)) ?? null;
+      const a = atendimentoPorLead.get(String(l.id));
+      l.chatwoot_conversation_id = a?.conversa ?? null;
+      l.com_assistente = a?.comAssistente ?? false;
+      l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
     }
 
     // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
