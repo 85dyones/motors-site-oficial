@@ -49,13 +49,28 @@ describe("normalizarAreas", () => {
     expect(c.ordem[0]).toBe("instagram");
   });
 
-  it("seção nova do código entra no fim, visível", () => {
-    // Config antiga, salva quando o catálogo tinha menos seções.
-    const c = normalizarAreas({ ordem: ["hero", "busca"], ocultas: [] });
+  it("seção nova do código entra visível, e na ordem do catálogo", () => {
+    /* O nome deste caso era "entra no fim, visível" até 2026-09-05, e as
+       asserções nunca olharam posição — só tamanho, os dois primeiros ids e
+       `ocultas`. Quando `normalizarAreas` deixou de empurrar para o fim, o
+       nome passou a mentir e o teste continuou verde.
+
+       A ordem salva NÃO pode ser prefixo do catálogo, e essa foi a segunda
+       armadilha: com `["hero","busca"]`, `push` e `splice` produzem o mesmo
+       array, e a asserção de posição que eu tinha acabado de acrescentar
+       passava verde com o comportamento antigo. `["hero","contato"]` separa os
+       dois — `contato` é a ÚLTIMA do catálogo, então tudo que falta precisa
+       entrar ANTES dela. */
+    const c = normalizarAreas({ ordem: ["hero", "contato"], ocultas: [] });
     expect(c.ordem).toHaveLength(AREAS_DA_HOME.length);
-    expect(c.ordem.slice(0, 2)).toEqual(["hero", "busca"]);
+    // A preferência salva continua valendo: `contato` segue logo após `hero`
+    // seria o resultado de `push`; aqui as ausentes entram no meio.
+    expect(c.ordem[0]).toBe("hero");
+    expect(c.ordem[c.ordem.length - 1]).toBe("contato");
     // A seção que não estava na config não pode nascer oculta.
     expect(c.ocultas).toEqual([]);
+    // Nenhuma some, nenhuma duplica.
+    expect([...c.ordem].sort()).toEqual([...AREAS_DA_HOME.map((a) => a.id)].sort());
   });
 
   it("ignora pedido de ocultar seção fixa", () => {
@@ -125,5 +140,67 @@ describe("alternarArea", () => {
   it("não desliga seção fixa", () => {
     expect(alternarArea(CONFIG_PADRAO, "busca").ocultas).toEqual([]);
     expect(alternarArea(CONFIG_PADRAO, "hero").ocultas).toEqual([]);
+  });
+});
+
+describe("seção nova entra na vizinhança do catálogo, não no fim", () => {
+  /**
+   * A ordem REAL de produção, lida de `site_settings.areas_home` na revisão de
+   * 2026-09-05. São as nove áreas que existiam quando o dono arrumou a home.
+   *
+   * É por isso que este bloco existe: `faixas_de_preco` não está aqui, e a
+   * versão anterior de `normalizarAreas` fazia `push`, jogando a seção nova
+   * para depois de `contato` — a faixa vermelha de fechamento. Medido no HTML
+   * do build, não suposto.
+   */
+  const ORDEM_DE_PRODUCAO = [
+    "hero",
+    "busca",
+    "destaques_rapidos",
+    "estoque_selecionado",
+    "consultoria",
+    "venda_troca",
+    "reputacao",
+    "instagram",
+    "contato",
+  ];
+
+  it("as faixas de preço não caem depois da faixa de contato", () => {
+    const { ordem } = normalizarAreas({ ordem: ORDEM_DE_PRODUCAO, ocultas: [] });
+
+    expect(ordem.indexOf("faixas_de_preco")).toBeGreaterThan(-1);
+    expect(ordem.indexOf("faixas_de_preco")).toBeLessThan(ordem.indexOf("contato"));
+  });
+
+  it("entra logo depois da vizinha que a precede no catálogo", () => {
+    const { ordem } = normalizarAreas({ ordem: ORDEM_DE_PRODUCAO, ocultas: [] });
+
+    // No catálogo, `faixas_de_preco` vem logo após `estoque_selecionado`.
+    expect(ordem[ordem.indexOf("estoque_selecionado") + 1]).toBe("faixas_de_preco");
+  });
+
+  it("vale para qualquer seção nova, não só esta", () => {
+    // Tira do meio da ordem salva uma área que NÃO é a última do catálogo e
+    // confere que ela volta para o lugar dela, e não para o fim.
+    const semConsultoria = ORDEM_DE_PRODUCAO.filter((id) => id !== "consultoria");
+    const { ordem } = normalizarAreas({ ordem: semConsultoria, ocultas: [] });
+
+    expect(ordem.indexOf("consultoria")).toBeLessThan(ordem.indexOf("contato"));
+    expect(ordem.indexOf("consultoria")).toBeLessThan(ordem.indexOf("reputacao"));
+  });
+
+  it("a ordem que o dono salvou continua sendo respeitada", () => {
+    // Invertida de propósito: a preferência dele vence o catálogo.
+    const invertida = [...ORDEM_DE_PRODUCAO].reverse();
+    const { ordem } = normalizarAreas({ ordem: invertida, ocultas: [] });
+
+    const semNovas = ordem.filter((id) => invertida.includes(id));
+    expect(semNovas).toEqual(invertida);
+  });
+
+  it("nenhuma área do catálogo se perde no caminho", () => {
+    const { ordem } = normalizarAreas({ ordem: ORDEM_DE_PRODUCAO, ocultas: [] });
+
+    expect([...ordem].sort()).toEqual([...AREAS_DA_HOME.map((a) => a.id)].sort());
   });
 });

@@ -722,6 +722,18 @@ pelo dono em 2026-08-25).
 | `view_specs` | acordeões da ficha | `vehicle_id` |
 | `click_directions` | "Como chegar" das páginas de bairro | `directions_source` |
 
+> ⚠️ **O endereço do rodapé NÃO dispara `click_directions`, e isso é decisão.**
+> Desde 2026-09-04 ele abre o Perfil da Empresa no Google (`lib/schemaLoja.ts`),
+> e está em **todas** as páginas do site. Não entrou no evento porque
+> `click_directions` é ROTA — "como chegar" — e entra como conversão secundária
+> no Google Ads; a ficha do perfil é outro gesto, e juntar os dois infla uma
+> conversão com intenção diferente. É o mesmo erro que o aviso do `pos_lead`
+> logo abaixo descreve, e pela mesma razão: parece boa notícia.
+>
+> **Consequência a assumir:** existe hoje uma superfície de intenção local em
+> todo o site sem medida nenhuma. Se ela for medir, nasce como evento próprio —
+> não como mais uma origem de `click_directions`.
+
 > ⚠️ **`pos_lead: true` marca o clique que é consequência de um formulário já
 > enviado.** Na ficha, no pop-up, na curadoria e na avaliação, o site abre o
 > WhatsApp com a mensagem pronta assim que o lead é registrado — o mesmo envio

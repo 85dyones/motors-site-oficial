@@ -56,8 +56,8 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "avaliados, três entram. Os outros sete vão para repasse antes de chegar à vitrine.",
       "Curitiba tem um dos ecossistemas de perícia cautelar mais maduros do país, e o comprador " +
         "daqui costuma chegar à loja já sabendo o que é laudo e o que ele mostra. Por isso a " +
-        "perícia é feita antes, por empresa independente, e o laudo fica publicado na ficha de " +
-        "cada carro — não é algo que se combina depois de fechar o negócio.",
+        "perícia é feita antes, por empresa independente, e o laudo fica publicado na ficha do " +
+        "carro assim que aprovado — não é algo que se combina depois de fechar o negócio.",
       // O parágrafo "o que olhar" (2026-09-01, fórmula do relatório dos hubs).
       // Faltava nas duas páginas geo: elas explicavam o critério da loja e o
       // caminho até ela, sem nunca dizer o que só quem mexe com carro sabe. É
@@ -84,15 +84,21 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Todos os carros têm laudo de perícia cautelar?",
         resposta:
-          "Sim. A perícia é independente e acontece antes do veículo entrar na vitrine. O laudo " +
-          "de cada unidade fica disponível na ficha do carro, no site.",
+          "Sim. A perícia é independente e acontece antes do veículo entrar na vitrine. O laudo de cada unidade fica disponível na ficha do " +
+          "carro, no site, assim que é aprovado.",
       },
       {
         pergunta: "Atendem quem mora fora de Curitiba?",
         resposta:
+          // Esta pergunta é a MESMA de `PERGUNTAS_DE_GARANTIA` ("A garantia vale
+          // se eu comprar de outra cidade?"). Até 04/09/2026 as duas respostas
+          // discordavam: aqui o alcance era Região Metropolitana, com Paraná e
+          // Santa Catarina só "para veículos de ticket mais alto"; lá era "fora
+          // do estado". Duas respostas públicas para a mesma pergunta é como o
+          // cliente descobre no balcão que uma delas não vale.
           "Atendemos toda a Região Metropolitana — Pinhais, Colombo, São José dos Pinhais, " +
-          "Almirante Tamandaré, Araucária e vizinhas. Para veículos de ticket mais alto, " +
-          "recebemos compradores de outras praças do Paraná e de Santa Catarina.",
+          "Almirante Tamandaré, Araucária e vizinhas — e entregamos para todo o Brasil. " +
+          "A logística de entrega é combinada caso a caso com o consultor.",
       },
       {
         pergunta: "Como sei se o carro passou temporada no litoral?",
@@ -100,12 +106,12 @@ export const PAGINAS_GEO: PaginaGeo[] = [
           "Maresia aparece por baixo antes de aparecer na pintura: assoalho, molas, parafusos " +
           "dos bancos e a borda interna da tampa traseira contam a história. É um dos pontos " +
           "que a perícia cautelar independente verifica antes de o veículo entrar na vitrine, e " +
-          "o laudo fica na ficha do carro.",
+          "o laudo fica na ficha do carro assim que aprovado.",
       },
       {
         pergunta: "Aceitam meu carro na troca?",
         resposta:
-          "Sim. A Avaliação Express dá uma proposta em cerca de 10 minutos, com base na Tabela " +
+          "Sim. A Avaliação Express devolve uma proposta pelo WhatsApp, com base na Tabela " +
           "FIPE e no giro do nosso estoque, e o valor entra como entrada.",
       },
       {
@@ -187,7 +193,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Vocês compram carro usado aqui no bairro?",
         resposta:
-          "Compramos. A Avaliação Express dá uma proposta em cerca de 10 minutos e vale tanto " +
+          "Compramos. A Avaliação Express devolve uma proposta pelo WhatsApp e vale tanto " +
           "para troca quanto para venda direta — nem todo carro avaliado entra no estoque, e " +
           "quando não entra a gente diz por quê.",
       },

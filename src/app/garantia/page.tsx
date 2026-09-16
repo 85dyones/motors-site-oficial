@@ -6,7 +6,7 @@ import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../lib/procedencia";
 import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import { blocoJsonLd, schemaDePerguntas, schemaDeTrilha } from "../../lib/schemaListagem";
-import { schemaDaLoja } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { PERGUNTAS_DE_GARANTIA, TEXTO_DE_GARANTIA } from "../../lib/paginasInstitucionais";
 
 /**
@@ -38,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Garantia do Seminovo em Curitiba | Motors Store",
     description:
       "Três meses de garantia de motor e câmbio, sem carência e sem franquia, em todo carro " +
-      "vendido. Perícia cautelar independente antes da vitrine e laudo na ficha do veículo.",
+      "vendido. Perícia cautelar independente antes da vitrine e laudo na ficha do veículo assim que aprovado.",
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,
@@ -65,6 +65,7 @@ export default async function GarantiaPage() {
     ]),
     schemaDePerguntas(PERGUNTAS_DE_GARANTIA),
     schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
   ]);
 
   return (
@@ -76,7 +77,7 @@ export default async function GarantiaPage() {
         introducao={TEXTO_DE_GARANTIA}
         contagem={false}
         veiculos={[]}
-        textoSemEstoque="Veja o estoque disponível e o laudo de perícia de cada veículo na ficha."
+        textoSemEstoque="Veja o estoque disponível; o laudo de perícia fica na ficha assim que aprovado."
         conteudo={<FaixaProcedencia itens={normalizarProcedencia(settings.procedencia)} />}
         blocos={[
           {
@@ -91,6 +92,7 @@ export default async function GarantiaPage() {
           },
         ]}
         faq={PERGUNTAS_DE_GARANTIA}
+        caminho={CAMINHO}
       />
     </div>
   );

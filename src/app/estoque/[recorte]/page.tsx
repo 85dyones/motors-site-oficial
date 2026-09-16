@@ -20,7 +20,7 @@ import {
   schemaDePerguntas,
   schemaDeTrilha,
 } from "../../../lib/schemaListagem";
-import { schemaDaLoja } from "../../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../../lib/schemaLoja";
 import {
   perguntasDeCategoria,
   textoDeCarroceria,
@@ -129,7 +129,7 @@ async function resolver(slug: string) {
       tituloSeo: `Carros Seminovos ${faixa.nome} em Curitiba | Motors Store`,
       descricao:
         `Carros seminovos ${faixa.nome} em Curitiba, com perícia cautelar independente e ` +
-        "laudo na ficha de cada veículo. Troca e financiamento. Loja no Bacacheri.",
+        "laudo na ficha assim que aprovado. Troca e financiamento. Loja no Bacacheri.",
       rotulo: faixa.nome,
       veiculos: faixa.veiculos,
       introducao: textoDeFaixaDePreco(faixa.nome, faixa.veiculos),
@@ -226,6 +226,7 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
     schemaDeListagem(titulo, recorte.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
+    schemaDoSite(companySettings),
   ]);
 
   return (

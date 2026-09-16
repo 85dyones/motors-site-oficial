@@ -293,13 +293,28 @@ describe("o vocabulário do POSICIONAMENTO vale para o texto público", () => {
     "src/app/contato/page.tsx",
     "src/app/destaques/[tag]/page.tsx",
     "src/components/Footer.tsx",
+    "src/lib/colunasDoRodape.ts",
     "src/components/modernist/HeroHome.tsx",
     "src/app/api/feed/xml/route.ts",
+    // Entraram em 04/09/2026, com a rodada que tirou "alto padrão" e as
+    // promessas de prazo. Todos conferidos limpos antes de entrar: o único
+    // "premium" que restava estava num comentário, e `lerCodigo` desconta
+    // comentários.
+    "src/app/avaliacao/page.tsx",
+    "src/app/financiamento/page.tsx",
+    "src/components/AutoAvaliacao.tsx",
+    "src/components/SobreClientWrapper.tsx",
+    "src/lib/paginasInstitucionais.ts",
   ];
 
   it.each(publicos)("%s não usa a coluna \"Evitar\"", (arquivo) => {
     const codigo = lerCodigo(arquivo);
     expect(codigo).not.toMatch(/premium/i);
+    // A meta de /sobre vendeu "veículos de alto padrão" até 04/09/2026. É a
+    // mesma promessa que "premium" com outras palavras: fala de faixa de preço
+    // onde o posicionamento fala de SELEÇÃO — e a vitrine vai de R$ 23.900 a
+    // R$ 318.900, o que desmente a frase na própria página.
+    expect(codigo).not.toMatch(/alto[- ]padrão/i);
     expect(codigo).not.toMatch(/procedência garantida/i);
     expect(codigo).not.toMatch(/melhores condições/i);
     expect(codigo).not.toMatch(/oferta exclusiva/i);

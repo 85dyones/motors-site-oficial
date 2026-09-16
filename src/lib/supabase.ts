@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { registrarFalha } from "./observabilidade";
 import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
 import { publicavel } from "./coerenciaDoCadastro";
@@ -178,6 +179,24 @@ const formatCombustivel = (c: string): string => {
 };
 
 /**
+ * Palavras que negam aprovação NA COLUNA DE STATUS — "não aprovado", "sem
+ * aprovação", "reprovado", "pendente", "negado", "indeferido".
+ *
+ * O `\bsem\b` só é seguro porque o domínio é o valor de `pericia`, um
+ * vocabulário fechado onde "sem" aparece em "sem aprovação" e em nada mais.
+ *
+ * Foi EXPORTADA em 2026-09-08 para `src/lib/descritivo/validacao.ts` reusar, e
+ * a exportação foi desfeita no mesmo dia: aplicada a uma FRASE LIVRE de
+ * anúncio, ela desligava a regra da perícia em qualquer "sem «coisa boa»" —
+ * "sem sinistro registrado", "sem restrições", "sem histórico de leilão" —, e
+ * o texto saía afirmando laudo aprovado num carro em análise. Ela não responde
+ * "esta frase nega a aprovação?", e sim "este STATUS nega a aprovação?". Duas
+ * perguntas, duas réguas: a de texto livre mora em `validacao.ts`, com negação
+ * estrutural adjacente ao verbo.
+ */
+const NEGA_APROVACAO = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/;
+
+/**
  * Status de perícia do veículo, a partir do campo `pericia` do feed.
  *
  * Só aprova com afirmação EXPLÍCITA de aprovação, e nunca quando há negação
@@ -188,12 +207,19 @@ const formatCombustivel = (c: string): string => {
  * default promocional do mapper: aprovação por conteúdo de marketing.
  *
  * Valores reais em produção (2026-08-06): "Aprovado" e "Em análise".
+ *
+ * EXPORTADA desde 2026-09-08 porque o gerador de descritivo precisa da MESMA
+ * régua que acende o selo — nenhum veículo tem a string "PERÍCIA APROVADA" no
+ * banco (são "Aprovado", "Em análise" e "Aprovado com observação"), e uma
+ * segunda régua criaria mais uma verdade sobre a perícia.
+ *
+ * "Aprovado com observação" conta como aprovado: decisão do dono em 2026-09-08.
  */
-const formatPericia = (p: string): string => {
+export const formatPericia = (p: string): string => {
   const val = (p || "").toLowerCase().trim();
   if (!val) return "EM ANÁLISE";
 
-  const nega = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/.test(val);
+  const nega = NEGA_APROVACAO.test(val);
   if (!nega && /aprovad/.test(val)) return "PERÍCIA APROVADA";
   if (/analise|análise/.test(val)) return "EM ANÁLISE";
 
@@ -727,6 +753,59 @@ export async function getCarimbosDeConteudo(): Promise<Record<string, string>> {
 }
 
 /**
+ * `id -> last_seen_at` — a última vez que o feed confirmou cada veículo.
+ *
+ * Existe para o SITEMAP enxergar a carência do vendido pelo mesmo relógio que
+ * a ficha. Até 2026-09-04 eram dois relógios diferentes: `decidirPublicacao`
+ * recebe `dataVenda ?? ultimaPresenca`, e a ficha passava as duas
+ * (`getSinaisDeEstoque`) enquanto o sitemap passava só a data de venda. Com
+ * `veiculos_vendidos` vazia, o `noindex` do sitemap nunca virava `true` — e a
+ * URL ia continuar listada mesmo depois de a página passar a responder 308.
+ * Sitemap anunciando redirecionamento é sinal contraditório para o rastreador.
+ *
+ * `getSinaisDeEstoque` responde a mesma pergunta para UM id; o sitemap precisa
+ * de todos, e chamá-la 60 vezes seria 60 idas ao banco por revalidação.
+ *
+ * Falha SEMPRE para o mapa vazio, nunca para exceção: sem carimbo, a carência
+ * não vence e o carro continua listado. É o mesmo lado para o qual todo este
+ * módulo erra — manter no índice é recuperável, sumir do índice leva semanas.
+ */
+export async function getUltimasPresencas(): Promise<Record<string, string>> {
+  if (!isSupabaseConfigured || !supabase) return {};
+
+  try {
+    /* Duas colunas, uma ida. Poderia vir junto de `getCarimbosDeConteudo` num
+       `select` só — as duas leem a mesma tabela inteira na mesma revalidação
+       do sitemap —, e ficou separada de propósito: `conteudo_atualizado_em`
+       ainda depende de uma migração que pode não estar aplicada, e o PostgREST
+       rejeita a query INTEIRA com 42703 quando uma coluna não existe. Juntar
+       faria a ausência de um campo derrubar o outro, que é exatamente o
+       defeito documentado no cabeçalho de `getCarimbosDeConteudo`. */
+    const { data, error } = await supabase.from("estoque_motors").select("id, last_seen_at");
+
+    if (error || !data) {
+      console.warn(
+        "[Supabase] Sem últimas presenças (%s) — a carência do vendido não " +
+          "vence no sitemap.",
+        error?.message ?? "resposta vazia"
+      );
+      return {};
+    }
+
+    const mapa: Record<string, string> = {};
+    for (const linha of data as any[]) {
+      if (linha.last_seen_at) {
+        mapa[String(linha.id)] = linha.last_seen_at;
+      }
+    }
+    return mapa;
+  } catch (err) {
+    console.warn("[Supabase] Erro inesperado ao ler últimas presenças:", err);
+    return {};
+  }
+}
+
+/**
  * Consulta o estoque no Supabase, com fallback para os mocks.
  *
  * Por padrão devolve só o que veio no último ciclo de sync — é o que o site
@@ -750,14 +829,59 @@ export async function getCarimbosDeConteudo(): Promise<Record<string, string>> {
  * onde é exatamente o que se quer sem banco configurado.
  */
 function estoqueDeContingencia(): Veiculo[] {
-  if (process.env.NODE_ENV === "production") {
-    console.error(
-      "[Supabase] Estoque indisponível em produção — servindo vitrine vazia. " +
-        "MOCK_ESTOQUE NÃO é servido: são carros fictícios."
-    );
-    return [];
+  // Só o caminho de veículo NÃO ENCONTRADO usa isto hoje, e ali a lista vazia
+  // é a resposta certa: id que não existe é 404, não falha. A lista da vitrine
+  // passou a usar `estoqueIndisponivel()`, logo abaixo.
+  return process.env.NODE_ENV === "production" ? [] : MOCK_ESTOQUE;
+}
+
+/** O estoque não pôde ser lido. Não é "não há carros" — é "não sei". */
+export class EstoqueIndisponivelError extends Error {
+  constructor(motivo: string) {
+    super(`Estoque indisponível: ${motivo}`);
+    this.name = "EstoqueIndisponivelError";
   }
-  return MOCK_ESTOQUE;
+}
+
+/**
+ * A leitura do estoque FALHOU. Em produção, isto estoura.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que estourar é melhor que devolver lista vazia
+ * ---------------------------------------------------------------------------
+ * Devolver `[]` fazia a página renderizar com SUCESSO, só que sem carro. Para o
+ * Next isso é um render bom — e ele **guarda no ISR por até uma hora**. Uma
+ * falha momentânea de leitura na hora errada virava sessenta minutos de vitrine
+ * vazia servida a todo mundo, clique pago inclusive.
+ *
+ * Aconteceu duas vezes em 2026-09-02/03, registrado nos logs de produção: uma
+ * ficha de Saveiro servida com 200, `cache=BYPASS`, e vitrine vazia.
+ *
+ * Estourando, o Next não guarda o render quebrado: quem já tem versão boa em
+ * cache continua sendo servido por ela, e o pior caso vira erro visível em vez
+ * de mentira cacheada. É a mesma escolha que o comentário acima já fazia entre
+ * vitrine vazia e carro fictício — honesto e visivelmente errado ganha de
+ * plausível e falso.
+ *
+ * ⚠️ **Consequências que valem saber, e que são deliberadas:**
+ *
+ *   - No BUILD isto derruba o deploy em vez de publicar um site sem carro.
+ *     Deploy que falha é caro; site publicado vazio é pior e mais silencioso.
+ *   - O painel e as rotas de API passam a responder 500 em vez de lista vazia.
+ *     Operador vendo erro sabe que não pode confiar na tela; operador vendo
+ *     "0 veículos" toma decisão sobre um pátio que não está vazio.
+ *   - Se o pátio um dia esvaziar DE VERDADE (tabela zerada), o site erra em vez
+ *     de mostrar vitrine vazia. É estado excepcional de qualquer jeito, e o
+ *     aviso conta o que houve.
+ */
+async function estoqueIndisponivel(motivo: string): Promise<Veiculo[]> {
+  if (process.env.NODE_ENV !== "production") return MOCK_ESTOQUE;
+
+  console.error(`[Supabase] FALHA — estoque indisponível: ${motivo}.`);
+  // O aviso procura a pessoa. Sem ele isto é mais um log que ninguém lê — que
+  // foi exatamente como a CAPI ficou um mês parada.
+  await registrarFalha("parada", "estoque-indisponivel", motivo);
+  throw new EstoqueIndisponivelError(motivo);
 }
 
 export async function getEstoque(
@@ -798,8 +922,7 @@ export async function getEstoque(
         .order("preco", { ascending: false });
 
       if (error) {
-        console.warn("[Supabase] Query error:", error.message);
-        list = estoqueDeContingencia();
+        list = await estoqueIndisponivel(`o banco recusou a consulta — ${error.message}`);
       } else if (data && data.length > 0) {
         // --------------------------------------------------------------
         // Quem decide o que está no ar é a LOJA, não o robô (2026-08-30)
@@ -862,17 +985,27 @@ export async function getEstoque(
         }
         list = visiveis.map(mapear);
       } else {
-        list = estoqueDeContingencia();
+        /* O ramo que era MUDO, e o mais provável dos quatro.
+           A consulta voltou sem erro e sem linha — e não registrava o que tinha
+           visto, então o log dizia "vitrine vazia" sem dizer por quê. Agora diz
+           se veio nulo ou lista de zero, que é a informação que separa "falha
+           de transporte" de "a tabela está vazia". */
+        list = await estoqueIndisponivel(
+          data === null || data === undefined
+            ? "a consulta voltou nula, sem erro"
+            : `a consulta voltou com ${data.length} linhas, sem erro`,
+        );
       }
     } catch (err) {
-      console.warn("[Supabase] Unexpected connection error:", err);
-      list = estoqueDeContingencia();
+      // Um `EstoqueIndisponivelError` vindo daqui de dentro já é a falha
+      // tratada: relançar em vez de virar segunda mensagem sobre a mesma coisa.
+      if (err instanceof EstoqueIndisponivelError) throw err;
+      list = await estoqueIndisponivel(`conexão caiu — ${String(err)}`);
     }
   } else {
     // Sem credenciais: em dev serve o catálogo local; em produção seria um
     // deploy sem env configurada — vitrine vazia, nunca carros fictícios.
-    console.info("[Supabase] Client not configured.");
-    list = estoqueDeContingencia();
+    list = await estoqueIndisponivel("cliente do Supabase não configurado — falta env no deploy");
   }
 
   return applyLocalOverrides(list);
