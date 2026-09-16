@@ -3,7 +3,12 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
-import { marcarContainerAtivo, sanitizeGa4Id, sanitizeGtmId } from "../lib/dataLayer";
+import {
+  marcarContainerAtivo,
+  sanitizeGa4Id,
+  sanitizeGtmId,
+  sanitizeMetaPixelId,
+} from "../lib/dataLayer";
 import { persistirParametrosDeCampanha, rastreamentoRecusado } from "../lib/telemetry";
 
 declare global {
@@ -19,7 +24,20 @@ declare global {
 // `sanitizeGtmId` subiu para `lib/dataLayer` em 2026-09-02, junto com o
 // `sanitizeGa4Id` que passou a existir: o `BootstrapDeTags` interpola os
 // mesmos ids no HTML servido, e fronteira de segurança com duas cópias é
-// fronteira que um dia diverge. Ver o comentário de lá.
+// fronteira que um dia diverge. Ver o comentário de lá. O
+// `sanitizeMetaPixelId` veio em 2026-09-16, quando o pixel subiu para lá.
+
+/**
+ * O que o `BootstrapDeTags` de fato subiu no parse do HTML.
+ *
+ * `meta` é opcional porque o HTML servido antes de 2026-09-16 não o grava, e
+ * ausente vale o mesmo que `null`: o pixel não subiu no parse.
+ */
+type TagsNoAto = { ga4: string | null; gtm: string | null; meta?: string | null };
+
+function tagsNoAto(): TagsNoAto | undefined {
+  return (window as unknown as { __mtTagsNoAto?: TagsNoAto }).__mtTagsNoAto;
+}
 
 export default function IntegrationsTracker() {
   const { companySettings } = useTheme();
@@ -42,7 +60,7 @@ export default function IntegrationsTracker() {
   // Default `false`: na dúvida, o código continua medindo. Perder evento é
   // irreversível; contar em dobro por um dia, não.
   const assumeEventos = companySettings?.gtmAssumeEventos === true;
-  const metaPixelId = companySettings?.metaPixelId || "";
+  const metaPixelId = sanitizeMetaPixelId(companySettings?.metaPixelId || "");
   const googleAdsId = companySettings?.googleAdsId || "";
 
   // Guarda QUAL id foi inicializado, não apenas "se" foi. Um booleano fazia o
@@ -166,12 +184,12 @@ export default function IntegrationsTracker() {
       // Quem já entrou no parse do HTML não entra de novo aqui.
       //
       // `BootstrapDeTags` (2026-09-02) carrega GA4 e GTM no `<head>` servido,
-      // ~3 s antes deste efeito, e grava em `__mtTagsNoAto` o id de cada tag
-      // DEPOIS de injetá-la. Sem esta leitura o container entraria duas vezes e
-      // TODO evento contaria em dobro — o inverso exato do problema que a
-      // mudança veio resolver.
+      // ~3 s antes deste efeito, e desde 2026-09-16 o Meta Pixel também. Ele
+      // grava em `__mtTagsNoAto` o id de cada tag DEPOIS de ela entrar. Sem
+      // esta leitura o container entraria duas vezes e TODO evento contaria em
+      // dobro — o inverso exato do problema que a mudança veio resolver.
       //
-      // As duas tags leem a marca de jeitos diferentes, e de propósito:
+      // As tags leem a marca de jeitos diferentes, e de propósito:
       //
       //   - GA4 compara o ID. `config` é por propriedade: id trocado no painel
       //     sem recarregar ainda recebe o seu `config` daqui, e o id do HTML não
@@ -185,8 +203,15 @@ export default function IntegrationsTracker() {
       //     id, e o tracker subia um segundo container sempre que ele divergia
       //     — inclusive no primeiro render, que usa o `companySettings.json` do
       //     repositório antes de `/api/settings` responder.
-      const noAto = (window as unknown as { __mtTagsNoAto?: { ga4: string | null; gtm: string | null } })
-        .__mtTagsNoAto;
+      //
+      //   - O pixel segue a regra do GTM, e não a do GA4. `fbq('track', ...)` vai
+      //     para TODO pixel inicializado: um segundo `init` faria cada evento
+      //     desta visita sair para os dois pixels, e o snippet abaixo ainda
+      //     mandaria ao pixel do HTML um segundo `PageView` da chegada. Se o
+      //     HTML em cache trouxe um pixel e a configuração diz outro, fica o do
+      //     HTML até a próxima carga. A divergência é curta: salvar o painel
+      //     chama `revalidateTag`, e o HTML é refeito na requisição seguinte.
+      const noAto = tagsNoAto();
 
       if (noAto?.ga4) bibliotecaGtagCarregada.current = true;
 
@@ -230,8 +255,8 @@ export default function IntegrationsTracker() {
       }
 
       // 1.2. Google Tag Manager (container)
-      // ATENÇÃO: GA4, Google Ads e Meta Pixel já são carregados diretamente aqui
-      // neste mesmo componente. NÃO configurar essas mesmas tags dentro do
+      // ATENÇÃO: GA4, Google Ads e Meta Pixel já são carregados pelo próprio site,
+      // aqui ou no `BootstrapDeTags`. NÃO configurar essas mesmas tags dentro do
       // container do GTM — os eventos disparariam duas vezes. Use o GTM apenas
       // para tags de terceiros que não passam por este arquivo.
       if (noAto?.gtm) {
@@ -312,9 +337,22 @@ export default function IntegrationsTracker() {
       }
 
       // 2. Meta Pixel Initialization
-      if (!metaPixelId) {
+      //
+      // Já subiu no parse do HTML, com este pixel ou com outro: marcar como
+      // inicializado é o que impede o segundo `init` e o segundo `PageView` da
+      // chegada. A regra é a do GTM, e o motivo está na nota acima.
+      if (noAto?.meta) {
+        if (metaPixelId && noAto.meta !== metaPixelId) {
+          console.warn(
+            `[IntegrationsTracker] O HTML trouxe o pixel ${noAto.meta} e a configuração diz ${metaPixelId}. ` +
+              "Fica o do HTML até a próxima carga: um segundo pixel receberia todo evento desta visita.",
+          );
+        }
+        initializedMeta.current = true;
+      }
+      if (!metaPixelId && !initializedMeta.current) {
         console.warn("[IntegrationsTracker] metaPixelId ausente em companySettings — Meta Pixel NÃO será inicializado. Configurar em site_settings (Supabase).");
-      } else if (!initializedMeta.current) {
+      } else if (metaPixelId && !initializedMeta.current) {
         try {
           console.log(`[IntegrationsTracker] Initializing Meta Pixel with ID: ${metaPixelId}`);
 
@@ -354,7 +392,7 @@ export default function IntegrationsTracker() {
    *
    * A página em que cada tag sobe é contada pela própria subida: o `config` do
    * GA4 (no `BootstrapDeTags` ou na inicialização acima) manda um `page_view`,
-   * e o snippet do Meta manda um `PageView`. Este efeito conta o que vem
+   * e o snippet do Meta (idem) manda um `PageView`. Este efeito conta o que vem
    * depois, a navegação no cliente, que troca a URL sem recarregar. Mudança só
    * de query string ou de hash não conta, porque `usePathname` não as traz.
    *
@@ -412,7 +450,12 @@ export default function IntegrationsTracker() {
     }
 
     // Dispatch Meta Pixel page view
-    if (window.fbq && metaPixelId) {
+    //
+    // O pixel desta página é o do painel ou, antes de o painel responder, o que
+    // o `BootstrapDeTags` subiu. Nesse intervalo `metaPixelId` ainda é o do
+    // `companySettings.json`, vazio, e sem ler a marca a navegação feita antes
+    // da resposta saía sem `PageView`, com o pixel já no ar.
+    if (window.fbq && (metaPixelId || tagsNoAto()?.meta)) {
       window.fbq("track", "PageView");
     }
     

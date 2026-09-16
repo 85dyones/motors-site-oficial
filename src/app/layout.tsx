@@ -119,17 +119,19 @@ export default async function RootLayout({
     >
       <head>
         {/*
-          GA4 e GTM entram AQUI, no HTML servido, desde 2026-09-02.
+          GA4 e GTM entram AQUI, no HTML servido, desde 2026-09-02, e o Meta
+          Pixel desde 2026-09-16.
 
           Antes eram carregados só pelo `useEffect` do <IntegrationsTracker />,
           isto é, depois da hidratação: medido em produção, `load` aos 2.979 ms
-          e as tags aos 3.069 ms. Quem saía antes dos três segundos não era
-          medido por ninguém. O <BootstrapDeTags /> os sobe durante o parse e
-          marca `__mtTagsNoAto`; o tracker pula o que já subiu, para o container
-          não entrar em dobro.
+          e as tags aos 3.069 ms, e o pixel ainda esperava o `/api/settings`.
+          Quem saía antes não era medido por ninguém. O <BootstrapDeTags /> as
+          sobe durante o parse e marca `__mtTagsNoAto`; o tracker pula o que já
+          subiu, para o container não entrar em dobro e o pixel não contar a
+          chegada duas vezes.
 
-          O Meta Pixel, o `_fbc` e a reconfiguração em navegação client-side
-          continuam no <IntegrationsTracker />.
+          O `_fbc` e as visualizações de cada navegação client-side continuam
+          no <IntegrationsTracker />.
         */}
         <BootstrapDeTags />
       </head>

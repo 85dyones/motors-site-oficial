@@ -164,6 +164,23 @@ export function sanitizeGa4Id(raw: string): string {
 }
 
 /**
+ * O id do Meta Pixel, pela mesma razão dos dois de cima.
+ *
+ * Nasceu em 2026-09-16, quando o `BootstrapDeTags` passou a interpolar o pixel
+ * no HTML servido. Até então o `metaPixelId` ia CRU para dentro do
+ * `script.innerHTML` do `IntegrationsTracker`, o mesmo caso do `ga4Id` até
+ * 02/09.
+ *
+ * Vocabulário fechado: só dígitos, que é o formato do id e o que o campo do
+ * painel pede ("123456789012345"). Espaço nas pontas é tolerado. Qualquer outra
+ * coisa devolve vazio, e sem id o pixel não sobe.
+ */
+export function sanitizeMetaPixelId(raw: string): string {
+  const match = (raw || "").trim().match(/^\d+$/);
+  return match ? match[0] : "";
+}
+
+/**
  * Caminhos que não são vitrine: painel, áreas de terceiros e autenticação.
  *
  * Constante, e não literais dentro da função, porque desde 2026-09-02 a mesma
