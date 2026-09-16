@@ -3,26 +3,40 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.15.11"],
   /**
-   * `unoptimized: true` é ESTANCAMENTO, não estado final — contexto completo
-   * em `docs/DIAGNOSTICO_IMAGENS.md`.
+   * Otimização de imagem: LIGADA, restrita pelos `remotePatterns` com
+   * `pathname` fixo logo abaixo. Contexto completo em
+   * `docs/DIAGNOSTICO_IMAGENS.md`.
    *
-   * Medido em produção em 2026-08-26: TODA transformação nova do otimizador
-   * responde `402 OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED` — inclusive para
-   * `/logo.png`, arquivo local do próprio deploy. A cota de Image Optimization
-   * do plano Hobby (5.000 transformações/mês) estourou em ~13/08 (todos os
-   * HITs de cache têm `age` apontando para uma janela de 16 minutos daquele
-   * dia). O catálogo gera ~740 fotos × 10 larguras ≈ 7.400+ transformações:
-   * estoura de novo todo mês, em qualquer reset.
+   * Histórico — por que esteve DESLIGADA (`unoptimized: true` global) de
+   * 2026-08-26 a 2026-09-16: medido em produção em 26/08, TODA transformação
+   * nova do otimizador respondia `402
+   * OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED` — inclusive para `/logo.png`,
+   * arquivo local do próprio deploy. A cota de Image Optimization do plano
+   * Hobby (5.000 transformações/mês) estourou em ~13/08 (todos os HITs de
+   * cache tinham `age` apontando para uma janela de 16 minutos daquele dia).
+   * O catálogo gera ~740 fotos × 10 larguras ≈ 7.400+ transformações: esse
+   * número não mudou nesta reativação e estoura de novo todo mês, em
+   * qualquer reset.
    *
-   * Servir a origem direta é seguro aqui: o S3 do RevendaMais responde atrás
-   * de Cloudflare com `cache-control: max-age=31536000`, e é exatamente o que
-   * o feed XML e o hero (`<img>` cru) sempre fizeram. O custo é peso de página
-   * (foto `_W_` ≈ 190 KB vs ~25 KB otimizada) — a saída definitiva (plano Pro
-   * ou loader custom usando as variantes `_P_/_S_/_M_/_G_/_W_` que o próprio
-   * RevendaMais já serve) está descrita no diagnóstico e é decisão de negócio.
+   * O que mudou, e sustenta religar em 2026-09-16 (decisão do dono): os
+   * `remotePatterns` abaixo ganharam `pathname` fixo. Antes, `hostname`
+   * sozinho bastava — e `s3.carro57.com.br` hospeda TODAS as revendas
+   * RevendaMais, `*.supabase.co` seria o Storage de QUALQUER projeto Supabase
+   * do mundo. Sem `pathname`, qualquer um podia apontar o NOSSO otimizador
+   * para uma URL fora do nosso recorte e queimar a cota por fora do nosso
+   * próprio tráfego — esse vetor fecha aqui.
+   *
+   * O que isto NÃO resolve: o volume do NOSSO catálogo. O card manda
+   * `unoptimized` só para a foto que já é nossa (`ehFotoPropria`, storage
+   * próprio) — as fotos do carro57, hoje 100% do estoque, voltam a passar
+   * pelo otimizador de verdade agora que o flag global caiu (com o flag
+   * ligado, `config.unoptimized` sobrepunha qualquer prop por imagem — ver
+   * `next/dist/shared/lib/get-img-props.js`). Se o volume voltar a estourar a
+   * cota, a saída definitiva (plano Pro ou loader custom usando as variantes
+   * `_P_/_S_/_M_/_G_/_W_` que o próprio RevendaMais já serve) continua
+   * descrita no diagnóstico e é decisão de negócio.
    */
   images: {
-    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
@@ -63,10 +77,12 @@ const nextConfig: NextConfig = {
      * (`next/dist/server/image-optimizer.js`), e a origem manda 3600s: quem
      * decidia era o padrão. A MESMA foto voltava a ser cobrada a cada 4 h.
      *
-     * Quem ganha com isto é a galeria da PDP — o único lugar onde foto de
-     * veículo passa pelo otimizador, já que o card manda `unoptimized` para
-     * foto nossa. E vale para as fotos que JÁ estão no bucket, porque o
-     * `Math.max` passa por cima do `max-age=3600` delas.
+     * Quem ganha com isto é toda foto de veículo que passa pelo otimizador:
+     * a galeria da PDP sempre, e o card também — para a foto do carro57, já
+     * que o `unoptimized` do card só protege a foto que já é nossa
+     * (`ehFotoPropria`; ver comentário de `remotePatterns` acima). E vale
+     * para as fotos que JÁ estão no bucket, porque o `Math.max` passa por
+     * cima do `max-age=3600` delas.
      *
      * 31 dias se apoia num caminho que não se reescreve: cada envio gera
      * nome próprio — `novoLote()` no painel, `loteDaOrigem()` (sha1 da URL
