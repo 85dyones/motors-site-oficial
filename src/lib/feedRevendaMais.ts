@@ -8,10 +8,12 @@
  * A trava `estoque_motors_trava_do_sync` virou allowlist de seis colunas
  * (`preco`, `preco_original`, `preco_promocional`, `last_seen_at`, `portas`,
  * `opcionais`) e foto não está entre elas — o sync tenta gravar a cada seis
- * horas e o banco descarta em silêncio. Do outro lado, `GaleriaDeFotos` recusa
+ * horas e o banco descarta em silêncio. Do outro lado, `GaleriaDeFotos` recusava
  * envio pelo painel em veículo do feed, com uma nota que dizia que "as fotos
  * são reescritas a cada sincronização". Desde 30/08 isso deixou de ser verdade,
- * e as duas recusas juntas fecharam a porta: ninguém conseguia pôr foto.
+ * e as duas recusas juntas fecharam a porta: ninguém conseguia pôr foto. (A
+ * recusa da galeria caiu em 16/09, na fusão com o PR #45: o envio vale para
+ * qualquer origem, e este botão ficou como o outro caminho.)
  *
  * O defeito não é teórico. Medido em 15/09 contra o feed em produção:
  *
