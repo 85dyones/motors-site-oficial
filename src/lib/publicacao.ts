@@ -81,6 +81,12 @@ export type SinaisDoVeiculo = {
    * Antes só a primeira existia, e ela cobria quase nada — a tabela do Ciclo
    * tinha zero linhas. Toda a carência dependia do proxy acima, que o sync
    * reinicia a cada seis horas para o carro que segue no feed.
+   *
+   * Desde 2026-09-16 o histórico tem um segundo autor: o próprio sync, pela
+   * função `reconciliar_disponibilidade_do_feed` (migração `20260916220000`),
+   * que marca vendido quem saiu do feed e assina "RevendaMais (sync)". Mesma
+   * coluna, mesmo formato ("true"/"false"), mesma leitura aqui — o carro que o
+   * RevendaMais deixou de anunciar ganha data e cumpre as duas carências.
    */
   dataVenda?: string | null;
 };

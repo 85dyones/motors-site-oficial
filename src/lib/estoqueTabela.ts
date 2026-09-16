@@ -149,6 +149,14 @@ export interface LinhaDeEstoque {
  * A margem larga é o que torna este sinal seguro onde o antigo não era: uma
  * importação parcial move a âncora, e com margem de um ciclo ela acusaria o
  * estoque inteiro de uma vez.
+ *
+ * ⚠️ Desde 2026-09-16 este número tem DOIS donos de uso. A função
+ * `reconciliar_disponibilidade_do_feed` (migração `20260916220000`), que o n8n
+ * chama no fim de cada ciclo, marca VENDIDO o carro publicado que está fora do
+ * feed há esta mesma margem — a disponibilidade espelha o RevendaMais, decisão
+ * do dono. As duas réguas são iguais de propósito: o carro vira vendido no
+ * ciclo em que este aviso começaria. Mudar aqui é mudar lá, numa migração nova;
+ * `tests/disponibilidade-espelha-o-revendamais.test.ts` trava a igualdade.
  */
 export const MARGEM_FORA_DO_FEED_MS = 24 * 60 * 60 * 1000;
 

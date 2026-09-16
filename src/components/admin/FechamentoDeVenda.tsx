@@ -33,6 +33,12 @@ interface VeiculoDoEstoque {
   placa: string | null;
   chassi: string | null;
   valor_fipe: number | null;
+  /**
+   * Desde 16/09 a rota devolve também o vendido que ainda não tem venda no
+   * Ciclo — o sync marca o carro antes de o vendedor chegar aqui. A etiqueta
+   * diz isso na lista, para ninguém achar que escolheu carro à venda.
+   */
+  vendido?: boolean | null;
 }
 
 /**
@@ -482,6 +488,11 @@ export default function FechamentoDeVenda() {
                       <span className="ml-auto text-mt-neutral-600">
                         {v.quilometragem?.toLocaleString("pt-BR") ?? "—"} km
                       </span>
+                      {v.vendido && (
+                        <span className="w-full text-[10px] font-semibold uppercase tracking-[.1em] text-mt-neutral-700">
+                          vendido — venda ainda não registrada no Ciclo
+                        </span>
+                      )}
                       {!v.chassi && (
                         <span className="w-full text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
                           sem chassi no feed — digite à mão
