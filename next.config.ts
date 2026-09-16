@@ -17,6 +17,49 @@ const nextConfig: NextConfig = {
         hostname: "*.supabase.co",
       },
     ],
+
+    /*
+     * O TTL da imagem otimizada — e por que 31 dias.
+     *
+     * A Vercel cobra transformação em todo cache MISS **e em todo STALE**
+     * (`vercel.com/docs/image-optimization/limits-and-pricing`). Medido na
+     * produção em 2026-09-09, numa foto da galeria de uma PDP:
+     *
+     *     Cache-Control: public, max-age=14400, must-revalidate
+     *     X-Vercel-Cache: STALE     Age: 471857   (5,5 dias)
+     *
+     * Os 14400s (4 h) eram o padrão do Next 16 — `image-config.js` traz
+     * `minimumCacheTTL: 14400`, e este campo não estava declarado. O TTL
+     * efetivo é `Math.max(minimumCacheTTL, max-age da origem)`
+     * (`next/dist/server/image-optimizer.js`), e a origem manda 3600s: quem
+     * decidia era o padrão. A MESMA foto voltava a ser cobrada a cada 4 h.
+     *
+     * Quem ganha com isto é a galeria da PDP — o único lugar onde foto de
+     * veículo passa pelo otimizador, já que o card manda `unoptimized` para
+     * foto nossa. E vale para as fotos que JÁ estão no bucket, porque o
+     * `Math.max` passa por cima do `max-age=3600` delas.
+     *
+     * 31 dias se apoia num caminho que não se reescreve: cada envio gera
+     * nome próprio — `novoLote()` no painel, `loteDaOrigem()` (sha1 da URL
+     * de origem) no script de migração — e os uploads usam `upsert: false`.
+     * Trocar uma foto gera outra URL.
+     *
+     * O que essa premissa NÃO cobre, e é bom estar escrito: a policy
+     * `veiculos_staff_atualiza`
+     * (`20260829180000_f0p_storage_das_fotos_do_veiculo.sql`) permite que a
+     * equipe substitua o arquivo no MESMO caminho pelo painel do Supabase.
+     * O código nunca faz isso, mas quem fizer passa a servir bytes velhos
+     * por até 31 dias aqui — contra 1 h antes desta linha. A saída é
+     * pontual e oficial: `vercel cache invalidate --srcimg <url>`.
+     *
+     * Ressalva de futuro, que nasce desta linha: `localPatterns` não está
+     * definido, então um `<Image src="/hero.jpg">` apontando para `public/`
+     * passaria por aqui com URL estável — e trocar esse arquivo num deploy o
+     * congelaria por 31 dias, já que o cache de imagem da Vercel sobrevive a
+     * redeploy. Imagem trazida por `import` não tem o problema: o Next
+     * carimba hash de conteúdo no nome.
+     */
+    minimumCacheTTL: 2678400,
     /*
      * `dangerouslyAllowSVG` saiu em 2026-09-08, e o "dangerously" no nome é
      * literal: SVG é XML que pode conter `<script>`, e servido pelo

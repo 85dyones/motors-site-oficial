@@ -181,6 +181,11 @@ export default async function RootLayout({
           <CamadaDeDados />
           <IntegrationsTracker />
           <AntigravityTracker />
+          {/* A captura de erro do navegador NÃO mora aqui.
+              Ela é armada em `src/instrumentation-client.ts`, que o Next
+              carrega antes da hidratação e fora da árvore React — o motivo
+              está escrito lá, e é que um componente dentro deste layout não
+              enxerga nem o erro pré-hidratação nem o crash da própria raiz. */}
           <MolduraDoSite>
             <Header />
           </MolduraDoSite>

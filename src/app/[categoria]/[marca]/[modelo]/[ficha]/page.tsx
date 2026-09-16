@@ -110,9 +110,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   if (!veiculo) {
+    /* A descrição não atribui a ausência a uma venda, e isso é correção de
+       2026-09-11: carro vendido responde 200 com o selo durante a carência, e
+       301 para o hub do modelo depois dela (`publicacao.arquivar`, abaixo). O
+       `notFound()` desta rota é id que nunca existiu, ficha apagada, URL velha
+       de portal ou link torto. O `<head>` estava dizendo o contrário do `<h1>`
+       no mesmo documento — o corpo mora em `not-found.tsx`. */
     return {
       title: "Veículo não encontrado | Motors Store",
-      description: "O veículo procurado não foi localizado em nosso estoque ou já foi vendido."
+      description:
+        "Este endereço não abre nenhuma ficha do nosso estoque. Veja o que está no pátio hoje."
     };
   }
 

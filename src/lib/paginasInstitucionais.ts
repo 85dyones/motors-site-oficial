@@ -156,6 +156,10 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  * - **"empresa independente, credenciada junto ao Detran"** → redação fixada
  *   pelo dono em 09/09 (`LAUDO_APROVADO_PADRAO`), no lugar de "laboratório
  *   credenciado";
+ * - **"antes disso, é só pedir"**, colado na promessa do laudo → PR #64
+ *   (`24ab279`, no main desde 16/09), trazido no merge com o main: a ficha
+ *   manda pedir o laudo que ainda não consta aprovado, e esta página não pode
+ *   dizer outra coisa. Fica na MESMA frase da promessa, como o #64 a escreveu;
  * - **sai a explicação da lei** ("a lei já garante prazo para reclamar de
  *   vício…") → decisão editorial T8 do pacote: a página descreve o que a loja
  *   entrega, não ensina garantia legal. FICA o "soma-se aos seus direitos — não
@@ -221,9 +225,9 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
         "para que não dê.",
       "Todo veículo passa pela perícia antes de entrar na vitrine — estrutura, chassi e " +
         "histórico de sinistro auditados por empresa independente, credenciada junto ao Detran — " +
-        "e o laudo fica publicado na ficha do carro assim que é aprovado. Os sete de cada dez " +
-        "que não entram são recusados por sinistro estrutural, passagem por leilão, adulteração " +
-        "de numeração ou desgaste crônico grave.",
+        "e o laudo fica publicado na ficha do carro assim que é aprovado; antes disso, é só pedir. " +
+        "Os sete de cada dez que não entram são recusados por sinistro estrutural, passagem por " +
+        "leilão, adulteração de numeração ou desgaste crônico grave.",
       "Nenhuma perícia prevê tudo. Ela verifica estrutura, identificação e histórico — não abre " +
         "motor, não mede compressão de cilindro, não avalia bomba de alta pressão.",
       "Por isso, antes da entrega, o carro ainda passa pelo crivo técnico de showroom: mais de " +
@@ -257,7 +261,7 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        momento. "Assim que a perícia é aprovada" descreve o que o site faz. */
     resposta:
       "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente, credenciada junto ao Detran, e o laudo fica na ficha " +
-      "do veículo, no site, assim que é aprovada — dá para ler antes de vir à loja.",
+      "do veículo, no site, assim que é aprovada — e, enquanto não está lá, é só pedir ao vendedor.",
   },
   {
     pergunta: "A garantia vale se eu comprar de outra cidade?",

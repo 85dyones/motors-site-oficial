@@ -134,6 +134,95 @@ describe("SugestaoDeTexto", () => {
     expect(naTela()).toContain("Usa palavra barrada.");
   });
 
+  /**
+   * O 422 traz o texto que reprovou. Até 14/09/2026 o painel o jogava fora, e
+   * quem lia "A abertura tem 184 caracteres e o Google corta em 155" — motivo
+   * do print do painel que o dono mandou em 14/09/2026 — não tinha como
+   * conferir se a régua errou ou se o texto estourou de fato.
+   */
+  it("mostra o texto reprovado junto dos motivos", async () => {
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "abertura", motivo: "A primeira frase tem 171 caracteres e o Google corta em 155." }],
+        texto: "Texto que estourou a régua.",
+      },
+    };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela()).toContain("A primeira frase tem 171 caracteres");
+    expect(naTela()).toContain("Texto reprovado");
+    expect(naTela()).toContain("Texto que estourou a régua.");
+  });
+
+  it("não oferece 'usar este texto' para o texto reprovado", async () => {
+    const usados: string[] = [];
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "vocabulário", motivo: "Usa palavra barrada." }],
+        texto: "SUV premium.",
+      },
+    };
+    montar((t) => usados.push(t));
+    await clicar(botao("gerar"));
+    // Controle: o texto reprovado CHEGOU à tela. Sem isto, a ausência do
+    // botão passaria também num painel que não mostra nada.
+    expect(naTela()).toContain("SUV premium.");
+    expect(() => botao("usar este texto")).toThrow();
+    expect(usados).toEqual([]);
+  });
+
+  it("apaga o texto reprovado quando a geração seguinte passa", async () => {
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "vocabulário", motivo: "Usa palavra barrada." }],
+        texto: "SUV premium.",
+      },
+    };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela()).toContain("SUV premium.");
+
+    RESPOSTA = { ok: true, status: 200, corpo: { texto: "Honda NXR 160 Bros 2022.", caracteres: 24 } };
+    await clicar(botao("gerar outro"));
+    expect(naTela()).not.toContain("SUV premium.");
+    expect(naTela()).toContain("Honda NXR 160 Bros 2022.");
+  });
+
+  /**
+   * O `setReprovado(null)` do começo de `gerar()` é o que impede o texto
+   * reprovado antigo de voltar sob um erro que não traz texto: a queda de rede
+   * cai no `catch`, que não mexe em `reprovado`. O sucesso seguinte não prova
+   * isso, porque `setErro(null)` já esconde a caixa do erro inteira.
+   */
+  it("não traz de volta o texto reprovado quando a geração seguinte cai na rede", async () => {
+    RESPOSTA = {
+      ok: false, status: 422,
+      corpo: {
+        error: "O texto gerado não passou na conferência.",
+        motivos: [{ regra: "vocabulário", motivo: "Usa palavra barrada." }],
+        texto: "SUV premium.",
+      },
+    };
+    montar();
+    await clicar(botao("gerar"));
+    expect(naTela()).toContain("SUV premium.");
+
+    globalThis.fetch = (async () => {
+      throw new Error("Falha de rede simulada");
+    }) as unknown as typeof fetch;
+    await clicar(botao("gerar outro"));
+    // Controle: o erro novo chegou à tela.
+    expect(naTela()).toContain("Falha de rede simulada");
+    expect(naTela()).not.toContain("SUV premium.");
+    expect(() => botao("gerar sugestão")).not.toThrow();
+  });
+
   it("não oferece 'usar este texto' quando a geração falhou", async () => {
     RESPOSTA = { ok: false, status: 502, corpo: { error: "A OpenAI recusou a chamada" } };
     montar();

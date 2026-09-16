@@ -52,6 +52,32 @@ describe("montarEntrada", () => {
     expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("NÃO mencione perícia");
   });
   /**
+   * O prompt nomeia o que a trava reprova (14/09/2026). Termo que
+   * MENCIONA_PERICIA reprova e o prompt não nomeia — "sem passagem por leilão"
+   * — vira 422 no clique.
+   */
+  it("nomeia no prompt o que o laudo atesta", () => {
+    expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain(
+      'sinistro, leilão, Detran, auditado, "nada consta", restrição de documentação ou avaliação técnica',
+    );
+  });
+  /**
+   * Mesma classe do teste acima, achada na revisão final (15/09/2026):
+   * VOCABULARIO (validacao.ts) reprova "consulte" em qualquer forma fora de
+   * "sem consulte-nos", "luxuoso", "os melhores preços" e "exclusividade", e
+   * MENCIONA_PERICIA reprova "perito" — nenhum dos cinco tinha nome aqui.
+   * Sonda: "Consulte condições de financiamento." passa no main e reprova em
+   * 7c39cc8, sem nome no prompt — vira 422 no clique.
+   */
+  it("nomeia no prompt o vocabulário barrado que ainda não tinha nome, e 'perito'", () => {
+    const entrada = montarEntrada(SEM_NADA, "descricao_seo");
+    expect(entrada).toContain("consulte");
+    expect(entrada).toContain("luxuoso");
+    expect(entrada).toContain("os melhores preços");
+    expect(entrada).toContain("exclusividade");
+    expect(entrada).toContain("perito");
+  });
+  /**
    * As três proibições que nasciam da AUSÊNCIA de um rótulo, cada uma nos dois
    * sentidos.
    *
@@ -81,6 +107,20 @@ describe("montarEntrada", () => {
   it("pede formato diferente para cada campo", () => {
     expect(montarEntrada(SEM_NADA, "descricao_seo")).toContain("155 caracteres");
     expect(montarEntrada(SEM_NADA, "descricao")).toContain("ABRE a página");
+  });
+
+  /**
+   * O prompt mede o que a validação mede desde 14/09/2026: a PRIMEIRA frase.
+   * Um prompt pedindo duas frases faria o modelo mirar uma coisa e a
+   * conferência cobrar outra — e a mira antiga, "entre 130 e 155", ficava
+   * colada no teto, sem segunda tentativa.
+   */
+  it("pede a primeira frase em 155, com a mira abaixo do teto", () => {
+    const entrada = montarEntrada(SEM_NADA, "descricao_seo");
+    expect(entrada).toContain("a PRIMEIRA frase cabe em 155 caracteres e termina com ponto final");
+    expect(entrada).toContain("Mire entre 100 e 140 caracteres");
+    expect(entrada).not.toContain("duas primeiras frases");
+    expect(entrada).not.toContain("entre 130 e 155");
   });
 });
 

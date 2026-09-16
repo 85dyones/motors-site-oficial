@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { campoNegadoAoPerfil, ehStaff, perfisDe } from "../../../../../lib/permissoes";
 import { normalizarId } from "../../../../../lib/estoqueEscrita";
 import { montarDossie } from "../../../../../lib/descritivo/dossie";
-import { validarDescritivo, type CampoDeTexto } from "../../../../../lib/descritivo/validacao";
+import { primeiraFraseDe, validarDescritivo, type CampoDeTexto } from "../../../../../lib/descritivo/validacao";
 import { gerarTexto } from "../../../../../lib/descritivo/gerar";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,34 @@ export const dynamic = "force-dynamic";
  */
 
 const CAMPOS: CampoDeTexto[] = ["descricao", "descricao_seo"];
+
+/**
+ * Uma linha por geração no log da Vercel, com o prefixo `[descritivo]` para a
+ * busca achar.
+ *
+ * Existe desde 14/09/2026, por decisão do dono. Até ali a rota não registrava
+ * nada: o log da Vercel mostrava quatro respostas 422 em 13 e 14/09, e nenhuma
+ * dizia o campo, a regra, os tokens ou o tempo da chamada.
+ *
+ * Só medidas e nomes de regra. O texto gerado fica fora: quem pediu já o vê no
+ * painel, aprovado ou reprovado.
+ */
+type Registro = {
+  veiculo: string;
+  campo: CampoDeTexto;
+  status: number;
+  ms: number;
+  regras?: string[];
+  caracteres?: number;
+  primeiraFrase?: number;
+  tokensEntrada?: number;
+  tokensSaida?: number;
+  motivo?: string;
+};
+
+function registrar(registro: Registro) {
+  console.info("[descritivo]", JSON.stringify(registro));
+}
 
 export async function POST(
   request: NextRequest,
@@ -83,21 +111,36 @@ export async function POST(
     }
 
     const dossie = montarDossie(veiculo);
+    const inicio = Date.now();
     const saida = await gerarTexto({
       dossie,
       campo,
       chave: process.env.OPENAI_API_KEY ?? "",
     });
+    const ms = Date.now() - inicio;
 
     if (!saida.ok) {
+      registrar({ veiculo: id, campo, status: saida.status, ms, motivo: saida.motivo });
       return NextResponse.json({ error: saida.motivo }, { status: saida.status });
     }
 
     const motivos = validarDescritivo(saida.texto, dossie, campo);
+    const medidas = {
+      veiculo: id,
+      campo,
+      ms,
+      regras: motivos.map((m) => m.regra),
+      caracteres: saida.texto.length,
+      primeiraFrase: primeiraFraseDe(saida.texto).length,
+      tokensEntrada: saida.entrada,
+      tokensSaida: saida.saida,
+    };
     if (motivos.length > 0) {
+      registrar({ ...medidas, status: 422 });
       return NextResponse.json({ error: "O texto gerado não passou na conferência.", motivos, texto: saida.texto }, { status: 422 });
     }
 
+    registrar({ ...medidas, status: 200 });
     return NextResponse.json({
       texto: saida.texto,
       caracteres: saida.texto.length,

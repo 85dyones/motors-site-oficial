@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { PERFIS_QUE_TRIAM_ERROS } from "../../lib/filaDeErros";
 
 interface SidebarNavProps {
   /**
@@ -161,6 +162,29 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       title: "Sistema",
       roles: ["admin", "comercial"],
       items: [
+        // A fila de triagem de erro do site (2026-09-11). Mora em SISTEMA, e não
+        // em Geral: a pergunta que ela responde é "o site está inteiro?", a mesma
+        // de "Integrações e webhooks", que é a vizinha de linha. Erro do site é
+        // OPERAÇÃO — nada nele é financeiro, e nenhum número dele é dinheiro.
+        //
+        // `roles` no item estreita o grupo para Admin. A decisão que sai da tela
+        // — "corrigir agora" — é de quem mexe no código, e é o dono quem abre. E
+        // `mensagem`/`stack` podem carregar PII por acidente: o `comment on
+        // table` de `erros` avisa que um erro do PostgREST cita valores
+        // (`Key (telefone)=(5541…)`).
+        //
+        // ATENÇÃO: isto esconde o ITEM, não fecha o DADO. A RLS de `erros`
+        // libera leitura para todo `is_staff` — 7 pessoas ativas contra as 2
+        // desta lista, medido em 2026-09-12 —, e quem tem sessão de painel lê a
+        // tabela direto no PostgREST sem passar por aqui. O porquê, os números e
+        // o que faltaria para fechar de verdade estão no cabeçalho de
+        // `PERFIS_QUE_TRIAM_ERROS` (`src/lib/filaDeErros.ts`); esta lista é a
+        // mesma que a página aplica, então trilho e página não divergem.
+        {
+          name: "Erros do site",
+          href: "/admin/erros",
+          roles: [...PERFIS_QUE_TRIAM_ERROS],
+        },
         { name: "Integrações e webhooks", href: "/admin/configuracoes?tab=integracao" },
         { name: "Pop-ups de lead", href: "/admin/configuracoes?tab=popups" },
         { name: "Dados da concessionária", href: "/admin/configuracoes?tab=empresa" },
@@ -211,6 +235,12 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
     // dentro de "Mídia paga" no trilho.
     if (href === "/admin/marketing/midia-paga") {
       return pathname.startsWith("/admin/marketing/midia-paga");
+    }
+
+    // O detalhe de um grupo (/admin/erros/[hash]) continua dentro de "Erros do
+    // site": é de lá que se chega nele, e é para lá que se volta.
+    if (href === "/admin/erros") {
+      return pathname.startsWith("/admin/erros");
     }
 
     return pathname === href;

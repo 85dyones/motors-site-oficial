@@ -126,5 +126,8 @@ export const REGUA_DO_GUIA = [
   "Escrito do lado de quem paga a perícia e recusa o carro, não de quem vende o exame.",
   "Uma saída comercial definida: nenhum guia termina sem destino.",
   "Nada de ranking de motivo de reprovação: a distribuição real não está publicada.",
-  "O laudo fica na ficha ASSIM QUE A PERÍCIA É APROVADA — nunca 'o laudo de cada veículo'.",
+  // A ressalva fica na MESMA frase do exemplo proibido, sem ponto no meio: a
+  // varredura de `coerencia-da-pericia` corta a janela no ponto final, e um
+  // "nunca 'o laudo de cada veículo'" isolado vira infrator sozinho.
+  "O laudo é da loja e sai a pedido; na ficha, só quando a perícia consta aprovada — nunca 'o laudo de cada veículo'.",
 ] as const;

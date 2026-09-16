@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { validarDescritivo, aberturaDe, LIMITE_META } from "../src/lib/descritivo/validacao";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { validarDescritivo, primeiraFraseDe, LIMITE_META } from "../src/lib/descritivo/validacao";
 import { montarDossie } from "../src/lib/descritivo/dossie";
 
 /**
@@ -46,47 +48,113 @@ const motivosCompletos = (
   campo: "descricao" | "descricao_seo" = "descricao_seo",
 ) => validarDescritivo(t, d, campo);
 
-describe("aberturaDe", () => {
-  it("devolve as duas primeiras frases", () => {
-    expect(aberturaDe("Uma. Duas. Três.")).toBe("Uma. Duas.");
+describe("primeiraFraseDe", () => {
+  it("devolve só a primeira frase", () => {
+    expect(primeiraFraseDe("Uma. Duas. Três.")).toBe("Uma.");
   });
   it("devolve o texto inteiro quando não há pontuação", () => {
-    expect(aberturaDe("sem ponto final")).toBe("sem ponto final");
+    expect(primeiraFraseDe("sem ponto final")).toBe("sem ponto final");
+  });
+  /**
+   * O dossiê formata preço e km com `toLocaleString("pt-BR")`, ponto como
+   * separador de milhar. Bug medido em 08/09/2026: o ponto de "89.900" fechava
+   * a frase no meio do número.
+   */
+  it("não fecha a frase no ponto de milhar", () => {
+    expect(primeiraFraseDe("BMW X1 2022 por R$ 179.900, com 70.700 km. Aceita troca.")).toBe(
+      "BMW X1 2022 por R$ 179.900, com 70.700 km.",
+    );
+  });
+  /** Até 14/09/2026 "…" não fechava frase, e a frase seguinte entrava na conta. */
+  it("fecha a frase nas reticências", () => {
+    expect(primeiraFraseDe("Jeep Compass Limited 2021… o SUV que passou pela seleção.")).toBe(
+      "Jeep Compass Limited 2021…",
+    );
+  });
+  /** A meta description junta as linhas; a medida junta também. */
+  it("junta a quebra de linha sem ponto na mesma frase", () => {
+    expect(primeiraFraseDe("Toyota Corolla XEi 2020\nO sedan que passou pela seleção. Aceita troca.")).toBe(
+      "Toyota Corolla XEi 2020 O sedan que passou pela seleção.",
+    );
   });
 });
 
-describe("regra: abertura em 155 caracteres", () => {
-  it("reprova abertura maior que o corte do Google", () => {
+/**
+ * A régua é a PRIMEIRA frase em 155 desde 14/09/2026 — decisão do dono, a
+ * regra dos rascunhos de 17/08. O log da Vercel de 13 e 14/09 registrou 6
+ * gerações em 3 veículos, 4 delas com 422 — nenhuma linha nomeia o campo nem
+ * a regra.
+ */
+describe("regra: primeira frase em 155 caracteres", () => {
+  it("reprova primeira frase maior que o corte do Google", () => {
     const longa = "A".repeat(LIMITE_META + 5) + ". Segunda.";
     expect(motivos(longa)).toContain("abertura");
   });
-  it("aceita abertura dentro do limite", () => {
+  it("diz no motivo quantos caracteres a primeira frase tem", () => {
+    const longa = "A".repeat(LIMITE_META + 5) + ". Segunda.";
+    const r = motivosCompletos(longa).find((x) => x.regra === "abertura");
+    expect(r?.motivo).toBe(`A primeira frase tem ${LIMITE_META + 6} caracteres e o Google corta em ${LIMITE_META}.`);
+  });
+  it("aceita primeira frase dentro do limite", () => {
     expect(motivos("Honda NXR 160 Bros 2022. Passa por perícia independente.")).not.toContain("abertura");
   });
   /**
-   * O dossiê formata preço e km com `toLocaleString("pt-BR")` — ponto como
-   * separador de milhar. Bug medido em 08/09/2026: o split de frases tratava
-   * esse ponto como fim de frase, "R$ 89.900,00" virava dois fragmentos, e a
-   * segunda frase real ("Aceita troca...") caía fora da contagem — a
-   * abertura real tem 158 caracteres e devia reprovar, mas `aberturaDe`
-   * devolvia só os primeiros 34.
+   * O que a decisão mudou: duas frases que somam mais de 155 passam quando a
+   * primeira cabe. Pela régua de duas frases, este texto reprovava.
    */
-  it("reprova abertura com preço em formato brasileiro que soma 158 caracteres", () => {
-    // A fixture dizia "com garantia de procedência" — o mesmo chavão que o
-    // POSICIONAMENTO barra, escrito ao contrário. Ela media a ABERTURA e por
-    // isso continuava verde, mas era um texto proibido servindo de exemplo.
-    // Trocado por frase legítima do mesmo tamanho (27 caracteres), para o total
-    // seguir sendo os 158 que o caso descreve.
+  it("aceita duas frases que somam mais de 155 quando a primeira cabe", () => {
     const texto =
-      "Honda Civic 2022 por R$ 89.900,00. Aceita troca, financiamento facilitado e entrega para toda a região metropolitana de Curitiba, com histórico de manutenção.";
-    expect(texto).toHaveLength(158);
-    expect(motivos(texto)).toContain("abertura");
-    expect(motivos(texto)).not.toContain("vocabulário");
+      "Chevrolet Onix 2021 prata, manual, com 51.000 km. Aceita troca e financiamento facilitado, com entrega combinada no showroom do Bacacheri, em Curitiba, sem pressa nenhuma.";
+    expect(texto).toHaveLength(171);
+    expect(motivos(texto)).not.toContain("abertura");
   });
-  it("aceita abertura curta com preço e km em formato brasileiro", () => {
+  /**
+   * O ponto de milhar DENTRO da primeira frase. Se ele fechasse a frase (o bug
+   * de 08/09/2026), a medida seria "Honda Civic Touring 2018 por R$ 132." e o
+   * texto passaria.
+   */
+  it("reprova primeira frase de 164 caracteres com preço e km em formato brasileiro", () => {
+    const texto =
+      "Honda Civic Touring 2018 por R$ 132.900, com 70.700 km, câmbio CVT, bancos confortáveis, central de mídia e rodas de liga leve, pronto para rodar muitos anos ainda. Aceita troca.";
+    expect(primeiraFraseDe(texto)).toHaveLength(164);
+    expect(motivos(texto)).toContain("abertura");
+  });
+  it("aceita primeira frase curta com preço e km em formato brasileiro", () => {
     const texto =
       "BMW X1 sDrive 20i 2022, por R$ 179.900, com 70.700 km rodados. Aceita troca e financiamento facilitado.";
     expect(motivos(texto)).not.toContain("abertura");
+  });
+  it("não mede a primeira frase no campo descricao", () => {
+    const longa = "A".repeat(LIMITE_META + 5) + ". Segunda.";
+    expect(motivos(longa)).toContain("abertura");
+    expect(motivos(longa, SEM_NADA, "descricao")).not.toContain("abertura");
+  });
+});
+
+/**
+ * A régua contra TEXTO REAL: os 47 `descricao_seo` que o dono aprovou em
+ * 17/08/2026 (`conteudo-seo/rascunhos*.json`). A régua de duas frases reprovava
+ * 41. A da primeira frase reprova só estes três, e os três passam de 155 de
+ * verdade (171, 181 e 162 caracteres).
+ */
+describe("régua da primeira frase contra os rascunhos aprovados em 17/08", () => {
+  const pasta = join(__dirname, "..", "conteudo-seo");
+  const rascunhos = readdirSync(pasta)
+    .filter((f) => f.startsWith("rascunhos") && f.endsWith(".json"))
+    .flatMap((f) =>
+      Object.entries(JSON.parse(readFileSync(join(pasta, f), "utf-8")).textos as Record<string, string>),
+    );
+
+  it("lê os 47", () => {
+    expect(rascunhos).toHaveLength(47);
+  });
+
+  it("reprova só os três cuja primeira frase passa de 155", () => {
+    const reprovados = rascunhos
+      .filter(([, texto]) => motivos(texto).includes("abertura"))
+      .map(([id]) => id)
+      .sort();
+    expect(reprovados).toEqual(["7447739", "8059102", "8252763"]);
   });
 });
 
@@ -112,6 +180,40 @@ describe("regra: vocabulário", () => {
   });
   it("aceita 'procedência' e 'estoque' sozinhas, que são palavras da casa", () => {
     expect(motivos("Procedência rastreada, e o estoque inteiro está no site.")).not.toContain("vocabulário");
+  });
+
+  /**
+   * Revisão de 14/09/2026 (qa-guardian): as variações que a lista antiga não
+   * pegava. "Consulte-nos para mais detalhes." já reprovava e fica como guarda
+   * da exceção de "sem consulte-nos" logo abaixo.
+   */
+  it.each([
+    "Acabamento luxuoso.",
+    "Os melhores preços da cidade.",
+    "Consulte condições.",
+    "Exclusividade para você.",
+    "Consulte-nos para mais detalhes.",
+  ])("reprova a variação do vocabulário barrado: %s", (frase) => {
+    expect(motivos(frase)).toContain("vocabulário");
+  });
+
+  /** A frase da casa, num rascunho aprovado pelo dono em 17/08 (8324691). */
+  it("aceita 'sem consulte-nos'", () => {
+    expect(motivos("Preço no anúncio, sem consulte-nos.")).not.toContain("vocabulário");
+  });
+
+  /**
+   * "Exclusive" é nome de versão (Nissan Versa, Kicks, Sentra), não o chavão
+   * "exclusivo". Com `exclusiv\w*`, o rascunho aprovado 8440875 reprovava
+   * (revisão da tarefa, 15/09/2026).
+   */
+  it.each([
+    "Nissan Versa 1.6 Exclusive 2022, azul, câmbio automático CVT.",
+    "Nissan Kicks Exclusive com câmbio CVT.",
+  ])("aceita o nome de versão Exclusive: %s", (frase) => {
+    // Controle: o chavão "exclusivo" continua reprovando.
+    expect(motivos("Carro exclusivo para você.")).toContain("vocabulário");
+    expect(motivos(frase)).not.toContain("vocabulário");
   });
 });
 
@@ -224,6 +326,50 @@ describe("regra: perícia", () => {
   ])("reprova por conter '%s' (item menor, ampliação de 09/09/2026)", (_termo, frase) => {
     expect(motivos(frase)).toContain("perícia");
   });
+
+  /**
+   * Segunda ampliação (14/09/2026, qa-guardian): o verbo "vistoriou" e a frase
+   * padrão do campo Laudo cautelar dita sem os substantivos passavam limpos.
+   */
+  it.each([
+    ["vistoriou", "Nossa equipe vistoriou cada detalhe."],
+    [
+      "a frase padrão do laudo sem os substantivos",
+      "Estrutura, chassi e histórico de sinistro auditados por empresa independente, credenciada junto ao Detran.",
+    ],
+    ["nada consta e documentação sem restrições", "Documentação sem restrições e nada consta."],
+    ["nada consta sozinho", "Nada consta em nome do proprietário."],
+    ["documentação sem restrições", "Documentação sem restrições."],
+    ["aprovado na avaliação técnica", "Aprovado na avaliação técnica de 120 itens."],
+    ["avaliação técnica aprovada", "Avaliação técnica de 120 itens, toda aprovada."],
+    ["leilão", "Sem passagem por leilão."],
+    // Item menor da revisão final (15/09/2026): mesmo vazamento por flexão já
+    // corrigido em "vistoriou" — \bleil(?:[ãa]o|[õo]es) não pegava "leiloado"
+    // nem "leiloou".
+    ["leiloado", "Carro nunca foi leiloado."],
+  ])("reprova por falar do que o laudo atesta: %s", (_caso, frase) => {
+    expect(motivos(frase)).toContain("perícia");
+  });
+
+  /**
+   * Guarda de regressão: "sem restrição" e "avaliação técnica" só contam presos
+   * ao contexto do laudo. Soltos, são frase de venda.
+   */
+  it.each([
+    "Avaliação do seu usado na hora.",
+    "Fazemos avaliação técnica do seu usado na hora.",
+    "Aceita troca sem restrição de ano.",
+  ])("NÃO reprova — frase de venda com palavra vizinha do laudo: %s", (frase) => {
+    expect(motivos(frase)).not.toContain("perícia");
+  });
+
+  /** O motivo nomeia o que o laudo atesta, como o prompt (revisão da tarefa, 15/09/2026). */
+  it("o motivo da perícia nomeia auditado e avaliação técnica", () => {
+    const r = motivosCompletos("Veículo auditado por profissionais antes da venda.");
+    const motivo = r.find((x) => x.regra === "perícia")?.motivo ?? "";
+    expect(motivo).toContain("auditado");
+    expect(motivo).toContain("avaliação técnica");
+  });
 });
 
 describe("regra: status interno", () => {
@@ -233,6 +379,34 @@ describe("regra: status interno", () => {
   /** "perícia independente" contém "pendente" — a armadilha que reprovava tudo. */
   it("NÃO reprova 'perícia independente'", () => {
     expect(motivos("Passa por perícia independente antes de entrar na vitrine.")).not.toContain("status interno");
+  });
+
+  /**
+   * Revisão de 14/09/2026 (qa-guardian). "O resultado do exame ainda não saiu"
+   * passava. As outras já reprovavam e ficam como guarda: a revisão não pode
+   * abrir "Veículo em análise" ao prender a regra ao contexto, nem "Aguardando
+   * liberação da documentação" ao prender a aprovação e a liberação ao exame.
+   */
+  it.each([
+    "O resultado do exame ainda não saiu.",
+    "Veículo em análise.",
+    "Aguardando o resultado do exame.",
+    "Documentação pendente de transferência.",
+    "Aguardando liberação da documentação.",
+  ])("reprova: %s", (frase) => {
+    expect(motivos(frase)).toContain("status interno");
+  });
+
+  /** Frases de venda que a regra antiga reprovava. */
+  it.each([
+    "Está aguardando você no showroom.",
+    "Crédito em análise na hora.",
+    "Financiamento em análise na hora, sem burocracia.",
+    "Aguardando aprovação do financiamento, sem burocracia.",
+    "Aguardando a aprovação do banco para liberar o carro.",
+    "Aguardando liberação do crédito.",
+  ])("NÃO reprova — frase de venda: %s", (frase) => {
+    expect(motivos(frase)).not.toContain("status interno");
   });
 });
 
@@ -269,6 +443,57 @@ describe("regra: alcance", () => {
     expect(motivos("Fazemos entrega em todo o território nacional.")).toContain("alcance");
     expect(motivos("Entregamos para todo o território nacional.")).toContain("alcance");
     expect(motivos("Fazemos frete para qualquer ponto do território nacional.")).toContain("alcance");
+  });
+
+  /**
+   * TERCEIRA REVISÃO (14/09/2026, qa-guardian): "todo o país" sem preposição e
+   * lugar fora do recorte passavam. "Entrega em Santa Catarina inteira." já
+   * reprovava e fica como guarda: Santa Catarina com palavra de entrega e sem
+   * Balneário continua fora do recorte. "Entregamos em todos os estados."
+   * também fica como guarda: a revisão de 15/09/2026 tirou "qualquer estado",
+   * não os estados. As quatro últimas passavam depois dessa revisão e voltaram
+   * a reprovar na re-revisão do mesmo dia: "atendemos" antes de lugar fora do
+   * recorte, e "qualquer estado do Brasil/do país" em ramo próprio.
+   */
+  it.each([
+    "Atendemos clientes de todo o país.",
+    "Entregamos em São Paulo e no Rio Grande do Sul.",
+    "Entrega em Florianópolis.",
+    "Enviamos para outros estados.",
+    "Entrega em Santa Catarina inteira.",
+    "Entregamos em todos os estados.",
+    "Atendemos em Minas Gerais também.",
+    "Atendemos clientes de Santa Catarina.",
+    "Levamos até qualquer estado do Brasil.",
+    "Entregamos para qualquer estado do país.",
+  ])("reprova alcance fora do recorte: %s", (frase) => {
+    expect(motivos(frase)).toContain("alcance");
+  });
+
+  /**
+   * As três primeiras reprovavam: Santa Catarina de procedência, "alcance" de
+   * autonomia e "atendimento" de oficina. As outras são guarda: a região
+   * metropolitana (São José dos Pinhais é dela), o litoral até Balneário e a
+   * frase de alcance dos rascunhos aprovados pelo dono em 17/08. "Levamos seu
+   * carro em qualquer estado." e "Atendemos com garantia nacional de peças."
+   * reprovavam na primeira entrega desta tarefa (revisão de 15/09/2026) e
+   * seguem passando depois da re-revisão do mesmo dia. A última é a guarda do
+   * "atendemos" antes de lugar: Santa Catarina até Balneário continua dentro do
+   * recorte.
+   */
+  it.each([
+    "Veio de Santa Catarina com manual e chave reserva.",
+    "Híbrido nacional com alcance de 600 km.",
+    "Motor nacional, com peças e atendimento fáceis de achar.",
+    "Entrega em Curitiba e região metropolitana.",
+    "Entrega em São José dos Pinhais.",
+    "Entrega em Joinville e Balneário Camboriú.",
+    "Showroom no Bacacheri, em Curitiba; entregamos em todo o Paraná e no litoral catarinense até Balneário Camboriú.",
+    "Levamos seu carro em qualquer estado.",
+    "Atendemos com garantia nacional de peças.",
+    "Atendemos clientes de Santa Catarina até Balneário Camboriú.",
+  ])("NÃO reprova: %s", (frase) => {
+    expect(motivos(frase)).not.toContain("alcance");
   });
 });
 
@@ -325,6 +550,69 @@ describe("regra: fato fora do dossiê", () => {
   });
   it("aceita único dono quando o dossiê tem Donos anteriores", () => {
     expect(motivos("Único dono, sempre na concessionária.", APROVADO)).not.toContain("fato fora do dossiê");
+  });
+
+  /**
+   * CATÁLOGO (14/09/2026, qa-guardian). As grafias dos opcionais vêm de
+   * produção: 38 veículos com opcionais, SQL de 14/09.
+   */
+  const comOpcionais = (opcionais: string) =>
+    montarDossie({
+      marca: "chevrolet", modelo: "onix", ano: 2021, preco: "72900.00",
+      quilometragem: 51000, cambio: "manual", cor: "prata", tipo: "Hatch",
+      pericia: "Em análise", opcionais,
+    });
+
+  /**
+   * Outra grafia do mesmo item libera o item. Cada caso prova primeiro que o
+   * texto É lido como aquele equipamento (reprova sem o opcional) e só depois
+   * que a outra grafia o libera. Sem a primeira asserção, um texto que a regra
+   * nem enxergasse passaria por motivo nenhum.
+   *
+   * "Central multimídia." com "Kit multimídia" já passava pela régua antiga e
+   * fica como guarda.
+   */
+  it.each([
+    ["Bancos em couro.", "Bancos de couro"],
+    ["Banco em couro.", "bancos em couro"],
+    ["Com sensores traseiros.", "Sensor de estacionamento"],
+    ["Ar-condicionado digital.", "Ar condicionado digital"],
+    ["Com câmera de ré.", "Câmera traseira"],
+    ["Com teto panorâmico.", "Teto solar panoramico"],
+    ["Central multimídia.", "Kit multimídia"],
+    ["Câmera 360.", "Camera 360 graus"],
+  ])("'%s' reprova sem opcional e passa com '%s'", (texto, opcional) => {
+    expect(motivos(texto, SEM_NADA, "descricao")).toContain("fato fora do dossiê");
+    expect(motivos(texto, comOpcionais(opcional), "descricao")).not.toContain("fato fora do dossiê");
+  });
+
+  /**
+   * Opcional parecido NÃO libera o vizinho. Os três primeiros passavam pela
+   * régua antiga, que comparava por `includes`: "teto solar" contém "ar".
+   * "Sensor de iluminacao" já reprovava e fica como guarda.
+   */
+  it.each([
+    ["Com teto solar.", "Ar", "teto solar"],
+    ["Ar-condicionado digital.", "Ar-condicionado", "ar-condicionado digital"],
+    ["Com teto solar panorâmico.", "Teto solar", "teto panorâmico"],
+    ["Com sensor de estacionamento.", "Sensor de iluminacao", "sensor de estacionamento"],
+  ])("'%s' reprova com o opcional vizinho '%s'", (texto, opcional, item) => {
+    const r = validarDescritivo(texto, comOpcionais(opcional), "descricao");
+    expect(r.find((x) => x.regra === "fato fora do dossiê")?.motivo).toContain(item);
+  });
+
+  it("'Teto solar panoramico' declara o teto solar também", () => {
+    expect(motivos("Com teto solar.", SEM_NADA, "descricao")).toContain("fato fora do dossiê");
+    expect(motivos("Com teto solar.", comOpcionais("Teto solar panoramico"), "descricao")).not.toContain(
+      "fato fora do dossiê",
+    );
+  });
+
+  it("não conta sensor de chuva nem 'sensores' sem complemento", () => {
+    // Controle: o sensor de estacionamento É contado.
+    expect(motivos("Com sensor de estacionamento.", SEM_NADA, "descricao")).toContain("fato fora do dossiê");
+    expect(motivos("Com sensor de chuva.", SEM_NADA, "descricao")).not.toContain("fato fora do dossiê");
+    expect(motivos("Com sensores.", SEM_NADA, "descricao")).not.toContain("fato fora do dossiê");
   });
 });
 
