@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { rastreamentoRecusado } from "../lib/telemetry";
+import { descartarCookiesDeAnuncio, rastreamentoRecusado } from "../lib/telemetry";
 
 /**
  * O liga-desliga do rastreamento, na página de privacidade.
@@ -55,10 +55,12 @@ export default function ControleDeRastreamento() {
       if (desligar) {
         localStorage.setItem("ag_cookie_consent", "rejected");
         // Os identificadores de campanha saem na hora, e não só daqui para a
-        // frente: `persistirParametrosDeCampanha` os apaga ao ver a recusa, e
-        // o `_fbc` é removido aqui porque é cookie, não chave do storage.
-        document.cookie = "_fbc=; path=/; max-age=0";
-        document.cookie = "_fbp=; path=/; max-age=0";
+        // frente: `persistirParametrosDeCampanha` os apaga ao ver a recusa, a
+        // cada carga. Os cookies `_fbp`/`_fbc` saem também aqui, no próprio
+        // clique, sem esperar o tracker. Em todos os domínios: o Meta Pixel os
+        // grava com `domain=`, e a escrita sem domínio que ficava aqui não
+        // alcançava essa cópia.
+        descartarCookiesDeAnuncio();
       } else {
         localStorage.removeItem("ag_cookie_consent");
       }

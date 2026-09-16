@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
-import { generateEventId, getMatchParams } from "../lib/tracking-identity";
+import {
+  getActiveAgUid,
+  getMatchParamsRespeitandoRecusa,
+  getUtmParameters,
+  rastreamentoRecusado,
+  trackLeadSubmission,
+} from "../lib/telemetry";
+import { generateEventId } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
 import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import { ACOES } from "../lib/turnstile";
@@ -61,8 +67,14 @@ export default function ContatoClientWrapper() {
     // Gerado antes do POST para poder ser reaproveitado no pixel do browser
     // (que só dispara depois de confirmado o sucesso, mais abaixo) — mesmo
     // event_id nos dois lados garante a deduplicação no Meta.
-    const eventId = generateEventId("Lead");
-    const { fbp, fbc } = getMatchParams();
+    //
+    // Só para quem não se opôs em /privacidade. `/api/leads` espelha o Lead no
+    // CAPI sempre que recebe `eventId`, então é o `null` que barra o envio ao
+    // Meta de quem se opôs — o mesmo `null` que `trackLeadSubmission` devolve
+    // na recusa. Aqui o id não pode vir do retorno dela: ela só roda DEPOIS do
+    // POST, e trazê-la para antes contaria conversão de envio que falhou.
+    const eventId = rastreamentoRecusado() ? null : generateEventId("Lead");
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     const payload = {
       agUid,
@@ -114,7 +126,9 @@ export default function ContatoClientWrapper() {
       const phoneDigits = phone.replace(/\D/g, "");
       const phoneE164 = phoneDigits ? `+${phoneDigits.length === 10 || phoneDigits.length === 11 ? `55${phoneDigits}` : phoneDigits}` : null;
       trackLeadSubmission({ marca: "Contato", modelo: "Formulário Geral", preco: 0 }, message, {
-        presetEventId: eventId,
+        // Na recusa, `eventId` é null: a função gera um id só para o
+        // `dataLayer` e volta antes de disparar qualquer coisa.
+        presetEventId: eventId ?? undefined,
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         email,

@@ -7,8 +7,7 @@ import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
 import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
 import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
-import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
-import { getMatchParams } from "../lib/tracking-identity";
+import { getUtmParameters, getActiveAgUid, getMatchParamsRespeitandoRecusa, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
 import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
@@ -240,7 +239,11 @@ export default function PDPClientWrapper({
 
     // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)
     if (viewEventId) {
-      const { fbp, fbc } = getMatchParams();
+      // `viewEventId` já é null na recusa, então aqui só chega quem não se
+      // opôs e o valor é o mesmo de `getMatchParams`. A versão com portão fica
+      // mesmo assim: se a guarda de cima mudar, a ficha não volta a mandar os
+      // identificadores de quem se opôs.
+      const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
       fetch("/api/capi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -396,7 +399,7 @@ export default function PDPClientWrapper({
       tipoDeLead: "proposta",
       formId: "form-proposta-veiculo",
     });
-    const { fbp, fbc } = getMatchParams();
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     const payload = {
       remoteJid,

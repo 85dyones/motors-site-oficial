@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { getEstoque, getVeiculoPdpUrl, Veiculo } from "../lib/supabase";
 import { precoVigente } from "../lib/regrasEstoque";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
-import { getMatchParams } from "../lib/tracking-identity";
+import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
@@ -436,7 +435,7 @@ export default function CarMatch() {
         formId: "form-garagem-profiler",
       }
     );
-    const { fbp, fbc } = getMatchParams();
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     const payload = {
       remoteJid,

@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ehCaminhoDePdp } from "../lib/veiculoUrl";
-import { getActiveAgUid, getUtmParameters, refCurta, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
-import { getMatchParams } from "../lib/tracking-identity";
+import { getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, refCurta, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
 import { useTheme } from "../app/ThemeContext";
 import LeadCaptureModal from "./LeadCaptureModal";
@@ -328,7 +327,7 @@ export default function LeadPopup() {
         formId: "form-popup-lead",
       }
     );
-    const { fbp, fbc } = getMatchParams();
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     // Dispatch lead via secure server proxy api
     // Wrapped: API failures must NEVER block the client from reaching WhatsApp

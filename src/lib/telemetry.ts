@@ -1,4 +1,4 @@
-import { generateEventId, getMatchParams } from "./tracking-identity";
+import { generateEventId, getMatchParams, type MatchParams } from "./tracking-identity";
 import {
   containerAssumeOsEventos,
   pushCliqueTelefone,
@@ -294,6 +294,108 @@ export function descartarParametrosDeCampanha(): void {
 }
 
 /**
+ * Os domínios em que um cookie deste host pode estar gravado: um por escrita
+ * de expiração. `null` é a escrita SEM `domain=`.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a escrita sem `domain=` não bastava
+ * ---------------------------------------------------------------------------
+ * Cookie é identificado por nome, domínio e caminho, e só some com uma escrita
+ * que repita os três. `nome=; path=/; max-age=0` alcança só a cópia de HOST — a
+ * que `IntegrationsTracker` grava para o `_fbc`. O Meta Pixel grava de outro
+ * jeito: o `fbevents.js` escreve o `_fbp`, e às vezes o `_fbc`, com
+ * `;domain=.<domínio registrável>`. Até 16/09/2026 essa cópia sobrevivia ao
+ * botão de oposição por até 90 dias e seguia saindo no `fbp` do lead, enquanto
+ * a /privacidade promete que a recusa apaga "na hora".
+ *
+ * Por isso a lista tem a escrita sem domínio e, com `domain=`, o próprio host e
+ * cada domínio pai com pelo menos dois rótulos. Na raiz, onde o site roda, é
+ * `[null, "motorsstore.com.br", "com.br"]`: a escrita sem domínio é a única que
+ * alcança a cópia de host, e `motorsstore.com.br` — a volta `i = 0`, o próprio
+ * host — é a única que alcança a cópia do Pixel, `.motorsstore.com.br`.
+ * `com.br` é sufixo público, e o navegador recusa a escrita em silêncio.
+ * Mandá-la mesmo assim é inofensivo e poupa manter aqui uma lista de sufixos,
+ * que envelheceria.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que é função pura e exportada
+ * ---------------------------------------------------------------------------
+ * Para a lista de cada host ser travada sem cookie. O jsdom guarda a cópia de
+ * host e a de domínio do mesmo host no mesmo lugar, o que o navegador não faz.
+ * Na raiz, isso impede reproduzir o defeito, e o teste com cookie roda no
+ * `www`. Um teste só com cookie deixava passar verde duas mutações:
+ *
+ *   · a remoção da escrita sem domínio, porque no jsdom a escrita com
+ *     `domain=<host>` apaga a cópia de host tanto quanto ela;
+ *   · um laço começando em `i = 1`, que só quebra na raiz: no `www`, a cópia
+ *     do Pixel está no domínio pai.
+ *
+ * Ver `tests/oposicao-cookies-de-dominio.test.ts`.
+ */
+export function variantesDeDominio(hostname: string): (string | null)[] {
+  const rotulos = hostname.split(".");
+  const variantes: (string | null)[] = [null];
+  for (let i = 0; i <= rotulos.length - 2; i++) {
+    variantes.push(rotulos.slice(i).join("."));
+  }
+  return variantes;
+}
+
+/**
+ * Expira um cookie em todas as variantes de `variantesDeDominio`. O caminho é
+ * sempre `/`: é o único que o Pixel e o tracker usam.
+ */
+function apagarCookieEmTodoDominio(nome: string): void {
+  if (typeof document === "undefined") return;
+  try {
+    for (const dominio of variantesDeDominio(window.location.hostname)) {
+      const escopo = dominio === null ? "" : `; domain=${dominio}`;
+      document.cookie = `${nome}=; path=/; max-age=0${escopo}`;
+    }
+  } catch (e) {
+    console.warn(`[Telemetry] Failed to discard cookie ${nome}:`, e);
+  }
+}
+
+/**
+ * Apaga deste navegador os dois cookies de anúncio do Meta, `_fbp` e `_fbc`,
+ * na cópia de host e na de domínio. Chamam: o botão de oposição, em
+ * `ControleDeRastreamento`, no clique que grava a recusa; e
+ * `persistirParametrosDeCampanha`, a cada carga de quem recusou.
+ *
+ * `tests/oposicao-cookies-de-dominio.test.ts` trava as escritas de cada host,
+ * a raiz incluída, e prova com cookie de verdade, num subdomínio, que a cópia
+ * gravada com `domain=` sai junto. O cookie de verdade sozinho não prova a
+ * raiz: lá o jsdom guarda as duas cópias no mesmo lugar.
+ */
+export function descartarCookiesDeAnuncio(): void {
+  apagarCookieEmTodoDominio("_fbp");
+  apagarCookieEmTodoDominio("_fbc");
+}
+
+/**
+ * `getMatchParams`, respeitando a oposição: para quem desligou o rastreamento
+ * em /privacidade, `fbp` e `fbc` saem nulos.
+ *
+ * É o que os fluxos de lead usam para montar o POST de `/api/leads`. Até
+ * 16/09/2026 eles chamavam `getMatchParams` direto, e o lead de quem se opôs
+ * levava os dois identificadores do Meta: muitas vezes a cópia de domínio do
+ * `_fbp`, que o botão de oposição não apagava, ou o `fbc` remontado do
+ * `fbclid` da URL, que nem cookie é.
+ *
+ * O lead continua sendo enviado, e com `utm`: a leitura dos parâmetros de
+ * campanha não tem portão, por decisão registrada em `getUtmParameters`. Sai
+ * só o identificador do Meta, que no lead serve para uma coisa: casar o
+ * contato com o anúncio no CAPI, que é o uso a que a pessoa se opôs.
+ *
+ * Para quem não se opôs, devolve `getMatchParams()` sem mudar nada.
+ */
+export function getMatchParamsRespeitandoRecusa(): MatchParams {
+  if (rastreamentoRecusado()) return { fbp: null, fbc: null };
+  return getMatchParams();
+}
+
+/**
  * Guarda no dispositivo o parâmetro de campanha — desde a chegada, e a recusa
  * apaga.
  *
@@ -312,7 +414,8 @@ export function descartarParametrosDeCampanha(): void {
  * **a recusa apaga.** Sem isso, o identificador ficaria no dispositivo
  * contradizendo a última decisão da pessoa — que é justamente o oposto do que a
  * frase acima defende. Por isso `rejected` não é só "não gravar": é
- * `descartarParametrosDeCampanha()`, removendo o que já estava lá.
+ * `descartarParametrosDeCampanha()`, removendo o que já estava lá — e, desde
+ * 16/09/2026, `descartarCookiesDeAnuncio()`, pela razão escrita no ramo.
  *
  * A memória de sessão SOBREVIVE à recusa de propósito. É o que permite a
  * mudança de ideia funcionar na mesma aba: quem recusa e depois aceita tem o
@@ -344,8 +447,14 @@ export function persistirParametrosDeCampanha(): void {
     capturarDaUrl();
 
     // A última decisão manda. Recusou: sai do dispositivo o que houver.
+    //
+    // Os cookies de anúncio também, e não só no clique de `ControleDeRastreamento`:
+    // um Pixel carregado na aba antes da recusa pode regravar o `_fbp` depois
+    // dele, e sem esta linha nenhuma carga seguinte o apagaria — o cookie
+    // ficaria até expirar. Este ramo só roda para quem recusou.
     if (localStorage.getItem("ag_cookie_consent") === "rejected") {
       descartarParametrosDeCampanha();
+      descartarCookiesDeAnuncio();
       return;
     }
 
