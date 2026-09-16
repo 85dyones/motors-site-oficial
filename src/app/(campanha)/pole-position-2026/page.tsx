@@ -152,8 +152,8 @@ const ARGUMENTOS = [
      */
     texto:
       "Nossos veículos passam por perícia cautelar independente antes de entrar na vitrine — " +
-      "estrutura, chassi e histórico de sinistro auditados, com o laudo disponível para consulta " +
-      "com o vendedor.",
+      "estrutura, chassi e histórico de sinistro auditados, com o laudo " +
+      "disponível para consulta com o vendedor.",
   },
 ];
 
