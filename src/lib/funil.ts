@@ -85,6 +85,22 @@ export const ROTULO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
 };
 
 /**
+ * O mesmo desfecho no meio da frase: "nenhum motivo de PERDA está ativo".
+ *
+ * Existe separado de `ROTULO_DO_DESFECHO` porque o rótulo qualifica o NEGÓCIO
+ * ("Perdido") e este qualifica o MOTIVO ("de perda") — trocar um pelo outro
+ * dá "nenhum motivo de Perdido". E mora aqui, e não na caixa de desfecho,
+ * porque a caixa, a rota e a validação do funil precisam da mesma palavra:
+ * duas cópias do mesmo vocabulário é como `descartado` foi esquecido da
+ * primeira vez.
+ */
+export const MOTIVO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
+  ganho: "ganho",
+  perdido: "perda",
+  descartado: "descarte",
+};
+
+/**
  * O negócio que nunca existiu — e que por isso não entra em conta nenhuma.
  *
  * Predicado e não comparação solta porque ele é consultado em cinco telas: se
@@ -509,6 +525,226 @@ export function motivosVisiveis(
   });
 
   return noEscopo.length > 0 ? noEscopo : doTipo;
+}
+
+// ---------------------------------------------------------------------------
+// Fechar o negócio exige motivo — na tela e na API
+// ---------------------------------------------------------------------------
+
+/** O que a decisão do desfecho precisa saber da etapa de destino. */
+export interface EtapaDoDesfecho {
+  chave: string;
+  rotulo: string;
+  tipo: TipoDeEtapa;
+}
+
+/** O lead como está no banco ANTES da gravação. */
+export interface LeadDoDesfecho {
+  situacao: string | null;
+  canal: string | null;
+}
+
+/**
+ * De onde a decisão lê o banco — as duas únicas partes dela que não são puras.
+ *
+ * Entram como parâmetro, e não como import, pela regra do cabeçalho deste
+ * arquivo: ele não conhece o banco. É também o que deixa o teste CHAMAR a
+ * regra com dublês, em vez de ler o `if` de uma rota.
+ *
+ * `null` quer dizer "não deu para ler", e não "não existe": a RLS deste
+ * projeto bloqueia devolvendo lista vazia com `error` nulo, e as duas coisas
+ * pedem respostas diferentes. Só são chamadas quando o destino é desfecho.
+ */
+export interface FontesDoDesfecho {
+  lerLead: () => Promise<LeadDoDesfecho | null>;
+  /** Todos os motivos, ativos e inativos — a decisão filtra. */
+  lerMotivos: () => Promise<MotivoDoFunil[] | null>;
+}
+
+/** O veredito: ou os campos a gravar, ou a recusa já escrita em português. */
+export type DecisaoDeDesfecho =
+  | { ok: true; campos: Record<string, unknown> }
+  | {
+      ok: false;
+      status: 400 | 500;
+      erro: string;
+      /** Falta ESCOLHER, e não "a escolha é ruim". É o que a tela lê. */
+      motivoObrigatorio: boolean;
+      tipo: TipoDeDesfecho;
+    };
+
+/**
+ * Valor do negócio ganho. Vazio é nulo — zero seria uma venda de R$ 0.
+ *
+ * Aceita a vírgula decimal e o ponto de milhar que se digitam em português.
+ */
+export function valorDoDesfecho(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n =
+    typeof v === "string" ? Number(v.replace(/\./g, "").replace(",", ".")) : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Para quem um motivo de escopo fechado vale, no meio da frase. */
+const PARA_QUEM_O_MOTIVO_VALE: Record<EscopoDeLead, string> = {
+  compra: "só para quem quer comprar um carro",
+  avaliacao: "só para quem quer vender o carro",
+};
+
+/** De que lado o lead chegou, no meio da frase. */
+const DE_ONDE_O_LEAD_VEIO: Record<EscopoDeLead, string> = {
+  compra: "chegou querendo comprar",
+  avaliacao: "chegou querendo vender o carro dele",
+};
+
+/**
+ * Mover o lead para esta etapa exige motivo? E o motivo oferecido serve?
+ *
+ * ---------------------------------------------------------------------------
+ * A regra
+ * ---------------------------------------------------------------------------
+ * Etapa terminal — os três tipos de `ehTipoDeDesfecho` — só recebe o lead com
+ * um motivo que:
+ *
+ *  1. existe em `funil_motivos`;
+ *  2. é do MESMO tipo da etapa. A chave estrangeira garante que a chave
+ *     existe, nunca que o tipo casa: descarte com motivo de perda só
+ *     apareceria no gráfico, meses depois;
+ *  3. está ativo. A caixa não oferece motivo desativado, e a rota não pode
+ *     aceitar o que a tela esconde;
+ *  4. vale para o ESCOPO do lead. A pergunta é a mesma que a caixa faz a
+ *     `motivosVisiveis` (#94), com a mesma resposta — inclusive a queda para a
+ *     lista cheia quando o escopo não tem motivo ativo. O que a caixa oferece
+ *     passa; o que ela esconde, não. Uma régua própria aqui faria a tela
+ *     oferecer um motivo que o servidor recusa, e o card ficaria preso.
+ *
+ * A recusa é 400, com a frase pronta para a tela mostrar.
+ *
+ * ---------------------------------------------------------------------------
+ * Só na TRANSIÇÃO
+ * ---------------------------------------------------------------------------
+ * O lead que JÁ está na etapa terminal não é cobrado de novo. Produção tem
+ * descartes fechados antes de a caixa perguntar o motivo, e cobrar do passado
+ * travaria a edição do card sem que ninguém tivesse feito nada errado. Motivo
+ * informado, porém, é conferido sempre: gravar motivo inválido num lead já
+ * fechado é o mesmo dado ruim por outra porta.
+ *
+ * Sem conseguir ler o lead, a decisão não presume nada a favor de gravar:
+ * cobra o motivo como se fosse transição. E não julga escopo, porque
+ * `escopoDoLead(null)` diria "compra" e recusaria o motivo certo de um lead
+ * de avaliação por causa de uma leitura que falhou.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a decisão inteira, e não pedaços dela na rota
+ * ---------------------------------------------------------------------------
+ * Esta é a metade servidora da trava — a que continua valendo "no dia em que
+ * alguém chamar a rota de outro lugar". Ela morava espalhada dentro do PATCH,
+ * perguntava `tipo === "ganho" || tipo === "perdido"` (e por isso nunca valeu
+ * para descarte), e a prova possível ali era um teste que lesse a condição.
+ * Condição lida é furada por um desvio logo abaixo do trecho lido. Junta e
+ * pura, a regra é executada pelo teste, e desvio novo roda junto.
+ */
+export async function decidirDesfecho(
+  etapa: EtapaDoDesfecho | null,
+  corpo: { desfecho_motivo?: unknown; desfecho_valor?: unknown; desfecho_nota?: unknown },
+  fontes: FontesDoDesfecho,
+): Promise<DecisaoDeDesfecho> {
+  // Etapa desconhecida (migração pendente) ou em andamento: nada a cobrar e
+  // nada a ler. É por aqui que passa todo movimento entre colunas do quadro.
+  if (!etapa) return { ok: true, campos: {} };
+  const tipo = etapa.tipo;
+  if (!ehTipoDeDesfecho(tipo)) return { ok: true, campos: {} };
+
+  const motivo =
+    typeof corpo.desfecho_motivo === "string" ? corpo.desfecho_motivo.trim() : "";
+  const lead = await fontes.lerLead();
+  const transicao = !lead || lead.situacao !== etapa.chave;
+
+  if (!motivo) {
+    if (!transicao) return { ok: true, campos: {} };
+    return {
+      ok: false,
+      status: 400,
+      motivoObrigatorio: true,
+      tipo,
+      erro:
+        `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
+        `é ele que a tela "Ganhos e perdas" agrupa.`,
+    };
+  }
+
+  const recusa = (erro: string): DecisaoDeDesfecho => ({
+    ok: false,
+    status: 400,
+    motivoObrigatorio: false,
+    tipo,
+    erro,
+  });
+
+  const motivos = await fontes.lerMotivos();
+  if (!motivos) {
+    return {
+      ok: false,
+      status: 500,
+      motivoObrigatorio: false,
+      tipo,
+      erro: `Não deu para conferir o motivo "${motivo}" agora, e nada foi gravado. Tente de novo.`,
+    };
+  }
+
+  const escolhido = motivos.find((m) => m.chave === motivo);
+  if (!escolhido) return recusa(`Motivo desconhecido: "${motivo}".`);
+  const nome = escolhido.rotulo?.trim() || motivo;
+
+  // Motivo de ganho num negócio perdido faria o relatório somar peras com
+  // maçãs — e o erro só apareceria no gráfico, meses depois.
+  if (escolhido.tipo !== tipo) {
+    const deQue = ehTipoDeDesfecho(escolhido.tipo)
+      ? MOTIVO_DO_DESFECHO[escolhido.tipo]
+      : `"${escolhido.tipo}"`;
+    return recusa(
+      `O motivo "${nome}" é de ${deQue}, e "${etapa.rotulo}" pede um motivo de ` +
+        `${MOTIVO_DO_DESFECHO[tipo]}.`,
+    );
+  }
+
+  if (!escolhido.ativo) {
+    return recusa(
+      `O motivo "${nome}" está desativado. Escolha um dos motivos de ` +
+        `${MOTIVO_DO_DESFECHO[tipo]} que estão ativos.`,
+    );
+  }
+
+  if (lead) {
+    const escopo = escopoDoLead(lead.canal);
+    const oferecidos = motivosVisiveis(motivos, tipo, escopo);
+    if (!oferecidos.some((m) => m.chave === motivo)) {
+      const dele = escolhido.escopo;
+      const paraQuem =
+        dele === "compra" || dele === "avaliacao"
+          ? PARA_QUEM_O_MOTIVO_VALE[dele]
+          : `para o escopo "${dele}"`;
+      const canal = lead.canal?.trim() ? `canal "${lead.canal.trim()}"` : "sem canal registrado";
+      return recusa(
+        `O motivo "${nome}" vale ${paraQuem}, e este lead ${DE_ONDE_O_LEAD_VEIO[escopo]} ` +
+          `(${canal}).`,
+      );
+    }
+  }
+
+  const nota =
+    typeof corpo.desfecho_nota === "string" && corpo.desfecho_nota.trim()
+      ? corpo.desfecho_nota.trim()
+      : null;
+
+  return {
+    ok: true,
+    campos: {
+      desfecho_motivo: motivo,
+      desfecho_valor: valorDoDesfecho(corpo.desfecho_valor),
+      desfecho_nota: nota,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

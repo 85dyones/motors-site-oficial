@@ -350,9 +350,14 @@ continua sendo no kanban — `CAMPOS_EDITAVEIS.lead` é `{}` de propósito.
   desfecho, mas não sabe de onde o lead veio, e chutar "Proposta" criaria uma
   proposta que nunca existiu.
 - **Motivo obrigatório, observação livre ao lado.** A caixa abre antes de
-  gravar, e a rota recusa (422 com `motivo_obrigatorio`) se o motivo não vier.
-  Validar só na tela viraria opcional no dia em que alguém chamasse a rota de
-  outro lugar. O motivo seleciona e o botão confirma: a primeira versão gravava
+  gravar, nos três desfechos — ganho, perdido e descarte —, e a rota recusa
+  (400 com `motivo_obrigatorio`) se o motivo não vier. Também recusa (400)
+  motivo de outro tipo, inexistente, desativado ou de outro escopo: a API
+  aceita exatamente o que a caixa oferece para o canal do lead. A cobrança é
+  só na MUDANÇA de etapa — lead já fechado continua editável. A regra mora em
+  `decidirDesfecho` (`lib/funil`) e `criarMover` (`lib/leadsKanban`), e não
+  tem trava no banco por decisão do dono (16/09). Validar só na tela viraria
+  opcional no dia em que alguém chamasse a rota de outro lugar. O motivo seleciona e o botão confirma: a primeira versão gravava
   no clique do motivo, o que deixou de servir quando a observação passou a ser
   um pedido explícito — um campo que só é preenchido por quem lê a letra miúda
   é um campo vazio.

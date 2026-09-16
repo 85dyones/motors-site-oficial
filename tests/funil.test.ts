@@ -1,13 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
+import { semComentarios } from "./fonte";
 import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
   ETAPAS_PADRAO,
   ESCOPOS_DE_MOTIVO,
+  MOTIVO_DO_DESFECHO,
   TIPOS_DE_DESFECHO,
   agruparPorMotivo,
+  decidirDesfecho,
+  valorDoDesfecho,
   ehDescarte,
   ehTipoDeDesfecho,
   ehTipoDeEtapa,
@@ -35,8 +39,11 @@ import {
   taxaDeConversao,
   validarFunil,
   type EtapaDoFunil,
+  type FontesDoDesfecho,
+  type LeadDoDesfecho,
   type LinhaDaFilaDoFunil,
   type MotivoDoFunil,
+  type TipoDeDesfecho,
 } from "../src/lib/funil";
 
 /**
@@ -797,15 +804,19 @@ describe("quem mexe na régua", () => {
     // A validação não pode morar só na tela: uma validação de componente vira
     // opcional no dia em que alguém chamar a rota de outro lugar — e o
     // relatório de perdas nasce vazio sem nada dar erro.
+    //
+    // Até 16/09 este teste lia a rota atrás de `status: 422` e de
+    // `motivoBanco.tipo !== etapa.tipo`. A regra saiu da rota para
+    // `decidirDesfecho`, onde ela é EXECUTADA — ver "fechar o negócio exige
+    // motivo", mais abaixo, e `tests/leads-gerenciar-desfecho.test.ts`, que
+    // roda o PATCH. Aqui sobra o que só a fonte diz: a rota ainda repassa à
+    // tela o sinal de que falta escolher.
     const rota = readFileSync(
       join(__dirname, "..", "src", "app", "api", "leads", "gerenciar", "route.ts"),
       "utf-8",
     );
-    expect(rota).toContain("motivo_obrigatorio");
-    expect(rota).toMatch(/status: 422/);
-    // E recusa motivo de ganho num negócio perdido: somar peras com maçãs só
-    // apareceria no gráfico, meses depois.
-    expect(rota).toMatch(/motivoBanco\.tipo !== etapa\.tipo/);
+    expect(rota).toContain("decidirDesfecho(");
+    expect(rota).toContain("motivo_obrigatorio: decisao.motivoObrigatorio");
   });
 });
 
@@ -1057,5 +1068,447 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
         `value="${escopo}"`,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fechar o negócio exige motivo — na tela e na API (decisão do dono, 16/09)
+// ---------------------------------------------------------------------------
+
+/**
+ * A regra da porta de trás, CHAMADA com dublês do banco.
+ *
+ * A versão que morava no PATCH perguntava `tipo === "ganho" || tipo ===
+ * "perdido"`: o descarte nunca pediu motivo, na tela nem na rota, e a única
+ * prova possível ali era ler a condição de um `if` — que um desvio logo
+ * abaixo do trecho lido fura com a suíte verde. `decidirDesfecho` junta a
+ * regra num lugar executável; `tests/leads-gerenciar-desfecho.test.ts` roda o
+ * PATCH de verdade para provar que a rota obedece a ela.
+ */
+describe("fechar o negócio exige motivo — a regra, executada", () => {
+  const TERMINAIS = ETAPAS_PADRAO.filter((e) => ehTipoDeDesfecho(e.tipo));
+  const ABERTAS = ETAPAS_PADRAO.filter((e) => !ehTipoDeDesfecho(e.tipo));
+  const etapaDe = (tipo: TipoDeDesfecho) => TERMINAIS.find((e) => e.tipo === tipo)!;
+
+  const m = (
+    chave: string,
+    tipo: MotivoDoFunil["tipo"],
+    extra: Partial<MotivoDoFunil> = {},
+  ): MotivoDoFunil => ({ chave, rotulo: chave, tipo, ordem: 1, ativo: true, ...extra });
+
+  /** Um motivo de cada situação que a regra distingue. */
+  const MOTIVOS: MotivoDoFunil[] = [
+    m("a_vista", "ganho", { rotulo: "À vista" }),
+    m("preco", "perdido", { rotulo: "Preço acima do que o cliente queria pagar", escopo: "compra" }),
+    m("recusou_consignacao", "perdido", {
+      rotulo: "Não aceitou deixar em consignação",
+      escopo: "avaliacao",
+    }),
+    m("sem_resposta", "perdido", { rotulo: "Sem retorno do cliente", escopo: "ambos" }),
+    m("motivo_aposentado", "perdido", { rotulo: "Motivo aposentado", ativo: false }),
+    m("spam", "descartado", { rotulo: "Spam ou robô" }),
+  ];
+
+  const DE_COMPRA: LeadDoDesfecho = { situacao: "proposta", canal: "Formulário Contato" };
+  const DE_AVALIACAO: LeadDoDesfecho = { situacao: "novo", canal: "Avaliação" };
+
+  /** Dublês do banco. Contam o que foi lido. */
+  function banco(lead: LeadDoDesfecho | null, motivos: MotivoDoFunil[] | null = MOTIVOS) {
+    const lidos: string[] = [];
+    const fontes: FontesDoDesfecho = {
+      lerLead: async () => {
+        lidos.push("lead");
+        return lead;
+      },
+      lerMotivos: async () => {
+        lidos.push("motivos");
+        return motivos;
+      },
+    };
+    return { fontes, lidos };
+  }
+
+  it("exige motivo nos TRÊS desfechos, com 400 e a frase pronta para a tela", async () => {
+    // A semente tem os três. Se um sumir dela, o laço deixa de prová-lo calado.
+    expect(TERMINAIS.map((e) => e.tipo)).toEqual([...TIPOS_DE_DESFECHO]);
+
+    for (const etapa of TERMINAIS) {
+      for (const corpo of [{}, { desfecho_motivo: "   " }, { desfecho_motivo: 42 }]) {
+        const d = await decidirDesfecho(etapa, corpo, banco(DE_COMPRA).fontes);
+        expect(d.ok, `${etapa.chave} passou com ${JSON.stringify(corpo)}`).toBe(false);
+        if (!d.ok) {
+          expect(d.status).toBe(400);
+          expect(d.motivoObrigatorio).toBe(true);
+          expect(d.erro).toContain(etapa.rotulo);
+        }
+      }
+    }
+  });
+
+  it("etapa em andamento não cobra nada — e nem vai ao banco", async () => {
+    for (const etapa of ABERTAS) {
+      const { fontes, lidos } = banco(DE_COMPRA);
+      expect(await decidirDesfecho(etapa, { desfecho_motivo: "spam" }, fontes)).toEqual({
+        ok: true,
+        campos: {},
+      });
+      expect(lidos, `${etapa.chave} leu o banco à toa`).toEqual([]);
+    }
+    // Etapa desconhecida (migração pendente) segue o comportamento antigo.
+    expect(await decidirDesfecho(null, {}, banco(null).fontes)).toEqual({ ok: true, campos: {} });
+  });
+
+  it("recusa motivo de outro TIPO — descarte com motivo de perda", async () => {
+    // A chave estrangeira garante que a chave existe, nunca que o tipo casa.
+    const d = await decidirDesfecho(
+      etapaDe("descartado"),
+      { desfecho_motivo: "preco" },
+      banco(DE_COMPRA).fontes,
+    );
+    expect(d.ok).toBe(false);
+    if (!d.ok) {
+      expect(d.status).toBe(400);
+      expect(d.motivoObrigatorio).toBe(false);
+      expect(d.erro).toContain(`é de ${MOTIVO_DO_DESFECHO.perdido}`);
+      expect(d.erro).toContain(`motivo de ${MOTIVO_DO_DESFECHO.descartado}`);
+    }
+  });
+
+  it("recusa motivo inexistente e motivo desativado", async () => {
+    const perdido = etapaDe("perdido");
+
+    const inventado = await decidirDesfecho(
+      perdido,
+      { desfecho_motivo: "inventado" },
+      banco(DE_COMPRA).fontes,
+    );
+    expect(inventado.ok).toBe(false);
+    if (!inventado.ok) {
+      expect(inventado.status).toBe(400);
+      expect(inventado.erro).toContain("inventado");
+    }
+
+    // A caixa não oferece desativado; a rota não pode aceitar o que a tela esconde.
+    const aposentado = await decidirDesfecho(
+      perdido,
+      { desfecho_motivo: "motivo_aposentado" },
+      banco(DE_COMPRA).fontes,
+    );
+    expect(aposentado.ok).toBe(false);
+    if (!aposentado.ok) {
+      expect(aposentado.status).toBe(400);
+      expect(aposentado.erro).toContain("desativado");
+    }
+  });
+
+  it("recusa motivo cujo ESCOPO não vale para o lead, e aceita o certo e o `ambos`", async () => {
+    const perdido = etapaDe("perdido");
+
+    const deCompraNaAvaliacao = await decidirDesfecho(
+      perdido,
+      { desfecho_motivo: "preco" },
+      banco(DE_AVALIACAO).fontes,
+    );
+    expect(deCompraNaAvaliacao.ok).toBe(false);
+    if (!deCompraNaAvaliacao.ok) {
+      expect(deCompraNaAvaliacao.status).toBe(400);
+      expect(deCompraNaAvaliacao.erro).toContain("comprar");
+      expect(deCompraNaAvaliacao.erro).toContain('"Avaliação"');
+    }
+
+    const deAvaliacaoNaCompra = await decidirDesfecho(
+      perdido,
+      { desfecho_motivo: "recusou_consignacao" },
+      banco(DE_COMPRA).fontes,
+    );
+    expect(deAvaliacaoNaCompra.ok).toBe(false);
+
+    const certo = (motivo: string, lead: LeadDoDesfecho) =>
+      decidirDesfecho(perdido, { desfecho_motivo: motivo }, banco(lead).fontes);
+    expect((await certo("recusou_consignacao", DE_AVALIACAO)).ok).toBe(true);
+    expect((await certo("preco", DE_COMPRA)).ok).toBe(true);
+    // `ambos` é o motivo que vale para todo mundo (#94) — nos dois lados.
+    expect((await certo("sem_resposta", DE_AVALIACAO)).ok).toBe(true);
+    expect((await certo("sem_resposta", DE_COMPRA)).ok).toBe(true);
+  });
+
+  it("a API aceita EXATAMENTE o que a caixa oferece — canal a canal, desfecho a desfecho", async () => {
+    // A régua do escopo é a do #94, e não uma segunda escrita: o lead é
+    // `escopoDoLead(canal)`, e o que vale para ele é `motivosVisiveis` —
+    // inclusive a queda para a lista cheia quando o escopo não tem motivo
+    // ativo. Se a API tivesse régua própria, a caixa ofereceria um motivo que
+    // o servidor recusa, e o card ficaria preso; ou o servidor aceitaria o
+    // que a caixa esconde, e o escopo valeria só para quem usa a tela.
+    //
+    // A segunda lista não tem motivo de perda para quem vende: é a queda.
+    const listas: MotivoDoFunil[][] = [
+      MOTIVOS,
+      MOTIVOS.filter((x) => !(x.tipo === "perdido" && x.escopo !== "compra")),
+    ];
+    const canais = ["Formulário Contato", "Avaliação", "Appraisal Chat", null];
+
+    let comparados = 0;
+    for (const motivos of listas) {
+      for (const canal of canais) {
+        for (const etapa of TERMINAIS) {
+          const tipo = etapa.tipo as TipoDeDesfecho;
+          const oferecidos = motivosVisiveis(motivos, tipo, escopoDoLead(canal)).map((x) => x.chave);
+          for (const x of motivos) {
+            const d = await decidirDesfecho(
+              etapa,
+              { desfecho_motivo: x.chave },
+              banco({ situacao: "novo", canal }, motivos).fontes,
+            );
+            expect(d.ok, `${canal ?? "sem canal"} · ${etapa.chave} · ${x.chave}`).toBe(
+              oferecidos.includes(x.chave),
+            );
+            comparados++;
+          }
+        }
+      }
+    }
+    // A queda precisa ter sido exercitada: lead de avaliação, só motivo de compra.
+    expect(
+      motivosVisiveis(listas[1], "perdido", "avaliacao").map((x) => x.chave),
+    ).toEqual(["preco"]);
+    expect(comparados).toBeGreaterThan(100);
+  });
+
+  it("só na TRANSIÇÃO: o lead que já está fechado não é cobrado de novo", async () => {
+    // Produção tem descartes fechados antes de a caixa perguntar o motivo.
+    // Cobrar do passado travaria a edição do card sem ninguém ter errado.
+    const descartado = etapaDe("descartado");
+    const legado: LeadDoDesfecho = { situacao: "descartado", canal: null };
+
+    expect(await decidirDesfecho(descartado, {}, banco(legado).fontes)).toEqual({
+      ok: true,
+      campos: {},
+    });
+
+    // Motivo informado é conferido sempre — dado ruim não entra por esta porta.
+    const ruim = await decidirDesfecho(descartado, { desfecho_motivo: "preco" }, banco(legado).fontes);
+    expect(ruim.ok).toBe(false);
+
+    // E trocar de um desfecho para OUTRO é transição.
+    const perdidoViraDescarte = await decidirDesfecho(
+      descartado,
+      {},
+      banco({ situacao: "perdido", canal: null }).fontes,
+    );
+    expect(perdidoViraDescarte.ok).toBe(false);
+  });
+
+  it("lead ilegível: cobra o motivo como transição, e não inventa escopo", async () => {
+    const perdido = etapaDe("perdido");
+    expect((await decidirDesfecho(perdido, {}, banco(null).fontes)).ok).toBe(false);
+    // Sem o canal, recusar o motivo de avaliação seria presumir "compra".
+    const semCanal = await decidirDesfecho(
+      perdido,
+      { desfecho_motivo: "recusou_consignacao" },
+      banco(null).fontes,
+    );
+    expect(semCanal.ok).toBe(true);
+  });
+
+  it("motivos ilegíveis: não grava, e a frase culpa a leitura, não a escolha", async () => {
+    const d = await decidirDesfecho(
+      etapaDe("perdido"),
+      { desfecho_motivo: "preco" },
+      banco(DE_COMPRA, null).fontes,
+    );
+    expect(d.ok).toBe(false);
+    if (!d.ok) {
+      expect(d.status).toBe(500);
+      expect(d.erro).not.toContain("desconhecido");
+    }
+  });
+
+  it("com o motivo certo devolve os campos, com valor e nota normalizados", async () => {
+    const d = await decidirDesfecho(
+      etapaDe("ganho"),
+      { desfecho_motivo: " a_vista ", desfecho_valor: "72.500,50", desfecho_nota: "  " },
+      banco(DE_COMPRA).fontes,
+    );
+    expect(d).toEqual({
+      ok: true,
+      campos: { desfecho_motivo: "a_vista", desfecho_valor: 72500.5, desfecho_nota: null },
+    });
+    // Vazio e zero são nulo: zero seria uma venda de R$ 0.
+    expect(valorDoDesfecho("")).toBeNull();
+    expect(valorDoDesfecho(0)).toBeNull();
+    expect(valorDoDesfecho("1.000")).toBe(1000);
+  });
+});
+
+/**
+ * `src/lib/funil.ts` já escreveu esta lição em prosa, antes de ela custar
+ * alguma coisa: um `m.tipo === "ganho" ? "ganho" : "perdido"` estava certo
+ * enquanto havia dois desfechos e passaria a converter em silêncio no dia em
+ * que entrasse o terceiro.
+ *
+ * O defeito aconteceu assim mesmo, em outra forma — não o ternário, a
+ * disjunção. `mover` no kanban e o PATCH de `/api/leads/gerenciar`
+ * perguntavam `tipo === "ganho" || tipo === "perdido"`, uma pergunta que
+ * nasceu certa com dois desfechos e ficou errada em 2026-08-28, quando
+ * `descartado` entrou. Nenhum erro, nenhum aviso: o card ia direto para a
+ * etapa de descarte, o gatilho carimbava `desfecho = 'descartado'` e o MOTIVO
+ * ficava nulo — os seis motivos de descarte nunca eram coletados.
+ */
+describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () => {
+  /** O que está entre duas âncoras da fonte. Falha alto se a âncora sumiu. */
+  function trecho(fonte: string, de: string, ate: string): string {
+    const i = fonte.indexOf(de);
+    expect(i, `âncora inicial não encontrada: ${de}`).toBeGreaterThanOrEqual(0);
+    const j = fonte.indexOf(ate, i + de.length);
+    expect(j, `âncora final não encontrada: ${ate}`).toBeGreaterThan(i);
+    return fonte.slice(i, j);
+  }
+
+  it("a rota delega a decisão em vez de reimplementá-la", () => {
+    // A regra é provada executando `decidirDesfecho` (acima) e o PATCH
+    // (`tests/leads-gerenciar-desfecho.test.ts`). O que esta asserção de
+    // fonte ainda vale: impedir que alguém traga a regra de volta para dentro
+    // do PATCH, onde ela volta a ser testável só por leitura.
+    const rota = semComentarios(
+      readFileSync(
+        join(__dirname, "..", "src", "app", "api", "leads", "gerenciar", "route.ts"),
+        "utf8",
+      ),
+    );
+    const patch = trecho(rota, "export async function PATCH", "export async function DELETE");
+
+    expect(patch).toContain("decidirDesfecho(");
+    expect(
+      patch,
+      "a decisão do desfecho voltou para dentro do PATCH — lá ela só se prova lendo",
+    ).not.toMatch(/[!=]==\s*"(ganho|perdido|descartado|aberta)"/);
+  });
+
+  it("nenhum arquivo de `src/` pergunta pelo desfecho com uma lista de dois", () => {
+    // A trava de classe. As de cima e a de `leads-kanban.test.ts` seguram os
+    // dois pontos conhecidos; esta segura o próximo, que pelo histórico deste
+    // arquivo vai existir.
+    const raiz = join(__dirname, "..", "src");
+    const arquivos: string[] = [];
+    (function varrer(dir: string) {
+      for (const nome of readdirSync(dir)) {
+        const caminho = join(dir, nome);
+        if (statSync(caminho).isDirectory()) varrer(caminho);
+        else if (/\.tsx?$/.test(nome)) arquivos.push(caminho);
+      }
+    })(raiz);
+
+    // Sem isto, um erro de caminho deixaria a varredura vazia e o teste verde.
+    expect(arquivos.length).toBeGreaterThan(100);
+
+    // O par, nas duas ordens, e só sobre `.tipo` — nunca sobre `.desfecho`.
+    //
+    // A distinção separa a pergunta errada da conta certa. Decidir se uma
+    // ETAPA é terminal com dois nomes é o defeito: `funil.ts` tem o predicado,
+    // e a lista escrita à mão esquece o tipo que chegar depois. Já contar
+    // quantos LEADS têm `desfecho` ganho ou perdido é a definição da taxa de
+    // conversão — ali a dupla é obrigatória, e o descarte precisa ficar fora.
+    //
+    // Espaço em branco normalizado: uma condição um pouco mais longa o
+    // prettier quebra, e a busca não pode depender disso.
+    const PARES = [
+      /\.tipo\s*===\s*"ganho"\s*\|\|[^;{}]{0,60}\.tipo\s*===\s*"perdido"/,
+      /\.tipo\s*===\s*"perdido"\s*\|\|[^;{}]{0,60}\.tipo\s*===\s*"ganho"/,
+    ];
+
+    // Junta todos antes de cobrar: um `expect` dentro do laço estoura no
+    // primeiro e esconde os outros.
+    const infratores = arquivos.filter((caminho) => {
+      const codigo = semComentarios(readFileSync(caminho, "utf8")).replace(/\s+/g, " ");
+      return PARES.some((par) => par.test(codigo));
+    });
+
+    expect(
+      infratores.map((c) => c.slice(raiz.length + 1).split(sep).join("/")),
+      '`.tipo === "ganho" || .tipo === "perdido"` é a lista de dois de antes ' +
+        "de 2026-08-28 — quem decide se uma etapa é terminal pergunta a " +
+        "ehTipoDeDesfecho, que conhece os três",
+    ).toEqual([]);
+  });
+});
+
+/**
+ * Diretriz do dono (16/09): a máquina de conversão vem primeiro, e nenhuma
+ * captura de lead do site pode ser recusada ou atrasada por esta regra.
+ *
+ * Sem trava no banco, a regra só existe em duas funções — `decidirDesfecho`
+ * (o PATCH do painel) e `criarMover` (o kanban). A captura fica intocada
+ * enquanto nenhum caminho que ELA percorre chega a uma das duas, nem escolhe
+ * etapa para o lead: quem decide onde o lead nasce é o `default` de
+ * `leads.situacao`. O Chatwoot é o único que escreve a etapa, e escreve a de
+ * entrada.
+ *
+ * Asserção de fonte, e barata, de propósito: o que se afirma aqui é um grafo
+ * de import e um campo ausente, não a condição de um `if`.
+ */
+describe("a captura do site não passa pela regra do desfecho", () => {
+  const RAIZ = join(__dirname, "..");
+  const CAPTURAS = [
+    join("src", "app", "api", "leads", "route.ts"),
+    join("src", "app", "api", "avaliacao", "route.ts"),
+    join("src", "app", "api", "chatwoot", "eventos", "route.ts"),
+  ];
+
+  /** Os módulos do repositório que um arquivo alcança por import, ele incluído. */
+  function alcancados(inicio: string): string[] {
+    const vistos = new Set<string>();
+    const fila = [join(RAIZ, inicio)];
+    while (fila.length > 0) {
+      const arquivo = fila.pop()!;
+      if (vistos.has(arquivo)) continue;
+      vistos.add(arquivo);
+      const fonte = semComentarios(readFileSync(arquivo, "utf8"));
+      const alvos = fonte.matchAll(
+        /(?:\bfrom\s*|\bimport\s*\(?\s*)["']((?:\.{1,2}|@)\/[^"']+)["']/g,
+      );
+      for (const [, alvo] of alvos) {
+        const base = alvo.startsWith("@/")
+          ? join(RAIZ, "src", alvo.slice(2))
+          : join(dirname(arquivo), alvo);
+        const achado = [`${base}.ts`, `${base}.tsx`, join(base, "index.ts"), base].find(
+          (c) => existsSync(c) && statSync(c).isFile(),
+        );
+        if (achado) fila.push(achado);
+      }
+    }
+    return [...vistos];
+  }
+
+  it("nenhum módulo que a captura alcança chama a regra do desfecho", () => {
+    for (const rota of CAPTURAS) {
+      const modulos = alcancados(rota);
+      // Sem isto, um erro de caminho deixaria o grafo vazio e o teste verde.
+      expect(modulos.length, `${rota} não alcançou nenhum módulo`).toBeGreaterThan(2);
+
+      const infratores = modulos.filter((arquivo) => {
+        const codigo = semComentarios(readFileSync(arquivo, "utf8"));
+        return (
+          /(?<!function\s)\b(decidirDesfecho|criarMover)\s*\(/.test(codigo) ||
+          /funil_motivos|motivo_obrigatorio/.test(codigo)
+        );
+      });
+      expect(
+        infratores.map((a) => relative(RAIZ, a).split(sep).join("/")),
+        `${rota} passa pela regra do desfecho — a captura não pode ser recusada por ela`,
+      ).toEqual([]);
+    }
+  });
+
+  it("o formulário e a avaliação não escolhem etapa; o Chatwoot escolhe a de entrada", () => {
+    for (const rota of CAPTURAS.slice(0, 2)) {
+      const codigo = semComentarios(readFileSync(join(RAIZ, rota), "utf8"));
+      expect(codigo, `${rota} passou a gravar etapa`).not.toMatch(/\bsituacao\b/);
+      expect(codigo, `${rota} passou a gravar desfecho`).not.toMatch(/\bdesfecho/);
+    }
+
+    const chatwoot = semComentarios(readFileSync(join(RAIZ, CAPTURAS[2]), "utf8"));
+    const etapas = [...chatwoot.matchAll(/\bsituacao:\s*("[^"]*")/g)].map((x) => x[1]);
+    expect(etapas).toEqual(['"novo"']);
+    expect(ETAPAS_PADRAO.find((e) => e.chave === "novo")?.tipo).toBe("aberta");
   });
 });
