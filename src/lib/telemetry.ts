@@ -294,8 +294,8 @@ export function descartarParametrosDeCampanha(): void {
 }
 
 /**
- * Expira um cookie em TODAS as cópias que ele pode ter: a de host e a de cada
- * domínio pai.
+ * Os domínios em que um cookie deste host pode estar gravado: um por escrita
+ * de expiração. `null` é a escrita SEM `domain=`.
  *
  * ---------------------------------------------------------------------------
  * Por que a escrita sem `domain=` não bastava
@@ -308,23 +308,49 @@ export function descartarParametrosDeCampanha(): void {
  * botão de oposição por até 90 dias e seguia saindo no `fbp` do lead, enquanto
  * a /privacidade promete que a recusa apaga "na hora".
  *
- * Por isso a escrita se repete com `domain=` para o host e para cada domínio
- * pai com pelo menos dois rótulos: em `www.motorsstore.com.br`, são
- * `www.motorsstore.com.br`, `motorsstore.com.br` e `com.br`. O último é sufixo
- * público, e o navegador recusa a escrita em silêncio. Mandá-la mesmo assim é
- * inofensivo e poupa manter aqui uma lista de sufixos, que envelheceria.
+ * Por isso a lista tem a escrita sem domínio e, com `domain=`, o próprio host e
+ * cada domínio pai com pelo menos dois rótulos. Na raiz, onde o site roda, é
+ * `[null, "motorsstore.com.br", "com.br"]`: a escrita sem domínio é a única que
+ * alcança a cópia de host, e `motorsstore.com.br` — a volta `i = 0`, o próprio
+ * host — é a única que alcança a cópia do Pixel, `.motorsstore.com.br`.
+ * `com.br` é sufixo público, e o navegador recusa a escrita em silêncio.
+ * Mandá-la mesmo assim é inofensivo e poupa manter aqui uma lista de sufixos,
+ * que envelheceria.
  *
- * O caminho é sempre `/`: é o único que o Pixel e o tracker usam.
+ * ---------------------------------------------------------------------------
+ * Por que é função pura e exportada
+ * ---------------------------------------------------------------------------
+ * Para a lista de cada host ser travada sem cookie. O jsdom guarda a cópia de
+ * host e a de domínio do mesmo host no mesmo lugar, o que o navegador não faz.
+ * Na raiz, isso impede reproduzir o defeito, e o teste com cookie roda no
+ * `www`. Um teste só com cookie deixava passar verde duas mutações:
+ *
+ *   · a remoção da escrita sem domínio, porque no jsdom a escrita com
+ *     `domain=<host>` apaga a cópia de host tanto quanto ela;
+ *   · um laço começando em `i = 1`, que só quebra na raiz: no `www`, a cópia
+ *     do Pixel está no domínio pai.
+ *
+ * Ver `tests/oposicao-cookies-de-dominio.test.ts`.
+ */
+export function variantesDeDominio(hostname: string): (string | null)[] {
+  const rotulos = hostname.split(".");
+  const variantes: (string | null)[] = [null];
+  for (let i = 0; i <= rotulos.length - 2; i++) {
+    variantes.push(rotulos.slice(i).join("."));
+  }
+  return variantes;
+}
+
+/**
+ * Expira um cookie em todas as variantes de `variantesDeDominio`. O caminho é
+ * sempre `/`: é o único que o Pixel e o tracker usam.
  */
 function apagarCookieEmTodoDominio(nome: string): void {
   if (typeof document === "undefined") return;
   try {
-    const expirado = `${nome}=; path=/; max-age=0`;
-    document.cookie = expirado;
-
-    const rotulos = window.location.hostname.split(".");
-    for (let i = 0; i <= rotulos.length - 2; i++) {
-      document.cookie = `${expirado}; domain=${rotulos.slice(i).join(".")}`;
+    for (const dominio of variantesDeDominio(window.location.hostname)) {
+      const escopo = dominio === null ? "" : `; domain=${dominio}`;
+      document.cookie = `${nome}=; path=/; max-age=0${escopo}`;
     }
   } catch (e) {
     console.warn(`[Telemetry] Failed to discard cookie ${nome}:`, e);
@@ -333,11 +359,14 @@ function apagarCookieEmTodoDominio(nome: string): void {
 
 /**
  * Apaga deste navegador os dois cookies de anúncio do Meta, `_fbp` e `_fbc`,
- * na cópia de host e na de domínio. Quem chama é o botão de oposição, em
- * `ControleDeRastreamento`, no mesmo clique que grava a recusa.
+ * na cópia de host e na de domínio. Chamam: o botão de oposição, em
+ * `ControleDeRastreamento`, no clique que grava a recusa; e
+ * `persistirParametrosDeCampanha`, a cada carga de quem recusou.
  *
- * `tests/oposicao-cookies-de-dominio.test.ts` prova com cookie de verdade que
- * a cópia gravada com `domain=` sai junto.
+ * `tests/oposicao-cookies-de-dominio.test.ts` trava as escritas de cada host,
+ * a raiz incluída, e prova com cookie de verdade, num subdomínio, que a cópia
+ * gravada com `domain=` sai junto. O cookie de verdade sozinho não prova a
+ * raiz: lá o jsdom guarda as duas cópias no mesmo lugar.
  */
 export function descartarCookiesDeAnuncio(): void {
   apagarCookieEmTodoDominio("_fbp");
@@ -385,7 +414,8 @@ export function getMatchParamsRespeitandoRecusa(): MatchParams {
  * **a recusa apaga.** Sem isso, o identificador ficaria no dispositivo
  * contradizendo a última decisão da pessoa — que é justamente o oposto do que a
  * frase acima defende. Por isso `rejected` não é só "não gravar": é
- * `descartarParametrosDeCampanha()`, removendo o que já estava lá.
+ * `descartarParametrosDeCampanha()`, removendo o que já estava lá — e, desde
+ * 16/09/2026, `descartarCookiesDeAnuncio()`, pela razão escrita no ramo.
  *
  * A memória de sessão SOBREVIVE à recusa de propósito. É o que permite a
  * mudança de ideia funcionar na mesma aba: quem recusa e depois aceita tem o
@@ -417,8 +447,14 @@ export function persistirParametrosDeCampanha(): void {
     capturarDaUrl();
 
     // A última decisão manda. Recusou: sai do dispositivo o que houver.
+    //
+    // Os cookies de anúncio também, e não só no clique de `ControleDeRastreamento`:
+    // um Pixel carregado na aba antes da recusa pode regravar o `_fbp` depois
+    // dele, e sem esta linha nenhuma carga seguinte o apagaria — o cookie
+    // ficaria até expirar. Este ramo só roda para quem recusou.
     if (localStorage.getItem("ag_cookie_consent") === "rejected") {
       descartarParametrosDeCampanha();
+      descartarCookiesDeAnuncio();
       return;
     }
 

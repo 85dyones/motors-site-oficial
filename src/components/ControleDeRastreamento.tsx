@@ -55,10 +55,11 @@ export default function ControleDeRastreamento() {
       if (desligar) {
         localStorage.setItem("ag_cookie_consent", "rejected");
         // Os identificadores de campanha saem na hora, e não só daqui para a
-        // frente: `persistirParametrosDeCampanha` os apaga ao ver a recusa, e
-        // `_fbp`/`_fbc` são removidos aqui porque são cookie, não chave do
-        // storage. Em todos os domínios: o Meta Pixel os grava com `domain=`,
-        // e a escrita sem domínio que ficava aqui não alcançava essa cópia.
+        // frente: `persistirParametrosDeCampanha` os apaga ao ver a recusa, a
+        // cada carga. Os cookies `_fbp`/`_fbc` saem também aqui, no próprio
+        // clique, sem esperar o tracker. Em todos os domínios: o Meta Pixel os
+        // grava com `domain=`, e a escrita sem domínio que ficava aqui não
+        // alcançava essa cópia.
         descartarCookiesDeAnuncio();
       } else {
         localStorage.removeItem("ag_cookie_consent");

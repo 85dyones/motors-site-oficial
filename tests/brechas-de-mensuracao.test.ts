@@ -384,6 +384,42 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     expect(chavesDeCampanha(dados)).toEqual([]);
   });
 
+  it("RECUSAR apaga também os cookies de anúncio, a cada carga — e só a recusa", () => {
+    // Desde 2026-09-16. O clique em `ControleDeRastreamento` já apaga `_fbp` e
+    // `_fbc`, mas um Pixel carregado na aba antes da recusa pode regravar o
+    // `_fbp` depois dele. Sem a limpeza neste ramo, nenhuma carga seguinte o
+    // apagaria, e o cookie ficaria até expirar.
+    //
+    // Leitura de fonte, e não execução: este bloco roda sem `document`, e a
+    // escrita dos cookies em si é provada em `oposicao-cookies-de-dominio`.
+    const fonte = lerCodigo("src/lib/telemetry.ts");
+    const inicio = fonte.indexOf("export function persistirParametrosDeCampanha");
+    const fim = fonte.indexOf("export function", inicio + 30);
+    expect(inicio, "persistirParametrosDeCampanha sumiu").toBeGreaterThan(-1);
+    expect(fim, "não achei o fim de persistirParametrosDeCampanha").toBeGreaterThan(inicio);
+    const corpo = fonte.slice(inicio, fim);
+
+    const abre = corpo.indexOf('if (localStorage.getItem("ag_cookie_consent") === "rejected")');
+    const fecha = corpo.indexOf("return;", abre);
+    expect(abre, "o ramo de recusa sumiu").toBeGreaterThan(-1);
+    // Sem esta guarda, um `-1` faria o recorte ir até o fim do corpo.
+    expect(fecha, "o ramo de recusa não termina em return").toBeGreaterThan(abre);
+    const ramo = corpo.slice(abre, fecha);
+
+    expect(ramo, "a recusa parou de apagar as chaves de campanha").toContain(
+      "descartarParametrosDeCampanha();",
+    );
+    expect(ramo, "a recusa parou de apagar os cookies a cada carga").toContain(
+      "descartarCookiesDeAnuncio();",
+    );
+    // E em nenhum outro ponto do arquivo: fora deste ramo, a limpeza apagaria o
+    // cookie de quem NÃO se opôs, que é exatamente o que não pode mudar.
+    expect(
+      fonte.split("descartarCookiesDeAnuncio();").length - 1,
+      "descartarCookiesDeAnuncio chamado fora do ramo de recusa",
+    ).toBe(1);
+  });
+
   it("recusar e depois ACEITAR regrava — a mudança de ideia funciona", async () => {
     // É o caso que o dono nomeou. A memória de sessão sobrevive à recusa de
     // propósito: ela não é armazenamento no dispositivo, e é o que permite
@@ -581,8 +617,11 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     // daqui para `descartarCookiesDeAnuncio`, em `telemetry.ts`: sem `domain=`,
     // ela não alcançava a cópia que o Meta Pixel grava, e o `_fbp` dele
     // sobrevivia ao clique. O que a trava protege é o mesmo — o ramo de
-    // DESLIGAR apaga os cookies de anúncio. Que a função apaga todas as cópias,
-    // quem prova com cookie de verdade é `tests/oposicao-cookies-de-dominio.test.ts`.
+    // DESLIGAR apaga os cookies de anúncio. Quais escritas a função faz em cada
+    // host, a raiz incluída, e que a cópia de domínio sai com cookie de verdade
+    // num subdomínio, quem trava é `tests/oposicao-cookies-de-dominio.test.ts`.
+    // O cookie de verdade sozinho não prova a raiz: lá o jsdom guarda as duas
+    // cópias no mesmo lugar.
     const inicioDoRamo = controle.indexOf("if (desligar)");
     const fimDoRamo = controle.indexOf("} else {", inicioDoRamo);
     expect(inicioDoRamo, "não achei o ramo de desligar").toBeGreaterThan(-1);
@@ -952,8 +991,13 @@ describe("B.7 · a oposição vale também para o lead", () => {
   it.each(GERAM_O_ID_ANTES_DO_POST)("%s: o eventId do POST só nasce para quem não se opôs", (arquivo) => {
     const fonte = lerCodigo(arquivo);
     const geracoes = fonte.match(/generateEventId\(/g) ?? [];
+    // Ancorada na atribuição: sem `const eventId =` na frente, a regex casava
+    // também o portão INVERTIDO, `!rastreamentoRecusado() ? null : …`, que
+    // gera o id só para quem se opôs — e a trava passava verde.
     const comPortao =
-      fonte.match(/rastreamentoRecusado\(\)\s*\?\s*null\s*:\s*generateEventId\("Lead"\)/g) ?? [];
+      fonte.match(
+        /const eventId =\s*rastreamentoRecusado\(\)\s*\?\s*null\s*:\s*generateEventId\("Lead"\)/g,
+      ) ?? [];
 
     // Nenhum nasce por fora do portão: `/api/leads` espelha no CAPI todo
     // `eventId` que recebe.

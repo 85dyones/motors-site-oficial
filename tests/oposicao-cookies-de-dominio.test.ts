@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url": "https://www.motorsstore.com.br/"}
 import { describe, it, expect, afterEach } from "vitest";
-import { descartarCookiesDeAnuncio, getMatchParamsRespeitandoRecusa } from "../src/lib/telemetry";
+import {
+  descartarCookiesDeAnuncio,
+  getMatchParamsRespeitandoRecusa,
+  variantesDeDominio,
+} from "../src/lib/telemetry";
 import { getMatchParams } from "../src/lib/tracking-identity";
 
 /**
@@ -35,14 +39,28 @@ import { getMatchParams } from "../src/lib/tracking-identity";
  *     cópia do Pixel, e o controle (a) reprova. Chrome e Firefox mantêm as
  *     duas cópias separadas também na raiz, que é onde o site roda; é por isso
  *     que o defeito existia em produção e o jsdom não o mostra naquela url;
- *   · em `https://www.motorsstore.com.br/`, as duas cópias moram em lugares
- *     diferentes, como nos navegadores. É a url em que o ambiente reproduz o
- *     defeito, e o controle (a) prova que reproduz.
+ *   · em `https://www.motorsstore.com.br/`, a cópia de host (`www`) e a do
+ *     Pixel (`.motorsstore.com.br`) moram em lugares diferentes, como nos
+ *     navegadores. É a url em que o ambiente reproduz o defeito, e o controle
+ *     (a) prova que reproduz.
  *
- * Em produção, na raiz, a função escreve sem `domain=` e com
- * `domain=motorsstore.com.br` — a segunda é a que alcança a cópia do Pixel. O
- * que este arquivo prova é o mesmo mecanismo, num host em que o ambiente
- * consegue separar as duas cópias.
+ * ---------------------------------------------------------------------------
+ * O que o cookie de verdade NÃO prova
+ * ---------------------------------------------------------------------------
+ * (b) passava verde com duas mutações que quebram a produção, na raiz, cada
+ * uma por um motivo:
+ *
+ *   · sem a escrita sem `domain=` — na raiz, a cópia de host do `_fbc` fica.
+ *     Aqui não aparece porque, mesmo no `www`, a mesma chave do `tough-cookie`
+ *     junta a cópia de host e a escrita com `domain=www.motorsstore.com.br`,
+ *     que no navegador são cópias diferentes;
+ *   · com o laço começando em `i = 1` — na raiz, a cópia `.motorsstore.com.br`
+ *     do Pixel fica, porque só a volta `i = 0` a alcança. Aqui não aparece
+ *     porque, no `www`, a cópia do Pixel está no domínio pai.
+ *
+ * O cookie de verdade prova o mecanismo. As escritas de cada host, a raiz
+ * incluída, quem trava é (d), sem cookie; e (e) prova que a função faz
+ * exatamente essas escritas.
  */
 
 /** Os valores de um cookie. Pode haver mais de um: uma cópia por domínio. */
@@ -163,5 +181,91 @@ describe("(c) getMatchParamsRespeitandoRecusa", () => {
     localStorage.setItem("ag_cookie_consent", "rejected");
     expect(getMatchParams().fbc, "controle: a url entrega um fbc").toMatch(/^fb\.1\.\d+\.DO_ANUNCIO$/);
     expect(getMatchParamsRespeitandoRecusa().fbc).toBeNull();
+  });
+});
+
+/**
+ * As escritas que valem em produção, travadas sem cookie.
+ *
+ * O site roda na raiz, e ali o jsdom não separa as cópias (ver o topo deste
+ * arquivo). A lista de cada host é função pura, e a trava é sobre ela.
+ */
+describe("(d) variantesDeDominio: as escritas que alcançam cada cópia, por host", () => {
+  it("na raiz de produção: a escrita sem domínio e o próprio host", () => {
+    const variantes = variantesDeDominio("motorsstore.com.br");
+    // As duas que importam, uma a uma, para o motivo aparecer na falha.
+    expect(variantes, "sem a escrita sem domain=, a cópia de host do _fbc fica").toContain(null);
+    expect(variantes, "sem o próprio host, a cópia .motorsstore.com.br do Pixel fica").toContain(
+      "motorsstore.com.br",
+    );
+    // E a lista inteira, na ordem: `com.br` o navegador recusa em silêncio.
+    expect(variantes).toEqual([null, "motorsstore.com.br", "com.br"]);
+  });
+
+  it("no www: o próprio host, a raiz e o sufixo", () => {
+    expect(variantesDeDominio("www.motorsstore.com.br")).toEqual([
+      null,
+      "www.motorsstore.com.br",
+      "motorsstore.com.br",
+      "com.br",
+    ]);
+  });
+
+  it("em localhost: só a escrita sem domínio", () => {
+    expect(variantesDeDominio("localhost")).toEqual([null]);
+  });
+
+  it("no preview da Vercel: o próprio host e o sufixo público", () => {
+    expect(variantesDeDominio("x.vercel.app")).toEqual([null, "x.vercel.app", "vercel.app"]);
+  });
+});
+
+/**
+ * As strings escritas em `document.cookie` enquanto `fn` roda.
+ *
+ * O acessor de verdade mora no protótipo; uma propriedade própria no
+ * `document` o encobre só durante `fn`, anota a escrita e a repassa — o cookie
+ * continua sendo gravado. O `delete` do fim devolve o acessor original.
+ */
+function escritasEmDocumentCookie(fn: () => void): string[] {
+  let prototipo: object | null = Object.getPrototypeOf(document);
+  while (prototipo && !Object.getOwnPropertyDescriptor(prototipo, "cookie")) {
+    prototipo = Object.getPrototypeOf(prototipo);
+  }
+  const acessor = prototipo ? Object.getOwnPropertyDescriptor(prototipo, "cookie") : undefined;
+  const lerOriginal = acessor?.get;
+  const gravarOriginal = acessor?.set;
+  if (!lerOriginal || !gravarOriginal) throw new Error("document.cookie sem acessor no protótipo");
+
+  const escritas: string[] = [];
+  Object.defineProperty(document, "cookie", {
+    configurable: true,
+    get: () => lerOriginal.call(document),
+    set: (valor: string) => {
+      escritas.push(valor);
+      gravarOriginal.call(document, valor);
+    },
+  });
+  try {
+    fn();
+  } finally {
+    delete (document as { cookie?: string }).cookie;
+  }
+  return escritas;
+}
+
+describe("(e) descartarCookiesDeAnuncio faz exatamente essas escritas", () => {
+  it("uma expiração por variante, nos dois cookies — a sem `domain=` inclusive", () => {
+    // (d) trava a lista; isto trava que a função a percorre inteira. Pular a
+    // variante `null` aqui passaria em (b), pelo motivo escrito no topo.
+    const escritas = escritasEmDocumentCookie(() => descartarCookiesDeAnuncio());
+
+    const expiracoes = (nome: string) => [
+      `${nome}=; path=/; max-age=0`,
+      `${nome}=; path=/; max-age=0; domain=www.motorsstore.com.br`,
+      `${nome}=; path=/; max-age=0; domain=motorsstore.com.br`,
+      `${nome}=; path=/; max-age=0; domain=com.br`,
+    ];
+    expect(escritas).toEqual([...expiracoes("_fbp"), ...expiracoes("_fbc")]);
   });
 });
