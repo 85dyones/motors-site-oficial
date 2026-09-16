@@ -101,7 +101,7 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  * Fonte de cada afirmação:
  * - "garantia de motor e câmbio, contratada na entrega, sem carência e sem
  *   franquia" → `PROCEDENCIA_PADRAO`, faixa que a ficha do veículo já exibe;
- * - "perícia cautelar independente em 100% do estoque, laudo na ficha" →
+ * - "perícia cautelar independente em 100% do estoque, laudo sai a pedido" →
  *   `aboutSettings.value1`;
  * - "crivo técnico de mais de 120 pontos antes da entrega" →
  *   `aboutSettings.value2`;
@@ -150,8 +150,8 @@ export const TEXTO_DE_GARANTIA: string[] = [
     "estiver claro. Se um vendedor não deixa você ler o termo com calma, o problema não é o termo.",
   "O que faz diferença de verdade, porém, acontece antes da garantia. Todo veículo passa por " +
     "perícia cautelar independente antes de entrar na vitrine — estrutura, chassi e histórico de sinistro auditados por " +
-    "empresa independente, credenciada junto ao Detran — e o laudo fica publicado na ficha do carro assim que é aprovado; " +
-    "antes disso, é só pedir. Nada de gaveta para mostrar depois da proposta. De cada dez veículos avaliados, " +
+    "empresa independente, credenciada junto ao Detran — e o laudo está disponível para consulta, é só pedir ao vendedor. " +
+    "Nada de gaveta para mostrar depois da proposta. De cada dez veículos avaliados, " +
     "três entram no estoque. Os outros sete vão para repasse.",
   "Antes da entrega, o carro ainda passa pelo crivo técnico de showroom: mais de 120 pontos " +
     "mecânicos e eletrônicos conferidos. Garantia é a rede embaixo do trapézio — ela existe para " +
@@ -182,10 +182,14 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
     pergunta: "Todos os carros passam por perícia cautelar?",
     /* Ver o comentário gêmeo em `textoDosHubs.ts`: a ficha só publica o laudo
        com a perícia APROVADA, e parte da vitrine está em análise a qualquer
-       momento. "Assim que a perícia é aprovada" descreve o que o site faz. */
+       momento — "assim que a perícia é aprovada" descrevia o que o site faz,
+       mas ainda prometia publicação automática que a ficha não cobre sozinha
+       (falta também o texto do laudo). Decisão do dono em 16/09/2026: o
+       caminho passou a ser um só em todo o site, aprovada ou não — o laudo
+       fica com o vendedor, e quem confirma é ele. */
     resposta:
-      "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente, credenciada junto ao Detran, e o laudo fica na ficha " +
-      "do veículo, no site, assim que é aprovada — e, enquanto não está lá, é só pedir ao vendedor.",
+      "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente, credenciada junto ao Detran, e o laudo está disponível " +
+      "para consulta, é só pedir ao vendedor a qualquer tempo.",
   },
   {
     pergunta: "A garantia vale se eu comprar de outra cidade?",

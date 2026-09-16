@@ -140,16 +140,20 @@ const ARGUMENTOS = [
      */
     titulo: "Perícia cautelar independente",
     /*
-     * "assim que aprovada" não é enfeite: o laudo só abre na ficha depois da
-     * perícia aprovada, e prometer o laudo sem a condição é o que a trava
-     * `coerencia-da-pericia` existe para pegar. A afirmação de PROCESSO
-     * ("passa por perícia antes da vitrine") é verdadeira e pode ser feita —
-     * decisão do dono em 04/09; o que não se pode é prometer o documento.
+     * A afirmação de PROCESSO ("passa por perícia antes da vitrine") é
+     * verdadeira e pode ser feita — decisão do dono em 04/09; o que não se
+     * pode é prometer o documento. Até 16/09 a ressalva era "assim que
+     * aprovada": certa contra a promessa SEM condição, mas ainda prometia
+     * publicação automática que a ficha não cobre sozinha (falta também o
+     * texto do laudo, e nem todo aprovado tem). A decisão do dono em
+     * 16/09/2026 tirou a promessa de publicação de todo o site — aqui ela
+     * vira o mesmo caminho das outras páginas: o laudo existe e está com o
+     * vendedor, não é preciso esperar a ficha abrir o bloco para saber disso.
      */
     texto:
       "Nossos veículos passam por perícia cautelar independente antes de entrar na vitrine — " +
-      "estrutura, chassi e histórico de sinistro auditados, com o laudo publicado na ficha do " +
-      "veículo assim que aprovada.",
+      "estrutura, chassi e histórico de sinistro auditados, com o laudo " +
+      "disponível para consulta com o vendedor.",
   },
 ];
 

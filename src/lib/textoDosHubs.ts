@@ -423,7 +423,7 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
         "Pode valer, desde que o histórico acompanhe. Veículo de frota costuma ter manutenção " +
         "registrada e rodar mais quilômetro por ano que o de pessoa física — o que importa é se as " +
         "revisões seguiram a quilometragem. Todo veículo aqui passa por perícia cautelar " +
-        "independente antes de ser anunciado, e o laudo fica na ficha assim que aprovado.",
+        "independente antes de ser anunciado, e o laudo está disponível para consulta com o vendedor.",
     },
   ],
 
@@ -552,15 +552,19 @@ export function perguntasDeCategoria(
     ...especificas,
     {
       pergunta: `${O(genero, true)} ${rotulo} da Motors Store têm laudo cautelar?`,
-      /* "assim que a perícia é aprovada", e não "na ficha" seco: a ficha só
-         abre o bloco do laudo com a perícia APROVADA
-         (`PDPClientWrapper.tsx`), e em 2026-09-03 dezessete dos trinta e seis
-         veículos publicados estavam "EM ANÁLISE". A resposta antiga prometia,
-         para metade da vitrine, uma coisa que a ficha não entregava — e é a
-         resposta que um assistente de IA cita como se fosse a loja falando. */
+      /* Ver o comentário gêmeo em `paginasInstitucionais.ts`. A ficha só abre
+         o bloco do laudo com a perícia APROVADA (`PDPClientWrapper.tsx`), e
+         em 2026-09-03 dezessete dos trinta e seis veículos publicados
+         estavam "EM ANÁLISE" — "assim que a perícia é aprovada" ainda
+         prometia, para metade da vitrine, uma publicação automática que a
+         ficha não cobre sozinha (falta também o texto do laudo). Decisão do
+         dono em 16/09/2026: o caminho passou a ser um só em todo o site,
+         aprovada ou não — o laudo fica com o vendedor, e é ele quem confirma.
+         É a resposta que um assistente de IA cita como se fosse a loja
+         falando. */
       resposta:
-        "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, e o laudo fica disponível " +
-        "na ficha do carro assim que a perícia é aprovada. É o mesmo exame para qualquer faixa de preço.",
+        "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, e o laudo está disponível " +
+        "para consulta com o vendedor. É o mesmo exame para qualquer faixa de preço.",
     },
     {
       pergunta: "Vocês aceitam meu carro usado na troca?",
