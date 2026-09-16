@@ -14,9 +14,13 @@ import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
 import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
 import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
 import { ACOES } from "../lib/turnstile";
+// O bloco de laudo pendente é componente próprio, e o porquê está escrito lá:
+// é o que deixa a trava RENDERIZAR o texto em vez de garimpá-lo na fonte.
+import BlocoLaudoPendente from "./BlocoLaudoPendente";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
+
 
 interface PDPClientWrapperProps {
   veiculo: Veiculo;
@@ -1209,6 +1213,48 @@ export default function PDPClientWrapper({
             </div>
           </div>
           )}
+
+          {/* Laudo ainda não publicado: DIZ ISSO, em vez de calar.
+              O bloco acima resolveu não afirmar laudo limpo sobre carro não
+              periciado — certo, e continua. Mas o silêncio criou outro
+              problema: em 2026-09-03, dezessete dos trinta e seis veículos
+              publicados não tinham a perícia marcada como aprovada, e nas
+              fichas deles o assunto simplesmente não existia, enquanto a FAQ
+              da mesma página prometia "o laudo fica na ficha do carro". Quem
+              procurava não achava e não sabia por quê.
+
+              ⚠️ O TEXTO FALA DO LAUDO, NÃO DA PERÍCIA. A primeira versão dizia
+              "perícia cautelar em andamento", e estava errada: a perícia É
+              feita antes de o veículo entrar na vitrine (confirmado pelo dono
+              em 2026-09-04) — o que falta é o RESULTADO chegar, porque o sync
+              do RevendaMais não traz o campo. Afirmar "em andamento" sobre um
+              exame já concluído é o mesmo erro do bloco acima, invertido:
+              inventar estado de processo a partir de ausência de dado.
+
+              Desde 2026-09-08, por decisão do dono, a ficha não promete mais
+              publicação: manda PEDIR. O laudo existe desde antes da vitrine e
+              fica com a loja — dizer "é publicado aqui assim que aprovado" só
+              se cumpria nas fichas em que o feed traz a perícia aprovada; nas
+              outras virava espera sem prazo, que é o defeito que este bloco
+              veio corrigir. O caminho agora é o vendedor, a qualquer tempo.
+
+              E por isso o bloco passou a olhar `indisponivel` (09/09): "a
+              qualquer tempo" é compromisso em aberto, e na ficha de um carro
+              VENDIDO — que fica no ar durante a carência — ele ficava ao lado
+              de um botão que já diz "CONSULTAR SIMILARES". Prometer laudo de
+              carro que saiu do pátio não ajuda ninguém a decidir nada; aqui o
+              silêncio é honesto, porque não há mais compra para apoiar. O
+              bloco do laudo APROVADO segue aparecendo no vendido: aquele é
+              documento que existe e está publicado, não promessa.
+
+              A guarda é `indisponivel`, e ela é MAIS LARGA que "vendido": vale
+              também para o carro que sumiu do feed, cujo motivo o próprio
+              `publicacao.ts` diz não saber ("pode ser repasse, reserva ou
+              anúncio expirado, e o carro pode voltar"). É de propósito, e é a
+              mesma régua do CTA logo acima — se a página já parou de vender
+              aquele carro, ela também para de prometer atendimento sobre ele.
+              Quando o carro volta ao feed, o bloco volta junto. */}
+          {!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && <BlocoLaudoPendente />}
 
         </div>
 

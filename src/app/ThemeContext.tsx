@@ -194,7 +194,10 @@ export const DEFAULT_CAMPAIGNS: Campaign[] = [
     actionTarget: "/avaliacao",
     icon: "🚗",
     title: "QUER VENDER SEU VEÍCULO?",
-    subtitle: "Simule a avaliação do seu carro usado agora mesmo na nossa ferramenta online. Simples, rápido e com preço de pátio.",
+    // "com preço de pátio" dizia que a ferramenta mostra o que a LOJA paga.
+    // Ela mostra a FIPE; o valor de compra sai da vistoria e quem o informa é
+    // o consultor — regra 4 do CLAUDE.md. Achado na auditoria de 04/09/2026.
+    subtitle: "Simule a avaliação do seu carro usado na nossa ferramenta online. Simples, rápido e sem compromisso.",
     ctaText: "AVALIAR MEU USADO AGORA"
   },
   {

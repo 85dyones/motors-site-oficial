@@ -438,6 +438,37 @@ describe("foto é gravável em veículo de qualquer origem (F0.5, 2026-09-01)", 
     expect(galeria).not.toContain("reescritas a cada sincronização");
     expect(galeria).not.toContain("Suba as fotos no RevendaMais");
   });
+
+  it("a nota do carro do feed diz os dois caminhos — e avisa que importar substitui", () => {
+    // Até a fusão com o #45 (16/09) este teste se chamava "a tela explica o
+    // motivo em vez de só desabilitar o botão" e cobrava a nota do #75: a foto
+    // do carro do feed vinha só do RevendaMais, com o envio daqui fechado. O
+    // dono juntou os dois modelos — galeria aberta a qualquer origem e botão
+    // mantido —, e a trava passa a ser a nota nova: os dois caminhos ditos, e o
+    // aviso de que importar troca a galeria inteira.
+    //
+    // `corrido` porque o JSX quebra frase no fim da linha: a redação antiga,
+    // se voltasse com a mesma quebra, passaria por um `not.toContain` cru.
+    const corrido = galeria.replace(/\s+/g, " ");
+    expect(galeria).toContain("feed do RevendaMais");
+    expect(galeria).toContain("Importar fotos do feed");
+    expect(corrido).toContain("<strong>enviadas aqui</strong>");
+    expect(corrido).toContain("substitui a galeria pela lista do RevendaMais");
+    // A frase do envio fechado não volta.
+    expect(corrido).not.toContain("é lá que elas se sobem");
+  });
+
+  it("a nota NÃO promete mais que o sync reescreve a foto", () => {
+    // A frase antiga — "as fotos são reescritas a cada sincronização" — foi
+    // verdade até 30/08 e virou mentira naquele dia: a trava do banco passou a
+    // ser allowlist de seis colunas e foto ficou de fora. Somada à recusa de
+    // envio daqui, ela fechou a porta dos dois lados e prendeu carro com 17
+    // fotos no RevendaMais em `rascunho` por uma semana.
+    //
+    // O teste trava a mentira, não a redação: reintroduzir a promessa manda o
+    // operador esperar por algo que o banco descarta em silêncio.
+    expect(galeria).not.toContain("reescritas a cada sincronização");
+  });
 });
 
 describe("a costura: o que a galeria manda é o que a rota grava", () => {
@@ -681,6 +712,9 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
       createElement(GaleriaDeFotos, {
         estoqueId: 900000001,
         fotos: [],
+        // O padrão é o carro nativo, como o id acima. Quem testa o carro do
+        // feed passa `origem: "sync"` — ela só decide o botão de importar.
+        origem: "painel",
         podeEditar: true,
         aoGravar: () => {},
         ...props,
@@ -747,22 +781,72 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
     expect(html).toMatch(/disabled=""[^>]*aria-label="Mover a foto 1 para trás"/);
   });
 
+  it("veículo do painel: envio sim, botão de importar não", () => {
+    /* O papel que sobrou para `origem` na galeria depois da fusão do #45 com o
+       #75 (16/09). O carro nativo não existe no RevendaMais — a rota
+       `fotos-do-feed` o recusa com 422 —, e o botão ali mandaria o operador a
+       uma fonte que não tem o carro. */
+    const html = desenhar({ origem: "painel", fotos: [foto(1)] });
+    expect(html).toContain("Enviar fotos");
+    expect(html).toContain("Remover a foto 1");
+    expect(html).not.toContain("Importar fotos do feed");
+    expect(html).not.toContain("feed do RevendaMais");
+  });
+
   it("veículo do feed: envio LIBERADO — é a entrega da F0.5", () => {
     /* Este teste esperava o contrário até 01/09: nem botão, nem input, e o
-       aviso mandando subir no RevendaMais. Como o componente não recebe mais
-       `origem`, o carro do feed desenha exatamente como o nativo — e é isso
-       que se prova aqui, pelo HTML, não pelo texto do arquivo.
+       aviso mandando subir no RevendaMais. O componente voltou a receber
+       `origem` na fusão com o #75 (16/09), mas só para o botão de importar: o
+       carro do feed desenha o envio exatamente como o nativo — e é isso que se
+       prova aqui, pelo HTML, não pelo texto do arquivo.
 
        O id da faixa do feed (6,1M–8,4M) em vez do nativo (≥ 900.000.001):
        `caminhoDaFoto` só exige que seja numérico, e a mistura com foto do
        carro57 é segura porque a faxina passa por `caminhoDaUrlPublica`. */
-    const html = desenhar({ estoqueId: 8392516, fotos: [foto(1)] });
+    const html = desenhar({ estoqueId: 8392516, origem: "sync", fotos: [foto(1)] });
     expect(html).toContain("Enviar fotos");
     expect(html).toContain('type="file"');
     expect(html).toContain("Remover a foto 1");
     expect(html).not.toContain("Suba as fotos no RevendaMais");
     // A contagem e a régua continuam visíveis: a aba informa mesmo sem editar.
     expect(html).toContain(`Faltam ${MINIMO_DE_FOTOS - 1} de ${MINIMO_DE_FOTOS}`);
+  });
+
+  it("veículo do feed: o botão de importar convive com o envio, e avisa que substitui", () => {
+    /* Até a fusão com o #45 (16/09) este era "veículo do feed: sem envio pelo
+       painel, e com o botão de importar", e as três primeiras asserções eram
+       NEGADAS: a foto do carro do feed não se subia, não se reordenava e não se
+       removia daqui. Decisão do dono em 16/09: galeria aberta a qualquer
+       origem, com o botão do #75 mantido. As negativas viraram positivas, e o
+       aviso de que importar troca a galeria inteira passou a ser cobrado. */
+    const html = desenhar({ origem: "sync", fotos: [foto(1)] });
+    expect(html).toContain("Enviar fotos");
+    expect(html).toContain('type="file"');
+    expect(html).toContain("Remover a foto 1");
+    // A porta para trazer o que já está lá continua. Sem ela, quem tem o
+    // anúncio completo no RevendaMais teria de baixar e subir foto por foto —
+    // e o carro que entra no feed antes das fotos (`[""]`) ficaria parado.
+    expect(html).toContain("Importar fotos do feed");
+    expect(html).toContain("feed do RevendaMais");
+    expect(html).toContain("substitui a galeria pela lista do RevendaMais");
+    // A redação do envio fechado não volta para a tela.
+    expect(html).not.toContain("é lá que elas se sobem");
+    // A contagem e a régua continuam visíveis: a aba informa mesmo sem editar.
+    expect(html).toContain(`Faltam ${MINIMO_DE_FOTOS - 1} de ${MINIMO_DE_FOTOS}`);
+  });
+
+  it("veículo do feed sem a linha da A17: vê o motivo, não o botão", () => {
+    // Mesma régua do doc A17 que vale para o envio: o negado SOME, e é
+    // explicado. Importar do feed escreve nas mesmas três colunas que a
+    // galeria, então não pode ser a porta dos fundos de quem não grava foto.
+    const html = desenhar({ origem: "sync", podeEditar: false, fotos: [foto(1)] });
+    expect(html).not.toContain("Importar fotos do feed");
+    expect(html).toContain("Importar do feed é de Marketing");
+    // Desde a fusão com o #45 (16/09) a A17 é o ÚNICO portão da galeria: no
+    // carro do feed, sem a linha, o envio some junto com o botão.
+    expect(html).not.toContain("Enviar fotos");
+    expect(html).not.toContain("Remover a foto 1");
+    expect(html).toContain("Seu perfil vê as fotos e não as altera");
   });
 
   it("perfil sem a linha da A17: vê as fotos, não os controles", () => {

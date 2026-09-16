@@ -316,6 +316,10 @@ export function bloqueiosDePublicacao(veiculo: {
   // ficha incompleta — todos com esta pendência mandando resolver noutro
   // sistema. O `origem` saiu da assinatura junto com o texto: parâmetro que não
   // muda mais nada convida a acreditar que muda.
+  //
+  // O botão "Importar fotos do feed" (#75) não pede uma segunda frase: ele mora
+  // na mesma galeria, que desde a fusão com o #45 (16/09) aceita envio em carro
+  // de qualquer origem. "Pelo painel" continua verdade nos dois caminhos.
   const deOndeVemAFoto = "suba as fotos pelo painel";
 
   // ---------------------------------------------------------------------------

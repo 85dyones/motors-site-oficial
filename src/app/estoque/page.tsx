@@ -12,6 +12,7 @@ import {
   normalizarStockOverrides,
 } from "../../lib/destaquesRapidos";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
+import FaixasDePreco from "../../components/modernist/FaixasDePreco";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import {
   blocoJsonLd,
@@ -20,7 +21,17 @@ import {
   schemaDeTrilha,
 } from "../../lib/schemaListagem";
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
-import { schemaDaLoja } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
+import { criarLinkador } from "../../lib/linksNoTexto";
+import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
+import MarcasQueJaPassaram from "../../components/modernist/MarcasQueJaPassaram";
+import {
+  CAIXA_DA_BUSCA,
+  CONTAINER_DA_BUSCA,
+  EXEMPLO_DA_BUSCA,
+  SO_NO_CELULAR,
+  vitrineTemFichas,
+} from "../../lib/vitrine";
 
 export const revalidate = 60;
 
@@ -29,8 +40,12 @@ export const revalidate = 60;
  *
  * Igual ao `PAGINA` do `Catalogo` (9): o fallback e a primeira tela do catálogo
  * mostram exatamente a mesma coisa, então a troca na hidratação não move nada
- * na tela. As demais URLs de ficha chegam ao rastreador pelo `ItemList` logo
- * abaixo, que lista o estoque inteiro.
+ * na tela.
+ *
+ * As demais fichas chegam pelo `IndiceDaVitrine`, no rodapé da página. Este
+ * comentário dizia que o `ItemList` resolvia isso — não resolve: JSON-LD
+ * informa a URL, mas não é link de navegação e não passa autoridade. Medido na
+ * produção em 2026-09-04: 9 links de ficha no HTML contra 36 URLs no `ItemList`.
  */
 const PRIMEIRA_LEVA = 9;
 
@@ -84,6 +99,8 @@ export default async function EstoquePage() {
   const marcas = hubsDeMarca(historico, disponiveis, "carros").filter((m) => m.veiculos.length > 0);
   const carrocerias = hubsDeCarroceria(historico, disponiveis).filter((c) => c.veiculos.length > 0);
 
+  const linkar = criarLinkador("/estoque");
+
   const perguntas = perguntasDeCategoria("carros seminovos");
 
   const jsonLd = blocoJsonLd([
@@ -94,6 +111,7 @@ export default async function EstoquePage() {
     schemaDeListagem("Carros seminovos em Curitiba", disponiveis),
     schemaDePerguntas(perguntas),
     schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
   ]);
 
   return (
@@ -109,10 +127,14 @@ export default async function EstoquePage() {
        * autoridade nenhuma para as 39 fichas sem uma segunda passada de
        * renderização do Google.
        *
-       * O `ItemList` resolve a metade que interessa ao rastreador (as URLs
-       * estão no HTML), e o título e a trilha voltam a existir para quem lê a
-       * página sem executar JavaScript. O filtro continua no cliente, onde é o
-       * lugar dele.
+       * O título e a trilha voltam a existir para quem lê a página sem
+       * executar JavaScript, e o filtro continua no cliente, onde é o lugar
+       * dele.
+       *
+       * O `ItemList` continua sendo emitido, mas ele NÃO é o que leva o
+       * rastreador às fichas — isto aqui dizia que era, e a medição de
+       * 2026-09-04 mostrou o contrário. Quem faz esse trabalho é o
+       * `IndiceDaVitrine`, com link de verdade, no rodapé.
        */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       <ContagemDeEstoque total={disponiveis.length} />
@@ -131,10 +153,29 @@ export default async function EstoquePage() {
           Carros seminovos em Curitiba{" "}
           <span className="text-mt-accent">{disponiveis.length}</span>
         </h1>
+        {/* O parágrafo de abertura passa pelo MESMO linkador do FAQ abaixo —
+            é o primeiro texto da página, e "perícia cautelar" aqui é onde o
+            leitor encontra o termo antes de qualquer outro lugar. Como o
+            linkador tem memória, o link sai aqui e o FAQ fica com o texto
+            comum, em vez de repetir a mesma âncora quatro vezes. */}
         <p className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada
-          dez avaliados, três entram. O laudo fica na ficha do carro e o preço está no anúncio.
-          Showroom no Bacacheri, em Curitiba.
+          {linkar(
+            "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
+              "entram. O laudo fica na ficha do carro assim que aprovado, e o preço está no anúncio. " +
+              "Showroom no Bacacheri, em Curitiba.",
+          ).map((parte, i) =>
+            parte.href ? (
+              <Link
+                key={i}
+                href={parte.href}
+                className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+              >
+                {parte.texto}
+              </Link>
+            ) : (
+              <span key={i}>{parte.texto}</span>
+            ),
+          )}
         </p>
       </div>
 
@@ -160,6 +201,78 @@ export default async function EstoquePage() {
                   {disponiveis.length === 1 ? "VEÍCULO NA SELEÇÃO" : "VEÍCULOS NA SELEÇÃO"}
                 </span>
               </div>
+
+              {/* O lugar da busca, reservado com a caixa exata.
+
+                  Sem isto o campo nasce só na hidratação e empurra a grade
+                  ~60px para baixo, nas DUAS larguras — medido no HTML servido:
+                  o fallback vai até o byte 56497 e o `Catalogo` só põe o campo
+                  em 57908. É o mesmo deslocamento que a coluna reservada do
+                  filtro, logo abaixo, existe para evitar.
+
+                  É um `<form method="get">`, não uma caixa morta: quem submete
+                  vai para `/estoque?q=…`, e o `Catalogo` lê esse parâmetro
+                  (`useState(() => searchParams.get("q"))`). O termo sobrevive
+                  à navegação e a URL fica compartilhável.
+
+                  **O que ele NÃO faz:** filtrar sem JavaScript. Para isso o
+                  fallback precisaria ler `searchParams`, e ler `searchParams`
+                  aqui torna `/estoque` dinâmica — hoje ela é `revalidate = 60`
+                  e é a tela mais usada do site. Trocar o cache dela por busca
+                  sem JS é decisão que se toma de propósito, não de carona numa
+                  caixa de busca. Quem lê sem JS continua com o índice completo
+                  no rodapé, que é o caminho que este arquivo já garante. */}
+              <form action="/estoque" method="get" className={CONTAINER_DA_BUSCA}>
+                <label htmlFor="busca-da-vitrine-servida" className="sr-only">
+                  Buscar por modelo, marca ou característica
+                </label>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-mt-neutral-600"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M20 20l-4.5-4.5" />
+                </svg>
+                <input
+                  id="busca-da-vitrine-servida"
+                  type="search"
+                  name="q"
+                  placeholder={EXEMPLO_DA_BUSCA}
+                  className={CAIXA_DA_BUSCA}
+                />
+              </form>
+
+              {/* O lugar do botão de filtro do celular, ocupado por algo que
+                  FUNCIONA sem JavaScript: um placeholder morto gastaria o
+                  mesmo espaço e não levaria ninguém a lugar nenhum. Quem lê
+                  sem JS não tem filtro, mas tem o índice completo no rodapé.
+
+                  A mesma condição do alvo, e não por simetria: sem ela, pátio
+                  vazio — sync fora do ar, banco inacessível, o estado que o
+                  `generateMetadata` acima já modela — serviria um botão de
+                  largura total dizendo "VER TODO O ESTOQUE 0" apontando para
+                  uma âncora que o `IndiceDaVitrine` não renderizou.
+
+                  A caixa é idêntica à do botão "FILTROS" que o `Catalogo` põe
+                  neste lugar, então a troca na hidratação não mexe nesta
+                  linha. O que ainda mexe é a barra de ORDENAR, que só existe
+                  no `Catalogo` e em tela estreita quebra para uma segunda
+                  linha — deslocamento pré-existente, que esta entrega reduz
+                  (antes o `<aside>` inteiro também descia) mas não elimina. */}
+              {vitrineTemFichas(disponiveis) && (
+                <a
+                  href="#todos-os-veiculos"
+                  className={`mt-foco mt-4 flex w-full items-center justify-between border-2 border-mt-regua px-4 py-2.5 text-[11px] font-extrabold tracking-[.16em] text-mt-ink no-underline ${SO_NO_CELULAR}`}
+                >
+                  VER TODO O ESTOQUE
+                  <span className="text-mt-accent">{disponiveis.length}</span>
+                </a>
+              )}
             </div>
             <div className="flex flex-col lg:flex-row lg:items-stretch">
               <div
@@ -188,6 +301,20 @@ export default async function EstoquePage() {
         aria-label="Índice do estoque"
         className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10"
       >
+        {/* Toda ficha à venda, como link.
+            A grade servida mostra a primeira leva — 9 cards; o resto só
+            aparece depois do "carregar mais", que é JavaScript. Medido na
+            produção em 2026-09-04: 9 links de ficha no HTML contra 36 URLs no
+            `ItemList`. `ItemList` informa o rastreador, mas não é caminho de
+            navegação e não passa autoridade; para quem lê a página sem
+            executar JS as outras 27 simplesmente não existiam.
+
+            A lista mora em `IndiceDaVitrine` e não aqui porque um `.slice()`
+            enfiado no `.map()` do JSX devolveria o defeito sem teste nenhum
+            perceber — foi o furo que a revisão de 04/09 achou. Lá ela é
+            renderizada e contada por teste. */}
+        <IndiceDaVitrine disponiveis={disponiveis} />
+
         {marcas.length > 0 && (
           <section>
             <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Seminovos por marca</h2>
@@ -208,6 +335,17 @@ export default async function EstoquePage() {
           </section>
         )}
 
+        {/* O bloco de cima filtra `veiculos.length > 0`, e continua filtrando:
+            marca com e sem carro na mesma lista confunde quem compra, e a
+            contagem "0" ao lado do nome comunica loja vazia.
+
+            O efeito colateral disso é que a marca sem estoque perdia o único
+            link interno que tinha — hub perene no sitemap, alcançável por
+            ninguém. Este segundo bloco assume essas, com peso visual menor.
+            Ele varre os DOIS segmentos por conta própria; ver a nota do
+            componente sobre por que a assinatura não aceita um. */}
+        <MarcasQueJaPassaram historico={historico} disponiveis={disponiveis} />
+
         {carrocerias.length > 0 && (
           <section className="mt-8">
             <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Seminovos por carroceria</h2>
@@ -227,6 +365,31 @@ export default async function EstoquePage() {
             </div>
           </section>
         )}
+
+        {/* Por faixa de preço — o recorte de maior intenção comercial, e o
+            único que não tinha entrada nenhuma daqui.
+
+            `/estoque/ate-60-mil` e as duas irmãs recebiam link só das
+            carrocerias, de `/financiamento` e de `/garantia`: não estavam na
+            home, não estavam neste hub, não estavam nas marcas. São as buscas
+            do tipo "carro até 60 mil em Curitiba" — intenção alta, e a três
+            cliques do hub principal. O bloco já existia pronto em
+            `/estoque/[recorte]`; aqui é a mesma lista, com a contagem que as
+            seções vizinhas mostram.
+
+            As três faixas são perenes: aparecem mesmo com zero, porque a
+            página existe e continua respondendo. O que some é o BLOCO INTEIRO
+            quando não há estoque nenhum — três zeros enfileirados num pátio
+            vazio (sync fora do ar) parecem defeito, não recorte. */}
+        <FaixasDePreco
+          disponiveis={disponiveis}
+          className="mt-8"
+          cabecalho={
+            <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
+              Seminovos por faixa de preço
+            </h2>
+          }
+        />
       </nav>
 
       {/* Fora do <nav>: pergunta frequente não é navegação, e landmark com
@@ -242,8 +405,27 @@ export default async function EstoquePage() {
             {perguntas.map((item) => (
               <div key={item.pergunta} className="border-b border-mt-regua-fina py-4">
                 <dt className="text-[14px] font-extrabold text-mt-ink">{item.pergunta}</dt>
+                {/* Mesma segmentação do FAQ de `PaginaDeEstoque`, porque esta
+                    página tem render próprio e não passa por lá — a maior
+                    página do site depois da home ficaria justamente de fora.
+
+                    A string continua intacta: é a MESMA que
+                    `schemaDePerguntas` publica no `FAQPage` logo acima, e
+                    markup dentro dela faria markup e página divergirem. */}
                 <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                  {item.resposta}
+                  {linkar(item.resposta).map((parte, i) =>
+                    parte.href ? (
+                      <Link
+                        key={`${item.pergunta}-${i}`}
+                        href={parte.href}
+                        className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+                      >
+                        {parte.texto}
+                      </Link>
+                    ) : (
+                      <span key={`${item.pergunta}-${i}`}>{parte.texto}</span>
+                    ),
+                  )}
                 </dd>
               </div>
             ))}

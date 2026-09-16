@@ -16,8 +16,9 @@ import {
   slugDeModelo,
 } from "../../../../../lib/veiculoUrl";
 import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../lib/nomeDoVeiculo";
-import { schemaDoVeiculo } from "../../../../../lib/schemaVeiculo";
-import { blocoJsonLd, schemaDeTrilha } from "../../../../../lib/schemaListagem";
+import { montarTextosDaFicha } from "../../../../../lib/tituloDaFicha";
+import { grafoDaFicha } from "../../../../../lib/grafoDaFicha";
+import { blocoJsonLd } from "../../../../../lib/schemaListagem";
 import {
   destinoDoVeiculoArquivado,
   recortesDoEstoque,
@@ -109,9 +110,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   if (!veiculo) {
+    /* A descrição não atribui a ausência a uma venda, e isso é correção de
+       2026-09-11: carro vendido responde 200 com o selo durante a carência, e
+       301 para o hub do modelo depois dela (`publicacao.arquivar`, abaixo). O
+       `notFound()` desta rota é id que nunca existiu, ficha apagada, URL velha
+       de portal ou link torto. O `<head>` estava dizendo o contrário do `<h1>`
+       no mesmo documento — o corpo mora em `not-found.tsx`. */
     return {
       title: "Veículo não encontrado | Motors Store",
-      description: "O veículo procurado não foi localizado em nosso estoque ou já foi vendido."
+      description:
+        "Este endereço não abre nenhuma ficha do nosso estoque. Veja o que está no pátio hoje."
     };
   }
 
@@ -147,8 +155,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const seoDescription = cleanDescription
     ? truncateString(cleanDescription, 155)
     : `${veiculo.marca} ${veiculo.modelo} ${veiculo.versao} ${veiculo.ano}, cor ${veiculo.cor}, ` +
-      `${seu(generoDoModelo)} por ${priceText}. Perícia cautelar independente com laudo na ficha, ` +
-      "garantia e financiamento. Motors Store, Bacacheri, Curitiba.";
+      `${seu(generoDoModelo)} por ${priceText}. Perícia cautelar independente, garantia e ` +
+      "financiamento. Motors Store, Bacacheri, Curitiba.";
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
@@ -168,6 +176,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
    */
   const nomeDoVeiculo = montarNomeDoVeiculo(veiculo);
 
+  // Carro indisponível não anuncia preço no título nem no card. A regra, e a
+  // história dela, vivem em `lib/tituloDaFicha.ts` — onde dá para testá-la.
+  const textos = montarTextosDaFicha({
+    nome: nomeDoVeiculo,
+    ano: veiculo.ano,
+    cor: veiculo.cor,
+    km: veiculo.quilometragem,
+    precoTexto: priceText,
+    descricaoDisponivel: seoDescription,
+    publicacao,
+  });
+
   // A foto vence qualquer arte do painel: é o próprio produto. Quando o
   // veículo chega sem foto utilizável, `montarCompartilhamento` desce para o
   // card do painel e, na falta dele, para o card gerado — nunca para nada.
@@ -177,8 +197,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // outra coisa é o mesmo defeito que esticava o logo da home. Sem declaração,
   // Facebook e WhatsApp medem o arquivo sozinhos.
   return {
-    title: `${nomeDoVeiculo} - ${priceText} | Motors Store`,
-    description: seoDescription,
+    title: textos.titulo,
+    description: textos.descricao,
     alternates: {
       canonical: pdpUrl,
     },
@@ -196,8 +216,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       empresa: companySettings,
       pagina: "pdp",
       rotulo: `${veiculo.ano} · ${veiculo.quilometragem.toLocaleString("pt-BR")} km`,
-      tituloPadrao: `${nomeDoVeiculo} por ${priceText}`,
-      descricaoPadrao: seoDescription,
+      tituloPadrao: textos.tituloDoCard,
+      descricaoPadrao: textos.descricao,
       caminho: pdpUrl,
       imagemPreferida: imageUrl,
       imagemPreferidaSemDimensao: true,
@@ -274,12 +294,13 @@ export default async function CarDetailsPage({ params }: PageProps) {
   // O `Car` completo mora em `lib/schemaVeiculo.ts`. Ficava aqui, montado à
   // mão, e era onde faltavam `sku`, `bodyType`, `itemCondition` na raiz,
   // `numberOfPreviousOwners` e — o mais caro — `offers.seller`: a oferta não
-  // dizia quem vende nem de onde se retira, então nada ligava as 39 fichas à
-  // loja física que o `AutoDealer` descreve.
-  const carSchema = schemaDoVeiculo(veiculo, {
-    caminho: pdpUrl,
-    indisponivel: publicacao.indisponivel,
-  });
+  // dizia quem vende nem de onde se retira, então nada ligava as fichas à loja
+  // física que o `AutoDealer` descreve.
+  //
+  // Desde 05/09/2026 ele sai de `grafoDaFicha`, junto dos outros três nós — e
+  // por um motivo parente: o `seller` acima passou a apontar para um `#dealer`
+  // que a ficha não emitia, e array de nós montado no JSX não tem teste que
+  // perceba a falta.
 
   /**
    * Trilha com os hubs de marca e de modelo.
@@ -296,20 +317,40 @@ export default async function CarDetailsPage({ params }: PageProps) {
   const caminhoDaMarca = `/${segmento}/${slugDeMarca(veiculo.marca)}`;
   const caminhoDoModelo = `${caminhoDaMarca}/${slugDeModelo(veiculo.marca, veiculo.modelo, veiculo.versao)}`;
 
-  const breadcrumbSchema = schemaDeTrilha([
-    { nome: "Home", caminho: "/" },
-    { nome: "Estoque", caminho: "/estoque" },
-    { nome: veiculo.marca, caminho: caminhoDaMarca },
-    { nome: `${veiculo.marca} ${veiculo.modelo}`, caminho: caminhoDoModelo },
-  ]);
+  /**
+   * A montagem do grafo mora em `lib/grafoDaFicha.ts`, e não aqui.
+   *
+   * Array de nós escrito direto no JSX é montagem sem teste: remover um nó não
+   * quebra tipo, render nem teste, e a página segue publicando JSON-LD válido —
+   * só que mudo. Foi exatamente assim que a `Offer` desta ficha passou 11 dias
+   * (25/08 a 05/09/2026) referenciando um `#dealer` que a própria ficha não
+   * emitia.
+   *
+   * Extrair não basta: quem guarda o resultado é
+   * `tests/ficha-publica-o-grafo.test.ts`, que renderiza esta rota e conta os
+   * nós servidos. Ver `grafoDaFicha`.
+   */
+  const grafo = grafoDaFicha({
+    veiculo,
+    caminho: pdpUrl,
+    indisponivel: publicacao.indisponivel,
+    trilha: [
+      { nome: "Home", caminho: "/" },
+      { nome: "Estoque", caminho: "/estoque" },
+      { nome: veiculo.marca, caminho: caminhoDaMarca },
+      { nome: `${veiculo.marca} ${veiculo.modelo}`, caminho: caminhoDoModelo },
+    ],
+    empresa: settings.companySettings,
+    disponiveis,
+  });
 
   return (
     <div className="flex flex-col flex-grow bg-brand-bg text-brand-text transition-colors duration-300">
-      {/* `Car` e `BreadcrumbList` no mesmo bloco: array de nós é JSON-LD válido
-          e poupa um <script> em toda ficha. */}
+      {/* Os quatro nós num `<script>` só: array é JSON-LD válido, e o que
+          decide quais nós são é `grafoDaFicha`, acima. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: blocoJsonLd([carSchema, breadcrumbSchema]) }}
+        dangerouslySetInnerHTML={{ __html: blocoJsonLd(grafo) }}
       />
       <PDPClientWrapper
         veiculo={veiculo}

@@ -174,6 +174,18 @@ export const CAMPO_DA_PROMOCAO = "preco_promocional";
  * não é nossa. Removemos do Storage só o que subimos.
  *
  * ---------------------------------------------------------------------------
+ * Carro do feed: dois caminhos de escrita, e o sync não é nenhum deles
+ * ---------------------------------------------------------------------------
+ * A trava do banco continua descartando a foto que o sincronizador manda —
+ * foto não está na allowlist dele. Então a foto do carro do feed entra por
+ * gente, de dois jeitos, e os dois passam pela mesma linha da matriz A17: a
+ * galeria, pelo `PATCH /api/estoque/[id]` e por esta lista; e o botão
+ * "Importar fotos do feed" (#75), pelo `POST /api/estoque/[id]/fotos-do-feed`,
+ * que lê o anúncio na fonte e grava as mesmas três colunas por
+ * `aplicarNosVeiculos`. Decisão do dono em 16/09, na fusão do #45 com o #75:
+ * os dois ficam.
+ *
+ * ---------------------------------------------------------------------------
  * As três andam juntas
  * ---------------------------------------------------------------------------
  * `whatsapp_images` é a galeria da ficha, o `og:image` e o feed dos portais;

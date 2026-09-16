@@ -29,6 +29,8 @@ import {
 } from "../../lib/estadoDoCadastro";
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
 import GaleriaDeFotos from "./GaleriaDeFotos";
+import { SugestaoDeTexto } from "./SugestaoDeTexto";
+import { SugestaoDeLaudoPadrao } from "./SugestaoDeLaudoPadrao";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -355,10 +357,10 @@ export default function EditorDeVeiculo({
      sobre um carro que o cliente está vendo — e o botão Publicar, que lê o
      tamanho desta lista, ficaria travado no carro que já passou pela régua.
 
-     `laudo_pericia` saiu daqui junto com a regra. A origem fica, e é ela que
-     escolhe entre "suba as fotos pelo painel" e "as fotos vêm do RevendaMais":
-     sem ela a tela mandava o operador esperar um feed que nunca vai trazer foto
-     do carro que ele mesmo cadastrou. */
+     `laudo_pericia` saiu daqui junto com a regra, e a origem saiu na F0.5: a
+     frase é uma só, "suba as fotos pelo painel", e vale para carro de qualquer
+     origem porque a galeria aceita envio em todos. No carro do feed a mesma
+     galeria ainda oferece importar do anúncio (#75). */
   const bloqueios = useMemo(
     () =>
       // `origem` saiu daqui na F0.5 — a régua e o texto passaram a ser os
@@ -723,11 +725,14 @@ export default function EditorDeVeiculo({
             <GaleriaDeFotos
               estoqueId={v.id}
               fotos={fotos}
+              /* `origem` saiu daqui na F0.5 e voltou na fusão com o #75
+                 (16/09) com outro papel: não decide se a galeria edita, só se
+                 o botão "Importar fotos do feed" aparece. */
+              origem={v.origem}
               /* A linha "Adicionar e reordenar fotos" da A17 — Admin,
                  Marketing e Comercial. Perguntar por uma das colunas basta:
-                 as três apontam para a mesma linha da matriz.
-                 `origem` saiu daqui na F0.5: a galeria não pergunta mais de
-                 onde o carro veio, só quem é o usuário. */
+                 as três apontam para a mesma linha da matriz. É o único
+                 portão de edição da galeria, para carro de qualquer origem. */
               podeEditar={podeGravar("whatsapp_images")}
               aoGravar={aoGravarFotos}
             />
@@ -1183,6 +1188,13 @@ export default function EditorDeVeiculo({
                 placeholder="Texto que abre a página do veículo."
                 className="mt-campo-caixa mt-foco resize-y leading-relaxed"
               />
+              {podeGravar("descricao") && (
+                <SugestaoDeTexto
+                  veiculoId={v.id}
+                  campo="descricao"
+                  onUsar={(t) => set("descricao", t)}
+                />
+              )}
               <div className="mt-rotulo mb-3 mt-6">Descrição para portais e busca</div>
               <textarea
                 rows={3}
@@ -1197,6 +1209,13 @@ export default function EditorDeVeiculo({
                 frase genérica. O Google mostra cerca de 155 caracteres.
                 {v.descricao_seo ? ` Atual: ${v.descricao_seo.length}.` : ""}
               </p>
+              {podeGravar("descricao_seo") && (
+                <SugestaoDeTexto
+                  veiculoId={v.id}
+                  campo="descricao_seo"
+                  onUsar={(t) => set("descricao_seo", t)}
+                />
+              )}
 
               <div className="mt-rotulo mb-3 mt-6">Laudo cautelar</div>
               <textarea
@@ -1211,6 +1230,12 @@ export default function EditorDeVeiculo({
                 a perícia como aprovada — texto aqui não liga selo, para não afirmar ao cliente
                 algo que a vistoria não disse.
               </p>
+              {podeGravar("laudo_pericia") && (
+                <SugestaoDeLaudoPadrao
+                  pericia={v.pericia}
+                  onUsar={(t) => set("laudo_pericia", t)}
+                />
+              )}
             </>
           )}
         </div>

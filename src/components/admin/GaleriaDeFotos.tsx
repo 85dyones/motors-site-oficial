@@ -65,19 +65,34 @@ type Estado =
   | { tipo: "parado" }
   | { tipo: "enviando"; feito: number; total: number; etapa: string }
   | { tipo: "gravando" }
+  /** Buscando o anúncio no feed do RevendaMais — só em `origem = 'sync'`. */
+  | { tipo: "importando" }
   | { tipo: "erro"; mensagem: string };
 
 export default function GaleriaDeFotos({
   estoqueId,
   fotos,
+  origem,
   podeEditar,
   aoGravar,
 }: {
   estoqueId: number | string;
   fotos: FotoDoVeiculo[];
   /**
-   * Matriz A17, linha "Adicionar e reordenar fotos". **É o único portão
-   * daqui.**
+   * `painel` (cadastro nativo) ou `sync` (RevendaMais). **Não decide se a
+   * galeria edita** — isso é só `podeEditar`, para carro de qualquer origem.
+   * Decide uma coisa: se aparece o botão "Importar fotos do feed", que só serve
+   * para carro que existe no RevendaMais. A rota `fotos-do-feed` recusa o
+   * veículo do painel pelo mesmo critério.
+   *
+   * No `main`, até 16/09, ela também fechava o envio para carro do feed. O PR
+   * #45 abriu a galeria para qualquer origem, e na fusão com o #75 (decisão do
+   * dono, 16/09) ficou só este papel.
+   */
+  origem: string | null | undefined;
+  /**
+   * Matriz A17, linha "Adicionar e reordenar fotos". **É o único portão de
+   * edição daqui** — e o mesmo que libera o botão de importar do feed.
    *
    * Até 2026-09-01 havia um segundo, `origem === "painel"`, e ele fechava a
    * galeria para 100% do estoque — nenhum veículo nativo existe. Caiu na F0.5:
@@ -98,7 +113,10 @@ export default function GaleriaDeFotos({
   const [gravadoEm, setGravadoEm] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
 
-  const ocupado = estado.tipo === "enviando" || estado.tipo === "gravando";
+  // Só para o botão de importar — nunca para decidir se a galeria edita.
+  const doPainel = origem === "painel";
+  const ocupado =
+    estado.tipo === "enviando" || estado.tipo === "gravando" || estado.tipo === "importando";
   const faltam = Math.max(0, MINIMO_DE_FOTOS - fotos.length);
 
   /**
@@ -152,6 +170,50 @@ export default function GaleriaDeFotos({
   );
 
   /**
+   * Traz as fotos que o anúncio tem AGORA no RevendaMais — e substitui a
+   * galeria por elas, como o rótulo do botão avisa.
+   *
+   * Nasceu no #75 (15/09) como a saída do impasse que prendeu carro com
+   * dezessete fotos no feed em `rascunho` por uma semana: desde 30/08 a trava
+   * do banco descarta a foto que o sync manda, e esta galeria ainda recusava o
+   * envio por ser carro do feed. Desde a fusão com o #45 (16/09) o envio daqui
+   * vale para qualquer origem, e o botão continua como o jeito de trazer de uma
+   * vez o que o anúncio já tem lá. Ver `lib/feedRevendaMais.ts`.
+   *
+   * Quem decide a hora é a pessoa, e é isso que separa este botão de reabrir a
+   * coluna para o robô: o ciclo de seis horas passaria por cima da galeria
+   * calado, e aqui a importação só acontece no clique.
+   *
+   * Não manda lista nenhuma no corpo — a rota vai à fonte e lê. O que o botão
+   * promete é "o que o anúncio tem agora"; uma lista vinda do navegador trocaria
+   * essa promessa pela palavra de quem chamou. Lista escolhida pela pessoa já
+   * tem porta própria: o envio e a reordenação desta galeria.
+   */
+  const importarDoFeed = useCallback(async () => {
+    setEstado({ tipo: "importando" });
+    try {
+      const res = await fetch(`/api/estoque/${estoqueId}/fotos-do-feed`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Falha ao importar as fotos do feed.");
+
+      aoGravar({
+        whatsapp_images: data.whatsapp_images,
+        web_full_images: data.web_full_images,
+        url_imagem: data.url_imagem,
+      });
+      setGravadoEm(
+        new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      );
+      setEstado({ tipo: "parado" });
+    } catch (e: unknown) {
+      setEstado({
+        tipo: "erro",
+        mensagem: mensagemDoErro(e, "Não deu para importar as fotos do feed."),
+      });
+    }
+  }, [estoqueId, aoGravar]);
+
+  /**
    * Sobe os arquivos escolhidos, um a um, e grava a lista no fim.
    *
    * Um a um de propósito: a barra precisa dizer "3 de 12", e um `Promise.all`
@@ -192,6 +254,22 @@ export default function GaleriaDeFotos({
             .upload(caminhos[variante], versoes[variante], {
               contentType: versoes[variante].type,
               upsert: false,
+// 1 ano, e não a 1 h que o Storage carimba por padrão.
+              //
+              // A foto do card sai DIRETO do bucket — o card manda `unoptimized`
+              // para foto nossa —, então quem decide o cache dela é este carimbo.
+              // Com `max-age=3600`, navegador e borda rebaixam a MESMA foto de
+              // hora em hora: egress que o plano free do Supabase (5 GB/mês) não
+              // tem para gastar. Medido em 2026-09-09: 137 KB de média por foto de
+              // card, ~8 por visita à home.
+              //
+              // ⚠️ Vale para o que subir DAQUI PARA A FRENTE. Os ~1.050 arquivos
+              // que entraram em 31/08 ficaram com o padrão de 1 h e só mudam se
+              // forem reescritos de propósito — ver a nota no script de migração.
+              //
+              // Seguro porque `novoLote()` + `upsert: false` dão caminho novo a
+              // cada envio: foto trocada nasce com outra URL.
+              cacheControl: "31536000",
             });
           if (error) throw new Error(error.message);
         }
@@ -334,6 +412,11 @@ export default function GaleriaDeFotos({
           Gravando as fotos no anúncio…
         </div>
       )}
+      {estado.tipo === "importando" && (
+        <div className="mb-4 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5 text-[11px] text-mt-neutral-800">
+          Lendo o feed do RevendaMais…
+        </div>
+      )}
       {estado.tipo === "erro" && (
         <div
           role="alert"
@@ -426,15 +509,58 @@ export default function GaleriaDeFotos({
         </div>
       )}
 
-      {/* Aqui ficava o aviso que mandava o operador subir a foto no outro
-          sistema, alegando que o sincronizador a sobrescreveria. Saiu em
-          2026-09-01: era falso desde 30/08, quando a trava tirou do feed o
-          poder de reescrever coluna, e ensinava a não tentar. Kombi e Parati
-          estavam fora da vitrine por falta de foto que ninguém subiu porque a
-          tela dizia que não daria.
+      {/* Carro do feed: a foto chega por gente, por dois caminhos — o envio
+          desta galeria, como em qualquer carro, e o botão que importa o que o
+          anúncio tem no RevendaMais. O sincronizador não é um deles: desde
+          30/08 a trava do banco descarta a foto que ele manda.
 
-          O texto exato não é reproduzido nem aqui: `tests/fotos-do-veiculo`
-          procura por ele no arquivo inteiro para garantir que não volte. */}
+          Esta nota já disse duas coisas que deixaram de valer. Até 30/08,
+          que o sync repunha a galeria a cada ciclo; de 15 a 16/09 (#75), que
+          a foto do carro do feed só se subia no RevendaMais, com o envio daqui
+          fechado. Somadas, as duas recusas prenderam carro com dezessete fotos
+          no RevendaMais em `rascunho` por uma semana. O texto exato de nenhuma
+          delas é reproduzido aqui: `tests/fotos-do-veiculo` procura pelos dois
+          no arquivo inteiro para garantir que não voltem.
+
+          Decisão do dono em 16/09, na fusão do #45 com o #75: galeria aberta a
+          qualquer origem e botão mantido, com o aviso de que importar
+          substitui a galeria. */}
+      {!doPainel && (
+        <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
+          <p className="text-xs leading-relaxed text-mt-neutral-800">
+            Este veículo veio do <strong>feed do RevendaMais</strong>, e as fotos dele
+            chegam por dois caminhos: <strong>enviadas aqui</strong>, como as de qualquer
+            carro, ou <strong>importadas do anúncio de lá</strong>. O sincronizador não
+            grava foto — o anúncio que entra no feed antes das fotos fica sem elas até
+            alguém enviar ou importar.
+          </p>
+          {podeEditar && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={ocupado}
+                onClick={importarDoFeed}
+                className={`mt-btn mt-btn-primario mt-foco px-5 py-2.5 text-[11px] ${
+                  ocupado ? "pointer-events-none opacity-45" : ""
+                }`}
+              >
+                {estado.tipo === "importando" ? "Buscando no feed…" : "Importar fotos do feed"}
+              </button>
+              <span className="text-[11px] leading-snug text-mt-neutral-700">
+                substitui a galeria pela lista do RevendaMais · a primeira de lá vira a capa
+              </span>
+            </div>
+          )}
+          {/* "Seu perfil vê as fotos e não as altera" fica só no aviso de
+              baixo, que agora vale para qualquer origem — repetido aqui, o
+              carro do feed diria a mesma frase duas vezes. */}
+          {!podeEditar && (
+            <p className="mt-3 text-[11px] leading-relaxed text-mt-neutral-700">
+              Importar do feed é de Marketing, Comercial e Admin (matriz A17).
+            </p>
+          )}
+        </div>
+      )}
       {!podeEditar && (
         <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
           <p className="text-xs leading-relaxed text-mt-neutral-800">
