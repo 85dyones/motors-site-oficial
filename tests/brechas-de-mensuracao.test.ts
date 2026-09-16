@@ -291,12 +291,15 @@ describe("B.1 · o click id sobrevive até o CRM", () => {
   });
 });
 
-describe("B.3 · o cookie de anúncio respeita o banner", () => {
-  it("`_fbc` só é gravado depois do aceite", () => {
-    // A política publicada afirma que "enquanto você não aceitar, nenhuma
-    // ferramenta de análise ou publicidade é carregada" — e declara `_fbc`
-    // como cookie de atribuição de anúncio. Gravá-lo antes desmentia o texto
-    // que o visitante leu.
+describe("B.3 · o cookie de anúncio respeita a oposição", () => {
+  it("`_fbc` só é gravado depois do portão da oposição", () => {
+    // Nasceu em 27/08, quando o portão era o aceite e a política afirmava que
+    // "enquanto você não aceitar, nenhuma ferramenta de análise ou publicidade
+    // é carregada" — gravar o `_fbc` antes desmentia o texto que o visitante
+    // leu. Desde 31/08 o portão é só a oposição (`rastreamentoRecusado()`), e a
+    // trava seguiu a régua: quem se opôs não ganha cookie de atribuição. Os
+    // títulos deste bloco falavam em aceite até 16/09/2026; as asserções não
+    // mudaram.
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
     const escrita = fonte.indexOf("document.cookie = `_fbc=");
     expect(escrita).toBeGreaterThan(-1);
@@ -308,10 +311,11 @@ describe("B.3 · o cookie de anúncio respeita o banner", () => {
     expect(chamada).toBeGreaterThan(portao);
   });
 
-  it("quem aceita na página de entrada não perde o `fbclid`", () => {
-    // A captura roda também no evento de mudança de consentimento, então o
-    // aceite ainda na landing pega o parâmetro direto da URL. Some só o caso
-    // de quem navega para outra página antes de aceitar.
+  it("o evento de mudança da escolha também recaptura o `fbclid`", () => {
+    // O tracker roda de novo no `ag-cookie-consent-updated`, que o controle de
+    // /privacidade e o "Entendi" do aviso disparam. Quem retira a oposição com
+    // o `fbclid` ainda na URL tem o `_fbc` gravado ali mesmo. Quem não se opôs
+    // nem depende do evento: desde 31/08 a gravação acontece na chegada.
     const fonte = ler("src/components/IntegrationsTracker.tsx");
     expect(fonte).toContain('window.addEventListener("ag-cookie-consent-updated", checkAndInitTrackors)');
   });
@@ -336,6 +340,12 @@ describe("B.3 · o cookie de anúncio respeita o banner", () => {
  *
  * Capturar na entrada, atrás do portão, corrige os dois lados: passa a valer o
  * texto da política E passa a existir a atribuição que não existia.
+ *
+ * Isso é de 27/08, e a régua mudou duas vezes depois: em 28/08 a gravação
+ * passou a acontecer na chegada, com a recusa apagando (a nota logo abaixo), e
+ * em 31/08 nada mais espera aceite — o "banner" deste título hoje só informa, e
+ * quem barra é a oposição em /privacidade. Os testes do bloco seguem a régua de
+ * hoje.
  */
 describe("B.4 · a última decisão da pessoa é a que vale", () => {
   /**
@@ -444,10 +454,15 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     ).toBe(1);
   });
 
-  it("recusar e depois ACEITAR regrava — a mudança de ideia funciona", async () => {
+  it("opor-se e depois retirar a oposição regrava — a mudança de ideia funciona", async () => {
     // É o caso que o dono nomeou. A memória de sessão sobrevive à recusa de
     // propósito: ela não é armazenamento no dispositivo, e é o que permite
     // reconstruir a atribuição quando a pessoa muda de ideia na mesma aba.
+    //
+    // O título dizia "recusar e depois ACEITAR" até 16/09/2026, do tempo do
+    // aceite. O teste grava `accepted`, que é o que o "Entendi" do aviso
+    // escreve; o "Ligar a medição" de /privacidade remove a chave. Para a
+    // régua, os dois são "não se opôs", e a asserção vale igual.
     const dados = comAmbiente(COM_ANUNCIO, "rejected");
     const { persistirParametrosDeCampanha } = await moduloLimpo();
     persistirParametrosDeCampanha();
@@ -458,7 +473,10 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     expect(dados.get("ag_gclid")).toBe("ABC123");
   });
 
-  it("depois do aceite, grava", async () => {
+  it("quem fechou o aviso em “Entendi” (`accepted`) grava igual", async () => {
+    // Até 16/09/2026 este título era "depois do aceite, grava". O "Entendi" só
+    // fecha o aviso e grava `accepted`, que nada lê como liberação: quem não
+    // respondeu grava do mesmo jeito ("sem decisão nenhuma, grava na chegada").
     const dados = comAmbiente(COM_ANUNCIO, "accepted");
     const { persistirParametrosDeCampanha } = await moduloLimpo();
     persistirParametrosDeCampanha();
@@ -487,8 +505,10 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
 
   it("a captura roda na ENTRADA, antes do retorno antecipado do tracker", async () => {
     // `persistirParametrosDeCampanha` trata recusa e gravação por dentro. Se a
-    // chamada ficasse depois do `return` de quem não aceitou, ela nunca rodaria
-    // para quem ainda não decidiu — nem gravando, nem apagando numa recusa.
+    // chamada ficasse depois do `return` de quem se opôs, ela nunca rodaria para
+    // essa pessoa — e é ali que a oposição apaga, a cada carga, o que estava
+    // gravado. (Até 31/08 o `return` era de quem ainda não tinha aceitado, e aí
+    // a captura não rodaria nem para gravar.)
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
     // A âncora mudou em 2026-09-02: o portão virou `rastreamentoRecusado()`,
     // uma função só, porque a linha repetida foi o que permitiu `telemetry.ts`
@@ -773,22 +793,27 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
  *      as seis frases: a lista nomeia o que aconteceu, o `/aceit/i` fecha o
  *      que a lista não previu.
  *   2. Três controles positivos, não dois — a re-revisão de c27e5e8 mediu que
- *      o segundo não provava nada: "Usamos estas ferramentas:" fica na
- *      posição 10.115 de 17.562 do texto visível, no MEIO da página, e depois
- *      dele ainda vêm duas regiões que este PR reescreveu e que o `/aceit/i`
- *      também vigia — a orientação de revogação (`page.tsx:426`) e o bullet
- *      de Compartilhamento (`page.tsx:453-457`). Uma leitura que parasse
- *      logo depois de `page.tsx:391` deixaria as duas verdes por engano: zero
- *      "aceit" porque nada foi lido, não porque nada sobrou. O terceiro
- *      controle é o rodapé — "Podemos atualizar esta política"
- *      (`page.tsx:630`), a ÚLTIMA frase visível da página — e só com ele o
- *      `not.toMatch(/aceit/i)` cobre as três âncoras de verdade:
+ *      o segundo não provava nada: "Usamos estas ferramentas:" ficava na
+ *      posição 10.115 de 17.562 do texto visível (medida em 15/09), no MEIO da
+ *      página, e depois dele ainda vêm duas regiões que este PR reescreveu e
+ *      que o `/aceit/i` também vigia — a orientação de revogação (o parágrafo
+ *      logo depois da lista de ferramentas) e o bullet "Google e Meta" da seção
+ *      de compartilhamento. Uma leitura que parasse no fim da lista de
+ *      ferramentas deixaria as duas verdes por engano: zero "aceit" porque
+ *      nada foi lido, não porque nada sobrou. O terceiro controle é o rodapé —
+ *      "Podemos atualizar esta política", a ÚLTIMA frase visível da página —
+ *      e só com ele o `not.toMatch(/aceit/i)` cobre as três âncoras de verdade:
  *        · "carregadas desde o início da visita" — começo da seção de cookies;
  *        · "Usamos estas ferramentas:" — meio, fim da lista de ferramentas;
  *        · "Podemos atualizar esta política" — rodapé, fim de tudo.
  *      As duas primeiras não bastavam porque as duas regiões que motivaram
  *      esta trava inteira (revogação e Compartilhamento) ficam DEPOIS da
  *      segunda âncora e ANTES da terceira.
+ *
+ * Em 16/09/2026 as referências `page.tsx:<linha>` deste bloco viraram o nome
+ * do trecho. A reescrita da seção de cookies (o benefício da medição antes da
+ * base legal) moveu as linhas, e os números passaram a apontar para outros
+ * parágrafos. Nenhuma asserção mudou.
  */
 describe("B.6 · a política não deixou sobra do regime de aceite", () => {
   const politica = lerCodigo("src/app/privacidade/page.tsx");
@@ -816,8 +841,8 @@ describe("B.6 · a política não deixou sobra do regime de aceite", () => {
     //
     // Três âncoras, não duas — a re-revisão de c27e5e8 mediu a segunda
     // ("Usamos estas ferramentas:") no MEIO do texto visível (posição 10.115
-    // de 17.562) e apontou que a revogação (`page.tsx:426`) e o
-    // Compartilhamento (`page.tsx:453-457`) ficam DEPOIS dela. Sem uma
+    // de 17.562, em 15/09) e apontou que a revogação (o parágrafo logo depois
+    // da lista de ferramentas) e o Compartilhamento ficam DEPOIS dela. Sem uma
     // terceira âncora no fim de tudo, uma leitura truncada logo depois da
     // segunda deixaria o `not.toMatch(/aceit/i)` passar em falso — zero
     // "aceit" por não ter lido, não por não ter sobrado. A terceira âncora é
@@ -879,6 +904,12 @@ describe("B.6 · a política não deixou sobra do regime de aceite", () => {
  * página (a URL some com o `gclid`) e só então aceitar, ou enviar um
  * formulário. `capturadoNestaSessao` cobre os dois casos sem tocar no disco
  * antes da hora.
+ *
+ * Isso é de 27/08. No dia seguinte a gravação no dispositivo passou a
+ * acontecer na chegada (ver B.4), e em 31/08 o aceite saiu de tudo: só a
+ * oposição barra. As travas abaixo continuam valendo — a URL de entrada vence,
+ * o lead leva o `gclid`, e quem se opõe não tem nada no disco. Os títulos que
+ * ainda falavam em aceitar foram trocados em 16/09/2026, sem mudar asserção.
  */
 describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
   const COM_ANUNCIO = "https://motorsstore.com.br/?gclid=DA_ENTRADA_123&utm_source=google";
@@ -914,7 +945,7 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
   const chavesGravadas = () =>
     [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent").sort();
 
-  it("aceitar DEPOIS de navegar mantém o gclid da entrada", async () => {
+  it("o gclid da entrada sobrevive à navegação e ao “Entendi” dado depois", async () => {
     const tel = await import("../src/lib/telemetry");
 
     // 1. Chega do anúncio e não decide nada. Desde 28/08 já grava aqui.
@@ -926,12 +957,13 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
     irPara(SEM_PARAMETRO);
     tel.persistirParametrosDeCampanha();
 
-    // 3. Aceita o banner aqui, longe da página de entrada.
+    // 3. Fecha o aviso em "Entendi" aqui, longe da página de entrada — o que
+    // grava `accepted` e não libera nada, porque nada esperava por ele.
     aceitar("accepted");
     tel.persistirParametrosDeCampanha();
 
     // O valor da ENTRADA sobrevive às duas passagens. Nem a URL vazia do passo
-    // 2 nem o aceite tardio do passo 3 o substituem por nada.
+    // 2 nem o "Entendi" tardio do passo 3 o substituem por nada.
     expect(dados.get("ag_gclid")).toBe("DA_ENTRADA_123");
     expect(dados.get("ag_utm_source")).toBe("google");
   });

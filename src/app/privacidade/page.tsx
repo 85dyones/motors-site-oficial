@@ -246,18 +246,20 @@ export default async function PrivacidadePage() {
                 prevenção a fraudes e diagnóstico de falhas, e dizia que TODOS
                 se opunham pelo botão de cookies. Falso para os três últimos:
                 a captura de erro arma sempre, sem consultar
-                `ag_cookie_consent` (`instrumentation-client.ts:76`,
-                `configurar({ ativo: true })`) e manda o `ag_uid` a
-                `/api/erros` (`observabilidade-cliente.ts:152` lê o cookie,
-                `:236` envia); o `ag_uid` de 1 ano é gravado sem portão
-                nenhum (`AntigravityTracker.tsx:24-34`); e o Turnstile é
-                exigido em todo lead, `ISENTOS_DE_CAPTCHA` vazio
-                (`api/leads/route.ts:41-54`). `rastreamentoRecusado()` só é
-                lido em `IntegrationsTracker.tsx:161,329` e
-                `telemetry.ts:499,605,650,692,744` — nenhum desses três usos
-                está nessa lista. Por isso o bullet separou: publicidade se
-                opõe pelo botão de cookies, os outros três pelos canais de
-                contato.
+                `ag_cookie_consent` (`instrumentation-client.ts`,
+                `configurar({ ativo: true, ... })`) e manda o `ag_uid` a
+                `/api/erros` (`observabilidade-cliente.ts` lê o cookie com
+                `doCookie` e envia por `sendBeacon`); o `ag_uid` de 1 ano é
+                gravado sem portão nenhum (`AntigravityTracker.tsx`, no efeito
+                de montagem); e o Turnstile é exigido em todo lead,
+                `ISENTOS_DE_CAPTCHA` vazio (`api/leads/route.ts`). A oposição
+                só é lida pelas tags, pela medição e pelo lead —
+                `rastreamentoRecusado()` ou a mesma chave, em
+                `IntegrationsTracker`, `BootstrapDeTags`, `telemetry.ts` e, desde
+                16/09, `getMatchParamsRespeitandoRecusa` nos fluxos de lead —, e
+                nenhum desses três usos está entre eles. Por isso o bullet
+                separou: publicidade se opõe pelo botão de cookies, os outros
+                três pelos canais de contato.
 
                 (B2) A finalidade "exibir anúncios mais relevantes para quem
                 já visitou o site" (remarketing, `finalidades` acima) ficou
@@ -265,15 +267,20 @@ export default async function PrivacidadePage() {
                 "entender o uso". O remarketing é real — `Ads - Remarketing
                 dinamico` em `docs/GTM_CONFIGURACAO.md`. Dois eventos a
                 alimentam, de dois lugares diferentes: `view_vehicle`, que
-                `trackVehicleView` empurra ao abrir uma ficha
-                (`telemetry.ts:587`, `dataLayer.ts:331`), e `page_context`,
-                que `CamadaDeDados` empurra a CADA página, não só fichas
-                (`CamadaDeDados.tsx:28`, `dataLayer.ts:235`). (Correção de
-                rodada 3: a versão anterior deste comentário atribuía os dois
-                eventos a `trackVehicleView` — só o `view_vehicle` é dele.)
-                Acrescentado aqui, no Compartilhamento
-                (`#compartilhamento`) e, por coerência, no primeiro parágrafo
-                da seção de cookies abaixo. */}
+                `trackVehicleView` empurra ao abrir uma ficha (pela
+                `pushVeiculo` de `dataLayer.ts`), e `page_context`, empurrado a
+                CADA página, não só fichas (pela `pushCamadaGlobal` de
+                `dataLayer.ts`): a primeira página pelo `BootstrapDeTags`, no
+                parse do HTML, desde o PR #46, e as seguintes pelo
+                `CamadaDeDados`. (Correção de rodada 3: a versão anterior deste
+                comentário atribuía os dois eventos a `trackVehicleView` — só o
+                `view_vehicle` é dele.) Acrescentado aqui, no Compartilhamento
+                (`#compartilhamento`) e, por coerência, no parágrafo do
+                legítimo interesse da seção de cookies abaixo.
+
+                16/09/2026 — as referências `arquivo:linha` deste comentário
+                e dos da seção de cookies viraram nome de função: o #46 e o #96
+                moveram o código, e os números apontavam para outras linhas. */}
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>
                 <strong className="text-mt-ink">Execução de contrato e procedimentos
@@ -377,23 +384,24 @@ export default async function PrivacidadePage() {
                 parágrafo acima incompleto: ele só atribuía o envio aos
                 scripts de terceiro, mas o PRÓPRIO site repassa o
                 identificador aos servidores da Meta, sem formulário. Fluxo
-                conferido: `tracking-identity.ts:44-48` (`getMatchParams`)
+                conferido: `getMatchParams` (`tracking-identity.ts`)
                 monta `fbc` a partir do cookie `_fbc` ou, na falta dele, do
                 `fbclid` da URL — sem portão. Ele sai em três pontos, cada um
                 sem exigir formulário: ao abrir a ficha do veículo
-                (`PDPClientWrapper.tsx:211-233`, POST para `/api/capi`), ao
-                tocar em WhatsApp/telefone
-                (`telemetry.ts:779` chama `espelharNoCapi("Contact", ...)`) e
-                ao usar o Match de Garagem (`telemetry.ts:712`,
+                (`PDPClientWrapper.tsx`, POST para `/api/capi` depois de
+                `trackVehicleView`), ao tocar em WhatsApp/telefone
+                (`trackContactClick` chama `espelharNoCapi("Contact", ...)`) e
+                ao usar o Match de Garagem (`trackCarMatch`,
                 `espelharNoCapi("Search", ...)`). `/api/capi` chama
-                `sendCapiEvent` (`meta-capi.ts:137`, POST ao Graph da Meta),
+                `sendCapiEvent` (`meta-capi.ts`, POST ao Graph da Meta),
                 que manda `fbc`/`fbp`/IP/user-agent em claro — só e-mail,
-                telefone e `external_id` levam hash
-                (`meta-capi.ts:107-117`).
+                telefone e `external_id` levam hash (a montagem do
+                `user_data` em `sendCapiEvent`).
 
                 E a frase final prometia demais: "apagado na hora" sem
-                dizer ONDE. `ControleDeRastreamento.tsx:56-61` e
-                `descartarParametrosDeCampanha` (`telemetry.ts:287-294`) só
+                dizer ONDE. O botão de oposição (`aplicar`, em
+                `ControleDeRastreamento.tsx`) e `descartarParametrosDeCampanha`
+                (`telemetry.ts`) só
                 apagam a cópia local (cookie e `localStorage`) — nenhum dos
                 dois chama Google nem Meta para apagar o que já foi
                 recebido. Corrigido para dizer isso, mantendo as duas
@@ -487,8 +495,8 @@ export default async function PrivacidadePage() {
                   "exibi-los a quem já visitou o site". E "identificadores
                   embaralhados" era impreciso: só e-mail, telefone e
                   `external_id` levam hash; `fbc`, `fbp`, IP e user-agent
-                  viajam em claro (`meta-capi.ts:107-117`, conferido linha a
-                  linha). */}
+                  viajam em claro (a montagem do `user_data` em
+                  `sendCapiEvent`, `meta-capi.ts`, conferida linha a linha). */}
               <li>
                 <strong className="text-mt-ink">Google e Meta</strong> — dados de navegação,
                 identificadores de anúncio (como <code>gclid</code>, <code>_fbc</code> e{" "}

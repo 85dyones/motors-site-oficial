@@ -18,8 +18,9 @@ import {
  * concluiu que nada de negócio era medido. A primeira metade está certa — não
  * havia `dataLayer` de negócio —, a segunda não: `lib/telemetry.ts` já
  * disparava lead, visualização, busca e contato direto pelo `gtag`/`fbq`.
- * O auditor não viu nada porque o tracking é gated pelo consentimento LGPD e
- * ele não aceitou os cookies.
+ * O auditor não viu nada porque, naquela época, o tracking esperava o aceite
+ * de cookies e ele não aceitou. Esse portão caiu em 31/08: hoje as tags
+ * carregam na chegada, e só a oposição em /privacidade barra.
  *
  * O que a camada acrescenta é independência: com ela publicada, criar uma
  * conversão nova no Ads deixa de exigir deploy.
@@ -332,9 +333,12 @@ describe("a camada acrescenta, nunca substitui", () => {
   });
 
   it("o push acontece antes do gate de consentimento", () => {
-    // Escrever num array em memória não envia nada; quem envia é o GTM, que só
-    // carrega depois do aceite — e processa a fila que já estiver ali. Com o
-    // gate aqui, o contexto anterior ao aceite se perderia.
+    // Escrever num array em memória não envia nada; quem envia é o GTM, que
+    // carrega na chegada e só fica de fora para quem se opôs — e processa a
+    // fila que já estiver ali. Com o portão antes do push, quem retira a
+    // oposição na mesma aba chegaria ao container sem o contexto do que já viu.
+    // (Até 31/08 o GTM esperava o aceite, e o que se perderia era o contexto
+    // anterior ao aceite.)
     // A âncora mudou em 2026-09-02: a régua virou `rastreamentoRecusado()`,
     // definida no TOPO do arquivo. Procurar `ag_cookie_consent` depois do push
     // passou a achar -1 — e a comparação viraria "push antes de -1", que
