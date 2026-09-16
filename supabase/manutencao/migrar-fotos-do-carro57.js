@@ -489,6 +489,14 @@ function nomeDoArquivo(url) {
               .upload(caminhos[variante], versoes[variante], {
                 contentType: versoes[variante].type,
                 upsert: false,
+// Mesmo carimbo do painel, pela mesma razão — ver a nota em
+                // `src/components/admin/GaleriaDeFotos.tsx`.
+                //
+                // ⚠️ Reexecutar este script NÃO recarimba o que já subiu: o `jaLa`
+                // pula o veículo cujos dois arquivos já estão no bucket, e mesmo
+                // chegando aqui o `upsert: false` devolveria 409. Os arquivos de
+                // 31/08 seguem com `max-age=3600` até alguém reescrevê-los.
+                cacheControl: "31536000",
               });
             if (error) {
               const jaExiste =
