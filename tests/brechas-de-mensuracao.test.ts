@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { ler, lerCodigo } from "./fonte";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import { ler, lerCodigo, semComentarios } from "./fonte";
 import { getUtmParameters, persistirParametrosDeCampanha } from "../src/lib/telemetry";
 
 /**
@@ -856,5 +858,134 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
     tel.persistirParametrosDeCampanha();
 
     expect(dados.get("ag_utm_source")).toBe("google");
+  });
+});
+
+
+/**
+ * B.7 · a oposição vale também para o LEAD.
+ *
+ * ---------------------------------------------------------------------------
+ * O que o B.4 não cobria
+ * ---------------------------------------------------------------------------
+ * O B.4 garante o lado do dispositivo: recusar apaga o que está guardado.
+ * Faltava o que sai dele junto de um formulário. Medido em 16/09/2026 no
+ * `main`:
+ *
+ *   · os sete fluxos que postam em `/api/leads` montavam `fbp`/`fbc` com
+ *     `getMatchParams()`, que não olha a recusa. Muitas vezes o valor era a
+ *     cópia do `_fbp` que o Pixel grava com `domain=`, e que o botão de
+ *     oposição não apagava;
+ *   · Contato, Encomenda e o CTA de campanha geravam o `eventId` direto, com
+ *     `generateEventId("Lead")`, e `/api/leads` espelha o Lead no CAPI sempre
+ *     que recebe `eventId`. O CAPI Lead de quem se opôs saía com `fbp`, `fbc`,
+ *     `ag_uid`, e-mail e telefone. Os outros quatro usam o retorno de
+ *     `trackLeadSubmission`, que já é `null` na recusa, e ficavam barrados
+ *     por tabela.
+ *
+ * ---------------------------------------------------------------------------
+ * O que estas travas também guardam: nada muda para quem não se opôs
+ * ---------------------------------------------------------------------------
+ * Cada negativa tem um controle positivo ao lado. Tirar `fbp`/`fbc` de todo
+ * lead, ou parar de gerar o `eventId`, também faria as negativas passarem — e
+ * derrubaria a correspondência e a deduplicação Pixel × CAPI de todo mundo.
+ * O lead de quem se opôs continua sendo enviado, com `utm`: a leitura nunca
+ * teve portão (B.4). O comportamento de `getMatchParamsRespeitandoRecusa`, com
+ * cookie de verdade, é provado em `tests/oposicao-cookies-de-dominio.test.ts`.
+ */
+describe("B.7 · a oposição vale também para o lead", () => {
+  /** Geram o `eventId` ANTES do POST e só contam a conversão depois dele. */
+  const GERAM_O_ID_ANTES_DO_POST = [
+    "src/components/ContatoClientWrapper.tsx",
+    "src/components/EncomendaDeCarro.tsx",
+    "src/components/campanha/CtaDeCampanha.tsx",
+  ];
+  /** Usam como `eventId` o retorno de `trackLeadSubmission`. */
+  const USAM_O_RETORNO_DA_MEDICAO = [
+    "src/components/AutoAvaliacao.tsx",
+    "src/components/CarMatch.tsx",
+    "src/components/LeadPopup.tsx",
+    "src/components/PDPClientWrapper.tsx",
+  ];
+  const FLUXOS_DE_LEAD = [...GERAM_O_ID_ANTES_DO_POST, ...USAM_O_RETORNO_DA_MEDICAO];
+
+  it("controle: as duas listas são TODO arquivo de src/ que posta em /api/leads", () => {
+    // Um oitavo formulário copiado do desenho antigo passaria ao lado de todas
+    // as travas abaixo. A varredura casa a CHAMADA — `fetch("/api/leads"` com
+    // a aspa fechando ali —, então `/api/leads/gerenciar` e as notas que só
+    // citam a rota ficam de fora.
+    const raiz = join(__dirname, "..");
+    const achados: string[] = [];
+    const anda = (dir: string) => {
+      for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+        const caminho = join(dir, entrada.name);
+        if (entrada.isDirectory()) {
+          anda(caminho);
+          continue;
+        }
+        if (!/\.tsx?$/.test(entrada.name)) continue;
+        const bruto = readFileSync(caminho, "utf8");
+        // O filtro barato antes do varredor, que é caractere a caractere.
+        if (!bruto.includes("/api/leads")) continue;
+        if (/fetch\(\s*["'`]\/api\/leads["'`]/.test(semComentarios(bruto))) {
+          achados.push(relative(raiz, caminho).split(sep).join("/"));
+        }
+      }
+    };
+    anda(join(raiz, "src"));
+
+    expect(achados.sort()).toEqual([...FLUXOS_DE_LEAD].sort());
+  });
+
+  it.each(FLUXOS_DE_LEAD)("%s: fbp e fbc do lead passam pela recusa", (arquivo) => {
+    const fonte = lerCodigo(arquivo);
+    // `\b` dos dois lados: casa o import e a chamada da versão sem portão, e
+    // não casa `getMatchParamsRespeitandoRecusa`.
+    expect(fonte, "usa getMatchParams, que não olha a recusa").not.toMatch(/\bgetMatchParams\b/);
+    // Controle: quem não se opôs continua mandando os dois. Apagar a linha
+    // passaria na negativa acima e derrubaria a correspondência do CAPI.
+    expect(fonte, "o lead deixou de levar fbp/fbc para quem não se opôs").toMatch(
+      /\{\s*fbp,\s*fbc\s*\}\s*=\s*getMatchParamsRespeitandoRecusa\(\)/,
+    );
+  });
+
+  it.each(GERAM_O_ID_ANTES_DO_POST)("%s: o eventId do POST só nasce para quem não se opôs", (arquivo) => {
+    const fonte = lerCodigo(arquivo);
+    const geracoes = fonte.match(/generateEventId\(/g) ?? [];
+    const comPortao =
+      fonte.match(/rastreamentoRecusado\(\)\s*\?\s*null\s*:\s*generateEventId\("Lead"\)/g) ?? [];
+
+    // Nenhum nasce por fora do portão: `/api/leads` espelha no CAPI todo
+    // `eventId` que recebe.
+    expect(geracoes.length, "há generateEventId sem passar pela recusa").toBe(comPortao.length);
+    // Controle: o id continua nascendo. Sem ele, quem não se opôs perde o CAPI
+    // Lead e a deduplicação — e a negativa de cima passaria com zero de zero.
+    expect(comPortao.length, "o fluxo parou de gerar o eventId").toBeGreaterThan(0);
+    // E o MESMO id vai ao Pixel, depois do POST: é o par que o Meta deduplica.
+    expect(fonte, "o Pixel deixou de receber o id do POST").toMatch(/presetEventId:\s*eventId\b/);
+  });
+
+  it.each(USAM_O_RETORNO_DA_MEDICAO)("%s: o eventId continua vindo de trackLeadSubmission", (arquivo) => {
+    // Estes quatro já estavam certos, e por tabela: a medição devolve `null`
+    // na recusa. A trava é para não passarem a gerar o id por fora, que é o
+    // desenho que deixava o CAPI Lead escapar nos outros três.
+    const fonte = lerCodigo(arquivo);
+    expect(fonte, "o eventId deixou de vir da medição").toMatch(/const eventId = trackLeadSubmission\(/);
+    expect(fonte, "o fluxo passou a gerar o eventId por fora").not.toMatch(/generateEventId\(/);
+  });
+
+  it("as duas pontas de que o `null` depende continuam no lugar", () => {
+    // O `null` do cliente só barra o CAPI porque a medição o devolve na recusa
+    // e porque a rota só espelha quando há `eventId`. Se a rota passar a gerar
+    // um id quando não recebe, as travas acima seguem verdes e o CAPI Lead de
+    // quem se opôs volta a sair.
+    const telemetria = lerCodigo("src/lib/telemetry.ts");
+    const inicio = telemetria.indexOf("export function trackLeadSubmission");
+    const fim = telemetria.indexOf("export function", inicio + 30);
+    expect(inicio, "trackLeadSubmission sumiu").toBeGreaterThan(-1);
+    expect(fim, "não achei o fim de trackLeadSubmission").toBeGreaterThan(inicio);
+    expect(telemetria.slice(inicio, fim)).toMatch(/if \(rastreamentoRecusado\(\)\) return null;/);
+
+    expect(lerCodigo("src/app/api/leads/route.ts")).toMatch(/if \(pixelId && body\.eventId\)/);
   });
 });

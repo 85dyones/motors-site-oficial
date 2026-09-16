@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url": "https://www.motorsstore.com.br/"}
 import { describe, it, expect, afterEach } from "vitest";
-import { descartarCookiesDeAnuncio } from "../src/lib/telemetry";
+import { descartarCookiesDeAnuncio, getMatchParamsRespeitandoRecusa } from "../src/lib/telemetry";
+import { getMatchParams } from "../src/lib/tracking-identity";
 
 /**
  * A oposição apaga os cookies de anúncio de verdade — inclusive a cópia que o
@@ -109,5 +110,58 @@ describe("(b) descartarCookiesDeAnuncio apaga as duas cópias", () => {
     expect(valores("_fbc"), "sobrou cópia do _fbc").toEqual([]);
     // Não é um "apaga tudo": cookie que não é de anúncio fica.
     expect(valores("preferencia")).toEqual(["fica"]);
+  });
+});
+
+/**
+ * O outro lado da mesma promessa: o que sai do navegador junto do lead.
+ *
+ * Apagar o cookie no clique não basta, porque o `fbc` também nasce do `fbclid`
+ * da URL, e um Pixel já carregado na aba pode regravar o `_fbp` depois. A
+ * régua é a recusa gravada, e não a existência do cookie.
+ */
+describe("(c) getMatchParamsRespeitandoRecusa", () => {
+  function cookiesDoMeta() {
+    document.cookie = "_fbp=fb.1.1700000000000.111; path=/";
+    document.cookie = "_fbc=fb.1.1700000000000.CLIQUE; path=/";
+  }
+
+  it("sem preferência gravada, devolve o que getMatchParams devolve hoje", () => {
+    // O caso de quase todo visitante: ninguém responde nada.
+    cookiesDoMeta();
+    expect(getMatchParamsRespeitandoRecusa()).toEqual({
+      fbp: "fb.1.1700000000000.111",
+      fbc: "fb.1.1700000000000.CLIQUE",
+    });
+    expect(getMatchParamsRespeitandoRecusa()).toEqual(getMatchParams());
+  });
+
+  it("com uma preferência que não é a recusa, também", () => {
+    cookiesDoMeta();
+    localStorage.setItem("ag_cookie_consent", "accepted");
+    expect(getMatchParamsRespeitandoRecusa()).toEqual({
+      fbp: "fb.1.1700000000000.111",
+      fbc: "fb.1.1700000000000.CLIQUE",
+    });
+  });
+
+  it('com `ag_cookie_consent = "rejected"`, fbp e fbc saem nulos', () => {
+    cookiesDoMeta();
+    localStorage.setItem("ag_cookie_consent", "rejected");
+    // Controle: os cookies continuam lá. O nulo vem da recusa, e não da falta
+    // de cookie para ler.
+    expect(getMatchParams()).toEqual({
+      fbp: "fb.1.1700000000000.111",
+      fbc: "fb.1.1700000000000.CLIQUE",
+    });
+    expect(getMatchParamsRespeitandoRecusa()).toEqual({ fbp: null, fbc: null });
+  });
+
+  it("com a recusa, nem o fbc remontado do `fbclid` da url escapa", () => {
+    // Sem cookie `_fbc`, `getMatchParams` monta o valor a partir da URL.
+    history.replaceState(null, "", "/?fbclid=DO_ANUNCIO");
+    localStorage.setItem("ag_cookie_consent", "rejected");
+    expect(getMatchParams().fbc, "controle: a url entrega um fbc").toMatch(/^fb\.1\.\d+\.DO_ANUNCIO$/);
+    expect(getMatchParamsRespeitandoRecusa().fbc).toBeNull();
   });
 });

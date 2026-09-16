@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters, sufixoRef, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
-import { getMatchParams } from "../lib/tracking-identity";
+import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, sufixoRef, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import { ACOES } from "../lib/turnstile";
@@ -752,7 +751,7 @@ export default function AutoAvaliacao() {
         formId: "form-avaliacao-falar-com-avaliador",
       }
     );
-    const { fbp, fbc } = getMatchParams();
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     const payload = {
       remoteJid,

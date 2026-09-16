@@ -1,4 +1,4 @@
-import { generateEventId, getMatchParams } from "./tracking-identity";
+import { generateEventId, getMatchParams, type MatchParams } from "./tracking-identity";
 import {
   containerAssumeOsEventos,
   pushCliqueTelefone,
@@ -342,6 +342,28 @@ function apagarCookieEmTodoDominio(nome: string): void {
 export function descartarCookiesDeAnuncio(): void {
   apagarCookieEmTodoDominio("_fbp");
   apagarCookieEmTodoDominio("_fbc");
+}
+
+/**
+ * `getMatchParams`, respeitando a oposição: para quem desligou o rastreamento
+ * em /privacidade, `fbp` e `fbc` saem nulos.
+ *
+ * É o que os fluxos de lead usam para montar o POST de `/api/leads`. Até
+ * 16/09/2026 eles chamavam `getMatchParams` direto, e o lead de quem se opôs
+ * levava os dois identificadores do Meta: muitas vezes a cópia de domínio do
+ * `_fbp`, que o botão de oposição não apagava, ou o `fbc` remontado do
+ * `fbclid` da URL, que nem cookie é.
+ *
+ * O lead continua sendo enviado, e com `utm`: a leitura dos parâmetros de
+ * campanha não tem portão, por decisão registrada em `getUtmParameters`. Sai
+ * só o identificador do Meta, que no lead serve para uma coisa: casar o
+ * contato com o anúncio no CAPI, que é o uso a que a pessoa se opôs.
+ *
+ * Para quem não se opôs, devolve `getMatchParams()` sem mudar nada.
+ */
+export function getMatchParamsRespeitandoRecusa(): MatchParams {
+  if (rastreamentoRecusado()) return { fbp: null, fbc: null };
+  return getMatchParams();
 }
 
 /**
