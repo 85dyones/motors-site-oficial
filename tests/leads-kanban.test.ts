@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { ETAPAS_PADRAO, ehTipoDeDesfecho, type EtapaDoFunil } from "../src/lib/funil";
 import {
   SEM_DONO,
+  criarMover,
   filtrarPorResponsavel,
   iniciais,
   opcoesDeResponsavel,
@@ -181,13 +183,84 @@ describe("a tela", () => {
     expect(codigo).toContain("mensagemParaCliente");
   });
 
-  it("etapa terminal passa pela caixa de motivo antes de gravar", () => {
-    // Se `mover` gravasse direto, o card chegaria em "Perdido" sem motivo e o
-    // relatório nasceria vazio — que é o destino de todo campo opcional de
-    // CRM. A caixa é o que torna o motivo obrigatório na prática.
-    const bloco = codigo.slice(codigo.indexOf("const mover"), codigo.indexOf("const confirmarDesfecho"));
+  it("mover pede motivo em TODA etapa terminal, e grava direto nas abertas", () => {
+    // Executado, não lido.
+    //
+    // A versão anterior deste teste cobrava a GRAFIA da guarda,
+    //   `tipo === "ganho" || etapa.tipo === "perdido"`,
+    // e congelou aqui a lista de dois desfechos do dia em que foi escrita. Em
+    // 2026-08-28 entrou o terceiro — `descartado` —, os botões de descarte
+    // passaram reto para `salvar`, a caixa nunca abriu e todo descarte chegou
+    // ao banco sem motivo. O teste não só parou de proteger: passou a EXIGIR o
+    // defeito, e a correção o deixava vermelho.
+    //
+    // Toda asserção sobre o TEXTO de um `if` prova aquele `if` e mais nada.
+    // Agora o gesto mora em `criarMover` e o teste o CHAMA com uma etapa de
+    // cada tipo: degrau novo em qualquer lugar da função roda aqui.
+    const lead = { id: "lead-1" };
+
+    for (const destino of ETAPAS_PADRAO) {
+      const pediram: EtapaDoFunil[] = [];
+      const gravaram: Record<string, unknown>[] = [];
+      const mover = criarMover({
+        etapas: ETAPAS_PADRAO,
+        leads: [lead],
+        pedirMotivo: (_l, etapa) => pediram.push(etapa),
+        gravar: (_id, campos) => gravaram.push(campos),
+      });
+
+      mover(lead.id, destino.chave);
+
+      if (ehTipoDeDesfecho(destino.tipo)) {
+        expect(pediram.map((e) => e.chave), `${destino.chave} não pediu motivo`).toEqual([
+          destino.chave,
+        ]);
+        expect(gravaram, `${destino.chave} gravou sem motivo`).toEqual([]);
+      } else {
+        expect(pediram, `${destino.chave} abriu a caixa à toa`).toEqual([]);
+        expect(gravaram).toEqual([{ situacao: destino.chave }]);
+      }
+    }
+
+    // O descarte é o caso que a lista de dois esquecia. Ele está na semente
+    // (`ETAPAS_PADRAO`); se sair de lá, o laço acima deixa de prová-lo calado.
+    expect(ETAPAS_PADRAO.map((e) => e.tipo)).toContain("descartado");
+  });
+
+  it("mover não faz nada quando o lead ou a etapa não existem", () => {
+    const pediram: unknown[] = [];
+    const gravaram: unknown[] = [];
+    const mover = criarMover({
+      etapas: ETAPAS_PADRAO,
+      leads: [{ id: "lead-1" }],
+      pedirMotivo: (...a) => pediram.push(a),
+      gravar: (...a) => gravaram.push(a),
+    });
+
+    mover("lead-1", "etapa_que_nao_existe");
+    mover("lead-fantasma", "novo");
+
+    expect(pediram).toEqual([]);
+    expect(gravaram).toEqual([]);
+  });
+
+  it("a tela monta o gesto em vez de reimplementá-lo", () => {
+    // O que sobrou de asserção de fonte. Ela não prova a REGRA — isso é o
+    // teste acima. Ela impede o único movimento que devolveria a regra ao
+    // componente, onde ela volta a ser testável só por leitura: se `mover`
+    // gravasse direto, o card chegaria em "Perdido" sem motivo e o relatório
+    // nasceria vazio, que é o destino de todo campo opcional de CRM.
+    const bloco = codigo.slice(
+      codigo.indexOf("const mover"),
+      codigo.indexOf("const confirmarDesfecho"),
+    );
+    expect(bloco).toContain("criarMover({");
+    expect(bloco).toContain("pedirMotivo:");
     expect(bloco).toContain("setFechando");
-    expect(bloco).toMatch(/tipo === "ganho" \|\| etapa\.tipo === "perdido"/);
+    expect(
+      bloco,
+      "a decisão voltou para dentro do componente",
+    ).not.toMatch(/ehTipoDeDesfecho|[!=]==\s*"(aberta|ganho|perdido|descartado)"/);
   });
 
   it("as colunas vêm do banco, com o funil fixo só como rede de segurança", () => {

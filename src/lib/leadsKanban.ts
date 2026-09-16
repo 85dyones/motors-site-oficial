@@ -5,6 +5,7 @@
  * testáveis da tela A8: o resto é arrastar, soltar e pintar. O padrão é o
  * mesmo de `avaliacaoRecomendacao` e `estatisticasEstoque`.
  */
+import { ehTipoDeDesfecho, type EtapaDoFunil } from "./funil";
 
 /** Valor sentinela do filtro para "ninguém pegou este lead ainda". */
 export const SEM_DONO = " sem-dono";
@@ -58,4 +59,58 @@ export function opcoesDeResponsavel(
   const nomes = new Set(cadastrados.filter(Boolean));
   for (const l of leads) if (l.responsavel) nomes.add(l.responsavel);
   return [...nomes].sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+/**
+ * A fiação de `mover` — o que o gesto precisa saber e o que ele pode fazer.
+ *
+ * Recebida em vez de fechada por closure porque é o que torna o gesto
+ * executável fora do React: o teste passa duas funções de mentira e CHAMA
+ * `mover`, em vez de ler o componente e afirmar coisas sobre o texto dele.
+ */
+export interface FiacaoDoMover<L extends { id: string }> {
+  etapas: EtapaDoFunil[];
+  leads: L[];
+  /** Abre a caixa de motivos. O card só chega no desfecho com um "por quê". */
+  pedirMotivo: (lead: L, etapa: EtapaDoFunil) => void;
+  /** Grava direto. Só para etapa que não encerra o negócio. */
+  gravar: (id: string, campos: Record<string, unknown>) => void;
+}
+
+/**
+ * Mover o card para `chave`: ou pede o motivo, ou grava.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que isto não mora dentro do componente
+ * ---------------------------------------------------------------------------
+ * A decisão daqui esteve errada desde 2026-08-28. `mover` perguntava
+ * `tipo === "ganho" || tipo === "perdido"`, uma lista que nasceu certa quando
+ * o funil tinha dois desfechos e ficou errada sem mudar uma letra quando
+ * entrou o terceiro: os botões de descarte chamavam o mesmo `mover`, caíam no
+ * `gravar` do fim, e a caixa de motivos nunca abria. O card não ficava preso
+ * — por isso ninguém viu —, o motivo é que sumia: todo descarte chegou ao
+ * banco com `desfecho_motivo` nulo.
+ *
+ * E a única prova que existia era um teste que lia a GRAFIA da guarda, e que
+ * por isso passou a EXIGIR o defeito. Asserção sobre o texto de um `if` prova
+ * aquele `if` e mais nada: um `if` a mais antes da guarda, uma exceção depois
+ * dela ou uma cadeia `else if` restauram o defeito com a condição lida
+ * intacta.
+ *
+ * Aqui o teste executa o gesto: chama `mover` com uma etapa de cada tipo e
+ * conta quem foi chamado. Degrau novo em qualquer lugar desta função roda
+ * junto. Quem é desfecho se pergunta a `ehTipoDeDesfecho`, que conhece os três
+ * — e o quarto, no dia em que existir.
+ */
+export function criarMover<L extends { id: string }>(f: FiacaoDoMover<L>) {
+  return (id: string, chave: string): void => {
+    const etapa = f.etapas.find((e) => e.chave === chave);
+    const lead = f.leads.find((l) => l.id === id);
+    if (!lead || !etapa) return;
+    if (ehTipoDeDesfecho(etapa.tipo)) {
+      f.pedirMotivo(lead, etapa);
+      return;
+    }
+    f.gravar(id, { situacao: chave });
+  };
 }

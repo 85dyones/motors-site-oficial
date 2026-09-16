@@ -191,7 +191,16 @@ export default function FunilEditor() {
     });
   };
 
-  const problemas = useMemo(() => validarFunil(etapas.map(paraBanco)), [etapas]);
+  // Os motivos entram na validação desde 16/09, quando fechar negócio passou a
+  // exigir motivo: etapa terminal ativa sem motivo ativo vira beco no card.
+  // Lista vazia aqui é leitura que não veio — o GET devolve `[]` quando falha,
+  // e o funil semeado nunca fica sem motivo —, então vai `null`, que pula as
+  // regras de motivo. É a mesma conta que o PUT faz; se a tela contasse
+  // diferente, ela e o servidor discordariam na hora de salvar.
+  const problemas = useMemo(
+    () => validarFunil(etapas.map(paraBanco), motivos.length > 0 ? motivos : null),
+    [etapas, motivos],
+  );
 
   const salvar = async () => {
     setSalvando(true);

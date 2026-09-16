@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SEM_DONO,
+  criarMover,
   filtrarPorResponsavel,
   iniciais,
   opcoesDeResponsavel,
@@ -236,20 +237,24 @@ export default function LeadsKanban() {
   );
 
   /**
-   * Move o card. Se o destino é etapa terminal, a caixa de motivos entra na
-   * frente — o card só chega lá com um "por quê" junto.
+   * Move o card. Se o destino é etapa terminal — ganho, perdido OU descarte —,
+   * a caixa de motivos entra na frente: o card só chega lá com um "por quê".
+   *
+   * A decisão inteira mora em `criarMover` (`lib/leadsKanban`), e o que sobra
+   * aqui é a fiação: quem são as etapas, quem são os leads, o que é "pedir
+   * motivo" nesta tela e o que é "gravar". Ela saiu daqui porque dentro do
+   * componente só podia ser testada LENDO o arquivo — e foi uma lista escrita
+   * aqui, `ganho || perdido`, que deixou todo descarte sem motivo desde
+   * 2026-08-28. Ver o cabeçalho de `criarMover`.
    */
-  const mover = useCallback(
-    (id: string, chave: string) => {
-      const etapa = etapas.find((e) => e.chave === chave);
-      const lead = leads.find((l) => l.id === id);
-      if (!lead || !etapa) return;
-      if (etapa.tipo === "ganho" || etapa.tipo === "perdido") {
-        setFechando({ lead, etapa });
-        return;
-      }
-      salvar(id, { situacao: chave });
-    },
+  const mover = useMemo(
+    () =>
+      criarMover({
+        etapas,
+        leads,
+        pedirMotivo: (lead, etapa) => setFechando({ lead, etapa }),
+        gravar: salvar,
+      }),
     [etapas, leads, salvar],
   );
 

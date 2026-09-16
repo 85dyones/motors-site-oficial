@@ -87,6 +87,11 @@ const CADEIA = [
   // migração de escopo, acima, inseriu — sem rodar as duas em sequência não
   // há "último motivo de avaliação" nenhum para comparar.
   "20260906120000_sem_retorno_por_ultimo.sql",
+  // Motivos de ganho por escopo (2026-09-16). Entra na cadeia porque o aceite
+  // conta os motivos de ganho por escopo — e só sabe o que contar depois que as
+  // duas migrações acima deram escopo à tabela e as sementes de agosto
+  // inseriram os quatro de pagamento.
+  "20260916170000_motivos_de_ganho_por_escopo.sql",
 ];
 
 /**

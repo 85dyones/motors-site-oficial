@@ -3,7 +3,14 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
-import { ordenarEtapas, type EtapaDoFunil, type MotivoDoFunil } from "../../../../lib/funil";
+import {
+  decidirDesfecho,
+  ordenarEtapas,
+  type EtapaDoDesfecho,
+  type EtapaDoFunil,
+  type LeadDoDesfecho,
+  type MotivoDoFunil,
+} from "../../../../lib/funil";
 
 export const dynamic = "force-dynamic";
 
@@ -207,12 +214,18 @@ export async function GET(request: NextRequest) {
  * recusa acontece AQUI, e não só na tela: uma validação que mora apenas no
  * componente vira opcional no dia em que alguém chamar a rota de outro lugar.
  *
- * A recusa devolve `motivo_obrigatorio: true` para a tela saber abrir a caixa
- * de escolha em vez de mostrar um erro cru.
+ * A recusa é 400 e devolve `motivo_obrigatorio: true` quando falta escolher,
+ * para a tela saber abrir a caixa em vez de mostrar um erro cru. Motivo de
+ * outro tipo, inexistente, desativado ou de outro escopo também é recusado —
+ * a regra inteira, com as frases, mora em `decidirDesfecho` (`lib/funil`).
  *
- * ⚠️ Só vale para a MUDANÇA de etapa. Lead que já estava em "Fechado" desde
- * antes desta migração não é cobrado retroativamente: cobrar do passado
+ * ⚠️ Só vale para a MUDANÇA de etapa, medida contra o lead no banco. Lead que
+ * já está na etapa terminal não é cobrado retroativamente: cobrar do passado
  * travaria o card sem que ninguém tivesse feito nada errado.
+ *
+ * E não alcança a captura do site: `/api/leads` e `/api/avaliacao` gravam
+ * direto em `leads`, sem etapa, e o lead nasce na etapa do `default` da
+ * coluna. Esta rota exige sessão de equipe; nenhum formulário passa por aqui.
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -294,53 +307,59 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      if (etapa && (etapa.tipo === "ganho" || etapa.tipo === "perdido")) {
-        const motivo = typeof desfecho_motivo === "string" ? desfecho_motivo.trim() : "";
-        if (!motivo) {
-          return NextResponse.json(
-            {
-              error:
-                `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
-                `é ele que o relatório de ganhos e perdas lê.`,
-              motivo_obrigatorio: true,
-              tipo: etapa.tipo,
-            },
-            { status: 422 },
-          );
-        }
-
-        const { data: motivoBanco } = await supabase
-          .from("funil_motivos")
-          .select("chave, tipo")
-          .eq("chave", motivo)
-          .maybeSingle();
-
-        if (!motivoBanco) {
-          return NextResponse.json(
-            { error: `Motivo desconhecido: "${motivo}".` },
-            { status: 422 },
-          );
-        }
-        // Motivo de ganho num negócio perdido faria o relatório somar peras com
-        // maçãs — e o erro só apareceria no gráfico, meses depois.
-        if (motivoBanco.tipo !== etapa.tipo) {
-          return NextResponse.json(
-            {
-              error:
-                `O motivo "${motivo}" é de ${motivoBanco.tipo}, e a etapa ` +
-                `"${etapa.rotulo}" é de ${etapa.tipo}.`,
-            },
-            { status: 422 },
-          );
-        }
-
-        atualizacao.desfecho_motivo = motivo;
-        atualizacao.desfecho_valor = valorOuNulo(desfecho_valor);
-        atualizacao.desfecho_nota =
-          typeof desfecho_nota === "string" && desfecho_nota.trim()
-            ? desfecho_nota.trim()
-            : null;
+      // A regra inteira mora em `decidirDesfecho` (`lib/funil`). O que sobra
+      // aqui são as duas leituras do banco que ela pede — e ela só as pede
+      // quando o destino é desfecho, então mover entre colunas não lê nada.
+      //
+      // Ela saiu daqui em 16/09. A versão que morava neste PATCH perguntava
+      // `tipo === "ganho" || tipo === "perdido"`, e por isso a trava que o
+      // cabeçalho promete "para o dia em que alguém chamar a rota de outro
+      // lugar" nunca valeu para descarte. Junta e pura, a regra é EXECUTADA
+      // por teste; aqui, um desvio só se esconderia de um teste que lesse o
+      // texto do `if`.
+      const decisao = await decidirDesfecho(
+        (etapa as EtapaDoDesfecho | null) ?? null,
+        { desfecho_motivo, desfecho_valor, desfecho_nota },
+        {
+          // Para saber se é TRANSIÇÃO, e qual é o escopo do lead. Falha de
+          // leitura vira `null`, que a decisão trata do lado seguro.
+          lerLead: async () => {
+            const { data, error: erroLead } = await supabase
+              .from("leads")
+              .select("situacao, canal")
+              .eq("id", id)
+              .maybeSingle();
+            if (erroLead) {
+              console.warn("[Leads] Lead ilegível antes do desfecho:", erroLead.message);
+              return null;
+            }
+            return (data as LeadDoDesfecho | null) ?? null;
+          },
+          // Todos, e não só os ativos: motivo desativado precisa ser
+          // reconhecido para a recusa dizer "desativado", e não "desconhecido".
+          lerMotivos: async () => {
+            const { data, error: erroMotivos } = await supabase
+              .from("funil_motivos")
+              .select("*");
+            if (erroMotivos) {
+              console.warn("[Leads] Motivos ilegíveis antes do desfecho:", erroMotivos.message);
+              return null;
+            }
+            return (data ?? []) as MotivoDoFunil[];
+          },
+        },
+      );
+      if (!decisao.ok) {
+        return NextResponse.json(
+          {
+            error: decisao.erro,
+            motivo_obrigatorio: decisao.motivoObrigatorio,
+            tipo: decisao.tipo,
+          },
+          { status: decisao.status },
+        );
       }
+      Object.assign(atualizacao, decisao.campos);
     }
 
     const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
@@ -352,13 +371,6 @@ export async function PATCH(request: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
-
-/** Valor do negócio ganho. Vazio é nulo — zero seria uma venda de R$ 0. */
-function valorOuNulo(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = typeof v === "string" ? Number(v.replace(/\./g, "").replace(",", ".")) : Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /**
