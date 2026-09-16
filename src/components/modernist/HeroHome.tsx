@@ -157,17 +157,43 @@ export default function HeroHome({
        * composição e torna a colisão impossível. */}
       <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-16 lg:px-10 lg:pb-[min(40px,calc(var(--hero-cabe)*0.0476))] lg:pt-[min(76px,calc(var(--hero-cabe)*0.0905))]">
       <div className="pointer-events-none max-w-[700px]">
-        <div className="mb-6 flex items-center gap-3 lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
-          <span className="h-0.5 w-5 bg-mt-accent lg:w-7" aria-hidden="true" />
-          <span className="text-[9px] font-semibold tracking-[.2em] text-mt-accent-300 lg:text-[11px]">
-            CURITIBA · 3 DE CADA 10 ENTRAM
-          </span>
-        </div>
-
+        {/* O `<h1>` da home diz o que a loja vende e onde — 2026-09-08.
+         *
+         * Ele era só "FORA DA CURVA": frase de campanha, sem substantivo e sem
+         * praça. O `<title>` já trazia as duas coisas desde 25/08, mas o `<h1>`
+         * da página de maior autoridade do site não afirmava nada sobre
+         * seminovos em Curitiba.
+         *
+         * A sobrelinha que ficava logo acima virou a primeira linha DESTE
+         * título, com o texto trocado pela consulta-alvo. O desenho não muda de
+         * lugar; a semântica muda. As classes são as mesmas que ela tinha, mais
+         * `leading-[1.5]`: é o que reproduz a entrelinha herdada do `body`,
+         * porque aqui dentro ela passaria a ser a 0.92 do `.mt-display`.
+         *
+         * O texto entra em caixa BAIXA e sobe por CSS: o desenho fica idêntico
+         * e quem lê o texto extraído recebe uma frase, não um grito.
+         *
+         * Nada aqui pode ser `sr-only`/`hidden`: texto escondido dentro do
+         * `<h1>` perde o peso do texto visível e ganha o risco do texto oculto.
+         * `tests/h1-da-home-com-praca.test.ts` trava as duas pontas, e trava
+         * também que o `<h1>` continue sendo UM só.
+         *
+         * O que SAIU daqui: "3 DE CADA 10 ENTRAM". Na home mobile esta era a
+         * única aparição da frase-mãe do posicionamento — a régua de
+         * estatísticas que repete "100% PASSAM PELA CAUTELAR" só existe de
+         * `lg:` para cima. Recolocar é decisão de texto do dono, não de código. */}
         <h1 className="mt-display m-0 text-[52px] text-mt-inverso lg:text-[length:clamp(52px,calc(var(--hero-cabe)*0.1333),112px)] lg:leading-[.88]">
-          FORA
-          <br />
-          DA CURVA
+          <span className="mb-6 flex items-center gap-3 leading-[1.5] lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
+            <span className="h-0.5 w-5 bg-mt-accent lg:w-7" aria-hidden="true" />
+            <span className="text-[9px] font-semibold uppercase tracking-[.2em] text-mt-accent-300 lg:text-[11px]">
+              Seminovos selecionados em Curitiba
+            </span>
+          </span>
+          <span className="block">
+            FORA
+            <br />
+            DA CURVA
+          </span>
         </h1>
 
         <p className="m-0 mt-3.5 max-w-[460px] text-[13px] leading-relaxed text-mt-neutral-300 lg:mt-[min(28px,calc(var(--hero-cabe)*0.0333))] lg:text-[length:clamp(13px,calc(var(--hero-cabe)*0.0202),17px)]">

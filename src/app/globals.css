@@ -58,7 +58,14 @@
   --color-mt-inverso-suave: var(--mt-inverso-suave);
 
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Pilha do sistema, e não uma webfont — 2026-09-08.
+     A Geist Mono saiu do layout raiz: `next/font` a pré-carregava em TODA
+     página, e no site público `font-mono` só aparece na placa da ficha e nos
+     campos da Garagem. Monoespaçada é justamente o tipo de fonte que todo
+     sistema já tem. Apontar esta variável para `var(--font-geist-mono)` depois
+     da remoção deixaria o navegador cair no tipo padrão, que é serifado — o
+     valor tem de ser a pilha, não um ponteiro para o que não existe mais. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --font-modernist: var(--font-archivo), "Archivo", system-ui, sans-serif;
 
   /* Breakpoint do desktop cheio — tela 09 do design doc.

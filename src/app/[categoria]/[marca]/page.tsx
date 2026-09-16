@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import PaginaDeEstoque from "../../../components/modernist/PaginaDeEstoque";
+import EncomendaDeCarro from "../../../components/EncomendaDeCarro";
 import { getCachedSettings } from "../../../lib/settings";
 import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import {
@@ -122,10 +123,11 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
      recorte é o SEGMENTO: numa página de marca de moto, oferecer carro seria
      trocar de assunto, não sugerir alternativa. */
   const doSegmento = disponiveis.filter((v) => segmentoDoVeiculo(v) === hub.segmento).slice(0, 3);
-  const avisarHref = linkWhatsApp(
-    companySettings,
-    `Olá! Vi a página ${hub.nome} no site e quero ser avisado quando entrar ${um(genero)}.`,
-  );
+  /* O `avisarHref` saiu daqui em 2026-09-08, e no lugar dele entra o
+     formulário de encomenda. O problema do `wa.me` não era o canal: era o
+     contato acontecer FORA do sistema — sem linha em `leads`, sem CAPI, sem
+     Kanban, sem atribuição. O WhatsApp continua no cabeçalho e no rodapé, e
+     os recortes de /estoque continuam com o botão. Ver `EncomendaDeCarro`. */
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -152,7 +154,13 @@ export default async function HubDeMarcaPage({ params }: PageProps) {
         veiculos={hub.veiculos}
         alternativos={doSegmento}
         rotuloAlternativos="Enquanto isso, no estoque de hoje"
-        avisarHref={avisarHref}
+        encomenda={
+          <EncomendaDeCarro
+            marca={hub.nome}
+            caminho={caminho}
+            segmento={hub.segmento}
+          />
+        }
         textoSemEstoque={`Sem ${hub.nome} disponível neste momento. O estoque gira toda semana e esta página continua no ar — quando entrar ${um(genero)}, aparece aqui.`}
         blocos={[
           ...(hub.modelos.length > 0

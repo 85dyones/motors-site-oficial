@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import PaginaDeEstoque from "../../../../components/modernist/PaginaDeEstoque";
+import EncomendaDeCarro from "../../../../components/EncomendaDeCarro";
 import { getCachedSettings } from "../../../../lib/settings";
 import { montarCompartilhamento } from "../../../../lib/compartilhamento";
 import {
@@ -165,10 +166,9 @@ export default async function HubDeModeloPage({ params }: PageProps) {
      estoque nenhum, não desenha nada e o texto perene responde sozinho. */
   const daMesmaMarca = (marca?.modelos ?? []).flatMap((m) => m.veiculos).slice(0, 3);
   const alternativos = daMesmaMarca.length > 0 ? daMesmaMarca : disponiveis.slice(0, 3);
-  const avisarHref = linkWhatsApp(
-    companySettings,
-    `Olá! Vi a página ${hub.marca} ${hub.nome} no site e quero ser avisado quando entrar ${um(hub.genero)}.`,
-  );
+  /* O `avisarHref` saiu daqui em 2026-09-08 — ver a nota gêmea no hub de
+     marca. Quem procurou ESTE modelo e não achou é o lead mais qualificado do
+     site, e era justamente ele que saía do funil por um link. */
 
   return (
     <div className="flex flex-col bg-mt-bg text-mt-ink">
@@ -184,7 +184,14 @@ export default async function HubDeModeloPage({ params }: PageProps) {
         veiculos={hub.veiculos}
         alternativos={alternativos}
         rotuloAlternativos={`Enquanto isso, ${daMesmaMarca.length > 0 ? `outros ${hub.marca}` : "no estoque de hoje"}`}
-        avisarHref={avisarHref}
+        encomenda={
+          <EncomendaDeCarro
+            marca={hub.marca}
+            modelo={hub.nome}
+            caminho={caminho}
+            segmento={hub.segmento}
+          />
+        }
         textoSemEstoque={`Sem ${hub.marca} ${hub.nome} disponível neste momento. A página fica no ar — o modelo faz parte do que a loja compra, e quando ${um(hub.genero)} passar na perícia entra aqui.`}
         blocos={
           irmaos.length > 0

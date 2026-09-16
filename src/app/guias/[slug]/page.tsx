@@ -223,7 +223,7 @@ export default async function GuiaPage({ params }: PageProps) {
               Ver o estoque
             </span>
             <span className="text-[12px] leading-relaxed text-mt-neutral-800">
-              O que entrou depois da perícia, com o laudo na ficha assim que aprovado.
+              O que entrou depois da perícia. O laudo é só pedir ao vendedor, a qualquer tempo.
             </span>
           </Link>
         </div>

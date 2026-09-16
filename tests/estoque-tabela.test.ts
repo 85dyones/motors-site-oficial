@@ -81,10 +81,14 @@ function linha(parcial: Partial<LinhaDeEstoque> = {}): LinhaDeEstoque {
     vendido: false,
     bloqueios: [],
     diasEmEstoque: null,
+    // O padrão é "veio no ciclo mais recente" — o caso que não avisa nada.
+    // Quem testa o aviso passa o número, como em `diasEmEstoque`.
+    diasForaDoFeed: null,
     tipo: "SUV",
     perfisUso: [],
     placa: "",
     destacado: false,
+    naSemana: false,
     visitas: null,
     leads: 0,
     divergente: false,
@@ -219,7 +223,7 @@ describe("reclassificarLinha", () => {
   // porta dos fundos.
   const semFotos = linha({
     estado: "fora_da_vitrine",
-    bloqueios: bloqueiosDePublicacao({ whatsapp_images: [], origem: "painel" }),
+    bloqueios: bloqueiosDePublicacao({ whatsapp_images: [] }),
   });
 
   it("devolver a disponível NÃO publica carro sem fotos", () => {
@@ -348,7 +352,7 @@ describe("resumoDaFilaDeRascunhos", () => {
   const prontoDeVerdade = bloqueiosDePublicacao({
     whatsapp_images: comFotos(MINIMO_DE_FOTOS),
   });
-  const semFoto = bloqueiosDePublicacao({ whatsapp_images: comFotos(2), origem: "sync" });
+  const semFoto = bloqueiosDePublicacao({ whatsapp_images: comFotos(2) });
 
   it("separa o que vai ao ar com um clique do que espera material", () => {
     // O contador do chip responde "quantos rascunhos"; esta função responde a

@@ -287,6 +287,64 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
 }
 
 /* ────────────────────────────────────────────────────────────────────────
+   O que a loja PRESTA — `Service`
+   ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Um serviço da loja, para as páginas que existem por causa dele.
+ *
+ * `/financiamento` e `/avaliacao` publicavam trilha, FAQ, a loja e o site — e
+ * nenhum nó dizendo o que elas FAZEM. Para o grafo, `/avaliacao` era uma
+ * página da Motors com uma pergunta frequente, e não "avaliação de veículo
+ * para troca, prestada pela Motors Store, em Curitiba e região".
+ *
+ * Três decisões que moram aqui, e não em quem chama:
+ *
+ *   1. `provider` é REFERÊNCIA (`@id`), nunca o bloco da loja repetido. Duas
+ *      descrições de `AutoDealer` no mesmo grafo são duas lojas para quem lê —
+ *      é a mesma razão de `ID_DA_LOJA` existir sem sufixo.
+ *   2. `areaServed` sai de `CIDADES_ATENDIDAS`, a mesma lista da loja. Um
+ *      serviço que declara atender um raio diferente do da loja que o presta é
+ *      contradição dentro do próprio grafo.
+ *   3. **Nada de preço e nada de `aggregateRating`.** Financiamento e avaliação
+ *      não têm preço, e inventar um é declarar oferta falsa. Nota
+ *      auto-declarada em negócio local é motivo de ação manual no Search
+ *      Console — a média do Perfil da Empresa trabalha no Perfil da Empresa.
+ *      `tests/servico-no-grafo.test.ts` cobra as duas ausências, inclusive
+ *      varrendo os arquivos de schema.
+ */
+export function schemaDeServico({
+  tipo,
+  nome,
+  descricao,
+}: {
+  /** "Financiamento de veículos", "Avaliação de veículo para troca". */
+  tipo: string;
+  nome: string;
+  descricao: string;
+}) {
+  return {
+    "@type": "Service",
+    "@id": `${SITE_URL}/#servico-${slugDoServico(tipo)}`,
+    serviceType: tipo,
+    name: nome,
+    description: descricao,
+    provider: REFERENCIA_DA_LOJA,
+    areaServed: CIDADES_ATENDIDAS.map((name) => ({ "@type": "City", name })),
+  };
+}
+
+/** O sufixo do `@id` do serviço. Estável enquanto o `tipo` não mudar. */
+function slugDoServico(tipo: string): string {
+  return tipo
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // marcas de acento soltas pelo NFD
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/* ────────────────────────────────────────────────────────────────────────
    O site como entidade — `WebSite`
    ──────────────────────────────────────────────────────────────────────── */
 

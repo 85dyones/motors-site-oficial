@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Motors Store — arquitetura do site e da operação",
+    "quality_profile": "showcase",
+    "viewBox": [1300, 620],
+    "views": [
+      {
+        "id": "caminho-do-lead",
+        "label": "Caminho do lead",
+        "focus": ["visitante", "site", "api", "supabase", "turnstile"],
+        "note": "Do navegador até a linha gravada no Postgres, passando pelas guardas do formulário."
+      },
+      {
+        "id": "estoque-e-automacao",
+        "label": "Estoque e automação",
+        "focus": ["revendamais", "n8n", "supabase", "whatsapp", "chatwoot"],
+        "note": "A origem do estoque e o leque de notificação que sai do n8n."
+      },
+      {
+        "id": "mensuracao",
+        "label": "Mensuração",
+        "focus": ["site", "api", "meta", "google"],
+        "note": "Tags no navegador; CAPI e catálogo saindo do servidor."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "visitante",
+      "type": "external",
+      "label": "Visitante",
+      "sublabel": "navegador",
+      "pos": [20, 230],
+      "size": [140, 66]
+    },
+    {
+      "id": "site",
+      "type": "frontend",
+      "label": "Site e painéis",
+      "sublabel": "Next.js 16 · React 19",
+      "tag": "vitrine · admin · garagem",
+      "pos": [230, 230],
+      "size": [175, 66]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Rotas de API",
+      "sublabel": "Route Handlers",
+      "tag": "leads · estoque · ciclo",
+      "pos": [570, 230],
+      "size": [175, 66]
+    },
+    {
+      "id": "supabase",
+      "type": "database",
+      "label": "Supabase",
+      "sublabel": "Postgres · Auth · Storage",
+      "tag": "RLS obrigatória",
+      "pos": [950, 230],
+      "size": [175, 66]
+    },
+    {
+      "id": "google",
+      "type": "external",
+      "label": "Google",
+      "sublabel": "GA4 · Ads · Search Console",
+      "pos": [230, 30],
+      "size": [175, 66]
+    },
+    {
+      "id": "turnstile",
+      "type": "security",
+      "label": "Cloudflare Turnstile",
+      "sublabel": "anti-bot do formulário",
+      "pos": [570, 30],
+      "size": [175, 66]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Upstash Redis",
+      "sublabel": "rate limit",
+      "pos": [790, 30],
+      "size": [175, 66]
+    },
+    {
+      "id": "meta",
+      "type": "external",
+      "label": "Meta",
+      "sublabel": "Pixel · CAPI · catálogo",
+      "pos": [1100, 30],
+      "size": [175, 66]
+    },
+    {
+      "id": "revendamais",
+      "type": "external",
+      "label": "RevendaMais",
+      "sublabel": "origem do estoque",
+      "pos": [20, 430],
+      "size": [175, 66]
+    },
+    {
+      "id": "n8n",
+      "type": "messagebus",
+      "label": "n8n",
+      "sublabel": "n8n.v2o5.com.br",
+      "tag": "auto-hospedado",
+      "pos": [570, 430],
+      "size": [175, 66]
+    },
+    {
+      "id": "whatsapp",
+      "type": "external",
+      "label": "Evolution API",
+      "sublabel": "WhatsApp",
+      "pos": [900, 430],
+      "size": [175, 66]
+    },
+    {
+      "id": "chatwoot",
+      "type": "external",
+      "label": "Chatwoot",
+      "sublabel": "atendimento humano",
+      "pos": [1120, 430],
+      "size": [175, 66]
+    }
+  ],
+  "connections": [
+    {
+      "id": "visitante-site",
+      "from": "visitante",
+      "to": "site",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "site-api",
+      "from": "site",
+      "to": "api",
+      "label": "POST de lead e avaliação",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-supabase",
+      "from": "api",
+      "to": "supabase",
+      "label": "PostgREST sob RLS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-turnstile",
+      "from": "api",
+      "to": "turnstile",
+      "label": "valida o token",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": -95
+    },
+    {
+      "id": "api-redis",
+      "from": "api",
+      "to": "redis",
+      "label": "rate limit por IP",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "site-google",
+      "from": "site",
+      "to": "google",
+      "label": "tags no navegador",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "api-meta",
+      "from": "api",
+      "to": "meta",
+      "label": "CAPI e feed do catálogo",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": 150
+    },
+    {
+      "id": "api-n8n",
+      "from": "api",
+      "to": "n8n",
+      "label": "webhook de lead e alerta",
+      "labelDy": 38
+    },
+    {
+      "id": "revendamais-n8n",
+      "from": "revendamais",
+      "to": "n8n",
+      "label": "feed de estoque, 6 h"
+    },
+    {
+      "id": "n8n-supabase",
+      "from": "n8n",
+      "to": "supabase",
+      "label": "grava estoque_motors",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "n8n-whatsapp",
+      "from": "n8n",
+      "to": "whatsapp",
+      "label": "notifica a loja"
+    },
+    {
+      "id": "n8n-chatwoot",
+      "from": "n8n",
+      "to": "chatwoot",
+      "label": "abre a conversa",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Aplicação e dados",
+      "items": [
+        "Next.js 16.2.6 e React 19 num deploy único na Vercel: site e rotas de API",
+        "Server Components leem o Postgres direto; a escrita passa pelas rotas de API",
+        "Supabase guarda estoque_motors, leads, o Ciclo e o Storage das fotos"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Guardas",
+      "items": [
+        "Turnstile valida o formulário antes de qualquer gravação",
+        "RLS obrigatória em toda tabela com dado de cliente",
+        "Upstash Redis serve só a rate limit, não é cache de negócio"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Contato e mensuração",
+      "items": [
+        "RevendaMais é a origem do estoque e do preço; o n8n sincroniza a cada 6 h",
+        "O botão do site abre wa.me no navegador; o n8n é quem usa a Evolution API",
+        "Meta recebe Pixel, CAPI e o feed XML; Google recebe GA4, Ads e Search Console"
+      ]
+    }
+  ]
+}

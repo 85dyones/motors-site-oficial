@@ -19,7 +19,7 @@ Por domínio, com linhas estimadas em 28/08:
 
 | Domínio | Objetos | Estado |
 |---|---|---|
-| **Site/estoque** | `estoque_motors` (~103 — inclui vendidos e fora-do-feed; o site exibe os do último sync), `site_settings` (8 linhas jsonb), `historico_veiculo` (append-only, ~36) | produção viva |
+| **Site/estoque** | `estoque_motors` (104 em 02/09 — o site exibe os `estado_cadastro='publicado'`: 38 à venda + 24 vendidos na carência; 42 arquivados fora), `site_settings` (8 linhas jsonb), `historico_veiculo` (append-only, ~36) | produção viva |
 | **Leads/funil** | `leads` (~11), `leads_eventos` (~21), `funil_etapas` (8 — seed de 28/08), `funil_motivos` (~19), `atendimentos`, `leads_erros`, `ia_classificacoes`, `contacts` | frente ativa de outra sessão (funil de vendas, 28/08) |
 | **Agenda de pessoas** | view `agenda_de_pessoas` (une `parceiros` + `clientes` + `parceiros_ciclo` + `investidores` + `leads`), `parceiros` (0 — porta de criação do `/api/pessoas`) | pedido do dono de 24/08; **ficou na aposentadoria** |
 | **Investidores** | `investidores` (1 ficha), `movimentacoes_investidor`, `investidor_veiculos`, `investidor_movimentos`, view `investidor_posicao` | **ficou por decisão do dono** ("precisamos deste modelo"); telas em `/admin/investidores`, portal em `/investidor` |
@@ -77,9 +77,15 @@ Notas de contrato:
   tradutor DB→`Veiculo`. **Não devolve `preco_compra` nem `placa`** (decisão de
   segurança); deriva os booleanos de marketing (`cautelar_100`, `baixa_km`,
   `unico_dono`, `oportunidade_patio`…).
-- `getEstoque()` filtra pela **janela do último sync** (`last_seen_at`, fração
-  mínima 0,5 do ciclo de 6 h): quem não veio no último sync não aparece. A
-  projeção da F2 precisa reproduzir essa semântica ou assumi-la.
+- `getEstoque()` filtra por **`estado_cadastro = 'publicado'`** — corrigido em
+  01/09; a descrição anterior ("janela do último sync", `last_seen_at`, fração
+  0,5 do ciclo de 6 h) descrevia o ramo `apenasDoUltimoSync`
+  (`src/lib/supabase.ts:560-624`), que a `20260830120000_f0q` aposentou. Ele
+  ainda existe como fallback e **está morto em produção**: o `select` só cai
+  nele se nenhuma linha tiver `estado_cadastro`, e o backfill preencheu as 105.
+  A projeção da F2 precisa reproduzir a semântica NOVA — estado declarado, não
+  janela de relógio. Foi essa a razão declarada da f0q: com importação manual,
+  importar UM carro o tornaria "o ciclo mais recente" e derrubaria os outros 38.
 - `stock_overrides` **não é tabela**: é a linha `site_settings.id='stock_overrides'`
   mesclada por spread em 3 pontos (browser via `ThemeContext`/`applyLocalOverrides`,
   servidor, gravação em `/api/settings`) com a whitelist pública
@@ -100,11 +106,68 @@ Qualquer mudança de shape quebra esse conjunto — e o teste acusa.
 
 ### 2.4 O sync que alimenta
 
-Workflow n8n "Antigravity — Sincronizador de Estoque", cron de 6 h, feed do
-RevendaMais → upsert em `estoque_motors` (carimbo `last_seen_at`). O feed traz
-`ACCESSORIES`, `VALOR_FIPE`, **chassi e placa** que o sync já aproveita em parte;
-fotos servidas de `s3.carro57.com.br` (infra do RevendaMais — sai na F1, item 16
-do backlog). **O sync continua intocado até a F2.**
+> 🔴 **Corrigido em 2026-09-01.** Este parágrafo descrevia o sync de antes de
+> 29-30/08 e sobreviveu à virada. As três afirmações abaixo eram falsas quando
+> conferidas contra o n8n vivo (workflow `wfYIjBaxaFFnvAYa`) e contra o banco:
+> o cron de 6 h, o "já aproveita em parte" e o "intocado até a F2".
+
+Workflow n8n "Antigravity — Sincronizador de Estoque" (`wfYIjBaxaFFnvAYa`),
+feed do RevendaMais → upsert em `estoque_motors` (carimbo `last_seen_at`).
+
+**Acionamento: cron de 6 h, religado em 02/09** (`0 */6 * * *`,
+America/Sao_Paulo; workflow `active: true`, nó "Agendamento (a cada 6h)"
+habilitado — conferido na API do n8n). Tinha sido desligado em 30/08 por
+decisão do dono, para o sync não sobrescrever conteúdo; voltou quando a trava
+passou a garantir isso sozinha (abaixo). Entre 30/08 e 02/09 só houve gatilho
+manual, e nesse intervalo a Kia Sorento ficou R$ 8.000 acima do RevendaMais.
+
+**E ele escreve QUATRO colunas, e só.** Desde `20260902120000_preco_e_do_revendamais`,
+a trava reconhece o sync (identidade `service_role` ou assinatura
+`last_seen_at`) e devolve a linha como está com `preco`, `preco_original`,
+`preco_promocional` e `last_seen_at` copiados do que ele mandou — nada mais,
+silenciosamente, com 200 no PostgREST. Entre 30/08 e 02/09 (`f0q`) ele não
+escrevia coluna nenhuma. Carro novo continua nascendo `origem='sync'`,
+`estado_cadastro='rascunho'`. Decisão do dono de 02/09: *"o preço é do
+revenda, sempre, nos campos de preço e no de promoção"* — ver
+`docs/PROPRIEDADE_DOS_CAMPOS.md`.
+
+**O que o upsert grava: 22 colunas** — `id`, `marca`, `modelo`, `versao`, `ano`,
+`ano_fabricacao`, `preco`, `preco_original`, `preco_promocional`,
+`quilometragem`, `cambio`, `combustivel`, `cor`, `tipo`, `perfil_uso`,
+`url_imagem`, `link_conversao`, `pericia`, `descricao`, `whatsapp_images`,
+`web_full_images`, `last_seen_at`.
+
+**O dado morre no CORPO DO UPSERT, não no mapeamento** (corrigido em 02/09 —
+a versão anterior deste parágrafo culpava o nó de código, e errado).
+
+O nó "Classificação e Regras de Negócio" lê `PLATE`, `CHASSI`, `MOTOR`, `FIPE` e
+`VALOR_FIPE`, e **emite 25 campos** — os 22 do upsert mais `placa`, `chassi`,
+`motor`, `valor_fipe` e `codigo_fipe`. O trabalho de mapeamento **já está
+feito**. Os cinco simplesmente não são citados no `JSON.stringify` do nó de
+upsert, e caem ali. Só `ACCESSORIES` e `DOORS` não são lidos por ninguém.
+
+A migração `20260817140000_documento_do_estoque_e_cep.sql` criou `chassi`,
+`valor_fipe` e `codigo_fipe` exatamente para acabar com isso ("três campos que o
+sincronizador não lia", medidos 42/42, 40/42 e 42/42 no feed), e o corpo do
+upsert nunca foi atualizado. O que está no banco veio de outro caminho e está
+parcial: dos 38 publicados ativos, 27 com chassi, 25 com `codigo_fipe`, 21 com
+`valor_fipe`. **Corrigir são cinco chaves no upsert do n8n, não uma migração.**
+
+Medido no feed real em 02/09 (39 anúncios): `DOORS` preenchido em **39/39**,
+`VALOR_FIPE` em 31, `ACCESSORIES` em 19, `PROMOTION_PRICE` em 19. `DOORS` é
+campo obrigatório em portal e não existe como coluna aqui — é a única lacuna da
+lista que exigiria migração, e a fonte já a manda.
+
+⚠️ `placa` e `motor` estão em `CAMPOS_NOSSOS` (o painel os edita). Incluí-los no
+upsert só afeta INSERT — a trava descarta todo UPDATE do sync —, então carro
+novo nasceria com os dois preenchidos em vez de em branco, sem risco de desfazer
+edição. Quem mexer nisso confirme que segue sendo verdade.
+
+**Fotos: fechado em 31/08.** Os ativos saíram do `s3.carro57.com.br` para o
+bucket `veiculos` do nosso Storage — 37 dos 38 publicados à venda (o 38º,
+`8392516`, não tem foto nenhuma). Vendidos e arquivados seguem apontando para o
+carro57 de propósito: quando aquele link morrer, essas fichas já terão saído do
+ar pela carência de `publicacao.ts`.
 
 ---
 

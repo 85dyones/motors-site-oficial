@@ -1,0 +1,21 @@
+{
+  "slug": "pole-position-2026",
+  "geradoEm": "2026-09-09",
+  "pecas": [
+    {
+      "arquivo": "qr-pole-position-2026-folder",
+      "rotulo": "Folder impresso",
+      "utm_content": "folder",
+      "url": "https://motorsstore.com.br/pole-position-2026?utm_source=qr&utm_medium=impresso&utm_campaign=pole-position-2026&utm_content=folder"
+    },
+    {
+      "arquivo": "qr-pole-position-2026-banner",
+      "rotulo": "Banners de divulgação",
+      "utm_content": "banner",
+      "url": "https://motorsstore.com.br/pole-position-2026?utm_source=qr&utm_medium=impresso&utm_campaign=pole-position-2026&utm_content=banner"
+    }
+  ],
+  "modulos": 61,
+  "tamanhoMinimoMm": 40,
+  "nivelDeCorrecao": "H"
+}
