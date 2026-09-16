@@ -153,8 +153,8 @@ export default function ContatoClientWrapper() {
           </div>
           <h3 className="mt-titulo m-0 text-[28px]">Um consultor vai te chamar.</h3>
           <p className="m-0 mt-3 max-w-[420px] text-[14px] leading-relaxed text-mt-neutral-800">
-            Suas informações foram enviadas ao nosso fluxo de atendimento. O
-            contato costuma sair no WhatsApp em poucos minutos.
+            Suas informações foram enviadas ao nosso fluxo de atendimento. Um
+            consultor entra em contato pelo WhatsApp.
           </p>
           <button
             type="button"

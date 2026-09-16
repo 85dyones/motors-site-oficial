@@ -6,8 +6,10 @@ import { normalizarQuickTags, normalizarStockOverrides } from "../../../lib/dest
 import { bloqueiosDePublicacao } from "../../../lib/coerenciaDoCadastro";
 import { normalizarEstadoCadastro } from "../../../lib/estadoDoCadastro";
 import {
+  ancoraDoFeed,
   classificarEstado,
   contarLeadsPorVeiculo,
+  diasForaDoFeed,
   mapaDeVisitas,
   versaoParaExibir,
   type LinhaDeEstoque,
@@ -125,6 +127,14 @@ export default async function AdminEstoquePage() {
   const destacados = Array.isArray(settings.carouselVehicleIds)
     ? (settings.carouselVehicleIds as string[]).map(String)
     : [];
+  const naSemana = Array.isArray(settings.destaquesDaSemana)
+    ? (settings.destaquesDaSemana as string[]).map(String)
+    : [];
+
+  // O carimbo mais recente da tabela, medido uma vez. É contra ele — e nunca
+  // contra o relógio de parede — que o atraso de cada linha é lido: sync parado
+  // não pode acusar o estoque inteiro de ter saído do feed.
+  const ancora = ancoraDoFeed(linhasDoBanco);
 
   const linhas: LinhaDeEstoque[] = linhasDoBanco.map((bruto) => {
     const v = mapVeiculoDbToVeiculo(bruto);
@@ -177,6 +187,7 @@ export default async function AdminEstoquePage() {
       // direta e autenticada, e a busca da tabela procura por placa.
       placa: bruto.placa ?? "",
       destacado: destacados.includes(id),
+      naSemana: naSemana.includes(id),
       visitas: visitasPorVeiculo ? (visitasPorVeiculo[id] ?? 0) : null,
       leads: leadsPorVeiculo[id] ?? 0,
       // O sintoma do bug corrigido em 2026-08-07: override gravado só no JSON
@@ -187,6 +198,10 @@ export default async function AdminEstoquePage() {
       quickTags: overrides[id]?.quick_tags ?? [],
       // Da linha crua: `first_seen_at` é carimbo de banco, não vem do feed.
       diasEmEstoque: diasEmEstoque(bruto.first_seen_at),
+      // Aviso, não etiqueta — ver `diasForaDoFeed`. A âncora sai da tabela
+      // inteira e é calculada UMA vez, fora do `map`: dentro dele seriam N
+      // varreduras de N linhas para responder sempre a mesma pergunta.
+      diasForaDoFeed: diasForaDoFeed(bruto, ancora),
     };
   });
 
@@ -195,6 +210,7 @@ export default async function AdminEstoquePage() {
       linhas={linhas}
       quickTagsDisponiveis={quickTags.map((t) => ({ id: t.id, nome: t.name }))}
       destacadosIniciais={destacados}
+      naSemanaIniciais={naSemana}
       overridesIniciais={overrides}
       visitasDisponiveis={visitasPorVeiculo !== null}
       podeCriar={podeCriar}

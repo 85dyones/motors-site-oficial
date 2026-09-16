@@ -29,6 +29,8 @@ import {
 } from "../../lib/estadoDoCadastro";
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
 import GaleriaDeFotos from "./GaleriaDeFotos";
+import { SugestaoDeTexto } from "./SugestaoDeTexto";
+import { SugestaoDeLaudoPadrao } from "./SugestaoDeLaudoPadrao";
 
 /**
  * Tela A15 do design doc — editor de veículo.
@@ -355,17 +357,18 @@ export default function EditorDeVeiculo({
      sobre um carro que o cliente está vendo — e o botão Publicar, que lê o
      tamanho desta lista, ficaria travado no carro que já passou pela régua.
 
-     `laudo_pericia` saiu daqui junto com a regra. A origem fica, e é ela que
-     escolhe entre "suba as fotos pelo painel" e "as fotos vêm do RevendaMais":
-     sem ela a tela mandava o operador esperar um feed que nunca vai trazer foto
-     do carro que ele mesmo cadastrou. */
+     `laudo_pericia` saiu daqui junto com a regra, e a origem saiu na F0.5: a
+     frase é uma só, "suba as fotos pelo painel", e vale para carro de qualquer
+     origem porque a galeria aceita envio em todos. No carro do feed a mesma
+     galeria ainda oferece importar do anúncio (#75). */
   const bloqueios = useMemo(
     () =>
+      // `origem` saiu daqui na F0.5 — a régua e o texto passaram a ser os
+      // mesmos para carro do feed e carro nativo.
       bloqueiosDePublicacao({
         whatsapp_images: v.whatsapp_images,
-        origem: v.origem,
       }).filter((b) => b.bloqueia),
-    [v.whatsapp_images, v.origem],
+    [v.whatsapp_images],
   );
 
   /* ------------------------------------------------------------------------
@@ -722,10 +725,14 @@ export default function EditorDeVeiculo({
             <GaleriaDeFotos
               estoqueId={v.id}
               fotos={fotos}
+              /* `origem` saiu daqui na F0.5 e voltou na fusão com o #75
+                 (16/09) com outro papel: não decide se a galeria edita, só se
+                 o botão "Importar fotos do feed" aparece. */
               origem={v.origem}
               /* A linha "Adicionar e reordenar fotos" da A17 — Admin,
                  Marketing e Comercial. Perguntar por uma das colunas basta:
-                 as três apontam para a mesma linha da matriz. */
+                 as três apontam para a mesma linha da matriz. É o único
+                 portão de edição da galeria, para carro de qualquer origem. */
               podeEditar={podeGravar("whatsapp_images")}
               aoGravar={aoGravarFotos}
             />
@@ -1014,13 +1021,15 @@ export default function EditorDeVeiculo({
                     </div>
                   </div>
                 )}
-                {/* Promoção vale para veículo de qualquer origem — inclusive o
-                    importado. A trava total do sync (F0-q) tirou do RevendaMais
-                    a capacidade de reescrever a coluna, e em 31/08 os 104
-                    veículos da base eram do sync: restringi-la ao nativo, como
-                    o preço acima, entregaria um campo que não serviria a carro
-                    nenhum. */}
-                {podeGravar("preco_promocional") && (
+                {/* Promoção segue a MESMA régua do preço de tabela desde
+                    02/09: editável só no veículo nativo. No carro do
+                    RevendaMais ela chega pelo sync — a migração 20260902120000
+                    voltou a deixá-lo escrever as três colunas de preço —, e
+                    editá-la aqui criaria o segundo lugar que o dono mandou não
+                    existir. De 31/08 a 02/09 este campo aparecia em qualquer
+                    origem; ninguém o usou (zero promoções só nossas, medido), e
+                    enquanto isso a Sorento ficou R$ 8.000 acima do gestor. */}
+                {v.origem === "painel" && podeGravar("preco_promocional") ? (
                   <div className="flex flex-col gap-1.5">
                     <label className={rotuloCampo} htmlFor="f-promo">
                       Preço promocional · o &quot;por&quot;
@@ -1056,6 +1065,23 @@ export default function EditorDeVeiculo({
                     ) : (
                       <span className="text-[11px] text-mt-neutral-700">
                         Sem promoção. A ficha mostra só o preço anunciado.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <span className={rotuloCampo}>
+                      {v.origem === "painel"
+                        ? "Preço promocional"
+                        : "Preço promocional · do feed"}
+                    </span>
+                    <div className="border border-mt-regua-fina bg-mt-surface px-3 py-2.5 text-lg font-extrabold tabular-nums tracking-[-.03em] text-mt-neutral-700">
+                      {v.preco_promocional ? brl(v.preco_promocional) : "sem promoção"}
+                    </div>
+                    {v.origem !== "painel" && (
+                      <span className="text-[11px] text-mt-neutral-700">
+                        Tabela e promoção deste carro são as do RevendaMais — mude lá, e a
+                        próxima importação traz.
                       </span>
                     )}
                   </div>
@@ -1162,6 +1188,13 @@ export default function EditorDeVeiculo({
                 placeholder="Texto que abre a página do veículo."
                 className="mt-campo-caixa mt-foco resize-y leading-relaxed"
               />
+              {podeGravar("descricao") && (
+                <SugestaoDeTexto
+                  veiculoId={v.id}
+                  campo="descricao"
+                  onUsar={(t) => set("descricao", t)}
+                />
+              )}
               <div className="mt-rotulo mb-3 mt-6">Descrição para portais e busca</div>
               <textarea
                 rows={3}
@@ -1176,6 +1209,13 @@ export default function EditorDeVeiculo({
                 frase genérica. O Google mostra cerca de 155 caracteres.
                 {v.descricao_seo ? ` Atual: ${v.descricao_seo.length}.` : ""}
               </p>
+              {podeGravar("descricao_seo") && (
+                <SugestaoDeTexto
+                  veiculoId={v.id}
+                  campo="descricao_seo"
+                  onUsar={(t) => set("descricao_seo", t)}
+                />
+              )}
 
               <div className="mt-rotulo mb-3 mt-6">Laudo cautelar</div>
               <textarea
@@ -1190,6 +1230,12 @@ export default function EditorDeVeiculo({
                 a perícia como aprovada — texto aqui não liga selo, para não afirmar ao cliente
                 algo que a vistoria não disse.
               </p>
+              {podeGravar("laudo_pericia") && (
+                <SugestaoDeLaudoPadrao
+                  pericia={v.pericia}
+                  onUsar={(t) => set("laudo_pericia", t)}
+                />
+              )}
             </>
           )}
         </div>

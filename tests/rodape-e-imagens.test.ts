@@ -70,6 +70,11 @@ describe("o rodapé aponta para as páginas perenes", () => {
   it("nada mais no site aponta para `/estoque?marca=`", () => {
     for (const arquivo of [
       "src/components/Footer.tsx",
+      // As colunas de contato saíram do `Footer` em 2026-09-04. Esta trava é
+      // de AUSÊNCIA: sem o arquivo novo na lista ela seguiria verde lendo um
+      // componente que não tem mais o texto — calada, que é o pior jeito de
+      // uma guarda parar de proteger (`tests/fonte.ts` documenta o modo).
+      "src/lib/colunasDoRodape.ts",
       "src/app/[categoria]/[marca]/[modelo]/[ficha]/page.tsx",
     ]) {
       expect(lerCodigo(arquivo)).not.toMatch(/\/estoque\?marca=/);

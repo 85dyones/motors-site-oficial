@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { bloqueiosPorGrupo } from "./robotsTxt";
 
 /**
  * O convite de usuário — 2026-08-21.
@@ -42,7 +43,6 @@ const rotaConfirm = ler("src", "app", "api", "auth", "confirm", "route.ts");
 const telaA17 = ler("src", "components", "admin", "UserManagement.tsx");
 const paginaSenha = ler("src", "app", "definir-senha", "page.tsx");
 const formSenha = ler("src", "components", "DefinirSenhaForm.tsx");
-const robots = ler("src", "app", "robots.ts");
 
 describe("o template do convite", () => {
   it("verifica por token_hash com type=invite, nunca por ConfirmationURL", () => {
@@ -157,10 +157,12 @@ describe("a chegada do convite", () => {
   });
 
   it("/definir-senha está fora de busca, como /garagem e /login", () => {
-    const disallows = robots.match(/disallow: \[[^\]]*\]/gi) ?? [];
-    expect(disallows.length).toBeGreaterThanOrEqual(2);
-    for (const linha of disallows) {
-      expect(linha).toContain('"/definir-senha"');
+    // Afirmado sobre o robots.txt GERADO, e não sobre a grafia do arquivo: a
+    // versão anterior casava `disallow: [...]` no fonte e reprovou a mudança
+    // de 2026-09-08, que uniu os dois grupos numa constante só.
+    expect(bloqueiosPorGrupo().length).toBeGreaterThanOrEqual(2);
+    for (const bloqueios of bloqueiosPorGrupo()) {
+      expect(bloqueios).toContain("/definir-senha");
     }
     expect(paginaSenha).toContain("index: false");
   });

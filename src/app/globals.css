@@ -58,7 +58,14 @@
   --color-mt-inverso-suave: var(--mt-inverso-suave);
 
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Pilha do sistema, e não uma webfont — 2026-09-08.
+     A Geist Mono saiu do layout raiz: `next/font` a pré-carregava em TODA
+     página, e no site público `font-mono` só aparece na placa da ficha e nos
+     campos da Garagem. Monoespaçada é justamente o tipo de fonte que todo
+     sistema já tem. Apontar esta variável para `var(--font-geist-mono)` depois
+     da remoção deixaria o navegador cair no tipo padrão, que é serifado — o
+     valor tem de ser a pilha, não um ponteiro para o que não existe mais. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --font-modernist: var(--font-archivo), "Archivo", system-ui, sans-serif;
 
   /* Breakpoint do desktop cheio — tela 09 do design doc.
@@ -338,3 +345,26 @@ html, body {
 }
 
 
+
+/* ---------------------------------------------------------------------------
+   Busca da vitrine: um X só
+
+   `type="search"` faz o Chrome, o Edge e o Safari desenharem o próprio botão
+   de limpar, e ele apareceria colado no nosso — dois X iguais, e só um deles
+   com rótulo e ordem de foco.
+
+   A regra estava escrita como variante arbitrária do Tailwind
+   (`[&::-webkit-search-cancel-button]:appearance-none`) dentro de uma
+   constante em `lib/vitrine.ts`. A classe CHEGAVA ao elemento e o Tailwind
+   NÃO gerava a regra: medido no navegador em 04/09/2026 — `classList` tinha a
+   classe, `document.styleSheets` não tinha nenhum seletor com
+   `search-cancel-button`. As outras classes da mesma constante funcionavam, o
+   que torna o defeito invisível numa olhada.
+
+   Aqui é CSS de verdade, e o teste confere que esta regra existe.
+   O preflight do Tailwind reseta só o `search-decoration`, não este.
+--------------------------------------------------------------------------- */
+.mt-busca::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}

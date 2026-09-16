@@ -896,9 +896,14 @@ describe("a trava do sync não pode se desmontar por descuido", () => {
       method?: string;
       body?: string;
       headerParameters?: { parameters: Cabecalho[] };
-      /** `predefinedCredentialType` desde 30/08 — ver o teste da credencial. */
+      /**
+       * Como o nó HTTP se autentica. `predefinedCredentialType` é a forma
+       * atual do upsert: o n8n injeta o segredo da credencial armazenada na
+       * requisição, e ele deixa de aparecer no JSON — que é a vantagem, e o
+       * motivo de a asserção de autenticação aceitar duas formas.
+       */
       authentication?: string;
-      /** `supabaseApi`: o n8n injeta o segredo e ele some do JSON. */
+      /** O nome da credencial armazenada — `supabaseApi` no upsert do sync. */
       nodeCredentialType?: string;
     };
   };
@@ -929,22 +934,97 @@ describe("a trava do sync não pode se desmontar por descuido", () => {
     expect(body).toMatch(/\bid:\s*\$json\.id\b/);
   });
 
-  it("o sync autentica por credencial do n8n — o segredo saiu do JSON", () => {
-    // Este teste exigia os cabeçalhos `Authorization` e `apikey` com a string
-    // `SUPABASE_SERVICE_ROLE_KEY`, e passava — guardando um mecanismo que o
-    // workflow VIVO abandonou. O nó migrou para `predefinedCredentialType` +
-    // `supabaseApi`: o n8n injeta o segredo na chamada e ele deixa de existir
-    // no JSON. O arquivo do repo só não acusava porque estava velho.
+  it("o sync autentica como service_role — por isso a trava é trigger, não RLS", () => {
+    /*
+     * A CONDIÇÃO é "o sync chega ao PostgREST com privilégio de service_role",
+     * e ela tem duas formas legítimas no n8n. Esta trava só conhecia uma.
+     *
+     * Até 2026-09-08 ela exigia os cabeçalhos `Authorization` e `apikey` com
+     * `$env.SUPABASE_SERVICE_ROLE_KEY` escrito à mão. O workflow abandonou
+     * essa forma em algum ponto e passou a usar credencial ARMAZENADA
+     * (`authentication: predefinedCredentialType`, `nodeCredentialType:
+     * supabaseApi`) — o n8n injeta o segredo na requisição e ele deixa de
+     * aparecer no JSON, que é justamente a vantagem.
+     *
+     * A trava não acusou nada disso: ela lia a CÓPIA do workflow no repo, que
+     * ainda trazia o formato antigo. Ficou verde por meses guardando um
+     * cabeçalho que a produção não usava mais, e só virou vermelha quando o
+     * arquivo foi ressincronizado com o servidor. É o risco que
+     * `json-do-n8n-no-repo-envelhece` descreve, visto de dentro.
+     *
+     * Agora aceita as duas formas e exige UMA delas. O que ela continua
+     * impedindo é o caso real: alguém trocar a autenticação por chave anônima,
+     * que faria o PostgREST recusar a escrita — e o lote do feed falhar
+     * inteiro, em silêncio, porque o disparo não bloqueia ninguém.
+     */
+    const porCabecalho =
+      (cabecalhos().find((h) => h.name === "Authorization")?.value ?? "").includes(
+        "SUPABASE_SERVICE_ROLE_KEY",
+      ) &&
+      (cabecalhos().find((h) => h.name === "apikey")?.value ?? "").includes(
+        "SUPABASE_SERVICE_ROLE_KEY",
+      );
+
+    const porCredencial =
+      upsert!.parameters.authentication === "predefinedCredentialType" &&
+      upsert!.parameters.nodeCredentialType === "supabaseApi";
+
+    expect(
+      porCabecalho || porCredencial,
+      "o upsert não autentica nem por cabeçalho com a service role nem pela credencial `supabaseApi`",
+    ).toBe(true);
+
+    // E o que NÃO pode, em nenhuma das duas formas: chave anônima.
+    const tudo = JSON.stringify(upsert!.parameters);
+    expect(tudo, "o upsert está usando chave anônima").not.toMatch(/ANON_KEY|PUBLISHABLE/i);
+  });
+
+  // Duas guardas para a mesma porta, escritas em paralelo: a de cima veio do
+  // main (08/09) e aceita as duas formas de autenticar, barrando a chave
+  // anônima; esta veio do PR #45 (01/09) e fixa a forma atual — credencial
+  // armazenada e nenhum cabeçalho de auth escrito à mão. Juntas, voltar ao
+  // cabeçalho com a service role exige rever as duas, de propósito.
+  it("o sync autentica por credencial do n8n — o segredo saiu do JSON, e isso muda o que dá para provar aqui", () => {
+    // -----------------------------------------------------------------------
+    // Por que esta asserção mudou em 2026-09-01
+    // -----------------------------------------------------------------------
+    // Até aqui este teste exigia dois cabeçalhos literais, `Authorization` e
+    // `apikey`, contendo a string `SUPABASE_SERVICE_ROLE_KEY`. Ele passava — e
+    // passava guardando um mecanismo que o workflow VIVO abandonou.
     //
-    // A identidade `service_role` continua valendo — `estoque_motors` não tem
-    // policy de INSERT para `anon` e o sync insere —, mas deixou de ser
-    // demonstrável a partir daqui. Quem carrega a trava neste arquivo é o ramo
-    // da ASSINATURA (`last_seen_at`), testado logo acima.
+    // O nó de upsert migrou para `predefinedCredentialType` + `supabaseApi`: o
+    // n8n injeta o segredo na hora da chamada e ele deixa de existir no JSON.
+    // O arquivo versionado só não acusou a diferença porque estava velho —
+    // exportado em 30/08 11:17, enquanto o workflow foi alterado às 18:38 do
+    // mesmo dia. Reexportado em 01/09, o teste ficou vermelho na hora.
+    //
+    // A lição é a de sempre neste repositório: teste que abre arquivo por nome
+    // fica verde guardando código morto. O arquivo é uma CÓPIA do que roda no
+    // n8n, não a fonte — e cópia envelhece em silêncio.
+    //
+    // -----------------------------------------------------------------------
+    // O que continua verdadeiro, e como sabemos
+    // -----------------------------------------------------------------------
+    // A identidade do sync ainda é a chave de serviço. Não dá para ler o
+    // segredo daqui, mas dá para deduzir: `estoque_motors` não tem policy de
+    // INSERT para `anon` (só "Insercao do painel autenticado", TO authenticated
+    // — conferido em pg_policy em 01/09), e o sync insere carro novo todo dia.
+    // Quem insere ou é `authenticated` ou ignora RLS; a credencial `supabaseApi`
+    // do n8n pede o *Service Role Secret* por desenho. Logo, service_role.
+    //
+    // Consequência para a trava (20260830120000_f0q:115-120): dos seus dois
+    // ramos, o da IDENTIDADE (`current_user = 'service_role'`) deixou de ser
+    // demonstrável a partir do repositório. Quem carrega o peso aqui é o ramo
+    // da ASSINATURA (`last_seen_at`), e ele tem teste próprio logo acima —
+    // "o body do upsert ainda carimba `last_seen_at`". Se aquele cair, a trava
+    // fica pendurada numa identidade que este arquivo não consegue verificar.
     expect(upsert!.parameters.authentication).toBe("predefinedCredentialType");
     expect(upsert!.parameters.nodeCredentialType).toBe("supabaseApi");
 
-    // E nenhum cabeçalho de auth escrito à mão: um `Authorization` inline
-    // venceria a credencial e devolveria o segredo ao JSON.
+    // E nenhum cabeçalho de autenticação escrito à mão: um `Authorization`
+    // inline venceria a credencial e devolveria o segredo ao JSON — de onde
+    // ele acabou de sair. Os únicos cabeçalhos legítimos são `Content-Type` e
+    // o `Prefer: resolution=merge-duplicates` que faz do POST um upsert.
     const nomes = cabecalhos().map((h) => h.name.toLowerCase());
     expect(nomes).not.toContain("authorization");
     expect(nomes).not.toContain("apikey");
