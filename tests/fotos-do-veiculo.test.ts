@@ -357,8 +357,20 @@ describe("foto só é gravável no veículo que o sync não toca", () => {
   });
 
   it("a tela explica o motivo em vez de só desabilitar o botão", () => {
-    expect(galeria).toContain("reescritas a cada sincronização");
-    expect(galeria).toContain("Suba as fotos no RevendaMais");
+    expect(galeria).toContain("vêm do <strong>feed do RevendaMais</strong>");
+    expect(galeria).toContain("Importar fotos do feed");
+  });
+
+  it("a nota NÃO promete mais que o sync reescreve a foto", () => {
+    // A frase antiga — "as fotos são reescritas a cada sincronização" — foi
+    // verdade até 30/08 e virou mentira naquele dia: a trava do banco passou a
+    // ser allowlist de seis colunas e foto ficou de fora. Somada à recusa de
+    // envio daqui, ela fechou a porta dos dois lados e prendeu carro com 17
+    // fotos no RevendaMais em `rascunho` por uma semana.
+    //
+    // O teste trava a mentira, não a redação: reintroduzir a promessa manda o
+    // operador esperar por algo que o banco descarta em silêncio.
+    expect(galeria).not.toContain("reescritas a cada sincronização");
   });
 });
 
@@ -663,15 +675,29 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
     expect(html).toMatch(/disabled=""[^>]*aria-label="Mover a foto 1 para trás"/);
   });
 
-  it("veículo do feed: sem envio, e com o motivo escrito", () => {
+  it("veículo do feed: sem envio pelo painel, e com o botão de importar", () => {
     const html = desenhar({ origem: "sync", fotos: [foto(1)] });
+    // O que NÃO muda: a foto do carro do feed não se sobe daqui, não se
+    // reordena e não se remove. A fonte continua sendo o RevendaMais.
     expect(html).not.toContain("Enviar fotos");
     expect(html).not.toContain('type="file"');
     expect(html).not.toContain("Remover a foto 1");
-    expect(html).toContain("reescritas a cada sincronização");
-    expect(html).toContain("Suba as fotos no RevendaMais");
+    // O que passou a existir: a porta para trazer o que já está lá. Sem ela, a
+    // trava do banco (allowlist de seis colunas, sem foto) e esta recusa
+    // faziam um impasse — ninguém conseguia pôr foto em carro do feed.
+    expect(html).toContain("Importar fotos do feed");
+    expect(html).toContain("feed do RevendaMais");
     // A contagem e a régua continuam visíveis: a aba informa mesmo sem editar.
     expect(html).toContain(`Faltam ${MINIMO_DE_FOTOS - 1} de ${MINIMO_DE_FOTOS}`);
+  });
+
+  it("veículo do feed sem a linha da A17: vê o motivo, não o botão", () => {
+    // Mesma régua do doc A17 que vale para o envio: o negado SOME, e é
+    // explicado. Importar do feed escreve nas mesmas três colunas que a
+    // galeria, então não pode ser a porta dos fundos de quem não grava foto.
+    const html = desenhar({ origem: "sync", podeEditar: false, fotos: [foto(1)] });
+    expect(html).not.toContain("Importar fotos do feed");
+    expect(html).toContain("Importar do feed é de Marketing");
   });
 
   it("perfil sem a linha da A17: vê as fotos, não os controles", () => {

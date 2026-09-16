@@ -64,7 +64,21 @@ function hasPromptInjection(obj: any): boolean {
   return false;
 }
 
-export default function ConfiguracoesClientWrapper() {
+interface ConfiguracoesClientWrapperProps {
+  /**
+   * O cabeçalho de `/guias` COMO O SITE O PUBLICA — resolvido no servidor, já
+   * com a queda para o texto do código quando o painel não sobrescreveu.
+   *
+   * Existe pela mesma razão de `tituloDaAba`: sem ele o preview do card mostra
+   * o texto de fábrica e o site publica outro. Opcional porque o wrapper também
+   * é montado em teste, onde não há servidor para resolver nada.
+   */
+  cabecalhoDosGuias?: { tituloSeo: string; resumo: string };
+}
+
+export default function ConfiguracoesClientWrapper({
+  cabecalhoDosGuias,
+}: ConfiguracoesClientWrapperProps = {}) {
   const { confirm } = useConfirm();
   const {
     theme,
@@ -1498,6 +1512,7 @@ export default function ConfiguracoesClientWrapper() {
             valor={companySettings.compartilhamento ?? {}}
             nomeLoja={companySettings.name}
             tituloDaAba={companySettings.tabTitle}
+            cabecalhoDosGuias={cabecalhoDosGuias}
             aoEnviarImagem={enviarArteDeCompartilhamento}
             aoSalvar={salvarCompartilhamento}
           />

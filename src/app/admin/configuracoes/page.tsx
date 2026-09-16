@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import ConfiguracoesClientWrapper from "../../../components/ConfiguracoesClientWrapper";
+import { cabecalhoDosGuias } from "../../../lib/secaoDeGuias";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,14 @@ export default async function AdminConfiguracoesPage({
     redirect("/admin/estoque");
   }
 
+  // O cabeçalho de `/guias` é editável desde 07/09, e o preview do card precisa
+  // dele: sem isto a aba de compartilhamento mostraria o texto de fábrica do
+  // código enquanto o site publica o do banco — exatamente a divergência que o
+  // docblock de `tituloDaAba` já descreve para a home. Lido no SERVIDOR porque
+  // aqui não custa nada, e porque `/api/guias` exige um papel que o dono desta
+  // tela pode não ter.
+  const cabecalho = await cabecalhoDosGuias();
+
   return (
     <Suspense fallback={
       <div className="flex flex-col items-center justify-center min-h-[400px] bg-mt-bg text-mt-neutral-700 gap-3">
@@ -29,7 +38,7 @@ export default async function AdminConfiguracoesPage({
         <span className="text-xs uppercase tracking-wider font-bold">Carregando painel...</span>
       </div>
     }>
-      <ConfiguracoesClientWrapper />
+      <ConfiguracoesClientWrapper cabecalhoDosGuias={cabecalho} />
     </Suspense>
   );
 }

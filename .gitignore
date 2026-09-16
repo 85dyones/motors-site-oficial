@@ -69,3 +69,18 @@ CLAUDE.md
 !.claude/launch.json
 .claude/worktrees/
 conteudo-seo/feed-bruto.xml
+
+# Skills de agente instalados por `npx skills add` (vercel-labs/skills).
+#
+# Mesma ordem da regra acima — ignorar por padrão. `.agents/skills/` são 15 MB
+# e 915 arquivos de código de terceiro, e `.claude/skills/` são só symlinks com
+# caminho absoluto desta máquina; nenhum dos dois sobrevive a outro clone, e num
+# repositório PÚBLICO um `git add -A` distraído os eterniza no histórico.
+#
+# O que vale versionar é o `skills-lock.json`: o `computedHash` de cada entrada
+# cobre a PASTA INTEIRA do skill (caminho + conteúdo de cada arquivo, recursivo
+# — `computeSkillFolderHash`), não só o SKILL.md. Com ele no git, atualizar um
+# skill vira diff revisável em vez de código novo entrando calado.
+# Restaurar o conteúdo: `npx skills experimental_install`.
+.agents/
+.claude/skills/

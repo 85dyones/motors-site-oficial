@@ -26,6 +26,7 @@ import {
   normalizarStockOverrides,
   resolverDestaques,
 } from "../lib/destaquesRapidos";
+import { montarDestaquesDaSemana } from "../lib/destaquesDaSemana";
 // Importa o JSON DIRETO, não via `./ThemeContext`.
 //
 // `ThemeContext` é um módulo "use client": quando um Server Component importa
@@ -138,7 +139,17 @@ export default async function Home() {
         .filter((v): v is NonNullable<typeof v> => Boolean(v))
     : [];
   const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, 3);
-  const destaquesSemana = disponiveis.slice(0, 6);
+  // A curadoria da GRADE, que não é a do banner: lista própria, decidida pelo
+  // dono em 2026-09-09. O que ele marcou vem primeiro, na ordem em que marcou;
+  // o sorteio só completa as vagas que sobraram, e evita repetir na grade o
+  // carro que está passando no carrossel logo acima.
+  const destaquesSemana = montarDestaquesDaSemana({
+    disponiveis,
+    selecionados: Array.isArray(settings.destaquesDaSemana)
+      ? (settings.destaquesDaSemana as string[]).map(String)
+      : [],
+    excluir: slidesHero.map((v) => v.id),
+  });
 
   const whatsappHref = linkWhatsApp(empresa);
 

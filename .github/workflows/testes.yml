@@ -1,0 +1,49 @@
+# A suíte cheia roda aqui, e não na máquina de quem desenvolve.
+#
+# Por quê: em 13/09 a suíte caiu duas vezes por falta de memória numa máquina
+# de 7,9 GB com várias sessões abertas, e travou todos os portões de "suíte
+# cheia". A build da Vercel é só `next build`, sem teste. Em repositório
+# público o runner padrão do GitHub é grátis e tem 4 vCPU e 16 GB.
+#
+# Sem segredo nenhum: `vitest.config.ts` não carrega `.env`, e chave de
+# produção não entra aqui. Teste que precisa de variável define a própria.
+#
+# O fuso é o do runner (UTC), o mesmo da Vercel: teste que só passa no fuso
+# de Curitiba falha aqui antes de errar em produção.
+#
+# O `tsc` fica de fora até o PR #62 entrar: hoje ele é vermelho no `main` por
+# 2 erros em `tests/f0-nucleo.test.ts`.
+name: testes
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Push e pull_request testam árvores diferentes: o push testa o commit do
+# branch, e o pull_request testa `refs/pull/N/merge`, o branch somado à base.
+# Por isso ficam em grupos separados, e cada grupo só cancela a execução
+# anterior do mesmo evento no mesmo ref.
+concurrency:
+  group: testes-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Nenhum passo precisa do token depois do checkout.
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --reporter=default --reporter=github-actions
