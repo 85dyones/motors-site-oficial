@@ -236,6 +236,19 @@ export default function Catalogo({
         .map(([valor, total]) => ({ valor, rotulo: valor, total }));
     };
 
+    /**
+     * ANO usa a MESMA contagem de `contar("ano")` — ela já ignora o próprio
+     * grupo e respeita os demais filtros marcados — mas reordena o resultado
+     * por valor numérico decrescente.
+     *
+     * `contar` ordena por popularidade (a contagem, decrescente), o padrão
+     * certo para MARCA, CÂMBIO e COMBUSTÍVEL. Ano-modelo é campo numérico, e
+     * o dono pediu "igual à home": lista única, ordem decrescente de ano — não
+     * de popularidade, e não alfabética, que compara caractere a caractere e
+     * poria "2019" depois de "2107" e antes de "2020".
+     */
+    const anos = [...contar("ano")].sort((a, b) => Number(b.valor) - Number(a.valor));
+
     const destaques = quickTags
       .map((tag) => {
         const slug = slugifyTag(tag.name) || tag.id;
@@ -254,6 +267,7 @@ export default function Catalogo({
       { chave: "destaque", titulo: "DESTAQUES RÁPIDOS", opcoes: destaques },
       { chave: "carroceria", titulo: "CARROCERIA", opcoes: contar("carroceria") },
       { chave: "marca", titulo: "MARCA", opcoes: contar("marca") },
+      { chave: "ano", titulo: "ANO", opcoes: anos },
       { chave: "cambio", titulo: "CÂMBIO", opcoes: contar("cambio") },
       { chave: "combustivel", titulo: "COMBUSTÍVEL", opcoes: contar("combustivel") },
     ].filter((g) => g.opcoes.length > 0);
