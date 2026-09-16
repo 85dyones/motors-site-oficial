@@ -156,7 +156,16 @@ async function aplicar(
     .eq("chatwoot_conversation_id", conversaId)
     .maybeSingle();
 
+  // Vínculo que aponta para negócio ENCERRADO não vale como vínculo.
+  //
+  // O caminho gêmeo do `desfecho is null` de `acharLead`, e ele acontece sem
+  // ninguém errar nada: a conversa é vinculada enquanto o lead está aberto, o
+  // consultor encerra o negócio dias depois, e então o cliente volta a
+  // escrever NA MESMA conversa. Sem esta releitura o atendimento seguiria
+  // preso ao lead fechado, e a volta do cliente não apareceria no kanban —
+  // o mesmo sintoma, por outra porta.
   let leadId: string | null = existente?.lead_id ?? null;
+  if (leadId && (await leadEncerrado(supabase, leadId))) leadId = null;
 
   // 2. O lead ------------------------------------------------------------
   if (!leadId && evento.telefone) {
@@ -231,11 +240,54 @@ async function aplicar(
 }
 
 /**
- * O lead desta pessoa, se já existe.
+ * Este lead já teve desfecho?
+ *
+ * Erra para o lado de "não encerrado" quando a leitura falha: um falso
+ * "encerrado" criaria lead duplicado a cada mensagem, que é bem pior que
+ * manter o vínculo que já existe.
+ */
+async function leadEncerrado(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  leadId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("leads")
+    .select("desfecho")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[Chatwoot] Não deu para ler o desfecho do lead:", error.message);
+    return false;
+  }
+  return Boolean(data?.desfecho);
+}
+
+/**
+ * O lead ABERTO desta pessoa, se já existe.
  *
  * Casa pelas duas formas do celular brasileiro (com e sem o nono dígito) —
- * ver `variantesDoTelefone`. O mais RECENTE ganha: quem volta meses depois
- * continua sendo a mesma pessoa, e é no lead atual que o atendimento entra.
+ * ver `variantesDoTelefone`. O mais recente entre os abertos ganha: é nele
+ * que a conversa em andamento entra.
+ *
+ * ---------------------------------------------------------------------------
+ * `desfecho is null` — e isto custou uma volta para aparecer
+ * ---------------------------------------------------------------------------
+ * A primeira versão pegava o lead mais recente, ponto. No primeiro teste com
+ * tráfego real (2026-09-16) ela grudou a conversa nova num lead **encerrado
+ * como `descartado`** três dias antes — e `descartado` é o desfecho que existe
+ * para dizer "isto nunca foi um negócio".
+ *
+ * O efeito é o pior possível: o atendimento fica vinculado, a rota responde
+ * 200, nada dá erro — e a pessoa continua **invisível no painel**, porque o
+ * kanban só mostra `!desfecho` e o motor do funil só enxerga
+ * `desfecho is null`. Ou seja, a rota parecia funcionar e o sintoma que ela
+ * veio corrigir continuava de pé.
+ *
+ * Quem volta depois de um negócio encerrado — ganho, perdido ou descartado —
+ * é uma oportunidade NOVA, e ganha lead novo. Isso também protege o número da
+ * loja: pendurar um contato novo num `ganho` antigo inflaria a conversão, e
+ * num `perdido` a rebaixaria, sem ninguém ter decidido nada.
  */
 async function acharLead(
   supabase: ReturnType<typeof createAdminSupabaseClient>,
@@ -248,6 +300,10 @@ async function acharLead(
     .from("leads")
     .select("id")
     .in("telefone", formas)
+    // O mesmo predicado que o kanban (`!l.desfecho`) e `montar_fila_do_funil`
+    // (`where l.desfecho is null`) usam para dizer "negócio em aberto". Se as
+    // três réguas divergirem, o lead existe para uma e não para as outras.
+    .is("desfecho", null)
     .order("created_at", { ascending: false })
     .limit(1);
 
