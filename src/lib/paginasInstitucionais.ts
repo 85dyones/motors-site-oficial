@@ -101,7 +101,7 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  * Fonte de cada afirmação:
  * - "garantia de motor e câmbio, contratada na entrega, sem carência e sem
  *   franquia" → `PROCEDENCIA_PADRAO`, faixa que a ficha do veículo já exibe;
- * - "perícia cautelar independente em 100% do estoque, laudo na ficha" →
+ * - "perícia cautelar independente em 100% do estoque, laudo sai a pedido" →
  *   `aboutSettings.value1`;
  * - "crivo técnico de mais de 120 pontos antes da entrega" →
  *   `aboutSettings.value2`;
