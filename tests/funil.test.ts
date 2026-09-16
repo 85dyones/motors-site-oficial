@@ -1249,8 +1249,11 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
     expect(fonte).toContain("Quem quer comprar");
     expect(fonte).toContain("Quem quer vender");
 
-    // O seletor é condicional: ganho e descarte são todos `ambos` por decisão
-    // do dono, e um seletor com um valor válido só é ruído na tela.
+    // O seletor é condicional: descarte é todo `ambos` por decisão do dono, e
+    // um seletor com um valor válido só é ruído na tela. O ganho ganhou escopo
+    // em 20260916170000 (pagamento para compra, "Compramos o carro do cliente"
+    // para avaliação), mas por migração: esta tela ainda não edita escopo de
+    // ganho, e motivo de ganho criado aqui nasce `ambos`.
     //
     // `toContain` de string LITERAL, não regex: `/tipo\s*===\s*"perdido"/`
     // também casa com `e.tipo === "perdido"` de `comoFunciona()`, um trecho
@@ -1718,5 +1721,136 @@ describe("a captura do site não passa pela regra do desfecho", () => {
     const etapas = [...chatwoot.matchAll(/\bsituacao:\s*("[^"]*")/g)].map((x) => x[1]);
     expect(etapas).toEqual(['"novo"']);
     expect(ETAPAS_PADRAO.find((e) => e.chave === "novo")?.tipo).toBe("aberta");
+  });
+});
+
+/**
+ * Motivos de ganho por escopo — decisão do dono em 16/09, migração
+ * `20260916170000`.
+ *
+ * O #94 dividiu só a perda ("o ganho segue compartilhado"). Os quatro motivos
+ * de ganho são forma de pagamento de quem COMPRA; num lead de avaliação o
+ * ganho é a loja comprar o carro da pessoa. A migração põe os quatro em
+ * `compra` e cria `compramos_o_carro` em `avaliacao`.
+ *
+ * O banco não roda aqui. O que se prova: que a migração escreve o que o dono
+ * decidiu — e só dados —, e que o estado que ela deixa passa pela regra do
+ * beco e pela régua de escopo da API sem prender card nenhum.
+ */
+describe("motivos de ganho por escopo — o estado que 20260916170000 deixa", () => {
+  const SQL_GANHO = readFileSync(
+    join(__dirname, "..", "supabase", "migrations", "20260916170000_motivos_de_ganho_por_escopo.sql"),
+    "utf8",
+  );
+  const ganhoExecutavel = SQL_GANHO.split(/\r?\n/)
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  const g = (
+    chave: string,
+    rotulo: string,
+    ordem: number,
+    escopo: "compra" | "avaliacao",
+  ): MotivoDoFunil => ({ chave, rotulo, tipo: "ganho", ordem, ativo: true, escopo });
+
+  /** Os motivos de ganho como a migração os deixa em produção. */
+  const GANHO_DEPOIS: MotivoDoFunil[] = [
+    g("a_vista", "À vista", 1, "compra"),
+    g("financiado", "Financiado", 2, "compra"),
+    g("com_troca", "Com carro na troca", 3, "compra"),
+    g("consorcio", "Consórcio ou carta contemplada", 4, "compra"),
+    g("compramos_o_carro", "Compramos o carro do cliente", 5, "avaliacao"),
+  ];
+  const DE_PAGAMENTO = ["a_vista", "financiado", "com_troca", "consorcio"];
+  const MOTIVOS_DEPOIS = [...GANHO_DEPOIS, ...MOTIVOS_DOS_TRES.filter((m) => m.tipo !== "ganho")];
+  const GANHO = ETAPAS_PADRAO.find((e) => e.tipo === "ganho")!;
+
+  const fontes = (canal: string, motivos: MotivoDoFunil[] = MOTIVOS_DEPOIS): FontesDoDesfecho => ({
+    lerLead: async () => ({ situacao: "novo", canal }),
+    lerMotivos: async () => motivos,
+  });
+
+  it("a migração escreve o que o dono decidiu, com os escopos do CHECK, e só dados", () => {
+    expect(ESCOPOS_DE_MOTIVO).toContain("compra");
+    expect(ESCOPOS_DE_MOTIVO).toContain("avaliacao");
+
+    expect(ganhoExecutavel).toMatch(
+      /update public\.funil_motivos\s+set escopo = 'compra'\s+where tipo = 'ganho'\s+and chave in \('a_vista', 'financiado', 'com_troca', 'consorcio'\);/,
+    );
+    expect(ganhoExecutavel).toContain(
+      "select 'compramos_o_carro', 'Compramos o carro do cliente', 'ganho', 5, true, 'avaliacao'",
+    );
+    // Idempotente: reexecutar não duplica nem sobrescreve.
+    expect(ganhoExecutavel).toMatch(
+      /where not exists \(\s*select 1 from public\.funil_motivos where chave = 'compramos_o_carro'\s*\)/,
+    );
+
+    // Sem trava no banco, por decisão do dono: nada de gatilho, função ou
+    // constraint — só `update` e `insert` em `funil_motivos`.
+    expect(ganhoExecutavel).not.toMatch(
+      /create\s+(or\s+replace\s+)?(function|trigger)|alter\s+table|constraint|delete\s+from/i,
+    );
+
+    // A autoconferência existe e fala, e o rodapé do livro-razão é a última coisa.
+    expect(ganhoExecutavel).toContain("ACEITE FALHOU");
+    expect(ganhoExecutavel).toContain("Aceite verificado");
+    expect(ganhoExecutavel.trimEnd()).toMatch(
+      /insert into supabase_migrations\.schema_migrations \(version, name\)\s+values \('20260916170000', 'motivos_de_ganho_por_escopo'\)\s+on conflict \(version\) do nothing;$/,
+    );
+
+    // E o que esta suíte usa como "depois" é o que a migração escreve.
+    for (const chave of DE_PAGAMENTO) expect(ganhoExecutavel).toContain(`'${chave}'`);
+  });
+
+  it("o funil com o ganho dividido não tem beco", () => {
+    expect(validarFunil(ETAPAS_PADRAO, MOTIVOS_DEPOIS)).toEqual([]);
+  });
+
+  it("quem vende vê só 'Compramos o carro do cliente', e a API recusa forma de pagamento", async () => {
+    for (const canal of ["Avaliação", "Appraisal Chat"]) {
+      expect(motivosVisiveis(MOTIVOS_DEPOIS, "ganho", escopoDoLead(canal)).map((m) => m.chave)).toEqual([
+        "compramos_o_carro",
+      ]);
+      const certo = await decidirDesfecho(GANHO, { desfecho_motivo: "compramos_o_carro" }, fontes(canal));
+      expect(certo.ok, `${canal} não fechou com compramos_o_carro`).toBe(true);
+      for (const chave of DE_PAGAMENTO) {
+        const d = await decidirDesfecho(GANHO, { desfecho_motivo: chave }, fontes(canal));
+        expect(d.ok, `${canal} fechou com ${chave}`).toBe(false);
+      }
+    }
+  });
+
+  it("quem compra vê as quatro formas de pagamento, em ordem, e a API recusa o de avaliação", async () => {
+    for (const canal of ["Formulário Contato", "WhatsApp Usado na Troca"]) {
+      expect(motivosVisiveis(MOTIVOS_DEPOIS, "ganho", escopoDoLead(canal)).map((m) => m.chave)).toEqual(
+        DE_PAGAMENTO,
+      );
+      for (const chave of DE_PAGAMENTO) {
+        const d = await decidirDesfecho(GANHO, { desfecho_motivo: chave }, fontes(canal));
+        expect(d.ok, `${canal} não fechou com ${chave}`).toBe(true);
+      }
+      const deAvaliacao = await decidirDesfecho(
+        GANHO,
+        { desfecho_motivo: "compramos_o_carro" },
+        fontes(canal),
+      );
+      expect(deAvaliacao.ok, `${canal} fechou com compramos_o_carro`).toBe(false);
+    }
+  });
+
+  it("desativado o motivo de avaliação, o card não prende: a caixa cai na lista cheia e a API aceita", async () => {
+    const semOdeAvaliacao = MOTIVOS_DEPOIS.map((m) =>
+      m.chave === "compramos_o_carro" ? { ...m, ativo: false } : m,
+    );
+    expect(validarFunil(ETAPAS_PADRAO, semOdeAvaliacao)).toEqual([]);
+    expect(motivosVisiveis(semOdeAvaliacao, "ganho", "avaliacao").map((m) => m.chave)).toEqual(
+      DE_PAGAMENTO,
+    );
+    const d = await decidirDesfecho(
+      GANHO,
+      { desfecho_motivo: "a_vista" },
+      fontes("Avaliação", semOdeAvaliacao),
+    );
+    expect(d.ok).toBe(true);
   });
 });
