@@ -27,6 +27,14 @@ import type { Veiculo } from "../src/types";
  *   3. o `?ano=` da home nasce com a caixa certa marcada, e desmarcar —
  *      pelo grupo ou pelo chip — funciona de ponta a ponta.
  *
+ * Ajuste de 16/09, depois da primeira entrega: o painel cortava TODO grupo
+ * em 8 opções (`.slice(0, 8)`), e a medição de produção mostrou `/estoque`
+ * com 46 carros em 15 anos-modelo distintos — o corte escondia 2014 para
+ * trás, os carros mais em conta, que é o que a pessoa mais busca por ano.
+ *   4. com 15 anos distintos, o grupo ANO mostra os 15 (sem corte), e — no
+ *      MESMO estoque — MARCA continua cortada em 8: o limite dos outros
+ *      grupos não mudou, só o do ANO.
+ *
  * `next/image` e `next/link` são dublês: quem este arquivo examina é o
  * painel de filtro, não a foto nem a navegação do `CardVeiculo` que a
  * grade desenha ao lado.
@@ -94,10 +102,47 @@ const ESTOQUE: Veiculo[] = [
   veiculo({ id: "10", marca: "Honda", modelo: "HR-V", ano: 2016 }),
 ];
 
+/**
+ * Medição de produção de 16/09: `/estoque` tem 46 carros em 15 anos-modelo
+ * distintos, e o `.slice(0, 8)` que o painel usava para TODO grupo escondia
+ * 2014 para trás — os carros mais em conta, que é o que a pessoa mais busca
+ * por ano. A lista abaixo é a mesma sequência medida (já decrescente).
+ */
+const ANOS_MEDIDOS_EM_PRODUCAO = [
+  2025, 2024, 2023, 2022, 2021, 2020, 2018, 2016, 2015, 2014, 2013, 2012, 2010, 2009, 1976,
+];
+
+/**
+ * 15 carros, cada um com ano E marca distintos. Serve aos dois cenários do
+ * ajuste: prova que ANO (sem corte) mostra os 15, e — no MESMO estoque —
+ * que MARCA (corte em 8) continua mostrando só 8, o controle de que o
+ * limite dos outros grupos não mudou.
+ */
+const MARCAS_DISTINTAS = [
+  "Fiat",
+  "Chevrolet",
+  "Toyota",
+  "Honda",
+  "Volkswagen",
+  "Ford",
+  "Hyundai",
+  "Renault",
+  "Nissan",
+  "Jeep",
+  "Peugeot",
+  "Citroen",
+  "Kia",
+  "Mitsubishi",
+  "BMW",
+];
+const ESTOQUE_MUITOS_ANOS: Veiculo[] = ANOS_MEDIDOS_EM_PRODUCAO.map((ano, i) =>
+  veiculo({ id: `m${i}`, ano, marca: MARCAS_DISTINTAS[i], modelo: `Modelo ${i}` }),
+);
+
 let container: HTMLDivElement;
 let root: Root;
 
-async function montar(query = "") {
+async function montar(query = "", estoque: Veiculo[] = ESTOQUE) {
   queryAtual.valor = new URLSearchParams(query);
   const { default: Catalogo } = await import("../src/components/modernist/Catalogo");
   container = document.createElement("div");
@@ -106,7 +151,7 @@ async function montar(query = "") {
   await act(async () => {
     root.render(
       createElement(Catalogo, {
-        estoque: ESTOQUE,
+        estoque,
         quickTags: [],
         stockOverrides: {},
       }),
@@ -216,6 +261,21 @@ describe("as opções vêm ordenadas por ano decrescente, com contagem real", ()
       { rotulo: "2021", total: "2" },
       { rotulo: "2019", total: "1" },
     ]);
+  });
+});
+
+describe("ANO não corta em 8 — só os outros grupos continuam cortados", () => {
+  it("com 15 anos distintos (a medição real de produção), o grupo ANO mostra os 15, em ordem decrescente", async () => {
+    await montar("", ESTOQUE_MUITOS_ANOS);
+    const opcoes = opcoesDoGrupo(grupo("ANO"));
+    expect(opcoes.map((o) => o.rotulo)).toEqual(
+      [...ANOS_MEDIDOS_EM_PRODUCAO].sort((a, b) => b - a).map(String),
+    );
+  });
+
+  it("MARCA, no MESMO estoque de 15, continua cortada em 8 — o limite dos outros grupos não mudou", async () => {
+    await montar("", ESTOQUE_MUITOS_ANOS);
+    expect(opcoesDoGrupo(grupo("MARCA"))).toHaveLength(8);
   });
 });
 

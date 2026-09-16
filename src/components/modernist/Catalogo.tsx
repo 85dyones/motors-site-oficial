@@ -54,7 +54,21 @@ interface GrupoFiltro {
   chave: string;
   titulo: string;
   opcoes: { valor: string; rotulo: string; total: number }[];
+  /** Quantas opções mostrar antes de cortar. `Infinity` não corta. */
+  limite: number;
 }
+
+/**
+ * O corte de opções que MARCA, CÂMBIO, CARROCERIA e COMBUSTÍVEL usam.
+ *
+ * Era um `.slice(0, 8)` cru no render, igual para todo grupo — até o ANO
+ * quebrar essa premissa. Medido em produção em 16/09: `/estoque` tem 46
+ * carros em 15 anos-modelo distintos (2025 a 1976), e o corte em 8 escondia
+ * 2014 para trás — exatamente os carros mais em conta, que é o que a
+ * pessoa mais busca por ano. ANO passou a usar `Infinity` (sem corte); os
+ * outros grupos continuam neste número, sem mudança.
+ */
+const LIMITE_DE_OPCOES_NO_PAINEL = 8;
 
 export default function Catalogo({
   estoque,
@@ -264,12 +278,38 @@ export default function Catalogo({
       .filter((o) => o.total > 0);
 
     return [
-      { chave: "destaque", titulo: "DESTAQUES RÁPIDOS", opcoes: destaques },
-      { chave: "carroceria", titulo: "CARROCERIA", opcoes: contar("carroceria") },
-      { chave: "marca", titulo: "MARCA", opcoes: contar("marca") },
-      { chave: "ano", titulo: "ANO", opcoes: anos },
-      { chave: "cambio", titulo: "CÂMBIO", opcoes: contar("cambio") },
-      { chave: "combustivel", titulo: "COMBUSTÍVEL", opcoes: contar("combustivel") },
+      {
+        chave: "destaque",
+        titulo: "DESTAQUES RÁPIDOS",
+        opcoes: destaques,
+        limite: LIMITE_DE_OPCOES_NO_PAINEL,
+      },
+      {
+        chave: "carroceria",
+        titulo: "CARROCERIA",
+        opcoes: contar("carroceria"),
+        limite: LIMITE_DE_OPCOES_NO_PAINEL,
+      },
+      {
+        chave: "marca",
+        titulo: "MARCA",
+        opcoes: contar("marca"),
+        limite: LIMITE_DE_OPCOES_NO_PAINEL,
+      },
+      // Sem corte: ver o porquê no comentário de `LIMITE_DE_OPCOES_NO_PAINEL`.
+      { chave: "ano", titulo: "ANO", opcoes: anos, limite: Infinity },
+      {
+        chave: "cambio",
+        titulo: "CÂMBIO",
+        opcoes: contar("cambio"),
+        limite: LIMITE_DE_OPCOES_NO_PAINEL,
+      },
+      {
+        chave: "combustivel",
+        titulo: "COMBUSTÍVEL",
+        opcoes: contar("combustivel"),
+        limite: LIMITE_DE_OPCOES_NO_PAINEL,
+      },
     ].filter((g) => g.opcoes.length > 0);
   }, [estoque, selecionados, precoMax, termos, quickTags, stockOverrides]);
 
@@ -511,7 +551,7 @@ export default function Catalogo({
                 {grupo.titulo}
               </legend>
               <div className="flex flex-col gap-2.5">
-                {grupo.opcoes.slice(0, 8).map((opcao) => {
+                {grupo.opcoes.slice(0, grupo.limite).map((opcao) => {
                   const marcado = (selecionados[grupo.chave] ?? []).includes(opcao.valor);
                   return (
                     <label
