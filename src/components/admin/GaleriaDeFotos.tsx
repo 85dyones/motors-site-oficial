@@ -78,9 +78,28 @@ export default function GaleriaDeFotos({
 }: {
   estoqueId: number | string;
   fotos: FotoDoVeiculo[];
-  /** `painel` (cadastro nativo) ou `sync` (RevendaMais). Decide se edita. */
+  /**
+   * `painel` (cadastro nativo) ou `sync` (RevendaMais). **Não decide se a
+   * galeria edita** — isso é só `podeEditar`, para carro de qualquer origem.
+   * Decide uma coisa: se aparece o botão "Importar fotos do feed", que só serve
+   * para carro que existe no RevendaMais. A rota `fotos-do-feed` recusa o
+   * veículo do painel pelo mesmo critério.
+   *
+   * No `main`, até 16/09, ela também fechava o envio para carro do feed. O PR
+   * #45 abriu a galeria para qualquer origem, e na fusão com o #75 (decisão do
+   * dono, 16/09) ficou só este papel.
+   */
   origem: string | null | undefined;
-  /** Matriz A17, linha "Adicionar e reordenar fotos". */
+  /**
+   * Matriz A17, linha "Adicionar e reordenar fotos". **É o único portão de
+   * edição daqui** — e o mesmo que libera o botão de importar do feed.
+   *
+   * Até 2026-09-01 havia um segundo, `origem === "painel"`, e ele fechava a
+   * galeria para 100% do estoque — nenhum veículo nativo existe. Caiu na F0.5:
+   * a trava do sync tirou do RevendaMais o poder de reescrever foto, e em
+   * 31/08 as fotos dos ativos passaram a ser nossas. Ver `estoqueEscrita.ts`,
+   * bloco de `CAMPOS_DE_FOTO`.
+   */
   podeEditar: boolean;
   /**
    * Chamado depois que a gravação VOLTOU OK, com as três colunas já no formato
@@ -94,6 +113,7 @@ export default function GaleriaDeFotos({
   const [gravadoEm, setGravadoEm] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
 
+  // Só para o botão de importar — nunca para decidir se a galeria edita.
   const doPainel = origem === "painel";
   const ocupado =
     estado.tipo === "enviando" || estado.tipo === "gravando" || estado.tipo === "importando";
@@ -150,20 +170,24 @@ export default function GaleriaDeFotos({
   );
 
   /**
-   * Traz as fotos que o anúncio tem AGORA no RevendaMais.
+   * Traz as fotos que o anúncio tem AGORA no RevendaMais — e substitui a
+   * galeria por elas, como o rótulo do botão avisa.
    *
-   * A saída do impasse que prendeu carro com dezessete fotos no feed em
-   * `rascunho` por uma semana: desde 30/08 a trava do banco descarta a foto
-   * que o sync manda, e esta galeria recusava o envio por ser carro do feed —
-   * ninguém conseguia gravar. Ver `lib/feedRevendaMais.ts`.
+   * Nasceu no #75 (15/09) como a saída do impasse que prendeu carro com
+   * dezessete fotos no feed em `rascunho` por uma semana: desde 30/08 a trava
+   * do banco descarta a foto que o sync manda, e esta galeria ainda recusava o
+   * envio por ser carro do feed. Desde a fusão com o #45 (16/09) o envio daqui
+   * vale para qualquer origem, e o botão continua como o jeito de trazer de uma
+   * vez o que o anúncio já tem lá. Ver `lib/feedRevendaMais.ts`.
    *
    * Quem decide a hora é a pessoa, e é isso que separa este botão de reabrir a
    * coluna para o robô: o ciclo de seis horas passaria por cima da galeria
    * calado, e aqui a importação só acontece no clique.
    *
-   * Não manda lista nenhuma no corpo — a rota vai à fonte e lê. O corpo viria
-   * do navegador, e aceitar URL de fora abriria na galeria do carro do feed a
-   * porta que `camposGravaveis` fecha.
+   * Não manda lista nenhuma no corpo — a rota vai à fonte e lê. O que o botão
+   * promete é "o que o anúncio tem agora"; uma lista vinda do navegador trocaria
+   * essa promessa pela palavra de quem chamou. Lista escolhida pela pessoa já
+   * tem porta própria: o envio e a reordenação desta galeria.
    */
   const importarDoFeed = useCallback(async () => {
     setEstado({ tipo: "importando" });
@@ -340,7 +364,7 @@ export default function GaleriaDeFotos({
         )}
       </div>
 
-      {podeEditar && doPainel && (
+      {podeEditar && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <input
             ref={entrada}
@@ -434,7 +458,7 @@ export default function GaleriaDeFotos({
                 {i + 1}
               </span>
 
-              {podeEditar && doPainel && (
+              {podeEditar && (
                 <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-[rgba(20,18,18,.72)] p-1">
                   <button
                     type="button"
@@ -485,24 +509,30 @@ export default function GaleriaDeFotos({
         </div>
       )}
 
-      {/* O carro do feed: a fonte da foto é o RevendaMais, e a vinda é por ato.
-          Até 30/08 esta nota prometia que o sync repunha a galeria sozinho a
-          cada ciclo, e por isso o envio daqui se perderia. A trava do banco
-          virou allowlist de seis colunas naquele dia e a foto ficou de fora: o
-          robô tenta gravar de seis em seis horas e o banco descarta em
-          silêncio. A promessa velha, somada à recusa de envio, fechou a porta
-          dos dois lados — carro com dezessete fotos no RevendaMais ficou uma
-          semana em `rascunho`, abaixo do mínimo, invisível no site. Um teste
-          trava a volta daquela frase (`tests/fotos-do-veiculo.test.ts`). */}
+      {/* Carro do feed: a foto chega por gente, por dois caminhos — o envio
+          desta galeria, como em qualquer carro, e o botão que importa o que o
+          anúncio tem no RevendaMais. O sincronizador não é um deles: desde
+          30/08 a trava do banco descarta a foto que ele manda.
+
+          Esta nota já disse duas coisas que deixaram de valer. Até 30/08,
+          que o sync repunha a galeria a cada ciclo; de 15 a 16/09 (#75), que
+          a foto do carro do feed só se subia no RevendaMais, com o envio daqui
+          fechado. Somadas, as duas recusas prenderam carro com dezessete fotos
+          no RevendaMais em `rascunho` por uma semana. O texto exato de nenhuma
+          delas é reproduzido aqui: `tests/fotos-do-veiculo` procura pelos dois
+          no arquivo inteiro para garantir que não voltem.
+
+          Decisão do dono em 16/09, na fusão do #45 com o #75: galeria aberta a
+          qualquer origem e botão mantido, com o aviso de que importar
+          substitui a galeria. */}
       {!doPainel && (
         <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
           <p className="text-xs leading-relaxed text-mt-neutral-800">
-            As fotos deste veículo vêm do <strong>feed do RevendaMais</strong> — é lá
-            que elas se sobem, e não aqui. O que este botão faz é{" "}
-            <strong>trazer para o site as fotos que o anúncio tem agora</strong> lá.
-            Ele existe porque o sincronizador não consegue gravar foto: o anúncio
-            que entra no feed antes das fotos fica parado sem elas até alguém
-            importar.
+            Este veículo veio do <strong>feed do RevendaMais</strong>, e as fotos dele
+            chegam por dois caminhos: <strong>enviadas aqui</strong>, como as de qualquer
+            carro, ou <strong>importadas do anúncio de lá</strong>. O sincronizador não
+            grava foto — o anúncio que entra no feed antes das fotos fica sem elas até
+            alguém enviar ou importar.
           </p>
           {podeEditar && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -521,15 +551,17 @@ export default function GaleriaDeFotos({
               </span>
             </div>
           )}
+          {/* "Seu perfil vê as fotos e não as altera" fica só no aviso de
+              baixo, que agora vale para qualquer origem — repetido aqui, o
+              carro do feed diria a mesma frase duas vezes. */}
           {!podeEditar && (
             <p className="mt-3 text-[11px] leading-relaxed text-mt-neutral-700">
-              Seu perfil vê as fotos e não as altera. Importar do feed é de Marketing,
-              Comercial e Admin (matriz A17).
+              Importar do feed é de Marketing, Comercial e Admin (matriz A17).
             </p>
           )}
         </div>
       )}
-      {doPainel && !podeEditar && (
+      {!podeEditar && (
         <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
           <p className="text-xs leading-relaxed text-mt-neutral-800">
             Seu perfil vê as fotos e não as altera. Adicionar e reordenar foto é de

@@ -185,8 +185,22 @@ describe("seção nova entra na vizinhança do catálogo, não no fim", () => {
     const semConsultoria = ORDEM_DE_PRODUCAO.filter((id) => id !== "consultoria");
     const { ordem } = normalizarAreas({ ordem: semConsultoria, ocultas: [] });
 
-    expect(ordem.indexOf("consultoria")).toBeLessThan(ordem.indexOf("contato"));
-    expect(ordem.indexOf("consultoria")).toBeLessThan(ordem.indexOf("reputacao"));
+    const iConsultoria = ordem.indexOf("consultoria");
+    const iContato = ordem.indexOf("contato");
+    const iReputacao = ordem.indexOf("reputacao");
+
+    // A guarda vem antes da ordem pelo mesmo motivo da asserção de
+    // `faixas_de_preco` logo acima: `indexOf` devolve -1 quando não acha, e -1
+    // é menor que qualquer posição válida. Sem ela este teste — que existe
+    // justamente para provar que a área tirada do meio VOLTA — passa verde no
+    // dia em que ela deixar de voltar.
+    expect(iConsultoria, "a área tirada do meio não voltou para a ordem")
+      .toBeGreaterThanOrEqual(0);
+    expect(iContato, "a área de contato sumiu da ordem").toBeGreaterThanOrEqual(0);
+    expect(iReputacao, "a área de reputação sumiu da ordem").toBeGreaterThanOrEqual(0);
+
+    expect(iConsultoria).toBeLessThan(iContato);
+    expect(iConsultoria).toBeLessThan(iReputacao);
   });
 
   it("a ordem que o dono salvou continua sendo respeitada", () => {

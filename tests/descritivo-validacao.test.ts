@@ -132,10 +132,13 @@ describe("regra: primeira frase em 155 caracteres", () => {
 });
 
 /**
- * A régua contra TEXTO REAL: os 47 `descricao_seo` que o dono aprovou em
- * 17/08/2026 (`conteudo-seo/rascunhos*.json`). A régua de duas frases reprovava
- * 41. A da primeira frase reprova só estes três, e os três passam de 155 de
- * verdade (171, 181 e 162 caracteres).
+ * A régua contra TEXTO REAL: os `descricao_seo` versionados em
+ * `conteudo-seo/rascunhos*.json`. Eram 47 — os que o dono aprovou em
+ * 17/08/2026 e o lote 3 de 08/09 — e passaram a 57 com os 10 do lote de 02/09
+ * que chegaram com o PR #45 (`rascunhos-lote3-02set.json`, já gravados em
+ * produção naquele dia). A régua de duas frases reprovava 41 dos 47. A da
+ * primeira frase reprova só estes três, e os três passam de 155 de verdade
+ * (171, 181 e 162 caracteres); a maior primeira frase dos 10 de 02/09 tem 147.
  */
 describe("régua da primeira frase contra os rascunhos aprovados em 17/08", () => {
   const pasta = join(__dirname, "..", "conteudo-seo");
@@ -145,8 +148,8 @@ describe("régua da primeira frase contra os rascunhos aprovados em 17/08", () =
       Object.entries(JSON.parse(readFileSync(join(pasta, f), "utf-8")).textos as Record<string, string>),
     );
 
-  it("lê os 47", () => {
-    expect(rascunhos).toHaveLength(47);
+  it("lê os 57", () => {
+    expect(rascunhos).toHaveLength(57);
   });
 
   it("reprova só os três cuja primeira frase passa de 155", () => {

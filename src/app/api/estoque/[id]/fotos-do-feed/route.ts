@@ -18,10 +18,17 @@ export const dynamic = "force-dynamic";
  * RevendaMais parado em `rascunho` por uma semana, invisível no site — ver o
  * cabeçalho de `lib/feedRevendaMais.ts`.
  *
+ * Desde 16/09 (fusão com o PR #45, decisão do dono) o segundo "não" caiu: a
+ * galeria aceita envio em carro de qualquer origem. Esta rota continua sendo o
+ * outro caminho — trazer de uma vez o que o anúncio já tem lá, substituindo a
+ * galeria.
+ *
  * É POST, e não PATCH em `/api/estoque/[id]`: o corpo não vem de quem chama. A
- * rota vai à fonte, lê o que está lá e grava. Aceitar a lista pelo corpo
- * deixaria o painel mandar qualquer URL para dentro da galeria de um carro do
- * feed, que é exatamente a superfície que `camposGravaveis` fecha.
+ * rota vai à fonte, lê o que está lá e grava. O que ela promete é "a lista do
+ * anúncio agora"; aceitar a lista pelo corpo trocaria essa promessa pela
+ * palavra do navegador e faria desta rota uma segunda porta genérica de foto.
+ * Lista escolhida pela pessoa já tem a sua: o PATCH da galeria, que
+ * `camposGravaveis` abre para qualquer origem.
  *
  * ---------------------------------------------------------------------------
  * Por que a escrita passa pela trava
@@ -113,7 +120,8 @@ export async function POST(
         {
           error:
             "O anúncio está no feed, e sem nenhuma foto lá também. Suba as fotos no " +
-            "RevendaMais e importe de novo — nada foi alterado aqui.",
+            "RevendaMais e importe de novo, ou envie direto pela galeria — nada foi " +
+            "alterado aqui.",
         },
         { status: 422 },
       );
