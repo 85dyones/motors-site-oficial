@@ -294,6 +294,57 @@ export function descartarParametrosDeCampanha(): void {
 }
 
 /**
+ * Expira um cookie em TODAS as cópias que ele pode ter: a de host e a de cada
+ * domínio pai.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a escrita sem `domain=` não bastava
+ * ---------------------------------------------------------------------------
+ * Cookie é identificado por nome, domínio e caminho, e só some com uma escrita
+ * que repita os três. `nome=; path=/; max-age=0` alcança só a cópia de HOST — a
+ * que `IntegrationsTracker` grava para o `_fbc`. O Meta Pixel grava de outro
+ * jeito: o `fbevents.js` escreve o `_fbp`, e às vezes o `_fbc`, com
+ * `;domain=.<domínio registrável>`. Até 16/09/2026 essa cópia sobrevivia ao
+ * botão de oposição por até 90 dias e seguia saindo no `fbp` do lead, enquanto
+ * a /privacidade promete que a recusa apaga "na hora".
+ *
+ * Por isso a escrita se repete com `domain=` para o host e para cada domínio
+ * pai com pelo menos dois rótulos: em `www.motorsstore.com.br`, são
+ * `www.motorsstore.com.br`, `motorsstore.com.br` e `com.br`. O último é sufixo
+ * público, e o navegador recusa a escrita em silêncio. Mandá-la mesmo assim é
+ * inofensivo e poupa manter aqui uma lista de sufixos, que envelheceria.
+ *
+ * O caminho é sempre `/`: é o único que o Pixel e o tracker usam.
+ */
+function apagarCookieEmTodoDominio(nome: string): void {
+  if (typeof document === "undefined") return;
+  try {
+    const expirado = `${nome}=; path=/; max-age=0`;
+    document.cookie = expirado;
+
+    const rotulos = window.location.hostname.split(".");
+    for (let i = 0; i <= rotulos.length - 2; i++) {
+      document.cookie = `${expirado}; domain=${rotulos.slice(i).join(".")}`;
+    }
+  } catch (e) {
+    console.warn(`[Telemetry] Failed to discard cookie ${nome}:`, e);
+  }
+}
+
+/**
+ * Apaga deste navegador os dois cookies de anúncio do Meta, `_fbp` e `_fbc`,
+ * na cópia de host e na de domínio. Quem chama é o botão de oposição, em
+ * `ControleDeRastreamento`, no mesmo clique que grava a recusa.
+ *
+ * `tests/oposicao-cookies-de-dominio.test.ts` prova com cookie de verdade que
+ * a cópia gravada com `domain=` sai junto.
+ */
+export function descartarCookiesDeAnuncio(): void {
+  apagarCookieEmTodoDominio("_fbp");
+  apagarCookieEmTodoDominio("_fbc");
+}
+
+/**
  * Guarda no dispositivo o parâmetro de campanha — desde a chegada, e a recusa
  * apaga.
  *

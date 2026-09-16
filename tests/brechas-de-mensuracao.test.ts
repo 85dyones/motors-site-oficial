@@ -574,7 +574,29 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
       .toMatch(/ag-cookie-consent-updated/);
     // E os cookies de atribuição saem junto, senão "desliguei" seria só uma
     // promessa: o `_fbc` continuaria no navegador.
-    expect(controle, "o controle não apaga o _fbc").toMatch(/_fbc=; path=\/; max-age=0/);
+    //
+    // A âncora mudou em 2026-09-16. A escrita `_fbc=; path=/; max-age=0` saiu
+    // daqui para `descartarCookiesDeAnuncio`, em `telemetry.ts`: sem `domain=`,
+    // ela não alcançava a cópia que o Meta Pixel grava, e o `_fbp` dele
+    // sobrevivia ao clique. O que a trava protege é o mesmo — o ramo de
+    // DESLIGAR apaga os cookies de anúncio. Que a função apaga todas as cópias,
+    // quem prova com cookie de verdade é `tests/oposicao-cookies-de-dominio.test.ts`.
+    const inicioDoRamo = controle.indexOf("if (desligar)");
+    const fimDoRamo = controle.indexOf("} else {", inicioDoRamo);
+    expect(inicioDoRamo, "não achei o ramo de desligar").toBeGreaterThan(-1);
+    // Sem esta guarda, um `-1` aqui faria o recorte ir até o fim do arquivo, e
+    // a chamada seria achada em qualquer lugar dele.
+    expect(fimDoRamo, "não achei o fim do ramo de desligar").toBeGreaterThan(inicioDoRamo);
+    const ramo = controle.slice(inicioDoRamo, fimDoRamo);
+    expect(ramo, "o ramo de desligar não grava a recusa").toMatch(/"ag_cookie_consent", "rejected"/);
+    expect(ramo, "o controle não apaga os cookies de anúncio").toMatch(/descartarCookiesDeAnuncio\(\)/);
+
+    const telemetria = lerCodigo("src/lib/telemetry.ts");
+    const inicioDoDescarte = telemetria.indexOf("export function descartarCookiesDeAnuncio");
+    expect(inicioDoDescarte, "descartarCookiesDeAnuncio sumiu").toBeGreaterThan(-1);
+    const descarte = telemetria.slice(inicioDoDescarte, telemetria.indexOf("\n}", inicioDoDescarte));
+    expect(descarte, "o descarte não apaga o _fbc").toMatch(/apagarCookieEmTodoDominio\("_fbc"\)/);
+    expect(descarte, "o descarte não apaga o _fbp").toMatch(/apagarCookieEmTodoDominio\("_fbp"\)/);
   });
 });
 
