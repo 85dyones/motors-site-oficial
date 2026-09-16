@@ -182,6 +182,22 @@ describe("gerarTexto", () => {
     expect(corpoVisto.instructions).toContain("Motors Store");
   });
 
+  /**
+   * Endurecimento de 16/09/2026 (revisão final do #76, achado #1): sem
+   * `store: false`, a OpenAI guarda cada chamada — dossiê do veículo
+   * incluído — por 30 dias do lado dela. O texto gerado e as travas de
+   * conteúdo não mudam; só este parâmetro da Responses API.
+   */
+  it("desliga a retenção da OpenAI (store: false)", async () => {
+    let corpoVisto: any = null;
+    const espiao: Transporte = async (url, init) => {
+      corpoVisto = JSON.parse(String(init?.body));
+      return respostaOk("ok")(url, init);
+    };
+    await gerarTexto({ dossie: SEM_NADA, campo: "descricao_seo", chave: "sk-teste", transporte: espiao });
+    expect(corpoVisto.store).toBe(false);
+  });
+
   it("devolve 502 com o motivo quando a API recusa", async () => {
     const recusa: Transporte = async () =>
       new Response(JSON.stringify({ error: { message: "modelo inexistente" } }), { status: 404 });
