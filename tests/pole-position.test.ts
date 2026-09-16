@@ -322,11 +322,20 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
   /*
    * `coerencia-da-pericia` já varre `src/` inteiro e pegaria isto — mas só na
    * suíte cheia. Aqui a falha aparece já ao rodar o teste da própria LP.
+   *
+   * Até 16/09/2026 a régua era "promete o laudo COM a condição de aprovação"
+   * — exigia "assim que aprovada" colado à promessa. Decisão do dono nessa
+   * data: nem com a condição colada a LP pode prometer publicação automática
+   * na ficha, porque a ficha só abre o bloco com perícia aprovada E texto de
+   * laudo preenchido — a condição sozinha não bastava. O caminho passou a
+   * ser o mesmo do resto do site: o laudo existe e está com o vendedor.
    */
-  it("promete o laudo COM a condição de aprovação", () => {
+  it("promete o laudo pelo caminho certo — consulta com o vendedor, nunca publicação automática", () => {
     const texto = codigo();
     expect(texto).toMatch(/laudo/i);
-    expect(texto).toMatch(/assim que aprovada/i);
+    expect(texto).toMatch(/dispon[íi]vel para consulta com o vendedor/i);
+    expect(texto).not.toMatch(/laudo (publicado|na ficha)/i);
+    expect(texto).not.toMatch(/assim que (for |é )?aprovad/i);
   });
 
   it("não põe prazo em campo de título — quem decide o prazo é o banco", () => {

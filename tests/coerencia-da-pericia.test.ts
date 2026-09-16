@@ -178,6 +178,95 @@ describe("a promessa do laudo carrega a condição", () => {
   });
 });
 
+/**
+ * A promessa não volta como publicação automática — nem com a ressalva.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que uma trava nova, e não só esticar a de cima
+ * ---------------------------------------------------------------------------
+ * A trava acima ("laudo … na ficha SEM dizer 'assim que aprovada'") nasceu
+ * para proibir a promessa SEM ressalva, e continua certa nisso — não afrouxa.
+ * Mas "laudo na ficha assim que aprovado" tem um segundo defeito que a
+ * ressalva não resolve: a ficha só abre o bloco do laudo com a perícia
+ * aprovada E texto de laudo preenchido, então mesmo COM a condição colada a
+ * frase prometia, para um carro aprovado sem texto ainda, uma publicação que
+ * não ia acontecer.
+ *
+ * Decisão do dono em 16/09/2026: em vez de descrever a condição, todo texto
+ * público aponta para o mesmo lugar — o laudo existe desde antes da vitrine,
+ * fica com a loja, e quem confirma é o vendedor (`src/lib/textoDoLaudo.ts`).
+ * Essa trava prende ISSO: nenhuma das duas frases pode voltar, com ou sem
+ * "aprovad" por perto.
+ */
+describe("a promessa do laudo não volta como publicação automática", () => {
+  /**
+   * Só `src/app` e `src/lib` — onde mora o texto que o visitante, o Google e
+   * o Meta leem. Duas isenções, uma por arquivo, com o motivo ao lado:
+   *
+   *   - `src/app/api/ney/route.ts`: a frase lá é condicional e verdadeira —
+   *     `estadoDaPericia` só devolve "laudo na ficha" com
+   *     `pericia === "PERÍCIA APROVADA"`, e `tests/fichas-para-o-assistente.test.ts`
+   *     prende essa condição por conta própria.
+   *   - `src/lib/textoDoLaudo.ts`: é a FONTE da frase nova, não reincidência —
+   *     o docblock lá cita a redação antiga para explicar por que ela não
+   *     volta, e essa trava já ignora comentário.
+   */
+  const FORA_DE_ESCOPO = new Set([
+    "src/app/api/ney/route.ts",
+    "src/lib/textoDoLaudo.ts",
+  ]);
+
+  function arquivosDeAppELib(): string[] {
+    const achados: string[] = [];
+    const visitar = (dir: string) => {
+      let entradas: string[];
+      try {
+        entradas = readdirSync(dir);
+      } catch {
+        return;
+      }
+      for (const entrada of entradas) {
+        const caminho = join(dir, entrada);
+        if (statSync(caminho).isDirectory()) {
+          visitar(caminho);
+        } else if (/\.(tsx?|json)$/.test(entrada)) {
+          achados.push(caminho);
+        }
+      }
+    };
+    visitar("src/app");
+    visitar("src/lib");
+    return achados;
+  }
+
+  it("nenhum texto em src/app e src/lib promete 'assim que aprovado' ou 'laudo publicado/na ficha'", () => {
+    // A mesma varredura do brief de 16/09/2026, para o texto de projeto e a
+    // trava nunca discordarem sobre o que é infração.
+    const PADRAO = /assim que (for |é )?aprovad|laudo (publicado|na ficha)|publicado na ficha/i;
+    const infratores: string[] = [];
+
+    for (const caminho of arquivosDeAppELib()) {
+      const comoNoRepo = caminho.split("\\").join("/");
+      if (FORA_DE_ESCOPO.has(comoNoRepo)) continue;
+
+      const bruto = readFileSync(caminho, "utf8");
+      // Sem comentários, pelo mesmo motivo da trava acima: a nota que explica
+      // a mudança cita a frase antiga, e citar não é reincidir.
+      const fonte = bruto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      // Junta concatenação quebrada em linha, para a frase valer inteira.
+      const corrido = fonte.replace(/"\s*\+\s*\r?\n?\s*"/g, "").replace(/\s+/g, " ");
+
+      const achado = corrido.match(PADRAO);
+      if (achado) {
+        const inicio = Math.max(0, (achado.index ?? 0) - 40);
+        infratores.push(`${comoNoRepo}: …${corrido.slice(inicio, inicio + 130)}…`);
+      }
+    }
+
+    expect(infratores, `promessa antiga de volta:\n${infratores.join("\n")}`).toEqual([]);
+  });
+});
+
 describe("a ficha diz o estado real da perícia", () => {
   const pdp = lerCodigo("src/components/PDPClientWrapper.tsx");
 
