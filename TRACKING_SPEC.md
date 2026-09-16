@@ -37,8 +37,8 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 
 | Arquivo | Papel |
 |---|---|
-| `src/components/BootstrapDeTags.tsx` | Sobe GA4 e GTM no `<head>` servido, antes da hidratação (PR #46). O `config` do GA4 feito aqui manda o `page_view` da chegada |
-| `src/components/IntegrationsTracker.tsx` | Inicializa Google Ads e Meta Pixel, e GA4 e GTM quando o `BootstrapDeTags` não os subiu; manda `page_view` e `PageView` a cada troca de caminho; persiste `_fbc` a partir do `fbclid` |
+| `src/components/BootstrapDeTags.tsx` | Sobe GA4, GTM e o Meta Pixel no `<head>` servido, antes da hidratação (PR #46; o pixel desde 2026-09-16). O `config` do GA4 feito aqui manda o `page_view` da chegada, e o pixel, o `PageView` da chegada |
+| `src/components/IntegrationsTracker.tsx` | Inicializa Google Ads, e GA4, GTM e Meta Pixel quando o `BootstrapDeTags` não os subiu; manda `page_view` e `PageView` a cada troca de caminho; persiste `_fbc` a partir do `fbclid` |
 | `src/lib/telemetry.ts` | Funções client-side de tracking (`trackVehicleView`, `trackLeadSubmission`, `trackContactClick`, `trackCarMatch`, `trackAppraisalSubmit`) |
 | `src/lib/tracking-identity.ts` | `generateEventId` e leitura de `_fbp`/`_fbc` (Fase 1) |
 | `src/lib/meta-capi.ts` | Envio server-side ao Meta, com hash de PII (Fase 2) |
@@ -50,7 +50,7 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 > **Visualização de página: uma por página vista (corrigido em 2026-09-16).**
 > A página em que cada tag sobe é contada pela própria subida: o `config` do
 > GA4 (no `BootstrapDeTags` ou no tracker) manda o `page_view`, e o snippet do
-> Meta manda o `PageView`. O `IntegrationsTracker` conta só as trocas de
+> Meta (idem) manda o `PageView`. O `IntegrationsTracker` conta só as trocas de
 > caminho seguintes, lidas de `usePathname`. Mudança só de query string ou de
 > hash não conta. Antes da correção, a chegada saía em dobro sempre que o
 > `/api/settings` trocava um id do `companySettings.json` (em produção, o
@@ -59,6 +59,31 @@ Diagnóstico do pixel atual (`Pixel Motors Store`, ID `1410450786690090`), janel
 > estão infladas, e a taxa de engajamento junto, porque sessão com duas
 > visualizações conta como engajada. Travado por
 > `tests/page-view-uma-vez.test.ts`.
+
+> **Meta Pixel no parse do HTML (2026-09-16).** Até essa data o pixel só
+> inicializava no `IntegrationsTracker`, depois de o `/api/settings` responder
+> (o `companySettings.json` tem `metaPixelId: ""`): entrou aos 3,7 s em 02/09 e
+> aos 5,4 s em 16/09. Quem saía antes não gerava `PageView`, com a API fora do
+> ar o Meta ficava em zero, e a ficha aberta na chegada mandava só a metade CAPI
+> do `ViewContent`, porque o `fbq` ainda não existia. Agora:
+>
+> - O `BootstrapDeTags` sobe o `fbevents.js`, `fbq('init', id)` e o `PageView`
+>   da chegada, com o `metaPixelId` do painel lido no servidor, depois da
+>   checagem da oposição. `__mtTagsNoAto.meta` só é gravado depois do `init` e
+>   do `PageView`.
+> - O tracker pula a inicialização quando a marca traz um pixel, **qualquer
+>   id**: a regra do GTM, porque `fbq('track')` vai para todo pixel
+>   inicializado. Pixel trocado no painel com HTML em cache fica com o do HTML
+>   até a próxima carga, com aviso no console.
+> - O `PageView` sai **sem `eventID`**, como sempre saiu: ele não tem espelho no
+>   CAPI (`/api/capi` não o aceita). Se um dia ganhar, o do bootstrap precisa
+>   do mesmo `eventID` do espelho. O `init` segue sem correspondência avançada.
+> - O `ViewContent` da ficha, o `Lead` e `/api/capi` não mudaram. O que muda é
+>   que o `fbq` já existe na hidratação: o `ViewContent` do navegador passa a
+>   sair também na chegada, com o `eventID` que a ficha manda ao CAPI, e o
+>   Meta deduplica o par.
+>
+> Travado por `tests/meta-no-ato.test.ts`.
 
 **Superfícies que disparam evento hoje** — todas passam `eventId`, `fbp`, `fbc`
 e `eventSourceUrl` no POST para `/api/leads`:

@@ -46,8 +46,9 @@ import { rastreamentoRecusado } from "../src/lib/telemetry";
  *     avisar. Cada `config` manda um `page_view`, e cada `event page_view`
  *     manda outro.
  *   - Meta: espião em volta do `fbq`. Como no navegador, ele só existe depois
- *     que o snippet do tracker cria o stub, e registra toda chamada, as do
- *     snippet e as do efeito de navegação.
+ *     que alguém cria o stub (desde 16/09, o script servido; antes, o snippet
+ *     do tracker), e registra toda chamada, as da subida e as do efeito de
+ *     navegação.
  */
 
 const cenario = vi.hoisted(() => ({
@@ -252,8 +253,8 @@ describe("chegada: a página em que as tags sobem é contada pela própria subid
     await chegar(PAINEL);
     await hidratar(REPOSITORIO);
     await painelResponde(PAINEL);
-    // O `page_view` é o do `config` do script servido; o `PageView`, o do
-    // snippet, que só sobe quando o pixel chega do painel.
+    // O `page_view` é o do `config` do script servido, e o `PageView` também
+    // sai dele desde 16/09. O painel traz o mesmo pixel, e o tracker não repete.
     expect(contar()).toEqual({ ga4: { "G-KBL1MFN9E3": 1 }, avulsos: [], meta: 1 });
   });
 
@@ -277,14 +278,13 @@ describe("chegada: a página em que as tags sobem é contada pela própria subid
     expect(contar()).toEqual({ ga4: { "G-KBL1MFN9E3": 1 }, avulsos: [], meta: 1 });
   });
 
-  it("o /api/settings falha com o JSON do repositório: o GA4 conta a chegada, e o Meta nem sobe", async () => {
+  it("o /api/settings falha com o JSON do repositório: o GA4 e o Meta contam a chegada, uma vez cada", async () => {
     await chegar(PAINEL);
     await hidratar(REPOSITORIO);
-    // O zero do Meta é anterior a este arquivo e fica registrado: sem
-    // `metaPixelId` no JSON, o pixel só inicializa quando o painel responde, e
-    // quem sai antes disso não existe para o Meta. Consertar isso é outra
-    // mudança. Aqui a garantia é que ninguém conte em dobro.
-    expect(contar()).toEqual({ ga4: { "G-KBL1MFN9E3": 1 }, avulsos: [], meta: 0 });
+    // Até 16/09 o Meta dava zero aqui: sem `metaPixelId` no JSON, o pixel só
+    // inicializava quando o painel respondia. Desde então ele sobe no parse do
+    // HTML, com o id do servidor (`tests/meta-no-ato.test.ts`).
+    expect(contar()).toEqual({ ga4: { "G-KBL1MFN9E3": 1 }, avulsos: [], meta: 1 });
   });
 
   it("o /api/settings falha e o primeiro render já tem o pixel: uma de cada", async () => {
@@ -335,10 +335,10 @@ describe("navegação no cliente: uma de cada por troca de caminho", () => {
     await hidratar(REPOSITORIO);
     await navegar("/estoque");
     await painelResponde(PAINEL);
-    // GA4: o `config` da chegada e o avulso de /estoque. Meta: só o snippet,
-    // que sobe já em /estoque. A home fica sem PageView, pela mesma lacuna do
-    // pixel ausente no JSON.
-    expect(contar()).toEqual({ ga4: { "G-KBL1MFN9E3": 2 }, avulsos: ["/estoque"], meta: 1 });
+    // GA4: o `config` da chegada e o avulso de /estoque. Meta: o PageView do
+    // parse, na home, e o da navegação, em /estoque. Até 16/09 saía um só, o do
+    // snippet que subia já em /estoque, e a home ficava sem.
+    expect(contar()).toEqual({ ga4: { "G-KBL1MFN9E3": 2 }, avulsos: ["/estoque"], meta: 2 });
   });
 });
 
