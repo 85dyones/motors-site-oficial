@@ -110,6 +110,41 @@ export function ehDescarte(tipo?: TipoDeEtapa | TipoDeDesfecho | null): boolean 
   return tipo === "descartado";
 }
 
+/**
+ * A etapa em que o lead nasce — o `default` de `leads.situacao` no banco
+ * (migração 20260807210000), e a que o Chatwoot escreve ao criar lead.
+ *
+ * Está aqui porque o funil editável pode desfazê-la sem saber o que quebrou.
+ * Nenhuma das duas rotas públicas do site manda `situacao` (`/api/leads` e
+ * `/api/avaliacao` gravam nome, telefone, interesse e canal): quem decide
+ * onde o lead cai é o default da coluna. Desativada — ou tirada da tela, que
+ * a rota traduz em desativar —, ela faz todo lead novo chegar numa coluna
+ * arquivada. Como desfecho, é pior: o lead nasce sem carimbo de desfecho numa
+ * etapa que não é coluna do quadro, e não aparece nem no quadro nem na lista
+ * de fechados. Nos dois casos nada dá erro — a captura grava normalmente e
+ * não sabe da tela.
+ *
+ * Se um dia o default da coluna mudar, muda aqui junto. São os dois lados da
+ * mesma decisão, e não há trava no banco que os amarre (decisão do dono,
+ * 16/09) — `validarFunil` é a guarda.
+ */
+export const ETAPA_DE_ENTRADA = "novo";
+
+/**
+ * Este motivo chega até a pessoa que precisa escolher?
+ *
+ * Três condições, e nenhuma é decorativa. `ativo` porque a caixa e o GET
+ * filtram por ele. `rotulo` porque é o texto do botão — e porque a rota de
+ * configuração DESCARTA motivo sem rótulo antes de gravar, então contá-lo
+ * aqui faria a tela e o servidor discordarem: o dono veria o erro sumir ao
+ * clicar "+ motivo" e levaria 422 com a mesma frase ao salvar. `chave` porque
+ * é o que `leads` grava; `chaveDaEtapa("???")` devolve string vazia, e um
+ * motivo assim vira botão que estoura na hora de fechar.
+ */
+export function motivoUtilizavel(m: MotivoDoFunil): boolean {
+  return Boolean(m.ativo && m.chave?.trim() && m.rotulo?.trim());
+}
+
 /** Uma etapa do funil, do jeito que `funil_etapas` guarda. */
 export interface EtapaDoFunil {
   chave: string;
@@ -335,16 +370,55 @@ export function chaveDaEtapa(rotulo: string): string {
  * O que impede o funil salvo de ser um funil quebrado.
  *
  * Devolve a lista de problemas em português, para a tela mostrar ANTES de
- * gravar. As três primeiras regras são estruturais; a quarta é a que salva o
- * dono de si mesmo: prazo de transferência menor que o de alerta transferiria
- * o lead antes de avisar o vendedor de que ele estava parado, o que é a
- * ordem errada de acontecer as coisas.
+ * gravar. As regras de estrutura vêm primeiro — inclusive a etapa em que o
+ * lead nasce, que é o que mantém a captura do site de pé. Depois, a que salva
+ * o dono de si mesmo: prazo de transferência menor que o de alerta
+ * transferiria o lead antes de avisar o vendedor de que ele estava parado, o
+ * que é a ordem errada de acontecer as coisas.
+ *
+ * E, desde que fechar negócio exige motivo (16/09), a que impede o beco: etapa
+ * terminal ativa sem nenhum motivo ativo do mesmo tipo.
  */
-export function validarFunil(etapas: EtapaDoFunil[]): string[] {
+export function validarFunil(
+  etapas: EtapaDoFunil[],
+  /**
+   * Os motivos como vão ficar DEPOIS de gravar (`motivosDepoisDeGravar`), ou
+   * `null` quando não deu para saber quais existem.
+   *
+   * `null` não é lista vazia. A RLS deste projeto não devolve erro quando
+   * bloqueia: devolve `200`, `[]` e `error` nulo. Tratar isso como "não há
+   * motivo nenhum" acusaria o dono de deixar o funil sem saída num PUT em que
+   * ele só mexeu num prazo — com três erros e um botão desabilitado, por uma
+   * leitura que não aconteceu. Sem saber, as regras de motivo são PULADAS.
+   */
+  motivos: MotivoDoFunil[] | null,
+): string[] {
   const erros: string[] = [];
   const ativas = etapas.filter((e) => e.ativa);
 
   if (ativas.length === 0) erros.push("O funil precisa de pelo menos uma etapa ativa.");
+
+  // A entrada do funil. Vem antes de ganho e perdido porque perder a saída
+  // estraga o relatório, e perder a ENTRADA estraga a captura: o lead do site
+  // continua sendo gravado, mas chega onde ninguém olha. Ver
+  // `ETAPA_DE_ENTRADA`.
+  const entrada = etapas.find((e) => e.chave === ETAPA_DE_ENTRADA);
+  if (!entrada || !entrada.ativa) {
+    erros.push(
+      `A etapa "${ETAPA_DE_ENTRADA}" precisa continuar no funil e ativa — é nela que nasce todo ` +
+        `lead do site e do WhatsApp. Fora do funil ou desativada, os leads novos chegam numa ` +
+        `coluna arquivada.`,
+    );
+  } else if (entrada.tipo !== "aberta") {
+    erros.push(
+      `A etapa "${ETAPA_DE_ENTRADA}" ("${entrada.rotulo}") não pode ser um desfecho: é nela que ` +
+        `nasce todo lead do site e do WhatsApp. Como desfecho, o lead novo não apareceria nem ` +
+        `no quadro nem na lista de fechados.`,
+    );
+  }
+  if (!ativas.some((e) => e.tipo === "aberta")) {
+    erros.push("Falta uma etapa EM ANDAMENTO ativa — sem ela o quadro não tem coluna nenhuma.");
+  }
   if (!ativas.some((e) => e.tipo === "ganho")) {
     erros.push("Falta uma etapa de GANHO ativa — sem ela não há onde registrar venda fechada.");
   }
@@ -352,6 +426,38 @@ export function validarFunil(etapas: EtapaDoFunil[]): string[] {
     erros.push(
       "Falta uma etapa de PERDIDO ativa — sem ela o motivo da perda deixa de ser coletado.",
     );
+  }
+
+  // Daqui para baixo, as regras de motivo dependem de conhecer os motivos.
+  //
+  // Etapa terminal ATIVA cujo tipo não tem NENHUM motivo utilizável é um beco
+  // sem saída, e é um beco que a exigência de motivo criou: até 16/09 o
+  // descarte gravava sem motivo, e agora a caixa e a rota exigem um. O card
+  // entra pelo botão de destino e não tem como sair.
+  //
+  // A cobrança é AQUI, na configuração, porque é o único lugar onde quem pode
+  // consertar está presente. Quem encontra o beco é o Comercial, no card — e
+  // `podeFazer(comercial, "Configurar o funil de vendas")` é `nao_ve`.
+  //
+  // Só as etapas ATIVAS: uma terminal desativada não vira botão
+  // (`destinosDoNegocio` filtra por `ativa`), então não há beco, e cobrar
+  // obrigaria o dono a manter motivo vivo para um destino que ele desligou.
+  //
+  // Por TIPO, e não por escopo: quando o escopo do lead não tem motivo ativo,
+  // `motivosVisiveis` cai para a lista cheia do tipo — e `decidirDesfecho`
+  // aceita o que a caixa oferece. Um tipo com motivo não tem beco em escopo
+  // nenhum.
+  if (motivos !== null) {
+    for (const e of ativas) {
+      const tipo = e.tipo;
+      if (!ehTipoDeDesfecho(tipo)) continue;
+      if (motivos.some((m) => motivoUtilizavel(m) && m.tipo === tipo)) continue;
+      erros.push(
+        `"${e.rotulo}": nenhum motivo de ${MOTIVO_DO_DESFECHO[tipo]} está ativo. A etapa ` +
+          `aparece como botão no card e fechar exige motivo — o lead entraria num beco ` +
+          `sem saída.`,
+      );
+    }
   }
 
   const vistas = new Set<string>();
@@ -378,7 +484,47 @@ export function validarFunil(etapas: EtapaDoFunil[]): string[] {
     }
   }
 
+  // Chave repetida entre MOTIVOS, pela mesma razão que entre etapas — mas o
+  // sintoma era pior: a gravação usa `upsert(..., { onConflict: "chave" })`, e
+  // duas linhas da mesma chave devolvem `21000 ON CONFLICT DO UPDATE command
+  // cannot affect row a second time`. O dono lia isso, em inglês, num 500.
+  const chavesDeMotivo = new Set<string>();
+  for (const m of motivos ?? []) {
+    const chave = m.chave?.trim();
+    if (!chave) continue;
+    if (chavesDeMotivo.has(chave)) erros.push(`Dois motivos com a mesma chave: "${chave}".`);
+    chavesDeMotivo.add(chave);
+  }
+
   return erros;
+}
+
+/**
+ * Como os motivos ficam DEPOIS de gravar — o estado que a validação precisa ver.
+ *
+ * Existe por causa de duas regras do PUT de `/api/funil/config` que, juntas,
+ * fazem a lista recebida no corpo NÃO ser o que vai valer:
+ *
+ *  1. Corpo sem motivo nenhum significa *não toque nos motivos* — o upsert e a
+ *     desativação estão os dois atrás de `motivos.length > 0`. Validar contra a
+ *     lista vazia recusaria, alegando funil sem saída, um PUT que só mexeu nas
+ *     etapas e nunca encostou num motivo.
+ *  2. "O que sumiu da tela é DESATIVADO, nunca apagado". Quem some do corpo
+ *     continua na tabela, inativo — e é assim que o dono deixa um funil sem
+ *     saída sem apagar nada. A validação só enxerga isso se olhar o resultado.
+ *
+ * Não grava: devolve a projeção. Quem grava é a rota, logo depois de validar.
+ */
+export function motivosDepoisDeGravar(
+  atuais: MotivoDoFunil[],
+  recebidos: MotivoDoFunil[],
+): MotivoDoFunil[] {
+  if (recebidos.length === 0) return atuais;
+  const noCorpo = new Set(recebidos.map((m) => m.chave));
+  return [
+    ...recebidos,
+    ...atuais.filter((m) => !noCorpo.has(m.chave)).map((m) => ({ ...m, ativo: false })),
+  ];
 }
 
 /** Da esquerda para a direita, como o kanban desenha. */

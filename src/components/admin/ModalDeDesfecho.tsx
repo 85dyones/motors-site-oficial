@@ -167,12 +167,21 @@ export default function ModalDeDesfecho({
         </div>
 
         {disponiveis.length === 0 ? (
-          // Sem motivo cadastrado a caixa não tem o que perguntar. Dizer isso é
+          // Sem motivo ativo a caixa não tem o que perguntar. Dizer isso é
           // melhor que mostrar uma lista vazia e deixar o card preso.
+          //
+          // O texto mandava "Cadastre em Configurar funil", e quem chega aqui é
+          // o Comercial — que move lead e NÃO abre aquela tela
+          // (`podeFazer(comercial, "Configurar o funil de vendas")` é
+          // `nao_ve`). Instrução que o leitor não pode cumprir é um beco com
+          // placa. Agora ele diz a quem pedir, e `validarFunil` barra este
+          // estado na origem: quem configura não consegue salvar um funil que
+          // chegue aqui.
           <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-4 text-center">
             <p className="text-[12px] leading-relaxed text-mt-neutral-800">
-              Nenhum motivo de {rotulos.vazio} está cadastrado. Cadastre em{" "}
-              <strong>Configurar funil</strong> para conseguir fechar o negócio aqui.
+              Nenhum motivo de {rotulos.vazio} está ativo, então não dá para fechar por
+              aqui. Peça ao Administrador ou ao Gestor para reativar um em{" "}
+              <strong>Configurar funil</strong>.
             </p>
           </div>
         ) : (
