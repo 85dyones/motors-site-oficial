@@ -135,6 +135,7 @@ export async function POST(request: Request) {
       quickTags,
       stockOverrides,
       carouselVehicleIds,
+      destaquesDaSemana,
       bankBalances,
       procedencia,
       instagramCuradoria,
@@ -302,6 +303,19 @@ export async function POST(request: Request) {
         if (error) {
           console.error("[Settings API] Supabase write error for carouselVehicleIds:", error.message);
           return NextResponse.json({ error: `Falha ao salvar carrossel de veículos: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      // A curadoria da GRADE da home ("Destaques da semana"), separada da
+      // do banner de propósito — mesma nota de `destaquesDaSemanaRow` em
+      // `lib/settings.ts`.
+      if (destaquesDaSemana) {
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "destaques_da_semana", data: destaquesDaSemana, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for destaquesDaSemana:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar destaques da semana: ${error.message}` }, { status: 500 });
         }
       }
 

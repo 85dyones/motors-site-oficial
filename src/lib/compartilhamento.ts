@@ -4,6 +4,7 @@ import type {
   CompanySettings,
   CompartilhamentoSettings,
 } from "../types";
+import { NOME_DA_SECAO, RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "./guias";
 
 /**
  * Prévia de link — o que WhatsApp, Facebook, Instagram e LinkedIn mostram
@@ -126,10 +127,78 @@ export const PAGINAS_COMPARTILHAVEIS = [
     descricaoPadrao:
       "Como a Motors Store coleta, usa e protege seus dados pessoais, e como exercer seus direitos sob a LGPD.",
   },
+  {
+    // Um id serve o índice e cada guia. Os guias sobrepõem `tituloPadrao` e
+    // `descricaoPadrao` com os seus — o texto de fábrica abaixo aparece no
+    // índice, e vira a rede se algum guia esquecer de sobrepor.
+    //
+    // CORREÇÃO de 07/09, achada pela revisão: o comentário acima chama isto de
+    // "rede", e para os guias ela é INALCANÇÁVEL. Um guia não pode esquecer de
+    // sobrepor — `[slug]/page.tsx` passa `guia.titulo` e `guia.descricao`
+    // incondicionalmente, `guiaValidacao` recusa publicar sem descrição, e o
+    // CHECK `guias_publicado_tem_texto` da migração recusa no banco. Então
+    // estas duas strings NÃO são publicadas por rota nenhuma.
+    //
+    // Quem as lê é o preview do painel (`CardsCompartilhamento.tsx`), e o
+    // docblock lá em cima promete que o preview "mostre exatamente o que o site
+    // publica". Por isso elas apontam para as MESMAS constantes que o índice
+    // usa: divergir aqui não quebra o site — faz o painel mentir.
+    id: "guias",
+    nome: NOME_DA_SECAO,
+    caminho: "/guias",
+    rotuloCard: "Guia",
+    tituloPadrao: TITULO_SEO_DA_SECAO,
+    descricaoPadrao: RESUMO_DA_SECAO,
+  },
 ] as const;
 
 export type IdPaginaCompartilhavel =
   (typeof PAGINAS_COMPARTILHAVEIS)[number]["id"];
+
+/**
+ * O texto de fábrica DE VERDADE de uma página — o que o site publica quando o
+ * painel não escreveu um card próprio para ela.
+ *
+ * Nem sempre é a constante acima, e é aí que mora o defeito que esta função
+ * existe para fechar. Duas páginas têm o texto editável em OUTRA tela:
+ *
+ *   · **home** — "Frase da aba do navegador", em Dados da concessionária.
+ *   · **guias** — o cabeçalho da seção, em `/admin/guias` (desde 07/09).
+ *
+ * O preview do painel lia só as constantes, então quem editasse via o site
+ * mudar e o painel continuar mostrando o antigo. O docblock de `tituloDaAba`
+ * em `CardsCompartilhamento` já descrevia isso para a home — e nada guardava:
+ * a revisão cortou a passagem do valor nos três pontos do caminho e a suíte
+ * ficou verde nos três.
+ *
+ * Mora aqui, e não dentro do componente, porque o componente escolhe a página
+ * por estado interno (`useState("home")`) — sem harness de interação, um teste
+ * de render nunca alcançaria o ramo dos guias. Como função pura, os ramos são
+ * todos alcançáveis.
+ */
+export function textoDeFabricaDaPagina(opcoes: {
+  id: IdPaginaCompartilhavel;
+  pagina: { tituloPadrao: string; descricaoPadrao: string };
+  tituloDaAba?: string;
+  cabecalhoDosGuias?: { tituloSeo: string; resumo: string };
+}): { titulo: string; descricao: string } {
+  const { id, pagina, tituloDaAba, cabecalhoDosGuias } = opcoes;
+
+  // `trim()` em cada um: campo em branco no painel significa "não escrevi",
+  // e não "publique vazio".
+  if (id === "home" && tituloDaAba?.trim()) {
+    return { titulo: tituloDaAba.trim(), descricao: pagina.descricaoPadrao };
+  }
+
+  if (id === "guias") {
+    return {
+      titulo: cabecalhoDosGuias?.tituloSeo.trim() || pagina.tituloPadrao,
+      descricao: cabecalhoDosGuias?.resumo.trim() || pagina.descricaoPadrao,
+    };
+  }
+
+  return { titulo: pagina.tituloPadrao, descricao: pagina.descricaoPadrao };
+}
 
 /**
  * A página do veículo não é customizável no painel: ela compartilha a foto e

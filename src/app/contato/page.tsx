@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import ContatoClientWrapper from "../../components/ContatoClientWrapper";
 import { getCachedSettings } from "../../lib/settings";
+import { blocoJsonLd } from "../../lib/schemaListagem";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { SITE_URL } from "../../lib/site";
 
@@ -24,7 +26,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function ContatoPage() {
+export default async function ContatoPage() {
+  const { companySettings } = await getCachedSettings();
+
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -44,11 +48,25 @@ export default function ContatoPage() {
     ]
   };
 
+  /* A loja entra aqui pelo motivo mais direto de todos: esta é a página que
+     responde "onde fica e como falo com vocês", e ela publicava só a trilha.
+     O `AutoDealer` carrega endereço, telefone, `geo` e horário — os mesmos
+     dados que a página mostra em texto, agora legíveis por máquina.
+
+     Sem `disponiveis`: a faixa de preço não diz nada numa página de contato, e
+     ler o estoque aqui acrescentaria uma dependência de banco a uma rota que
+     não precisa dela. Mesmo critério de `/avaliacao`. */
+  const grafo = blocoJsonLd([
+    breadcrumbSchema,
+    schemaDaLoja(companySettings),
+    schemaDoSite(companySettings),
+  ]);
+
   return (
     <div className="flex flex-col flex-grow items-center justify-start bg-brand-bg text-brand-text transition-colors duration-300 py-12 px-4 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        dangerouslySetInnerHTML={{ __html: grafo }}
       />
       <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
         

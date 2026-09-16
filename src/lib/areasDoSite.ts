@@ -84,6 +84,20 @@ export const AREAS_DA_HOME: DefinicaoDeArea[] = [
     tipo: "ESTOQUE",
     editarEm: "/admin/estoque",
   },
+  // As faixas de preço entraram em 2026-09-05. `/estoque/ate-60-mil` e as duas
+  // irmãs recebiam link só das carrocerias, de `/financiamento` e de
+  // `/garantia` — nunca da home, que é a página de maior autoridade do site.
+  // A posição AQUI é a que a seção assume para quem já tem ordem salva:
+  // `normalizarAreas` a insere logo depois de `estoque_selecionado`, a vizinha
+  // que a precede nesta lista. O lugar definitivo continua sendo decisão do
+  // dono, na tela A3.
+  {
+    id: "faixas_de_preco",
+    nome: "Por faixa de preço",
+    descricao: "Três links para os hubs de faixa, com a contagem de cada um.",
+    tipo: "ESTOQUE",
+    editarEm: null,
+  },
   {
     id: "consultoria",
     nome: "Garagem Profiler",
@@ -145,9 +159,27 @@ export const CONFIG_PADRAO: ConfigDasAreas = {
  * site por descuido:
  *
  * - id desconhecido na ordem é descartado (seção removida do código);
- * - seção do catálogo ausente da ordem entra no fim (seção nova entra
- *   visível, em vez de sumir até alguém salvar de novo);
+ * - seção do catálogo ausente da ordem entra na VIZINHANÇA que o catálogo lhe
+ *   dá, e não no fim (ver abaixo);
  * - seção `fixa` nunca fica oculta, mesmo que o JSON diga o contrário.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que não "no fim"
+ * ---------------------------------------------------------------------------
+ * Era `ordem.push(a.id)` até 2026-09-05, e a intenção estava certa — seção
+ * nova nasce visível em vez de sumir até alguém salvar o painel. O efeito, não:
+ * o fim da home é DEPOIS de `contato`, a faixa vermelha de fechamento. A
+ * revisão da F1 mediu no HTML do build, com as settings de produção, e achou o
+ * bloco de faixas de preço espremido entre o CTA final e o rodapé.
+ *
+ * "No fim" só parecia inofensivo porque nenhuma seção tinha nascido ainda: a
+ * ordem salva em produção lista as nove áreas que existiam quando o dono
+ * arrumou a home, e qualquer décima cairia no mesmo lugar errado.
+ *
+ * Agora a seção ausente entra logo depois da vizinha que a PRECEDE no catálogo
+ * — a posição que quem escreveu o código escolheu para ela. O dono continua
+ * mandando: assim que ele salvar a tela A3, a ordem dele passa a incluir o id e
+ * este ramo não roda mais para essa seção.
  */
 export function normalizarAreas(bruto: unknown): ConfigDasAreas {
   const dado = (bruto ?? {}) as Partial<ConfigDasAreas>;
@@ -157,9 +189,22 @@ export function normalizarAreas(bruto: unknown): ConfigDasAreas {
   const ordem = ordemBruta.filter(
     (id, i) => typeof id === "string" && conhecidos.has(id) && ordemBruta.indexOf(id) === i,
   );
-  for (const a of AREAS_DA_HOME) {
-    if (!ordem.includes(a.id)) ordem.push(a.id);
-  }
+  AREAS_DA_HOME.forEach((a, i) => {
+    if (ordem.includes(a.id)) return;
+
+    // A âncora é a área mais próxima ANTES desta no catálogo que já esteja na
+    // ordem salva. Sem âncora (a seção nova é a primeira do catálogo), o lugar
+    // certo é o começo — não o fim.
+    let posicao = 0;
+    for (let j = i - 1; j >= 0; j--) {
+      const indice = ordem.indexOf(AREAS_DA_HOME[j].id);
+      if (indice >= 0) {
+        posicao = indice + 1;
+        break;
+      }
+    }
+    ordem.splice(posicao, 0, a.id);
+  });
 
   const fixas = new Set(AREAS_DA_HOME.filter((a) => a.fixa).map((a) => a.id));
   const ocultasBrutas = Array.isArray(dado.ocultas) ? dado.ocultas : [];

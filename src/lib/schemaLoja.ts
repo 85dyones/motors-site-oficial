@@ -217,21 +217,41 @@ export interface OpcoesDoSchemaDaLoja {
  * a ficha do veículo referencia por `@id` em vez de repetir o bloco.
  */
 export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaLoja = {}) {
+  /**
+   * `empresa` chega `null` mais vezes do que o tipo admite, e derrubava a
+   * página.
+   *
+   * `getCachedSettings` nunca rejeita — engole a falha e segue —, mas devolve
+   * `companySettings: null` quando `site_settings` tem linhas e nenhuma com
+   * `id='company'`: nesse caminho o fallback do JSON local é pulado, porque a
+   * leitura do banco "deu certo". Aí `empresa.name` estoura, e o que cai não é
+   * o schema: é a rota inteira.
+   *
+   * Achado pela revisão da F2, que renderizou `/carro-perfeito` com settings
+   * nula e recebeu `TypeError`. A F2 espalhou o risco de duas rotas para seis
+   * ao levar o nó para `/sobre`, `/contato`, `/carro-perfeito` e
+   * `/destaques/[tag]` — a guarda mora aqui, e não em cada chamador, porque é
+   * uma linha que fecha para todos.
+   *
+   * Campo ausente é o comportamento certo: `JSON.stringify` descarta
+   * `undefined`, então o nó sai menor em vez de a página sair 500.
+   */
+  const dados = empresa ?? ({} as CompanySettings);
   const preco = faixaDePreco(opcoes.disponiveis ?? []);
 
   return {
     "@context": "https://schema.org",
     "@type": "AutoDealer",
     "@id": ID_DA_LOJA,
-    name: empresa.name,
+    name: dados.name,
     image: `${SITE_URL}/logo.png`,
     logo: `${SITE_URL}/logo.png`,
     url: SITE_URL,
     // `whatsappRaw` é o número da loja em formato discável, o mesmo que
     // alimenta todo botão de WhatsApp do site (`lib/whatsapp.ts`).
-    telephone: empresa.whatsappRaw ? `+${empresa.whatsappRaw}` : undefined,
-    address: enderecoDoSchema(empresa.address),
-    geo: geoDoSchema(empresa),
+    telephone: dados.whatsappRaw ? `+${dados.whatsappRaw}` : undefined,
+    address: enderecoDoSchema(dados.address),
+    geo: geoDoSchema(dados),
     // A ficha do Google como mapa do lugar. `geo` continua saindo do painel e
     // continua ausente enquanto ele não tiver as coordenadas — as duas coisas
     // são independentes de propósito: `hasMap` aponta para o pin oficial,
@@ -243,8 +263,8 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
     paymentAccepted: "Dinheiro, Cartão de Crédito, Financiamento, Consórcio, Troca",
     areaServed: CIDADES_ATENDIDAS.map((name) => ({ "@type": "City", name })),
     sameAs: [
-      empresa.instagram,
-      empresa.facebook,
+      dados.instagram,
+      dados.facebook,
       PERFIL_NO_GOOGLE,
       ...PERFIS_EM_PORTAIS,
     ].filter(Boolean),
@@ -263,5 +283,129 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
         closes: "15:00",
       },
     ],
+  };
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   O que a loja PRESTA — `Service`
+   ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Um serviço da loja, para as páginas que existem por causa dele.
+ *
+ * `/financiamento` e `/avaliacao` publicavam trilha, FAQ, a loja e o site — e
+ * nenhum nó dizendo o que elas FAZEM. Para o grafo, `/avaliacao` era uma
+ * página da Motors com uma pergunta frequente, e não "avaliação de veículo
+ * para troca, prestada pela Motors Store, em Curitiba e região".
+ *
+ * Três decisões que moram aqui, e não em quem chama:
+ *
+ *   1. `provider` é REFERÊNCIA (`@id`), nunca o bloco da loja repetido. Duas
+ *      descrições de `AutoDealer` no mesmo grafo são duas lojas para quem lê —
+ *      é a mesma razão de `ID_DA_LOJA` existir sem sufixo.
+ *   2. `areaServed` sai de `CIDADES_ATENDIDAS`, a mesma lista da loja. Um
+ *      serviço que declara atender um raio diferente do da loja que o presta é
+ *      contradição dentro do próprio grafo.
+ *   3. **Nada de preço e nada de `aggregateRating`.** Financiamento e avaliação
+ *      não têm preço, e inventar um é declarar oferta falsa. Nota
+ *      auto-declarada em negócio local é motivo de ação manual no Search
+ *      Console — a média do Perfil da Empresa trabalha no Perfil da Empresa.
+ *      `tests/servico-no-grafo.test.ts` cobra as duas ausências, inclusive
+ *      varrendo os arquivos de schema.
+ */
+export function schemaDeServico({
+  tipo,
+  nome,
+  descricao,
+}: {
+  /** "Financiamento de veículos", "Avaliação de veículo para troca". */
+  tipo: string;
+  nome: string;
+  descricao: string;
+}) {
+  return {
+    "@type": "Service",
+    "@id": `${SITE_URL}/#servico-${slugDoServico(tipo)}`,
+    serviceType: tipo,
+    name: nome,
+    description: descricao,
+    provider: REFERENCIA_DA_LOJA,
+    areaServed: CIDADES_ATENDIDAS.map((name) => ({ "@type": "City", name })),
+  };
+}
+
+/** O sufixo do `@id` do serviço. Estável enquanto o `tipo` não mudar. */
+function slugDoServico(tipo: string): string {
+  return tipo
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // marcas de acento soltas pelo NFD
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   O site como entidade — `WebSite`
+   ──────────────────────────────────────────────────────────────────────── */
+
+/** O identificador do site no grafo. Estável, como o `#dealer`. */
+export const ID_DO_SITE = `${SITE_URL}/#website`;
+
+/** Referência ao site para usar em `isPartOf`. */
+export const REFERENCIA_DO_SITE = { "@id": ID_DO_SITE } as const;
+
+/**
+ * O nó `WebSite`, e por que ele não é enfeite.
+ *
+ * Sozinho não gera rich result nenhum — nem tenta. O trabalho dele é dizer que
+ * este domínio é UMA coisa, publicada por UMA empresa: sem ele, o `AutoDealer`
+ * e as ~150 páginas são nós soltos que um consumidor precisa adivinhar que se
+ * relacionam. É o que sustenta desambiguação de marca, e a Motors Store tem
+ * esse problema de verdade — colide com "Usa Motors" e "ACX Motors", e o
+ * relatório de visibilidade em IA de 05/09 mediu o resultado: nas buscas de
+ * marca quem responde são os agregadores, com dados velhos, e o site próprio
+ * não aparece.
+ *
+ * `publisher` aponta para o `#dealer` por `@id` em vez de repetir o bloco. É a
+ * mesma disciplina da ficha: um nó, um lugar, e as referências apontam para ele
+ * — bloco duplicado é duas versões que envelhecem em ritmos diferentes.
+ *
+ * ---------------------------------------------------------------------------
+ * `potentialAction` fica de fora, e a razão mudou
+ * ---------------------------------------------------------------------------
+ * O playbook manda declarar um `SearchAction` com `/estoque?q={termo}`. A
+ * objeção conhecida era que a busca do catálogo seria client-side, sem URL — e
+ * ela **não procede**: `Catalogo` lê `searchParams.get("q")` e abre já filtrado.
+ * A URL existe e funciona.
+ *
+ * O motivo de não declarar é outro, e é sobre o que a declaração PROMETE. O
+ * `SearchAction` diz "este site tem uma página de resultados de busca em tal
+ * endereço". `Catalogo` usa o `q` como valor INICIAL de um estado de cliente:
+ * quem chega sem JavaScript — que é a condição de quem lê o HTML servido —
+ * recebe os **nove** cards do fallback do `<Suspense>` (`PRIMEIRA_LEVA`), a
+ * mesma primeira leva de sempre, e não o resultado da busca. Declarar seria
+ * descrever um comportamento que só existe depois da hidratação.
+ *
+ * (Uma versão anterior dizia "a grade inteira" no lugar dos nove. O argumento
+ * não dependia do número — o servidor ignora o `q` de qualquer jeito —, mas o
+ * fato citado estava errado, e ficou errado por mais uma rodada porque a
+ * correção foi anexada aqui embaixo em vez de aplicada na frase acima.)
+ *
+ * Some-se a isso que o Google descontinuou a sitelinks searchbox: o campo não
+ * rende nada hoje, e o pouco que renderia não vale afirmar o que não se cumpre.
+ * Quando a busca escrever na URL e o servidor devolver o recorte, entra aqui.
+ */
+export function schemaDoSite(empresa: Pick<CompanySettings, "name"> | null | undefined) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": ID_DO_SITE,
+    url: SITE_URL,
+    // Mesma guarda de `schemaDaLoja`, pelo mesmo motivo: `companySettings`
+    // chega `null` quando `site_settings` existe sem a linha `id='company'`, e
+    // `empresa.name` derrubava a rota inteira. Campo ausente, não página 500.
+    name: empresa?.name,
+    inLanguage: "pt-BR",
+    publisher: REFERENCIA_DA_LOJA,
   };
 }

@@ -8,9 +8,22 @@ import tsconfigPaths from "vite-tsconfig-paths";
  * ("confirme por teste, não por inspeção visual"). Este arquivo inaugura essa
  * infraestrutura — até aqui o projeto não tinha nenhuma.
  *
- * Ambiente `node`: os testes atuais cobrem lógica pura, migrações e invariantes
- * do repositório. Testes de componente (Pacotes 6 e 7) vão precisar de
- * `environment: "jsdom"` e do plugin React — adicionar quando chegarem.
+ * Ambiente `node` por PADRÃO: a maior parte dos testes cobre lógica pura,
+ * migrações e invariantes do repositório, e `jsdom` cobra ~1 s de ambiente no
+ * arquivo que o declara — medido três vezes, 1,03 a 1,05 s. (A primeira versão
+ * desta linha dizia "~17 s". Era número inventado, e a revisão mediu: o
+ * `environment` somado dos 134 arquivos é 3,1 s, então 17 não cabia nem no
+ * total. Número sem medição num docblock é o que o CLAUDE.md proíbe.)
+ *
+ * Ele chegou em 07/09, por decisão do dono, e chegou por necessidade e não por
+ * gosto: quatro rodadas de revisão mostraram que a FIAÇÃO de um client
+ * component — o `onClick` de um botão, o `setState` de um efeito — é invisível
+ * para `renderToStaticMarkup`, e que mutações DESTRUTIVAS ali passavam verdes
+ * na suíte inteira. O caso era um clique que apagava o texto do dono.
+ *
+ * Quem precisa dele declara NO ARQUIVO, com `// @vitest-environment jsdom` na
+ * primeira linha. Assim o custo fica com quem o usa e nenhum outro teste muda
+ * de ambiente. Ver `tests/painel-de-guias-fiacao.test.ts`.
  */
 export default defineConfig({
   plugins: [tsconfigPaths()],

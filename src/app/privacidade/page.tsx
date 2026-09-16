@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCachedSettings } from "../../lib/settings";
+import { blocoJsonLd } from "../../lib/schemaListagem";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { LinkRegua, Rotulo } from "../../components/modernist/primitivos";
 import ControleDeRastreamento from "../../components/ControleDeRastreamento";
@@ -46,7 +48,7 @@ const breadcrumbSchema = {
 
 // Data da última revisão do texto. Atualizar sempre que o conteúdo mudar —
 // a LGPD espera que o titular consiga saber qual versão aceitou.
-const ULTIMA_ATUALIZACAO = "1º de agosto de 2026";
+const ULTIMA_ATUALIZACAO = "15 de setembro de 2026";
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
@@ -76,12 +78,26 @@ export default async function PrivacidadePage() {
   const cnpj = company.cnpj || "";
   const telefone = company.phone || "";
 
+  /**
+   * A loja e o site entram aqui, mas o `try` acima é quem manda: se as settings
+   * falharem, `company` fica `{}` e os nós saem com os campos ausentes em vez
+   * de derrubar a página. A política de privacidade nunca pode deixar de ser
+   * exibida — é obrigação legal, não conteúdo editorial.
+   *
+   * Ficou de fora da primeira entrega da F2, junto com `/carro-perfeito`, sob
+   * uma frase que dizia que as páginas sem o nó eram "erro, área logada ou
+   * bloqueadas no robots". As duas estão no sitemap e permitidas no
+   * `robots.ts`; a revisão apontou.
+   */
+  const grafo = blocoJsonLd([
+    breadcrumbSchema,
+    schemaDaLoja(company as CompanySettings),
+    schemaDoSite(company as CompanySettings),
+  ]);
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: grafo }} />
 
       {/* `<div>`, não `<main>`: o layout raiz já abre um `<main>`. */}
       <div className="w-full bg-mt-bg px-[18px] py-12 font-modernist text-mt-ink sm:px-6 sm:py-16 lg:px-8">
@@ -187,6 +203,19 @@ export default async function PrivacidadePage() {
                 <strong className="text-mt-ink">Segurança.</strong> Prevenir envio automatizado
                 de formulários, spam e uso abusivo.
               </li>
+              {/* Entra em 2026-09-11, junto da tabela `erros`. A finalidade precisa
+                  estar declarada ANTES de a coleta começar — é a régua da §2.3 do
+                  spec de observabilidade, e o motivo de este parágrafo não ter
+                  ficado para depois. */}
+              <li>
+                <strong className="text-mt-ink">Consertar o que quebra.</strong> Quando uma
+                página apresenta falha, registramos o diagnóstico técnico — a mensagem e o
+                rastreamento do erro, o endereço da página, o navegador, o método e a versão do
+                site, além do identificador anônimo de navegação — para conseguir reproduzir e
+                corrigir o problema. Não registramos o conteúdo dos formulários de propósito, e
+                mascaramos telefone, CPF, CNPJ e e-mail antes de gravar; ainda assim, uma mensagem
+                de erro do banco de dados pode citar um valor por acidente.
+              </li>
             </ul>
           </Secao>
 
@@ -194,20 +223,78 @@ export default async function PrivacidadePage() {
             <p>
               A LGPD exige que todo tratamento tenha uma justificativa legal. As nossas são:
             </p>
+            {/* Até 31/08/2026 havia aqui um item "Consentimento" para cookies
+                de publicidade e análise — descrevia um aceite que a decisão
+                do dono, na mesma data, revogou. QA encontrou a sobra em
+                15/09/2026: nenhum cookie de publicidade ou análise depende
+                mais de consentimento, então o item saiu, e a medição de
+                anúncios e de uso do site entrou no legítimo interesse, junto
+                do que já estava lá. A seção "Seus direitos como titular",
+                abaixo, não muda — os direitos que a LGPD associa a
+                consentimento continuam existindo em tese. (Consentimento
+                como base legal não desapareceu do site inteiro: a Garagem
+                Motors grava consentimento de canal de comunicação —
+                `garagem/meus-dados/page.tsx`, `api/garagem/consentimento` —,
+                só não é tratamento descrito nesta página.) Se algum dia
+                voltar a haver cookie sob consentimento, o item volta junto.
+
+                15/09/2026, rodada 2 — a revisão adversarial bloqueou a
+                primeira versão deste bullet por dois motivos, os dois
+                confirmados no código antes desta reescrita:
+
+                (B1) "Legítimo interesse" juntava publicidade com segurança,
+                prevenção a fraudes e diagnóstico de falhas, e dizia que TODOS
+                se opunham pelo botão de cookies. Falso para os três últimos:
+                a captura de erro arma sempre, sem consultar
+                `ag_cookie_consent` (`instrumentation-client.ts:76`,
+                `configurar({ ativo: true })`) e manda o `ag_uid` a
+                `/api/erros` (`observabilidade-cliente.ts:152` lê o cookie,
+                `:236` envia); o `ag_uid` de 1 ano é gravado sem portão
+                nenhum (`AntigravityTracker.tsx:24-34`); e o Turnstile é
+                exigido em todo lead, `ISENTOS_DE_CAPTCHA` vazio
+                (`api/leads/route.ts:41-54`). `rastreamentoRecusado()` só é
+                lido em `IntegrationsTracker.tsx:161,329` e
+                `telemetry.ts:499,605,650,692,744` — nenhum desses três usos
+                está nessa lista. Por isso o bullet separou: publicidade se
+                opõe pelo botão de cookies, os outros três pelos canais de
+                contato.
+
+                (B2) A finalidade "exibir anúncios mais relevantes para quem
+                já visitou o site" (remarketing, `finalidades` acima) ficou
+                sem base legal: o texto anterior só dizia "medir" e
+                "entender o uso". O remarketing é real — `Ads - Remarketing
+                dinamico` em `docs/GTM_CONFIGURACAO.md`. Dois eventos a
+                alimentam, de dois lugares diferentes: `view_vehicle`, que
+                `trackVehicleView` empurra ao abrir uma ficha
+                (`telemetry.ts:587`, `dataLayer.ts:331`), e `page_context`,
+                que `CamadaDeDados` empurra a CADA página, não só fichas
+                (`CamadaDeDados.tsx:28`, `dataLayer.ts:235`). (Correção de
+                rodada 3: a versão anterior deste comentário atribuía os dois
+                eventos a `trackVehicleView` — só o `view_vehicle` é dele.)
+                Acrescentado aqui, no Compartilhamento
+                (`#compartilhamento`) e, por coerência, no primeiro parágrafo
+                da seção de cookies abaixo. */}
             <ul className="list-disc pl-5 flex flex-col gap-2">
-              <li>
-                <strong className="text-mt-ink">Consentimento</strong> — para cookies de
-                publicidade e análise. Só são ativados depois que você clica em &ldquo;Aceitar&rdquo;
-                no aviso de cookies, e você pode mudar de ideia a qualquer momento.
-              </li>
               <li>
                 <strong className="text-mt-ink">Execução de contrato e procedimentos
                 preliminares</strong> — para tratar os dados que você nos envia com o objetivo de
                 comprar, vender ou avaliar um veículo.
               </li>
               <li>
-                <strong className="text-mt-ink">Legítimo interesse</strong> — para segurança
-                do site e prevenção a fraudes.
+                <strong className="text-mt-ink">Legítimo interesse</strong> — para medir o
+                desempenho dos nossos anúncios, exibir anúncios a quem já visitou o site e
+                entender como o site é usado. Você pode se opor a esses usos a qualquer
+                momento, pelo botão da seção{" "}
+                <a href="#cookies" className="underline underline-offset-2">
+                  Cookies e tecnologias de rastreamento
+                </a>
+                . Também com base no legítimo interesse, e fora do alcance desse botão:
+                segurança do site, prevenção a fraudes e diagnóstico de falhas. Para esses,
+                a oposição é pedida pelos canais da seção{" "}
+                <a href="#contato" className="underline underline-offset-2">
+                  Como falar conosco
+                </a>
+                .
               </li>
               <li>
                 <strong className="text-mt-ink">Obrigação legal</strong> — para guardar
@@ -232,7 +319,8 @@ export default async function PrivacidadePage() {
               Google Analytics, Google Ads e Meta Pixel — são carregadas desde o início da
               visita</strong>, antes da sua resposta ao aviso, com fundamento no{" "}
               <strong className="text-mt-ink">legítimo interesse</strong> (art. 7º, IX da LGPD):
-              medir o desempenho dos nossos anúncios e entender como o site é usado.
+              medir o desempenho dos nossos anúncios, exibir anúncios a quem já visitou o
+              site e entender como o site é usado.
             </p>
             <p>
               <strong className="text-mt-ink">Você pode se opor a qualquer momento</strong>, e a
@@ -245,19 +333,69 @@ export default async function PrivacidadePage() {
                 que `lib/telemetry.ts` passou a fazer na mesma rodada. Se a
                 gravação na chegada voltar a esperar o aceite, este texto tem de
                 sair junto — política e código contando histórias diferentes é
-                pior do que qualquer das duas escolhas. */}
+                pior do que qualquer das duas escolhas.
+
+                15/09/2026 — QA encontrou duas frases que a decisão de 31/08 já
+                tinha tornado falsas: "caso você aceite mais tarde" (não há mais
+                aceite para esperar) e "não é enviado a ninguém enquanto você não
+                enviar um formulário" (havia — quando ainda havia portão de
+                aceite para o Pixel e o gtag). Conferido em
+                `IntegrationsTracker.tsx`: `persistirFbc()` grava o `_fbc` a
+                partir do `fbclid` e, na sequência do mesmo `checkAndInitTrackors`,
+                sem nada entre os dois além da recusa explícita, inicializa o
+                Meta Pixel — cujo próprio script dispara `fbq('track',
+                'PageView')` de imediato, já com o `_fbc` presente no navegador.
+                GA4 e Google Ads são inicializados do mesmo jeito, e o gtag deles
+                lê `gclid`/`gbraid`/`wbraid` da URL por conta própria. Nenhum dos
+                dois caminhos passa por formulário. Reescrito para dizer isso.
+
+                15/09/2026, rodada 2 — a revisão adversarial (B3) achou o
+                parágrafo acima incompleto: ele só atribuía o envio aos
+                scripts de terceiro, mas o PRÓPRIO site repassa o
+                identificador aos servidores da Meta, sem formulário. Fluxo
+                conferido: `tracking-identity.ts:44-48` (`getMatchParams`)
+                monta `fbc` a partir do cookie `_fbc` ou, na falta dele, do
+                `fbclid` da URL — sem portão. Ele sai em três pontos, cada um
+                sem exigir formulário: ao abrir a ficha do veículo
+                (`PDPClientWrapper.tsx:211-233`, POST para `/api/capi`), ao
+                tocar em WhatsApp/telefone
+                (`telemetry.ts:779` chama `espelharNoCapi("Contact", ...)`) e
+                ao usar o Match de Garagem (`telemetry.ts:712`,
+                `espelharNoCapi("Search", ...)`). `/api/capi` chama
+                `sendCapiEvent` (`meta-capi.ts:137`, POST ao Graph da Meta),
+                que manda `fbc`/`fbp`/IP/user-agent em claro — só e-mail,
+                telefone e `external_id` levam hash
+                (`meta-capi.ts:107-117`).
+
+                E a frase final prometia demais: "apagado na hora" sem
+                dizer ONDE. `ControleDeRastreamento.tsx:56-61` e
+                `descartarParametrosDeCampanha` (`telemetry.ts:287-294`) só
+                apagam a cópia local (cookie e `localStorage`) — nenhum dos
+                dois chama Google nem Meta para apagar o que já foi
+                recebido. Corrigido para dizer isso, mantendo as duas
+                âncoras que `tests/brechas-de-mensuracao.test.ts` (B.4)
+                exige: "antes da sua resposta ao aviso" e "recusar, ele é
+                apagado". */}
             <p>
-              Uma exceção, para você saber exatamente o que acontece: quando você chega ao site
+              Um detalhe, para você saber exatamente o que acontece: quando você chega ao site
               por um anúncio, o endereço traz um código que identifica de qual anúncio veio o
               clique (por exemplo <code>gclid</code> ou <code>fbclid</code>).{" "}
               <strong className="text-mt-ink">Esse código é guardado no seu navegador assim que
-              você chega, antes da sua resposta ao aviso</strong> — é o que nos permite saber
-              qual anúncio funcionou caso você aceite mais tarde, inclusive numa visita futura.
-              Ele fica só no seu dispositivo e não é enviado a ninguém enquanto você não
-              enviar um formulário por vontade própria.{" "}
-              <strong className="text-mt-ink">Se você recusar, ele é apagado na hora.</strong>
+              você chega, antes da sua resposta ao aviso</strong> — para que o anúncio não perca
+              o crédito pela visita, inclusive numa visita futura. E ele não espera
+              formulário: o Google Analytics, o Google Ads e o Meta Pixel, ativos desde a
+              chegada, podem recebê-lo na própria medição deles, e os nossos servidores
+              repassam à Meta (Conversions API) o código dos anúncios dela, o{" "}
+              <code>fbclid</code>, quando você abre a página de um veículo, usa o Match de
+              Garagem ou toca num botão de contato.{" "}
+              <strong className="text-mt-ink">Se você recusar, ele é apagado deste navegador na hora</strong>;
+              o que já chegou ao Google e à Meta segue os prazos de retenção deles.
             </p>
-            <p>Se você aceitar, usamos:</p>
+            {/* Até 15/09/2026 dizia "Se você aceitar, usamos:" — não há mais
+                aceite para condicionar a lista a ele. As ferramentas abaixo
+                carregam desde o início da visita, como o parágrafo do topo
+                desta seção já diz; esta linha só introduz a lista. */}
+            <p>Usamos estas ferramentas:</p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
               <li>
                 <strong className="text-mt-ink">Google Analytics 4</strong> — mede audiência e
@@ -281,10 +419,22 @@ export default async function PrivacidadePage() {
                 quem preenche o formulário é uma pessoa, não um robô.
               </li>
             </ul>
+            {/* Até 15/09/2026 esta orientação dizia "para revogar o
+                consentimento, apague os dados de navegação" — instrução de um
+                regime de aceite que não existe mais. Conferido contra
+                `ControleDeRastreamento.tsx`: quem se opõe é quem grava
+                `ag_cookie_consent = "rejected"` no `localStorage`, pelo botão
+                acima; apagar dados do navegador NÃO grava isso — ao
+                contrário, apaga a chave se ela já existir, e a ausência da
+                chave é lida como "não recusou" (`rastreamentoRecusado()` em
+                `lib/telemetry.ts`). A orientação antiga fazia prometer o
+                oposto do que o código faz. */}
             <p>
-              Para revogar o consentimento, apague os dados de navegação (cookies e armazenamento
-              local) deste site no seu navegador. O aviso aparecerá de novo na próxima visita e você
-              poderá recusar.
+              Para se opor ao rastreamento, use o botão acima. A escolha fica gravada neste
+              navegador e vale para as próximas visitas. Apagar os dados de navegação (cookies e
+              armazenamento local) deste site tem o efeito contrário do que parece: apaga também
+              essa escolha, e o rastreamento volta a ficar ativo por padrão — se for esse o caso,
+              use o botão acima de novo para se opor.
             </p>
           </Secao>
 
@@ -294,9 +444,28 @@ export default async function PrivacidadePage() {
               apenas com quem é necessário para o site funcionar:
             </p>
             <ul className="list-disc pl-5 flex flex-col gap-2">
+              {/* Até 15/09/2026: "mediante seu consentimento" — a medição de
+                  anúncios não depende de consentimento desde 31/08.
+
+                  15/09/2026, rodada 2 (B2 + menor): duas correções juntas,
+                  porque a segunda apareceu ao investigar a primeira.
+                  "Para medição de anúncios" ficava sem cobrir o remarketing
+                  (ver o comentário de Bases legais, acima) — acrescentado
+                  "exibi-los a quem já visitou o site". E "identificadores
+                  embaralhados" era impreciso: só e-mail, telefone e
+                  `external_id` levam hash; `fbc`, `fbp`, IP e user-agent
+                  viajam em claro (`meta-capi.ts:107-117`, conferido linha a
+                  linha). */}
               <li>
-                <strong className="text-mt-ink">Google e Meta</strong> — dados de navegação e
-                identificadores embaralhados, para medição de anúncios, mediante seu consentimento.
+                <strong className="text-mt-ink">Google e Meta</strong> — dados de navegação,
+                identificadores de anúncio (como <code>gclid</code>, <code>_fbc</code> e{" "}
+                <code>_fbp</code>) e e-mail e telefone embaralhados, para medir anúncios e
+                exibi-los a quem já visitou o site, com base no legítimo interesse e
+                respeitando a oposição da seção{" "}
+                <a href="#cookies" className="underline underline-offset-2">
+                  Cookies e tecnologias de rastreamento
+                </a>
+                .
               </li>
               <li>
                 <strong className="text-mt-ink">Provedores de infraestrutura</strong> —
@@ -336,13 +505,46 @@ export default async function PrivacidadePage() {
               Dados de navegação e publicidade seguem os prazos de retenção definidos pelas próprias
               plataformas Google e Meta.
             </p>
+            {/* O registro técnico de erro, e a RESSALVA que ele obriga.
+                A frase seguinte dizia, sem qualificar, que atendido o pedido não
+                fica cópia nenhuma. Com a tabela `erros` isso deixaria de ser
+                verdade: o identificador anônimo de navegação sobrevive na linha
+                técnica até a janela de 90 dias fechar. Declarar é o que torna a
+                coleta legítima; calar seria a política mentir sobre a base. */}
+            {/* O prazo vai em PROSA, sem `<strong>` ao redor do número.
+                `>90 dias<` casa com a trava "prazo renderizado como
+                estatística" de `promessa-publica.test.ts`, que existe para
+                impedir que promessa de atendimento volte em forma de número
+                solto numa superfície pública. Aqui o número é retenção legal e
+                não promessa de serviço, mas a régua olha a FORMA — e enfraquecer
+                uma guarda de página pública por causa de um negrito seria a
+                troca errada. O destaque que importa já está no sujeito da
+                frase. */}
+            <p>
+              <strong className="text-mt-ink">Registros técnicos de erro</strong> ficam
+              guardados por 90 dias e depois são apagados por rotina automática. Eles contêm a
+              mensagem e o rastreamento do erro, a página, o navegador, o método, a versão do site
+              e o identificador anônimo de navegação.
+            </p>
             <p>
               Você pode pedir a eliminação a qualquer momento, pelos canais da seção{" "}
               <a href="#contato" className="underline underline-offset-2">
                 Como falar conosco
               </a>
-              . Atendido o pedido, o registro é apagado — não fica cópia em nossa base.
+              . Atendido o pedido, seu cadastro de contato é apagado. Um registro técnico de erro
+              gerado antes do pedido pode permanecer até o fim dos 90 dias, e some sozinho no
+              prazo: ele guarda o identificador anônimo de navegação e, nos casos em que a
+              mensagem do banco de dados cita um valor, pode conter um dado seu que escapou do
+              mascaramento.
             </p>
+            {/* Sem oferta de apagar esses registros mais cedo, a pedido. A frase
+                existia, e a revisão de 13/09 mediu que nada a cumpria: o painel não
+                tem DELETE em `erros`, e a exclusão do lead não encosta na tabela.
+                Depois dela some o elo direto (`leads.ag_uid`). O identificador segue
+                no cookie e no localStorage do titular e em cópias fora do banco: o
+                JSON do lead enviado adiante, a nota do Chatwoot e a forma curta na
+                mensagem de WhatsApp. A oferta volta junto com um executor, num PR
+                próprio (decisão do dono, 13/09). */}
           </Secao>
 
           <Secao id="direitos" titulo="Seus direitos como titular">

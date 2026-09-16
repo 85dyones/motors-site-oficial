@@ -20,7 +20,7 @@ import {
   schemaDePerguntas,
   schemaDeTrilha,
 } from "../../../lib/schemaListagem";
-import { schemaDaLoja } from "../../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../../lib/schemaLoja";
 import {
   perguntasDeCategoria,
   textoDeCarroceria,
@@ -226,6 +226,7 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
     schemaDeListagem(titulo, recorte.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
+    schemaDoSite(companySettings),
   ]);
 
   return (

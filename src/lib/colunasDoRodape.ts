@@ -1,4 +1,5 @@
 import type { CompanySettings } from "../types";
+import { NOME_DA_SECAO } from "./guias";
 import { PERFIL_NO_GOOGLE } from "./schemaLoja";
 import { linkWhatsApp, telefoneVisivel } from "./whatsapp";
 
@@ -47,6 +48,32 @@ export function colunasDoRodape(companySettings: CompanySettings): ColunaDoRodap
         { rotulo: "Avaliação Express", href: "/avaliacao" },
         { rotulo: "Financiamento", href: "/financiamento" },
         { rotulo: "Garantia", href: "/garantia" },
+        // Os guias entram no rodapé desde o primeiro, e não a partir do
+        // terceiro: sem uma entrada em todas as páginas, o cluster nasceria
+        // acessível só pelo sitemap. É o mesmo defeito que a F1 corrigiu na
+        // `/avaliacao`.
+        //
+        // O rótulo antigo era "Guias de procedência": anunciava UM assunto num
+        // link que aparece em todas as páginas do site, e a seção passou a ser
+        // o conteúdo editorial da loja inteira (07/09). Nome de seção não fecha
+        // pauta; nome de assunto fecha. A string vem de `NOME_DA_SECAO` — ver
+        // o docblock dela para o porquê de não ser escrita à mão aqui.
+        { rotulo: NOME_DA_SECAO, href: "/guias" },
+        // `/contato` entrou em 2026-09-05, e a razão é MENOR do que a primeira
+        // versão deste comentário dizia. Ele afirmava "recebia um único link em
+        // todo o site, de /sobre" — falso: `Header.tsx` já a lista no NAV de
+        // toda página (escondida por `hidden 2xl:block` abaixo de 1536px, mas
+        // presente no HTML), e `/privacidade` também linka.
+        //
+        // O degrau era `desktop:` (1281px) até 07/09, quando `GUIAS MOTORS`
+        // entrou no menu e o `CONTATO` cedeu a faixa — o que torna ESTA linha
+        // mais necessária, não menos: são 255px a mais de largura em que o
+        // cabeçalho não mostra o contato.
+        //
+        // Fica porque a coluna INSTITUCIONAL é onde se procura contato depois
+        // que o cabeçalho rolou para fora da tela — não porque a página
+        // estivesse órfã.
+        { rotulo: "Contato", href: "/contato" },
         { rotulo: "Privacidade & LGPD", href: "/privacidade" },
       ],
     },

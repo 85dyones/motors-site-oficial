@@ -1,7 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { lerCodigo, ler } from "./fonte";
+import BlocoLaudoPendente from "../src/components/BlocoLaudoPendente";
+
+/** O que o leitor vê: marcação fora, espaço normalizado. */
+const texto = (html: string) =>
+  html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&mdash;|&#x2014;/g, "—")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /**
  * O site tem uma verdade só sobre a perícia cautelar.
@@ -52,7 +64,26 @@ function arquivosDeTexto(): string[] {
       if (statSync(caminho).isDirectory()) {
         if (entrada === "admin") continue;
         visitar(caminho);
-      } else if (/\.tsx?$/.test(entrada)) {
+      } else if (/\.(tsx?|json)$/.test(entrada)) {
+        /* `.json` entrou em 2026-09-05, e a lição já tinha sido aprendida ao
+           lado: `promessa-publica` recebeu este mesmo conserto em `ad5c5d4`
+           ("o texto errado estava no .json que a varredura nao lia"), e este
+           arquivo foi editado no dia seguinte sem levá-la junto.
+
+           O que estava escapando: `src/lib/aboutSettings.json` publica em
+           `/sobre` a frase "O laudo de cada carro fica disponível para
+           consulta mediante solicitação" — promessa sem ressalva, dentro de
+           `src/lib`, invisível só porque o filtro pedia `.tsx`.
+
+           ⚠️ **E isto cobre o FALLBACK, não o publicado.** `getCachedSettings`
+           lê `site_settings` primeiro; o `.json` só vale quando o banco não
+           responde (o que ainda importa: é o que o crawler recebe no HTML
+           pré-hidratação). Em 05/09/2026 a linha `about` do banco publicava
+           "Laudo Cautelar 100% Aprovado" com 35 aprovados de 83 não vendidos —
+           afirmação falsa, fora do alcance de qualquer teste que leia o
+           repositório. Junto com 30 páginas de hub servidas por
+           `textos_de_hub`. Trava de arquivo não vê texto que mora em tabela;
+           para medir o que o site DIZ, varra o HTML servido. */
         achados.push(caminho);
       }
     }
@@ -82,7 +113,52 @@ describe("a promessa do laudo carrega a condição", () => {
          superfícies: "laudo na ficha" seco, "laudo DE CADA UNIDADE fica
          disponível", "laudo de perícia de cada veículo na ficha". Uma delas
          estava na MESMA página que eu tinha acabado de corrigir duas vezes. */
-      const trechos = corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de)[^.]{0,60}/gi) ?? [];
+      /* `de cada` entrou na alternância em 2026-09-05, e pelo mesmo motivo que
+         as três anteriores: a revisão da F1 achou "onde fica o laudo DE CADA
+         VEÍCULO" num card novo de `/avaliacao` — décima superfície, e a
+         primeira escrita DEPOIS desta trava existir. A frase afirma laudo
+         publicado para todos sem nunca dizer "ficha", então passava reto.
+
+         O padrão do defeito é sempre o mesmo: quem escreve quer dizer "o laudo
+         é público" e escolhe um jeito novo de dizer onde ele está. Por isso a
+         alternância cobre o LUGAR ("ficha") e a QUANTIFICAÇÃO ("de cada"), que
+         são as duas formas de afirmar a mesma coisa. */
+      /* A cauda é 120 — nem 60, nem a frase inteira. Os dois extremos falham,
+         em direções opostas, e cada um foi medido:
+
+         · **60** dava FALSO POSITIVO. Com `de cada` na alternância o gatilho
+           casa mais cedo, e a janela cortava antes da ressalva: "laudo de cada
+           unidade fica disponível na ficha do carro, no site, assim q|ue a
+           perícia é aprovada" (`paginasGeo.ts`) virava infrator com o texto
+           CORRETO.
+
+         · **`[^.]*`, até o ponto final**, dava FALSO NEGATIVO — e este é pior,
+           porque a trava existe para pegar exatamente o que ele deixa passar.
+           A revisão construiu o caso: "O laudo fica na ficha do carro para
+           todo mundo ver antes mesmo de visitar a loja, e a nossa oficina
+           parceira do Bacacheri é credenciada e aprovada pelo Inmetro" passa
+           limpo. O "aprovada" está na mesma frase, mas fala da OFICINA. Como a
+           varredura roda sobre a fonte com espaço colapsado, a cauda ainda
+           atravessa fronteira de string e pode pescar um álibi da propriedade
+           vizinha — hoje já há trechos casados com 230 e 247 caracteres.
+
+         120 é o melhor ponto medido, não uma cura: zero falso positivo no
+         repositório e pega o caso acima. A margem é medida, não chutada — dos
+         19 trechos que casam hoje (eram 20 até a reescrita do `value1` de
+         `/sobre`), o `aprovad` mais distante está no offset 78
+         (`paginasGeo.ts`). Se um texto novo legítimo passar de 120, o certo é
+         aproximar a ressalva da promessa, não esticar este número.
+
+         **O que 120 ainda NÃO pega**, medido na revisão de 05/09 e registrado
+         aqui para ninguém supor cobertura que não existe: um álibi curto que
+         fale de outra coisa ("…e a nossa oficina do Bacacheri é aprovada pelo
+         Inmetro", 106 chars; "…com o seu crédito já aprovado pelo banco"), e
+         uma segunda promessa que comece dentro da janela da primeira, engolida
+         pela cauda gulosa. Nenhuma janela finita fecha um heurístico de "tem
+         'aprovad' por perto" — isto é uma rede, não uma prova. A prova é ler o
+         texto. */
+      const trechos =
+        corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]{0,120}/gi) ?? [];
       for (const trecho of trechos) {
         if (!/aprovad/i.test(trecho)) {
           infratores.push(`${caminho}: ${trecho.slice(0, 110)}`);
@@ -115,7 +191,25 @@ describe("a ficha diz o estado real da perícia", () => {
     /* O silêncio era o outro lado do mesmo problema: a FAQ da mesma página
        prometia o laudo, e a ficha não explicava a ausência. */
     expect(pdp).toContain('!(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA")');
-    expect(pdp).toContain("Laudo cautelar");
+    /* O título mora no componente desde 09/09, então quem responde por ele é
+       a renderização — a PDP só precisa montá-lo. Procurar "Laudo cautelar"
+       na fonte da PDP passaria a medir onde o texto está escrito, não se o
+       cliente o vê. */
+    expect(pdp, "a ficha parou de montar o bloco pendente").toContain("<BlocoLaudoPendente />");
+    expect(texto(renderToStaticMarkup(createElement(BlocoLaudoPendente)))).toContain("Laudo cautelar");
+    /* ...mas cala no carro que já saiu (09/09). Desde que o bloco passou a
+       dizer "solicite ao vendedor a qualquer tempo", ele virou compromisso em
+       aberto, e numa ficha de VENDIDO — que fica no ar durante a carência —
+       ficava ao lado do botão "CONSULTAR SIMILARES". Aqui o silêncio é
+       honesto: não há compra para apoiar.
+
+       Isto prende a expressão, e não o comportamento, porque o componente é
+       lido como fonte no arquivo inteiro. Quem reordenar a guarda vai ver
+       este teste falhar — o que se quer é que a remoção do gate não passe
+       calada, não que a linha nunca mude. */
+    expect(pdp, "o bloco pendente deixou de olhar se o carro já saiu").toContain(
+      "!indisponivel && !(veiculo.laudo_pericia",
+    );
   });
 
   it("o texto fala do LAUDO, e não inventa estado da perícia", () => {
@@ -126,17 +220,100 @@ describe("a ficha diz o estado real da perícia", () => {
        Afirmar "em andamento" sobre exame já concluído é inventar processo a
        partir de ausência de dado — o mesmo erro do bloco do laudo aprovado,
        invertido. */
-    const i = pdp.indexOf("                Laudo cautelar");
-    expect(i, "o bloco do laudo pendente sumiu").toBeGreaterThan(-1);
-    /* Janela pelo FIM do bloco e espaço NORMALIZADO. Medir em caracteres
-       apodrece a cada reflow, e o JSX quebra a frase no meio — "…assim\n
-       que aprovado" — então comparar com o texto cru falha por um espaço. */
-    const fim = pdp.indexOf("</div>", i);
-    const bloco = pdp.slice(i, fim > i ? fim + 6 : i + 700).replace(/\s+/g, " ");
+    /* QUATRO desenhos de janela furaram antes deste, e vale a lista porque
+       cada um parecia fechado no dia em que foi escrito:
 
-    expect(bloco, "voltou a afirmar estado de processo").not.toMatch(/em andamento|em análise/i);
-    // E continua sem afirmar RESULTADO, que é o que de fato não se sabe.
-    expect(bloco).not.toMatch(/sem apontamento|livre de sinistro|impecável|aprovada\b/i);
-    expect(bloco).toContain("assim que aprovado");
+       1º · do título até o primeiro `</div>` — embrulhar o pedido num `<div>`
+            jogava o resto para fora.
+       2º · ler a constante por regex até o `;` da linha — template literal
+            fazia a cauda escapar, e uma SEGUNDA constante ao lado passava.
+       3º · recorte começando no TÍTULO — o que ficasse entre o `(` da guarda
+            e o título, quatro linhas acima, nunca era lido.
+       4º · recorte da guarda até o primeiro `\n          )}` — este arquivo
+            não indenta corpo de condicional, então um condicional aninhado
+            fecha na mesma coluna e trunca a janela. E `{OBJ.prop}`,
+            `{fn(x)}` ou um `<Componente />` nunca entravam na lista de
+            interpolações conferidas.
+
+       Todos ficaram VERDES com um `<p>` afirmando "foi aprovado, sem
+       apontamento" na tela do cliente. A conclusão é a mesma das quatro
+       vezes: recorte de fonte por texto tem sempre uma borda a mais, e a
+       falha é silenciosamente PERMISSIVA — a janela encolhe e ninguém avisa.
+
+       Então o bloco virou componente e aqui se RENDERIZA. O que se mede é o
+       que chega na tela: `div` a mais, condicional aninhado, objeto, chamada
+       de função ou componente filho — tudo aparece no texto renderizado.
+
+       Da fonte sobra só a FIAÇÃO, e por asserção exata em vez de janela:
+       a PDP tem que montar o bloco numa linha inteira, sozinho dentro da
+       guarda (qualquer coisa acrescentada ao lado muda a linha e reprova), e
+       a guarda tem que aparecer UMA vez (bloco duplicado com texto próprio
+       reprova). Asserção exata falha fechando; janela falha abrindo. */
+    const bloco = texto(renderToStaticMarkup(createElement(BlocoLaudoPendente)));
+
+    const FIACAO =
+      '{!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && <BlocoLaudoPendente />}';
+    expect(pdp, "a fiação do bloco pendente mudou — confira o que entrou junto").toContain(FIACAO);
+    expect(pdp.split("BlocoLaudoPendente />").length - 1, "o bloco pendente foi montado mais de uma vez").toBe(1);
+
+    const tudo = bloco;
+
+    /* E o CORPO continua falando do laudo, em vez de virar um CTA genérico.
+       Sem tirar o título, esta asserção passou a se satisfazer sozinha: o
+       cabeçalho "Laudo cautelar" entra no texto renderizado, e um corpo que
+       dissesse só "agende a visita, procure a loja no Bacacheri" ficava
+       verde. Foi o preço escondido de trocar constante por renderização — a
+       bateria de mutação pegou no mesmo dia. */
+    const corpo = bloco.replace("Laudo cautelar", "").trim();
+    expect(corpo, "o corpo do bloco parou de falar do laudo").toMatch(/laudo/i);
+
+    expect(tudo, "voltou a afirmar estado de processo").not.toMatch(/em andamento|em análise/i);
+    /* E continua sem afirmar RESULTADO, que é o que de fato não se sabe.
+
+       `aprovad[oa]`, e não `aprovada`: a estreiteza no feminino não era
+       escolha, era imposição da asserção que existia logo abaixo. Enquanto o
+       bloco tinha que CONTER "assim que aprovado", proibir o masculino aqui
+       faria o teste brigar consigo mesmo. Quando a frase saiu (08/09) a
+       desculpa saiu junto, e a guarda ficou meio cega por herança: "O laudo
+       cautelar foi aprovado e está disponível para consulta" passava pelas
+       três asserções — afirmação de RESULTADO, que é o defeito dos 88
+       veículos com selo fabricado, dito no gênero que o regex não olhava.
+
+       O `s?` veio na rodada seguinte, pelo mesmo tipo de furo uma casa
+       adiante: consertar o gênero deixou o NÚMERO aberto, e "os veículos da
+       vitrine são aprovados na perícia" passava — o `\b` de `aprovado`
+       falha entre o "o" e o "s".
+
+       ⚠️ Isto é uma lista de cinco expressões, não uma prova. Afirmação de
+       resultado escrita com outras palavras ("a perícia não encontrou
+       passagem por leilão") passa, e nenhuma janela finita fecha isso. A
+       rede pega a reincidência das frases conhecidas; ler o texto continua
+       sendo trabalho de gente. */
+    expect(tudo).not.toMatch(/sem apontamento|livre de sinistro|impecável|aprovad[oa]s?\b/i);
+    /* O bloco tem que terminar num caminho que o cliente percorre HOJE.
+       Até 2026-09-08 ele dizia "publicado aqui na ficha assim que aprovado", e
+       essa promessa só se cumpre quando o feed traz a perícia aprovada — nas
+       outras fichas era espera sem prazo, exatamente o silêncio que este bloco
+       veio quebrar. Decisão do dono nessa data: o laudo existe desde antes da
+       vitrine e fica com a loja, então a ficha manda pedir.
+
+       A trava guarda a SAÍDA — um pedido, e a quem fazê-lo —, não a redação.
+       A primeira versão exigia a grafia "solicite ao vendedor", e com isso
+       reprovava "peça ao seu consultor pelo WhatsApp", que é a mesma decisão
+       dita melhor. Exigir a grafia de três palavras é o erro que este
+       repositório já pagou do outro lado: a asserção tem que afirmar a
+       condição inteira, não a frase que a cumpria naquele dia.
+
+       E a primeira tentativa de consertar isso ainda reprovava "é só PEDIR
+       ao vendedor" — a redação que este mesmo PR publicou em `/sobre` e no
+       card dos guias. `pe(ç|c)\w+` casa "peça" e não casa "pedir": a trava
+       reprovava, na ficha, a voz que a casa adotou nas outras superfícies.
+       Daí `ped\w+`. A cauda de 40 entre o verbo e o destinatário também é
+       curta demais para frase com aposto, e continua sendo o limite: se um
+       texto legítimo esbarrar nela, aproxime o destinatário do verbo — é o
+       que se quer no texto de qualquer jeito. */
+    expect(bloco, "o bloco voltou a deixar o cliente sem caminho").toMatch(
+      /(?:solicit\w+|ped\w+|pe(?:ç|c)\w+|pergunt\w+|procur\w+|fale|chame)[^.]{0,40}\b(?:vendedor|consultor|loja|equipe|atendimento|whatsapp)\b/i,
+    );
   });
 });

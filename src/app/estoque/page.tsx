@@ -12,6 +12,7 @@ import {
   normalizarStockOverrides,
 } from "../../lib/destaquesRapidos";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
+import FaixasDePreco from "../../components/modernist/FaixasDePreco";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import {
   blocoJsonLd,
@@ -20,8 +21,10 @@ import {
   schemaDeTrilha,
 } from "../../lib/schemaListagem";
 import { perguntasDeCategoria } from "../../lib/textoDosHubs";
-import { schemaDaLoja } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
+import { criarLinkador } from "../../lib/linksNoTexto";
 import IndiceDaVitrine from "../../components/modernist/IndiceDaVitrine";
+import MarcasQueJaPassaram from "../../components/modernist/MarcasQueJaPassaram";
 import {
   CAIXA_DA_BUSCA,
   CONTAINER_DA_BUSCA,
@@ -96,6 +99,8 @@ export default async function EstoquePage() {
   const marcas = hubsDeMarca(historico, disponiveis, "carros").filter((m) => m.veiculos.length > 0);
   const carrocerias = hubsDeCarroceria(historico, disponiveis).filter((c) => c.veiculos.length > 0);
 
+  const linkar = criarLinkador("/estoque");
+
   const perguntas = perguntasDeCategoria("carros seminovos");
 
   const jsonLd = blocoJsonLd([
@@ -106,6 +111,7 @@ export default async function EstoquePage() {
     schemaDeListagem("Carros seminovos em Curitiba", disponiveis),
     schemaDePerguntas(perguntas),
     schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
   ]);
 
   return (
@@ -147,10 +153,29 @@ export default async function EstoquePage() {
           Carros seminovos em Curitiba{" "}
           <span className="text-mt-accent">{disponiveis.length}</span>
         </h1>
+        {/* O parágrafo de abertura passa pelo MESMO linkador do FAQ abaixo —
+            é o primeiro texto da página, e "perícia cautelar" aqui é onde o
+            leitor encontra o termo antes de qualquer outro lugar. Como o
+            linkador tem memória, o link sai aqui e o FAQ fica com o texto
+            comum, em vez de repetir a mesma âncora quatro vezes. */}
         <p className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três
-          entram. O laudo fica na ficha do carro assim que aprovado, e o preço está no anúncio.
-          Showroom no Bacacheri, em Curitiba.
+          {linkar(
+            "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
+              "entram. O laudo fica na ficha do carro assim que aprovado, e o preço está no anúncio. " +
+              "Showroom no Bacacheri, em Curitiba.",
+          ).map((parte, i) =>
+            parte.href ? (
+              <Link
+                key={i}
+                href={parte.href}
+                className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+              >
+                {parte.texto}
+              </Link>
+            ) : (
+              <span key={i}>{parte.texto}</span>
+            ),
+          )}
         </p>
       </div>
 
@@ -310,6 +335,17 @@ export default async function EstoquePage() {
           </section>
         )}
 
+        {/* O bloco de cima filtra `veiculos.length > 0`, e continua filtrando:
+            marca com e sem carro na mesma lista confunde quem compra, e a
+            contagem "0" ao lado do nome comunica loja vazia.
+
+            O efeito colateral disso é que a marca sem estoque perdia o único
+            link interno que tinha — hub perene no sitemap, alcançável por
+            ninguém. Este segundo bloco assume essas, com peso visual menor.
+            Ele varre os DOIS segmentos por conta própria; ver a nota do
+            componente sobre por que a assinatura não aceita um. */}
+        <MarcasQueJaPassaram historico={historico} disponiveis={disponiveis} />
+
         {carrocerias.length > 0 && (
           <section className="mt-8">
             <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Seminovos por carroceria</h2>
@@ -329,6 +365,31 @@ export default async function EstoquePage() {
             </div>
           </section>
         )}
+
+        {/* Por faixa de preço — o recorte de maior intenção comercial, e o
+            único que não tinha entrada nenhuma daqui.
+
+            `/estoque/ate-60-mil` e as duas irmãs recebiam link só das
+            carrocerias, de `/financiamento` e de `/garantia`: não estavam na
+            home, não estavam neste hub, não estavam nas marcas. São as buscas
+            do tipo "carro até 60 mil em Curitiba" — intenção alta, e a três
+            cliques do hub principal. O bloco já existia pronto em
+            `/estoque/[recorte]`; aqui é a mesma lista, com a contagem que as
+            seções vizinhas mostram.
+
+            As três faixas são perenes: aparecem mesmo com zero, porque a
+            página existe e continua respondendo. O que some é o BLOCO INTEIRO
+            quando não há estoque nenhum — três zeros enfileirados num pátio
+            vazio (sync fora do ar) parecem defeito, não recorte. */}
+        <FaixasDePreco
+          disponiveis={disponiveis}
+          className="mt-8"
+          cabecalho={
+            <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
+              Seminovos por faixa de preço
+            </h2>
+          }
+        />
       </nav>
 
       {/* Fora do <nav>: pergunta frequente não é navegação, e landmark com
@@ -344,8 +405,27 @@ export default async function EstoquePage() {
             {perguntas.map((item) => (
               <div key={item.pergunta} className="border-b border-mt-regua-fina py-4">
                 <dt className="text-[14px] font-extrabold text-mt-ink">{item.pergunta}</dt>
+                {/* Mesma segmentação do FAQ de `PaginaDeEstoque`, porque esta
+                    página tem render próprio e não passa por lá — a maior
+                    página do site depois da home ficaria justamente de fora.
+
+                    A string continua intacta: é a MESMA que
+                    `schemaDePerguntas` publica no `FAQPage` logo acima, e
+                    markup dentro dela faria markup e página divergirem. */}
                 <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                  {item.resposta}
+                  {linkar(item.resposta).map((parte, i) =>
+                    parte.href ? (
+                      <Link
+                        key={`${item.pergunta}-${i}`}
+                        href={parte.href}
+                        className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+                      >
+                        {parte.texto}
+                      </Link>
+                    ) : (
+                      <span key={`${item.pergunta}-${i}`}>{parte.texto}</span>
+                    ),
+                  )}
                 </dd>
               </div>
             ))}

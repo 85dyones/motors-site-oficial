@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Veiculo } from "../../types";
 import { resumirSelecao } from "../../lib/destaquesRapidos";
+import { criarLinkador } from "../../lib/linksNoTexto";
 import GradeDeVeiculos from "./GradeDeVeiculos";
 import BotaoWhatsApp from "./BotaoWhatsApp";
 import { formatarKm, formatarPreco } from "./primitivos";
@@ -71,6 +72,23 @@ export interface PaginaDeEstoqueProps {
    * erro, que é pior do que não oferecer.
    */
   avisarHref?: string;
+  /**
+   * O formulário de encomenda do hub sem estoque — "Encomende seu carro".
+   *
+   * Entra como nó pronto, e não como um par de strings, porque é client
+   * component com Turnstile e `fetch`: montá-lo aqui dentro obrigaria esta
+   * página inteira a virar cliente.
+   *
+   * A GUARDA fica aqui, junto do desenho: é renderizado só no ramo de grade
+   * vazia, a mesma condição que já governa o bloco de saída. Deixar a decisão
+   * na rota faria cada hub escolher por conta própria, e o primeiro refactor
+   * do hub de modelo esqueceria dela sem nada quebrar na tela — um formulário
+   * a mais numa página com estoque não parece defeito, parece escolha.
+   *
+   * Ele SUBSTITUI o `avisarHref` nos hubs de marca e modelo, e convive com ele
+   * nos recortes de `/estoque`, que continuam com o botão de WhatsApp.
+   */
+  encomenda?: ReactNode;
   blocos?: BlocoDeLinks[];
   faq?: PerguntaFrequente[];
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
@@ -104,6 +122,20 @@ export interface PaginaDeEstoqueProps {
    * e ali o simulador não é o fecho, é o assunto da página.
    */
   posicaoDoConteudo?: "antes-da-grade" | "depois-da-grade";
+  /**
+   * O caminho desta página — só para o FAQ não linkar para ela mesma.
+   *
+   * As respostas citam "Avaliação Express", "laudo cautelar" e "financiamento"
+   * por extenso, e `segmentarComLinks` transforma a primeira ocorrência de cada
+   * um em link. No FAQ de `/financiamento`, que fala de financiamento em quase
+   * toda resposta, isso viraria auto-link: ruído para quem lê e sinal nulo para
+   * o rastreador.
+   *
+   * Opcional de propósito. Sem ele o FAQ ainda linka corretamente — só perde
+   * essa proteção. Nenhuma página fica errada por esquecer a prop; a de
+   * `/garantia` e a de `/financiamento` ficam redundantes.
+   */
+  caminho?: string;
 }
 
 export default function PaginaDeEstoque({
@@ -115,13 +147,20 @@ export default function PaginaDeEstoque({
   alternativos = [],
   rotuloAlternativos = "Enquanto isso, do mesmo perfil",
   avisarHref = "",
+  encomenda,
   blocos = [],
   faq = [],
   acao,
   contagem = true,
   conteudo,
   posicaoDoConteudo = "depois-da-grade",
+  caminho,
 }: PaginaDeEstoqueProps) {
+  // Um linkador para a página inteira: o mesmo `Set` atravessa introdução e
+  // FAQ, então cada destino vira link UMA vez por página, e não uma por
+  // parágrafo. Ver `criarLinkador`.
+  const linkar = criarLinkador(caminho);
+
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
   ) : null;
@@ -177,12 +216,32 @@ export default function PaginaDeEstoque({
                 <span className="text-mt-accent"> {veiculos.length}</span>
               )}
             </h1>
+            {/* A introdução linka pela mesma régua do FAQ, e aqui sem a
+                restrição do JSON-LD: nada deste texto vai para o `FAQPage`.
+
+                É onde estão as menções que mais importam. "A Avaliação Express
+                devolve uma proposta pelo WhatsApp" abre o terceiro parágrafo de
+                `/financiamento` — o ponto exato em que quem está simulando
+                parcela descobre que o carro dele vale entrada, e até 05/09/2026
+                a frase não levava a lugar nenhum. */}
             {introducao.map((paragrafo, i) => (
               <p
                 key={i}
                 className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]"
               >
-                {paragrafo}
+                {linkar(paragrafo).map((parte, j) =>
+                  parte.href ? (
+                    <Link
+                      key={j}
+                      href={parte.href}
+                      className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+                    >
+                      {parte.texto}
+                    </Link>
+                  ) : (
+                    <span key={j}>{parte.texto}</span>
+                  ),
+                )}
               </p>
             ))}
             {acao && <div className="mt-6">{acao}</div>}
@@ -266,6 +325,13 @@ export default function PaginaDeEstoque({
               {textoSemEstoque ??
                 "Sem unidades disponíveis neste momento. O estoque gira toda semana — fale com um consultor e avisamos quando entrar."}
             </p>
+            {/* O formulário vem ANTES dos botões, e é a saída nº 1 do bloco.
+                O `wa.me` que ocupava esse lugar captava no canal que a loja
+                atende — e fora do sistema: sem linha em `leads`, sem CAPI, sem
+                Kanban. Quem chega num hub sem estoque é o lead mais
+                qualificado do site; ele merece o primeiro campo, não um link. */}
+            {encomenda && <div className="mt-6">{encomenda}</div>}
+
             <div className="mt-6 flex flex-wrap gap-0.5">
               {avisarHref && (
                 <BotaoWhatsApp
@@ -275,6 +341,8 @@ export default function PaginaDeEstoque({
                   className="mt-btn mt-btn-primario mt-foco"
                 />
               )}
+              {/* Regra 6: a vitrine ordena, nunca esconde. Esta saída não some
+                  nem quando o formulário está ali em cima. */}
               <Link href="/estoque" className="mt-btn mt-btn-contorno mt-foco">
                 VER TODO O ESTOQUE
               </Link>
@@ -327,8 +395,25 @@ export default function PaginaDeEstoque({
               {faq.map((item) => (
                 <div key={item.pergunta} className="border-b border-mt-regua-fina py-4">
                   <dt className="text-[14px] font-extrabold text-mt-ink">{item.pergunta}</dt>
+                  {/* A resposta é a MESMA string que vai para o `FAQPage` do
+                      JSON-LD, e o Google exige que o texto marcado seja idêntico
+                      ao visível. Por isso o link entra aqui, no render, e nunca
+                      dentro da string: `segmentarComLinks` só quebra o texto em
+                      pedaços — juntá-los devolve a resposta byte a byte. */}
                   <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                    {item.resposta}
+                    {linkar(item.resposta).map((parte, i) =>
+                      parte.href ? (
+                        <Link
+                          key={`${item.pergunta}-${i}`}
+                          href={parte.href}
+                          className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+                        >
+                          {parte.texto}
+                        </Link>
+                      ) : (
+                        <span key={`${item.pergunta}-${i}`}>{parte.texto}</span>
+                      ),
+                    )}
                   </dd>
                 </div>
               ))}
