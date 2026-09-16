@@ -173,4 +173,25 @@ describe("as decisões que a rota não pode perder", () => {
     expect(rota).toContain("CHATWOOT_WEBHOOK_TOKEN");
     expect(rota).toContain("tokenConfere");
   });
+
+  /**
+   * O defeito que o primeiro tráfego real pegou (2026-09-16).
+   *
+   * `acharLead` pegava o lead mais recente, ponto — e grudou a conversa nova
+   * num lead encerrado como `descartado` três dias antes. O atendimento fica
+   * vinculado, a rota responde 200, nada dá erro, e a pessoa continua
+   * INVISÍVEL no painel: o kanban só mostra `!desfecho` e o motor do funil só
+   * enxerga `desfecho is null`. A rota parecia funcionar e o sintoma que ela
+   * veio corrigir continuava de pé.
+   */
+  it("só casa com lead em aberto — quem volta de um negócio encerrado é lead novo", () => {
+    expect(rota).toContain('.is("desfecho", null)');
+  });
+
+  it("solta o vínculo quando o lead da conversa foi encerrado depois", () => {
+    // O caminho gêmeo: a conversa é vinculada com o lead aberto, o consultor
+    // encerra dias depois, e o cliente volta a escrever NA MESMA conversa.
+    // Sem a releitura, o atendimento segue preso ao lead fechado.
+    expect(rota).toContain("leadEncerrado");
+  });
 });
