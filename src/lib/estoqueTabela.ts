@@ -103,6 +103,14 @@ export interface LinhaDeEstoque {
   perfisUso: string[];
   placa: string;
   destacado: boolean;
+  /**
+   * Está na lista da GRADE da home ("Destaques da semana").
+   *
+   * Separado de `destacado`, que é a lista do banner: são duas curadorias
+   * independentes desde 2026-09-09, e a linha precisa mostrar as duas para o
+   * operador saber onde o carro aparece.
+   */
+  naSemana: boolean;
   /** `null` = GA4 sem credencial de leitura. Nunca 0 por engano. */
   visitas: number | null;
   leads: number;

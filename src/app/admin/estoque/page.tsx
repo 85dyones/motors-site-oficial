@@ -127,6 +127,9 @@ export default async function AdminEstoquePage() {
   const destacados = Array.isArray(settings.carouselVehicleIds)
     ? (settings.carouselVehicleIds as string[]).map(String)
     : [];
+  const naSemana = Array.isArray(settings.destaquesDaSemana)
+    ? (settings.destaquesDaSemana as string[]).map(String)
+    : [];
 
   // O carimbo mais recente da tabela, medido uma vez. É contra ele — e nunca
   // contra o relógio de parede — que o atraso de cada linha é lido: sync parado
@@ -184,6 +187,7 @@ export default async function AdminEstoquePage() {
       // direta e autenticada, e a busca da tabela procura por placa.
       placa: bruto.placa ?? "",
       destacado: destacados.includes(id),
+      naSemana: naSemana.includes(id),
       visitas: visitasPorVeiculo ? (visitasPorVeiculo[id] ?? 0) : null,
       leads: leadsPorVeiculo[id] ?? 0,
       // O sintoma do bug corrigido em 2026-08-07: override gravado só no JSON
@@ -206,6 +210,7 @@ export default async function AdminEstoquePage() {
       linhas={linhas}
       quickTagsDisponiveis={quickTags.map((t) => ({ id: t.id, nome: t.name }))}
       destacadosIniciais={destacados}
+      naSemanaIniciais={naSemana}
       overridesIniciais={overrides}
       visitasDisponiveis={visitasPorVeiculo !== null}
       podeCriar={podeCriar}
