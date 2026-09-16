@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -78,6 +78,32 @@ function getShortVehicleId(id: string): string {
     if (last2.length >= 4) return last2;
   }
   return id.substring(0, 8).toUpperCase();
+}
+
+/**
+ * Data do cabeçalho de impressão — só depois da hidratação (React #418).
+ *
+ * A ficha é ISR (`revalidate = 3600`): o HTML sai com a data calculada no
+ * SERVIDOR, em UTC, presa ao momento do build ou da regeneração. Um aparelho
+ * em fuso adiantado (ex.: Pacific/Kiritimati, UTC+14) já vê outro dia
+ * enquanto o HTML ainda carrega o de ontem — o texto que o servidor mandou
+ * diverge do que o cliente calcularia, e o React descarta a árvore inteira
+ * em vez de só corrigir o texto. Reproduzido em produção: o erro aparece com
+ * o relógio do Chromium em `Pacific/Kiritimati` e some com `America/Sao_Paulo`.
+ *
+ * `useSyncExternalStore` com `getServerSnapshot` retornando `null` evita a
+ * divergência: o servidor renderiza o span vazio, a hidratação bate
+ * (`null` dos dois lados) sem erro, e só DEPOIS dela o valor real do
+ * cliente aparece — sem reescrever a árvore que o servidor gerou.
+ */
+const semAssinatura = () => () => {};
+function GeradoEm() {
+  const hoje = useSyncExternalStore(
+    semAssinatura,
+    () => new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+    () => null,
+  );
+  return <span className="text-[9px] text-zinc-500 block">Gerado em: {hoje}</span>;
 }
 
 export default function PDPClientWrapper({
@@ -832,7 +858,7 @@ export default function PDPClientWrapper({
           </div>
           <div className="text-right">
             <span className="text-[9px] font-mono text-zinc-500 block">ID: {getShortVehicleId(veiculo.id)}</span>
-            <span className="text-[9px] text-zinc-500 block">Gerado em: {new Date().toLocaleDateString('pt-BR')}</span>
+            <GeradoEm />
           </div>
         </div>
 
