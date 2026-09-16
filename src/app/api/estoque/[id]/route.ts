@@ -78,7 +78,20 @@ export async function PATCH(
     const perfil = perfisDe(profile);
 
     const body = await request.json();
-    const atualizacao = extrairCamposNossos(body);
+
+    // A origem decide se o PREÇO é gravável (migração 20260829130000): no
+    // veículo do RevendaMais o sync reescreveria a edição no ciclo seguinte,
+    // em silêncio; no que nasceu no painel, a trava garante que ele não toca.
+    // Lido do BANCO, nunca do corpo — senão bastaria mandar `origem:"painel"`
+    // no JSON para reprecificar um carro do feed.
+    const alvoDaEscrita = normalizarId(id);
+    const { data: linha } = await supabase
+      .from("estoque_motors")
+      .select("origem")
+      .eq("id", alvoDaEscrita)
+      .maybeSingle();
+
+    const atualizacao = extrairCamposNossos(body, linha?.origem);
 
     // Matriz A17, campo a campo. `preco_compra` é custo de aquisição, que
     // Marketing e Comercial não veem; `placa` é a ficha travada, só de Admin.
@@ -93,13 +106,26 @@ export async function PATCH(
       );
     }
 
-    const resultado = await aplicarNosVeiculos(supabase, [id], atualizacao, {
-      id: user.id,
-      nome: profile?.full_name ?? user.email ?? null,
-    });
+    const resultado = await aplicarNosVeiculos(
+      supabase,
+      [id],
+      atualizacao,
+      { id: user.id, nome: profile?.full_name ?? user.email ?? null },
+      // A recusa do piso só nomeia o preço de compra para quem já o vê na
+      // tela. `preco_compra` é a linha "Ver custo de aquisição e margem" da
+      // matriz A17 — a mesma que esconde o campo do Comercial.
+      { podeVerCusto: campoNegadoAoPerfil(perfil, ["preco_compra"]) === null },
+    );
 
     if (resultado.erro) {
-      return NextResponse.json({ error: resultado.erro }, { status: resultado.status ?? 500 });
+      // 422 com `recusas` é a publicação barrada pela régua de fotos — o editor
+      // A15 mostra os motivos ao lado do botão em vez de um erro genérico.
+      return NextResponse.json(
+        resultado.recusas
+          ? { error: resultado.erro, recusas: resultado.recusas }
+          : { error: resultado.erro },
+        { status: resultado.status ?? 500 },
+      );
     }
 
     return NextResponse.json({

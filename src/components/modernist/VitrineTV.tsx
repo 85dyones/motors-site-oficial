@@ -157,7 +157,7 @@ export default function VitrineTV({
             {specs.map((s) => (
               <div
                 key={s.rotulo}
-                className="flex-1 border-r border-mt-inverso-regua-fina pr-[0.73vw] last:border-r-0"
+                className="flex-1 border-r border-mt-inverso-regua-fina pl-[0.73vw] pr-[0.73vw] first:pl-0 last:border-r-0 last:pr-0"
               >
                 <div className="text-[0.68vw] font-semibold tracking-[.14em] text-mt-inverso-suave">
                   {s.rotulo}

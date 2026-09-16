@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { limparModelo, segmentoDoVeiculo, slugificar } from "./veiculoUrl";
+import { registrarFalha } from "./observabilidade";
+import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
+import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
+import { publicavel } from "./coerenciaDoCadastro";
 import type { Veiculo } from "../types";
 export type { Veiculo };
 
@@ -176,6 +179,24 @@ const formatCombustivel = (c: string): string => {
 };
 
 /**
+ * Palavras que negam aprovação NA COLUNA DE STATUS — "não aprovado", "sem
+ * aprovação", "reprovado", "pendente", "negado", "indeferido".
+ *
+ * O `\bsem\b` só é seguro porque o domínio é o valor de `pericia`, um
+ * vocabulário fechado onde "sem" aparece em "sem aprovação" e em nada mais.
+ *
+ * Foi EXPORTADA em 2026-09-08 para `src/lib/descritivo/validacao.ts` reusar, e
+ * a exportação foi desfeita no mesmo dia: aplicada a uma FRASE LIVRE de
+ * anúncio, ela desligava a regra da perícia em qualquer "sem «coisa boa»" —
+ * "sem sinistro registrado", "sem restrições", "sem histórico de leilão" —, e
+ * o texto saía afirmando laudo aprovado num carro em análise. Ela não responde
+ * "esta frase nega a aprovação?", e sim "este STATUS nega a aprovação?". Duas
+ * perguntas, duas réguas: a de texto livre mora em `validacao.ts`, com negação
+ * estrutural adjacente ao verbo.
+ */
+const NEGA_APROVACAO = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/;
+
+/**
  * Status de perícia do veículo, a partir do campo `pericia` do feed.
  *
  * Só aprova com afirmação EXPLÍCITA de aprovação, e nunca quando há negação
@@ -186,12 +207,19 @@ const formatCombustivel = (c: string): string => {
  * default promocional do mapper: aprovação por conteúdo de marketing.
  *
  * Valores reais em produção (2026-08-06): "Aprovado" e "Em análise".
+ *
+ * EXPORTADA desde 2026-09-08 porque o gerador de descritivo precisa da MESMA
+ * régua que acende o selo — nenhum veículo tem a string "PERÍCIA APROVADA" no
+ * banco (são "Aprovado", "Em análise" e "Aprovado com observação"), e uma
+ * segunda régua criaria mais uma verdade sobre a perícia.
+ *
+ * "Aprovado com observação" conta como aprovado: decisão do dono em 2026-09-08.
  */
-const formatPericia = (p: string): string => {
+export const formatPericia = (p: string): string => {
   const val = (p || "").toLowerCase().trim();
   if (!val) return "EM ANÁLISE";
 
-  const nega = /\b(nao|não|sem|reprovad|pendent|negad|indeferid)\b/.test(val);
+  const nega = NEGA_APROVACAO.test(val);
   if (!nega && /aprovad/.test(val)) return "PERÍCIA APROVADA";
   if (/analise|análise/.test(val)) return "EM ANÁLISE";
 
@@ -247,6 +275,24 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
 
   const precoOriginal = typeof dbItem.preco_original === "number" ? dbItem.preco_original : (typeof dbItem.preco === "number" ? dbItem.preco : 0);
   const precoPromocional = typeof dbItem.preco_promocional === "number" ? dbItem.preco_promocional : 0;
+
+  // Modelo e versão — o override do painel vence o feed.
+  //
+  // Aqui, e só aqui: daí para cima ninguém sabe que o override existe. A URL
+  // da ficha, os hubs de marca e modelo, o feed XML e o JSON-LD recebem o
+  // objeto já resolvido, e por isso concordam entre si sem combinar nada.
+  //
+  // O que isso conserta (medido no sitemap de 2026-08-26): quatro modelos
+  // chegaram do feed com a VERSÃO inteira na coluna `modelo`, e cada um gerou
+  // um hub próprio — `/carros/ford/ka-sedan-10-se-flex-4p` disputando com
+  // `/carros/ford/ka`, que por isso listava dois dos três Ka.
+  //
+  // Texto em branco não conta como override: string vazia gravada sem querer
+  // apagaria o nome do modelo do site inteiro.
+  const comOverride = (override: unknown, doFeed: string): string => {
+    const escrito = typeof override === "string" ? override.trim() : "";
+    return escrito || doFeed;
+  };
 
   // Carroceria — só o que o feed traz.
   //
@@ -340,8 +386,14 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   return {
     id: dbItem.id !== undefined && dbItem.id !== null ? String(dbItem.id) : "",
     marca: formatBrand(dbItem.marca),
-    modelo: dbItem.modelo ? capitalizeWords(dbItem.modelo.trim()) : "Sem Modelo",
-    versao: dbItem.versao ? dbItem.versao.trim() : "Padrão",
+    modelo: comOverride(
+      dbItem.modelo_override,
+      dbItem.modelo ? capitalizeWords(dbItem.modelo.trim()) : "Sem Modelo",
+    ),
+    // O override passa por `capitalizeWords`? Não: "HR-V" e "C-180" viram
+    // "Hr-v" e "C-180" nessa moagem, e o ponto de escrever à mão é justamente
+    // poder grafar o nome como ele é. O valor do feed continua normalizado.
+    versao: comOverride(dbItem.versao_override, dbItem.versao ? dbItem.versao.trim() : "Padrão"),
     ano: typeof dbItem.ano === "number" ? dbItem.ano : (Number(dbItem.ano) || new Date().getFullYear()),
     quilometragem: typeof dbItem.quilometragem === "number" ? dbItem.quilometragem : (Number(dbItem.quilometragem) || 0),
     // ⚠️  NADA DE DEFAULT INVENTADO NOS CAMPOS ABAIXO.
@@ -375,6 +427,17 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     laudo_pericia: dbItem.laudo_pericia || "",
     tipo: resolveTipo(dbItem),
     perfil_uso: resolvePerfilUso(dbItem),
+    // Para que o carro serve — array SEMPRE, mesmo em linha que ainda só tem o
+    // `perfil_uso` singular. A conversão do vocabulário antigo acontece aqui,
+    // na leitura: daí para cima ninguém precisa saber que houve um campo de um
+    // valor só, e o hub, o painel e o motor de regras leem a mesma coisa.
+    //
+    // `perfisValidos` descarta slug fora do vocabulário. O feed não escreve
+    // nesta coluna, mas o painel escreve, e um valor inventado criaria uma
+    // vitrine `/estoque/{slug}` que ninguém pediu.
+    perfis_uso: Array.isArray(dbItem.perfis_uso) && dbItem.perfis_uso.length > 0
+      ? perfisValidos(dbItem.perfis_uso)
+      : perfisDoValorAntigo(dbItem.perfil_uso),
     // `textoUtil` e não `||` cru: o feed manda "Sem descrição informada" em vez
     // de deixar vazio, e esse marcador vazava para a página e para o anúncio.
     descricao: textoUtil(dbItem.descricao) || textoUtil(dbItem.laudo_pericia),
@@ -391,9 +454,17 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     baixa_km: hasBaixaKm,
     unico_dono: hasUnicoDono,
     oportunidade_patio: hasOportunidadePatio,
+    // Data de chegada. Sem inventar: linha sem carimbo devolve `null`, e o
+    // consumidor decide (a camada de dados omite `days_in_stock`, o painel
+    // mostra "—"). Ver a migração `20260826030000_first_seen_at.sql`.
+    first_seen_at: dbItem.first_seen_at ?? null,
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
     vendido: !!dbItem.vendido,
+    // Quem manda nesta ficha (migração 20260829130000): `sync` é do
+    // RevendaMais e é reescrito a cada ciclo; `painel` é nosso e o sync não
+    // toca. Metadado operacional, não sensível — por isso sai no mapper.
+    origem: dbItem.origem === "painel" ? "painel" : "sync",
     // Ficha própria do painel (migração 20260807160000): vazio até alguém
     // preencher — a UI oculta a linha, como em cambio/combustivel/cor.
     //
@@ -578,8 +649,13 @@ export function apenasDoUltimoSync<T extends { last_seen_at?: string | null }>(l
     }
   }
 
-  // Linha sem carimbo é mantida: pode ter sido inserida à mão pelo painel, e
-  // sumir do site em silêncio seria pior que aparecer indevidamente.
+  // Linha sem carimbo é mantida — e desde 2026-08-29 isso deixou de ser
+  // hipótese e virou caso de primeira classe: o veículo cadastrado no painel
+  // (`origem = 'painel'`, migração 20260829130000) nasce com `last_seen_at`
+  // NULO de propósito, porque ele nunca veio em sync nenhum. Filtrá-lo pela
+  // janela do feed o faria sumir do site no primeiro ciclo — o oposto do que a
+  // trava do sync existe para garantir. Quem decide se ele vai à vitrine é
+  // `bloqueiosDePublicacao` (as 8 fotos), como para qualquer outro carro.
   return linhas.filter((l) => {
     if (!l.last_seen_at) return true;
     return new Date(l.last_seen_at).getTime() >= corte;
@@ -613,9 +689,22 @@ export async function getSinaisDeEstoque(
   try {
     const { data, error } = await supabase
       .from("estoque_motors")
-      .select("id, last_seen_at");
+      .select("id, last_seen_at, estado_cadastro");
 
     if (error || !data || data.length === 0) return nadaSabido;
+
+    // Desde 2026-08-30 "fora do feed" tem nome próprio: `arquivado`. A PDP
+    // continua resolvendo o carro (é o que permite dizer que ele não está mais
+    // disponível, em vez de responder 200 anunciando o que a loja não tem),
+    // mas quem responde "saiu do estoque" agora é a decisão da loja, não a
+    // ausência dele no último ciclo do robô.
+    const propriaLinha = data.find((l: any) => String(l.id) === String(id));
+    if (propriaLinha?.estado_cadastro) {
+      return {
+        foraDoFeed: propriaLinha.estado_cadastro !== "publicado",
+        ultimaPresenca: propriaLinha.last_seen_at ?? null,
+      };
+    }
 
     const visiveis = apenasDoUltimoSync(data);
     // Mesma válvula de segurança do `getEstoque`: se o filtro descartou tudo,
@@ -677,6 +766,59 @@ export async function getCarimbosDeConteudo(): Promise<Record<string, string>> {
 }
 
 /**
+ * `id -> last_seen_at` — a última vez que o feed confirmou cada veículo.
+ *
+ * Existe para o SITEMAP enxergar a carência do vendido pelo mesmo relógio que
+ * a ficha. Até 2026-09-04 eram dois relógios diferentes: `decidirPublicacao`
+ * recebe `dataVenda ?? ultimaPresenca`, e a ficha passava as duas
+ * (`getSinaisDeEstoque`) enquanto o sitemap passava só a data de venda. Com
+ * `veiculos_vendidos` vazia, o `noindex` do sitemap nunca virava `true` — e a
+ * URL ia continuar listada mesmo depois de a página passar a responder 308.
+ * Sitemap anunciando redirecionamento é sinal contraditório para o rastreador.
+ *
+ * `getSinaisDeEstoque` responde a mesma pergunta para UM id; o sitemap precisa
+ * de todos, e chamá-la 60 vezes seria 60 idas ao banco por revalidação.
+ *
+ * Falha SEMPRE para o mapa vazio, nunca para exceção: sem carimbo, a carência
+ * não vence e o carro continua listado. É o mesmo lado para o qual todo este
+ * módulo erra — manter no índice é recuperável, sumir do índice leva semanas.
+ */
+export async function getUltimasPresencas(): Promise<Record<string, string>> {
+  if (!isSupabaseConfigured || !supabase) return {};
+
+  try {
+    /* Duas colunas, uma ida. Poderia vir junto de `getCarimbosDeConteudo` num
+       `select` só — as duas leem a mesma tabela inteira na mesma revalidação
+       do sitemap —, e ficou separada de propósito: `conteudo_atualizado_em`
+       ainda depende de uma migração que pode não estar aplicada, e o PostgREST
+       rejeita a query INTEIRA com 42703 quando uma coluna não existe. Juntar
+       faria a ausência de um campo derrubar o outro, que é exatamente o
+       defeito documentado no cabeçalho de `getCarimbosDeConteudo`. */
+    const { data, error } = await supabase.from("estoque_motors").select("id, last_seen_at");
+
+    if (error || !data) {
+      console.warn(
+        "[Supabase] Sem últimas presenças (%s) — a carência do vendido não " +
+          "vence no sitemap.",
+        error?.message ?? "resposta vazia"
+      );
+      return {};
+    }
+
+    const mapa: Record<string, string> = {};
+    for (const linha of data as any[]) {
+      if (linha.last_seen_at) {
+        mapa[String(linha.id)] = linha.last_seen_at;
+      }
+    }
+    return mapa;
+  } catch (err) {
+    console.warn("[Supabase] Erro inesperado ao ler últimas presenças:", err);
+    return {};
+  }
+}
+
+/**
  * Consulta o estoque no Supabase, com fallback para os mocks.
  *
  * Por padrão devolve só o que veio no último ciclo de sync — é o que o site
@@ -700,18 +842,81 @@ export async function getCarimbosDeConteudo(): Promise<Record<string, string>> {
  * onde é exatamente o que se quer sem banco configurado.
  */
 function estoqueDeContingencia(): Veiculo[] {
-  if (process.env.NODE_ENV === "production") {
-    console.error(
-      "[Supabase] Estoque indisponível em produção — servindo vitrine vazia. " +
-        "MOCK_ESTOQUE NÃO é servido: são carros fictícios."
-    );
-    return [];
+  // Só o caminho de veículo NÃO ENCONTRADO usa isto hoje, e ali a lista vazia
+  // é a resposta certa: id que não existe é 404, não falha. A lista da vitrine
+  // passou a usar `estoqueIndisponivel()`, logo abaixo.
+  return process.env.NODE_ENV === "production" ? [] : MOCK_ESTOQUE;
+}
+
+/** O estoque não pôde ser lido. Não é "não há carros" — é "não sei". */
+export class EstoqueIndisponivelError extends Error {
+  constructor(motivo: string) {
+    super(`Estoque indisponível: ${motivo}`);
+    this.name = "EstoqueIndisponivelError";
   }
-  return MOCK_ESTOQUE;
+}
+
+/**
+ * A leitura do estoque FALHOU. Em produção, isto estoura.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que estourar é melhor que devolver lista vazia
+ * ---------------------------------------------------------------------------
+ * Devolver `[]` fazia a página renderizar com SUCESSO, só que sem carro. Para o
+ * Next isso é um render bom — e ele **guarda no ISR por até uma hora**. Uma
+ * falha momentânea de leitura na hora errada virava sessenta minutos de vitrine
+ * vazia servida a todo mundo, clique pago inclusive.
+ *
+ * Aconteceu duas vezes em 2026-09-02/03, registrado nos logs de produção: uma
+ * ficha de Saveiro servida com 200, `cache=BYPASS`, e vitrine vazia.
+ *
+ * Estourando, o Next não guarda o render quebrado: quem já tem versão boa em
+ * cache continua sendo servido por ela, e o pior caso vira erro visível em vez
+ * de mentira cacheada. É a mesma escolha que o comentário acima já fazia entre
+ * vitrine vazia e carro fictício — honesto e visivelmente errado ganha de
+ * plausível e falso.
+ *
+ * ⚠️ **Consequências que valem saber, e que são deliberadas:**
+ *
+ *   - No BUILD isto derruba o deploy em vez de publicar um site sem carro.
+ *     Deploy que falha é caro; site publicado vazio é pior e mais silencioso.
+ *   - O painel e as rotas de API passam a responder 500 em vez de lista vazia.
+ *     Operador vendo erro sabe que não pode confiar na tela; operador vendo
+ *     "0 veículos" toma decisão sobre um pátio que não está vazio.
+ *   - Se o pátio um dia esvaziar DE VERDADE (tabela zerada), o site erra em vez
+ *     de mostrar vitrine vazia. É estado excepcional de qualquer jeito, e o
+ *     aviso conta o que houve.
+ */
+async function estoqueIndisponivel(motivo: string): Promise<Veiculo[]> {
+  if (process.env.NODE_ENV !== "production") return MOCK_ESTOQUE;
+
+  console.error(`[Supabase] FALHA — estoque indisponível: ${motivo}.`);
+  // O aviso procura a pessoa. Sem ele isto é mais um log que ninguém lê — que
+  // foi exatamente como a CAPI ficou um mês parada.
+  await registrarFalha("parada", "estoque-indisponivel", motivo);
+  throw new EstoqueIndisponivelError(motivo);
 }
 
 export async function getEstoque(
-  opts: { incluirForaDoFeed?: boolean; incluirPlaca?: boolean } = {}
+  opts: {
+    incluirForaDoFeed?: boolean;
+    incluirPlaca?: boolean;
+    /**
+     * Traz também o que está bloqueado para publicação — hoje, quem tem menos
+     * de 8 fotos. Ver `bloqueiosDePublicacao`, que lista as pendências e diz
+     * quais delas tiram o carro do ar.
+     *
+     * ⚠️ **O filtro é o padrão, e é de propósito.** Quem pede esta opção é o
+     * painel, a auditoria e os testes; toda superfície pública chama sem
+     * opção nenhuma e nasce protegida. Uma página nova escrita daqui a seis
+     * meses não precisa saber que a regra existe para respeitá-la — e é essa
+     * a única forma que não depende de alguém lembrar.
+     *
+     * Mesma disciplina de `incluirPlaca`: o dado sensível ou incompleto sai
+     * por pedido explícito, nunca por descuido.
+     */
+    incluirNaoPublicaveis?: boolean;
+  } = {}
 ): Promise<Veiculo[]> {
   /** O mapper não devolve `placa` (ver a nota lá): quem pede, recebe de volta
    *  aqui. Só chame com `incluirPlaca` em contexto autenticado — o resultado
@@ -730,33 +935,90 @@ export async function getEstoque(
         .order("preco", { ascending: false });
 
       if (error) {
-        console.warn("[Supabase] Query error:", error.message);
-        list = estoqueDeContingencia();
+        list = await estoqueIndisponivel(`o banco recusou a consulta — ${error.message}`);
       } else if (data && data.length > 0) {
-        const visiveis = opts.incluirForaDoFeed ? data : apenasDoUltimoSync(data);
-        // O filtro nunca pode zerar a lista e derrubar o site no MOCK_ESTOQUE —
-        // 5 carros ficticios em producao. Se zerou, algo esta errado no carimbo:
-        // serve o que veio do banco e registra.
+        // --------------------------------------------------------------
+        // Quem decide o que está no ar é a LOJA, não o robô (2026-08-30)
+        // --------------------------------------------------------------
+        // Até aqui a régua era `apenasDoUltimoSync`: ficava no ar quem tinha
+        // `last_seen_at` dentro da janela do ciclo mais recente. Isso valia
+        // enquanto o cron rodava de 6 em 6 horas e o feed era a verdade.
+        //
+        // Com a importação MANUAL (decisão do dono — "sem override, criamos
+        // rascunhos dos carros para serem finalizados antes de serem
+        // publicados"), a mesma régua se voltaria contra o site: bastaria uma
+        // importação parcial, ou de um carro só, para esse carro virar "o
+        // ciclo mais recente" e derrubar todo o resto da vitrine. Ninguém teria
+        // mexido em nada.
+        //
+        // `estado_cadastro` (migração 20260830120000) é o estado explícito que
+        // substitui a inferência. `apenasDoUltimoSync` fica no arquivo e segue
+        // testada: ela é a régua da linha ANTIGA, sem estado, e o fallback
+        // abaixo a usa enquanto houver banco por migrar.
+        const temEstado = data.some((l: any) => l.estado_cadastro);
+        let noFeed = opts.incluirForaDoFeed
+          ? data
+          : temEstado
+            ? data.filter((l: any) => l.estado_cadastro === "publicado")
+            : apenasDoUltimoSync(data);
+
+        // A válvula vale para os DOIS caminhos, e pela mesma razão de sempre:
+        // se o filtro zerar, o site não pode cair no MOCK_ESTOQUE — 5 carros
+        // fictícios em produção. Serve o que veio do banco e registra alto.
+        if (noFeed.length === 0) {
+          console.warn(
+            temEstado
+              ? "[Supabase] Nenhum veículo com estado_cadastro='publicado'; servindo o estoque completo. Alguém arquivou tudo, ou a publicação não foi feita."
+              : "[Supabase] Filtro de last_seen_at descartou todas as linhas; servindo o estoque completo."
+          );
+          noFeed = data;
+        }
+
+        // Bloqueio de publicação, aplicado sobre a LINHA CRUA:
+        // `whatsapp_images` é coluna, e filtrar antes de mapear evita montar
+        // objeto de veículo que ninguém vai usar.
+        //
+        // ⚠️ Este filtro NÃO tem válvula: se ele zerar a lista, a vitrine fica
+        // vazia mesmo. Foi decidido assim porque as duas falhas não custam o
+        // mesmo. Vitrine vazia o dono vê no mesmo dia; anúncio publicado sem
+        // as fotos volta a ser exatamente o que ninguém notaria — foi assim
+        // que duas fichas com UMA foto ficaram meses no ar.
+        //
+        // O que impede o gate de esvaziar a vitrine por engano não é uma
+        // válvula aqui, é a medição antes de ligar cada regra: ver
+        // `LAUDO_BLOQUEIA_PUBLICACAO` e a seção 5 de `npm run
+        // auditoria:estoque`.
+        const visiveis = opts.incluirNaoPublicaveis
+          ? noFeed
+          : noFeed.filter((l: any) => publicavel(l));
         if (visiveis.length === 0) {
           console.warn(
-            "[Supabase] Filtro de last_seen_at descartou todas as linhas; servindo o estoque completo."
+            `[Supabase] Bloqueio de publicação descartou as ${noFeed.length} linhas do pátio. Vitrine vazia.`
           );
-          list = data.map(mapear);
-        } else {
-          list = visiveis.map(mapear);
         }
+        list = visiveis.map(mapear);
       } else {
-        list = estoqueDeContingencia();
+        /* O ramo que era MUDO, e o mais provável dos quatro.
+           A consulta voltou sem erro e sem linha — e não registrava o que tinha
+           visto, então o log dizia "vitrine vazia" sem dizer por quê. Agora diz
+           se veio nulo ou lista de zero, que é a informação que separa "falha
+           de transporte" de "a tabela está vazia". */
+        list = await estoqueIndisponivel(
+          data === null || data === undefined
+            ? "a consulta voltou nula, sem erro"
+            : `a consulta voltou com ${data.length} linhas, sem erro`,
+        );
       }
     } catch (err) {
-      console.warn("[Supabase] Unexpected connection error:", err);
-      list = estoqueDeContingencia();
+      // Um `EstoqueIndisponivelError` vindo daqui de dentro já é a falha
+      // tratada: relançar em vez de virar segunda mensagem sobre a mesma coisa.
+      if (err instanceof EstoqueIndisponivelError) throw err;
+      list = await estoqueIndisponivel(`conexão caiu — ${String(err)}`);
     }
   } else {
     // Sem credenciais: em dev serve o catálogo local; em produção seria um
     // deploy sem env configurada — vitrine vazia, nunca carros fictícios.
-    console.info("[Supabase] Client not configured.");
-    list = estoqueDeContingencia();
+    list = await estoqueIndisponivel("cliente do Supabase não configurado — falta env no deploy");
   }
 
   return applyLocalOverrides(list);
@@ -852,10 +1114,32 @@ export function getVeiculoPdpUrl(veiculo: {
   // Slugify each segment
   const slugMarca = slugificar(finalBrand);
   const slugModelo = slugificar(finalModel);
-  const slugVersao = slugificar(finalVersion);
+  const slugVersao = slugDeVersao(finalVersion);
 
-  // Create clean, beautiful full slug and URL path
-  const slugCompletoComId = `${slugMarca}-${slugModelo}-${slugVersao}-${veiculo.id}`;
-  
-  return `/${segmentoDoVeiculo(veiculo)}/${slugMarca}/${slugModelo}/${slugVersao}/${slugCompletoComId}`;
+  // ---------------------------------------------------------------------------
+  // Quatro segmentos, não cinco — a virada de 2026-08-31
+  // ---------------------------------------------------------------------------
+  // A URL era:
+  //
+  //   /carros/fiat/titano/volcano-22-16v-4x4-tb-die-aut
+  //          /fiat-titano-volcano-22-16v-4x4-tb-die-aut-8171616
+  //
+  // O quinto segmento era, POR CONSTRUÇÃO, a concatenação dos três anteriores.
+  // A única informação nova nele era o id. O dono viu e perguntou: *"esta url
+  // faz sentido? informações truncadas e repetidas, pode ser mais clean"*.
+  //
+  // Agora é:
+  //
+  //   /carros/fiat/titano/volcano-2-2-16v-4x4-turbo-diesel-automatico-8171616
+  //
+  // O id continua sendo o ÚLTIMO trecho, e isso não é estética: a ficha resolve
+  // o veículo pegando o que vem depois do último hífen. Qualquer mudança aqui
+  // que tire o id do fim quebra a resolução — e quebra em silêncio, servindo
+  // 404 para carro que existe.
+  //
+  // Por que agora: mexer em endereço renomeia página indexada, e a janela é
+  // esta — *"o site não anuncia nada ainda, não indexou quase nada, se existe
+  // um momento para alinhar e mudar, é este"*. A URL de cinco segmentos segue
+  // respondendo, com 301 para cá.
+  return `/${segmentoDoVeiculo(veiculo)}/${slugMarca}/${slugModelo}/${slugVersao}-${veiculo.id}`;
 }

@@ -101,3 +101,140 @@ describe("estabilidade do widget Turnstile", () => {
     expect(consumidores.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Toda superfície protegida declara a sua `action`.
+ *
+ * A `action` é fixada no navegador, na montagem do widget, e volta assinada
+ * pela Cloudflare na resposta do siteverify — o cliente não troca depois. O
+ * servidor confere contra a lista da rota, então superfície que esquecer de
+ * declarar leva 403 e o lead some. Aqui isso falha no CI, não em produção.
+ */
+/**
+ * Os blocos de atributos de cada uso de `<Nome ... />` no arquivo.
+ *
+ * O lookahead não é firula: sem ele, `<Turnstile` casa dentro de
+ * `useRef<TurnstileHandle>(null)` e o teste acusa um uso que não existe.
+ */
+function lerFonte(relativo: string): string {
+  return readFileSync(join(raiz, relativo), "utf8");
+}
+
+function usosDoComponente(fonte: string, nome: string): string[] {
+  const normalizado = fonte.replace(/\s+/g, " ");
+  return normalizado
+    .split(new RegExp(`<${nome}(?=[\\s>])`))
+    .slice(1)
+    .map((trecho) => trecho.slice(0, trecho.indexOf("/>")));
+}
+
+describe("a action de cada superfície", () => {
+  const arquivos = arquivosDeCodigo(join(raiz, "src"));
+
+  it("todo <Turnstile> recebe uma action", () => {
+    const usos = arquivos.filter((caminho) => {
+      const fonte = readFileSync(caminho, "utf8");
+      return /<Turnstile[\s>]/.test(fonte) && !caminho.endsWith("Turnstile.tsx");
+    });
+    expect(usos.length).toBeGreaterThan(0);
+
+    for (const caminho of usos) {
+      for (const atributos of usosDoComponente(readFileSync(caminho, "utf8"), "Turnstile")) {
+        expect(atributos, `${caminho}: <Turnstile> sem action`).toMatch(/action=/);
+      }
+    }
+  });
+
+  it("todo <LeadCaptureModal> recebe uma action", () => {
+    const usos = arquivos.filter((caminho) =>
+      /<LeadCaptureModal[\s>]/.test(readFileSync(caminho, "utf8"))
+    );
+    expect(usos.length).toBeGreaterThan(0);
+
+    for (const caminho of usos) {
+      for (const atributos of usosDoComponente(readFileSync(caminho, "utf8"), "LeadCaptureModal")) {
+        expect(atributos, `${caminho}: <LeadCaptureModal> sem action`).toMatch(/action=/);
+      }
+    }
+  });
+
+  it("as actions do código são as que o servidor aceita", () => {
+    // Uma action escrita à mão num consumidor, fora do mapa de `lib/turnstile.ts`,
+    // seria recusada pelo servidor. Passar pelo mapa é o que mantém os dois
+    // lados em sincronia.
+    const usos = arquivos.filter((caminho) => {
+      const fonte = readFileSync(caminho, "utf8");
+      return /<(Turnstile|LeadCaptureModal)[\s>]/.test(fonte) && !caminho.endsWith("Turnstile.tsx");
+    });
+    for (const caminho of usos) {
+      const fonte = readFileSync(caminho, "utf8");
+      for (const nome of ["Turnstile", "LeadCaptureModal"]) {
+        for (const atributos of usosDoComponente(fonte, nome)) {
+          const action = atributos.match(/action=\{([^}]+)\}/);
+          if (!action) continue;
+          expect(action[1].trim(), `${caminho}: action fora do mapa de lib/turnstile.ts`)
+            .toMatch(/^(ACOES\.\w+|action)$/);
+        }
+      }
+    }
+  });
+
+  it("o reset do token gasto está ao alcance dos formulários", () => {
+    // Token do Turnstile é de uso único. Sem um reset exposto, um envio que
+    // falha deixa o formulário reenviando o mesmo token queimado para sempre.
+    expect(fonte).toMatch(/useImperativeHandle/);
+    expect(fonte).toMatch(/reset:/);
+  });
+});
+
+/**
+ * Nenhum formulário pode morrer no erro do captcha.
+ *
+ * Quando o desafio não completa — extensão de privacidade bloqueando
+ * `challenges.cloudflare.com`, rede filtrando o script, aba aberta desde antes
+ * de um deploy — o botão de enviar fica `disabled` e o visitante não recebe
+ * explicação nenhuma. Quem chegou até ali já digitou nome e telefone.
+ *
+ * A saída é `SaidaDoCaptcha`: explica o que houve e oferece o WhatsApp da loja
+ * (link `wa.me`, resolvido no navegador, que NÃO cria lead — o gate do servidor
+ * continua inteiro). Este teste existe para que a próxima superfície protegida
+ * não nasça sem ela.
+ */
+describe("a saída quando o captcha não passa", () => {
+  const superficies = arquivosDeCodigo(join(raiz, "src")).filter((caminho) => {
+    if (caminho.endsWith("Turnstile.tsx")) return false;
+    return /<Turnstile(?=[\s>])/.test(readFileSync(caminho, "utf8"));
+  });
+
+  it("há superfícies para conferir", () => {
+    expect(superficies.length).toBeGreaterThan(0);
+  });
+
+  it("todo formulário com desafio trata o onError", () => {
+    for (const caminho of superficies) {
+      for (const atributos of usosDoComponente(readFileSync(caminho, "utf8"), "Turnstile")) {
+        expect(atributos, `${caminho}: <Turnstile> sem onError — o desafio pode falhar em silêncio`)
+          .toMatch(/onError=/);
+      }
+    }
+  });
+
+  it("todo formulário com desafio oferece uma saída", () => {
+    for (const caminho of superficies) {
+      const fonte = readFileSync(caminho, "utf8");
+      expect(fonte, `${caminho}: sem <SaidaDoCaptcha> — o visitante fica sem caminho`)
+        .toMatch(/<SaidaDoCaptcha/);
+    }
+  });
+
+  it("a saída não cria lead — só abre conversa", () => {
+    // Se um dia alguém "resolver" a falha do captcha postando o lead assim
+    // mesmo, o gate do servidor vira enfeite. A saída pode abrir o WhatsApp e
+    // pode voltar para a home; não pode chamar as rotas protegidas.
+    const saida = lerFonte("src/components/SaidaDoCaptcha.tsx");
+    expect(saida).not.toMatch(/\/api\/leads/);
+    expect(saida).not.toMatch(/\/api\/avaliacao/);
+    expect(saida).not.toMatch(/fetch\(/);
+    expect(saida).toMatch(/linkWhatsApp/);
+  });
+});

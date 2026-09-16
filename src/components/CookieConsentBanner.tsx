@@ -24,11 +24,10 @@ export default function CookieConsentBanner() {
     window.dispatchEvent(new Event("ag-cookie-consent-updated"));
   };
 
-  const handleReject = () => {
-    localStorage.setItem("ag_cookie_consent", "rejected");
-    setIsVisible(false);
-    window.dispatchEvent(new Event("ag-cookie-consent-updated"));
-  };
+  // O `handleReject` que morava aqui foi para `/privacidade`
+  // (`ControleDeRastreamento`) em 2026-08-31. Não sumiu a capacidade de
+  // desligar; saiu o CONVITE a desligar, que estava ao lado do "Entendi" e
+  // nomeava o medo — *"esta frase induz a recusa"*, olhando a tela.
 
   if (!isVisible) return null;
 
@@ -46,31 +45,51 @@ export default function CookieConsentBanner() {
       {/* Header */}
       <span className="mt-rotulo mt-rotulo-accent">Privacidade &amp; Cookies</span>
 
-      {/* Description */}
+      {/*
+        Reescrito duas vezes em 2026-08-31, e a segunda foi por um print.
+
+        A primeira versão trocou "ao aceitar, você concorda" por um texto que
+        informa o que já está acontecendo — correto, porque nada mais espera o
+        clique. Mas ela veio com um botão "Não quero ser rastreado" ao lado do
+        "Entendi", e o dono apontou o óbvio olhando a tela: *"esta frase induz a
+        recusa"*. Duas opções lado a lado, uma delas nomeando o medo, é um
+        formulário perguntando se a pessoa quer ser vigiada.
+
+        O aviso não decide mais nada. Ele conta o que está em curso e some. Quem
+        quiser desligar encontra o controle em `/privacidade` — existe, funciona,
+        e não fica gritando na frente de quem só quer ver carro.
+      */}
       <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-800">
-        A Motors Store utiliza cookies e outras tecnologias semelhantes para melhorar a sua experiência, otimizar a navegação, personalizar publicidade (Google e Meta Pixel) e analisar o tráfego do portal. Ao aceitar, você concorda com o uso dessas tags conforme a nossa{" "}
+        A Motors Store usa cookies para entender como o site é usado e medir o desempenho dos
+        nossos anúncios (Google e Meta), com base no legítimo interesse previsto na LGPD. Você
+        pode ajustar isso quando quiser na{" "}
         <Link
           href="/privacidade"
           className="font-semibold text-mt-ink underline decoration-mt-accent decoration-2 underline-offset-2 hover:text-mt-accent"
         >
           Política de Privacidade
         </Link>
-        , em conformidade com a LGPD. Recusar não impede o uso do site.
+        .
       </p>
 
-      {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-2 border-t border-mt-regua-fina pt-3">
-        <button
-          onClick={handleReject}
-          className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[10px] uppercase"
+      {/* "Ajustar detalhes" é LINK, não botão de ação: ele leva ao lugar onde a
+          escolha existe de verdade, em vez de decidir por quem clicou sem
+          mostrar o que está decidindo. Peso normal e sem caixa alta de propósito
+          — o dono pediu fonte mais suave, e o contraste de antes era parte do
+          convite à recusa. */}
+      <div className="flex items-center justify-end gap-4 border-t border-mt-regua-fina pt-3">
+        <Link
+          href="/privacidade"
+          onClick={() => setIsVisible(false)}
+          className="mt-foco text-[11px] font-normal text-mt-neutral-700 underline underline-offset-2 hover:text-mt-ink"
         >
-          Rejeitar
-        </button>
+          Ajustar detalhes
+        </Link>
         <button
           onClick={handleAccept}
           className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[10px] uppercase"
         >
-          Aceitar Todos
+          Entendi
         </button>
       </div>
     </div>

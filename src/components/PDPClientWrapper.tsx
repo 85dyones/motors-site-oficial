@@ -10,12 +10,17 @@ import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
-import { linkWhatsApp, telefoneVisivel } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
 import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
 import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
+import { ACOES } from "../lib/turnstile";
+// O bloco de laudo pendente é componente próprio, e o porquê está escrito lá:
+// é o que deixa a trava RENDERIZAR o texto em vez de garimpá-lo na fonte.
+import BlocoLaudoPendente from "./BlocoLaudoPendente";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
+
 
 interface PDPClientWrapperProps {
   veiculo: Veiculo;
@@ -204,6 +209,7 @@ export default function PDPClientWrapper({
       // O laudo está na ficha — não "o carro foi periciado", que vale para
       // todos. Ver a nota em `pushVeiculo`.
       temLaudo: Boolean((veiculo.laudo_pericia ?? "").trim()),
+      primeiraVez: veiculo.first_seen_at,
     });
 
     // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)
@@ -339,13 +345,18 @@ export default function PDPClientWrapper({
     const utmParams = getUtmParameters();
     const tipoBadge = veiculo.baixa_km ? "BAIXA KM" : (veiculo.unico_dono ? "ÚNICO DONO" : (veiculo.cautelar_100 ? "CAUTELAR 100%" : "BAIXA KM"));
 
-    const cleanPhone = leadData.whatsapp;
-    const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
-    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
+    // `telefoneDoLead` normaliza o que veio do campo — que agora chega
+    // mascarado, "(41) 99737-2165". As três linhas que estavam aqui tinham um
+    // `cleanPhone` que não limpava nada: com 15 caracteres o teste de
+    // comprimento falhava e o número seguia para o CRM com parênteses dentro
+    // do `remoteJid`. Ver o comentário em `lib/whatsapp.ts`.
+    const telefone = telefoneDoLead(leadData.whatsapp);
+    const formattedPhone = telefone.comDDI ?? "";
+    const remoteJid = telefone.remoteJid;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
-    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission({
       id: veiculo.id,
       marca: veiculo.marca,
@@ -386,12 +397,14 @@ export default function PDPClientWrapper({
         email: leadData.email,
         whatsapp: leadData.whatsapp
       },
-      utm: {
-        utm_source: utmParams.utm_source,
-        utm_medium: utmParams.utm_medium,
-        utm_campaign: utmParams.utm_campaign,
-        utm_content: utmParams.utm_content
-      },
+      // O objeto INTEIRO, não uma cópia campo a campo.
+      //
+      // Remontá-lo à mão descartava `gclid`, `gbraid`, `wbraid`, `utm_term` e
+      // `fbclid` — e este é um dos dois caminhos de maior volume do site. Sem
+      // o click id, o lead chega ao CRM sem como voltar à palavra-chave que o
+      // gerou, e a conversão offline não tem o que subir. A captura já
+      // existia em `getUtmParameters`; o que faltava era não jogar fora aqui.
+      utm: utmParams,
       intencao_busca: {},
       agUid: agUid,
       eventId,
@@ -1201,6 +1214,48 @@ export default function PDPClientWrapper({
           </div>
           )}
 
+          {/* Laudo ainda não publicado: DIZ ISSO, em vez de calar.
+              O bloco acima resolveu não afirmar laudo limpo sobre carro não
+              periciado — certo, e continua. Mas o silêncio criou outro
+              problema: em 2026-09-03, dezessete dos trinta e seis veículos
+              publicados não tinham a perícia marcada como aprovada, e nas
+              fichas deles o assunto simplesmente não existia, enquanto a FAQ
+              da mesma página prometia "o laudo fica na ficha do carro". Quem
+              procurava não achava e não sabia por quê.
+
+              ⚠️ O TEXTO FALA DO LAUDO, NÃO DA PERÍCIA. A primeira versão dizia
+              "perícia cautelar em andamento", e estava errada: a perícia É
+              feita antes de o veículo entrar na vitrine (confirmado pelo dono
+              em 2026-09-04) — o que falta é o RESULTADO chegar, porque o sync
+              do RevendaMais não traz o campo. Afirmar "em andamento" sobre um
+              exame já concluído é o mesmo erro do bloco acima, invertido:
+              inventar estado de processo a partir de ausência de dado.
+
+              Desde 2026-09-08, por decisão do dono, a ficha não promete mais
+              publicação: manda PEDIR. O laudo existe desde antes da vitrine e
+              fica com a loja — dizer "é publicado aqui assim que aprovado" só
+              se cumpria nas fichas em que o feed traz a perícia aprovada; nas
+              outras virava espera sem prazo, que é o defeito que este bloco
+              veio corrigir. O caminho agora é o vendedor, a qualquer tempo.
+
+              E por isso o bloco passou a olhar `indisponivel` (09/09): "a
+              qualquer tempo" é compromisso em aberto, e na ficha de um carro
+              VENDIDO — que fica no ar durante a carência — ele ficava ao lado
+              de um botão que já diz "CONSULTAR SIMILARES". Prometer laudo de
+              carro que saiu do pátio não ajuda ninguém a decidir nada; aqui o
+              silêncio é honesto, porque não há mais compra para apoiar. O
+              bloco do laudo APROVADO segue aparecendo no vendido: aquele é
+              documento que existe e está publicado, não promessa.
+
+              A guarda é `indisponivel`, e ela é MAIS LARGA que "vendido": vale
+              também para o carro que sumiu do feed, cujo motivo o próprio
+              `publicacao.ts` diz não saber ("pode ser repasse, reserva ou
+              anúncio expirado, e o carro pode voltar"). É de propósito, e é a
+              mesma régua do CTA logo acima — se a página já parou de vender
+              aquele carro, ela também para de prometer atendimento sobre ele.
+              Quando o carro volta ao feed, o bloco volta junto. */}
+          {!indisponivel && !(veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA") && <BlocoLaudoPendente />}
+
         </div>
 
         {/* Right Column: Desktop Sidebar and Matriz de Especificações (spans 5 cols on lg) */}
@@ -1325,21 +1380,44 @@ export default function PDPClientWrapper({
 
       </div>
 
-      {/* 5. STICKY BOTTOM BAR (Mobile Thumb Zone CTA — High-Impact Dual Action) */}
-      <div className="pb-safe fixed bottom-0 left-0 right-0 z-40 flex items-center gap-0.5 bg-mt-bg pt-0.5 md:hidden print:hidden">
+      {/* ------------------------------------------------------------------
+          5. A BARRA FIXA DO MOBILE
+          ------------------------------------------------------------------
+          Refeita em 2026-08-31, com o print do dono na mão: *"essa proporção
+          dos botões no mobile está poluindo muito o layout, precisamos de um
+          ajuste que deixe mais minimalista, como fica na versão desktop"*.
+
+          O que estava errado não era a existência dos dois botões — era eles
+          não combinarem em NADA. Quatro divergências somadas, cada uma
+          pequena, todas visíveis juntas:
+
+            largura   96px fixos  ×  flex-1        (um espremido, outro imenso)
+            altura    py-3        ×  py-[18px]     (36px de diferença no total)
+            corpo     11px        ×  13px
+            rótulo    quebrado à mão com <br />    (duas linhas contra uma)
+
+          O desktop já resolve o mesmo par logo acima, no bloco "Ações": dois
+          botões `flex-1` com o MESMO `py-3.5`, o mesmo `text-[11px]` e o mesmo
+          tracking, sem quebra forçada. É essa régua que desce para cá.
+
+          A proporção 1 : 1.8 mantém o WhatsApp como ação dominante — ele é o
+          CTA da página — sem espremer o outro num carimbo de 96px. E o
+          `minHeight` de 44px continua nos dois: é o alvo mínimo de toque, e
+          era a única coisa que os dois já tinham em comum. */}
+      <div className="pb-safe fixed bottom-0 left-0 right-0 z-40 flex items-stretch gap-0.5 bg-mt-bg pt-0.5 md:hidden print:hidden">
         <button
           onClick={handleTradeInClick}
- className="mt-btn mt-btn-contorno mt-foco flex-none justify-center px-3 py-3 text-center text-[11px] leading-tight tracking-[.06em]"
-          style={{ minHeight: "44px", width: "96px" }}
+          className="mt-btn mt-btn-contorno mt-foco flex-1 justify-center px-3 py-3.5 text-center text-[11px] leading-tight tracking-[.06em]"
+          style={{ minHeight: "44px" }}
         >
-          USADO<br />NA TROCA
+          USADO NA TROCA
         </button>
         <button
           onClick={handleWhatsappPDPClick}
- className="mt-btn mt-btn-primario mt-foco flex-1 px-4 py-[18px] text-[13px] tracking-[.08em]"
+          className="mt-btn mt-btn-primario mt-foco flex-[1.8] justify-center gap-2 px-3 py-3.5 text-center text-[11px] leading-tight tracking-[.06em]"
           style={{ minHeight: "44px" }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-3.5 h-3.5">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="h-3.5 w-3.5 shrink-0">
             <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
           </svg>
           <span>CHAMAR NO WHATSAPP</span>
@@ -1472,6 +1550,7 @@ export default function PDPClientWrapper({
 
       {/* Positive Friction Lead Capture Modal */}
       <LeadCaptureModal
+        action={ACOES.pdp}
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         onSubmit={handleLeadSubmit}

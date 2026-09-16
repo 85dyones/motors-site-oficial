@@ -54,9 +54,12 @@ export type Genero = "m" | "f";
 /**
  * Modelos femininos que nem o segmento nem a carroceria denunciam.
  *
- * Perua, van e furgão não têm valor próprio em `CARROCERIAS` — chegam como
- * Hatch ou SUV —, então só o nome resolve. Chaves normalizadas por
- * `normalizar()`: minúsculas, sem acento e sem pontuação.
+ * Perua, Van e Utilitário ganharam valor próprio em `CARROCERIAS` em
+ * 2026-08-26, mas a tabela continua sendo a rede de segurança: a carroceria é
+ * campo que o painel edita à mão, e um veículo que chegue do feed como "Hatch"
+ * — que é o que o RevendaMais manda quando não sabe — não pode derrubar a
+ * concordância da página inteira. Chaves normalizadas por `normalizar()`:
+ * minúsculas, sem acento e sem pontuação.
  *
  * Saveiro, Strada, Montana e Oroch estão aqui **de propósito**, mesmo já
  * cobertas pela regra da picape: `tipo` é campo que o painel edita à mão, e
@@ -119,7 +122,19 @@ const MODELOS_MASCULINOS = new Set(["bongo"]);
  * a nota sobre imports no topo; `tests/genero-e-concordancia.test.ts` prende as
  * duas para que não possam divergir em silêncio.
  */
-const CARROCERIAS_FEMININAS = new Set(["picape", "wagon"]);
+const CARROCERIAS_FEMININAS = new Set([
+  "picape",
+  // "wagon" saiu em 2026-09-01 junto com o valor em `CARROCERIAS`: era
+  // sinônimo de "perua" e gerava uma segunda página para a mesma carroceria.
+  "perua",
+  "van",
+  // "motocicleta" faltava, e a função devolvia masculino para ela — lido na
+  // saída real ao acrescentar as três novas, não numa asserção. Estava
+  // mascarado porque a regra do segmento `motos` vem antes e já devolve
+  // feminino, e porque `CARROCERIAS_COM_HUB` exclui Motocicleta: nenhuma
+  // página chegava a escrever "o motocicleta". Mascarado não é corrigido.
+  "motocicleta",
+]);
 
 /**
  * O plural de cada carroceria, escrito — não montado com `+ "s"`.
@@ -137,7 +152,13 @@ const PLURAIS: Record<string, string> = {
   Esportivo: "Esportivos",
   Conversível: "Conversíveis",
   Coupe: "Coupés",
-  Wagon: "Wagons",
+  Perua: "Peruas",
+  Van: "Vans",
+  // "Utilitários", não "Utilitárioes": o acento cai no plural.
+  "Utilitário": "Utilitários",
+  // "Caminhões", não "Caminhãos": o `-ão` átono faz plural em `-ões`, e a
+  // regra genérica (`${palavra}s`) erraria exatamente aqui.
+  "Caminhão": "Caminhões",
 };
 
 /**

@@ -66,12 +66,13 @@ describe("nomenclatura da tabela de inventário", () => {
     const padrao = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/;
     const comAcesso = arquivos.filter((a) => padrao.test(readFileSync(a, "utf8")));
 
-    // 9 arquivos, 17 pontos de acesso — o inventário atual:
+    // 10 arquivos, 16 pontos de acesso — o inventário atual:
     //   lib/supabase.ts (5), lib/estoqueEscrita.ts (2),
     //   api/ciclo/vendas/estoque/route.ts (1),
     //   api/estoque/[id]/route.ts (2, sendo 1 em comentário),
-    //   api/financeiro/margens/consulta/route.ts (2),
-    //   api/financeiro/margens/route.ts (2), lib/webhook-dispatcher.ts (1),
+    //   api/estoque/route.ts (1),
+    //   lib/webhook-dispatcher.ts (1), app/investidor/page.tsx (1),
+    //   api/investidores/participacoes/route.ts (1),
     //   app/admin/estoque/page.tsx (1), app/admin/estoque/[id]/page.tsx (1)
     //
     // Eram 10 acessos em 5 arquivos até 2026-08-03. A consulta perdeu um
@@ -106,13 +107,43 @@ describe("nomenclatura da tabela de inventário", () => {
     // dele, não o custo da loja —, e o recorte por pessoa é da RLS de
     // `investidor_veiculos`, não deste `.in()`.
     //
-    // E o décimo primeiro, no mesmo dia:
-    // `api/financeiro/investidores/route.ts`, que serve o seletor de veículo
-    // do lançamento de participação. O recorte é o mesmo da tela de margens
+    // E o décimo primeiro, no mesmo dia: a rota de participações de
+    // investidor (hoje `api/investidores/participacoes/route.ts`), que serve
+    // o seletor de veículo do lançamento. O recorte era o da tela de margens
     // (id, marca, modelo, versao, ano, preco, vendido) — sem `placa`,
     // `chassi` ou `preco_compra`: escolher um carro numa lista não alarga o
     // que o perfil enxerga.
-    expect(comAcesso.length).toBe(11);
+    //
+    // Em 2026-08-28 a lista ENCOLHEU pela primeira vez: a aposentadoria do
+    // módulo de caixa (decisão do dono — o financeiro renasce sobre o razão
+    // do handoff) levou os 4 acessos das duas rotas de margens, e as rotas de
+    // investidor mudaram de endereço (/api/financeiro/investidores →
+    // /api/investidores). De 11 arquivos e 19 acessos para 9 e 15.
+    //
+    // Em 2026-08-29 entrou o décimo, e é o primeiro INSERT da lista:
+    // `api/estoque/route.ts` ganhou o POST do cadastro nativo (adendo do dono,
+    // migração 20260829130000). Até aqui todo acesso era leitura ou UPDATE —
+    // veículo só nascia pelo sync do RevendaMais. A escrita continua sendo por
+    // rota autenticada, nunca pelo cliente com a anon key (`AUDITORIA.md §3.4`).
+    //
+    // E no mesmo dia o acesso nº 17, sem arquivo novo: `api/estoque/[id]` passou
+    // a ler `origem` antes de montar a atualização, porque é ela que decide se
+    // o PREÇO é gravável (só no veículo do painel — no do feed o sync
+    // desfaria). A leitura é do BANCO de propósito: aceitar `origem` do corpo
+    // deixaria qualquer um reprecificar carro do RevendaMais.
+    //
+    // Em 2026-09-15 entrou o décimo segundo: `api/estoque/[id]/fotos-do-feed`,
+    // a rota que importa para o banco as fotos que o anúncio tem AGORA no
+    // RevendaMais. Único `.from("estoque_motors")` do arquivo, e é um SELECT de
+    // `id, origem` — a gravação em si passa por `aplicarNosVeiculos`, como toda
+    // escrita do painel, para as três colunas entrarem no histórico do veículo.
+    //
+    // Ela existe porque desde 30/08 a foto do carro do feed não tinha dono: a
+    // trava do banco virou allowlist de seis colunas (sem foto) e descarta a
+    // gravação do sync em silêncio, enquanto a galeria recusava o envio pelo
+    // painel. Os dois "não" prenderam carro com 17 fotos no RevendaMais em
+    // `rascunho`, abaixo do mínimo, invisível no site por uma semana.
+    expect(comAcesso.length).toBe(12);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -120,6 +151,24 @@ describe("nomenclatura da tabela de inventário", () => {
       );
       return soma + (ocorrencias?.length ?? 0);
     }, 0);
-    expect(total).toBe(19);
+    // Nº 18, em 2026-09-04, sem arquivo novo: `lib/supabase.ts` ganhou
+    // `getUltimasPresencas()`, que lê `id, last_seen_at` de todas as linhas
+    // para o SITEMAP enxergar a carência do vendido pelo mesmo relógio que a
+    // ficha. `getSinaisDeEstoque` responde a mesma pergunta para um id só, e
+    // o sitemap precisa de todos — chamá-la em laço seria uma ida ao banco
+    // por veículo, a cada revalidação.
+    //
+    // E o décimo primeiro arquivo, acesso nº 19, em 2026-09-08:
+    // `api/estoque/[id]/descritivo/route.ts`, a rota do gerador de descritivo
+    // (Tarefa 4). Único `.from("estoque_motors")` do arquivo, e é um SELECT —
+    // a rota nunca grava. O veículo é lido do BANCO de propósito, e não do
+    // corpo da requisição: aceitar `pericia` do corpo deixaria qualquer um
+    // liberar a afirmação de laudo aprovado num carro cujo exame não fechou.
+    // E o acesso nº 20, em 2026-09-15, com o arquivo novo acima: o SELECT de
+    // `id, origem` da rota de importação de fotos. A origem é lida do BANCO, e
+    // não aceita do corpo, pela mesma razão do nº 17 — senão bastaria mandar
+    // `origem:"sync"` para a rota ir buscar no feed um veículo que nasceu no
+    // painel e não existe no RevendaMais.
+    expect(total).toBe(20);
   });
 });

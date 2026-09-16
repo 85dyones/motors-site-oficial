@@ -48,6 +48,8 @@ export interface CompartilhamentoSettings {
   contato?: CardCompartilhamento;
   destaques?: CardCompartilhamento;
   privacidade?: CardCompartilhamento;
+  /** O índice `/guias` e cada guia — um card para o cluster inteiro. */
+  guias?: CardCompartilhamento;
 }
 
 export interface CompanySettings {
@@ -163,6 +165,34 @@ export interface Webhooks {
   apiSecretToken?: string;
 }
 
+/**
+ * Credenciais de LEITURA do Google Analytics 4 — as que o painel usa para
+ * mostrar visitas. Nada a ver com a coleta, que roda no navegador com o
+ * `G-...` público (ver `IntegrationsTracker` e TRACKING_SPEC.md).
+ *
+ * Guardadas em `site_settings` (id `ga4`), editáveis pelo painel, com
+ * `process.env.GA4_*` de reserva — mesmo contrato do `apiSecretToken`.
+ */
+export interface Ga4Settings {
+  /** ID NUMÉRICO da propriedade. Não é o "G-KBL1MFN9E3". */
+  propertyId?: string;
+  /** E-mail da conta de serviço do Google Cloud. */
+  clientEmail?: string;
+  /**
+   * Chave privada do JSON da conta de serviço.
+   *
+   * ⚠️ **Só existe no sentido servidor → banco.** O `GET /api/settings` a
+   * substitui por `privateKeyConfigurada` antes de responder; quem vier daqui
+   * para a tela nunca deve encontrá-la preenchida. Ver `mascararGa4`.
+   */
+  privateKey?: string;
+  /**
+   * O que a tela recebe no lugar da chave: "tem uma guardada" ou "não tem".
+   * Nunca é gravado no banco — é um campo de resposta, não de dado.
+   */
+  privateKeyConfigurada?: boolean;
+}
+
 export interface Campaign {
   id: string;
   name: string;
@@ -179,12 +209,49 @@ export interface Campaign {
   targetVehicleId?: string;
 }
 
+/** Os campos que o editor de destaque oferece. Aberto na leitura — ver `checkTagMatchesVehicle`. */
+export type CampoDeTag =
+  | "perfil_uso"
+  | "preco"
+  | "quilometragem"
+  | "tipo"
+  | "marca"
+  | "combustivel"
+  | "cambio"
+  | "ano"
+  | "manual";
+
+export type OperadorDeTag = "equals" | "less" | "greater" | "contains" | "none";
+
+/**
+ * Uma condição da regra de curadoria.
+ *
+ * A regra nasceu com UMA condição — um campo, um operador, um valor — e isso
+ * não expressa "SUV para família" nem "automático com baixa km", que é
+ * justamente o que o vocabulário de perfis múltiplos abriu.
+ */
+export interface CondicaoDeTag {
+  field: CampoDeTag;
+  operator: OperadorDeTag;
+  value: string;
+}
+
 export interface QuickTag {
   id: string;
   name: string;
-  field: "perfil_uso" | "preco" | "quilometragem" | "tipo" | "marca" | "combustivel" | "manual";
-  operator: "equals" | "less" | "greater" | "contains" | "none";
-  value: string;
+  /**
+   * ⚠️ Os três campos abaixo são a forma ANTIGA, e continuam sendo lidos para
+   * sempre. As tags gravadas em produção estão nela, e reescrever o que
+   * funciona seria risco sem retorno — `condicoesDaTag` (lib/regrasEstoque)
+   * traduz as duas formas num lugar só.
+   *
+   * O painel grava `condicoes`.
+   */
+  field?: CampoDeTag;
+  operator?: OperadorDeTag;
+  value?: string;
+  /** A forma nova: todas as condições precisam casar (E). */
+  condicoes?: CondicaoDeTag[];
   description?: string;
   bannerMode?: "image" | "carousel";
   bgImageUrl?: string;
@@ -211,6 +278,14 @@ export interface Veiculo {
   laudo_pericia: string;
   tipo?: string;
   perfil_uso?: string;
+  /**
+   * Para que o carro serve — um ou vários. Vocabulário fechado em
+   * `lib/perfisDeUso.ts`; cada valor vira `/estoque/{slug}`.
+   *
+   * Sempre array depois de `mapDbToVeiculo`, mesmo quando a linha só tem o
+   * `perfil_uso` singular: a resolução acontece na leitura, num lugar só.
+   */
+  perfis_uso?: string[];
   descricao?: string;
   descricao_seo?: string;
   cabine_premium?: boolean;
@@ -225,6 +300,18 @@ export interface Veiculo {
   vendido?: boolean;
   preco_compra?: number;
   preco?: number;
+  /**
+   * De onde a linha veio: `sync` (RevendaMais) ou `painel` (cadastro nativo,
+   * migração 20260829130000). Metadado operacional, não dado sensível — por
+   * isso viaja no mapper como qualquer outro campo, ao contrário de
+   * `preco_compra`/`placa`, que exigem pedido explícito.
+   *
+   * Quem precisa dele: o painel, para dizer quem manda naquela ficha — veículo
+   * do sync é sobrescrito pelo RevendaMais a cada 6 h, veículo do painel não
+   * (a trava vive no banco). E `bloqueiosDePublicacao`, para mandar o operador
+   * subir a foto em vez de esperar um feed que nunca vai trazê-la.
+   */
+  origem?: "sync" | "painel";
   // Ficha própria do painel (migração 20260807160000) — preenchida por nós,
   // nunca pelo sync do RevendaMais. `placa` voltou ao tipo por decisão do
   // dono em 2026-08-07: agora a coluna EXISTE, então o campo deixa de ser
@@ -234,6 +321,13 @@ export interface Veiculo {
   motor?: string;
   cor_interna?: string;
   donos_anteriores?: number;
+  /**
+   * Quando o veículo apareceu no feed pela primeira vez — a data de chegada.
+   *
+   * `null` nas linhas anteriores à migração `20260826030000`: idade
+   * desconhecida, e quem consome omite o campo em vez de inventar zero.
+   */
+  first_seen_at?: string | null;
   garantia_fabrica?: string;
 }
 
@@ -243,6 +337,14 @@ export type StockOverrides = Record<string, {
   vendido?: boolean;
   tipo?: string;
   perfil_uso?: string;
+  /**
+   * Para que o carro serve — um ou vários. Vocabulário fechado em
+   * `lib/perfisDeUso.ts`; cada valor vira `/estoque/{slug}`.
+   *
+   * Sempre array depois de `mapDbToVeiculo`, mesmo quando a linha só tem o
+   * `perfil_uso` singular: a resolução acontece na leitura, num lugar só.
+   */
+  perfis_uso?: string[];
   quick_tags?: string[];
 }>;
 

@@ -1,0 +1,55 @@
+-- ==========================================================
+-- Desfaz o override que a 20260826150000 escreveu no Ka errado
+-- ==========================================================
+--
+-- Comparando os 38 veículos do feed servido antes e depois das duas migrações,
+-- exatamente três títulos mudaram — e um deles não era alvo:
+--
+--   8059102  "Ford Ka+ Sedan 1.0 Se Flex 4p" → "Ford Ka Sedan 1.0 SE Flex 4p"  ok
+--   8243644  "Honda Hr-v Ex 1.8 …"           → "Honda HR-V EX 1.8 …"           ok
+--   8335025  "Ford Ka Sedan Se 1.5 12v"      → "Ford Ka Sedan 1.0 SE Flex 4p"  ERRADO
+--
+-- O 8335025 é o **Ka Sedan SE 1.5 12v**. Ele passou a anunciar a versão do
+-- outro carro: dois veículos diferentes com o mesmo nome e o mesmo caminho
+-- descritivo, e quem clicasse no 1.5 leria "1.0 SE Flex 4p".
+--
+-- ----------------------------------------------------------
+-- Como aconteceu, para não repetir
+-- ----------------------------------------------------------
+-- O `WHERE` da 20260826150000 era `modelo ILIKE 'Ka Sedan%'`. Aquela migração
+-- afirma, no próprio comentário, que os outros dois Ka têm `modelo = "Ka"` e
+-- por isso não seriam alcançados.
+--
+-- Esse valor nunca foi lido. Foi DEDUZIDO da URL `/carros/ford/ka/sedan-se-15-12v/`
+-- — sem notar que aquele `ka` é o resultado de `limparModelo` tirando o sufixo
+-- da versão, e não o conteúdo da coluna. O valor real é "Ka Sedan SE 1.5 12v",
+-- que casa com `'Ka Sedan%'`.
+--
+-- O resultado foi o pior par possível: a migração pegou o carro errado e NÃO
+-- pegou o certo (o 8059102 tem "Ka+ Sedan", com o mais, que `'Ka Sedan%'` não
+-- alcança). A 20260826200000 então consertou o certo e não tocou no errado,
+-- porque o guarda `modelo_override IS NULL` já o considerava resolvido.
+--
+-- Duas vezes o mesmo erro: tirar o padrão do SLUG em vez do valor da coluna.
+--
+-- ⚠️  **Correção de linha específica se faz por `id`.** Quando o id é
+-- conhecido — e este estava à vista na URL servida desde o começo — casar
+-- texto não acrescenta nada e só abre espaço para alcançar quem não devia.
+-- Padrão de texto fica para o caso em que não há id legível, e aí o comentário
+-- tem de declarar o valor que foi lido na origem.
+--
+-- ----------------------------------------------------------
+-- Por que NULL, e não o valor certo
+-- ----------------------------------------------------------
+-- Para este carro o feed sempre esteve certo. `NULL` devolve exatamente o que
+-- ele manda — "Ka Sedan SE 1.5 12v" — e a URL volta a ser
+-- `/carros/ford/ka/sedan-se-15-12v/…`.
+--
+-- O agrupamento em `/carros/ford/ka` não muda: `limparModelo` já resolvia este
+-- veículo para `ka` sozinho, tirando o sufixo da versão. Ele nunca precisou de
+-- override.
+-- ==========================================================
+
+UPDATE public.estoque_motors
+   SET modelo_override = NULL, versao_override = NULL
+ WHERE id = 8335025;

@@ -1,0 +1,277 @@
+{
+  "name": "Motors Funil — Alertas de Estagnação",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "b1000000-0000-4000-8000-000000000001",
+      "name": "De hora em hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "De hora em hora, TODO dia — inclusive de madrugada e domingo.\n\nNão é descuido: quem decide se pode avisar agora é a rota (nada entre 20h e 8h, nada aos domingos, §4.3). Deixar a régua de horário aqui a duplicaria em dois lugares que ninguém obriga a concordar — e num fuso, ainda por cima. Fora do horário a fila volta com tudo suprimido e nada é gravado nem transferido.\n\nO custo é ~10 chamadas por dia que não fazem nada. O benefício é uma régua só."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://motors-site-oficial.vercel.app/api/funil/alertas",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"reservar\": true } }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "b1000000-0000-4000-8000-000000000002",
+      "name": "Pedir a fila",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUBSTITUIR_NA_IMPORTACAO",
+          "name": "FUNIL_MOTOR_TOKEN"
+        }
+      },
+      "notes": "`reservar: true` é o modo de produção: grava o aviso E aplica a transferência no mesmo comando. Trocar para `false` vira prévia — mostra o que aconteceria, não grava, não transfere.\n\nCredencial Header Auth:\n  Name  = Authorization\n  Value = Bearer <FUNIL_MOTOR_TOKEN>\n\nÉ um segredo PRÓPRIO, não o CICLO_MOTOR_TOKEN: a base de leads e a base de clientes do Ciclo são dois conjuntos de dados, e quem tem a credencial de um não deve puxar o outro."
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Um item por aviso a entregar — e falha ALTO quando a fila não veio.\n *\n * Quem decide quem está parado, quem avisar, se pode avisar agora e para quem\n * vai o lead transferido é o banco (`montar_fila_do_funil`); quem monta o\n * texto é o site. Aqui só se entrega.\n *\n * Status fora de 200 estoura em vez de seguir vazio: execução verde com zero\n * envio é o modo de falha que já aconteceu neste projeto — e num alerta de\n * estagnação ele é invisível por semanas, que é exatamente o problema que\n * este funil existe para resolver.\n */\n\n// >>> PREENCHA: WhatsApp de quem cuida do cadastro comercial, só dígitos com\n//     DDI. Ex.: '5541999998888'. Vazio = o aviso de gestão não é enviado (e\n//     sai registrado no ramo \"Não enviado\"). Constante e não `$env` pelo\n//     mesmo motivo do outro workflow: acesso a variável de ambiente em nó\n//     Code não está provado nesta instância, e se estiver bloqueado a\n//     execução inteira estoura.\nconst WHATSAPP_GESTAO = '';\n\nconst r = $input.first().json;\nconst status = r.statusCode ?? 0;\nconst corpo = r.body ?? {};\n\nif (status !== 200 || corpo.ok !== true) {\n  throw new Error('Fila indisponível: HTTP ' + status + ' — ' + JSON.stringify(corpo).slice(0, 300));\n}\n\nconst fila = Array.isArray(corpo.fila) ? corpo.fila : [];\nconst suprimidos = Array.isArray(corpo.suprimidos) ? corpo.suprimidos : [];\nconst semDestinatario = Array.isArray(corpo.sem_destinatario) ? corpo.sem_destinatario : [];\n\nconst itens = fila.map((a) => ({\n  json: {\n    tipo: 'vendedor',\n    lead_id: a.lead_id,\n    aviso: a.aviso,\n    lead_nome: a.lead?.nome ?? '',\n    etapa: a.lead?.etapa ?? '',\n    minutos_parado: a.lead?.minutos_parado ?? null,\n    destinatario_nome: a.destinatario?.nome ?? '',\n    numero_whatsapp: a.destinatario?.whatsapp ?? '',\n    mensagem: a.mensagem,\n  },\n}));\n\n/**\n * O que a fila NÃO entregou e que depende de alguém arrumar.\n *\n * `fora_do_horario` e `alerta_recente` ficam de fora de propósito: são a\n * régua funcionando, não problema. `vendedor_sem_whatsapp` e\n * `sem_vendedor_disponivel` são cadastro faltando — e são silenciosos, que é\n * o que os torna perigosos: o lead segue parado e ninguém é cobrado.\n *\n * Só na primeira rodada do dia. Esta rotina acorda de hora em hora, e um\n * lembrete de cadastro repetido doze vezes vira ruído que se aprende a\n * ignorar — o oposto do que um alerta serve para fazer.\n */\nconst ACIONAVEIS = ['vendedor_sem_whatsapp', 'sem_vendedor_disponivel'];\nconst pendencias = suprimidos.filter((s) => ACIONAVEIS.includes(s.suprimido_por));\n\nconst horaLocal = Number(\n  new Intl.DateTimeFormat('pt-BR', {\n    timeZone: 'America/Sao_Paulo',\n    hour: 'numeric',\n    hour12: false,\n  }).format(new Date()),\n);\nconst primeiraRodadaDoDia = horaLocal === 8;\n\nif (primeiraRodadaDoDia && (pendencias.length > 0 || semDestinatario.length > 0)) {\n  const semWhats = pendencias.filter((s) => s.suprimido_por === 'vendedor_sem_whatsapp');\n  const semDono = pendencias.filter((s) => s.suprimido_por === 'sem_vendedor_disponivel');\n  const linhas = ['Leads parados que ninguém foi avisado:', ''];\n\n  if (semWhats.length > 0) {\n    linhas.push('Vendedor sem WhatsApp cadastrado:');\n    for (const s of semWhats) {\n      linhas.push('• ' + s.nome + ' — com ' + (s.responsavel ?? 'sem dono'));\n    }\n    linhas.push('');\n    linhas.push('O telefone se cadastra no painel, em Usuários e permissões.');\n    linhas.push('');\n  }\n\n  if (semDono.length > 0) {\n    linhas.push('Sem vendedor disponível para receber:');\n    for (const s of semDono) {\n      linhas.push('• ' + s.nome + ' (' + s.etapa + ')');\n    }\n    linhas.push('');\n    linhas.push('O rodízio precisa de pelo menos dois vendedores ativos com WhatsApp — ');\n    linhas.push('a escolha exclui o dono atual, então com um só ninguém pode receber.');\n  }\n\n  if (semDestinatario.length > 0) {\n    linhas.push('');\n    linhas.push('Aviso montado sem destinatário (o número sumiu no meio do caminho): '\n      + semDestinatario.length);\n  }\n\n  itens.push({\n    json: {\n      tipo: 'gestao',\n      destinatario_nome: 'Gestão',\n      numero_whatsapp: WHATSAPP_GESTAO,\n      mensagem: linhas.join('\\n'),\n    },\n  });\n}\n\n// Fila vazia é resultado bom, não erro — e precisa passar sem envio nenhum.\nreturn itens;\n"
+      },
+      "id": "b1000000-0000-4000-8000-000000000003",
+      "name": "Distribuir os avisos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b1000000-0000-4000-8000-000000000010",
+              "leftValue": "={{ $json.numero_whatsapp }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1000000-0000-4000-8000-000000000004",
+      "name": "Tem para quem mandar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evolution.v2o5.com.br/message/sendText/v2o5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"number\": $json.numero_whatsapp, \"text\": $json.mensagem } }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "b1000000-0000-4000-8000-000000000005",
+      "name": "Enviar WhatsApp (Evolution)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bZbVxJ7yeuPQ4IUD",
+          "name": "Evolution — apikey (v2o5)"
+        }
+      },
+      "notes": "`neverError` para TENTAR todos os avisos: uma falha não pode impedir os outros vendedores de serem avisados. Quem transforma falha em execução vermelha é o nó \"Conferir entregas\", no fim."
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Fecha o rastro de cada envio.\n *\n * Sem devolução de desfecho: o rastro do lead já foi escrito pelo banco no\n * mesmo comando que montou a fila. O que se registra aqui é a ENTREGA, que é\n * a única parte que o banco não tem como saber.\n */\nconst resposta = $json;\nconst original = $('Distribuir os avisos').item.json;\nconst status = resposta.statusCode ?? 0;\n\nreturn {\n  json: {\n    tipo: original.tipo,\n    aviso: original.aviso ?? null,\n    lead_nome: original.lead_nome ?? null,\n    destinatario_nome: original.destinatario_nome,\n    minutos_parado: original.minutos_parado ?? null,\n    status,\n    enviado: status < 300,\n  },\n};\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "b1000000-0000-4000-8000-000000000006",
+      "name": "Registrar envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Quem não tinha número. Não é erro de execução — é cadastro faltando —, mas\n * precisa aparecer, senão o aviso de gestão some justamente quando o telefone\n * da gestão é o que está faltando.\n */\nreturn {\n  json: {\n    tipo: $json.tipo,\n    aviso: $json.aviso ?? null,\n    lead_nome: $json.lead_nome ?? null,\n    destinatario_nome: $json.destinatario_nome,\n    enviado: false,\n    motivo: $json.tipo === 'gestao'\n      ? 'WHATSAPP_GESTAO não preenchido no nó \"Distribuir os avisos\"'\n      : 'destinatário sem telefone em profiles.telefone_e164',\n  },\n};\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "b1000000-0000-4000-8000-000000000007",
+      "name": "Não enviado (sem número)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * A rede que fecha o único buraco do desenho.\n *\n * A rota é chamada com `reservar: true`, e é ela que TRANSFERE o lead — no\n * mesmo comando que produz a mensagem, de propósito: não existe transferência\n * sem aviso. Mas a entrega acontece depois, aqui no n8n. Se o envio falhar, o\n * lead já trocou de dono e o dono novo não soube.\n *\n * Por isso a execução termina VERMELHA quando qualquer aviso de vendedor não\n * saiu. É a única forma de alguém olhar. Não é preciosismo: sem isto, a\n * funcionalidade que existe para impedir transferência silenciosa passa a\n * produzir uma por semana, em silêncio.\n *\n * O aviso de GESTÃO fica de fora da conta: ele não transfere nada, e derrubar\n * a execução por causa de um lembrete de cadastro faria a rede perder o\n * sentido.\n */\nconst itens = $input.all().map((i) => i.json);\nconst falhas = itens.filter((i) => i.tipo === 'vendedor' && i.enviado !== true);\n\nif (falhas.length > 0) {\n  const resumo = falhas\n    .map((f) => (f.destinatario_nome || '?') + ' → ' + (f.lead_nome || '?')\n      + ' (' + (f.motivo || 'HTTP ' + f.status) + ')')\n    .join('; ');\n  throw new Error(\n    'ENTREGA FALHOU em ' + falhas.length + ' de ' + itens.length + ' aviso(s). '\n    + 'O lead JÁ foi transferido no banco e o vendedor não foi avisado — '\n    + 'reenvie à mão ou avise no kanban. ' + resumo,\n  );\n}\n\nreturn [{ json: { avisos: itens.length, todos_entregues: true } }];\n"
+      },
+      "id": "b1000000-0000-4000-8000-000000000008",
+      "name": "Conferir entregas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "De hora em hora": {
+      "main": [
+        [
+          {
+            "node": "Pedir a fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir a fila": {
+      "main": [
+        [
+          {
+            "node": "Distribuir os avisos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Distribuir os avisos": {
+      "main": [
+        [
+          {
+            "node": "Tem para quem mandar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem para quem mandar?": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp (Evolution)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Não enviado (sem número)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp (Evolution)": {
+      "main": [
+        [
+          {
+            "node": "Registrar envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar envio": {
+      "main": [
+        [
+          {
+            "node": "Conferir entregas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Não enviado (sem número)": {
+      "main": [
+        [
+          {
+            "node": "Conferir entregas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "tags": []
+}

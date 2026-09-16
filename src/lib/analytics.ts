@@ -1,4 +1,5 @@
 import { createSign } from "node:crypto";
+import { getCachedSettings } from "./settings";
 import { ehCaminhoDePdp, SEGMENTOS_DE_PDP } from "./veiculoUrl";
 
 /**
@@ -19,47 +20,111 @@ import { ehCaminhoDePdp, SEGMENTOS_DE_PDP } from "./veiculoUrl";
  * superfície para auditar e nada novo para manter atualizado.
  *
  * ----------------------------------------------------------------------
- * Credenciais (o dono preenche)
+ * Credenciais: painel primeiro, variável de ambiente de reserva
  * ----------------------------------------------------------------------
- *   GA4_PROPERTY_ID      id numérico da propriedade (não é o "G-..."):
- *                        Admin → Detalhes da propriedade → ID da propriedade
- *   GA4_CLIENT_EMAIL     e-mail da conta de serviço
- *   GA4_PRIVATE_KEY      chave privada do JSON da conta de serviço
+ * As três credenciais moram na linha `ga4` de `site_settings`, editável em
+ * Configurações → Integração, com `process.env.GA4_*` como fallback campo a
+ * campo. É a mesma forma do `webhooks.apiSecretToken ||
+ * process.env.N8N_SECRET_TOKEN` em `webhook-dispatcher.ts`.
+ *
+ * Até 27/08 só existia o caminho da env, e isso fazia do GA4 a exceção da
+ * casa: todo o resto que é segredo configurável já se resolvia pelo painel.
+ * A diferença prática é quem consegue ligar o recurso — pelo painel, o dono;
+ * pela env, quem tem acesso à Vercel e sabe redeployar.
+ *
+ *   propertyId    id NUMÉRICO da propriedade (não é o "G-..."):
+ *                 Admin → Detalhes da propriedade → ID da propriedade
+ *   clientEmail   e-mail da conta de serviço
+ *   privateKey    chave privada do JSON da conta de serviço
  *
  * A conta de serviço precisa ser adicionada como **Leitor** na propriedade
  * do GA4 (Admin → Gerenciamento de acesso). Sem isso a API responde 403
- * mesmo com a credencial correta.
+ * mesmo com a credencial correta. Passo a passo em `docs/GA4_CREDENCIAIS.md`.
  *
- * Sem as três variáveis, tudo aqui devolve `null` — e as telas mostram "—"
- * com a explicação, em vez de zero. Zero é um número e mente; "—" não.
+ * Sem as três, tudo aqui devolve `null` — e as telas mostram "—" com a
+ * explicação, em vez de zero. Zero é um número e mente; "—" não.
  */
 
 const ESCOPO = "https://www.googleapis.com/auth/analytics.readonly";
 const URL_TOKEN = "https://oauth2.googleapis.com/token";
 const URL_DATA = "https://analyticsdata.googleapis.com/v1beta";
 
-export function analyticsConfigurado(): boolean {
-  return Boolean(
-    process.env.GA4_PROPERTY_ID &&
-      process.env.GA4_CLIENT_EMAIL &&
-      process.env.GA4_PRIVATE_KEY,
-  );
+export interface CredenciaisDoGa4 {
+  propertyId: string;
+  clientEmail: string;
+  privateKey: string;
+}
+
+/**
+ * As três credenciais, resolvidas — ou `null` se faltar qualquer uma.
+ *
+ * Campo a campo, e não tudo-ou-nada por fonte: quem já tinha as envs
+ * preenchidas e passar a escrever só o `propertyId` no painel continua
+ * funcionando. Tudo-ou-nada faria a gravação parcial derrubar o recurso, com
+ * o sintoma aparecendo como "sumiram as visitas" e a causa em outro lugar.
+ *
+ * `null` no lugar de exceção porque é o que os chamadores já esperam: a tela
+ * do painel desenha "—" e segue. Analytics indisponível não pode derrubar a
+ * visão geral.
+ */
+export async function credenciaisDoGa4(): Promise<CredenciaisDoGa4 | null> {
+  let doPainel: Record<string, unknown> = {};
+  try {
+    const settings = await getCachedSettings();
+    if (settings.ga4 && typeof settings.ga4 === "object") {
+      doPainel = settings.ga4 as Record<string, unknown>;
+    }
+  } catch (err) {
+    // Settings indisponível não pode apagar a credencial de env: o painel
+    // ficaria sem número por causa de uma falha em outro subsistema.
+    console.warn("[Analytics] Falha ao ler site_settings; usando só as envs:", err);
+  }
+
+  const texto = (valor: unknown, reserva: string | undefined) => {
+    const escolhido = typeof valor === "string" && valor.trim() ? valor : reserva;
+    return (escolhido ?? "").trim();
+  };
+
+  const propertyId = texto(doPainel.propertyId, process.env.GA4_PROPERTY_ID);
+  const clientEmail = texto(doPainel.clientEmail, process.env.GA4_CLIENT_EMAIL);
+  const privateKey = texto(doPainel.privateKey, process.env.GA4_PRIVATE_KEY);
+
+  if (!propertyId || !clientEmail || !privateKey) return null;
+  return { propertyId, clientEmail, privateKey };
+}
+
+/** `true` quando as três credenciais existem, venham de onde vierem. */
+export async function analyticsConfigurado(): Promise<boolean> {
+  return (await credenciaisDoGa4()) !== null;
 }
 
 const base64url = (b: Buffer | string) =>
   Buffer.from(b).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-/** Token em memória: vale ~1h, e pedir um por requisição gastaria cota à toa. */
-let tokenCache: { valor: string; expiraEm: number } | null = null;
+/**
+ * Token em memória: vale ~1h, e pedir um por requisição gastaria cota à toa.
+ *
+ * Chaveado pelo e-mail da conta de serviço desde 27/08, quando a credencial
+ * passou a ser editável em tela. Sem a chave, trocar a conta de serviço no
+ * painel deixava o token da conta ANTIGA valendo por até uma hora — e a falha
+ * se apresenta como 403 intermitente, não como erro de configuração.
+ */
+let tokenCache: { conta: string; valor: string; expiraEm: number } | null = null;
 
-async function obterToken(): Promise<string | null> {
-  if (!analyticsConfigurado()) return null;
-  if (tokenCache && tokenCache.expiraEm > Date.now() + 60_000) return tokenCache.valor;
+async function obterToken(cred: CredenciaisDoGa4): Promise<string | null> {
+  if (
+    tokenCache &&
+    tokenCache.conta === cred.clientEmail &&
+    tokenCache.expiraEm > Date.now() + 60_000
+  ) {
+    return tokenCache.valor;
+  }
 
-  const email = process.env.GA4_CLIENT_EMAIL!;
-  // A chave vem do JSON com "\n" literal quando colada em .env — desfazer o
-  // escape é obrigatório, senão a assinatura sai inválida sem erro claro.
-  const chave = process.env.GA4_PRIVATE_KEY!.replace(/\\n/g, "\n");
+  const email = cred.clientEmail;
+  // A chave vem do JSON com "\n" literal quando colada em .env ou num campo de
+  // formulário — desfazer o escape é obrigatório, senão a assinatura sai
+  // inválida sem erro claro.
+  const chave = cred.privateKey.replace(/\\n/g, "\n");
 
   const agora = Math.floor(Date.now() / 1000);
   const cabecalho = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
@@ -94,6 +159,7 @@ async function obterToken(): Promise<string | null> {
 
   const dados = await res.json();
   tokenCache = {
+    conta: email,
     valor: dados.access_token,
     expiraEm: Date.now() + (dados.expires_in ?? 3600) * 1000,
   };
@@ -119,7 +185,10 @@ export interface LinhaDeRelatorio {
 }
 
 async function rodarRelatorio(opts: OpcoesRelatorio): Promise<LinhaDeRelatorio[] | null> {
-  const token = await obterToken();
+  const cred = await credenciaisDoGa4();
+  if (!cred) return null;
+
+  const token = await obterToken(cred);
   if (!token) return null;
 
   const corpo: Record<string, unknown> = {
@@ -141,7 +210,7 @@ async function rodarRelatorio(opts: OpcoesRelatorio): Promise<LinhaDeRelatorio[]
   }
 
   const res = await fetch(
-    `${URL_DATA}/properties/${process.env.GA4_PROPERTY_ID}:runReport`,
+    `${URL_DATA}/properties/${cred.propertyId}:runReport`,
     {
       method: "POST",
       headers: {

@@ -91,16 +91,11 @@ insert into public.leituras_odometro (veiculo_vendido_id, km, origem, registrada
 select id, km_na_venda, 'venda', data_venda::timestamptz
   from public.veiculos_vendidos where chassi like 'SEED-%';
 
--- ---- plano de revisões: 10.000 km ou 12 meses, tolerância de 30 dias (§1.5) ----
-insert into public.plano_revisoes
-  (veiculo_vendido_id, numero_revisao, km_previsto, janela_inicio, janela_fim)
-select vv.id,
-       n,
-       vv.km_na_venda + (n * 10000),
-       (vv.data_venda + (n * interval '12 months') - interval '30 days')::date,
-       (vv.data_venda + (n * interval '12 months') + interval '30 days')::date
+-- ---- plano de revisões: uma janela por veículo, pelo mesmo gerador ----
+-- A semente não repete a régua do §1.5: chama quem a conhece. Assim ela nunca
+-- diverge do que o banco realmente cria — que foi o defeito do plano fixo.
+select public.abrir_proxima_janela(vv.id)
   from public.veiculos_vendidos vv
- cross join generate_series(1, 3) as n
  where vv.chassi like 'SEED-%';
 
 -- ---- o diário de bordo ----
@@ -133,6 +128,16 @@ values
    'https://exemplo.invalido/seed/etiqueta-pendente.jpg');
 
 -- Cliente 3: nada registrado, e a primeira janela ainda nem abriu.
+
+-- ---- reabre o que a semente fechou ----
+-- Em produção quem reabre é `carimbar_revisao`, na mesma transação em que
+-- carimba. A semente fecha revisão por `update` direto, então precisa chamar o
+-- gerador de novo — senão o "Cliente Em Dia" fica sem janela aberta, estado
+-- que a produção não produz. Idempotente: quem ainda tem janela aberta não
+-- ganha outra.
+select public.abrir_proxima_janela(vv.id)
+  from public.veiculos_vendidos vv
+ where vv.chassi like 'SEED-%';
 
 -- ---- leituras declaradas entre revisões ----
 insert into public.leituras_odometro (veiculo_vendido_id, km, origem, registrada_em) values

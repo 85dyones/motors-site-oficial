@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { validarRevisao, type DadosDaRevisao } from "../../lib/ciclo/revisao";
 import { urlDaFoto } from "../../lib/ciclo/foto";
+import { seloDaJanela } from "../../lib/ciclo/selo";
+import { classificarJanela } from "../../lib/ciclo/janela";
+import { validarSaida } from "../../lib/ciclo/saida";
 
 /**
  * Tela A21 — fila de verificação do diário de bordo (manual v1.1 §5.7,
@@ -28,6 +31,8 @@ interface VeiculoResumo {
   marca: string;
   modelo: string;
   km_na_venda: number;
+  /** Preenchida, o carro já saiu da Garagem — o rótulo do seletor avisa. */
+  saiu_em: string | null;
   cliente: { nome: string } | null;
 }
 
@@ -56,6 +61,15 @@ const inputClasse =
 
 const dataBr = (iso: string | null) =>
   iso ? new Date(iso.length <= 10 ? `${iso}T12:00:00Z` : iso).toLocaleDateString("pt-BR") : "—";
+
+/**
+ * O rótulo do veículo no seletor. Carro que já saiu vem marcado: sem isso, a
+ * loja remarca a saída sem perceber e SOBRESCREVE a data que o cliente vê na
+ * Garagem como fim do acompanhamento.
+ */
+const rotuloDoVeiculo = (v: VeiculoResumo) =>
+  `${v.placa} — ${v.marca} ${v.modelo} · ${v.cliente?.nome ?? ""}` +
+  (v.saiu_em ? ` · já saiu em ${dataBr(v.saiu_em)}` : "");
 
 function Origem({ origem }: { origem: string }) {
   const texto = origem === "cliente" ? "REGISTRO DO CLIENTE" : origem === "parceiro" ? "OFICINA PARCEIRA" : "LOJA";
@@ -115,11 +129,14 @@ export default function FilaDeVerificacao() {
         setErro(corpo.error ?? "Não foi possível processar.");
         return;
       }
+      const estadoDaJanela = classificarJanela(corpo.dentro_da_janela);
       setAviso(
         aceitar
-          ? corpo.dentro_da_janela === false
+          ? estadoDaJanela === "fora"
             ? "Verificada — fora da janela. Entra no diário de bordo, não na procedência."
-            : "Verificada dentro da janela. A procedência deste veículo subiu."
+            : estadoDaJanela === "sem"
+              ? "Verificada. Não havia janela aberta para este serviço — entra no diário de bordo."
+              : "Verificada dentro da janela. A procedência deste veículo subiu."
           : "Recusada. O motivo ficou no registro.",
       );
       setRecusando(null);
@@ -166,12 +183,15 @@ export default function FilaDeVerificacao() {
         setErro(corpo.error ?? "Não foi possível registrar.");
         return;
       }
+      const estadoDaJanela = classificarJanela(corpo.verificacao?.dentro_da_janela);
       setAviso(
         corpo.aviso ??
           (corpo.verificacao
-            ? corpo.verificacao.dentro_da_janela === false
+            ? estadoDaJanela === "fora"
               ? "Lançada e verificada — fora da janela."
-              : "Lançada e verificada dentro da janela."
+              : estadoDaJanela === "sem"
+                ? "Lançada e verificada. Não havia janela aberta para este serviço."
+                : "Lançada e verificada dentro da janela."
             : "Lançada no diário de bordo. Está na fila de verificação."),
       );
       setRegistro({
@@ -188,6 +208,50 @@ export default function FilaDeVerificacao() {
       await carregar();
     } finally {
       setRegistrando(false);
+    }
+  };
+
+  // Fim do acompanhamento: a Garagem é do cliente enquanto o carro for dele.
+  const [saida, setSaida] = useState({
+    veiculo_vendido_id: "",
+    saiu_em: hoje,
+    motivo_saida: "",
+  });
+  const [marcandoSaida, setMarcandoSaida] = useState(false);
+
+  const marcarSaida = async () => {
+    setErro("");
+    // Como em `decidir` e `registrar`: sem isto, o aviso da ação anterior fica
+    // na tela ao lado do erro da atual, e a loja lê o sucesso de outra coisa.
+    setAviso("");
+    if (!saida.veiculo_vendido_id) {
+      setErro("Escolha o veículo que saiu.");
+      return;
+    }
+    const problemas = validarSaida(saida);
+    if (problemas.length > 0) {
+      setErro(problemas[0].mensagem);
+      return;
+    }
+    setMarcandoSaida(true);
+    try {
+      const res = await fetch(`/api/ciclo/veiculos/${saida.veiculo_vendido_id}/saida`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saiu_em: saida.saiu_em, motivo_saida: saida.motivo_saida }),
+      });
+      const corpo = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErro(corpo.error ?? "Não foi possível marcar a saída.");
+        return;
+      }
+      setAviso(
+        "Saída registrada. O cronograma parou aqui; o diário de bordo continua visível para o cliente.",
+      );
+      setSaida({ veiculo_vendido_id: "", saiu_em: hoje, motivo_saida: "" });
+      await carregar();
+    } finally {
+      setMarcandoSaida(false);
     }
   };
 
@@ -451,6 +515,75 @@ export default function FilaDeVerificacao() {
         </div>
       </section>
 
+      {/* ---- fim do acompanhamento ---- */}
+      <section className="mt-5 border border-mt-regua-fina bg-mt-surface p-6">
+        <h2 className="text-[15px] font-extrabold tracking-[-.015em] text-mt-ink">
+          Marcar saída da Garagem
+        </h2>
+        <p className="mb-4 mt-1 text-xs text-mt-neutral-700">
+          Use quando o carro deixar de ser do cliente. O cronograma de revisões para e os
+          lembretes cessam — <strong>o diário de bordo continua visível para ele</strong>,
+          porque o histórico é dele.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label htmlFor="saida-veiculo" className={rotuloClasse}>
+              Veículo *
+            </label>
+            <select
+              id="saida-veiculo"
+              className={inputClasse}
+              value={saida.veiculo_vendido_id}
+              onChange={(e) => setSaida((d) => ({ ...d, veiculo_vendido_id: e.target.value }))}
+            >
+              <option value="">Escolha…</option>
+              {veiculos.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {rotuloDoVeiculo(v)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="saida-data" className={rotuloClasse}>
+              Data da saída *
+            </label>
+            <input
+              id="saida-data"
+              type="date"
+              className={inputClasse}
+              value={saida.saiu_em}
+              max={hoje}
+              onChange={(e) => setSaida((d) => ({ ...d, saiu_em: e.target.value }))}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="saida-motivo" className={rotuloClasse}>
+              Motivo *
+            </label>
+            <input
+              id="saida-motivo"
+              type="text"
+              className={inputClasse}
+              placeholder="revendido, perda total…"
+              value={saida.motivo_saida}
+              onChange={(e) => setSaida((d) => ({ ...d, motivo_saida: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={marcarSaida}
+          disabled={marcandoSaida}
+          className="mt-4 border border-mt-ink px-4 py-2.5 text-[13px] font-bold text-mt-ink transition-colors hover:bg-mt-ink hover:text-mt-bg disabled:opacity-50"
+        >
+          {marcandoSaida ? "Registrando…" : "Marcar saída"}
+        </button>
+      </section>
+
       {/* ---- as últimas verificações ---- */}
       <section className="mt-5 border border-mt-regua-fina bg-mt-surface p-6">
         <h2 className="text-[15px] font-extrabold tracking-[-.015em] text-mt-ink">
@@ -483,12 +616,14 @@ export default function FilaDeVerificacao() {
                 ) : (
                   <span
                     className={`ml-auto border px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] ${
-                      r.dentro_da_janela
-                        ? "border-mt-ink text-mt-ink"
-                        : "border-mt-accent text-mt-accent"
+                      {
+                        na: "border-mt-ink text-mt-ink",
+                        fora: "border-mt-accent text-mt-accent",
+                        sem: "border-mt-regua-fina text-mt-neutral-600",
+                      }[seloDaJanela(r.dentro_da_janela).tom]
                     }`}
                   >
-                    {r.dentro_da_janela ? "NA JANELA" : "FORA DA JANELA"}
+                    {seloDaJanela(r.dentro_da_janela).texto}
                   </span>
                 )}
               </li>

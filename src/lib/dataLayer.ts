@@ -240,6 +240,18 @@ export function pushCamadaGlobal(camada: CamadaGlobal): void {
     vehicle_id: null,
     vehicle_name: null,
     vehicle_price: null,
+    // `lead_type: null` desde 27/08, e é a mesma disciplina dos campos de
+    // veículo acima — só que este saiu de fora e custou dinheiro.
+    //
+    // O `dataLayer` é ACUMULATIVO: o que um evento escreve fica visível para
+    // todos os seguintes. A variável de valor do container calcula
+    // `preço × 0,08 × taxa[lead_type]`, com taxas de 0,03 (contato) a 0,12
+    // (avaliação) e fallbacks de R$ 120 a R$ 500. Sem zerar aqui, o MESMO
+    // clique no WhatsApp valia R$ 100 para quem chegou direto e R$ 500 para
+    // quem tinha passado pela avaliação na mesma sessão. Spread de ~5,8× no
+    // mesmo evento, sem nenhum erro visível — e é esse número que o Smart
+    // Bidding usa para decidir lance.
+    lead_type: null,
   });
 }
 
@@ -253,6 +265,31 @@ export function pushCamadaGlobal(camada: CamadaGlobal): void {
 export function pushContagemDeEstoque(total: number): void {
   if (!Number.isFinite(total)) return;
   push({ stock_count: total });
+}
+
+/**
+ * Há quantos dias este veículo está no pátio.
+ *
+ * O `days_in_stock` do §11.1, que o §12.6 cobrou de novo: é o número que separa
+ * o carro que entrou ontem do que está encalhado há três meses, e é sobre essa
+ * diferença que o §1.2 do plano quer alocar verba.
+ *
+ * Devolve `null` sem carimbo — as linhas anteriores à migração
+ * `20260826030000` não sabem quando chegaram, e zero ali seria a mentira mais
+ * cara possível: diria "acabou de chegar" justamente sobre o que está parado.
+ *
+ * Recebe o "agora" por parâmetro para ser testável sem congelar relógio.
+ */
+export function diasEmEstoque(
+  primeiraVez: string | null | undefined,
+  agora: number = Date.now(),
+): number | null {
+  if (!primeiraVez) return null;
+  const chegada = new Date(primeiraVez).getTime();
+  if (!Number.isFinite(chegada)) return null;
+  // Carimbo no futuro é relógio errado, não veículo do futuro: melhor omitir.
+  if (chegada > agora) return null;
+  return Math.floor((agora - chegada) / 86_400_000);
 }
 
 export interface VeiculoDaCamada {
@@ -272,6 +309,8 @@ export interface VeiculoDaCamada {
   donos?: number | null;
   /** O laudo da perícia está na ficha? — `has_report` do §11.1. */
   temLaudo?: boolean;
+  /** Data de chegada, para o `days_in_stock`. */
+  primeiraVez?: string | null;
 }
 
 /**
@@ -316,6 +355,9 @@ export function pushVeiculo(veiculo: VeiculoDaCamada): void {
       // Publicar `false` como se fosse "não periciado" contradiria o que a
       // própria página afirma — daí o campo só sair quando há laudo de fato.
       has_report: veiculo.temLaudo === true ? true : undefined,
+      // O último dos cinco campos do §11.1 — o que mais faltava, segundo o
+      // próprio plano. Ausente quando a data de chegada não é conhecida.
+      days_in_stock: diasEmEstoque(veiculo.primeiraVez) ?? undefined,
     },
     ecommerce: {
       currency: "BRL",
@@ -382,23 +424,35 @@ export interface ContextoDeContato extends ContextoDeVeiculo {
   pos_lead?: boolean;
 }
 
-/** Clique em WhatsApp — o principal lead desta vertical (§4.4). */
+/**
+ * Clique em WhatsApp — o principal lead desta vertical (§4.4).
+ *
+ * `lead_type: "contato"` vem DEPOIS do spread, e por isso vence o que o
+ * chamador mandar. É deliberado: um clique é intenção de contato, tenha ele
+ * acontecido na ficha, no rodapé ou depois de uma proposta. Deixar o valor
+ * flutuar segundo o que sobrou no `dataLayer` foi o defeito de A.2.
+ *
+ * O clique posterior a um lead não é contado como conversão no Ads (a tag
+ * exclui `pos_lead`), então forçar "contato" aqui não subavalia nada.
+ */
 export function pushCliqueWhatsApp(local: string, contexto: ContextoDeContato = {}): void {
   push({
     event: "click_whatsapp",
     whatsapp_location: local,
     ...contexto,
-    // SEMPRE presente, mesmo quando o chamador não diz nada. Ver a nota abaixo.
+    // SEMPRE presentes, mesmo quando o chamador não diz nada. Ver a nota acima.
+    lead_type: "contato",
     pos_lead: contexto.pos_lead === true,
   });
 }
 
-/** Clique para ligar. */
+/** Clique para ligar. Mesmo contrato de `pushCliqueWhatsApp`. */
 export function pushCliqueTelefone(local: string, contexto: ContextoDeContato = {}): void {
   push({
     event: "click_to_call",
     call_location: local,
     ...contexto,
+    lead_type: "contato",
     pos_lead: contexto.pos_lead === true,
   });
 }
@@ -422,7 +476,23 @@ export function pushLead(
   tipo: TipoDeLead,
   dados: ContextoDeVeiculo & { form_id?: string; lead_id?: string } = {},
 ): void {
-  push({ event: "generate_lead", lead_type: tipo, ...dados });
+  // `lead_type` DEPOIS do spread, como nas funções de clique acima.
+  //
+  // Aqui a ordem estava invertida. Hoje isso não muda nada em produção: o tipo
+  // de `dados` não tem `lead_type`, então o TypeScript já impede o chamador de
+  // sobrescrever. O problema é que a proteção mora no tipo, e tipo se afrouxa
+  // — um `as any` num chamador, ou um campo novo no `ContextoDeVeiculo`, e o
+  // valor forçado volta a ser sobrescrevível sem que nada acuse.
+  //
+  // Com o spread antes, a garantia deixa de depender do tipo e passa a ser
+  // estrutural: qualquer `lead_type` que venha em `dados` é descartado aqui,
+  // por construção. É a mesma correção que `pushCliqueWhatsApp` e
+  // `pushCliqueTelefone` já receberam em 27/08 — esta função ficou de fora
+  // porque a inversão dela não estava causando defeito visível.
+  //
+  // `generate_lead` é o evento que vira conversão de LEAD no Google Ads e
+  // alimenta o lance. Um `lead_type` errado aqui muda o valor reportado.
+  push({ event: "generate_lead", ...dados, lead_type: tipo });
 }
 
 /** Simulação de financiamento concluída — micro-conversão (§4.4). */

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { PERFIS_QUE_TRIAM_ERROS } from "../../lib/filaDeErros";
 
 interface SidebarNavProps {
   /**
@@ -64,6 +65,22 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
           href: "/admin/clientes",
           roles: ["admin", "gestor", "comercial", "financeiro"],
         },
+        // O funil de vendas (2026-08-28). Os dois itens vivem sob Leads e não
+        // em Configurações: quem mexe na régua do funil é quem opera o funil,
+        // e mandá-lo para o outro lado do menu é o caminho mais curto para a
+        // régua nunca ser ajustada.
+        //
+        // O relatório abre para todo o grupo — ele é contagem por motivo, sem
+        // nome nem telefone, e é a resposta para "por que a gente perde
+        // venda". A rota omite o recorte por vendedor para quem a matriz A17
+        // mantém longe do contato individual.
+        { name: "Ganhos e perdas", href: "/admin/leads/relatorio" },
+        // Configurar, não: a régua vale para a equipe inteira.
+        {
+          name: "Configurar funil",
+          href: "/admin/leads/funil",
+          roles: ["admin", "gestor"],
+        },
       ],
     },
     {
@@ -97,35 +114,14 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       items: [{ name: "Mídia paga", href: "/admin/marketing/midia-paga" }],
     },
     {
-      title: "Financeiro",
+      // O módulo de caixa (contas, dia, aprovações, conciliação, plano,
+      // margens) foi APOSENTADO em 2026-08-28, por decisão do dono: nada ali
+      // tinha dado real, e o financeiro renasce do zero sobre o razão de
+      // partidas dobradas do handoff (spec 30). Sobrou o que fica: o controle
+      // de investidores (briefing 2026-08-21), que mudou de endereço junto.
+      title: "Investidores",
       roles: ["admin", "gestor", "financeiro"],
-      items: [
-        { name: "Visão geral", href: "/admin/financeiro" },
-        // A porta da manhã da operação (briefing 2026-08-21): o que vence
-        // hoje, o que já venceu e o relatório diário — logo abaixo da visão
-        // geral porque é a tela de todo dia.
-        { name: "Pagamentos do dia", href: "/admin/financeiro/dia" },
-        { name: "Contas a pagar", href: "/admin/financeiro/contas-pagar" },
-        // A fila de agendamentos (A17, "Aprovar agendamento financeiro"): o
-        // Financeiro acompanha, o Gestor decide — os botões somem para quem
-        // não decide.
-        { name: "Aprovações", href: "/admin/financeiro/aprovacoes" },
-        { name: "Contas a receber", href: "/admin/financeiro/contas-receber" },
-
-        { name: "Importar RevendaMais", href: "/admin/financeiro/importar" },
-        // P4 do briefing — o último dos seis pedidos da adm/financeira a sair
-        // do RevendaMais. Fica perto do importador porque os dois são a mesma
-        // rotina: trazer para cá o que hoje vive em outro lugar.
-        { name: "Conciliação bancária", href: "/admin/financeiro/conciliacao" },
-        { name: "Relatórios e balanço", href: "/admin/financeiro/relatorios" },
-        // Era "Cadastros auxiliares" e guardava duas coisas sem parentesco:
-        // o plano de contas e a lista de parceiros. Os parceiros mudaram
-        // para Clientes e fornecedores em 2026-08-24; sobrou o plano, e o
-        // item passou a se chamar pelo que ele é.
-        { name: "Plano de contas", href: "/admin/financeiro/cadastros" },
-        { name: "Margem por veículo", href: "/admin/financeiro/margens" },
-        { name: "Investidores", href: "/admin/financeiro/investidores" },
-      ],
+      items: [{ name: "Aportes e participações", href: "/admin/investidores" }],
     },
     {
       // Marketing entra pela matriz A17: fotos, textos, SEO e destaques são
@@ -137,6 +133,21 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // Tela A3: a porta de entrada do conteúdo do site. Vem primeiro
         // porque é dela que se alcança a edição de cada seção da home.
         { name: "Áreas e conteúdo", href: "/admin/site/areas" },
+        // Texto das páginas de marca, modelo, carroceria, perfil e faixa
+        // (2026-08-31). Nasceu no grupo Estoque, com o argumento de que são
+        // páginas que listam veículo — e o dono corrigiu: o que se edita ali é
+        // TEXTO de página, não estoque. Quem abre é quem escreve o site, e é
+        // aqui que essa pessoa procura.
+        //
+        // Sem `roles` próprio de propósito: os papéis deste grupo já são
+        // exatamente Admin, Comercial e Marketing, que é a linha "Editar
+        // opcionais e destaques rápidos" da A17 que a tela exige. Repetir a
+        // lista criaria duas cópias da mesma régua para divergirem depois.
+        { name: "Texto das páginas", href: "/admin/hubs" },
+        // Guias é vizinho de "Texto das páginas" e mesma régua de papel, mas a
+        // diferença importa para quem procura: lá se CORRIGE o texto de uma
+        // página que já existe; aqui se CRIA a página.
+        { name: "Guias", href: "/admin/guias" },
         { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
         { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
         { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
@@ -151,6 +162,29 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       title: "Sistema",
       roles: ["admin", "comercial"],
       items: [
+        // A fila de triagem de erro do site (2026-09-11). Mora em SISTEMA, e não
+        // em Geral: a pergunta que ela responde é "o site está inteiro?", a mesma
+        // de "Integrações e webhooks", que é a vizinha de linha. Erro do site é
+        // OPERAÇÃO — nada nele é financeiro, e nenhum número dele é dinheiro.
+        //
+        // `roles` no item estreita o grupo para Admin. A decisão que sai da tela
+        // — "corrigir agora" — é de quem mexe no código, e é o dono quem abre. E
+        // `mensagem`/`stack` podem carregar PII por acidente: o `comment on
+        // table` de `erros` avisa que um erro do PostgREST cita valores
+        // (`Key (telefone)=(5541…)`).
+        //
+        // ATENÇÃO: isto esconde o ITEM, não fecha o DADO. A RLS de `erros`
+        // libera leitura para todo `is_staff` — 7 pessoas ativas contra as 2
+        // desta lista, medido em 2026-09-12 —, e quem tem sessão de painel lê a
+        // tabela direto no PostgREST sem passar por aqui. O porquê, os números e
+        // o que faltaria para fechar de verdade estão no cabeçalho de
+        // `PERFIS_QUE_TRIAM_ERROS` (`src/lib/filaDeErros.ts`); esta lista é a
+        // mesma que a página aplica, então trilho e página não divergem.
+        {
+          name: "Erros do site",
+          href: "/admin/erros",
+          roles: [...PERFIS_QUE_TRIAM_ERROS],
+        },
         { name: "Integrações e webhooks", href: "/admin/configuracoes?tab=integracao" },
         { name: "Pop-ups de lead", href: "/admin/configuracoes?tab=popups" },
         { name: "Dados da concessionária", href: "/admin/configuracoes?tab=empresa" },
@@ -191,10 +225,6 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       return !activeTab || activeTab === "destaques"; // aba padrão quando a URL não diz
     }
 
-    if (href === "/admin/financeiro") {
-      return pathname === "/admin/financeiro";
-    }
-
     // O editor de um veículo (/admin/estoque/[id]) continua dentro de
     // "Veículos" no trilho — é de lá que se chega nele.
     if (href === "/admin/estoque") {
@@ -205,6 +235,12 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
     // dentro de "Mídia paga" no trilho.
     if (href === "/admin/marketing/midia-paga") {
       return pathname.startsWith("/admin/marketing/midia-paga");
+    }
+
+    // O detalhe de um grupo (/admin/erros/[hash]) continua dentro de "Erros do
+    // site": é de lá que se chega nele, e é para lá que se volta.
+    if (href === "/admin/erros") {
+      return pathname.startsWith("/admin/erros");
     }
 
     return pathname === href;

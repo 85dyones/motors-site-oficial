@@ -6,17 +6,15 @@ import { tokenConfere } from "../src/lib/comparacaoConstante";
 /**
  * Achado #9 da revisão, corrigido em 2026-08-18.
  *
- * Três pernas: comparação de segredo em tempo constante (`!==` de string
- * desiste no primeiro caractere diferente e vira oráculo de timing), token
- * do motor separado do de margens (coberto em `ciclo-motor.test.ts`) e as
- * rotas do motor dentro do matcher do proxy, com rate limit.
+ * Duas pernas: comparação de segredo em tempo constante (`!==` de string
+ * desiste no primeiro caractere diferente e vira oráculo de timing) e as
+ * rotas do motor dentro do matcher do proxy, com rate limit. A terceira
+ * perna original — a consulta de margens — foi aposentada em 2026-08-28 com
+ * o módulo financeiro; o consumidor vivo de `tokenConfere` é o motor do
+ * Ciclo (`ciclo-motor.test.ts` cobre o token dele).
  */
 
 const raiz = join(__dirname, "..");
-const rotaMargens = readFileSync(
-  join(raiz, "src", "app", "api", "financeiro", "margens", "consulta", "route.ts"),
-  "utf-8",
-);
 const proxy = readFileSync(join(raiz, "src", "proxy.ts"), "utf-8");
 
 describe("tokenConfere — comparação em tempo constante", () => {
@@ -41,13 +39,6 @@ describe("tokenConfere — comparação em tempo constante", () => {
   });
 });
 
-describe("quem compara segredo usa o comparador", () => {
-  it("a consulta de margens não compara Bearer com !==", () => {
-    expect(rotaMargens).toContain("tokenConfere");
-    expect(rotaMargens).not.toContain("!== `Bearer");
-  });
-});
-
 describe("o motor está atrás do rate limit do proxy", () => {
   it("o matcher cobre /api/ciclo/motor", () => {
     expect(proxy).toContain('"/api/ciclo/motor/:path*"');
@@ -61,8 +52,8 @@ describe("o motor está atrás do rate limit do proxy", () => {
   });
 
   it("o ramo do motor retorna explícito, sem cair nos gates de sessão", () => {
-    // O n8n chama sem cookie; se o request escorresse para o gate de
-    // /api/financeiro ele levaria 401 de sessão em vez do 401 de token.
+    // O n8n chama sem cookie; se o request escorresse para os gates de
+    // sessão ele levaria 401 de sessão em vez do 401 de token.
     expect(proxy).toMatch(/startsWith\("\/api\/ciclo\/motor"\)[\s\S]*?return NextResponse\.next\(\);/);
   });
 });

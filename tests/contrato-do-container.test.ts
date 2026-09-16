@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   containerAssumeOsEventos,
+  diasEmEstoque,
   marcarContainerAtivo,
   pushCamadaGlobal,
   pushCliqueTelefone,
@@ -251,6 +252,42 @@ describe("o veículo não atravessa a navegação", () => {
   });
 });
 
+describe("days_in_stock — o último dos cinco campos do §11.1", () => {
+  it("sai do carimbo de chegada, em dias inteiros", () => {
+    const ha80 = new Date(Date.now() - 80 * 86_400_000).toISOString();
+    expect(diasEmEstoque(ha80)).toBe(80);
+    pushVeiculo({ ...VEICULO, primeiraVez: ha80 });
+    expect(valorNaCamada("vehicle.days_in_stock")).toBe(80);
+  });
+
+  it("linha legada (sem carimbo) OMITE o campo — nunca inventa zero", () => {
+    // Zero aqui seria a mentira mais cara possível: diria "acabou de chegar"
+    // justamente sobre o carro parado — na métrica que aloca verba (§1.2).
+    expect(diasEmEstoque(null)).toBeNull();
+    pushVeiculo({ ...VEICULO, primeiraVez: null });
+    expect(valorNaCamada("vehicle.days_in_stock")).toBeUndefined();
+  });
+
+  it("carimbo no futuro ou inválido é relógio errado — omite também", () => {
+    expect(diasEmEstoque(new Date(Date.now() + 86_400_000).toISOString())).toBeNull();
+    expect(diasEmEstoque("nao-e-data")).toBeNull();
+  });
+
+  it("o sincronizador NÃO manda first_seen_at — é o que preserva a data", () => {
+    // O upsert do n8n usa `Prefer: resolution=merge-duplicates` com lista
+    // explícita de colunas: coluna fora do corpo não é tocada no UPDATE, e o
+    // INSERT recebe o DEFAULT now(). Se alguém acrescentar `first_seen_at` ao
+    // payload, todo sync reescreve a chegada com a data de hoje e a idade do
+    // pátio inteiro zera — sem erro nenhum, só um relatório dizendo que nada
+    // encalha. Este teste lê o export do workflow versionado no repositório.
+    const workflow = lerCodigo(
+      "Antigravity - Sincronizador de Estoque (estoque_motors).json",
+    );
+    expect(workflow).toContain("last_seen_at");
+    expect(workflow).not.toContain("first_seen_at");
+  });
+});
+
 describe("o estado herdado não contamina o evento seguinte", () => {
   // A §12.3 do plano (rodada 5) achou o primo destes defeitos no container: o
   // GTM avalia "não é igual a `true`" como FALSO quando a variável é
@@ -326,12 +363,37 @@ describe("quem manda o evento: o código ou o container", () => {
   it("os dois gtag que o container duplicaria estão sob o sinalizador", () => {
     const fonte = lerCodigo("src/lib/telemetry.ts");
 
-    // `generate_lead` do formulário e do clique de contato, mais a conversão
-    // do Ads. Sem o gate, publicar o container conta cada lead duas vezes.
+    // `generate_lead` do formulário e a conversão do Ads. Sem o gate,
+    // publicar o container conta cada lead duas vezes.
     expect(fonte).toMatch(/const oContainerAssume = containerAssumeOsEventos\(\);/);
     expect(fonte).toMatch(/if \(window\.gtag && !oContainerAssume\) \{\s*window\.gtag\("event", "generate_lead"/);
     expect(fonte).toMatch(/if \(window\.gtag && !oContainerAssume && options\?\.googleAdsId/);
-    expect(fonte).toMatch(/if \(window\.gtag && !containerAssumeOsEventos\(\)\) \{\s*window\.gtag\("event", "generate_lead"/);
+
+    // O clique de contato também é gated — mas com o NOME do que aconteceu.
+    expect(fonte).toMatch(
+      /if \(window\.gtag && !containerAssumeOsEventos\(\)\) \{\s*window\.gtag\(\s*"event",\s*method === "whatsapp" \? "click_whatsapp" : "click_to_call"/,
+    );
+  });
+
+  it("clique de contato NUNCA volta a se chamar `generate_lead`", () => {
+    // Era o mesmo nome do formulário efetivamente enviado. Os dois na mesma
+    // métrica inflam a contagem de leads com quem só abriu a conversa — e é
+    // essa a métrica contra a qual o Smart Bidding otimiza.
+    //
+    // A nota que morava naquele ramo descrevia o defeito como resolvido pelo
+    // container, enquanto o portão que faria isso valer seguia fechado: a
+    // correção estava escrita, não aplicada. Contar as ocorrências é o que
+    // distingue as duas coisas.
+    const fonte = lerCodigo("src/lib/telemetry.ts");
+    const geraLead = [...fonte.matchAll(/window\.gtag\("event", "generate_lead"/g)];
+    expect(geraLead).toHaveLength(1);
+
+    // E a única que sobra é a do formulário: vem depois de `pushLead`, não
+    // depois de `pushCliqueWhatsApp`.
+    const antesDoUnico = fonte.slice(0, geraLead[0].index);
+    expect(antesDoUnico.lastIndexOf("pushLead")).toBeGreaterThan(
+      antesDoUnico.lastIndexOf("pushCliqueWhatsApp"),
+    );
   });
 
   it("view_item, search e complete_registration continuam SEM gate", () => {

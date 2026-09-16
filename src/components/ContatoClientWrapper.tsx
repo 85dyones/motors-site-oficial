@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
 import { generateEventId, getMatchParams } from "../lib/tracking-identity";
 import { useTheme } from "../app/ThemeContext";
+import Turnstile, { type TurnstileHandle } from "./Turnstile";
+import { ACOES } from "../lib/turnstile";
+import SaidaDoCaptcha from "./SaidaDoCaptcha";
 
 export default function ContatoClientWrapper() {
   const { webhooks, companySettings } = useTheme();
@@ -14,12 +17,39 @@ export default function ContatoClientWrapper() {
   const [message, setMessage] = useState("");
   
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  /**
+   * O único formulário de lead do site que não tinha captcha, até 27/08.
+   *
+   * A brecha não era a ausência em si: era ela combinada com o servidor
+   * decidindo se exigia token a partir do campo `canal`, que vem no CORPO do
+   * POST. Bastava mandar `canal: "Formulário Contato"` para pular a
+   * verificação de qualquer canal — inclusive dos que renderizam o desafio.
+   *
+   * Com o desafio aqui, `/api/leads` pôde inverter a régua: exige token por
+   * padrão, e a lista passou a ser de isenções (hoje vazia).
+   */
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  /**
+   * Separado de `status === "error"` de propósito: erro genérico se resolve
+   * tentando de novo, e a caixa antiga dizia isso. Falha de captcha NÃO se
+   * resolve tentando de novo — se o desafio está bloqueado, continua bloqueado
+   * no segundo clique — então mandar a pessoa repetir é mandá-la bater na
+   * mesma porta. Este estado abre outra.
+   */
+  const [captchaBloqueado, setCaptchaBloqueado] = useState(false);
 
   // Fetch tracking ID on mount
   useEffect(() => {
     const uid = getActiveAgUid();
     setAgUid(uid);
   }, []);
+
+  /** Descarta o token gasto e começa um desafio novo. */
+  const descartarToken = () => {
+    setTurnstileToken("");
+    turnstileRef.current?.reset();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +80,8 @@ export default function ContatoClientWrapper() {
       eventId,
       eventSourceUrl: typeof window !== "undefined" ? window.location.href : undefined,
       fbp,
-      fbc
+      fbc,
+      turnstileToken
     };
 
     try {
@@ -65,6 +96,16 @@ export default function ContatoClientWrapper() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.warn("[Contato] API retornou erro:", errorData?.error || response.status);
+        // O token já foi gasto no siteverify — é de uso único. Sem pedir outro,
+        // o "tentar de novo" reenviaria o mesmo e levaria 403 para sempre.
+        descartarToken();
+        // 403 é o servidor dizendo que o captcha não passou. Repetir o envio
+        // não muda nada; o que ajuda é oferecer outro caminho.
+        if (response.status === 403) {
+          setCaptchaBloqueado(true);
+          setStatus("idle");
+          return;
+        }
         setStatus("error");
         return;
       }
@@ -90,6 +131,7 @@ export default function ContatoClientWrapper() {
       setMessage("");
     } catch (error) {
       console.error("[Contato] Falha de conexão ao enviar lead:", error);
+      descartarToken();
       setStatus("error");
     }
   };
@@ -111,8 +153,8 @@ export default function ContatoClientWrapper() {
           </div>
           <h3 className="mt-titulo m-0 text-[28px]">Um consultor vai te chamar.</h3>
           <p className="m-0 mt-3 max-w-[420px] text-[14px] leading-relaxed text-mt-neutral-800">
-            Suas informações foram enviadas ao nosso fluxo de atendimento. O
-            contato costuma sair no WhatsApp em poucos minutos.
+            Suas informações foram enviadas ao nosso fluxo de atendimento. Um
+            consultor entra em contato pelo WhatsApp.
           </p>
           <button
             type="button"
@@ -124,6 +166,16 @@ export default function ContatoClientWrapper() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col">
+          {captchaBloqueado && (
+            <SaidaDoCaptcha
+              mensagem={message}
+              onTentarNovamente={() => {
+                setCaptchaBloqueado(false);
+                descartarToken();
+              }}
+            />
+          )}
+
           {status === "error" && (
             <div
               role="alert"
@@ -141,7 +193,9 @@ export default function ContatoClientWrapper() {
               </label>
               <input
                 id="name-input"
+                name="name"
                 type="text"
+                autoComplete="name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -157,7 +211,9 @@ export default function ContatoClientWrapper() {
                 </label>
                 <input
                   id="email-input"
+                  name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -171,7 +227,10 @@ export default function ContatoClientWrapper() {
                 </label>
                 <input
                   id="phone-input"
+                  name="phone"
                   type="tel"
+                  autoComplete="tel"
+                  inputMode="numeric"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(41) 00000-0000"
@@ -196,9 +255,26 @@ export default function ContatoClientWrapper() {
             </div>
           </div>
 
+          {/* Invisível: o desafio da Cloudflare resolve sozinho na esmagadora
+              maioria das visitas e só mostra algo quando desconfia. O botão
+              espera o token — sem ele o POST volta 400 do servidor, e o
+              usuário veria um erro que não é dele. */}
+          <Turnstile
+            ref={turnstileRef}
+            action={ACOES.contato}
+            onSuccess={(token) => {
+              setTurnstileToken(token);
+              setCaptchaBloqueado(false);
+            }}
+            onExpire={() => setTurnstileToken("")}
+            // Script bloqueado por extensão ou rede: sem isto o botão de enviar
+            // ficaria `disabled` para sempre, sem uma palavra de explicação.
+            onError={() => setCaptchaBloqueado(true)}
+          />
+
           <button
             type="submit"
-            disabled={status === "sending"}
+            disabled={status === "sending" || !turnstileToken}
             className="mt-btn mt-btn-primario mt-foco mt-7 w-max"
           >
             {status === "sending" ? (
@@ -213,6 +289,17 @@ export default function ContatoClientWrapper() {
               "ENVIAR MENSAGEM"
             )}
           </button>
+
+          {/* Botão desabilitado sem explicação, numa página cuja única função é
+              o formulário, vira chamado de suporte. O desafio resolve em
+              menos de um segundo na maioria das visitas, então esta linha
+              quase nunca aparece — e quando aparece, diz o que está
+              acontecendo em vez de deixar o visitante clicando. */}
+          {!turnstileToken && status !== "sending" && (
+            <p className="mt-2 text-[11px] text-mt-neutral-600">
+              Verificação de segurança em andamento…
+            </p>
+          )}
         </form>
       )}
     </div>

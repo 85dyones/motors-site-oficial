@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import LandingDestaque from '../../../components/modernist/LandingDestaque';
 import { getEstoque } from '../../../lib/supabase';
 import { getCachedSettings } from '../../../lib/settings';
+import { blocoJsonLd } from '../../../lib/schemaListagem';
+import { schemaDaLoja, schemaDoSite } from '../../../lib/schemaLoja';
 import { montarCompartilhamento } from '../../../lib/compartilhamento';
 import {
   DESTAQUES_PADRAO,
@@ -20,8 +22,12 @@ import {
 import { QuickTag } from '../../../types';
 import { SITE_URL } from "../../../lib/site";
 
+// `curadoria` saiu em 2026-08-26. A regra dela casava
+// `perfil_uso === "CURADORIA EXCLUSIVA"`, e esse valor estava em ZERO dos 38
+// veículos — a página respondia 200 com a vitrine vazia, que é o pior sinal
+// que uma categoria pode mandar para a busca. A rota é `dynamicParams`, então
+// tirar daqui já a transforma em 404; ela nunca esteve no sitemap.
 const STATIC_QUICK_TAGS: QuickTag[] = [
-  { id: "curadoria", name: "CURADORIA EXCLUSIVA", field: "perfil_uso", operator: "equals", value: "CURADORIA EXCLUSIVA" },
   { id: "economicos", name: "ECONÔMICOS", field: "preco", operator: "less", value: "180000" },
   { id: "baixa_km", name: "BAIXA QUILOMETRAGEM", field: "quilometragem", operator: "less", value: "40000" },
   { id: "parcela_1k", name: "PARCELA 1K", field: "preco", operator: "less", value: "120000" }
@@ -71,7 +77,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // ela o título depende de como a loja digitou.
   const nome = nomeEmMinuscula(tagName);
   const title = `Carros ${nome} em Curitiba | Motors Store`;
-  const description = `Veículos ${nome} na Motors Store, em Curitiba. Todos passaram pela perícia cautelar independente, com laudo na ficha e preço no anúncio.`;
+  const description = `Veículos ${nome} na Motors Store, em Curitiba. Todos passaram pela perícia cautelar independente, com laudo na ficha assim que aprovado e preço no anúncio.`;
   const url = `${SITE_URL}/destaques/${cleanSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(cleanSlug)}`;
 
   return {
@@ -149,13 +155,21 @@ export default async function DestaquesPage({ params }: PageProps) {
 
   const relacionados = resolvidos.filter((d) => d.slug !== destaque.slug);
 
+  /* A lista, a loja e o site.
+     Estas landings são indexáveis e entram no sitemap; até 2026-09-05 cada uma
+     anunciava um recorte do estoque sem dizer de quem é a loja. */
+  const grafo = blocoJsonLd([
+    itemListSchema,
+    schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
+  ]);
+
   return (
     // `<div>`, não `<main>`: o layout raiz já abre um `<main>`.
     <div className="flex min-h-screen flex-col bg-mt-bg text-mt-ink">
-      {/* Structured Data (JSON-LD) for SEO */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+        dangerouslySetInnerHTML={{ __html: grafo }}
       />
       <LandingDestaque
         destaque={destaque}

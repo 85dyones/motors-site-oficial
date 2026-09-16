@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import PaginaDeEstoque from "../../../components/modernist/PaginaDeEstoque";
 import ContagemDeEstoque from "../../../components/ContagemDeEstoque";
 import { getCachedSettings } from "../../../lib/settings";
@@ -7,9 +7,11 @@ import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import {
   acharHubDeCarroceria,
   acharHubDeFaixa,
+  acharHubDePerfil,
   FAIXAS_DE_PRECO,
   hubsDeCarroceria,
   hubsDeMarca,
+  RECORTES_APOSENTADOS,
   recortesDoEstoque,
 } from "../../../lib/hubsDeEstoque";
 import {
@@ -18,14 +20,17 @@ import {
   schemaDePerguntas,
   schemaDeTrilha,
 } from "../../../lib/schemaListagem";
-import { schemaDaLoja } from "../../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../../lib/schemaLoja";
 import {
   perguntasDeCategoria,
   textoDeCarroceria,
   textoDeFaixaDePreco,
+  textoDePerfil,
 } from "../../../lib/textoDosHubs";
 import { avaliados, seminovo, type Genero } from "../../../lib/generoDoVeiculo";
+import { buscarTextoDoHub, resolverTextoDoHub } from "../../../lib/textoEditadoDoHub";
 import type { Veiculo } from "../../../types";
+import { linkWhatsApp } from "../../../lib/whatsapp";
 
 /**
  * Recortes do estoque — `/estoque/suv`, `/estoque/ate-60-mil`.
@@ -94,6 +99,29 @@ async function resolver(slug: string) {
     return { recorte, historico, disponiveis };
   }
 
+  // Perfil antes da faixa e depois da carroceria: os três dividem o mesmo
+  // espaço de URL, e `tests/perfis-de-uso.test.ts` prende que nenhum slug
+  // colide. A ordem só importa se um dia colidirem — e aí o teste falha antes.
+  const perfil = acharHubDePerfil(disponiveis, slug);
+  if (perfil) {
+    const recorte: RecorteResolvido = {
+      titulo: `${perfil.titulo} em Curitiba`,
+      tituloSeo: `${perfil.titulo} em Curitiba — ${perfil.veiculos.length} no estoque`,
+      descricao:
+        `${perfil.titulo} em Curitiba, escolhidos por quem atende: veículos que resolvem ` +
+        `${perfil.frase}. Perícia cautelar independente, troca e financiamento no Bacacheri.`,
+      rotulo: perfil.nome,
+      veiculos: perfil.veiculos,
+      introducao: textoDePerfil(perfil, perfil.veiculos),
+      // "carros" é o substantivo desta página, como nas faixas de preço: o
+      // perfil qualifica o carro, não substitui o substantivo. Nada de
+      // concordar com "Família" ou "Performance".
+      rotuloNasPerguntas: perfil.titulo.toLowerCase(),
+      genero: "m",
+    };
+    return { recorte, historico, disponiveis };
+  }
+
   const faixa = acharHubDeFaixa(disponiveis, slug);
   if (faixa) {
     const recorte: RecorteResolvido = {
@@ -101,7 +129,7 @@ async function resolver(slug: string) {
       tituloSeo: `Carros Seminovos ${faixa.nome} em Curitiba | Motors Store`,
       descricao:
         `Carros seminovos ${faixa.nome} em Curitiba, com perícia cautelar independente e ` +
-        "laudo na ficha de cada veículo. Troca e financiamento. Loja no Bacacheri.",
+        "laudo na ficha assim que aprovado. Troca e financiamento. Loja no Bacacheri.",
       rotulo: faixa.nome,
       veiculos: faixa.veiculos,
       introducao: textoDeFaixaDePreco(faixa.nome, faixa.veiculos),
@@ -150,13 +178,44 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function RecorteDoEstoquePage({ params }: PageProps) {
   const { recorte: slug } = await params;
+
+  // Recorte aposentado responde 308, não 404 — a URL já foi indexada, e o 404
+  // jogaria fora o sinal dela. Vem ANTES de `resolver`: depois de o valor sair
+  // de `CARROCERIAS`, o hub não existe mais e a página cairia em `notFound`.
+  const destino = RECORTES_APOSENTADOS[slug];
+  if (destino) permanentRedirect(`/estoque/${destino}`);
+
   const dados = await resolver(slug);
   if (!dados) notFound();
 
   const { recorte, historico, disponiveis } = dados;
   const { companySettings } = await getCachedSettings();
   const caminho = `/estoque/${slug}`;
-  const perguntas = perguntasDeCategoria(recorte.rotuloNasPerguntas, recorte.genero);
+  const perguntas = perguntasDeCategoria(recorte.rotuloNasPerguntas, recorte.genero, caminho);
+
+  // O texto que a loja escreveu vence o gerado.
+  //
+  // Esta rota ficou de FORA na entrega de 31/08, e o defeito era mudo: o painel
+  // oferecia as 103 páginas para editar, o texto era gravado, e só os 65 hubs
+  // de MODELO o exibiam. Os 20 de marca e os 18 recortes daqui ignoravam em
+  // silêncio — o operador salvava, ia ver a página e encontrava o texto
+  // automático de sempre. Foi assim que `/estoque/picape` foi reportado como
+  // "não salva": estava salvo no banco, sem ninguém para ler.
+  const { titulo, paragrafos: introducao } = resolverTextoDoHub(
+    await buscarTextoDoHub(caminho),
+    { titulo: recorte.titulo, paragrafos: recorte.introducao },
+  );
+
+
+  /* Saída do recorte sem carro (2026-09-01, relatório dos hubs). Aqui o que
+     esvaziou a página foi o PRÓPRIO filtro — carroceria, perfil ou faixa —,
+     então a alternativa honesta é o estoque sem ele, com card e preço em vez
+     de um link que devolve o trabalho de filtrar a quem já filtrou. */
+  const noEstoqueHoje = disponiveis.slice(0, 3);
+  const avisarHref = linkWhatsApp(
+    companySettings,
+    `Olá! Vi a página ${recorte.titulo} no site e quero ser avisado quando entrar algo assim.`,
+  );
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -164,9 +223,10 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
       { nome: "Estoque", caminho: "/estoque" },
       { nome: recorte.rotulo, caminho },
     ]),
-    schemaDeListagem(recorte.titulo, recorte.veiculos),
+    schemaDeListagem(titulo, recorte.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
+    schemaDoSite(companySettings),
   ]);
 
   return (
@@ -178,9 +238,12 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
           { rotulo: "Home", href: "/" },
           { rotulo: "Estoque", href: "/estoque" },
         ]}
-        titulo={recorte.titulo}
-        introducao={recorte.introducao}
+        titulo={titulo}
+        introducao={introducao}
         veiculos={recorte.veiculos}
+        alternativos={noEstoqueHoje}
+        rotuloAlternativos="Enquanto isso, no estoque de hoje"
+        avisarHref={avisarHref}
         blocos={[
           {
             titulo: "Por faixa de preço",

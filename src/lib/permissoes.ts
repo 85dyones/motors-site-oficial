@@ -200,10 +200,10 @@ export const ROTULO_DO_PERFIL: Record<Perfil, string> = {
  */
 export const ALCADA_DO_PERFIL: Record<Perfil, string> = {
   admin: "Sem limite",
-  gestor: "Sem limite em preço e agendamento",
+  gestor: "Sem limite no preço",
   marketing: "—",
   comercial: "5% no preço",
-  financeiro: "Agendamento vai ao Gestor",
+  financeiro: "Sem limite no preço",
 };
 
 /** Descrição de cada perfil (cards do topo da A17). */
@@ -215,8 +215,8 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
   },
   gestor: {
     descricao:
-      "Aprova os agendamentos do financeiro, ajusta os valores de entrada e saída dos negócios de carro e acompanha os relatórios.",
-    chave: "Aprova agendamento financeiro",
+      "Ajusta os valores de entrada e saída dos negócios de carro, configura o funil de vendas e acompanha investidores e a conformidade do Ciclo.",
+    chave: "Ajusta valores do negócio",
   },
   marketing: {
     descricao:
@@ -230,7 +230,7 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
   },
   financeiro: {
     descricao:
-      "Fluxo de caixa, contas, custo por veículo e o texto legal do simulador.",
+      "Custo por veículo, investidores e o texto legal do simulador — o caixa renasce sobre o razão do novo financeiro.",
     chave: "Dono do texto legal",
   },
 };
@@ -319,27 +319,12 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "nao_ve", "faz"],
     "O custo é a ENTRADA do negócio — Comercial vê preço e desconto, não custo",
   ),
-  linha(
-    "Lançar e aprovar contas a pagar",
-    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
-    "Lançar é do Financeiro; agendar exige a linha abaixo",
-  ),
-  // As duas linhas abaixo entram em 2026-08-21 com o papel Gestor, por pedido
-  // do dono: ele "terá o poder de aprovar os agendamentos financeiro... bem
-  // como acesso aos relatórios". São as duas atribuições que o A17 não tinha
-  // como expressar — a primeira porque a aprovação era um limite em reais que
-  // ninguém sabia defender, a segunda porque relatório nunca teve linha
-  // própria e vinha de carona no acesso ao módulo inteiro.
-  linha(
-    "Aprovar agendamento financeiro",
-    ["faz", "faz", "nao_ve", "nao_ve", "nao_ve"],
-    "Quem agenda não aprova: o Financeiro lança, o Gestor libera",
-  ),
-  linha(
-    "Ver relatórios gerenciais e DRE",
-    ["faz", "faz", "nao_ve", "nao_ve", "faz"],
-    "Leitura consolidada — não dá poder de lançar nem de decidir",
-  ),
+  // As linhas do módulo de caixa — "Lançar e aprovar contas a pagar",
+  // "Aprovar agendamento financeiro" (2026-08-21) e "Ver relatórios
+  // gerenciais e DRE" — saíram em 2026-08-28 com a aposentadoria do módulo,
+  // por decisão do dono: o financeiro renasce do zero sobre o razão do
+  // handoff (spec 30), e as linhas voltam com os nomes das telas novas.
+  //
   // Separação de funções, decidida em 2026-08-21 junto com "quem aprova
   // pagamento no dia a dia é o Gestor": quem libera um agendamento não pode
   // apagar a conta, a movimentação de caixa que a baixa gerou e a trilha da
@@ -372,6 +357,21 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     "Gerenciar clientes e fornecedores",
     ["faz", "faz", "nao_ve", "faz", "faz"],
     "Cadastro único — Marketing vê volume de lead, não contato",
+  ),
+  // Linha ACRESCENTADA em 2026-08-28, pedido do dono: *"temos que ser capazes
+  // de editar o funil de vendas de acordo com a necessidade"*.
+  //
+  // Ela NÃO é "usar o funil" — mover lead continua na linha "Ver e mover leads
+  // no kanban", que é do Comercial. Esta é a régua: quantos minutos um lead
+  // pode ficar parado, quando ele troca de dono e quais motivos de perda
+  // existem. Muda o dia a dia da equipe inteira e responde por metas, então é
+  // de quem responde pela operação — Admin e Gestor. O Comercial LÊ a
+  // configuração (o kanban precisa das etapas para desenhar as colunas), mas
+  // não a altera: quem é cobrado pelo prazo não deveria ser quem o define.
+  linha(
+    "Configurar o funil de vendas",
+    ["faz", "faz", "nao_ve", "nao_ve", "nao_ve"],
+    "A régua vale para a equipe — quem é cobrado pelo prazo não o define",
   ),
   linha(
     "Gerenciar campanhas de mídia paga",
@@ -440,12 +440,62 @@ export function podeFazer(perfil: Perfil | Perfil[], acao: string): Permissao {
  */
 export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   placa: "Preencher documentação do veículo (placa, renavam)",
+  // `chassi` existe no banco desde o feed (20260817140000) e nunca teve campo
+  // de tela: o RevendaMais o traz sozinho. Ganhou um no cadastro nativo
+  // (2026-08-29), porque o carro que não vem do feed não tem quem o traga — e
+  // sem chassi não há NF-e, RENAVE nem fechamento de venda do Ciclo. Mesma
+  // linha da placa, pelo mesmo motivo do dono em 2026-08-08: preencher
+  // documento é trabalho de operação, e o dado nunca aparece no site.
+  chassi: "Preencher documentação do veículo (placa, renavam)",
+  // O renavam que dá nome à linha finalmente ganhou coluna: migração
+  // 20260829170000, junto com a guarda de duplicidade que o dono pediu
+  // (placa, renavam e chassi — as três chaves do mesmo carro).
+  renavam: "Preencher documentação do veículo (placa, renavam)",
   motor: "Preencher documentação do veículo (placa, renavam)",
   cor_interna: "Preencher documentação do veículo (placa, renavam)",
   donos_anteriores: "Preencher documentação do veículo (placa, renavam)",
   garantia_fabrica: "Preencher documentação do veículo (placa, renavam)",
   preco_compra: "Ver custo de aquisição e margem",
+  // Preço de anúncio: só existe como campo gravável no veículo NATIVO
+  // (migração 20260829130000) — no do RevendaMais o sync o reescreveria, e por
+  // isso `extrairCamposNossos` nem o deixa passar. Vai na linha "acima de 5%",
+  // a mais restritiva das duas de preço: Admin, Gestor e Financeiro fazem;
+  // o Comercial está em `revisao` e, enquanto o fluxo de revisão (A16) não
+  // existe, `campoNegadoAoPerfil` o trata como negado. É errar para baixo,
+  // como o cabeçalho deste arquivo manda.
+  preco: "Alterar preço acima de 5%",
+  preco_original: "Alterar preço acima de 5%",
+  // Promoção fica na MESMA linha que o preço, por decisão do dono em
+  // 2026-08-31 quando a alternativa foi posta: implementar a alçada de 5% que
+  // esta matriz declara, ou manter a régua de hoje. Manteve-se a de hoje —
+  // ninguém ganha nem perde poder com a chegada do campo.
+  //
+  // Fica registrado o que isso significa na prática: a linha "Alterar preço até
+  // 5%" do Comercial continua sem tela que a exerça. Enquanto ela não existir,
+  // o Comercial não define promoção nenhuma, nem de 1%. Implementar a alçada é
+  // trabalho de produto (medir o desconto e ramificar), não de permissão.
+  preco_promocional: "Alterar preço acima de 5%",
   vendido: "Publicar ou despublicar veículo",
+  // A linha da matriz que dá nome ao ato, finalmente com o campo que o executa
+  // (migração 20260830120000). Até 2026-08-30 "publicar" era uma consequência —
+  // o carro entrava no feed e aparecia — e a única coisa desta linha que existia
+  // como campo era `vendido`. Agora é decisão explícita: Admin e Comercial
+  // FAZEM, Marketing está em `revisao` e, enquanto o fluxo de revisão (A16) não
+  // existir, `campoNegadoAoPerfil` o trata como negado; Gestor e Financeiro não
+  // veem. Arquivar é a mesma linha — despublicar é o que ela sempre disse.
+  estado_cadastro: "Publicar ou despublicar veículo",
+  // As três colunas de foto, na linha que o A17 já tinha para elas —
+  // "Marketing é o dono natural", diz a observação, e Marketing entra como
+  // `faz`. Gestor e Financeiro ficam de fora: nenhum dos dois abre o editor
+  // para trabalhar imagem.
+  //
+  // São graváveis só no veículo nativo (`camposGravaveis` em
+  // `lib/estoqueEscrita.ts`): no carro do RevendaMais o sync as reescreve a
+  // cada 6 h. A régua de PAPEL e a régua de ORIGEM são independentes, e as
+  // duas precisam passar.
+  whatsapp_images: "Adicionar e reordenar fotos",
+  web_full_images: "Adicionar e reordenar fotos",
+  url_imagem: "Adicionar e reordenar fotos",
   tipo: "Editar opcionais e destaques rápidos",
   perfil_uso: "Editar opcionais e destaques rápidos",
   status_tag: "Editar opcionais e destaques rápidos",
@@ -457,6 +507,15 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   descricao_seo: "Editar opcionais e destaques rápidos",
   laudo_pericia: "Editar opcionais e destaques rápidos",
   opcionais: "Editar opcionais e destaques rápidos",
+  // Migração 20260826150000. Mesma ação da carroceria, e pelo mesmo motivo:
+  // os três dizem O QUE o veículo é, e é a mesma pessoa que corrige quando o
+  // feed erra. A diferença é o alcance — estes dois mudam a URL da ficha e o
+  // hub de modelo, e por isso o editor avisa na tela antes de deixar salvar.
+  modelo_override: "Editar opcionais e destaques rápidos",
+  versao_override: "Editar opcionais e destaques rápidos",
+  // Mesma ação de `perfil_uso`, que ele substitui: quem classifica carroceria
+  // classifica para que o carro serve.
+  perfis_uso: "Editar opcionais e destaques rápidos",
 };
 
 /**

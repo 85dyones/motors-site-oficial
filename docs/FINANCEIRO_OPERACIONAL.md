@@ -1,5 +1,15 @@
 # Financeiro operacional — a linha geral
 
+> **2026-08-28 — o módulo descrito aqui foi aposentado.** Decisão do dono na
+> análise do motors-handoff: "aposente o financeiro atual, pra não haver
+> conflitos, nada ali tem dado real, construa do zero". As telas, rotas e
+> tabelas do caixa saíram (migração `20260828190000`); o financeiro renasce
+> sobre o razão de partidas dobradas do handoff (spec 30). **Este documento
+> continua valendo como CONTRATO do que a operação pediu**: os pedidos P1–P5
+> da Sinthia são requisitos que o razão precisa entregar, e o P6
+> (investidores) segue entregue e vivo — portal, telas e tabelas ficaram, hoje
+> em `/admin/investidores` e `/api/investidores`.
+
 Registrado em **2026-08-21**, a partir do briefing do dono (Dyones) com a
 adm/financeira (Sinthia). É o documento que responde "para onde o financeiro
 do painel vai": hoje o dia a dia dela é fragmentado entre o RevendaMais, o

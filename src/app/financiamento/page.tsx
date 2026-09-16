@@ -7,7 +7,7 @@ import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import { precoVigente } from "../../lib/regrasEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDePerguntas, schemaDeTrilha } from "../../lib/schemaListagem";
-import { schemaDaLoja } from "../../lib/schemaLoja";
+import { schemaDaLoja, schemaDeServico, schemaDoSite } from "../../lib/schemaLoja";
 import { PERGUNTAS_DE_FINANCIAMENTO, TEXTO_DE_FINANCIAMENTO } from "../../lib/paginasInstitucionais";
 
 /**
@@ -38,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Financiamento de Carro Seminovo em Curitiba | Motors Store",
     description:
       "Simule a parcela do seu seminovo em Curitiba com entrada, troca ou sem entrada. " +
-      "Aprovação com múltiplos bancos, análise no mesmo dia. Loja no Bacacheri.",
+      "Análise com múltiplos bancos, conduzida por consultor. Loja no Bacacheri.",
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,
@@ -80,7 +80,20 @@ export default async function FinanciamentoPage() {
     ]),
     schemaDeListagem("Seminovos para financiar em Curitiba", paraGrade),
     schemaDePerguntas(PERGUNTAS_DE_FINANCIAMENTO),
+    // O que esta página FAZ. Sem este nó ela era, para o grafo, uma página da
+    // Motors com uma lista e um FAQ — o serviço que a justifica não estava
+    // declarado em lugar nenhum. `provider` aponta por `@id` para o `#dealer`
+    // que `schemaDaLoja` emite logo abaixo; sem preço e sem nota, pelas razões
+    // que a nota de `schemaDeServico` registra.
+    schemaDeServico({
+      tipo: "Financiamento de veículos",
+      nome: "Financiamento de seminovos em Curitiba",
+      descricao:
+        "Simulação e encaminhamento de crédito para a compra de um seminovo do estoque, " +
+        "com análise junto aos bancos parceiros da loja.",
+    }),
     schemaDaLoja(settings.companySettings, { disponiveis }),
+    schemaDoSite(settings.companySettings),
   ]);
 
   return (
@@ -93,8 +106,15 @@ export default async function FinanciamentoPage() {
         introducao={TEXTO_DE_FINANCIAMENTO}
         contagem={false}
         veiculos={paraGrade}
-        textoSemEstoque="Sem veículos nesta faixa agora — o simulador abaixo funciona com qualquer carro do estoque."
+        textoSemEstoque="Sem veículos nesta faixa agora — o simulador acima funciona com qualquer carro do estoque."
         conteudo={<SimuladorDeFinanciamento veiculos={disponiveis} />}
+        /* O texto de abertura diz "o simulador ABAIXO responde a primeira
+           pergunta". Medido na produção em 05/09/2026: a frase ficava a 267px
+           do topo e o primeiro campo do simulador a 1702px, com a grade de
+           nove cards entre os dois. Quem lê "abaixo" procura o próximo bloco,
+           não o que vem depois de rolar a vitrine inteira.
+           E aqui o simulador não é o fecho da página: é o assunto dela. */
+        posicaoDoConteudo="antes-da-grade"
         blocos={[
           {
             titulo: "Por faixa de preço",
@@ -108,6 +128,7 @@ export default async function FinanciamentoPage() {
           },
         ]}
         faq={PERGUNTAS_DE_FINANCIAMENTO}
+        caminho={CAMINHO}
       />
     </div>
   );

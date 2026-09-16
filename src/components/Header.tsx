@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
 import { linkWhatsApp } from "../lib/whatsapp";
+import { MENU_DO_CABECALHO } from "../lib/menuDoCabecalho";
 
 /**
  * Cabeçalho Modernist (redesign 2026).
@@ -16,8 +17,10 @@ import { linkWhatsApp } from "../lib/whatsapp";
  * produção — fica à direita, reescrito na linguagem do sistema (quadrado,
  * contorno de 1px).
  *
- * A barra completa só liga em `lg:` (1024px): logo, quatro links em
- * `whitespace-nowrap`, painel e CTA de WhatsApp somam ~950px, e como o
+ * A barra completa só liga em `lg:` (1024px): logo, CINCO links em
+ * `whitespace-nowrap` (`CONTATO` é o sexto e só entra em `2xl:`), painel e CTA
+ * de WhatsApp ocupam ~870px com os espaçamentos — eram quatro links e ~950px
+ * até 07/09, quando `GUIAS MOTORS` entrou e o `CONTATO` cedeu a faixa. Como o
  * globals.css corta `overflow-x` no <html>, o excedente era amputado sem
  * rolagem — em tablet retrato e celular deitado o WhatsApp e o painel caíam
  * fora da tela. Abaixo de `lg:` vale o cabeçalho compacto de hambúrguer.
@@ -32,13 +35,9 @@ const LOGO_POR_TEMA: Record<string, string> = {
   "sport-nardo": "/motors-store-logo-3.png",
 };
 
-const NAV = [
-  { href: "/estoque", rotulo: "ESTOQUE" },
-  { href: "/carro-perfeito", rotulo: "CARRO PERFEITO" },
-  { href: "/avaliacao", rotulo: "AVALIE SEU CARRO" },
-  { href: "/sobre", rotulo: "A MOTORS" },
-  { href: "/contato", rotulo: "CONTATO" },
-];
+// A lista saiu daqui em 07/09 e virou dado em `lib/menuDoCabecalho.ts`. O
+// docblock de lá tem a ordem, o porquê da extração e a medição de largura.
+const NAV = MENU_DO_CABECALHO;
 
 export default function Header() {
   const { theme, companySettings } = useTheme();
@@ -96,10 +95,23 @@ export default function Header() {
         </Link>
 
         {/* A barra tem 68px e uma linha só de rótulo. Sem `whitespace-nowrap`
-            os três rótulos de duas palavras quebram em duas linhas na faixa
-            1024–1280px — o tablet de balcão da loja. `CONTATO` sai abaixo de
-            1280px inclusive porque é o único item cujo destino já está no rodapé e no
-            botão de WhatsApp ao lado, como na tela 09 do design doc. */}
+            os rótulos de mais de uma palavra quebram em duas linhas na faixa
+            1024–1280px — o tablet de balcão da loja. Eram três até 07/09
+            (`CARRO PERFEITO`, `AVALIE SEU CARRO`, `A MOTORS`); com
+            `GUIAS MOTORS` são quatro.
+
+            `CONTATO` sobe de `desktop:` (1281px) para `2xl:` (1536px) em 07/09,
+            quando `GUIAS MOTORS` entrou no menu. A razão é a mesma que já o
+            fazia sair abaixo de 1280: é o único item cujo destino já está no
+            rodapé e no botão de WhatsApp ao lado, como na tela 09 do design
+            doc — e agora ele disputava espaço com um item que não tem esse
+            substituto no cabeçalho.
+
+            Não é preferência: com os dois, a folga da barra caía para ≈1px em
+            1290px e ficava NEGATIVA abaixo disso, onde o Chrome liga o
+            `desktop:` pelo `innerWidth` e faz layout com 15px a menos — o
+            telefone partia em duas linhas. A conta e a medição estão no
+            docblock de `lib/menuDoCabecalho.ts`. Decisão do dono em 07/09. */}
         <nav className="flex items-center gap-4 desktop:gap-7">
           {NAV.map((item) => (
             <Link
@@ -107,7 +119,7 @@ export default function Header() {
               href={item.href}
               aria-current={ativo(item.href) ? "page" : undefined}
               className={`mt-foco whitespace-nowrap border-b-2 pb-[3px] text-[11px] font-semibold tracking-[.14em] no-underline transition-colors ${
-                item.href === "/contato" ? "hidden desktop:block" : ""
+                item.href === "/contato" ? "hidden 2xl:block" : ""
               } ${
                 ativo(item.href)
                   ? "border-mt-accent text-mt-inverso"
@@ -121,8 +133,11 @@ export default function Header() {
 
         <span className="h-[26px] w-px bg-[#444141]" aria-hidden="true" />
 
-        {/* Só a partir de `xl:`: entre 1024 e 1280px o telefone empurrava a
-            barra além do viewport e o CTA de WhatsApp saía da tela. */}
+        {/* Só a partir de `xl:` (1280px): entre 1024 e 1279px o telefone
+            empurrava a barra além do viewport e o CTA de WhatsApp saía da
+            tela. A faixa fecha em 1279 porque `xl:` liga EM 1280 — a linha de
+            1280px da tabela de `menuDoCabecalho.ts` só bate com o telefone
+            já visível. */}
         <a
           href={`tel:${(companySettings?.phone || "").replace(/\D/g, "")}`}
           className="mt-foco hidden text-[13px] text-mt-neutral-300 no-underline hover:text-mt-inverso xl:block"

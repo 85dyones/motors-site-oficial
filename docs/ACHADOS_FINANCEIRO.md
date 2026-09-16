@@ -3,6 +3,15 @@
 Levantados em 2026-08-25 por uma revisão de código feita antes de abrir o PR do
 trabalho de SEO. **Nada aqui foi corrigido.**
 
+> **2026-08-28 — metade deste documento perdeu o objeto.** O módulo de caixa
+> foi aposentado (decisão do dono; migração `20260828190000`): achado sobre
+> contas, recorrentes, conciliação/OFX, margens ou dashboard descreve código
+> que não existe mais — não corrigir. **Os achados sobre INVESTIDORES e
+> AGENDA continuam valendo**: esses módulos ficaram (hoje em
+> `/admin/investidores`, `/api/investidores` e `/admin/clientes`), e os dois
+> primeiros itens — que corrompem dado de dinheiro em silêncio — merecem
+> triagem: se tocarem investidor, seguem urgentes.
+
 ## O que estes achados são
 
 **Código que já está em produção.** Os 13 itens abaixo vivem no trabalho de

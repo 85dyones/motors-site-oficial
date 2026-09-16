@@ -49,6 +49,13 @@ const FILTROS_DE_PAPEL: { valor: string; rotulo: string }[] = [
   { valor: "fornecedor", rotulo: "Fornecedores" },
   { valor: "prestador", rotulo: "Prestadores" },
   { valor: "investidor", rotulo: "Investidores" },
+  // 2026-08-28, pedido do dono: *"todo lead precisa ir para a aba de clientes e
+  // fornecedores também, para melhorar gestão"*. O ramo vem da mesma view
+  // (migração 20260828120000) e a linha traz a etapa do funil ao lado do nome —
+  // é a resposta para "quem é essa pessoa e o que ela tem comigo?" quando a
+  // pessoa ainda não comprou nada. Editar continua sendo no kanban: lá o
+  // motivo do desfecho é pedido e o relógio da estagnação tem significado.
+  { valor: "lead", rotulo: "Leads" },
 ];
 
 interface Rascunho {

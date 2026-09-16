@@ -1,3 +1,5 @@
+import { classificarJanela } from "./janela";
+
 /**
  * O motor de gatilhos, do lado do texto — manual v1.1 §4, §7.2 e §7.3.
  *
@@ -236,14 +238,26 @@ function elegibilidadeEmRisco(l: LinhaDaFila): string {
 function revisaoVerificada(l: LinhaDaFila): string {
   const c = l.contexto ?? {};
   const n = c.numero_revisao ? `${c.numero_revisao}ª ` : "";
+  const estadoDaJanela = classificarJanela(c.dentro_da_janela);
 
   return juntar([
     `Conferido, ${primeiroNome(l.nome)}!`,
     `A ${n}revisão do seu ${identificacaoDoVeiculo(l)}, feita em ${dataCurta(c.data_servico)}${c.km_registrado ? ` com ${km(c.km_registrado)}` : ""}, foi verificada pela nossa equipe e entrou no diário de bordo.`,
-    c.dentro_da_janela === false
+    estadoDaJanela === "fora"
       ? "Ela ficou fora da janela contratada, mas está registrada do mesmo jeito: o histórico do carro fica completo."
-      : "Dentro da janela do programa.",
-    "É procedência registrada — histórico que fica com o veículo e vale na hora de trocar.",
+      : estadoDaJanela === "sem"
+        ? "Não havia janela programada para casar com ela, e está registrada do mesmo jeito: o histórico do carro fica completo."
+        : "Dentro da janela do programa.",
+    // O fecho segue a régua, não a cortesia: procedência exige `confirmada_em`
+    // E `dentro_da_janela = true` (§1.5 e §5.7, em `revisao.ts`), e a
+    // conformidade só casa a janela com `m.dentro_da_janela`. Quem ficou fora
+    // — ou nem teve janela — não ganhou o ativo, e o aviso do D−3 já tinha
+    // dito ao cliente que era isso que estava em jogo. Ainda assim ninguém sai
+    // sem o motivo de continuar: o diário registrado é o que sustenta o valor
+    // do carro, e é ele que segura o cliente no programa até a hora de trocar.
+    estadoDaJanela === "na"
+      ? "É procedência registrada — histórico que fica com o veículo e vale na hora de trocar."
+      : "É o diário que sustenta o valor do carro na hora de trocar.",
     SAIDA,
   ]);
 }

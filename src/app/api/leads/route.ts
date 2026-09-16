@@ -4,31 +4,9 @@ import { logLeadCaptured, META_CONTENT_TYPE } from "../../../lib/telemetry";
 import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
+import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
 
 export const dynamic = "force-dynamic";
-
-// Verify Cloudflare Turnstile token
-async function verifyTurnstileToken(token: string): Promise<boolean> {
-  try {
-    const secret = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA"; // Cloudflare Turnstile Test Secret Key
-    
-    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`
-    });
-
-    const data = await response.json();
-    return !!data.success;
-  } catch (error) {
-    console.error("[Leads API] Turnstile validation failed:", error);
-    return false;
-  }
-}
-
-
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,37 +18,52 @@ export async function POST(request: NextRequest) {
 
     const { cliente, veiculo, utm, intencao_busca, agUid, webhookUrl, turnstileToken } = body;
 
-    // 1. Verify Turnstile Captcha (only mandatory for user modals that render captcha)
+    // 1. Captcha — exigido por PADRÃO, com lista de isenções
     //
-    // A régua: todo canal que nasce no LeadCaptureModal exige o token — o
-    // modal não deixa submeter sem ele, então exigir aqui só espelha o
-    // cliente. Até 2026-08-19 metade dos canais do modal ficava fora da
-    // lista e passava sem validação. "Formulário Contato" segue fora: o
-    // formulário de /contato não renderiza Turnstile.
-    const needsCaptcha = [
-      // canais atuais, todos via LeadCaptureModal
-      "WhatsApp Proposta",
-      "WhatsApp Dúvidas",
-      "WhatsApp Usado na Troca",
-      "Agendamento Test-Drive",
-      "Simulação de Financiamento",
-      "Appraisal Chat",
-      "Garagem Match Profiler",
-      "Lead Popup",
-      // nomes históricos, mantidos caso algum cliente antigo ainda os envie
-      "WhatsApp Card",
-      "WhatsApp PDP",
-      "CarMatch Recommendations",
-    ].includes(body.canal);
+    // ---------------------------------------------------------------------
+    // Por que a régua inverteu em 27/08
+    // ---------------------------------------------------------------------
+    // A versão anterior era uma ALLOWLIST de canais que exigiam token, e o
+    // canal vem do CORPO do POST — escrito pelo cliente. Bastava mandar
+    // `canal: "Formulário Contato"`, ou qualquer string fora da lista, para
+    // pular a verificação inteira. A porta estava aberta e não dependia de
+    // adivinhar nada: o nome isento estava no comentário do próprio arquivo.
+    //
+    // O caso pior não era nem o abuso deliberado. `PDPClientWrapper` manda
+    // `canal: activeChannel` — valor dinâmico. Um canal novo na ficha nasceria
+    // fora da lista e sem captcha, em silêncio, para sempre.
+    //
+    // Agora todo lead precisa de token, e a exceção precisa ser escrita. A
+    // lista está VAZIA de propósito: `/contato` passou a renderizar o desafio
+    // na mesma rodada, e era o único que faltava. Se um canal legítimo
+    // precisar entrar aqui um dia, que seja com nome e motivo — não por
+    // omissão.
+    const ISENTOS_DE_CAPTCHA: string[] = [];
+    const needsCaptcha = !ISENTOS_DE_CAPTCHA.includes(body.canal);
 
     if (needsCaptcha) {
       if (!turnstileToken) {
         return NextResponse.json({ error: "Token de segurança captcha ausente." }, { status: 400 });
       }
 
-      const isHuman = await verifyTurnstileToken(turnstileToken);
-      if (!isHuman) {
-        return NextResponse.json({ error: "Falha na verificação de segurança (Anti-Spam)." }, { status: 403 });
+      const veredito = await verificarTurnstile({
+        token: turnstileToken,
+        acoesAceitas: ACOES_DE_LEADS,
+        ip: ipDoVisitante(request),
+        rotulo: "[Leads API]",
+      });
+
+      if (!veredito.ok) {
+        // O motivo fica no log do servidor, não na resposta. Ele nomeia estado
+        // de configuração — `secret-ausente`, `hostnames-ausentes` — e contar
+        // isso a quem apanhou do captcha não ajuda o visitante legítimo em
+        // nada. O formulário também não precisa dele: desde 27/08 ele descarta
+        // o token e pede outro em QUALQUER falha, sem inspecionar a causa.
+        console.warn(`[Leads API] Captcha recusado: ${veredito.motivo}`);
+        return NextResponse.json(
+          { error: "Falha na verificação de segurança (Anti-Spam)." },
+          { status: 403 }
+        );
       }
     }
 
@@ -202,6 +195,26 @@ export async function POST(request: NextRequest) {
         // evento: é o mesmo que vai para a CAPI do Meta, então o lead passa
         // a dar para cruzar com `capi_meta_*` na mesma linha.
         event_id: body.eventId || null,
+        /**
+         * O elo entre quem NAVEGA e quem VIROU lead.
+         *
+         * A coluna existia desde a tabela de marketing e nunca foi preenchida:
+         * medido em 2026-09-02, 0 dos 11 leads tinham `ag_uid`. E o valor
+         * estava aqui do lado o tempo todo — `resolvedAgUid` é resolvido na
+         * entrada da rota e já viaja como `external_id` para o Meta, logo
+         * abaixo. Gravava-se para o Meta e não para a própria casa.
+         *
+         * Sem ele, o servidor não tem como saber que o visitante que está
+         * abrindo uma ficha agora é a pessoa que deixou telefone semana
+         * passada — que é exatamente o que a CAPI usa para elevar a
+         * correspondência. A ausência não dá erro: dá 0% de e-mail e telefone
+         * no relatório de qualidade do pixel, sem nada explicando por quê.
+         *
+         * `ag_ref_nao_localizado` é o sentinela de quem chegou sem rastreio;
+         * vira `null` para a coluna não guardar texto que não identifica
+         * ninguém, e para `count(ag_uid)` continuar significando o que parece.
+         */
+        ag_uid: resolvedAgUid !== "ag_ref_nao_localizado" ? resolvedAgUid : null,
       });
 
       if (erroLead) {
@@ -228,15 +241,25 @@ export async function POST(request: NextRequest) {
             fbp: body.fbp || null,
             fbc: body.fbc || null,
             externalId: resolvedAgUid,
-            clientIpAddress:
-              request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-              request.headers.get("x-real-ip"),
+            clientIpAddress: ipDoVisitante(request),
             clientUserAgent: request.headers.get("user-agent"),
           },
           customData: {
             content_ids: veiculo?.id ? [String(veiculo.id)] : undefined,
             content_type: META_CONTENT_TYPE,
-            content_name: veiculo ? `${veiculo.marca} ${veiculo.modelo}` : undefined,
+            /**
+             * `contentName` é a saída de quem NÃO tem veículo — a encomenda do
+             * hub sem estoque, onde o carro é justamente o que não existe no
+             * pátio. Sem ela, o evento de SERVIDOR chegava ao Meta sem nome de
+             * conteúdo enquanto o do NAVEGADOR chegava com um: os dois lados do
+             * mesmo `event_id` descrevendo coisas diferentes.
+             *
+             * Aditivo, e nesta ordem de propósito: quando há veículo, ele
+             * continua mandando. Nenhum evento é renomeado (regra 7).
+             */
+            content_name: veiculo
+              ? `${veiculo.marca} ${veiculo.modelo}`
+              : body.contentName || undefined,
             value: veiculo?.preco,
             currency: "BRL",
           },

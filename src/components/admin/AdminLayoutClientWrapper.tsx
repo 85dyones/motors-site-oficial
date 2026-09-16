@@ -33,24 +33,10 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
     if (pathname.replace("/admin/marketing/midia-paga", "").replace("/", "")) {
       partes.push("CAMPANHA");
     }
-  } else if (pathname.startsWith("/admin/financeiro")) {
-    partes.push("FINANCEIRO");
-    const folha = pathname.replace("/admin/financeiro", "").replace("/", "");
-    const nomes: Record<string, string> = {
-      dia: "PAGAMENTOS DO DIA",
-      "contas-pagar": "CONTAS A PAGAR",
-      aprovacoes: "APROVAÇÕES",
-      "contas-receber": "CONTAS A RECEBER",
-      recorrentes: "DESPESAS RECORRENTES",
-      compras: "COMPRAS DE INSUMOS",
-      importar: "IMPORTAR REVENDAMAIS",
-      conciliacao: "CONCILIAÇÃO BANCÁRIA",
-      relatorios: "RELATÓRIOS E BALANÇO",
-      cadastros: "CADASTROS AUXILIARES",
-      margens: "MARGEM POR VEÍCULO",
-      investidores: "INVESTIDORES",
-    };
-    partes.push(folha ? nomes[folha] ?? folha.toUpperCase() : "VISÃO GERAL");
+  } else if (pathname.startsWith("/admin/investidores")) {
+    // O que restou do módulo financeiro aposentado em 2026-08-28 — a gestão
+    // de investidores mudou de /admin/financeiro/investidores para cá.
+    partes.push("INVESTIDORES");
   } else if (pathname === "/admin") {
     partes.push("VISÃO GERAL");
   } else if (pathname.startsWith("/admin/leads")) {

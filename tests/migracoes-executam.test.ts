@@ -68,6 +68,16 @@ const CADEIA = [
   // testada com uma fonte só, que é justamente a forma que não é a de
   // produção.
   "20260824190000_agenda_de_pessoas.sql",
+  // O funil de vendas (2026-08-28): etapas editáveis, desfecho com motivo,
+  // fila de estagnação e o ramo de leads dentro da agenda. Entra na cadeia
+  // porque mexe em RLS de tabela com PII e reconstrói a view da migração
+  // acima — as duas coisas que só um banco de verdade prova.
+  "20260828120000_funil_de_vendas.sql",
+  // O terceiro desfecho (2026-08-28, mesma tarde): "não é uma oportunidade de
+  // negócio". Entra na cadeia porque mexe em CHECK de três tabelas e recria o
+  // gatilho e a view da migração acima — se as duas divergirem, o lead
+  // descartado fica sem carimbo e volta para a fila de estagnação.
+  "20260828160000_desfecho_sem_oportunidade.sql",
 ];
 
 /**

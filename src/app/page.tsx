@@ -26,6 +26,7 @@ import {
   normalizarStockOverrides,
   resolverDestaques,
 } from "../lib/destaquesRapidos";
+import { montarDestaquesDaSemana } from "../lib/destaquesDaSemana";
 // Importa o JSON DIRETO, não via `./ThemeContext`.
 //
 // `ThemeContext` é um módulo "use client": quando um Server Component importa
@@ -35,7 +36,9 @@ import {
 // anterior a esta rodada: o nome da loja nunca chegou ao structured data.
 import DEFAULT_COMPANY_SETTINGS from "../lib/companySettings.json";
 import { linkWhatsApp } from "../lib/whatsapp";
-import { schemaDaLoja } from "../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../lib/schemaLoja";
+import { blocoJsonLd } from "../lib/schemaListagem";
+import FaixasDePreco from "../components/modernist/FaixasDePreco";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -78,7 +81,7 @@ export async function generateMetadata(): Promise<Metadata> {
       pagina: "home",
       tituloPadrao: tabTitle || "Motors Store | Seminovos Selecionados em Curitiba",
       descricaoPadrao:
-        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha e preço no anúncio.",
+        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha assim que aprovado, preço no anúncio.",
       caminho: "/",
     }),
   };
@@ -136,7 +139,17 @@ export default async function Home() {
         .filter((v): v is NonNullable<typeof v> => Boolean(v))
     : [];
   const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, 3);
-  const destaquesSemana = disponiveis.slice(0, 6);
+  // A curadoria da GRADE, que não é a do banner: lista própria, decidida pelo
+  // dono em 2026-09-09. O que ele marcou vem primeiro, na ordem em que marcou;
+  // o sorteio só completa as vagas que sobraram, e evita repetir na grade o
+  // carro que está passando no carrossel logo acima.
+  const destaquesSemana = montarDestaquesDaSemana({
+    disponiveis,
+    selecionados: Array.isArray(settings.destaquesDaSemana)
+      ? (settings.destaquesDaSemana as string[]).map(String)
+      : [],
+    excluir: slidesHero.map((v) => v.id),
+  });
 
   const whatsappHref = linkWhatsApp(empresa);
 
@@ -145,7 +158,15 @@ export default async function Home() {
   // ligar cada oferta à loja física. Bloco duplicado aqui reabriria a chance de
   // as duas versões divergirem — que é o defeito que o NAP fictício de agosto
   // já custou uma vez.
-  const autoDealerSchema = schemaDaLoja(empresa, { disponiveis });
+  // `WebSite` entrou em 2026-09-05 e vem junto de propósito: é ele que diz que
+  // este domínio é UMA coisa, publicada por UMA empresa, e o `publisher` aponta
+  // para o `#dealer` acima por `@id`. Na home o par vale mais do que em
+  // qualquer outra página — é a URL que o Google usa para decidir o que é a
+  // marca, e a Motors Store colide com "Usa Motors" e "ACX Motors".
+  const grafoDaHome = blocoJsonLd([
+    schemaDaLoja(empresa, { disponiveis }),
+    schemaDoSite(empresa),
+  ]);
 
   /**
    * As seções da home, indexadas pelo id do catálogo (`lib/areasDoSite.ts`).
@@ -220,8 +241,45 @@ export default async function Home() {
             />
           ))}
         </div>
+
+        {/* A mesma saída, repetida no fim da grade.
+            Achado pelo dono no celular em 05/09/2026: no topo o link existe,
+            mas empilhada a grade tem seis fotos grandes — quem rola até o
+            último card chega no bloco preto da Consultoria sem nada por perto
+            dizendo que a vitrine continua, e o link de cima saiu da tela há
+            muito. É o mesmo defeito do "carregar mais" que parecia rodapé.
+            No desktop custa uma linha; no celular é a diferença entre voltar
+            ao topo e sair da página. */}
+        <div className="pt-9 lg:pt-10">
+          <LinkRegua href="/estoque">VER OS {total} VEÍCULOS</LinkRegua>
+        </div>
       </section>
 
+    ),
+
+    /* ─── Por faixa de preço ───
+       Os três hubs de maior intenção comercial do site — "carro até 60 mil em
+       Curitiba" é busca de quem já decidiu o orçamento — e até 05/09/2026 a
+       home não linkava nenhum deles. O filtro de preço da busca em régua é
+       client-side: gera estado, não gera URL, e portanto não gera link
+       rastreável. Estes três geram.
+
+       A contagem sai do mesmo `hubsDeFaixa` que a `/estoque` usa, então os dois
+       números vêm da mesma conta. O bloco inteiro some com o pátio vazio: três
+       zeros na home parecem loja fechada, não recorte. */
+    faixas_de_preco: (
+      <FaixasDePreco
+        disponiveis={disponiveis}
+        className="px-[18px] pt-12 lg:px-10 lg:pt-16"
+        espacoDoTopo="mt-6"
+        /* Sem `numero`, e o prop é opcional justamente para isto. A numeração
+           da home ("01 — ESTOQUE SELECIONADO", "02 — CONSULTORIA"…) foi escrita
+           para uma ordem fixa e já não descreve a página: o dono reordena as
+           seções na tela A3 sem que os números acompanhem. Todo número livre
+           entre 01 e 02 está ocupado — 03 é "VENDA OU TROCA" —, e renumerar a
+           home inteira é outra tarefa, não efeito colateral desta. */
+        cabecalho={<CabecalhoSecao titulo="Escolha pelo orçamento" />}
+      />
     ),
 
     /* ─── 02 Consultoria ─── */
@@ -278,14 +336,14 @@ export default async function Home() {
           Avaliação Express
         </h2>
         <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          Proposta real em menos de 10 minutos, com base na Tabela FIPE e no giro
-          do nosso estoque.
+          Proposta com base na Tabela FIPE e no giro do nosso estoque — um
+          consultor retorna no WhatsApp.
         </p>
         <div className="mt-7 flex max-w-[420px] border-t-2 border-mt-regua">
-          <div className="flex-1 border-r border-mt-regua-media pt-3.5">
-            <div className="text-[26px] font-extrabold">10 min</div>
+          <div className="flex-1 border-r border-mt-regua-media pr-4 pt-3.5">
+            <div className="text-[26px] font-extrabold">3 EM 10</div>
             <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
-              RESPOSTA
+              VIRAM ESTOQUE
             </div>
           </div>
           <div className="flex-1 pl-4 pt-3.5">
@@ -345,7 +403,7 @@ export default async function Home() {
     contato: (
       <section className="bg-mt-accent px-[18px] py-14 text-mt-inverso lg:px-10 lg:py-[76px]">
         <h2 className="mt-display m-0 max-w-[1000px] text-[34px] lg:text-[88px]">
-          O carro certo não é o mais caro. É o que você não quer devolver.
+          Estoque selecionado a dedo para quem não aceita qualquer escolha.
         </h2>
         <div className="mt-8 flex flex-wrap gap-0.5 lg:mt-11">
           <Link href="/estoque" className="mt-btn mt-btn-tinta mt-foco">
@@ -367,10 +425,10 @@ export default async function Home() {
     // `<div>`, não `<main>`: o layout raiz já abre um `<main>`, e landmarks
     // aninhados desorientam navegação por leitor de tela.
     <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
-      {/* Local Business (AutoDealer) Schema Markup */}
+      {/* O grafo da home: a loja e o site, ligados por `publisher`. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(autoDealerSchema) }}
+        dangerouslySetInnerHTML={{ __html: grafoDaHome }}
       />
 
       {/* A ordem e a visibilidade vêm da tela A3 do painel. `areasVisiveis`

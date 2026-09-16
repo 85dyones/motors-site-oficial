@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import { marcarContainerAtivo } from "../lib/dataLayer";
+import { persistirParametrosDeCampanha, rastreamentoRecusado } from "../lib/telemetry";
 
 declare global {
   interface Window {
@@ -76,32 +77,93 @@ export default function IntegrationsTracker() {
     marcarContainerAtivo(Boolean(gtmId) && assumeEventos);
   }, [gtmId, assumeEventos]);
 
-  // Persist _fbc por 90 dias se veio fbclid na URL e o cookie ainda não existe.
-  // Independe de consentimento de analytics: é apenas a captura do parâmetro de
-  // clique do próprio anúncio que trouxe a visita, para não perder o dado antes
-  // do usuário aceitar (o evento em si só é enviado depois, já gated por consentimento).
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const fbclid = new URLSearchParams(window.location.search).get("fbclid");
-      if (fbclid && !document.cookie.includes("_fbc=")) {
-        const fbc = `fb.1.${Date.now()}.${fbclid}`;
-        document.cookie = `_fbc=${fbc}; path=/; max-age=7776000; SameSite=Lax`;
+    /**
+     * `_fbc` por 90 dias, quando a visita veio de um anúncio do Meta.
+     *
+     * -----------------------------------------------------------------------
+     * Duas viradas, e a segunda desfez a primeira — de propósito
+     * -----------------------------------------------------------------------
+     * Em 27/08 este cookie passou para DENTRO do portão do aceite. O motivo era
+     * bom e não era técnico: a política publicada afirmava, com essas palavras,
+     * que *"enquanto você não aceitar, nenhuma ferramenta de análise ou
+     * publicidade é carregada"*, e a mesma política declarava `_fbc` como
+     * cookie de atribuição. Escrevê-lo antes do aceite desmentia o texto que o
+     * visitante tinha lido.
+     *
+     * Em 31/08 o dono mudou a decisão de produto — *"máximo dado, risco
+     * concentrado no pixel e no Ads"* — e a política foi reescrita na MESMA
+     * rodada para descrever o que passa a acontecer. O que não se pode é ter
+     * uma sem a outra: o problema de 27/08 nunca foi a gravação, foi a
+     * divergência entre o que o site fazia e o que ele dizia fazer.
+     *
+     * Agora o portão só barra a recusa explícita, então `_fbc` é gravado na
+     * chegada de quem ainda não respondeu — que é justamente quem vem do
+     * anúncio e vê uma página só.
+     */
+    const persistirFbc = () => {
+      try {
+        const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+        if (fbclid && !document.cookie.includes("_fbc=")) {
+          const fbc = `fb.1.${Date.now()}.${fbclid}`;
+          document.cookie = `_fbc=${fbc}; path=/; max-age=7776000; SameSite=Lax`;
+        }
+      } catch (e) {
+        console.warn("[IntegrationsTracker] Failed to persist _fbc cookie:", e);
       }
-    } catch (e) {
-      console.warn("[IntegrationsTracker] Failed to persist _fbc cookie:", e);
-    }
-  }, []);
+    };
 
-  useEffect(() => {
     const checkAndInitTrackors = () => {
       if (typeof window === "undefined") return;
 
-      const consent = localStorage.getItem("ag_cookie_consent");
-      if (consent !== "accepted") {
-        console.log("[IntegrationsTracker] Tracking disabled. LGPD Cookie consent not accepted yet.");
+      // ANTES do portão, de propósito — e isto é o oposto de uma brecha.
+      //
+      // `persistirParametrosDeCampanha` guarda o `gclid` da URL em MEMÓRIA
+      // sempre, e no dispositivo só depois do aceite: o portão do disco vive
+      // dentro dela. Chamá-la aqui é o que faz a memória existir para quem
+      // ainda não decidiu.
+      //
+      // Estava depois do `return` de baixo e o efeito era invisível nos testes
+      // de unidade, que chamam a função direto: para quem chegava do anúncio e
+      // não clicava no banner, ela nunca rodava, a memória ficava vazia, e o
+      // aceite feito duas páginas adiante não tinha o que gravar — a URL já não
+      // trazia mais o parâmetro. Quem pegou foi o teste de navegador.
+      persistirParametrosDeCampanha();
+
+      // -----------------------------------------------------------------------
+      // Nada espera o aceite. A única barreira é a oposição explícita.
+      // -----------------------------------------------------------------------
+      // Decisão do dono em 2026-08-31, reafirmada depois de a ressalva ter sido
+      // levantada: *"não quero nada atrás do aceite, o `_fbc` precisa estar
+      // ativo... o custo jurídico ainda é infinitamente menor que o custo
+      // operacional de não ter os dados... é a forma como operam até as
+      // gigantes. Quando uma resolução como a europeia estiver valendo aqui no
+      // Brasil, mudamos"*. Base declarada: legítimo interesse (LGPD art. 7º, IX).
+      //
+      // O portão já exigiu `=== "accepted"` — barrava quem apenas ainda não
+      // tinha respondido, que é a maioria de quem chega por anúncio e vê uma
+      // página só. Isso acabou. Ninguém precisa clicar em nada para ser medido.
+      //
+      // O que sobrou é `=== "rejected"`, e não é o mesmo portão de antes: ele
+      // só fecha para quem FOI ATRÁS de desligar, na página de privacidade. O
+      // aviso da home não oferece mais essa porta — um botão de recusa ao lado
+      // de "Entendi" induz a recusa, e o dono apontou isso na tela.
+      //
+      // ⚠️ DUAS COISAS ANDAM COM ESTA LINHA:
+      //   1. `/privacidade` descreve o que acontece de fato, e é lá que mora o
+      //      controle de desligar. A política já afirmou o oposto disto —
+      //      "enquanto você não aceitar, nenhuma ferramenta é carregada" — e o
+      //      problema nunca foi o rastreamento, foi dizer uma coisa e fazer
+      //      outra.
+      //   2. O aviso da home informa e some. Não decide nada.
+      //
+      // `tests/brechas-de-mensuracao.test.ts` trava as pontas juntas.
+      if (rastreamentoRecusado()) {
+        console.log("[IntegrationsTracker] Desligado pelo próprio visitante, em /privacidade.");
         return;
       }
+
+      persistirFbc();
 
       // 1. Google Analytics 4 (GA4) Initialization
       if (ga4Id && idGA4Inicializado.current !== ga4Id) {
@@ -165,6 +227,26 @@ export default function IntegrationsTracker() {
       }
 
       // 1.5. Google Ads Initialization
+      //
+      // ⚠️  **Hoje quem dá o `config` do `AW-18360613832` é o contêiner**, pela
+      // tag "Tag do Google - AW (conversoes otimizadas)", criada em 2026-08-26.
+      // O bloco abaixo NUNCA rodou em produção porque `googleAdsId` está vazio
+      // em `site_settings` — e o resultado disso foi caro: sem `config` na
+      // página, o gtag enfileirava os hits do Ads e não mandava. O Assistente de
+      // Tags mostrava "Hits adiados", e remarketing dinâmico e dados de
+      // conversões otimizadas iam para o lixo em silêncio.
+      //
+      // Isso é exceção à regra do §0 de `docs/GTM_CONFIGURACAO.md` ("não
+      // configure o Ads dentro do contêiner"): a regra vale para GA4 e Meta
+      // Pixel, que este arquivo realmente carrega. Para o Ads ela partia de uma
+      // premissa que o painel nunca cumpriu.
+      //
+      // **Não preencha `googleAdsId` no painel sem antes ler o §5 daquele
+      // documento.** Preencher aqui não é "ligar o Ads": é (a) um segundo
+      // `config` para o mesmo destino e (b) — porque `gtmAssumeEventos` também
+      // é `false` — o `telemetry.ts` voltando a disparar a conversão de lead
+      // por conta própria, em cima da tag `Ads - conv_lead` do contêiner. Dupla
+      // contagem, CPA pela metade, e nenhum aviso na tela.
       if (googleAdsId && !initializedGAds.current) {
         try {
           console.log(`[IntegrationsTracker] Initializing Google Ads with ID: ${googleAdsId}`);
@@ -239,8 +321,12 @@ export default function IntegrationsTracker() {
       return;
     }
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return;
+    // Mesma régua da inicialização (31/08): só a recusa explícita barra. Se
+    // este ficasse em `!== "accepted"`, o primeiro PageView entraria e os das
+    // páginas seguintes não — a sessão apareceria no Meta como visita de uma
+    // página só, que é pior que não aparecer: vira um número errado, não um
+    // número faltando.
+    if (rastreamentoRecusado()) return;
 
     // Dispatch GA4 page view
     if (window.gtag && ga4Id) {

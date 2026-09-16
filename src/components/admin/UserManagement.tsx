@@ -355,7 +355,7 @@ export default function UserManagement() {
           {/* Os quatro perfis */}
           <div className="grid grid-cols-1 gap-6 border-t-2 border-mt-regua pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {PERFIS.map((p) => (
-              <div key={p} className="border-r border-mt-regua-fina pr-5 last:border-r-0">
+              <div key={p} className="xl:border-r xl:border-mt-regua-fina xl:pr-5 xl:last:border-r-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-[15px] font-extrabold tracking-[-.01em]">{ROTULO_DO_PERFIL[p]}</span>
                   <span className="ml-auto text-[11px] text-mt-neutral-700">
@@ -772,7 +772,9 @@ export default function UserManagement() {
                     />
                     <span className="pl-1 text-[10px] text-mt-neutral-700">
                       Com DDI, no formato +55… — é por aqui que a rotina noturna avisa sobre
-                      registro de venda incompleto. Sem telefone, o vendedor não é avisado.
+                      registro de venda incompleto e que o funil avisa sobre lead parado ou
+                      transferido. Sem telefone, o vendedor não é avisado e não entra no rodízio
+                      de leads.
                     </span>
                   </div>
 

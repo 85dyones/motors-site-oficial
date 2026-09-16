@@ -4,11 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { logFlowInitiated, getActiveAgUid, getUtmParameters, sufixoRef, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
-import Turnstile from "./Turnstile";
+import Turnstile, { type TurnstileHandle } from "./Turnstile";
+import { ACOES } from "../lib/turnstile";
+import SaidaDoCaptcha from "./SaidaDoCaptcha";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
 import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, mascararTelefone, telefoneDoLead } from "../lib/whatsapp";
 
 /**
  * Tela 05 — Avaliação Express, na linguagem Modernist.
@@ -333,6 +335,8 @@ export default function AutoAvaliacao() {
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const [captchaBloqueado, setCaptchaBloqueado] = useState(false);
 
   // Type of vehicle
   const [vehicleType, setVehicleType] = useState<"carros" | "motos" | "caminhoes">("carros");
@@ -472,18 +476,11 @@ export default function AutoAvaliacao() {
     logFlowInitiated("Auto-Avaliação", uid);
   }, []);
 
-  // Format WhatsApp input reactively as (XX) XXXXX-XXXX
+  // A regra morava aqui e foi para `lib/whatsapp.ts` quando o
+  // `LeadCaptureModal` ganhou campo de telefone: a mesma máscara escrita duas
+  // vezes diverge na primeira correção — e divergiu, no fixo (ver lá).
   const handleWhatsappChange = (value: string) => {
-    const numbersOnly = value.replace(/\D/g, "");
-    let formatted = numbersOnly;
-
-    if (numbersOnly.length > 2) {
-      formatted = `(${numbersOnly.slice(0, 2)}) ${numbersOnly.slice(2)}`;
-    }
-    if (numbersOnly.length > 7) {
-      formatted = `(${numbersOnly.slice(0, 2)}) ${numbersOnly.slice(2, 7)}-${numbersOnly.slice(7, 11)}`;
-    }
-    setStep3((prev) => ({ ...prev, whatsapp: formatted.slice(0, 15) }));
+    setStep3((prev) => ({ ...prev, whatsapp: mascararTelefone(value) }));
   };
 
   // ─── FIPE Cascading Handlers ───
@@ -626,9 +623,17 @@ export default function AutoAvaliacao() {
           numericValue = Number(fipeValor.replace(/[^\d]/g, "")) / 100;
         }
         trackAppraisalSubmit(vehicleType, step1.marca, step1.modelo, String(step1.ano), numericValue);
+      } else {
+        // Token do Turnstile é de uso único e já foi gasto no siteverify. Sem
+        // pedir outro, uma segunda tentativa reenviaria o mesmo e levaria 403
+        // de novo — sem saída, porque o formulário não recarrega sozinho.
+        setTurnstileToken("");
+        turnstileRef.current?.reset();
       }
     } catch (error) {
       console.error("[Auto-Avaliação] Failed to send lead to backend API:", error);
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
     }
 
     // Simulate premium processing delay
@@ -698,6 +703,7 @@ export default function AutoAvaliacao() {
     setFipeYears([]);
     setVehicleType("carros");
     setTurnstileToken("");
+    setCaptchaBloqueado(false);
     setStep(1);
   };
 
@@ -715,14 +721,19 @@ export default function AutoAvaliacao() {
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken: string }) => {
     const utmParams = getUtmParameters();
 
-    const cleanPhone = leadData.whatsapp;
-    const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
-    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
+    // `telefoneDoLead` normaliza o que veio do campo — que agora chega
+    // mascarado, "(41) 99737-2165". As três linhas que estavam aqui tinham um
+    // `cleanPhone` que não limpava nada: com 15 caracteres o teste de
+    // comprimento falhava e o número seguia para o CRM com parênteses dentro
+    // do `remoteJid`. Ver o comentário em `lib/whatsapp.ts`.
+    const telefone = telefoneDoLead(leadData.whatsapp);
+    const formattedPhone = telefone.comDDI ?? "";
+    const remoteJid = telefone.remoteJid;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
     const fipeNumericValue = fipeValor ? Number(fipeValor.replace(/[^\d]/g, "")) / 100 : 0;
-    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
       { marca: step1.marca, modelo: step1.modelo, preco: fipeNumericValue },
       activeMessage,
@@ -756,10 +767,15 @@ export default function AutoAvaliacao() {
         tipo_veiculo: vehicleType,
         fipe_valor: fipeValor,
         fipe_codigo: fipeCodigo,
-        veiculo_contexto: {
-          perfil_uso: vehicleType === "motos" ? "USO URBAN & SPORT" : (vehicleType === "caminhoes" ? "FORÇA & TRANSPORTE" : "PERFORMANCE & CUSTOM"),
-          tipo_badge: "BAIXA KM"
-        }
+        // `veiculo_contexto` saiu em 27/08. Ele mandava dois valores FIXOS no
+        // código — `perfil_uso` derivado só do tipo de veículo e
+        // `tipo_badge: "BAIXA KM"` — para o CRM, em toda avaliação, inclusive
+        // nas de carro com 200.000 km. É afirmação inventada sobre o carro do
+        // cliente, num campo que o consultor lê como se fosse dado.
+        //
+        // O que sobra é o que este canal realmente sabe: marca, modelo, ano e
+        // FIPE. Quilometragem e estado só existem quando o formulário foi
+        // enviado, e aí quem os manda é `POST /api/avaliacao`.
       },
       cliente: {
         nome: leadData.nome,
@@ -862,7 +878,7 @@ export default function AutoAvaliacao() {
         </h1>
         <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-neutral-800 lg:text-base">
           Dados oficiais da Tabela FIPE cruzados com o giro real do nosso
-          estoque. Proposta no WhatsApp em menos de 10 minutos.
+          estoque. Um consultor retorna no WhatsApp com a proposta.
         </p>
 
         {/* Trilho de passos */}
@@ -879,7 +895,7 @@ export default function AutoAvaliacao() {
                   onClick={() => concluido && setStep(numero as 1 | 2 | 3)}
                   disabled={!concluido}
                   aria-current={ativo ? "step" : undefined}
-                  className={`mt-foco flex-1 border-r border-mt-regua-fina py-4 pr-4 text-left last:border-r-0 ${
+                  className={`mt-foco flex-1 border-r border-mt-regua-fina py-4 pl-4 pr-4 text-left first:pl-0 last:border-r-0 last:pr-0 ${
                     concluido ? "cursor-pointer" : "cursor-default"
                   }`}
                 >
@@ -1144,7 +1160,9 @@ export default function AutoAvaliacao() {
                   </label>
                   <input
                     id="nome-input"
+                    name="name"
                     type="text"
+                    autoComplete="name"
                     required
                     placeholder="Digite seu nome…"
                     value={step3.nome}
@@ -1162,7 +1180,10 @@ export default function AutoAvaliacao() {
                   </label>
                   <input
                     id="whatsapp-input"
+                    name="phone"
                     type="tel"
+                    autoComplete="tel"
+                    inputMode="numeric"
                     required
                     placeholder="(00) 00000-0000"
                     value={step3.whatsapp}
@@ -1248,7 +1269,31 @@ export default function AutoAvaliacao() {
               o botão desabilitado esperando. */}
           {step < 4 && (
             <div className="mt-9 border-t border-mt-regua-fina pt-5">
-              <Turnstile onSuccess={(token) => setTurnstileToken(token)} />
+              <Turnstile
+                ref={turnstileRef}
+                action={ACOES.avaliacao}
+                onSuccess={(token) => {
+                  setTurnstileToken(token);
+                  setCaptchaBloqueado(false);
+                }}
+                onExpire={() => setTurnstileToken("")}
+                onError={() => setCaptchaBloqueado(true)}
+              />
+
+              {captchaBloqueado && (
+                <SaidaDoCaptcha
+                  mensagem={
+                    step1.marca && step1.modelo
+                      ? `Olá! Quero avaliar meu ${step1.marca} ${step1.modelo}${step1.ano ? ` ${step1.ano}` : ""}.`
+                      : undefined
+                  }
+                  onTentarNovamente={() => {
+                    setCaptchaBloqueado(false);
+                    setTurnstileToken("");
+                    turnstileRef.current?.reset();
+                  }}
+                />
+              )}
             </div>
           )}
         </form>
@@ -1339,16 +1384,37 @@ export default function AutoAvaliacao() {
           </div>
         </div>
 
+        {/* Sem botão aqui, e é decisão de 27/08.
+            ------------------------------------------------------------------
+            Este bloco tinha um "RECEBER PROPOSTA REAL" que, no passo 03,
+            aparecia ao lado do "SOLICITAR PROPOSTA" do formulário. Dois CTAs
+            principais prometendo a mesma coisa na mesma tela — foi assim que o
+            dono notou.
+
+            O problema não era o layout. Aquele botão chamava
+            `handleWhatsappAvaliacaoClick`, que é o botão do PASSO 04, e o
+            `<aside>` renderiza em todos os passos. Quem clicasse antes de
+            enviar:
+
+              · pulava o passo 02 inteiro, e o consultor recebia um lead sem
+                quilometragem — o campo que `isStep2Valid` torna obrigatório
+                justamente porque a faixa de 30% depende do limite de
+                150.000 km;
+              · mandava no WhatsApp "Enviei a avaliação do meu carro X no
+                site", frase que só é verdade depois do envio (e que, nos
+                passos 01–02, saía com a marca vazia no meio);
+              · era contado como `contato` em vez de `avaliacao` — a conversão
+                pela qual a loja decide verba de compra de estoque.
+
+            Tirar o botão daqui conserta os três de uma vez, porque
+            `handleWhatsappAvaliacaoClick` passa a ser alcançável só no passo
+            04, onde a frase e a classificação são verdadeiras. O atalho de
+            WhatsApp continua existindo lá, na coluna da esquerda.
+
+            O parágrafo fica: sem o botão ele explica o processo, em vez de
+            qualificar um CTA. */}
         <div className="mt-8">
-          <button
-            type="button"
-            onClick={handleWhatsappAvaliacaoClick}
-            className="mt-btn mt-btn-primario mt-btn-bloco mt-foco"
-          >
-            <IconeWhatsApp />
-            RECEBER PROPOSTA REAL
-          </button>
-          <p className="m-0 mt-3.5 text-[11px] leading-relaxed text-mt-neutral-500">
+          <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-500">
             Quem envia a avaliação é o consultor, com os dados que você
             informou. A proposta final depende de vistoria presencial em
             Curitiba.
@@ -1358,6 +1424,7 @@ export default function AutoAvaliacao() {
 
       {/* Positive Friction Lead Capture Modal */}
       <LeadCaptureModal
+        action={ACOES.avaliacaoWhatsapp}
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         onSubmit={handleLeadSubmit}

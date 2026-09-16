@@ -16,6 +16,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Veiculo } from "../../types";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
+import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
 
 /* ────────────────────────────────────────────────────────────────────────
    Rótulo em versalete — o marcador tipográfico do sistema
@@ -164,17 +165,29 @@ export function EstatisticasRegua({
   /* `--regua-pt` e `--regua-valor` são pontos de ajuste opcionais: quem monta
      a régua num espaço apertado (o hero da home, que precisa caber na altura
      da janela) define as vars num ancestral e elas chegam aqui por herança.
-     Sem ninguém definindo, o fallback é o valor do design. */
+     Sem ninguém definindo, valem os fallbacks abaixo.
+
+     O fallback do valor é um `clamp`, e não os 34px do design, porque quem
+     não define a var é a régua de /sobre, que roda na largura toda do
+     telefone: em 375px cada coluna fica com ~100px e "3 MESES" a 34px pede
+     165px. O número vazava na coluna vizinha e a régua lia "100%FIPE". O
+     `clamp` chega nos 34px do design a partir de ~654px de viewport, então
+     no desktop nada muda; ele só encolhe onde encolher é o que faz o texto
+     caber. Quem define a var (o hero) não é afetado.
+
+     O `gap-x` é o respiro entre colunas. Sem ele as colunas são `flex-1`
+     coladas uma na outra e os valores se encostam — mesmo problema das
+     réguas com regra vertical, aqui sem a regra para disfarçar. */
   return (
     <div
-      className={`flex border-t-2 pt-[var(--regua-pt,16px)] ${
+      className={`flex gap-x-4 border-t-2 pt-[var(--regua-pt,16px)] ${
         inverso ? "border-mt-inverso-regua" : "border-mt-regua"
       } ${className}`}
     >
       {itens.map((item) => (
-        <div key={item.rotulo} className="flex-1">
+        <div key={item.rotulo} className="min-w-0 flex-1">
           <div
-            className={`text-[length:var(--regua-valor,34px)] font-extrabold leading-none ${
+            className={`text-[length:var(--regua-valor,clamp(19px,5.2vw,34px))] font-extrabold leading-none ${
               item.accent
                 ? "text-mt-accent"
                 : inverso
@@ -264,7 +277,35 @@ export function CardVeiculo({
              O `sizes` é o que faz a otimização valer: sem ele o Next serve o
              maior candidato do srcset em qualquer viewport, e o ganho vira
              zero. As três medidas são as grades reais em que este card vive —
-             uma coluna no celular, duas no tablet, três no desktop. */
+             uma coluna no celular, duas no tablet, três no desktop.
+
+             ⚠️ `unoptimized` SÓ para a foto que é nossa (2026-08-30, storage
+             próprio F0-p). Não é preferência estética, são duas medições:
+
+             1. **A cota já estourou.** `/_next/image` respondeu 402 em
+                produção — quota de otimização da Vercel, contada por imagem de
+                ORIGEM. O card é a superfície que mais consome: ele desenha
+                todo veículo na home, no catálogo, nas landings, nos hubs e nas
+                páginas de bairro. Com o storage próprio o inventário de fotos
+                cresce, e mandá-lo inteiro pelo otimizador é comprar de volta o
+                mesmo 402.
+             2. **Não há o que otimizar.** A foto nossa já sai tratada do
+                envio: 1280px no lado maior, WebP, ~150 KB
+                (`imageProcessor.processarFotoDeVeiculo`), servida pelo CDN do
+                Supabase. O otimizador cortaria pouco e cobraria por isso.
+
+             O que vem do **carro57 continua otimizado** — `ehFotoPropria`
+             devolve `false` para qualquer URL fora do bucket `veiculos`, então
+             a prop é `false` para 100% do estoque de hoje e este bloco segue
+             se comportando exatamente como antes para ele. Lá a otimização
+             ainda paga: o RevendaMais entrega o arquivo em tamanho cheio, sem
+             `srcset` e sem WebP, e é esse o defeito que o `next/image` veio
+             corrigir em 2026-08-25.
+
+             A PDP não recebe o mesmo tratamento, de propósito: lá a fonte é
+             `whatsapp_images` (1600px) e a mesma foto é desenhada como
+             miniatura de 240px — é o caso em que o srcset ainda vale mais que
+             a cota. */
           <Image
             src={foto}
             alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
@@ -273,6 +314,7 @@ export function CardVeiculo({
             priority={prioridade}
             fetchPriority={prioridade ? "high" : "auto"}
             loading={prioridade ? "eager" : "lazy"}
+            unoptimized={ehFotoPropria(foto)}
             className="object-cover"
           />
         ) : null}

@@ -87,7 +87,7 @@ describe("o slug do hub é o mesmo segmento que a ficha usa", () => {
   });
 });
 
-describe("a URL da ficha não mudou ao extrair a slugificação", () => {
+describe("a URL da ficha — quatro segmentos, sem repetição (2026-08-31)", () => {
   /**
    * `getVeiculoPdpUrl` passou a chamar `limparModelo` e `slugificar` em vez de
    * repetir as regex. É refatoração pura: qualquer diferença renomeia URL já
@@ -97,23 +97,34 @@ describe("a URL da ficha não mudou ao extrair a slugificação", () => {
   it.each([
     [
       veiculo({ id: "7977579", marca: "Jeep", modelo: "Renegade S T270 1.3 Tb 4x4 Flex Aut", versao: "S T270 1.3 Tb 4x4 Flex Aut" }),
-      "/carros/jeep/renegade/s-t270-13-tb-4x4-flex-aut/jeep-renegade-s-t270-13-tb-4x4-flex-aut-7977579",
+      "/carros/jeep/renegade/s-t270-1-3-turbo-4x4-flex-automatico-7977579",
     ],
     [
       // Marca embutida no modelo, versão repetida na cauda.
       veiculo({ id: "42", marca: "Chevrolet", modelo: "Chevrolet Cruze LTZ 1.4 Turbo", versao: "LTZ 1.4 Turbo" }),
-      "/carros/chevrolet/cruze/ltz-14-turbo/chevrolet-cruze-ltz-14-turbo-42",
+      "/carros/chevrolet/cruze/ltz-1-4-turbo-42",
     ],
     [
-      // Acento some em vez de virar "e" — comportamento antigo, preservado de
-      // propósito: transliterar agora renomearia URL viva.
+      // Acento vira a letra sem acento desde 2026-08-28 — antes ele SUMIA, e
+      // "Citroën" saía `citron`.
+      //
+      // A versão anterior deste caso preservava o comportamento antigo de
+      // propósito, com o argumento de que transliterar "renomearia URL viva".
+      // A premissa foi medida e não se sustenta: nenhum dos 35 veículos
+      // servidos tem acento em marca, modelo ou versão, e nenhuma das 145 URLs
+      // do sitemap sai mutilada. Não há URL viva para renomear.
+      //
+      // O que havia era um defeito à espera: `Utilitário` e `Conversível` são
+      // carroceria da lista fechada, e o hub delas nasceria como
+      // `/estoque/utilitrio` no dia em que o primeiro carro fosse classificado
+      // assim — que é uma das pendências abertas do painel.
       veiculo({ id: "7", marca: "Citroën", modelo: "C4 Cactus", versao: "Feel 1.6" }),
-      "/carros/citron/c4-cactus/feel-16/citron-c4-cactus-feel-16-7",
+      "/carros/citroen/c4-cactus/feel-1-6-7",
     ],
     [
       // Campos vazios caem nos mesmos fallbacks de antes.
       veiculo({ id: "9", marca: "", modelo: "", versao: "" }),
-      "/carros/veiculo/padrao/padrao/veiculo-padrao-padrao-9",
+      "/carros/veiculo/padrao/padrao-9",
     ],
   ])("%#", (v, esperado) => {
     expect(getVeiculoPdpUrl(v)).toBe(esperado);

@@ -4,10 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ehCaminhoDePdp } from "../lib/veiculoUrl";
 import { getActiveAgUid, getUtmParameters, refCurta, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import { getMatchParams } from "../lib/tracking-identity";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
 import { useTheme } from "../app/ThemeContext";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { IconeWhatsApp, Seta } from "./modernist/primitivos";
+import { ACOES } from "../lib/turnstile";
 
 // ─── Default Configurations ───
 const COOLDOWN_HOURS = 4;
@@ -301,13 +302,18 @@ export default function LeadPopup() {
     const agUid = getActiveAgUid();
     const utmParams = getUtmParameters();
 
-    const cleanPhone = leadData.whatsapp;
-    const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
-    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
+    // `telefoneDoLead` normaliza o que veio do campo — que agora chega
+    // mascarado, "(41) 99737-2165". As três linhas que estavam aqui tinham um
+    // `cleanPhone` que não limpava nada: com 15 caracteres o teste de
+    // comprimento falhava e o número seguia para o CRM com parênteses dentro
+    // do `remoteJid`. Ver o comentário em `lib/whatsapp.ts`.
+    const telefone = telefoneDoLead(leadData.whatsapp);
+    const formattedPhone = telefone.comDDI ?? "";
+    const remoteJid = telefone.remoteJid;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor)
-    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
       veiculoDaCampanha
         ? { id: veiculoDaCampanha.id, marca: veiculoDaCampanha.marca, modelo: veiculoDaCampanha.modelo, preco: veiculoDaCampanha.preco }
@@ -355,11 +361,15 @@ export default function LeadPopup() {
             email: leadData.email,
             whatsapp: leadData.whatsapp
           },
+          // Spread primeiro, defaults depois: preserva `gclid`, `gbraid`,
+          // `wbraid`, `utm_term` e `fbclid` — que a versão anterior descartava
+          // ao remontar o objeto campo a campo — sem perder a atribuição
+          // própria do pop-up para quem chegou sem UTM nenhum.
           utm: {
+            ...utmParams,
             utm_source: utmParams.utm_source || "lead-popup",
             utm_medium: utmParams.utm_medium || "organico",
             utm_campaign: utmParams.utm_campaign || campaign.name,
-            utm_content: utmParams.utm_content,
           },
           intencao_busca: { popup_campaign: campaign.name },
           agUid,
@@ -561,6 +571,7 @@ export default function LeadPopup() {
   // desmontaria o modal junto — o lead pendente morreria sem envio. ──
   const modalCaptura = (
     <LeadCaptureModal
+      action={ACOES.popup}
       isOpen={leadPendente !== null}
       onClose={() => setLeadPendente(null)}
       onSubmit={handleLeadSubmit}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import { EstatisticasRegua, Rotulo, Seta } from "./modernist/primitivos";
 import { aplicarTotalEstoque } from "../lib/textoInstitucional";
+import { GARANTIA_MESES } from "../lib/paginasInstitucionais";
 
 /**
  * A Motors — tela 06 do design doc.
@@ -124,7 +125,7 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
             {valores.map((valor, i) => (
               <div
                 key={i}
-                className="flex-1 border-b border-mt-regua-fina py-5 lg:border-b-0 lg:border-r lg:border-mt-regua-media lg:pr-6 lg:last:border-r-0"
+                className="flex-1 border-b border-mt-regua-fina py-5 lg:border-b-0 lg:border-r lg:border-mt-regua-media lg:pl-6 lg:pr-6 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"
               >
                 <div className="mb-2.5 text-[11px] font-extrabold tracking-[.12em] text-mt-accent">
                   {String(i + 1).padStart(2, "0")}
@@ -179,8 +180,21 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
             // parte do estoque está sempre com o laudo em análise. Ver a
             // mesma régua em `modernist/HeroHome`.
             { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
-            { valor: "FIPE", rotulo: "BASE DE AVALIAÇÃO" },
-            { valor: "6 MESES", rotulo: "GARANTIA MOTOR E CÂMBIO" },
+            // "BASE DE AVALIAÇÃO" ao lado de um número lê como proposta de
+            // compra. A FIPE é referência de mercado; o valor sai da vistoria,
+            // e quem o informa é o consultor — nunca o site (CLAUDE.md, §4).
+            { valor: "FIPE", rotulo: "REFERÊNCIA DE MERCADO" },
+            // O prazo vem de `GARANTIA_MESES`, nunca escrito aqui.
+            //
+            // Esta linha dizia "6 MESES" enquanto `/garantia` — a página que
+            // responde pelo compromisso — dizia "três meses" desde a decisão do
+            // dono em 2026-08-25. Duas afirmações contratuais diferentes no
+            // mesmo site, e a errada era a que aparecia primeiro para quem
+            // chega pelo "Sobre". Encontrada pelo dono em 01/09.
+            //
+            // A constante já existia e ninguém a usava: era número à mão numa
+            // tela e fonte canônica parada em `paginasInstitucionais.ts`.
+            { valor: `${GARANTIA_MESES} MESES`, rotulo: "GARANTIA MOTOR E CÂMBIO" },
           ]}
         />
         {(companySettings.address || companySettings.hours || companySettings.phone) && (

@@ -1,11 +1,17 @@
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { Veiculo } from "../types";
 import { getEstoque } from "./supabase";
 import { CARROCERIAS } from "./classificacaoVeiculo";
+import { PERFIS_DE_USO, type PerfilDeUso } from "./perfisDeUso";
 // O preço vigente já vive em `regrasEstoque` — é o mesmo que a vitrine, os
 // destaques e o feed usam. Duas versões dessa regra é como o filtro de preço
 // e a etiqueta de promoção acabam discordando na mesma tela.
 import { precoVigente } from "./regrasEstoque";
 import { FAIXAS_DE_PRECO, type FaixaDePreco } from "./faixasDePreco";
+// `fichaPerdida` importa daqui SÓ tipos (ele é lido por um client component e
+// não pode arrastar o Supabase). A volta, de valores, é deste lado — servidor.
+import { indiceDeMarcas, patioEmDestaque, type MarcaConhecida } from "./fichaPerdida";
 // A concordância sai daqui, e é calculada a partir do HISTÓRICO — ver a nota
 // em `generoDeModelo` mais abaixo, no ponto em que o hub é montado.
 import {
@@ -83,6 +89,10 @@ export interface HubDeModelo {
   marca: string;
   slugMarca: string;
   segmento: SegmentoDePdp;
+  veiculos: Veiculo[];
+}
+
+export interface HubDePerfil extends PerfilDeUso {
   veiculos: Veiculo[];
 }
 
@@ -335,6 +345,27 @@ export function acharHubDeModelo(
  */
 export const CARROCERIAS_COM_HUB = CARROCERIAS.filter((c) => c !== "Motocicleta");
 
+/**
+ * Recortes de `/estoque` que foram APOSENTADOS, e para onde vão.
+ *
+ * Slug daqui responde **308** em vez de 404, e fica fora do sitemap: a URL já
+ * foi servida e indexada, e transformá-la em erro joga fora o sinal que ela
+ * acumulou. É a mesma regra de `[ficha]/[legado]`.
+ *
+ * `wagon` → `perua` em 2026-09-01: eram dois valores para a mesma carroceria em
+ * `CARROCERIAS`, e por isso duas páginas com o mesmo assunto, as duas vazias,
+ * disputando a mesma consulta. Decisão do dono: *"são de fato a mesma coisa,
+ * unifique"*. O `tipo` dos veículos foi migrado antes — sem isso o hub antigo
+ * continuaria nascendo do histórico, e o 308 competiria com ele.
+ *
+ * Regra para a próxima entrada: o destino tem de ser um recorte VIVO. Apontar
+ * para outro aposentado faria corrente de redirecionamento, que o rastreador
+ * corta — `tests/hub-sem-estoque.test.ts` cobra isso.
+ */
+export const RECORTES_APOSENTADOS: Record<string, string> = {
+  wagon: "perua",
+};
+
 export function hubsDeCarroceria(historico: Veiculo[], disponiveis: Veiculo[]): HubDeCarroceria[] {
   const jaTeve = new Set(
     historico.map((v) => slugificar(v.tipo ?? "")).filter(Boolean),
@@ -349,6 +380,31 @@ export function hubsDeCarroceria(historico: Veiculo[], disponiveis: Veiculo[]): 
       veiculos: disponiveis.filter((v) => slugificar(v.tipo ?? "") === slugificar(nome)),
     }))
     .sort((a, b) => b.veiculos.length - a.veiculos.length || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+/**
+ * Os hubs de perfil de uso — `/estoque/familia`, `/estoque/trabalho`.
+ *
+ * Diferente da carroceria em dois pontos, e os dois vêm de o perfil ser LISTA:
+ *
+ *   1. O mesmo veículo aparece em vários hubs, de propósito. Um HB20 urbano e
+ *      econômico entra nas duas vitrines — é o motivo de a coluna ser array.
+ *   2. O recorte sai de `disponiveis`, não do histórico. Perfil é decisão do
+ *      painel, não do feed: um perfil que ninguém marcou hoje não descreve o
+ *      pátio de ontem, e uma vitrine perene vazia aqui não teria o que contar.
+ *      Marca e modelo são o contrário — lá o histórico É o argumento.
+ */
+export function hubsDePerfil(disponiveis: Veiculo[]): HubDePerfil[] {
+  return PERFIS_DE_USO.map((perfil) => ({
+    ...perfil,
+    veiculos: disponiveis.filter((v) => (v.perfis_uso ?? []).includes(perfil.slug)),
+  }))
+    .filter((h) => h.veiculos.length > 0)
+    .sort((a, b) => b.veiculos.length - a.veiculos.length || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+export function acharHubDePerfil(disponiveis: Veiculo[], slug: string): HubDePerfil | null {
+  return hubsDePerfil(disponiveis).find((h) => h.slug === slug) ?? null;
 }
 
 export function acharHubDeCarroceria(
@@ -372,6 +428,17 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
     for (const marca of hubsDeMarca(historico, disponiveis, segmento)) {
       caminhos.push(`/${segmento}/${marca.slug}`);
       for (const modelo of marca.modelos) {
+        // Hub que aponta para outro fica FORA do sitemap. Listar uma URL que
+        // manda o robô para outro endereço é sinal contraditório: o sitemap
+        // diz "indexe isto", o `<link rel="canonical">` da própria página diz
+        // "indexe aquilo".
+        //
+        // Encontrado em 2026-08-26 com `/carros/ford/ka-sedan-10-se-flex-4p`,
+        // que estava no sitemap servido E canonicalizava para
+        // `/carros/ford/ka`. A migração 20260826150000 corrige a origem dos
+        // quatro casos conhecidos; esta regra é para o próximo, porque a
+        // origem é o feed e o feed volta a errar.
+        if (modelo.canonicalDe) continue;
         caminhos.push(`/${segmento}/${marca.slug}/${modelo.slug}`);
       }
     }
@@ -379,6 +446,13 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
 
   for (const carroceria of hubsDeCarroceria(historico, disponiveis)) {
     caminhos.push(`/estoque/${carroceria.slug}`);
+  }
+
+  // Só os perfis com veículo — `hubsDePerfil` já filtra. Vitrine de perfil
+  // vazia não entra: ao contrário da faixa de preço, a lista aqui é decisão do
+  // painel, e um perfil que ninguém marcou não tem história para contar.
+  for (const perfil of hubsDePerfil(disponiveis)) {
+    caminhos.push(`/estoque/${perfil.slug}`);
   }
 
   // As faixas entram sempre: a lista é fechada e a página existe mesmo vazia.
@@ -398,17 +472,44 @@ export { disponiveisDe };
  * `disponiveis` é o que a grade mostra. Trocar um pelo outro faz o hub sumir
  * junto com o último carro da marca, que é exatamente o que ele existe para
  * impedir. As duas leituras são independentes, então vão em paralelo.
+ *
+ * ---------------------------------------------------------------------------
+ * `cache()`, desde 2026-09-13
+ * ---------------------------------------------------------------------------
+ * O hub chama isto DUAS vezes por render — no `generateMetadata` e na página —,
+ * e cada chamada eram duas consultas `select *` a `estoque_motors`. O `cache`
+ * do React memoiza dentro de UMA requisição, e só nela: entre requisições nada
+ * é guardado, e o site continua lendo o estoque fresco. Mesmo recurso de
+ * `lib/secaoDeGuias.ts`.
+ *
+ * Duas consequências que valem saber:
+ *   - fora de um render (rota de API, sitemap, script, teste) o `cache` não
+ *     deduplica nada, e a função se comporta como antes;
+ *   - dentro de um render, o MESMO array chega a todo mundo que chamar. Nenhum
+ *     consumidor ordena ou muta `historico`/`disponiveis` no lugar (varrido em
+ *     13/09); quem precisar ordenar copia antes, como `patioEmDestaque`.
+ *
+ * O teste é `tests/recortes-do-estoque-uma-leitura.test.ts`, com o `cache`
+ * dublado — no vitest, `react` é o build de cliente, que não memoiza.
  */
-export async function recortesDoEstoque(): Promise<{
-  historico: Veiculo[];
-  disponiveis: Veiculo[];
-}> {
-  const [historico, vivos] = await Promise.all([
-    getEstoque({ incluirForaDoFeed: true }),
-    getEstoque(),
-  ]);
-  return { historico, disponiveis: disponiveisDe(vivos) };
-}
+export const recortesDoEstoque = cache(
+  async (): Promise<{
+    historico: Veiculo[];
+    disponiveis: Veiculo[];
+  }> => {
+    const [historico, vivos] = await Promise.all([
+      // `incluirNaoPublicaveis` no HISTÓRICO, e só nele: o papel dele é dizer
+      // quais páginas já tiveram razão de existir. Um carro com fotos faltando
+      // hoje pode ganhá-las amanhã, e um vendido em 2024 pode ser o único
+      // registro de um modelo — filtrar aqui apagaria hub indexado por um
+      // bloqueio reversível. `disponiveis`, que preenche as grades, respeita o
+      // bloqueio porque vem de `getEstoque()` sem opção.
+      getEstoque({ incluirForaDoFeed: true, incluirNaoPublicaveis: true }),
+      getEstoque(),
+    ]);
+    return { historico, disponiveis: disponiveisDe(vivos) };
+  },
+);
 
 /**
  * Os hubs de faixa de preço.
@@ -468,3 +569,135 @@ export function destinoDoVeiculoArquivado(
   }
   return "/estoque";
 }
+
+/**
+ * Um link de hub pronto para o bloco da página: rótulo, destino e contagem.
+ *
+ * É o formato de `LinkDeNavegacao` (`components/modernist/PaginaDeEstoque`),
+ * declarado aqui para a biblioteca não depender de componente.
+ */
+export interface LinkContado {
+  rotulo: string;
+  href: string;
+  total: number;
+}
+
+/**
+ * Tudo o que a página de não encontrado mostra do estoque, e nada além.
+ *
+ * `Veiculo` só na amostra, que a grade precisa inteiro para desenhar o card.
+ * Hub de marca e de carroceria entram já como link contado: `HubDeMarca` e
+ * `HubDeCarroceria` carregam `Veiculo[]`, e guardá-los levaria o estoque
+ * inteiro para dentro do item do cache — o oposto do que ele existe para
+ * evitar.
+ */
+export interface RecorteDoNaoEncontrado {
+  /** Até seis veículos, amostrados ao longo do preço — ver `patioEmDestaque`. */
+  patio: Veiculo[];
+  /** O índice que atravessa para o bloco do cliente: slug, nome e contagem. */
+  marcas: MarcaConhecida[];
+  /** "Por carroceria": só as que têm carro hoje. */
+  carrocerias: LinkContado[];
+  /** "Marcas em estoque": só `carros`, e só com carro hoje. */
+  marcasComEstoque: LinkContado[];
+}
+
+/**
+ * O recorte montado, sem leitura nenhuma — a regra, testável sem cache.
+ *
+ * Saiu de `[ficha]/not-found.tsx` (#70) sem mudar o que calcula.
+ *
+ * **Seis, e amostrados ao longo do preço.** O TETO existe porque despejar o
+ * pátio inteiro transforma a 404 num segundo `/estoque`, e boa parte de quem
+ * cai aqui veio de anúncio clicando num carro específico. A AMOSTRA existe
+ * porque `disponiveis` vem de `getEstoque`, que ordena por `preco desc`: sem
+ * reordenar, a página abria com os seis carros mais caros do pátio. As duas
+ * medições estão em `patioEmDestaque`, inclusive a que derrubou a correção
+ * óbvia (ordenar por chegada).
+ *
+ * A spec do pacote (`conteudo-seo/pacote/produto/02-not-found-ficha.md`) pede
+ * "de 4 a 6 veículos similares", com cascata de carroceria e faixa. Ficou o
+ * teto; a régua de semelhança, não — ela parte do veículo da página, e a
+ * página de não encontrado existe justamente quando não há veículo.
+ *
+ * **"Marcas em estoque" é só de carros**, como `/estoque/[recorte]` — o único
+ * outro "Marcas em estoque" do site. Juntar os dois segmentos pôs, com o pátio
+ * real do preview, dois links com o texto HONDA: um para `/carros/honda`, outro
+ * para `/motos/honda` (R7). O índice `marcas` continua com os dois: é ele que
+ * resolve o caminho de moto e o link do hub de moto.
+ *
+ * **O índice sai recortado** (`indiceDeMarcas`): ele atravessa a fronteira do
+ * client component, e prop de client component é payload público — foi assim
+ * que `preco_compra` saiu no HTML do `/estoque`.
+ */
+export function montarRecorteDoNaoEncontrado(
+  historico: Veiculo[],
+  disponiveis: Veiculo[],
+): RecorteDoNaoEncontrado {
+  const hubs = [
+    ...hubsDeMarca(historico, disponiveis, "carros"),
+    ...hubsDeMarca(historico, disponiveis, "motos"),
+  ];
+
+  return {
+    patio: patioEmDestaque(disponiveis, 6),
+    marcas: indiceDeMarcas(hubs),
+    carrocerias: hubsDeCarroceria(historico, disponiveis)
+      .filter((c) => c.veiculos.length > 0)
+      .map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })),
+    marcasComEstoque: hubs
+      .filter((h) => h.segmento === "carros" && h.veiculos.length > 0)
+      .map((h) => ({ rotulo: h.nome, href: `/${h.segmento}/${h.slug}`, total: h.veiculos.length })),
+  };
+}
+
+/**
+ * A leitura que só as páginas de não encontrado fazem — guardada por uma hora.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que cache aqui, e só aqui
+ * ---------------------------------------------------------------------------
+ * `recortesDoEstoque` são duas leituras de `estoque_motors` com `select *`,
+ * ~977 KB por render. Nos hubs o custo é limitado, porque os hubs são finitos.
+ * Aqui não: caminho falso é ilimitado, e cada caminho inédito rende uma vez. A
+ * decisão do dono em 13/09 foi cache SÓ no não encontrado; o resto do site
+ * continua lendo fresco.
+ *
+ * O que se guarda é o recorte PRONTO, e não o estoque, para o item ficar longe
+ * do teto de 2 MB por item do cache de dados. Medido em 2026-09-14 contra a
+ * produção, com 114 veículos no histórico e 43 à venda:
+ * 33915 bytes de JSON (33.1 KB). Campo novo no recorte refaz a medição.
+ *
+ * ---------------------------------------------------------------------------
+ * A troca aceita
+ * ---------------------------------------------------------------------------
+ * A amostra pode ter até uma hora de atraso. Um carro vendido nessa janela
+ * ainda aparece aqui; a ficha dele responde 200 com o selo de vendido, então o
+ * link não morre.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚠️ Nenhum `catch` aqui dentro
+ * ---------------------------------------------------------------------------
+ * Na pane, `recortesDoEstoque` estoura `EstoqueIndisponivelError`, e a exceção
+ * tem de ATRAVESSAR: o `unstable_cache` não grava o resultado de callback que
+ * lançou, então a requisição seguinte tenta de novo. Quem decide o que mostrar
+ * na pane é a página. Um `catch` que devolvesse recorte vazio seria gravado e
+ * servido por uma hora — é o que `navegacaoDoRodape.ts` faz com o rodapé, e é
+ * o desenho que aqui não se copia.
+ *
+ * Com item VELHO no cache, o Next engole a falha da revalidação e serve o velho
+ * (`unstable-cache.js`, l. 179-184): a página de pane só aparece com o cache
+ * frio.
+ *
+ * Nada fora de uma requisição do Next chama isto — em teste e em script o
+ * `unstable_cache` estoura (`Invariant: incrementalCache missing`). Os testes
+ * dublam `next/cache`.
+ */
+export const recorteDoNaoEncontrado = unstable_cache(
+  async (): Promise<RecorteDoNaoEncontrado> => {
+    const { historico, disponiveis } = await recortesDoEstoque();
+    return montarRecorteDoNaoEncontrado(historico, disponiveis);
+  },
+  ["recorte-do-nao-encontrado"],
+  { revalidate: 3600 },
+);

@@ -13,6 +13,51 @@ import {
 // Trocar para "vehicle" se o catálogo migrar de vertical (decisão em aberto).
 export const META_CONTENT_TYPE = "product";
 
+/**
+ * O visitante DESLIGOU o rastreamento? Só a recusa explícita barra.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que isto é uma função, e não a linha repetida cinco vezes
+ * ---------------------------------------------------------------------------
+ * Era. A decisão do dono em 2026-08-31 — *"não quero nada atrás do aceite, o
+ * `_fbc` precisa estar ativo"*, com a oposição morando em `/privacidade` —
+ * trocou a régua de "só quem aceitou" para "todos, menos quem recusou".
+ *
+ * A troca foi aplicada em `IntegrationsTracker` (nos dois pontos) e em
+ * `ControleDeRastreamento`, e **não** aqui: os cinco eventos deste arquivo
+ * continuaram exigindo `=== "accepted"`. Como ninguém mais precisa aceitar,
+ * `ag_cookie_consent` fica `null` para todo visitante, as cinco funções
+ * devolviam `null`, e quem depende do retorno parava junto.
+ *
+ * O estrago, medido na produção em 2026-09-02 antes da correção:
+ *
+ *   - **PageView vivo** (11.600 em 28 dias): sai do script base do pixel, que
+ *     não passa por aqui. É o único evento que sobreviveu.
+ *   - **ViewContent, Contact, Search, CompleteRegistration e Lead: zero** — no
+ *     navegador E no CAPI.
+ *   - `/api/capi` recebeu **0 requisições contra 37 visitas a ficha** em seis
+ *     horas. A rota não estava falhando: não era chamada.
+ *   - O espelho de Lead em `/api/leads` também parou, e por tabela: ele exige
+ *     `body.eventId`, que vem de `trackLeadSubmission` — bloqueada aqui.
+ *
+ * O relatório da mídia leu isso como "a rota do servidor quebrou em 1º de
+ * agosto". Não quebrou: nunca chegou a ser chamada depois de 31/08, e o
+ * número saudável do PageView escondia o resto.
+ *
+ * Uma função só porque foi a repetição que permitiu a divergência. Quem mudar
+ * a política muda aqui, e os oito pontos do site acompanham.
+ */
+export function rastreamentoRecusado(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem("ag_cookie_consent") === "rejected";
+  } catch {
+    // Armazenamento bloqueado não é recusa. `ControleDeRastreamento` mostra
+    // "ativo" nesse caso, e a tela e o comportamento têm de concordar.
+    return false;
+  }
+}
+
 export interface TelemetryLeadPayload {
   marca: string;
   modelo: string;
@@ -155,12 +200,174 @@ export interface UtmParameters {
   utm_content: string | null;
   utm_term: string | null;
   gclid: string | null;
+  /**
+   * Os dois substitutos do `gclid`, acrescentados em 27/08.
+   *
+   * O Google entrega `gbraid` (tráfego iOS/app) ou `wbraid` (web, boa parte do
+   * inventário de PMax e YouTube) NO LUGAR do `gclid` — não junto dele. Sem
+   * capturá-los, o upload de conversão offline volta com "click id inválido"
+   * justamente no tráfego que a campanha nova vai comprar.
+   */
+  gbraid: string | null;
+  wbraid: string | null;
   fbclid: string | null;
 }
 
 /**
  * Parses UTM parameters from URL search query or falls back to localStorage.
  * Automatically persists parameters found in the URL.
+ */
+/**
+ * As chaves de campanha — uma lista só.
+ *
+ * A lista É o contrato: chave que não está aqui não é lida da URL nem
+ * persistida, e some sem erro. Foi o que aconteceu com `gbraid`/`wbraid` até
+ * 27/08. Vive fora das funções porque a captura e a leitura precisam concordar;
+ * duas listas divergem na primeira correção.
+ */
+const CHAVES_DE_CAMPANHA: (keyof UtmParameters)[] = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "fbclid",
+];
+
+/**
+ * O que a URL desta navegação trouxe, guardado só em memória.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que memória, e não `localStorage`, antes do aceite
+ * ---------------------------------------------------------------------------
+ * A pergunta que gerou isto foi: "se melhora a métrica, grave antes do aceite".
+ * A resposta honesta é que gravar no DISPOSITIVO antes do aceite melhora quase
+ * nada além do que este objeto já resolve — e custa contrariar o texto que o
+ * visitante leu ("enquanto você não aceitar, nenhuma ferramenta de análise ou
+ * publicidade é carregada"), inclusive para quem clicou em RECUSAR.
+ *
+ * O que de fato se perdia era a jornada: chegar do anúncio, navegar para outra
+ * página, e só então aceitar ou enviar um formulário. Nesse caminho o `gclid`
+ * some da URL e, sem nada guardado, ninguém mais o encontra.
+ *
+ * Esta variável cobre exatamente essa jornada. Ela vive no módulo, então
+ * sobrevive à navegação SPA do Next — que não recarrega o JS — e some quando a
+ * aba fecha ou a página é recarregada de verdade. Não é armazenamento no
+ * dispositivo: é o mesmo dado que já está na URL que o visitante abriu, mantido
+ * enquanto ele decide.
+ *
+ * Daí saem os dois ganhos, sem tocar no disco antes da hora:
+ *
+ *   · quem aceita o banner DEPOIS de navegar tem o `gclid` gravado na hora do
+ *     aceite, vindo daqui — a URL já não o tem mais;
+ *   · quem NUNCA aceita e envia um formulário leva o `gclid` junto no lead,
+ *     porque o payload do lead nunca teve portão (ver `getUtmParameters`).
+ *
+ * Quem recusa não tem nada gravado no dispositivo, que é o que a política
+ * promete. E o dado nunca sai daqui por conta própria: só vai junto de um
+ * formulário que a pessoa escolheu enviar.
+ */
+const capturadoNestaSessao: Partial<Record<keyof UtmParameters, string>> = {};
+
+/** Lê a URL para a memória. Sem portão: não escreve no dispositivo. */
+function capturarDaUrl(): void {
+  const urlParams = new URLSearchParams(window.location.search);
+  CHAVES_DE_CAMPANHA.forEach((key) => {
+    const val = urlParams.get(key);
+    // O primeiro valor vence: a URL de ENTRADA é a que trouxe a pessoa. Um
+    // parâmetro que apareça numa navegação posterior não reescreve a origem.
+    if (val && !capturadoNestaSessao[key]) capturadoNestaSessao[key] = val;
+  });
+}
+
+/** Apaga do dispositivo as nove chaves de campanha. */
+export function descartarParametrosDeCampanha(): void {
+  if (typeof window === "undefined") return;
+  try {
+    CHAVES_DE_CAMPANHA.forEach((key) => localStorage.removeItem(`ag_${key}`));
+  } catch (e) {
+    console.warn("[Telemetry] Failed to discard campaign parameters:", e);
+  }
+}
+
+/**
+ * Guarda no dispositivo o parâmetro de campanha — desde a chegada, e a recusa
+ * apaga.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a gravação deixou de esperar o aceite, em 28/08
+ * ---------------------------------------------------------------------------
+ * Decisão do dono, com o motivo dele: *"a pessoa pode mudar de ideia e sempre
+ * teremos a decisão dela gravada por último"*.
+ *
+ * A memória de sessão, sozinha, cobria quem navega e aceita na mesma aba. Não
+ * cobria quem chega do anúncio, recarrega ou volta noutro dia, e só então
+ * aceita — aí a memória já morreu e o `gclid` se perdeu para sempre. Gravar na
+ * chegada fecha esse caso.
+ *
+ * O que torna o argumento verdadeiro é a outra metade, e ela é obrigatória:
+ * **a recusa apaga.** Sem isso, o identificador ficaria no dispositivo
+ * contradizendo a última decisão da pessoa — que é justamente o oposto do que a
+ * frase acima defende. Por isso `rejected` não é só "não gravar": é
+ * `descartarParametrosDeCampanha()`, removendo o que já estava lá.
+ *
+ * A memória de sessão SOBREVIVE à recusa de propósito. É o que permite a
+ * mudança de ideia funcionar na mesma aba: quem recusa e depois aceita tem o
+ * `gclid` regravado a partir dela. Memória não é armazenamento no dispositivo —
+ * some quando a aba fecha.
+ *
+ * ---------------------------------------------------------------------------
+ * O que isso custa, escrito para quem vier depois
+ * ---------------------------------------------------------------------------
+ * Fica uma janela entre a chegada e a decisão em que o identificador de anúncio
+ * está no dispositivo sem consentimento — segundos para quem clica no banner,
+ * indefinida para quem simplesmente o ignora, que não é pouca gente.
+ *
+ * O texto da política foi ajustado na mesma rodada para descrever isso (ver
+ * `app/privacidade/page.tsx`, seção de cookies). Código e política contando
+ * histórias diferentes é pior do que qualquer das duas escolhas: era a
+ * alternativa que o handoff de mensuração colocou como "ou o código respeita o
+ * texto, ou o texto passa a descrever o código". Esta é a segunda porta.
+ *
+ * O que NÃO mudou: GA4, Google Ads, Meta Pixel e o cookie `_fbc` continuam
+ * atrás do aceite. O que se grava aqui é só o parâmetro que já estava na URL
+ * que a pessoa abriu, e ele não sai do dispositivo por conta própria — só vai
+ * junto de um formulário que ela escolheu enviar.
+ */
+export function persistirParametrosDeCampanha(): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    capturarDaUrl();
+
+    // A última decisão manda. Recusou: sai do dispositivo o que houver.
+    if (localStorage.getItem("ag_cookie_consent") === "rejected") {
+      descartarParametrosDeCampanha();
+      return;
+    }
+
+    CHAVES_DE_CAMPANHA.forEach((key) => {
+      const val = capturadoNestaSessao[key];
+      if (val) localStorage.setItem(`ag_${key}`, val);
+    });
+  } catch (e) {
+    console.warn("[Telemetry] Failed to persist campaign parameters:", e);
+  }
+}
+
+/**
+ * Os parâmetros de campanha desta visita, para irem junto com o lead.
+ *
+ * A LEITURA não tem portão, e é deliberado. O retorno vai no payload de um
+ * formulário que a pessoa está enviando com nome e telefone — o `gclid` é o
+ * dado menos sensível daquele POST, e a base ali é o lead que ela escolheu
+ * mandar, não cookie. Barrar aqui quebraria a atribuição de todo lead de quem
+ * não aceitou, sem ganho nenhum de privacidade.
+ *
+ * Quem tem portão é a GRAVAÇÃO, em `persistirParametrosDeCampanha`.
  */
 export function getUtmParameters(): UtmParameters {
   const result: UtmParameters = {
@@ -170,28 +377,29 @@ export function getUtmParameters(): UtmParameters {
     utm_content: null,
     utm_term: null,
     gclid: null,
+    gbraid: null,
+    wbraid: null,
     fbclid: null,
   };
 
   if (typeof window === "undefined") return result;
 
   try {
+    // Atualiza a memória e, se já houve aceite, o disco. Tem portão próprio.
+    persistirParametrosDeCampanha();
+
     const urlParams = new URLSearchParams(window.location.search);
-    const keys: (keyof UtmParameters)[] = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"];
 
-    keys.forEach((key) => {
-      // 1. Try URL context first
-      let val = urlParams.get(key);
-      
-      // 2. If present in URL, persist it in localStorage (prefixed with ag_)
-      if (val) {
-        localStorage.setItem(`ag_${key}`, val);
-      } else {
-        // 3. Fallback to localStorage
-        val = localStorage.getItem(`ag_${key}`) || localStorage.getItem(key);
-      }
-
-      result[key] = val || null;
+    CHAVES_DE_CAMPANHA.forEach((key) => {
+      // Nesta ordem: a URL de agora; o que esta navegação capturou antes de a
+      // pessoa decidir; e por fim o que ficou guardado de uma visita anterior
+      // — que só existe se houve aceite.
+      result[key] =
+        urlParams.get(key) ||
+        capturadoNestaSessao[key] ||
+        localStorage.getItem(`ag_${key}`) ||
+        localStorage.getItem(key) ||
+        null;
     });
   } catch (e) {
     console.warn("[Telemetry] Failed to parse UTM parameters:", e);
@@ -288,8 +496,7 @@ export function trackLeadSubmission(
       lead_id: eventId,
     });
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     // Com o container no ar, quem manda `generate_lead` para o GA4 é a tag 204
     // — com mais parâmetro do que este `gtag` jamais mandou (`vehicle.*`
@@ -366,6 +573,8 @@ export function trackVehicleView(
     /** Donos anteriores e laudo — `owners` e `has_report` do §11.1 do plano. */
     donos?: number | null;
     temLaudo?: boolean;
+    /** Data de chegada, para o `days_in_stock`. */
+    primeiraVez?: string | null;
   },
 ): string | null {
   if (typeof window === "undefined") return null;
@@ -390,10 +599,10 @@ export function trackVehicleView(
       nome: vehicle.nome || `${vehicle.marca} ${vehicle.modelo}`,
       donos: vehicle.donos,
       temLaudo: vehicle.temLaudo,
+      primeiraVez: vehicle.primeiraVez,
     });
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("ViewContent");
 
@@ -438,8 +647,7 @@ export function trackAppraisalSubmit(category: string, brand: string, model: str
     // uma conversão distinta no Ads, e é o `lead_type` que separa as duas.
     pushLead("avaliacao");
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("CompleteRegistration");
 
@@ -481,8 +689,7 @@ export function trackCarMatch(tags: string[], resultsCount: number): string | nu
   if (typeof window === "undefined") return null;
 
   try {
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("Search");
 
@@ -534,8 +741,7 @@ export function trackContactClick(
       pushCliqueTelefone(label || "desconhecido", contexto);
     }
 
-    const consent = localStorage.getItem("ag_cookie_consent");
-    if (consent !== "accepted") return null;
+    if (rastreamentoRecusado()) return null;
 
     const eventId = generateEventId("Contact");
 
@@ -545,15 +751,20 @@ export function trackContactClick(
     // (`click_whatsapp`) ou a 202 (`click_to_call`) — cada uma com o nome do
     // que de fato aconteceu.
     //
-    // E aqui o container corrige um defeito, não só evita duplicar: um clique
-    // em "chamar no WhatsApp" vinha sendo enviado ao GA4 como `generate_lead`,
-    // o mesmo nome do formulário efetivamente enviado. Os dois na mesma métrica
-    // inflam a contagem de leads com quem só abriu a conversa — e é a métrica
-    // contra a qual o Ads otimiza.
+    // ⚠️ Este ramo mandava `generate_lead` — o MESMO nome do formulário
+    // efetivamente enviado — para um clique que só abre a conversa. E a nota
+    // que estava aqui descrevia o defeito como resolvido pelo container,
+    // enquanto o portão que faria isso valer (`gtmAssumeEventos`) segue
+    // fechado. Ou seja: a correção estava escrita, não aplicada.
+    //
+    // Corrigido em 27/08 mandando o nome do que de fato aconteceu, em vez de
+    // apagar o disparo. Apagar dependeria de o container estar publicado e
+    // com as tags 201/202 no ar; com o nome certo, o evento existe nos dois
+    // mundos e nenhum deles infla a contagem de leads.
     if (window.gtag && !containerAssumeOsEventos()) {
-      window.gtag("event", "generate_lead", {
+      window.gtag("event", method === "whatsapp" ? "click_whatsapp" : "click_to_call", {
         method: method,
-        description: label
+        description: label,
       });
     }
 

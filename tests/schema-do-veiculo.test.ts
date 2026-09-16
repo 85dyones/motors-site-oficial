@@ -2,7 +2,16 @@ import { describe, it, expect } from "vitest";
 import type { CompanySettings, Veiculo } from "../src/types";
 import { nomeComAno, nomeDoVeiculo } from "../src/lib/nomeDoVeiculo";
 import { precoValidoAte, schemaDoVeiculo, transmissaoDoSchema } from "../src/lib/schemaVeiculo";
-import { ID_DA_LOJA, faixaDePreco, schemaDaLoja } from "../src/lib/schemaLoja";
+import {
+  ID_DA_LOJA,
+  PERFIL_NO_GOOGLE,
+  PLACE_ID_NO_GOOGLE,
+  faixaDePreco,
+  schemaDaLoja,
+} from "../src/lib/schemaLoja";
+import { colunasDoRodape } from "../src/lib/colunasDoRodape";
+import { urlDaRota } from "../src/lib/rotaAteALoja";
+import { lerCodigo } from "./fonte";
 
 /**
  * O JSON-LD do veículo e da loja.
@@ -187,5 +196,139 @@ describe("o `AutoDealer` é único e não publica coordenada que não tem", () =
 
   it("o telefone do schema sai do mesmo campo que o botão de WhatsApp", () => {
     expect(schemaDaLoja(EMPRESA).telephone).toBe("+5541997372165");
+  });
+});
+
+describe("o elo com o Perfil da Empresa no Google", () => {
+  it("o perfil entra no `sameAs`, ao lado dos portais", () => {
+    // Sem citação nenhuma, o buscador não tem por onde juntar o site com a
+    // ficha que carrega as avaliações. Até 2026-09-04 o `AutoDealer` da
+    // produção não tinha um único link do Google — medido, não suposto.
+    expect(schemaDaLoja(EMPRESA).sameAs).toContain(PERFIL_NO_GOOGLE);
+  });
+
+  it("o perfil é o mapa do lugar", () => {
+    expect(schemaDaLoja(EMPRESA).hasMap).toBe(PERFIL_NO_GOOGLE);
+  });
+
+  it("`hasMap` não depende de `geo`, e `geo` não depende dele", () => {
+    // São independentes de propósito: `hasMap` aponta para o pin oficial do
+    // Google, `geo` afirma um par de números nosso. Um `geo` que diverge do
+    // pin é pior que `geo` ausente — a regra já estava no arquivo e continua.
+    const semCoordenada = schemaDaLoja(EMPRESA);
+    expect(semCoordenada.geo).toBeUndefined();
+    expect(semCoordenada.hasMap).toBe(PERFIL_NO_GOOGLE);
+  });
+
+  it("é a URL canônica da ficha, não o encurtador nem uma busca", () => {
+    // O dono mandou um `share.google/…`, que redireciona para uma URL de
+    // BUSCA com `kgmid`. Encurtador some sem aviso e busca não é a página da
+    // entidade; `?cid=` é o endereço estável da ficha.
+    //
+    // `www.google.com/maps?cid=` e não `maps.google.com/?cid=`: o segundo
+    // responde 200 depois de um salto de redirecionamento, e declarar o atalho
+    // em vez do endereço envelhece mal. Medido em 2026-09-04.
+    expect(PERFIL_NO_GOOGLE).toBe("https://www.google.com/maps?cid=6312740048961397930");
+    expect(PERFIL_NO_GOOGLE).not.toMatch(/share\.google|\/search\?|kgmid/);
+  });
+
+  it("o `place_id` é o mesmo lugar do CID, por construção", () => {
+    // Não é um segundo identificador copiado de algum lugar: decodificado em
+    // base64url, ele contém as duas metades do `ftid`
+    // `0x94dce75dbdaa40bf:0x579b5ba0d1b9e4aa` em little-endian. Se alguém
+    // trocar um dos dois sem o outro, este teste fica vermelho.
+    const bytes = Buffer.from(
+      PLACE_ID_NO_GOOGLE.replace(/-/g, "+").replace(/_/g, "/") + "=",
+      "base64",
+    ).toString("hex");
+    const invertido = (h: string) => h.match(/../g)!.reverse().join("");
+
+    expect(bytes).toContain(invertido("94dce75dbdaa40bf"));
+    expect(bytes).toContain(invertido("579b5ba0d1b9e4aa"));
+    // A segunda metade do ftid, em decimal, é o CID que a URL usa.
+    expect(BigInt("0x579b5ba0d1b9e4aa").toString(10)).toBe("6312740048961397930");
+    expect(PERFIL_NO_GOOGLE).toContain("6312740048961397930");
+  });
+
+  it("o endereço do rodapé aponta para o perfil — comparado por VALOR", () => {
+    // A primeira versão disto lia a fonte do `Footer` e afirmava que o
+    // IDENTIFICADOR `PERFIL_NO_GOOGLE` aparecia ao lado do endereço. Um
+    // `import { ID_DA_LOJA as PERFIL_NO_GOOGLE }` passava: o endereço do
+    // rodapé apontava para `motorsstore.com.br/#dealer` — âncora inexistente,
+    // em toda página do site — com `tsc` limpo e os 1862 testes verdes.
+    // Achado na revisão de 2026-09-04.
+    //
+    // Por isso as colunas viraram função pura: apelido de import não engana
+    // comparação de string.
+    const localizacao = colunasDoRodape(EMPRESA).find((c) => c.titulo === "LOCALIZAÇÃO");
+    const endereco = localizacao?.itens.find((i) => i.rotulo === EMPRESA.address);
+
+    expect(endereco?.href).toBe(PERFIL_NO_GOOGLE);
+    expect(endereco?.href).toBe("https://www.google.com/maps?cid=6312740048961397930");
+  });
+
+  it("o link do endereço diz para onde vai, fora do contexto visual", () => {
+    // "LOCALIZAÇÃO" é `<div>` estilizado, sem heading e sem associação
+    // programática com a lista: para quem navega por links, o endereço cru não
+    // informa que ali se abre um mapa.
+    const endereco = colunasDoRodape(EMPRESA)
+      .find((c) => c.titulo === "LOCALIZAÇÃO")
+      ?.itens.find((i) => i.href === PERFIL_NO_GOOGLE);
+
+    expect(endereco?.rotuloAcessivel).toContain(EMPRESA.address);
+    expect(endereco?.rotuloAcessivel).toMatch(/Google Maps/i);
+  });
+
+  it("o `href` de cada item chega ao `<a>` — não a um `#`", () => {
+    // A guarda acima cobre o dado; esta cobre a fiação. Trocar `href={item.href}`
+    // por `href="#"` matava telefone, WhatsApp e o endereço de uma vez, e
+    // nenhum teste via — buraco anterior a esta entrega.
+    const fonte = lerCodigo("src/components/Footer.tsx");
+    expect(fonte).toMatch(/<Link[\s\S]{0,120}href=\{item\.href\}/);
+    expect(fonte).toContain("aria-label={item.rotuloAcessivel}");
+  });
+
+  it("mudar o endereço da loja obriga a reconferir o lugar", () => {
+    // O rótulo sai do painel e o `href` é um CID cravado no código. Hoje
+    // concordam. Nada os amarra: se a loja mudar de endereço, o rótulo
+    // acompanha e o link segue apontando para a entidade antiga — em silêncio,
+    // que é o molde do defeito que `nap-unico.test.ts` existe para pegar.
+    //
+    // `paginasGeo.ts` carrega o endereço da loja em código. Se ele mudar, isto
+    // fica vermelho e obriga quem mexeu a reconferir o CID e o `place_id`.
+    expect(lerCodigo("src/lib/paginasGeo.ts")).toContain('"Rua Ernesto Piazzetta, 98"');
+    expect(EMPRESA.address).toContain("Rua Ernesto Piazzetta, 98");
+  });
+
+  it("a rota do `COMO CHEGAR` é fixada pelo mesmo lugar, não pelo texto", () => {
+    // Comparação de VALOR, e não `toContain("…${PLACE_ID_NO_GOOGLE}")` na
+    // fonte, que foi como esta guarda nasceu. Aquilo afirmava que o NOME do
+    // identificador aparecia no template literal, e um
+    // `import { PERFIL_NO_GOOGLE as PLACE_ID_NO_GOOGLE }` passava: a rota
+    // montava `destination_place_id=https://www.google.com/maps?cid=…`, cujo
+    // `?` corta a query. O parâmetro sumia e a rota voltava a depender do
+    // geocode do texto. `tsc` limpo, 1867 verdes.
+    //
+    // Eu tinha escrito, dois arquivos antes e no mesmo commit, que essa forma
+    // de guarda estava aposentada — e replantei aqui.
+    expect(urlDaRota(EMPRESA.address)).toBe(
+      "https://www.google.com/maps/dir/?api=1" +
+        `&destination=${encodeURIComponent(EMPRESA.address)}` +
+        "&destination_place_id=ChIJv0CqvV3n3JQRquS50aBbm1c",
+    );
+  });
+
+  it("a rota carrega os DOIS parâmetros, e o `place_id` sem query dentro", () => {
+    const url = new URL(urlDaRota(EMPRESA.address));
+    expect(url.searchParams.get("destination")).toBe(EMPRESA.address);
+    expect(url.searchParams.get("destination_place_id")).toBe(PLACE_ID_NO_GOOGLE);
+    // O que a mutação do apelido produzia: um valor com `?` dentro, que o
+    // parser de query descarta ao meio.
+    expect(PLACE_ID_NO_GOOGLE).not.toMatch(/[?&/:]/);
+  });
+
+  it("sem endereço não monta rota — o botão some em vez de levar a lugar nenhum", () => {
+    expect(urlDaRota("")).toBe("");
+    expect(urlDaRota("   ")).toBe("");
   });
 });

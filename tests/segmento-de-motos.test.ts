@@ -25,8 +25,7 @@ const raiz = join(__dirname, "..");
 const leadPopup = readFileSync(join(raiz, "src", "components", "LeadPopup.tsx"), "utf-8");
 const analytics = readFileSync(join(raiz, "src", "lib", "analytics.ts"), "utf-8");
 const pdp = readFileSync(
-  join(raiz, "src", "app", "[categoria]", "[marca]", "[modelo]", "[versao]",
-       "[slug_completo_com_id]", "page.tsx"),
+  join(raiz, "src", "app", "[categoria]", "[marca]", "[modelo]", "[ficha]", "page.tsx"),
   "utf-8",
 );
 

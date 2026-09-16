@@ -44,12 +44,16 @@ describe("o gestor é papel de painel", () => {
     expect(perfisDe({ role: "gestor", papeis: ["gestor"] })).toEqual(["gestor"]);
   });
 
-  it("tem as três atribuições que o dono pediu", () => {
-    expect(podeFazer("gestor", "Aprovar agendamento financeiro")).toBe("faz");
-    expect(podeFazer("gestor", "Ver relatórios gerenciais e DRE")).toBe("faz");
-    // "Ajustar valores de negócios de carro, entrada e saída":
+  it("mantém as atribuições que sobreviveram à aposentadoria do caixa", () => {
+    // Das três atribuições pedidas em 2026-08-21, duas ("Aprovar agendamento
+    // financeiro" e "Ver relatórios gerenciais e DRE") saíram da matriz em
+    // 2026-08-28 junto com o módulo de caixa — voltam com as telas do razão.
+    // "Ajustar valores de negócios de carro, entrada e saída" fica:
     expect(podeFazer("gestor", "Ver custo de aquisição e margem")).toBe("faz"); // entrada
     expect(podeFazer("gestor", "Alterar preço acima de 5%")).toBe("faz"); // saída
+    // E o que entrou depois continua dele:
+    expect(podeFazer("gestor", "Controlar aportes e retiradas de investidores")).toBe("faz");
+    expect(podeFazer("gestor", "Configurar o funil de vendas")).toBe("faz");
   });
 
   it("não herda o que ninguém lhe deu", () => {
@@ -61,7 +65,7 @@ describe("o gestor é papel de painel", () => {
     expect(podeFazer("gestor", "Publicar ou despublicar veículo")).toBe("nao_ve");
   });
 
-  it("o proxy e o trilho o deixam entrar no financeiro", () => {
+  it("o proxy e o trilho o deixam entrar na gestão de investidores", () => {
     expect(proxy).toContain('perfis.includes("gestor")');
     expect(sidebar).toContain('roles: ["admin", "gestor", "financeiro"]');
   });

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { semComentarios } from "./fonte";
+import { bloqueiosPorGrupo } from "./robotsTxt";
 
 /**
  * A Garagem Motors — manual v1.1 §6.3, fase 1.
@@ -32,7 +34,6 @@ const entrada = ler("src", "components", "garagem", "GaragemEntrada.tsx");
 const veiculoComp = ler("src", "components", "garagem", "GaragemVeiculo.tsx");
 const rotaKm = ler("src", "app", "api", "garagem", "km", "route.ts");
 const rotaRevisoes = ler("src", "app", "api", "garagem", "revisoes", "route.ts");
-const robots = ler("src", "app", "robots.ts");
 const proxy = ler("src", "proxy.ts");
 const fundacao = ler("supabase", "migrations", "20260813150000_ciclo_fundacao_de_dados.sql");
 
@@ -115,10 +116,21 @@ describe("o link mágico entra por token_hash", () => {
     expect(rotaConfirm).toContain("`${origin}/garagem`");
   });
 
-  it("?next= continua sanitizado nas duas rotas de auth", () => {
+  it("?next= não é mais lido — nem para sanitizar", () => {
+    // Esta trava pedia a SANITIZAÇÃO (`//host`, `/\host`), que é a defesa
+    // certa para um parâmetro em uso. Em 2026-09-01 ele saiu inteiro das duas
+    // rotas, por decisão do dono sobre o destino do staff — *"sempre que logar
+    // na área administrativa, sempre, a primeira visualização deve ser a Visão
+    // Geral"* —, e ninguém no repositório o escrevia: nem template de e-mail,
+    // nem link do painel.
+    //
+    // Sem leitura não há o que sanitizar, e o open redirect deixa de ser um
+    // risco contido para deixar de existir. A asserção fica invertida: se o
+    // parâmetro voltar, esta falha antes de alguém lembrar da sanitização.
     for (const rota of [rotaConfirm, rotaCallback]) {
-      expect(rota).toContain('rawNext.startsWith("/")');
-      expect(rota).toContain('!rawNext.startsWith("//")');
+      const codigo = semComentarios(rota);
+      expect(codigo).not.toContain('searchParams.get("next")');
+      expect(codigo).not.toContain("rawNext");
     }
   });
 });
@@ -227,12 +239,56 @@ describe("a página e as rotas da Garagem", () => {
   });
 });
 
+describe("o fim do acompanhamento — o carro que saiu da Garagem", () => {
+  // O bloco "PRÓXIMA REVISÃO" tem TRÊS ramos e a ordem deles é a regra:
+  // `saiu_em` primeiro, `proxima` depois. Invertida, o ex-dono lê
+  // "PRÓXIMA REVISÃO: <data futura>" — o programa prometendo serviço a quem já
+  // saiu — e nada quebra: o componente compila, os outros testes passam, e o
+  // erro só aparece na tela de um cliente que não é mais cliente.
+  const bloco = veiculoComp.slice(veiculoComp.indexOf("PRÓXIMA REVISÃO"));
+
+  it("a saída é testada ANTES da próxima janela", () => {
+    // Sem o `: ` na frente, de propósito: a inversão troca `) : proxima ?` por
+    // `{proxima ?`, e uma busca ancorada nos dois-pontos falharia dizendo que o
+    // ramo "sumiu" em vez de dizer que a ORDEM mudou.
+    const saiu = bloco.indexOf("veiculo.saiu_em ?");
+    const prox = bloco.indexOf("proxima ?");
+    expect(saiu, "o ramo de saiu_em sumiu do bloco da próxima revisão").toBeGreaterThan(-1);
+    expect(prox, "o ramo de proxima sumiu do bloco da próxima revisão").toBeGreaterThan(-1);
+    expect(saiu, "proxima é testada antes de saiu_em — o ex-dono vê data futura").toBeLessThan(
+      prox,
+    );
+  });
+
+  it("os três ramos dizem coisas diferentes, e nenhum promete ao ex-dono", () => {
+    const texto = veiculoComp.replace(/\s+/g, " ");
+    // 1. saiu: encerra e garante o histórico.
+    expect(texto).toContain("Acompanhamento encerrado em");
+    expect(texto).toContain("O diário de bordo abaixo continua seu.");
+    // 2. tem janela aberta: o intervalo, o número e o KM previsto.
+    expect(bloco).toContain("dataBr(proxima.janela_inicio)");
+    expect(bloco).toContain("dataBr(proxima.janela_fim)");
+    expect(texto).toContain("por volta de");
+    // 3. sem janela ainda: nem promessa, nem beco.
+    expect(texto).toContain("Estamos calculando a próxima janela.");
+  });
+
+  it("a promessa de que o histórico fica é a mesma da rota que marca a saída", () => {
+    // A rota não apaga nada, e a tela diz exatamente isso ao cliente.
+    expect(veiculoComp).toContain("continua seu");
+  });
+});
+
 describe("o entorno", () => {
   it("/garagem está fora de busca", () => {
-    const disallows = robots.match(/disallow: \[[^\]]*\]/gi) ?? [];
-    expect(disallows.length).toBeGreaterThanOrEqual(2);
-    for (const linha of disallows) {
-      expect(linha).toContain('"/garagem"');
+    // Afirmado sobre o robots.txt GERADO, não sobre a grafia do arquivo.
+    // A versão anterior casava `disallow: [...]` no fonte e exigia a lista
+    // literal em dois lugares — o que reprovou a mudança de 2026-09-08, que
+    // uniu os dois grupos numa constante só justamente para eles não voltarem
+    // a divergir. Grafia é detalhe; a condição é "todo grupo bloqueia".
+    expect(bloqueiosPorGrupo().length).toBeGreaterThanOrEqual(2);
+    for (const bloqueios of bloqueiosPorGrupo()) {
+      expect(bloqueios).toContain("/garagem");
     }
     expect(paginaGaragem).toContain("index: false");
   });

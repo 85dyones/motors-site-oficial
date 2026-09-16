@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import PaginaDeEstoque from "../../../../components/modernist/PaginaDeEstoque";
+import EncomendaDeCarro from "../../../../components/EncomendaDeCarro";
 import { getCachedSettings } from "../../../../lib/settings";
 import { montarCompartilhamento } from "../../../../lib/compartilhamento";
 import {
@@ -14,9 +15,11 @@ import {
   schemaDePerguntas,
   schemaDeTrilha,
 } from "../../../../lib/schemaListagem";
-import { schemaDaLoja } from "../../../../lib/schemaLoja";
+import { schemaDaLoja, schemaDoSite } from "../../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeModelo } from "../../../../lib/textoDosHubs";
+import { buscarTextoDoHub, resolverTextoDoHub } from "../../../../lib/textoEditadoDoHub";
 import { seminovo, um } from "../../../../lib/generoDoVeiculo";
+import { linkWhatsApp } from "../../../../lib/whatsapp";
 import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../../lib/veiculoUrl";
 
 /**
@@ -128,8 +131,17 @@ export default async function HubDeModeloPage({ params }: PageProps) {
   const { companySettings } = await getCachedSettings();
   const caminhoDaMarca = `/${hub.segmento}/${hub.slugMarca}`;
   const caminho = `${caminhoDaMarca}/${hub.slug}`;
-  const titulo = `${hub.marca} ${hub.nome} ${seminovo(hub.genero)} em Curitiba`;
-  const perguntas = perguntasDeCategoria(`${hub.marca} ${hub.nome}`, hub.genero);
+  const perguntas = perguntasDeCategoria(`${hub.marca} ${hub.nome}`, hub.genero, caminho);
+
+  // O texto que a loja escreveu vence o gerado (2026-08-31). Falha na busca
+  // devolve `null` e a página segue com o automático — ver `textoEditadoDoHub`.
+  const { titulo, paragrafos: introducao } = resolverTextoDoHub(
+    await buscarTextoDoHub(caminho),
+    {
+      titulo: `${hub.marca} ${hub.nome} ${seminovo(hub.genero)} em Curitiba`,
+      paragrafos: textoDeModelo(hub.marca, hub.nome, hub.veiculos, hub.genero),
+    },
+  );
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -141,9 +153,22 @@ export default async function HubDeModeloPage({ params }: PageProps) {
     schemaDeListagem(titulo, hub.veiculos),
     schemaDePerguntas(perguntas),
     schemaDaLoja(companySettings, { disponiveis }),
+    schemaDoSite(companySettings),
   ]);
 
   const irmaos = (marca?.modelos ?? []).filter((m) => m.slug !== hub.slug);
+
+  /* A saída do hub sem carro (2026-09-01, relatório dos hubs).
+     Quem procurou ESTE modelo e não achou é o lead mais qualificado que chega
+     no site — e sem saída ele volta para o Google. A alternativa mais honesta
+     aqui é a mesma marca: quem quer uma Saveiro aceita ver uma Amarok antes de
+     aceitar ver um Onix. Sem nenhuma da marca, cai no estoque de hoje; sem
+     estoque nenhum, não desenha nada e o texto perene responde sozinho. */
+  const daMesmaMarca = (marca?.modelos ?? []).flatMap((m) => m.veiculos).slice(0, 3);
+  const alternativos = daMesmaMarca.length > 0 ? daMesmaMarca : disponiveis.slice(0, 3);
+  /* O `avisarHref` saiu daqui em 2026-09-08 — ver a nota gêmea no hub de
+     marca. Quem procurou ESTE modelo e não achou é o lead mais qualificado do
+     site, e era justamente ele que saía do funil por um link. */
 
   return (
     <div className="flex flex-col bg-mt-bg text-mt-ink">
@@ -155,8 +180,18 @@ export default async function HubDeModeloPage({ params }: PageProps) {
           { rotulo: hub.marca, href: caminhoDaMarca },
         ]}
         titulo={titulo}
-        introducao={textoDeModelo(hub.marca, hub.nome, hub.veiculos, hub.genero)}
+        introducao={introducao}
         veiculos={hub.veiculos}
+        alternativos={alternativos}
+        rotuloAlternativos={`Enquanto isso, ${daMesmaMarca.length > 0 ? `outros ${hub.marca}` : "no estoque de hoje"}`}
+        encomenda={
+          <EncomendaDeCarro
+            marca={hub.marca}
+            modelo={hub.nome}
+            caminho={caminho}
+            segmento={hub.segmento}
+          />
+        }
         textoSemEstoque={`Sem ${hub.marca} ${hub.nome} disponível neste momento. A página fica no ar — o modelo faz parte do que a loja compra, e quando ${um(hub.genero)} passar na perícia entra aqui.`}
         blocos={
           irmaos.length > 0

@@ -21,9 +21,8 @@ Desde 2026-08-12 essa linha **não é legível pela chave `anon`** (migração
 quem mexer aqui: todo caminho de servidor que precise dela tem de ler por
 `getCachedSettings`, que usa `SUPABASE_SERVICE_ROLE_KEY`. Um `select` direto
 com o cliente da requisição num endpoint sem sessão — `/api/leads`,
-`/api/avaliacao`, `/api/financeiro/margens/consulta` — volta `null` e o lead
-sai sem `Authorization`, sem erro nenhum. `tests/settings-leitura-privilegiada.test.ts`
-falha se isso voltar.
+`/api/avaliacao` — volta `null` e o lead sai sem `Authorization`, sem erro
+nenhum. `tests/settings-leitura-privilegiada.test.ts` falha se isso voltar.
 
 | Campo no painel | Env de fallback | Padrão de código |
 |---|---|---|
@@ -69,11 +68,10 @@ Bearer certo leva 403.
 > desligado: os eventos administrativos daquele período levaram **404** e
 > viraram `console.warn`, sem retentativa.
 
-> ⚠️ Preencher o token liga uma trava do lado de **entrada** também:
-> `/api/financeiro/margens/consulta` valida o mesmo `Bearer` e passa a devolver
-> 401 sem ele. O chamador é o workflow "Consulta Margens Mínimo - Motors", hoje
-> desligado e com o literal `SEU_TOKEN_CONFIGURADO` no header — precisa ser
-> atualizado antes de ser ligado.
+> A consulta de margens (`/api/financeiro/margens/consulta`), que validava o
+> mesmo `Bearer` no sentido de entrada, foi **aposentada em 2026-08-28** com o
+> módulo de caixa. O workflow "Consulta Margens Mínimo - Motors" já estava
+> desligado no n8n e agora não tem endpoint — pode ser arquivado.
 
 ---
 
@@ -161,14 +159,13 @@ lê. **O cliente nunca vê esse valor no site.** Regra em
 
 ## Formato C — Evento administrativo
 
-**Origem:** `src/lib/webhook-dispatcher.ts` e
-`/api/financeiro/notificacoes/processar`
+**Origem:** `src/lib/webhook-dispatcher.ts`
 **Destino:** `webhookNotificacoesUrl`
 **Header extra:** `X-Admin-Event: <nome do evento>`
 
 ```json
 {
-  "event": "conta_criada",
+  "event": "investidor_movimento",
   "timestamp": "2026-08-10T17:00:00.000Z",
   "data": { }
 }
@@ -179,76 +176,216 @@ dispatcher resolve ids em nomes legíveis antes de enviar:
 
 | Prefixo | `data` contém |
 |---|---|
-| `conta_` | `id, tipo, descricao, valor, vencimento, pagamento, status, categoria, parceiro, forma_pagamento, parcela` |
-| `recorrente_` | `id, descricao, valor, frequencia, dia_vencimento, categoria, fornecedor, forma_pagamento, ativa` |
-| `compra_` | `id, descricao, valor, data_compra, categoria, fornecedor, veiculo, nota_fiscal, status` |
-| `fornecedor_` | `id, nome, tipo, documento, telefone, email` |
 | `investidor_` | `id, investidor, tipo, valor, data, descricao, forma_pagamento, veiculo, observacoes` |
 | qualquer outro | o payload cru, sem enriquecimento |
 
-`categoria` vem como `"🔧 Peça de Reposição"` (ícone + nome), não como id.
 `veiculo` vem como `"BMW 320i (2022)"`, não como id. `valor` é number.
 
 O evento do prefixo `investidor_` hoje é um só: `investidor_movimento`, emitido
 a cada aporte ou retirada registrado no painel (2026-08-21). `investidor` vem
 como nome, `tipo` é `"aporte"` ou `"retirada"` e `valor` é **sempre positivo** —
-o lado mora em `tipo`, como nos contadores de `conta_vencida`. `veiculo` só vem
-preenchido quando a movimentação é um carro de repasse.
+o lado mora em `tipo`. `veiculo` só vem preenchido quando a movimentação é um
+carro de repasse.
 
-A aprovação de agendamento (2026-08-21) acrescenta três eventos ao prefixo
-`conta_`, com o mesmo `data` da tabela: **`conta_aguardando_aprovacao`**
-(agendamento — conta a pagar que fica em aberto — lançado por quem não tem
-poder de aprovar; sai NO LUGAR de `conta_criada`, nunca junto, e é o aviso
-"conta subiu pra aprovação" do briefing), **`conta_aprovada`** e
-**`conta_recusada`** (a decisão do Gestor — uma emissão por parcela do
-lançamento). O `status` dentro de `data` diz o estado resultante:
-`aguardando_aprovacao`, `pendente` ou `cancelado`.
-
-Não há limiar em reais: registro de conta já paga nunca gera esses eventos, e
-agendamento gera sempre — ver `docs/FINANCEIRO_OPERACIONAL.md` §3.
-
-O prefixo `recorrente_` ganha os três equivalentes em 2026-08-22:
-**`recorrente_aguardando_aprovacao`** (cadastro de despesa recorrente nova por
-quem não aprova — sai NO LUGAR de `recorrente_criada`), **`recorrente_aprovada`**
-e **`recorrente_recusada`**. A **geração** mensal continua sem evento de
-aprovação: o compromisso foi assumido quando a recorrente foi aprovada, e um
-aviso por parcela viraria ruído todo mês.
+> **Aposentados em 2026-08-28**, junto com o módulo de caixa (decisão do dono:
+> nada ali tinha dado real, e o financeiro renasce sobre o razão do handoff):
+> os prefixos `conta_` (criada, paga, atualizada, deletada, aguardando
+> aprovação, aprovada, recusada), `recorrente_` (idem), `compra_registrada`,
+> `fornecedor_criado` e o `conta_vencida` — o único que não saía do dispatcher
+> (a rota `/api/financeiro/notificacoes/processar` montava o envelope à mão, e
+> foi aposentada junto). O contrato completo desses eventos está no git deste
+> arquivo; quando o razão emitir eventos financeiros, eles entram aqui com
+> nomes novos, e os templates antigos do `adm-motors` podem ser removidos.
 
 **Liga/desliga por evento:** `webhooks.events[nomeDoEvento] === false` bloqueia
 o disparo. Ausente = habilitado.
 
-### `conta_vencida` — a segunda origem do Formato C
+---
 
-`conta_vencida` é o único evento que **não** sai do dispatcher. Quem emite é
-`POST /api/financeiro/notificacoes/processar`, e ele monta o envelope à mão.
+## Sentido inverso — o n8n pergunta, o site responde
 
-Até 2026-08-12 essa rota mandava uma forma própria — `{ tipo:
-"notificacao_financeira", subtipo, conta, mensagem }`, sem `event` e sem `data`.
-O `adm-motors` rejeitava com "Payload inválido" e o template de `conta_vencida`
-nunca rodou. Hoje ela emite o Formato C, com os mesmos campos do prefixo
-`conta_` mais três:
+Duas rotas invertem a direção deste documento: aqui o site é o **chamado**, não
+o emissor. Quem bate é o n8n, sem sessão, com um Bearer próprio.
 
-| Campo extra | Significado |
+| Rota | Segredo | O que devolve |
+|---|---|---|
+| `POST /api/ciclo/motor/fila` | `CICLO_MOTOR_TOKEN` | A fila de gatilhos do Motors Ciclo (manual §4.1). |
+| `POST /api/funil/alertas` | `FUNIL_MOTOR_TOKEN` | A fila de avisos do funil de leads: lead sem dono, lead parado e lead a transferir. |
+| `POST /api/chatwoot/eventos` | `CHATWOOT_WEBHOOK_TOKEN` | Nada de útil no corpo — é o Chatwoot **contando** o que houve. Cria o lead e para o relógio da estagnação. |
+
+**Cada uma tem o SEU segredo, sem fallback entre eles.** Segredo mede acesso: a
+base de leads do site e a base de clientes do Ciclo são dois conjuntos de dados
+e dois workflows, e quem tem a credencial de um não deveria puxar o outro. Um
+`||` para o token vizinho economizaria uma variável de ambiente e criaria uma
+escada de privilégio silenciosa — foi exatamente o achado #9 da revisão de
+2026-08-18, quando a porta do Ciclo aceitava o token de margens.
+
+Sem a variável configurada, a rota responde **503** e não 401: o problema é de
+configuração nossa, e 401 mandaria o n8n tentar outro token para sempre.
+
+### `POST /api/funil/alertas` (2026-08-28)
+
+```
+Authorization: Bearer $FUNIL_MOTOR_TOKEN
+{ "reservar": true }
+```
+
+```jsonc
+{
+  "ok": true, "reservado": true, "total": 2,
+  "fila": [{
+    "lead_id": "…",
+    "aviso": "transferencia",          // atribuicao | estagnacao | transferencia
+    "lead": { "nome": "…", "whatsapp": "5541…", "interesse": "Onix 2020",
+              "etapa": "Proposta", "minutos_parado": 7300 },
+    "destinatario": { "nome": "Carla", "whatsapp": "5541…" },
+    "responsavel_anterior": "Bruno",
+    "mensagem": "…"                     // pronto para a Evolution
+  }],
+  "suprimidos": [{ "lead_id": "…", "suprimido_por": "alerta_recente", … }]
+}
+```
+
+O workflow acorda de hora em hora, chama com `reservar: true` e envia
+`mensagem` para `destinatario.whatsapp`. **Nenhuma regra de horário ou de prazo
+mora no workflow** — quem decide quem está parado, se pode avisar agora e para
+quem vai o lead transferido é `montar_fila_do_funil`, no banco. Um workflow
+desligado atrasa mensagem; um workflow reconfigurado por engano não consegue
+redistribuir a carteira de um vendedor.
+
+`"reservar": false` é prévia: mostra o que aconteceria, não grava e não
+transfere. **A transferência só acontece com `reservar: true`**, no mesmo
+comando que produz a mensagem — não existe troca de dono sem alguém ser
+avisado.
+
+`suprimidos` traz o que ficou de fora **com o motivo**. Fila que descarta em
+silêncio é fila que ninguém audita.
+
+O workflow está versionado em `Motors Funil — Alertas de Estagnação.json`, na
+raiz. Importe, crie a credencial Header Auth `FUNIL_MOTOR_TOKEN`
+(`Authorization: Bearer <token>`), preencha `WHATSAPP_GESTAO` no nó
+*Distribuir os avisos* e ative — ele é importado desligado de propósito.
+
+Ele acorda de hora em hora todo dia: a régua de horário é da ROTA, não do
+cron, para não existir em dois lugares. E a execução termina vermelha se algum
+aviso de vendedor não for entregue — a rota já transferiu o lead nesse ponto, e
+entrega que falha calada é transferência sem aviso.
+
+A régua completa está em `docs/FUNIL_DE_VENDAS.md`.
+
+### `POST /api/chatwoot/eventos` (2026-09-15)
+
+O webhook do Chatwoot, recebido **direto** — sem o n8n no meio. Quem quiser
+mediar pelo n8n pode: o corpo é repassado verbatim e o contrato é o mesmo.
+
+```
+POST /api/chatwoot/eventos?token=$CHATWOOT_WEBHOOK_TOKEN
+{ "event": "message_created", "message_type": "outgoing",
+  "conversation": { "id": 412, "status": "open", "inbox_id": 11,
+                    "meta": { "sender": { "id": 88, "name": "Fulano",
+                                          "phone_number": "+5541999990000" } } },
+  "sender": { "id": 3, "type": "user", "name": "Ana" } }
+```
+
+**Duas formas de autenticar, e as duas existem por necessidade.**
+`Authorization: Bearer` é a preferida e é o que o n8n usa. O `?token=` existe
+porque o webhook **nativo** do Chatwoot (Configurações → Integrações →
+Webhooks) não tem campo de cabeçalho — só URL. Sem essa metade, ligar o
+Chatwoot direto seria impossível e o lead voltaria a depender do n8n para
+existir. Token em URL entra em log de proxy: por isso ele é um segredo de
+menor valor, próprio desta rota, e **não deve ser reaproveitado de nenhuma
+outra** — a régua de "segredo mede acesso" de 2026-08-18 vale aqui igual.
+
+O que cada evento faz:
+
+| Evento | Efeito |
 |---|---|
-| `subtipo` | `"vencimento_proximo"` (3 ou 1 dia antes) ou `"vencido"` (no dia ou 7 dias depois) — é o mesmo valor gravado em `notificacoes_financeiras.tipo` |
-| `dias_atraso` | dias vencidos; `0` quando ainda não venceu ou vence hoje |
-| `dias_para_vencer` | dias restantes; `0` quando já venceu |
+| `message_created` + `incoming` | Abre/atualiza o atendimento e **cria o lead** se o telefone ainda não tem um. |
+| `message_created` + `outgoing` **de agente humano** | Chama `registrar_contato_do_lead` — reinicia `ultimo_contato_em` e zera `alertado_em`. |
+| `message_created` + `outgoing` **automática** | Ignorado, de propósito (ver abaixo). |
+| `conversation_*` | Atualiza status e `encerrado_em`. Nunca cria lead. |
 
-Os dois contadores são sempre `>= 0`: quem lê não precisa interpretar sinal.
-O evento cobre os dois lados do vencimento porque é isso que o rótulo do painel
-promete — "Contas Vencidas / Alertas de Vencimento" é um checkbox só.
+> ⚠️ **Robô não atende.** Mensagem de saída só para o relógio quando um agente
+> humano a escreveu (`sender.type === "user"`, ou com e-mail de login). Um
+> autoatendimento sai como `outgoing` igual a uma resposta de gente — e se
+> contasse, o primeiro "Olá! Recebemos seu contato" congelaria o lead para
+> sempre: nunca mais estagnado, nunca mais transferido, nunca mais cobrado de
+> ninguém. O funil ficaria verde com a carteira parada, sem erro nenhum na
+> tela. Na dúvida a rota DESCARTA: continuar cobrando é recuperável com um
+> clique no card; parar de cobrar é silencioso.
 
-**`mensagem` não vai no corpo.** Quem formata texto de WhatsApp é o n8n, para os
-onze eventos. A rota ainda monta o seu próprio texto, mas só para gravar em
-`notificacoes_financeiras` como registro do que motivou o aviso — os dois textos
-não são o mesmo e não precisam ser.
+**Ela nunca devolve erro fora de autenticação.** O Chatwoot desativa webhook
+que responde erro com frequência, e webhook desativado reabre exatamente o
+buraco que esta rota veio tapar. O que deu errado sai no corpo (`acao`,
+`detalhe`) e no log, onde dá para auditar — não no status.
 
-Essa rota **grava o registro só quando o webhook responde ok**. Enquanto o n8n
-recusar, ela reprocessa as mesmas contas a cada execução.
+**O que ela conserta**, medido em produção em 2026-09-15, antes de existir:
+
+- 41 das 46 linhas de `atendimentos` com `lead_id` nulo. Quem escrevia direto
+  no WhatsApp — a maioria — nunca aparecia no kanban, porque só `/api/leads`
+  (o formulário do site) gravava em `leads`.
+- 4 registros de `contato` no rastro contra 15 `transferencia` automáticas.
+  `registrar_contato_do_lead` tinha `grant` para `service_role` desde
+  2026-08-28 e o recusava na primeira linha, porque a guarda era
+  `is_staff(auth.uid())` e `auth.uid()` é nulo na chave de serviço — grant
+  válido e inútil ao mesmo tempo, o espelho do defeito de 2026-08-31.
+  Corrigido pela migração `20260915120000_contato_pelo_chatwoot.sql`.
 
 ---
 
-## Modos de falha — o que o n8n não vê
+## Fora do repositório — o que não se conserta aqui
+
+O `AUDITORIA.md §1.7` já registra: *"Evolution API, Typebot e Chatwoot são
+citados em `CLAUDE.md` mas vivem inteiramente no n8n — o repositório não os
+toca."* Continua verdade, com uma exceção nova e estreita: a rota de entrada
+acima, que só **escuta** o Chatwoot. O site nunca ENVIA mensagem.
+
+Consequência prática, registrada em 2026-09-15 a partir do relato do dono de
+que *"o chatwoot não envia mensagem com foto ou vídeo em anexo para os
+clientes"*: **nada neste repositório pode causar ou corrigir isso.** O caminho
+do anexo é Chatwoot → Evolution API → WhatsApp, e ele não passa por código
+daqui em nenhum ponto.
+
+E no mesmo dia o log do Evolution (EasyPanel) mostrou a causa, que é de
+CREDENCIAL e não de mídia:
+
+```
+ERROR [ChatwootService]
+ApiError: Unauthorized
+  url: 'https://app.chat.v2o5.com.br//api/v1/accounts/1/contacts/filter'
+  status: 401  body: { error: 'Invalid Access Token' }
+WARN  [ChatwootService] conversation not found
+```
+
+A leitura, em ordem de causa: o Evolution não consegue se autenticar na API do
+Chatwoot (401) → `contacts/filter` falha → ele não resolve o contato → cai no
+`conversation not found`. **Texto continua saindo** porque o caminho
+Chatwoot → Evolution é o webhook de saída, que não exige o Evolution
+autenticar de volta; **anexo não sai** porque o fluxo de mídia precisa da API
+do Chatwoot, que é justamente a que está respondendo 401.
+
+Três coisas para conferir no Evolution, todas fora daqui:
+
+1. **`CHATWOOT_ACCOUNT_ID` = 1 confere com a conta do token?** O Chatwoot
+   responde 401 — e não 403 — quando o token é válido mas não pertence
+   àquela conta. Há um indício forte de que a conta mudou: em
+   `atendimentos`, os ids de conversa saltam de 55–107 (4 e 5 de setembro,
+   até 10:22) direto para 400+ (a partir das 15:03 do dia 5). Id de conversa
+   é sequencial por conta; um salto desses no mesmo dia é troca de conta ou
+   de instalação, não crescimento normal.
+2. **O token de acesso** — regenerado ou expirado. É o `CHATWOOT_TOKEN` do
+   Evolution, e ele precisa ser de um usuário com acesso à conta acima.
+3. **A URL com barra a mais** — `app.chat.v2o5.com.br//api/v1/...`. Vem de
+   barra no fim de `CHATWOOT_URL`. Costuma ser inofensivo porque o servidor
+   normaliza, mas é gratuito de arrumar e tira uma variável da conta.
+
+Nenhuma das três é editável por commit neste repositório — são variáveis de
+ambiente do container do Evolution.
+
+> Vale para a rota de entrada acima: ela escuta o **Chatwoot**, não o
+> Evolution. Conversa que o Chatwoot registra vira lead no painel mesmo com o
+> 401 de pé, porque o Chatwoot avisa o site por conta própria. Consertar o
+> token faz a mídia voltar a sair; não é pré-requisito para o lead subir.
 
 Isto é o que mais importa para quem depura do outro lado.
 
@@ -304,15 +441,14 @@ Isto é o que mais importa para quem depura do outro lado.
       na tabela `leads`.
 - [x] Confirmar que `webhookNotificacoesUrl` está preenchido em produção —
       está, e aponta para o `adm-motors` (2026-08-12)
-- [x] `apiSecretToken` **passou a ser obrigatório em
-      `/api/financeiro/margens/consulta`** (2026-08-12). Só naquela rota, e
-      por um motivo específico: ela agora lê `contas` e `compras_produtos` com
-      a chave de serviço, então a RLS deixou de ser a rede de segurança que
-      segurava o dado financeiro. Sem token configurado (nem no painel nem em
-      `N8N_SECRET_TOKEN`) a rota responde **503**, não 200 aberto. Como
-      `apiSecretToken` está vazio no banco por decisão, a rota depende de
-      `N8N_SECRET_TOKEN` existir na Vercel — se sumir, a ficha de margem para
-      de responder de forma visível, não silenciosa.
+- [x] `apiSecretToken` passou a ser obrigatório em
+      `/api/financeiro/margens/consulta` (2026-08-12) — item encerrado em
+      2026-08-28, quando a rota foi **aposentada** junto com o módulo de
+      caixa. A lição continua valendo para qualquer rota nova que leia com a
+      chave de serviço: token obrigatório, 503 sem configuração, nunca 200
+      aberto. Se `N8N_SECRET_TOKEN` sumir da Vercel, quem para de forma
+      visível são os Bearer dos webhooks de saída — os tokens das rotas de
+      entrada (motor do Ciclo, funil) são variáveis próprias.
 - [x] Decidir se o token passa a ser obrigatório nos webhooks — sim. O
       `adm-motors` exige `headerAuth` desde 2026-08-12; lead e avaliação
       entram na sequência (item abaixo). Com a leitura de `site_settings`

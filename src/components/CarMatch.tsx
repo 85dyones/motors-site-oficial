@@ -9,7 +9,8 @@ import { getMatchParams } from "../lib/tracking-identity";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
-import { linkWhatsApp } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
+import { ACOES } from "../lib/turnstile";
 
 /**
  * Tela 04 — Garagem Profiler, na linguagem Modernist.
@@ -57,18 +58,37 @@ const SEGUNDOS_POR_PERGUNTA = 6;
  * continua vindo de `formatObjective`/`formatExperience`/… — mexer nestes
  * títulos não muda o que o n8n recebe.
  */
+/**
+ * ⚠️ O texto foi reescrito em 2026-08-29, e os IDS ficaram.
+ *
+ * O anterior era de loja premium — "Status, Exclusividade & Design",
+ * "Tecnologia, Inovação & Eficiência". Num pátio cuja mediana é R$ 62.900 e
+ * que começa em R$ 23.900, ninguém se reconhece nessas palavras. O dono
+ * apontou o passo duas vezes.
+ *
+ * Os ids não mudam porque são a chave de `TAGS_DA_RESPOSTA` (lib/car-match) e
+ * do que já foi gravado em lead antigo. Trocar `status` por `melhor-carro`
+ * renomearia dado histórico para ganhar nada: o visitante nunca vê o id.
+ */
 const OPCOES_OBJETIVO = [
-  { id: "family", letra: "A", titulo: "Conforto, Segurança & Família", desc: "Viagens seguras e bastante espaço.", resumo: "Família" },
-  { id: "status", letra: "B", titulo: "Status, Exclusividade & Design", desc: "Design imponente e presença única.", resumo: "Status" },
-  { id: "efficiency", letra: "C", titulo: "Tecnologia, Inovação & Eficiência", desc: "Uso urbano inteligente.", resumo: "Eficiência" },
-  { id: "offroad", letra: "D", titulo: "Força, Aventura & Capacidade", desc: "Capacidade offroad ou para trabalho pesado.", resumo: "Aventura" },
+  { id: "family", letra: "A", titulo: "Espaço para a família", desc: "Viajar e levar todo mundo com conforto.", resumo: "Família" },
+  { id: "status", letra: "B", titulo: "Um carro melhor que o meu", desc: "Mais equipado, mais presença.", resumo: "Subir de carro" },
+  { id: "efficiency", letra: "C", titulo: "Rodar barato na cidade", desc: "Economia e facilidade no dia a dia.", resumo: "Cidade" },
+  { id: "offroad", letra: "D", titulo: "Trabalho e estrada", desc: "Carga, 4x4 ou muita quilometragem.", resumo: "Trabalho" },
 ] as const;
 
+/**
+ * A 03 pergunta o que PESA na escolha; a 02, para que o carro serve.
+ *
+ * As duas eram quase a mesma pergunta com palavras diferentes — "Tecnologia,
+ * Inovação & Eficiência" na 02 e "Tecnologia & Conectividade" na 03. Quem
+ * respondia a primeira não sabia o que a segunda queria de diferente.
+ */
 const OPCOES_EXPERIENCIA = [
-  { id: "performance", letra: "A", titulo: "Performance & Potência", desc: "Aceleração rápida e dinâmica afiada.", resumo: "Performance" },
-  { id: "comfort", letra: "B", titulo: "Conforto Máximo & Silêncio", desc: "Isolamento acústico e rodar suave.", resumo: "Conforto" },
-  { id: "tech", letra: "C", titulo: "Tecnologia & Conectividade", desc: "Telas avançadas e sistemas de assistência.", resumo: "Tecnologia" },
-  { id: "economy", letra: "D", titulo: "Custo-Benefício & Manutenção", desc: "Economia no dia a dia e liquidez.", resumo: "Custo-benefício" },
+  { id: "performance", letra: "A", titulo: "Motor e desempenho", desc: "Força para ultrapassar e pegar estrada.", resumo: "Desempenho" },
+  { id: "comfort", letra: "B", titulo: "Conforto e silêncio", desc: "Rodar macio e cansar menos no trânsito.", resumo: "Conforto" },
+  { id: "tech", letra: "C", titulo: "Facilidade no dia a dia", desc: "Câmbio automático e fácil de manobrar.", resumo: "Praticidade" },
+  { id: "economy", letra: "D", titulo: "Custo de manter", desc: "Consumo, revisão e revenda.", resumo: "Custo" },
 ] as const;
 
 const OPCOES_ESTILO = [
@@ -180,11 +200,10 @@ export default function CarMatch() {
     count: number;
     desc: string;
   }
-  const [budgetRanges, setBudgetRanges] = useState<BudgetRange[]>([]);
-
   // Custom budget and upsell settings
   const [budgetTab, setBudgetTab] = useState<"presets" | "custom" | "ai">("presets");
-  const [customMaxBudget, setCustomMaxBudget] = useState<number>(300000);
+  /** `null` = ainda não mexeram no slider; o valor sai da mediana do pátio. */
+  const [customMaxBudget, setCustomMaxBudget] = useState<number | null>(null);
   const [allowUpsell, setAllowUpsell] = useState<boolean>(true);
 
   // AI curator state variables
@@ -208,136 +227,169 @@ export default function CarMatch() {
     loadInventory();
   }, []);
 
-  // ─── Compute smart budget ranges when inventory loads ───
-  useEffect(() => {
-    if (estoque.length === 0) return;
-
-    // Só veículo à venda entra na conta. O rótulo da faixa diz "N veículos
-    // disponíveis"; contando vendidos, o número não batia com o painel ao
-    // vivo nem com o que a curadoria devolve no fim.
-    const prices = estoque
-      .filter((v) => !v.vendido)
-      .map((v) => (v.preco_promocional > 0 && v.preco_promocional < v.preco_original) ? v.preco_promocional : v.preco_original)
-      .filter((p) => p > 0)
-      .sort((a, b) => a - b);
-
-    if (prices.length === 0) return;
-
-    const min = prices[0];
-    const max = prices[prices.length - 1];
-
-    const roundTo = max > 500000 ? 50000 : max > 200000 ? 25000 : 10000;
-    const roundDown = (n: number) => Math.floor(n / roundTo) * roundTo;
-    const roundUp = (n: number) => Math.ceil(n / roundTo) * roundTo;
-
-    const floorMin = roundDown(min);
-    const ceilMax = roundUp(max);
-
-    const brackets: [number, number][] = [];
-    const spread = ceilMax - floorMin;
-
-    if (spread <= roundTo * 3) {
-      const mid = roundDown(floorMin + spread / 2);
-      brackets.push([floorMin, mid]);
-      brackets.push([mid, ceilMax]);
-    } else {
-      const cutpoints = [
-        floorMin,
-        roundUp(floorMin + spread * 0.15),
-        roundUp(floorMin + spread * 0.35),
-        roundUp(floorMin + spread * 0.60),
-        roundUp(floorMin + spread * 0.80),
-        ceilMax,
-      ];
-      const unique = [...new Set(cutpoints)].sort((a, b) => a - b);
-      for (let i = 0; i < unique.length - 1; i++) {
-        brackets.push([unique[i], unique[i + 1]]);
-      }
-    }
-
-    const formatShortInternal = (v: number) => {
+  /**
+   * As faixas de orçamento — as quatro opções da pergunta 01.
+   *
+   * `useMemo`, e não `useState` + efeito: o estado nascia `[]` e a tela
+   * desenhava, no lugar das opções, quatro caixas cinza vazias, `aria-hidden`
+   * e sem clique. Enquanto o estoque não chegava, a primeira pergunta ficava
+   * literalmente impossível de responder — e o único botão à vista era
+   * VOLTAR. Reproduzido no navegador em 28/08, e é o que o dono relatou duas
+   * vezes: **"não consegui responder as perguntas"**.
+   *
+   * O memo tem fallback, então nunca devolve lista vazia: sem estoque, valem
+   * as faixas de reserva. Esqueleto de carregamento é aceitável quando dura um
+   * instante e é evidente que é esqueleto; não é aceitável quando é a única
+   * coisa entre a pessoa e a pergunta.
+   */
+  const faixasDeOrcamento = useMemo<BudgetRange[]>(() => {
+    const rotulo = (v: number) => {
       if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
       if (v >= 1000) return `${(v / 1000).toFixed(0)}mil`;
       return v.toLocaleString("pt-BR");
     };
 
-    const ranges: BudgetRange[] = brackets.map(([lo, hi], idx) => {
-      const count = prices.filter((p) => p >= lo && (idx === brackets.length - 1 ? p <= hi : p < hi)).length;
-      const isFirst = idx === 0;
-      const isLast = idx === brackets.length - 1;
-      return {
-        id: `range-${idx}`,
-        min: lo,
-        max: hi,
-        title: isFirst
-          ? `Até R$ ${formatShortInternal(hi)}`
-          : isLast
-            ? `Acima de R$ ${formatShortInternal(lo)}`
-            : `R$ ${formatShortInternal(lo)} a R$ ${formatShortInternal(hi)}`,
-        count,
-        desc: count === 1 ? "1 veículo disponível" : `${count} veículos disponíveis`,
-      };
-    });
+    const montar = (cortes: number[], precos: number[]): BudgetRange[] => {
+      const limites = [0, ...cortes, Infinity];
+      return limites.slice(0, -1).map((lo, i) => {
+        const hi = limites[i + 1];
+        const count = precos.filter((p) => p > lo && p <= hi).length;
+        return {
+          id: `faixa-${i}`,
+          min: lo,
+          // O filtro é TETO: `matchVehicles` corta em `preco <= budget`. A
+          // última faixa não tem teto, e `Infinity` viraria NaN na conta.
+          max: hi === Infinity ? Number.MAX_SAFE_INTEGER : hi,
+          title:
+            lo === 0
+              ? `Até R$ ${rotulo(hi)}`
+              : hi === Infinity
+                ? `Acima de R$ ${rotulo(lo)}`
+                : `R$ ${rotulo(lo)} a R$ ${rotulo(hi)}`,
+          count,
+          desc: count === 1 ? "1 veículo nesta faixa" : `${count} veículos nesta faixa`,
+        };
+      });
+    };
 
-    const nonEmpty = ranges.filter((r) => r.count > 0);
-    setBudgetRanges(nonEmpty.length > 0 ? nonEmpty : ranges);
+    const precos = estoque
+      .filter((v) => !v.vendido)
+      .map((v) => precoVigente(v))
+      .filter((p) => p > 0)
+      .sort((a, b) => a - b);
 
-    if (prices.length > 0) {
-      const middlePrice = prices[Math.floor(prices.length / 2)];
-      setCustomMaxBudget(Math.round(middlePrice / 10000) * 10000);
+    // Sem estoque em mãos — carregando, ou a consulta falhou. As faixas de
+    // reserva mantêm a pergunta respondível; o número de veículos some, porque
+    // não há como contar sem estoque.
+    if (precos.length < 4) {
+      return montar([50000, 65000, 90000], precos).map((f) => ({ ...f, desc: "" }));
     }
+
+    /* Cortes por QUANTIL, não por fatia do intervalo.
+       ---------------------------------------------------------------------
+       O cálculo anterior tirava os cortes de porcentagens do INTERVALO
+       (15%, 35%, 60%, 80% entre o mais barato e o mais caro). Com um carro de
+       R$ 318.900 esticando a ponta, as faixas saíam assim, medido nos 35
+       veículos servidos:
+
+         0–50 mil ....  7 carros
+         50–125 mil ... 24 carros   ← 69% do pátio numa opção só
+         125–200 mil ..  3
+         200–275 mil ..  0
+         275–325 mil ..  1
+
+       Quem tinha 60, 70 ou 90 mil caía todo mundo no mesmo balde, e as duas
+       faixas de cima eram decoração. Era o "difícil demais fazer um match
+       acima dos 50 mil".
+
+       Por quantil, cada faixa carrega um quarto do pátio: 7 / 11 / 9 / 8. Os
+       cortes acompanham a loja — se o estoque mudar de patamar, as faixas
+       mudam junto, sem ninguém editar nada. */
+    const quantil = (f: number) => precos[Math.min(precos.length - 1, Math.floor(precos.length * f))];
+    const arredonda = (n: number) => Math.round(n / 5000) * 5000;
+    const cortes = [...new Set([quantil(0.25), quantil(0.5), quantil(0.75)].map(arredonda))]
+      .filter((c) => c > 0)
+      .sort((a, b) => a - b);
+
+    const faixas = montar(cortes, precos);
+    const comCarro = faixas.filter((f) => f.count > 0);
+    return comCarro.length > 0 ? comCarro : faixas;
   }, [estoque]);
+
+  /**
+   * Os limites do slider de "VALOR EXATO", tirados do pátio.
+   *
+   * Estavam cravados em `min={100000}` — mais que o DOBRO do carro mais caro
+   * da metade de baixo do estoque. Medido em 28/08: o mais barato custa
+   * R$ 23.900 e a mediana é R$ 62.900, ou seja, quem usasse esta aba não
+   * conseguia dizer um orçamento que descrevesse dois terços da vitrine. É o
+   * mesmo resquício do catálogo fictício que estava nas etiquetas.
+   *
+   * As faixas prontas da outra aba já saíam do estoque; esta ficou para trás.
+   */
+  const faixaDoSlider = useMemo(() => {
+    const precos = estoque
+      .filter((v) => !v.vendido)
+      .map((v) => precoVigente(v))
+      .filter((p) => p > 0);
+    if (precos.length === 0) return { min: 20000, max: 500000, mediana: 60000, passo: 5000 };
+    const ordenados = [...precos].sort((a, b) => a - b);
+    const piso = Math.max(5000, Math.floor(ordenados[0] / 5000) * 5000);
+    const teto = Math.ceil(ordenados[ordenados.length - 1] / 5000) * 5000;
+    const meio = ordenados[Math.floor(ordenados.length / 2)];
+    return {
+      min: piso,
+      max: teto,
+      mediana: Math.round(meio / 5000) * 5000,
+      passo: teto - piso > 200000 ? 10000 : 5000,
+    };
+  }, [estoque]);
+
+  /**
+   * O valor do slider: o que a pessoa escolheu, ou a mediana do pátio.
+   *
+   * A mediana como ponto de partida vinha de um efeito que chamava
+   * `setCustomMaxBudget` quando o estoque chegava. Derivar é mais simples e
+   * tira uma escrita de estado dentro de efeito — e o valor nunca fica fora
+   * da faixa que a loja comporta.
+   */
+  const orcamentoDoSlider = Math.min(
+    Math.max(customMaxBudget ?? faixaDoSlider.mediana, faixaDoSlider.min),
+    faixaDoSlider.max,
+  );
 
   const confirmCustomBudget = () => {
     setAnswers((prev) => ({
       ...prev,
       budgetMin: 0,
-      budgetMax: customMaxBudget
+      budgetMax: orcamentoDoSlider
     }));
     setTimeout(() => {
       setGameState("q2");
     }, 200);
   };
 
-  const formatObjective = (obj: AnswerState["objective"]) => {
-    switch(obj) {
-      case "status": return "Status, Exclusividade & Design";
-      case "family": return "Conforto, Segurança & Família";
-      case "efficiency": return "Tecnologia, Inovação & Eficiência";
-      case "offroad": return "Força, Aventura & Capacidade";
-      default: return "Não definido";
-    }
-  };
+  /**
+   * O rótulo que o consultor lê é o MESMO que o cliente clicou.
+   *
+   * Estes quatro formatadores eram `switch` com o texto copiado das opções —
+   * uma segunda cópia dos mesmos títulos, noutro lugar do arquivo. Copiar não
+   * quebra no dia em que se copia; quebra no dia em que só uma das duas é
+   * atualizada, e aí o CRM registra uma resposta que ninguém escolheu.
+   *
+   * Foi o que quase aconteceu ao reescrever o texto de 2026-08-29: as opções
+   * viraram "Um carro melhor que o meu" e o `switch` continuaria mandando
+   * "Status, Exclusividade & Design" para o WhatsApp do consultor.
+   */
+  const rotuloDaOpcao = (
+    opcoes: readonly { id: string; titulo: string }[],
+    id: string,
+  ) => opcoes.find((o) => o.id === id)?.titulo ?? "Não definido";
 
-  const formatExperience = (exp: AnswerState["experience"]) => {
-    switch(exp) {
-      case "performance": return "Performance & Potência";
-      case "comfort": return "Conforto Máximo & Silêncio";
-      case "tech": return "Tecnologia & Conectividade";
-      case "economy": return "Custo-Benefício & Baixa Manutenção";
-      default: return "Não definido";
-    }
-  };
-
-  const formatStyle = (style: AnswerState["style"]) => {
-    switch(style) {
-      case "suv": return "SUVs Imponentes";
-      case "sedan": return "Sedans Elegantes";
-      case "sport": return "Esportivos / Coupés";
-      case "pickup": return "Picapes";
-      case "open": return "Sem preferência (Aberto a sugestões)";
-      default: return "Não definido";
-    }
-  };
-
-  const formatTimeline = (timeline: AnswerState["timeline"]) => {
-    switch(timeline) {
-      case "immediate": return "Pronto para fechar negócio";
-      case "researching": return "Pesquisando para os próximos 30 dias";
-      case "future": return "Apenas mapeando opções";
-      default: return "Não definido";
-    }
-  };
+  const formatObjective = (obj: AnswerState["objective"]) => rotuloDaOpcao(OPCOES_OBJETIVO, obj);
+  const formatExperience = (exp: AnswerState["experience"]) => rotuloDaOpcao(OPCOES_EXPERIENCIA, exp);
+  const formatStyle = (style: AnswerState["style"]) => rotuloDaOpcao(OPCOES_ESTILO, style);
+  const formatTimeline = (timeline: AnswerState["timeline"]) => rotuloDaOpcao(OPCOES_PRAZO, timeline);
 
   const formatShort = (v: number) => {
     if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
@@ -356,9 +408,14 @@ export default function CarMatch() {
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
     const utmParams = getUtmParameters();
-    const cleanPhone = leadData.whatsapp;
-    const formattedPhone = cleanPhone.length === 10 || cleanPhone.length === 11 ? "55" + cleanPhone : cleanPhone;
-    const remoteJid = formattedPhone ? `${formattedPhone}@s.whatsapp.net` : "";
+    // `telefoneDoLead` normaliza o que veio do campo — que agora chega
+    // mascarado, "(41) 99737-2165". As três linhas que estavam aqui tinham um
+    // `cleanPhone` que não limpava nada: com 15 caracteres o teste de
+    // comprimento falhava e o número seguia para o CRM com parênteses dentro
+    // do `remoteJid`. Ver o comentário em `lib/whatsapp.ts`.
+    const telefone = telefoneDoLead(leadData.whatsapp);
+    const formattedPhone = telefone.comDDI ?? "";
+    const remoteJid = telefone.remoteJid;
 
     // Mesma regra do defaultMsg: voz do cliente, que é quem manda o texto.
     const finalMsg = `Olá! Montei meu perfil no Match de Garagem do site buscando um veículo focado em ${formatObjective(answers.objective)}, até R$ ${formatShort(answers.budgetMax)}. Podem me mostrar as opções que se encaixam?${sufixoRef()}`;
@@ -366,7 +423,7 @@ export default function CarMatch() {
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).
     // Sem veículo específico aqui (é uma curadoria), então não há content_ids.
-    const phoneE164 = formattedPhone ? `+${formattedPhone}` : null;
+    const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
       { marca: "CarMatch", modelo: "Curadoria Especial", preco: answers.budgetMax },
       finalMsg,
@@ -474,7 +531,14 @@ export default function CarMatch() {
 
     if (parsedBudget === 0) parsedBudget = 1000000;
 
-    let obj: AnswerState["objective"] = "status";
+    // `""` quando o texto não disse — e não um palpite.
+    //
+    // Antes o objetivo caía em "status" e a experiência era cravada em "tech",
+    // sem que ninguém tivesse escolhido nenhum dos dois. Como este caminho
+    // pulava direto para o resultado, a pessoa terminava o quiz com duas
+    // respostas que nunca deu — e o consultor recebia o perfil como se fossem
+    // dela.
+    let obj: AnswerState["objective"] = "";
     if (lower.includes("família") || lower.includes("familia") || lower.includes("viagem") || lower.includes("viajar") || lower.includes("filho") || lower.includes("espaço")) {
       obj = "family";
     } else if (lower.includes("cidade") || lower.includes("trabalho") || lower.includes("diário") || lower.includes("diario") || lower.includes("economia")) {
@@ -483,7 +547,7 @@ export default function CarMatch() {
       obj = "offroad";
     }
 
-    let style: AnswerState["style"] = "open";
+    let style: AnswerState["style"] = "";
     if (lower.includes("suv") || lower.includes("4x4") || lower.includes("jeep")) {
       style = "suv";
     } else if (lower.includes("sedã") || lower.includes("sedan")) {
@@ -494,9 +558,28 @@ export default function CarMatch() {
       style = "pickup";
     }
 
-    return { budgetMax: parsedBudget, objective: obj, experience: "tech" as any, style: style };
+    return { budgetMax: parsedBudget, objective: obj, style };
   };
 
+  /**
+   * "DESCREVER" é uma forma de responder a pergunta 01, não um atalho para o fim.
+   *
+   * -------------------------------------------------------------------------
+   * O que mudou em 2026-08-28
+   * -------------------------------------------------------------------------
+   * Esta aba vive sob o título "Qual a faixa de investimento para a próxima
+   * garagem?", ao lado de FAIXA e VALOR EXATO. As outras duas respondem a
+   * pergunta e avançam para a 02. Esta pulava para o resultado, preenchendo as
+   * cinco respostas sozinha — com EXPERIÊNCIA e PRAZO cravados no código.
+   *
+   * O dono relatou exatamente isso: **"não consegui responder todas"**. Não era
+   * impressão; o fluxo terminava sem perguntar.
+   *
+   * Agora o texto livre serve para o que ele consegue: fixa o orçamento e
+   * deixa PRÉ-SELECIONADO o que disse com todas as letras ("um SUV para a
+   * família" marca objetivo e carroceria). O que ele não disse continua em
+   * branco, e a pessoa responde — vendo a pré-seleção e podendo trocá-la.
+   */
   const confirmAiCuratorQuery = () => {
     if (!aiQuery.trim()) return;
 
@@ -507,15 +590,13 @@ export default function CarMatch() {
       budgetMin: 0,
       budgetMax: parsed.budgetMax,
       objective: parsed.objective,
-      experience: parsed.experience,
       style: parsed.style,
-      timeline: "researching"
     }));
 
     setIsAiCuratorActive(true);
 
     setTimeout(() => {
-      setGameState("loading");
+      setGameState("q2");
     }, 200);
   };
 
@@ -817,8 +898,7 @@ export default function CarMatch() {
 
                 {budgetTab === "presets" && (
                   <div className="mt-6 grid gap-0.5 md:grid-cols-2">
-                    {budgetRanges.length > 0
-                      ? budgetRanges.map((range, i) => (
+                    {faixasDeOrcamento.map((range, i) => (
                           <OpcaoQuiz
                             key={range.id}
                             letra={String.fromCharCode(65 + i)}
@@ -827,14 +907,7 @@ export default function CarMatch() {
                             selecionada={answers.budgetMax === range.max && answers.budgetMin === range.min}
                             onClick={() => selectBudget(range)}
                           />
-                        ))
-                      : Array.from({ length: 4 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className="h-[86px] border-2 border-mt-inverso-regua-fina"
-                            aria-hidden="true"
-                          />
-                        ))}
+                    ))}
                   </div>
                 )}
 
@@ -844,14 +917,14 @@ export default function CarMatch() {
                       LIMITE DE INVESTIMENTO
                     </Rotulo>
                     <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
-                      {formatPrice(customMaxBudget)}
+                      {formatPrice(orcamentoDoSlider)}
                     </div>
                     <input
                       type="range"
-                      min={100000}
-                      max={1000000}
-                      step={20000}
-                      value={customMaxBudget}
+                      min={faixaDoSlider.min}
+                      max={faixaDoSlider.max}
+                      step={faixaDoSlider.passo}
+                      value={orcamentoDoSlider}
                       onChange={(e) => setCustomMaxBudget(Number(e.target.value))}
                       aria-label="Limite de investimento"
                       className="mt-range mt-foco mt-6 [--mt-range-trilho:var(--mt-inverso-regua)]"
@@ -907,7 +980,7 @@ export default function CarMatch() {
             {/* 03 — Experiência */}
             {gameState === "q3" && (
               <BlocoPergunta
-                titulo="O que você mais valoriza ao dirigir?"
+                titulo="O que mais pesa na sua escolha?"
                 opcoes={OPCOES_EXPERIENCIA}
                 selecionado={answers.experience}
                 onSelecionar={(id) => selectExperience(id as AnswerState["experience"])}
@@ -1126,6 +1199,7 @@ export default function CarMatch() {
 
       {/* Lead Capture Modal */}
       <LeadCaptureModal
+        action={ACOES.carmatch}
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         onSubmit={handleLeadSubmit}

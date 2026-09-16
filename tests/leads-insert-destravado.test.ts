@@ -64,6 +64,32 @@ describe("a rota de lead", () => {
     expect(rota).toContain("event_id: body.eventId || null");
   });
 
+  it("grava o `ag_uid` — o elo entre quem navegou e quem virou lead", () => {
+    /* A coluna existia e nunca foi preenchida: 0 dos 11 leads em 2026-09-02.
+       O valor estava do lado, resolvido na entrada da rota e já viajando como
+       `external_id` para o Meta — gravava-se para fora e não para casa.
+
+       Sem ele o servidor não sabe que quem abre uma ficha hoje é quem deixou
+       telefone semana passada, e a CAPI não tem como mandar e-mail e telefone
+       com hash num evento de navegação. O sintoma não é erro: é 0% de
+       cobertura de `em`/`ph` no relatório de qualidade do pixel.
+
+       A trava é sobre a GRAVAÇÃO e sobre o sentinela, que são as duas formas
+       de a coluna voltar a não significar nada. */
+    const insert = rota.slice(
+      rota.indexOf('from("leads").insert('),
+      rota.indexOf("if (erroLead)"),
+    );
+    expect(insert, "o insert parou de gravar ag_uid").toContain("ag_uid:");
+    expect(insert, "gravou o sentinela como se fosse identificador").toContain(
+      'ag_ref_nao_localizado" ? resolvedAgUid : null',
+    );
+
+    // E o mesmo valor continua indo para o Meta: se os dois divergirem, o
+    // cruzamento entre o lead e o evento dele deixa de existir sem avisar.
+    expect(rota).toContain("externalId: resolvedAgUid");
+  });
+
   it("continua sem bloquear o visitante quando a gravação falha", () => {
     // A regra que escondeu o bug é a mesma que precisa continuar valendo: o
     // cliente está a caminho do WhatsApp, e falha nossa não pode segurá-lo.
