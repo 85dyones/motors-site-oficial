@@ -2,6 +2,40 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.15.11"],
+  /**
+   * Otimização de imagem: LIGADA, restrita pelos `remotePatterns` com
+   * `pathname` fixo logo abaixo. Contexto completo em
+   * `docs/DIAGNOSTICO_IMAGENS.md`.
+   *
+   * Histórico — por que esteve DESLIGADA (`unoptimized: true` global) de
+   * 2026-08-26 a 2026-09-16: medido em produção em 26/08, TODA transformação
+   * nova do otimizador respondia `402
+   * OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED` — inclusive para `/logo.png`,
+   * arquivo local do próprio deploy. A cota de Image Optimization do plano
+   * Hobby (5.000 transformações/mês) estourou em ~13/08 (todos os HITs de
+   * cache tinham `age` apontando para uma janela de 16 minutos daquele dia).
+   * O catálogo gera ~740 fotos × 10 larguras ≈ 7.400+ transformações: esse
+   * número não mudou nesta reativação e estoura de novo todo mês, em
+   * qualquer reset.
+   *
+   * O que mudou, e sustenta religar em 2026-09-16 (decisão do dono): os
+   * `remotePatterns` abaixo ganharam `pathname` fixo. Antes, `hostname`
+   * sozinho bastava — e `s3.carro57.com.br` hospeda TODAS as revendas
+   * RevendaMais, `*.supabase.co` seria o Storage de QUALQUER projeto Supabase
+   * do mundo. Sem `pathname`, qualquer um podia apontar o NOSSO otimizador
+   * para uma URL fora do nosso recorte e queimar a cota por fora do nosso
+   * próprio tráfego — esse vetor fecha aqui.
+   *
+   * O que isto NÃO resolve: o volume do NOSSO catálogo. O card manda
+   * `unoptimized` só para a foto que já é nossa (`ehFotoPropria`, storage
+   * próprio) — as fotos do carro57, hoje 100% do estoque, voltam a passar
+   * pelo otimizador de verdade agora que o flag global caiu (com o flag
+   * ligado, `config.unoptimized` sobrepunha qualquer prop por imagem — ver
+   * `next/dist/shared/lib/get-img-props.js`). Se o volume voltar a estourar a
+   * cota, a saída definitiva (plano Pro ou loader custom usando as variantes
+   * `_P_/_S_/_M_/_G_/_W_` que o próprio RevendaMais já serve) continua
+   * descrita no diagnóstico e é decisão de negócio.
+   */
   images: {
     remotePatterns: [
       {
@@ -9,12 +43,21 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
       },
       {
+        // `pathname` fixo: sem ele, qualquer pessoa pode apontar o NOSSO
+        // otimizador para qualquer objeto desse S3 compartilhado (todas as
+        // revendas RevendaMais moram nele) e queimar a nossa cota.
         protocol: "https",
         hostname: "s3.carro57.com.br",
+        pathname: "/FC/9037/**",
       },
       {
+        // Só o Storage PÚBLICO do NOSSO projeto — hoje o bucket `branding` e,
+        // desde 31/08, as fotos do estoque em `veiculos`. `*.supabase.co`
+        // deixava o otimizador aberto para o Storage de qualquer projeto
+        // Supabase do mundo.
         protocol: "https",
-        hostname: "*.supabase.co",
+        hostname: "zwbqmzgnagfeqinqkolp.supabase.co",
+        pathname: "/storage/v1/object/public/**",
       },
     ],
 
@@ -34,10 +77,12 @@ const nextConfig: NextConfig = {
      * (`next/dist/server/image-optimizer.js`), e a origem manda 3600s: quem
      * decidia era o padrão. A MESMA foto voltava a ser cobrada a cada 4 h.
      *
-     * Quem ganha com isto é a galeria da PDP — o único lugar onde foto de
-     * veículo passa pelo otimizador, já que o card manda `unoptimized` para
-     * foto nossa. E vale para as fotos que JÁ estão no bucket, porque o
-     * `Math.max` passa por cima do `max-age=3600` delas.
+     * Quem ganha com isto é toda foto de veículo que passa pelo otimizador:
+     * a galeria da PDP sempre, e o card também — para a foto do carro57, já
+     * que o `unoptimized` do card só protege a foto que já é nossa
+     * (`ehFotoPropria`; ver comentário de `remotePatterns` acima). E vale
+     * para as fotos que JÁ estão no bucket, porque o `Math.max` passa por
+     * cima do `max-age=3600` delas.
      *
      * 31 dias se apoia num caminho que não se reescreve: cada envio gera
      * nome próprio — `novoLote()` no painel, `loteDaOrigem()` (sha1 da URL
@@ -64,9 +109,9 @@ const nextConfig: NextConfig = {
      * `dangerouslyAllowSVG` saiu em 2026-09-08, e o "dangerously" no nome é
      * literal: SVG é XML que pode conter `<script>`, e servido pelo
      * `/_next/image` ele sai do NOSSO domínio — script com a origem da página,
-     * ou seja, XSS de mesma origem. O `remotePatterns` acima inclui
-     * `*.supabase.co`, que é o bucket de upload de fotos: conteúdo que o painel
-     * grava, não conteúdo que este repositório revisa.
+     * ou seja, XSS de mesma origem. O `remotePatterns` acima inclui o Storage
+     * público do Supabase, que é o bucket de upload de fotos: conteúdo que o
+     * painel grava, não conteúdo que este repositório revisa.
      *
      * Medido antes de remover: zero `.svg` em `public/` e em `src/`, e zero
      * entre as 3.186 URLs de foto do estoque (2.136 jpeg, 525 jpg, 525 webp).

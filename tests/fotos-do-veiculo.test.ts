@@ -861,7 +861,14 @@ describe("a aba desenhada — medida no DOM, não no código-fonte", () => {
 
 describe("o site continua servindo as fotos", () => {
   it("`next.config.ts` autoriza o host do Supabase", () => {
-    expect(configNext).toContain('hostname: "*.supabase.co"');
+    // O host é o do NOSSO projeto, preso ao prefixo público do Storage — e não
+    // mais `*.supabase.co`, que abria o otimizador para o Storage de qualquer
+    // projeto Supabase (`claude/multiagent-broken-images-ginp40`). O bucket das
+    // fotos precisa continuar debaixo desse prefixo, ou a foto nossa que
+    // passar pelo otimizador deixa de carregar.
+    expect(configNext).toContain('hostname: "zwbqmzgnagfeqinqkolp.supabase.co"');
+    expect(configNext).toContain('pathname: "/storage/v1/object/public/**"');
+    expect(PREFIXO_PUBLICO.startsWith("/storage/v1/object/public/")).toBe(true);
     // E o carro57 continua lá — esta entrega ADICIONA uma origem.
     expect(configNext).toContain('hostname: "s3.carro57.com.br"');
   });
