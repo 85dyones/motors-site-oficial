@@ -35,6 +35,33 @@ function sqlExecutavel(caminho: string): string {
     .join("\n");
 }
 
+/** Os arquivos de migração, na ordem em que o Supabase os aplicaria. */
+function migracoes(): string[] {
+  return readdirSync(DIR_MIGRACOES).filter((f) => f.endsWith(".sql")).sort();
+}
+
+/**
+ * Toda dupla `(versão, nome)` que este arquivo registra no livro-razão.
+ *
+ * Lê de cada `insert into supabase_migrations.schema_migrations` até o `;`,
+ * porque as duas formas que existem no repositório são diferentes: o rodapé
+ * normal quebra em três linhas e uma tupla só, e o bootstrap do livro-razão
+ * despeja dezenove tuplas de uma vez.
+ */
+function registrosNoLivroRazao(sql: string): { versao: string; nome: string }[] {
+  const achados: { versao: string; nome: string }[] = [];
+  const re = /insert\s+into\s+supabase_migrations\.schema_migrations\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(sql)) !== null) {
+    const fim = sql.indexOf(";", m.index);
+    const bloco = sql.slice(m.index, fim === -1 ? sql.length : fim);
+    for (const t of bloco.matchAll(/\(\s*'(\d{14})'\s*,\s*'([^']+)'\s*\)/g)) {
+      achados.push({ versao: t[1], nome: t[2] });
+    }
+  }
+  return achados;
+}
+
 describe("supabase/migrations", () => {
   it("a pasta de migrações existe e não está vazia", () => {
     expect(existsSync(DIR_MIGRACOES)).toBe(true);
@@ -48,6 +75,74 @@ describe("supabase/migrations", () => {
       expect(m, `Migração fora do padrão <timestamp>_<nome>.sql: ${m}`)
         .toMatch(/^\d{14}_[a-z0-9_]+\.sql$/);
     }
+  });
+
+  it("duas migrações nunca reivindicam a mesma versão", () => {
+    // 2026-09-06, e não era hipótese: `20260905120000` estava em DUAS branches
+    // ao mesmo tempo — `motivo_por_escopo` e `sla_conta_depois_do_assistente`.
+    // A primeira já estava no livro-razão de PRODUÇÃO quando a segunda foi
+    // escrita, então não era um conflito à espera do merge: era uma versão que
+    // já tinha dono.
+    //
+    // `version` é chave primária de `supabase_migrations.schema_migrations`, e
+    // todo rodapé termina em `on conflict (version) do nothing`. Isso protege
+    // quando a versão é sua, e amordaça quando é de outro. Os dois caminhos de
+    // aplicação quebram, e os dois quebram calados:
+    //
+    //   aplicar-migracao.js .. o DDL RODA (o rodapé é a última instrução, não um
+    //                          portão) e o `on conflict` engole o registro. O
+    //                          schema muda e o livro-razão diz outra coisa.
+    //   supabase db push ..... pula o ARQUIVO INTEIRO. O DDL nunca roda, e o
+    //                          código mergeado assume o que não existe.
+    //
+    // Dentro de um branch a colisão não existe: ela só vira dois arquivos com o
+    // mesmo prefixo no instante do merge. É exatamente aí que este teste pega,
+    // e é por isso que ele funciona apesar de rodar num branch por vez.
+    const porVersao = new Map<string, string[]>();
+    for (const m of migracoes()) {
+      const versao = m.slice(0, 14);
+      porVersao.set(versao, [...(porVersao.get(versao) ?? []), m]);
+    }
+
+    expect(
+      [...porVersao]
+        .filter(([, arquivos]) => arquivos.length > 1)
+        .map(([versao, arquivos]) => `${versao}: ${arquivos.join(" + ")}`),
+      "duas migrações com a mesma versão — a segunda a ser aplicada some em silêncio",
+    ).toEqual([]);
+  });
+
+  it("o rodapé de auto-registro nomeia a própria migração", () => {
+    // A segunda metade do conserto de uma colisão, e o lugar onde ele falha: a
+    // versão aparece DUAS vezes, no nome do arquivo e no rodapé. Renomear só o
+    // arquivo deixa o registro apontando para a versão ocupada — o mesmo
+    // defeito, com nome novo.
+    //
+    // Duas isenções, as duas medidas contra o repositório e não supostas:
+    //
+    //  · 29 migrações antigas não têm rodapé nenhum. A convenção nasceu depois
+    //    delas, e cobrar do passado pintaria de vermelho quem não fez nada.
+    //  · `20260815120000_fechar_superficie_exposta` registra DEZENOVE versões,
+    //    nenhuma a sua: foi ela que criou o livro-razão e trouxe o histórico
+    //    junto. Registro em lote é backfill, não auto-registro.
+    //
+    // As duas isenções são pela FORMA — quantas versões o arquivo registra —,
+    // nunca pelo NOME. Lista de exceção por nome é a mesma doença que este
+    // arquivo existe para travar.
+    const divergentes: string[] = [];
+    for (const m of migracoes()) {
+      const registros = registrosNoLivroRazao(sqlExecutavel(join(DIR_MIGRACOES, m)));
+      if (registros.length !== 1) continue;
+      const [{ versao, nome }] = registros;
+      if (versao !== m.slice(0, 14) || nome !== m.slice(15).replace(/\.sql$/, "")) {
+        divergentes.push(`${m} registra ('${versao}', '${nome}')`);
+      }
+    }
+
+    expect(
+      divergentes,
+      "o rodapé não bate com o arquivo — um rename que esqueceu a outra metade",
+    ).toEqual([]);
   });
 
   it("o baseline do inventário vem antes do rename", () => {
