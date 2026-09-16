@@ -50,6 +50,31 @@ interface Desfecho {
   detalhe?: string;
 }
 
+/**
+ * O que a entrega fez, em uma linha do log.
+ *
+ * O desfecho já sai no corpo da resposta — mas o corpo vai para o Chatwoot, e
+ * ninguém daqui o lê. Sem esta linha, uma entrega que chega e não produz lead
+ * aparece no painel da Vercel como um 200 igual a qualquer outro, e a única
+ * forma de saber o que houve é conferir o banco depois e deduzir.
+ *
+ * Só identificador e decisão. Nome e telefone do cliente ficam de fora: log de
+ * PII é PII em lugar que ninguém trata como banco de dados.
+ */
+function registrar(desfecho: Desfecho, tipo: string): void {
+  console.info(
+    "[Chatwoot]",
+    JSON.stringify({
+      evento: tipo,
+      acao: desfecho.acao,
+      conversa: desfecho.conversa ?? null,
+      // Boolean, e não o uuid: o que se quer saber do log é "vinculou ou não".
+      com_lead: Boolean(desfecho.lead),
+      detalhe: desfecho.detalhe ?? null,
+    }),
+  );
+}
+
 function autorizar(request: Request, url: URL): NextResponse | null {
   const segredo = (process.env.CHATWOOT_WEBHOOK_TOKEN || "").trim();
 
@@ -84,6 +109,27 @@ function autorizar(request: Request, url: URL): NextResponse | null {
   if (cabecalho && tokenConfere(cabecalho, `Bearer ${segredo}`)) return null;
   if (tokenConfere(url.searchParams.get("token"), segredo)) return null;
 
+  // Quem tentou e com o quê — nunca o QUÊ.
+  //
+  // Sem esta linha, um 401 no log é mudo: não dá para saber se foi o Chatwoot
+  // com a URL errada ou um teste de linha de comando. Em 2026-09-16 isso custou
+  // meia hora de investigação — a única forma de separar os dois foi reparar
+  // que os 401 estavam espaçados de 15 em 15 segundos, a cadência de um `curl`
+  // em laço. Inferir a origem pela CADÊNCIA é o tipo de coisa que funciona uma
+  // vez e falha na seguinte.
+  //
+  // O que entra: de onde veio e QUAL FORMA de credencial apareceu. O que nunca
+  // entra: o valor recebido, nem parte dele. Log de token é token vazado — e
+  // este viaja em URL, que já é o elo mais fraco por natureza.
+  console.warn(
+    "[Chatwoot] 401 —",
+    JSON.stringify({
+      agente: request.headers.get("User-Agent")?.slice(0, 120) ?? "(sem user-agent)",
+      veio_cabecalho: Boolean(cabecalho),
+      veio_query: url.searchParams.has("token"),
+    }),
+  );
+
   return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 }
 
@@ -109,15 +155,18 @@ export async function POST(request: Request) {
   if (evento.tipo === "ignorado" || !evento.conversaId) {
     // Sai no corpo em vez de morrer calado: é assim que se descobre, olhando a
     // execução, que um evento que deveria contar está sendo descartado.
-    return NextResponse.json({
+    const desfecho: Desfecho = {
       ok: true,
       acao: "ignorado",
       detalhe: evento.motivo ?? "sem id de conversa",
-    } satisfies Desfecho);
+    };
+    registrar(desfecho, evento.tipo);
+    return NextResponse.json(desfecho);
   }
 
   try {
     const desfecho = await aplicar(supabase, evento);
+    registrar(desfecho, evento.tipo);
     return NextResponse.json(desfecho);
   } catch (erro: unknown) {
     // Erro nosso não vira erro do Chatwoot — ver o cabeçalho.
