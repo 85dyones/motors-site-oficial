@@ -188,6 +188,36 @@ describe("as decisões que a rota não pode perder", () => {
     expect(rota).toContain('.is("desfecho", null)');
   });
 
+  /**
+   * Em 2026-09-16 um 401 no log era mudo: não dava para saber se era o Chatwoot
+   * com a URL errada ou um `curl` de teste. A única forma de separar os dois foi
+   * reparar que os 401 vinham de 15 em 15 segundos — a cadência de um laço. Ler
+   * a origem pela CADÊNCIA funciona uma vez e falha na seguinte.
+   */
+  it("o 401 diz quem bateu e que forma de credencial veio", () => {
+    expect(rota).toContain("User-Agent");
+    expect(rota).toContain("veio_cabecalho");
+    expect(rota).toContain("veio_query");
+  });
+
+  it("toda entrega que passa deixa a decisão no log", () => {
+    // O desfecho já vai no corpo — mas o corpo vai para o Chatwoot, e ninguém
+    // daqui o lê. Sem a linha, uma entrega que não produz lead é um 200 igual
+    // a qualquer outro.
+    expect(rota).toContain("registrar(desfecho");
+  });
+
+  /**
+   * A trava que não pode afrouxar nunca: log de token é token vazado, e este
+   * viaja em URL — o elo mais fraco por natureza.
+   */
+  it("nunca escreve o valor do token no log", () => {
+    expect(rota).not.toMatch(/console\.\w+\([^;]*\bsegredo\b/);
+    expect(rota).not.toMatch(/console\.\w+\([^;]*searchParams\.get\(/);
+    // O que se registra é a PRESENÇA da credencial, não o conteúdo.
+    expect(rota).toContain("url.searchParams.has(\"token\")");
+  });
+
   it("solta o vínculo quando o lead da conversa foi encerrado depois", () => {
     // O caminho gêmeo: a conversa é vinculada com o lead aberto, o consultor
     // encerra dias depois, e o cliente volta a escrever NA MESMA conversa.
