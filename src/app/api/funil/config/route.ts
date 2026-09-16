@@ -5,6 +5,7 @@ import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
   chaveDaEtapa,
+  ehEscopoDeMotivo,
   ehTipoDeDesfecho,
   ehTipoDeEtapa,
   ordenarEtapas,
@@ -168,6 +169,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Mesma régua do tipo, pelo mesmo motivo. `escopo` chega do formulário e um
+    // ternário com `else` converteria `avaliacao` em `compra` no dia em que o
+    // valor viesse errado — sem erro, e desfazendo em silêncio a separação que
+    // a coluna existe para criar. Ausente é `ambos`: é o default da coluna, e
+    // motivo criado por uma versão antiga da tela não pode nascer classificado
+    // sem ninguém ter escolhido.
+    const escopoInvalido = motivosRecebidos
+      .filter((m) => String(m?.rotulo ?? "").trim())
+      .find((m) => m.escopo !== undefined && m.escopo !== null && !ehEscopoDeMotivo(m.escopo));
+    if (escopoInvalido) {
+      return NextResponse.json(
+        { error: `Escopo de motivo desconhecido: "${escopoInvalido.escopo}".` },
+        { status: 422 },
+      );
+    }
+
     const motivos: MotivoDoFunil[] = motivosRecebidos
       .filter((m) => String(m?.rotulo ?? "").trim())
       .map((m, i) => ({
@@ -176,6 +193,7 @@ export async function PUT(request: NextRequest) {
         tipo: m.tipo as MotivoDoFunil["tipo"],
         ordem: Number.isFinite(m.ordem) ? Number(m.ordem) : i + 1,
         ativo: m.ativo !== false,
+        escopo: ehEscopoDeMotivo(m.escopo) ? m.escopo : "ambos",
       }));
 
     const agora = new Date().toISOString();

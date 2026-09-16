@@ -5,6 +5,7 @@ import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import {
   ETAPAS_PADRAO,
+  ESCOPOS_DE_MOTIVO,
   TIPOS_DE_DESFECHO,
   agruparPorMotivo,
   ehDescarte,
@@ -14,7 +15,9 @@ import {
   etapasDoQuadro,
   chaveDaEtapa,
   destinatarioDoAviso,
+  ehEscopoDeMotivo,
   emMinutos,
+  escopoDoLead,
   espera,
   etapasVisiveis,
   formatarPrazo,
@@ -22,6 +25,7 @@ import {
   mensagemDeAlerta,
   mensagemParaCliente,
   minutosParado,
+  motivosVisiveis,
   nivelDeEstagnacao,
   numeroDiscavel,
   ordenarEtapas,
@@ -822,5 +826,247 @@ describe("espera", () => {
     expect(espera(new Date(AGORA - 20 * 60_000).toISOString(), AGORA)).toBe("20 min");
     expect(espera(new Date(AGORA - 5 * 3600_000).toISOString(), AGORA)).toBe("5 h");
     expect(espera(new Date(AGORA - 50 * 3600_000).toISOString(), AGORA)).toBe("2 d");
+  });
+});
+
+describe("escopo do motivo — quem quer vender não perde pelos motivos de quem quer comprar", () => {
+  /**
+   * Os canais que o site REALMENTE escreve hoje, colhidos um a um do código:
+   *
+   *   api/avaliacao/route.ts ....... "Avaliação"
+   *   AutoAvaliacao.tsx ............ "Appraisal Chat"
+   *   ContatoClientWrapper.tsx ..... "Formulário Contato"
+   *   LeadPopup.tsx ................ "Lead Popup"
+   *   CarMatch.tsx ................. "Garagem Match Profiler"
+   *   app/test/page.tsx ............ "CarMatch Recommendations"
+   *   PDPClientWrapper.tsx ......... as cinco de `setActiveChannel`
+   *   api/leads/route.ts ........... "N/A" e "site", os dois fallbacks
+   *
+   * É este teste que pega colisão de substring. "WhatsApp Usado na Troca" é o
+   * quase-acerto que justifica a lista existir: é sobre avaliar um usado, mas
+   * o lead quer COMPRAR — e para ele o motivo certo é `avaliacao_do_usado`,
+   * que vive no escopo de compra.
+   */
+  const CANAIS_DE_COMPRA = [
+    "Formulário Contato",
+    "Lead Popup",
+    "Garagem Match Profiler",
+    "CarMatch Recommendations",
+    "WhatsApp Proposta",
+    "WhatsApp Dúvidas",
+    "WhatsApp Usado na Troca",
+    "Agendamento Test-Drive",
+    "Simulação de Financiamento",
+    "N/A",
+    "site",
+  ];
+
+  const CANAIS_DE_AVALIACAO = ["Avaliação", "Appraisal Chat"];
+
+  it.each(CANAIS_DE_COMPRA)("o canal %s é negócio de compra", (canal) => {
+    expect(escopoDoLead(canal)).toBe("compra");
+  });
+
+  it.each(CANAIS_DE_AVALIACAO)("o canal %s é negócio de avaliação", (canal) => {
+    expect(escopoDoLead(canal)).toBe("avaliacao");
+  });
+
+  it("canal ausente ou vazio cai no funil padrão, nunca em exceção", () => {
+    expect(escopoDoLead(null)).toBe("compra");
+    expect(escopoDoLead(undefined)).toBe("compra");
+    expect(escopoDoLead("")).toBe("compra");
+    expect(escopoDoLead("   ")).toBe("compra");
+    expect(escopoDoLead("canal que ninguém escreveu ainda")).toBe("compra");
+  });
+
+  it("reconhece a avaliação escrita de qualquer jeito", () => {
+    // O canal é texto livre no corpo do POST. Acento e caixa não podem
+    // decidir qual lista o vendedor vê.
+    for (const canal of [
+      "AVALIAÇÃO",
+      "avaliacao",
+      "Avaliacao",
+      "  Avaliação  ",
+      "Avaliação WhatsApp",
+      "appraisal chat",
+    ]) {
+      expect(escopoDoLead(canal)).toBe("avaliacao");
+    }
+  });
+
+  it("ehEscopoDeMotivo recusa o desconhecido em vez de converter", () => {
+    expect(ehEscopoDeMotivo("compra")).toBe(true);
+    expect(ehEscopoDeMotivo("avaliacao")).toBe(true);
+    expect(ehEscopoDeMotivo("ambos")).toBe(true);
+    for (const lixo of ["venda", "COMPRA", "Avaliação", "", null, undefined, 1, {}]) {
+      expect(ehEscopoDeMotivo(lixo)).toBe(false);
+    }
+  });
+
+  it("a rota de configuração recusa escopo desconhecido, não converte", () => {
+    const fonte = readFileSync(
+      join(__dirname, "..", "src", "app", "api", "funil", "config", "route.ts"),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+
+    // O guarda tem que ser chamado, e o escopo tem que chegar ao upsert.
+    expect(fonte).toContain("ehEscopoDeMotivo");
+    expect(fonte).toMatch(/escopo:/);
+
+    // E não pode existir ternário de fallback sobre escopo. É exatamente o
+    // defeito que o `funil.ts` já documenta: o `m.tipo === "ganho" ? … : …`
+    // que, no dia em que entrou o terceiro desfecho, converteria todo motivo
+    // de descarte em motivo de perda, sem erro e sem aviso.
+    expect(fonte).not.toMatch(/escopo\s*===\s*["'][a-z]+["']\s*\?/);
+  });
+
+  describe("motivosVisiveis", () => {
+    const m = (
+      chave: string,
+      escopo: "compra" | "avaliacao" | "ambos" | undefined,
+      extra: Partial<MotivoDoFunil> = {},
+    ): MotivoDoFunil => ({
+      chave,
+      rotulo: chave,
+      tipo: "perdido",
+      ordem: 1,
+      ativo: true,
+      ...(escopo ? { escopo } : {}),
+      ...extra,
+    });
+
+    const LISTA: MotivoDoFunil[] = [
+      m("credito_reprovado", "compra"),
+      m("recusou_consignacao", "avaliacao"),
+      m("sem_resposta", "ambos"),
+      m("a_vista", "ambos", { tipo: "ganho" }),
+    ];
+
+    it("esconde de cada lado o que é do outro", () => {
+      const naAvaliacao = motivosVisiveis(LISTA, "perdido", "avaliacao").map((x) => x.chave);
+      expect(naAvaliacao).toEqual(["recusou_consignacao", "sem_resposta"]);
+
+      const naCompra = motivosVisiveis(LISTA, "perdido", "compra").map((x) => x.chave);
+      expect(naCompra).toEqual(["credito_reprovado", "sem_resposta"]);
+    });
+
+    it("continua respeitando o tipo do desfecho", () => {
+      expect(motivosVisiveis(LISTA, "ganho", "avaliacao").map((x) => x.chave)).toEqual(["a_vista"]);
+    });
+
+    it("motivo desativado não volta por causa do escopo", () => {
+      const lista = [m("recusou_consignacao", "avaliacao", { ativo: false })];
+      expect(motivosVisiveis(lista, "perdido", "avaliacao")).toEqual([]);
+    });
+
+    it("ordena por ordem, como a caixa desenha", () => {
+      const lista = [
+        m("segundo", "avaliacao", { ordem: 2 }),
+        m("primeiro", "avaliacao", { ordem: 1 }),
+      ];
+      expect(motivosVisiveis(lista, "perdido", "avaliacao").map((x) => x.chave)).toEqual([
+        "primeiro",
+        "segundo",
+      ]);
+    });
+
+    it("motivo sem escopo vale para os dois — banco não migrado não esvazia a caixa", () => {
+      const lista = [m("legado", undefined)];
+      expect(motivosVisiveis(lista, "perdido", "compra").map((x) => x.chave)).toEqual(["legado"]);
+      expect(motivosVisiveis(lista, "perdido", "avaliacao").map((x) => x.chave)).toEqual(["legado"]);
+    });
+
+    it("lista escopada vazia devolve a lista cheia do tipo, nunca vazia", () => {
+      // Card preso é pior que motivo fora de contexto: a caixa é o único
+      // caminho para tirar o lead do quadro.
+      const soDeCompra = [m("credito_reprovado", "compra"), m("preco", "compra", { ordem: 2 })];
+      expect(motivosVisiveis(soDeCompra, "perdido", "avaliacao").map((x) => x.chave)).toEqual([
+        "credito_reprovado",
+        "preco",
+      ]);
+    });
+
+    it("a queda de segurança não ressuscita desativado nem troca de tipo", () => {
+      const lista = [
+        m("credito_reprovado", "compra"),
+        m("desativado", "compra", { ativo: false }),
+        m("a_vista", "compra", { tipo: "ganho" }),
+      ];
+      expect(motivosVisiveis(lista, "perdido", "avaliacao").map((x) => x.chave)).toEqual([
+        "credito_reprovado",
+      ]);
+    });
+  });
+
+  /**
+   * Asserção de FONTE, no padrão de `turnstile-estabilidade` e
+   * `nomenclatura-estoque`.
+   *
+   * Testar `motivosVisiveis` isolada não prova que a CAIXA a chama — mutar a
+   * função e ver o teste vermelho só prova a função. O ponto de chamada é o
+   * que apodrece: basta alguém reescrever o `useMemo` e o escopo deixa de
+   * valer, sem teste nenhum ficar vermelho.
+   *
+   * O repositório não tem jsdom nem plugin React (`vitest.config.ts` roda em
+   * `environment: "node"` e o `include` nem pega `.tsx`), então montar o
+   * componente exigiria infraestrutura nova. Esta é a prova disponível hoje —
+   * e o dia em que o render existir, este teste vira teste de render.
+   */
+  it("a caixa de desfecho pede a lista a motivosVisiveis, e não filtra por conta própria", () => {
+    const fonte = readFileSync(
+      join(__dirname, "..", "src", "components", "admin", "ModalDeDesfecho.tsx"),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+
+    expect(fonte).toContain("motivosVisiveis(");
+    // Não basta chamar `escopoDoLead` — tem que ler `lead.canal`. Uma
+    // asserção que só procurasse "escopoDoLead(" ficaria verde mesmo se o
+    // campo lido virasse `lead.interesse` por engano: a função ainda seria
+    // chamada, só que com o dado errado, e todo lead voltaria a cair em
+    // `compra` sem nenhum teste acusar.
+    expect(fonte).toContain("escopoDoLead(lead.canal)");
+
+    // O filtro velho não pode ter sobrevivido ao lado do novo: dois caminhos
+    // para a mesma lista é como o escopo volta a ser ignorado em silêncio.
+    expect(fonte).not.toMatch(/m\.tipo\s*===\s*etapa\.tipo/);
+  });
+
+  it("a tela Configurar funil deixa escolher o escopo, e só na coluna Perdido", () => {
+    const fonte = readFileSync(
+      join(__dirname, "..", "src", "components", "admin", "FunilEditor.tsx"),
+      "utf8",
+    ).replace(/\r\n/g, "\n");
+
+    // As três opções escritas como quem opera lê, não como o banco guarda.
+    expect(fonte).toContain("Quem quer comprar");
+    expect(fonte).toContain("Quem quer vender");
+
+    // O seletor é condicional: ganho e descarte são todos `ambos` por decisão
+    // do dono, e um seletor com um valor válido só é ruído na tela.
+    //
+    // `toContain` de string LITERAL, não regex: `/tipo\s*===\s*"perdido"/`
+    // também casa com `e.tipo === "perdido"` de `comoFunciona()`, um trecho
+    // pré-existente e sem relação com o seletor — a regex ficava verde mesmo
+    // com o `<select>` renderizando nas três colunas, a regressão que esta
+    // asserção existe para travar. Âncora na forma exata do guard novo.
+    expect(fonte).toContain('{tipo === "perdido" && (');
+
+    // Motivo novo nasce em `ambos` — a mesma posição segura do default da
+    // coluna. Nascer em `compra` esconderia do funil de avaliação um motivo
+    // que a pessoa acabou de criar.
+    expect(fonte).toMatch(/escopo:\s*"ambos"/);
+
+    // Cada valor de `ESCOPOS_DE_MOTIVO` precisa virar uma <option> na tela —
+    // varrendo a CONSTANTE, e não os três rótulos escritos à mão, porque é
+    // isso que faz a asserção crescer sozinha se o vocabulário crescer. Uma
+    // lista fixa ("compra", "avaliacao", "ambos") continuaria verde no dia em
+    // que um quarto escopo entrasse em `ESCOPOS_DE_MOTIVO` e no CHECK do
+    // banco sem opção nenhuma aqui — o operador veria um valor que o sistema
+    // aceita e a tela não oferece.
+    for (const escopo of ESCOPOS_DE_MOTIVO) {
+      expect(fonte, `falta <option value="${escopo}"> no seletor de escopo`).toContain(
+        `value="${escopo}"`,
+      );
+    }
   });
 });
