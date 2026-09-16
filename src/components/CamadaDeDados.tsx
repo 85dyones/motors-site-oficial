@@ -22,6 +22,19 @@ export default function CamadaDeDados() {
   const ultimoCaminho = useRef<string | null>(null);
 
   useEffect(() => {
+    // A primeira página já foi publicada pelo `BootstrapDeTags`, no parse do
+    // HTML — ele deixa o caminho em `__mtTipoJaPublicado`. Sem esta leitura, a
+    // hidratação repetiria o `page_context` da mesma página, e push COM `event`
+    // aciona gatilho: seria evento duplicado, não redundância inofensiva.
+    //
+    // Só a PRIMEIRA. Navegação client-side do Next muda a URL sem recarregar, e
+    // aí o push tem de sair daqui — é a razão de este componente existir.
+    if (ultimoCaminho.current === null) {
+      const jaPublicado = (window as unknown as { __mtTipoJaPublicado?: string })
+        .__mtTipoJaPublicado;
+      if (jaPublicado) ultimoCaminho.current = jaPublicado;
+    }
+
     if (!pathname || ultimoCaminho.current === pathname) return;
     ultimoCaminho.current = pathname;
 

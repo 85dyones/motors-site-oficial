@@ -1,6 +1,6 @@
 // Os dois módulos abaixo não importam nada — é o que permite lê-los daqui,
 // que roda no navegador, sem arrastar o cliente do Supabase para o bundle.
-import { ehSlugDeFaixa, faixaDoPreco } from "./faixasDePreco";
+import { ehSlugDeFaixa, faixaDoPreco, FAIXAS_DE_PRECO } from "./faixasDePreco";
 import { SEGMENTOS_DE_PDP } from "./veiculoUrl";
 
 /**
@@ -130,6 +130,71 @@ export type TipoDePagina =
  * Errar aqui não quebra nada visível — só produz relatório errado durante
  * semanas —, então precisa ser testável sem navegador.
  */
+/**
+ * O id do GTM, extraído do que o painel gravou.
+ *
+ * O admin aceita tanto o id puro ("GTM-TB665RN9") quanto o snippet inteiro
+ * colado do Google Tag Manager. Isto pega só o id e descarta o resto — o valor
+ * é interpolado DENTRO de um `<script>`, então nada além dele pode entrar.
+ *
+ * Morava em `IntegrationsTracker` até 2026-09-02, sem export. Subiu para cá
+ * quando o `BootstrapDeTags` passou a interpolar o mesmo id no HTML servido:
+ * uma fronteira de segurança com duas cópias é uma fronteira que um dia
+ * diverge, e a que ficar para trás é a que abre o buraco.
+ */
+export function sanitizeGtmId(raw: string): string {
+  const match = raw.match(/GTM-[A-Z0-9]+/i);
+  return match ? match[0].toUpperCase() : "";
+}
+
+/**
+ * O id do GA4 (ou de uma propriedade Ads), pela mesma razão do de cima.
+ *
+ * Nasceu em 2026-09-02. Até então `ga4Id` ia CRU para dentro de
+ * `script.innerHTML` no `IntegrationsTracker` — o campo é de admin, então o
+ * risco era baixo, mas "baixo" não é o mesmo que "fechado", e agora o valor
+ * também entra no HTML que o servidor manda para todo visitante.
+ *
+ * Vocabulário fechado: `G-` (GA4) e `AW-` (Google Ads), letras e dígitos.
+ * Qualquer outra coisa devolve vazio, e sem id o carregador não renderiza.
+ */
+export function sanitizeGa4Id(raw: string): string {
+  const match = (raw || "").trim().match(/^(G|AW)-[A-Z0-9]+$/i);
+  return match ? match[0].toUpperCase() : "";
+}
+
+/**
+ * Caminhos que não são vitrine: painel, áreas de terceiros e autenticação.
+ *
+ * Constante, e não literais dentro da função, porque desde 2026-09-02 a mesma
+ * régua é aplicada em DOIS lugares — aqui e no script que o layout injeta
+ * durante o parse do HTML (`fonteDoTipoDePagina`). Uma lista só, dois
+ * consumidores, e `tests/camada-de-dados.test.ts` prova que concordam.
+ */
+export const SEGMENTOS_INTERNOS = [
+  "admin",
+  "vitrine",
+  "garagem",
+  "investidor",
+  "login",
+  "configuracoes",
+  "definir-senha",
+  "recuperar-senha",
+  "test",
+] as const;
+
+/** Primeiro segmento → tipo, para os casos que não precisam de ramo próprio. */
+export const TIPO_POR_PRIMEIRO_SEGMENTO: Record<string, TipoDePagina> = {
+  destaques: "highlight",
+  avaliacao: "appraisal",
+  financiamento: "financing",
+  "carro-perfeito": "advisor",
+  contato: "contact",
+  sobre: "institutional",
+  privacidade: "institutional",
+  garantia: "institutional",
+};
+
 export function tipoDaPagina(caminho: string): TipoDePagina {
   const limpo = (caminho || "/").split("?")[0].replace(/\/+$/, "") || "/";
   const partes = limpo.split("/").filter(Boolean);
@@ -138,17 +203,7 @@ export function tipoDaPagina(caminho: string): TipoDePagina {
 
   const [primeiro] = partes;
 
-  if (
-    primeiro === "admin" ||
-    primeiro === "vitrine" ||
-    primeiro === "garagem" ||
-    primeiro === "investidor" ||
-    primeiro === "login" ||
-    primeiro === "configuracoes" ||
-    primeiro === "definir-senha" ||
-    primeiro === "recuperar-senha" ||
-    primeiro === "test"
-  ) {
+  if ((SEGMENTOS_INTERNOS as readonly string[]).includes(primeiro)) {
     return "internal";
   }
 
@@ -160,14 +215,9 @@ export function tipoDaPagina(caminho: string): TipoDePagina {
     // é a que traz o outro. Reconhecida pela LISTA, não por padrão de slug.
     return ehSlugDeFaixa(partes[1]) ? "pricerange" : "bodytype";
   }
-  if (primeiro === "destaques") return "highlight";
-  if (primeiro === "avaliacao") return "appraisal";
-  if (primeiro === "financiamento") return "financing";
-  if (primeiro === "carro-perfeito") return "advisor";
-  if (primeiro === "contato") return "contact";
-  if (primeiro === "sobre" || primeiro === "privacidade" || primeiro === "garantia") {
-    return "institutional";
-  }
+  const direto = TIPO_POR_PRIMEIRO_SEGMENTO[primeiro];
+  if (direto) return direto;
+
   if (primeiro.startsWith("seminovos-")) return "geo";
 
   if ((SEGMENTOS_DE_PDP as readonly string[]).includes(primeiro)) {
@@ -179,6 +229,67 @@ export function tipoDaPagina(caminho: string): TipoDePagina {
   }
 
   return "other";
+}
+
+/**
+ * A MESMA régua de `tipoDaPagina`, em JavaScript puro, para o script que o
+ * layout injeta no `<head>`.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que existe uma segunda leitura da mesma regra
+ * ---------------------------------------------------------------------------
+ * Até 2026-09-02 o GA4 e o GTM só entravam no `useEffect` do
+ * `IntegrationsTracker`, isto é, depois da hidratação. Medido em produção na
+ * home: `load` em 2.979 ms e as tags em 3.069 ms. Quem saísse antes dos três
+ * segundos não era medido por ninguém — nem GA4, nem Ads, nem Pixel. Não era o
+ * aceite de cookies que segurava (esse portão caiu em 31/08); era o React.
+ *
+ * A correção é subir o carregador para o HTML servido, onde ele executa
+ * durante o parse. Mas o `page_context` precisa estar no `dataLayer` ANTES do
+ * container — é o que `CamadaDeDados` garante hoje, e é o contrato que o
+ * comentário dela descreve. Como o layout raiz é Server Component e não
+ * conhece o caminho da requisição (o middleware tem matcher estreito, e
+ * alargá-lo custaria overhead em toda visita pública), o tipo tem de ser
+ * calculado no navegador, antes de tudo.
+ *
+ * Daí este gerador. **Ele não repete a regra: a monta a partir das mesmas
+ * constantes** — `SEGMENTOS_INTERNOS`, `TIPO_POR_PRIMEIRO_SEGMENTO`,
+ * `SEGMENTOS_DE_PDP` e os slugs de `FAIXAS_DE_PRECO`. Acrescentar um tipo de
+ * página muda a constante, e os dois lados acompanham.
+ *
+ * O que sobra de duplicado é o ESQUELETO (a ordem dos ramos), e é o que
+ * `tests/camada-de-dados.test.ts` trava: a suíte roda os dois sobre a mesma
+ * tabela de caminhos e falha na primeira divergência.
+ */
+export function fonteDoTipoDePagina(): string {
+  const dados = JSON.stringify({
+    internos: [...SEGMENTOS_INTERNOS],
+    diretos: TIPO_POR_PRIMEIRO_SEGMENTO,
+    pdp: [...SEGMENTOS_DE_PDP],
+    faixas: FAIXAS_DE_PRECO.map((f) => f.slug),
+  });
+
+  return `function(caminho){
+    var D=${dados};
+    var limpo=(caminho||"/").split("?")[0].replace(/\\/+$/,"")||"/";
+    if(limpo==="/")return "home";
+    var partes=limpo.split("/").filter(Boolean);
+    var p=partes[0];
+    if(D.internos.indexOf(p)>-1)return "internal";
+    if(p==="estoque"){
+      if(partes.length===1)return "inventory";
+      return D.faixas.indexOf(partes[1])>-1?"pricerange":"bodytype";
+    }
+    if(D.diretos[p])return D.diretos[p];
+    if(p.indexOf("seminovos-")===0)return "geo";
+    if(D.pdp.indexOf(p)>-1){
+      if(partes.length===2)return "brand";
+      if(partes.length===3)return "model";
+      if(partes.length>=5)return "vehicle_detail";
+      return "other";
+    }
+    return "other";
+  }`;
 }
 
 /** Escreve no `dataLayer`, criando-o se preciso. Nunca lança. */
@@ -231,7 +342,21 @@ export interface CamadaGlobal {
  * olhando**, e esse número alimenta o lance.
  */
 export function pushCamadaGlobal(camada: CamadaGlobal): void {
-  push({
+  push(cargaDaCamadaGlobal(camada));
+}
+
+/**
+ * A carga do `page_context`, separada do envio.
+ *
+ * Existe desde 2026-09-02 porque o script que o layout injeta no `<head>`
+ * precisa empurrar EXATAMENTE esta forma, e o que importa aqui não são os
+ * campos preenchidos — são os `null`. Eles zeram o que ficou da página
+ * anterior, e o comentário do `lead_type` abaixo conta o que custou descobrir
+ * isso. Um segundo lugar montando "quase" esta carga reabriria o mesmo buraco,
+ * então há um lugar só e dois consumidores.
+ */
+export function cargaDaCamadaGlobal(camada: CamadaGlobal): Record<string, ValorDeDataLayer> {
+  return {
     event: "page_context",
     page_type: camada.page_type,
     store_city: "Curitiba",
@@ -252,7 +377,7 @@ export function pushCamadaGlobal(camada: CamadaGlobal): void {
     // mesmo evento, sem nenhum erro visível — e é esse número que o Smart
     // Bidding usa para decidir lance.
     lead_type: null,
-  });
+  };
 }
 
 /**
