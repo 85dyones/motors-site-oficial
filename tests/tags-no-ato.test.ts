@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { lerCodigo } from "./fonte";
 import {
   cargaDaCamadaGlobal,
   fonteDoTipoDePagina,
@@ -28,13 +27,32 @@ import {
  *   2. o container pode entrar DUAS vezes, e evento em dobro envenena lance.
  */
 
-const RAIZ = join(__dirname, "..");
-const ler = (...p: string[]) => readFileSync(join(RAIZ, ...p), "utf-8");
+/**
+ * A oposição do visitante, escrita UMA vez neste arquivo.
+ *
+ * `src/` não exporta constante para ela: a chave vive como literal em
+ * `rastreamentoRecusado` (`lib/telemetry.ts`), no `ControleDeRastreamento` e
+ * dentro do script do `BootstrapDeTags`. O teste não cria uma quarta cópia
+ * solta: declara aqui, usa em todo lugar, e a suíte "a oposição do visitante
+ * continua valendo" amarra estes dois valores à régua de `telemetry.ts`.
+ */
+const CHAVE_DA_OPOSICAO = "ag_cookie_consent";
+const VALOR_DA_OPOSICAO = "rejected";
 
-const bootstrap = ler("src", "components", "BootstrapDeTags.tsx");
-const tracker = ler("src", "components", "IntegrationsTracker.tsx");
-const camada = ler("src", "components", "CamadaDeDados.tsx");
-const layout = ler("src", "app", "layout.tsx");
+/**
+ * Fonte lida SEM comentários, pelo `lerCodigo` de `tests/fonte.ts`.
+ *
+ * A primeira versão lia com `readFileSync`, e duas asserções de ordem deste
+ * arquivo passavam lendo a NOTA, não o código: a primeira ocorrência da chave
+ * da oposição no bootstrap está no docblock, antes de qualquer `gtag/js`, e o primeiro
+ * `<BootstrapDeTags />` do layout está no comentário acima do `<head>`. Mover a
+ * checagem de oposição para depois das tags, ou o bootstrap para dentro do
+ * `<body>`, deixava as duas verdes.
+ */
+const bootstrap = lerCodigo("src/components/BootstrapDeTags.tsx");
+const tracker = lerCodigo("src/components/IntegrationsTracker.tsx");
+const camada = lerCodigo("src/components/CamadaDeDados.tsx");
+const layout = lerCodigo("src/app/layout.tsx");
 
 /** Compila a fonte gerada no mesmo formato em que o navegador a receberia. */
 const tipoNoNavegador: (caminho: string) => string = new Function(
@@ -252,7 +270,7 @@ describe("o script servido, executado contra um DOM de mentira", () => {
       },
     };
     const armazenamento = {
-      getItem: (k: string) => (recusou && k === "ag_cookie_consent" ? "rejected" : null),
+      getItem: (k: string) => (recusou && k === CHAVE_DA_OPOSICAO ? VALOR_DA_OPOSICAO : null),
     };
 
     // `new Function` em vez de `eval`: o escopo fica explícito, e é o mesmo
@@ -354,15 +372,36 @@ describe("o script servido, executado contra um DOM de mentira", () => {
 });
 
 describe("a oposição do visitante continua valendo", () => {
+  it("a chave e o valor deste arquivo são os da régua de `telemetry.ts`", () => {
+    // Sem esta amarra, as constantes do topo poderiam divergir do site e o
+    // resto da suíte seguiria verde, testando uma oposição que não existe.
+    //
+    // Lê o corpo de `rastreamentoRecusado`, e não o arquivo inteiro: a mesma
+    // comparação aparece também em `persistirParametrosDeCampanha`, e uma
+    // régua trocada só na função continuava verde com a leitura do arquivo.
+    const telemetria = lerCodigo("src/lib/telemetry.ts");
+    const inicio = telemetria.indexOf("export function rastreamentoRecusado");
+    expect(inicio, "`rastreamentoRecusado` sumiu de telemetry.ts").toBeGreaterThan(-1);
+    const regua = telemetria.slice(inicio, telemetria.indexOf("\n}", inicio));
+    expect(regua).toContain(
+      `localStorage.getItem("${CHAVE_DA_OPOSICAO}") === "${VALOR_DA_OPOSICAO}"`,
+    );
+  });
+
   it("o bootstrap desiste quando o rastreamento foi recusado", () => {
     // Mesma chave de `rastreamentoRecusado` em `lib/telemetry`. É a ÚNICA
     // barreira desde 31/08 — não há portão de aceite —, então ela não pode
     // ficar para trás quando as tags sobem para o parse.
-    expect(bootstrap).toContain("ag_cookie_consent");
-    expect(bootstrap).toContain("rejected");
-    const i = bootstrap.indexOf("ag_cookie_consent");
-    const j = bootstrap.indexOf("gtag/js");
-    expect(i, "a checagem de oposição tem de vir ANTES de carregar o GA4").toBeLessThan(j);
+    expect(bootstrap).toContain(
+      `localStorage.getItem('${CHAVE_DA_OPOSICAO}')==='${VALOR_DA_OPOSICAO}')return;`,
+    );
+    const i = bootstrap.indexOf(CHAVE_DA_OPOSICAO);
+    expect(i, "a checagem de oposição tem de vir ANTES de carregar o GA4").toBeLessThan(
+      bootstrap.indexOf("gtag/js"),
+    );
+    expect(i, "a checagem de oposição tem de vir ANTES de carregar o GTM").toBeLessThan(
+      bootstrap.indexOf("gtm.js?id="),
+    );
   });
 
   it("o bootstrap entra no <head>, antes do corpo", () => {
