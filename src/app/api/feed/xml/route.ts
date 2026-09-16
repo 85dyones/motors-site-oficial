@@ -6,7 +6,7 @@ import { segmentoDoVeiculo } from '../../../../lib/veiculoUrl';
 import { concordar, generoDeModelo } from '../../../../lib/generoDoVeiculo';
 import { precoEfetivo, temPromocao } from '../../../../lib/precoPromocional';
 import { decidirNoFeed, getDatasDeVenda } from '../../../../lib/publicacao';
-import { alertarFalha } from '../../../../lib/alertaDeFalha';
+import { registrarFalha } from '../../../../lib/observabilidade';
 import { faixaDoPreco } from '../../../../lib/faixasDePreco';
 import {
   CATEGORIA_GOOGLE_POR_SEGMENTO,
@@ -45,9 +45,14 @@ export const dynamic = 'force-dynamic';
 /**
  * Avisa depois de a resposta ir — e nunca derruba o feed por causa do aviso.
  *
+ * O aviso passa pela costura da observabilidade: `registrarFalha("parada")`
+ * é quem manda ao WhatsApp, com a limpeza de PII, e vale com o interruptor
+ * `OBSERVABILIDADE` desligado. Import direto do módulo do alerta reprova em
+ * `tests/fronteira-observabilidade.test.ts`.
+ *
  * Duas armadilhas, nesta ordem:
  *
- * 1. `alertarFalha` sozinho não termina. A resposta deste feed sai antes de o
+ * 1. O aviso sozinho não termina. A resposta deste feed sai antes de o
  *    POST ao webhook resolver, a plataforma congela a instância, e o alerta
  *    morre pela metade. Daí o `after()`, como em `/api/capi`.
  * 2. `after()` **estoura** fora de um escopo de requisição. Em produção sempre
@@ -58,7 +63,7 @@ export const dynamic = 'force-dynamic';
  */
 function avisarDepois(assunto: string, detalhe: string): void {
   try {
-    after(() => alertarFalha(assunto, detalhe));
+    after(() => registrarFalha('parada', assunto, detalhe));
   } catch (erro) {
     console.warn('[XML Feed] alerta "%s" não pôde ser agendado:', assunto, erro);
   }
