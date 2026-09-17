@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
+import { interesseDoLead } from "../../../lib/interesseDoLead";
 
 export const dynamic = "force-dynamic";
 
@@ -167,11 +168,13 @@ export async function POST(request: NextRequest) {
 
       // "Interesse" é o que a pessoa quer, na melhor forma disponível: o
       // veículo da ficha, senão o que ela digitou, senão a busca que fazia.
-      const interesse =
-        (veiculo && [veiculo.marca, veiculo.modelo, veiculo.versao].filter(Boolean).join(" ")) ||
-        body.mensagem ||
-        (intencao_busca && Object.values(intencao_busca).filter(Boolean).join(" · ")) ||
-        null;
+      // O nome do veículo sai pela régua da ficha, sem repetir a versão: ver
+      // `lib/interesseDoLead.ts`.
+      const interesse = interesseDoLead({
+        veiculo,
+        mensagem: body.mensagem,
+        intencaoBusca: intencao_busca,
+      });
 
       const { error: erroLead } = await supabaseAdmin.from("leads").insert({
         nome: cliente.nome,
