@@ -176,17 +176,40 @@ export function segmentarComLinks(
   for (const destino of candidatos) {
     if (destinosDaChamada.has(destino.href)) continue;
 
-    const padrao = new RegExp(`\\b${escaparParaRegex(destino.termo)}\\b`, "i");
-    const achado = padrao.exec(bruto);
-    if (!achado) continue;
-
-    const inicio = achado.index;
-    const fim = inicio + achado[0].length;
-
-    // Um trecho já reivindicado por um termo mais longo não é reivindicado de
-    // novo — é o que impede link dentro de link.
-    const colide = ocorrencias.some((o) => inicio < o.fim && fim > o.inicio);
-    if (colide) continue;
+    /*
+     * A PRIMEIRA ocorrência LIVRE, não a primeira ocorrência.
+     *
+     * Até 17/09/2026 isto era um `exec` só: se a primeira ocorrência caísse
+     * dentro de um termo mais longo, o termo perdia o link naquele texto
+     * inteiro, mesmo aparecendo solto três linhas abaixo. Enquanto os termos
+     * eram quatro e nenhum era parte do outro, o caso não existia — e havia
+     * uma trava proibindo que existisse.
+     *
+     * Ele passou a existir com a Onda 1: o título "Laudo cautelar: o que
+     * verifica e o que não verifica" contém "laudo cautelar", que leva a
+     * `/garantia`. Proibir a sobreposição custaria a âncora descritiva que a
+     * R7 do pacote pede; resolver a sobreposição não custa nada. O laço anda
+     * pelas ocorrências e para na primeira que não colide — link dentro de
+     * link continua impossível, e o termo curto continua linkando onde ele
+     * aparece sozinho.
+     */
+    const padrao = new RegExp(`\\b${escaparParaRegex(destino.termo)}\\b`, "gi");
+    let achado: RegExpExecArray | null;
+    let inicio = -1;
+    let fim = -1;
+    while ((achado = padrao.exec(bruto)) !== null) {
+      const i = achado.index;
+      const f = i + achado[0].length;
+      if (!ocorrencias.some((o) => i < o.fim && f > o.inicio)) {
+        inicio = i;
+        fim = f;
+        break;
+      }
+      // Termo vazio nunca acontece aqui (a lista não aceita), mas um `lastIndex`
+      // parado seria laço infinito — e isso é barato de impedir.
+      if (padrao.lastIndex === i) padrao.lastIndex = i + 1;
+    }
+    if (inicio < 0) continue;
 
     ocorrencias.push({ inicio, fim, href: destino.href });
     destinosDaChamada.add(destino.href);

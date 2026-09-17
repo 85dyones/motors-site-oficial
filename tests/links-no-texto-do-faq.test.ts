@@ -136,16 +136,38 @@ describe("a lista de termos", () => {
     }
   });
 
-  it("nenhum termo é substring de outro com destino diferente", () => {
-    for (const a of TERMOS_COM_DESTINO) {
-      for (const b of TERMOS_COM_DESTINO) {
-        if (a === b || a.href === b.href) continue;
-        expect(
-          a.termo.toLowerCase().includes(b.termo.toLowerCase()),
-          `"${b.termo}" dentro de "${a.termo}" com destinos diferentes`,
-        ).toBe(false);
-      }
-    }
+  /**
+   * Um termo PODE conter outro com destino diferente — desde 17/09/2026.
+   *
+   * A regra antiga proibia. Ela protegia um defeito real da segmentação: o
+   * casamento olhava só a PRIMEIRA ocorrência, e se ela caísse dentro de um
+   * termo mais longo o termo curto perdia o link no texto inteiro. Com quatro
+   * termos, nenhum dentro do outro, a proibição não custava nada.
+   *
+   * A Onda 1 mudou a conta: "Laudo cautelar: o que verifica e o que não
+   * verifica" é o título da peça, e contém "laudo cautelar", que leva a
+   * `/garantia`. Trocar a âncora por uma que não contivesse o termo custaria a
+   * âncora descritiva (R7 do pacote). O conserto foi na segmentação, que agora
+   * anda até a primeira ocorrência LIVRE — e o que este bloco trava é o
+   * comportamento resultante, que é o que importa.
+   */
+  it("termo dentro de termo: o mais longo fica com a citação, o curto linka onde aparece sozinho", () => {
+    const resposta =
+      "Leia Laudo cautelar: o que verifica e o que não verifica antes de decidir. " +
+      "O laudo cautelar fica com o vendedor.";
+
+    expect(destinos(segmentarComLinks(resposta))).toEqual([
+      "/guias/laudo-cautelar-carro-usado",
+      "/garantia",
+    ]);
+    expect(texto(segmentarComLinks(resposta))).toBe(resposta);
+  });
+
+  it("sem ocorrência livre, o termo curto não vira link dentro do link", () => {
+    const resposta = "Leia Laudo cautelar: o que verifica e o que não verifica.";
+
+    expect(destinos(segmentarComLinks(resposta))).toEqual(["/guias/laudo-cautelar-carro-usado"]);
+    expect(texto(segmentarComLinks(resposta))).toBe(resposta);
   });
 });
 
