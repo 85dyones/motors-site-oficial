@@ -125,7 +125,7 @@ export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "Carbonização de válvulas em injeção direta", href: "/guias/carbonizacao-valvulas-injecao-direta" },
   { termo: "Câmbio de dupla embreagem em carro usado: o que checar", href: "/guias/cambio-dupla-embreagem-usado" },
   /* Cortado antes dos dois-pontos, pelo mesmo motivo que "Meu carro reprovou
-     no laudo cautelar": o  de JS é ASCII, e um termo terminado em "é" nunca
+     no laudo cautelar": o \b de JS é ASCII, e um termo terminado em "é" nunca
      casa — nem consigo mesmo. Como o corte cobre também a menção avulsa, este
      é o único termo desta peça. */
   { termo: "Vício oculto em carro usado", href: "/guias/vicio-oculto-carro-usado" },
