@@ -488,13 +488,21 @@ function parametros(guia) {
   ];
 }
 
+/** O estado do guia que não é da Onda 1, para comparar antes e depois. */
+async function estadoDoIntocavel(cliente) {
+  const { rows } = await cliente.query(`select estado from public.guias where slug = $1`, [
+    SLUG_INTOCAVEL,
+  ]);
+  return rows.length > 0 ? rows[0].estado : null;
+}
+
 /**
  * As conferências que só o banco responde — as mesmas no ensaio e na gravação.
  *
  * A que mais importa é a leitura como `anon`: é a única coisa entre um
  * rascunho e a internet, e é o que a migração persegue no aceite dela.
  */
-async function conferirNoBanco(cliente, slugs) {
+async function conferirNoBanco(cliente, slugs, estadoAntesDoIntocavel) {
   const problemas = [];
 
   const { rows: gravados } = await cliente.query(
@@ -523,12 +531,14 @@ async function conferirNoBanco(cliente, slugs) {
     problemas.push(`o visitante anônimo enxerga ${comoAnon[0].vistos} de ${slugs.length} — a RLS não entregaria as peças.`);
   }
 
-  const { rows: intocado } = await cliente.query(
-    `select estado from public.guias where slug = $1`,
-    [SLUG_INTOCAVEL],
-  );
-  if (intocado.length > 0 && intocado[0].estado !== "rascunho") {
-    problemas.push(`${SLUG_INTOCAVEL} saiu de rascunho — o lote não deveria ter tocado nele.`);
+  // Compara com o estado do começo da transação, e não com "rascunho": o dono
+  // pode publicar aquele guia um dia, e uma asserção presa em "rascunho"
+  // transformaria a decisão dele em falha da gravação deste lote.
+  const intocado = await estadoDoIntocavel(cliente);
+  if (intocado !== estadoAntesDoIntocavel) {
+    problemas.push(
+      `${SLUG_INTOCAVEL} mudou de "${estadoAntesDoIntocavel}" para "${intocado}" — o lote não toca nele.`,
+    );
   }
 
   return { problemas, gravados };
@@ -545,10 +555,11 @@ async function ensaiar(url, guias) {
       [slugs],
     );
     console.log(`  já existiam no banco: ${antes.length ? antes.map((r) => r.slug).join(", ") : "nenhum"}`);
+    const intocavelAntes = await estadoDoIntocavel(cliente);
 
     for (const guia of guias) await cliente.query(SQL_UPSERT, parametros(guia));
 
-    const { problemas, gravados } = await conferirNoBanco(cliente, slugs);
+    const { problemas, gravados } = await conferirNoBanco(cliente, slugs, intocavelAntes);
     console.log(`  upsert de ${gravados.length} linha(s), lidas como anônimo e conferidas`);
 
     // O ensaio do --reverter: sem isso, a volta só seria testada no dia em que
@@ -600,8 +611,9 @@ async function gravar(url, guias) {
     console.log(`backup de ${existentes.length} linha(s) existente(s): ${backup}`);
 
     await cliente.query("begin");
+    const intocavelAntes = await estadoDoIntocavel(cliente);
     for (const guia of guias) await cliente.query(SQL_UPSERT, parametros(guia));
-    const { problemas } = await conferirNoBanco(cliente, slugs);
+    const { problemas } = await conferirNoBanco(cliente, slugs, intocavelAntes);
     if (problemas.length > 0) {
       await cliente.query("rollback");
       return problemas;
