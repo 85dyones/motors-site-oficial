@@ -119,7 +119,7 @@ window.fbq("track", "ViewContent", {
 const metaPixelId = companySettings?.metaPixelId || "";
 ```
 
-O GA4 tem fallback fixo (`G-CZ4B4RYF61`), o Meta não. Se `companySettings.metaPixelId` estiver vazio no Supabase, **o pixel simplesmente não inicializa**.
+Nenhum dos dois tem padrão escrito no código. O `ga4Id` vem das configurações, e o `lib/companySettings.json` (o que vale no primeiro render, antes de `/api/settings` responder) traz `G-KBL1MFN9E3`, o da produção. O `G-CZ4B4RYF61` que já foi padrão fixo aqui mandava os eventos para uma propriedade que ninguém abre, e saiu (ver o comentário do `ga4Id` no `IntegrationsTracker`). O Meta não tem padrão nenhum: o JSON traz `metaPixelId` vazio. Se `companySettings.metaPixelId` estiver vazio no Supabase, **o pixel simplesmente não inicializa**.
 
 **Ação:** confirmar que `site_settings` contém `metaPixelId = "1410450786690090"`. Adicionar um `console.warn` explícito quando estiver vazio, para não falhar em silêncio.
 
