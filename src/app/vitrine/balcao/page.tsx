@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import VitrineBalcao from "../../../components/modernist/VitrineBalcao";
 import { getEstoque } from "../../../lib/supabase";
+import { disponiveisDe } from "../../../lib/regrasEstoque";
 import { getCachedSettings } from "../../../lib/settings";
 import DEFAULT_COMPANY_SETTINGS from "../../../lib/companySettings.json";
 import { linkWhatsApp } from "../../../lib/whatsapp";
@@ -23,7 +24,7 @@ export default async function VitrineBalcaoPage() {
   const empresa = settings.companySettings ?? DEFAULT_COMPANY_SETTINGS;
 
   // O estoque inteiro, não uma seleção: no balcão o cliente pagina até o fim.
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
 
   const whatsappHref = linkWhatsApp(empresa);
 

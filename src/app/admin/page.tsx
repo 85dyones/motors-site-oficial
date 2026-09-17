@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import { getEstoque } from "../../lib/supabase";
+import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { resumoDeVisitas } from "../../lib/analytics";
 
@@ -68,7 +69,7 @@ export default async function AdminVisaoGeralPage() {
     .order("created_at", { ascending: false })
     .limit(6);
 
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
   const vendidos = estoque.length - disponiveis.length;
 
   // Overrides gravados só no JSON: o sintoma do bug corrigido em 2026-08-07.

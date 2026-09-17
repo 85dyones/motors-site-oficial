@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SobreClientWrapper from "../../components/SobreClientWrapper";
 import { getEstoque } from "../../lib/supabase";
+import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { blocoJsonLd } from "../../lib/schemaListagem";
 import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
@@ -57,7 +58,7 @@ export default async function SobrePage() {
     getEstoque(),
     getCachedSettings(),
   ]);
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
   const totalEstoque = disponiveis.length;
 
   /**

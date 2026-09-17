@@ -35,6 +35,28 @@ export function precoVigente(car: Pick<Veiculo, "preco_original" | "preco_promoc
 }
 
 /**
+ * Só o que está à venda, na ordem em que o estoque veio.
+ *
+ * A regra de "à venda" mora aqui, e só aqui. Medido no `main` em 2026-09-17
+ * (`beabce7`): além da própria definição, em `hubsDeEstoque.ts`, ela estava
+ * reescrita em 12 pontos — `.filter((v) => !v.vendido)` 11 vezes em 9
+ * arquivos, e uma condição composta em `similares.ts`. Eram iguais entre si,
+ * e é por isso que ninguém notava: no dia em que "à venda" mudar, a mudança
+ * chegaria a um lugar só, e a vitrine, o sitemap e o assistente passariam a
+ * discordar sobre o mesmo carro.
+ *
+ * Mora em `regrasEstoque`, e não em `hubsDeEstoque`, porque o `CarMatch`
+ * roda no cliente e também filtra o estoque: este arquivo só importa tipos, e
+ * `hubsDeEstoque` arrasta o Supabase.
+ *
+ * Genérica no tipo, como `precoVigente` aceita um recorte: devolve a lista
+ * com o mesmo tipo que recebeu.
+ */
+export function disponiveisDe<T extends Pick<Veiculo, "vendido">>(lista: readonly T[]): T[] {
+  return lista.filter((v) => !v.vendido);
+}
+
+/**
  * As condições da regra, nas duas formas em que ela existe.
  *
  * ---------------------------------------------------------------------------
