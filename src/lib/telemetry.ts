@@ -368,10 +368,39 @@ function apagarCookieEmTodoDominio(nome: string): void {
 }
 
 /**
- * Apaga deste navegador os dois cookies de anúncio do Meta, `_fbp` e `_fbc`,
- * na cópia de host e na de domínio. Chamam: o botão de oposição, em
+ * Os cookies do Google Ads que guardam identificador de anúncio, apagados sempre.
+ *
+ * `_gcl_aw` guarda o `gclid` do clique; `_gcl_gb`, o `gbraid`; `_gcl_dc`, o
+ * clique do Campaign Manager; `_gcl_au` é o identificador do vinculador de
+ * conversões. Todos são gravados pela tag do Google no domínio do site. Além
+ * desta lista, `cookiesDoGoogleAds` apaga qualquer outro `_gcl_*` que estiver
+ * no navegador: o prefixo é do vinculador, e um nome novo não pode escapar.
+ */
+export const COOKIES_DO_GOOGLE_ADS = ["_gcl_au", "_gcl_aw", "_gcl_dc", "_gcl_gb"] as const;
+
+/** A lista fixa, mais os `_gcl_*` presentes agora, sem repetir. */
+function cookiesDoGoogleAds(): string[] {
+  const presentes =
+    typeof document === "undefined"
+      ? []
+      : document.cookie
+          .split(";")
+          .map((par) => par.trim().split("=")[0])
+          .filter((nome) => nome.startsWith("_gcl_"));
+  return Array.from(new Set<string>([...COOKIES_DO_GOOGLE_ADS, ...presentes]));
+}
+
+/**
+ * Apaga deste navegador os cookies de anúncio: os dois do Meta, `_fbp` e
+ * `_fbc`, e os do Google Ads (`_gcl_*`, ver `COOKIES_DO_GOOGLE_ADS`), na cópia
+ * de host e na de domínio. Chamam: o botão de oposição, em
  * `ControleDeRastreamento`, no clique que grava a recusa; e
  * `persistirParametrosDeCampanha`, a cada carga de quem recusou.
+ *
+ * Os do Google entraram em 17/09/2026, por decisão do dono. A /privacidade diz
+ * que a oposição "apaga na hora os identificadores de campanha guardados", e
+ * até aqui o `gclid` sobrevivia no `_gcl_aw`. Para quem não se opôs nada muda:
+ * esta função só roda depois da recusa.
  *
  * `tests/oposicao-cookies-de-dominio.test.ts` trava as escritas de cada host,
  * a raiz incluída, e prova com cookie de verdade, num subdomínio, que a cópia
@@ -381,6 +410,7 @@ function apagarCookieEmTodoDominio(nome: string): void {
 export function descartarCookiesDeAnuncio(): void {
   apagarCookieEmTodoDominio("_fbp");
   apagarCookieEmTodoDominio("_fbc");
+  for (const nome of cookiesDoGoogleAds()) apagarCookieEmTodoDominio(nome);
 }
 
 /**
