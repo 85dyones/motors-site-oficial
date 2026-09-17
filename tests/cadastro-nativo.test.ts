@@ -244,16 +244,31 @@ describe("o cadastro não escreve o que o banco infere", () => {
     expect(naoPodeENemTemDados.status).toBe(403);
   });
 
-  it("a lista de proibidos cobre as cinco colunas que os triggers decidem", () => {
+  it("a lista de proibidos: cinco colunas que os triggers decidem, mais as três de foto", () => {
+    // Lista fechada de propósito — acrescentar exige decidir, e decidir exige
+    // escrever aqui o porquê.
+    //
     // `estado_cadastro` entrou em 2026-08-30 (migração F0-q): o trigger de
     // INSERT o força a `rascunho`, importado ou cadastrado, e a rota não tenta
     // negociar. Ver `tests/rascunho-e-publicacao.test.ts`, trava 1.
+    //
+    // As três de foto entraram em 2026-09-02, e por motivo diferente dos cinco
+    // primeiros: não é o banco que decide, é que a rota não tem como validar.
+    // Enquanto foto exigia `origem = 'painel'`, esta rota as descartava sozinha
+    // (chama `extrairCamposNossos` sem origem); ao abrir a galeria para toda
+    // origem na F0.5, o INSERT passou a aceitar array de foto do corpo, sem
+    // conferir forma nem host. Quatro strings quaisquer satisfazem
+    // `MINIMO_DE_FOTOS`. Foto entra pela galeria, depois do nascimento, onde
+    // `validarFoto` e o Storage conferem tipo e tamanho.
     expect([...CAMPOS_QUE_A_ROTA_NUNCA_ESCREVE].sort()).toEqual([
       "estado_cadastro",
       "first_seen_at",
       "id",
       "last_seen_at",
       "origem",
+      "url_imagem",
+      "web_full_images",
+      "whatsapp_images",
     ]);
   });
 
@@ -271,16 +286,19 @@ describe("o cadastro não escreve o que o banco infere", () => {
     expect(codigo).not.toMatch(/update\([\s\S]{0,120}origem/);
   });
 
-  it("o formulário não cita `last_seen_at`, e só fala de origem para exibir pendência", () => {
+  it("o formulário não cita `last_seen_at` nem `origem` — nenhum dos dois é dele", () => {
     const codigo = semComentarios(formulario);
     expect(codigo).not.toContain("last_seen_at");
-    // `origem: "painel"` entra em `bloqueiosDePublicacao` para o texto da
-    // pendência dizer "suba as fotos pelo painel" em vez de mandar esperar um
-    // feed que nunca virá. Nenhuma outra menção é legítima.
-    const todas = codigo.match(/origem/g) ?? [];
-    const naPendencia = codigo.match(/origem: "painel"/g) ?? [];
-    expect(todas.length).toBe(naPendencia.length);
-    expect(naPendencia.length).toBeGreaterThan(0);
+    // A régua ficou mais simples em 01/09. Antes, `origem: "painel"` era uma
+    // menção legítima: ela ia para `bloqueiosDePublicacao` escolher o texto da
+    // pendência de fotos. Com a galeria aberta a toda origem, a pendência tem
+    // uma frase só e o parâmetro saiu da assinatura — então o formulário não
+    // tem mais nenhum motivo para falar de origem.
+    //
+    // O que este teste sempre protegeu continua de pé: quem decide a origem é
+    // o trigger, pela faixa do id. Formulário que a escrevesse mentiria para o
+    // banco, e a linha nasceria como "painel" sem ser.
+    expect(codigo).not.toMatch(/origem/);
   });
 
   it("o contrato do banco continua o que este teste pressupõe", () => {

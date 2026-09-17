@@ -15,6 +15,7 @@ import {
   Seta,
 } from "../components/modernist/primitivos";
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
+import { disponiveisDe } from "../lib/regrasEstoque";
 import { contarMarcas } from "../lib/estatisticasEstoque";
 import { getCachedSettings } from "../lib/settings";
 import { montarCompartilhamento } from "../lib/compartilhamento";
@@ -81,7 +82,7 @@ export async function generateMetadata(): Promise<Metadata> {
       pagina: "home",
       tituloPadrao: tabTitle || "Motors Store | Seminovos Selecionados em Curitiba",
       descricaoPadrao:
-        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo na ficha assim que aprovado, preço no anúncio.",
+        "De cada dez veículos avaliados, três entram. Perícia cautelar independente, laudo disponível com o vendedor, preço no anúncio.",
       caminho: "/",
     }),
   };
@@ -120,7 +121,7 @@ export default async function Home() {
   const publicacoesInstagram = normalizarCuradoria(settings.instagramCuradoria);
   const configDasAreas = normalizarAreas(settings.areasHome);
 
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
   const total = disponiveis.length;
 
   const quickTags = normalizarQuickTags(settings.quickTags);

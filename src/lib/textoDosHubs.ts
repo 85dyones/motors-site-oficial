@@ -11,6 +11,8 @@ import {
   usado,
   type Genero,
 } from "./generoDoVeiculo";
+// A ponte para o guia do laudo é a mesma frase da ficha — ver o docblock lá.
+import { TEXTO_PONTE_DO_GUIA } from "./textoDoLaudo";
 
 /**
  * O texto das páginas perenes — escrito a partir do estoque, não de molde.
@@ -101,12 +103,21 @@ function enumerar(itens: string[]): string {
   return `${limpos.slice(0, -1).join(", ")} e ${limpos[limpos.length - 1]}`;
 }
 
-/** O parágrafo que toda página perene fecha — a única afirmação que ninguém copia. */
+/**
+ * O parágrafo que toda página perene fecha — a única afirmação que ninguém copia.
+ *
+ * Até 17/09/2026 dizia que o laudo ficava na ficha "assim que a perícia é
+ * aprovada", nos 72 hubs sem texto editado, e contradizia a pergunta frequente
+ * da mesma página. Decisão do dono em 16/09/2026: o laudo fica com o vendedor,
+ * aprovada ou não (`textoDoLaudo.ts`). A trava de `coerencia-da-pericia` não
+ * pegava a frase porque ela atravessava uma concatenação de template literal
+ * com string, e porque "fica na ficha" não estava no padrão.
+ */
 function paragrafoDaSelecao(genero: Genero = "m"): string {
   return (
     "Todo veículo que entra passa por perícia cautelar independente antes de ir para a " +
-    `vitrine: de cada dez ${avaliados(genero)}, três entram. O laudo fica na ficha do carro assim ` +
-    "que a perícia é aprovada, o preço " +
+    `vitrine: de cada dez ${avaliados(genero)}, três entram. O laudo está disponível para consulta ` +
+    "com o vendedor, o preço " +
     `está no anúncio e o showroom fica no ${BAIRRO_DA_LOJA}, em ${CIDADE_DA_LOJA} — dá para ` +
     "ver o carro, dirigir e conferir a documentação no mesmo dia."
   );
@@ -423,7 +434,7 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
         "Pode valer, desde que o histórico acompanhe. Veículo de frota costuma ter manutenção " +
         "registrada e rodar mais quilômetro por ano que o de pessoa física — o que importa é se as " +
         "revisões seguiram a quilometragem. Todo veículo aqui passa por perícia cautelar " +
-        "independente antes de ser anunciado, e o laudo fica na ficha assim que aprovado.",
+        "independente antes de ser anunciado, e o laudo está disponível para consulta com o vendedor.",
     },
   ],
 
@@ -552,15 +563,27 @@ export function perguntasDeCategoria(
     ...especificas,
     {
       pergunta: `${O(genero, true)} ${rotulo} da Motors Store têm laudo cautelar?`,
-      /* "assim que a perícia é aprovada", e não "na ficha" seco: a ficha só
-         abre o bloco do laudo com a perícia APROVADA
-         (`PDPClientWrapper.tsx`), e em 2026-09-03 dezessete dos trinta e seis
-         veículos publicados estavam "EM ANÁLISE". A resposta antiga prometia,
-         para metade da vitrine, uma coisa que a ficha não entregava — e é a
-         resposta que um assistente de IA cita como se fosse a loja falando. */
+      /* Ver o comentário gêmeo em `paginasInstitucionais.ts`. A ficha só abre
+         o bloco do laudo com a perícia APROVADA (`PDPClientWrapper.tsx`), e
+         em 2026-09-03 dezessete dos trinta e seis veículos publicados
+         estavam "EM ANÁLISE" — "assim que a perícia é aprovada" ainda
+         prometia, para metade da vitrine, uma publicação automática que a
+         ficha não cobre sozinha (falta também o texto do laudo). Decisão do
+         dono em 16/09/2026: o caminho passou a ser um só em todo o site,
+         aprovada ou não — o laudo fica com o vendedor, e é ele quem confirma.
+         É a resposta que um assistente de IA cita como se fosse a loja
+         falando. */
+      /* A última frase é a ponte para a peça pilar da Onda 1, e é a MESMA de
+         `textoDoLaudo.ts` — uma verdade só sobre a perícia, em todas as
+         superfícies. Ela vale link em 107 hubs (medido no sitemap de 17/09:
+         20 de marca, 71 de modelo, 16 recortes), porque este bloco de
+         perguntas é renderizado em todos eles. O link não é escrito aqui: a
+         string vai inteira para o `FAQPage` do JSON-LD, e quem transforma a
+         citação em âncora é `segmentarComLinks`, no render. */
       resposta:
-        "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, e o laudo fica disponível " +
-        "na ficha do carro assim que a perícia é aprovada. É o mesmo exame para qualquer faixa de preço.",
+        "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, e o laudo está disponível " +
+        "para consulta com o vendedor. É o mesmo exame para qualquer faixa de preço. " +
+        TEXTO_PONTE_DO_GUIA,
     },
     {
       pergunta: "Vocês aceitam meu carro usado na troca?",

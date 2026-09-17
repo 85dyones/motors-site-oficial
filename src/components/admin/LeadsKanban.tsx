@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AVISO_DE_REF_INVALIDA,
   SEM_DONO,
+  criarMover,
   filtrarPorResponsavel,
   iniciais,
+  normalizarRef,
   opcoesDeResponsavel,
+  resumoDaBusca,
 } from "../../lib/leadsKanban";
 import {
   ETAPAS_PADRAO,
@@ -85,6 +89,22 @@ import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
  * significa — mas ganha uma lista própria, com o motivo, a observação e um
  * caminho de volta. Card que desaparece sem deixar endereço é a falha muda que
  * este projeto persegue desde o primeiro dia.
+ *
+ * ---------------------------------------------------------------------------
+ * 2026-09-17 — a busca pela referência da mensagem
+ * ---------------------------------------------------------------------------
+ * O "(Ref: 0DCB1CDC)" do fim da mensagem de WhatsApp passa a ter onde ser
+ * procurado. A regra mora em `lib/leadsKanban` (`normalizarRef`,
+ * `resumoDaBusca`) e na rota; aqui ficam três cuidados de tela, cada um contra
+ * um jeito de o lead achado parecer não achado:
+ *
+ * - o campo mora FORA do ramo que some quando não há lead — senão a busca
+ *   vazia apagaria o próprio campo, e não haveria como desfazê-la;
+ * - o que a tela diz vem do que o SERVIDOR confirmou (`refNaTela`), e não do
+ *   que ela pediu: "nenhum lead ainda" é verdade para a fila vazia e mentira
+ *   para a busca vazia;
+ * - buscar limpa os filtros de responsável e de parados, que foram escolhidos
+ *   para a fila e esconderiam justamente o lead procurado.
  */
 
 interface Lead extends LeadDoFunil {
@@ -96,6 +116,9 @@ interface Lead extends LeadDoFunil {
   /** `created_at`, não `criado_em`: a tabela é preexistente e já usava esse
    *  nome — ver a nota na migração 20260807210000. */
   created_at: string;
+  /** O rastreio do visitante. Gravado por `/api/leads` desde 2026-09-02; nulo
+   *  antes disso e em quem chegou sem rastreio. */
+  ag_uid?: string | null;
 }
 
 /** Telefone só com dígitos → (41) 99999-9999. */
@@ -135,6 +158,16 @@ export default function LeadsKanban() {
 
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
   const [soParados, setSoParados] = useState(false);
+
+  // ── a busca pela referência ───────────────────────────────────────────
+  // Três estados, e não um, porque respondem a perguntas diferentes:
+  /** O que está escrito no campo — o código, o UUID ou a mensagem inteira. */
+  const [refDigitada, setRefDigitada] = useState("");
+  /** O que a tela PEDIU ao servidor; `null` é a fila. É o que `carregar` lê. */
+  const [refPedida, setRefPedida] = useState<string | null>(null);
+  /** O que o servidor CONFIRMOU: o que os `leads` na tela são. É o que ela diz. */
+  const [refNaTela, setRefNaTela] = useState<string | null>(null);
+
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<string | null>(null);
   const [anotando, setAnotando] = useState<string | null>(null);
@@ -156,11 +189,24 @@ export default function LeadsKanban() {
     return () => clearInterval(t);
   }, []);
 
+  /**
+   * Lê a fila — ou, com `refPedida`, a busca. Sem parâmetro de propósito.
+   *
+   * Quem chama é o botão Atualizar (`onClick={carregar}`), a falha de gravação
+   * e o efeito de montagem, e os três querem a mesma coisa: recarregar o que
+   * está pedido. Um parâmetro aqui receberia, do `onClick`, o `MouseEvent` —
+   * e a URL sairia com `ref=[object Object]`, que foi exatamente o defeito que
+   * a primeira versão desta busca (26/08) achou no próprio botão.
+   */
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro("");
     try {
-      const res = await fetch("/api/leads/gerenciar");
+      const res = await fetch(
+        refPedida
+          ? `/api/leads/gerenciar?ref=${encodeURIComponent(refPedida)}`
+          : "/api/leads/gerenciar",
+      );
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Falha ao carregar leads");
       if (d.migracaoPendente) {
@@ -169,6 +215,9 @@ export default function LeadsKanban() {
         setAgregado({ total: d.total, porSituacao: d.porSituacao });
       } else {
         setLeads(d.leads ?? []);
+        // Junto com os leads, e só quando eles chegam: se a busca falhar, a
+        // tela continua mostrando — e dizendo — o que mostrava antes.
+        setRefNaTela(d.busca?.ref ?? null);
         setAtendentes((d.atendentes ?? []).map((a: { nome: string }) => a.nome));
         // Sem `funil_etapas` no banco, o funil de sempre. Uma tela sem coluna
         // nenhuma faria os leads sumirem — ausência sem erro, de novo não.
@@ -181,11 +230,47 @@ export default function LeadsKanban() {
     } finally {
       setCarregando(false);
     }
-  }, []);
+  }, [refPedida]);
 
+  // Roda na montagem e a cada `refPedida` nova — é assim que buscar e voltar
+  // para a fila disparam a leitura.
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  /**
+   * Pede uma referência, ou a fila com `null`.
+   *
+   * Pedir de novo o que já está pedido não muda estado nenhum — e sem mudança
+   * o efeito acima não roda. Por isso o mesmo pedido chama `carregar` direto:
+   * quem clica Buscar outra vez espera buscar outra vez, e o lead que não
+   * existia há um minuto pode ter acabado de chegar.
+   */
+  const pedir = useCallback(
+    (ref: string | null) => {
+      if (ref === refPedida) carregar();
+      else setRefPedida(ref);
+    },
+    [refPedida, carregar],
+  );
+
+  const buscarPorRef = () => {
+    const ref = normalizarRef(refDigitada);
+    if (!ref) {
+      // Recusa na tela, sem viagem: "nenhum lead com a referência 0DCB" faria o
+      // atendente achar que o lead não existe, quando faltam quatro letras.
+      setErro(AVISO_DE_REF_INVALIDA);
+      return;
+    }
+    setFiltroResponsavel("");
+    setSoParados(false);
+    pedir(ref);
+  };
+
+  const voltarParaFila = () => {
+    setRefDigitada("");
+    pedir(null);
+  };
 
   /**
    * Grava um campo do lead. Otimista: a tela reage na hora e recarrega do
@@ -236,20 +321,24 @@ export default function LeadsKanban() {
   );
 
   /**
-   * Move o card. Se o destino é etapa terminal, a caixa de motivos entra na
-   * frente — o card só chega lá com um "por quê" junto.
+   * Move o card. Se o destino é etapa terminal — ganho, perdido OU descarte —,
+   * a caixa de motivos entra na frente: o card só chega lá com um "por quê".
+   *
+   * A decisão inteira mora em `criarMover` (`lib/leadsKanban`), e o que sobra
+   * aqui é a fiação: quem são as etapas, quem são os leads, o que é "pedir
+   * motivo" nesta tela e o que é "gravar". Ela saiu daqui porque dentro do
+   * componente só podia ser testada LENDO o arquivo — e foi uma lista escrita
+   * aqui, `ganho || perdido`, que deixou todo descarte sem motivo desde
+   * 2026-08-28. Ver o cabeçalho de `criarMover`.
    */
-  const mover = useCallback(
-    (id: string, chave: string) => {
-      const etapa = etapas.find((e) => e.chave === chave);
-      const lead = leads.find((l) => l.id === id);
-      if (!lead || !etapa) return;
-      if (etapa.tipo === "ganho" || etapa.tipo === "perdido") {
-        setFechando({ lead, etapa });
-        return;
-      }
-      salvar(id, { situacao: chave });
-    },
+  const mover = useMemo(
+    () =>
+      criarMover({
+        etapas,
+        leads,
+        pedirMotivo: (lead, etapa) => setFechando({ lead, etapa }),
+        gravar: salvar,
+      }),
     [etapas, leads, salvar],
   );
 
@@ -362,6 +451,12 @@ export default function LeadsKanban() {
     [emAberto, etapas, agora],
   );
 
+  /** O aviso da busca que achou — ver `resumoDaBusca`. Nulo na fila e na busca vazia. */
+  const resumoDaRef = useMemo(
+    () => (refNaTela && leads.length > 0 ? resumoDaBusca(refNaTela, leads) : null),
+    [refNaTela, leads],
+  );
+
   // ── a barra de navegação ───────────────────────────────────────────────
   const medir = useCallback(() => {
     const el = trilho.current;
@@ -464,6 +559,76 @@ export default function LeadsKanban() {
         </div>
       )}
 
+      {/* ── a busca pela referência ────────────────────────────────────────
+          FORA do bloco condicional de baixo de propósito: a busca que não
+          acha nada esvazia `leads`, e um campo que morasse no ramo de "há
+          leads" sumiria junto — sem campo, sem como desfazer a busca.
+          Marketing não o vê: a rota recusa a busca a quem fica no agregado. */}
+      {!migracaoPendente && !agregado && (
+        <form
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            buscarPorRef();
+          }}
+          className="flex flex-wrap items-center gap-3 border-b border-mt-regua-fina pb-4"
+        >
+          <label
+            htmlFor="busca-ref"
+            className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
+          >
+            Referência
+          </label>
+          <input
+            id="busca-ref"
+            type="text"
+            value={refDigitada}
+            onChange={(e) => setRefDigitada(e.target.value)}
+            placeholder="0DCB1CDC"
+            spellCheck={false}
+            autoComplete="off"
+            className="mt-foco w-[220px] border border-mt-regua-fina bg-mt-bg px-3 py-2 text-xs tabular-nums text-mt-ink placeholder:text-mt-neutral-500"
+          />
+          <button
+            type="submit"
+            className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2 text-[11px]"
+          >
+            Buscar
+          </button>
+          {(refPedida !== null || refNaTela !== null) && (
+            <button
+              type="button"
+              onClick={voltarParaFila}
+              className="mt-foco cursor-pointer text-[11px] text-mt-accent hover:underline"
+            >
+              voltar para a fila
+            </button>
+          )}
+          <span className="ml-auto max-w-[420px] text-[11px] leading-snug text-mt-neutral-600">
+            O código do fim da mensagem do cliente, como em “(Ref: 0DCB1CDC)”. Acha o lead
+            quando o WhatsApp chegou de outro número — dá para colar a mensagem inteira.
+          </span>
+        </form>
+      )}
+
+      {resumoDaRef && (
+        <div
+          role="status"
+          className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs leading-relaxed text-mt-accent-800"
+        >
+          <strong>{resumoDaRef.frases[0]}</strong> {resumoDaRef.frases.slice(1).join(" ")}
+          {resumoDaRef.fechados > 0 && !vendoFechados && (
+            <button
+              type="button"
+              onClick={() => setVendoFechados(true)}
+              className="mt-foco ml-2 cursor-pointer font-semibold underline"
+            >
+              ver os fechados
+            </button>
+          )}
+        </div>
+      )}
+
       {migracaoPendente ? (
         <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-10 text-center">
           <div className="text-[15px] font-extrabold tracking-[-.01em]">
@@ -496,10 +661,32 @@ export default function LeadsKanban() {
         </div>
       ) : leads.length === 0 ? (
         <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-10 text-center">
-          <div className="text-[15px] font-extrabold tracking-[-.01em]">Nenhum lead ainda</div>
-          <p className="mx-auto mt-2 max-w-[460px] text-xs leading-relaxed text-mt-neutral-700">
-            Os contatos enviados pelos formulários do site aparecem aqui assim que chegam.
-          </p>
+          {refNaTela ? (
+            <>
+              <div className="text-[15px] font-extrabold tracking-[-.01em]">
+                Nenhum lead com a referência {refNaTela}
+              </div>
+              {/* A ressalva não é rodapé. Sem ela o atendente conclui que
+                  digitou errado e tenta de novo — quando o contato pode
+                  simplesmente não ter virado lead com rastreio: o `ag_uid` só
+                  é gravado por `/api/leads`, desde 2026-09-02 (ver a nota do
+                  insert lá), e só quem envia um formulário passa por ela. O
+                  lead que o Chatwoot cria de uma conversa nasce sem ele. */}
+              <p className="mx-auto mt-2 max-w-[520px] text-xs leading-relaxed text-mt-neutral-700">
+                Confira os oito caracteres. Se estiverem certos, este contato não virou lead com
+                referência: ela só fica guardada quando a pessoa envia um formulário do site, e só
+                nos leads recebidos a partir de 02/09/2026. Nesses casos, procure pelo nome ou
+                pelo telefone na fila.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-[15px] font-extrabold tracking-[-.01em]">Nenhum lead ainda</div>
+              <p className="mx-auto mt-2 max-w-[460px] text-xs leading-relaxed text-mt-neutral-700">
+                Os contatos enviados pelos formulários do site aparecem aqui assim que chegam.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <>

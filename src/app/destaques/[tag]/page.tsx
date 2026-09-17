@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import LandingDestaque from '../../../components/modernist/LandingDestaque';
 import { getEstoque } from '../../../lib/supabase';
+import { disponiveisDe } from '../../../lib/regrasEstoque';
 import { getCachedSettings } from '../../../lib/settings';
 import { blocoJsonLd } from '../../../lib/schemaListagem';
 import { schemaDaLoja, schemaDoSite } from '../../../lib/schemaLoja';
@@ -77,7 +78,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // ela o título depende de como a loja digitou.
   const nome = nomeEmMinuscula(tagName);
   const title = `Carros ${nome} em Curitiba | Motors Store`;
-  const description = `Veículos ${nome} na Motors Store, em Curitiba. Todos passaram pela perícia cautelar independente, com laudo na ficha assim que aprovado e preço no anúncio.`;
+  const description = `Veículos ${nome} na Motors Store, em Curitiba. Todos passaram pela perícia cautelar independente, com laudo disponível com o vendedor e preço no anúncio.`;
   const url = `${SITE_URL}/destaques/${cleanSlug}?utm_source=site&utm_medium=quick_tag&utm_campaign=${encodeURIComponent(cleanSlug)}`;
 
   return {
@@ -136,7 +137,7 @@ export default async function DestaquesPage({ params }: PageProps) {
   // A grade é resolvida no servidor pela mesma regra que alimenta os chips
   // da home e a coluna de filtros do catálogo.
   const [estoque, settings] = await Promise.all([getEstoque(), getCachedSettings()]);
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
   const stockOverrides = normalizarStockOverrides(settings.stockOverrides);
   const dinamicas = normalizarQuickTags(settings.quickTags);
   const todasTags = dinamicas.length > 0 ? dinamicas : DESTAQUES_PADRAO;

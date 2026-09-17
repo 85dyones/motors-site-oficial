@@ -7,7 +7,7 @@ import { PERFIS_DE_USO, type PerfilDeUso } from "./perfisDeUso";
 // O preço vigente já vive em `regrasEstoque` — é o mesmo que a vitrine, os
 // destaques e o feed usam. Duas versões dessa regra é como o filtro de preço
 // e a etiqueta de promoção acabam discordando na mesma tela.
-import { precoVigente } from "./regrasEstoque";
+import { disponiveisDe, precoVigente } from "./regrasEstoque";
 import { FAIXAS_DE_PRECO, type FaixaDePreco } from "./faixasDePreco";
 // `fichaPerdida` importa daqui SÓ tipos (ele é lido por um client component e
 // não pode arrastar o Supabase). A volta, de valores, é deste lado — servidor.
@@ -199,11 +199,6 @@ function grafiaDominante(valores: string[]): string {
     }
   }
   return vencedor;
-}
-
-/** Só o que está à venda, na ordem em que o estoque veio. */
-function disponiveisDe(lista: Veiculo[]): Veiculo[] {
-  return lista.filter((v) => !v.vendido);
 }
 
 /**
@@ -462,8 +457,6 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
 
   return caminhos;
 }
-
-export { disponiveisDe };
 
 /**
  * Os dois recortes do estoque que toda página perene precisa, numa chamada.

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Catalogo from "../../components/modernist/Catalogo";
 import GradeDeVeiculos from "../../components/modernist/GradeDeVeiculos";
 import { getEstoque } from "../../lib/supabase";
+import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings, recortePublicoDeSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import {
@@ -54,7 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
     getEstoque(),
     getCachedSettings(),
   ]);
-  const total = estoque.filter((v) => !v.vendido).length;
+  const total = disponiveisDe(estoque).length;
 
   // A contagem entra no título só quando existe. Com o estoque zerado — sync
   // fora do ar, banco inacessível — o título anunciava "— 0 Ofertas", que é o
@@ -161,7 +162,7 @@ export default async function EstoquePage() {
         <p className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
           {linkar(
             "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
-              "entram. O laudo fica na ficha do carro assim que aprovado, e o preço está no anúncio. " +
+              "entram. O laudo está disponível para consulta com o vendedor, e o preço está no anúncio. " +
               "Showroom no Bacacheri, em Curitiba.",
           ).map((parte, i) =>
             parte.href ? (

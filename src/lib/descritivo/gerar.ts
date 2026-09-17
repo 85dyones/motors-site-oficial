@@ -59,6 +59,11 @@ export async function gerarTexto(opts: {
         model: MODELO,
         instructions: montarInstrucoes(),
         input: montarEntrada(dossie, campo),
+        // Endurecimento de 16/09/2026 (revisão final do #76): sem isto a
+        // OpenAI guarda cada chamada — dossiê do veículo incluído — por 30
+        // dias do lado dela, prazo que este projeto nunca decidiu. O texto
+        // gerado e as travas de conteúdo não mudam; é só este parâmetro.
+        store: false,
       }),
       signal: controle.signal,
     });

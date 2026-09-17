@@ -1,4 +1,4 @@
-import { generateEventId, getMatchParams } from "./tracking-identity";
+import { generateEventId, getMatchParams, type MatchParams } from "./tracking-identity";
 import {
   containerAssumeOsEventos,
   pushCliqueTelefone,
@@ -259,15 +259,25 @@ const CHAVES_DE_CAMPANHA: (keyof UtmParameters)[] = [
  * dispositivo: é o mesmo dado que já está na URL que o visitante abriu, mantido
  * enquanto ele decide.
  *
- * Daí saem os dois ganhos, sem tocar no disco antes da hora:
+ * ---------------------------------------------------------------------------
+ * O que mudou depois, e o que esta memória faz hoje
+ * ---------------------------------------------------------------------------
+ * O texto acima é de 27/08, quando o disco ainda esperava o aceite. Em 28/08 a
+ * gravação no dispositivo passou a acontecer na chegada (ver
+ * `persistirParametrosDeCampanha`), e em 31/08 o aceite saiu de tudo: só a
+ * oposição em /privacidade barra. Quem navega antes de responder ao aviso já
+ * tem o `gclid` gravado desde a primeira página. A memória continua servindo
+ * a três casos:
  *
- *   · quem aceita o banner DEPOIS de navegar tem o `gclid` gravado na hora do
- *     aceite, vindo daqui — a URL já não o tem mais;
- *   · quem NUNCA aceita e envia um formulário leva o `gclid` junto no lead,
- *     porque o payload do lead nunca teve portão (ver `getUtmParameters`).
+ *   · a URL de ENTRADA vence uma que apareça depois, também no disco;
+ *   · quem se opõe e religa a medição na mesma aba tem o `gclid` regravado
+ *     daqui — a URL já não o tem mais;
+ *   · quem se opôs e envia um formulário na mesma visita leva o `gclid` junto
+ *     no lead, porque a oposição apaga o disco, não esta memória, e o payload
+ *     do lead nunca teve portão (ver `getUtmParameters`).
  *
- * Quem recusa não tem nada gravado no dispositivo, que é o que a política
- * promete. E o dado nunca sai daqui por conta própria: só vai junto de um
+ * Quem se opôs não tem nada gravado no dispositivo: a oposição apaga a cada
+ * carga. E o dado nunca sai daqui por conta própria: só vai junto de um
  * formulário que a pessoa escolheu enviar.
  */
 const capturadoNestaSessao: Partial<Record<keyof UtmParameters, string>> = {};
@@ -294,6 +304,138 @@ export function descartarParametrosDeCampanha(): void {
 }
 
 /**
+ * Os domínios em que um cookie deste host pode estar gravado: um por escrita
+ * de expiração. `null` é a escrita SEM `domain=`.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a escrita sem `domain=` não bastava
+ * ---------------------------------------------------------------------------
+ * Cookie é identificado por nome, domínio e caminho, e só some com uma escrita
+ * que repita os três. `nome=; path=/; max-age=0` alcança só a cópia de HOST — a
+ * que `IntegrationsTracker` grava para o `_fbc`. O Meta Pixel grava de outro
+ * jeito: o `fbevents.js` escreve o `_fbp`, e às vezes o `_fbc`, com
+ * `;domain=.<domínio registrável>`. Até 16/09/2026 essa cópia sobrevivia ao
+ * botão de oposição por até 90 dias e seguia saindo no `fbp` do lead, enquanto
+ * a /privacidade promete que a recusa apaga "na hora".
+ *
+ * Por isso a lista tem a escrita sem domínio e, com `domain=`, o próprio host e
+ * cada domínio pai com pelo menos dois rótulos. Na raiz, onde o site roda, é
+ * `[null, "motorsstore.com.br", "com.br"]`: a escrita sem domínio é a única que
+ * alcança a cópia de host, e `motorsstore.com.br` — a volta `i = 0`, o próprio
+ * host — é a única que alcança a cópia do Pixel, `.motorsstore.com.br`.
+ * `com.br` é sufixo público, e o navegador recusa a escrita em silêncio.
+ * Mandá-la mesmo assim é inofensivo e poupa manter aqui uma lista de sufixos,
+ * que envelheceria.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que é função pura e exportada
+ * ---------------------------------------------------------------------------
+ * Para a lista de cada host ser travada sem cookie. O jsdom guarda a cópia de
+ * host e a de domínio do mesmo host no mesmo lugar, o que o navegador não faz.
+ * Na raiz, isso impede reproduzir o defeito, e o teste com cookie roda no
+ * `www`. Um teste só com cookie deixava passar verde duas mutações:
+ *
+ *   · a remoção da escrita sem domínio, porque no jsdom a escrita com
+ *     `domain=<host>` apaga a cópia de host tanto quanto ela;
+ *   · um laço começando em `i = 1`, que só quebra na raiz: no `www`, a cópia
+ *     do Pixel está no domínio pai.
+ *
+ * Ver `tests/oposicao-cookies-de-dominio.test.ts`.
+ */
+export function variantesDeDominio(hostname: string): (string | null)[] {
+  const rotulos = hostname.split(".");
+  const variantes: (string | null)[] = [null];
+  for (let i = 0; i <= rotulos.length - 2; i++) {
+    variantes.push(rotulos.slice(i).join("."));
+  }
+  return variantes;
+}
+
+/**
+ * Expira um cookie em todas as variantes de `variantesDeDominio`. O caminho é
+ * sempre `/`: é o único que o Pixel e o tracker usam.
+ */
+function apagarCookieEmTodoDominio(nome: string): void {
+  if (typeof document === "undefined") return;
+  try {
+    for (const dominio of variantesDeDominio(window.location.hostname)) {
+      const escopo = dominio === null ? "" : `; domain=${dominio}`;
+      document.cookie = `${nome}=; path=/; max-age=0${escopo}`;
+    }
+  } catch (e) {
+    console.warn(`[Telemetry] Failed to discard cookie ${nome}:`, e);
+  }
+}
+
+/**
+ * Os cookies do Google Ads que guardam identificador de anúncio, apagados sempre.
+ *
+ * `_gcl_aw` guarda o `gclid` do clique; `_gcl_gb`, o `gbraid`; `_gcl_dc`, o
+ * clique do Campaign Manager; `_gcl_au` é o identificador do vinculador de
+ * conversões. Todos são gravados pela tag do Google no domínio do site. Além
+ * desta lista, `cookiesDoGoogleAds` apaga qualquer outro `_gcl_*` que estiver
+ * no navegador: o prefixo é do vinculador, e um nome novo não pode escapar.
+ */
+export const COOKIES_DO_GOOGLE_ADS = ["_gcl_au", "_gcl_aw", "_gcl_dc", "_gcl_gb"] as const;
+
+/** A lista fixa, mais os `_gcl_*` presentes agora, sem repetir. */
+function cookiesDoGoogleAds(): string[] {
+  const presentes =
+    typeof document === "undefined"
+      ? []
+      : document.cookie
+          .split(";")
+          .map((par) => par.trim().split("=")[0])
+          .filter((nome) => nome.startsWith("_gcl_"));
+  return Array.from(new Set<string>([...COOKIES_DO_GOOGLE_ADS, ...presentes]));
+}
+
+/**
+ * Apaga deste navegador os cookies de anúncio: os dois do Meta, `_fbp` e
+ * `_fbc`, e os do Google Ads (`_gcl_*`, ver `COOKIES_DO_GOOGLE_ADS`), na cópia
+ * de host e na de domínio. Chamam: o botão de oposição, em
+ * `ControleDeRastreamento`, no clique que grava a recusa; e
+ * `persistirParametrosDeCampanha`, a cada carga de quem recusou.
+ *
+ * Os do Google entraram em 17/09/2026, por decisão do dono. A /privacidade diz
+ * que a oposição "apaga na hora os identificadores de campanha guardados", e
+ * até aqui o `gclid` sobrevivia no `_gcl_aw`. Para quem não se opôs nada muda:
+ * esta função só roda depois da recusa.
+ *
+ * `tests/oposicao-cookies-de-dominio.test.ts` trava as escritas de cada host,
+ * a raiz incluída, e prova com cookie de verdade, num subdomínio, que a cópia
+ * gravada com `domain=` sai junto. O cookie de verdade sozinho não prova a
+ * raiz: lá o jsdom guarda as duas cópias no mesmo lugar.
+ */
+export function descartarCookiesDeAnuncio(): void {
+  apagarCookieEmTodoDominio("_fbp");
+  apagarCookieEmTodoDominio("_fbc");
+  for (const nome of cookiesDoGoogleAds()) apagarCookieEmTodoDominio(nome);
+}
+
+/**
+ * `getMatchParams`, respeitando a oposição: para quem desligou o rastreamento
+ * em /privacidade, `fbp` e `fbc` saem nulos.
+ *
+ * É o que os fluxos de lead usam para montar o POST de `/api/leads`. Até
+ * 16/09/2026 eles chamavam `getMatchParams` direto, e o lead de quem se opôs
+ * levava os dois identificadores do Meta: muitas vezes a cópia de domínio do
+ * `_fbp`, que o botão de oposição não apagava, ou o `fbc` remontado do
+ * `fbclid` da URL, que nem cookie é.
+ *
+ * O lead continua sendo enviado, e com `utm`: a leitura dos parâmetros de
+ * campanha não tem portão, por decisão registrada em `getUtmParameters`. Sai
+ * só o identificador do Meta, que no lead serve para uma coisa: casar o
+ * contato com o anúncio no CAPI, que é o uso a que a pessoa se opôs.
+ *
+ * Para quem não se opôs, devolve `getMatchParams()` sem mudar nada.
+ */
+export function getMatchParamsRespeitandoRecusa(): MatchParams {
+  if (rastreamentoRecusado()) return { fbp: null, fbc: null };
+  return getMatchParams();
+}
+
+/**
  * Guarda no dispositivo o parâmetro de campanha — desde a chegada, e a recusa
  * apaga.
  *
@@ -312,19 +454,22 @@ export function descartarParametrosDeCampanha(): void {
  * **a recusa apaga.** Sem isso, o identificador ficaria no dispositivo
  * contradizendo a última decisão da pessoa — que é justamente o oposto do que a
  * frase acima defende. Por isso `rejected` não é só "não gravar": é
- * `descartarParametrosDeCampanha()`, removendo o que já estava lá.
+ * `descartarParametrosDeCampanha()`, removendo o que já estava lá — e, desde
+ * 16/09/2026, `descartarCookiesDeAnuncio()`, pela razão escrita no ramo.
  *
  * A memória de sessão SOBREVIVE à recusa de propósito. É o que permite a
- * mudança de ideia funcionar na mesma aba: quem recusa e depois aceita tem o
- * `gclid` regravado a partir dela. Memória não é armazenamento no dispositivo —
- * some quando a aba fecha.
+ * mudança de ideia funcionar na mesma aba: quem se opõe e depois religa a
+ * medição tem o `gclid` regravado a partir dela. Memória não é armazenamento no
+ * dispositivo — some quando a aba fecha.
  *
  * ---------------------------------------------------------------------------
  * O que isso custa, escrito para quem vier depois
  * ---------------------------------------------------------------------------
  * Fica uma janela entre a chegada e a decisão em que o identificador de anúncio
  * está no dispositivo sem consentimento — segundos para quem clica no banner,
- * indefinida para quem simplesmente o ignora, que não é pouca gente.
+ * indefinida para quem simplesmente o ignora, que não é pouca gente. (Desde
+ * 31/08 não há decisão a esperar: a base é o legítimo interesse, e o
+ * identificador fica no dispositivo até a oposição, se ela vier.)
  *
  * O texto da política foi ajustado na mesma rodada para descrever isso (ver
  * `app/privacidade/page.tsx`, seção de cookies). Código e política contando
@@ -332,10 +477,11 @@ export function descartarParametrosDeCampanha(): void {
  * alternativa que o handoff de mensuração colocou como "ou o código respeita o
  * texto, ou o texto passa a descrever o código". Esta é a segunda porta.
  *
- * O que NÃO mudou: GA4, Google Ads, Meta Pixel e o cookie `_fbc` continuam
- * atrás do aceite. O que se grava aqui é só o parâmetro que já estava na URL
- * que a pessoa abriu, e ele não sai do dispositivo por conta própria — só vai
- * junto de um formulário que ela escolheu enviar.
+ * O que mudou depois, em 31/08: GA4, Google Ads, Meta Pixel e o cookie `_fbc`
+ * também deixaram de esperar o aceite, e hoje só a oposição barra
+ * (`rastreamentoRecusado()`). O que se grava AQUI continua sendo só o parâmetro
+ * que já estava na URL que a pessoa abriu, e esta cópia não sai do dispositivo
+ * por conta própria — só vai junto de um formulário que ela escolheu enviar.
  */
 export function persistirParametrosDeCampanha(): void {
   if (typeof window === "undefined") return;
@@ -344,8 +490,14 @@ export function persistirParametrosDeCampanha(): void {
     capturarDaUrl();
 
     // A última decisão manda. Recusou: sai do dispositivo o que houver.
+    //
+    // Os cookies de anúncio também, e não só no clique de `ControleDeRastreamento`:
+    // um Pixel carregado na aba antes da recusa pode regravar o `_fbp` depois
+    // dele, e sem esta linha nenhuma carga seguinte o apagaria — o cookie
+    // ficaria até expirar. Este ramo só roda para quem recusou.
     if (localStorage.getItem("ag_cookie_consent") === "rejected") {
       descartarParametrosDeCampanha();
+      descartarCookiesDeAnuncio();
       return;
     }
 
@@ -364,8 +516,9 @@ export function persistirParametrosDeCampanha(): void {
  * A LEITURA não tem portão, e é deliberado. O retorno vai no payload de um
  * formulário que a pessoa está enviando com nome e telefone — o `gclid` é o
  * dado menos sensível daquele POST, e a base ali é o lead que ela escolheu
- * mandar, não cookie. Barrar aqui quebraria a atribuição de todo lead de quem
- * não aceitou, sem ganho nenhum de privacidade.
+ * mandar, não cookie. Barrar aqui quebraria a atribuição do lead de quem se
+ * opôs, sem ganho nenhum de privacidade. (Escrito no regime de aceite, quando o
+ * portão ali teria derrubado a atribuição de todo lead de quem não aceitou.)
  *
  * Quem tem portão é a GRAVAÇÃO, em `persistirParametrosDeCampanha`.
  */
@@ -385,7 +538,7 @@ export function getUtmParameters(): UtmParameters {
   if (typeof window === "undefined") return result;
 
   try {
-    // Atualiza a memória e, se já houve aceite, o disco. Tem portão próprio.
+    // Atualiza a memória e, se não houver oposição, o disco. Tem portão próprio.
     persistirParametrosDeCampanha();
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -393,7 +546,7 @@ export function getUtmParameters(): UtmParameters {
     CHAVES_DE_CAMPANHA.forEach((key) => {
       // Nesta ordem: a URL de agora; o que esta navegação capturou antes de a
       // pessoa decidir; e por fim o que ficou guardado de uma visita anterior
-      // — que só existe se houve aceite.
+      // — que só existe para quem não se opôs.
       result[key] =
         urlParams.get(key) ||
         capturadoNestaSessao[key] ||
@@ -580,10 +733,10 @@ export function trackVehicleView(
   if (typeof window === "undefined") return null;
 
   try {
-    // A camada de dados é publicada ANTES do gate de consentimento, e só ela:
-    // escrever num array em memória não envia nada. Quem envia é o GTM, que só
-    // carrega depois do aceite — e processa a fila que já estiver aqui. Ver a
-    // nota de consentimento em `lib/dataLayer.ts`.
+    // A camada de dados é publicada ANTES do portão da oposição, e só ela:
+    // escrever num array em memória não envia nada. Quem envia é o GTM, que
+    // carrega desde a chegada e só fica de fora para quem se opôs — e processa a
+    // fila que já estiver aqui. Ver a nota de consentimento em `lib/dataLayer.ts`.
     pushVeiculo({
       id: vehicle.id,
       marca: vehicle.marca,

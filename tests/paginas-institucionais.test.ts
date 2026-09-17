@@ -286,6 +286,8 @@ describe("a /garantia alinhada às peças", () => {
   it("tem as três seções da proposta, na ordem, nenhuma vazia", () => {
     expect(SECOES_DE_GARANTIA.map((s) => s.titulo)).toEqual([
       "A garantia da Motors Store",
+      "O que está coberto e o que não está",
+      "Estender por 6, 12 ou 24 meses",
       "O que fazer se algo falhar",
       "Por que a perícia vem antes da garantia",
     ]);
@@ -318,11 +320,49 @@ describe("a /garantia alinhada às peças", () => {
     expect(TEXTO_DA_GARANTIA).not.toMatch(/nunca pedimos/i);
   });
 
-  it("mantém o crivo técnico de showroom, que /sobre também publica", () => {
-    // A proposta do pacote omite o crivo. `tabela-de-guias.test.ts` já tratou
-    // essa omissão como defeito: duas superfícies respondendo diferente sobre a
-    // metade mecânica. Procedência: `aboutSettings.value2`.
-    expect(TEXTO_DA_GARANTIA).toMatch(/crivo técnico de showroom/);
-    expect(TEXTO_DA_GARANTIA).toMatch(/120 pontos/);
+  it("os 120 pontos são da perícia cautelar, e não de uma etapa de showroom", () => {
+    /* Mudou em 17/09/2026, com a resposta do dono. A versão anterior exigia a
+       frase "crivo técnico de showroom" porque `aboutSettings.value2` a
+       publica em `/sobre` — duas superfícies tinham de dizer a mesma coisa.
+       Perguntado de onde vêm os 120 pontos, o dono respondeu: da CAUTELAR. A
+       etapa mecânica existe, mas é sob demanda e exploratória, e entra quando
+       a avaliação levanta suspeita — não é inspeção de 120 pontos em todo
+       carro antes da entrega.
+       Então a página passa a atribuir o número a quem ele é, e a trava mudou
+       de "cita a frase" para "atribui certo". `aboutSettings.value2` e o texto
+       de `/sobre` no banco continuam com a redação antiga: está anotado para o
+       dono decidir, e é mudança de texto público, não de código. */
+    const comOsPontos = TEXTO_DA_GARANTIA.split(/(?<=\.)\s+/).filter((f) => /120 pontos/.test(f));
+    expect(comOsPontos.length, "a página parou de citar os 120 pontos").toBeGreaterThan(0);
+    for (const frase of comOsPontos) {
+      expect(frase, "os 120 pontos ficaram sem dono na frase").toMatch(/per[íi]cia|cautelar/i);
+    }
+    expect(TEXTO_DA_GARANTIA, "voltou a vender uma etapa de showroom de 120 pontos").not.toMatch(
+      /crivo técnico de showroom/i,
+    );
+  });
+
+  it("a etapa mecânica aparece como é: sob demanda, quando a avaliação levanta suspeita", () => {
+    // Resposta 2.2 do dono: a perícia mecânica não é etapa de todo carro.
+    // Dizer que é seria prometer processo que a loja não executa em toda
+    // unidade — o mesmo defeito do laudo que a `coerencia-da-pericia` fecha.
+    expect(TEXTO_DA_GARANTIA).toMatch(/levanta suspeita/i);
+    expect(TEXTO_DA_GARANTIA).toMatch(/oficinas parceiras/i);
+    expect(TEXTO_DA_GARANTIA).toMatch(/troca de óleo e filtros/i);
+  });
+
+  it("a garantia estendida entra pelo que ela é: garantia mecânica, não seguro", () => {
+    /* O rascunho do pacote dizia "seguro emitido por seguradora registrada na
+       SUSEP". O manual do plano mostra outra coisa: serviço de certificação
+       com garantia, administrado pela Gestauto, e o registro SUSEP que consta
+       lá é de um seguro de garantia financeira que cobre a própria Gestauto.
+       Chamar de seguro venderia ao comprador uma proteção que não está no nome
+       dele. */
+    expect(TEXTO_DA_GARANTIA).toMatch(/garantia mecânica/i);
+    expect(TEXTO_DA_GARANTIA).not.toMatch(/susep|seguradora/i);
+    expect(TEXTO_DA_GARANTIA, "sumiu a regra que vale a cobertura inteira").toMatch(
+      /7 mil quilômetros ou 6 meses/i,
+    );
+    expect(TEXTO_DA_GARANTIA, "a contratação precisa aparecer como opcional").toMatch(/opcional/i);
   });
 });

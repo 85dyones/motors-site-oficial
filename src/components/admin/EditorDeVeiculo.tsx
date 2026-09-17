@@ -323,7 +323,12 @@ export default function EditorDeVeiculo({
     },
     {
       l: "Opcionais preenchidos",
-      d: "Os primeiros aparecem no card do catálogo.",
+      // No carro do feed quem preenche é o RevendaMais: a aba é só leitura, e
+      // a pendência precisa dizer onde se resolve.
+      d:
+        v.origem === "painel"
+          ? "Os primeiros aparecem no card do catálogo."
+          : "Os primeiros aparecem no card do catálogo. Vêm do RevendaMais: o que faltar, preencha lá.",
       ok: Boolean(v.opcionais),
       estado: v.opcionais ? "OK" : "PENDENTE",
     },
@@ -357,17 +362,18 @@ export default function EditorDeVeiculo({
      sobre um carro que o cliente está vendo — e o botão Publicar, que lê o
      tamanho desta lista, ficaria travado no carro que já passou pela régua.
 
-     `laudo_pericia` saiu daqui junto com a regra. A origem fica, e é ela que
-     escolhe entre "suba as fotos pelo painel" e "as fotos vêm do RevendaMais":
-     sem ela a tela mandava o operador esperar um feed que nunca vai trazer foto
-     do carro que ele mesmo cadastrou. */
+     `laudo_pericia` saiu daqui junto com a regra, e a origem saiu na F0.5: a
+     frase é uma só, "suba as fotos pelo painel", e vale para carro de qualquer
+     origem porque a galeria aceita envio em todos. No carro do feed a mesma
+     galeria ainda oferece importar do anúncio (#75). */
   const bloqueios = useMemo(
     () =>
+      // `origem` saiu daqui na F0.5 — a régua e o texto passaram a ser os
+      // mesmos para carro do feed e carro nativo.
       bloqueiosDePublicacao({
         whatsapp_images: v.whatsapp_images,
-        origem: v.origem,
       }).filter((b) => b.bloqueia),
-    [v.whatsapp_images, v.origem],
+    [v.whatsapp_images],
   );
 
   /* ------------------------------------------------------------------------
@@ -471,7 +477,6 @@ export default function EditorDeVeiculo({
         descricao: v.descricao,
         descricao_seo: v.descricao_seo,
         laudo_pericia: v.laudo_pericia,
-        opcionais: v.opcionais,
         status_tag: v.status_tag,
         status_tag_color: v.status_tag_color,
         vendido: v.vendido,
@@ -483,8 +488,11 @@ export default function EditorDeVeiculo({
         // baixo. Mandá-lo num carro do sync não faria mal (o servidor descarta
         // em `camposGravaveis`), mas mandaria um campo que a tela mostrou como
         // texto fixo — e um dia alguém leria isso como permissão.
+        //
+        // Os opcionais seguem a mesma régua desde 17/09: no carro do feed o
+        // sync os reescreve, e a aba os mostra só para leitura.
         ...(v.origem === "painel"
-          ? { preco: v.preco, preco_original: v.preco_original }
+          ? { preco: v.preco, preco_original: v.preco_original, opcionais: v.opcionais }
           : {}),
       };
       const corpo = Object.fromEntries(
@@ -724,10 +732,14 @@ export default function EditorDeVeiculo({
             <GaleriaDeFotos
               estoqueId={v.id}
               fotos={fotos}
+              /* `origem` saiu daqui na F0.5 e voltou na fusão com o #75
+                 (16/09) com outro papel: não decide se a galeria edita, só se
+                 o botão "Importar fotos do feed" aparece. */
               origem={v.origem}
               /* A linha "Adicionar e reordenar fotos" da A17 — Admin,
                  Marketing e Comercial. Perguntar por uma das colunas basta:
-                 as três apontam para a mesma linha da matriz. */
+                 as três apontam para a mesma linha da matriz. É o único
+                 portão de edição da galeria, para carro de qualquer origem. */
               podeEditar={podeGravar("whatsapp_images")}
               aoGravar={aoGravarFotos}
             />
@@ -938,18 +950,38 @@ export default function EditorDeVeiculo({
           {aba === "opcionais" && (
             <>
               <div className="mb-3 flex flex-wrap items-baseline gap-3">
-                <div className="mt-rotulo">Opcionais e equipamentos</div>
+                <div className="mt-rotulo">
+                  {v.origem === "painel"
+                    ? "Opcionais e equipamentos"
+                    : "Opcionais e equipamentos · do feed"}
+                </div>
                 <span className="ml-auto text-[11px] text-mt-neutral-700">
-                  separados por vírgula · os primeiros aparecem no card
+                  {v.origem === "painel"
+                    ? "separados por vírgula · os primeiros aparecem no card"
+                    : "os primeiros aparecem no card"}
                 </span>
               </div>
-              <textarea
-                rows={5}
-                value={v.opcionais ?? ""}
-                onChange={(e) => set("opcionais", e.target.value)}
-                placeholder="Teto solar, Bancos de couro, Câmera 360, Piloto adaptativo…"
-                className="mt-campo-caixa mt-foco resize-y leading-relaxed"
-              />
+              {/* Só leitura no carro do feed desde 17/09 (decisão do dono em
+                  16/09). Desde a migração 20260908160000 o sync reescreve
+                  `opcionais` a cada ciclo, e o que fosse digitado aqui voltaria
+                  ao que está no RevendaMais, em silêncio. É o motivo do preço,
+                  e a régua é a mesma: `CAMPO_DOS_OPCIONAIS` em
+                  `lib/estoqueEscrita.ts`. */}
+              {v.origem === "painel" ? (
+                <textarea
+                  rows={5}
+                  value={v.opcionais ?? ""}
+                  onChange={(e) => set("opcionais", e.target.value)}
+                  placeholder="Teto solar, Bancos de couro, Câmera 360, Piloto adaptativo…"
+                  className="mt-campo-caixa mt-foco resize-y leading-relaxed"
+                />
+              ) : (
+                <p className="text-[11px] leading-relaxed text-mt-neutral-700">
+                  {v.opcionais
+                    ? "Os opcionais deste carro são os do RevendaMais — mude lá, e a próxima importação traz."
+                    : "O RevendaMais não mandou opcionais para este carro. Preencha lá, e a próxima importação traz."}
+                </p>
+              )}
               {v.opcionais && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {v.opcionais
@@ -1016,13 +1048,15 @@ export default function EditorDeVeiculo({
                     </div>
                   </div>
                 )}
-                {/* Promoção vale para veículo de qualquer origem — inclusive o
-                    importado. A trava total do sync (F0-q) tirou do RevendaMais
-                    a capacidade de reescrever a coluna, e em 31/08 os 104
-                    veículos da base eram do sync: restringi-la ao nativo, como
-                    o preço acima, entregaria um campo que não serviria a carro
-                    nenhum. */}
-                {podeGravar("preco_promocional") && (
+                {/* Promoção segue a MESMA régua do preço de tabela desde
+                    02/09: editável só no veículo nativo. No carro do
+                    RevendaMais ela chega pelo sync — a migração 20260902120000
+                    voltou a deixá-lo escrever as três colunas de preço —, e
+                    editá-la aqui criaria o segundo lugar que o dono mandou não
+                    existir. De 31/08 a 02/09 este campo aparecia em qualquer
+                    origem; ninguém o usou (zero promoções só nossas, medido), e
+                    enquanto isso a Sorento ficou R$ 8.000 acima do gestor. */}
+                {v.origem === "painel" && podeGravar("preco_promocional") ? (
                   <div className="flex flex-col gap-1.5">
                     <label className={rotuloCampo} htmlFor="f-promo">
                       Preço promocional · o &quot;por&quot;
@@ -1058,6 +1092,23 @@ export default function EditorDeVeiculo({
                     ) : (
                       <span className="text-[11px] text-mt-neutral-700">
                         Sem promoção. A ficha mostra só o preço anunciado.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <span className={rotuloCampo}>
+                      {v.origem === "painel"
+                        ? "Preço promocional"
+                        : "Preço promocional · do feed"}
+                    </span>
+                    <div className="border border-mt-regua-fina bg-mt-surface px-3 py-2.5 text-lg font-extrabold tabular-nums tracking-[-.03em] text-mt-neutral-700">
+                      {v.preco_promocional ? brl(v.preco_promocional) : "sem promoção"}
+                    </div>
+                    {v.origem !== "painel" && (
+                      <span className="text-[11px] text-mt-neutral-700">
+                        Tabela e promoção deste carro são as do RevendaMais — mude lá, e a
+                        próxima importação traz.
                       </span>
                     )}
                   </div>

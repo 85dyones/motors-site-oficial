@@ -3,7 +3,15 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
-import { ordenarEtapas, type EtapaDoFunil, type MotivoDoFunil } from "../../../../lib/funil";
+import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
+import {
+  decidirDesfecho,
+  ordenarEtapas,
+  type EtapaDoDesfecho,
+  type EtapaDoFunil,
+  type LeadDoDesfecho,
+  type MotivoDoFunil,
+} from "../../../../lib/funil";
 
 export const dynamic = "force-dynamic";
 
@@ -39,17 +47,58 @@ export async function GET(request: NextRequest) {
     const perfil = perfisDe(profile);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
 
+    // ------------------------------------------------------------------------
+    // `?ref=` — a busca pela referência que o cliente leu na mensagem
+    // ------------------------------------------------------------------------
+    // A mensagem de WhatsApp de quem tem rastreio termina em "(Ref: 0DCB1CDC)",
+    // os 8 primeiros do `ag_uid`. O código existe para achar o lead quando a
+    // conversa chega de outro número, e até 2026-09-17 não havia onde procurá-lo.
+    //
+    // A busca não é rota à parte: é esta mesma leitura com um filtro a mais. O
+    // card do lead achado precisa de tudo o que o card da fila tem — a conversa
+    // do Chatwoot, o estado do assistente, as etapas do funil —, e uma resposta
+    // de outro formato faria a tela desenhar o funil padrão no lugar do
+    // configurado.
+    //
+    // As recusas vêm ANTES de qualquer leitura. A busca devolve nome e telefone,
+    // então quem não vê lead recebe 403 — e não o agregado que Marketing recebe
+    // na fila: a contagem de uma busca por código já diz se o lead existe.
+    const refPedida = new URL(request.url).searchParams.get("ref");
+    if (refPedida !== null && !podeVer) {
+      return NextResponse.json(
+        { error: "Seu perfil não consulta lead por referência" },
+        { status: 403 },
+      );
+    }
+    const ref = refPedida === null ? "" : normalizarRef(refPedida);
+    if (refPedida !== null && !ref) {
+      return NextResponse.json({ error: AVISO_DE_REF_INVALIDA }, { status: 400 });
+    }
+
     // `created_at`, não `criado_em`: a tabela `leads` é preexistente e já
     // trazia esse nome. Renomear quebraria consumidor externo — ver a nota na
     // migração 20260807210000.
-    const { data, error } = await supabase
+    let consulta = supabase
       .from("leads")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(500);
+    // O filtro vai para o BANCO, e não para a lista já lida: a fila para em
+    // 500 linhas, e o lead que se procura por código é justamente o que não
+    // está à vista. É `ilike` sem índice por trás — `leads_ag_uid_idx`
+    // (20260902130000) serve à igualdade do `/api/capi`, não a prefixo —, ou
+    // seja, varredura: aceitável numa consulta que só a equipe faz, à mão, e
+    // que não roda por visitante. O padrão, e por que ele é o inverso exato de
+    // `refCurta`, está em `padraoDaRef`.
+    if (ref) consulta = consulta.ilike("ag_uid", padraoDaRef(ref));
+    const { data, error } = await consulta;
 
     if (error) {
-      if (ehTabelaOuColunaAusente(error)) {
+      // Com `?ref=`, estrutura ausente é a coluna `ag_uid`: a tela só busca
+      // depois de ter lido a fila. Responder `migracaoPendente` aqui travaria o
+      // painel inteiro em "a tabela de leads ainda não existe" — falso, e sem
+      // volta até recarregar a página.
+      if (ehTabelaOuColunaAusente(error) && !ref) {
         return NextResponse.json({ leads: [], migracaoPendente: true });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -83,31 +132,63 @@ export async function GET(request: NextRequest) {
     //
     // A conversa mais RECENTE ganha: um cliente que volta meses depois abre
     // conversa nova, e é nela que o consultor tem de responder.
-    const conversaPorLead = new Map<string, number>();
+    /**
+     * Do atendimento mais recente vêm TRÊS coisas, não uma.
+     *
+     * Além do id da conversa, o estado do assistente: `com_assistente` e
+     * `humano_assumiu_em` (decisão do dono em 2026-09-05 — o SLA só conta
+     * depois que o Ney sai do circuito). Sem eles aqui, `montar_fila_do_funil`
+     * tira o lead da fila e o card continua pintando "3 dias parado": banco e
+     * tela discordando sobre o mesmo lead, que é exatamente o que o cabeçalho
+     * de `lib/funil.ts` existe para impedir.
+     *
+     * O `not is null` saiu do `chatwoot_conversation_id`: um atendimento pode
+     * existir com o assistente conversando ANTES de a conversa ter id
+     * espelhado, e filtrá-lo aqui apagaria o único sinal que pausa o relógio.
+     * Quem decide se há link é `linkDeConversa`, que já cai no `wa.me`.
+     */
+    interface DoAtendimento {
+      conversa: number | null;
+      comAssistente: boolean;
+      humanoAssumiuEm: string | null;
+    }
+    const atendimentoPorLead = new Map<string, DoAtendimento>();
     if (leads.length > 0) {
       const { data: atendimentos, error: erroAtendimento } = await supabase
         .from("atendimentos")
-        .select("lead_id, chatwoot_conversation_id, iniciado_em, created_at")
-        .in("lead_id", leads.map((l: { id: string }) => l.id))
-        .not("chatwoot_conversation_id", "is", null);
+        .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at")
+        .in("lead_id", leads.map((l: { id: string }) => l.id));
 
       if (erroAtendimento) {
         console.warn("[Leads] Sem atendimento do Chatwoot:", erroAtendimento.message);
       } else {
+        // A MESMA régua do `montar_fila_do_funil`: `coalesce(iniciado_em,
+        // created_at)` decrescente. Duas réguas de "mais recente" no mesmo
+        // sistema é o motor escolhendo uma conversa e a tela outra.
         const maisRecentePrimeiro = [...(atendimentos ?? [])].sort((a, b) =>
           String(b.iniciado_em ?? b.created_at ?? "").localeCompare(
             String(a.iniciado_em ?? a.created_at ?? ""),
           ),
         );
         for (const a of maisRecentePrimeiro) {
-          if (a.lead_id && !conversaPorLead.has(a.lead_id)) {
-            conversaPorLead.set(a.lead_id, Number(a.chatwoot_conversation_id));
+          if (a.lead_id && !atendimentoPorLead.has(a.lead_id)) {
+            atendimentoPorLead.set(a.lead_id, {
+              conversa: a.chatwoot_conversation_id ? Number(a.chatwoot_conversation_id) : null,
+              // `=== true` e não coerção: coluna ausente num ambiente atrasado
+              // devolve `undefined`, e `undefined` tem de significar relógio
+              // rodando — a mesma direção segura do `default false` no banco.
+              comAssistente: a.com_assistente === true,
+              humanoAssumiuEm: a.humano_assumiu_em ?? null,
+            });
           }
         }
       }
     }
     for (const l of leads as Array<Record<string, unknown>>) {
-      l.chatwoot_conversation_id = conversaPorLead.get(String(l.id)) ?? null;
+      const a = atendimentoPorLead.get(String(l.id));
+      l.chatwoot_conversation_id = a?.conversa ?? null;
+      l.com_assistente = a?.comAssistente ?? false;
+      l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
     }
 
     // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
@@ -153,6 +234,10 @@ export async function GET(request: NextRequest) {
       // configuração tem gate próprio; isto só evita oferecer uma porta que
       // vai bater na cara de quem clicar.
       podeConfigurar: podeFazer(perfil, "Configurar o funil de vendas") === "faz",
+      // O que os `leads` acima SÃO: a fila (`null`) ou o resultado de uma
+      // busca. A tela lê daqui, e não do que pediu, para nunca chamar de
+      // "fila" uma lista filtrada nem de "busca vazia" uma fila vazia.
+      busca: ref ? { ref } : null,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -175,12 +260,18 @@ export async function GET(request: NextRequest) {
  * recusa acontece AQUI, e não só na tela: uma validação que mora apenas no
  * componente vira opcional no dia em que alguém chamar a rota de outro lugar.
  *
- * A recusa devolve `motivo_obrigatorio: true` para a tela saber abrir a caixa
- * de escolha em vez de mostrar um erro cru.
+ * A recusa é 400 e devolve `motivo_obrigatorio: true` quando falta escolher,
+ * para a tela saber abrir a caixa em vez de mostrar um erro cru. Motivo de
+ * outro tipo, inexistente, desativado ou de outro escopo também é recusado —
+ * a regra inteira, com as frases, mora em `decidirDesfecho` (`lib/funil`).
  *
- * ⚠️ Só vale para a MUDANÇA de etapa. Lead que já estava em "Fechado" desde
- * antes desta migração não é cobrado retroativamente: cobrar do passado
+ * ⚠️ Só vale para a MUDANÇA de etapa, medida contra o lead no banco. Lead que
+ * já está na etapa terminal não é cobrado retroativamente: cobrar do passado
  * travaria o card sem que ninguém tivesse feito nada errado.
+ *
+ * E não alcança a captura do site: `/api/leads` e `/api/avaliacao` gravam
+ * direto em `leads`, sem etapa, e o lead nasce na etapa do `default` da
+ * coluna. Esta rota exige sessão de equipe; nenhum formulário passa por aqui.
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -262,53 +353,59 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      if (etapa && (etapa.tipo === "ganho" || etapa.tipo === "perdido")) {
-        const motivo = typeof desfecho_motivo === "string" ? desfecho_motivo.trim() : "";
-        if (!motivo) {
-          return NextResponse.json(
-            {
-              error:
-                `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
-                `é ele que o relatório de ganhos e perdas lê.`,
-              motivo_obrigatorio: true,
-              tipo: etapa.tipo,
-            },
-            { status: 422 },
-          );
-        }
-
-        const { data: motivoBanco } = await supabase
-          .from("funil_motivos")
-          .select("chave, tipo")
-          .eq("chave", motivo)
-          .maybeSingle();
-
-        if (!motivoBanco) {
-          return NextResponse.json(
-            { error: `Motivo desconhecido: "${motivo}".` },
-            { status: 422 },
-          );
-        }
-        // Motivo de ganho num negócio perdido faria o relatório somar peras com
-        // maçãs — e o erro só apareceria no gráfico, meses depois.
-        if (motivoBanco.tipo !== etapa.tipo) {
-          return NextResponse.json(
-            {
-              error:
-                `O motivo "${motivo}" é de ${motivoBanco.tipo}, e a etapa ` +
-                `"${etapa.rotulo}" é de ${etapa.tipo}.`,
-            },
-            { status: 422 },
-          );
-        }
-
-        atualizacao.desfecho_motivo = motivo;
-        atualizacao.desfecho_valor = valorOuNulo(desfecho_valor);
-        atualizacao.desfecho_nota =
-          typeof desfecho_nota === "string" && desfecho_nota.trim()
-            ? desfecho_nota.trim()
-            : null;
+      // A regra inteira mora em `decidirDesfecho` (`lib/funil`). O que sobra
+      // aqui são as duas leituras do banco que ela pede — e ela só as pede
+      // quando o destino é desfecho, então mover entre colunas não lê nada.
+      //
+      // Ela saiu daqui em 16/09. A versão que morava neste PATCH perguntava
+      // `tipo === "ganho" || tipo === "perdido"`, e por isso a trava que o
+      // cabeçalho promete "para o dia em que alguém chamar a rota de outro
+      // lugar" nunca valeu para descarte. Junta e pura, a regra é EXECUTADA
+      // por teste; aqui, um desvio só se esconderia de um teste que lesse o
+      // texto do `if`.
+      const decisao = await decidirDesfecho(
+        (etapa as EtapaDoDesfecho | null) ?? null,
+        { desfecho_motivo, desfecho_valor, desfecho_nota },
+        {
+          // Para saber se é TRANSIÇÃO, e qual é o escopo do lead. Falha de
+          // leitura vira `null`, que a decisão trata do lado seguro.
+          lerLead: async () => {
+            const { data, error: erroLead } = await supabase
+              .from("leads")
+              .select("situacao, canal")
+              .eq("id", id)
+              .maybeSingle();
+            if (erroLead) {
+              console.warn("[Leads] Lead ilegível antes do desfecho:", erroLead.message);
+              return null;
+            }
+            return (data as LeadDoDesfecho | null) ?? null;
+          },
+          // Todos, e não só os ativos: motivo desativado precisa ser
+          // reconhecido para a recusa dizer "desativado", e não "desconhecido".
+          lerMotivos: async () => {
+            const { data, error: erroMotivos } = await supabase
+              .from("funil_motivos")
+              .select("*");
+            if (erroMotivos) {
+              console.warn("[Leads] Motivos ilegíveis antes do desfecho:", erroMotivos.message);
+              return null;
+            }
+            return (data ?? []) as MotivoDoFunil[];
+          },
+        },
+      );
+      if (!decisao.ok) {
+        return NextResponse.json(
+          {
+            error: decisao.erro,
+            motivo_obrigatorio: decisao.motivoObrigatorio,
+            tipo: decisao.tipo,
+          },
+          { status: decisao.status },
+        );
       }
+      Object.assign(atualizacao, decisao.campos);
     }
 
     const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
@@ -320,13 +417,6 @@ export async function PATCH(request: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
-
-/** Valor do negócio ganho. Vazio é nulo — zero seria uma venda de R$ 0. */
-function valorOuNulo(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = typeof v === "string" ? Number(v.replace(/\./g, "").replace(",", ".")) : Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /**

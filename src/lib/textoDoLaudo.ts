@@ -22,3 +22,23 @@ export const TEXTO_LAUDO_PENDENTE =
   "Este veículo passa por perícia cautelar independente antes de entrar na vitrine — " +
   "estrutura, chassi e histórico de sinistro. O laudo está disponível para consulta, " +
   "solicite ao vendedor a qualquer tempo.";
+
+/**
+ * A ponte da ficha para a peça pilar da Onda 1.
+ *
+ * O bloco do laudo diz que o exame existe e a quem pedir o resultado. O que ele
+ * NÃO diz — e é a primeira dúvida de quem lê — é o que o exame cobre. A peça
+ * "Laudo cautelar: o que verifica e o que não verifica" responde isso, e desde
+ * 17/09/2026 ela é destino em `linksNoTexto.ts`: o título citado aqui vira link.
+ *
+ * Por que a mesma frase nos dois blocos da ficha e na resposta do FAQ: são as
+ * três superfícies onde o assunto aparece, e a régua do site é ter uma verdade
+ * só sobre a perícia. Duas redações diferentes viram duas promessas diferentes
+ * — o defeito que `coerencia-da-pericia` existe para impedir.
+ *
+ * A frase não afirma resultado, não fala de prazo e não promete publicação:
+ * aponta para o texto que explica o exame.
+ */
+export const TEXTO_PONTE_DO_GUIA =
+  "O que o exame cobre, e o que fica de fora dele, está em " +
+  "Laudo cautelar: o que verifica e o que não verifica.";

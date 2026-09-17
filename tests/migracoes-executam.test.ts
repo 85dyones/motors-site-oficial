@@ -78,6 +78,20 @@ const CADEIA = [
   // gatilho e a view da migração acima — se as duas divergirem, o lead
   // descartado fica sem carimbo e volta para a fila de estagnação.
   "20260828160000_desfecho_sem_oportunidade.sql",
+  // O motivo de desfecho ganha escopo (2026-09-05). Entra na cadeia porque o
+  // aceite dela prova um CHECK novo tentando INSERIR o valor inválido — e
+  // `check_violation` só acontece contra um Postgres de verdade.
+  "20260905120000_motivo_por_escopo.sql",
+  // sem_resposta vai para o fim das duas listas (2026-09-06). Entra na cadeia
+  // porque o aceite só existe comparando `ordem` contra as linhas que a
+  // migração de escopo, acima, inseriu — sem rodar as duas em sequência não
+  // há "último motivo de avaliação" nenhum para comparar.
+  "20260906120000_sem_retorno_por_ultimo.sql",
+  // Motivos de ganho por escopo (2026-09-16). Entra na cadeia porque o aceite
+  // conta os motivos de ganho por escopo — e só sabe o que contar depois que as
+  // duas migrações acima deram escopo à tabela e as sementes de agosto
+  // inseriram os quatro de pagamento.
+  "20260916170000_motivos_de_ganho_por_escopo.sql",
 ];
 
 /**

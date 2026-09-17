@@ -114,7 +114,11 @@ export default async function GuiaPage({ params }: PageProps) {
   // ancoras para `/garantia` no corpo, sete com o rodape. E o defeito exato que
   // `criarLinkador` existe para fechar -- o limite de `segmentarComLinks` e por
   // STRING, e a regua certa e por pagina.
-  const linkar = criarLinkador();
+  // O caminho da própria página vai junto: desde 17/09/2026 as peças da Onda 1
+  // são destino em `TERMOS_COM_DESTINO`, e cada peça cita o próprio título no
+  // corpo. Sem isto, o guia linkaria para ele mesmo — âncora que não leva a
+  // lugar nenhum e sinal interno falso para o rastreador.
+  const linkar = criarLinkador(`/guias/${slug}`);
 
   const comLinks = (texto: string, chave: string) =>
     linkar(texto).map((parte, i) =>

@@ -154,6 +154,34 @@ const MOCK_ESTOQUE: Veiculo[] = [
   }
 ];
 
+/** Os ids dos carros fictícios, derivados do próprio mock — nunca cravados. */
+const IDS_DE_CONTINGENCIA = new Set(MOCK_ESTOQUE.map((v) => String(v.id)));
+
+/**
+ * A lista recebida é o catálogo fictício, e não o pátio?
+ *
+ * Existe para quem consome `getEstoque()` FORA do Next — hoje só
+ * `npm run auditoria:estoque`, que precisa se recusar a relatar sobre carro que
+ * a loja não tem. O site não usa: lá a regra é outra, e está em
+ * `estoqueDeContingencia` mais abaixo.
+ *
+ * Mora aqui, colada ao `MOCK_ESTOQUE`, por uma razão só: quem um dia editar os
+ * cinco carros de demonstração vê esta função na mesma tela e a atualiza junto.
+ * Longe daqui ela apodrece calada — e um detector de dado falso que parou de
+ * detectar é pior que nenhum, porque dá a sensação de estar protegido.
+ *
+ * A régua é **algum** id pertencer ao conjunto, não a lista inteira coincidir:
+ * assim pega também contingência parcial, e não há colisão possível — id real é
+ * inteiro do RevendaMais ou da faixa ≥ 900000001 do painel, nunca
+ * `porsche-911-carrera-s-2023`.
+ *
+ * Lista vazia devolve `false` de propósito. Vazio não é dado fictício; é outro
+ * problema, com outra mensagem — e quem chama precisa poder distinguir os dois.
+ */
+export function ehEstoqueDeContingencia(lista: readonly Pick<Veiculo, "id">[]): boolean {
+  return lista.some((v) => IDS_DE_CONTINGENCIA.has(String(v.id)));
+}
+
 const formatCambio = (c: string): string => {
   if (!c) return "Automático";
   const val = c.toLowerCase().trim();
@@ -252,12 +280,25 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   };
 
   // Use array of images from S3 if present, otherwise fallback to url_imagem
-  const whatsappImgs = Array.isArray(dbItem.whatsapp_images) && dbItem.whatsapp_images.length > 0
-    ? dbItem.whatsapp_images
+  //
+  // O `.filter(Boolean)` não é decorativo: quando o anúncio vem sem `<IMAGES>`,
+  // o sincronizador do n8n grava `[""]` — um array de UM elemento vazio, não um
+  // array vazio. `length > 0` aceitava esse `[""]` como foto legítima, o
+  // fallback nunca disparava, e o `""` atravessava até o `src` dos cards
+  // (`??` não socorre: string vazia não é nullish). O veículo ficava sem foto
+  // só nos ciclos em que o feed veio capenga — quebra intermitente clássica.
+  const limparImagens = (valor: unknown): string[] =>
+    Array.isArray(valor) ? valor.filter((u): u is string => typeof u === "string" && u.trim() !== "") : [];
+
+  const whatsappImgsLimpas = limparImagens(dbItem.whatsapp_images);
+  const webFullImgsLimpas = limparImagens(dbItem.web_full_images);
+
+  const whatsappImgs = whatsappImgsLimpas.length > 0
+    ? whatsappImgsLimpas
     : (dbItem.url_imagem ? [dbItem.url_imagem] : ["/logo.png"]);
 
-  const webFullImgs = Array.isArray(dbItem.web_full_images) && dbItem.web_full_images.length > 0
-    ? dbItem.web_full_images
+  const webFullImgs = webFullImgsLimpas.length > 0
+    ? webFullImgsLimpas
     : (dbItem.url_imagem ? [dbItem.url_imagem] : ["/logo.png"]);
 
   const precoOriginal = typeof dbItem.preco_original === "number" ? dbItem.preco_original : (typeof dbItem.preco === "number" ? dbItem.preco : 0);
@@ -434,6 +475,19 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     // migração 20260817130000 esta coluna não existia e o valor era `undefined`
     // em silêncio, que é como todo anúncio do feed acabou com a mesma frase.
     descricao_seo: textoUtil(dbItem.descricao_seo),
+    /**
+     * Portas — inteiro positivo, ou ausente.
+     *
+     * `Number.isInteger` e `> 0` juntos, e não `Number(x) || undefined`: o
+     * banco guarda `NULL` para moto (o feed manda `0` e a importação converte),
+     * e um `0` que escapasse viraria `numberOfDoors: 0` no JSON-LD — afirmação
+     * falsa, não campo vazio. A régua é a mesma do comentário de
+     * `schemaVeiculo.ts`: schema errado é pior que campo ausente.
+     */
+    portas:
+      Number.isInteger(dbItem.portas) && Number(dbItem.portas) > 0
+        ? Number(dbItem.portas)
+        : undefined,
     cabine_premium: hasCabinePremium,
     tecnologia_embarcada: hasTech,
     conducao_dinamica: hasConducaoDinamica,
@@ -566,6 +620,11 @@ const JANELA_MESMO_SYNC_MS = 30 * 60 * 1000;
  * Errar aqui para o lado permissivo é barato: o pior caso é a vitrine mostrar
  * por algumas horas um carro que já saiu. Errar para o lado severo tira do
  * índice do Google carros que estão à venda, e isso não volta em horas.
+ *
+ * O mesmo piso barra a reconciliação com o feed (`reconciliar_disponibilidade_do_feed`,
+ * migração `20260916220000`): lista com menos da metade dos publicados à venda
+ * é coleta quebrada, e ali o erro custaria marcar meio pátio como VENDIDO.
+ * `tests/disponibilidade-espelha-o-revendamais.test.ts` trava a igualdade.
  */
 const FRACAO_MINIMA_DO_CICLO = 0.5;
 
@@ -1014,7 +1073,21 @@ export async function getEstoque(
 // Helper to query a single vehicle by ID
 export async function getVeiculoById(id: string): Promise<Veiculo | null> {
   let car: Veiculo | null = null;
-  if (isSupabaseConfigured && supabase) {
+  // Só vai ao banco com id que a coluna aceita.
+  //
+  // `estoque_motors.id` é INTEGER. Texto ali o Postgres recusa com `22P02`, o
+  // PostgREST devolve 400 e o `error` nunca foi lido: `data` vinha nulo e a
+  // busca seguia como "não achei". Como a ficha pede primeiro pelo slug inteiro
+  // e só depois pelo número do fim, TODA renderização dela — página e
+  // `generateMetadata` — gastava uma ida ao banco que falhava por construção:
+  // dezenas de linhas ERROR no log do Postgres em 2026-09-12.
+  //
+  // A guarda fica aqui, e não nas chamadas: o id de texto ainda precisa chegar
+  // ao `estoqueDeContingencia()` abaixo, que é quem abre os mocks do dev. E
+  // inverter a ordem nas chamadas não bastaria — o slug voltaria ao banco toda
+  // vez que o número não achasse o carro. Ver
+  // `tests/ficha-consulta-o-banco-so-com-numero.test.ts`.
+  if (isSupabaseConfigured && supabase && /^\d+$/.test(id)) {
     try {
       // First try to match string ID directly
       let { data, error } = await supabase

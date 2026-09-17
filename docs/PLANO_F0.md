@@ -58,6 +58,15 @@ catálogo seguiu devolvendo os mesmos 34 itens.
 > "o ciclo mais recente" e derrubaria os outros 38 da vitrine — sem ninguém ter
 > mexido em nada. O estado precisava deixar de ser inferido do relógio do robô.
 
+> **Atualização de 2026-09-02 — o cron voltou, e a trava virou allowlist.** O
+> dono decidiu que o preço (tabela E promoção) é sempre o do RevendaMais, para
+> não haver dois lugares de mudar. A migração `20260902120000_preco_e_do_revendamais`
+> abriu a trava para exatamente quatro colunas — `preco`, `preco_original`,
+> `preco_promocional`, `last_seen_at` — e o cron de 6 h foi religado: o motivo
+> de desligá-lo (sobrescrita de conteúdo) deixou de existir, porque o sync não
+> alcança mais nada além disso. A coluna `estado_cadastro` continua sendo a
+> régua da vitrine; nada aqui a reverte. Detalhe em `docs/PROPRIEDADE_DOS_CAMPOS.md`.
+
 **A LACUNA do storage — FECHADA em 31/08.** O plano previa escolher entre
 colunas de override de foto (a) e esperar a F2 (b). **Nenhum dos dois foi
 preciso**: a trava total do sync (f0k + f0q) tirou do RevendaMais o poder de

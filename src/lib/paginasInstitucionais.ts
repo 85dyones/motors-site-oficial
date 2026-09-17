@@ -101,7 +101,7 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  * Fonte de cada afirmação:
  * - "garantia de motor e câmbio, contratada na entrega, sem carência e sem
  *   franquia" → `PROCEDENCIA_PADRAO`, faixa que a ficha do veículo já exibe;
- * - "perícia cautelar independente em 100% do estoque, laudo na ficha" →
+ * - "perícia cautelar independente em 100% do estoque, laudo sai a pedido" →
  *   `aboutSettings.value1`;
  * - "crivo técnico de mais de 120 pontos antes da entrega" →
  *   `aboutSettings.value2`;
@@ -183,56 +183,123 @@ export const GARANTIA_MESES = 3;
 
 /** A abertura, sob o `<h1>`. */
 export const TEXTO_DE_GARANTIA: string[] = [
-  "Todo carro vendido pela Motors Store sai com três meses de garantia de motor e câmbio, " +
-    "contados da entrega, sem carência e sem franquia. Deu problema nesses dois conjuntos " +
-    "dentro do prazo, a gente resolve.",
-  "Antes disso, o carro passou por perícia cautelar independente — e só entrou na vitrine " +
-    "porque passou: de cada dez veículos avaliados, três entram. A garantia existe para o que " +
-    "a perícia não tem como enxergar.",
-  "Essa cobertura soma-se aos seus direitos de consumidor — não os substitui. O que ela cobre, " +
-    "item por item, está no termo que acompanha a venda: leia antes de assinar e pergunte o que " +
-    "não estiver claro.",
+  "Todo carro vendido pela Motors Store sai com três meses de garantia de motor, câmbio e " +
+    "diferencial, contados da entrega, sem carência e sem franquia. Falha interna nesses " +
+    "conjuntos dentro do prazo, a gente resolve — com a mão de obra inclusa.",
+  "Essa cobertura soma-se aos seus direitos de consumidor: não os substitui. O que ela cobre, " +
+    "item por item, está no termo que acompanha a venda — leia antes de assinar e pergunte o " +
+    "que não estiver claro.",
+  "Antes dela vem a seleção. Todo veículo passa por perícia cautelar independente, e só entra " +
+    "na vitrine porque passou: de cada dez avaliados, três entram. O laudo está disponível " +
+    "para consulta, é só pedir ao vendedor. A garantia existe para o que a perícia não tem " +
+    "como enxergar.",
 ];
 
-/** O corpo, em `<h2>` — a estrutura da proposta do pacote. */
+/**
+ * O corpo, em `<h2>`.
+ *
+ * Revisto em 17/09/2026 com o contrato de venda e o manual do plano estendido
+ * na mão, e com as respostas do dono. Quatro correções que valem registro:
+ *
+ *   · o contrato cobre motor, câmbio E DIFERENCIAL — a página prometia menos
+ *     do que a loja entrega;
+ *   · as exclusões ganharam o que o contrato lista e a página não dizia:
+ *     bombas, fluidos e óleos, e os custos que não são do conserto (transporte,
+ *     guincho, alimentação, hospedagem);
+ *   · o "crivo de mais de 120 pontos" é da perícia CAUTELAR, não de uma etapa
+ *     mecânica separada. A etapa mecânica existe, mas é sob demanda: entra
+ *     quando a avaliação levanta suspeita;
+ *   · o plano estendido NÃO é seguro vendido ao cliente. É serviço de
+ *     certificação com garantia, administrado pela Gestauto, em acréscimo à
+ *     garantia legal — o número SUSEP que aparece no manual é de um seguro que
+ *     cobre a Gestauto, não uma apólice do comprador. Dizer "seguro registrado
+ *     na SUSEP" venderia proteção que o produto não tem no nome dele.
+ */
 export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   {
     titulo: "A garantia da Motors Store",
     paragrafos: [
-      "Três meses, motor e câmbio, contados da entrega. Sem carência: vale desde o primeiro " +
-        "dia, sem período de espera. Sem franquia: você não paga parte do conserto, nem taxa " +
-        "para acionar.",
+      "Três meses, contados da entrega, para falha interna de motor, câmbio e diferencial. " +
+        "Sem carência: vale desde o primeiro dia, sem período de espera. Sem franquia: você " +
+        "não paga parte do conserto, nem taxa para acionar. A mão de obra está inclusa.",
       "Na venda ao consumidor, não pedimos assinatura de termo de isenção — nenhum papel que " +
         "reduza aquilo a que você tem direito.",
-      "É o padrão do mercado, cumprido de verdade. A diferença não está no prazo: está em " +
-        "conseguir acionar sem discussão, e sem descobrir depois uma cláusula que ninguém " +
-        "mostrou na hora da venda.",
+      "O conserto é feito em oficina parceira credenciada, indicada pela loja. São mais de " +
+        "quinze parceiras, separadas por especialidade, e é por isso que a gente pede para " +
+        "você falar com a gente antes de levar o carro a qualquer lugar.",
+    ],
+  },
+  {
+    titulo: "O que está coberto e o que não está",
+    paragrafos: [
+      "Coberto: falha interna de componente de motor, de câmbio e de diferencial, dentro dos " +
+        "três meses.",
+      "Fora da cobertura, por serem manutenção ou desgaste de uso: óleo, filtros, velas e " +
+        "correias no intervalo; pastilha, disco, pneu, palheta e bateria; embreagem em uso " +
+        "normal; bombas, fluidos e óleos em geral.",
+      "Fora também: peça fora de especificação, remap e alteração de característica do " +
+        "veículo; e evento externo — colisão, enchente, granizo, vandalismo —, que é assunto " +
+        "de seguro, não de garantia.",
+      "E os custos que não são do conserto em si: transporte, guincho, alimentação e " +
+        "hospedagem não entram. Dizer isso antes é parte do serviço; descobrir depois é o que " +
+        "estraga a relação.",
+    ],
+  },
+  {
+    titulo: "Estender por 6, 12 ou 24 meses",
+    paragrafos: [
+      "Quem quiser ir além dos três meses pode contratar, no ato da compra, o plano de motor " +
+        "e câmbio administrado pela Gestauto. É garantia mecânica contratada à parte, em " +
+        "acréscimo à garantia legal e à da loja — não é seguro, e a contratação é opcional. " +
+        "O preço vem destacado na proposta, não muda o valor do carro e recusar não muda a " +
+        "negociação.",
+      "O plano depende de aprovação do veículo: na data do checklist, ele precisa ter menos " +
+        "de 180 mil quilômetros rodados e menos de oito anos de ano-modelo.",
+      "Cobre componentes internos do motor e do câmbio, pelo tipo de câmbio do carro, e o " +
+        "sistema de arrefecimento, com mão de obra nas oficinas credenciadas. Não cobre " +
+        "turbocompressor, vazamento e aumento gradual de consumo de óleo, kit de embreagem, " +
+        "elétrica em geral, ar-condicionado, freios, direção nem diferencial. A lista completa " +
+        "está no manual, que o consultor mostra antes de você decidir.",
+      "Duas obrigações que valem a cobertura inteira: a revisão de óleo e filtro a cada 7 mil " +
+        "quilômetros ou 6 meses, o que vier primeiro, guardando a nota fiscal com a " +
+        "quilometragem e a placa; e o teto de reparo escrito no termo de ativação, que vai " +
+        "sendo consumido a cada acionamento. Perder a revisão é a causa número um de recusa " +
+        "no país inteiro.",
+      "O plano vale em todo o território nacional e pode ser transferido a quem comprar o " +
+        "carro depois, mediante taxa.",
     ],
   },
   {
     titulo: "O que fazer se algo falhar",
     paragrafos: [
       "Avise antes de mexer. Fale com a gente antes de levar o carro a uma oficina por conta " +
-        "própria: reparo feito sem comunicação prévia dificulta a análise e pode agravar o problema.",
-      "A gente avalia e, dentro do prazo e do escopo do termo, conserta sem franquia.",
+        "própria: reparo feito sem comunicação prévia dificulta a análise e pode agravar o " +
+        "problema.",
+      "A gente avalia e conserta na oficina parceira da especialidade, dentro do prazo e do " +
+        "escopo do termo, sem franquia e com a mão de obra inclusa.",
       "Guarde tudo: nota, contrato, laudo da perícia, ordem de serviço e a conversa por escrito.",
+      "Se você contratou o plano estendido, o caminho é outro e tem prazo: pare o veículo, " +
+        "acione a Gestauto em até três dias úteis, envie os documentos em até 72 horas e leve " +
+        "o carro à oficina que ela indicar. Nenhum reparo pode começar antes da autorização " +
+        "dela. A gente acompanha o processo com você.",
     ],
   },
   {
     titulo: "Por que a perícia vem antes da garantia",
     paragrafos: [
-      "Garantia é o que a gente faz quando algo dá errado. Perícia cautelar é o que a gente faz " +
-        "para que não dê.",
-      "Todo veículo passa pela perícia antes de entrar na vitrine — estrutura, chassi e " +
-        "histórico de sinistro auditados por empresa independente, credenciada junto ao Detran — " +
-        "e o laudo fica publicado na ficha do carro assim que é aprovado; antes disso, é só pedir. " +
-        "Os sete de cada dez que não entram são recusados por sinistro estrutural, passagem por " +
-        "leilão, adulteração de numeração ou desgaste crônico grave.",
-      "Nenhuma perícia prevê tudo. Ela verifica estrutura, identificação e histórico — não abre " +
-        "motor, não mede compressão de cilindro, não avalia bomba de alta pressão.",
-      "Por isso, antes da entrega, o carro ainda passa pelo crivo técnico de showroom: mais de " +
-        "120 pontos mecânicos e eletrônicos conferidos. E a garantia responde pelo que nem a " +
-        "inspeção mais cuidadosa tem como enxergar.",
+      "Garantia é o que a gente faz quando algo dá errado. Perícia cautelar é o que a gente " +
+        "faz para que não dê.",
+      "Todo veículo passa pela perícia antes de entrar na vitrine — identificação, estrutura e " +
+        "histórico auditados por empresa independente, credenciada junto ao Detran, num crivo " +
+        "de mais de 120 pontos — e o laudo está disponível para consulta, é só pedir ao " +
+        "vendedor. Os sete de cada dez que não entram são recusados por sinistro estrutural, " +
+        "passagem por leilão, adulteração de numeração ou desgaste crônico grave.",
+      "Nenhuma perícia prevê tudo. Ela verifica estrutura, identificação e histórico — não " +
+        "abre motor, não mede compressão de cilindro, não avalia bomba de alta pressão.",
+      "Quando a avaliação levanta suspeita — vazamento, fumaça, solavanco no câmbio, " +
+        "temperatura instável —, o carro vai para uma das oficinas parceiras antes de entrar, " +
+        "e aí sim é examinado por dentro. Todo carro que entra recebe troca de óleo e filtros. " +
+        "A garantia responde pelo que nem esse caminho inteiro tem como enxergar.",
     ],
   },
 ];
@@ -243,9 +310,10 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        a régua do pacote (§2.5) para o FAQ que se repete entre páginas. */
     pergunta: "O que a garantia cobre, exatamente?",
     resposta:
-      "Motor e câmbio, por três meses contados da entrega, sem carência e sem franquia: falha " +
-      "nesses dois conjuntos, dentro do prazo, a loja resolve. O detalhamento item por item " +
-      "está no termo entregue junto com a venda — peça para ler antes de assinar.",
+      "Falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem " +
+      "carência, sem franquia e com a mão de obra inclusa. O conserto é feito em oficina " +
+      "parceira credenciada indicada pela loja. O detalhamento item por item está no termo " +
+      "entregue junto com a venda — peça para ler antes de assinar.",
   },
   {
     pergunta: "Preciso pagar algo para acionar?",
@@ -258,17 +326,37 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
     pergunta: "Todos os carros passam por perícia cautelar?",
     /* Ver o comentário gêmeo em `textoDosHubs.ts`: a ficha só publica o laudo
        com a perícia APROVADA, e parte da vitrine está em análise a qualquer
-       momento. "Assim que a perícia é aprovada" descreve o que o site faz. */
+       momento — "assim que a perícia é aprovada" descrevia o que o site faz,
+       mas ainda prometia publicação automática que a ficha não cobre sozinha
+       (falta também o texto do laudo). Decisão do dono em 16/09/2026: o
+       caminho passou a ser um só em todo o site, aprovada ou não — o laudo
+       fica com o vendedor, e quem confirma é ele. */
     resposta:
-      "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente, credenciada junto ao Detran, e o laudo fica na ficha " +
-      "do veículo, no site, assim que é aprovada — e, enquanto não está lá, é só pedir ao vendedor.",
+      "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente, credenciada junto ao Detran, e o laudo está disponível " +
+      "para consulta, é só pedir ao vendedor a qualquer tempo.",
   },
   {
     pergunta: "A garantia vale se eu comprar de outra cidade?",
     resposta:
       "Vale. A cobertura é a mesma em Curitiba, na Região Metropolitana e para quem compra de " +
-      "outro estado — entregamos para todo o Brasil. O que muda é a logística de entrega, " +
-      "combinada caso a caso.",
+      "fora — entregamos no Paraná e em Santa Catarina até Balneário Camboriú. O que muda é a " +
+      "logística de entrega, combinada caso a caso.",
+  },
+  {
+    pergunta: "Dá para estender a garantia?",
+    /* O plano é o da Gestauto, e a redação segue o manual dele por ordem do
+       dono (17/09/2026). Duas coisas que a página NÃO pode dizer: que é seguro
+       (é serviço de certificação com garantia, contratado à parte) e que o
+       registro SUSEP do manual protege o comprador — ele cobre a própria
+       Gestauto. E a contratação é opcional por norma: nada de condicionar
+       preço, desconto ou entrega do carro a ela. */
+    resposta:
+      "Dá, no ato da compra, por 6, 12 ou 24 meses, com aprovação do veículo — ele precisa " +
+      "ter menos de 180 mil quilômetros e menos de oito anos de ano-modelo. É garantia " +
+      "mecânica administrada pela Gestauto, contratada à parte e em acréscimo à garantia da " +
+      "loja; a contratação é opcional e o preço vem destacado na proposta. O plano exige " +
+      "revisão de óleo e filtro a cada 7 mil quilômetros ou 6 meses, com nota fiscal, e tem " +
+      "teto de reparo no termo de ativação.",
   },
   {
     pergunta: "E a documentação da transferência?",

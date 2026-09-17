@@ -69,9 +69,18 @@ describe("a coluna existe de verdade", () => {
     // A coluna precisa nascer ANTES da função que a cita: entre as duas
     // migrações não pode existir instante em que o trigger referencie campo
     // inexistente, senão todo UPDATE na tabela quebra no intervalo.
-    expect(migracao.indexOf("ADD COLUMN IF NOT EXISTS descricao_seo")).toBeLessThan(
-      migracao.indexOf("create or replace function")
-    );
+    //
+    // As duas guardas abaixo não são zelo: `indexOf` devolve -1 quando não
+    // acha, e -1 é menor que qualquer posição válida — a comparação de ordem
+    // passaria justamente no caso que ela existe para pegar. E a busca é a
+    // mesma regex tolerante de `colunasDeMigracoes` lá em cima, porque o SQL
+    // não distingue caixa nem conta espaços: com âncora literal, a guarda
+    // passaria a reprovar migração correta escrita de outro jeito.
+    const iColuna = migracao.search(/ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?descricao_seo/i);
+    const iFuncao = migracao.search(/create or replace function/i);
+    expect(iColuna, "a criação da coluna sumiu da migração").toBeGreaterThanOrEqual(0);
+    expect(iFuncao, "a recriação da função sumiu da migração").toBeGreaterThanOrEqual(0);
+    expect(iColuna).toBeLessThan(iFuncao);
   });
 });
 
@@ -88,7 +97,12 @@ describe("cadeia de fallback do texto", () => {
     // frase: "Aproveite as melhores condições para comprar **seu** {marca}
     // {modelo}" cravava o masculino e usava um termo da coluna *Evitar* do
     // POSICIONAMENTO. O teste prende o degrau, não as palavras dele.
-    expect(fonte).toMatch(/perícia cautelar independente e laudo na ficha/);
+    //
+    // A cauda mudou de novo em 16/09/2026: "laudo na ficha assim que
+    // aprovado" prometia publicação que nem todo carro cumpre — mesma
+    // decisão do dono que `tests/coerencia-da-pericia.test.ts` trava para o
+    // resto do site. O degrau continua o mesmo; só a frase acompanhou.
+    expect(fonte).toMatch(/perícia cautelar independente e laudo disponível para consulta com o vendedor/);
   });
 
   it("a meta description da PDP usa a mesma ordem", () => {

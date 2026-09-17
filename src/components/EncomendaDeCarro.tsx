@@ -3,8 +3,14 @@
 import { useRef, useState } from "react";
 
 import { useTheme } from "../app/ThemeContext";
-import { getActiveAgUid, getUtmParameters, trackLeadSubmission } from "../lib/telemetry";
-import { generateEventId, getMatchParams } from "../lib/tracking-identity";
+import {
+  getActiveAgUid,
+  getMatchParamsRespeitandoRecusa,
+  getUtmParameters,
+  rastreamentoRecusado,
+  trackLeadSubmission,
+} from "../lib/telemetry";
+import { generateEventId } from "../lib/tracking-identity";
 import { telefoneDoLead } from "../lib/whatsapp";
 import { ACOES } from "../lib/turnstile";
 import {
@@ -100,8 +106,13 @@ export default function EncomendaDeCarro({
 
     // Gerado ANTES do POST para o pixel do navegador e a CAPI do servidor
     // compartilharem o mesmo id — é o que deduplica o evento no Meta.
-    const eventId = generateEventId("Lead");
-    const { fbp, fbc } = getMatchParams();
+    //
+    // Só para quem não se opôs em /privacidade: `/api/leads` espelha o Lead no
+    // CAPI sempre que recebe `eventId`, e o `null` é o que barra esse envio. O
+    // id não pode vir do retorno de `trackLeadSubmission`, que só roda depois
+    // do sucesso do POST.
+    const eventId = rastreamentoRecusado() ? null : generateEventId("Lead");
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     const corpo = montarEncomenda(
       { nome: nome.trim(), whatsapp: whatsapp.trim(), faixa },
@@ -151,7 +162,9 @@ export default function EncomendaDeCarro({
       { marca, modelo: modelo || "Encomenda", preco: 0 },
       corpo.mensagem,
       {
-        presetEventId: eventId,
+        // Na recusa, `eventId` é null: a função gera um id só para o
+        // `dataLayer` e volta antes de disparar qualquer coisa.
+        presetEventId: eventId ?? undefined,
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
         phoneE164: telefone.e164,

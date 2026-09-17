@@ -73,9 +73,11 @@ describe("o site coleta Web Vitals de campo", () => {
 
   it("o coletor fica fora do que o consentimento controla", () => {
     // Speed Insights não identifica pessoa: mede tempo de render do próprio
-    // site, sem cookie e sem id de usuário. Envolvê-lo no gate de marketing
-    // faria a medição de desempenho depender de aceite — e mediria só quem
-    // aceita, que é o pior recorte possível para uma métrica de performance.
+    // site, sem cookie e sem id de usuário. Envolvê-lo na régua das tags de
+    // marketing — hoje a oposição em /privacidade; até 31/08, o aceite — faria
+    // a medição de desempenho deixar de fora quem ela barra, um recorte
+    // enviesado para uma métrica de performance e sem ganho nenhum de
+    // privacidade.
     const codigo = lerCodigo(LAYOUT);
     const posicao = codigo.indexOf("<SpeedInsights");
 

@@ -55,6 +55,9 @@ describe("o preço só é gravável no veículo do painel", () => {
     const doSync = camposGravaveis("sync");
     expect(doSync).not.toContain("preco");
     expect(doSync).not.toContain("preco_original");
+    // Desde 02/09 a promoção segue a mesma régua — "o preço é do revenda,
+    // sempre, nos campos de preço e no de promoção" (dono).
+    expect(doSync).not.toContain("preco_promocional");
     // E o mesmo para origem ausente/desconhecida — o padrão é o mais restrito.
     expect(camposGravaveis(null)).not.toContain("preco");
     expect(camposGravaveis(undefined)).not.toContain("preco");
@@ -83,14 +86,21 @@ describe("o preço só é gravável no veículo do painel", () => {
     // obrigue quem o cria a passar por aqui em vez de afrouxar a conta.
     //
     // E obrigou: `CAMPO_DA_PROMOCAO` chegou em 2026-08-31 e esta linha foi o
-    // que o pegou. Ele soma +1 nas DUAS origens, não só no painel — é a única
-    // coluna do feed que o painel grava em veículo importado também, porque a
-    // trava total do sync tirou o risco de sobrescrita e promoção é decisão da
-    // loja, não do RevendaMais.
+    // que o pegou. De 31/08 a 02/09 ele somava +1 nas DUAS origens; desde
+    // 02/09 só no painel — o dono mandou o preço, promoção inclusive, ser do
+    // RevendaMais em carro do RevendaMais. A conta do painel não mudou; a do
+    // sync perdeu um.
+    //
+    // E de novo em 17/09: `CAMPO_DOS_OPCIONAIS` saiu de `CAMPOS_NOSSOS` e
+    // passou a somar só no painel, porque desde 08/09 o sync escreve os
+    // opcionais no carro do RevendaMais. Mesmo desenho: a conta do painel não
+    // mudou, a do sync perdeu um.
+    expect(camposGravaveis("sync")).toHaveLength(CAMPOS_NOSSOS.length + CAMPOS_DE_FOTO.length);
     expect(doPainel.length).toBe(
       CAMPOS_NOSSOS.length +
         1 /* CAMPO_DA_PROMOCAO */ +
         CAMPOS_DE_PRECO_DO_NATIVO.length +
+        1 /* CAMPO_DOS_OPCIONAIS */ +
         CAMPOS_DE_FOTO.length,
     );
     // Sem repetição entre os grupos: campo em duas listas passaria por dois

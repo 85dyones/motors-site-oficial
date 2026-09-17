@@ -3,9 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { getEstoque, getVeiculoPdpUrl, Veiculo } from "../lib/supabase";
-import { precoVigente } from "../lib/regrasEstoque";
-import { logFlowInitiated, getActiveAgUid, getUtmParameters, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
-import { getMatchParams } from "../lib/tracking-identity";
+import { disponiveisDe, precoVigente } from "../lib/regrasEstoque";
+import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import { useTheme } from "../app/ThemeContext";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
@@ -272,8 +271,7 @@ export default function CarMatch() {
       });
     };
 
-    const precos = estoque
-      .filter((v) => !v.vendido)
+    const precos = disponiveisDe(estoque)
       .map((v) => precoVigente(v))
       .filter((p) => p > 0)
       .sort((a, b) => a - b);
@@ -328,8 +326,7 @@ export default function CarMatch() {
    * As faixas prontas da outra aba já saíam do estoque; esta ficou para trás.
    */
   const faixaDoSlider = useMemo(() => {
-    const precos = estoque
-      .filter((v) => !v.vendido)
+    const precos = disponiveisDe(estoque)
       .map((v) => precoVigente(v))
       .filter((p) => p > 0);
     if (precos.length === 0) return { min: 20000, max: 500000, mediana: 60000, passo: 5000 };
@@ -436,7 +433,7 @@ export default function CarMatch() {
         formId: "form-garagem-profiler",
       }
     );
-    const { fbp, fbc } = getMatchParams();
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     const payload = {
       remoteJid,
@@ -736,7 +733,7 @@ export default function CarMatch() {
      ────────────────────────────────────────────────────────────────────── */
 
   const estoqueCompativel = useMemo(() => {
-    const disponiveis = estoque.filter((v) => !v.vendido);
+    const disponiveis = disponiveisDe(estoque);
     if (!answers.budgetMax) return disponiveis;
     return disponiveis.filter((v) => precoVigente(v) <= answers.budgetMax);
   }, [estoque, answers.budgetMax]);

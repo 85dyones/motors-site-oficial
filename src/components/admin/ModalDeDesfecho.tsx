@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ehDescarte, type EtapaDoFunil, type MotivoDoFunil } from "../../lib/funil";
+import {
+  MOTIVO_DO_DESFECHO,
+  ehDescarte,
+  ehTipoDeDesfecho,
+  escopoDoLead,
+  motivosVisiveis,
+  type EtapaDoFunil,
+  type MotivoDoFunil,
+} from "../../lib/funil";
 
 /**
  * A caixa que pergunta POR QUÊ antes de fechar o negócio.
@@ -47,7 +55,17 @@ export default function ModalDeDesfecho({
 }: {
   etapa: EtapaDoFunil;
   motivos: MotivoDoFunil[];
-  lead: { nome: string; interesse?: string | null };
+  /**
+   * `canal` é o que diz se esta pessoa quer COMPRAR um carro ou VENDER o dela
+   * — e portanto qual lista de motivos faz sentido oferecer. Obrigatório, e
+   * não opcional: a coluna no banco nunca está AUSENTE, só pode estar `null`
+   * — é o caso do lead antigo, de antes de ela existir. Deixar o campo
+   * opcional aqui deixaria um chamador parar de passar o canal e compilar em
+   * silêncio, exatamente o gesto que já vazou `preco_compra` na fronteira de
+   * um client component deste repositório. `null` continua tratado:
+   * `escopoDoLead` cai em compra, o funil padrão.
+   */
+  lead: { nome: string; interesse?: string | null; canal: string | null };
   aoConfirmar: (escolha: DesfechoEscolhido) => void;
   aoCancelar: () => void;
 }) {
@@ -66,7 +84,7 @@ export default function ModalDeDesfecho({
     ? {
         chapeu: "Não é oportunidade",
         pergunta: "O que era, então?",
-        vazio: "descarte",
+        vazio: MOTIVO_DO_DESFECHO.descartado,
         confirmar: "Descartar",
         exemplo: "Ex.: formulário preenchido por robô, três vezes no mesmo minuto",
       }
@@ -74,14 +92,14 @@ export default function ModalDeDesfecho({
       ? {
           chapeu: "Negócio ganho",
           pergunta: "Por quê?",
-          vazio: "ganho",
+          vazio: MOTIVO_DO_DESFECHO.ganho,
           confirmar: "Marcar como ganho",
           exemplo: "Ex.: fechou levando o usado na troca, entrega quinta",
         }
       : {
           chapeu: "Negócio perdido",
           pergunta: "Por quê?",
-          vazio: "perda",
+          vazio: MOTIVO_DO_DESFECHO.perdido,
           confirmar: "Marcar como perdido",
           exemplo: "Ex.: queria prata, só tinha branco — pediu para avisar quando chegar",
         };
@@ -90,9 +108,22 @@ export default function ModalDeDesfecho({
   const [nota, setNota] = useState("");
   const caixa = useRef<HTMLDivElement>(null);
 
+  // `etapa.tipo` é `TipoDeEtapa`, que inclui "aberta" — e `motivosVisiveis` só
+  // aceita desfecho. Os três desfechos chegam a montar esta caixa: quem decide
+  // é `criarMover` (`lib/leadsKanban`), que pergunta a `ehTipoDeDesfecho`.
+  // Até 16/09 o kanban perguntava `ganho || perdido`, e o ramo de descarte
+  // daqui — rótulos, moldura, `ehDescarte` — era código morto. A guarda abaixo
+  // é para o TIPO, não para um caso real; se algum dia cair, o estado vazio
+  // que a caixa já desenha cobre a tela.
+  //
+  // A lista que sai daqui é também a régua do servidor: `decidirDesfecho`
+  // aceita exatamente o que `motivosVisiveis` oferece para o canal do lead.
   const disponiveis = useMemo(
-    () => motivos.filter((m) => m.ativo && m.tipo === etapa.tipo).sort((a, b) => a.ordem - b.ordem),
-    [motivos, etapa.tipo],
+    () =>
+      ehTipoDeDesfecho(etapa.tipo)
+        ? motivosVisiveis(motivos, etapa.tipo, escopoDoLead(lead.canal))
+        : [],
+    [motivos, etapa.tipo, lead.canal],
   );
 
   useEffect(() => {
@@ -136,12 +167,21 @@ export default function ModalDeDesfecho({
         </div>
 
         {disponiveis.length === 0 ? (
-          // Sem motivo cadastrado a caixa não tem o que perguntar. Dizer isso é
+          // Sem motivo ativo a caixa não tem o que perguntar. Dizer isso é
           // melhor que mostrar uma lista vazia e deixar o card preso.
+          //
+          // O texto mandava "Cadastre em Configurar funil", e quem chega aqui é
+          // o Comercial — que move lead e NÃO abre aquela tela
+          // (`podeFazer(comercial, "Configurar o funil de vendas")` é
+          // `nao_ve`). Instrução que o leitor não pode cumprir é um beco com
+          // placa. Agora ele diz a quem pedir, e `validarFunil` barra este
+          // estado na origem: quem configura não consegue salvar um funil que
+          // chegue aqui.
           <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-4 text-center">
             <p className="text-[12px] leading-relaxed text-mt-neutral-800">
-              Nenhum motivo de {rotulos.vazio} está cadastrado. Cadastre em{" "}
-              <strong>Configurar funil</strong> para conseguir fechar o negócio aqui.
+              Nenhum motivo de {rotulos.vazio} está ativo, então não dá para fechar por
+              aqui. Peça ao Administrador ou ao Gestor para reativar um em{" "}
+              <strong>Configurar funil</strong>.
             </p>
           </div>
         ) : (

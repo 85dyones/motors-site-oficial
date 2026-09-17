@@ -1,22 +1,29 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
 import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
 import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
-import { getUtmParameters, getActiveAgUid, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
-import { getMatchParams } from "../lib/tracking-identity";
+import { getUtmParameters, getActiveAgUid, getMatchParamsRespeitandoRecusa, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
-import { nomeDoVeiculo } from "../lib/nomeDoVeiculo";
+import { nomeComAno, nomeDoVeiculo } from "../lib/nomeDoVeiculo";
+import {
+  mensagemDeDuvidas,
+  mensagemDeInteresse,
+  mensagemDeTestDrive,
+  mensagemDeTroca,
+  textoDeCompartilhamento,
+} from "../lib/mensagensDoVeiculo";
 import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
 import { ACOES } from "../lib/turnstile";
 // O bloco de laudo pendente é componente próprio, e o porquê está escrito lá:
 // é o que deixa a trava RENDERIZAR o texto em vez de garimpá-lo na fonte.
 import BlocoLaudoPendente from "./BlocoLaudoPendente";
+import PonteDoGuiaDoLaudo from "./PonteDoGuiaDoLaudo";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -78,6 +85,32 @@ function getShortVehicleId(id: string): string {
     if (last2.length >= 4) return last2;
   }
   return id.substring(0, 8).toUpperCase();
+}
+
+/**
+ * Data do cabeçalho de impressão — só depois da hidratação (React #418).
+ *
+ * A ficha é ISR (`revalidate = 3600`): o HTML sai com a data calculada no
+ * SERVIDOR, em UTC, presa ao momento do build ou da regeneração. Um aparelho
+ * em fuso adiantado (ex.: Pacific/Kiritimati, UTC+14) já vê outro dia
+ * enquanto o HTML ainda carrega o de ontem — o texto que o servidor mandou
+ * diverge do que o cliente calcularia, e o React descarta a árvore inteira
+ * em vez de só corrigir o texto. Reproduzido em produção: o erro aparece com
+ * o relógio do Chromium em `Pacific/Kiritimati` e some com `America/Sao_Paulo`.
+ *
+ * `useSyncExternalStore` com `getServerSnapshot` retornando `null` evita a
+ * divergência: o servidor renderiza o span vazio, a hidratação bate
+ * (`null` dos dois lados) sem erro, e só DEPOIS dela o valor real do
+ * cliente aparece — sem reescrever a árvore que o servidor gerou.
+ */
+const semAssinatura = () => () => {};
+function GeradoEm() {
+  const hoje = useSyncExternalStore(
+    semAssinatura,
+    () => new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+    () => null,
+  );
+  return <span className="text-[9px] text-zinc-500 block">Gerado em: {hoje}</span>;
 }
 
 export default function PDPClientWrapper({
@@ -214,7 +247,11 @@ export default function PDPClientWrapper({
 
     // Espelha o ViewContent via Conversions API (mesmo event_id = dedup no Meta)
     if (viewEventId) {
-      const { fbp, fbc } = getMatchParams();
+      // `viewEventId` já é null na recusa, então aqui só chega quem não se
+      // opôs e o valor é o mesmo de `getMatchParams`. A versão com portão fica
+      // mesmo assim: se a guarda de cima mudar, a ficha não volta a mandar os
+      // identificadores de quem se opôs.
+      const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
       fetch("/api/capi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -293,17 +330,14 @@ export default function PDPClientWrapper({
     if (typeof window !== "undefined") {
       const ref = sufixoRef();
       setActiveChannel("WhatsApp Proposta");
-      const msg = veiculo.vendido
-        ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} que foi vendido. Gostaria de saber se possuem modelos semelhantes disponíveis.${ref}`
-        : indisponivel
-          // "não está mais disponível", e não "foi vendido": a saída do feed
-          // não diz o motivo, e o consultor não pode receber o cliente com uma
-          // venda que talvez não tenha acontecido.
-          ? `Olá! Vi o anúncio no site do ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}, que não está mais disponível. Gostaria de saber se possuem modelos semelhantes.${ref}`
-          // Termina em pergunta de propósito: declaração recebe "um momento",
-          // pergunta define a primeira resposta do consultor.
-          : `Olá! Vi o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} no site e quero mais informações. Ele ainda está disponível?${ref}`;
-      
+      // Os textos, e a distinção entre "vendido" e "não está mais disponível",
+      // vivem em `lib/mensagensDoVeiculo.ts` — onde dá para testá-los.
+      const msg = mensagemDeInteresse(
+        veiculo,
+        veiculo.vendido ? "vendido" : indisponivel ? "indisponivel" : "a-venda",
+        ref,
+      );
+
       setActiveMessage(msg);
       setActiveSimulacao(null);
       setIsLeadModalOpen(true);
@@ -313,7 +347,7 @@ export default function PDPClientWrapper({
   const handleProposalClick = () => {
     if (typeof window !== "undefined") {
       setActiveChannel("WhatsApp Dúvidas");
-      const msg = `Olá! Estou vendo o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} no site e tenho algumas dúvidas. Pode me ajudar?${sufixoRef()}`;
+      const msg = mensagemDeDuvidas(veiculo, sufixoRef());
       setActiveMessage(msg);
       setActiveSimulacao(null);
       setIsLeadModalOpen(true);
@@ -323,7 +357,7 @@ export default function PDPClientWrapper({
   const handleTradeInClick = () => {
     if (typeof window !== "undefined") {
       setActiveChannel("WhatsApp Usado na Troca");
-      const msg = `Olá! Estou analisando o ${veiculo.marca} ${veiculo.modelo} (${veiculo.ano}) no site e gostaria de avaliar meu veículo como entrada na troca!${sufixoRef()}`;
+      const msg = mensagemDeTroca(veiculo, sufixoRef());
       setActiveMessage(msg);
       setActiveSimulacao(null);
       setIsLeadModalOpen(true);
@@ -333,7 +367,7 @@ export default function PDPClientWrapper({
   const handleTestDriveClick = () => {
     if (typeof window !== "undefined") {
       setActiveChannel("Agendamento Test-Drive");
-      const msg = `Olá! Quero ver o ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} de perto e fazer um test-drive. Quais horários vocês têm nos próximos dias?${sufixoRef()}`;
+      const msg = mensagemDeTestDrive(veiculo, sufixoRef());
       setActiveMessage(msg);
       setActiveSimulacao(null);
       setIsLeadModalOpen(true);
@@ -370,7 +404,7 @@ export default function PDPClientWrapper({
       tipoDeLead: "proposta",
       formId: "form-proposta-veiculo",
     });
-    const { fbp, fbc } = getMatchParams();
+    const { fbp, fbc } = getMatchParamsRespeitandoRecusa();
 
     const payload = {
       remoteJid,
@@ -768,7 +802,10 @@ export default function PDPClientWrapper({
             {/* WHATSAPP */}
             <button
               onClick={() => {
-                const text = `🚗 ${veiculo.marca} ${veiculo.modelo} - ${veiculo.ano}\n💰 ${formatPrice(hasDiscount ? veiculo.preco_promocional : veiculo.preco_original)}\n📋 ${veiculo.versao}\n\n🔗 ${typeof window !== 'undefined' ? window.location.href : ''}`;
+                const text = textoDeCompartilhamento(veiculo, {
+                  precoTexto: formatPrice(hasDiscount ? veiculo.preco_promocional : veiculo.preco_original),
+                  url: typeof window !== 'undefined' ? window.location.href : '',
+                });
                 window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
               }}
  className="flex items-center justify-center h-9 w-9  border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-emerald-600 hover:border-emerald-600 transition-all duration-300 cursor-pointer"
@@ -832,7 +869,7 @@ export default function PDPClientWrapper({
           </div>
           <div className="text-right">
             <span className="text-[9px] font-mono text-zinc-500 block">ID: {getShortVehicleId(veiculo.id)}</span>
-            <span className="text-[9px] text-zinc-500 block">Gerado em: {new Date().toLocaleDateString('pt-BR')}</span>
+            <GeradoEm />
           </div>
         </div>
 
@@ -1208,6 +1245,11 @@ export default function PDPClientWrapper({
                   <p className="text-xs text-brand-text/70 leading-relaxed italic bg-brand-bg p-4  border border-brand-border font-medium">
                     &ldquo;{veiculo.laudo_pericia}&rdquo;
                   </p>
+                  {/* A mesma ponte do bloco pendente: o laudo aprovado diz o
+                      RESULTADO, e o guia diz o que o exame cobre. As 33 fichas
+                      com laudo publicado (medido em 17/09) ficavam sem nenhum
+                      link para a Onda 1. */}
+                  <PonteDoGuiaDoLaudo className="text-xs text-brand-text/70 leading-relaxed" />
                 </div>
               </div>
             </div>
@@ -1509,7 +1551,7 @@ export default function PDPClientWrapper({
           vehicleId={veiculo.id}
           vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
           vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
-          vehicleName={`${veiculo.marca} ${veiculo.modelo}`}
+          vehicleName={nomeComAno(veiculo)}
           onSimulateClick={(msg, simulacaoData) => {
             if (typeof window !== "undefined") {
               setActiveChannel("Simulação de Financiamento");
@@ -1557,6 +1599,7 @@ export default function PDPClientWrapper({
         vehicleInfo={{
           marca: veiculo.marca,
           modelo: veiculo.modelo,
+          versao: veiculo.versao,
           ano: veiculo.ano
         }}
       />

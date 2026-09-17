@@ -124,6 +124,42 @@ describe("POST /api/estoque/[id]/descritivo", () => {
     expect((await r.json()).error).toContain("OPENAI_API_KEY");
   });
 
+  /**
+   * Endurecimento de 16/09/2026 (revisão final do #76, achado #2): a
+   * mensagem que a OpenAI manda (rede, 4xx, 5xx ou timeout — sempre 502 em
+   * `gerar.ts`) não pode chegar a quem clicou. Ela só existia em produção
+   * como texto de erro cru na tela do painel.
+   */
+  it("não expõe a mensagem da OpenAI no corpo — devolve mensagem genérica no 502", async () => {
+    comPerfil(["admin"]);
+    const detalheDaOpenAI = "A OpenAI recusou a chamada: chave associada à organização org-x1y2z3 revogada";
+    gerarTexto.mockResolvedValue({ ok: false, status: 502, motivo: detalheDaOpenAI });
+    const r = await chamar();
+    expect(r.status).toBe(502);
+    const corpo = await r.json();
+    expect(corpo.error).toBe("Não foi possível gerar agora; tente de novo em instantes.");
+    expect(JSON.stringify(corpo)).not.toContain("org-x1y2z3");
+  });
+
+  /**
+   * Controle do teste acima: o 503 (falta `OPENAI_API_KEY`) é diagnóstico
+   * NOSSO, checado antes de qualquer chamada de rede — não é a OpenAI
+   * falando — e continua específico. Sem este teste, generalizar TODO
+   * `!saida.ok` (em vez de só o 502) passaria despercebido: o teste "devolve
+   * 503 com o motivo" já cobre isto, este só nomeia a distinção.
+   */
+  it("o 503 de configuração continua específico — só o 502 vira mensagem genérica", async () => {
+    comPerfil(["admin"]);
+    gerarTexto.mockResolvedValue({
+      ok: false,
+      status: 503,
+      motivo: "Gerador indisponível: falta OPENAI_API_KEY nas variáveis de ambiente.",
+    });
+    const r = await chamar();
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).not.toBe("Não foi possível gerar agora; tente de novo em instantes.");
+  });
+
   it("devolve 422 com os motivos quando o texto reprova", async () => {
     comPerfil(["admin"]);
     gerarTexto.mockResolvedValue({ ok: true, texto: "SUV premium com garantia de motor e câmbio.", entrada: 1, saida: 1 });
@@ -257,5 +293,35 @@ describe("registro por geração", () => {
     comPerfil(null);
     expect((await chamar()).status).toBe(401);
     expect(registros()).toEqual([]);
+  });
+});
+
+/**
+ * Limite de uso, por usuário da equipe e por veículo (endurecimento de
+ * 16/09/2026, achado #3 da revisão final do #76).
+ *
+ * O comportamento COM Redis configurado — janela, prefixo, mensagem do 429 —
+ * é travado por leitura de fonte em `tests/descritivo-limite.test.ts`:
+ * fingir o protocolo REST do Upstash aqui testaria o dublê, não a rota, e é
+ * a mesma escolha que `tests/erros-rota.test.ts` já fez para o limitador de
+ * `/api/erros`. Este describe cobre só o caminho SEM Redis, que é o caso
+ * real de toda esta suíte — `.github/workflows/testes.yml` não injeta as
+ * envs do Upstash no job de teste.
+ */
+describe("limite de geração — sem Redis configurado", () => {
+  it("segue sem bloquear (bypass), o mesmo padrão de src/proxy.ts", async () => {
+    const urlAnterior = process.env.UPSTASH_REDIS_REST_URL;
+    const tokenAnterior = process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    try {
+      comPerfil(["admin"]);
+      expect((await chamar()).status).toBe(200);
+    } finally {
+      if (urlAnterior === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
+      else process.env.UPSTASH_REDIS_REST_URL = urlAnterior;
+      if (tokenAnterior === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      else process.env.UPSTASH_REDIS_REST_TOKEN = tokenAnterior;
+    }
   });
 });

@@ -5,8 +5,10 @@ import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
   chaveDaEtapa,
+  ehEscopoDeMotivo,
   ehTipoDeDesfecho,
   ehTipoDeEtapa,
+  motivosDepoisDeGravar,
   ordenarEtapas,
   validarFunil,
   type EtapaDoFunil,
@@ -153,17 +155,28 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const problemas = validarFunil(etapas);
-    if (problemas.length > 0) {
-      return NextResponse.json({ error: problemas.join(" "), problemas }, { status: 422 });
-    }
-
     const motivoInvalido = motivosRecebidos
       .filter((m) => String(m?.rotulo ?? "").trim())
       .find((m) => !ehTipoDeDesfecho(m.tipo));
     if (motivoInvalido) {
       return NextResponse.json(
         { error: `Tipo de motivo desconhecido: "${motivoInvalido.tipo}".` },
+        { status: 422 },
+      );
+    }
+
+    // Mesma régua do tipo, pelo mesmo motivo. `escopo` chega do formulário e um
+    // ternário com `else` converteria `avaliacao` em `compra` no dia em que o
+    // valor viesse errado — sem erro, e desfazendo em silêncio a separação que
+    // a coluna existe para criar. Ausente é `ambos`: é o default da coluna, e
+    // motivo criado por uma versão antiga da tela não pode nascer classificado
+    // sem ninguém ter escolhido.
+    const escopoInvalido = motivosRecebidos
+      .filter((m) => String(m?.rotulo ?? "").trim())
+      .find((m) => m.escopo !== undefined && m.escopo !== null && !ehEscopoDeMotivo(m.escopo));
+    if (escopoInvalido) {
+      return NextResponse.json(
+        { error: `Escopo de motivo desconhecido: "${escopoInvalido.escopo}".` },
         { status: 422 },
       );
     }
@@ -176,7 +189,49 @@ export async function PUT(request: NextRequest) {
         tipo: m.tipo as MotivoDoFunil["tipo"],
         ordem: Number.isFinite(m.ordem) ? Number(m.ordem) : i + 1,
         ativo: m.ativo !== false,
+        escopo: ehEscopoDeMotivo(m.escopo) ? m.escopo : "ambos",
       }));
+
+    // A mesma guarda que as etapas já tinham. `chaveDaEtapa("???")` devolve
+    // string vazia, e um motivo sem chave seria gravado, viraria botão na caixa
+    // e estouraria na hora de fechar.
+    const motivoSemChave = motivos.find((m) => !m.chave);
+    if (motivoSemChave) {
+      return NextResponse.json(
+        {
+          error: `O motivo "${motivoSemChave.rotulo}" não gerou uma chave válida. Use letras no nome.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    // A validação vem DEPOIS de normalizar os motivos, e recebe os dois. Antes
+    // ela só via as etapas, e por isso não tinha como perceber uma etapa
+    // terminal ativa sem nenhum motivo ativo — o beco que a exigência de
+    // motivo (16/09) criou.
+    //
+    // O que ela julga é o estado DEPOIS de gravar, e não a lista do corpo:
+    // `motivosDepoisDeGravar` explica por quê. E quando não dá para saber quais
+    // motivos existem, ela recebe `null` e pula as regras de motivo: a RLS
+    // deste projeto bloqueia devolvendo `200`, `[]` e `error` nulo, e num PUT
+    // que só mexe em prazo isso viraria três erros acusando o dono de deixar
+    // o funil sem saída.
+    const { data: motivosAtuais, error: erroMotivosAtuais } = await supabase
+      .from("funil_motivos")
+      .select("*");
+    const atuais = (motivosAtuais ?? []) as MotivoDoFunil[];
+    const conhecidos = !erroMotivosAtuais && atuais.length > 0;
+    const problemas = validarFunil(
+      etapas,
+      conhecidos
+        ? motivosDepoisDeGravar(atuais, motivos)
+        : motivos.length > 0
+          ? motivos
+          : null,
+    );
+    if (problemas.length > 0) {
+      return NextResponse.json({ error: problemas.join(" "), problemas }, { status: 422 });
+    }
 
     const agora = new Date().toISOString();
     const { error: erroEtapas } = await supabase

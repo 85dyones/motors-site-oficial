@@ -34,6 +34,25 @@ npm run build
 
 As variáveis de ambiente estão descritas em `.env.example`.
 
+### Scripts de instalação
+
+Do npm 11 em diante, script de instalação de dependência só roda se o pacote
+estiver na lista `allowScripts` do `package.json` — hoje `esbuild`, `sharp` e
+`unrs-resolver`, presos na versão do lockfile. Sem isso o npm bloqueia os três
+e avisa no build. O `fsevents` (só macOS) fica de fora de propósito: já vem com
+binário pronto e o script apenas recompila.
+
+Quando o lockfile subir a versão de um deles, o install volta a avisar que o
+script foi bloqueado. Para liberar a versão nova:
+
+```bash
+npm install-scripts approve <pacote>   # npm 12
+npm approve-scripts <pacote>           # npm 11
+```
+
+Aprovar é deixar o pacote executar código na sua máquina e no build da Vercel —
+olhe o que mudou na versão antes de aprovar.
+
 ## Onde está cada coisa
 
 | Documento | Assunto |
@@ -46,6 +65,7 @@ As variáveis de ambiente estão descritas em `.env.example`.
 | `docs/ACHADOS_FINANCEIRO.md` | 13 achados de revisão no financeiro/investidores, ainda não corrigidos |
 | `supabase/README.md` | Migrações, runbook de aplicação e o contrato do sync de estoque |
 | `WEBHOOKS_N8N.md` | Contrato dos webhooks site → n8n (formatos A, B e C) e as rotas que o n8n chama de volta |
+| `docs/MOTOR_DE_GATILHOS.md` | O motor de gatilhos do Ciclo — o n8n chama, o banco decide quem recebe e o site escreve a mensagem |
 | `TRACKING_SPEC.md` | Meta Pixel/CAPI e Google — spec em produção |
 | `docs/GTM_CONFIGURACAO.md` | Variáveis, tags, gatilhos e conversões do GTM, prontos para copiar |
 | `SETUP_MANUAL.md` | Passo a passo de configuração de contas externas |

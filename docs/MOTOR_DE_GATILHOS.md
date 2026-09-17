@@ -189,9 +189,12 @@ ruim — execução verde com zero envio é o modo de falha que já aconteceu;
 credenciais existentes e provadas (`Motors — Webhooks do site (Bearer)`,
 `Evolution — apikey (v2o5)`), nenhum token no JSON do workflow.
 
-A URL apontada é `motors-site-oficial.vercel.app`, que continua válida depois
-da virada de domínio (o alias da Vercel não morre) — trocar para
-`motorsstore.com.br` é opcional e pode esperar o DNS assentar.
+A URL apontada é `motorsstore.com.br` **desde 2026-09-06**. Até então era o
+alias `motors-site-oficial.vercel.app`, e este parágrafo dizia que trocar era
+"opcional" — deixou de ser: o alias serve conteúdo duplicado ao Google, e o
+301 que resolve isso precisava abrir uma exceção para `/api/*` justamente
+porque estes nós entravam por lá. Tirar os workflows do alias é o que permite
+fechar a exceção. Ver `docs/VIRADA_DE_DOMINIO.md`.
 
 O cron é 9h, não as 6h do §4.1: o motor não usa a matview `vw_ciclo_estado`
 (consulta as tabelas direto, o volume atual não pede materialização), e às 6h

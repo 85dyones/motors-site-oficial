@@ -1,0 +1,840 @@
+{
+  "_leia": "As 8 peças da Onda 1 (conteudo-seo/pacote/guias/01..08-*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs` — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-1-mudancas.md`, arquivo por arquivo, frase por frase. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
+  "guias": [
+    {
+      "slug": "laudo-cautelar-carro-usado",
+      "titulo": "Laudo cautelar: o que verifica e o que não verifica",
+      "titulo_seo": "Laudo cautelar: o que ele verifica e o que não | Motors Store",
+      "descricao": "O laudo cautelar analisa identificação, estrutura e histórico do veículo. Não analisa saúde mecânica. Entenda o que ele cobre — e o que fica de fora.",
+      "corpo": [
+        {
+          "titulo": "O que é, e quem faz",
+          "paragrafos": [
+            "O laudo cautelar examina três coisas num carro usado: se ele é quem diz ser, se a estrutura já foi comprometida e o que consta no histórico dele. Não examina se o motor está saudável, se o câmbio vai durar ou se a manutenção foi feita.",
+            "Essa fronteira é a coisa mais importante para quem vai comprar um seminovo — e é a que quase ninguém explica antes da compra.",
+            "O laudo cautelar é uma inspeção técnica feita por empresa especializada, independente do vendedor e do comprador. Não é obrigatório por lei, ao contrário da vistoria de transferência que o Detran exige para mudar a propriedade do veículo. São exames diferentes, com finalidades diferentes — e confundir os dois é o erro mais comum de quem está comprando pela primeira vez.",
+            "O exame é presencial e leva de trinta minutos a algumas horas, dependendo da empresa e do nível do laudo. Os protocolos mais completos do mercado avaliam entre 170 e 210 itens, com registro fotográfico ponto a ponto e, em alguns casos, vídeo do veículo anexado ao documento.",
+            "O resultado é um documento com o que foi encontrado, item por item. Não é uma nota, não é um selo, e não é uma garantia. É um retrato técnico daquele carro naquele dia."
+          ]
+        },
+        {
+          "titulo": "Os três eixos que a perícia examina",
+          "paragrafos": [
+            "Identificação — verifica se o carro é o carro. A perícia confere a numeração do chassi, do motor e do câmbio, as etiquetas de identificação distribuídas pela carroceria, a gravação nos vidros e as placas — e cruza tudo isso com o que está registrado no documento.",
+            "É o eixo que pega clonagem, remarcação irregular e troca de conjuntos sem registro. Quando alguma dessas numerações não bate, ou apresenta sinal de adulteração, a negociação para ali. Não é um ponto de atenção; é um impedimento.",
+            "Estrutura — verifica se o carro já foi seriamente danificado e reparado. O perito examina longarinas, colunas, assoalho, torres de suspensão e pontos de solda — as partes que dão rigidez ao veículo e que, uma vez comprometidas, mudam o comportamento dele em caso de nova colisão.",
+            "Aqui entra o teste de espessura da pintura. A camada original de fábrica tem espessura previsível e uniforme. Variação fora do padrão em um painel indica repintura, e repintura em painel estrutural indica reparo. Nem toda repintura é sinal de sinistro grave — um retoque de porta por batida de estacionamento não tem nada a ver com uma longarina refeita. O laudo distingue os dois, e é por isso que ler o documento inteiro importa mais do que olhar o resultado final.",
+            "Histórico — verifica o passado documental. Passagem por leilão, registro de sinistro, ocorrência de roubo ou furto, gravame ativo, restrições administrativas e judiciais, débitos em aberto.",
+            "É o eixo mais rápido de checar e o que mais surpreende comprador. Um carro pode estar impecável na estrutura e na identificação, e ainda assim carregar um histórico que muda completamente o valor de revenda dele."
+          ]
+        },
+        {
+          "titulo": "O que a perícia não verifica",
+          "paragrafos": [
+            "Esta é a parte que costuma ficar de fora da conversa — inclusive, e principalmente, quando o exame é usado como argumento de venda.",
+            "O laudo cautelar não avalia a saúde mecânica do veículo. As próprias empresas de vistoria dizem isso: a Super Visão registra no site que o laudo não substitui avaliação específica de parte mecânica ou elétrica, e recomenda procurar um profissional especializado para isso. Avaliação mecânica é vendida como serviço separado, por outro preço.",
+            "Na prática, isso significa que o laudo cautelar não mede compressão dos cilindros; não avalia bomba de alta pressão em motor de injeção direta; não verifica carbonização de válvulas de admissão; não testa embreagem, atuador ou mecatrônica de câmbio automatizado; não identifica desgaste interno de câmbio automático; não confere se as revisões foram feitas, ou se o óleo usado era o especificado; e não diz quanto tempo qualquer componente ainda vai durar.",
+            "Um carro pode passar com folga na perícia cautelar e apresentar falha de motor no mês seguinte. Isso não é falha do exame. É o exame fazendo exatamente aquilo para que ele existe — e nada além.",
+            "O laudo cautelar responde: este carro é quem diz ser? A estrutura já foi comprometida? Passou por leilão ou sinistro? Existe restrição ou débito? Houve repintura, e onde?",
+            "O laudo cautelar não responde: este motor está saudável? O câmbio vai durar? A manutenção foi feita direito? Qual o próximo gasto que vou ter? Quanto tempo a embreagem aguenta?"
+          ]
+        },
+        {
+          "titulo": "Por que o laudo antes do anúncio muda tudo",
+          "paragrafos": [
+            "Na prática mais comum do mercado, o laudo é uma etapa da negociação: as partes se acertam, o comprador paga a perícia, e o resultado ou confirma o negócio ou derruba. O custo e o risco ficam com quem está comprando.",
+            "A gente inverte isso. A perícia cautelar independente roda antes de o carro entrar na vitrine, por conta da loja, e o laudo está disponível para consulta com o vendedor — eixo por eixo, com os apontamentos descritos, antes de qualquer proposta.",
+            "O laudo não vai para o site por um motivo específico: ele traz nome, CPF e endereço do proprietário anterior, e esse dado não é nosso para publicar. Ele fica com o vendedor, e é só pedir para ler o documento inteiro, antes de qualquer assinatura.",
+            "O efeito colateral é o número que define nosso estoque: de cada dez carros que avaliamos, três entram no showroom. Os outros sete são recusados — por sinistro estrutural, passagem por leilão, divergência de numeração ou desgaste crônico grave. Eles não deixam de existir; seguem para outro ponto do mercado, muitas vezes anunciados sem que nada disso apareça.",
+            "Isso não torna nosso carro perfeito. Torna a informação sobre ele disponível antes de você decidir, em vez de depois.",
+            "E é justamente por a perícia não cobrir mecânica que existe a garantia. Uma coisa é consequência da outra: a inspeção resolve o que dá para enxergar, e a garantia banca o que não dá."
+          ]
+        },
+        {
+          "titulo": "Quando vale pedir uma segunda opinião",
+          "paragrafos": [
+            "Ter um laudo em mãos não encerra o assunto. Vale insistir em mais um passo quando:",
+            "O laudo tem apontamento e você não entendeu o peso dele. Peça a explicação por escrito, do vendedor ou da empresa que emitiu. Apontamento estético e apontamento estrutural aparecem no mesmo documento e não têm nada em comum.",
+            "O carro tem motor turbo de baixa cilindrada, injeção direta ou câmbio de dupla embreagem. São conjuntos em que o custo de um reparo isolado é alto e que a cautelar não alcança. Uma avaliação mecânica separada costuma se pagar.",
+            "O laudo é antigo. Um documento de seis meses atrás descreve o carro de seis meses atrás.",
+            "O vendedor não deixa você fazer perícia independente. Aqui não é questão de segunda opinião — é a resposta que você estava procurando."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Se você está avaliando um carro específico, exija o laudo cautelar antes de sinalizar qualquer valor. Leia o documento inteiro, não só o resultado. E, para os conjuntos que a cautelar não alcança, considere uma avaliação mecânica separada.",
+            "Todo carro no nosso estoque já passou por essa etapa antes de entrar na vitrine, e o laudo está disponível para consulta com o vendedor: é só pedir."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Laudo cautelar é obrigatório?",
+          "resposta": "Não. O que é obrigatório é a vistoria de transferência do Detran, exigida para mudar a propriedade do veículo — e ela tem outra finalidade, que é conferir identificação para o registro. O laudo cautelar é voluntário e serve para avaliar procedência antes de fechar negócio."
+        },
+        {
+          "pergunta": "Quanto custa e quanto demora?",
+          "resposta": "Varia por empresa e por nível de laudo. O exame leva de trinta minutos a algumas horas, e algumas empresas vão até o endereço do veículo. Os valores praticados em Curitiba estão no guia \"Perícia cautelar em Curitiba: onde fazer e quanto custa\"."
+        },
+        {
+          "pergunta": "Laudo aprovado significa que o carro é bom?",
+          "resposta": "Significa que a identificação confere, a estrutura está íntegra e o histórico está limpo. Não diz nada sobre o estado mecânico. São perguntas diferentes, e o laudo responde só a primeira."
+        },
+        {
+          "pergunta": "Quem deve pagar o laudo?",
+          "resposta": "Depende de quem está vendendo. Entre particulares, quase sempre o comprador. Em loja, varia — e loja que já faz a perícia antes do anúncio resolve isso na origem. Se o vendedor se recusa a permitir perícia independente, essa recusa já é a informação que você procurava."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "Todo carro no nosso estoque passou pela perícia cautelar antes de entrar na vitrine."
+      },
+      "sobre": [
+        "Laudo cautelar",
+        "Perícia cautelar veicular"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "resultados-laudo-cautelar",
+      "titulo": "Laudo cautelar: aprovado, com apontamento ou reprovado",
+      "titulo_seo": "Laudo cautelar aprovado com apontamento: o que significa",
+      "descricao": "Laudo cautelar não é passa ou não passa. São três resultados, e a maior parte do mercado está no do meio. O que muda em preço, seguro e revenda em cada um.",
+      "corpo": [
+        {
+          "titulo": "Não é passa ou não passa",
+          "paragrafos": [
+            "Um laudo cautelar não devolve \"passou\" ou \"não passou\". Ele devolve três resultados possíveis: sem apontamento, com apontamento, ou reprovado — e é no do meio que está a maior parte dos carros usados à venda no Brasil.",
+            "Saber em qual dos três o carro está muda o preço que você deve pagar, a facilidade de revender depois e, em alguns casos, se o seguro vai aceitar.",
+            "A primeira coisa a entender é que os rótulos variam. Cada empresa de vistoria usa a sua nomenclatura — \"aprovado\", \"nada consta\", \"aprovado com restrição\", \"com apontamento\", \"reprovado\". O nome muda; a lógica por trás é a mesma em todas.",
+            "O que importa não é a palavra no topo do documento. É o que consta no corpo dele, item por item, e em qual dos três eixos o apontamento apareceu: identificação, estrutura ou histórico.",
+            "Um laudo lido só pelo resultado final é um laudo desperdiçado."
+          ]
+        },
+        {
+          "titulo": "Sem apontamento",
+          "paragrafos": [
+            "A numeração confere em todos os pontos verificados, a estrutura não apresenta sinal de reparo relevante e o histórico está limpo — sem leilão, sem sinistro registrado, sem restrição ativa.",
+            "É o cenário mais simples e o mais raro conforme o carro envelhece. Um veículo de dez anos sem nenhum apontamento é incomum, e não porque o mercado seja ruim: é porque uma década de uso urbano deixa marca.",
+            "Atenção ao que isso não significa. Sem apontamento no cautelar diz respeito a identificação, estrutura e histórico. Não diz nada sobre motor, câmbio ou manutenção — a perícia não examina esses conjuntos. Um carro sem nenhum apontamento pode precisar de reparo mecânico caro no mês seguinte."
+          ]
+        },
+        {
+          "titulo": "Com apontamento",
+          "paragrafos": [
+            "Aqui está a maior parte do mercado, e aqui está toda a confusão.",
+            "\"Com apontamento\" abrange coisas que não têm nada em comum entre si. Na mesma categoria cabem repintura numa porta, por batida de estacionamento; substituição de para-choque ou paralama; registro de sinistro de média monta; passagem por leilão; e pequena divergência de etiqueta por troca de peça com registro.",
+            "Os dois primeiros são irrelevantes para a segurança e quase irrelevantes para o valor. O terceiro e o quarto mudam o carro de patamar.",
+            "A diferença que realmente importa: a monta. Quando um carro sofre acidente, o agente de trânsito classifica o dano no boletim de ocorrência. A Resolução CONTRAN nº 810/2020 define três níveis, e as consequências são bem diferentes.",
+            "Pequena monta — danos que não afetam estrutura nem sistemas de segurança. Não exige certificado adicional e não gera observação no documento. O carro volta a circular normalmente.",
+            "Média monta — danos em componentes estruturais ou de segurança, mas recuperáveis. Exige inspeção e emissão do Certificado de Segurança Veicular (CSV), e o documento passa a carregar a observação \"Sinistro/Recuperado\". Essa anotação é permanente: uma vez registrada, não sai mais.",
+            "Grande monta — danos que tornam o veículo irrecuperável ou economicamente inviável. Resulta em baixa permanente do registro. O carro não circula, não licencia e não transfere. Só serve como fonte de peças, sob regras específicas.",
+            "Um carro com observação de sinistro recuperado no documento é legal, pode circular e pode ser financiado. Mas o registro é definitivo e acompanha o veículo para sempre — o que se reflete no valor. Levantamentos de mercado apontam desvalorização na faixa de 20% a 40% em relação a um equivalente sem a anotação.",
+            "Isso não faz dele um mau negócio automático. Faz dele um negócio com preço diferente, que precisa ser negociado como tal e informado a quem comprar depois."
+          ]
+        },
+        {
+          "titulo": "Reprovado",
+          "paragrafos": [
+            "Reprovação vem, quase sempre, do eixo de identificação ou de estrutura grave: numeração de chassi, motor ou câmbio com sinal de adulteração; divergência entre a numeração encontrada e o registro; comprometimento estrutural em longarina, coluna, assoalho ou torre de suspensão; indício de montagem com partes de dois veículos.",
+            "Aqui não é ponto de atenção nem margem de negociação. É impedimento. Carro reprovado por identificação pode configurar ilícito, e a conversa deixa de ser comercial.",
+            "Se foi o seu carro que reprovou, a situação é outra e tem saída — é o assunto do guia \"Meu carro reprovou no laudo cautelar. E agora?\"."
+          ]
+        },
+        {
+          "titulo": "Os três resultados, lado a lado",
+          "paragrafos": [
+            "Sem apontamento: a identificação confere; a estrutura não tem reparo relevante; o histórico está limpo; o carro circula normalmente; é financiável; o seguro não impõe restrição; a revenda é normal; e a margem de negociação é pequena.",
+            "Com apontamento: a identificação pode ter divergência menor com o registro; na estrutura cabe de repintura a sinistro de média monta; o histórico pode ter leilão ou sinistro registrado; o carro circula normalmente; em geral é financiável; o seguro pode ter restrição ou prêmio maior; a revenda é mais lenta e mais barata; e é aqui que a margem de negociação existe.",
+            "Reprovado: a identificação tem divergência ou adulteração; a estrutura tem comprometimento; circular depende do motivo; financiar é improvável; segurar é difícil; a revenda é muito restrita; e margem de negociação não se aplica."
+          ]
+        },
+        {
+          "titulo": "Como negociar com um apontamento no laudo",
+          "paragrafos": [
+            "O laudo é um instrumento de negociação, e a maior parte dos compradores não usa.",
+            "Leia o documento inteiro, não o resultado. Peça a versão completa, com as fotos. Laudos mais detalhados registram entre 170 e 210 itens, com imagem por ponto verificado.",
+            "Separe o estético do estrutural. Repintura em porta e longarina refeita aparecem no mesmo laudo. Se o vendedor tratar os dois como \"detalhe\", aí sim é sinal de alerta.",
+            "Peça a explicação por escrito. Do vendedor ou da empresa que emitiu. Vendedor que não consegue explicar um apontamento do próprio carro não leu o laudo.",
+            "Confirme a anotação no documento. Se houver sinistro de média monta, a observação está no CRLV. Confira lá, não só no laudo.",
+            "Considere o efeito na sua revenda. Um apontamento que você aceita hoje é um apontamento que o seu comprador vai ver daqui a três anos — e ele vai negociar com a mesma informação que você está negociando agora."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Se você tem um laudo em mãos, leia o corpo do documento e identifique em qual dos três eixos o apontamento apareceu. Essa é a única informação que realmente muda a decisão.",
+            "No nosso estoque, o critério é definido antes de o carro chegar à vitrine: de cada dez avaliados, três entram. E o laudo está disponível para consulta com o vendedor, eixo por eixo — inclusive os apontamentos, quando existem."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Carro com apontamento no laudo é ruim?",
+          "resposta": "Depende inteiramente de qual apontamento. Repintura de porta e sinistro de média monta aparecem na mesma categoria e não têm nada em comum. O que define é o eixo em que apareceu — identificação, estrutura ou histórico — e a gravidade dentro dele."
+        },
+        {
+          "pergunta": "Dá para tirar a observação de sinistro do documento?",
+          "resposta": "Não. A anotação de média monta é registrada no sistema e acompanha o veículo permanentemente. Qualquer oferta de \"limpar\" o documento deve ser tratada como o que é."
+        },
+        {
+          "pergunta": "Carro com sinistro recuperado pode ser financiado?",
+          "resposta": "Em geral sim, desde que o veículo esteja regularizado e com o CSV emitido. As condições podem ser piores e alguns bancos recusam. Vale simular o financiamento antes de fechar."
+        },
+        {
+          "pergunta": "O que reprova mais em um laudo cautelar?",
+          "resposta": "Adulteração de numeração e comprometimento estrutural são as reprovações diretas. Os motivos mais frequentes na prática estão no levantamento \"O que reprova um carro na perícia cautelar\"."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "No nosso estoque, o critério é definido antes de o carro chegar à vitrine: de cada dez avaliados, três entram."
+      },
+      "sobre": [
+        "Laudo cautelar",
+        "Sinistro de média monta"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "pericia-cautelar-curitiba",
+      "titulo": "Perícia cautelar em Curitiba: onde fazer e quanto custa",
+      "titulo_seo": "Perícia cautelar em Curitiba: onde fazer e quanto custa",
+      "descricao": "Onde fazer vistoria cautelar em Curitiba, o que move o preço, quanto demora e o que levar. Escrito por uma revenda que paga esse exame o ano inteiro.",
+      "corpo": [
+        {
+          "titulo": "O que faz o preço mudar",
+          "paragrafos": [
+            "Em Curitiba, uma perícia cautelar custa entre R$ 150 e R$ 750 para um carro de passeio, e leva de trinta minutos a algumas horas. O que faz o preço variar é o valor do veículo, o nível do laudo e se o perito vai até você.",
+            "Este guia não vende vistoria. Somos uma revenda que paga esse exame em todo carro que compra — então o que segue é o que a gente aprendeu contratando o serviço, não vendendo.",
+            "Os valores praticados no Brasil ficam, em geral, na faixa de R$ 150 a R$ 750. Quatro variáveis movem o número dentro dessa faixa.",
+            "Valor venal do veículo. A maior parte das empresas tabela o preço para carros até determinado teto de FIPE — R$ 100 mil é um corte comum. Acima disso, o orçamento é sob consulta. Utilitários, blindados e importados também saem da tabela padrão.",
+            "Nível do laudo. Existe a cautelar básica e existem os protocolos ampliados, que sobem de cerca de 120 para mais de 210 itens verificados e acrescentam vídeo do veículo e pesquisa de histórico. Custam mais e entregam mais.",
+            "Módulo de histórico. Em algumas empresas, a pesquisa de leilão e sinistro é um adicional, não parte do pacote básico. Vale confirmar antes — é justamente o eixo que mais surpreende comprador.",
+            "Se o perito vai até o carro. Atendimento a domicílio costuma ter custo maior. Em compensação, resolve o caso em que o vendedor não quer levar o veículo a lugar nenhum."
+          ]
+        },
+        {
+          "titulo": "Onde fazer em Curitiba",
+          "paragrafos": [
+            "Algumas empresas que operam perícia cautelar na cidade e região:",
+            "BM Vistorias — Perícia Automotiva. Unidade atende em Curitiba também a região metropolitana. Laudo com registro fotográfico e vídeo.",
+            "Super Visão. Unidade na região da Marechal. Trabalha com dois níveis, a cautelar padrão e um protocolo ampliado com mais itens verificados.",
+            "DEKRA. Rede nacional, com protocolo padronizado, laudo fotográfico e vídeo acessível por QR Code no documento.",
+            "A lista é ponto de partida, não classificação. Peça orçamento em pelo menos duas e compare o que está incluído, não só o preço — dois laudos com o mesmo valor podem ter escopos bem diferentes."
+          ]
+        },
+        {
+          "titulo": "Quanto demora",
+          "paragrafos": [
+            "O exame em si leva de trinta minutos a algumas horas, dependendo do nível. O laudo costuma sair no mesmo dia, e em muitos casos em poucas horas.",
+            "Na prática, o gargalo raramente é a empresa. É agendar o veículo com o vendedor — e é aí que a maior parte das negociações trava."
+          ]
+        },
+        {
+          "titulo": "O que levar e o que pedir",
+          "paragrafos": [
+            "Leve: o documento do veículo (CRLV), a chave reserva se existir, e o manual, se houver.",
+            "Peça, na hora de contratar: se a pesquisa de histórico (leilão, sinistro, restrição) está incluída ou é adicional; quantos itens o laudo cobre; se o documento vem com fotos por ponto verificado; em quanto tempo o laudo é entregue; e se a empresa atende no endereço do veículo.",
+            "Depois de receber: leia o corpo do documento, não o resultado no topo. Um apontamento estético e um apontamento estrutural aparecem no mesmo laudo e não têm nada em comum — a diferença entre eles está no guia \"Laudo cautelar: aprovado, com apontamento ou reprovado\"."
+          ]
+        },
+        {
+          "titulo": "Vai até o carro ou o carro vai até lá?",
+          "paragrafos": [
+            "As duas modalidades existem em Curitiba e servem a situações diferentes.",
+            "Você leva o carro. Mais barato, e é o padrão quando o vendedor colabora.",
+            "O perito vai até o veículo. Custa mais e resolve dois problemas comuns: vendedor que não quer deslocar o carro, e negociação à distância, em que o comprador está em outra cidade.",
+            "Se o vendedor recusa as duas — não leva e não deixa o perito ir —, você já tem a informação que estava procurando, e ela não custou nada."
+          ]
+        },
+        {
+          "titulo": "Quando o laudo já vem feito",
+          "paragrafos": [
+            "Existe uma terceira situação, que é a que a gente pratica: o carro já chega ao comprador com a perícia feita.",
+            "Aqui, a perícia cautelar independente roda antes de o veículo entrar na vitrine, por conta da loja, e o laudo está disponível para consulta com o vendedor. O comprador não paga e não agenda: pede, e lê antes de se envolver com o negócio, em vez de descobrir um problema depois. O documento não vai para o site porque carrega dados pessoais do dono anterior.",
+            "O efeito disso aparece no estoque: de cada dez carros que avaliamos, três entram. Os outros sete são recusados por sinistro estrutural, passagem por leilão, divergência de numeração ou desgaste crônico grave.",
+            "Isso não substitui a sua própria diligência. Se você quiser contratar uma segunda perícia, por conta própria, em qualquer das empresas acima, não só não tem problema como a gente facilita o agendamento. Laudo é informação, e informação a mais nunca atrapalhou uma negociação honesta."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Se você está avaliando um carro específico em Curitiba, peça orçamento em duas empresas, confirme se a pesquisa de histórico está inclusa, e agende antes de sinalizar qualquer valor ao vendedor.",
+            "Se preferir pular essa etapa: os carros do nosso estoque já passaram por ela antes de entrar na vitrine, e o laudo está disponível para consulta com o vendedor."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Perícia cautelar é a mesma coisa que a vistoria do Detran?",
+          "resposta": "Não. A vistoria de transferência é obrigatória e serve para conferir identificação no processo de mudança de propriedade. A cautelar é voluntária e avalia procedência, estrutura e histórico. A diferença completa está no guia \"Laudo cautelar x vistoria de transferência\"."
+        },
+        {
+          "pergunta": "Quem paga a perícia, o comprador ou o vendedor?",
+          "resposta": "Entre particulares, quase sempre o comprador — embora o interesse em demonstrar procedência seja de quem vende. Em loja, varia. Loja que faz a perícia antes do anúncio resolve isso na origem."
+        },
+        {
+          "pergunta": "Posso fazer a perícia em um carro que ainda não é meu?",
+          "resposta": "Pode, com a autorização de quem está vendendo. É a situação mais comum: o exame existe justamente para acontecer antes da compra."
+        },
+        {
+          "pergunta": "Vale a pena mesmo para carro popular?",
+          "resposta": "Vale, e proporcionalmente mais. Num carro de R$ 40 mil, o custo da perícia é uma fração pequena do valor — e o prejuízo de comprar um veículo com sinistro estrutural ou passagem por leilão é proporcionalmente maior no bolso de quem comprou."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "Se preferir pular essa etapa: os carros do nosso estoque já passaram por ela."
+      },
+      "sobre": [
+        "Perícia cautelar veicular",
+        "Laudo cautelar",
+        "Curitiba"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "consultar-carro-leilao-sinistro",
+      "titulo": "Como saber se um carro passou por leilão",
+      "titulo_seo": "Como saber se um carro passou por leilão | Motors Store",
+      "descricao": "Passagem por leilão não consta no documento do veículo. Onde ela aparece, o que a consulta de placa mostra e por que leilão não é sinistro.",
+      "corpo": [
+        {
+          "titulo": "Por que não está no documento",
+          "paragrafos": [
+            "Passagem por leilão não fica registrada no documento do veículo. Não aparece no CRLV, não aparece na consulta gratuita do Detran, e o proprietário atual pode legitimamente não saber que o carro passou por lá.",
+            "Para descobrir, é preciso cruzar duas coisas: consulta de histórico em base privada e inspeção física do veículo. Nenhuma das duas sozinha resolve.",
+            "O Código de Trânsito Brasileiro define, no artigo 22, as competências dos órgãos executivos estaduais de trânsito. Pesquisar e registrar histórico de leilão não está entre elas.",
+            "Como o Detran não tem essa atribuição, ele não coleta e não anota. Consequência prática: leilão não vem escrito no documento, e quem consulta só a base oficial não vai encontrar.",
+            "O que a base oficial registra, e vale consultar de qualquer forma: sinistro de média monta, com a observação \"Sinistro/Recuperado\", permanente; baixa por grande monta, em que o veículo não pode circular nem ser transferido; restrições administrativas e judiciais; gravame de financiamento ativo; e roubo e furto.",
+            "Repare que nenhum desses itens é \"leilão\". São coisas diferentes que costumam ser tratadas como sinônimos — e é aí que mora a maior parte da confusão."
+          ]
+        },
+        {
+          "titulo": "Leilão não é sinônimo de sinistro",
+          "paragrafos": [
+            "Carros vão a leilão por motivos muito diferentes, e o motivo muda tudo.",
+            "Leilão de seguradora. O carro sofreu sinistro e a seguradora considerou o reparo inviável ou pagou a indenização. É a origem mais preocupante, porque vem quase sempre acompanhada de dano estrutural relevante. Se o dano foi classificado como grande monta, o veículo deveria ter sido baixado e não pode voltar a circular.",
+            "Leilão de financeira ou banco. O carro foi retomado por inadimplência. Não houve acidente, não houve dano. É uma questão de contrato, não de estado do veículo. Um carro dessa origem pode estar impecável.",
+            "Desmobilização de frota. Locadoras e empresas renovam frota em ciclos definidos. São veículos com manutenção registrada, revisão em dia e histórico rastreável — em muitos casos melhor documentado que o de um carro particular.",
+            "Leilão judicial. Penhora, partilha, execução. Nada a ver com o estado mecânico.",
+            "Pátio de Detran. Veículos apreendidos ou abandonados. Aqui o problema costuma ser o oposto: não é dano de colisão, é deterioração por meses ou anos parado ao relento.",
+            "Tratar todas essas origens como a mesma coisa é o erro mais comum de quem está comprando — e também de quem está vendendo, porque leva a descartar bons negócios e a aceitar maus."
+          ]
+        },
+        {
+          "titulo": "O que a consulta mostra",
+          "paragrafos": [
+            "Bases oficiais e gratuitas — portal do Detran do seu estado e o app Sinesp Cidadão, do Ministério da Justiça. Mostram restrições, gravame, ocorrência de roubo e furto e, dependendo do estado, anotação de sinistro recuperado. Sempre vale consultar; só não espere encontrar leilão ali.",
+            "Bases privadas de histórico veicular. Empresas que compilam dados de leiloeiras, seguradoras e registros públicos. São elas que conseguem apontar \"ofertado em leilão\" com data e origem. São pagas, e a qualidade varia bastante entre fornecedores.",
+            "O módulo de histórico da perícia cautelar. A maior parte das empresas de vistoria oferece a pesquisa de histórico junto com o exame físico — em algumas, como adicional separado. Confirme se está incluído antes de contratar.",
+            "Nenhuma base é completa. Um leilão pequeno, regional, pode simplesmente não estar em nenhuma delas. É por isso que a consulta não substitui a inspeção."
+          ]
+        },
+        {
+          "titulo": "Os sinais físicos",
+          "paragrafos": [
+            "O que a base de dados não pega, o carro às vezes entrega.",
+            "Falta de chave reserva e de manual. É o indício mais citado por quem trabalha com isso. No trânsito entre apreensão, pátio e leilão, esses itens se perdem.",
+            "Etiquetas de identificação ausentes ou trocadas. As etiquetas distribuídas pela carroceria são conferidas na perícia. Ausência sem justificativa documentada é sinal.",
+            "Peças novas demais para a idade do carro. Um conjunto de peças recentes concentrado numa mesma região do veículo — frente, traseira, uma lateral — conta uma história.",
+            "Variação na espessura da pintura. A camada original de fábrica é previsível. Variação concentrada em painel estrutural indica reparo relevante, não retoque.",
+            "Parafusos com marca de ferramenta em pontos que não deveriam ter sido abertos.",
+            "Interior com desgaste incompatível com a quilometragem marcada.",
+            "Nenhum desses sinais isolado prova nada. Juntos, e cruzados com o histórico, formam um quadro — e é exatamente esse cruzamento que uma perícia cautelar faz de forma sistemática."
+          ]
+        },
+        {
+          "titulo": "O que fazer com a informação",
+          "paragrafos": [
+            "Descobrir que um carro passou por leilão não encerra a negociação. Muda o que você precisa saber antes de continuar.",
+            "Descubra a origem, não só o fato. Retomada de financiamento e perda total de seguradora são duas conversas completamente diferentes.",
+            "Cheque o documento por sinistro. Se houver observação de recuperado, a origem provavelmente foi seguradora e o dano foi estrutural. Isso muda o patamar do negócio.",
+            "Recalcule o preço. Carro com passagem por leilão desvaloriza, e a desvalorização acompanha o veículo para sempre. O desconto que você recebe hoje é o desconto que você vai dar quando revender.",
+            "Confirme a regularização. Se o veículo foi classificado como média monta, precisa ter passado por inspeção e ter o Certificado de Segurança Veicular emitido.",
+            "Se for grande monta, pare. Veículo baixado não circula, não licencia e não transfere. Nenhum preço compensa."
+          ]
+        },
+        {
+          "titulo": "O que fazemos com isso",
+          "paragrafos": [
+            "Aqui a pesquisa de histórico e a perícia física rodam antes de o carro entrar na vitrine, por conta da loja.",
+            "Leilão de seguradora com dano estrutural é recusa. Não entra, independentemente do preço de entrada. Origem de frota com manutenção documentada é outra coisa e é avaliada pelo estado real do veículo, como qualquer outro.",
+            "O resultado desse filtro é o número que define nosso estoque: de cada dez carros avaliados, três entram."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Se você está avaliando um carro específico, faça as duas coisas: consulta de histórico em base privada e perícia física. Uma pega o que está no registro; a outra pega o que está na lataria. Separadas, deixam passar.",
+            "No nosso estoque as duas já foram feitas, e o laudo está disponível para consulta com o vendedor — ele cobre as duas, inspeção física e pesquisa de histórico."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Carro de leilão pode circular normalmente?",
+          "resposta": "Pode, desde que esteja regularizado. A exceção é o veículo com baixa por grande monta, que não pode voltar a circular, licenciar ou ser transferido."
+        },
+        {
+          "pergunta": "Dá para consultar passagem por leilão de graça?",
+          "resposta": "As bases gratuitas mostram restrições, gravame e ocorrência de roubo ou furto, mas não histórico de leilão. Para isso é preciso base privada de histórico veicular ou o módulo de pesquisa da perícia cautelar. Onde fazer na cidade está no guia \"Perícia cautelar em Curitiba: onde fazer e quanto custa\"."
+        },
+        {
+          "pergunta": "É possível apagar o histórico de leilão?",
+          "resposta": "Não. A informação fica em bases de dados que não são controladas pelo proprietário. Qualquer oferta de \"limpar\" o histórico deve ser tratada como o que é."
+        },
+        {
+          "pergunta": "Carro de leilão dá para financiar e segurar?",
+          "resposta": "Em geral sim, se estiver regularizado, mas as condições costumam ser piores e alguns bancos e seguradoras recusam. Vale confirmar antes de fechar, não depois."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "No nosso estoque, a pesquisa de histórico e a perícia física já foram feitas."
+      },
+      "sobre": [
+        "Leilão de veículos",
+        "Histórico veicular",
+        "Sinistro"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "chassi-remarcado",
+      "titulo": "Chassi remarcado: quando é legal e quando é crime",
+      "titulo_seo": "Chassi remarcado: quando é legal e quando é crime",
+      "descricao": "Existe remarcação de chassi autorizada e registrada no documento. E existe adulteração, que é crime. Como diferenciar antes de comprar um carro usado.",
+      "corpo": [
+        {
+          "titulo": "Onde ficam os números de identificação",
+          "paragrafos": [
+            "Existe remarcação de chassi legal: feita por empresa credenciada, autorizada pelo Detran e anotada no documento do veículo. E existe adulteração, que é crime tipificado no artigo 311 do Código Penal.",
+            "A diferença entre as duas está numa expressão do próprio texto da lei — \"sem autorização do órgão competente\". Tudo se decide ali.",
+            "Um carro não tem um número. Tem vários, espalhados de propósito: a gravação no monobloco ou chassi, que é a numeração principal, estampada na estrutura; as etiquetas de identificação, distribuídas por painéis da carroceria, com destruição programada se removidas; a gravação nos vidros; a numeração de motor e de câmbio; e a plaqueta de identificação, junto das placas.",
+            "A redundância existe justamente para dificultar fraude. Adulterar um ponto é possível; adulterar todos, de forma consistente, é muito mais difícil. É por isso que a perícia confere vários e cruza com o registro — divergência entre eles é o que acende o alerta."
+          ]
+        },
+        {
+          "titulo": "A remarcação legal existe",
+          "paragrafos": [
+            "Um chassi pode precisar ser regravado por razões inteiramente legítimas: corrosão que tornou a numeração ilegível; reparo estrutural que exigiu substituição da parte onde a gravação estava; desgaste ou dano acidental na área da estampagem; e recuperação de veículo furtado ou roubado em que a numeração foi violada pelo criminoso.",
+            "Nesses casos existe um procedimento. A regravação segue as exigências técnicas da Resolução CONTRAN nº 968/2022 e só pode ser executada por empresa credenciada ao Detran, mediante laudo técnico e autorização prévia. Concluído o processo, o Detran emite novo documento com a numeração regularizada.",
+            "E aqui está a diferença prática mais útil deste guia: a remarcação regular fica registrada. O documento passa a trazer a observação de chassi remarcado.",
+            "Compare com a passagem por leilão, que não consta em documento nenhum. São situações opostas: uma é anotada por definição, a outra nunca é.",
+            "Isso significa que um carro com observação de remarcação no documento não é, por si só, um carro problemático. É um carro que passou por um procedimento oficial e foi regularizado. Merece perguntas — por que foi remarcado, quando, e o que aconteceu antes — mas não merece descarte automático.",
+            "Na prática, sim, desvaloriza. Comprador desconfia da palavra \"remarcado\" independentemente do motivo, e isso se reflete no preço e na velocidade de revenda."
+          ]
+        },
+        {
+          "titulo": "A adulteração é crime",
+          "paragrafos": [
+            "O artigo 311 do Código Penal, com a redação dada pela Lei nº 14.562 de 2023, pune adulterar, remarcar ou suprimir número de chassi, monobloco, motor, placa de identificação ou qualquer sinal identificador de veículo, sem autorização do órgão competente. A pena prevista é de reclusão de três a seis anos, e multa.",
+            "A mesma lei de 2023 ampliou o parágrafo 2º do artigo, e é essa parte que quase ninguém conta a quem está comprando um carro usado.",
+            "O texto passou a alcançar também quem adquire, recebe, transporta, conduz, oculta, mantém em depósito, desmonta, monta, remonta, vende, expõe à venda ou de qualquer forma utiliza veículo com sinal identificador que devesse saber estar adulterado ou remarcado.",
+            "Em linguagem direta: a lei não fala apenas de quem adultera. Ela alcança quem está com o carro nas mãos sem ter verificado o que devia ter verificado.",
+            "Não estamos dando parecer jurídico, e cada situação depende de um monte de circunstâncias que só um advogado avalia. O ponto aqui é outro e é prático: comprar sem conferir identificação deixou de ser apenas um risco financeiro.",
+            "É a razão mais forte que existe para não pular a perícia — e é uma razão que nenhum vendedor tem interesse em te apresentar."
+          ]
+        },
+        {
+          "titulo": "Como diferenciar na prática",
+          "paragrafos": [
+            "Remarcação regular: a autorização é prévia, do Detran; quem executa é empresa credenciada; o laudo técnico é exigido; o documento traz a observação de remarcado; a numeração bate em todos os pontos; o acabamento segue padrão técnico definido; e a consequência é um carro regular, com desvalorização.",
+            "Adulteração: autorização, nenhuma; executa qualquer um; laudo técnico, inexistente; no documento nada consta — é esse o objetivo; a numeração diverge entre pontos, ou com o registro; o acabamento é irregular, com profundidade e alinhamento inconsistentes; e a consequência é crime, com o veículo sujeito a apreensão.",
+            "O teste de três perguntas, antes de qualquer coisa:",
+            "1. O documento traz observação de remarcação? Se sim, peça o processo — laudo, autorização e a empresa que executou.",
+            "2. Se o documento não traz observação e a gravação aparenta ter sido refeita, isso é contradição. Pare.",
+            "3. As numerações batem entre si e com o registro? Chassi, motor, câmbio, etiquetas e vidros contando histórias diferentes é o sinal mais grave que existe.",
+            "A terceira pergunta você não responde sozinho, no pátio, no domingo. Responde com perícia."
+          ]
+        },
+        {
+          "titulo": "O que fazer se descobrir",
+          "paragrafos": [
+            "Antes de comprar. É reprovação. Não é ponto de negociação, não é margem de desconto. Saia.",
+            "Depois de comprar. Procure um advogado antes de tomar qualquer iniciativa, inclusive antes de tentar revender o veículo. Vender adiante um carro nessa condição é exatamente uma das condutas que o parágrafo 2º do artigo 311 alcança. Procon e Delegacia de Furtos e Roubos de Veículos são os caminhos usuais, mas a ordem dos passos importa e quem define é o advogado.",
+            "Se o seu próprio carro precisa de regravação por motivo legítimo. Existe procedimento e ele é acessível. Procure o Detran do seu estado e uma empresa credenciada. O que não pode, em nenhuma hipótese, é resolver na oficina da esquina — é justamente isso que transforma um problema administrativo em problema criminal."
+          ]
+        },
+        {
+          "titulo": "O que fazemos com isso",
+          "paragrafos": [
+            "Divergência de numeração é reprovação direta no nosso processo de compra. Não entra no estoque, em nenhum preço, em nenhuma circunstância.",
+            "É um dos motivos que compõem o número que define nossa vitrine: de cada dez carros avaliados, três entram.",
+            "Carro com remarcação regular, devidamente documentada, é avaliado caso a caso — é situação diferente, e o documento comprova."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Se você está avaliando um carro usado, confira o campo de observações do documento e exija perícia cautelar antes de qualquer sinal. Identificação é o único eixo do exame em que não existe meio-termo: ou confere, ou a negociação acabou.",
+            "No nosso estoque essa conferência já foi feita antes de o carro entrar na vitrine, e o laudo, eixo de identificação incluído, está disponível para consulta com o vendedor."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Chassi remarcado é sempre ilegal?",
+          "resposta": "Não. A remarcação autorizada pelo Detran, executada por empresa credenciada e registrada no documento, é procedimento regular. Ilegal é remarcar ou adulterar sem autorização do órgão competente — e é isso que o artigo 311 do Código Penal pune."
+        },
+        {
+          "pergunta": "Carro com chassi remarcado desvaloriza?",
+          "resposta": "Sim, mesmo quando a remarcação é regular. A observação no documento acompanha o veículo e o mercado precifica isso, independentemente do motivo que levou à regravação."
+        },
+        {
+          "pergunta": "Dá para financiar e segurar um carro com chassi remarcado?",
+          "resposta": "Depende do banco e da seguradora. Alguns aceitam com a documentação completa do processo, outros recusam. Confirme antes de fechar, não depois."
+        },
+        {
+          "pergunta": "Como saber se a numeração foi adulterada?",
+          "resposta": "Não dá para saber com segurança a olho nu. A conferência exige comparação entre vários pontos de identificação e cruzamento com o registro, que é o que a perícia cautelar faz de forma sistemática."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "No nosso estoque, a conferência de identificação já foi feita."
+      },
+      "sobre": [
+        "Chassi",
+        "Adulteração de sinal identificador",
+        "Perícia cautelar"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "cautelar-x-vistoria-transferencia",
+      "titulo": "Laudo cautelar x vistoria de transferência",
+      "titulo_seo": "Laudo cautelar x vistoria de transferência: a diferença",
+      "descricao": "A vistoria obrigatória do Detran não atesta procedência. Ela confere identificação e equipamentos. O que cada exame verifica, e por que a ordem importa.",
+      "corpo": [
+        {
+          "titulo": "As duas, lado a lado",
+          "paragrafos": [
+            "A vistoria de transferência é obrigatória, feita para o Detran, e confere identificação do veículo, legitimidade da propriedade e equipamentos de segurança. O laudo cautelar é voluntário, feito para você, e avalia procedência: estrutura, histórico e origem.",
+            "Muita gente acredita que, tendo passado na vistoria do Detran, o carro está atestado. Não está — e o problema nem é o escopo. É o momento em que cada uma acontece.",
+            "A vistoria de transferência é obrigatória para transferir; é feita para o órgão de trânsito, pelo Detran ou por ECV credenciada; confere identificação e equipamentos obrigatórios; não avalia integridade estrutural, não mede espessura de pintura, não pesquisa histórico de leilão e não avalia o registro de sinistro; acontece depois de você comprar; e o resultado é liberar ou não o processo.",
+            "O laudo cautelar não é obrigatório; é feito para você, por empresa privada especializada; confere identificação, e não equipamentos obrigatórios; avalia integridade estrutural, espessura de pintura, histórico de leilão pelo módulo de pesquisa e registro de sinistro; acontece antes de você decidir; e o resultado é um documento com o que foi encontrado."
+          ]
+        },
+        {
+          "titulo": "O que a vistoria de transferência verifica",
+          "paragrafos": [
+            "O Detran-PR publica o escopo. A vistoria é a inspeção feita para verificar a autenticidade da identificação do veículo e da documentação, a legitimidade da propriedade, os equipamentos obrigatórios e suas condições de funcionamento, e o registro no prontuário quando houve modificação das características originais.",
+            "Na prática, numa ECV credenciada isso significa conferir chassi e numeração de motor, incluindo busca por remarcação, placas, itens obrigatórios de segurança, faróis, retrovisores, e se a identificação visual bate com o documento.",
+            "É um exame sério e cumpre exatamente o que se propõe: garantir que o veículo é aquele, que quem vende pode vender, e que ele está apto a circular."
+          ]
+        },
+        {
+          "titulo": "O que ela não verifica",
+          "paragrafos": [
+            "Repare no que não está no escopo: integridade estrutural — longarinas, colunas, assoalho, torres de suspensão; teste de espessura de pintura para identificar reparo; histórico de passagem por leilão; avaliação do registro de sinistro e da gravidade do dano; e estado mecânico.",
+            "Um carro pode ter sofrido sinistro estrutural grave, ter sido reparado e ter passado por leilão de seguradora — e ainda assim ser aprovado na vistoria de transferência. Porque nada disso está sendo perguntado.",
+            "A vistoria responde \"este veículo pode ser transferido e circular?\". Ela não responde \"vale a pena comprar este veículo?\"."
+          ]
+        },
+        {
+          "titulo": "Onde as duas se sobrepõem",
+          "paragrafos": [
+            "Elas não são exames totalmente distintos. Há um ponto de contato real: identificação.",
+            "As duas conferem numeração de chassi e motor, e as duas olham para sinais de remarcação. Se houver adulteração grosseira, a vistoria de transferência pode pegar.",
+            "A diferença está na profundidade e na abrangência. O laudo cautelar confere vários pontos de identificação — etiquetas de carroceria, gravação em vidros, numeração de câmbio — e cruza tudo com o registro, além de somar estrutura e histórico ao quadro. A conferência cruzada é o que expõe adulteração bem feita.",
+            "Nos dois outros eixos — estrutura e histórico — não há sobreposição nenhuma. É território exclusivo do cautelar."
+          ]
+        },
+        {
+          "titulo": "A diferença que mais importa: o momento",
+          "paragrafos": [
+            "Esta é a parte prática, e ela vale mais que todo o resto.",
+            "A vistoria de transferência acontece no fim. Você já negociou, já acertou o preço, já pagou ou se comprometeu. A vistoria é uma etapa do processo de passar o carro para o seu nome.",
+            "O laudo cautelar acontece no começo. Ou deveria. Ele existe para te dar informação enquanto você ainda pode decidir não comprar, ou renegociar.",
+            "Quando a vistoria do Detran encontra algo, você já é dono do problema — e a discussão vira jurídica, não comercial. Quando o cautelar encontra algo, você ainda tem as duas coisas que importam: a decisão e o poder de barganha.",
+            "Ordem correta: perícia cautelar → decisão → negociação → pagamento → vistoria de transferência.",
+            "A ordem que a maior parte do mercado pratica é outra, e é por isso que tanta gente descobre problema depois."
+          ]
+        },
+        {
+          "titulo": "No Paraná",
+          "paragrafos": [
+            "A transferência de propriedade é feita nas unidades do Detran-PR ou por despachante. O Detran-PR informa prazo de 60 dias para as providências de registro da transferência — confirme o prazo e as taxas vigentes no portal oficial antes de iniciar, porque mudam.",
+            "Desde 2021 o antigo CRV em papel foi substituído pela ATPV-e, e o reconhecimento de firma do vendedor precisa ser por autenticidade, com presença no cartório. É uma exigência que protege contra venda por terceiro sem o conhecimento do dono.",
+            "Nenhuma dessas etapas avalia procedência. Elas formalizam a transferência de um carro que você já escolheu — e é por isso que o cautelar precisa vir antes.",
+            "Onde fazer perícia cautelar na cidade, com prazos e faixas de preço: o guia \"Perícia cautelar em Curitiba: onde fazer e quanto custa\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Faça os dois, na ordem certa. Cautelar antes de decidir; vistoria de transferência depois de fechar. Um não substitui o outro e eles nem respondem à mesma pergunta.",
+            "Nos nossos carros o cautelar já foi feito antes do anúncio, e o laudo está disponível para consulta com o vendedor: é só pedir e ler antes de decidir. O que sobra é a parte burocrática — e nela a gente ajuda."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Se o carro passou na vistoria do Detran, está tudo certo?",
+          "resposta": "Está certo para transferir e circular. A vistoria confere identificação, propriedade e equipamentos obrigatórios. Ela não avalia estrutura, histórico de leilão nem gravidade de sinistro — e um carro com esses problemas pode ser aprovado nela normalmente."
+        },
+        {
+          "pergunta": "Preciso fazer as duas?",
+          "resposta": "A de transferência é obrigatória para passar o carro para o seu nome. A cautelar é voluntária, mas é a única que responde se vale a pena comprar. Fazer só a obrigatória é descobrir depois o que daria para saber antes."
+        },
+        {
+          "pergunta": "Qual é mais cara?",
+          "resposta": "A cautelar costuma custar mais, porque cobre muito mais itens e inclui pesquisa de histórico. A de transferência tem taxa definida pelo órgão de trânsito e varia por estado."
+        },
+        {
+          "pergunta": "A vistoria de transferência pega chassi remarcado?",
+          "resposta": "Pode pegar, porque confere numeração de chassi e motor. Adulteração bem executada, no entanto, costuma só aparecer no cruzamento de vários pontos de identificação — que é o que o cautelar faz."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "Nos nossos carros o cautelar já foi feito antes do anúncio."
+      },
+      "sobre": [
+        "Vistoria veicular",
+        "Laudo cautelar",
+        "Transferência de propriedade"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "carro-reprovado-cautelar-como-vender",
+      "titulo": "Meu carro reprovou no laudo cautelar. E agora?",
+      "titulo_seo": "Carro reprovado no laudo cautelar: quem compra e como vender",
+      "descricao": "Reprovar na cautelar não significa que o carro não vale nada. Significa que ele mudou de mercado. O que muda, quem compra e o que você precisa informar.",
+      "corpo": [
+        {
+          "titulo": "Reprovou por quê?",
+          "paragrafos": [
+            "Reprovar num laudo cautelar não significa que o carro não vale nada nem que ninguém compra. Significa que ele saiu de um mercado e entrou em outro, mais estreito e com preço diferente.",
+            "O que define tudo é por qual motivo ele reprovou. Existem reprovações que reduzem o valor e existem reprovações que impedem a venda — e tratar as duas como a mesma coisa é o erro que faz gente boa perder dinheiro ou se meter em problema.",
+            "Antes de qualquer decisão, identifique em qual dos casos você está.",
+            "Divergência ou adulteração de numeração — é o caso mais grave e não é comercial. Se chassi, motor ou etiquetas não batem entre si ou com o registro, pare tudo e procure um advogado antes de tomar qualquer iniciativa — inclusive antes de tentar vender.",
+            "Vender adiante um veículo com sinal identificador adulterado é uma das condutas alcançadas pelo artigo 311 do Código Penal, na redação que a Lei nº 14.562 de 2023 trouxe. O guia \"Chassi remarcado: quando é legal e quando é crime\" separa o que é remarcação regular do que é adulteração.",
+            "Existe a hipótese de a remarcação ser legítima e faltar apenas regularização documental. Existe a hipótese oposta. Quem separa as duas é advogado, não vendedor.",
+            "Sinistro estrutural — dano em longarina, coluna, assoalho ou torre de suspensão. O carro pode estar regular e circulando, mas a estrutura foi comprometida e reparada. Aqui o mercado existe, o preço muda bastante, e o dever de informar quem comprar é inegociável.",
+            "Passagem por leilão — muda muito conforme a origem. Retomada de financiamento e perda total de seguradora são situações completamente diferentes, ainda que ambas apareçam como \"leilão\" na pesquisa. A diferença entre os tipos está no guia \"Como saber se um carro passou por leilão\".",
+            "Apontamento grave não estrutural — repintura extensa, peças trocadas em volume, desgaste incompatível com a idade. Reduz valor, não fecha portas."
+          ]
+        },
+        {
+          "titulo": "Quem compra cada caso",
+          "paragrafos": [
+            "Lojas que trabalham com veículos recuperados. Existe um segmento especializado nisso, que compra, regulariza e revende com o histórico declarado. É um mercado legítimo quando a informação circula.",
+            "Repasse entre lojistas. Carros que não entram na vitrine de uma loja frequentemente seguem por esse canal, com preço e condições próprias.",
+            "Comprador direto que aceita o histórico. Existe, e mais do que se imagina — desde que o preço reflita a situação e a informação esteja na mesa desde o começo. Quem procura um carro barato e sabe exatamente o que está comprando é um comprador tranquilo.",
+            "Desmanche legal e pátio de peças autorizado. Para veículo com baixa por grande monta, é o único caminho. Carro baixado não circula, não licencia e não transfere."
+          ]
+        },
+        {
+          "titulo": "O que você é obrigado a informar",
+          "paragrafos": [
+            "Esta é a parte que decide se a venda vai ser um alívio ou um processo.",
+            "Se você sabe, você informa. Omitir defeito conhecido em uma venda é o que caracteriza vício oculto, e abre caminho para rescisão do negócio e reparação. Vale tanto na venda entre particulares quanto — e com responsabilidade ainda mais direta — quando quem vende é loja.",
+            "Entregue o laudo. Se você já pagou por uma perícia, o documento vai junto na negociação. Além de ser a forma correta, é a sua proteção: comprador informado por escrito não alega desconhecimento depois.",
+            "Não confie na sorte. A informação está em bases de histórico veicular. O comprador que não conferir hoje vai conferir na hora de revender — e você vai ser o nome que aparece na história.",
+            "Não estamos dando parecer jurídico. Em caso de dúvida sobre o seu caso específico, consulte um advogado ou o Procon."
+          ]
+        },
+        {
+          "titulo": "O que dá para fazer antes de vender",
+          "paragrafos": [
+            "Tenha o laudo em mãos, completo. Não o resultado: o documento inteiro, com fotos. Você precisa saber exatamente o que tem antes de conversar com alguém.",
+            "Separe o que é recuperável do que não é. Repintura e peça trocada se resolvem. Estrutura comprometida e numeração divergente, não.",
+            "Regularize o que for documental. Débito, restrição administrativa, gravame não baixado — isso trava a venda e muitas vezes se resolve.",
+            "Junte o histórico de manutenção. Notas de revisão pesam, e pesam mais ainda em carro com apontamento. Elas mostram cuidado onde o laudo mostra problema.",
+            "Peça mais de uma avaliação. Preços variam bastante nesse segmento, mais do que no mercado comum."
+          ]
+        },
+        {
+          "titulo": "O que não fazer",
+          "paragrafos": [
+            "Não tente \"limpar\" o histórico. Não existe. Quem oferece esse serviço está vendendo outra coisa.",
+            "Não esconda o laudo. Aparece depois, e aí o problema deixa de ser o carro.",
+            "Não venda para quem não vai conferir. Pode parecer o caminho fácil e é o mais caro no fim.",
+            "Não faça regravação de numeração fora do procedimento oficial. É exatamente isso que transforma uma pendência administrativa em crime."
+          ]
+        },
+        {
+          "titulo": "O que a gente faz",
+          "paragrafos": [
+            "Nossa vitrine tem um critério fechado: de cada dez carros avaliados, três entram. Os outros sete não entram, e isso não é julgamento sobre o carro — é o padrão que a gente assumiu para vender com garantia e com o laudo da perícia disponível para consulta com o vendedor.",
+            "Mas avaliar é gratuito, e o que acontece depois da avaliação depende do caso. Carro que não vai para a vitrine pode seguir por outro caminho comercial, em condições próprias. Carro com divergência de numeração não segue por caminho nenhum — nesse caso a conversa é para te orientar a procurar quem deve.",
+            "O que a gente não faz, em nenhuma hipótese, é receber o carro sem te dizer o que encontrou."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Comece sabendo o que você tem. Se ainda não fez a perícia, faça — o guia \"Perícia cautelar em Curitiba: onde fazer e quanto custa\" diz onde. Se já fez, leia o documento inteiro e identifique em qual dos casos acima você está.",
+            "Depois disso, peça avaliação, você fica sabendo exatamente o que foi encontrado — entrando no nosso estoque ou não.",
+            "A Motors faz perícia em todos os carros, então você pode optar por fazer conosco. Seja durante o processo ou depois para ratificar a avaliação, caso o carro seja aprovado, não há valor cobrado pelo serviço."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Carro reprovado na cautelar pode ser vendido?",
+          "resposta": "Depende do motivo. Sinistro estrutural e passagem por leilão reduzem o valor mas não impedem a venda, desde que o comprador seja informado. Veículo com baixa por grande monta não pode ser transferido. E veículo com numeração adulterada exige orientação jurídica antes de qualquer negociação."
+        },
+        {
+          "pergunta": "Preciso contar ao comprador que o carro tem apontamento?",
+          "resposta": "Sim. Omitir defeito que você conhece configura vício oculto e pode gerar rescisão do negócio e reparação. Entregar o laudo junto com a proposta é a forma mais simples de se proteger."
+        },
+        {
+          "pergunta": "Quanto o carro desvaloriza?",
+          "resposta": "Varia demais conforme o motivo, o modelo e a documentação disponível. Um apontamento estético e um sinistro de média monta não se comparam. A diferença entre os tipos de resultado é o que determina a faixa."
+        },
+        {
+          "pergunta": "A Motors Store compra carro reprovado?",
+          "resposta": "Não para a vitrine — o critério ali é fechado. Dependendo do caso pode haver outro caminho; quando não houver, a gente diz o motivo."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "Avaliar é gratuito, e você fica sabendo o que foi encontrado — entrando no nosso estoque ou não."
+      },
+      "sobre": [
+        "Laudo cautelar",
+        "Venda de veículo usado",
+        "Vício oculto"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "o-que-reprova-pericia-cautelar",
+      "titulo": "O que reprova um carro na perícia cautelar",
+      "titulo_seo": "O que mais reprova um carro: 57 avaliações, 10 compras",
+      "descricao": "Em 30 dias avaliamos 57 carros e compramos 10. O que mais reprovou foi passagem por leilão — o único da lista que não aparece em documento.",
+      "corpo": [
+        {
+          "titulo": "Como levantamos isso",
+          "paragrafos": [
+            "Num período fechado de 30 dias, avaliamos 57 veículos para compra e ficamos com 10. O motivo que mais reprovou foi passagem por leilão, presente em 16 dos carros avaliados.",
+            "O detalhe que torna esse número importante: leilão é justamente a única coisa da lista inteira que não aparece em documento nenhum. Quem confere só a papelada não vê o principal.",
+            "A amostra é de 57 veículos avaliados para entrada em estoque num período fechado de 30 dias, registro da própria operação. Desses, 10 foram comprados e 47 recusados.",
+            "Ficaram de fora as recusas comerciais — carro que não entrou por preço, por giro ou por não se encaixar no perfil do estoque. Aqui só entra reprovação técnica: o que foi encontrado no veículo ou no histórico dele.",
+            "Quando um carro apresentou mais de um problema, contamos apenas o motivo determinante — o que sozinho já impediria a compra. Por isso a soma fecha exatamente com o total avaliado.",
+            "Nos 57 avaliados: passagem por leilão, 16 veículos, 28%; quilometragem não condizente, 13 veículos, 23%; reparos mal executados, 10 veículos, 18%; outros motivos técnicos, 8 veículos, 14%; e comprados, 10 veículos, 18%.",
+            "Amostra de um mês. Não é média histórica: a proporção varia bastante conforme o que chega e conforme o momento do estoque. Ao longo do tempo, o critério que a gente pratica aprova em torno de três a cada dez avaliados — neste mês ficou mais apertado.",
+            "A perícia é feita por empresa independente, antes de o veículo entrar na vitrine. O guia \"Laudo cautelar: o que verifica e o que não verifica\" mostra o que esse exame cobre — e o que não cobre."
+          ]
+        },
+        {
+          "titulo": "1. Passagem por leilão — 16 veículos",
+          "paragrafos": [
+            "O motivo mais frequente, e o mais difícil de detectar sem ajuda.",
+            "Leilão de seguradora com dano estrutural é recusa direta aqui. Retomada de financiamento por inadimplência e desmobilização de frota são situações completamente diferentes, avaliadas pelo estado real do veículo — a diferença entre os tipos está no guia \"Como saber se um carro passou por leilão\".",
+            "O que torna esse número relevante não é o tamanho dele. É o fato de que passagem por leilão não consta no documento do veículo. O Código de Trânsito não atribui ao Detran a competência de pesquisar e registrar esse histórico, então não há campo, não há observação, não há carimbo.",
+            "Ela só aparece em pesquisa de histórico em base privada, cruzada com inspeção física. Um comprador que confere o CRLV, consulta a base gratuita do Detran e não encontra nada conclui, razoavelmente, que está tudo limpo. E em 16 dos 57 carros que avaliamos no período, não estava."
+          ]
+        },
+        {
+          "titulo": "2. Quilometragem fora de proporção — 13 veículos",
+          "paragrafos": [
+            "O segundo mais frequente, e o que mais surpreende quando a gente explica.",
+            "Alta demais — a referência comum de mercado gira em torno de 10 a 15 mil km por ano. Um carro de cinco anos com 150 mil km rodou o de dez.",
+            "Isso por si só não reprova. O que reprova é a combinação com o que a quilometragem alta produziu: suspensão no fim, embreagem no limite, câmbio com folga, e principalmente manutenção que não acompanhou o uso. Carro muito rodado com revisão documentada é um negócio; muito rodado sem histórico é outro.",
+            "Baixa demais — esta é a parte que quase ninguém espera, e é o motivo de reprovação que mais rende discussão na nossa mesa.",
+            "Carro parado se deteriora por tempo, não por uso. Num veículo que rodou muito pouco para a idade, a gente encontra com frequência borrachas, mangueiras e retentores ressecados; correias com microfissuras, mesmo sem quilometragem; pneus velhos — a borracha envelhece parada, e pneu de cinco anos é pneu de cinco anos com 10 mil ou 100 mil km; fluido de freio saturado de umidade; ar-condicionado com vazamento por falta de circulação; combustível velho no tanque, com bico e bomba comprometidos; e óleo degradado por tempo, mesmo dentro do intervalo de quilometragem.",
+            "E há a pergunta que sempre vem junto: por que rodou tão pouco? Às vezes é uso genuinamente leve. Às vezes é um carro que ficou parado por avaria, por litígio, ou porque o dono desistiu dele. E às vezes o hodômetro simplesmente não conta a verdade.",
+            "\"Carro de garagem, pouco rodado\" é um dos argumentos de venda mais usados do mercado, e é um dos que mais pedem inspeção."
+          ]
+        },
+        {
+          "titulo": "3. Reparos mal executados — 10 veículos",
+          "paragrafos": [
+            "O terceiro mais frequente, e o mais fácil de esconder numa foto de anúncio.",
+            "Não é o reparo em si — carro usado tem reparo, e isso é normal. É a execução: repintura com variação de espessura fora do padrão de fábrica; excesso de massa disfarçando amassado em vez de repuxo; peça de reposição mal encaixada, com folga ou desalinhamento de frisos; solda fora de padrão, principalmente em painel estrutural; parafuso com marca de ferramenta em ponto que não deveria ter sido aberto; e acabamento que não acompanha a idade do resto do carro.",
+            "Reparo mal feito importa por dois motivos. Ele indica que alguém economizou onde não devia — e quem economiza no acabamento visível raramente caprichou no que não se vê. E, quando atinge painel estrutural, compromete o comportamento do carro numa nova colisão."
+          ]
+        },
+        {
+          "titulo": "Os demais — 8 veículos",
+          "paragrafos": [
+            "Menos frequentes, mas quando aparecem costumam ser definitivos: divergência ou adulteração de numeração, que é reprovação imediata e com implicação que vai além do comercial; sinistro estrutural com dano em longarina, coluna, assoalho ou torre; pendência documental, como restrição, débito ou gravame não baixado; e desgaste mecânico crônico com custo de reparo acima do que o carro comporta."
+          ]
+        },
+        {
+          "titulo": "O que é recuperável e o que não é",
+          "paragrafos": [
+            "A diferença entre os grupos não é de grau, é de natureza.",
+            "Não tem volta: adulteração de numeração, baixa por grande monta, sinistro estrutural grave. O registro acompanha o carro para sempre.",
+            "Tem volta, com preço diferente: pendência documental, repintura, peças trocadas, desgaste mecânico quando o reparo cabe na conta.",
+            "A fronteira entre os dois é onde mora o negócio — e é por isso que o resultado de um laudo tem três níveis, não dois."
+          ]
+        },
+        {
+          "titulo": "O que cada coisa faz com o valor",
+          "paragrafos": [
+            "A desvalorização não acompanha a gravidade técnica. Acompanha o que fica registrado.",
+            "Sinistro de média monta deixa observação permanente no documento e pesa muito. Uma repintura bem executada em painel não estrutural não deixa nada e quase não pesa. Passagem por leilão é o caso curioso: não está em documento nenhum, mas está em bases que qualquer comprador atento consulta — pesa no preço sem estar no papel.",
+            "Regra prática: o que é registrado desvaloriza para sempre; o que é reparável desvaloriza uma vez."
+          ]
+        },
+        {
+          "titulo": "O que isso significa se você está comprando",
+          "paragrafos": [
+            "Dos 57 carros que avaliamos no período, 47 não entraram na nossa vitrine. Eles não sumiram do mercado — estão anunciados em algum lugar, e muitas vezes sem nada disso aparecer no anúncio.",
+            "Isso não é acusação a ninguém. É a consequência de um mercado em que a perícia costuma ser opcional, paga pelo comprador, e feita depois de a negociação já ter avançado.",
+            "Três coisas que valem para qualquer carro, em qualquer loja:",
+            "1. Peça pesquisa de histórico, não só o documento. Foi o que mais reprovou aqui, e é o que o documento não mostra.",
+            "2. Cheque a quilometragem contra a idade, nos dois sentidos. Alta demais pede histórico de manutenção; baixa demais pede inspeção de itens que envelhecem parados.",
+            "3. Olhe o acabamento com atenção. Frisos desalinhados, tonalidade diferente entre painéis e parafuso marcado contam mais que o anúncio."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Use os motivos acima como roteiro do que perguntar e do que exigir ver antes de sinalizar qualquer valor.",
+            "Os carros do nosso estoque são os que passaram por esse filtro, e o laudo está disponível para consulta com o vendedor. Peça e confira você mesmo."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Qual o motivo mais comum de reprovação?",
+          "resposta": "Passagem por leilão, em 16 dos 57 veículos avaliados no período de 30 dias da amostra. É também o único motivo da lista que não aparece no documento do carro — só em pesquisa de histórico."
+        },
+        {
+          "pergunta": "Quilometragem baixa não é sempre bom?",
+          "resposta": "Não. Carro parado se deteriora por tempo: borrachas ressecam, correias microfissuram, pneus envelhecem, fluidos saturam e combustível velho compromete bico e bomba. Quilometragem muito abaixo do esperado para a idade é motivo para inspecionar mais, não menos."
+        },
+        {
+          "pergunta": "De 57 carros vocês compraram só 10?",
+          "resposta": "Neste mês, sim. A proporção oscila conforme o que aparece para avaliação — em média fica em torno de três a cada dez. O critério é fechado porque vendemos com garantia e com o laudo da perícia disponível para consulta com o vendedor: assumimos o que entra, por escrito. Uma loja com critério mais amplo compra mais e assume mais risco depois."
+        },
+        {
+          "pergunta": "Vocês publicam esses números com que frequência?",
+          "resposta": "Este é o primeiro levantamento publicado. A intenção é repetir semestralmente."
+        },
+        {
+          "pergunta": "Carro reprovado aqui é um carro ruim?",
+          "resposta": "Nem sempre. Parte das reprovações é documental ou estética e se resolve. Outra parte é definitiva. O guia \"Meu carro reprovou no laudo cautelar. E agora?\" explica a diferença e o que fazer se foi o seu carro."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "Os carros do nosso estoque são os que passaram por esse filtro."
+      },
+      "sobre": [
+        "Perícia cautelar veicular",
+        "Motivos de reprovação",
+        "Compra de carro seminovo"
+      ],
+      "estado": "publicado"
+    }
+  ]
+}

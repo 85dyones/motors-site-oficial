@@ -2711,7 +2711,7 @@ export default function ConfiguracoesClientWrapper({
                       className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all font-mono"
                     />
                     <p className="text-[10px] text-mt-neutral-700 font-normal leading-relaxed">
-                      Cole apenas o ID (ex: <code className="font-mono text-mt-accent">GTM-TB665RN9</code>) — se colar o snippet inteiro, o ID é extraído automaticamente. O container é injetado no &lt;head&gt; após o aceite de cookies.
+                      Cole apenas o ID (ex: <code className="font-mono text-mt-accent">GTM-TB665RN9</code>) — se colar o snippet inteiro, o ID é extraído automaticamente. O container entra no &lt;head&gt; já no carregamento da página, para todo visitante que não desligou a medição em /privacidade.
                     </p>
                   </div>
 

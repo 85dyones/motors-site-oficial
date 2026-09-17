@@ -21,6 +21,10 @@
  *                           (`chassi`). Governado pela linha própria da A17.
  *   `CAMPOS_NOSSOS`         a ficha do painel, importada de `estoqueEscrita` —
  *                           mesma lista, mesmo gate campo a campo do editor.
+ *                           Mais os opcionais: desde 17/09 eles não estão
+ *                           naquela lista, porque o sync os escreve no carro do
+ *                           feed. O carro que nasce aqui é nativo, e o sync
+ *                           nunca o toca.
  *
  * ---------------------------------------------------------------------------
  * ⚠️ O que este módulo NUNCA escreve, e por quê (migração 20260829130000)
@@ -44,7 +48,7 @@
  */
 
 import { campoNegadoAoPerfil, ehStaff, perfisDe, podeFazer } from "./permissoes";
-import { extrairCamposNossos } from "./estoqueEscrita";
+import { CAMPO_DOS_OPCIONAIS, extrairCamposNossos } from "./estoqueEscrita";
 import {
   colunasDaPromocao,
   precoEfetivo,
@@ -118,6 +122,24 @@ export const CAMPOS_QUE_A_ROTA_NUNCA_ESCREVE = [
   // exatamente o que a decisão do dono de 30/08 desfez. Publicar é ato de quem
   // tem a linha da A17, depois da revisão — nunca efeito de um cadastro.
   "estado_cadastro",
+  // As três de foto, desde a F0.5 (01/09) — e aqui a lista deixou de ser só
+  // defesa contra o futuro.
+  //
+  // Enquanto as fotos exigiam `origem = 'painel'`, esta rota as descartava
+  // sozinha: ela chama `extrairCamposNossos(corpo)` sem origem. Ao abrir a
+  // galeria para toda origem, o INSERT passou a aceitar array de foto vindo do
+  // corpo — e sem validação de forma. Quatro strings quaisquer satisfazem
+  // `MINIMO_DE_FOTOS`, então dava para nascer um carro "com fotos" que não são
+  // imagens e publicá-lo em seguida; as colunas são `jsonb` e engolem escalar,
+  // caso em que `Array.isArray` é falso e a ficha vira "0 fotos" sem erro.
+  //
+  // Não é regressão de tela — o formulário nasce com `whatsapp_images: []` de
+  // propósito, porque cadastro não sobe foto. É superfície de API, e o lugar de
+  // fechá-la é aqui. Foto entra pela galeria, depois do nascimento, que é onde
+  // `validarFoto` e o Storage conferem tipo e tamanho.
+  "whatsapp_images",
+  "web_full_images",
+  "url_imagem",
 ] as const;
 
 /**
@@ -365,7 +387,16 @@ export function decidirCadastro(
   }
 
   const nascimento = normalizarCadastro(corpo);
-  const nossos = extrairCamposNossos(corpo);
+  // Os opcionais entram à parte desde 17/09 (ver `CAMPO_DOS_OPCIONAIS`): o
+  // carro que nasce aqui é nativo e grava o campo como sempre gravou. Passar
+  // `"painel"` a `extrairCamposNossos` resolveria os opcionais e traria junto
+  // as colunas de preço, cujo gate campo a campo é outro (a linha de preço da
+  // A17). O preço do cadastro já vem de `normalizarCadastro`.
+  const fonte = corpo as Record<string, unknown>;
+  const nossos = {
+    ...extrairCamposNossos(corpo),
+    ...(CAMPO_DOS_OPCIONAIS in fonte ? { [CAMPO_DOS_OPCIONAIS]: fonte[CAMPO_DOS_OPCIONAIS] } : {}),
+  };
   const documento = extrairCamposDeDocumento(corpo);
 
   const negado = campoNegadoAoPerfil(perfil, [

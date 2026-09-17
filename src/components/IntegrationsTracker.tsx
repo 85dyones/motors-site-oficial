@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
-import { marcarContainerAtivo } from "../lib/dataLayer";
+import { marcarContainerAtivo, sanitizeGa4Id, sanitizeGtmId } from "../lib/dataLayer";
 import { persistirParametrosDeCampanha, rastreamentoRecusado } from "../lib/telemetry";
 
 declare global {
@@ -16,13 +16,10 @@ declare global {
   }
 }
 
-// O painel admin aceita tanto o ID puro ("GTM-TB665RN9") quanto o snippet
-// completo colado do Google Tag Manager. Extrai só o ID e descarta o resto —
-// o valor é interpolado dentro de um <script>, então nada além do ID entra.
-function sanitizeGtmId(raw: string): string {
-  const match = raw.match(/GTM-[A-Z0-9]+/i);
-  return match ? match[0].toUpperCase() : "";
-}
+// `sanitizeGtmId` subiu para `lib/dataLayer` em 2026-09-02, junto com o
+// `sanitizeGa4Id` que passou a existir: o `BootstrapDeTags` interpola os
+// mesmos ids no HTML servido, e fronteira de segurança com duas cópias é
+// fronteira que um dia diverge. Ver o comentário de lá.
 
 export default function IntegrationsTracker() {
   const { companySettings } = useTheme();
@@ -40,7 +37,7 @@ export default function IntegrationsTracker() {
    *
    * Um padrão só, num arquivo só. Se o ID mudar, muda no painel.
    */
-  const ga4Id = companySettings?.ga4Id || "";
+  const ga4Id = sanitizeGa4Id(companySettings?.ga4Id || "");
   const gtmId = sanitizeGtmId(companySettings?.gtmId || "");
   // Default `false`: na dúvida, o código continua medindo. Perder evento é
   // irreversível; contar em dobro por um dia, não.
@@ -56,7 +53,8 @@ export default function IntegrationsTracker() {
   const initializedGTM = useRef(false);
   const initializedMeta = useRef(false);
   const initializedGAds = useRef(false);
-  const isFirstPathnameRun = useRef(true);
+  // O último caminho que o efeito de navegação viu. Ver o efeito, no fim.
+  const ultimoCaminhoVisto = useRef<string | null>(null);
 
   /**
    * Avisa o `telemetry.ts` de que o container assumiu os eventos.
@@ -70,8 +68,11 @@ export default function IntegrationsTracker() {
    * Container carregando ≠ container medindo. O site não tem como distinguir
    * os dois de fora, então quem publicou precisa dizer.
    *
-   * Fora do portão de consentimento de propósito: sem aceite, nem o GTM nem o
-   * `gtag` enviam coisa alguma.
+   * Fora do portão da oposição de propósito: a marca só escolhe por onde o
+   * evento sai (container ou `gtag` do código) e não envia nada sozinha. Quem
+   * se opôs em /privacidade não carrega nem o GTM nem o `gtag` (aqui e no
+   * `BootstrapDeTags`), e as funções de envio do `telemetry.ts` consultam a
+   * oposição antes de olhar a marca. Até 31/08 esse portão era o aceite.
    */
   useEffect(() => {
     marcarContainerAtivo(Boolean(gtmId) && assumeEventos);
@@ -118,16 +119,18 @@ export default function IntegrationsTracker() {
 
       // ANTES do portão, de propósito — e isto é o oposto de uma brecha.
       //
-      // `persistirParametrosDeCampanha` guarda o `gclid` da URL em MEMÓRIA
-      // sempre, e no dispositivo só depois do aceite: o portão do disco vive
-      // dentro dela. Chamá-la aqui é o que faz a memória existir para quem
-      // ainda não decidiu.
+      // `persistirParametrosDeCampanha` trata a oposição por dentro: guarda o
+      // `gclid` da URL em MEMÓRIA sempre, grava no dispositivo para quem não se
+      // opôs e, para quem se opôs, APAGA a cada carga o que estava gravado
+      // (parâmetros de campanha e cookies de anúncio). Depois do `return` de
+      // baixo ela nunca rodaria para essa pessoa, e nada seria apagado.
       //
-      // Estava depois do `return` de baixo e o efeito era invisível nos testes
-      // de unidade, que chamam a função direto: para quem chegava do anúncio e
-      // não clicava no banner, ela nunca rodava, a memória ficava vazia, e o
-      // aceite feito duas páginas adiante não tinha o que gravar — a URL já não
-      // trazia mais o parâmetro. Quem pegou foi o teste de navegador.
+      // Já esteve depois do `return`, quando ele barrava quem ainda não tinha
+      // aceitado (até 31/08), e o efeito era invisível nos testes de unidade,
+      // que chamam a função direto: para quem chegava do anúncio e não clicava
+      // no banner, ela nunca rodava, a memória ficava vazia, e o aceite feito
+      // duas páginas adiante não tinha o que gravar — a URL já não trazia mais o
+      // parâmetro. Quem pegou foi o teste de navegador.
       persistirParametrosDeCampanha();
 
       // -----------------------------------------------------------------------
@@ -165,8 +168,37 @@ export default function IntegrationsTracker() {
 
       persistirFbc();
 
+      // Quem já entrou no parse do HTML não entra de novo aqui.
+      //
+      // `BootstrapDeTags` (2026-09-02) carrega GA4 e GTM no `<head>` servido,
+      // ~3 s antes deste efeito, e grava em `__mtTagsNoAto` o id de cada tag
+      // DEPOIS de injetá-la. Sem esta leitura o container entraria duas vezes e
+      // TODO evento contaria em dobro — o inverso exato do problema que a
+      // mudança veio resolver.
+      //
+      // As duas tags leem a marca de jeitos diferentes, e de propósito:
+      //
+      //   - GA4 compara o ID. `config` é por propriedade: id trocado no painel
+      //     sem recarregar ainda recebe o seu `config` daqui, e o id do HTML não
+      //     recebe um segundo. A BIBLIOTECA não compara: qualquer id que o HTML
+      //     subiu já a carregou, e ela entra uma vez só.
+      //
+      //   - GTM não compara. Container é um por página: dois containers leem o
+      //     mesmo `dataLayer`, e cada evento sai duas vezes. Se o HTML em cache
+      //     (ISR) trouxe um id e a configuração já diz outro, fica o do HTML até
+      //     a próxima carga. Até a revisão do PR #46 esta leitura comparava o
+      //     id, e o tracker subia um segundo container sempre que ele divergia
+      //     — inclusive no primeiro render, que usa o `companySettings.json` do
+      //     repositório antes de `/api/settings` responder.
+      const noAto = (window as unknown as { __mtTagsNoAto?: { ga4: string | null; gtm: string | null } })
+        .__mtTagsNoAto;
+
+      if (noAto?.ga4) bibliotecaGtagCarregada.current = true;
+
       // 1. Google Analytics 4 (GA4) Initialization
-      if (ga4Id && idGA4Inicializado.current !== ga4Id) {
+      if (ga4Id && noAto?.ga4 === ga4Id) {
+        idGA4Inicializado.current = ga4Id;
+      } else if (ga4Id && idGA4Inicializado.current !== ga4Id) {
         try {
           if (idGA4Inicializado.current) {
             console.warn(
@@ -207,6 +239,19 @@ export default function IntegrationsTracker() {
       // neste mesmo componente. NÃO configurar essas mesmas tags dentro do
       // container do GTM — os eventos disparariam duas vezes. Use o GTM apenas
       // para tags de terceiros que não passam por este arquivo.
+      if (noAto?.gtm) {
+        // Já subiu no parse do HTML, com este id ou com outro. Marcar como
+        // inicializado é o que impede o container de entrar duas vezes — e
+        // container em dobro é evento em dobro, que envenena lance e relatório
+        // ao mesmo tempo.
+        if (gtmId && noAto.gtm !== gtmId) {
+          console.warn(
+            `[IntegrationsTracker] O HTML trouxe o container ${noAto.gtm} e a configuração diz ${gtmId}. ` +
+              "Fica o do HTML até a próxima carga: um segundo container contaria todo evento em dobro.",
+          );
+        }
+        initializedGTM.current = true;
+      }
       if (gtmId && !initializedGTM.current) {
         try {
           console.log(`[IntegrationsTracker] Initializing GTM with ID: ${gtmId}`);
@@ -309,17 +354,52 @@ export default function IntegrationsTracker() {
     };
   }, [ga4Id, gtmId, metaPixelId, googleAdsId]);
 
-  // Track dynamic PageView changes when pathname changes
+  /**
+   * `page_view` e `PageView` a cada TROCA DE CAMINHO, e só nela.
+   *
+   * A página em que cada tag sobe é contada pela própria subida: o `config` do
+   * GA4 (no `BootstrapDeTags` ou na inicialização acima) manda um `page_view`,
+   * e o snippet do Meta manda um `PageView`. Este efeito conta o que vem
+   * depois, a navegação no cliente, que troca a URL sem recarregar. Mudança só
+   * de query string ou de hash não conta, porque `usePathname` não as traz.
+   *
+   * ---------------------------------------------------------------------------
+   * Por que um ref com o caminho, e não "pular a primeira execução"
+   * ---------------------------------------------------------------------------
+   * Medido em produção em 16/09/2026: toda chegada mandava dois `page_view` ao
+   * GA4. Este efeito pulava só a primeira execução, com uma marca booleana, e
+   * disparava em qualquer outra. Só que ele também reexecuta quando um id muda:
+   * o `ThemeContext` começa com o `companySettings.json` do repositório
+   * (`metaPixelId: ""`), e o `/api/settings` troca pelo id do painel. Sem
+   * navegação nenhuma, saíam um segundo `page_view` e um segundo `PageView`. No
+   * GA4, sessão com duas visualizações conta como engajada, então volume,
+   * engajamento e rejeição erravam juntos. O StrictMode do `next dev`, que
+   * monta o efeito duas vezes, dava o mesmo dobro.
+   *
+   * Agora o disparo exige que o caminho tenha mudado. Os ids continuam na lista
+   * de dependências porque o efeito os lê; quem decide se dispara é o ref, não
+   * a lista.
+   *
+   * O ref é gravado ANTES do portão da oposição, e de propósito: ele guarda o
+   * caminho VISTO, não o medido. Quem navega com a oposição ligada, retira a
+   * oposição (a subida das tags conta a página em que está) e volta à página
+   * anterior fez uma navegação, e ela conta. Gravar só depois de medir deixaria
+   * essa volta sem visualização.
+   *
+   * `tests/page-view-uma-vez.test.ts` monta este componente e conta.
+   */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // The first run coincides with the initial mount/init above, which already
-    // sends its own PageView (via fbq('track','PageView') and gtag('config', ...)).
-    // Skip it here to avoid double-counting; only real pathname changes should fire.
-    if (isFirstPathnameRun.current) {
-      isFirstPathnameRun.current = false;
-      return;
-    }
+    const caminhoAnterior = ultimoCaminhoVisto.current;
+    ultimoCaminhoVisto.current = pathname;
+
+    // Chegada: a subida das tags já contou esta página.
+    if (caminhoAnterior === null) return;
+
+    // Reexecução sem navegação: um id chegou do painel, ou o StrictMode montou
+    // o efeito de novo.
+    if (caminhoAnterior === pathname) return;
 
     // Mesma régua da inicialização (31/08): só a recusa explícita barra. Se
     // este ficasse em `!== "accepted"`, o primeiro PageView entraria e os das

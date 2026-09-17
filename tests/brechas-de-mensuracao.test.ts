@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { ler, lerCodigo } from "./fonte";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import { ler, lerCodigo, semComentarios } from "./fonte";
 import { getUtmParameters, persistirParametrosDeCampanha } from "../src/lib/telemetry";
 
 /**
@@ -44,7 +46,14 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
   it("os dois cliques declaram `lead_type` explicitamente", () => {
     for (const fn of ["pushCliqueWhatsApp", "pushCliqueTelefone"]) {
       const bloco = fonte.slice(fonte.indexOf(`export function ${fn}`));
-      const corpo = bloco.slice(0, bloco.indexOf("}\n"));
+      // `"}\n"` não casa com o CRLF que o checkout entrega no Windows: o
+      // `indexOf` devolvia -1, o `slice(0, -1)` recortava daqui até o fim do
+      // arquivo, e o "corpo" desta função passava a conter as seguintes. Com o
+      // `\n` na frente a âncora casa nos dois finais de linha.
+      const fim = bloco.indexOf("\n}");
+      expect(fim, `não achei o fim de ${fn}`).toBeGreaterThan(0);
+
+      const corpo = bloco.slice(0, fim);
       expect(corpo, fn).toContain('lead_type: "contato"');
     }
   });
@@ -53,8 +62,25 @@ describe("A.2 · o valor da conversão não pode depender do que sobrou", () => 
     // Antes do spread, um chamador poderia sobrescrever — e voltaria a
     // flutuar, que é exatamente o defeito. A ordem é a correção.
     const bloco = fonte.slice(fonte.indexOf("export function pushCliqueWhatsApp"));
-    const corpo = bloco.slice(0, bloco.indexOf("}\n"));
-    expect(corpo.indexOf("...contexto")).toBeLessThan(corpo.indexOf('lead_type: "contato"'));
+    // O sentinela do recorte também precisa de guarda: um -1 aqui não estoura,
+    // vira `slice(0, -1)` e reconstrói exatamente o corpo inflado que a âncora
+    // acima acabou de consertar.
+    const fimDoCorpo = bloco.indexOf("\n}");
+    expect(fimDoCorpo, "não achei o fim de pushCliqueWhatsApp").toBeGreaterThan(0);
+
+    const corpo = bloco.slice(0, fimDoCorpo);
+    const spread = corpo.indexOf("...contexto");
+    const forcado = corpo.indexOf('lead_type: "contato"');
+    // O irmão desta asserção — o `pushLead` logo abaixo — já guardava os dois
+    // índices. Aqui faltava, e sem a guarda a comparação passa quando o spread
+    // some do corpo: -1 é menor que qualquer posição válida, então o teste
+    // ficava verde justamente no dia em que o valor voltasse a ser
+    // sobrescrevível pelo chamador.
+    expect(spread, "não achei o spread do contexto em pushCliqueWhatsApp")
+      .toBeGreaterThanOrEqual(0);
+    expect(forcado, "não achei o lead_type forçado em pushCliqueWhatsApp")
+      .toBeGreaterThanOrEqual(0);
+    expect(spread).toBeLessThan(forcado);
   });
 
   it("`pushLead` também põe o lead_type depois do spread", () => {
@@ -265,12 +291,15 @@ describe("B.1 · o click id sobrevive até o CRM", () => {
   });
 });
 
-describe("B.3 · o cookie de anúncio respeita o banner", () => {
-  it("`_fbc` só é gravado depois do aceite", () => {
-    // A política publicada afirma que "enquanto você não aceitar, nenhuma
-    // ferramenta de análise ou publicidade é carregada" — e declara `_fbc`
-    // como cookie de atribuição de anúncio. Gravá-lo antes desmentia o texto
-    // que o visitante leu.
+describe("B.3 · o cookie de anúncio respeita a oposição", () => {
+  it("`_fbc` só é gravado depois do portão da oposição", () => {
+    // Nasceu em 27/08, quando o portão era o aceite e a política afirmava que
+    // "enquanto você não aceitar, nenhuma ferramenta de análise ou publicidade
+    // é carregada" — gravar o `_fbc` antes desmentia o texto que o visitante
+    // leu. Desde 31/08 o portão é só a oposição (`rastreamentoRecusado()`), e a
+    // trava seguiu a régua: quem se opôs não ganha cookie de atribuição. Os
+    // títulos deste bloco falavam em aceite até 16/09/2026; as asserções não
+    // mudaram.
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
     const escrita = fonte.indexOf("document.cookie = `_fbc=");
     expect(escrita).toBeGreaterThan(-1);
@@ -282,10 +311,11 @@ describe("B.3 · o cookie de anúncio respeita o banner", () => {
     expect(chamada).toBeGreaterThan(portao);
   });
 
-  it("quem aceita na página de entrada não perde o `fbclid`", () => {
-    // A captura roda também no evento de mudança de consentimento, então o
-    // aceite ainda na landing pega o parâmetro direto da URL. Some só o caso
-    // de quem navega para outra página antes de aceitar.
+  it("o evento de mudança da escolha também recaptura o `fbclid`", () => {
+    // O tracker roda de novo no `ag-cookie-consent-updated`, que o controle de
+    // /privacidade e o "Entendi" do aviso disparam. Quem retira a oposição com
+    // o `fbclid` ainda na URL tem o `_fbc` gravado ali mesmo. Quem não se opôs
+    // nem depende do evento: desde 31/08 a gravação acontece na chegada.
     const fonte = ler("src/components/IntegrationsTracker.tsx");
     expect(fonte).toContain('window.addEventListener("ag-cookie-consent-updated", checkAndInitTrackors)');
   });
@@ -310,6 +340,12 @@ describe("B.3 · o cookie de anúncio respeita o banner", () => {
  *
  * Capturar na entrada, atrás do portão, corrige os dois lados: passa a valer o
  * texto da política E passa a existir a atribuição que não existia.
+ *
+ * Isso é de 27/08, e a régua mudou duas vezes depois: em 28/08 a gravação
+ * passou a acontecer na chegada, com a recusa apagando (a nota logo abaixo), e
+ * em 31/08 nada mais espera aceite — o "banner" deste título hoje só informa, e
+ * quem barra é a oposição em /privacidade. Os testes do bloco seguem a régua de
+ * hoje.
  */
 describe("B.4 · a última decisão da pessoa é a que vale", () => {
   /**
@@ -382,10 +418,51 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     expect(chavesDeCampanha(dados)).toEqual([]);
   });
 
-  it("recusar e depois ACEITAR regrava — a mudança de ideia funciona", async () => {
+  it("RECUSAR apaga também os cookies de anúncio, a cada carga — e só a recusa", () => {
+    // Desde 2026-09-16. O clique em `ControleDeRastreamento` já apaga `_fbp` e
+    // `_fbc`, mas um Pixel carregado na aba antes da recusa pode regravar o
+    // `_fbp` depois dele. Sem a limpeza neste ramo, nenhuma carga seguinte o
+    // apagaria, e o cookie ficaria até expirar.
+    //
+    // Leitura de fonte, e não execução: este bloco roda sem `document`, e a
+    // escrita dos cookies em si é provada em `oposicao-cookies-de-dominio`.
+    const fonte = lerCodigo("src/lib/telemetry.ts");
+    const inicio = fonte.indexOf("export function persistirParametrosDeCampanha");
+    const fim = fonte.indexOf("export function", inicio + 30);
+    expect(inicio, "persistirParametrosDeCampanha sumiu").toBeGreaterThan(-1);
+    expect(fim, "não achei o fim de persistirParametrosDeCampanha").toBeGreaterThan(inicio);
+    const corpo = fonte.slice(inicio, fim);
+
+    const abre = corpo.indexOf('if (localStorage.getItem("ag_cookie_consent") === "rejected")');
+    const fecha = corpo.indexOf("return;", abre);
+    expect(abre, "o ramo de recusa sumiu").toBeGreaterThan(-1);
+    // Sem esta guarda, um `-1` faria o recorte ir até o fim do corpo.
+    expect(fecha, "o ramo de recusa não termina em return").toBeGreaterThan(abre);
+    const ramo = corpo.slice(abre, fecha);
+
+    expect(ramo, "a recusa parou de apagar as chaves de campanha").toContain(
+      "descartarParametrosDeCampanha();",
+    );
+    expect(ramo, "a recusa parou de apagar os cookies a cada carga").toContain(
+      "descartarCookiesDeAnuncio();",
+    );
+    // E em nenhum outro ponto do arquivo: fora deste ramo, a limpeza apagaria o
+    // cookie de quem NÃO se opôs, que é exatamente o que não pode mudar.
+    expect(
+      fonte.split("descartarCookiesDeAnuncio();").length - 1,
+      "descartarCookiesDeAnuncio chamado fora do ramo de recusa",
+    ).toBe(1);
+  });
+
+  it("opor-se e depois retirar a oposição regrava — a mudança de ideia funciona", async () => {
     // É o caso que o dono nomeou. A memória de sessão sobrevive à recusa de
     // propósito: ela não é armazenamento no dispositivo, e é o que permite
     // reconstruir a atribuição quando a pessoa muda de ideia na mesma aba.
+    //
+    // O título dizia "recusar e depois ACEITAR" até 16/09/2026, do tempo do
+    // aceite. O teste grava `accepted`, que é o que o "Entendi" do aviso
+    // escreve; o "Ligar a medição" de /privacidade remove a chave. Para a
+    // régua, os dois são "não se opôs", e a asserção vale igual.
     const dados = comAmbiente(COM_ANUNCIO, "rejected");
     const { persistirParametrosDeCampanha } = await moduloLimpo();
     persistirParametrosDeCampanha();
@@ -396,7 +473,10 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     expect(dados.get("ag_gclid")).toBe("ABC123");
   });
 
-  it("depois do aceite, grava", async () => {
+  it("quem fechou o aviso em “Entendi” (`accepted`) grava igual", async () => {
+    // Até 16/09/2026 este título era "depois do aceite, grava". O "Entendi" só
+    // fecha o aviso e grava `accepted`, que nada lê como liberação: quem não
+    // respondeu grava do mesmo jeito ("sem decisão nenhuma, grava na chegada").
     const dados = comAmbiente(COM_ANUNCIO, "accepted");
     const { persistirParametrosDeCampanha } = await moduloLimpo();
     persistirParametrosDeCampanha();
@@ -425,8 +505,10 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
 
   it("a captura roda na ENTRADA, antes do retorno antecipado do tracker", async () => {
     // `persistirParametrosDeCampanha` trata recusa e gravação por dentro. Se a
-    // chamada ficasse depois do `return` de quem não aceitou, ela nunca rodaria
-    // para quem ainda não decidiu — nem gravando, nem apagando numa recusa.
+    // chamada ficasse depois do `return` de quem se opôs, ela nunca rodaria para
+    // essa pessoa — e é ali que a oposição apaga, a cada carga, o que estava
+    // gravado. (Até 31/08 o `return` era de quem ainda não tinha aceitado, e aí
+    // a captura não rodaria nem para gravar.)
     const fonte = lerCodigo("src/components/IntegrationsTracker.tsx");
     // A âncora mudou em 2026-09-02: o portão virou `rastreamentoRecusado()`,
     // uma função só, porque a linha repetida foi o que permitiu `telemetry.ts`
@@ -488,8 +570,15 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
 
     expect(politica, "a política não avisa que grava antes da resposta")
       .toMatch(/antes da sua resposta ao aviso/);
-    expect(politica, "a política não avisa que a recusa apaga")
-      .toMatch(/apagados na hora|recusar, ele é apagado/);
+    // A âncora mudou em 2026-09-16, junto com a frase: "Se você recusar" virou
+    // "Se você desligar a medição", que é o nome da ação no controle. E a
+    // alternativa antiga, "apagados na hora", não casava com texto nenhum da
+    // página. Agora são duas afirmações, cada uma presa à sua frase: o
+    // parágrafo da oposição, logo acima do controle, e o do código do anúncio.
+    expect(politica, "a política não avisa que a oposição apaga os identificadores")
+      .toMatch(/interrompe\s+a\s+medição\s+neste\s+navegador\s+e\s+apaga\s+na\s+hora\s+os\s+identificadores/);
+    expect(politica, "a política não avisa que desligar apaga o código do anúncio")
+      .toMatch(/desligar\s+a\s+medição,\s+ele\s+é\s+apagado/);
   });
 
   it("a política admite que o rastreamento começa ANTES da resposta", async () => {
@@ -556,6 +645,53 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
       .toMatch(/href="\/privacidade"/);
   });
 
+  it("o texto não empurra para desligar — e a oposição continua à vista", async () => {
+    // Decisão do dono em 2026-09-16: *"não quero que o texto induza a pessoa a
+    // clicar em não permitir, tem que ser o contrário"*. As três frases abaixo
+    // estavam na política e no controle até essa data. Nenhuma mentia — a
+    // oposição apaga, e o site segue igual para quem desliga —, mas as três
+    // eram convite a desligar, escrito no lugar onde a pessoa decide.
+    //
+    // O outro lado também é trava, porque a LGPD cobra oposição fácil de quem
+    // usa legítimo interesse: a política continua dizendo onde se desliga, e o
+    // controle continua oferecendo as duas ações. É também o controle de
+    // leitura: sem ele, as negativas passariam lendo o arquivo errado.
+    //
+    // O texto é lido como a pessoa o vê: sem comentário, sem tag e com o
+    // espaço colapsado. "Você pode <strong>desligar</strong> agora" é a mesma
+    // frase na tela.
+    const comoNaTela = (caminho: string) =>
+      lerCodigo(caminho)
+        .replace(/\{"\s*"\}/g, " ")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ");
+    const telas = {
+      "a política": comoNaTela("src/app/privacidade/page.tsx"),
+      "o controle": comoNaTela("src/components/ControleDeRastreamento.tsx"),
+      "o aviso": comoNaTela("src/components/CookieConsentBanner.tsx"),
+    };
+
+    const CONVITES_A_DESLIGAR = [
+      /funciona de verdade/i,
+      /continua funcionando igual/i,
+      /pode desligar agora/i,
+    ];
+    for (const [onde, texto] of Object.entries(telas)) {
+      for (const convite of CONVITES_A_DESLIGAR) {
+        expect(texto, `${onde} voltou a convidar a desligar: ${convite}`).not.toMatch(convite);
+      }
+    }
+
+    expect(telas["a política"], "a política parou de dizer onde se desliga")
+      .toContain("Desligar neste navegador");
+    expect(telas["o controle"], "o controle parou de oferecer o desligar")
+      .toContain("Desligar neste navegador");
+    expect(telas["o controle"], "o controle desligado parou de oferecer o religar")
+      .toContain("Ligar a medição");
+    expect(telas["o aviso"], "a leitura do aviso não alcança o texto dele")
+      .toContain("Ajustar detalhes");
+  });
+
   it("a escolha existe de verdade — só mudou de lugar", async () => {
     // Tirar o convite não pode virar tirar a capacidade: a base declarada é o
     // legítimo interesse, que pressupõe oposição possível. O controle mora na
@@ -574,7 +710,32 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
       .toMatch(/ag-cookie-consent-updated/);
     // E os cookies de atribuição saem junto, senão "desliguei" seria só uma
     // promessa: o `_fbc` continuaria no navegador.
-    expect(controle, "o controle não apaga o _fbc").toMatch(/_fbc=; path=\/; max-age=0/);
+    //
+    // A âncora mudou em 2026-09-16. A escrita `_fbc=; path=/; max-age=0` saiu
+    // daqui para `descartarCookiesDeAnuncio`, em `telemetry.ts`: sem `domain=`,
+    // ela não alcançava a cópia que o Meta Pixel grava, e o `_fbp` dele
+    // sobrevivia ao clique. O que a trava protege é o mesmo — o ramo de
+    // DESLIGAR apaga os cookies de anúncio. Quais escritas a função faz em cada
+    // host, a raiz incluída, e que a cópia de domínio sai com cookie de verdade
+    // num subdomínio, quem trava é `tests/oposicao-cookies-de-dominio.test.ts`.
+    // O cookie de verdade sozinho não prova a raiz: lá o jsdom guarda as duas
+    // cópias no mesmo lugar.
+    const inicioDoRamo = controle.indexOf("if (desligar)");
+    const fimDoRamo = controle.indexOf("} else {", inicioDoRamo);
+    expect(inicioDoRamo, "não achei o ramo de desligar").toBeGreaterThan(-1);
+    // Sem esta guarda, um `-1` aqui faria o recorte ir até o fim do arquivo, e
+    // a chamada seria achada em qualquer lugar dele.
+    expect(fimDoRamo, "não achei o fim do ramo de desligar").toBeGreaterThan(inicioDoRamo);
+    const ramo = controle.slice(inicioDoRamo, fimDoRamo);
+    expect(ramo, "o ramo de desligar não grava a recusa").toMatch(/"ag_cookie_consent", "rejected"/);
+    expect(ramo, "o controle não apaga os cookies de anúncio").toMatch(/descartarCookiesDeAnuncio\(\)/);
+
+    const telemetria = lerCodigo("src/lib/telemetry.ts");
+    const inicioDoDescarte = telemetria.indexOf("export function descartarCookiesDeAnuncio");
+    expect(inicioDoDescarte, "descartarCookiesDeAnuncio sumiu").toBeGreaterThan(-1);
+    const descarte = telemetria.slice(inicioDoDescarte, telemetria.indexOf("\n}", inicioDoDescarte));
+    expect(descarte, "o descarte não apaga o _fbc").toMatch(/apagarCookieEmTodoDominio\("_fbc"\)/);
+    expect(descarte, "o descarte não apaga o _fbp").toMatch(/apagarCookieEmTodoDominio\("_fbp"\)/);
   });
 });
 
@@ -632,22 +793,27 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
  *      as seis frases: a lista nomeia o que aconteceu, o `/aceit/i` fecha o
  *      que a lista não previu.
  *   2. Três controles positivos, não dois — a re-revisão de c27e5e8 mediu que
- *      o segundo não provava nada: "Usamos estas ferramentas:" fica na
- *      posição 10.115 de 17.562 do texto visível, no MEIO da página, e depois
- *      dele ainda vêm duas regiões que este PR reescreveu e que o `/aceit/i`
- *      também vigia — a orientação de revogação (`page.tsx:426`) e o bullet
- *      de Compartilhamento (`page.tsx:453-457`). Uma leitura que parasse
- *      logo depois de `page.tsx:391` deixaria as duas verdes por engano: zero
- *      "aceit" porque nada foi lido, não porque nada sobrou. O terceiro
- *      controle é o rodapé — "Podemos atualizar esta política"
- *      (`page.tsx:630`), a ÚLTIMA frase visível da página — e só com ele o
- *      `not.toMatch(/aceit/i)` cobre as três âncoras de verdade:
+ *      o segundo não provava nada: "Usamos estas ferramentas:" ficava na
+ *      posição 10.115 de 17.562 do texto visível (medida em 15/09), no MEIO da
+ *      página, e depois dele ainda vêm duas regiões que este PR reescreveu e
+ *      que o `/aceit/i` também vigia — a orientação de revogação (o parágrafo
+ *      logo depois da lista de ferramentas) e o bullet "Google e Meta" da seção
+ *      de compartilhamento. Uma leitura que parasse no fim da lista de
+ *      ferramentas deixaria as duas verdes por engano: zero "aceit" porque
+ *      nada foi lido, não porque nada sobrou. O terceiro controle é o rodapé —
+ *      "Podemos atualizar esta política", a ÚLTIMA frase visível da página —
+ *      e só com ele o `not.toMatch(/aceit/i)` cobre as três âncoras de verdade:
  *        · "carregadas desde o início da visita" — começo da seção de cookies;
  *        · "Usamos estas ferramentas:" — meio, fim da lista de ferramentas;
  *        · "Podemos atualizar esta política" — rodapé, fim de tudo.
  *      As duas primeiras não bastavam porque as duas regiões que motivaram
  *      esta trava inteira (revogação e Compartilhamento) ficam DEPOIS da
  *      segunda âncora e ANTES da terceira.
+ *
+ * Em 16/09/2026 as referências `page.tsx:<linha>` deste bloco viraram o nome
+ * do trecho. A reescrita da seção de cookies (o benefício da medição antes da
+ * base legal) moveu as linhas, e os números passaram a apontar para outros
+ * parágrafos. Nenhuma asserção mudou.
  */
 describe("B.6 · a política não deixou sobra do regime de aceite", () => {
   const politica = lerCodigo("src/app/privacidade/page.tsx");
@@ -675,8 +841,8 @@ describe("B.6 · a política não deixou sobra do regime de aceite", () => {
     //
     // Três âncoras, não duas — a re-revisão de c27e5e8 mediu a segunda
     // ("Usamos estas ferramentas:") no MEIO do texto visível (posição 10.115
-    // de 17.562) e apontou que a revogação (`page.tsx:426`) e o
-    // Compartilhamento (`page.tsx:453-457`) ficam DEPOIS dela. Sem uma
+    // de 17.562, em 15/09) e apontou que a revogação (o parágrafo logo depois
+    // da lista de ferramentas) e o Compartilhamento ficam DEPOIS dela. Sem uma
     // terceira âncora no fim de tudo, uma leitura truncada logo depois da
     // segunda deixaria o `not.toMatch(/aceit/i)` passar em falso — zero
     // "aceit" por não ter lido, não por não ter sobrado. A terceira âncora é
@@ -738,6 +904,12 @@ describe("B.6 · a política não deixou sobra do regime de aceite", () => {
  * página (a URL some com o `gclid`) e só então aceitar, ou enviar um
  * formulário. `capturadoNestaSessao` cobre os dois casos sem tocar no disco
  * antes da hora.
+ *
+ * Isso é de 27/08. No dia seguinte a gravação no dispositivo passou a
+ * acontecer na chegada (ver B.4), e em 31/08 o aceite saiu de tudo: só a
+ * oposição barra. As travas abaixo continuam valendo — a URL de entrada vence,
+ * o lead leva o `gclid`, e quem se opõe não tem nada no disco. Os títulos que
+ * ainda falavam em aceitar foram trocados em 16/09/2026, sem mudar asserção.
  */
 describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
   const COM_ANUNCIO = "https://motorsstore.com.br/?gclid=DA_ENTRADA_123&utm_source=google";
@@ -773,7 +945,7 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
   const chavesGravadas = () =>
     [...dados.keys()].filter((k) => k.startsWith("ag_") && k !== "ag_cookie_consent").sort();
 
-  it("aceitar DEPOIS de navegar mantém o gclid da entrada", async () => {
+  it("o gclid da entrada sobrevive à navegação e ao “Entendi” dado depois", async () => {
     const tel = await import("../src/lib/telemetry");
 
     // 1. Chega do anúncio e não decide nada. Desde 28/08 já grava aqui.
@@ -785,12 +957,13 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
     irPara(SEM_PARAMETRO);
     tel.persistirParametrosDeCampanha();
 
-    // 3. Aceita o banner aqui, longe da página de entrada.
+    // 3. Fecha o aviso em "Entendi" aqui, longe da página de entrada — o que
+    // grava `accepted` e não libera nada, porque nada esperava por ele.
     aceitar("accepted");
     tel.persistirParametrosDeCampanha();
 
     // O valor da ENTRADA sobrevive às duas passagens. Nem a URL vazia do passo
-    // 2 nem o aceite tardio do passo 3 o substituem por nada.
+    // 2 nem o "Entendi" tardio do passo 3 o substituem por nada.
     expect(dados.get("ag_gclid")).toBe("DA_ENTRADA_123");
     expect(dados.get("ag_utm_source")).toBe("google");
   });
@@ -834,5 +1007,139 @@ describe("B.5 · navegar antes de decidir não perde a atribuição", () => {
     tel.persistirParametrosDeCampanha();
 
     expect(dados.get("ag_utm_source")).toBe("google");
+  });
+});
+
+
+/**
+ * B.7 · a oposição vale também para o LEAD.
+ *
+ * ---------------------------------------------------------------------------
+ * O que o B.4 não cobria
+ * ---------------------------------------------------------------------------
+ * O B.4 garante o lado do dispositivo: recusar apaga o que está guardado.
+ * Faltava o que sai dele junto de um formulário. Medido em 16/09/2026 no
+ * `main`:
+ *
+ *   · os sete fluxos que postam em `/api/leads` montavam `fbp`/`fbc` com
+ *     `getMatchParams()`, que não olha a recusa. Muitas vezes o valor era a
+ *     cópia do `_fbp` que o Pixel grava com `domain=`, e que o botão de
+ *     oposição não apagava;
+ *   · Contato, Encomenda e o CTA de campanha geravam o `eventId` direto, com
+ *     `generateEventId("Lead")`, e `/api/leads` espelha o Lead no CAPI sempre
+ *     que recebe `eventId`. O CAPI Lead de quem se opôs saía com `fbp`, `fbc`,
+ *     `ag_uid`, e-mail e telefone. Os outros quatro usam o retorno de
+ *     `trackLeadSubmission`, que já é `null` na recusa, e ficavam barrados
+ *     por tabela.
+ *
+ * ---------------------------------------------------------------------------
+ * O que estas travas também guardam: nada muda para quem não se opôs
+ * ---------------------------------------------------------------------------
+ * Cada negativa tem um controle positivo ao lado. Tirar `fbp`/`fbc` de todo
+ * lead, ou parar de gerar o `eventId`, também faria as negativas passarem — e
+ * derrubaria a correspondência e a deduplicação Pixel × CAPI de todo mundo.
+ * O lead de quem se opôs continua sendo enviado, com `utm`: a leitura nunca
+ * teve portão (B.4). O comportamento de `getMatchParamsRespeitandoRecusa`, com
+ * cookie de verdade, é provado em `tests/oposicao-cookies-de-dominio.test.ts`.
+ */
+describe("B.7 · a oposição vale também para o lead", () => {
+  /** Geram o `eventId` ANTES do POST e só contam a conversão depois dele. */
+  const GERAM_O_ID_ANTES_DO_POST = [
+    "src/components/ContatoClientWrapper.tsx",
+    "src/components/EncomendaDeCarro.tsx",
+    "src/components/campanha/CtaDeCampanha.tsx",
+  ];
+  /** Usam como `eventId` o retorno de `trackLeadSubmission`. */
+  const USAM_O_RETORNO_DA_MEDICAO = [
+    "src/components/AutoAvaliacao.tsx",
+    "src/components/CarMatch.tsx",
+    "src/components/LeadPopup.tsx",
+    "src/components/PDPClientWrapper.tsx",
+  ];
+  const FLUXOS_DE_LEAD = [...GERAM_O_ID_ANTES_DO_POST, ...USAM_O_RETORNO_DA_MEDICAO];
+
+  it("controle: as duas listas são TODO arquivo de src/ que posta em /api/leads", () => {
+    // Um oitavo formulário copiado do desenho antigo passaria ao lado de todas
+    // as travas abaixo. A varredura casa a CHAMADA — `fetch("/api/leads"` com
+    // a aspa fechando ali —, então `/api/leads/gerenciar` e as notas que só
+    // citam a rota ficam de fora.
+    const raiz = join(__dirname, "..");
+    const achados: string[] = [];
+    const anda = (dir: string) => {
+      for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+        const caminho = join(dir, entrada.name);
+        if (entrada.isDirectory()) {
+          anda(caminho);
+          continue;
+        }
+        if (!/\.tsx?$/.test(entrada.name)) continue;
+        const bruto = readFileSync(caminho, "utf8");
+        // O filtro barato antes do varredor, que é caractere a caractere.
+        if (!bruto.includes("/api/leads")) continue;
+        if (/fetch\(\s*["'`]\/api\/leads["'`]/.test(semComentarios(bruto))) {
+          achados.push(relative(raiz, caminho).split(sep).join("/"));
+        }
+      }
+    };
+    anda(join(raiz, "src"));
+
+    expect(achados.sort()).toEqual([...FLUXOS_DE_LEAD].sort());
+  });
+
+  it.each(FLUXOS_DE_LEAD)("%s: fbp e fbc do lead passam pela recusa", (arquivo) => {
+    const fonte = lerCodigo(arquivo);
+    // `\b` dos dois lados: casa o import e a chamada da versão sem portão, e
+    // não casa `getMatchParamsRespeitandoRecusa`.
+    expect(fonte, "usa getMatchParams, que não olha a recusa").not.toMatch(/\bgetMatchParams\b/);
+    // Controle: quem não se opôs continua mandando os dois. Apagar a linha
+    // passaria na negativa acima e derrubaria a correspondência do CAPI.
+    expect(fonte, "o lead deixou de levar fbp/fbc para quem não se opôs").toMatch(
+      /\{\s*fbp,\s*fbc\s*\}\s*=\s*getMatchParamsRespeitandoRecusa\(\)/,
+    );
+  });
+
+  it.each(GERAM_O_ID_ANTES_DO_POST)("%s: o eventId do POST só nasce para quem não se opôs", (arquivo) => {
+    const fonte = lerCodigo(arquivo);
+    const geracoes = fonte.match(/generateEventId\(/g) ?? [];
+    // Ancorada na atribuição: sem `const eventId =` na frente, a regex casava
+    // também o portão INVERTIDO, `!rastreamentoRecusado() ? null : …`, que
+    // gera o id só para quem se opôs — e a trava passava verde.
+    const comPortao =
+      fonte.match(
+        /const eventId =\s*rastreamentoRecusado\(\)\s*\?\s*null\s*:\s*generateEventId\("Lead"\)/g,
+      ) ?? [];
+
+    // Nenhum nasce por fora do portão: `/api/leads` espelha no CAPI todo
+    // `eventId` que recebe.
+    expect(geracoes.length, "há generateEventId sem passar pela recusa").toBe(comPortao.length);
+    // Controle: o id continua nascendo. Sem ele, quem não se opôs perde o CAPI
+    // Lead e a deduplicação — e a negativa de cima passaria com zero de zero.
+    expect(comPortao.length, "o fluxo parou de gerar o eventId").toBeGreaterThan(0);
+    // E o MESMO id vai ao Pixel, depois do POST: é o par que o Meta deduplica.
+    expect(fonte, "o Pixel deixou de receber o id do POST").toMatch(/presetEventId:\s*eventId\b/);
+  });
+
+  it.each(USAM_O_RETORNO_DA_MEDICAO)("%s: o eventId continua vindo de trackLeadSubmission", (arquivo) => {
+    // Estes quatro já estavam certos, e por tabela: a medição devolve `null`
+    // na recusa. A trava é para não passarem a gerar o id por fora, que é o
+    // desenho que deixava o CAPI Lead escapar nos outros três.
+    const fonte = lerCodigo(arquivo);
+    expect(fonte, "o eventId deixou de vir da medição").toMatch(/const eventId = trackLeadSubmission\(/);
+    expect(fonte, "o fluxo passou a gerar o eventId por fora").not.toMatch(/generateEventId\(/);
+  });
+
+  it("as duas pontas de que o `null` depende continuam no lugar", () => {
+    // O `null` do cliente só barra o CAPI porque a medição o devolve na recusa
+    // e porque a rota só espelha quando há `eventId`. Se a rota passar a gerar
+    // um id quando não recebe, as travas acima seguem verdes e o CAPI Lead de
+    // quem se opôs volta a sair.
+    const telemetria = lerCodigo("src/lib/telemetry.ts");
+    const inicio = telemetria.indexOf("export function trackLeadSubmission");
+    const fim = telemetria.indexOf("export function", inicio + 30);
+    expect(inicio, "trackLeadSubmission sumiu").toBeGreaterThan(-1);
+    expect(fim, "não achei o fim de trackLeadSubmission").toBeGreaterThan(inicio);
+    expect(telemetria.slice(inicio, fim)).toMatch(/if \(rastreamentoRecusado\(\)\) return null;/);
+
+    expect(lerCodigo("src/app/api/leads/route.ts")).toMatch(/if \(pixelId && body\.eventId\)/);
   });
 });

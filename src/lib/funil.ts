@@ -85,6 +85,22 @@ export const ROTULO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
 };
 
 /**
+ * O mesmo desfecho no meio da frase: "nenhum motivo de PERDA está ativo".
+ *
+ * Existe separado de `ROTULO_DO_DESFECHO` porque o rótulo qualifica o NEGÓCIO
+ * ("Perdido") e este qualifica o MOTIVO ("de perda") — trocar um pelo outro
+ * dá "nenhum motivo de Perdido". E mora aqui, e não na caixa de desfecho,
+ * porque a caixa, a rota e a validação do funil precisam da mesma palavra:
+ * duas cópias do mesmo vocabulário é como `descartado` foi esquecido da
+ * primeira vez.
+ */
+export const MOTIVO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
+  ganho: "ganho",
+  perdido: "perda",
+  descartado: "descarte",
+};
+
+/**
  * O negócio que nunca existiu — e que por isso não entra em conta nenhuma.
  *
  * Predicado e não comparação solta porque ele é consultado em cinco telas: se
@@ -92,6 +108,41 @@ export const ROTULO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
  */
 export function ehDescarte(tipo?: TipoDeEtapa | TipoDeDesfecho | null): boolean {
   return tipo === "descartado";
+}
+
+/**
+ * A etapa em que o lead nasce — o `default` de `leads.situacao` no banco
+ * (migração 20260807210000), e a que o Chatwoot escreve ao criar lead.
+ *
+ * Está aqui porque o funil editável pode desfazê-la sem saber o que quebrou.
+ * Nenhuma das duas rotas públicas do site manda `situacao` (`/api/leads` e
+ * `/api/avaliacao` gravam nome, telefone, interesse e canal): quem decide
+ * onde o lead cai é o default da coluna. Desativada — ou tirada da tela, que
+ * a rota traduz em desativar —, ela faz todo lead novo chegar numa coluna
+ * arquivada. Como desfecho, é pior: o lead nasce sem carimbo de desfecho numa
+ * etapa que não é coluna do quadro, e não aparece nem no quadro nem na lista
+ * de fechados. Nos dois casos nada dá erro — a captura grava normalmente e
+ * não sabe da tela.
+ *
+ * Se um dia o default da coluna mudar, muda aqui junto. São os dois lados da
+ * mesma decisão, e não há trava no banco que os amarre (decisão do dono,
+ * 16/09) — `validarFunil` é a guarda.
+ */
+export const ETAPA_DE_ENTRADA = "novo";
+
+/**
+ * Este motivo chega até a pessoa que precisa escolher?
+ *
+ * Três condições, e nenhuma é decorativa. `ativo` porque a caixa e o GET
+ * filtram por ele. `rotulo` porque é o texto do botão — e porque a rota de
+ * configuração DESCARTA motivo sem rótulo antes de gravar, então contá-lo
+ * aqui faria a tela e o servidor discordarem: o dono veria o erro sumir ao
+ * clicar "+ motivo" e levaria 422 com a mesma frase ao salvar. `chave` porque
+ * é o que `leads` grava; `chaveDaEtapa("???")` devolve string vazia, e um
+ * motivo assim vira botão que estoura na hora de fechar.
+ */
+export function motivoUtilizavel(m: MotivoDoFunil): boolean {
+  return Boolean(m.ativo && m.chave?.trim() && m.rotulo?.trim());
 }
 
 /** Uma etapa do funil, do jeito que `funil_etapas` guarda. */
@@ -116,6 +167,12 @@ export interface MotivoDoFunil {
   tipo: TipoDeDesfecho;
   ordem: number;
   ativo: boolean;
+  /**
+   * Para que tipo de negócio este motivo existe. Opcional de propósito: uma
+   * linha vinda de banco ainda não migrado chega sem o campo, e tratá-la como
+   * `ambos` é o que impede a caixa de esvaziar entre o deploy e a migração.
+   */
+  escopo?: EscopoDeMotivo;
 }
 
 /** O mínimo que as regras precisam saber de um lead. */
@@ -145,6 +202,30 @@ export interface LeadDoFunil {
    * `linkDeConversa` cai no `wa.me`.
    */
   chatwoot_conversation_id?: number | string | null;
+  /**
+   * Quando um humano assumiu a conversa, tirando o assistente do circuito.
+   *
+   * Decisão do dono em 2026-09-05: **o SLA só conta depois que o Ney
+   * transfere; toda métrica de controle só conta depois que ele sai do
+   * circuito.** Cobrar o vendedor pelo tempo em que o assistente estava
+   * conversando é cobrar por trabalho que não era dele.
+   *
+   * Vive em `atendimentos`, como o id da conversa, e é anexada pela mesma
+   * rota. Nulo tem DOIS significados, e eles se separam por `com_assistente`:
+   * ou o assistente ainda está com a conversa, ou nunca houve conversa
+   * nenhuma — o lead que preencheu o formulário e não escreveu.
+   */
+  humano_assumiu_em?: string | null;
+  /**
+   * O assistente está com a conversa AGORA.
+   *
+   * Só isto pausa o relógio, e o padrão é `false`. É deliberado: hoje nenhuma
+   * conversa passa pelo assistente (ele não está ligado a caixa nenhuma), e
+   * uma regra que pausasse por ausência de informação desligaria o SLA de
+   * todos os catorze leads em silêncio. Ausência de dado tem de significar o
+   * comportamento de sempre.
+   */
+  com_assistente?: boolean | null;
 }
 
 /**
@@ -187,14 +268,40 @@ export const ETAPAS_PADRAO: EtapaDoFunil[] = [
  * pintaria o card de vermelho por engano.
  */
 export function paradoDesde(lead: LeadDoFunil): number {
-  const candidatos = [lead.ultimo_contato_em, lead.ultimo_movimento_em, lead.created_at]
+  const candidatos = [
+    lead.ultimo_contato_em,
+    lead.ultimo_movimento_em,
+    // A entrega do assistente ao humano reinicia o relógio: o vendedor não
+    // responde pelo tempo em que a conversa não estava com ele.
+    lead.humano_assumiu_em,
+    lead.created_at,
+  ]
     .map((v) => (v ? new Date(v).getTime() : NaN))
     .filter((n) => Number.isFinite(n));
   return candidatos.length > 0 ? Math.max(...candidatos) : Date.now();
 }
 
-/** Há quantos minutos este lead está parado. Nunca negativo. */
+/**
+ * O assistente ainda está no circuito deste lead.
+ *
+ * Enquanto estiver, NENHUMA métrica de controle conta — decisão do dono em
+ * 2026-09-05. Não é só o alerta de estagnação: é o mesmo relógio que pinta o
+ * card, ordena o kanban e alimenta o relatório do funil.
+ */
+export function comOAssistente(lead: LeadDoFunil): boolean {
+  return lead.com_assistente === true;
+}
+
+/**
+ * Há quantos minutos este lead está parado. Nunca negativo.
+ *
+ * Zero enquanto o assistente conversa: não é "acabou de se mexer", é "o
+ * relógio ainda não começou". Quem lê o número precisa da mesma resposta que
+ * o motor de alertas dá, e devolver o tempo real aqui faria a tela pintar de
+ * vermelho um lead que o motor, corretamente, não vai cutucar.
+ */
 export function minutosParado(lead: LeadDoFunil, agora: number = Date.now()): number {
+  if (comOAssistente(lead)) return 0;
   return Math.max(0, Math.floor((agora - paradoDesde(lead)) / 60000));
 }
 
@@ -218,6 +325,11 @@ export function nivelDeEstagnacao(
   agora: number = Date.now(),
 ): NivelDeEstagnacao {
   if (!etapa || etapa.tipo !== "aberta" || lead.desfecho) return "ok";
+  // O assistente no circuito segura tudo. `minutosParado` já devolveria zero,
+  // mas a saída explícita é o que impede uma etapa com `estagnacao_minutos: 0`
+  // — prazo que o dono pode configurar no painel — de marcar como estagnado um
+  // lead que o motor não vai cutucar.
+  if (comOAssistente(lead)) return "ok";
   const minutos = minutosParado(lead, agora);
 
   const transferir = etapa.transferencia_minutos;
@@ -313,16 +425,55 @@ export function chaveDaEtapa(rotulo: string): string {
  * O que impede o funil salvo de ser um funil quebrado.
  *
  * Devolve a lista de problemas em português, para a tela mostrar ANTES de
- * gravar. As três primeiras regras são estruturais; a quarta é a que salva o
- * dono de si mesmo: prazo de transferência menor que o de alerta transferiria
- * o lead antes de avisar o vendedor de que ele estava parado, o que é a
- * ordem errada de acontecer as coisas.
+ * gravar. As regras de estrutura vêm primeiro — inclusive a etapa em que o
+ * lead nasce, que é o que mantém a captura do site de pé. Depois, a que salva
+ * o dono de si mesmo: prazo de transferência menor que o de alerta
+ * transferiria o lead antes de avisar o vendedor de que ele estava parado, o
+ * que é a ordem errada de acontecer as coisas.
+ *
+ * E, desde que fechar negócio exige motivo (16/09), a que impede o beco: etapa
+ * terminal ativa sem nenhum motivo ativo do mesmo tipo.
  */
-export function validarFunil(etapas: EtapaDoFunil[]): string[] {
+export function validarFunil(
+  etapas: EtapaDoFunil[],
+  /**
+   * Os motivos como vão ficar DEPOIS de gravar (`motivosDepoisDeGravar`), ou
+   * `null` quando não deu para saber quais existem.
+   *
+   * `null` não é lista vazia. A RLS deste projeto não devolve erro quando
+   * bloqueia: devolve `200`, `[]` e `error` nulo. Tratar isso como "não há
+   * motivo nenhum" acusaria o dono de deixar o funil sem saída num PUT em que
+   * ele só mexeu num prazo — com três erros e um botão desabilitado, por uma
+   * leitura que não aconteceu. Sem saber, as regras de motivo são PULADAS.
+   */
+  motivos: MotivoDoFunil[] | null,
+): string[] {
   const erros: string[] = [];
   const ativas = etapas.filter((e) => e.ativa);
 
   if (ativas.length === 0) erros.push("O funil precisa de pelo menos uma etapa ativa.");
+
+  // A entrada do funil. Vem antes de ganho e perdido porque perder a saída
+  // estraga o relatório, e perder a ENTRADA estraga a captura: o lead do site
+  // continua sendo gravado, mas chega onde ninguém olha. Ver
+  // `ETAPA_DE_ENTRADA`.
+  const entrada = etapas.find((e) => e.chave === ETAPA_DE_ENTRADA);
+  if (!entrada || !entrada.ativa) {
+    erros.push(
+      `A etapa "${ETAPA_DE_ENTRADA}" precisa continuar no funil e ativa — é nela que nasce todo ` +
+        `lead do site e do WhatsApp. Fora do funil ou desativada, os leads novos chegam numa ` +
+        `coluna arquivada.`,
+    );
+  } else if (entrada.tipo !== "aberta") {
+    erros.push(
+      `A etapa "${ETAPA_DE_ENTRADA}" ("${entrada.rotulo}") não pode ser um desfecho: é nela que ` +
+        `nasce todo lead do site e do WhatsApp. Como desfecho, o lead novo não apareceria nem ` +
+        `no quadro nem na lista de fechados.`,
+    );
+  }
+  if (!ativas.some((e) => e.tipo === "aberta")) {
+    erros.push("Falta uma etapa EM ANDAMENTO ativa — sem ela o quadro não tem coluna nenhuma.");
+  }
   if (!ativas.some((e) => e.tipo === "ganho")) {
     erros.push("Falta uma etapa de GANHO ativa — sem ela não há onde registrar venda fechada.");
   }
@@ -330,6 +481,38 @@ export function validarFunil(etapas: EtapaDoFunil[]): string[] {
     erros.push(
       "Falta uma etapa de PERDIDO ativa — sem ela o motivo da perda deixa de ser coletado.",
     );
+  }
+
+  // Daqui para baixo, as regras de motivo dependem de conhecer os motivos.
+  //
+  // Etapa terminal ATIVA cujo tipo não tem NENHUM motivo utilizável é um beco
+  // sem saída, e é um beco que a exigência de motivo criou: até 16/09 o
+  // descarte gravava sem motivo, e agora a caixa e a rota exigem um. O card
+  // entra pelo botão de destino e não tem como sair.
+  //
+  // A cobrança é AQUI, na configuração, porque é o único lugar onde quem pode
+  // consertar está presente. Quem encontra o beco é o Comercial, no card — e
+  // `podeFazer(comercial, "Configurar o funil de vendas")` é `nao_ve`.
+  //
+  // Só as etapas ATIVAS: uma terminal desativada não vira botão
+  // (`destinosDoNegocio` filtra por `ativa`), então não há beco, e cobrar
+  // obrigaria o dono a manter motivo vivo para um destino que ele desligou.
+  //
+  // Por TIPO, e não por escopo: quando o escopo do lead não tem motivo ativo,
+  // `motivosVisiveis` cai para a lista cheia do tipo — e `decidirDesfecho`
+  // aceita o que a caixa oferece. Um tipo com motivo não tem beco em escopo
+  // nenhum.
+  if (motivos !== null) {
+    for (const e of ativas) {
+      const tipo = e.tipo;
+      if (!ehTipoDeDesfecho(tipo)) continue;
+      if (motivos.some((m) => motivoUtilizavel(m) && m.tipo === tipo)) continue;
+      erros.push(
+        `"${e.rotulo}": nenhum motivo de ${MOTIVO_DO_DESFECHO[tipo]} está ativo. A etapa ` +
+          `aparece como botão no card e fechar exige motivo — o lead entraria num beco ` +
+          `sem saída.`,
+      );
+    }
   }
 
   const vistas = new Set<string>();
@@ -356,7 +539,47 @@ export function validarFunil(etapas: EtapaDoFunil[]): string[] {
     }
   }
 
+  // Chave repetida entre MOTIVOS, pela mesma razão que entre etapas — mas o
+  // sintoma era pior: a gravação usa `upsert(..., { onConflict: "chave" })`, e
+  // duas linhas da mesma chave devolvem `21000 ON CONFLICT DO UPDATE command
+  // cannot affect row a second time`. O dono lia isso, em inglês, num 500.
+  const chavesDeMotivo = new Set<string>();
+  for (const m of motivos ?? []) {
+    const chave = m.chave?.trim();
+    if (!chave) continue;
+    if (chavesDeMotivo.has(chave)) erros.push(`Dois motivos com a mesma chave: "${chave}".`);
+    chavesDeMotivo.add(chave);
+  }
+
   return erros;
+}
+
+/**
+ * Como os motivos ficam DEPOIS de gravar — o estado que a validação precisa ver.
+ *
+ * Existe por causa de duas regras do PUT de `/api/funil/config` que, juntas,
+ * fazem a lista recebida no corpo NÃO ser o que vai valer:
+ *
+ *  1. Corpo sem motivo nenhum significa *não toque nos motivos* — o upsert e a
+ *     desativação estão os dois atrás de `motivos.length > 0`. Validar contra a
+ *     lista vazia recusaria, alegando funil sem saída, um PUT que só mexeu nas
+ *     etapas e nunca encostou num motivo.
+ *  2. "O que sumiu da tela é DESATIVADO, nunca apagado". Quem some do corpo
+ *     continua na tabela, inativo — e é assim que o dono deixa um funil sem
+ *     saída sem apagar nada. A validação só enxerga isso se olhar o resultado.
+ *
+ * Não grava: devolve a projeção. Quem grava é a rota, logo depois de validar.
+ */
+export function motivosDepoisDeGravar(
+  atuais: MotivoDoFunil[],
+  recebidos: MotivoDoFunil[],
+): MotivoDoFunil[] {
+  if (recebidos.length === 0) return atuais;
+  const noCorpo = new Set(recebidos.map((m) => m.chave));
+  return [
+    ...recebidos,
+    ...atuais.filter((m) => !noCorpo.has(m.chave)).map((m) => ({ ...m, ativo: false })),
+  ];
 }
 
 /** Da esquerda para a direita, como o kanban desenha. */
@@ -415,6 +638,314 @@ export function destinosDoNegocio(etapas: EtapaDoFunil[]): EtapaDoFunil[] {
 /** Índice da etapa na fila visível — o que as setas do card usam. */
 export function indiceDaEtapa(etapas: EtapaDoFunil[], chave: string): number {
   return etapas.findIndex((e) => e.chave === chave);
+}
+
+// ---------------------------------------------------------------------------
+// Quem quer vender perde por outros motivos
+// ---------------------------------------------------------------------------
+
+/**
+ * Para que negócio um motivo de desfecho existe.
+ *
+ * 2026-09-05, pedido do dono: *"precisamos ter opções diferentes para clientes
+ * de avaliação"*. Até aqui a caixa filtrava por `tipo` e mais nada — e quem só
+ * queria VENDER o carro dele via "Financiamento ou crédito reprovado" e "Não
+ * tínhamos o carro que ele queria" como razões de ter perdido o negócio.
+ *
+ * `ambos` não é o meio-termo preguiçoso: é a posição correta para o que
+ * acontece igual nos dois funis (o cliente sumiu; era spam) e a posição SEGURA
+ * para tudo que ninguém classificou ainda.
+ */
+export type EscopoDeMotivo = "compra" | "avaliacao" | "ambos";
+
+/** O que um LEAD é. Nunca `ambos` — um lead concreto é uma coisa ou a outra. */
+export type EscopoDeLead = "compra" | "avaliacao";
+
+/**
+ * Lista, e não ternário — a mesma lição que `TIPOS_DE_DESFECHO` já carrega
+ * neste arquivo. `escopo === "avaliacao" ? "avaliacao" : "compra"` converteria
+ * um `ambos` digitado errado em `compra`, sem erro e sem aviso.
+ */
+export const ESCOPOS_DE_MOTIVO: readonly EscopoDeMotivo[] = ["compra", "avaliacao", "ambos"];
+
+export function ehEscopoDeMotivo(v: unknown): v is EscopoDeMotivo {
+  return typeof v === "string" && (ESCOPOS_DE_MOTIVO as readonly string[]).includes(v);
+}
+
+/**
+ * Que negócio é este lead, a partir do canal por onde ele entrou.
+ *
+ * Hoje os canais de avaliação são exatamente dois — `"Avaliação"`
+ * (`/api/avaliacao`) e `"Appraisal Chat"` (`AutoAvaliacao`). Ainda assim isto
+ * NÃO é uma lista fixa, e a razão está escrita em `/api/leads`: o canal vem do
+ * corpo do POST, e uma lista fixa faria *"um canal novo na ficha nascer fora
+ * da lista, em silêncio, para sempre"*. Um `"Avaliação WhatsApp"` amanhã cairia
+ * em compra e ninguém veria erro nenhum.
+ *
+ * O risco da substring é o falso positivo, e ele está travado em teste: a
+ * suíte lista os onze canais que o site escreve hoje. O quase-acerto é
+ * `"WhatsApp Usado na Troca"` — é sobre avaliar um usado, mas o lead quer
+ * COMPRAR, e para ele o motivo certo (`avaliacao_do_usado`) mora em compra.
+ *
+ * Desconhecido, vazio e nulo caem em `compra`: é o funil padrão, e é o que
+ * a loja tinha antes desta função existir.
+ */
+export function escopoDoLead(canal: string | null | undefined): EscopoDeLead {
+  const normalizado = (canal ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return normalizado.includes("avalia") || normalizado.includes("appraisal")
+    ? "avaliacao"
+    : "compra";
+}
+
+/**
+ * Os motivos que a caixa de desfecho oferece: do tipo certo E do escopo certo.
+ *
+ * A queda no fim é deliberada. Se o filtro por escopo não sobrar nada — porque
+ * o banco ainda não migrou, ou porque alguém desativou a lista inteira pela
+ * tela — devolve tudo daquele tipo. Motivo fora de contexto é ruim; card que
+ * não fecha é pior, e esta caixa é o único caminho para tirar o lead do
+ * quadro.
+ */
+export function motivosVisiveis(
+  motivos: MotivoDoFunil[],
+  tipo: TipoDeDesfecho,
+  escopo: EscopoDeLead,
+): MotivoDoFunil[] {
+  const doTipo = motivos
+    .filter((m) => m.ativo && m.tipo === tipo)
+    .sort((a, b) => a.ordem - b.ordem);
+
+  const noEscopo = doTipo.filter((m) => {
+    // Ausente é `ambos`, e não "escondido": é o default da coluna, e é o que
+    // mantém a caixa cheia entre o deploy deste arquivo e a migração.
+    const dele = m.escopo ?? "ambos";
+    return dele === escopo || dele === "ambos";
+  });
+
+  return noEscopo.length > 0 ? noEscopo : doTipo;
+}
+
+// ---------------------------------------------------------------------------
+// Fechar o negócio exige motivo — na tela e na API
+// ---------------------------------------------------------------------------
+
+/** O que a decisão do desfecho precisa saber da etapa de destino. */
+export interface EtapaDoDesfecho {
+  chave: string;
+  rotulo: string;
+  tipo: TipoDeEtapa;
+}
+
+/** O lead como está no banco ANTES da gravação. */
+export interface LeadDoDesfecho {
+  situacao: string | null;
+  canal: string | null;
+}
+
+/**
+ * De onde a decisão lê o banco — as duas únicas partes dela que não são puras.
+ *
+ * Entram como parâmetro, e não como import, pela regra do cabeçalho deste
+ * arquivo: ele não conhece o banco. É também o que deixa o teste CHAMAR a
+ * regra com dublês, em vez de ler o `if` de uma rota.
+ *
+ * `null` quer dizer "não deu para ler", e não "não existe": a RLS deste
+ * projeto bloqueia devolvendo lista vazia com `error` nulo, e as duas coisas
+ * pedem respostas diferentes. Só são chamadas quando o destino é desfecho.
+ */
+export interface FontesDoDesfecho {
+  lerLead: () => Promise<LeadDoDesfecho | null>;
+  /** Todos os motivos, ativos e inativos — a decisão filtra. */
+  lerMotivos: () => Promise<MotivoDoFunil[] | null>;
+}
+
+/** O veredito: ou os campos a gravar, ou a recusa já escrita em português. */
+export type DecisaoDeDesfecho =
+  | { ok: true; campos: Record<string, unknown> }
+  | {
+      ok: false;
+      status: 400 | 500;
+      erro: string;
+      /** Falta ESCOLHER, e não "a escolha é ruim". É o que a tela lê. */
+      motivoObrigatorio: boolean;
+      tipo: TipoDeDesfecho;
+    };
+
+/**
+ * Valor do negócio ganho. Vazio é nulo — zero seria uma venda de R$ 0.
+ *
+ * Aceita a vírgula decimal e o ponto de milhar que se digitam em português.
+ */
+export function valorDoDesfecho(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n =
+    typeof v === "string" ? Number(v.replace(/\./g, "").replace(",", ".")) : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Para quem um motivo de escopo fechado vale, no meio da frase. */
+const PARA_QUEM_O_MOTIVO_VALE: Record<EscopoDeLead, string> = {
+  compra: "só para quem quer comprar um carro",
+  avaliacao: "só para quem quer vender o carro",
+};
+
+/** De que lado o lead chegou, no meio da frase. */
+const DE_ONDE_O_LEAD_VEIO: Record<EscopoDeLead, string> = {
+  compra: "chegou querendo comprar",
+  avaliacao: "chegou querendo vender o carro dele",
+};
+
+/**
+ * Mover o lead para esta etapa exige motivo? E o motivo oferecido serve?
+ *
+ * ---------------------------------------------------------------------------
+ * A regra
+ * ---------------------------------------------------------------------------
+ * Etapa terminal — os três tipos de `ehTipoDeDesfecho` — só recebe o lead com
+ * um motivo que:
+ *
+ *  1. existe em `funil_motivos`;
+ *  2. é do MESMO tipo da etapa. A chave estrangeira garante que a chave
+ *     existe, nunca que o tipo casa: descarte com motivo de perda só
+ *     apareceria no gráfico, meses depois;
+ *  3. está ativo. A caixa não oferece motivo desativado, e a rota não pode
+ *     aceitar o que a tela esconde;
+ *  4. vale para o ESCOPO do lead. A pergunta é a mesma que a caixa faz a
+ *     `motivosVisiveis` (#94), com a mesma resposta — inclusive a queda para a
+ *     lista cheia quando o escopo não tem motivo ativo. O que a caixa oferece
+ *     passa; o que ela esconde, não. Uma régua própria aqui faria a tela
+ *     oferecer um motivo que o servidor recusa, e o card ficaria preso.
+ *
+ * A recusa é 400, com a frase pronta para a tela mostrar.
+ *
+ * ---------------------------------------------------------------------------
+ * Só na TRANSIÇÃO
+ * ---------------------------------------------------------------------------
+ * O lead que JÁ está na etapa terminal não é cobrado de novo. Produção tem
+ * descartes fechados antes de a caixa perguntar o motivo, e cobrar do passado
+ * travaria a edição do card sem que ninguém tivesse feito nada errado. Motivo
+ * informado, porém, é conferido sempre: gravar motivo inválido num lead já
+ * fechado é o mesmo dado ruim por outra porta.
+ *
+ * Sem conseguir ler o lead, a decisão não presume nada a favor de gravar:
+ * cobra o motivo como se fosse transição. E não julga escopo, porque
+ * `escopoDoLead(null)` diria "compra" e recusaria o motivo certo de um lead
+ * de avaliação por causa de uma leitura que falhou.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que a decisão inteira, e não pedaços dela na rota
+ * ---------------------------------------------------------------------------
+ * Esta é a metade servidora da trava — a que continua valendo "no dia em que
+ * alguém chamar a rota de outro lugar". Ela morava espalhada dentro do PATCH,
+ * perguntava `tipo === "ganho" || tipo === "perdido"` (e por isso nunca valeu
+ * para descarte), e a prova possível ali era um teste que lesse a condição.
+ * Condição lida é furada por um desvio logo abaixo do trecho lido. Junta e
+ * pura, a regra é executada pelo teste, e desvio novo roda junto.
+ */
+export async function decidirDesfecho(
+  etapa: EtapaDoDesfecho | null,
+  corpo: { desfecho_motivo?: unknown; desfecho_valor?: unknown; desfecho_nota?: unknown },
+  fontes: FontesDoDesfecho,
+): Promise<DecisaoDeDesfecho> {
+  // Etapa desconhecida (migração pendente) ou em andamento: nada a cobrar e
+  // nada a ler. É por aqui que passa todo movimento entre colunas do quadro.
+  if (!etapa) return { ok: true, campos: {} };
+  const tipo = etapa.tipo;
+  if (!ehTipoDeDesfecho(tipo)) return { ok: true, campos: {} };
+
+  const motivo =
+    typeof corpo.desfecho_motivo === "string" ? corpo.desfecho_motivo.trim() : "";
+  const lead = await fontes.lerLead();
+  const transicao = !lead || lead.situacao !== etapa.chave;
+
+  if (!motivo) {
+    if (!transicao) return { ok: true, campos: {} };
+    return {
+      ok: false,
+      status: 400,
+      motivoObrigatorio: true,
+      tipo,
+      erro:
+        `Para mover para "${etapa.rotulo}" é preciso escolher o motivo — ` +
+        `é ele que a tela "Ganhos e perdas" agrupa.`,
+    };
+  }
+
+  const recusa = (erro: string): DecisaoDeDesfecho => ({
+    ok: false,
+    status: 400,
+    motivoObrigatorio: false,
+    tipo,
+    erro,
+  });
+
+  const motivos = await fontes.lerMotivos();
+  if (!motivos) {
+    return {
+      ok: false,
+      status: 500,
+      motivoObrigatorio: false,
+      tipo,
+      erro: `Não deu para conferir o motivo "${motivo}" agora, e nada foi gravado. Tente de novo.`,
+    };
+  }
+
+  const escolhido = motivos.find((m) => m.chave === motivo);
+  if (!escolhido) return recusa(`Motivo desconhecido: "${motivo}".`);
+  const nome = escolhido.rotulo?.trim() || motivo;
+
+  // Motivo de ganho num negócio perdido faria o relatório somar peras com
+  // maçãs — e o erro só apareceria no gráfico, meses depois.
+  if (escolhido.tipo !== tipo) {
+    const deQue = ehTipoDeDesfecho(escolhido.tipo)
+      ? MOTIVO_DO_DESFECHO[escolhido.tipo]
+      : `"${escolhido.tipo}"`;
+    return recusa(
+      `O motivo "${nome}" é de ${deQue}, e "${etapa.rotulo}" pede um motivo de ` +
+        `${MOTIVO_DO_DESFECHO[tipo]}.`,
+    );
+  }
+
+  if (!escolhido.ativo) {
+    return recusa(
+      `O motivo "${nome}" está desativado. Escolha um dos motivos de ` +
+        `${MOTIVO_DO_DESFECHO[tipo]} que estão ativos.`,
+    );
+  }
+
+  if (lead) {
+    const escopo = escopoDoLead(lead.canal);
+    const oferecidos = motivosVisiveis(motivos, tipo, escopo);
+    if (!oferecidos.some((m) => m.chave === motivo)) {
+      const dele = escolhido.escopo;
+      const paraQuem =
+        dele === "compra" || dele === "avaliacao"
+          ? PARA_QUEM_O_MOTIVO_VALE[dele]
+          : `para o escopo "${dele}"`;
+      const canal = lead.canal?.trim() ? `canal "${lead.canal.trim()}"` : "sem canal registrado";
+      return recusa(
+        `O motivo "${nome}" vale ${paraQuem}, e este lead ${DE_ONDE_O_LEAD_VEIO[escopo]} ` +
+          `(${canal}).`,
+      );
+    }
+  }
+
+  const nota =
+    typeof corpo.desfecho_nota === "string" && corpo.desfecho_nota.trim()
+      ? corpo.desfecho_nota.trim()
+      : null;
+
+  return {
+    ok: true,
+    campos: {
+      desfecho_motivo: motivo,
+      desfecho_valor: valorDoDesfecho(corpo.desfecho_valor),
+      desfecho_nota: nota,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

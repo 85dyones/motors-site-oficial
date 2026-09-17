@@ -41,16 +41,21 @@ const DEPOIS_DA_AVALIACAO = [
   {
     rotulo: "Garantia e perícia",
     href: "/garantia",
-    // "assim que aprovado", e nunca "o laudo de cada veículo".
+    // "disponível para consulta com o vendedor", e nunca "o laudo de cada
+    // veículo" nem "assim que aprovado".
     //
     // A primeira versão desta linha dizia "onde fica o laudo de cada veículo",
     // que afirma laudo publicado para todos. Não é o caso: a ficha só abre o
-    // bloco com `pericia === "PERÍCIA APROVADA"`, e em 03/09/2026 dezessete de
-    // trinta e seis publicados estavam EM ANÁLISE. É a mesma afirmação que
-    // `d2ee139` e `673b048` corrigiram em cinco superfícies — e escorregou de
-    // volta aqui porque `coerencia-da-pericia` casa "laudo … na ficha", e a
-    // frase não dizia "ficha". A varredura foi ampliada junto com esta linha.
-    apoio: "O que cobre motor e câmbio, e onde fica o laudo assim que a perícia é aprovada.",
+    // bloco com `pericia === "PERÍCIA APROVADA"` E texto de laudo preenchido,
+    // e em 03/09/2026 dezessete de trinta e seis publicados estavam EM
+    // ANÁLISE. É a mesma afirmação que `d2ee139` e `673b048` corrigiram em
+    // cinco superfícies — e escorregou de volta aqui porque
+    // `coerencia-da-pericia` casava "laudo … na ficha", e a frase não dizia
+    // "ficha". A correção de 03/09 trocou para "assim que a perícia é
+    // aprovada", que fechou ESSA brecha mas ainda prometia publicação
+    // automática — o que a ficha não garante sozinha. Decisão do dono em
+    // 16/09/2026: alinhar todo o site à frase do vendedor, aprovada ou não.
+    apoio: "O que cobre motor e câmbio, e como consultar o laudo de perícia com o vendedor.",
   },
 ];
 
