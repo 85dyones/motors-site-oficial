@@ -41,9 +41,10 @@ Medido em `src/app/guias/[slug]/page.tsx`, `src/lib/guiasDoBanco.ts` e
 `secao.titulo` é `<h2>` e não há `h3` no template, então promover achataria a
 hierarquia (o subtema viraria irmão do tema); `normalizarCorpo` **descarta**
 seção sem parágrafo, e em `01` o bloco "Os três eixos que a perícia examina"
-não tem texto próprio antes dos `###` — promovê-los apagaria o pai; e a
-anatomia do guia normativo pede 3 a 6 `H2`, contagem que a promoção estouraria
-em quatro das oito peças.
+não tem texto próprio antes dos `###` — promovê-los apagaria o pai; e a anatomia
+do guia normativo pede 3 a 6 `H2`, contagem que as peças já esticam (6 na 01,
+7 nas cinco do meio, 9 na 08) e que a promoção levaria a 9, 8 e 11 nas quatro
+peças com `###` (01, 02, 07 e 08).
 
 **Onde entra o parágrafo de abertura.** O markdown abre com duas frases antes do
 primeiro `##`, e o renderizador não tem lugar para parágrafo sem seção. Elas
@@ -64,8 +65,9 @@ quatro termos de `src/lib/linksNoTexto.ts` ("Avaliação Express" → `/avaliaca
   achá-lo em `/guias`. Estão listados peça a peça.
 - **Link para peça de onda futura**: nenhum existia no corpo do markdown, então
   nada a fazer (a regra do README continua valendo).
-- **As tabelas "Links internos"** de cada arquivo pedem 40 links que hoje são
-  impossíveis. Ficam pendentes — ver *Riscos*, ao fim.
+- **As tabelas "Links internos"** dos oito arquivos pedem 53 links, dos quais 45
+  são no corpo (os outros 8 são o CTA, que virou o cartão de saída). Os 45 são
+  impossíveis hoje. Ficam pendentes — ver *Riscos*, ao fim.
 
 Os links que o renderizador vai criar sozinho, peça a peça, saem no modo
 conferência do aplicador (`node conteudo-seo/aplicar-guias.mjs`).
@@ -480,7 +482,7 @@ tabela virou frase, porque frase precisa de conectivo). Os 94% são a peça 08, 
 são a "Nota de método" que não foi publicada.
 
 **6. Linkagem interna: R1, R3 e R7 continuam abertas.** As tabelas "Links
-internos" pedem ~40 links entre as peças, e o renderizador não faz link no
+internos" pedem 45 links no corpo das peças, e o renderizador não faz link no
 corpo. Hoje cada página sai com um ou dois links automáticos, todos para
 `/garantia` e `/financiamento` — nenhum entre as oito peças. Enquanto isso não
 mudar, o cluster não fecha o grafo que o guia normativo desenha. Duas saídas
