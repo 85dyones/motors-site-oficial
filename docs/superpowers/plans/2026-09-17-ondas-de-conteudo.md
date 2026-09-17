@@ -95,10 +95,12 @@ estados do bloco do laudo.
 ### O desenho das duas alavancas, para a próxima onda repetir
 
 O ganho maior não está dentro dos guias: está nas páginas que apontam para eles.
-Hoje, dos 31 hubs com texto editado, só `/estoque/ate-60-mil` ganha link para
-guia, porque é o único cujo texto cita um assunto de peça ("chassi remarcado").
+Dos 31 hubs com texto editado, só `/estoque/ate-60-mil` ganhava link para guia,
+porque era o único cujo texto citava um assunto de peça ("chassi remarcado") —
+o texto do hub é escrito sobre o carro, não sobre o exame.
 
-Duas alavancas, com alcance medido no sitemap de 17/09 (200 URLs):
+As duas alavancas que resolveram isso, com o alcance medido no sitemap de 17/09
+(200 URLs):
 
 1. **O bloco de perguntas frequentes** é renderizado em **107 hubs** (20 de
    marca, 71 de modelo, 16 recortes) mais as institucionais. UMA frase na
