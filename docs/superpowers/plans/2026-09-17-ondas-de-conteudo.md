@@ -79,7 +79,20 @@ Medido sobre o lote publicado, com as funções do próprio site:
 | link para `/garantia` nas peças | 8 de 8 | 8 de 8 (não foi expulso) |
 | autolink | — | nenhum |
 
-### Passo 2, medido e ainda NÃO feito — precisa do dono
+### Passo 2, FEITO em 17/09 (#122)
+
+As duas alavancas abaixo foram aprovadas pelo dono e estão no ar. A frase é uma
+só, `TEXTO_PONTE_DO_GUIA` em `textoDoLaudo.ts`, usada nas três superfícies —
+uma verdade só sobre a perícia é a régua da casa. O componente
+`PonteDoGuiaDoLaudo` renderiza a frase com o link nos dois blocos da ficha, e
+a resposta comum do FAQ recebeu a mesma frase.
+
+**Medido, o que cada superfície passa a linkar:** a resposta do FAQ sai com dois
+destinos (`/garantia` pela expressão "perícia cautelar" e a peça pilar pelo
+título) em 107 hubs; as 70 fichas ganham o link para a peça pilar, nos dois
+estados do bloco do laudo.
+
+### O desenho das duas alavancas, para a próxima onda repetir
 
 O ganho maior não está dentro dos guias: está nas páginas que apontam para eles.
 Hoje, dos 31 hubs com texto editado, só `/estoque/ate-60-mil` ganha link para
@@ -97,7 +110,7 @@ Duas alavancas, com alcance medido no sitemap de 17/09 (200 URLs):
    linkador; passar, mais uma frase citando a peça pilar, liga o estoque inteiro
    à Onda 1.
 
-As duas mexem em texto público, então vão ao dono antes.
+As duas mexiam em texto público e foram ao dono, que aprovou em 17/09. A régua fica para a Onda 2: peça nova nasce citada na superfície que fala do assunto dela — o FAQ, o bloco da ficha, ou o texto do hub.
 
 ---
 
