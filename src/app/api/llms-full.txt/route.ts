@@ -3,6 +3,7 @@ import { getEstoque, Veiculo, getVeiculoPdpUrl } from "../../../lib/supabase";
 import { unstable_cache } from "next/cache";
 import { SITE_HOST } from "../../../lib/site";
 import { nomeComAno } from "../../../lib/nomeDoVeiculo";
+import { disponiveisDe } from "../../../lib/hubsDeEstoque";
 
 // Format helper for BRL currency
 function formatPrice(value: number): string {
@@ -18,9 +19,12 @@ function formatPrice(value: number): string {
  * O inventário em Markdown. **Pura de propósito**, como o `montarFichas` do
  * `/api/ney`: a rota depende do Supabase e não roda no teste, a montagem sim.
  *
- * `veiculos` chega como `getEstoque()` devolve — já passado por
- * `mapVeiculoDbToVeiculo`, que é onde `modelo_override` e `versao_override`
- * vencem o feed. Esta função não precisa saber que o override existe.
+ * `disponiveis` chega pronto, e esta função publica tudo o que recebe: a regra
+ * de "à venda" não mora aqui. Quem a aplica é a rota, com `disponiveisDe`
+ * sobre `getEstoque()` — a mesma composição da metade `disponiveis` de
+ * `recortesDoEstoque`, que os hubs e o `/api/ney` usam. A lista também já
+ * passou por `mapVeiculoDbToVeiculo`, que é onde `modelo_override` e
+ * `versao_override` vencem o feed.
  *
  * ---------------------------------------------------------------------------
  * O título de cada carro é `nomeComAno`
@@ -37,16 +41,14 @@ function formatPrice(value: number): string {
  * num lugar só — o que `lib/nomeDoVeiculo.ts` decidir sobre versão e ano vale
  * aqui sem ninguém voltar a este arquivo.
  */
-export function montarInventario(veiculos: Veiculo[], origem: string, atualizadoEm: string): string {
-  const availableVehicles = veiculos.filter((v) => !v.vendido);
-
+export function montarInventario(disponiveis: Veiculo[], origem: string, atualizadoEm: string): string {
   let md = "# Estoque Motors Store - Catálogo Completo para Agentes de IA\n\n";
   md += "Este arquivo contém o inventário de veículos da Motors Store. Agentes de IA (crawlers e assistants) podem utilizar este dump de texto para varrer o estoque atualizado sem necessidade de múltiplas chamadas de busca dinâmicas.\n\n";
   md += `Última Atualização: ${atualizadoEm} (Horário de Brasília)\n`;
-  md += `Total de Veículos em Estoque: ${availableVehicles.length}\n\n`;
+  md += `Total de Veículos em Estoque: ${disponiveis.length}\n\n`;
   md += "## Inventário de Veículos\n\n";
 
-  availableVehicles.forEach((car) => {
+  disponiveis.forEach((car) => {
     const pdpUrl = `${origem}${getVeiculoPdpUrl(car)}`;
     const priceStr = car.preco_promocional > 0 && car.preco_promocional < car.preco_original
       ? `De: ${formatPrice(car.preco_original)} por ${formatPrice(car.preco_promocional)} (OFERTA ATIVA)`
@@ -77,8 +79,14 @@ const getCachedInventoryDump = unstable_cache(
   async (host: string): Promise<string> => {
     const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
 
+    // O que está à venda sai de `disponiveisDe`, e não de um filtro desta rota.
+    // Medido em 2026-09-17: este arquivo e o `/api/ney` listavam os mesmos 45
+    // carros, com a regra escrita duas vezes. Uma mudança feita só num lugar
+    // faria o arquivo que publica preço e link de compra listar carro que a
+    // vitrine já não mostra. `recortesDoEstoque` daria o mesmo recorte, mas
+    // lendo também o histórico, que este arquivo não usa.
     return montarInventario(
-      await getEstoque(),
+      disponiveisDe(await getEstoque()),
       `${protocol}://${host}`,
       new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     );
