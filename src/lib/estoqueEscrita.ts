@@ -36,7 +36,9 @@ export const CAMPOS_NOSSOS = [
   // conhece, então o texto escrito aqui sobrevive a todo ciclo do RevendaMais.
   "descricao_seo",
   "laudo_pericia",
-  "opcionais",
+  // `opcionais` estava aqui até 17/09 e saiu: desde a migração 20260908160000
+  // o sync CONHECE a coluna, e a reescreve a cada ciclo. Ver
+  // `CAMPO_DOS_OPCIONAIS`.
   "status_tag",
   "status_tag_color",
   "vendido",
@@ -121,6 +123,29 @@ export const CAMPOS_DE_PRECO_DO_NATIVO = ["preco", "preco_original"] as const;
  * linha. As duas rotas barram, cada uma no seu lugar.
  */
 export const CAMPO_DA_PROMOCAO = "preco_promocional";
+
+/**
+ * Opcionais — graváveis SÓ no veículo nativo, desde 2026-09-17.
+ *
+ * Até aqui o campo estava em `CAMPOS_NOSSOS`, e a lista dizia a verdade quando
+ * ele entrou: o sync não o conhecia. Deixou de dizer em 08/09. O dono decidiu
+ * que o feed manda nos opcionais — *"se for pra deixar 100%, prefiro mandar
+ * tudo"* —, a migração `20260908160000_opcionais_vem_do_feed` abriu a trava do
+ * sync para a coluna, e o workflow do sincronizador (o JSON na raiz do
+ * repositório) passou a mapear `ACCESSORIES` para ela.
+ *
+ * Daí em diante o painel gravava opcionais num carro do RevendaMais, a edição
+ * entrava no histórico como salva, e o ciclo seguinte a desfazia sem erro em
+ * lugar nenhum. É o defeito que tirou o preço do painel nesse mesmo carro, e a
+ * régua passa a ser a mesma. Decisão do dono em 16/09: *"só leitura no painel
+ * para carro do feed"*.
+ *
+ * No nativo nada muda: a trava garante que o sync nunca toca linha de
+ * `origem = 'painel'`, então os opcionais dele só nascem e mudam aqui. O
+ * cadastro nativo continua gravando o campo (`decidirCadastro`), pelo mesmo gate
+ * campo a campo, a linha "Editar opcionais e destaques rápidos" da A17.
+ */
+export const CAMPO_DOS_OPCIONAIS = "opcionais";
 
 /**
  * Fotos: graváveis em veículo de QUALQUER origem, desde 2026-09-01 (F0.5).
@@ -218,7 +243,7 @@ export const COLUNAS_LIDAS_PARA_DECIDIR = [
 
 /**
  * Os campos graváveis para ESTE veículo — a lista fixa e as fotos sempre, mais
- * as TRÊS colunas de preço quando a linha é do painel.
+ * as TRÊS colunas de preço e os opcionais quando a linha é do painel.
  *
  * Recebe a origem em vez de consultá-la: quem chama já leu a linha, e uma
  * segunda consulta aqui abriria janela entre a leitura e a escrita.
@@ -230,11 +255,14 @@ export const COLUNAS_LIDAS_PARA_DECIDIR = [
  * RevendaMais, nascem e mudam aqui. Não é limitação técnica, é para haver UM
  * lugar de mudar preço — e a medição de 02/09 mostrou o custo de haver zero:
  * a Sorento R$ 8.000 acima do gestor de estoque.
+ *
+ * Desde 17/09 `origem` decide também os opcionais, pelo mesmo motivo: o sync
+ * os escreve no carro do RevendaMais. Ver `CAMPO_DOS_OPCIONAIS`.
  */
 export function camposGravaveis(origem?: string | null): readonly string[] {
   const base = [...CAMPOS_NOSSOS, ...CAMPOS_DE_FOTO];
   return origem === "painel"
-    ? [...base, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_PRECO_DO_NATIVO]
+    ? [...base, CAMPO_DA_PROMOCAO, ...CAMPOS_DE_PRECO_DO_NATIVO, CAMPO_DOS_OPCIONAIS]
     : base;
 }
 
@@ -249,10 +277,11 @@ export function extrairCamposNossos(
   corpo: unknown,
   /**
    * Origem da linha sendo escrita. Só `"painel"` alarga a lista (com o preço —
-   * ver `CAMPOS_DE_PRECO_DO_NATIVO`); ausente ou qualquer outra coisa mantém o
-   * comportamento de sempre. Opcional de propósito: a rota de lote escreve em
-   * veículos de origens misturadas e não passa nada, então nenhum preço passa
-   * por lá — que é o certo, porque lote não é lugar de reprecificar.
+   * ver `CAMPOS_DE_PRECO_DO_NATIVO` — e os opcionais); ausente ou qualquer
+   * outra coisa mantém o comportamento de sempre. Opcional de propósito: a rota
+   * de lote escreve em veículos de origens misturadas e não passa nada, então
+   * nenhum preço passa por lá — que é o certo, porque lote não é lugar de
+   * reprecificar. Nem opcionais, que nenhuma tela de lote edita.
    */
   origem?: string | null,
 ): Record<string, unknown> {
@@ -353,6 +382,7 @@ export async function aplicarNosVeiculos(
       ...CAMPOS_NOSSOS,
       CAMPO_DA_PROMOCAO,
       ...CAMPOS_DE_PRECO_DO_NATIVO,
+      CAMPO_DOS_OPCIONAIS,
       ...CAMPOS_DE_FOTO,
       ...COLUNAS_LIDAS_PARA_DECIDIR,
     ]),

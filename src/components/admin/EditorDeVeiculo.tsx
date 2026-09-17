@@ -323,7 +323,12 @@ export default function EditorDeVeiculo({
     },
     {
       l: "Opcionais preenchidos",
-      d: "Os primeiros aparecem no card do catálogo.",
+      // No carro do feed quem preenche é o RevendaMais: a aba é só leitura, e
+      // a pendência precisa dizer onde se resolve.
+      d:
+        v.origem === "painel"
+          ? "Os primeiros aparecem no card do catálogo."
+          : "Os primeiros aparecem no card do catálogo. Vêm do RevendaMais: o que faltar, preencha lá.",
       ok: Boolean(v.opcionais),
       estado: v.opcionais ? "OK" : "PENDENTE",
     },
@@ -472,7 +477,6 @@ export default function EditorDeVeiculo({
         descricao: v.descricao,
         descricao_seo: v.descricao_seo,
         laudo_pericia: v.laudo_pericia,
-        opcionais: v.opcionais,
         status_tag: v.status_tag,
         status_tag_color: v.status_tag_color,
         vendido: v.vendido,
@@ -484,8 +488,11 @@ export default function EditorDeVeiculo({
         // baixo. Mandá-lo num carro do sync não faria mal (o servidor descarta
         // em `camposGravaveis`), mas mandaria um campo que a tela mostrou como
         // texto fixo — e um dia alguém leria isso como permissão.
+        //
+        // Os opcionais seguem a mesma régua desde 17/09: no carro do feed o
+        // sync os reescreve, e a aba os mostra só para leitura.
         ...(v.origem === "painel"
-          ? { preco: v.preco, preco_original: v.preco_original }
+          ? { preco: v.preco, preco_original: v.preco_original, opcionais: v.opcionais }
           : {}),
       };
       const corpo = Object.fromEntries(
@@ -943,18 +950,38 @@ export default function EditorDeVeiculo({
           {aba === "opcionais" && (
             <>
               <div className="mb-3 flex flex-wrap items-baseline gap-3">
-                <div className="mt-rotulo">Opcionais e equipamentos</div>
+                <div className="mt-rotulo">
+                  {v.origem === "painel"
+                    ? "Opcionais e equipamentos"
+                    : "Opcionais e equipamentos · do feed"}
+                </div>
                 <span className="ml-auto text-[11px] text-mt-neutral-700">
-                  separados por vírgula · os primeiros aparecem no card
+                  {v.origem === "painel"
+                    ? "separados por vírgula · os primeiros aparecem no card"
+                    : "os primeiros aparecem no card"}
                 </span>
               </div>
-              <textarea
-                rows={5}
-                value={v.opcionais ?? ""}
-                onChange={(e) => set("opcionais", e.target.value)}
-                placeholder="Teto solar, Bancos de couro, Câmera 360, Piloto adaptativo…"
-                className="mt-campo-caixa mt-foco resize-y leading-relaxed"
-              />
+              {/* Só leitura no carro do feed desde 17/09 (decisão do dono em
+                  16/09). Desde a migração 20260908160000 o sync reescreve
+                  `opcionais` a cada ciclo, e o que fosse digitado aqui voltaria
+                  ao que está no RevendaMais, em silêncio. É o motivo do preço,
+                  e a régua é a mesma: `CAMPO_DOS_OPCIONAIS` em
+                  `lib/estoqueEscrita.ts`. */}
+              {v.origem === "painel" ? (
+                <textarea
+                  rows={5}
+                  value={v.opcionais ?? ""}
+                  onChange={(e) => set("opcionais", e.target.value)}
+                  placeholder="Teto solar, Bancos de couro, Câmera 360, Piloto adaptativo…"
+                  className="mt-campo-caixa mt-foco resize-y leading-relaxed"
+                />
+              ) : (
+                <p className="text-[11px] leading-relaxed text-mt-neutral-700">
+                  {v.opcionais
+                    ? "Os opcionais deste carro são os do RevendaMais — mude lá, e a próxima importação traz."
+                    : "O RevendaMais não mandou opcionais para este carro. Preencha lá, e a próxima importação traz."}
+                </p>
+              )}
               {v.opcionais && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {v.opcionais
