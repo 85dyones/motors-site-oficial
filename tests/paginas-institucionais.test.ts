@@ -4,6 +4,9 @@ import {
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
+  PLANOS_ESTENDIDOS_MESES,
+  PRAZOS_ESTENDIDOS,
+  SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
   TEXTO_DE_GARANTIA,
 } from "../src/lib/paginasInstitucionais";
@@ -44,9 +47,23 @@ function arquivosPublicos(): { caminho: string; codigo: string }[] {
  * regulação de publicidade de crédito e do CDC.
  */
 
+/**
+ * A prosa inteira da `/garantia` — a abertura E as seções.
+ *
+ * Desde 2026-09-13 a página tem dois arrays de texto: `TEXTO_DE_GARANTIA`, sob
+ * o `<h1>`, e `SECOES_DE_GARANTIA`, com os `<h2>` da proposta do pacote. Trava
+ * de permissão que olhasse só o primeiro deixaria passar exclusão,
+ * superioridade ou "premium" escritos numa seção — o texto novo moraria
+ * exatamente onde a régua não mede.
+ */
+const TEXTO_DA_GARANTIA = [
+  ...TEXTO_DE_GARANTIA,
+  ...SECOES_DE_GARANTIA.flatMap((s) => [s.titulo, ...s.paragrafos]),
+].join(" ");
+
 const TEXTO_INTEIRO = [
   ...TEXTO_DE_FINANCIAMENTO,
-  ...TEXTO_DE_GARANTIA,
+  TEXTO_DA_GARANTIA,
   ...PERGUNTAS_DE_FINANCIAMENTO.flatMap((p) => [p.pergunta, p.resposta]),
   ...PERGUNTAS_DE_GARANTIA.flatMap((p) => [p.pergunta, p.resposta]),
 ].join(" ");
@@ -176,6 +193,23 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
     }
   });
 
+  it("os prazos do plano estendido também saem de constante", () => {
+    /* O plano da Gestauto é vendido em três prazos, e eles não são o prazo da
+       loja — `GARANTIA_MESES` continua sendo 3. Sem constante, "6, 12 ou 24
+       meses" seria exatamente o que a trava acima caça: duração digitada à
+       mão perto da palavra garantia. Com constante, muda num lugar só e a
+       trava sabe distinguir as duas promessas. */
+    const codigo = lerCodigo("src/lib/paginasInstitucionais.ts");
+
+    expect([...PLANOS_ESTENDIDOS_MESES]).toEqual([6, 12, 24]);
+    expect(PRAZOS_ESTENDIDOS).toBe("6, 12 ou 24 meses");
+    // Nem o título da seção nem a resposta do FAQ digitam os prazos.
+    expect(codigo).toContain("titulo: `Estender por ${PRAZOS_ESTENDIDOS}`,");
+    expect(codigo).toContain("por ${PRAZOS_ESTENDIDOS}, com aprovação do veículo");
+    // E o leitor continua vendo os três prazos na página.
+    expect(TEXTO_DA_GARANTIA).toMatch(/6, 12 ou 24 meses/);
+  });
+
   it("a régua de /sobre lê a constante, e é a mesma de /garantia", () => {
     const sobre = lerCodigo("src/components/SobreClientWrapper.tsx");
     expect(sobre).toContain("GARANTIA_MESES");
@@ -199,21 +233,44 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
   });
 
   it("não usa os três meses como argumento de superioridade", () => {
-    expect(TEXTO_DE_GARANTIA.join(" ")).not.toMatch(
+    expect(TEXTO_DA_GARANTIA).not.toMatch(
       /maior garantia|melhor garantia|garantia estendida|exclusiv/i,
     );
   });
 
-  it("NÃO lista exclusões", () => {
-    // Afirmar condição contratual que este arquivo não tem como confirmar é
-    // passivo nos dois sentidos: prometer o que a loja não cumpre, ou negar o
-    // que ela cobre. A página delimita o escopo e remete ao termo da venda.
+  it("lista as exclusões que o contrato lista, e remete ao termo para o resto", () => {
+    /* Esta trava era o contrário até 17/09/2026: proibia a página de citar
+       exclusão. O motivo era bom para a época — o repositório não tinha o
+       contrato, e afirmar condição contratual sem fonte erra nos dois
+       sentidos, prometendo o que a loja não cumpre ou negando o que ela
+       cobre.
+
+       O que mudou foi a fonte, não a régua. O dono mandou o contrato padrão
+       de venda e o manual do plano da Gestauto, e as exclusões deixaram de
+       ser suposição: são cláusula. Perguntado se entravam na página, ele
+       respondeu "sim, listar na página". A régua continua de pé, invertida:
+       o que está no contrato a página DIZ, e o que não está ela não inventa —
+       por isso o remetimento ao termo continua obrigatório aqui embaixo.
+
+       Lista antes é serviço; descobrir depois, no balcão, é o que faz o
+       cliente achar que a garantia era conversa. */
     const garantia = [
-      ...TEXTO_DE_GARANTIA,
+      TEXTO_DA_GARANTIA,
       ...PERGUNTAS_DE_GARANTIA.map((p) => p.resposta),
     ].join(" ");
 
-    expect(garantia).not.toMatch(/não cobre|excluí|exceto|salvo/i);
+    // As quatro famílias que o contrato exclui e a página precisa nomear.
+    expect(garantia, "sumiu a fronteira do que não é coberto").toMatch(
+      /fora da cobertura|não cobre|não coberto/i,
+    );
+    expect(garantia, "desgaste e manutenção").toMatch(/pastilha|pneu|filtros?\b/i);
+    expect(garantia, "as bombas, fluidos e óleos da cláusula quarta").toMatch(
+      /bombas, fluidos e óleos/i,
+    );
+    expect(garantia, "os custos que não são do conserto").toMatch(/guincho/i);
+    expect(garantia, "evento externo é assunto de seguro").toMatch(/colisão|enchente/i);
+
+    // E o termo continua sendo a fonte: a página resume, não substitui.
     expect(garantia).toMatch(/termo/i);
   });
 
@@ -244,5 +301,109 @@ describe("vocabulário da casa", () => {
   it("o diferencial afirmado é a seleção, não o mínimo legal", () => {
     expect(TEXTO_DE_GARANTIA.join(" ")).toMatch(/três entram/i);
     expect(TEXTO_DE_GARANTIA.join(" ")).toMatch(/perícia cautelar independente/i);
+  });
+});
+
+/**
+ * A `/garantia` revista em 2026-09-13, alinhada às peças da Onda 1.
+ *
+ * Pedido: *"precisamos rever este texto do /garantia, alinhar com o restante
+ * das peças conforme o proposto"*. A proposta é
+ * `conteudo-seo/pacote/paginas/garantia.md`, versão 3, camada 1 — os blocos
+ * `[C2]` de garantia estendida ficam fora até a parceria existir.
+ *
+ * Duas coisas da proposta NÃO entraram, e este bloco deixa a recusa à vista:
+ *
+ *   · **a tabela "o que está coberto e o que não está"** — conflita com a
+ *     decisão escrita em `paginasInstitucionais.ts` e travada acima em "NÃO
+ *     lista exclusões". Fica para decisão do dono;
+ *   · **o "Nunca pedimos" absoluto sobre termo de isenção** — a peça 07 aponta
+ *     que o repasse entre lojistas pode usar esse termo. A frase fica restrita
+ *     à venda ao consumidor, que é a saída que a própria peça propôs.
+ */
+describe("a /garantia alinhada às peças", () => {
+  it("tem as três seções da proposta, na ordem, nenhuma vazia", () => {
+    expect(SECOES_DE_GARANTIA.map((s) => s.titulo)).toEqual([
+      "A garantia da Motors Store",
+      "O que está coberto e o que não está",
+      "Estender por 6, 12 ou 24 meses",
+      "O que fazer se algo falhar",
+      "Por que a perícia vem antes da garantia",
+    ]);
+    for (const secao of SECOES_DE_GARANTIA) {
+      expect(secao.paragrafos.length, secao.titulo).toBeGreaterThan(0);
+    }
+  });
+
+  it("a página desenha as seções", () => {
+    expect(lerCodigo("src/app/garantia/page.tsx")).toMatch(/secoes=\{SECOES_DE_GARANTIA\}/);
+  });
+
+  it("não ensina garantia legal — só diz que a cobertura soma (T8)", () => {
+    // O pacote tirou a camada legal por decisão editorial: a página descreve o
+    // que a loja entrega. O que fica é a frase que impede a garantia de parecer
+    // a única cobertura existente, e ela tem trava própria acima.
+    expect(TEXTO_DA_GARANTIA).not.toMatch(
+      /a lei já garante|vício|produto durável|pessoa jurídica|código de defesa/i,
+    );
+    expect(TEXTO_DA_GARANTIA).toMatch(/soma-se aos seus direitos/i);
+  });
+
+  it("descreve quem faz a perícia pela redação canônica de 09/09", () => {
+    expect(TEXTO_DA_GARANTIA).toMatch(/empresa independente, credenciada junto ao Detran/);
+    expect(TEXTO_DA_GARANTIA).not.toMatch(/laboratório credenciado/i);
+  });
+
+  it("o termo de isenção fica restrito à venda ao consumidor (T3 com a peça 07)", () => {
+    expect(TEXTO_DA_GARANTIA).toMatch(/venda ao consumidor[^.]*termo de isenção/i);
+    expect(TEXTO_DA_GARANTIA).not.toMatch(/nunca pedimos/i);
+  });
+
+  it("os 120 pontos são da perícia cautelar, e não de uma etapa de showroom", () => {
+    /* Mudou em 17/09/2026, com a resposta do dono. A versão anterior exigia a
+       frase "crivo técnico de showroom" porque `aboutSettings.value2` a
+       publica em `/sobre` — duas superfícies tinham de dizer a mesma coisa.
+       Perguntado de onde vêm os 120 pontos, o dono respondeu: da CAUTELAR. A
+       etapa mecânica existe, mas é sob demanda e exploratória, e entra quando
+       a avaliação levanta suspeita — não é inspeção de 120 pontos em todo
+       carro antes da entrega.
+       Então a página passa a atribuir o número a quem ele é, e a trava mudou
+       de "cita a frase" para "atribui certo". Perguntado, o dono escolheu
+       "atribuir à cautelar": `aboutSettings.value2` foi reescrito junto, neste
+       mesmo commit. Falta o gêmeo dele no banco — a linha `about` de
+       `site_settings`, que é o que `/sobre` publica de verdade —, e isso é
+       gravação, não código. */
+    const comOsPontos = TEXTO_DA_GARANTIA.split(/(?<=\.)\s+/).filter((f) => /120 pontos/.test(f));
+    expect(comOsPontos.length, "a página parou de citar os 120 pontos").toBeGreaterThan(0);
+    for (const frase of comOsPontos) {
+      expect(frase, "os 120 pontos ficaram sem dono na frase").toMatch(/per[íi]cia|cautelar/i);
+    }
+    expect(TEXTO_DA_GARANTIA, "voltou a vender uma etapa de showroom de 120 pontos").not.toMatch(
+      /crivo técnico de showroom/i,
+    );
+  });
+
+  it("a etapa mecânica aparece como é: sob demanda, quando a avaliação levanta suspeita", () => {
+    // Resposta 2.2 do dono: a perícia mecânica não é etapa de todo carro.
+    // Dizer que é seria prometer processo que a loja não executa em toda
+    // unidade — o mesmo defeito do laudo que a `coerencia-da-pericia` fecha.
+    expect(TEXTO_DA_GARANTIA).toMatch(/levanta suspeita/i);
+    expect(TEXTO_DA_GARANTIA).toMatch(/oficinas parceiras/i);
+    expect(TEXTO_DA_GARANTIA).toMatch(/troca de óleo e filtros/i);
+  });
+
+  it("a garantia estendida entra pelo que ela é: garantia mecânica, não seguro", () => {
+    /* O rascunho do pacote dizia "seguro emitido por seguradora registrada na
+       SUSEP". O manual do plano mostra outra coisa: serviço de certificação
+       com garantia, administrado pela Gestauto, e o registro SUSEP que consta
+       lá é de um seguro de garantia financeira que cobre a própria Gestauto.
+       Chamar de seguro venderia ao comprador uma proteção que não está no nome
+       dele. */
+    expect(TEXTO_DA_GARANTIA).toMatch(/garantia mecânica/i);
+    expect(TEXTO_DA_GARANTIA).not.toMatch(/susep|seguradora/i);
+    expect(TEXTO_DA_GARANTIA, "sumiu a regra que vale a cobertura inteira").toMatch(
+      /7 mil quilômetros ou 6 meses/i,
+    );
+    expect(TEXTO_DA_GARANTIA, "a contratação precisa aparecer como opcional").toMatch(/opcional/i);
   });
 });

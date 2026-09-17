@@ -136,7 +136,27 @@ export interface PaginaDeEstoqueProps {
    * `/garantia` e a de `/financiamento` ficam redundantes.
    */
   caminho?: string;
+  /**
+   * Seções com `<h2>` depois do cabeçalho — hoje só a `/garantia`.
+   *
+   * Entraram em 2026-09-13, quando a `/garantia` foi alinhada à proposta do
+   * pacote de conteúdo, que organiza a página em H2. A introdução continua
+   * sendo o que vem sob o `<h1>`; as seções são o corpo.
+   *
+   * Linkam pelo MESMO `linkar` da introdução e do FAQ — cada destino vira link
+   * uma vez por página, no primeiro lugar em que o leitor encontra o termo.
+   */
+  secoes?: SecaoDeTexto[];
 }
+
+/** Uma seção de texto corrido: vira `<h2>` e parágrafos. */
+export interface SecaoDeTexto {
+  titulo: string;
+  paragrafos: string[];
+}
+
+const CLASSE_DO_PARAGRAFO =
+  "m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]";
 
 export default function PaginaDeEstoque({
   trilha,
@@ -155,11 +175,29 @@ export default function PaginaDeEstoque({
   conteudo,
   posicaoDoConteudo = "depois-da-grade",
   caminho,
+  secoes = [],
 }: PaginaDeEstoqueProps) {
   // Um linkador para a página inteira: o mesmo `Set` atravessa introdução e
   // FAQ, então cada destino vira link UMA vez por página, e não uma por
   // parágrafo. Ver `criarLinkador`.
   const linkar = criarLinkador(caminho);
+
+  // O parágrafo com links num lugar só. Introdução e seções desenham pela mesma
+  // função — e pelo mesmo `linkar`, que é o que mantém um link por destino.
+  const comLinks = (paragrafo: string) =>
+    linkar(paragrafo).map((parte, j) =>
+      parte.href ? (
+        <Link
+          key={j}
+          href={parte.href}
+          className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
+        >
+          {parte.texto}
+        </Link>
+      ) : (
+        <span key={j}>{parte.texto}</span>
+      ),
+    );
 
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
@@ -225,23 +263,8 @@ export default function PaginaDeEstoque({
                 parcela descobre que o carro dele vale entrada, e até 05/09/2026
                 a frase não levava a lugar nenhum. */}
             {introducao.map((paragrafo, i) => (
-              <p
-                key={i}
-                className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]"
-              >
-                {linkar(paragrafo).map((parte, j) =>
-                  parte.href ? (
-                    <Link
-                      key={j}
-                      href={parte.href}
-                      className="mt-foco text-mt-ink underline decoration-mt-accent underline-offset-2 hover:text-mt-accent"
-                    >
-                      {parte.texto}
-                    </Link>
-                  ) : (
-                    <span key={j}>{parte.texto}</span>
-                  ),
-                )}
+              <p key={i} className={CLASSE_DO_PARAGRAFO}>
+                {comLinks(paragrafo)}
               </p>
             ))}
             {acao && <div className="mt-6">{acao}</div>}
@@ -297,6 +320,24 @@ export default function PaginaDeEstoque({
             </div>
           )}
         </div>
+
+        {/* Seções com `<h2>` — hoje só a `/garantia`. Depois do cabeçalho e
+            antes de qualquer bloco; lista vazia não desenha nada, e as outras
+            páginas saem idênticas. */}
+        {secoes.length > 0 && (
+          <div className="border-b-2 border-mt-regua py-8">
+            {secoes.map((secao) => (
+              <section key={secao.titulo} className="max-w-[680px] pb-8 last:pb-0">
+                <h2 className="mt-titulo m-0 text-[20px] lg:text-[26px]">{secao.titulo}</h2>
+                {secao.paragrafos.map((paragrafo, i) => (
+                  <p key={i} className={CLASSE_DO_PARAGRAFO}>
+                    {comLinks(paragrafo)}
+                  </p>
+                ))}
+              </section>
+            ))}
+          </div>
+        )}
 
         {posicaoDoConteudo === "antes-da-grade" && blocoLivre}
 

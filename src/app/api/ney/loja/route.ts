@@ -4,9 +4,11 @@ import { telefoneVisivel } from "../../../../lib/whatsapp";
 import { SITE_URL } from "../../../../lib/site";
 import type { CompanySettings } from "../../../../types";
 import {
+  ALCANCE_DA_ENTREGA,
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
+  SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
   TEXTO_DE_GARANTIA,
 } from "../../../../lib/paginasInstitucionais";
@@ -86,7 +88,7 @@ export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
 
   const endereco = bloco("Onde fica e quando abre", [
     `Showroom: ${empresa.address ?? ""}`,
-    "Uma unidade só — e a loja entrega para todo o Brasil.",
+    `Uma unidade só — e a loja ${ALCANCE_DA_ENTREGA}.`,
     empresa.hours ? `Horário: ${String(empresa.hours).replace(/\n/g, " · ")}` : "",
     `WhatsApp e telefone: ${telefoneVisivel(empresa)}`,
     "",
@@ -103,6 +105,10 @@ export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
     "",
     ...TEXTO_DE_GARANTIA,
     "",
+    // As seções da página entram inteiras, cada uma com o próprio título: é o
+    // que o Captain recupera quando alguém pergunta "como aciono a garantia?",
+    // e o "avise antes de mexer" mora numa seção, não na abertura.
+    ...SECOES_DE_GARANTIA.flatMap((secao) => [`### ${secao.titulo}`, ...secao.paragrafos, ""]),
     ...perguntas(PERGUNTAS_DE_GARANTIA),
   ]);
 
