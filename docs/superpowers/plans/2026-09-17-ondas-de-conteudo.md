@@ -59,8 +59,45 @@ pacote), e é essa a dívida que a frente das ondas carrega.
 guias — ficha, hub e páginas institucionais usam o mesmo componente. Termo curto
 demais ("garantia", "leilão") vira link onde ninguém pediu. O termo tem de ser a
 expressão da peça ("chassi remarcado", "vistoria de transferência"), e as travas
-que prendem isso hoje são `tests/links-no-texto-do-faq.test.ts` e
-`tests/faq-linka-na-pagina.test.ts`.
+que prendem isso hoje são `tests/links-no-texto-do-faq.test.ts`,
+`tests/faq-linka-na-pagina.test.ts` e `tests/links-entre-guias.test.ts`.
+
+### Passo 1, FEITO em 17/09
+
+Os 8 títulos e 4 termos temáticos entraram em `TERMOS_COM_DESTINO`, a rota do
+guia passou a receber o próprio caminho (sem isso a peça linkaria para si mesma)
+e a segmentação passou a andar até a primeira ocorrência LIVRE — antes ela
+olhava só a primeira ocorrência, e um termo curto dentro de um título perdia o
+link no texto inteiro.
+
+Medido sobre o lote publicado, com as funções do próprio site:
+
+| | antes | depois |
+|---|---|---|
+| páginas de guia que linkam outra peça | 0 de 8 | **8 de 8** |
+| links entre peças | 0 | **20** |
+| link para `/garantia` nas peças | 8 de 8 | 8 de 8 (não foi expulso) |
+| autolink | — | nenhum |
+
+### Passo 2, medido e ainda NÃO feito — precisa do dono
+
+O ganho maior não está dentro dos guias: está nas páginas que apontam para eles.
+Hoje, dos 31 hubs com texto editado, só `/estoque/ate-60-mil` ganha link para
+guia, porque é o único cujo texto cita um assunto de peça ("chassi remarcado").
+
+Duas alavancas, com alcance medido no sitemap de 17/09 (200 URLs):
+
+1. **O bloco de perguntas frequentes** é renderizado em **107 hubs** (20 de
+   marca, 71 de modelo, 16 recortes) mais as institucionais. UMA frase na
+   resposta sobre laudo cautelar — citando a peça pilar pelo título — vira link
+   contextual em todas elas. É a maior alavanca de link interno do site, e custa
+   uma linha em `textoDosHubs.ts`.
+2. **O bloco do laudo na ficha** (`BlocoLaudoPendente`, texto em
+   `textoDoLaudo.ts`) aparece nas **70 fichas**. Hoje ele não passa pelo
+   linkador; passar, mais uma frase citando a peça pilar, liga o estoque inteiro
+   à Onda 1.
+
+As duas mexem em texto público, então vão ao dono antes.
 
 ---
 
