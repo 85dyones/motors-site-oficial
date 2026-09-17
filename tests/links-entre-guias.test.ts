@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { TERMOS_COM_DESTINO, criarLinkador } from "../src/lib/linksNoTexto";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TERMOS_COM_DESTINO, criarLinkador, segmentarComLinks } from "../src/lib/linksNoTexto";
+import BlocoLaudoPendente from "../src/components/BlocoLaudoPendente";
+import { perguntasDeCategoria } from "../src/lib/textoDosHubs";
+import { TEXTO_PONTE_DO_GUIA } from "../src/lib/textoDoLaudo";
 
 /**
  * As peças da Onda 1 se citam — e, desde 17/09/2026, a citação vira link.
@@ -130,5 +135,54 @@ describe("a página do guia linka as vizinhas, e nunca ela mesma", () => {
     // continua levando a `/garantia`.
     const comGarantia = lote.guias.filter((peca) => linksDaPagina(peca).includes("/garantia"));
     expect(comGarantia.length).toBe(lote.guias.length);
+  });
+});
+
+/**
+ * As duas superfícies que levam o site inteiro à peça pilar.
+ *
+ * Medido no sitemap de 17/09/2026: o bloco de perguntas frequentes é servido em
+ * 107 hubs (20 de marca, 71 de modelo, 16 recortes), e o bloco do laudo, nas 70
+ * fichas. Antes desta ponte, nenhuma das duas linkava para guia nenhum — a Onda
+ * 1 ficava ilhada, com link só de `/guias` e do sitemap.
+ *
+ * O que estes testes prendem é a FIAÇÃO, que é onde isso se perde: a frase pode
+ * continuar no texto e o componente parar de renderizá-la com link, e a página
+ * fica igual na leitura e muda no que importa.
+ */
+describe("a ficha e o FAQ levam à peça pilar", () => {
+  it("o bloco do laudo pendente sai com âncora para o guia", () => {
+    const html = renderToStaticMarkup(createElement(BlocoLaudoPendente));
+    expect(html).toContain('href="/guias/laudo-cautelar-carro-usado"');
+  });
+
+  it("o bloco do laudo APROVADO monta a mesma ponte", () => {
+    // Fonte, e não render: a PDP inteira pede veículo, sessão e mais meia
+    // dúzia de props. O que se mede aqui é que o componente está montado no
+    // ramo do laudo aprovado — 33 das 44 fichas à venda em 17/09.
+    const pdp = readFileSync(join(__dirname, "..", "src", "components", "PDPClientWrapper.tsx"), "utf8");
+    expect(pdp, "a ficha aprovada parou de montar a ponte").toContain("<PonteDoGuiaDoLaudo");
+  });
+
+  it("a resposta comum do FAQ cita a peça, e a citação vira link", () => {
+    const perguntas = perguntasDeCategoria("carros seminovos");
+    const sobreLaudo = perguntas.find((p) => /laudo cautelar\?/i.test(p.pergunta));
+    expect(sobreLaudo, "sumiu a pergunta sobre laudo cautelar").toBeDefined();
+    expect(sobreLaudo!.resposta).toContain(TEXTO_PONTE_DO_GUIA);
+
+    const destinos = segmentarComLinks(sobreLaudo!.resposta)
+      .filter((s) => s.href)
+      .map((s) => s.href);
+    expect(destinos).toContain("/guias/laudo-cautelar-carro-usado");
+    // E a resposta segue levando para a página comercial, que é o outro papel
+    // dela: um link por destino, dois destinos.
+    expect(destinos).toContain("/garantia");
+  });
+
+  it("a ponte não afirma resultado nem promete publicação", () => {
+    // A mesma régua do bloco do laudo (`coerencia-da-pericia`): a frase aponta
+    // para o texto que explica o exame, e não diz que o carro passou.
+    expect(TEXTO_PONTE_DO_GUIA).not.toMatch(/aprovad[oa]s?\b|sem apontamento|livre de sinistro/i);
+    expect(TEXTO_PONTE_DO_GUIA).not.toMatch(/na ficha|assim que/i);
   });
 });
