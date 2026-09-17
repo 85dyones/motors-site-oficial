@@ -263,7 +263,7 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
     expect(garantia, "sumiu a fronteira do que não é coberto").toMatch(
       /fora da cobertura|não cobre|não coberto/i,
     );
-    expect(garantia, "desgaste e manutenção").toMatch(/pastilha|pneu|filtros?/i);
+    expect(garantia, "desgaste e manutenção").toMatch(/pastilha|pneu|filtros?\b/i);
     expect(garantia, "as bombas, fluidos e óleos da cláusula quarta").toMatch(
       /bombas, fluidos e óleos/i,
     );
