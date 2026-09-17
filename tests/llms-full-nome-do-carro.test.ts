@@ -119,12 +119,11 @@ describe("o título do carro no `llms-full.txt`", () => {
 });
 
 describe("a rota serve o texto que este teste mede", () => {
-  it("o cache monta o arquivo com `montarInventario` sobre `getEstoque()`", () => {
+  it("o cache monta o arquivo com `montarInventario`", () => {
     // Sem esta trava, a rota podia voltar a montar o Markdown por conta
     // própria, e os testes acima seguiriam verdes medindo uma função que
-    // ninguém chama.
-    expect(lerCodigo("src/app/api/llms-full.txt/route.ts")).toMatch(
-      /return montarInventario\(\s*await getEstoque\(\)/,
-    );
+    // ninguém chama. De onde vem a lista de carros é a trava de
+    // `llms-full-mesmo-patio-da-vitrine.test.ts`.
+    expect(lerCodigo("src/app/api/llms-full.txt/route.ts")).toMatch(/return montarInventario\(/);
   });
 });
