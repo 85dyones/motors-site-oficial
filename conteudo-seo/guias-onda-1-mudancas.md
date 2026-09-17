@@ -494,7 +494,10 @@ fora até alguém mexer no schema.
 **8. A data da consulta dos preços (peça 03) não está no texto.** A nota
 editorial pedia "data da consulta no rodapé", e o corpo não tem onde pôr rodapé.
 Se você quiser a data no ar — e a T6 gosta dela —, o lugar natural é o fim do
-primeiro parágrafo da seção "O que faz o preço mudar".
+primeiro parágrafo da seção "O que faz o preço mudar". No mesmo texto, a faixa
+de Curitiba e a faixa do Brasil são a mesma (R$ 150 a R$ 750), então a peça
+local não chega a dar um número local; não mexi porque os valores são os que
+você aprovou.
 
 **9. O período da amostra da peça 08 é relativo.** "Nos últimos 30 dias" envelhece
 no dia seguinte à publicação; o próprio pacote deixou `"temporalCoverage":
