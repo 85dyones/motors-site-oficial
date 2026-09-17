@@ -242,7 +242,14 @@ describe("a promessa do laudo não volta como publicação automática", () => {
   it("nenhum texto em src/app e src/lib promete 'assim que aprovado' ou 'laudo publicado/na ficha'", () => {
     // A mesma varredura do brief de 16/09/2026, para o texto de projeto e a
     // trava nunca discordarem sobre o que é infração.
-    const PADRAO = /assim que (for |é )?aprovad|laudo (publicado|na ficha)|publicado na ficha/i;
+    //
+    // 17/09/2026: "O laudo fica na ficha do carro assim que a perícia é
+    // aprovada" passou por aqui nos 72 hubs sem texto editado. Dois furos:
+    // "laudo fica na ficha" não casava com `laudo (publicado|na ficha)`, e
+    // "assim que a perícia é aprovada" tem a perícia no meio. O padrão ganhou
+    // as duas formas.
+    const PADRAO =
+      /assim que (for |é )?aprovad|assim que a per[ií]cia (for|é) aprovad|laudo (publicado|na ficha)|laudo fica (aberto )?na ficha|publicado na ficha/i;
     const infratores: string[] = [];
 
     for (const caminho of arquivosDeAppELib()) {
@@ -253,8 +260,9 @@ describe("a promessa do laudo não volta como publicação automática", () => {
       // Sem comentários, pelo mesmo motivo da trava acima: a nota que explica
       // a mudança cita a frase antiga, e citar não é reincidir.
       const fonte = bruto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-      // Junta concatenação quebrada em linha, para a frase valer inteira.
-      const corrido = fonte.replace(/"\s*\+\s*\r?\n?\s*"/g, "").replace(/\s+/g, " ");
+      // Junta concatenação quebrada em linha, para a frase valer inteira —
+      // inclusive entre template literal e string (`…` + "…"), o furo de 17/09.
+      const corrido = fonte.replace(/[`"']\s*\+\s*\r?\n?\s*[`"']/g, "").replace(/\s+/g, " ");
 
       const achado = corrido.match(PADRAO);
       if (achado) {

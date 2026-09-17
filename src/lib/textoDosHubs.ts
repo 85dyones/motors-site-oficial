@@ -101,12 +101,21 @@ function enumerar(itens: string[]): string {
   return `${limpos.slice(0, -1).join(", ")} e ${limpos[limpos.length - 1]}`;
 }
 
-/** O parágrafo que toda página perene fecha — a única afirmação que ninguém copia. */
+/**
+ * O parágrafo que toda página perene fecha — a única afirmação que ninguém copia.
+ *
+ * Até 17/09/2026 dizia que o laudo ficava na ficha "assim que a perícia é
+ * aprovada", nos 72 hubs sem texto editado, e contradizia a pergunta frequente
+ * da mesma página. Decisão do dono em 16/09/2026: o laudo fica com o vendedor,
+ * aprovada ou não (`textoDoLaudo.ts`). A trava de `coerencia-da-pericia` não
+ * pegava a frase porque ela atravessava uma concatenação de template literal
+ * com string, e porque "fica na ficha" não estava no padrão.
+ */
 function paragrafoDaSelecao(genero: Genero = "m"): string {
   return (
     "Todo veículo que entra passa por perícia cautelar independente antes de ir para a " +
-    `vitrine: de cada dez ${avaliados(genero)}, três entram. O laudo fica na ficha do carro assim ` +
-    "que a perícia é aprovada, o preço " +
+    `vitrine: de cada dez ${avaliados(genero)}, três entram. O laudo está disponível para consulta ` +
+    "com o vendedor, o preço " +
     `está no anúncio e o showroom fica no ${BAIRRO_DA_LOJA}, em ${CIDADE_DA_LOJA} — dá para ` +
     "ver o carro, dirigir e conferir a documentação no mesmo dia."
   );
