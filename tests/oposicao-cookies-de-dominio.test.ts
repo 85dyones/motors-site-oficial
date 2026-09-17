@@ -2,6 +2,7 @@
 // @vitest-environment-options {"url": "https://www.motorsstore.com.br/"}
 import { describe, it, expect, afterEach } from "vitest";
 import {
+  COOKIES_DO_GOOGLE_ADS,
   descartarCookiesDeAnuncio,
   getMatchParamsRespeitandoRecusa,
   variantesDeDominio,
@@ -77,7 +78,7 @@ function valores(nome: string): string[] {
  * seguinte achar.
  */
 afterEach(() => {
-  for (const nome of ["_fbp", "_fbc", "preferencia"]) {
+  for (const nome of ["_fbp", "_fbc", "_gcl_au", "_gcl_aw", "_gcl_gs", "preferencia"]) {
     for (const dominio of ["", "; domain=www.motorsstore.com.br", "; domain=motorsstore.com.br"]) {
       document.cookie = `${nome}=; path=/; max-age=0${dominio}`;
     }
@@ -127,6 +128,30 @@ describe("(b) descartarCookiesDeAnuncio apaga as duas cópias", () => {
     expect(valores("_fbp"), "sobrou cópia do _fbp").toEqual([]);
     expect(valores("_fbc"), "sobrou cópia do _fbc").toEqual([]);
     // Não é um "apaga tudo": cookie que não é de anúncio fica.
+    expect(valores("preferencia")).toEqual(["fica"]);
+  });
+
+  it("e os do Google Ads: o `gclid` do `_gcl_aw` não sobrevive à oposição", () => {
+    // Desde 17/09/2026. A /privacidade promete apagar "os identificadores de
+    // campanha guardados", e o `gclid` do clique mora no `_gcl_aw`, gravado
+    // pela tag do Google no domínio do site.
+    document.cookie = "_gcl_aw=GCL.1700000000.HOST; path=/";
+    document.cookie = "_gcl_aw=GCL.1700000000.DOMINIO; domain=motorsstore.com.br; path=/";
+    document.cookie = "_gcl_au=1.1.123.456; domain=motorsstore.com.br; path=/";
+    // Um `_gcl_*` fora da lista fixa: o prefixo basta para sair.
+    document.cookie = "_gcl_gs=2.1.k1; domain=motorsstore.com.br; path=/";
+    document.cookie = "preferencia=fica; path=/";
+
+    // Controle: as cópias existem antes.
+    expect(valores("_gcl_aw").sort()).toEqual(["GCL.1700000000.DOMINIO", "GCL.1700000000.HOST"]);
+    expect(valores("_gcl_au")).toEqual(["1.1.123.456"]);
+    expect(valores("_gcl_gs")).toEqual(["2.1.k1"]);
+
+    descartarCookiesDeAnuncio();
+
+    expect(valores("_gcl_aw"), "sobrou cópia do _gcl_aw").toEqual([]);
+    expect(valores("_gcl_au"), "sobrou o _gcl_au").toEqual([]);
+    expect(valores("_gcl_gs"), "um _gcl_* fora da lista fixa escapou").toEqual([]);
     expect(valores("preferencia")).toEqual(["fica"]);
   });
 });
@@ -255,17 +280,33 @@ function escritasEmDocumentCookie(fn: () => void): string[] {
 }
 
 describe("(e) descartarCookiesDeAnuncio faz exatamente essas escritas", () => {
-  it("uma expiração por variante, nos dois cookies — a sem `domain=` inclusive", () => {
+  const expiracoes = (nome: string) => [
+    `${nome}=; path=/; max-age=0`,
+    `${nome}=; path=/; max-age=0; domain=www.motorsstore.com.br`,
+    `${nome}=; path=/; max-age=0; domain=motorsstore.com.br`,
+    `${nome}=; path=/; max-age=0; domain=com.br`,
+  ];
+
+  it("uma expiração por variante, em cada cookie — a sem `domain=` inclusive", () => {
     // (d) trava a lista; isto trava que a função a percorre inteira. Pular a
     // variante `null` aqui passaria em (b), pelo motivo escrito no topo.
     const escritas = escritasEmDocumentCookie(() => descartarCookiesDeAnuncio());
 
-    const expiracoes = (nome: string) => [
-      `${nome}=; path=/; max-age=0`,
-      `${nome}=; path=/; max-age=0; domain=www.motorsstore.com.br`,
-      `${nome}=; path=/; max-age=0; domain=motorsstore.com.br`,
-      `${nome}=; path=/; max-age=0; domain=com.br`,
-    ];
-    expect(escritas).toEqual([...expiracoes("_fbp"), ...expiracoes("_fbc")]);
+    expect(escritas).toEqual([
+      ...expiracoes("_fbp"),
+      ...expiracoes("_fbc"),
+      ...COOKIES_DO_GOOGLE_ADS.flatMap(expiracoes),
+    ]);
+  });
+
+  it("os do Google Ads são a lista fixa, e um `_gcl_*` presente entra junto", () => {
+    expect([...COOKIES_DO_GOOGLE_ADS]).toEqual(["_gcl_au", "_gcl_aw", "_gcl_dc", "_gcl_gb"]);
+
+    document.cookie = "_gcl_gs=2.1.k1; path=/";
+    const escritas = escritasEmDocumentCookie(() => descartarCookiesDeAnuncio());
+
+    expect(escritas.slice(-4), "o _gcl_* fora da lista não foi expirado").toEqual(
+      expiracoes("_gcl_gs"),
+    );
   });
 });
