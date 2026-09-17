@@ -19,6 +19,13 @@ interface CalculadoraProps {
   vehicleId?: string;
   vehiclePrice: number;
   vehicleYear: number;
+  /**
+   * O nome COMPLETO do carro — `nomeComAno`, a régua única do projeto.
+   *
+   * Vira a mensagem de WhatsApp da simulação, que é a ação de maior intenção
+   * da ficha. Recebia `${marca} ${modelo}`: sem versão e sem ano, o consultor
+   * lia "Ford Ka" e o pátio tem três.
+   */
   vehicleName: string;
   onSimulateClick: (message: string, simulacaoData?: SimulacaoData) => void;
 }
