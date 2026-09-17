@@ -67,8 +67,11 @@ export default function IntegrationsTracker() {
    * Container carregando ≠ container medindo. O site não tem como distinguir
    * os dois de fora, então quem publicou precisa dizer.
    *
-   * Fora do portão de consentimento de propósito: sem aceite, nem o GTM nem o
-   * `gtag` enviam coisa alguma.
+   * Fora do portão da oposição de propósito: a marca só escolhe por onde o
+   * evento sai (container ou `gtag` do código) e não envia nada sozinha. Quem
+   * se opôs em /privacidade não carrega nem o GTM nem o `gtag` (aqui e no
+   * `BootstrapDeTags`), e as funções de envio do `telemetry.ts` consultam a
+   * oposição antes de olhar a marca. Até 31/08 esse portão era o aceite.
    */
   useEffect(() => {
     marcarContainerAtivo(Boolean(gtmId) && assumeEventos);
@@ -115,16 +118,18 @@ export default function IntegrationsTracker() {
 
       // ANTES do portão, de propósito — e isto é o oposto de uma brecha.
       //
-      // `persistirParametrosDeCampanha` guarda o `gclid` da URL em MEMÓRIA
-      // sempre, e no dispositivo só depois do aceite: o portão do disco vive
-      // dentro dela. Chamá-la aqui é o que faz a memória existir para quem
-      // ainda não decidiu.
+      // `persistirParametrosDeCampanha` trata a oposição por dentro: guarda o
+      // `gclid` da URL em MEMÓRIA sempre, grava no dispositivo para quem não se
+      // opôs e, para quem se opôs, APAGA a cada carga o que estava gravado
+      // (parâmetros de campanha e cookies de anúncio). Depois do `return` de
+      // baixo ela nunca rodaria para essa pessoa, e nada seria apagado.
       //
-      // Estava depois do `return` de baixo e o efeito era invisível nos testes
-      // de unidade, que chamam a função direto: para quem chegava do anúncio e
-      // não clicava no banner, ela nunca rodava, a memória ficava vazia, e o
-      // aceite feito duas páginas adiante não tinha o que gravar — a URL já não
-      // trazia mais o parâmetro. Quem pegou foi o teste de navegador.
+      // Já esteve depois do `return`, quando ele barrava quem ainda não tinha
+      // aceitado (até 31/08), e o efeito era invisível nos testes de unidade,
+      // que chamam a função direto: para quem chegava do anúncio e não clicava
+      // no banner, ela nunca rodava, a memória ficava vazia, e o aceite feito
+      // duas páginas adiante não tinha o que gravar — a URL já não trazia mais o
+      // parâmetro. Quem pegou foi o teste de navegador.
       persistirParametrosDeCampanha();
 
       // -----------------------------------------------------------------------
