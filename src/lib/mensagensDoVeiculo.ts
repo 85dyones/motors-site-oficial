@@ -35,11 +35,13 @@ import { nomeComAno, type VeiculoNomeavel } from "./nomeDoVeiculo";
  * `ref` continua sendo lido no INSTANTE do clique — ele pode ser gravado
  * depois da montagem da página, e o valor fresco é o que tem de viajar.
  *
- * Nota sobre o ano: em 2026-09-07 o dono corrigiu NA FONTE os cadastros que
- * traziam o ano embutido no `modelo` (o Nissan March), e a correção entra no
- * próximo sync. Por isso aqui não há guarda contra ano repetido: dado certo na
- * origem conserta todas as superfícies de uma vez — feed, JSON-LD, ficha,
- * mensagem —, e guarda em código trataria o sintoma numa de cada vez.
+ * Nota sobre o ano: a primeira versão deste módulo (08/09) não tinha guarda
+ * contra ano repetido. Em 07/09 o dono corrigiu NA FONTE o cadastro que trazia
+ * o ano embutido no `modelo` (o Nissan March), e a correção entraria no próximo
+ * sync. Não entrou: a trava do sync só deixa passar seis colunas, e `modelo` não
+ * é uma delas. Em 17/09 o `/api/llms-full.txt` de produção ainda listava o
+ * March com `modelo` "March 1.6 Rio 2016". A guarda mora em `nomeComAno`, e
+ * como toda mensagem daqui nomeia o carro por ela, vale para todas de uma vez.
  */
 
 /** Em que estado a ficha está quando o visitante escreve. */

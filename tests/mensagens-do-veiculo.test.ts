@@ -45,6 +45,18 @@ const BMW = {
   ano: 2020,
 };
 
+/**
+ * O RevendaMais embute também o ANO no modelo em parte do cadastro. É o Nissan
+ * March `8203724`: corrigido na fonte em 07/09, e ainda assim com este `modelo`
+ * no ar em 17/09, porque a trava do sync não deixa `modelo` passar.
+ */
+const MARCH = {
+  marca: "Nissan",
+  modelo: "March 1.6 Rio 2016",
+  versao: "1.6 Rio 2016",
+  ano: 2016,
+};
+
 /** Toda mensagem que nomeia o carro, para as regras valerem em todas. */
 const TODAS = [
   ["interesse (à venda)", (v: typeof KA, ref?: string) => mensagemDeInteresse(v, "a-venda", ref)],
@@ -85,6 +97,16 @@ describe("o carro tem um nome só, e é o mesmo da página", () => {
       const msg = montar(BMW).toLowerCase();
       const ocorrencias = msg.split("m40i 3.0 m sport edit v6 turbo aut").length - 1;
       expect(ocorrencias, `${rotulo} · repetiu a versão`).toBe(1);
+    }
+  });
+
+  it("não repete o ano que já está no modelo", () => {
+    // A guarda mora em `nomeComAno`, e chega a toda mensagem porque todas
+    // nomeiam o carro por ela. Sem a guarda, o consultor lia
+    // "Nissan March 1.6 Rio 2016 2016".
+    for (const [rotulo, montar] of TODAS) {
+      expect(montar(MARCH), rotulo).not.toMatch(/2016\s+2016/);
+      expect(montar(MARCH), rotulo).toContain("Nissan March 1.6 Rio 2016");
     }
   });
 
@@ -233,5 +255,11 @@ describe("o texto de compartilhamento", () => {
     const texto = textoDeCompartilhamento(KA, { precoTexto: "R$ 62.900", url: URL });
     expect(texto).toContain("Sedan 1.0 SE Flex 4p");
     expect(texto.split("Sedan 1.0 SE Flex 4p").length - 1).toBe(1);
+  });
+
+  it("diz o ano UMA vez, mesmo com o ano embutido no modelo", () => {
+    const texto = textoDeCompartilhamento(MARCH, { precoTexto: "R$ 45.900", url: URL });
+    expect(texto).not.toMatch(/2016\s+2016/);
+    expect(texto).toContain("Nissan March 1.6 Rio 2016");
   });
 });
