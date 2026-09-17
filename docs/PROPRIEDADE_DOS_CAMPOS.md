@@ -21,6 +21,46 @@ correção desfeita no sync seguinte, em silêncio.
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
 | **Do feed, mas nosso para editar** | Coluna que o feed preenche no nascimento e o painel sobrescreve para valer, em veículo de qualquer origem. | `whatsapp_images`, `web_full_images`, `url_imagem` |
 
+### 🔴 A disponibilidade espelha o RevendaMais desde 2026-09-16 — `vendido` tem dois autores
+
+Decisão do dono, literal: *"o site precisa reconhecer o status de "pre-venda" e
+"vendido" do revenda e migrar o carro para vendido, a disponibilidade precisa
+espelhar o revenda mais. mas precisam ter alguns dias como vendido [...] para
+não quebrar o processo."*
+
+O que motivou: Voyage `8393824`, Celta `8416946` e Peugeot 2008 `8417265`
+saíram do feed em 08/09 e ficaram oito dias anunciados como à venda. Desde a
+F0-q nada reagia à saída do feed.
+
+**`vendido` continua na linha "Nosso"** para o painel — e ganhou um segundo
+autor, que **não é o upsert**:
+
+- O feed `sitedaloja` do RevendaMais **não tem campo de status** (medido em
+  16/09: 42 tags, nenhuma de situação). Carro vendido ou em pré-venda
+  simplesmente some do XML. A ausência é o único sinal.
+- No fim de cada ciclo, o n8n manda a lista inteira de ids para a função
+  `reconciliar_disponibilidade_do_feed` (migração `20260916220000`). Carro do
+  feed, publicado e à venda que está fora da lista há 24 h (a mesma margem do
+  aviso "fora do feed" da tabela A6) vira `vendido = true`, com linha no
+  `historico_veiculo` assinada **"RevendaMais (sync)"** — é essa linha que dá
+  a data às duas carências de `publicacao.ts` (90 dias na ficha, 7 no catálogo).
+- Se o carro **volta** ao feed e a última marcação foi do sync (pré-venda que
+  caiu), a função devolve à venda. **Venda marcada por gente nunca é desfeita
+  pelo feed.**
+- A função nunca toca `origem = 'painel'`, `rascunho`, `arquivado` nem
+  `veiculos_vendidos`.
+
+> ⚠️ **`vendido` continua fora do corpo do upsert e da allowlist da trava.**
+> Aberta ali, a coluna deixaria o robô desmarcar a cada seis horas a venda que a
+> loja marcou e o RevendaMais ainda anuncia — o Honda Fit `8321599`, vendido em
+> 14/08, estava no feed de 16/09. A única porta é a função, com as duas regras
+> acima. `tests/disponibilidade-espelha-o-revendamais.test.ts` trava as duas
+> coisas.
+
+Consequência para quem opera: **arquivar continua sendo ato de gente** (decisão
+de 15/09). O sync marca vendido; quem tira a ficha do ar antes da carência é a
+loja.
+
 ### 🔴 O preço voltou a ser do RevendaMais em 2026-09-02 — as três colunas
 
 Decisão do dono, literal: *"preciso que o preço seja o do revenda, sempre, nos

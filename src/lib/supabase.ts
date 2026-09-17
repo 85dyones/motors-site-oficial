@@ -620,6 +620,11 @@ const JANELA_MESMO_SYNC_MS = 30 * 60 * 1000;
  * Errar aqui para o lado permissivo é barato: o pior caso é a vitrine mostrar
  * por algumas horas um carro que já saiu. Errar para o lado severo tira do
  * índice do Google carros que estão à venda, e isso não volta em horas.
+ *
+ * O mesmo piso barra a reconciliação com o feed (`reconciliar_disponibilidade_do_feed`,
+ * migração `20260916220000`): lista com menos da metade dos publicados à venda
+ * é coleta quebrada, e ali o erro custaria marcar meio pátio como VENDIDO.
+ * `tests/disponibilidade-espelha-o-revendamais.test.ts` trava a igualdade.
  */
 const FRACAO_MINIMA_DO_CICLO = 0.5;
 
