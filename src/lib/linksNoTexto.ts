@@ -60,12 +60,58 @@ export interface DestinoNoTexto {
  * laudo cautelar deixa de ser detalhe" não existe em `src/` nenhum.
  *
  * As quatro entradas trabalham.
+ *
+ * ---------------------------------------------------------------------------
+ * 17/09/2026 — as oito peças da Onda 1 entram como destino
+ * ---------------------------------------------------------------------------
+ * Com a Onda 1 publicada, as peças passaram a se citar PELO TÍTULO, em texto
+ * puro: o corpo do guia não aceita link escrito, e quem decide onde há link é
+ * esta lista. Medido no que está publicado (banco, 17/09): 13 citações de uma
+ * peça dentro de outra, nenhuma linkando. Cada título entra aqui, e a citação
+ * vira a âncora — que é exatamente o que a R7 do pacote pede, âncora que
+ * descreve o destino.
+ *
+ * Os quatro termos temáticos que entram junto — "chassi remarcado",
+ * "vistoria de transferência", "passagem por leilão" e "perícia cautelar em
+ * Curitiba" — são os que aparecem FORA dos guias: 7, 14, 20 e 5 vezes no
+ * corpo dos guias, e "chassi remarcado" também no texto do hub
+ * `/estoque/ate-60-mil`. Eles levam o leitor do hub para a peça.
+ *
+ * **Duas regras que a implementação impõe, e que não são de estilo:**
+ *
+ * 1. O casamento é `\b…\b`. Termo que comece ou termine em pontuação NUNCA
+ *    casa: o título "Meu carro reprovou no laudo cautelar. E agora?" entra
+ *    cortado no ponto, e é por isso que o termo é a parte sem a pergunta.
+ * 2. Só entra destino que EXISTE. Link para peça de onda futura é link
+ *    quebrado, e o pacote proíbe (README do pacote, "Links para peças que
+ *    ainda não existem"). "vício oculto", "correia dentada" e "dupla
+ *    embreagem" ficam de fora até a Onda 2 subir.
+ *
+ * "laudo cautelar" e "perícia cautelar" continuam apontando para `/garantia`,
+ * a página comercial: o limite é de um link por DESTINO por página, então a
+ * peça citada ganha o seu link sem tirar o da garantia.
  */
 export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "Avaliação Express", href: "/avaliacao" },
   { termo: "perícia cautelar", href: "/garantia" },
   { termo: "laudo cautelar", href: "/garantia" },
   { termo: "financiamento", href: "/financiamento" },
+
+  // ---- Onda 1: o título de cada peça, como as outras a citam --------------
+  { termo: "Laudo cautelar: o que verifica e o que não verifica", href: "/guias/laudo-cautelar-carro-usado" },
+  { termo: "Laudo cautelar: aprovado, com apontamento ou reprovado", href: "/guias/resultados-laudo-cautelar" },
+  { termo: "Perícia cautelar em Curitiba: onde fazer e quanto custa", href: "/guias/pericia-cautelar-curitiba" },
+  { termo: "Como saber se um carro passou por leilão", href: "/guias/consultar-carro-leilao-sinistro" },
+  { termo: "Chassi remarcado: quando é legal e quando é crime", href: "/guias/chassi-remarcado" },
+  { termo: "Laudo cautelar x vistoria de transferência", href: "/guias/cautelar-x-vistoria-transferencia" },
+  { termo: "Meu carro reprovou no laudo cautelar", href: "/guias/carro-reprovado-cautelar-como-vender" },
+  { termo: "O que reprova um carro na perícia cautelar", href: "/guias/o-que-reprova-pericia-cautelar" },
+
+  // ---- Onda 1: o assunto, para quem chega pelo hub ------------------------
+  { termo: "chassi remarcado", href: "/guias/chassi-remarcado" },
+  { termo: "vistoria de transferência", href: "/guias/cautelar-x-vistoria-transferencia" },
+  { termo: "passagem por leilão", href: "/guias/consultar-carro-leilao-sinistro" },
+  { termo: "perícia cautelar em Curitiba", href: "/guias/pericia-cautelar-curitiba" },
 ];
 
 export interface SegmentoDeTexto {
