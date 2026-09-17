@@ -3,7 +3,7 @@
 -- Devolve os três à venda. O histórico é append-only (a RLS não tem policy de
 -- UPDATE nem DELETE, e o que foi feito não se apaga): a reversão ESCREVE a
 -- volta, "true" -> "false". É essa última mudança que `resolverDatasDeVenda`
--- lê, então a data de 08/09 deixa de valer no mesmo instante.
+-- lê, então a data gravada pela migração deixa de valer no mesmo instante.
 --
 -- Aplicar pelo pooler, com ensaio antes:
 --   node supabase/manutencao/aplicar-migracao.js supabase/manutencao/reversao/os-tres-vendidos-de-08-09.sql

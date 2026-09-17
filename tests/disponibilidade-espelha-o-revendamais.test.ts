@@ -71,10 +71,13 @@ function constante(sql: string, nome: string): string {
 // 1. Os três de 08/09
 // ---------------------------------------------------------------------------
 
-describe("os três vendidos de 08/09", () => {
-  it("marca exatamente os três, com a data de 08/09 às 18:00 de Brasília", () => {
+describe("os três que saíram do feed em 08/09", () => {
+  it("marca exatamente os três, com a data da gravação", () => {
+    // Decisão do dono em 17/09: "fica no ar por x dias pra não comprometer o
+    // fluxo e depois sai". Com a data de 08/09 a janela do catálogo já teria
+    // fechado; com a da gravação, as réguas contam dali, como na função.
     expect(constante(OS_TRES, "ids")).toBe("array[8393824, 8416946, 8417265]");
-    expect(constante(OS_TRES, "data_da_venda")).toBe("'2026-09-08 18:00:00-03'");
+    expect(constante(OS_TRES, "data_da_venda")).toBe("now()");
   });
 
   it("escreve a coluna E o histórico — a coluna sozinha deixa a carência sem data", () => {
@@ -109,39 +112,40 @@ describe("os três vendidos de 08/09", () => {
   });
 
   describe("o que a data faz no site — as promessas do cabeçalho, conferidas contra a régua", () => {
-    // Como o PostgREST devolve o `registrado_em` gravado pela migração.
+    // Uma gravação de exemplo, 17/09 às 15:00 de Brasília, como o PostgREST
+    // devolve o `registrado_em` escrito pela migração.
     const historico = [
-      { veiculo_id: 8393824, valor_novo: "true", registrado_em: "2026-09-08T21:00:00+00:00" },
+      { veiculo_id: 8393824, valor_novo: "true", registrado_em: "2026-09-17T18:00:00+00:00" },
     ];
     const dataVenda = resolverDatasDeVenda([], historico)["8393824"];
     const sinais = { vendido: true, foraDoFeed: false, dataVenda };
 
     it("o site lê a data do histórico", () => {
-      expect(dataVenda).toBe("2026-09-08T21:00:00+00:00");
+      expect(dataVenda).toBe("2026-09-17T18:00:00+00:00");
     });
 
-    it("hoje: selo VENDIDO e ficha indexável", () => {
-      const r = decidirPublicacao(sinais, new Date("2026-09-16T22:00:00Z"));
+    it("logo depois da gravação: selo VENDIDO e ficha indexável", () => {
+      const r = decidirPublicacao(sinais, new Date("2026-09-17T19:00:00Z"));
       expect(r.rotulo).toBe("VENDIDO");
       expect(r.indisponivel).toBe(true);
       expect(r.noindex).toBe(false);
       expect(r.arquivar).toBe(false);
     });
 
-    it("indexável até 08/12 às 18:00, e só então noindex + arquivamento", () => {
+    it("a ficha fica no ar pela carência, e só então noindex + arquivamento", () => {
       expect(CARENCIA_VENDIDO_DIAS).toBe(90);
-      expect(decidirPublicacao(sinais, new Date("2026-12-08T20:59:59Z")).noindex).toBe(false);
-      const vencida = decidirPublicacao(sinais, new Date("2026-12-08T21:00:00Z"));
+      expect(decidirPublicacao(sinais, new Date("2026-12-17T17:59:59Z")).noindex).toBe(false);
+      const vencida = decidirPublicacao(sinais, new Date("2026-12-17T18:00:00Z"));
       expect(vencida.noindex).toBe(true);
       expect(vencida.arquivar).toBe(true);
     });
 
-    it("catálogo: a janela de 7 dias fechou em 16/09 às 18:00 — o ponto que é decisão do dono", () => {
-      expect(decidirNoFeed(sinais, new Date("2026-09-16T20:59:59Z"))).toEqual({
+    it("catálogo: `out_of_stock` pela janela de 7 dias, e depois sai — a transição que o dono pediu", () => {
+      expect(decidirNoFeed(sinais, new Date("2026-09-25T17:59:59Z"))).toEqual({
         publica: true,
         disponibilidade: "out_of_stock",
       });
-      expect(decidirNoFeed(sinais, new Date("2026-09-16T21:00:00Z"))).toEqual({
+      expect(decidirNoFeed(sinais, new Date("2026-09-25T18:00:00Z"))).toEqual({
         publica: false,
         disponibilidade: "out_of_stock",
       });

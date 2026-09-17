@@ -39,25 +39,27 @@
 -- com a data da venda no lugar do "agora".
 --
 -- ---------------------------------------------------------------------------
--- A data: 08/09/2026, 18:00 (Brasília)
+-- A data: o momento da gravação (`now()`), por decisão do dono em 17/09
 -- ---------------------------------------------------------------------------
--- É o primeiro ciclo do sync que já não os trouxe: o momento em que o
--- RevendaMais disse que eles saíram, e o carimbo que o mecanismo novo teria
--- gravado. O que ela faz, contado dali:
+-- A primeira versão usava 08/09 às 18:00, o primeiro ciclo do sync que já não
+-- os trouxe. Com ela, a janela de 7 dias do catálogo de anúncios fechava em
+-- 16/09, e os três sairiam da próxima carga sem passar um ciclo como
+-- `out_of_stock`. O dono decidiu em 17/09, literal:
 --
---   · ficha: selo VENDIDO, OutOfStock e similares, indexável até 08/12
---     (`CARENCIA_VENDIDO_DIAS = 90`); depois `noindex` e 308 para o hub;
+--   "carro em pre-venda ou vendido é igual a vendido no site, fica no ar por
+--    x dias pra não comprometer o fluxo e depois sai."
+--
+-- Então a data é a da gravação, e as réguas que já existem contam dali:
+--
+--   · ficha: selo VENDIDO, OutOfStock e similares, indexável por 90 dias
+--     (`CARENCIA_VENDIDO_DIAS`); depois `noindex` e 308 para o hub;
 --   · sitemap: segue listando até a carência vencer (mesmo relógio da ficha);
 --   · vitrine, /estoque, hubs, home e contagens: saem já, porque todas
 --     filtram `vendido`;
---   · catálogo de anúncios (Meta/Merchant): a janela de 7 dias
---     (`CARENCIA_VENDIDO_NO_FEED_DIAS`) fechou em 16/09 às 18:00. Os três
---     SAEM da próxima carga, sem passar um ciclo como `out_of_stock`.
---
--- ⚠️ Esse último ponto é decisão do dono, e está escrito aqui para não passar
--- calado. Se a transição no catálogo importar mais que a data exata, troque
--- `data_da_venda` por `now()`: a ficha fica 8 dias a mais no índice e o
--- catálogo mostra os três como `out_of_stock` por 7 dias antes de tirá-los.
+--   · catálogo de anúncios (Meta/Merchant): `out_of_stock` pela janela de
+--     `CARENCIA_VENDIDO_NO_FEED_DIAS` (7 dias), para o Meta ver a transição, e
+--     só depois sai da carga. É a mesma data que a função da migração seguinte
+--     grava para quem sai do feed.
 --
 -- ---------------------------------------------------------------------------
 -- Quem assina, e por que não é o nome do sync
@@ -84,7 +86,8 @@
 do $$
 declare
   ids           constant bigint[]    := array[8393824, 8416946, 8417265];
-  data_da_venda constant timestamptz := '2026-09-08 18:00:00-03';
+  -- `now()` é o início da transação: a marcação e o histórico levam a mesma.
+  data_da_venda constant timestamptz := now();
   autor         constant text        := 'Dono (confirmado em 16/09), pela migração 20260916210000';
 
   falhas               int := 0;
@@ -155,7 +158,7 @@ begin
 
   -- A data que o site vai ler, pela régua de `resolverDatasDeVenda`: a ÚLTIMA
   -- mudança de `vendido` no histórico precisa ser "true". Para quem foi marcado
-  -- agora, ela precisa ser a de 08/09; quem já estava vendido guarda a dele.
+  -- agora, ela precisa ser a da gravação; quem já estava vendido guarda a dele.
   for linha in
     select i as id,
            ultima.valor_novo,
@@ -175,7 +178,7 @@ begin
         linha.id, coalesce(linha.valor_novo, 'nenhuma');
     elsif linha.id = any (marcados) and linha.registrado_em is distinct from data_da_venda then
       falhas := falhas + 1;
-      raise warning 'FALHOU: % — a data lida pelo site é %, não 08/09 18:00', linha.id, linha.registrado_em;
+      raise warning 'FALHOU: % — a data lida pelo site é %, não a da gravação (%)', linha.id, linha.registrado_em, data_da_venda;
     end if;
   end loop;
 
