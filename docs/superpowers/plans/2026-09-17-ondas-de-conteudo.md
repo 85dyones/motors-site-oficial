@@ -116,26 +116,39 @@ As duas mexiam em texto público e foram ao dono, que aprovou em 17/09. A régua
 
 ---
 
-## 3. Onda 2 — o que falta antes de escrever
+## 3. Onda 2 — escrita em 17/09/2026
 
-Pré-requisito do pacote: `/garantia` no ar, porque é a saída comercial da onda.
-Hoje `/garantia` existe, mas a versão alinhada às peças é o **PR #90**, parado na
-revisão do contrato de venda pelo dono.
+O pré-requisito caiu no mesmo dia: o **#90** foi mesclado, e a `/garantia` no ar
+já é a versão alinhada às peças — com o diferencial que o contrato cobre, as
+exclusões listadas, o plano estendido descrito como garantia mecânica e os 120
+pontos atribuídos à cautelar.
 
-As seis peças e o que cada uma precisa da casa (critério 2 do pacote: ângulo que
-só a loja pode escrever):
+O dono respondeu o briefing na mesma data, e as respostas viraram
+`fatos-da-casa`: perícia mecânica só nos carros que levantam suspeita, troca de
+óleo e filtros em todo carro, mais de quinze oficinas parceiras, o que a loja
+não compra num turbo pequeno e num dupla embreagem, e as regras do plano da
+Gestauto. **Nada fora dessa lista foi afirmado como prática da loja.**
 
-| Peça | Input próprio que falta |
-|---|---|
-| Motores turbo de baixa cilindrada (pilar) | o que a loja mede nesses motores na entrada, e o que reprova |
-| Correia dentada banhada em óleo | quais modelos a loja vê com isso, e o que faz quando aparece |
-| Carbonização de válvulas em injeção direta | idem, e o custo real do serviço na região |
-| Câmbio de dupla embreagem em usado | a política da loja para esses câmbios |
-| Vício oculto: por que certeza absoluta não existe | o que a loja assume quando aparece — ponte para a garantia |
-| Garantia de carro usado em loja | o texto da garantia da casa: o que cobre, por quanto tempo, o que exclui |
+As sete peças, e o que cada uma ficou devendo:
 
-A sétima, **garantia estendida**, só entra se a parceria estiver assinada. Sem
-produto, não tem saída comercial e reprova no critério 3 do pacote.
+| Peça | Estado | O que ainda falta da casa |
+|---|---|---|
+| Motor turbo de baixa cilindrada (pilar) | escrita | a garantia de 3 meses cobre turbocompressor? |
+| Correia dentada banhada em óleo | escrita | falha de item de manutenção que destrói item coberto entra na garantia? |
+| Carbonização de válvulas em injeção direta | escrita | faixa de preço medida em Curitiba (hoje é ordem de grandeza declarada) |
+| Câmbio de dupla embreagem em usado | escrita | existe roteiro de test-drive padronizado na avaliação? |
+| Vício oculto em carro usado | escrita | revisão jurídica — é a peça de maior exposição |
+| Garantia de carro usado em loja (pilar do Pilar 2) | escrita | o limite de quilometragem: qual é e onde está escrito |
+| Garantia estendida vale a pena? | escrita | o teto de reparo por prazo, e se 6 e 24 meses têm manual próprio |
+
+A sétima entrou porque o produto existe: o dono confirmou os três prazos
+vendidos e mandou seguir o padrão do manual da Gestauto. O que ela **não** faz é
+chamar o plano de seguro — o registro SUSEP do manual cobre a administradora, e
+não o comprador.
+
+**A malha de links da seção:** 20 links entre peças antes da onda, 52 depois,
+medidos com o código de verdade nas quinze peças. Nenhuma linka para ela mesma,
+nenhuma ficou sem vizinha, e todas terminam em `/garantia` ou `/estoque`.
 
 ---
 
