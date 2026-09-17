@@ -36,10 +36,13 @@ inteiro colado; o código extrai só o ID (`sanitizeGtmId`, em
 > `googleAdsId` no painel** — o §5.1 explica o que cada uma das duas coisas
 > quebra.
 
-O container só carrega **depois do aceite de cookies** (LGPD). Os pushes da
-camada acontecem antes, e isso é de propósito: o GTM processa a fila que já
-existe no `dataLayer` quando inicializa, então o contexto anterior ao aceite não
-se perde.
+O container carrega **desde a chegada** e só fica de fora para quem se opôs em
+`/privacidade` (base: legítimo interesse, LGPD art. 7º, IX). Até 31/08 ele
+esperava o aceite de cookies; o dono revogou esse portão, e o aviso de cookies
+hoje só informa. Os pushes da camada não passam pelo portão da oposição, e isso é
+de propósito: o GTM processa a fila que já existe no `dataLayer` quando
+inicializa, então o contexto publicado antes dele não se perde — nem o de quem
+retira a oposição na mesma aba.
 
 ---
 

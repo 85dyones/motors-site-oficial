@@ -119,7 +119,7 @@ window.fbq("track", "ViewContent", {
 const metaPixelId = companySettings?.metaPixelId || "";
 ```
 
-O GA4 tem fallback fixo (`G-CZ4B4RYF61`), o Meta não. Se `companySettings.metaPixelId` estiver vazio no Supabase, **o pixel simplesmente não inicializa**.
+Nenhum dos dois tem padrão escrito no código. O `ga4Id` vem das configurações, e o `lib/companySettings.json` (o que vale no primeiro render, antes de `/api/settings` responder) traz `G-KBL1MFN9E3`, o da produção. O `G-CZ4B4RYF61` que já foi padrão fixo aqui mandava os eventos para uma propriedade que ninguém abre, e saiu (ver o comentário do `ga4Id` no `IntegrationsTracker`). O Meta não tem padrão nenhum: o JSON traz `metaPixelId` vazio. Se `companySettings.metaPixelId` estiver vazio no Supabase, **o pixel simplesmente não inicializa**.
 
 **Ação:** confirmar que `site_settings` contém `metaPixelId = "1410450786690090"`. Adicionar um `console.warn` explícito quando estiver vazio, para não falhar em silêncio.
 
@@ -483,16 +483,48 @@ O `api/feed/xml/route.ts` já gera o feed do catálogo. Verificar se o mesmo fee
 
 ## Fase 4 — Consentimento (decisão de produto, não só técnica)
 
-### Situação atual
+> **Decidida em 2026-08-31 pelo dono: o portão de aceite foi revogado.** Tudo
+> carrega na chegada, com base no legítimo interesse (LGPD art. 7º, IX), e só a
+> oposição em `/privacidade` barra. Nas palavras dele: *"não quero nada atrás
+> do aceite, o `_fbc` precisa estar ativo"*. Em 16/09 veio a diretriz para o
+> texto: o benefício de manter a medição ligada vem primeiro, e a oposição
+> continua fácil, neutra e verdadeira. **Não religar o portão sem nova decisão
+> explícita do dono.** As seções "Antes de 31/08", "Alternativa" e "Decisão"
+> abaixo são o registro de como a escolha foi feita.
 
-`IntegrationsTracker.tsx` e todas as funções de `telemetry.ts` fazem:
+### Situação atual (desde 2026-08-31)
+
+A régua é uma função só, `rastreamentoRecusado()` em `src/lib/telemetry.ts`:
+
+```typescript
+return localStorage.getItem("ag_cookie_consent") === "rejected";
+```
+
+- **Carrega na chegada, para quem não se opôs:** GA4 e GTM no parse do HTML
+  (`BootstrapDeTags`, PR #46), e Google Ads, Meta Pixel e o `_fbc` no
+  `IntegrationsTracker`. Os parâmetros de campanha vão para o dispositivo desde
+  a chegada (`persistirParametrosDeCampanha`).
+- **O aviso de cookies não decide nada.** "Entendi" grava `accepted`, que só
+  serve para o aviso não voltar a aparecer, e "Ajustar detalhes" leva a
+  `/privacidade`. O aviso não tem botão de recusa.
+- **A oposição é o controle de `/privacidade`** (`ControleDeRastreamento`). Ele
+  grava `rejected` e apaga `_fbp`/`_fbc` em todas as cópias de domínio
+  (`descartarCookiesDeAnuncio`) e as chaves de campanha. A partir daí o
+  bootstrap, o tracker e os eventos de `telemetry.ts` param, e o lead dessa
+  pessoa sai sem `fbp`/`fbc` e sem CAPI Lead (PR #96).
+- **Travas:** `tests/brechas-de-mensuracao.test.ts` (B.3, B.4, B.6 e B.7),
+  `tests/tags-no-ato.test.ts` e `tests/oposicao-cookies-de-dominio.test.ts`.
+
+### Antes de 31/08 (registro)
+
+`IntegrationsTracker.tsx` e todas as funções de `telemetry.ts` faziam:
 
 ```typescript
 const consent = localStorage.getItem("ag_cookie_consent");
 if (consent !== "accepted") return;
 ```
 
-Isso bloqueia **100%** do rastreamento para quem não clica "aceitar" — incluindo quem simplesmente ignora o banner. É a postura mais conservadora possível diante da LGPD, e o custo é que essa fatia de visitantes fica invisível para medição.
+Isso bloqueava **100%** do rastreamento para quem não clicava "aceitar" — incluindo quem simplesmente ignorava o banner. Era a postura mais conservadora possível diante da LGPD, e o custo era que essa fatia de visitantes ficava invisível para medição.
 
 ### Alternativa
 
@@ -517,9 +549,11 @@ gtag("consent", "update", {
 });
 ```
 
-### ⚠️ Esta fase não deve ser implementada sem decisão explícita
+### Decisão
 
-A escolha entre bloqueio total e consent mode envolve apetite de risco jurídico do cliente, não só engenharia. **Levar a quem cuida do jurídico da Motors Store antes de mexer.** Se não houver definição, manter o comportamento atual (bloqueio total), que é o mais conservador.
+Até 31/08 esta seção dizia: *"Esta fase não deve ser implementada sem decisão explícita"*, e mandava manter o bloqueio total enquanto não houvesse definição, porque a escolha entre bloqueio total e consent mode envolve apetite de risco jurídico, não só engenharia.
+
+A definição veio do dono em 31/08, e não foi nenhuma das duas: carregar para todos, com base no legítimo interesse, e oferecer oposição que funciona de fato em `/privacidade`. Consent Mode fica como caminho se uma norma como a europeia passar a valer no Brasil — *"Quando uma resolução como a europeia estiver valendo aqui no Brasil, mudamos"* (citação completa no `IntegrationsTracker`).
 
 ---
 
@@ -531,7 +565,7 @@ A escolha entre bloqueio total e consent mode envolve apetite de risco jurídico
 | **1** | `event_id`, `_fbp`/`_fbc`/`fbclid` | Fase 0 | Base para CAPI | ✅ feita |
 | **2** | CAPI em `/api/leads` e `/api/capi` | Fase 1 | Recupera eventos perdidos | ✅ feita no código |
 | **3** | Enhanced Conversions | Fase 1 | Otimização no Google | ⚠️ código pronto, **inerte** |
-| **4** | Consent mode | Decisão jurídica | Cobertura de medição | ⏸️ parada, por decisão |
+| **4** | Consentimento | Decisão do dono | Cobertura de medição | ✅ decidida em 31/08: sem portão de aceite, só a oposição barra |
 | **5** | Espelhar `Contact`, `Search` e `CompleteRegistration` no CAPI | Fase 2 | Fecha a cobertura server-side | ✅ feita — fila no n8n |
 
 ---
@@ -551,7 +585,9 @@ Avaliação de lugar).
 - **Fase 1** — `tracking-identity.ts` existe; `_fbc` é persistido por 90 dias a
   partir do `fbclid`, fora do gate de consentimento (só a captura do
   parâmetro; o evento continua gated); as cinco funções de tracking passam
-  `eventID` no **terceiro** argumento do `fbq`.
+  `eventID` no **terceiro** argumento do `fbq`. *(Estado de 06/08. Desde 31/08
+  nada espera aceite: o `_fbc` e os eventos só ficam de fora para quem se opôs
+  — ver a Fase 4.)*
 - **Fase 2** — `meta-capi.ts` com hash SHA-256 de e-mail e telefone; `Lead`
   espelhado dentro de `/api/leads`; `/api/capi` com whitelist de cinco eventos,
   IP e User-Agent lidos dos headers, resposta sempre `204` e rate limit Upstash
@@ -698,10 +734,12 @@ container `IntegrationsTracker` já sabe carregar, bastando preencher o ID em
 
 ### Regras
 
-1. **O push NÃO espera o consentimento.** Escrever num array em memória não
-   envia nada; quem envia é o GTM, que só carrega depois do aceite — e processa
-   a fila já existente ao inicializar. Com o gate no push, o contexto anterior
-   ao aceite se perderia.
+1. **O push NÃO passa pelo portão da oposição.** Escrever num array em memória
+   não envia nada; quem envia é o GTM, que carrega na chegada e só fica de fora
+   para quem se opôs em `/privacidade` — e processa a fila já existente ao
+   inicializar. Com o portão no push, quem retira a oposição na mesma aba
+   chegaria ao container sem o contexto do que já viu. (Até 31/08 o GTM
+   esperava o aceite, e era o contexto anterior ao aceite que se perderia.)
 2. **Nenhum dado pessoal na camada.** Nome, e-mail, telefone e CPF ficam fora:
    o `dataLayer` é legível por qualquer script da página. Identidade continua
    indo pelo caminho servidor (CAPI e conversões otimizadas), com hash.

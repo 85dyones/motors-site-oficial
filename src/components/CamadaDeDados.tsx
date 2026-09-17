@@ -11,7 +11,9 @@ import { pushCamadaGlobal, tipoDaPagina } from "../lib/dataLayer";
  * de montagem: o contexto da página precisa estar no array quando o GTM
  * carregar, porque é ele que o container lê para decidir gatilho e variável.
  * Como o GTM processa a fila já existente ao inicializar, publicar aqui — sem
- * esperar o aceite de cookies — não perde nem antecipa envio nenhum.
+ * esperar decisão nenhuma do visitante — não perde nem antecipa envio nenhum:
+ * quem decide o que sai é o GTM, que carrega na chegada e só fica de fora para
+ * quem se opôs em /privacidade.
  *
  * `usePathname` e não `window.location`: numa navegação client-side do Next a
  * URL muda sem recarregar a página, e sem este efeito toda navegação depois da

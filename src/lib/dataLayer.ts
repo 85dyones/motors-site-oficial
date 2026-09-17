@@ -36,12 +36,15 @@ import { SEGMENTOS_DE_PDP } from "./veiculoUrl";
  * ---------------------------------------------------------------------------
  * Consentimento
  * ---------------------------------------------------------------------------
- * O push NÃO é bloqueado pelo banner de cookies, e isso é deliberado: escrever
- * num array em memória não envia nada para lugar nenhum. Quem envia é o GTM, e
- * ele só é carregado depois do aceite (`IntegrationsTracker`). Como o GTM
- * processa a fila que já existe no `dataLayer` ao carregar, o contexto anterior
- * ao aceite não se perde — que é justamente o que se perderia se o gate
- * estivesse aqui.
+ * O push NÃO passa pelo portão da oposição, e isso é deliberado: escrever num
+ * array em memória não envia nada para lugar nenhum. Quem envia é o GTM, e desde
+ * 31/08 ele não espera aceite nenhum: carrega na chegada — no parse do HTML,
+ * pelo `BootstrapDeTags`, ou pelo `IntegrationsTracker` — e só fica de fora para
+ * quem se opôs em /privacidade. Como o GTM processa a fila que já existe no
+ * `dataLayer` ao carregar, o contexto publicado antes dele não se perde,
+ * inclusive o de quem retira a oposição na mesma aba — que é justamente o que
+ * se perderia se o portão estivesse aqui. (Até 31/08 o GTM esperava o aceite, e
+ * o contexto que este parágrafo protegia era o anterior ao aceite.)
  */
 
 /**

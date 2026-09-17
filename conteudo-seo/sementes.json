@@ -1,0 +1,17 @@
+{
+  "_leia": [
+    "Termos avulsos que você quer medir, além dos clusters do §1.6 e dos modelos",
+    "que o script gera sozinho do estoque. Use para: modelo que a loja quer PASSAR",
+    "a comprar (e por isso ainda não está no pátio), termo que um cliente falou no",
+    "WhatsApp, ou hipótese que você quer testar antes de virar campanha.",
+    "",
+    "Os de baixo são exemplos defensáveis — apague o que não interessar.",
+    "Termo repetido não atrapalha: o script deduplica contra os clusters fixos."
+  ],
+  "extras": [
+    "carro usado até 50 mil curitiba",
+    "carro usado até 100 mil curitiba",
+    "melhor loja de seminovos curitiba",
+    "seminovos com garantia de fábrica curitiba"
+  ]
+}
