@@ -1,0 +1,605 @@
+{
+  "conteudo-seo/aplicar-rascunhos.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "conteudo-seo/conferir-feed.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "conteudo-seo/configurar-gsc.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 2
+    }
+  },
+  "conteudo-seo/extrair-acessorios.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "conteudo-seo/google-auth.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 2
+    }
+  },
+  "conteudo-seo/gsc.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "conteudo-seo/levantar-estoque.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "conteudo-seo/planejador.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 4
+    }
+  },
+  "scripts/gerar-qr-de-campanha.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 4
+    }
+  },
+  "scripts/migrar-workflows-para-o-dominio.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 2
+    }
+  },
+  "scripts/preparar-arte-de-campanha.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "src/app/ThemeContext.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "prefer-const": {
+      "count": 1
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/actions/auth.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/admin/estoque/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/admin/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/app/api/auditoria/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/avaliacao/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/app/api/ciclo/motor/desfecho/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/ciclo/motor/fila/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/ciclo/motor/verificacao/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/ciclo/revisoes/[id]/verificar/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/ciclo/revisoes/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/ciclo/vendas/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/estoque/[id]/descritivo/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/estoque/[id]/historico/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/estoque/[id]/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/estoque/lote/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/estoque/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/funil/alertas/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/funil/config/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/app/api/funil/relatorio/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/garagem/consentimento/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/garagem/km/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/garagem/revisoes/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/investidores/[id]/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/investidores/movimentacoes/[id]/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/investidores/movimentacoes/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/investidores/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/leads/gerenciar/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/app/api/leads/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/app/api/marketing/campanhas/[id]/ajustes/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/marketing/campanhas/[id]/leituras/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/marketing/campanhas/[id]/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/marketing/campanhas/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/app/api/match/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/app/api/pessoas/[id]/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/app/api/pessoas/duplicatas/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/pessoas/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/api/settings/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/app/api/upload-branding/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    }
+  },
+  "src/app/api/users/[id]/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/app/contato/page.tsx": {
+    "@next/next/no-html-link-for-pages": {
+      "count": 5
+    }
+  },
+  "src/app/garagem/meus-dados/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "src/app/login/page.tsx": {
+    "@next/next/no-html-link-for-pages": {
+      "count": 4
+    }
+  },
+  "src/app/test/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    },
+    "prefer-const": {
+      "count": 2
+    },
+    "react-hooks/immutability": {
+      "count": 4
+    },
+    "react-hooks/rules-of-hooks": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/components/AntigravityTracker.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/AutoAvaliacao.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/components/CarMatch.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/components/ConfiguracoesClientWrapper.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 10
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 9
+    },
+    "react/no-unescaped-entities": {
+      "count": 12
+    }
+  },
+  "src/components/ContatoClientWrapper.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ControleDeRastreamento.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/IntegrationsTracker.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/components/LeadCaptureModal.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/AgendaDePessoas.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/AreasDoSite.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/admin/CardsCompartilhamento.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/EditorDeGuias.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/EditorDeVeiculo.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/FaixaProcedenciaTextos.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/FilaDeVerificacao.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/FunilEditor.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/LeadsKanban.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/PainelDeCompletude.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/PainelDeConformidade.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/RelatorioDoFunil.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/SugestaoDeTexto.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/admin/TabelaDeEstoque.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/components/admin/TextosDosHubs.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/UserManagement.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/components/garagem/BotaoImprimir.tsx": {
+    "@next/next/no-html-link-for-pages": {
+      "count": 4
+    }
+  },
+  "src/components/garagem/GaragemVeiculo.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/garagem/MeusDados.tsx": {
+    "@next/next/no-html-link-for-pages": {
+      "count": 4
+    }
+  },
+  "src/components/investidores/InvestidoresPainel.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/marketing/LeituraCampanha.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "react-hooks/preserve-manual-memoization": {
+      "count": 1
+    },
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/marketing/MidiaPagaConsolidado.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/lib/analytics.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/lib/auditoria.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/ciclo/motor.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/descritivo/gerar.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/lib/estoqueEscrita.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/supabase.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 14
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/lib/telemetry.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "src/lib/webhook-dispatcher.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/proxy.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/types/react-mcp.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "supabase/manutencao/aplicar-migracao.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "supabase/manutencao/migrar-fotos-do-carro57.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 9
+    }
+  },
+  "tests/busca-por-ref.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/campanhas-registro.test.ts": {
+    "react/no-children-prop": {
+      "count": 1
+    }
+  },
+  "tests/descritivo-gerar.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "tests/descritivo-rota.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/funil-config-rota.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/funil.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "tests/ga4-credenciais.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "tests/leads-gerenciar-desfecho.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  }
+}

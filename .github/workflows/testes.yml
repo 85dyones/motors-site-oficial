@@ -1,9 +1,11 @@
-# A suíte cheia roda aqui, e não na máquina de quem desenvolve.
+# Toda a verificação do código roda aqui, e não na máquina de quem desenvolve.
 #
 # Por quê: em 13/09 a suíte caiu duas vezes por falta de memória numa máquina
 # de 7,9 GB com várias sessões abertas, e travou todos os portões de "suíte
-# cheia". A build da Vercel é só `next build`, sem teste. Em repositório
-# público o runner padrão do GitHub é grátis e tem 4 vCPU e 16 GB.
+# cheia". Em repositório público o runner padrão do GitHub é grátis e tem
+# 4 vCPU e 16 GB. Desde 17/09 o dono pediu "tudo no GitHub Actions": testes,
+# tipos, lint e build aparecem nesta mesma execução, e ela só fica verde se os
+# quatro ficarem.
 #
 # Sem segredo nenhum: `vitest.config.ts` não carrega `.env`, e chave de
 # produção não entra aqui. Teste que precisa de variável define a própria.
@@ -11,8 +13,8 @@
 # O fuso é o do runner (UTC), o mesmo da Vercel: teste que só passa no fuso
 # de Curitiba falha aqui antes de errar em produção.
 #
-# O `tsc` fica de fora até o PR #62 entrar: hoje ele é vermelho no `main` por
-# 2 erros em `tests/f0-nucleo.test.ts`.
+# Os quatro jobs ficam neste arquivo, e não em workflows separados, porque a
+# conclusão da EXECUÇÃO é o que o fluxo de merge em lote confere por commit.
 name: testes
 
 on:
@@ -47,3 +49,93 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx vitest run --reporter=default --reporter=github-actions
+
+  # `tsc` estava fora por 2 erros em `tests/f0-nucleo.test.ts`, corrigidos pelo
+  # PR #62 (15/09). Medido em 17/09 sobre o main `9b3baa0`: 0 erros, 13 s.
+  tipos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  # Catraca, não faxina. Em 17/09 o main tinha 345 erros de lint em 105
+  # arquivos (216 deles `no-explicit-any`). Travar o CI neles deixaria todo PR
+  # vermelho; ignorá-los deixaria o número crescer. `eslint-suppressions.json`
+  # (gerado no runner com `eslint . --suppress-all`) guarda a contagem de hoje
+  # por arquivo e por regra: o lint falha só com erro NOVO.
+  #
+  # `--pass-on-unpruned-suppressions`: corrigir um erro antigo não pode
+  # derrubar o CI de quem corrigiu. A contagem velha fica no arquivo até alguém
+  # rodar `npx eslint . --prune-suppressions` e versionar o resultado.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx eslint . --pass-on-unpruned-suppressions
+
+  # A build é a da Vercel, e este job cobra o resultado dela para ESTE commit.
+  #
+  # Por que não `next build` aqui: sem as variáveis do Supabase a build falha
+  # de propósito ("Estoque indisponível: cliente do Supabase não configurado —
+  # falta env no deploy", medido em 17/09), e este workflow não carrega
+  # variável de produção. A Vercel builda todo push com as variáveis do
+  # projeto e publica o status "Vercel" no commit; aqui só se espera por ele.
+  #
+  # No pull_request, o commit conferido é o head do PR: a Vercel não builda o
+  # `refs/pull/N/merge`.
+  build-vercel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      statuses: read
+    steps:
+      - name: esperar a build da Vercel deste commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          inicio=$(date +%s)
+          while :; do
+            estado=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/commits/$SHA/statuses?per_page=100" \
+              | jq -r 'map(select(.context == "Vercel")) | (.[0].state // "ausente")')
+            decorrido=$(( $(date +%s) - inicio ))
+            case "$estado" in
+              success)
+                echo "Build da Vercel pronta para ${SHA:0:7} (${decorrido}s de espera)."
+                exit 0 ;;
+              failure|error)
+                echo "::error title=build-vercel::A build da Vercel falhou para ${SHA:0:7}. Veja o status \"Vercel\" do commit."
+                exit 1 ;;
+              ausente)
+                if [ "$decorrido" -gt 600 ]; then
+                  echo "::error title=build-vercel::A Vercel não publicou status para ${SHA:0:7} em 10 minutos."
+                  exit 1
+                fi ;;
+            esac
+            if [ "$decorrido" -gt 1500 ]; then
+              echo "::error title=build-vercel::A build da Vercel não terminou em 25 minutos (último estado: ${estado:-sem resposta})."
+              exit 1
+            fi
+            sleep 20
+          done
