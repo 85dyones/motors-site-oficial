@@ -68,7 +68,7 @@ A quinta é a que nenhum recibo mostra: o histórico de óleo do dono anterior. 
 
 ## O que isso significa para quem compra usado
 
-O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental, não abre motor e não mede nada de lubrificação — a fronteira inteira está no guia "Laudo cautelar: o que verifica e o que não verifica".
+O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental, não abre motor e não mede nada de lubrificação — a fronteira inteira está no guia "Laudo cautelar: o que verifica e o que não verifica". O laudo fica com o vendedor e sai a pedido.
 
 Então a checagem é sua, e ela é documental antes de ser mecânica. Descubra se aquele motor usa correia banhada em óleo: nem todo motor pequeno e turbinado usa, e um mecânico identifica pelo código do motor em segundos. Depois peça nota fiscal da troca com quilometragem, placa e descrição do que foi substituído, e peça também as notas das trocas de óleo, com a especificação usada. Por último, olhe o óleo com o motor frio, procurando resíduo.
 

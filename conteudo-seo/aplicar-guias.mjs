@@ -162,14 +162,32 @@ function problemasParaPublicar(guia) {
 // colchetes na tela. Link no corpo só existe por estes quatro termos, uma vez
 // por DESTINO por página. Por isso a conferência imprime onde eles vão cair:
 // é a única linkagem interna que as peças conseguem ter hoje.
-const TERMOS_COM_DESTINO = [
-  { termo: "Avaliação Express", href: "/avaliacao" },
-  { termo: "perícia cautelar", href: "/garantia" },
-  { termo: "laudo cautelar", href: "/garantia" },
-  { termo: "financiamento", href: "/financiamento" },
-];
+//
+// Em 17/09/2026 esta lista deixou de ser cópia. Ela era de quatro entradas,
+// escrita quando `linksNoTexto.ts` tinha quatro; a linkagem entre guias levou
+// o arquivo a dezesseis, e o relatório aqui continuava mostrando quatro. Agora
+// o arquivo do site é lido como TEXTO — sem TypeScript no caminho, e sem uma
+// segunda lista para envelhecer sozinha.
+const FONTE_DOS_TERMOS = join(RAIZ, "src/lib/linksNoTexto.ts");
+
+function termosComDestino() {
+  const fonte = readFileSync(FONTE_DOS_TERMOS, "utf8");
+  const achados = [
+    ...fonte.matchAll(/\{\s*termo:\s*"((?:[^"\\]|\\.)+)",\s*href:\s*"([^"]+)"\s*\}/g),
+  ].map((m) => ({ termo: m[1].replace(/\\(.)/g, "$1"), href: m[2] }));
+  if (achados.length < 4) {
+    throw new Error(`linksNoTexto.ts devolveu ${achados.length} termos — o formato mudou.`);
+  }
+  return achados;
+}
+
+/** Os guias que já são destino de link, com o título exato que o site usa. */
+function titulosJaNoSite() {
+  return new Set(termosComDestino().filter((t) => t.href.startsWith("/guias/")).map((t) => t.termo));
+}
 
 function linksDaPagina(guia) {
+  const termos = termosComDestino();
   const blocos = [
     ...guia.corpo.flatMap((s) => s.paragrafos.map((p) => ({ onde: s.titulo, texto: p }))),
     ...guia.faq.map((f) => ({ onde: `FAQ · ${f.pergunta}`, texto: f.resposta })),
@@ -177,7 +195,7 @@ function linksDaPagina(guia) {
   const achados = [];
   const jaLinkados = new Set();
   for (const bloco of blocos) {
-    const candidatos = [...TERMOS_COM_DESTINO]
+    const candidatos = [...termos]
       .filter((d) => !jaLinkados.has(d.href))
       .sort((a, b) => b.termo.length - a.termo.length);
     const destinosDaChamada = new Set();
@@ -276,7 +294,9 @@ export function conferir(lote) {
     return { erros, avisos, guias: [] };
   }
 
-  const titulos = new Set(guias.map((g) => g.titulo));
+  // Título citado vale se está neste lote ou se já é destino de link no site:
+  // onda que se apoia na anterior cita a peça publicada, e isso é o certo.
+  const titulos = new Set([...guias.map((g) => g.titulo), ...titulosJaNoSite()]);
   const slugsVistos = new Set();
 
   for (const guia of guias) {

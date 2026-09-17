@@ -43,9 +43,15 @@ interface PecaDoLote {
   saida: { rotulo: string; href: string; apoio: string };
 }
 
-const lote = JSON.parse(
-  readFileSync(join(__dirname, "..", "conteudo-seo", "guias-onda-1.json"), "utf8"),
-) as { guias: PecaDoLote[] };
+/* As duas ondas, no mesmo saco: para a malha de links, "peça publicada" é
+   peça publicada, e o teste que só olhasse a Onda 1 deixaria os termos da
+   Onda 2 sem cobertura nenhuma. */
+const lerLote = (arquivo: string) =>
+  (JSON.parse(readFileSync(join(__dirname, "..", "conteudo-seo", arquivo), "utf8")) as {
+    guias: PecaDoLote[];
+  }).guias;
+
+const lote = { guias: [...lerLote("guias-onda-1.json"), ...lerLote("guias-onda-2.json")] };
 
 /** Tudo o que o leitor vê da peça, na ordem em que a página renderiza. */
 function textosDaPeca(peca: PecaDoLote): string[] {
@@ -120,14 +126,17 @@ describe("a página do guia linka as vizinhas, e nunca ela mesma", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("o conjunto rende os links medidos em 17/09 — 20 entre peças", () => {
-    // Número medido, não estimado: se uma reescrita derrubar citações, este
-    // teste mostra o tamanho da perda em vez de deixar passar em silêncio.
+  it("o conjunto rende os links medidos em 17/09 — 20 na Onda 1, 41 com a Onda 2", () => {
+    /* Número medido, não estimado: se uma reescrita derrubar citações, este
+       teste mostra o tamanho da perda em vez de deixar passar em silêncio.
+       Subiu de 20 para 41 quando as cinco peças de mecânica entraram, e o
+       ganho não é só o das peças novas: a Onda 1 também passou a ser citada
+       por elas. */
     const total = lote.guias.reduce(
       (soma, peca) => soma + linksDaPagina(peca).filter((h) => h.startsWith("/guias/")).length,
       0,
     );
-    expect(total).toBeGreaterThanOrEqual(20);
+    expect(total).toBeGreaterThanOrEqual(41);
   });
 
   it("o link comercial não foi expulso pelos novos", () => {

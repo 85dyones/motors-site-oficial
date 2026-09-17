@@ -74,7 +74,7 @@ E há a lista curta do que não compramos, que em dupla embreagem é objetiva: t
 
 Duas observações honestas sobre o que a gente ainda não entrega junto com o carro. O laudo da cautelar fica com o vendedor e sai a pedido: peça e leia antes de sinalizar qualquer valor. E não existe hoje um registro dessa etapa mecânica entregue ao cliente; se quiser saber o que foi olhado no seu, pergunte ao vendedor.
 
-Se o carro que você está olhando é um 1.0 turbo de três cilindros, vale ler também Motores turbo de baixa cilindrada: o que checar, porque motor pequeno e câmbio de dupla embreagem costumam vir no mesmo carro e envelhecem juntos. E se a sua dúvida de fundo é o que acontece quando um defeito aparece só depois da compra, o assunto é Vício oculto em carro usado: o que é e o que não é.
+Se o carro que você está olhando é um 1.0 turbo de três cilindros, vale ler também Motor turbo de baixa cilindrada usado: o que checar, porque motor pequeno e câmbio de dupla embreagem costumam vir no mesmo carro e envelhecem juntos. E se a sua dúvida de fundo é o que acontece quando um defeito aparece só depois da compra, o assunto é Vício oculto em carro usado: o que é e o que não é.
 
 ## O que fazer agora
 
@@ -96,7 +96,7 @@ Não. Uma trepidação que se repete sempre que o carro sai do lugar, principalm
 Varia por modelo, por origem da peça e por oficina, e a gente não publica valor sem medição própria. Peça orçamento à oficina antes de fechar a compra do carro. Vale saber de antemão que embreagem em uso normal não entra na garantia da loja e que o plano estendido, contratado à parte, também não cobre kit de embreagem.
 
 **A garantia da loja cobre o câmbio de dupla embreagem?**
-Cobre falha interna do câmbio por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa, dentro do limite de quilometragem previsto no contrato. Embreagem em uso normal fica de fora. A regra que mais importa é outra: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina — o conserto é feito em oficina parceira credenciada indicada pela gente.
+Cobre falha interna do câmbio por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Embreagem em uso normal fica de fora. A regra que mais importa é outra: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina — o conserto é feito em oficina parceira credenciada indicada pela gente.
 
 ---
 
@@ -105,7 +105,7 @@ Cobre falha interna do câmbio por três meses contados da entrega, sem carênci
 | Trecho | Destino |
 |---|---|
 | "Laudo cautelar: o que verifica e o que não verifica" | `/guias/laudo-cautelar-carro-usado` **(pilar da Onda 1)** |
-| "Motores turbo de baixa cilindrada: o que checar" | `/guias/motores-turbo-usados-o-que-checar` *(pilar da Onda 2 — sem link até a peça existir)* |
+| "Motor turbo de baixa cilindrada usado: o que checar" | `/guias/motores-turbo-usados-o-que-checar` *(pilar da Onda 2)* |
 | "Vício oculto em carro usado: o que é e o que não é" | `/guias/vicio-oculto-carro-usado` *(Onda 2 — link quando as duas subirem juntas)* |
 | "perícia cautelar" (1ª ocorrência, seção "O que a gente recusa") | `/garantia` *(termo automático de `linksNoTexto.ts`)* |
 | CTA final | **`/garantia`** |
@@ -125,8 +125,8 @@ Cobre falha interna do câmbio por três meses contados da entrega, sem carênci
 
 ## Pendências antes de publicar
 
-- [ ] **Limite de quilometragem da garantia.** O FAQ diz "dentro do limite de quilometragem previsto no contrato", sem número, porque o valor ainda não foi informado. Quando o dono confirmar, decidir se o número entra aqui ou só na `/garantia`.
-- [ ] **Link para o pilar da Onda 2.** A peça cita "Motores turbo de baixa cilindrada: o que checar" em texto puro. Vira link quando a peça existir.
+- [ ] **Limite de quilometragem da garantia.** O dono disse que existe; o contrato padrão de venda não o menciona (a cláusula quarta só fala em prazo). A menção foi retirada da peça em 17/09/2026: sem saber o número nem onde ele está escrito, citar o limite manda o comprador procurar no contrato uma linha que não existe. Volta quando o dono informar as duas coisas.
+- [x] **Link para o pilar da Onda 2.** A citação foi corrigida para o título exato da peça 09 — "Motor turbo de baixa cilindrada usado: o que checar" —, porque `segmentarComLinks` casa termo exato.
 - [ ] **Conferir com o time se "toda a faixa de marchas no modo manual" faz parte do teste que a casa já aplica.** O texto descreve o teste como recomendação ao comprador, não como prática declarada da loja — se for prática, a frase pode ganhar força.
 
 ## Conferência editorial

@@ -48,7 +48,7 @@ A confirmação definitiva é visual, com boroscópio pelo duto de admissão, e 
 
 Em paralelo, o histórico responde muito. Como o carro foi usado, se havia consumo de óleo, quais notas de troca existem e com qual especificação de óleo. E a pergunta de uma linha que separa dois cenários: esse motor tem injeção direta pura ou dupla?
 
-O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental — a fronteira está descrita no guia "Laudo cautelar: o que verifica e o que não verifica".
+O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental, e o laudo fica com o vendedor, à disposição de quem pedir — a fronteira está descrita no guia "Laudo cautelar: o que verifica e o que não verifica".
 
 ## O que resolve, e em que ordem de grandeza
 

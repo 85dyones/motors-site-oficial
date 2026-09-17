@@ -1,0 +1,506 @@
+{
+  "_leia": "As 5 peças da Onda 2 (conteudo-seo/pacote/guias/09..13-*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-2.json` — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
+  "guias": [
+    {
+      "slug": "motores-turbo-usados-o-que-checar",
+      "titulo": "Motor turbo de baixa cilindrada usado: o que checar",
+      "titulo_seo": "Motor turbo de baixa cilindrada usado: o que checar",
+      "descricao": "Óleo fora de lugar, folga no eixo, fumaça na retomada e histórico de óleo com nota. O que checar num 1.0 ou 1.3 turbo usado — e o que só aparece rodando.",
+      "corpo": [
+        {
+          "titulo": "O que decide num turbo pequeno usado",
+          "paragrafos": [
+            "Num motor turbo de baixa cilindrada usado, cinco coisas decidem: vazamento de óleo na região do turbo, folga no eixo do turbo, fumaça na retomada, consumo de óleo acima do normal e cabeçote reparado sem nota. Nenhuma delas aparece no laudo cautelar, porque o exame cautelar olha identificação, estrutura e histórico documental, e não abre motor.",
+            "Essa lista não é teórica, e não é a de um portal: é exatamente a que faz a Motors Store não comprar um turbo pequeno. Quem escreve aqui é quem paga a perícia antes de comprar, recusa o veículo quando a conta não fecha e responde pela garantia depois da entrega.",
+            "Downsizing é isso: tirar de um bloco pequeno o torque que antes vinha de um bloco maior, usando pressão de admissão no lugar de cilindrada. O ganho é real e aparece no consumo. A conta que chega ao mercado de usados também é real, e é de outra natureza: a mesma potência sai de menos metal, com mais pressão dentro do cilindro, mais temperatura no coletor e um componente novo no meio do caminho — o turbocompressor, que vive do óleo do motor e morre do óleo do motor.",
+            "Vale registrar uma coisa que costuma confundir. O crivo de 120 pontos que a loja cita é da perícia cautelar, não da mecânica. Ele cobre identificação, estrutura e passado documental do veículo, que é exatamente o que a cautelar existe para cobrir. Não cobre turbo, não mede compressão e não avalia bomba de alta pressão. Quem quiser a fronteira inteira vai encontrá-la no guia \"Laudo cautelar: o que verifica e o que não verifica\"."
+          ]
+        },
+        {
+          "titulo": "O que o desgaste faz nesses motores",
+          "paragrafos": [
+            "Quase tudo o que dá errado num turbo pequeno começa no óleo, e quase nada começa no turbo.",
+            "O eixo do turbocompressor gira em rotação altíssima apoiado num filme de óleo, e é o mesmo óleo que tira o calor da carcaça central. Quando esse filme perde qualidade — óleo fora da especificação, óleo vencido pelo tempo, óleo diluído por combustível, intervalo esticado —, o mancal desgasta. Desgaste de mancal aparece como folga no eixo, e folga no eixo tira os retentores das pontas do lugar. A partir daí o óleo passa para o lado da admissão e é queimado junto com a mistura, saindo como fumaça azulada, ou passa para o lado do escape e queima ali mesmo.",
+            "Há um segundo caminho, mais silencioso, que é a carbonização do próprio óleo dentro da carcaça central. Motor desligado quente para de circular óleo, e óleo parado num corpo quente assa. O resíduo endurecido estreita a passagem de alimentação e acelera o desgaste do mancal — de novo, o mancal. Uso urbano de trajeto curto, com desligamento logo depois do esforço, é o regime que mais produz isso.",
+            "O acionamento da pressão é o terceiro ponto. Seja válvula de alívio, seja geometria variável, o mecanismo trabalha no meio do gás quente e vai acumulando fuligem. Quando emperra, a pressão não sobe, ou sobe e não se sustenta, e a central de injeção entende que perdeu o controle e reduz o motor para o modo de segurança. É o caso clássico da luz de injeção que só acende com o carro carregado.",
+            "A ventilação do cárter é o quarto, e é o mais subestimado. Motor pressurizado empurra mais gás de combustão para o cárter, e o sistema que devolve esse gás para a admissão trabalha mais do que num aspirado. Quando a membrana ou a válvula desse sistema falha, névoa de óleo entra na admissão, a marcha lenta fica irregular, aparece um assobio fino e o consumo de óleo sobe sem vazamento visível por fora.",
+            "Há ainda a alimentação de combustível, que nesses motores é de alta pressão e quase sempre de injeção direta. A bomba de alta é acionada mecanicamente pelo comando, por um ressalto e um seguidor que se desgastam, e trabalha com tolerâncias apertadas, o que a deixa sensível a combustível ruim e a partícula. Falha ali aparece como partida difícil com o motor quente, perda de força sob carga e código de pressão de combustível, e o conserto não é barato. Guarde este ponto para o fim do guia: a perícia cautelar não avalia bomba de alta pressão.",
+            "Por último, a câmara. Pressão maior dentro do cilindro exige mais dos anéis e da junta do cabeçote. Anel cansado aparece como consumo de óleo e fumaça; junta comprometida aparece como água no óleo, óleo no reservatório de arrefecimento, fumaça branca persistente ou temperatura que não estabiliza. O sistema de arrefecimento inteiro trabalha mais quente nesses motores, e por isso ventoinha ligando cedo e temperatura instável são sintoma, não mania do carro.",
+            "Repare no encadeamento: nenhum desses itens é \"o turbo quebrou\". Todos são consequência de lubrificação, e é por isso que o histórico do óleo pesa mais, num turbo pequeno, do que o número do hodômetro."
+          ]
+        },
+        {
+          "titulo": "O que dá para ver sem abrir o motor",
+          "paragrafos": [
+            "Comece pelo motor frio de verdade. Chegue antes, peça para ninguém aquecer o carro e ouça a partida do jeito que ela é. Partida a frio é o único momento em que folga, batida e fumaça aparecem sem esforço nenhum.",
+            "Depois procure óleo onde não deveria haver óleo: na região do turbo e nas tubulações que saem dele, na tampa de válvulas, no bloco e no reservatório de arrefecimento. Óleo na tampa de válvulas ou no bloco e óleo no reservatório de arrefecimento são dois dos gatilhos que mandam um carro para a perícia mecânica na nossa avaliação, e é razoável que sejam os seus também.",
+            "Abra a tubulação entre o turbo e o intercooler, se o vendedor permitir. Um filme leve de óleo ali é comum em motor com alguma quilometragem; óleo empoçado não é. Olhe também a caixa do filtro de ar: névoa de óleo na entrada conta a história da ventilação do cárter.",
+            "Confira o caminho da pressão. Com o motor desligado, siga as mangueiras entre turbo, intercooler e corpo de borboleta procurando braçadeira fora de posição, mangueira ressecada e traço de óleo nas emendas. Vazamento de pressurização não quebra nada de imediato: tira desempenho, atrapalha o controle da central e costuma ser confundido com turbo cansado, o que muda bastante a conta do reparo.",
+            "A vareta diz mais do que parece. Nível, cor e, principalmente, cheiro. Óleo com cheiro de combustível indica diluição, que é típica de uso curto e de injeção direta, e óleo diluído protege menos o mancal do turbo. Emulsão clara na tampa de abastecimento merece investigação, mas não é veredito sozinha: trajeto urbano curto também produz condensação ali. O que vira veredito é água no óleo, e isso se confirma na oficina.",
+            "A folga do eixo é checagem de minutos para um mecânico, e dispensa desmontar o motor: solta-se a tubulação de admissão e sente-se o eixo com a mão, procurando folga e, sobretudo, qualquer sinal de contato do rotor com a carcaça. Se o vendedor não permite essa checagem num carro turbo, essa recusa já é uma resposta.",
+            "Procure sinal de remap e de peça fora de especificação: módulo piggyback, chicote emendado no sensor de pressão, admissão não original, adesivo de preparação. Importa por dois motivos. Muda o esforço que o motor já levou, e coloca o carro fora do que a garantia da loja cobre — remap e peça fora de especificação estão entre as exclusões, por escrito.",
+            "E peça o histórico de manutenção em nota fiscal, com quilometragem e placa. Não basta \"revisão em dia\": interessa qual óleo entrou, se a especificação é a que o fabricante pede para aquele motor e se o intervalo foi respeitado nos dois eixos, quilometragem e tempo. Revisão sem comprovação é, para nós, motivo de suspeita e de perícia mecânica. Vale o mesmo para você.",
+            "O passado documental do veículo — leilão, sinistro, restrição, numeração — é outro assunto e tem exame próprio. Ele está descrito em \"Laudo cautelar: o que verifica e o que não verifica\" e em \"O que reprova um carro na perícia cautelar\"."
+          ]
+        },
+        {
+          "titulo": "O que só aparece rodando",
+          "paragrafos": [
+            "Volta no quarteirão não prova nada num motor turbo. O que prova é rodar até a temperatura estabilizar e então pedir esforço.",
+            "Em marcha alta e rotação baixa, acelere a fundo e peça para alguém olhar o escapamento. Fumaça azulada na retomada é o sinal mais direto de óleo passando por onde não deveria. O mesmo vale depois de uma descida longa em retenção: acelerar em seguida e ver um sopro azul atrás é o comportamento clássico de retentor de turbo cansado.",
+            "Sinta a pressão. Ela deve subir com previsibilidade e se manter enquanto o pé estiver embaixo. Pressão que sobe e cai sozinha, retomada que não vem, motor que entra em modo de segurança e luz de injeção que só acende sob carga apontam para o acionamento da pressão ou para vazamento na pressurização.",
+            "Ouça. Assobio que muda de tom, ruído metálico ao subir rotação e som de sirene ao aliviar o acelerador são pistas de mancal e de rotor. Nenhum deles fecha diagnóstico sozinho, e todos justificam levar o carro a uma oficina antes de assinar qualquer coisa.",
+            "Faça também uma partida a quente. Depois de rodar, desligue, espere alguns minutos e ligue de novo. Partida demorada com o motor quente é sintoma clássico de alimentação de alta pressão, e é justamente o que não aparece numa volta de demonstração, feita sempre com o carro já ligado no pátio. Com o motor desligado, escute: em vários desses motores uma bomba elétrica continua circulando líquido por alguns minutos para tirar calor do turbo, e silêncio absoluto ali merece pergunta.",
+            "Acompanhe temperatura e ventoinha no trânsito parado e na estrada. Ventoinha ligando cedo, temperatura instável e vestígio de aditivo pelo vão do motor são, na nossa régua, motivo de perícia mecânica.",
+            "E fique com o limite honesto: nada disso substitui uma avaliação mecânica. Serve para decidir se vale pagar por uma — e, num turbo pequeno, quase sempre vale. O câmbio tem lista própria, que não é assunto deste guia."
+          ]
+        },
+        {
+          "titulo": "O que faz a gente não comprar um turbo pequeno",
+          "paragrafos": [
+            "Esta é a parte que só quem recusa carro consegue escrever, e é a mesma lista usada na mesa de avaliação.",
+            "A Motors Store não compra um turbo de baixa cilindrada com vazamento de óleo na região do turbo; com folga no eixo do turbo; com fumaça na retomada; com consumo de óleo acima do normal; ou com cabeçote reparado sem nota. E não compra, em geral, carro que exija abrir motor ou câmbio para saber o estado real.",
+            "Cada item tem um porquê mecânico, e os quatro primeiros são o mesmo porquê visto de ângulos diferentes: óleo onde não deveria estar. Vazamento na região do turbo pode ser mangueira e pode ser retentor, e o que separa as duas hipóteses é o preço de abrir para descobrir. Folga no eixo é mancal gasto, e mancal gasto não volta com aditivo. Fumaça na retomada é óleo já queimando na câmara. Consumo acima do normal é o mesmo óleo indo embora por um caminho que ninguém mediu. O quinto item é de outra natureza: não é o reparo de cabeçote que reprova, é a ausência de documento dizendo o que foi feito, com qual peça e por quem.",
+            "O critério por trás dos cinco é um só, e não é gosto: qualquer um deles só se precifica abrindo o motor, e o preço de abrir só se conhece depois de aberto. Comprar nessas condições é assumir uma conta de valor desconhecido e depois responder por ela na garantia — que é justamente o que a loja não faz.",
+            "Recusar não é dizer que o carro é ruim. É dizer que não dá para responder por ele durante três meses sem saber o que tem dentro. O carro segue existindo e é vendido em outro ponto do mercado, muitas vezes sem que nada disso apareça no anúncio. De cada dez veículos que avaliamos, três entram."
+          ]
+        },
+        {
+          "titulo": "O que a loja faz antes de o carro entrar, e o que não faz",
+          "paragrafos": [
+            "Todo veículo passa por perícia cautelar independente antes da vitrine, e ela olha identificação, estrutura e histórico. Não abre motor, não mede compressão e não avalia bomba de alta pressão. O laudo fica com o vendedor e sai a pedido.",
+            "A perícia mecânica não é etapa de todo carro. Ela acontece nos veículos que levantam suspeita na avaliação do time, e é exploratória. No motor, o que manda um carro para lá é óleo na tampa de válvulas ou no bloco, fumaça azulada ou branca persistente, água no óleo ou óleo no reservatório de arrefecimento, marcha lenta irregular e luz de injeção. No arrefecimento, ventoinha ligada cedo, temperatura instável e vestígio de aditivo. No histórico, revisão sem comprovação, quilometragem incompatível com o estado e mais de um dono no último ano.",
+            "Óleo e filtros são trocados em todo carro que entra. Isso resolve o presente e não reescreve o passado: óleo novo não conta o que o óleo velho fez, e é por isso que a nota fiscal da manutenção anterior continua valendo mais do que a aparência do motor.",
+            "O conserto em garantia é feito na rede de mais de quinze oficinas parceiras credenciadas, escolhidas por especialidade, e a loja indica qual atende cada caso.",
+            "Vale dizer o que essa combinação significa e o que ela não significa. Significa que o passado documental e a estrutura foram examinados por um terceiro, antes de qualquer anúncio, e que a mecânica foi olhada com profundidade proporcional à suspeita levantada. Não significa motor aberto, compressão medida ou bomba de alta avaliada em todo veículo — isso não é feito aqui nem é feito na cautelar, e dizer o contrário seria vender um exame que não existe.",
+            "Uma transparência que falta: hoje não existe um documento dessa etapa mecânica entregue junto com o carro. Quem quiser saber o que foi verificado pode pedir ao vendedor."
+          ]
+        },
+        {
+          "titulo": "O que isso muda para quem está comprando",
+          "paragrafos": [
+            "A garantia da Motors Store é de três meses contados da entrega, sem carência, sem franquia, com mão de obra inclusa, e cobre falha interna de motor, câmbio e diferencial. O conserto é feito em oficina parceira credenciada indicada pela loja, e a regra que vem antes de todas as outras é avisar a loja antes de levar o carro a qualquer oficina. Não entram desgaste, manutenção, embreagem em uso normal, bombas, fluidos, remap e peça fora de especificação, e evento externo.",
+            "Há ainda um plano de garantia estendida vendido à parte, e dois pontos dele mudam a decisão de quem está comprando turbo. O primeiro: o plano não cobre turbocompressor. O segundo: quem contrata fica obrigado a trocar óleo e filtro a cada 7.000 quilômetros ou 6 meses, o que vier primeiro, com nota fiscal contendo quilometragem e placa — sem isso, o plano não responde. Contratar é opcional, e não é condição para o preço do carro nem para a entrega.",
+            "Junte as duas informações com o que este guia explicou e a conclusão é direta: o componente mais sensível desse tipo de motor é o que menos se consegue cobrir depois, e a manutenção que o protege é mais curta e mais documentada do que a média das pessoas pratica. Num turbo pequeno, o dinheiro mais bem gasto é o da checagem antes de assinar, não o do plano depois.",
+            "Os outros dois pontos de risco desse mesmo tipo de motor têm guias próprios: \"Correia dentada banhada em óleo: por que ela falha\" e \"Carbonização de válvulas em injeção direta\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Chegue com o motor frio. Procure óleo na região do turbo, na tampa de válvulas, no bloco e no reservatório de arrefecimento. Peça a um mecânico a checagem de folga no eixo, que leva minutos. Rode até a temperatura estabilizar e force uma retomada em marcha alta, olhando o escapamento. Exija nota fiscal da manutenção com quilometragem, placa e especificação do óleo. E, se qualquer um dos cinco sinais aparecer, orce o reparo antes de assinar — nunca depois.",
+            "Os carros do nosso estoque são os que passaram por esse filtro. O que a loja assume depois da entrega — prazo, o que entra, o que não entra e a ordem de acionamento — está escrito na página de garantia."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Motor 1.0 turbo usado vale a pena?",
+          "resposta": "Vale quando o histórico do óleo existe em nota fiscal e quando os cinco sinais de alerta não aparecem: vazamento na região do turbo, folga no eixo, fumaça na retomada, consumo de óleo acima do normal e cabeçote reparado sem nota. A tecnologia não é o problema; o regime de manutenção que ela exige é mais rígido que o de um aspirado, e é ele que separa um bom negócio de uma conta aberta."
+        },
+        {
+          "pergunta": "Dá para saber se o turbo está no fim sem desmontar?",
+          "resposta": "Dá para chegar perto. Folga no eixo se sente com a tubulação de admissão solta, em minutos; fumaça azulada na retomada, consumo de óleo e óleo empoçado na tubulação do intercooler aparecem sem abrir nada. O que não dá é medir quanto tempo ainda resta — por isso esses sinais valem como motivo para orçar o reparo antes de fechar negócio."
+        },
+        {
+          "pergunta": "Fumaça azul na retomada é sempre o turbo?",
+          "resposta": "Não. Pode ser retentor de válvula, anéis cansados ou ventilação do cárter comprometida, e o diagnóstico exige oficina. Na avaliação para compra, porém, a origem muda pouco: qualquer uma delas significa motor consumindo óleo, e é motivo de recusa aqui."
+        },
+        {
+          "pergunta": "A garantia cobre o turbocompressor?",
+          "resposta": "O plano de garantia estendida vendido à parte não cobre turbocompressor — isso está escrito nele. A garantia da loja, de três meses a partir da entrega, cobre falha interna de motor, câmbio e diferencial, com mão de obra inclusa, e exige que você avise a loja antes de levar o carro a qualquer oficina. O que entra e o que não entra, item a item, está na página de garantia."
+        }
+      ],
+      "saida": {
+        "rotulo": "Como funciona a garantia da Motors Store",
+        "href": "/garantia",
+        "apoio": "Os carros do nosso estoque são os que passaram por esse filtro."
+      },
+      "sobre": [
+        "Motor turbo de baixa cilindrada",
+        "Turbocompressor",
+        "Compra de carro seminovo"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "correia-dentada-banhada-em-oleo",
+      "titulo": "Correia dentada banhada em óleo: por que ela falha",
+      "titulo_seo": "Correia dentada banhada em óleo: por que ela falha",
+      "descricao": "A correia que roda dentro do óleo falha quando o óleo sai da especificação ou o intervalo estica. Os sinais que vêm antes e o que exigir num usado.",
+      "corpo": [
+        {
+          "titulo": "Uma correia que trabalha dentro do óleo",
+          "paragrafos": [
+            "A correia dentada banhada em óleo falha por uma razão acima de todas as outras: ela foi projetada para viver dentro de um óleo específico, trocado num intervalo específico, e qualquer desvio nesses dois pontos ataca o material dela. Quando ela começa a se desfazer, o problema deixa de ser a correia — o resíduo circula no óleo e entope a peneira de sucção da bomba, derrubando a pressão de lubrificação do motor inteiro.",
+            "Essa é a diferença que muda tudo para quem compra usado. Uma correia seca que arrebenta estraga o cabeçote. Uma correia banhada em óleo que se desfaz pode estragar o motor por baixo, pela falta de óleo, antes de dar qualquer sinal de que estava se desfazendo.",
+            "O conceito existe por um motivo legítimo. Rodando imersa, a correia trabalha mais silenciosa e com menos atrito do que uma corrente, o que ajuda consumo e emissões, e em várias aplicações ela aciona também a bomba de óleo. Não é improviso de fabricante. É um projeto com janela de manutenção estreita, e o mercado de usados é justamente onde essa janela costuma já ter sido ultrapassada por alguém que você nunca vai conhecer."
+          ]
+        },
+        {
+          "titulo": "Por que ela falha",
+          "paragrafos": [
+            "A correia é feita de elastômero reforçado com fibras, formulado para resistir ao óleo que o fabricante especifica para aquele motor. É uma compatibilidade química, não uma recomendação genérica. Óleo fora da especificação, óleo vencido pelo tempo, óleo diluído por combustível e intervalo esticado atacam o material, que começa a perder pedaços.",
+            "Vale separar duas coisas que o balcão costuma tratar como uma só: viscosidade e especificação não são a mesma coisa. Um óleo de mesma viscosidade — o número que todo mundo decora — pode trazer pacote de aditivos diferente e não ter a homologação que o fabricante exige para aquele motor. Num motor de correia banhada, é a homologação que protege a correia, e é ela que precisa estar escrita na nota fiscal, não apenas o grau de viscosidade.",
+            "Uso urbano de trajeto curto é o regime que mais acelera isso, e por um caminho indireto. Motor que não atinge a temperatura plena não evapora o combustível e a água que se acumulam no cárter. O óleo que deveria proteger a correia vira o óleo que a ataca, e o hodômetro não registra nada disso — o carro andou pouco e envelheceu muito.",
+            "O que acontece depois tem duas saídas, e as duas são caras.",
+            "A primeira é a lubrificação. O material solto circula com o óleo e se acumula na peneira de sucção, no fundo do cárter. Fluxo restrito significa pressão baixa, e pressão baixa castiga mancais, comando e, em motor turbo, o mancal do turbocompressor. Nas aplicações em que a mesma correia aciona a bomba de óleo, a falha se alimenta: menos correia, menos bomba, menos óleo, mais desgaste.",
+            "A segunda é o sincronismo. Correia que perde dentes ou rompe para os comandos, e em motor de interferência, arranjo usual nos projetos modernos, válvula e pistão se encontram. O desfecho é cabeçote aberto, válvulas empenadas e, com frequência, pistão danificado.",
+            "Existe ainda um sintoma externo que não é falha da correia, mas mora no mesmo lugar: vazamento de óleo pela tampa da correia ou pelo retentor do virabrequim. Ele importa porque o nível caindo tira do sistema justamente aquilo de que a correia depende."
+          ]
+        },
+        {
+          "titulo": "Quais sintomas aparecem antes",
+          "paragrafos": [
+            "O sinal mais útil é o mais fácil de olhar e o que quase ninguém olha: resíduo preto e borrachudo. Na vareta, na boca de abastecimento, sob a tampa do óleo, no óleo drenado e no filtro. Não é borra de óleo velho, e a diferença se vê no dedo. Encontrar isso num carro que você está avaliando é motivo para parar a negociação e levar o carro a uma oficina, não para negociar preço.",
+            "Depois vem o ruído. Chocalho seco ou zumbido nos primeiros segundos de partida a frio, que some quando o óleo pressuriza.",
+            "A luz de pressão de óleo é o alarme, não o aviso. Quando ela acende, a restrição já existe. Contar com ela é contar com o último aviso possível.",
+            "Há também marcha lenta irregular, códigos de falha ligados a sincronismo e luz de injeção acesa — os mesmos sintomas que mandam um carro para a perícia mecânica na nossa avaliação, e que aqui podem estar apontando para a correia.",
+            "E fica a nota honesta: muitos carros avisam pouco. É exatamente por isso que, neste componente, documento vale mais que sintoma."
+          ]
+        },
+        {
+          "titulo": "O que o intervalo de troca esconde",
+          "paragrafos": [
+            "O intervalo publicado pelo fabricante é uma informação verdadeira e incompleta. Cinco coisas ficam de fora dele.",
+            "A primeira é que ele tem dois eixos, quilometragem e tempo, e vale o que vencer primeiro. Carro pouco rodado não está dentro do intervalo por ter rodado pouco.",
+            "A segunda é que ele pressupõe o óleo certo, trocado no prazo certo. Uso severo — trajeto curto, trânsito parado, muito tempo em marcha lenta, combustível ruim — encurta na prática um intervalo que continua o mesmo no papel.",
+            "A terceira é que vários fabricantes revisaram para baixo o intervalo desses motores depois de rodar frota no mundo real, por boletim de serviço ou campanha. O número impresso num manual de alguns anos atrás pode não ser o número vigente hoje. Confirme com a marca o intervalo atual daquele motor e daquele ano, e não com o manual que está no porta-luvas.",
+            "A quarta é o escopo do serviço. Nota fiscal escrita \"troca de correia dentada\" não diz se o kit correto entrou — tensor, guias, retentores e, onde existir, a correia da própria bomba de óleo —, nem se o cárter e a peneira de sucção foram limpos. Se a correia antiga já estava soltando material, trocar só a correia deixa o resíduo lá dentro.",
+            "A quinta é a que nenhum recibo mostra: o histórico de óleo do dono anterior. Uma correia trocada na quilometragem certa, num motor que passou os anos anteriores com óleo fora de especificação, é uma correia nova num motor que já engoliu resíduo."
+          ]
+        },
+        {
+          "titulo": "O que isso significa para quem compra usado",
+          "paragrafos": [
+            "O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental, não abre motor e não mede nada de lubrificação — a fronteira inteira está no guia \"Laudo cautelar: o que verifica e o que não verifica\". O laudo fica com o vendedor e sai a pedido.",
+            "Então a checagem é sua, e ela é documental antes de ser mecânica. Descubra se aquele motor usa correia banhada em óleo: nem todo motor pequeno e turbinado usa, e um mecânico identifica pelo código do motor em segundos. Depois peça nota fiscal da troca com quilometragem, placa e descrição do que foi substituído, e peça também as notas das trocas de óleo, com a especificação usada. Por último, olhe o óleo com o motor frio, procurando resíduo.",
+            "Do nosso lado da mesa, os gatilhos são os mesmos. Óleo na tampa de válvulas ou no bloco, marcha lenta irregular e luz de injeção mandam o carro para a perícia mecânica, que não é etapa de todo veículo: acontece nos que levantam suspeita. E revisão sem comprovação já é, por si, motivo de suspeita. A Motors Store não compra, em geral, carro que exija abrir motor para saber o estado real — e é isso que um motor com histórico de óleo desconhecido exige.",
+            "Óleo e filtros são trocados em todo carro que entra aqui. Isso resolve o presente e não reescreve o passado: óleo novo não conta o que o óleo velho fez.",
+            "Na garantia da loja, correia é manutenção e não entra — o que a garantia cobre é falha interna de motor, câmbio e diferencial, por três meses a partir da entrega, com mão de obra inclusa, e o primeiro passo ao aparecer qualquer defeito é avisar a loja antes de levar o carro a qualquer oficina. Quem contrata o plano de garantia estendida vendido à parte, que é opcional, assume trocar óleo e filtro a cada 7.000 quilômetros ou 6 meses, o que vier primeiro, com nota fiscal contendo quilometragem e placa. Para um motor de correia banhada, essa disciplina não é burocracia do plano: é a manutenção que o componente pede.",
+            "Este motor costuma vir acompanhado de outros dois assuntos, e cada um tem guia próprio: \"Motor turbo de baixa cilindrada usado: o que checar\" e \"Carbonização de válvulas em injeção direta\".",
+            "E há o que fazer depois de comprar, quando o histórico não existir em papel. Trate o serviço como vencido, orce a troca com o kit completo e faça a primeira troca de óleo logo, com o produto homologado para aquele motor. Antecipar um serviço que talvez já estivesse em dia custa muito menos do que descobrir a peneira de sucção restrita no primeiro mês de uso."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Pergunte se o motor tem correia banhada em óleo antes de qualquer outra coisa. Se tiver, exija nota fiscal da última troca com quilometragem e placa, e as notas das trocas de óleo com a especificação. Olhe o óleo frio procurando resíduo preto e borrachudo, na vareta e sob a tampa. Confirme com a marca o intervalo vigente para aquele motor e aquele ano. E, se o histórico não existir em papel, ponha o custo do serviço na conta antes de assinar.",
+            "Os carros do nosso estoque são os que passaram por esse filtro. O que a loja assume depois da entrega — prazo, o que entra, o que não entra e a ordem de acionamento — está escrito na página de garantia."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Como sei se o meu carro tem correia banhada em óleo?",
+          "resposta": "Pelo código do motor. Ela fica dentro do motor, sem tampa externa para abrir e olhar, então a consulta é ao manual ou à marca — e um mecânico identifica em segundos pelo motor. Nem todo motor pequeno turbinado usa esse arranjo, e a resposta muda o que você precisa exigir do vendedor."
+        },
+        {
+          "pergunta": "Correia banhada em óleo é defeito de projeto?",
+          "resposta": "É um projeto com janela de manutenção estreita. Funciona quando o óleo é o especificado e o intervalo é cumprido, e pune o descuido com mais severidade do que uma corrente ou uma correia seca. O risco no mercado de usados não vem do conceito: vem de não se saber como o carro foi tratado antes de você."
+        },
+        {
+          "pergunta": "Dá para trocar por corrente?",
+          "resposta": "Não. O motor é projetado em volta desse arranjo — alojamento, acionamento e, em muitas aplicações, a bomba de óleo. A conversa útil não é trocar a tecnologia, é cumprir a manutenção dela."
+        },
+        {
+          "pergunta": "Achei resíduo preto na vareta. É grave?",
+          "resposta": "É motivo para parar e levar a uma oficina antes de assinar qualquer coisa. Resíduo borrachudo pode ser material da correia se soltando, e o que torna isso sério não é a correia: é a peneira de sucção da bomba de óleo restringindo e a pressão de lubrificação caindo no motor inteiro."
+        }
+      ],
+      "saida": {
+        "rotulo": "Como funciona a garantia da Motors Store",
+        "href": "/garantia",
+        "apoio": "Os carros do nosso estoque são os que passaram por esse filtro."
+      },
+      "sobre": [
+        "Correia dentada banhada em óleo",
+        "Lubrificação do motor",
+        "Manutenção de carro usado"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "carbonizacao-valvulas-injecao-direta",
+      "titulo": "Carbonização de válvulas em injeção direta",
+      "titulo_seo": "Carbonização de válvulas na injeção direta: o que fazer",
+      "descricao": "Na injeção direta o combustível não lava a válvula de admissão, e o vapor de óleo assa ali. Quando aparece, como checar antes de comprar e o que resolve.",
+      "corpo": [
+        {
+          "titulo": "Por que a injeção direta carboniza a válvula de admissão",
+          "paragrafos": [
+            "Na injeção direta, o combustível é lançado dentro do cilindro e nunca toca a válvula de admissão — e era justamente o combustível que, na injeção indireta, lavava essa válvula a cada ciclo. Sem essa lavagem, o vapor de óleo que volta pela ventilação do cárter e, nos motores com recirculação de gases, a fuligem do escape se depositam na haste e na cabeça da válvula e assam ali até virar carvão duro.",
+            "A tecnologia não é um erro. Injetar dentro do cilindro permite controle fino da mistura, taxa de compressão mais alta e ganho real de rendimento, e é por isso que ela está em quase todo motor turbo moderno de baixa cilindrada. O que veio junto foi um efeito colateral previsível e pouco falado na hora da venda: a válvula de admissão perdeu o banho de combustível que a mantinha limpa por acidente de projeto.",
+            "O depósito vem de mais de uma fonte ao mesmo tempo. A ventilação do cárter devolve para a admissão vapor de óleo que sempre existiu, e agora encontra uma superfície quente que ninguém lava. Onde há recirculação de gases de escape, entra fuligem junto. O cruzamento de válvulas empurra um pouco de gás queimado de volta para o duto. E óleo que passa por retentor de válvula cansado, ou pelos retentores de um turbocompressor no fim, chega ao mesmo lugar — motivo pelo qual as duas coisas costumam aparecer no mesmo carro.",
+            "Vale uma correção de mito, porque ela aparece sempre: escolher etanol ou gasolina não muda esse ponto específico. Em injeção direta pura, nenhum dos dois toca a válvula de admissão.",
+            "Há uma exceção que compensa checar. Alguns motores usam injeção dupla, direta e indireta no mesmo cilindro, e a indireta existe em parte para molhar a válvula em certas condições de funcionamento. Saber se o motor daquele carro é de injeção direta pura ou dupla muda o tamanho do problema, e a resposta está na especificação técnica do fabricante."
+          ]
+        },
+        {
+          "titulo": "Quando isso aparece",
+          "paragrafos": [
+            "Carbonização é acúmulo, não evento. Ela se forma ao longo de dezenas de milhares de quilômetros, em ritmo que depende muito mais de como o carro foi usado do que da idade dele — e por isso não existe quilometragem em que ela comece. Este guia não publica número: quem publicar um sem medição está chutando.",
+            "O que acelera é conhecido. Trajeto curto, em que o motor não atinge a temperatura plena. Muito tempo em marcha lenta, típico de uso em aplicativo e entrega. Óleo fora da especificação ou vencido pelo tempo. Consumo de óleo já elevado por outra causa. E a sobreposição com turbo, que traz mais gás de combustão para o cárter e mais temperatura para tudo.",
+            "Os sintomas chegam em ordem previsível. Primeiro, tremor ou falha nos primeiros segundos de partida a frio, que some quando o motor aquece. Depois, marcha lenta irregular e hesitação em aceleração leve. Em seguida, perda de força em rotação baixa, consumo subindo e luz de injeção acesa, com códigos de falha de combustão em um ou mais cilindros. No estágio mais avançado, depósito suficiente para a válvula não assentar direito, o que deixa de ser questão de limpeza.",
+            "A armadilha do diagnóstico é que essa lista é quase idêntica à de vela gasta, bobina fraca, injetor sujo ou entrada falsa de ar. Carbonização se confirma por exclusão mais inspeção, e não pelo sintoma sozinho."
+          ]
+        },
+        {
+          "titulo": "O que dá para checar antes de comprar",
+          "paragrafos": [
+            "Comece pela partida a frio, com o motor realmente frio, e fique dentro do carro ouvindo os primeiros vinte segundos. É o momento em que a falha de combustão aparece sem precisar de instrumento.",
+            "Depois, um scanner. Não para ler só o código armazenado, que pode ter sido apagado na véspera, mas para olhar o dado ao vivo: contagem de falhas por cilindro e correções de mistura. É um exame barato, rápido, e que um comprador pode pedir em qualquer oficina antes de fechar negócio.",
+            "A confirmação definitiva é visual, com boroscópio pelo duto de admissão, e ela exige desmontar o coletor. Isso é serviço de oficina, não de pátio — e é justamente o tipo de abertura que muda a natureza da negociação, porque quem abre precisa saber quem paga para fechar.",
+            "Em paralelo, o histórico responde muito. Como o carro foi usado, se havia consumo de óleo, quais notas de troca existem e com qual especificação de óleo. E a pergunta de uma linha que separa dois cenários: esse motor tem injeção direta pura ou dupla?",
+            "O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental, e o laudo fica com o vendedor, à disposição de quem pedir — a fronteira está descrita no guia \"Laudo cautelar: o que verifica e o que não verifica\"."
+          ]
+        },
+        {
+          "titulo": "O que resolve, e em que ordem de grandeza",
+          "paragrafos": [
+            "São três caminhos, em ordem de custo e de eficácia.",
+            "O primeiro é a limpeza química, por aditivo de combustível ou por produto aplicado na admissão. Ajuda em depósito leve e serve como manutenção preventiva. Em carvão já endurecido, o resultado é limitado, e prometer mais do que isso é vender esperança.",
+            "O segundo é o jateamento com casca de noz, que é o método padrão quando o depósito já está firme. O coletor de admissão sai, o material abrasivo remove o carvão sem agredir a válvula, e o serviço leva várias horas de oficina.",
+            "O terceiro é a raspagem manual com o coletor desmontado, usada quando não há jateamento disponível. Funciona, dá mais trabalho e exige cuidado para não deixar resíduo cair no cilindro.",
+            "Sobre custo, o que dá para dizer com honestidade é a ordem de grandeza, e isto é declarado como estimativa de mercado: não é preço praticado pela Motors Store nem levantamento de preços em Curitiba. A limpeza química custa como um item de manutenção de rotina. O jateamento, por envolver desmontagem e várias horas de oficina, sai uma ordem de grandeza acima da limpeza química. E os dois, somados, ficam muito abaixo de uma retífica de motor. Peça orçamento antes de decidir: o valor varia por oficina, por motor e por cidade, e qualquer número fechado publicado aqui seria chute.",
+            "Uma ressalva que vale mais que o preço: limpar resolve o acúmulo, não a causa. Se a ventilação do cárter estiver comprometida, se o motor consumir óleo ou se o uso continuar sendo trajeto curto com muita marcha lenta, o depósito volta. Óleo na especificação, trocado no prazo, e alguma rodagem que leve o motor à temperatura plena são o que empurra o intervalo para a frente."
+          ]
+        },
+        {
+          "titulo": "O que isso muda para quem compra usado",
+          "paragrafos": [
+            "Carbonização é um custo previsível dessa tecnologia, não um defeito escondido do vendedor. A diferença entre um bom e um mau negócio está em orçar antes de assinar, e não em descobrir depois.",
+            "Do nosso lado, marcha lenta irregular e luz de injeção são gatilhos que mandam o carro para a perícia mecânica, que não é etapa de todo veículo: acontece nos que levantam suspeita na avaliação do time, e é exploratória. A perícia cautelar, essa sim feita em todo carro antes da vitrine, não abre motor, não mede compressão, não avalia bomba de alta pressão e não verifica carbonização de válvulas de admissão. E a Motors Store não compra, em geral, carro que exija abrir motor para saber o estado real — o que inclui o caso em que a única forma de saber o tamanho do depósito é tirar o coletor.",
+            "Óleo e filtros são trocados em todo carro que entra aqui. É o que dá para fazer e resolve o presente; não reescreve o histórico de óleo de quem teve o carro antes.",
+            "Na garantia da loja, limpeza e manutenção não entram. O que entra é falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa, com uma regra que vem antes de todas: avisar a loja antes de levar o carro a qualquer oficina. Quem contrata o plano de garantia estendida vendido à parte, que é opcional, assume trocar óleo e filtro a cada 7.000 quilômetros ou 6 meses, o que vier primeiro, com nota fiscal contendo quilometragem e placa — e, num motor de injeção direta, essa é exatamente a disciplina que retarda o depósito.",
+            "Os outros dois assuntos que andam junto com este motor têm guias próprios: \"Motor turbo de baixa cilindrada usado: o que checar\" e \"Correia dentada banhada em óleo: por que ela falha\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Pergunte se o motor é de injeção direta pura ou dupla. Ouça a partida com o motor frio. Peça um scanner com leitura ao vivo, olhando falha por cilindro. Levante o histórico de uso e de óleo, procurando trajeto curto, marcha lenta e consumo de óleo. E, se os sinais aparecerem, orce a limpeza antes de assinar — carbonização é conta previsível, e conta previsível se negocia antes.",
+            "Os carros do nosso estoque são os que passaram por esse filtro. O que a loja assume depois da entrega — prazo, o que entra, o que não entra e a ordem de acionamento — está escrito na página de garantia."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Carbonização de válvulas tem cura?",
+          "resposta": "A limpeza resolve o acúmulo, e o jateamento com casca de noz é o método padrão quando o carvão já está endurecido. O que não se resolve com limpeza é a causa: se a ventilação do cárter estiver comprometida, se houver consumo de óleo ou se o uso continuar sendo de trajeto curto com muita marcha lenta, o depósito volta."
+        },
+        {
+          "pergunta": "Andar de etanol ou de gasolina muda alguma coisa?",
+          "resposta": "Na válvula de admissão, não. Em injeção direta pura o combustível vai direto para o cilindro e não toca essa válvula, qualquer que seja ele. O que muda o ritmo do depósito é o óleo, a ventilação do cárter e o tipo de uso."
+        },
+        {
+          "pergunta": "Motor de injeção direta usado é má compra?",
+          "resposta": "Não. É uma compra com um custo conhecido, que precisa entrar na conta antes da assinatura em vez de aparecer depois. Um scanner com leitura ao vivo e o histórico de uso e de óleo dizem, em poucos minutos, se esse custo está perto ou longe."
+        },
+        {
+          "pergunta": "Como diferenciar carbonização de vela ou bobina com defeito?",
+          "resposta": "Pelos sintomas, não dá: falha a frio, marcha lenta irregular e luz de injeção aparecem nos três casos. Diferencia-se por exclusão e inspeção — vela e bobina são baratas de testar e trocar, e são o primeiro passo de qualquer oficina; se a falha persistir, a inspeção do duto de admissão é o passo seguinte."
+        }
+      ],
+      "saida": {
+        "rotulo": "Como funciona a garantia da Motors Store",
+        "href": "/garantia",
+        "apoio": "Os carros do nosso estoque são os que passaram por esse filtro."
+      },
+      "sobre": [
+        "Injeção direta",
+        "Carbonização de válvulas de admissão",
+        "Manutenção de carro usado"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "cambio-dupla-embreagem-usado",
+      "titulo": "Câmbio de dupla embreagem em carro usado: o que checar",
+      "titulo_seo": "Câmbio de dupla embreagem usado: o que checar | Motors Store",
+      "descricao": "Trepidação na saída, atraso de engate e solavanco entre marchas não são jeito do câmbio: são sintoma. O que testar no test-drive, frio e quente.",
+      "corpo": [
+        {
+          "titulo": "Como funciona um câmbio de dupla embreagem",
+          "paragrafos": [
+            "Um câmbio de dupla embreagem saudável troca marcha mais rápido do que qualquer motorista consegue, e não dá trabalho. Um câmbio de dupla embreagem no fim da vida é um dos reparos mais caros que um carro popular pode ter — e a diferença entre os dois aparece em poucos minutos de test-drive, desde que você saiba o que está sentindo.",
+            "Trepidação na arrancada, atraso para a marcha entrar e solavanco entre primeira e segunda não são jeito do câmbio. São sintoma. E são exatamente os sintomas que fazem a gente devolver um carro na avaliação, em vez de colocá-lo na vitrine.",
+            "O mecanismo, em uma frase: são dois conjuntos de embreagem trabalhando no mesmo câmbio, um cuidando das marchas ímpares e o outro das pares e da ré. Enquanto você anda em terceira, a quarta já está engatada do outro lado, esperando. A troca é a passagem do torque de uma embreagem para a outra, e é por isso que ela é tão rápida: a marcha seguinte não precisa ser procurada, ela já está lá.",
+            "Há duas famílias. A de dupla embreagem a seco, mais comum em carros de motor pequeno, dissipa calor pelo ar. A banhada em óleo aguenta mais torque e usa o próprio óleo para refrigerar e lubrificar. Quem decide tudo isso é um módulo hidráulico e eletrônico, com sensores e atuadores, que calcula o momento do engate e a pressão aplicada.",
+            "Falta um componente nessa lista, e a ausência explica quase todo o comportamento que o comprador estranha: não existe conversor de torque, como num câmbio automático convencional. Para o carro sair do lugar, uma embreagem precisa patinar de forma controlada — é o mesmo serviço que o seu pé faz num câmbio manual, executado por um atuador. Patinar gera calor. Calor repetido, sem tempo de dissipar, é o que envelhece o conjunto antes da hora.",
+            "Isto é como o mecanismo funciona, e vale para qualquer marca que use a tecnologia. O que a gente faz com essa informação vem mais abaixo."
+          ]
+        },
+        {
+          "titulo": "O que é comportamento normal e o que é defeito",
+          "paragrafos": [
+            "Boa parte das reclamações que circulam sobre esse câmbio descreve característica de projeto, não avaria. Vale saber separar antes de desistir de um bom carro — ou de aceitar um ruim.",
+            "Comportamento normal — uma pequena pausa entre soltar o freio e o carro começar a andar; o câmbio se comportar de um jeito nos primeiros minutos, com o conjunto frio, e de outro depois de aquecido; uma hesitação curta quando você tira e devolve o pé do acelerador em fila lenta; um ruído discreto de engate em velocidade muito baixa; a sensação de que o carro não rasteja igual a um automático de conversor, porque de fato não rasteja do mesmo jeito.",
+            "Defeito — trepidação na saída, com o carro estremecendo como se alguém estivesse soltando mal a embreagem de um manual; solavanco entre primeira e segunda; atraso longo entre você pedir a marcha e ela entrar; engate que escapa para neutro; mensagem de superaquecimento do câmbio no painel; cheiro de queimado depois de uma rampa ou de um congestionamento; luz de falha acesa, ou apagada há pouco tempo.",
+            "A régua prática é a repetição. Um solavanco isolado com o câmbio frio é um episódio. O mesmo solavanco toda vez que você sai do sinal, com o carro já quente, é um padrão — e padrão é diagnóstico."
+          ]
+        },
+        {
+          "titulo": "O que testar no test-drive",
+          "paragrafos": [
+            "Frio, e essa é a parte que quase ninguém consegue. Peça para dar a partida você mesmo, com o motor frio, antes de qualquer pessoa aquecer o carro. Vários sintomas de embreagem aparecem nos primeiros minutos e somem depois. Se o carro já está ligado e quente quando você chega, isso não é necessariamente má-fé, mas o teste foi perdido: marque outro dia e chegue antes.",
+            "Trânsito parado, que é o ambiente mais cruel para uma dupla embreagem a seco. Quinze a vinte minutos de anda-e-para, com o carro rastejando em fila, colocam a embreagem para patinar repetidamente sem ar passando. Sinta se aparece uma trepidação que não existia com o câmbio frio, e olhe o painel enquanto isso.",
+            "Rampa. Entre numa subida de garagem ou num viaduto, pare no meio da inclinação, solte o freio e saia — para a frente e de ré. Arrancada em rampa obriga a embreagem a patinar com carga, que é a condição em que um kit gasto se entrega primeiro.",
+            "Toda a faixa de marchas. Num trecho livre, acelere até o câmbio percorrer todas as marchas e depois force as trocas no modo manual ou nas borboletas, subindo e descendo uma a uma. Marcha que hesita só no modo manual também é informação.",
+            "Fora do volante, três coisas. O painel: qualquer mensagem ou luz conta, e código apagado na véspera costuma voltar. O óleo do câmbio, nas versões banhadas em óleo: escuro ou com cheiro de queimado é um dos sinais que mandam um carro para a perícia mecânica aqui dentro. E o histórico: pergunte se o kit de embreagem já foi trocado e peça a nota. Kit trocado com nota é um dado a favor; kit trocado sem nota é uma história."
+          ]
+        },
+        {
+          "titulo": "O que custa caro depois",
+          "paragrafos": [
+            "Quatro itens concentram o custo desse câmbio, e nenhum deles é barato em marca nenhuma: o kit de embreagem, o módulo que comanda os engates, os atuadores e garfos, e o volante bimassa quando o conjunto o utiliza. Não publicamos valores porque preço de peça e de mão de obra varia por modelo, por origem da peça e por oficina, e número sem medição não entra nos nossos guias — o orçamento é da oficina, e é dela que você deve pedir.",
+            "O que dá para dizer com precisão é quem paga. A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Ela não cobre embreagem em uso normal: desgaste de embreagem não é falha interna do câmbio, e essa exclusão está na lista do que a garantia não cobre.",
+            "O plano estendido, opcional e contratado à parte, administrado pela Gestauto, também não cobre kit de embreagem. E ele exige troca de óleo e filtro a cada 7.000 km ou 6 meses, o que vier primeiro, com nota fiscal — manutenção fora dessa régua encerra o plano. Contratar é opcional e não muda preço, financiamento nem a entrega do carro.",
+            "Some as duas linhas e você tem a conclusão desconfortável que este guia existe para entregar: o kit de embreagem é do dono do carro, na nossa garantia e no plano. O jeito de não pagar por ele é não comprar um carro que já está pedindo um."
+          ]
+        },
+        {
+          "titulo": "O que a gente recusa, e por quê",
+          "paragrafos": [
+            "Todo veículo que entra passa por perícia cautelar independente antes da vitrine, e ela examina identificação, estrutura e histórico. Ela não abre motor nem câmbio, não mede compressão e não avalia bomba de alta pressão — a fronteira inteira está em Laudo cautelar: o que verifica e o que não verifica. Ou seja: nenhum laudo cautelar do mercado vai dizer como está a embreagem daquele carro. Quem faz esse teste é o time, no volante, na avaliação.",
+            "Quando aparece sinal, o carro vai para perícia mecânica. Ela não é etapa obrigatória de todo carro: é sob demanda e exploratória, para os que levantam suspeita. Em câmbio, o que manda um carro para lá é solavanco no engate, atraso para entrar a marcha, trepidação na arrancada em dupla embreagem e óleo escuro ou com cheiro de queimado. Óleo e filtros, esses, a gente troca em todo carro que entra.",
+            "E há a lista curta do que não compramos, que em dupla embreagem é objetiva: trepidação na saída; solavanco entre primeira e segunda; atraso de engate; mensagem de superaquecimento do câmbio. Junto com ela vale uma regra mais ampla, que responde por boa parte das recusas: carro que exige abrir o câmbio para se saber o estado real não entra. Comprar conjunto fechado é aposta, e aposta com o carro do cliente dentro não é negócio nosso.",
+            "É por isso que, de cada dez carros avaliados, três entram. Os outros sete não deixam de existir — seguem para outro ponto do mercado, e muitas vezes são anunciados sem que nada disso apareça.",
+            "Duas observações honestas sobre o que a gente ainda não entrega junto com o carro. O laudo da cautelar fica com o vendedor e sai a pedido: peça e leia antes de sinalizar qualquer valor. E não existe hoje um registro dessa etapa mecânica entregue ao cliente; se quiser saber o que foi olhado no seu, pergunte ao vendedor.",
+            "Se o carro que você está olhando é um 1.0 turbo de três cilindros, vale ler também Motor turbo de baixa cilindrada usado: o que checar, porque motor pequeno e câmbio de dupla embreagem costumam vir no mesmo carro e envelhecem juntos. E se a sua dúvida de fundo é o que acontece quando um defeito aparece só depois da compra, o assunto é Vício oculto em carro usado: o que é e o que não é."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Faça o test-drive frio, no trânsito parado e numa rampa, nessa ordem, e desconfie de qualquer carro que chegue até você já aquecido. Peça a nota de uma eventual troca de kit. E, antes de fechar, leia o que a garantia cobre e o que ela não cobre — porque em dupla embreagem essa linha é a que separa um susto de um prejuízo."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Câmbio de dupla embreagem dá problema?",
+          "resposta": "Dá, como qualquer câmbio, e o custo do reparo é mais alto do que o de um manual. Mas boa parte do que se chama de problema é característica do projeto: pausa curta na saída, comportamento diferente com o câmbio frio e hesitação em fila lenta são normais. Trepidação na arrancada, solavanco entre primeira e segunda e atraso de engate não são."
+        },
+        {
+          "pergunta": "Trepidação na saída é normal em dupla embreagem?",
+          "resposta": "Não. Uma trepidação que se repete sempre que o carro sai do lugar, principalmente com o conjunto já quente, indica embreagem gasta ou fora de ajuste. É um dos sinais que fazem a gente recusar o carro na avaliação, e é o que você deve procurar num test-drive em rampa e no trânsito parado."
+        },
+        {
+          "pergunta": "Quanto custa trocar o kit de embreagem?",
+          "resposta": "Varia por modelo, por origem da peça e por oficina, e a gente não publica valor sem medição própria. Peça orçamento à oficina antes de fechar a compra do carro. Vale saber de antemão que embreagem em uso normal não entra na garantia da loja e que o plano estendido, contratado à parte, também não cobre kit de embreagem."
+        },
+        {
+          "pergunta": "A garantia da loja cobre o câmbio de dupla embreagem?",
+          "resposta": "Cobre falha interna do câmbio por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Embreagem em uso normal fica de fora. A regra que mais importa é outra: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina — o conserto é feito em oficina parceira credenciada indicada pela gente."
+        }
+      ],
+      "saida": {
+        "rotulo": "Como funciona a garantia de motor e câmbio",
+        "href": "/garantia",
+        "apoio": "Em dupla embreagem, o que a garantia cobre e o que ela não cobre é a linha que separa um susto de um prejuízo."
+      },
+      "sobre": [
+        "Câmbio de dupla embreagem",
+        "Transmissão automatizada",
+        "Compra de carro usado"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "vicio-oculto-carro-usado",
+      "titulo": "Vício oculto em carro usado: o que é e o que não é",
+      "titulo_seo": "Vício oculto em carro usado: o que é | Motors Store",
+      "descricao": "Vício oculto é o defeito que já existia na venda e não dava para perceber. O que a perícia alcança, o que ela não alcança e o que a garantia banca.",
+      "corpo": [
+        {
+          "titulo": "O que significa vício oculto",
+          "paragrafos": [
+            "Vício oculto é o defeito que já existia quando o carro foi vendido, não dava para perceber num exame comum na hora da compra, e aparece depois. Não é qualquer problema que surge depois da compra — peça que se desgastou com o uso é outra coisa, e essa diferença decide quase toda discussão sobre carro usado.",
+            "Há uma verdade que costuma ficar de fora do argumento de venda, inclusive do nosso: em carro usado, certeza absoluta não existe. Não existe com laudo cautelar, não existe com perícia mecânica, e não existe aqui. O que existe é a diferença entre uma loja que sabe disso e organiza a operação em torno do risco, e uma que finge que ele não está lá.",
+            "Três características costumam ser usadas para descrever um vício oculto: o defeito já existia antes da venda, ainda que em estado latente; ele não era perceptível num exame comum feito na hora da compra; e ele compromete o uso ou o valor do bem. Compare com o que não é vício oculto e a fronteira fica visível. Defeito aparente é o que estava à vista quando você comprou, do estofamento rasgado ao pneu careca. Desgaste natural é a peça que existe para gastar: pastilha, disco, palheta, bateria, embreagem em uso normal. E dano posterior é o que aconteceu depois, de uma colisão a uma manutenção que não foi feita.",
+            "A compra feita em loja e a compra feita entre particulares não são tratadas da mesma forma, e isso não depende de nada que esteja escrito nesta página. Este guia descreve o conceito para você entender a conversa. Ele não é parecer jurídico, não vale como orientação sobre o seu caso e não substitui quem pode dar essa orientação: se a sua dúvida é sobre os seus direitos, sobre o seu contrato e sobre o seu carro, o caminho é o Procon ou um advogado."
+          ]
+        },
+        {
+          "titulo": "Por que certeza absoluta não existe em carro usado",
+          "paragrafos": [
+            "Quatro motivos, e nenhum deles é falha de quem examina.",
+            "Um carro usado é um objeto com história que ninguém reconstrói inteira. Quem vendeu pode não saber o que foi feito antes dele; quem usou pode não lembrar; e o serviço feito na oficina da esquina, pago em dinheiro e sem nota, não deixa rastro em base nenhuma.",
+            "Toda inspeção é uma foto de um dia. Um componente dentro da especificação hoje pode falhar no mês que vem, e isso não torna o exame errado — torna o exame o que ele é: um retrato técnico daquele carro naquela data.",
+            "Fadiga de material não avisa. Peças acumulam ciclos de esforço e cedem num ponto que nenhum exame não destrutivo enxerga sem desmontar. E desmontar um motor sadio para saber como ele está é caro, demorado e costuma devolver o motor pior do que ele entrou.",
+            "Sintoma intermitente é intermitente. O ruído que aparece a cada dez partidas a frio pode simplesmente não aparecer no dia da perícia — e não aparecer não é o mesmo que não existir.",
+            "Isso vale para qualquer carro usado, inclusive os que a gente vende. Quem promete um usado sem risco está vendendo uma frase, não um carro."
+          ]
+        },
+        {
+          "titulo": "O que a perícia cautelar alcança e o que não alcança",
+          "paragrafos": [
+            "A perícia cautelar examina três eixos. Identificação: numeração de chassi, motor e câmbio, etiquetas distribuídas pela carroceria, gravação em vidros, tudo cruzado com o documento. Estrutura: longarinas, colunas, assoalho, torres de suspensão, pontos de solda e espessura de pintura, que é como se detecta reparo em painel estrutural. Histórico: passagem por leilão, registro de sinistro, ocorrência de roubo ou furto, gravame, restrição e débito.",
+            "O crivo de 120 pontos que a gente cita é dessa perícia. É exame de procedência, não exame de mecânica — e a distinção é a coisa mais importante desta página. A perícia cautelar não abre motor, não mede compressão de cilindro e não avalia bomba de alta pressão. Um carro pode passar folgado nela e ter um problema mecânico que ela nunca teve como ver. A fronteira completa está em Laudo cautelar: o que verifica e o que não verifica.",
+            "Do lado de cá, o que a gente faz com isso. Perícia cautelar independente em todo veículo, antes da vitrine. Troca de óleo e filtros em todo carro que entra. E perícia mecânica nos carros que levantam suspeita na avaliação do time — ela não é etapa obrigatória de todo carro; é sob demanda e exploratória, disparada por sinal concreto: óleo na tampa de válvulas ou no bloco, fumaça persistente, marcha lenta irregular, luz de injeção, solavanco ou atraso de engate no câmbio, ventoinha ligando cedo, ruído de suspensão, revisão sem comprovação, quilometragem incompatível com o estado.",
+            "Nada disso elimina o risco, mas há o que reduz. Um exame feito por quem não tem interesse na venda vale mais do que um feito pelo próprio vendedor. Histórico de manutenção com nota fiscal é a única prova de que a revisão aconteceu, e a falta dela é, por si só, um motivo para desconfiar. Conjunto caro e sensível pede avaliação mecânica separada, contratada por você, porque nenhuma perícia de procedência responde por ele — é o caso do motor turbo de baixa cilindrada e do câmbio de dupla embreagem. E test-drive longo, com o carro frio no começo, mostra o que um giro de dez minutos no quarteirão nunca mostra.",
+            "Duas coisas que a gente ainda não entrega, e que preferimos escrever do que deixar você descobrir. O laudo da cautelar fica com o vendedor e sai a pedido — peça, leia inteiro e não se contente com o resultado resumido. E não existe hoje um registro dessa etapa mecânica entregue ao cliente; se quiser saber o que foi olhado no seu carro, pergunte ao vendedor."
+          ]
+        },
+        {
+          "titulo": "O que dá para esperar de uma loja séria",
+          "paragrafos": [
+            "Cinco coisas, e nenhuma delas depende de boa vontade no momento em que o defeito aparece. Todas dependem do que foi feito antes dele.",
+            "Que o exame tenha sido feito antes do anúncio, por conta da loja, e não depois da sua proposta e à sua custa. Quem examina antes assume o custo de descobrir o problema e o prejuízo de recusar o carro; quem examina depois transfere os dois para você.",
+            "Que o documento exista e esteja disponível para leitura antes de qualquer assinatura, sem você precisar insistir.",
+            "Que o que foi encontrado seja dito, com as palavras certas. Aprovado, com apontamento e reprovado são três resultados diferentes, e um apontamento descrito na hora certa não derruba negócio nenhum — o assunto é Laudo cautelar: aprovado, com apontamento ou reprovado.",
+            "Que exista garantia por escrito, com prazo e escopo legíveis antes da assinatura, e não uma promessa verbal de que \"qualquer coisa a gente resolve\".",
+            "Que o telefone seja atendido depois da venda, e que exista um caminho combinado para quando algo acontecer — com nome, endereço e procedimento."
+          ]
+        },
+        {
+          "titulo": "A garantia é a resposta ao que não dá para ver",
+          "paragrafos": [
+            "A perícia resolve o que dá para enxergar. A garantia banca parte do que não dá — e é essa a relação entre as duas, uma sendo consequência da outra.",
+            "A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia, sem termo de isenção e com mão de obra inclusa. Ela não cobre desgaste, como pastilha, disco, pneu, palheta e bateria; não cobre manutenção, como óleo, filtro, vela e correia; não cobre embreagem em uso normal, bombas, fluidos, remap e peça fora de especificação; não cobre evento externo, de colisão a enchente e granizo; e não cobre transporte, guincho, alimentação e hospedagem.",
+            "A regra mais importante dela cabe em uma linha: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina. O conserto é feito em oficina parceira credenciada indicada pela gente — são mais de quinze, separadas por especialidade — e é essa indicação que garante que alguém responda pelo serviço depois.",
+            "Existe ainda um plano estendido, opcional, contratado à parte e administrado pela Gestauto, com regras próprias de cobertura, de acionamento e de manutenção obrigatória. Contratar é opcional e não muda preço, financiamento nem a entrega do carro.",
+            "Nada disso é a única proteção que existe numa compra de loja, e nenhuma linha desta página diz o contrário. O que a garantia é: o que a gente banca, por escrito, sem você precisar cobrar. Sobre direitos previstos em lei e sobre o seu caso específico, quem orienta é o Procon ou um advogado — não é conversa de vendedor, e a gente não vai fingir que é.",
+            "E é por isso que o filtro na entrada é tão fechado. De cada dez carros avaliados, três entram. Carro que exige abrir motor ou câmbio para se saber o estado real não entra, porque comprar conjunto fechado é aposta — e a conta dessa aposta, quando dá errado, chega para quem comprou o carro, não para quem apostou. Se o carro que você está olhando tem câmbio de dupla embreagem, o teste específico está em Câmbio de dupla embreagem em carro usado: o que checar."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Antes de fechar qualquer compra, faça três perguntas ao vendedor: quem examinou este carro, quando, e o que foi encontrado. Peça o documento e leia inteiro. Depois leia a garantia que vem com ele — prazo, escopo, exclusões e o que fazer quando algo acontece."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "O que é vício oculto em carro usado?",
+          "resposta": "É o defeito que já existia quando o carro foi vendido, não era perceptível num exame comum na hora da compra e aparece depois, comprometendo o uso ou o valor do veículo. Peça que se desgastou com o uso, defeito que estava à vista na compra e dano ocorrido depois são outras três coisas. A diferença entre elas é o que decide quase toda discussão."
+        },
+        {
+          "pergunta": "Laudo cautelar garante que o carro não tem vício oculto?",
+          "resposta": "Não. O laudo cautelar examina identificação, estrutura e histórico — é exame de procedência. Ele não abre motor, não mede compressão e não avalia bomba de alta pressão, então não tem como responder pela saúde mecânica do veículo. Um carro pode passar na cautelar e apresentar falha mecânica depois."
+        },
+        {
+          "pergunta": "Comprei um carro usado e apareceu um defeito. Qual é o primeiro passo?",
+          "resposta": "Se o carro é nosso, o primeiro passo é avisar a loja antes de levar a qualquer oficina: é o que a garantia pede e é o que preserva o registro do que aconteceu. Em qualquer compra, junte o que você tem — contrato, laudo, notas de manutenção — antes de conversar. E, se a dúvida for sobre direitos, procure o Procon ou um advogado."
+        },
+        {
+          "pergunta": "A Motors Store cobre vício oculto?",
+          "resposta": "Vício oculto é um conceito jurídico, não o nome de uma cobertura, então a resposta honesta é descrever o que a gente cobre: falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa, com as exclusões listadas no termo que acompanha a venda. E a regra de sempre: avise a gente antes de levar o carro a qualquer oficina."
+        }
+      ],
+      "saida": {
+        "rotulo": "O que a garantia de motor e câmbio cobre",
+        "href": "/garantia",
+        "apoio": "A perícia resolve o que dá para enxergar. A garantia banca parte do que não dá."
+      },
+      "sobre": [
+        "Vício oculto",
+        "Compra de carro usado",
+        "Garantia de veículo usado"
+      ],
+      "estado": "publicado"
+    }
+  ]
+}

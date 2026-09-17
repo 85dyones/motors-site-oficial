@@ -70,7 +70,7 @@ Que o telefone seja atendido depois da venda, e que exista um caminho combinado 
 
 A perícia resolve o que dá para enxergar. A garantia banca parte do que não dá — e é essa a relação entre as duas, uma sendo consequência da outra.
 
-A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia, sem termo de isenção e com mão de obra inclusa. Há um limite de quilometragem previsto no contrato. Ela não cobre desgaste, como pastilha, disco, pneu, palheta e bateria; não cobre manutenção, como óleo, filtro, vela e correia; não cobre embreagem em uso normal, bombas, fluidos, remap e peça fora de especificação; não cobre evento externo, de colisão a enchente e granizo; e não cobre transporte, guincho, alimentação e hospedagem.
+A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia, sem termo de isenção e com mão de obra inclusa. Ela não cobre desgaste, como pastilha, disco, pneu, palheta e bateria; não cobre manutenção, como óleo, filtro, vela e correia; não cobre embreagem em uso normal, bombas, fluidos, remap e peça fora de especificação; não cobre evento externo, de colisão a enchente e granizo; e não cobre transporte, guincho, alimentação e hospedagem.
 
 A regra mais importante dela cabe em uma linha: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina. O conserto é feito em oficina parceira credenciada indicada pela gente — são mais de quinze, separadas por especialidade — e é essa indicação que garante que alguém responda pelo serviço depois.
 
@@ -100,7 +100,7 @@ Não. O laudo cautelar examina identificação, estrutura e histórico — é ex
 Se o carro é nosso, o primeiro passo é avisar a loja antes de levar a qualquer oficina: é o que a garantia pede e é o que preserva o registro do que aconteceu. Em qualquer compra, junte o que você tem — contrato, laudo, notas de manutenção — antes de conversar. E, se a dúvida for sobre direitos, procure o Procon ou um advogado.
 
 **A Motors Store cobre vício oculto?**
-Vício oculto é um conceito jurídico, não o nome de uma cobertura, então a resposta honesta é descrever o que a gente cobre: falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa, dentro do limite de quilometragem do contrato, com as exclusões listadas nele. E a regra de sempre: avise a gente antes de levar o carro a qualquer oficina.
+Vício oculto é um conceito jurídico, não o nome de uma cobertura, então a resposta honesta é descrever o que a gente cobre: falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa, com as exclusões listadas no termo que acompanha a venda. E a regra de sempre: avise a gente antes de levar o carro a qualquer oficina.
 
 ---
 
