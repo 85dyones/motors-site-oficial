@@ -721,9 +721,9 @@
         {
           "titulo": "Como levantamos isso",
           "paragrafos": [
-            "Nos últimos 30 dias avaliamos 57 veículos para compra e ficamos com 10. O motivo que mais reprovou foi passagem por leilão, presente em 16 dos carros avaliados.",
+            "Num período fechado de 30 dias, avaliamos 57 veículos para compra e ficamos com 10. O motivo que mais reprovou foi passagem por leilão, presente em 16 dos carros avaliados.",
             "O detalhe que torna esse número importante: leilão é justamente a única coisa da lista inteira que não aparece em documento nenhum. Quem confere só a papelada não vê o principal.",
-            "A amostra é de 57 veículos avaliados para entrada em estoque nos últimos 30 dias, registro da própria operação. Desses, 10 foram comprados e 47 recusados.",
+            "A amostra é de 57 veículos avaliados para entrada em estoque num período fechado de 30 dias, registro da própria operação. Desses, 10 foram comprados e 47 recusados.",
             "Ficaram de fora as recusas comerciais — carro que não entrou por preço, por giro ou por não se encaixar no perfil do estoque. Aqui só entra reprovação técnica: o que foi encontrado no veículo ou no histórico dele.",
             "Quando um carro apresentou mais de um problema, contamos apenas o motivo determinante — o que sozinho já impediria a compra. Por isso a soma fecha exatamente com o total avaliado.",
             "Nos 57 avaliados: passagem por leilão, 16 veículos, 28%; quilometragem não condizente, 13 veículos, 23%; reparos mal executados, 10 veículos, 18%; outros motivos técnicos, 8 veículos, 14%; e comprados, 10 veículos, 18%.",
@@ -737,7 +737,7 @@
             "O motivo mais frequente, e o mais difícil de detectar sem ajuda.",
             "Leilão de seguradora com dano estrutural é recusa direta aqui. Retomada de financiamento por inadimplência e desmobilização de frota são situações completamente diferentes, avaliadas pelo estado real do veículo — a diferença entre os tipos está no guia \"Como saber se um carro passou por leilão\".",
             "O que torna esse número relevante não é o tamanho dele. É o fato de que passagem por leilão não consta no documento do veículo. O Código de Trânsito não atribui ao Detran a competência de pesquisar e registrar esse histórico, então não há campo, não há observação, não há carimbo.",
-            "Ela só aparece em pesquisa de histórico em base privada, cruzada com inspeção física. Um comprador que confere o CRLV, consulta a base gratuita do Detran e não encontra nada conclui, razoavelmente, que está tudo limpo. E em 16 dos 57 carros que avaliamos no mês, não estava."
+            "Ela só aparece em pesquisa de histórico em base privada, cruzada com inspeção física. Um comprador que confere o CRLV, consulta a base gratuita do Detran e não encontra nada conclui, razoavelmente, que está tudo limpo. E em 16 dos 57 carros que avaliamos no período, não estava."
           ]
         },
         {
@@ -786,7 +786,7 @@
         {
           "titulo": "O que isso significa se você está comprando",
           "paragrafos": [
-            "Dos 57 carros que avaliamos no mês, 47 não entraram na nossa vitrine. Eles não sumiram do mercado — estão anunciados em algum lugar, e muitas vezes sem nada disso aparecer no anúncio.",
+            "Dos 57 carros que avaliamos no período, 47 não entraram na nossa vitrine. Eles não sumiram do mercado — estão anunciados em algum lugar, e muitas vezes sem nada disso aparecer no anúncio.",
             "Isso não é acusação a ninguém. É a consequência de um mercado em que a perícia costuma ser opcional, paga pelo comprador, e feita depois de a negociação já ter avançado.",
             "Três coisas que valem para qualquer carro, em qualquer loja:",
             "1. Peça pesquisa de histórico, não só o documento. Foi o que mais reprovou aqui, e é o que o documento não mostra.",
@@ -805,7 +805,7 @@
       "faq": [
         {
           "pergunta": "Qual o motivo mais comum de reprovação?",
-          "resposta": "Passagem por leilão, em 16 dos 57 veículos avaliados nos últimos 30 dias. É também o único motivo da lista que não aparece no documento do carro — só em pesquisa de histórico."
+          "resposta": "Passagem por leilão, em 16 dos 57 veículos avaliados no período de 30 dias da amostra. É também o único motivo da lista que não aparece no documento do carro — só em pesquisa de histórico."
         },
         {
           "pergunta": "Quilometragem baixa não é sempre bom?",

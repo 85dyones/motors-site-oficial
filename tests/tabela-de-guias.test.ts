@@ -229,6 +229,12 @@ describe("o seed — o guia que já está no ar", () => {
     // leilão, sinistro de médio porte, divergência de numeração" como os
     // motivos mais comuns — que é exatamente a distribuição das reprovações da
     // loja, dado que o repositório não tem. `CLAUDE.md`: não invente número.
+    //
+    // 17/09/2026: o dono confirmou o levantamento da própria operação, e a peça
+    // `o-que-reprova-pericia-cautelar` da Onda 1 publica a distribuição COM
+    // amostra, período e método no corpo (`REGUA_DO_GUIA` passou a cobrar a
+    // declaração). Isto aqui não afrouxa: ESTE texto, que é o do guia semeado
+    // pela migração, continua sem amostra nenhuma — e sem amostra, não lista.
     expect(TEXTO_VISIVEL).not.toMatch(/motivos mais comuns/i);
     expect(TEXTO_VISIVEL).not.toMatch(/sinistro de médio porte/i);
     expect(TEXTO_VISIVEL).not.toMatch(/divergência de numeração/i);
