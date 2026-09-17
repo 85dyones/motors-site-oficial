@@ -6,7 +6,7 @@ onda: 2
 keyword_primaria: carbonização de válvulas injeção direta
 keyword_secundarias: carbonização válvula de admissão · injeção direta problemas · jateamento com casca de noz · limpeza de válvulas de admissão
 saida_comercial: /garantia
-palavras: ~1.800
+palavras: ~1.550
 ---
 
 # Carbonização de válvulas em injeção direta

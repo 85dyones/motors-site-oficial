@@ -6,7 +6,7 @@ onda: 2
 keyword_primaria: correia banhada em óleo problema
 keyword_secundarias: correia dentada banhada em óleo · correia úmida do motor · troca da correia banhada em óleo · resíduo preto no óleo do motor
 saida_comercial: /garantia
-palavras: ~1.800
+palavras: ~1.600
 ---
 
 # Correia dentada banhada em óleo: por que ela falha
