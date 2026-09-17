@@ -120,12 +120,22 @@ export const RESUMO_DA_SECAO =
  * mostrar isto ao lado do formulário. As três primeiras vieram do plano de
  * conteúdo; a quarta e a quinta vieram de erro cometido e corrigido no
  * primeiro guia, na revisão de 05/09.
+ *
+ * A quarta mudou em 17/09/2026. Ela dizia "nada de ranking de motivo de
+ * reprovação", e o motivo era a AUSÊNCIA do dado: a distribuição real não
+ * estava publicada, então qualquer lista seria invenção. O dono confirmou
+ * nessa data os números do levantamento da própria operação — 57 veículos
+ * avaliados num período fechado de 30 dias, 10 comprados — e a peça
+ * `o-que-reprova-pericia-cautelar` publica essa distribuição com a amostra, o
+ * período e o método declarados no corpo. A regra passa a cobrar a
+ * declaração, em vez de proibir o assunto: ranking sem amostra continua
+ * proibido, e é o caso que ela sempre quis pegar.
  */
 export const REGUA_DO_GUIA = [
   "Assunto que a loja pratica — não conteúdo genérico que disputa com portal.",
   "Escrito do lado de quem paga a perícia e recusa o carro, não de quem vende o exame.",
   "Uma saída comercial definida: nenhum guia termina sem destino.",
-  "Nada de ranking de motivo de reprovação: a distribuição real não está publicada.",
+  "Ranking de motivo de reprovação só com levantamento próprio: amostra, período e método declarados no texto — sem isso, não publica.",
   // A ressalva fica na MESMA frase do exemplo proibido, sem ponto no meio: a
   // varredura de `coerencia-da-pericia` corta a janela no ponto final, e um
   // "nunca 'o laudo de cada veículo'" isolado vira infrator sozinho.
