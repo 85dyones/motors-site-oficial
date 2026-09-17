@@ -88,14 +88,14 @@ Todos os demais já devem estar configurados (Supabase, Turnstile, n8n, Upstash)
 
 ### 3.2 Campos Críticos
 
-Confirme que **todos** estão preenchidos:
+Confirme os campos abaixo (o `googleAdsId` fica vazio de propósito):
 
 | Campo | Obrigatório? | Onde obter | Valor esperado |
 |-------|-------------|----------|-----------------|
 | `metaPixelId` | ✅ Sim | Facebook Events Manager → Pixel ID | `1410450786690090` ou similar |
-| `googleAdsId` | ✅ Sim | Google Ads → Ferramentas → Configurações → Conta | `AW-123456789` |
+| `googleAdsId` | ❌ Não preencher | O Ads entra pela Tag do Google do container do GTM | vazio: ver `docs/GTM_CONFIGURACAO.md` §0 e §5.1, que dizem o que quebra se preencher |
 | `googleAdsConversionLabel` | ✅ Sim | Google Ads → Conversões → Rótulo | `AW-123456789/abcDefg_HiJk-LMnOp` |
-| `ga4Id` | ✅ Sim | Google Analytics 4 → Admin → Propriedade → ID da propriedade | `G-CZ4B4RYF61` (padrão) |
+| `ga4Id` | ✅ Sim | Google Analytics 4 → Admin → Propriedade → ID da propriedade | `G-KBL1MFN9E3` (produção) |
 | `whatsappRaw` | ✅ Sim | Seu número WhatsApp da empresa | `5511999999999` (sem "+" nem formatação) |
 
 Se qualquer campo estiver vazio:
