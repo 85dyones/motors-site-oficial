@@ -56,7 +56,7 @@ Fora do volante, três coisas. O painel: qualquer mensagem ou luz conta, e códi
 
 Quatro itens concentram o custo desse câmbio, e nenhum deles é barato em marca nenhuma: o kit de embreagem, o módulo que comanda os engates, os atuadores e garfos, e o volante bimassa quando o conjunto o utiliza. Não publicamos valores porque preço de peça e de mão de obra varia por modelo, por origem da peça e por oficina, e número sem medição não entra nos nossos guias — o orçamento é da oficina, e é dela que você deve pedir.
 
-O que dá para dizer com precisão é quem paga. A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Ela não cobre embreagem em uso normal: desgaste de embreagem não é falha interna do câmbio, e o contrato traz essa exclusão escrita.
+O que dá para dizer com precisão é quem paga. A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Ela não cobre embreagem em uso normal: desgaste de embreagem não é falha interna do câmbio, e essa exclusão está na lista do que a garantia não cobre.
 
 O plano estendido, opcional e contratado à parte, administrado pela Gestauto, também não cobre kit de embreagem. E ele exige troca de óleo e filtro a cada 7.000 km ou 6 meses, o que vier primeiro, com nota fiscal — manutenção fora dessa régua encerra o plano. Contratar é opcional e não muda preço, financiamento nem a entrega do carro.
 
