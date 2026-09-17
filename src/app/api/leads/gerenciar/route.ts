@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
+import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
 import {
   decidirDesfecho,
   ordenarEtapas,
@@ -46,17 +47,58 @@ export async function GET(request: NextRequest) {
     const perfil = perfisDe(profile);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
 
+    // ------------------------------------------------------------------------
+    // `?ref=` — a busca pela referência que o cliente leu na mensagem
+    // ------------------------------------------------------------------------
+    // A mensagem de WhatsApp de quem tem rastreio termina em "(Ref: 0DCB1CDC)",
+    // os 8 primeiros do `ag_uid`. O código existe para achar o lead quando a
+    // conversa chega de outro número, e até 2026-09-17 não havia onde procurá-lo.
+    //
+    // A busca não é rota à parte: é esta mesma leitura com um filtro a mais. O
+    // card do lead achado precisa de tudo o que o card da fila tem — a conversa
+    // do Chatwoot, o estado do assistente, as etapas do funil —, e uma resposta
+    // de outro formato faria a tela desenhar o funil padrão no lugar do
+    // configurado.
+    //
+    // As recusas vêm ANTES de qualquer leitura. A busca devolve nome e telefone,
+    // então quem não vê lead recebe 403 — e não o agregado que Marketing recebe
+    // na fila: a contagem de uma busca por código já diz se o lead existe.
+    const refPedida = new URL(request.url).searchParams.get("ref");
+    if (refPedida !== null && !podeVer) {
+      return NextResponse.json(
+        { error: "Seu perfil não consulta lead por referência" },
+        { status: 403 },
+      );
+    }
+    const ref = refPedida === null ? "" : normalizarRef(refPedida);
+    if (refPedida !== null && !ref) {
+      return NextResponse.json({ error: AVISO_DE_REF_INVALIDA }, { status: 400 });
+    }
+
     // `created_at`, não `criado_em`: a tabela `leads` é preexistente e já
     // trazia esse nome. Renomear quebraria consumidor externo — ver a nota na
     // migração 20260807210000.
-    const { data, error } = await supabase
+    let consulta = supabase
       .from("leads")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(500);
+    // O filtro vai para o BANCO, e não para a lista já lida: a fila para em
+    // 500 linhas, e o lead que se procura por código é justamente o que não
+    // está à vista. É `ilike` sem índice por trás — `leads_ag_uid_idx`
+    // (20260902130000) serve à igualdade do `/api/capi`, não a prefixo —, ou
+    // seja, varredura: aceitável numa consulta que só a equipe faz, à mão, e
+    // que não roda por visitante. O padrão, e por que ele é o inverso exato de
+    // `refCurta`, está em `padraoDaRef`.
+    if (ref) consulta = consulta.ilike("ag_uid", padraoDaRef(ref));
+    const { data, error } = await consulta;
 
     if (error) {
-      if (ehTabelaOuColunaAusente(error)) {
+      // Com `?ref=`, estrutura ausente é a coluna `ag_uid`: a tela só busca
+      // depois de ter lido a fila. Responder `migracaoPendente` aqui travaria o
+      // painel inteiro em "a tabela de leads ainda não existe" — falso, e sem
+      // volta até recarregar a página.
+      if (ehTabelaOuColunaAusente(error) && !ref) {
         return NextResponse.json({ leads: [], migracaoPendente: true });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -192,6 +234,10 @@ export async function GET(request: NextRequest) {
       // configuração tem gate próprio; isto só evita oferecer uma porta que
       // vai bater na cara de quem clicar.
       podeConfigurar: podeFazer(perfil, "Configurar o funil de vendas") === "faz",
+      // O que os `leads` acima SÃO: a fila (`null`) ou o resultado de uma
+      // busca. A tela lê daqui, e não do que pediu, para nunca chamar de
+      // "fila" uma lista filtrada nem de "busca vazia" uma fila vazia.
+      busca: ref ? { ref } : null,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
