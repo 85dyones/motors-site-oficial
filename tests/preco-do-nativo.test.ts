@@ -90,11 +90,17 @@ describe("o preço só é gravável no veículo do painel", () => {
     // 02/09 só no painel — o dono mandou o preço, promoção inclusive, ser do
     // RevendaMais em carro do RevendaMais. A conta do painel não mudou; a do
     // sync perdeu um.
+    //
+    // E de novo em 17/09: `CAMPO_DOS_OPCIONAIS` saiu de `CAMPOS_NOSSOS` e
+    // passou a somar só no painel, porque desde 08/09 o sync escreve os
+    // opcionais no carro do RevendaMais. Mesmo desenho: a conta do painel não
+    // mudou, a do sync perdeu um.
     expect(camposGravaveis("sync")).toHaveLength(CAMPOS_NOSSOS.length + CAMPOS_DE_FOTO.length);
     expect(doPainel.length).toBe(
       CAMPOS_NOSSOS.length +
         1 /* CAMPO_DA_PROMOCAO */ +
         CAMPOS_DE_PRECO_DO_NATIVO.length +
+        1 /* CAMPO_DOS_OPCIONAIS */ +
         CAMPOS_DE_FOTO.length,
     );
     // Sem repetição entre os grupos: campo em duas listas passaria por dois
