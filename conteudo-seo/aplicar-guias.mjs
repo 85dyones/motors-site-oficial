@@ -187,7 +187,10 @@ function titulosJaNoSite() {
 }
 
 function linksDaPagina(guia) {
-  const termos = termosComDestino();
+  // O caminho da própria peça sai da lista: `criarLinkador` faz isso no site,
+  // e sem o filtro o relatório inventaria um link que a página não tem.
+  const propria = `/guias/${guia.slug}`;
+  const termos = termosComDestino().filter((t) => t.href !== propria);
   const blocos = [
     ...guia.corpo.flatMap((s) => s.paragrafos.map((p) => ({ onde: s.titulo, texto: p }))),
     ...guia.faq.map((f) => ({ onde: `FAQ · ${f.pergunta}`, texto: f.resposta })),
@@ -441,7 +444,16 @@ export function conferir(lote) {
     for (const bloco of blocosDeTexto(guia)) {
       const citacoes = bloco.texto.matchAll(/(?:guia|levantamento)\s+"([^"]{10,140})"/g);
       for (const citacao of citacoes) {
-        if (!titulos.has(citacao[1])) {
+        // Vale o título exato, e vale o título cujo COMEÇO é um termo
+        // registrado: "Vício oculto em carro usado: o que é e o que não é" é
+        // citado inteiro, e o termo que vira link é "Vício oculto em carro
+        // usado" — cortado porque o \b de JS não casa depois de "é". O
+        // ponteiro está certo nos dois casos; o que não pode é apontar para
+        // peça que não existe.
+        const conhecido =
+          titulos.has(citacao[1]) ||
+          [...titulos].some((t) => t.length >= 16 && citacao[1].startsWith(t));
+        if (!conhecido) {
           erro(`${bloco.onde}: cita o guia "${citacao[1]}", que não é o título de nenhuma peça do lote.`);
         }
       }

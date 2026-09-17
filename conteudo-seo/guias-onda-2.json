@@ -1,5 +1,5 @@
 {
-  "_leia": "As 5 peças da Onda 2 (conteudo-seo/pacote/guias/09..13-*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-2.json` — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
+  "_leia": "As 5 peças deste lote da Onda 2 (conteudo-seo/pacote/guias/*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-2.json — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
   "guias": [
     {
       "slug": "motores-turbo-usados-o-que-checar",

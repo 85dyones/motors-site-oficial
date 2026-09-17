@@ -140,6 +140,19 @@ export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "correia dentada banhada em óleo", href: "/guias/correia-dentada-banhada-em-oleo" },
   { termo: "carbonização de válvulas", href: "/guias/carbonizacao-valvulas-injecao-direta" },
   { termo: "câmbio de dupla embreagem", href: "/guias/cambio-dupla-embreagem-usado" },
+
+  // ---- Onda 2: as duas peças de garantia ---------------------------------
+  //
+  // Elas fecham o circuito da onda: as peças de mecânica explicam o que
+  // quebra, estas explicam quem paga. "garantia estendida" entra como assunto
+  // porque a expressão aparece por extenso em seis peças, e é a dúvida que o
+  // leitor leva para o balcão.
+  //
+  // Os dois títulos entram cortados no ponto em que a pontuação começa —
+  // "vale a pena?" termina em interrogação, e o \b de JS não casa depois dela.
+  { termo: "Garantia de carro usado em loja: o que está coberto", href: "/guias/garantia-carro-usado-loja" },
+  { termo: "Garantia estendida de carro usado vale a pena", href: "/guias/garantia-estendida-vale-a-pena" },
+  { termo: "garantia estendida", href: "/guias/garantia-estendida-vale-a-pena" },
 ];
 
 export interface SegmentoDeTexto {

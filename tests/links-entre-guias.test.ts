@@ -51,7 +51,13 @@ const lerLote = (arquivo: string) =>
     guias: PecaDoLote[];
   }).guias;
 
-const lote = { guias: [...lerLote("guias-onda-1.json"), ...lerLote("guias-onda-2.json")] };
+const lote = {
+  guias: [
+    ...lerLote("guias-onda-1.json"),
+    ...lerLote("guias-onda-2.json"),
+    ...lerLote("guias-onda-2-garantia.json"),
+  ],
+};
 
 /** Tudo o que o leitor vê da peça, na ordem em que a página renderiza. */
 function textosDaPeca(peca: PecaDoLote): string[] {
@@ -126,24 +132,44 @@ describe("a página do guia linka as vizinhas, e nunca ela mesma", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("o conjunto rende os links medidos em 17/09 — 20 na Onda 1, 41 com a Onda 2", () => {
+  it("o conjunto rende os links medidos em 17/09 — 20 na Onda 1, 52 com a Onda 2", () => {
     /* Número medido, não estimado: se uma reescrita derrubar citações, este
        teste mostra o tamanho da perda em vez de deixar passar em silêncio.
-       Subiu de 20 para 41 quando as cinco peças de mecânica entraram, e o
-       ganho não é só o das peças novas: a Onda 1 também passou a ser citada
-       por elas. */
+       Subiu de 20 para 52 com as sete peças da Onda 2 — cinco de mecânica e
+       duas de garantia —, e o ganho não é só o das peças novas: a Onda 1
+       também passou a ser citada por elas. */
     const total = lote.guias.reduce(
       (soma, peca) => soma + linksDaPagina(peca).filter((h) => h.startsWith("/guias/")).length,
       0,
     );
-    expect(total).toBeGreaterThanOrEqual(41);
+    expect(total).toBeGreaterThanOrEqual(52);
   });
 
   it("o link comercial não foi expulso pelos novos", () => {
-    // O limite é por DESTINO, não por página: a peça que fala de perícia
-    // continua levando a `/garantia`.
-    const comGarantia = lote.guias.filter((peca) => linksDaPagina(peca).includes("/garantia"));
-    expect(comGarantia.length).toBe(lote.guias.length);
+    /* O limite é por DESTINO, não por página: a peça que fala de perícia
+       continua levando a `/garantia` no meio do texto.
+
+       A régua ganhou o "ou" em 17/09/2026, com a peça do plano estendido. Ela
+       é a única das quinze que não cita perícia nem laudo — fala de cobertura,
+       de exclusão e de acionamento —, e o termo dela ("garantia estendida")
+       aponta para ela mesma, que `criarLinkador` filtra. O texto não perdeu o
+       destino comercial: ele está no CTA, que é onde a peça termina. Exigir o
+       link NO TEXTO obrigaria a enfiar a palavra "perícia" numa peça que não
+       fala disso, e régua que obriga a escrever pior não é régua. */
+    for (const peca of lote.guias) {
+      const temNoTexto = linksDaPagina(peca).includes("/garantia");
+      const saiPelaGarantia = peca.saida.href === "/garantia";
+      expect(
+        temNoTexto || saiPelaGarantia,
+        `${peca.slug} não leva a /garantia nem no texto nem na saída`,
+      ).toBe(true);
+    }
+
+    // E a Onda 1 continua levando no texto, peça por peça: se alguém reescrever
+    // uma delas e derrubar a citação, isto cai.
+    const daOnda1 = lote.guias.filter((p) => !p.slug.startsWith("garantia-"));
+    const comLinkNoTexto = daOnda1.filter((p) => linksDaPagina(p).includes("/garantia"));
+    expect(comLinkNoTexto.length).toBe(daOnda1.length);
   });
 });
 
