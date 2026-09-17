@@ -672,8 +672,15 @@ async function principal() {
   console.log(`${guias.length} guias | ${erros.length} erros | ${avisos.length} avisos`);
 
   if (erros.length > 0) {
-    console.error("\nCorrija os erros antes de gravar.");
-    process.exit(1);
+    // `--reverter` passa por cima: ele é o freio de mão, e só precisa dos
+    // slugs. Exigir lote válido para DESPUBLICAR seria prender a saída de
+    // emergência do lado de dentro — o texto no ar é justamente o que a pessoa
+    // quer tirar quando descobre que ele está errado.
+    if (!REVERTER) {
+      console.error("\nCorrija os erros antes de gravar.");
+      process.exit(1);
+    }
+    console.log("\n(o lote tem erros, mas --reverter só precisa dos slugs — seguindo)");
   }
 
   console.log(
