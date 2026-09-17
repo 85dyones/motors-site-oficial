@@ -4,16 +4,20 @@
 # de 7,9 GB com várias sessões abertas, e travou todos os portões de "suíte
 # cheia". Em repositório público o runner padrão do GitHub é grátis e tem
 # 4 vCPU e 16 GB. Desde 17/09 o dono pediu "tudo no GitHub Actions": testes,
-# tipos, lint e build aparecem nesta mesma execução, e ela só fica verde se os
-# quatro ficarem.
+# tipos, lint, build e o deploy da Vercel aparecem nesta mesma execução, e ela
+# só fica verde se todos ficarem.
 #
-# Sem segredo nenhum: `vitest.config.ts` não carrega `.env`, e chave de
-# produção não entra aqui. Teste que precisa de variável define a própria.
+# Sem segredo: chave de produção não entra aqui. O único dado de fora são as
+# duas variáveis PÚBLICAS do Supabase (URL e chave anônima, as mesmas que o
+# navegador de qualquer visitante recebe), cadastradas no GitHub em
+# Settings → Secrets and variables → Actions, e só o job `build` as lê.
+# `vitest.config.ts` não carrega `.env`; teste que precisa de variável define
+# a própria.
 #
 # O fuso é o do runner (UTC), o mesmo da Vercel: teste que só passa no fuso
 # de Curitiba falha aqui antes de errar em produção.
 #
-# Os quatro jobs ficam neste arquivo, e não em workflows separados, porque a
+# Os jobs ficam neste arquivo, e não em workflows separados, porque a
 # conclusão da EXECUÇÃO é o que o fluxo de merge em lote confere por commit.
 name: testes
 
@@ -89,23 +93,70 @@ jobs:
       - run: npm ci
       - run: npx eslint . --pass-on-unpruned-suppressions
 
-  # A build é a da Vercel, e este job cobra o resultado dela para ESTE commit.
+  # A build de verdade, aqui. Sem as variáveis do Supabase ela falha de
+  # propósito ("Estoque indisponível: cliente do Supabase não configurado —
+  # falta env no deploy", medido em 17/09): as páginas das fichas são geradas
+  # com o estoque lido na hora da build. Por isso o job lê as duas variáveis
+  # públicas cadastradas no GitHub, e só elas.
   #
-  # Por que não `next build` aqui: sem as variáveis do Supabase a build falha
-  # de propósito ("Estoque indisponível: cliente do Supabase não configurado —
-  # falta env no deploy", medido em 17/09), e este workflow não carrega
-  # variável de produção. A Vercel builda todo push com as variáveis do
-  # projeto e publica o status "Vercel" no commit; aqui só se espera por ele.
+  # No pull_request, a build é do `refs/pull/N/merge` (o branch somado à base),
+  # coisa que a Vercel não builda.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # `vars` se foram cadastradas como variável; `secrets` se foram como
+      # segredo. Os dois valores são públicos por natureza (vão para o bundle).
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - name: as duas variáveis do Supabase estão cadastradas
+        shell: bash
+        run: |
+          faltam=""
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] || faltam="$faltam NEXT_PUBLIC_SUPABASE_URL"
+          [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || faltam="$faltam NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          if [ -n "$faltam" ]; then
+            echo "::error title=build::Faltam no GitHub (Settings → Secrets and variables → Actions):$faltam"
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: next build
+        shell: bash
+        run: |
+          set -o pipefail
+          npx next build 2>&1 | tee build.log
+      # Quem não tem acesso ao log (agente pela API pública) lê o fim da build
+      # nas anotações do job.
+      - name: fim do log da build, como anotação
+        if: failure()
+        shell: bash
+        run: |
+          [ -f build.log ] || exit 0
+          tail -n 10 build.log | while IFS= read -r linha; do
+            echo "::error title=build (fim do log)::$linha"
+          done
+
+  # O deploy da Vercel deste commit: a build acima prova que o código builda; o
+  # status "Vercel" prova que a versão publicada (preview ou produção) subiu.
   #
   # No pull_request, o commit conferido é o head do PR: a Vercel não builda o
   # `refs/pull/N/merge`.
-  build-vercel:
+  deploy-vercel:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       statuses: read
     steps:
-      - name: esperar a build da Vercel deste commit
+      - name: esperar o deploy da Vercel deste commit
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -122,19 +173,19 @@ jobs:
             decorrido=$(( $(date +%s) - inicio ))
             case "$estado" in
               success)
-                echo "Build da Vercel pronta para ${SHA:0:7} (${decorrido}s de espera)."
+                echo "Deploy da Vercel pronto para ${SHA:0:7} (${decorrido}s de espera)."
                 exit 0 ;;
               failure|error)
-                echo "::error title=build-vercel::A build da Vercel falhou para ${SHA:0:7}. Veja o status \"Vercel\" do commit."
+                echo "::error title=deploy-vercel::O deploy da Vercel falhou para ${SHA:0:7}. Veja o status \"Vercel\" do commit."
                 exit 1 ;;
               ausente)
                 if [ "$decorrido" -gt 600 ]; then
-                  echo "::error title=build-vercel::A Vercel não publicou status para ${SHA:0:7} em 10 minutos."
+                  echo "::error title=deploy-vercel::A Vercel não publicou status para ${SHA:0:7} em 10 minutos."
                   exit 1
                 fi ;;
             esac
             if [ "$decorrido" -gt 1500 ]; then
-              echo "::error title=build-vercel::A build da Vercel não terminou em 25 minutos (último estado: ${estado:-sem resposta})."
+              echo "::error title=deploy-vercel::O deploy da Vercel não terminou em 25 minutos (último estado: ${estado:-sem resposta})."
               exit 1
             fi
             sleep 20
