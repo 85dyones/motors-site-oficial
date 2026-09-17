@@ -5,7 +5,7 @@
       "slug": "laudo-cautelar-carro-usado",
       "titulo": "Laudo cautelar: o que verifica e o que não verifica",
       "titulo_seo": "Laudo cautelar: o que ele verifica e o que não | Motors Store",
-      "descricao": "O laudo cautelar analisa identificação, estrutura e histórico do veículo. Não analisa a saúde mecânica. Entenda o que o exame cobre — e o que fica fora dele.",
+      "descricao": "O laudo cautelar analisa identificação, estrutura e histórico do veículo. Não analisa saúde mecânica. Entenda o que ele cobre — e o que fica de fora.",
       "corpo": [
         {
           "titulo": "O que é, e quem faz",
@@ -91,7 +91,10 @@
         "href": "/estoque",
         "apoio": "Todo carro no nosso estoque passou pela perícia cautelar antes de entrar na vitrine."
       },
-      "sobre": ["Laudo cautelar", "Perícia cautelar veicular"],
+      "sobre": [
+        "Laudo cautelar",
+        "Perícia cautelar veicular"
+      ],
       "estado": "publicado"
     },
     {
@@ -190,7 +193,10 @@
         "href": "/estoque",
         "apoio": "No nosso estoque, o critério é definido antes de o carro chegar à vitrine: de cada dez avaliados, três entram."
       },
-      "sobre": ["Laudo cautelar", "Sinistro de média monta"],
+      "sobre": [
+        "Laudo cautelar",
+        "Sinistro de média monta"
+      ],
       "estado": "publicado"
     },
     {
@@ -285,14 +291,18 @@
         "href": "/estoque",
         "apoio": "Se preferir pular essa etapa: os carros do nosso estoque já passaram por ela."
       },
-      "sobre": ["Perícia cautelar veicular", "Laudo cautelar", "Curitiba"],
+      "sobre": [
+        "Perícia cautelar veicular",
+        "Laudo cautelar",
+        "Curitiba"
+      ],
       "estado": "publicado"
     },
     {
       "slug": "consultar-carro-leilao-sinistro",
       "titulo": "Como saber se um carro passou por leilão",
       "titulo_seo": "Como saber se um carro passou por leilão | Motors Store",
-      "descricao": "Passagem por leilão não consta no documento do veículo. Onde essa informação aparece, o que a consulta de placa mostra e por que leilão não é sinônimo de sinistro.",
+      "descricao": "Passagem por leilão não consta no documento do veículo. Onde ela aparece, o que a consulta de placa mostra e por que leilão não é sinistro.",
       "corpo": [
         {
           "titulo": "Por que não está no documento",
@@ -389,7 +399,11 @@
         "href": "/estoque",
         "apoio": "No nosso estoque, a pesquisa de histórico e a perícia física já foram feitas."
       },
-      "sobre": ["Leilão de veículos", "Histórico veicular", "Sinistro"],
+      "sobre": [
+        "Leilão de veículos",
+        "Histórico veicular",
+        "Sinistro"
+      ],
       "estado": "publicado"
     },
     {
@@ -488,7 +502,11 @@
         "href": "/estoque",
         "apoio": "No nosso estoque, a conferência de identificação já foi feita."
       },
-      "sobre": ["Chassi", "Adulteração de sinal identificador", "Perícia cautelar"],
+      "sobre": [
+        "Chassi",
+        "Adulteração de sinal identificador",
+        "Perícia cautelar"
+      ],
       "estado": "publicado"
     },
     {
@@ -582,7 +600,11 @@
         "href": "/estoque",
         "apoio": "Nos nossos carros o cautelar já foi feito antes do anúncio."
       },
-      "sobre": ["Vistoria veicular", "Laudo cautelar", "Transferência de propriedade"],
+      "sobre": [
+        "Vistoria veicular",
+        "Laudo cautelar",
+        "Transferência de propriedade"
+      ],
       "estado": "publicado"
     },
     {
@@ -683,14 +705,18 @@
         "href": "/avaliacao",
         "apoio": "Avaliar é gratuito, e você fica sabendo o que foi encontrado — entrando no nosso estoque ou não."
       },
-      "sobre": ["Laudo cautelar", "Venda de veículo usado", "Vício oculto"],
+      "sobre": [
+        "Laudo cautelar",
+        "Venda de veículo usado",
+        "Vício oculto"
+      ],
       "estado": "publicado"
     },
     {
       "slug": "o-que-reprova-pericia-cautelar",
       "titulo": "O que reprova um carro na perícia cautelar",
       "titulo_seo": "O que mais reprova um carro: 57 avaliações, 10 compras",
-      "descricao": "Em 30 dias avaliamos 57 carros e compramos 10. O motivo que mais reprovou foi passagem por leilão — e é o único da lista que não aparece em documento nenhum.",
+      "descricao": "Em 30 dias avaliamos 57 carros e compramos 10. O que mais reprovou foi passagem por leilão — o único da lista que não aparece em documento.",
       "corpo": [
         {
           "titulo": "Como levantamos isso",
@@ -803,7 +829,11 @@
         "href": "/estoque",
         "apoio": "Os carros do nosso estoque são os que passaram por esse filtro."
       },
-      "sobre": ["Perícia cautelar veicular", "Motivos de reprovação", "Compra de carro seminovo"],
+      "sobre": [
+        "Perícia cautelar veicular",
+        "Motivos de reprovação",
+        "Compra de carro seminovo"
+      ],
       "estado": "publicado"
     }
   ]
