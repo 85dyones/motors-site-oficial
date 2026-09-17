@@ -461,8 +461,11 @@ a peça 01 cobre "o que verifica **e o que não**" e é o pilar da onda. O crit�
 4 do guia normativo manda editar a página existente em vez de criar guia novo.
 O lote **não toca** nesse rascunho — a decisão é sua: mantê-lo em rascunho,
 fundi-lo no pilar, ou publicar os dois assumindo a sobreposição. Some-se que o
-texto dele ainda diz "o laudo fica na ficha do carro assim que a perícia é
-aprovada", em dois lugares, e por isso não pode subir como está.
+texto semeado pela migração `20260906160000` diz "o laudo fica na ficha do carro
+assim que a perícia é aprovada" em dois lugares (o fim da terceira seção e a
+terceira pergunta); se ninguém o reescreveu no painel desde então, ele não pode
+subir como está. No ensaio o estado dele foi conferido — segue em rascunho, e
+nada no lote o altera.
 
 **4. Três metas passam de 155 caracteres**, que é a régua da casa: 01 com 157,
 04 com 163, 08 com 157. São as metas do pacote, palavra por palavra — não as
@@ -516,3 +519,23 @@ a distribuição real não está publicada".** A peça 08 é exatamente um ranki
 publica a distribuição, com amostra, período e critério de contagem (T6). Se ela
 subir, a régua do painel (`src/lib/guias.ts`) fica desatualizada e vale reescrever
 o item. O aplicador marca isso como aviso, não como erro.
+
+---
+
+## O que já foi conferido — e o que falta
+
+**Conferido, sem gravar nada:**
+
+- `node conteudo-seo/aplicar-guias.mjs` — 8 guias, **0 erros, 6 avisos** (as três
+  metas longas e três menções a "motivo mais frequente", itens 4 e 11 acima).
+- **Ensaio no banco de produção**, tudo dentro de um `BEGIN` que terminou em
+  `ROLLBACK`: o upsert das 8 entrou, o gatilho carimbou `publicado_em`, o
+  visitante **anônimo** enxergou as 8 (é a RLS entregando), o `--reverter` tirou
+  as 8 da vista dele, e depois do `ROLLBACK` o banco voltou a não ter nenhuma
+  delas. O guia que já estava lá seguiu em rascunho o tempo todo.
+- CI do branch `conteudo/guias-onda-1` verde nos cinco jobs.
+
+**Falta — e é decisão sua:** aprovar os textos deste arquivo. Depois disso, quem
+grava roda `node conteudo-seo/aplicar-guias.mjs --gravar` (faz backup das linhas
+existentes antes de escrever), confere `/guias` e regenera o sitemap. Se algo
+sair errado, `--reverter` devolve as oito para rascunho e elas somem do site.
