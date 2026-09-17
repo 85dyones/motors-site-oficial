@@ -214,8 +214,13 @@ const PADROES_DO_LAUDO = [
     padrao: /laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]{0,60}/gi,
   },
   {
+    // O padrão é o de `coerencia-da-pericia` DEPOIS do conserto de 17/09
+    // (#119): "O laudo fica na ficha do carro assim que a perícia é aprovada"
+    // escapava das duas formas antigas — "laudo fica na ficha" não é "laudo na
+    // ficha", e "assim que A PERÍCIA é aprovada" tem palavra no meio.
     nome: "publicação automática",
-    padrao: /assim que (?:for |é )?aprovad|laudo (?:publicado|na ficha)|publicado na ficha/gi,
+    padrao:
+      /assim que (?:for |é )?aprovad|assim que a per[ií]cia (?:for|é) aprovad|laudo (?:publicado|na ficha)|laudo fica (?:aberto )?na ficha|publicado na ficha/gi,
   },
   {
     nome: "resultado publicado",

@@ -118,14 +118,18 @@ describe("o lote da Onda 1 é o que se espera dele", () => {
 describe("nenhuma peça promete o laudo na ficha", () => {
   /**
    * As duas primeiras varreduras são as de `tests/coerencia-da-pericia.test.ts`
-   * — e aqui SEM a absolvição do "aprovad" por perto. Lá ela existe porque
-   * "assim que a perícia é aprovada" descrevia o comportamento da ficha; desde
-   * 16/09/2026 o caminho é um só, aprovada ou não, e é justamente essa frase
-   * que não pode voltar.
+   * — a segunda já com o conserto de 17/09 (#119), que fechou as duas formas
+   * por onde a frase dos hubs passava — e aqui SEM a absolvição do "aprovad"
+   * por perto. Lá ela existe porque "assim que a perícia é aprovada" descrevia
+   * o comportamento da ficha; desde 16/09/2026 o caminho é um só, aprovada ou
+   * não, e é justamente essa frase que não pode voltar.
    */
   const PADROES: [string, RegExp][] = [
     ["laudo prometido na ficha", /laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]{0,120}/i],
-    ["publicação automática", /assim que (?:for |é )?aprovad|laudo (?:publicado|na ficha)|publicado na ficha/i],
+    [
+      "publicação automática",
+      /assim que (?:for |é )?aprovad|assim que a per[ií]cia (?:for|é) aprovad|laudo (?:publicado|na ficha)|laudo fica (?:aberto )?na ficha|publicado na ficha/i,
+    ],
     ["resultado publicado", /\b(?:resultado|laudo)\b[^.]{0,40}\bpublicad|\bpublicamos\b[^.]{0,40}\b(?:resultado|laudo|perícia)\b/i],
     ["entregue sem pedir", /n[ãa]o precisa (?:nem )?pedir|sem precisar pedir|aberto no an[úu]ncio/i],
   ];
