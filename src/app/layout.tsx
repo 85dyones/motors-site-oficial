@@ -233,9 +233,10 @@ export default async function RootLayout({
 
               Fica FORA do `<CookieConsentBanner>` e do `IntegrationsTracker`
               de propósito: Speed Insights não identifica pessoa — mede tempo
-              de render do próprio site, sem cookie e sem id. Condicioná-lo ao
-              aceite mediria só quem aceita, que é o pior recorte possível para
-              uma métrica de performance.
+              de render do próprio site, sem cookie e sem id. Condicioná-lo à
+              régua das tags (hoje a oposição em /privacidade; até 31/08, o
+              aceite) mediria só quem passa por ela, um recorte enviesado para
+              uma métrica de performance e sem ganho nenhum de privacidade.
 
               ⚠️ O componente sozinho não coleta: Speed Insights precisa estar
               ligado no projeto, no painel da Vercel. */}
