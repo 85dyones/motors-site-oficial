@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { lerCodigo, semComentarios } from "./fonte";
 import {
+  ALCANCE_DA_ENTREGA,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
@@ -558,7 +559,37 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
    * fecho é o local, e a exceção (nicho, colecionável, km muito baixa) precisa
    * de motivo dito em voz alta.
    */
-  const ALCANCE = /entregamos para todo o Brasil/i;
+  /* --------------------------------------------------------------------------
+   * 17/09/2026: a decisão de 04/09 caiu, e o texto acima fica como está
+   * --------------------------------------------------------------------------
+   * O histórico longo aí em cima continua valendo como história: foi assim
+   * que as duas respostas viraram uma. O que mudou foi o CONTEÚDO da resposta.
+   *
+   * Entre 04/09 e 17/09 a loja publicou 62 textos novos de ficha, e o padrão
+   * que o próprio dono ditou para eles diz "Paraná e Santa Catarina até
+   * Balneário Camboriú" — `descritivo/validacao.ts` chega a REPROVAR "todo o
+   * Brasil" num descritivo. Ou seja: o site prometia duas coisas ao mesmo
+   * tempo, e a régua interna já tinha escolhido uma delas.
+   *
+   * Levado o conflito ao dono em 17/09, ele escolheu "só PR e SC até
+   * Balneário". Então a frase pública passou a ser uma só, e ela mora em
+   * `ALCANCE_DA_ENTREGA` — em vez de repetida à mão em quatro superfícies,
+   * que foi como ela conseguiu divergir das fichas em treze dias.
+   */
+  const ALCANCE = new RegExp(ALCANCE_DA_ENTREGA, "i");
+
+  it("o fallback de /sobre repete as MESMAS palavras da constante", () => {
+    /* `aboutSettings.json` é JSON: não importa a constante, copia as palavras.
+       Copiar é o que deixou o site com duas promessas em 04/09, então aqui a
+       cópia é medida. Quem mudar a constante e esquecer o JSON descobre neste
+       teste, não no balcão. */
+    const sobre = JSON.parse(readFileSync(join(raiz, "src/lib/aboutSettings.json"), "utf8"));
+    const textoDoSobre = [sobre.card3Desc, sobre.ctaDescription].join(" ");
+
+    expect(textoDoSobre).not.toMatch(/todo o Brasil|qualquer região do Brasil/i);
+    expect(textoDoSobre.match(/em todo o Paraná e no litoral catarinense até Balneário Camboriú/gi))
+      .toHaveLength(2);
+  });
 
   it("o FAQ da garantia diz o alcance real", () => {
     const resposta = PERGUNTAS_DE_GARANTIA.find((p) => /outra cidade/i.test(p.pergunta))?.resposta;

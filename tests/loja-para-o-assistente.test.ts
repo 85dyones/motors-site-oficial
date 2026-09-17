@@ -133,9 +133,13 @@ describe("a fonte é a mesma que o site publica", () => {
 });
 
 describe("o alcance e a entrega dizem o que o site diz", () => {
-  it("uma unidade, entrega para todo o Brasil", () => {
+  it("uma unidade, e o alcance que o dono decidiu em 17/09/2026", () => {
+    // O assistente responde a cliente de verdade: se ele prometer o Brasil
+    // inteiro enquanto a ficha promete Paraná e Santa Catarina, quem corrige
+    // a diferença é o consultor, no meio da venda.
     expect(texto).toMatch(/Uma unidade só/);
-    expect(texto).toMatch(/entrega para todo o Brasil/);
+    expect(texto).toMatch(/em todo o Paraná e no litoral catarinense até Balneário Camboriú/);
+    expect(texto).not.toMatch(/todo o Brasil/);
   });
 
   it("e nenhum prazo de frete é prometido", () => {

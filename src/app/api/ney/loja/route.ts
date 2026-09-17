@@ -4,6 +4,7 @@ import { telefoneVisivel } from "../../../../lib/whatsapp";
 import { SITE_URL } from "../../../../lib/site";
 import type { CompanySettings } from "../../../../types";
 import {
+  ALCANCE_DA_ENTREGA,
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
@@ -87,7 +88,7 @@ export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
 
   const endereco = bloco("Onde fica e quando abre", [
     `Showroom: ${empresa.address ?? ""}`,
-    "Uma unidade só — e a loja entrega para todo o Brasil.",
+    `Uma unidade só — e a loja ${ALCANCE_DA_ENTREGA}.`,
     empresa.hours ? `Horário: ${String(empresa.hours).replace(/\n/g, " · ")}` : "",
     `WhatsApp e telefone: ${telefoneVisivel(empresa)}`,
     "",

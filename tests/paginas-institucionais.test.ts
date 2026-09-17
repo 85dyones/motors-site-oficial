@@ -4,6 +4,8 @@ import {
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
+  PLANOS_ESTENDIDOS_MESES,
+  PRAZOS_ESTENDIDOS,
   SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
   TEXTO_DE_GARANTIA,
@@ -191,6 +193,23 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
     }
   });
 
+  it("os prazos do plano estendido também saem de constante", () => {
+    /* O plano da Gestauto é vendido em três prazos, e eles não são o prazo da
+       loja — `GARANTIA_MESES` continua sendo 3. Sem constante, "6, 12 ou 24
+       meses" seria exatamente o que a trava acima caça: duração digitada à
+       mão perto da palavra garantia. Com constante, muda num lugar só e a
+       trava sabe distinguir as duas promessas. */
+    const codigo = lerCodigo("src/lib/paginasInstitucionais.ts");
+
+    expect([...PLANOS_ESTENDIDOS_MESES]).toEqual([6, 12, 24]);
+    expect(PRAZOS_ESTENDIDOS).toBe("6, 12 ou 24 meses");
+    // Nem o título da seção nem a resposta do FAQ digitam os prazos.
+    expect(codigo).toContain("titulo: `Estender por ${PRAZOS_ESTENDIDOS}`,");
+    expect(codigo).toContain("por ${PRAZOS_ESTENDIDOS}, com aprovação do veículo");
+    // E o leitor continua vendo os três prazos na página.
+    expect(TEXTO_DA_GARANTIA).toMatch(/6, 12 ou 24 meses/);
+  });
+
   it("a régua de /sobre lê a constante, e é a mesma de /garantia", () => {
     const sobre = lerCodigo("src/components/SobreClientWrapper.tsx");
     expect(sobre).toContain("GARANTIA_MESES");
@@ -219,19 +238,39 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
     );
   });
 
-  it("NÃO lista exclusões", () => {
-    // Afirmar condição contratual que este arquivo não tem como confirmar é
-    // passivo nos dois sentidos: prometer o que a loja não cumpre, ou negar o
-    // que ela cobre. A página delimita o escopo e remete ao termo da venda.
+  it("lista as exclusões que o contrato lista, e remete ao termo para o resto", () => {
+    /* Esta trava era o contrário até 17/09/2026: proibia a página de citar
+       exclusão. O motivo era bom para a época — o repositório não tinha o
+       contrato, e afirmar condição contratual sem fonte erra nos dois
+       sentidos, prometendo o que a loja não cumpre ou negando o que ela
+       cobre.
+
+       O que mudou foi a fonte, não a régua. O dono mandou o contrato padrão
+       de venda e o manual do plano da Gestauto, e as exclusões deixaram de
+       ser suposição: são cláusula. Perguntado se entravam na página, ele
+       respondeu "sim, listar na página". A régua continua de pé, invertida:
+       o que está no contrato a página DIZ, e o que não está ela não inventa —
+       por isso o remetimento ao termo continua obrigatório aqui embaixo.
+
+       Lista antes é serviço; descobrir depois, no balcão, é o que faz o
+       cliente achar que a garantia era conversa. */
     const garantia = [
       TEXTO_DA_GARANTIA,
       ...PERGUNTAS_DE_GARANTIA.map((p) => p.resposta),
     ].join(" ");
 
-    // "não coberto" entrou em 13/09: a proposta do pacote traz a tabela com a
-    // coluna "Não coberto", e /não cobre/ não casa com "coberto". Proibir só a
-    // grafia antiga deixaria passar a variante exata que estava na mesa.
-    expect(garantia).not.toMatch(/não cobre|não coberto|excluí|exceto|salvo/i);
+    // As quatro famílias que o contrato exclui e a página precisa nomear.
+    expect(garantia, "sumiu a fronteira do que não é coberto").toMatch(
+      /fora da cobertura|não cobre|não coberto/i,
+    );
+    expect(garantia, "desgaste e manutenção").toMatch(/pastilha|pneu|filtros?/i);
+    expect(garantia, "as bombas, fluidos e óleos da cláusula quarta").toMatch(
+      /bombas, fluidos e óleos/i,
+    );
+    expect(garantia, "os custos que não são do conserto").toMatch(/guincho/i);
+    expect(garantia, "evento externo é assunto de seguro").toMatch(/colisão|enchente/i);
+
+    // E o termo continua sendo a fonte: a página resume, não substitui.
     expect(garantia).toMatch(/termo/i);
   });
 
@@ -329,9 +368,11 @@ describe("a /garantia alinhada às peças", () => {
        a avaliação levanta suspeita — não é inspeção de 120 pontos em todo
        carro antes da entrega.
        Então a página passa a atribuir o número a quem ele é, e a trava mudou
-       de "cita a frase" para "atribui certo". `aboutSettings.value2` e o texto
-       de `/sobre` no banco continuam com a redação antiga: está anotado para o
-       dono decidir, e é mudança de texto público, não de código. */
+       de "cita a frase" para "atribui certo". Perguntado, o dono escolheu
+       "atribuir à cautelar": `aboutSettings.value2` foi reescrito junto, neste
+       mesmo commit. Falta o gêmeo dele no banco — a linha `about` de
+       `site_settings`, que é o que `/sobre` publica de verdade —, e isso é
+       gravação, não código. */
     const comOsPontos = TEXTO_DA_GARANTIA.split(/(?<=\.)\s+/).filter((f) => /120 pontos/.test(f));
     expect(comOsPontos.length, "a página parou de citar os 120 pontos").toBeGreaterThan(0);
     for (const frase of comOsPontos) {

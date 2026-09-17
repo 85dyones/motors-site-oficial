@@ -1,4 +1,5 @@
 import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque";
+import { ALCANCE_DA_ENTREGA } from "./paginasInstitucionais";
 
 /**
  * As duas páginas de bairro/cidade — e por que são só duas.
@@ -97,7 +98,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
           // do estado". Duas respostas públicas para a mesma pergunta é como o
           // cliente descobre no balcão que uma delas não vale.
           "Atendemos toda a Região Metropolitana — Pinhais, Colombo, São José dos Pinhais, " +
-          "Almirante Tamandaré, Araucária e vizinhas — e entregamos para todo o Brasil. " +
+          `Almirante Tamandaré, Araucária e vizinhas — e ${ALCANCE_DA_ENTREGA}. ` +
           "A logística de entrega é combinada caso a caso com o consultor.",
       },
       {

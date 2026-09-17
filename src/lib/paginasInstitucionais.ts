@@ -108,9 +108,13 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  * - "de cada dez avaliados, três entram" → `aboutSettings.historyP1`;
  * - "transferência acompanhada" → `PROCEDENCIA_PADRAO`;
  * - **três meses de cobertura** → decisão do dono em 2026-08-25;
- * - **entrega para todo o Brasil** → decisão do dono em 2026-09-04. O que é
- *   regional é a MÍDIA — os anúncios rodam em Paraná e litoral de Santa
- *   Catarina —, não o serviço.
+ * - **o alcance da entrega** → `ALCANCE_DA_ENTREGA`, logo abaixo. Em
+ *   2026-09-04 o dono ditou "todo o Brasil", e o argumento era que o regional
+ *   é a MÍDIA, não o serviço; em 2026-09-17, com as 36 fichas novas já
+ *   publicadas dizendo Paraná e Santa Catarina, ele decidiu o contrário, e a
+ *   frase pública passou a ser a mesma das fichas. A decisão nova vale porque
+ *   é a nova — e porque promessa que muda de superfície para superfície é a
+ *   que o cliente descobre no balcão;
  *
  *   `CIDADES_ATENDIDAS` em `schemaLoja.ts` NÃO tem nada a ver com isso e não
  *   mudou: são as seis cidades da Região Metropolitana (Curitiba, Pinhais,
@@ -181,11 +185,43 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
  */
 export const GARANTIA_MESES = 3;
 
+/**
+ * Onde a loja entrega, em UMA frase, para todas as superfícies públicas.
+ *
+ * Esta promessa já mudou duas vezes, e nas duas ela estava escrita à mão em
+ * quatro lugares: FAQ da garantia, FAQ das páginas geo, briefing do Ney e o
+ * fallback de `/sobre`. Decisão do dono em 17/09/2026: **Paraná e Santa
+ * Catarina até Balneário Camboriú** — as MESMAS palavras que
+ * `descritivo/briefing.ts` manda usar no fecho das fichas, de propósito. Uma
+ * promessa, uma frase, um lugar para mudar.
+ *
+ * `aboutSettings.json` repete estas palavras à mão porque é JSON e não
+ * importa daqui; `promessa-publica.test.ts` compara os dois.
+ */
+export const ALCANCE_DA_ENTREGA =
+  "entregamos em todo o Paraná e no litoral catarinense até Balneário Camboriú";
+
+/**
+ * Os prazos vendidos do plano estendido da Gestauto (dono, 17/09/2026).
+ *
+ * Constante pelo mesmo motivo que `GARANTIA_MESES`: prazo digitado no meio da
+ * prosa é o que `paginas-institucionais.test.ts` caça desde 13/09. Estes NÃO
+ * são o prazo da loja — são os do plano contratado à parte —, e quem lê o
+ * código precisa ver a diferença sem depender da memória de quem escreveu.
+ */
+export const PLANOS_ESTENDIDOS_MESES = [6, 12, 24] as const;
+
+/** "6, 12 ou 24 meses", montado a partir da constante — nunca digitado. */
+export const PRAZOS_ESTENDIDOS = `${PLANOS_ESTENDIDOS_MESES.slice(0, -1).join(", ")} ou ${
+  PLANOS_ESTENDIDOS_MESES[PLANOS_ESTENDIDOS_MESES.length - 1]
+} meses`;
+
 /** A abertura, sob o `<h1>`. */
 export const TEXTO_DE_GARANTIA: string[] = [
-  "Todo carro vendido pela Motors Store sai com três meses de garantia de motor, câmbio e " +
-    "diferencial, contados da entrega, sem carência e sem franquia. Falha interna nesses " +
-    "conjuntos dentro do prazo, a gente resolve — com a mão de obra inclusa.",
+  "Todo carro vendido pela Motors Store sai com três meses de garantia de motor e câmbio — e " +
+    "também do diferencial, como está no contrato de venda —, contados da entrega, sem " +
+    "carência e sem franquia. Falha interna nesses conjuntos dentro do prazo, a gente resolve, " +
+    "com a mão de obra inclusa.",
   "Essa cobertura soma-se aos seus direitos de consumidor: não os substitui. O que ela cobre, " +
     "item por item, está no termo que acompanha a venda — leia antes de assinar e pergunte o " +
     "que não estiver claro.",
@@ -246,7 +282,7 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
     ],
   },
   {
-    titulo: "Estender por 6, 12 ou 24 meses",
+    titulo: `Estender por ${PRAZOS_ESTENDIDOS}`,
     paragrafos: [
       "Quem quiser ir além dos três meses pode contratar, no ato da compra, o plano de motor " +
         "e câmbio administrado pela Gestauto. É garantia mecânica contratada à parte, em " +
@@ -339,8 +375,8 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
     pergunta: "A garantia vale se eu comprar de outra cidade?",
     resposta:
       "Vale. A cobertura é a mesma em Curitiba, na Região Metropolitana e para quem compra de " +
-      "fora — entregamos no Paraná e em Santa Catarina até Balneário Camboriú. O que muda é a " +
-      "logística de entrega, combinada caso a caso.",
+      `fora — ${ALCANCE_DA_ENTREGA}. O que muda é a logística de entrega, combinada caso a ` +
+      "caso.",
   },
   {
     pergunta: "Dá para estender a garantia?",
@@ -351,7 +387,7 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        Gestauto. E a contratação é opcional por norma: nada de condicionar
        preço, desconto ou entrega do carro a ela. */
     resposta:
-      "Dá, no ato da compra, por 6, 12 ou 24 meses, com aprovação do veículo — ele precisa " +
+      `Dá, no ato da compra, por ${PRAZOS_ESTENDIDOS}, com aprovação do veículo — ele precisa ` +
       "ter menos de 180 mil quilômetros e menos de oito anos de ano-modelo. É garantia " +
       "mecânica administrada pela Gestauto, contratada à parte e em acréscimo à garantia da " +
       "loja; a contratação é opcional e o preço vem destacado na proposta. O plano exige " +
