@@ -22,14 +22,15 @@ import {
  * preço, /estoque, sitemap e catálogo de anúncios. Desde a F0-q (30/08) nada no
  * banco reage a quem sai do feed.
  *
- * O conserto tem quatro pontas que moram em lugares diferentes e ninguém revisa
+ * O conserto tem cinco pontas que moram em lugares diferentes e ninguém revisa
  * juntas — é isso que este arquivo amarra:
  *
  *   1. a migração dos três (`20260916210000`), que marca com a DATA certa;
  *   2. a função que o n8n chama no fim do ciclo (`20260916220000`);
  *   3. a régua do site (`lib/publicacao.ts`), que lê a data do histórico por
  *      um contrato de STRING ("true") que nenhum compilador confere;
- *   4. o seletor da A19, que deixaria de achar o carro que está sendo fechado.
+ *   4. o seletor da A19, que deixaria de achar o carro que está sendo fechado;
+ *   5. os dois nós do n8n que chamam a função, na cópia versionada do workflow.
  */
 
 const DIR_MIGRACOES = join(__dirname, "..", "supabase", "migrations");
@@ -361,5 +362,70 @@ describe("o seletor da A19 continua achando o carro que está sendo fechado", ()
     const formulario = ler("src/components/admin/FechamentoDeVenda.tsx");
     expect(formulario).toContain("vendido?: boolean | null;");
     expect(formulario).toMatch(/\{v\.vendido && \(/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Quem chama: os nós do n8n
+// ---------------------------------------------------------------------------
+
+describe("o n8n chama a reconciliação do jeito que a função espera", () => {
+  // O JSON é uma CÓPIA do que roda no n8n, e cópia envelhece em silêncio (ver a
+  // trava do sync em `f0-nucleo.test.ts`). O que se amarra aqui é o contrato
+  // entre a cópia e a migração: qualquer um destes erros faz a chamada falhar
+  // em todo ciclo, e o carro que saiu do feed continua à venda no site.
+  type No = { name: string; type: string; parameters: Record<string, unknown> };
+  type Ligacao = { node: string };
+  const workflow = JSON.parse(
+    ler("Antigravity - Sincronizador de Estoque (estoque_motors).json"),
+  ) as { nodes: No[]; connections: Record<string, { main: Ligacao[][] }> };
+
+  const no = (nome: string): No => {
+    const achado = workflow.nodes.find((n) => n.name === nome);
+    expect(achado, `nó ausente no workflow: ${nome}`).toBeDefined();
+    return achado!;
+  };
+  const destinos = (origem: string): string[] =>
+    (workflow.connections[origem]?.main ?? []).flat().map((l) => l.node);
+
+  it("o nó HTTP chama a função com a chave de serviço, nunca com a anônima", () => {
+    const rpc = no("Reconciliar disponibilidade (RPC)");
+    expect(rpc.type).toBe("n8n-nodes-base.httpRequest");
+    expect(rpc.parameters.method).toBe("POST");
+    expect(String(rpc.parameters.url)).toMatch(/\/rest\/v1\/rpc\/reconciliar_disponibilidade_do_feed$/);
+    // O grant da migração é só para service_role. A credencial `supabaseApi`
+    // pede o Service Role Secret; com a chave anônima, o banco recusa a
+    // chamada por falta de permissão.
+    expect(rpc.parameters.authentication).toBe("predefinedCredentialType");
+    expect(rpc.parameters.nodeCredentialType).toBe("supabaseApi");
+    expect(JSON.stringify(rpc.parameters)).not.toMatch(/ANON_KEY|PUBLISHABLE|authorization|apikey/i);
+  });
+
+  it("o corpo manda exatamente os parâmetros da assinatura", () => {
+    // O PostgREST acha a função pelo NOME dos campos do JSON. Um campo trocado,
+    // a mais ou a menos devolve "function not found".
+    const assinatura = /reconciliar_disponibilidade_do_feed\(([^)]*)\)/.exec(FUNCAO);
+    expect(assinatura).not.toBeNull();
+    const esperados = [...assinatura![1].matchAll(/\b(p_\w+)\s/g)].map((m) => m[1]).sort();
+    expect(esperados).toEqual(["p_gravar", "p_ids"]);
+
+    const corpo = String(no("Reconciliar disponibilidade (RPC)").parameters.body);
+    const enviados = [...corpo.matchAll(/\b(p_\w+)\s*:/g)].map((m) => m[1]).sort();
+    expect(enviados).toEqual(esperados);
+  });
+
+  it("a lista sai da classificação (o feed inteiro), não da resposta do upsert", () => {
+    // Ligado depois do upsert, o nó receberia a resposta do PostgREST, sem `id`:
+    // a lista chegaria vazia e a função barraria todo ciclo com FEED_VAZIO.
+    expect(destinos("Classificação e Regras de Negócio")).toEqual(
+      expect.arrayContaining(["Upsert Veículo (HTTP)", "Reunir IDs do feed"]),
+    );
+    expect(destinos("Upsert Veículo (HTTP)")).not.toContain("Reunir IDs do feed");
+    expect(destinos("Reunir IDs do feed")).toEqual(["Reconciliar disponibilidade (RPC)"]);
+
+    const codigo = String(no("Reunir IDs do feed").parameters.jsCode);
+    expect(codigo).toMatch(/\.map\(\(item\) => Number\(item\.json\.id\)\)/);
+    expect(codigo).toMatch(/p_ids:[^,}]*ids/);
+    expect(codigo).toMatch(/p_gravar:\s*GRAVAR\b/);
   });
 });
