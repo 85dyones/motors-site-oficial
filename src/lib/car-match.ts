@@ -1,5 +1,6 @@
 import { getEstoque, Veiculo } from "./supabase";
 import { slugificar } from "./veiculoUrl";
+import { disponiveisDe } from "./regrasEstoque";
 
 /**
  * O casamento entre o que o visitante responde e o que o carro é.
@@ -182,13 +183,12 @@ export async function matchVehicles(options: MatchOptions): Promise<(Veiculo & {
   const alvo = tagsDeConsulta(tags);
   const estoque = await getEstoque();
 
-  const noOrcamento = estoque.filter((veiculo) => {
-    // Veículo vendido não entra na curadoria. `getEstoque` devolve o estoque
-    // inteiro, vendidos inclusive — quem exibe é que filtra. Aqui não fazia: o
-    // Profiler chegava a sugerir carro que já saiu do pátio, e o consultor
-    // recebia o lead com uma recomendação impossível.
-    if (veiculo.vendido) return false;
-
+  // Veículo vendido não entra na curadoria. `getEstoque` devolve o estoque
+  // inteiro, vendidos inclusive — quem exibe é que filtra. Aqui não fazia: o
+  // Profiler chegava a sugerir carro que já saiu do pátio, e o consultor
+  // recebia o lead com uma recomendação impossível. A régua é `disponiveisDe`,
+  // a mesma da vitrine (`lib/regrasEstoque.ts`).
+  const noOrcamento = disponiveisDe(estoque).filter((veiculo) => {
     const precoEfetivo = veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original;
     if (budget !== undefined && precoEfetivo > budget) return false;
 

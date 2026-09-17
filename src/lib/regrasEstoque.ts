@@ -40,7 +40,9 @@ export function precoVigente(car: Pick<Veiculo, "preco_original" | "preco_promoc
  * A regra de "à venda" mora aqui, e só aqui. Medido no `main` em 2026-09-17
  * (`beabce7`): além da própria definição, em `hubsDeEstoque.ts`, ela estava
  * reescrita em 12 pontos — `.filter((v) => !v.vendido)` 11 vezes em 9
- * arquivos, e uma condição composta em `similares.ts`. Eram iguais entre si,
+ * arquivos, e uma condição composta em `similares.ts` — e num 13º, achado
+ * depois: a curadoria de `car-match.ts`, com o vendido barrado dentro do filtro
+ * de orçamento, forma que a varredura do teste não reconhece. Eram iguais entre si,
  * e é por isso que ninguém notava: no dia em que "à venda" mudar, a mudança
  * chegaria a um lugar só, e a vitrine, o sitemap e o assistente passariam a
  * discordar sobre o mesmo carro.

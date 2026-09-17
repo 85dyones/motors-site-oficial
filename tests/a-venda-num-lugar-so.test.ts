@@ -86,6 +86,17 @@ describe("ninguém reescreve a regra fora de `lib/regrasEstoque.ts`", () => {
     expect(infratores).toEqual([]);
   });
 
+  it("a curadoria do CarMatch também sai de `disponiveisDe` — a forma composta que a varredura não vê", () => {
+    // `car-match.ts` barrava o vendido dentro do filtro de orçamento, com um
+    // `return false` antecipado: nenhum `.filter` cujo corpo inteiro é
+    // `!x.vendido`, então o padrão acima não o acusava. Unificado em 17/09,
+    // logo depois do #113. A trava aqui é pontual, e por isso nomeia o arquivo.
+    const fonte = codigo.get("src/lib/car-match.ts");
+    expect(fonte, "src/lib/car-match.ts não foi lido").toBeDefined();
+    expect(fonte).toMatch(/disponiveisDe\(\s*estoque\s*\)/);
+    expect(fonte, "a curadoria voltou a ler `vendido` por conta própria").not.toMatch(/\.vendido\b/);
+  });
+
   it("e `disponiveisDe` é definido uma vez só, em `lib/regrasEstoque.ts`", () => {
     const definem = [...codigo]
       .filter(([, fonte]) => /\bfunction disponiveisDe\b|\bconst disponiveisDe\s*=/.test(fonte))
