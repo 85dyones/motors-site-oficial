@@ -43,7 +43,34 @@
  *   node conteudo-seo/gsc.js --veiculos         # só as PDPs de carro
  */
 const fs = require("fs");
-const crypto = require("crypto");
+const path = require("path");
+
+/*
+ * O `.env.local` entra em `process.env` ANTES de qualquer leitura.
+ *
+ * Sem isto, este era o único script da pasta que NÃO lia o arquivo — e o
+ * efeito é pior do que parece: `configurar-gsc.js` grava `GSC_CLIENT_EMAIL` e
+ * `GSC_PRIVATE_KEY` exatamente aí, então o caminho oficial de configuração
+ * terminava com o `gsc.js` respondendo "faltam variáveis" e mandando definir
+ * o que já estava definido. Medido em 2026-09-08, com a credencial certa na
+ * mão. É a convenção de `levantar-estoque.js`, `conferir-feed.js` e
+ * `planejador.js`, copiada deste último.
+ *
+ * Arquivo ausente não é erro: quem exporta a env na mão continua funcionando.
+ * E a env REAL vence a do arquivo — daí o `!== undefined` antes de escrever,
+ * senão passar a variável no comando não teria como sobrepor o arquivo.
+ */
+(function carregarEnvLocal() {
+  const arquivo = path.join(__dirname, "..", ".env.local");
+  if (!fs.existsSync(arquivo)) return;
+  for (const linha of fs.readFileSync(arquivo, "utf8").split(/\r?\n/)) {
+    if (!linha || linha.startsWith("#") || !linha.includes("=")) continue;
+    const i = linha.indexOf("=");
+    const nome = linha.slice(0, i).trim();
+    if (process.env[nome] !== undefined) continue;
+    process.env[nome] = linha.slice(i + 1).replace(/^["']|["']$/g, "");
+  }
+})();
 
 const CHAVE = process.env.GSC_CHAVE;
 const SITE = process.env.GSC_SITE;
@@ -97,125 +124,15 @@ if ((!CHAVE && !TEM_ENVS) || !SITE) {
   process.exit(1);
 }
 
-const b64url = (b) => Buffer.from(b).toString("base64")
-  .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+// A assinatura do JWT e o reconhecimento do tipo de credencial saíram daqui
+// para `google-auth.js`, quando o `planejador.js` passou a precisar das mesmas
+// linhas com outro escopo. O comportamento é idêntico; mudou o endereço.
+const { tokenDeAcesso } = require("./google-auth");
 
-/**
- * O Google Cloud entrega DOIS JSONs diferentes, e só um roda sem navegador.
- * Esta função identifica qual chegou pelos NOMES dos campos — nunca imprime
- * valor nenhum.
- *
- *   conta de serviço ..... tem `"type": "service_account"`, `client_email` e
- *                          `private_key`. Autentica sozinha, para sempre.
- *   ID do cliente OAuth .. vem embrulhado em `"installed"` ou `"web"`, com
- *                          `client_secret` e `redirect_uris`, e SEM
- *                          `private_key`. Exige um consentimento no navegador
- *                          uma vez, que devolve o refresh token.
- */
-function identificar(bruto) {
-  const j = JSON.parse(bruto);
-  if (j.type === "service_account" && j.private_key) return { tipo: "servico", j };
-  const oauth = j.installed || j.web || j;
-  if (oauth.client_id && oauth.client_secret) {
-    return { tipo: "oauth", j: oauth };
-  }
-  return { tipo: "desconhecido", j };
-}
+const ESCOPO = "https://www.googleapis.com/auth/webmasters.readonly";
 
 /** Access token de leitura, pelo caminho que a credencial permitir. */
-async function token() {
-  // Convenção do projeto primeiro: `src/lib/analytics.ts` já autentica no
-  // Google por conta de serviço usando duas envs soltas, e não um arquivo —
-  // porque a Vercel guarda variável, não arquivo. Mesma forma aqui, para uma
-  // credencial só servir aos dois usos.
-  if (process.env.GSC_CLIENT_EMAIL && process.env.GSC_PRIVATE_KEY) {
-    return tokenDeContaDeServico({
-      client_email: process.env.GSC_CLIENT_EMAIL,
-      // O `\n` chega escapado quando a chave viaja dentro de uma env.
-      private_key: process.env.GSC_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    });
-  }
-
-  const { tipo, j: cred } = identificar(fs.readFileSync(CHAVE, "utf8"));
-
-  if (tipo === "desconhecido") {
-    throw new Error(
-      "O JSON não parece nem conta de serviço nem ID do cliente OAuth.\n" +
-      "Conta de serviço tem `type: service_account` e `private_key`.\n" +
-      "ID do cliente tem `client_secret` dentro de `installed` ou `web`."
-    );
-  }
-
-  if (tipo === "oauth") {
-    // Sem refresh token não há como seguir: o fluxo OAuth exige um
-    // consentimento humano no navegador, e isso é uma vez só.
-    if (!REFRESH) {
-      throw new Error(
-        "Este é um ID do cliente OAuth, e falta GSC_REFRESH_TOKEN.\n\n" +
-        "Duas saídas:\n\n" +
-        "  A) RECOMENDADA — crie uma CONTA DE SERVIÇO em vez disto.\n" +
-        "     Google Cloud → Credenciais → Criar → Conta de serviço.\n" +
-        "     Baixe a chave JSON e adicione o e-mail dela como usuário no\n" +
-        "     Search Console. Autentica sozinha, sem navegador, sem expirar.\n\n" +
-        "  B) Obtenha o refresh token uma vez pelo OAuth Playground:\n" +
-        "     https://developers.google.com/oauthplayground\n" +
-        "     Engrenagem → marque 'Use your own OAuth credentials' → cole seu\n" +
-        "     Client ID e Secret. No passo 1 use o escopo\n" +
-        "     https://www.googleapis.com/auth/webmasters.readonly\n" +
-        "     Autorize, troque pelo token e guarde o refresh token em\n" +
-        "     GSC_REFRESH_TOKEN. Antes disso, adicione\n" +
-        "     https://developers.google.com/oauthplayground como URI de\n" +
-        "     redirecionamento autorizado no seu ID do cliente."
-      );
-    }
-
-    const r = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        client_id: cred.client_id,
-        client_secret: cred.client_secret,
-        refresh_token: REFRESH,
-      }),
-    });
-    const j = await r.json();
-    if (!j.access_token) throw new Error(`refresh recusado: ${j.error_description || j.error}`);
-    return j.access_token;
-  }
-
-  return tokenDeContaDeServico(cred);
-}
-
-/** JWT assinado, trocado por access token. Sem navegador, sem expirar. */
-async function tokenDeContaDeServico(cred) {
-  const agora = Math.floor(Date.now() / 1000);
-  const cabecalho = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const corpo = b64url(JSON.stringify({
-    iss: cred.client_email,
-    scope: "https://www.googleapis.com/auth/webmasters.readonly",
-    aud: "https://oauth2.googleapis.com/token",
-    exp: agora + 3600,
-    iat: agora,
-  }));
-
-  const assinatura = b64url(
-    crypto.createSign("RSA-SHA256").update(`${cabecalho}.${corpo}`).sign(cred.private_key)
-  );
-
-  const r = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: `${cabecalho}.${corpo}.${assinatura}`,
-    }),
-  });
-
-  const j = await r.json();
-  if (!j.access_token) throw new Error(`token negado: ${j.error_description || JSON.stringify(j)}`);
-  return j.access_token;
-}
+const token = () => tokenDeAcesso({ escopo: ESCOPO, prefixos: ["GSC"], refreshToken: REFRESH });
 
 const iso = (d) => d.toISOString().slice(0, 10);
 
