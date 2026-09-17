@@ -23,6 +23,7 @@ import { ACOES } from "../lib/turnstile";
 // O bloco de laudo pendente é componente próprio, e o porquê está escrito lá:
 // é o que deixa a trava RENDERIZAR o texto em vez de garimpá-lo na fonte.
 import BlocoLaudoPendente from "./BlocoLaudoPendente";
+import PonteDoGuiaDoLaudo from "./PonteDoGuiaDoLaudo";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -1244,6 +1245,11 @@ export default function PDPClientWrapper({
                   <p className="text-xs text-brand-text/70 leading-relaxed italic bg-brand-bg p-4  border border-brand-border font-medium">
                     &ldquo;{veiculo.laudo_pericia}&rdquo;
                   </p>
+                  {/* A mesma ponte do bloco pendente: o laudo aprovado diz o
+                      RESULTADO, e o guia diz o que o exame cobre. As 33 fichas
+                      com laudo publicado (medido em 17/09) ficavam sem nenhum
+                      link para a Onda 1. */}
+                  <PonteDoGuiaDoLaudo className="text-xs text-brand-text/70 leading-relaxed" />
                 </div>
               </div>
             </div>

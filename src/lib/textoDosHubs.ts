@@ -11,6 +11,8 @@ import {
   usado,
   type Genero,
 } from "./generoDoVeiculo";
+// A ponte para o guia do laudo é a mesma frase da ficha — ver o docblock lá.
+import { TEXTO_PONTE_DO_GUIA } from "./textoDoLaudo";
 
 /**
  * O texto das páginas perenes — escrito a partir do estoque, não de molde.
@@ -571,9 +573,17 @@ export function perguntasDeCategoria(
          aprovada ou não — o laudo fica com o vendedor, e é ele quem confirma.
          É a resposta que um assistente de IA cita como se fosse a loja
          falando. */
+      /* A última frase é a ponte para a peça pilar da Onda 1, e é a MESMA de
+         `textoDoLaudo.ts` — uma verdade só sobre a perícia, em todas as
+         superfícies. Ela vale link em 107 hubs (medido no sitemap de 17/09:
+         20 de marca, 71 de modelo, 16 recortes), porque este bloco de
+         perguntas é renderizado em todos eles. O link não é escrito aqui: a
+         string vai inteira para o `FAQPage` do JSON-LD, e quem transforma a
+         citação em âncora é `segmentarComLinks`, no render. */
       resposta:
         "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, e o laudo está disponível " +
-        "para consulta com o vendedor. É o mesmo exame para qualquer faixa de preço.",
+        "para consulta com o vendedor. É o mesmo exame para qualquer faixa de preço. " +
+        TEXTO_PONTE_DO_GUIA,
     },
     {
       pergunta: "Vocês aceitam meu carro usado na troca?",

@@ -1,4 +1,5 @@
 import { TEXTO_LAUDO_PENDENTE } from "../lib/textoDoLaudo";
+import PonteDoGuiaDoLaudo from "./PonteDoGuiaDoLaudo";
 
 /**
  * O bloco que a ficha mostra quando o laudo NÃO está publicado nela.
@@ -28,6 +29,11 @@ export default function BlocoLaudoPendente() {
           Laudo cautelar
         </p>
         <p className="mt-2 text-sm text-brand-text/70">{TEXTO_LAUDO_PENDENTE}</p>
+        {/* A ponte para o guia. Ela entra DEPOIS do pedido ao vendedor de
+            propósito: a saída comercial do bloco continua sendo o pedido, e o
+            guia é o que responde "o que esse exame cobre?" para quem ainda
+            está decidindo. */}
+        <PonteDoGuiaDoLaudo className="mt-2 text-sm text-brand-text/70" />
       </div>
     </div>
   );
