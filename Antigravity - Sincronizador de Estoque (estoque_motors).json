@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-09-08T21:10:57.333Z",
+  "updatedAt": "2026-09-17T15:01:13.204Z",
   "createdAt": "2026-09-04T18:45:53.100Z",
   "id": "u4PotK1Auirl52CT",
-  "name": "Antigravity - Sincronizador de Estoque (estoque_motors)",
+  "name": "Sincronizador de Estoque (estoque_motors)",
   "description": null,
   "active": true,
   "isArchived": false,
@@ -76,6 +76,8 @@
       "parameters": {
         "method": "POST",
         "url": "=https://zwbqmzgnagfeqinqkolp.supabase.co/rest/v1/estoque_motors",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -99,10 +101,7 @@
               "responseFormat": "json"
             }
           }
-        },
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "supabaseApi",
-        "specifyHeaders": "keypair"
+        }
       },
       "id": "41f82d87-3235-41db-a7da-e9cb92c0a40d",
       "name": "Upsert Veículo (HTTP)",
@@ -136,9 +135,64 @@
       "typeVersion": 1.2,
       "position": [
         160,
-        2200
+        2208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reunir IDs do feed — a lista INTEIRA, uma vez, para a reconciliação.\n//\n// O upsert é um POST por anúncio e só enxerga quem ESTÁ no feed. Quem saiu\n// não passa por nó nenhum: \"quem sumiu\" precisa da lista inteira, e é esta.\n// Este ramo sai de \"Classificação e Regras de Negócio\" ABAIXO do upsert no\n// canvas: com executionOrder v1 ele roda depois do upsert, e não roda se o\n// upsert falhar.\n//\n// Decisão do dono (16/09 e 17/09): a disponibilidade espelha o RevendaMais;\n// pré-venda ou vendido é vendido no site. A regra mora na função\n// `reconciliar_disponibilidade_do_feed` (migração 20260916220000); aqui só se\n// entrega a lista.\nconst ids = $input\n  .all()\n  .map((item) => Number(item.json.id))\n  .filter((id) => Number.isSafeInteger(id) && id > 0);\n\n// ENSAIO enquanto for false: a função devolve o que FARIA e não grava.\n// Trocar para true só depois de conferir \"sairam\" numa execução real.\nconst GRAVAR = true;\n\nreturn [{ json: { p_ids: [...new Set(ids)], p_gravar: GRAVAR } }];\n"
+      },
+      "id": "0c694581-ee83-461f-87e4-1d433695aae4",
+      "name": "Reunir IDs do feed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        2608
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zwbqmzgnagfeqinqkolp.supabase.co/rest/v1/rpc/reconciliar_disponibilidade_do_feed",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ p_ids: $json.p_ids, p_gravar: $json.p_gravar }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "5dc89fe7-92e1-49e6-8523-5aa928b01e6c",
+      "name": "Reconciliar disponibilidade (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1456,
+        2608
       ],
-      "disabled": false
+      "credentials": {
+        "supabaseApi": {
+          "id": "Uy7b6KS9QdqqXnje",
+          "name": "Supabase Motors (zwbqmzgnagfeqinqkolp)"
+        }
+      }
     }
   ],
   "connections": {
@@ -193,6 +247,11 @@
             "node": "Upsert Veículo (HTTP)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Reunir IDs do feed",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -207,12 +266,24 @@
           }
         ]
       ]
+    },
+    "Reunir IDs do feed": {
+      "main": [
+        [
+          {
+            "node": "Reconciliar disponibilidade (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "errorWorkflow": "1sKYHieKYIUIvtUm",
-    "timezone": "America/Sao_Paulo"
+    "timezone": "America/Sao_Paulo",
+    "binaryMode": "separate"
   },
   "staticData": {
     "node:Agendamento (a cada 6h)": {
@@ -226,10 +297,10 @@
   },
   "meta": null,
   "nodeGroups": [],
-  "pinData": null,
-  "versionId": "c9c5b70d-907f-4070-978e-30a1d440521f",
-  "activeVersionId": "c9c5b70d-907f-4070-978e-30a1d440521f",
-  "versionCounter": 4,
+  "pinData": {},
+  "versionId": "b8d5ebde-0e56-4b8c-bb40-f1ef9185f43d",
+  "activeVersionId": "b8d5ebde-0e56-4b8c-bb40-f1ef9185f43d",
+  "versionCounter": 7,
   "triggerCount": 1,
   "sourceWorkflowId": null,
   "shared": [
@@ -254,9 +325,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-09-08T21:10:57.335Z",
-    "createdAt": "2026-09-08T21:10:57.335Z",
-    "versionId": "c9c5b70d-907f-4070-978e-30a1d440521f",
+    "updatedAt": "2026-09-17T15:01:13.207Z",
+    "createdAt": "2026-09-17T15:01:13.207Z",
+    "versionId": "b8d5ebde-0e56-4b8c-bb40-f1ef9185f43d",
     "workflowId": "u4PotK1Auirl52CT",
     "nodes": [
       {
@@ -328,6 +399,8 @@
         "parameters": {
           "method": "POST",
           "url": "=https://zwbqmzgnagfeqinqkolp.supabase.co/rest/v1/estoque_motors",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -351,10 +424,7 @@
                 "responseFormat": "json"
               }
             }
-          },
-          "authentication": "predefinedCredentialType",
-          "nodeCredentialType": "supabaseApi",
-          "specifyHeaders": "keypair"
+          }
         },
         "id": "41f82d87-3235-41db-a7da-e9cb92c0a40d",
         "name": "Upsert Veículo (HTTP)",
@@ -388,9 +458,64 @@
         "typeVersion": 1.2,
         "position": [
           160,
-          2200
+          2208
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Reunir IDs do feed — a lista INTEIRA, uma vez, para a reconciliação.\n//\n// O upsert é um POST por anúncio e só enxerga quem ESTÁ no feed. Quem saiu\n// não passa por nó nenhum: \"quem sumiu\" precisa da lista inteira, e é esta.\n// Este ramo sai de \"Classificação e Regras de Negócio\" ABAIXO do upsert no\n// canvas: com executionOrder v1 ele roda depois do upsert, e não roda se o\n// upsert falhar.\n//\n// Decisão do dono (16/09 e 17/09): a disponibilidade espelha o RevendaMais;\n// pré-venda ou vendido é vendido no site. A regra mora na função\n// `reconciliar_disponibilidade_do_feed` (migração 20260916220000); aqui só se\n// entrega a lista.\nconst ids = $input\n  .all()\n  .map((item) => Number(item.json.id))\n  .filter((id) => Number.isSafeInteger(id) && id > 0);\n\n// ENSAIO enquanto for false: a função devolve o que FARIA e não grava.\n// Trocar para true só depois de conferir \"sairam\" numa execução real.\nconst GRAVAR = true;\n\nreturn [{ json: { p_ids: [...new Set(ids)], p_gravar: GRAVAR } }];\n"
+        },
+        "id": "0c694581-ee83-461f-87e4-1d433695aae4",
+        "name": "Reunir IDs do feed",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1248,
+          2608
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://zwbqmzgnagfeqinqkolp.supabase.co/rest/v1/rpc/reconciliar_disponibilidade_do_feed",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "specifyHeaders": "keypair",
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ p_ids: $json.p_ids, p_gravar: $json.p_gravar }) }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            }
+          }
+        },
+        "id": "5dc89fe7-92e1-49e6-8523-5aa928b01e6c",
+        "name": "Reconciliar disponibilidade (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "position": [
+          1456,
+          2608
         ],
-        "disabled": false
+        "credentials": {
+          "supabaseApi": {
+            "id": "Uy7b6KS9QdqqXnje",
+            "name": "Supabase Motors (zwbqmzgnagfeqinqkolp)"
+          }
+        }
       }
     ],
     "connections": {
@@ -445,6 +570,11 @@
               "node": "Upsert Veículo (HTTP)",
               "type": "main",
               "index": 0
+            },
+            {
+              "node": "Reunir IDs do feed",
+              "type": "main",
+              "index": 0
             }
           ]
         ]
@@ -459,6 +589,17 @@
             }
           ]
         ]
+      },
+      "Reunir IDs do feed": {
+        "main": [
+          [
+            {
+              "node": "Reconciliar disponibilidade (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "nodeGroups": [],
@@ -468,18 +609,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-09-08T21:10:57.432Z",
-        "id": 224,
+        "createdAt": "2026-09-17T15:01:13.496Z",
+        "id": 232,
         "workflowId": "u4PotK1Auirl52CT",
-        "versionId": "c9c5b70d-907f-4070-978e-30a1d440521f",
+        "versionId": "b8d5ebde-0e56-4b8c-bb40-f1ef9185f43d",
         "event": "activated",
         "userId": "87e3238e-49ce-403e-8b90-d7792be69699"
       },
       {
-        "createdAt": "2026-09-08T21:10:57.378Z",
-        "id": 223,
+        "createdAt": "2026-09-17T15:01:13.284Z",
+        "id": 231,
         "workflowId": "u4PotK1Auirl52CT",
-        "versionId": "c9c5b70d-907f-4070-978e-30a1d440521f",
+        "versionId": "b8d5ebde-0e56-4b8c-bb40-f1ef9185f43d",
         "event": "deactivated",
         "userId": "87e3238e-49ce-403e-8b90-d7792be69699"
       }
