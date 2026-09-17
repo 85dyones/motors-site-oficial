@@ -3,7 +3,7 @@ import { getEstoque, Veiculo, getVeiculoPdpUrl } from "../../../lib/supabase";
 import { unstable_cache } from "next/cache";
 import { SITE_HOST } from "../../../lib/site";
 import { nomeComAno } from "../../../lib/nomeDoVeiculo";
-import { disponiveisDe } from "../../../lib/hubsDeEstoque";
+import { disponiveisDe } from "../../../lib/regrasEstoque";
 
 // Format helper for BRL currency
 function formatPrice(value: number): string {

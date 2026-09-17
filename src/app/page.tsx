@@ -15,6 +15,7 @@ import {
   Seta,
 } from "../components/modernist/primitivos";
 import { getEstoque, getVeiculoPdpUrl } from "../lib/supabase";
+import { disponiveisDe } from "../lib/regrasEstoque";
 import { contarMarcas } from "../lib/estatisticasEstoque";
 import { getCachedSettings } from "../lib/settings";
 import { montarCompartilhamento } from "../lib/compartilhamento";
@@ -120,7 +121,7 @@ export default async function Home() {
   const publicacoesInstagram = normalizarCuradoria(settings.instagramCuradoria);
   const configDasAreas = normalizarAreas(settings.areasHome);
 
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
   const total = disponiveis.length;
 
   const quickTags = normalizarQuickTags(settings.quickTags);

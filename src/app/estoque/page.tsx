@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Catalogo from "../../components/modernist/Catalogo";
 import GradeDeVeiculos from "../../components/modernist/GradeDeVeiculos";
 import { getEstoque } from "../../lib/supabase";
+import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings, recortePublicoDeSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import {
@@ -54,7 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
     getEstoque(),
     getCachedSettings(),
   ]);
-  const total = estoque.filter((v) => !v.vendido).length;
+  const total = disponiveisDe(estoque).length;
 
   // A contagem entra no título só quando existe. Com o estoque zerado — sync
   // fora do ar, banco inacessível — o título anunciava "— 0 Ofertas", que é o

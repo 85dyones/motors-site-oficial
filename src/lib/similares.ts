@@ -1,5 +1,5 @@
 import type { Veiculo } from "../types";
-import { precoVigente } from "./regrasEstoque";
+import { disponiveisDe, precoVigente } from "./regrasEstoque";
 
 /**
  * "Também no seu perfil" — os vizinhos de estoque no rodapé da PDP.
@@ -66,9 +66,9 @@ export function escolherSimilares(
   const teto = precoBase * TETO_DA_BANDA;
   const atualEhMoto = ehMotocicleta(atual);
 
-  return estoque
+  return disponiveisDe(estoque)
     .filter((v) => {
-      if (v.id === atual.id || v.vendido) return false;
+      if (v.id === atual.id) return false;
       if (ehMotocicleta(v) !== atualEhMoto) return false;
       const preco = precoVigente(v);
       return preco >= piso && preco <= teto;

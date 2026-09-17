@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import VitrineTV, { POR_PAGINA } from "../../components/modernist/VitrineTV";
 import { getEstoque } from "../../lib/supabase";
+import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import DEFAULT_COMPANY_SETTINGS from "../../lib/companySettings.json";
 
@@ -25,7 +26,7 @@ export default async function VitrinePage() {
   const [estoque, settings] = await Promise.all([getEstoque(), getCachedSettings()]);
   const empresa = settings.companySettings ?? DEFAULT_COMPANY_SETTINGS;
 
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
 
   // A vitrine mostra a mesma curadoria do carrossel da home quando ela existe.
   const curados = Array.isArray(settings.carouselVehicleIds)

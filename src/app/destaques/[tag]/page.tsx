@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import LandingDestaque from '../../../components/modernist/LandingDestaque';
 import { getEstoque } from '../../../lib/supabase';
+import { disponiveisDe } from '../../../lib/regrasEstoque';
 import { getCachedSettings } from '../../../lib/settings';
 import { blocoJsonLd } from '../../../lib/schemaListagem';
 import { schemaDaLoja, schemaDoSite } from '../../../lib/schemaLoja';
@@ -136,7 +137,7 @@ export default async function DestaquesPage({ params }: PageProps) {
   // A grade é resolvida no servidor pela mesma regra que alimenta os chips
   // da home e a coluna de filtros do catálogo.
   const [estoque, settings] = await Promise.all([getEstoque(), getCachedSettings()]);
-  const disponiveis = estoque.filter((v) => !v.vendido);
+  const disponiveis = disponiveisDe(estoque);
   const stockOverrides = normalizarStockOverrides(settings.stockOverrides);
   const dinamicas = normalizarQuickTags(settings.quickTags);
   const todasTags = dinamicas.length > 0 ? dinamicas : DESTAQUES_PADRAO;

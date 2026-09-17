@@ -6,6 +6,7 @@ import {
   getUltimasPresencas,
   getVeiculoPdpUrl,
 } from "../lib/supabase";
+import { disponiveisDe } from "../lib/regrasEstoque";
 import { decidirPublicacao, getDatasDeVenda } from "../lib/publicacao";
 import { getCachedSettings } from "../lib/settings";
 import {
@@ -50,7 +51,7 @@ async function destaquesParaSitemap(): Promise<string[]> {
     const tags = normalizarQuickTags(settings.quickTags);
     return resolverDestaques(
       tags.length > 0 ? tags : DESTAQUES_PADRAO,
-      estoque.filter((v) => !v.vendido),
+      disponiveisDe(estoque),
       normalizarStockOverrides(settings.stockOverrides),
     ).map((d) => d.slug);
   } catch (error) {
