@@ -169,8 +169,8 @@ const REF_SOLTA = /^\(?\s*([0-9a-f]{8})\s*\)?$/i;
  *     `EEEE2022`;
  *   - o telefone digitado no campo errado, "41999990000", virava `41999990`,
  *     uma referência de aparência perfeita;
- *   - "Ref:0DCB1CDC" só escapava de virar `E0DCB1CD` — o `e` de "Ref" é
- *     hexadecimal — porque o rótulo era tirado antes, e só no COMEÇO do texto.
+ *   - o rótulo só saía no COMEÇO do texto: "Oi (Ref:0DCB1CDC)" dava
+ *     `EF0DCB1C`, porque o `e` e o `f` de "Ref" são hexadecimais.
  *
  * Nos três a busca voltava vazia, e "nenhum lead com a referência 41999990"
  * faz o atendente concluir que o lead não existe. Aqui o código só é aceito
