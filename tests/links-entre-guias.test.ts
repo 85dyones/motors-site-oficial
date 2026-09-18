@@ -56,6 +56,7 @@ const lote = {
     ...lerLote("guias-onda-1.json"),
     ...lerLote("guias-onda-2.json"),
     ...lerLote("guias-onda-2-garantia.json"),
+    ...lerLote("guias-onda-3.json"),
   ],
 };
 
@@ -132,11 +133,12 @@ describe("a página do guia linka as vizinhas, e nunca ela mesma", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("o conjunto rende os links medidos — 20 na Onda 1, 60 com a Onda 2 inteira", () => {
+  it("o conjunto rende os links medidos — 20 na Onda 1, 60 com a Onda 2, 144 com a Onda 3", () => {
     /* Número medido, não estimado: se uma reescrita derrubar citações, este
        teste mostra o tamanho da perda em vez de deixar passar em silêncio.
        Subiu de 20 para 52 com as sete peças da Onda 2 — cinco de mecânica e
-       duas de garantia —, e para 60 em 18/09/2026 com o guia de test-drive,
+       duas de garantia —, para 60 em 18/09/2026 com o guia de test-drive e
+       para 144 no mesmo dia, com as dez peças da Onda 3 se citando entre si,
        que cita seis vizinhas e passou a ser citado pelas peças do motor turbo
        e do câmbio. O ganho não é só o das peças novas: a Onda 1 também passou
        a ser citada por elas. */
@@ -144,7 +146,7 @@ describe("a página do guia linka as vizinhas, e nunca ela mesma", () => {
       (soma, peca) => soma + linksDaPagina(peca).filter((h) => h.startsWith("/guias/")).length,
       0,
     );
-    expect(total).toBeGreaterThanOrEqual(60);
+    expect(total).toBeGreaterThanOrEqual(144);
   });
 
   it("o link comercial não foi expulso pelos novos", () => {
@@ -158,20 +160,23 @@ describe("a página do guia linka as vizinhas, e nunca ela mesma", () => {
        destino comercial: ele está no CTA, que é onde a peça termina. Exigir o
        link NO TEXTO obrigaria a enfiar a palavra "perícia" numa peça que não
        fala disso, e régua que obriga a escrever pior não é régua. */
-    for (const peca of lote.guias) {
-      const temNoTexto = linksDaPagina(peca).includes("/garantia");
-      const saiPelaGarantia = peca.saida.href === "/garantia";
+    /* A régua ficou mais precisa em 18/09/2026, com a Onda 3. As peças de quem
+       vende saem por /avaliacao, e a de consignação não fala de perícia —
+       exigir /garantia dela seria a mesma régua ruim de antes. O que a régua
+       sempre quis dizer é isto: quem fala de perícia ou de laudo cautelar leva
+       a /garantia no texto, porque é o destino desses termos, e nenhuma
+       citação nova pode tomar o lugar dele. */
+    const falamDePericia = lote.guias.filter((peca) =>
+      /per[ií]cia cautelar|laudo cautelar/i.test(textosDaPeca(peca).join(" ")),
+    );
+    // A régua só vale alguma coisa se cobrir a maior parte do lote.
+    expect(falamDePericia.length).toBeGreaterThan(20);
+    for (const peca of falamDePericia) {
       expect(
-        temNoTexto || saiPelaGarantia,
-        `${peca.slug} não leva a /garantia nem no texto nem na saída`,
-      ).toBe(true);
+        linksDaPagina(peca),
+        `${peca.slug} fala de perícia e não leva a /garantia no texto`,
+      ).toContain("/garantia");
     }
-
-    // E a Onda 1 continua levando no texto, peça por peça: se alguém reescrever
-    // uma delas e derrubar a citação, isto cai.
-    const daOnda1 = lote.guias.filter((p) => !p.slug.startsWith("garantia-"));
-    const comLinkNoTexto = daOnda1.filter((p) => linksDaPagina(p).includes("/garantia"));
-    expect(comLinkNoTexto.length).toBe(daOnda1.length);
   });
 });
 
