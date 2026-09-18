@@ -67,7 +67,7 @@ O passado documental do veículo — leilão, sinistro, restrição, numeração
 
 ## O que só aparece rodando
 
-Volta no quarteirão não prova nada num motor turbo. O que prova é rodar até a temperatura estabilizar e então pedir esforço.
+Volta no quarteirão não prova nada num motor turbo. O que prova é rodar até a temperatura estabilizar e então pedir esforço. O roteiro completo, na ordem em que a avaliação da loja faz, está em "Test-drive de carro usado: o que observar, na ordem".
 
 Em marcha alta e rotação baixa, acelere a fundo e peça para alguém olhar o escapamento. Fumaça azulada na retomada é o sinal mais direto de óleo passando por onde não deveria. O mesmo vale depois de uma descida longa em retenção: acelerar em seguida e ver um sopro azul atrás é o comportamento clássico de retentor de turbo cansado.
 

@@ -72,12 +72,15 @@ const lote = JSON.parse(
   readFileSync(join(__dirname, "..", "conteudo-seo", "guias-onda-2.json"), "utf8"),
 ) as { guias: GuiaJson[] };
 
-const AS_CINCO = [
+/* Seis desde 18/09/2026: o guia de test-drive entrou no lote de mecânica
+   quando o dono aprovou o roteiro de rodagem da avaliação. */
+const AS_SEIS = [
   "motores-turbo-usados-o-que-checar",
   "correia-dentada-banhada-em-oleo",
   "carbonizacao-valvulas-injecao-direta",
   "cambio-dupla-embreagem-usado",
   "vicio-oculto-carro-usado",
+  "test-drive-carro-usado",
 ];
 
 /** Tudo o que um leitor vê da peça, campo a campo. */
@@ -108,8 +111,8 @@ const textoInteiro = (guia: GuiaJson) =>
 const frases = (guia: GuiaJson) => textoInteiro(guia).split(/(?<=[.!?])\s+/);
 
 describe("o lote da Onda 2 é o que se espera dele", () => {
-  it("são as cinco peças, todas publicadas", () => {
-    expect(lote.guias.map((g) => g.slug)).toEqual(AS_CINCO);
+  it("são as seis peças, todas publicadas", () => {
+    expect(lote.guias.map((g) => g.slug)).toEqual(AS_SEIS);
     expect(lote.guias.every((g) => g.estado === "publicado")).toBe(true);
   });
 
@@ -132,10 +135,14 @@ describe("o lote da Onda 2 é o que se espera dele", () => {
     }
   });
 
-  it("toda peça sai por /garantia — é a saída da onda", () => {
-    // A Onda 1 termina em /estoque; esta termina na página que responde pelo
-    // que a mecânica não deixa ver. Uma saída por peça, e a mesma nas cinco.
-    for (const guia of lote.guias) expect(guia.saida.href).toBe("/garantia");
+  it("toda peça sai por /garantia ou /estoque — as duas saídas da onda", () => {
+    // As cinco peças de risco mecânico terminam na página que responde pelo que
+    // a mecânica não deixa ver. O guia de test-drive é de quem está escolhendo
+    // carro, e termina no estoque. Uma saída por peça, sempre uma das duas.
+    for (const guia of lote.guias) {
+      const esperada = guia.slug === "test-drive-carro-usado" ? "/estoque" : "/garantia";
+      expect(guia.saida.href, guia.slug).toBe(esperada);
+    }
   });
 });
 
@@ -237,7 +244,11 @@ describe("nenhum número que a casa não mediu", () => {
         /três meses (?:contados|a partir) da entrega|três meses para falha/i,
       );
 
-      for (const frase of frases(guia).filter((f) => /\d[\d.]*\s*(?:mil\s+)?(?:km|quil[ôo]metros)/i.test(f))) {
+      // Velocidade não é quilometragem: "entre 60 e 80 km/h", do roteiro de
+      // rodagem, fica fora da régua.
+      for (const frase of frases(guia).filter((f) =>
+        /\d[\d.]*\s*(?:mil\s+)?(?:km(?!\/h)|quil[ôo]metros(?!\s+por\s+hora))/i.test(f),
+      )) {
         const daLoja = frase.includes(PRAZO_DA_GARANTIA);
         const doPlano = /plano|estendid|Gestauto|manual|intervalo|revisão|troca de óleo/i.test(frase);
         expect(daLoja || doPlano, `${guia.slug}: quilometragem sem dizer de quem é -> ${frase}`).toBe(true);
@@ -277,7 +288,7 @@ describe("o plano estendido entra pelo que ele é", () => {
 });
 
 describe("o lote passa pela porta do painel sem ser cortado", () => {
-  it.each(AS_CINCO)("%s", (slug) => {
+  it.each(AS_SEIS)("%s", (slug) => {
     const guia = lote.guias.find((g) => g.slug === slug)!;
 
     expect(normalizarSlug(guia.slug)).toBe(guia.slug);
