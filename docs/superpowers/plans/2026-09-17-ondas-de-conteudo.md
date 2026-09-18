@@ -147,6 +147,12 @@ vendidos e mandou seguir o padrão do manual da Gestauto. O que ela **não** faz
 chamar o plano de seguro — o registro SUSEP do manual cobre a administradora, e
 não o comprador.
 
+**Enxugada em 18/09/2026**, por ordem do dono ("não vamos falar de detalhes tanto
+assim da garantia estendida, é um serviço que vendemos e o terceiro especifica"):
+a `/garantia` e os guias deixaram de reproduzir o manual do plano. Fica o que é da
+loja — o plano existe, é opcional, é à parte, e o manual vem antes da assinatura —,
+e onde o leitor precisa decidir, a frase virou pergunta a fazer antes de contratar.
+
 **A malha de links da seção:** 20 links entre peças antes da onda, 60 depois,
 medidos com o código de verdade nas dezesseis peças. Nenhuma linka para ela mesma,
 nenhuma ficou sem vizinha, e todas terminam em `/garantia` ou `/estoque`.
@@ -173,3 +179,75 @@ O mesmo caminho da Onda 1, que já está provado:
 - ranking de motivo de reprovação só com amostra, período e método declarados
   (`REGUA_DO_GUIA`, item 4, mudado em 17/09 com a confirmação do dono);
 - número sem medição não entra (CLAUDE.md).
+
+---
+
+## 5. As próximas ondas — as bases primeiro (18/09/2026)
+
+O pedido do dono: dominar o SEO do mercado automotivo — todo termo grande de busca
+vai ter um guia, um dia — mas cobrindo as bases antes. **Base, aqui, é a busca mais
+perto do dinheiro da loja**, e a ordem sai de dois dados da própria casa, não de
+opinião:
+
+- **O estoque é de carro de entrada.** Em 18/09, 28 dos 40 carros da vitrine
+  custavam até R$ 50 mil, e 30 até R$ 60 mil. Esse comprador depende de crédito e quase sempre tem um
+  carro para dar na troca.
+- **O funil já tem nome para o que faz a venda cair** (`funil_motivos`): preço acima
+  do que o cliente queria pagar, crédito reprovado, condições de pagamento ou
+  entrada, avaliação do usado abaixo do esperado, avaliação recusada, não aceitou
+  consignação. Cada um é uma objeção que um guia pode desmontar antes da conversa.
+  O que ainda não existe é contagem: `leads` tinha 14 linhas e `negocios`, zero.
+
+### Onda 2.1 — nomear motores e câmbios (rápida, sobre o que já está no ar)
+
+Autorizado pelo dono em 18/09 ("é conteúdo de domínio público"). As peças de
+mecânica passam a dizer quais motores e câmbios o leitor encontra no mercado —
+turbos pequenos, correia banhada em óleo, injeção direta, dupla embreagem —, com
+**fonte pública conferida item por item** (manual do fabricante, recall, material
+técnico). Nome de motor com defeito atribuído sem fonte não entra: a loja vende
+esses carros.
+
+### Onda 3 — troca, venda e preço (saída `/avaliacao` e `/estoque`)
+
+| Peça | Papel | Objeção do funil que desmonta |
+|---|---|---|
+| Quanto vale meu carro usado: como a loja chega no número | **Pilar** | avaliação abaixo do esperado; avaliação recusada |
+| Carro na troca: como funciona e o que muda no preço | troca como entrada | condições de pagamento ou entrada |
+| Carro financiado: dá para vender ou trocar? | volume alto, público exato | condições de pagamento |
+| Consignação de carro: como funciona | a loja já oferece | não aceitou consignação |
+| O que a loja assume quando compra o seu carro | quitação, transferência, débitos | avaliação recusada |
+| Vender sozinho ou para a loja: o que muda além do preço | segurança física e jurídica | vendeu para outro |
+| Documentos para vender carro no Paraná | inclui a comunicação de venda ao Detran-PR | — |
+| Onde vender carro em Curitiba | local | vendeu para outro |
+| FIPE não é preço de venda: o que a tabela diz | volume alto, os dois lados | preço acima do esperado |
+| Carro de loja ou de particular: o que o preço inclui | perícia, garantia, transferência | preço acima do esperado |
+
+O **estudo de dados nº 2** do pacote — por que o carro vale menos do que o dono
+acha — fica para quando houver amostra: o time registra o motivo de cada avaliação
+que não fecha (`desfecho_motivo`, as categorias já existem) e a peça sai com
+amostra, período e método declarados, como a régua exige.
+
+### Onda 4 — crédito (saída `/financiamento`)
+
+Financiamento de carro usado: como a análise funciona (pilar) · entrada: quanto dar
+e o que ela muda · autônomo e MEI · financiamento sem entrada · e, por último,
+score baixo — a maior dor e a maior dificuldade, pelo recorte que os bancos não
+escrevem: o que acontece quando a mesma proposta vai para vários bancos.
+
+### Onda 5 — modelo a modelo (a cauda longa)
+
+Um guia por modelo, na ordem do que a loja mais vende e avalia (no histórico do
+estoque: Volkswagen, Chevrolet, Fiat, Ford e Honda na frente), cada um ligado ao hub
+do modelo — é onde "todo termo grande vai ter um guia" deixa de ser frase: "Onix
+usado: o que checar", "Saveiro usada", "EcoSport usada", "HB20 usado", "Fit usado",
+"Kwid usado", "208 usado" e assim por diante, com o motor e o câmbio de cada versão
+pelo nome.
+
+### O que faz isso escalar
+
+- **O processo das Ondas 1 e 2**, que já está provado: briefing de fatos da casa
+  (perguntas de sim ou não), dois agentes escrevendo em paralelo com o arquivo de
+  fatos, revisão, conversão, travas por lote, PR verificado e gravação com ordem.
+- **Medição de verdade.** Hoje a prioridade sai do estoque e do funil; para ordenar a
+  cauda longa por demanda real, falta ver o que o Search Console já registra de
+  impressão e posição.
