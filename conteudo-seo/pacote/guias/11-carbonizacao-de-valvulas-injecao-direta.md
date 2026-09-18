@@ -72,7 +72,7 @@ Do nosso lado, marcha lenta irregular e luz de injeção são gatilhos que manda
 
 Óleo e filtros são trocados em todo carro que entra aqui. É o que dá para fazer e resolve o presente; não reescreve o histórico de óleo de quem teve o carro antes.
 
-Na garantia da loja, limpeza e manutenção não entram. O que entra é falha interna de motor, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com mão de obra inclusa, com uma regra que vem antes de todas: avisar a loja antes de levar o carro a qualquer oficina. Quem contrata o plano de garantia estendida vendido à parte, que é opcional, assume trocar óleo e filtro a cada 7.000 quilômetros ou 6 meses, o que vier primeiro, com nota fiscal contendo quilometragem e placa — e, num motor de injeção direta, essa é exatamente a disciplina que retarda o depósito.
+Na garantia da loja, limpeza e manutenção não entram. O que entra é falha interna de motor, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com mão de obra inclusa, com uma regra que vem antes de todas: avisar a loja antes de levar o carro a qualquer oficina. E quem contratar um plano de garantia estendida, que é opcional e vendido à parte, deve conferir no manual a manutenção que ele exige — num motor de injeção direta, óleo na especificação, trocado no prazo e com nota, é exatamente a disciplina que retarda o depósito.
 
 Os outros dois assuntos que andam junto com este motor têm guias próprios: "Motor turbo de baixa cilindrada usado: o que checar" e "Correia dentada banhada em óleo: por que ela falha".
 

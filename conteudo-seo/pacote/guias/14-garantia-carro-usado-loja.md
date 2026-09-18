@@ -30,7 +30,7 @@ A primeira é a garantia prevista em lei. Ela existe na compra feita em loja, é
 
 A segunda é a garantia contratual da loja: o que a casa oferece por escrito, em acréscimo, com prazo e escopo que ela mesma define. É dela que este guia trata, porque é a que a loja pode descrever sem falar pelo que não é seu.
 
-A terceira é o plano estendido, vendido à parte por uma administradora, opcional, com regras próprias de cobertura e de acionamento. Ele não substitui as outras duas, e tem uma lista de exclusões que surpreende quem não leu — o assunto tem guia próprio, "Garantia estendida de carro usado vale a pena?".
+A terceira é o plano estendido, vendido à parte por uma administradora, opcional, com regras próprias de cobertura e de acionamento. Ele não substitui as outras duas, e as condições dele estão no manual da administradora — o assunto tem guia próprio, "Garantia estendida de carro usado vale a pena?".
 
 As três convivem. Nenhuma anula a outra, e nenhuma loja séria vai pedir que você abra mão de qualquer uma delas para fechar negócio.
 
@@ -48,7 +48,7 @@ Na venda ao consumidor não pedimos assinatura de termo de isenção — nenhum 
 
 Desgaste. Pastilha, disco, pneu, palheta e bateria existem para gastar, e num carro usado elas já vêm com história. Trocar item de desgaste é manutenção, não conserto.
 
-Manutenção. Óleo, filtro, vela e correia dentro do intervalo são serviço do dono do carro. Vale a ressalva que a peça "Correia dentada banhada em óleo: por que ela falha" detalha: em alguns motores modernos, o item de manutenção mal feito destrói o item coberto, e é por isso que a nota fiscal da revisão vale tanto.
+Manutenção. Óleo, filtro, vela e correia dentro do intervalo são serviço do dono do carro. Vale a ressalva que a peça "Correia dentada banhada em óleo: por que ela falha" detalha: em alguns motores modernos, o item de manutenção mal feito destrói o item coberto, e é por isso que a nota fiscal da revisão vale tanto. E, se um item de manutenção falhar dentro do prazo e o dano atingir o motor ou o câmbio, o conserto desse dano entra na cobertura.
 
 Embreagem em uso normal. Desgaste de embreagem não é falha interna do câmbio, e essa é a exclusão que mais gera conversa em carro de dupla embreagem — o teste que evita o susto está em "Câmbio de dupla embreagem em carro usado: o que checar".
 

@@ -111,9 +111,9 @@ Uma transparência que falta: hoje não existe um documento dessa etapa mecânic
 
 A garantia da Motors Store é de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia, com mão de obra inclusa, e cobre falha interna de motor, câmbio e diferencial — o turbocompressor incluído, quando é o original de fábrica. O conserto é feito em oficina parceira credenciada indicada pela loja, e a regra que vem antes de todas as outras é avisar a loja antes de levar o carro a qualquer oficina. Não entram desgaste, manutenção, embreagem em uso normal, bombas, fluidos, remap e peça fora de especificação, e evento externo.
 
-Há ainda um plano de garantia estendida vendido à parte, e dois pontos dele mudam a decisão de quem está comprando turbo. O primeiro: o plano não cobre turbocompressor — o turbo original fica coberto na garantia da loja, e depois dela é por conta do dono, com ou sem plano. O segundo: quem contrata fica obrigado a trocar óleo e filtro a cada 7.000 quilômetros ou 6 meses, o que vier primeiro, com nota fiscal contendo quilometragem e placa — sem isso, o plano não responde. Contratar é opcional, e não é condição para o preço do carro nem para a entrega.
+Há ainda um plano de garantia estendida, vendido à parte e opcional — não é condição para o preço do carro nem para a entrega. As condições dele são da administradora, descritas no manual do plano, e duas perguntas valem a leitura de quem compra turbo: se o turbocompressor está coberto, e que manutenção o plano exige, comprovada como.
 
-Junte as duas informações com o que este guia explicou e a conclusão é direta: o componente mais sensível desse tipo de motor é o que menos se consegue cobrir depois, e a manutenção que o protege é mais curta e mais documentada do que a média das pessoas pratica. Num turbo pequeno, o dinheiro mais bem gasto é o da checagem antes de assinar, não o do plano depois.
+Junte isso com o que este guia explicou e a conclusão é direta: num turbo pequeno, o que protege o motor é a manutenção feita no prazo e documentada, e o dinheiro mais bem gasto é o da checagem antes de assinar.
 
 Os outros dois pontos de risco desse mesmo tipo de motor têm guias próprios: "Correia dentada banhada em óleo: por que ela falha" e "Carbonização de válvulas em injeção direta".
 
@@ -139,7 +139,7 @@ Dá para chegar perto. Folga no eixo se sente com a tubulação de admissão sol
 Não. Pode ser retentor de válvula, anéis cansados ou ventilação do cárter comprometida, e o diagnóstico exige oficina. Na avaliação para compra, porém, a origem muda pouco: qualquer uma delas significa motor consumindo óleo, e é motivo de recusa aqui.
 
 **A garantia cobre o turbocompressor?**
-A da loja, sim, se o turbo for o original de fábrica: ele é parte do motor, e a garantia cobre falha interna de motor, câmbio e diferencial por três meses ou 5.000 quilômetros, o que vier primeiro, com mão de obra inclusa. Turbo que não é o original de fábrica não entra — é peça fora de especificação. O plano de garantia estendida, vendido à parte, não cobre turbocompressor em prazo nenhum. Em qualquer caso, avise a loja antes de levar o carro a uma oficina; o que entra e o que não entra, item a item, está na página de garantia.
+A da loja, sim, se o turbo for o original de fábrica: ele é parte do motor, e a garantia cobre falha interna de motor, câmbio e diferencial por três meses ou 5.000 quilômetros, o que vier primeiro, com mão de obra inclusa. Turbo que não é o original de fábrica não entra — é peça fora de especificação. Num plano de garantia estendida, a resposta está no manual do plano — pergunte antes de contratar. Em qualquer caso, avise a loja antes de levar o carro a uma oficina; o que entra e o que não entra, item a item, está na página de garantia.
 
 ---
 

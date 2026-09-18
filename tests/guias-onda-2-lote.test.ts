@@ -285,6 +285,23 @@ describe("o plano estendido entra pelo que ele é", () => {
       expect(tudo, `${guia.slug} fala do plano sem dizer que é opcional`).toMatch(/opcional/i);
     }
   });
+
+  it("e nenhuma reproduz as condições que a administradora especifica", () => {
+    /* Ordem do dono em 18/09/2026: "não vamos falar de detalhes tanto assim da
+       garantia estendida, é um serviço que vendemos e o terceiro especifica".
+       As peças diziam o intervalo de manutenção do plano, o que ele não cobre
+       e quem o administra. São condições de um contrato que não é da loja, e
+       que podem mudar sem que estes textos saibam. Onde o leitor precisa
+       decidir, a frase virou pergunta a fazer antes de contratar. */
+    for (const guia of lote.guias) {
+      expect(textoInteiro(guia), guia.slug).not.toMatch(
+        /Gestauto|180 mil|oito anos de ano|7\.000 (?:quil|km)|7 mil quil|termo de ativação|três dias úteis|72 horas|SUSEP/i,
+      );
+      for (const frase of frases(guia).filter((f) => /plano/i.test(f))) {
+        expect(frase, `${guia.slug}: afirma o que o plano cobre`).not.toMatch(/não cobre|também não cobre/i);
+      }
+    }
+  });
 });
 
 describe("o lote passa pela porta do painel sem ser cortado", () => {

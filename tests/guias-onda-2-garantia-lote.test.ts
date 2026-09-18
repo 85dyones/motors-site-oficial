@@ -157,6 +157,23 @@ describe("o plano estendido entra pelo que ele é", () => {
       expect(tudo, `${guia.slug} fala do plano sem dizer que é opcional`).toMatch(/opcional/i);
     }
   });
+
+  it("e nenhuma reproduz o manual do plano", () => {
+    /* Ordem do dono em 18/09/2026: "não vamos falar de detalhes tanto assim da
+       garantia estendida, é um serviço que vendemos e o terceiro especifica".
+       A peça do plano foi reescrita para dizer o que perguntar antes de
+       contratar; as condições — elegibilidade, manutenção obrigatória, prazos
+       de acionamento, teto, transferência, o que fica de fora — são da
+       administradora, e ficam no manual dela. */
+    for (const guia of lote.guias) {
+      expect(textoInteiro(guia), guia.slug).not.toMatch(
+        /Gestauto|180 mil|oito anos de ano|7\.000 (?:quil|km)|7 mil quil|termo de ativação|três dias úteis|72 horas|SUSEP/i,
+      );
+      for (const frase of frases(guia).filter((f) => /plano/i.test(f))) {
+        expect(frase, `${guia.slug}: afirma o que o plano cobre`).not.toMatch(/não cobre|também não cobre/i);
+      }
+    }
+  });
 });
 
 describe("nenhum número que a casa não mediu", () => {

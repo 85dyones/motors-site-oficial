@@ -58,9 +58,9 @@ Quatro itens concentram o custo desse câmbio, e nenhum deles é barato em marca
 
 O que dá para dizer com precisão é quem paga. A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Ela não cobre embreagem em uso normal: desgaste de embreagem não é falha interna do câmbio, e essa exclusão está na lista do que a garantia não cobre.
 
-O plano estendido, opcional e contratado à parte, administrado pela Gestauto, também não cobre kit de embreagem. E ele exige troca de óleo e filtro a cada 7.000 km ou 6 meses, o que vier primeiro, com nota fiscal — manutenção fora dessa régua encerra o plano. Contratar é opcional e não muda preço, financiamento nem a entrega do carro.
+Existe também um plano de garantia estendida, opcional e contratado à parte, que não muda preço, financiamento nem a entrega do carro. O que ele cobre é definido pela administradora, no manual do plano — e, num carro de dupla embreagem, a pergunta a fazer antes de contratar é se o kit de embreagem está coberto.
 
-Some as duas linhas e você tem a conclusão desconfortável que este guia existe para entregar: o kit de embreagem é do dono do carro, na nossa garantia e no plano. O jeito de não pagar por ele é não comprar um carro que já está pedindo um.
+A conclusão desconfortável que este guia existe para entregar: na garantia da loja, o kit de embreagem é do dono do carro. O jeito de não pagar por ele é não comprar um carro que já está pedindo um.
 
 ## O que a gente recusa, e por quê
 
@@ -93,7 +93,7 @@ Dá, como qualquer câmbio, e o custo do reparo é mais alto do que o de um manu
 Não. Uma trepidação que se repete sempre que o carro sai do lugar, principalmente com o conjunto já quente, indica embreagem gasta ou fora de ajuste. É um dos sinais que fazem a gente recusar o carro na avaliação, e é o que você deve procurar num test-drive em rampa e no trânsito parado.
 
 **Quanto custa trocar o kit de embreagem?**
-Varia por modelo, por origem da peça e por oficina, e a gente não publica valor sem medição própria. Peça orçamento à oficina antes de fechar a compra do carro. Vale saber de antemão que embreagem em uso normal não entra na garantia da loja e que o plano estendido, contratado à parte, também não cobre kit de embreagem.
+Varia por modelo, por origem da peça e por oficina, e a gente não publica valor sem medição própria. Peça orçamento à oficina antes de fechar a compra do carro. Vale saber de antemão que embreagem em uso normal não entra na garantia da loja; num plano de garantia estendida, a resposta está no manual dele.
 
 **A garantia da loja cobre o câmbio de dupla embreagem?**
 Cobre falha interna do câmbio por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Embreagem em uso normal fica de fora. A regra que mais importa é outra: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina — o conserto é feito em oficina parceira credenciada indicada pela gente.

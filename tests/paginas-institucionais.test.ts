@@ -189,16 +189,22 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
        deixou aberta: "se for de fábrica, sim". O turbo original é componente
        do motor; o trocado ou preparado cai em "peça fora de especificação".
        As duas metades ficam escritas, porque a primeira sozinha seria lida
-       como "cobre turbo" por quem trocou o dele. E o plano da Gestauto
-       continua sem cobrir turbo em prazo nenhum — a página diz as duas
-       coberturas lado a lado, que é onde o comprador de turbo decide. */
+       como "cobre turbo" por quem trocou o dele. O que o plano estendido cobre
+       não entra aqui: desde 18/09 a página não reproduz o manual dele. */
     const coberto = SECOES_DE_GARANTIA.flatMap((s) => s.paragrafos).find((p) => p.startsWith("Coberto:"));
     expect(coberto).toMatch(/turbocompressor, quando é o original de fábrica/);
     expect(TEXTO_DA_GARANTIA).toMatch(/turbo que não é o original de fábrica entra aqui/);
-    const doPlano = SECOES_DE_GARANTIA.flatMap((s) => s.paragrafos).find((p) =>
-      p.startsWith("Cobre componentes internos"),
+  });
+
+  it("o item de manutenção que falha no prazo e atinge motor ou câmbio entra", () => {
+    /* Resposta do dono em 18/09/2026: "entra, se estiver no prazo e tiver
+       ligação com o centro maior, motor e caixa". Sem esta frase, a lista de
+       exclusões — correia é manutenção — faria o comprador concluir o
+       contrário no pior caso possível: a correia que se rompe e leva o motor. */
+    expect(TEXTO_DA_GARANTIA).toMatch(
+      /item de manutenção falha dentro do prazo e o dano atinge o motor ou o câmbio/,
     );
-    expect(doPlano).toMatch(/Não cobre turbocompressor/);
+    expect(TEXTO_DA_GARANTIA).toMatch(/o conserto desse dano entra na cobertura/);
   });
 
   it("o site inteiro diz o MESMO prazo — nenhuma tela escreve o número à mão", () => {
@@ -250,7 +256,7 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
     expect(PRAZOS_ESTENDIDOS).toBe("6, 12 ou 24 meses");
     // Nem o título da seção nem a resposta do FAQ digitam os prazos.
     expect(codigo).toContain("titulo: `Estender por ${PRAZOS_ESTENDIDOS}`,");
-    expect(codigo).toContain("por ${PRAZOS_ESTENDIDOS}, com aprovação do veículo");
+    expect(codigo).toContain("por ${PRAZOS_ESTENDIDOS}: um plano de garantia mecânica");
     // E o leitor continua vendo os três prazos na página.
     expect(TEXTO_DA_GARANTIA).toMatch(/6, 12 ou 24 meses/);
   });
@@ -446,9 +452,26 @@ describe("a /garantia alinhada às peças", () => {
        dele. */
     expect(TEXTO_DA_GARANTIA).toMatch(/garantia mecânica/i);
     expect(TEXTO_DA_GARANTIA).not.toMatch(/susep|seguradora/i);
-    expect(TEXTO_DA_GARANTIA, "sumiu a regra que vale a cobertura inteira").toMatch(
-      /7 mil quilômetros ou 6 meses/i,
-    );
     expect(TEXTO_DA_GARANTIA, "a contratação precisa aparecer como opcional").toMatch(/opcional/i);
+    expect(TEXTO_DA_GARANTIA, "as condições são do manual da administradora").toMatch(
+      /manual do plano/i,
+    );
+  });
+
+  it("e sem os detalhes que a administradora especifica", () => {
+    /* Ordem do dono em 18/09/2026: "não vamos falar de detalhes tanto assim da
+       garantia estendida, é um serviço que vendemos e o terceiro especifica".
+       Até ali a página reproduzia o manual: elegibilidade, coberturas e
+       exclusões, manutenção obrigatória, teto de reparo, prazos de acionamento
+       e transferência. São condições que a administradora define e pode mudar
+       sem avisar esta página — publicá-las é assinar embaixo de um contrato
+       que não é da loja. O que fica é o que é dela: o plano existe, é
+       opcional, é à parte e o manual vem antes da assinatura. */
+    const garantia = [TEXTO_DA_GARANTIA, ...PERGUNTAS_DE_GARANTIA.map((p) => p.resposta)].join(" ");
+    expect(garantia).not.toMatch(/180 mil|oito anos de ano-modelo/i);
+    expect(garantia).not.toMatch(/7 mil quilômetros|7\.000 quilômetros/i);
+    expect(garantia).not.toMatch(/teto de reparo|termo de ativação/i);
+    expect(garantia).not.toMatch(/três dias úteis|72 horas/i);
+    expect(garantia).not.toMatch(/Não cobre turbocompressor|kit de embreagem/i);
   });
 });
