@@ -306,6 +306,12 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
       "Fora da cobertura, por serem manutenção ou desgaste de uso: óleo, filtros, velas e " +
         "correias no intervalo; pastilha, disco, pneu, palheta e bateria; embreagem em uso " +
         "normal; bombas, fluidos e óleos em geral.",
+      // Resposta do dono em 18/09/2026 à pergunta que a peça da correia banhada
+      // deixou aberta: "entra, se estiver no prazo e tiver ligação com o centro
+      // maior, motor e caixa".
+      "Uma ressalva que decide muito caso: quando um item de manutenção falha dentro do prazo " +
+        "e o dano atinge o motor ou o câmbio — uma correia que se rompe e leva junto os " +
+        "internos do motor, por exemplo —, o conserto desse dano entra na cobertura.",
       "Fora também: peça fora de especificação — um turbo que não é o original de fábrica " +
         "entra aqui —, remap e alteração de característica do veículo; e evento externo — " +
         "colisão, enchente, granizo, vandalismo —, que é assunto de seguro, não de garantia.",
@@ -316,29 +322,23 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   },
   {
     titulo: `Estender por ${PRAZOS_ESTENDIDOS}`,
+    /* Enxugada em 18/09/2026, por ordem do dono: "não vamos falar de detalhes
+       tanto assim da garantia estendida, é um serviço que vendemos e o
+       terceiro especifica". Até ali a seção reproduzia o manual — coberturas,
+       exclusões, elegibilidade, manutenção obrigatória, teto de reparo,
+       transferência. Quem define essas condições é a administradora, e ela
+       pode mudá-las sem que esta página saiba; o que a loja afirma é o que é
+       dela: o plano existe, é opcional, é à parte, e o manual vem antes da
+       assinatura. */
     paragrafos: [
-      "Quem quiser ir além dos três meses pode contratar, no ato da compra, o plano de motor " +
-        "e câmbio administrado pela Gestauto. É garantia mecânica contratada à parte, em " +
-        "acréscimo à garantia legal e à da loja — não é seguro, e a contratação é opcional. " +
-        "O preço vem destacado na proposta, não muda o valor do carro e recusar não muda a " +
-        "negociação.",
+      "Quem quiser ir além dos três meses pode contratar, no ato da compra, um plano de " +
+        "garantia mecânica de motor e câmbio, administrado por empresa especializada. É " +
+        "contratado à parte e opcional: o preço vem destacado na proposta, não muda o valor do " +
+        "carro, e recusar não muda a negociação.",
       // "Mesmo manual" — resposta do dono em 18/09/2026 sobre os três prazos.
-      "O plano depende de aprovação do veículo: na data do checklist, ele precisa ter menos " +
-        "de 180 mil quilômetros rodados e menos de oito anos de ano-modelo. As regras são as " +
-        "mesmas nos três prazos: o manual é um só.",
-      "Cobre componentes internos do motor e do câmbio, pelo tipo de câmbio do carro, e o " +
-        "sistema de arrefecimento, com mão de obra nas oficinas credenciadas. Não cobre " +
-        "turbocompressor — que a garantia da loja cobre, quando é o original de fábrica —, " +
-        "vazamento e aumento gradual de consumo de óleo, kit de embreagem, elétrica em geral, " +
-        "ar-condicionado, freios, direção nem diferencial. A lista completa está no manual, que " +
-        "o consultor mostra antes de você decidir.",
-      "Duas obrigações que valem a cobertura inteira: a revisão de óleo e filtro a cada 7 mil " +
-        "quilômetros ou 6 meses, o que vier primeiro, guardando a nota fiscal com a " +
-        "quilometragem e a placa; e o teto de reparo escrito no termo de ativação, que vai " +
-        "sendo consumido a cada acionamento. Perder a revisão é a causa número um de recusa " +
-        "no país inteiro.",
-      "O plano vale em todo o território nacional e pode ser transferido a quem comprar o " +
-        "carro depois, mediante taxa.",
+      "Cobertura, exclusões, manutenção exigida e a forma de acionar são definidas pela " +
+        "administradora, no manual do plano — o mesmo para os três prazos. O consultor " +
+        "apresenta o manual antes de você decidir.",
     ],
   },
   {
@@ -350,10 +350,9 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
       "A gente avalia e conserta na oficina parceira da especialidade, dentro do prazo e do " +
         "escopo do termo, sem franquia e com a mão de obra inclusa.",
       "Guarde tudo: nota, contrato, laudo da perícia, ordem de serviço e a conversa por escrito.",
-      "Se você contratou o plano estendido, o caminho é outro e tem prazo: pare o veículo, " +
-        "acione a Gestauto em até três dias úteis, envie os documentos em até 72 horas e leve " +
-        "o carro à oficina que ela indicar. Nenhum reparo pode começar antes da autorização " +
-        "dela. A gente acompanha o processo com você.",
+      "Se você contratou o plano estendido, o acionamento segue as regras da administradora, " +
+        "descritas no manual, e começa antes de qualquer reparo. A gente acompanha o processo " +
+        "com você.",
     ],
   },
   {
@@ -417,19 +416,16 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
   },
   {
     pergunta: "Dá para estender a garantia?",
-    /* O plano é o da Gestauto, e a redação segue o manual dele por ordem do
-       dono (17/09/2026). Duas coisas que a página NÃO pode dizer: que é seguro
-       (é serviço de certificação com garantia, contratado à parte) e que o
-       registro SUSEP do manual protege o comprador — ele cobre a própria
-       Gestauto. E a contratação é opcional por norma: nada de condicionar
-       preço, desconto ou entrega do carro a ela. */
+    /* Resposta curta desde 18/09/2026, pela mesma ordem do dono que enxugou a
+       seção: as condições são da administradora e ficam no manual dela. Duas
+       coisas continuam valendo: o plano não é chamado de seguro, e a
+       contratação é opcional — nada de condicionar preço, desconto ou entrega
+       do carro a ela. */
     resposta:
-      `Dá, no ato da compra, por ${PRAZOS_ESTENDIDOS}, com aprovação do veículo — ele precisa ` +
-      "ter menos de 180 mil quilômetros e menos de oito anos de ano-modelo. É garantia " +
-      "mecânica administrada pela Gestauto, contratada à parte e em acréscimo à garantia da " +
-      "loja; a contratação é opcional e o preço vem destacado na proposta. O plano exige " +
-      "revisão de óleo e filtro a cada 7 mil quilômetros ou 6 meses, com nota fiscal, e tem " +
-      "teto de reparo no termo de ativação.",
+      `Dá, no ato da compra, por ${PRAZOS_ESTENDIDOS}: um plano de garantia mecânica de motor ` +
+      "e câmbio, contratado à parte e administrado por empresa especializada. A contratação é " +
+      "opcional e o preço vem destacado na proposta. Cobertura e condições são as do manual do " +
+      "plano, que o consultor apresenta antes de você decidir.",
   },
   {
     pergunta: "E a documentação da transferência?",

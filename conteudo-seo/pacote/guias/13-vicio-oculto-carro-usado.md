@@ -74,7 +74,7 @@ A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial, 
 
 A regra mais importante dela cabe em uma linha: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina. O conserto é feito em oficina parceira credenciada indicada pela gente — são mais de quinze, separadas por especialidade — e é essa indicação que garante que alguém responda pelo serviço depois.
 
-Existe ainda um plano estendido, opcional, contratado à parte e administrado pela Gestauto, com regras próprias de cobertura, de acionamento e de manutenção obrigatória. Contratar é opcional e não muda preço, financiamento nem a entrega do carro.
+Existe ainda um plano de garantia estendida, opcional, contratado à parte e administrado por empresa especializada, com regras próprias descritas no manual dele. Contratar é opcional e não muda preço, financiamento nem a entrega do carro.
 
 Nada disso é a única proteção que existe numa compra de loja, e nenhuma linha desta página diz o contrário. O que a garantia é: o que a gente banca, por escrito, sem você precisar cobrar. Sobre direitos previstos em lei e sobre o seu caso específico, quem orienta é o Procon ou um advogado — não é conversa de vendedor, e a gente não vai fingir que é.
 
