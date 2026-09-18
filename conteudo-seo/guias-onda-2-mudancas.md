@@ -91,24 +91,29 @@ isso que o pilar do laudo cautelar agora sai com seis links para vizinhas.
 
 ---
 
+## O que o dono respondeu em 18/09/2026, e onde entrou
+
+| Pergunta | Resposta | Onde mudou |
+|---|---|---|
+| Limite de quilometragem da garantia da loja | "5.000 km de média nos 3 meses" — lido como três meses ou 5.000 km, o que vier primeiro | `GARANTIA_KM` e `PRAZO_DA_GARANTIA` em `paginasInstitucionais.ts`; `/garantia`, Ney, landing da Pole Position e toda frase de prazo das sete peças |
+| A garantia de 3 meses cobre turbo? | "Se for de fábrica, sim" | `/garantia` (cobertura e exclusão), Ney, FAQ da peça 09, peças 14 e 15 |
+| Os planos de 6 e 24 meses têm manual próprio? | "Mesmo manual" | seção do plano na `/garantia` e peça 15 |
+| Revisão jurídica da peça 13 | "Feito" | só a pendência saiu; o texto não mudou |
+| Roteiro de test-drive na avaliação | "Geralmente levamos o carro para ruas mais irregulares para ver suspensão, aceleração e frenagem" — e pediu um roteiro completo | a frase confirmada entrou na peça 12; o roteiro completo foi proposto a ele e ainda não é texto público |
+
+**O limite de quilometragem não está no contrato.** A cláusula quarta do contrato
+padrão de venda fala em prazo e só. O site passou a dizer o limite porque o dono
+confirmou o número; a proposta de redação para a cláusula foi levada a ele.
+
 ## O que ainda falta do dono
 
-1. **O limite de quilometragem da garantia da loja** — o número e onde ele está
-   escrito (ver acima).
-2. **A garantia de três meses cobre turbocompressor?** O turbo não está na lista
-   de cobertura nem na de exclusões. É a primeira pergunta de quem compra turbo,
-   e a peça 09 hoje não afirma nem nega: encaminha para `/garantia`.
-3. **Falha de item de manutenção que destrói item coberto** — correia é
+1. **Falha de item de manutenção que destrói item coberto** — correia é
    manutenção e está fora por escrito; o que acontece quando ela leva junto os
    internos do motor é pergunta de contrato.
-4. **Revisão jurídica da peça 13** (vício oculto). Ela descreve o conceito em
-   termos gerais, sem artigo, sem prazo, sem afirmar obrigação da loja, e manda
-   quem tem dúvida ao Procon ou a um advogado. Ainda assim é a peça de maior
-   exposição da onda.
-5. **Existe roteiro de test-drive padronizado na avaliação?** A peça 12 afirma
-   que quem testa o câmbio é o time, no volante. É dedução a partir dos gatilhos
-   confirmados. Se o roteiro existir, vira frase própria — e é um ativo que
-   nenhuma revenda publica.
-6. **Publicar ou não os motores por nome.** As peças descrevem a tecnologia sem
+2. **O teto de reparo do plano estendido** — o manual remete o valor ao termo de
+   ativação, e a peça 15 manda o leitor perguntar qual é.
+3. **Aprovar o roteiro de test-drive** — aprovado, ele vira frase própria na
+   peça 12 e peça da Onda 3.
+4. **Publicar ou não os motores por nome.** As peças descrevem a tecnologia sem
    nomear fabricante ou família de motor. Nomear as tornaria mais úteis e mais
    arriscadas, porque a loja vende esses carros. Decisão reversível.

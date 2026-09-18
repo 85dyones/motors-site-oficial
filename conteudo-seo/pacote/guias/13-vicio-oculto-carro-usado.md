@@ -70,7 +70,7 @@ Que o telefone seja atendido depois da venda, e que exista um caminho combinado 
 
 A perícia resolve o que dá para enxergar. A garantia banca parte do que não dá — e é essa a relação entre as duas, uma sendo consequência da outra.
 
-A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia, sem termo de isenção e com mão de obra inclusa. Ela não cobre desgaste, como pastilha, disco, pneu, palheta e bateria; não cobre manutenção, como óleo, filtro, vela e correia; não cobre embreagem em uso normal, bombas, fluidos, remap e peça fora de especificação; não cobre evento externo, de colisão a enchente e granizo; e não cobre transporte, guincho, alimentação e hospedagem.
+A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia, sem termo de isenção e com mão de obra inclusa. Ela não cobre desgaste, como pastilha, disco, pneu, palheta e bateria; não cobre manutenção, como óleo, filtro, vela e correia; não cobre embreagem em uso normal, bombas, fluidos, remap e peça fora de especificação; não cobre evento externo, de colisão a enchente e granizo; e não cobre transporte, guincho, alimentação e hospedagem.
 
 A regra mais importante dela cabe em uma linha: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina. O conserto é feito em oficina parceira credenciada indicada pela gente — são mais de quinze, separadas por especialidade — e é essa indicação que garante que alguém responda pelo serviço depois.
 
@@ -100,7 +100,7 @@ Não. O laudo cautelar examina identificação, estrutura e histórico — é ex
 Se o carro é nosso, o primeiro passo é avisar a loja antes de levar a qualquer oficina: é o que a garantia pede e é o que preserva o registro do que aconteceu. Em qualquer compra, junte o que você tem — contrato, laudo, notas de manutenção — antes de conversar. E, se a dúvida for sobre direitos, procure o Procon ou um advogado.
 
 **A Motors Store cobre vício oculto?**
-Vício oculto é um conceito jurídico, não o nome de uma cobertura, então a resposta honesta é descrever o que a gente cobre: falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa, com as exclusões listadas no termo que acompanha a venda. E a regra de sempre: avise a gente antes de levar o carro a qualquer oficina.
+Vício oculto é um conceito jurídico, não o nome de uma cobertura, então a resposta honesta é descrever o que a gente cobre: falha interna de motor, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com mão de obra inclusa, com as exclusões listadas no termo que acompanha a venda. E a regra de sempre: avise a gente antes de levar o carro a qualquer oficina.
 
 ---
 
@@ -129,9 +129,9 @@ Vício oculto é um conceito jurídico, não o nome de uma cobertura, então a r
 
 ## Pendências antes de publicar
 
-- [ ] **Revisão jurídica.** A peça descreve vício oculto em termos gerais, sem citar artigo, sem prazo e sem afirmar obrigação da loja, e encerra encaminhando a Procon ou advogado (T5). Mesmo assim é a peça de maior exposição da onda: vale uma leitura do time legal antes de subir.
-- [ ] **Diferencial na `/garantia`.** A peça afirma cobertura de motor, câmbio E diferencial, que é o que está no contrato. A `/garantia` publicada ainda fala só em motor e câmbio. Ou a página passa a citar o diferencial, ou esta peça recua para dois conjuntos — do jeito que está, o guia promete mais que o hub, e isso é T3.
-- [ ] **Limite de quilometragem da garantia.** Citado sem número, porque o valor ainda não foi informado.
+- [x] **Revisão jurídica.** Feita pelo dono em 18/09/2026. Registro do que foi levado a ela: A peça descreve vício oculto em termos gerais, sem citar artigo, sem prazo e sem afirmar obrigação da loja, e encerra encaminhando a Procon ou advogado (T5). Mesmo assim é a peça de maior exposição da onda: vale uma leitura do time legal antes de subir.
+- [x] **Diferencial na `/garantia`.** Resolvido: o #90 foi mesclado em 18/09/2026 e a página cita o diferencial. Registro: A peça afirma cobertura de motor, câmbio E diferencial, que é o que está no contrato. A `/garantia` publicada ainda fala só em motor e câmbio. Ou a página passa a citar o diferencial, ou esta peça recua para dois conjuntos — do jeito que está, o guia promete mais que o hub, e isso é T3.
+- [x] **Limite de quilometragem da garantia.** 5.000 km, o que vier primeiro com os três meses (dono, 18/09/2026); entrou no corpo e no FAQ.
 - [ ] **T8, conferir o enquadramento.** A peça não enumera escopo de garantia legal nem explica artigo, e diz explicitamente que a garantia contratual não é a única proteção existente. Se a leitura do dono for que até essa frase é conteúdo de garantia legal, ela sai sem prejuízo para o texto.
 
 ## Conferência editorial

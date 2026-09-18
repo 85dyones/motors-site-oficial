@@ -11,6 +11,7 @@ import {
   texto,
 } from "../src/lib/guiaValidacao";
 import { conferir } from "../conteudo-seo/aplicar-guias.mjs";
+import { GARANTIA_KM_TEXTO, PRAZO_DA_GARANTIA } from "../src/lib/paginasInstitucionais";
 
 /**
  * O lote da Onda 2 — cinco peças de mecânica, antes de irem para a tabela.
@@ -41,9 +42,10 @@ import { conferir } from "../conteudo-seo/aplicar-guias.mjs";
  *  3. os 120 pontos com dono: são da CAUTELAR. A mesma trava existe em
  *     `paginas-institucionais.test.ts` para a página `/garantia`, e o guia que
  *     dissesse o contrário recriaria a contradição do outro lado do site;
- *  4. nenhum número sem medição: preço, percentual e quilometragem de garantia
- *     não entram enquanto não houver levantamento com amostra, período e
- *     método declarados — item 4 da `REGUA_DO_GUIA`;
+ *  4. nenhum número sem medição: preço e percentual não entram enquanto não
+ *     houver levantamento com amostra, período e método declarados — item 4 da
+ *     `REGUA_DO_GUIA`. A quilometragem da garantia da loja entrou em 18/09/2026,
+ *     com o número do dono, e só pela expressão de `PRAZO_DA_GARANTIA`;
  *  5. o plano estendido nunca chamado de seguro: ele é serviço de certificação
  *     com garantia, administrado pela Gestauto, e o registro SUSEP do manual
  *     cobre a própria Gestauto, não o comprador.
@@ -215,19 +217,35 @@ describe("nenhum número que a casa não mediu", () => {
     }
   });
 
-  it("nenhuma quilometragem atribuída à garantia da loja", () => {
-    /* O dono confirmou em 17/09/2026 que existe limite de quilometragem, e não
-       informou o valor — nem o contrato padrão de venda o traz (a cláusula
-       quarta só fala em prazo). Enquanto as duas coisas faltarem, citar o
-       limite manda o comprador procurar no contrato uma linha que não existe.
-       Os 7.000 km que aparecem nas peças são do PLANO da Gestauto, e a frase
-       dele sempre nomeia o plano. */
+  it("a quilometragem da garantia da loja é a da constante, e nenhuma outra fica sem dono", () => {
+    /* Até 17/09/2026 esta trava proibia citar limite de quilometragem: o dono
+       tinha confirmado que ele existe, sem dizer o valor, e o contrato padrão
+       de venda não o traz. Em 18/09 veio o número — 5.000 km, o que vier
+       primeiro com os três meses — e a régua virou do avesso: agora toda
+       frase que diz o prazo da loja diz também o limite, e o limite é o de
+       `PRAZO_DA_GARANTIA`, sem digitação no caminho.
+
+       O resto da quilometragem das peças é do PLANO da Gestauto (7.000 km de
+       revisão, 180 mil de elegibilidade), e a frase dele sempre nomeia o
+       plano, o manual ou a revisão. */
     for (const guia of lote.guias) {
-      expect(textoInteiro(guia), `${guia.slug}`).not.toMatch(/limite de quilometragem/i);
+      const tudo = textoInteiro(guia);
+      expect(tudo, `${guia.slug}`).not.toMatch(/limite de quilometragem/i);
+
+      // O prazo antigo, sem o limite, não sobrou em lugar nenhum.
+      expect(tudo, `${guia.slug}: prazo da loja sem o limite`).not.toMatch(
+        /três meses (?:contados|a partir) da entrega|três meses para falha/i,
+      );
+
       for (const frase of frases(guia).filter((f) => /\d[\d.]*\s*(?:mil\s+)?(?:km|quil[ôo]metros)/i.test(f))) {
-        expect(frase, `${guia.slug}: quilometragem sem dizer de quem é`).toMatch(
-          /plano|estendid|Gestauto|intervalo|revisão|troca de óleo/i,
-        );
+        const daLoja = frase.includes(PRAZO_DA_GARANTIA);
+        const doPlano = /plano|estendid|Gestauto|manual|intervalo|revisão|troca de óleo/i.test(frase);
+        expect(daLoja || doPlano, `${guia.slug}: quilometragem sem dizer de quem é -> ${frase}`).toBe(true);
+      }
+
+      // Quem cita "três meses ou N quilômetros" cita o N da constante.
+      for (const achado of tudo.matchAll(/três meses ou ([\d.]+) quilômetros/g)) {
+        expect(achado[1], `${guia.slug}`).toBe(GARANTIA_KM_TEXTO);
       }
     }
   });

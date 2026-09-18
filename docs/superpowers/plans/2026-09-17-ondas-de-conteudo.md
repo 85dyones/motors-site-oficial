@@ -133,13 +133,13 @@ As sete peças, e o que cada uma ficou devendo:
 
 | Peça | Estado | O que ainda falta da casa |
 |---|---|---|
-| Motor turbo de baixa cilindrada (pilar) | escrita | a garantia de 3 meses cobre turbocompressor? |
-| Correia dentada banhada em óleo | escrita | falha de item de manutenção que destrói item coberto entra na garantia? |
-| Carbonização de válvulas em injeção direta | escrita | faixa de preço medida em Curitiba (hoje é ordem de grandeza declarada) |
-| Câmbio de dupla embreagem em usado | escrita | existe roteiro de test-drive padronizado na avaliação? |
-| Vício oculto em carro usado | escrita | revisão jurídica — é a peça de maior exposição |
-| Garantia de carro usado em loja (pilar do Pilar 2) | escrita | o limite de quilometragem: qual é e onde está escrito |
-| Garantia estendida vale a pena? | escrita | o teto de reparo por prazo, e se 6 e 24 meses têm manual próprio |
+| Motor turbo de baixa cilindrada (pilar) | no ar | nada — o turbo de fábrica coberto entrou em 18/09 |
+| Correia dentada banhada em óleo | no ar | falha de item de manutenção que destrói item coberto entra na garantia? |
+| Carbonização de válvulas em injeção direta | no ar | faixa de preço medida em Curitiba (hoje é ordem de grandeza declarada) |
+| Câmbio de dupla embreagem em usado | no ar | aprovar o roteiro de test-drive proposto em 18/09 |
+| Vício oculto em carro usado | no ar | nada — revisão jurídica feita em 18/09 |
+| Garantia de carro usado em loja (pilar do Pilar 2) | no ar | levar os 5.000 km para o contrato (hoje só o site diz) |
+| Garantia estendida vale a pena? | no ar | o teto de reparo por prazo (o manual é o mesmo nos três) |
 
 A sétima entrou porque o produto existe: o dono confirmou os três prazos
 vendidos e mandou seguir o padrão do manual da Gestauto. O que ela **não** faz é

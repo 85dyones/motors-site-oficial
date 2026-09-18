@@ -20,7 +20,7 @@ palavras: ~1.900
 
 A garantia que uma loja dá num carro usado cobre falha de componente — peça que quebrou antes da hora — e não cobre peça que gastou com o uso. Essa linha decide quase toda discussão de balcão, e quem entende ela antes de assinar não descobre depois.
 
-Na Motors Store, a garantia é de três meses contados da entrega e cobre falha interna de motor, câmbio e diferencial. Sem carência, sem franquia, com a mão de obra inclusa. O conserto é feito em oficina parceira credenciada indicada pela loja, e a regra que vem antes de todas as outras é avisar a gente antes de levar o carro a qualquer lugar.
+Na Motors Store, a garantia é de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, e cobre falha interna de motor, câmbio e diferencial. Sem carência, sem franquia, com a mão de obra inclusa. O conserto é feito em oficina parceira credenciada indicada pela loja, e a regra que vem antes de todas as outras é avisar a gente antes de levar o carro a qualquer lugar.
 
 ## Três coisas diferentes chamadas de garantia
 
@@ -36,7 +36,7 @@ As três convivem. Nenhuma anula a outra, e nenhuma loja séria vai pedir que vo
 
 ## O que está coberto na garantia da Motors Store
 
-Falha interna de motor, de câmbio e de diferencial, dentro dos três meses contados da entrega.
+Falha interna de motor, de câmbio e de diferencial, dentro de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega. O turbocompressor entra como parte do motor quando é o original de fábrica.
 
 Sem carência quer dizer que vale desde o primeiro dia, sem período de espera. Sem franquia quer dizer que você não paga parte do conserto nem taxa para acionar. Mão de obra inclusa quer dizer que a hora da oficina entra junto com a peça — e vale reparar nisso, porque em muita garantia de mercado a peça é coberta e a mão de obra não, o que pode ser metade da conta.
 
@@ -54,7 +54,7 @@ Embreagem em uso normal. Desgaste de embreagem não é falha interna do câmbio,
 
 Bombas, fluidos e óleos em geral.
 
-Peça fora de especificação e remap. Alterar característica do veículo muda o esforço que o conjunto recebe, e ninguém pode responder por uma peça que não escolheu.
+Peça fora de especificação e remap — um turbo que não é o original de fábrica entra aqui. Alterar característica do veículo muda o esforço que o conjunto recebe, e ninguém pode responder por uma peça que não escolheu.
 
 Evento externo — colisão, enchente, granizo, vandalismo. Isso é assunto de seguro, não de garantia, e nenhuma garantia de loja no país cobre.
 
@@ -103,10 +103,10 @@ O que a Motors Store assume depois da entrega — prazo, o que entra, o que não
 ## FAQ
 
 **Loja é obrigada a dar garantia em carro usado?**
-A compra feita em loja vem com a garantia prevista em lei, que é direito do consumidor e não depende de o vendedor oferecer. Além dela, cada loja pode dar a sua própria garantia contratual, com prazo e escopo definidos por ela — a da Motors Store é de três meses para falha interna de motor, câmbio e diferencial. Sobre o alcance do que a lei garante e sobre o seu caso, quem orienta é o Procon ou um advogado, não a loja que está vendendo.
+A compra feita em loja vem com a garantia prevista em lei, que é direito do consumidor e não depende de o vendedor oferecer. Além dela, cada loja pode dar a sua própria garantia contratual, com prazo e escopo definidos por ela — a da Motors Store é de três meses ou 5.000 quilômetros, o que vier primeiro, para falha interna de motor, câmbio e diferencial. Sobre o alcance do que a lei garante e sobre o seu caso, quem orienta é o Procon ou um advogado, não a loja que está vendendo.
 
 **O que a garantia de três meses cobre, exatamente?**
-Falha interna de motor, câmbio e diferencial, contada da entrega, sem carência, sem franquia e com a mão de obra inclusa. Fora dela ficam desgaste, manutenção, embreagem em uso normal, bombas, fluidos e óleos, peça fora de especificação, remap, evento externo e os custos que não são do conserto, como transporte e guincho. O detalhamento item a item está no termo entregue com a venda — peça para ler antes de assinar.
+Falha interna de motor — incluído o turbo original de fábrica —, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com a mão de obra inclusa. Fora dela ficam desgaste, manutenção, embreagem em uso normal, bombas, fluidos e óleos, peça fora de especificação, remap, evento externo e os custos que não são do conserto, como transporte e guincho. O detalhamento item a item está no termo entregue com a venda — peça para ler antes de assinar.
 
 **Posso levar o carro na minha oficina de confiança?**
 Avise a loja antes. O conserto em garantia é feito em oficina parceira credenciada indicada por ela, e reparo feito sem comunicação prévia dificulta a análise do defeito e pode custar a cobertura. Se você quiser o seu mecânico depois que a garantia acabar, ótimo — durante ela, o caminho combinado é o que protege os dois lados.
@@ -142,8 +142,8 @@ Nenhum link escrito no corpo: o renderizador serve parágrafo como texto puro e 
 
 ## Pendências
 
-- **O limite de quilometragem da garantia da loja.** O dono confirmou que existe; o valor não foi informado e o contrato padrão de venda não o menciona. Nenhum número entrou nesta peça, e a frase entra quando ele disser qual é e onde está escrito.
-- **A garantia de três meses cobre turbocompressor?** O turbo não está na lista de cobertura nem na de exclusões. A peça não afirma nem nega.
+- [x] **O limite de quilometragem da garantia da loja.** 5.000 km, o que vier primeiro com os três meses (dono, 18/09/2026); entrou em todas as frases que dizem o prazo. Registro do estado anterior: o dono confirmou que existe; o valor não foi informado e o contrato padrão de venda não o menciona. Nenhum número entrou nesta peça, e a frase entra quando ele disser qual é e onde está escrito.
+- [x] **A garantia de três meses cobre turbocompressor?** "Se for de fábrica, sim" (dono, 18/09/2026). A cobertura diz o turbo original; a exclusão de peça fora de especificação diz o turbo que não é original.
 - **Falha de item de manutenção que destrói item coberto.** A peça diz que a correia é manutenção e cita o guia da correia; o que acontece quando ela leva junto os internos do motor é pergunta de contrato, e a resposta muda uma frase aqui.
 
 ---

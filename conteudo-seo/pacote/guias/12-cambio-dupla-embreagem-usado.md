@@ -56,7 +56,7 @@ Fora do volante, três coisas. O painel: qualquer mensagem ou luz conta, e códi
 
 Quatro itens concentram o custo desse câmbio, e nenhum deles é barato em marca nenhuma: o kit de embreagem, o módulo que comanda os engates, os atuadores e garfos, e o volante bimassa quando o conjunto o utiliza. Não publicamos valores porque preço de peça e de mão de obra varia por modelo, por origem da peça e por oficina, e número sem medição não entra nos nossos guias — o orçamento é da oficina, e é dela que você deve pedir.
 
-O que dá para dizer com precisão é quem paga. A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Ela não cobre embreagem em uso normal: desgaste de embreagem não é falha interna do câmbio, e essa exclusão está na lista do que a garantia não cobre.
+O que dá para dizer com precisão é quem paga. A garantia da Motors Store cobre falha interna de motor, câmbio e diferencial por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Ela não cobre embreagem em uso normal: desgaste de embreagem não é falha interna do câmbio, e essa exclusão está na lista do que a garantia não cobre.
 
 O plano estendido, opcional e contratado à parte, administrado pela Gestauto, também não cobre kit de embreagem. E ele exige troca de óleo e filtro a cada 7.000 km ou 6 meses, o que vier primeiro, com nota fiscal — manutenção fora dessa régua encerra o plano. Contratar é opcional e não muda preço, financiamento nem a entrega do carro.
 
@@ -64,7 +64,7 @@ Some as duas linhas e você tem a conclusão desconfortável que este guia exist
 
 ## O que a gente recusa, e por quê
 
-Todo veículo que entra passa por perícia cautelar independente antes da vitrine, e ela examina identificação, estrutura e histórico. Ela não abre motor nem câmbio, não mede compressão e não avalia bomba de alta pressão — a fronteira inteira está em Laudo cautelar: o que verifica e o que não verifica. Ou seja: nenhum laudo cautelar do mercado vai dizer como está a embreagem daquele carro. Quem faz esse teste é o time, no volante, na avaliação.
+Todo veículo que entra passa por perícia cautelar independente antes da vitrine, e ela examina identificação, estrutura e histórico. Ela não abre motor nem câmbio, não mede compressão e não avalia bomba de alta pressão — a fronteira inteira está em Laudo cautelar: o que verifica e o que não verifica. Ou seja: nenhum laudo cautelar do mercado vai dizer como está a embreagem daquele carro. Quem faz esse teste é o time, no volante, na avaliação — e não numa volta no quarteirão asfaltado: o carro vai para ruas mais irregulares, onde suspensão, aceleração e frenagem mostram o que o asfalto liso esconde.
 
 Quando aparece sinal, o carro vai para perícia mecânica. Ela não é etapa obrigatória de todo carro: é sob demanda e exploratória, para os que levantam suspeita. Em câmbio, o que manda um carro para lá é solavanco no engate, atraso para entrar a marcha, trepidação na arrancada em dupla embreagem e óleo escuro ou com cheiro de queimado. Óleo e filtros, esses, a gente troca em todo carro que entra.
 
@@ -96,7 +96,7 @@ Não. Uma trepidação que se repete sempre que o carro sai do lugar, principalm
 Varia por modelo, por origem da peça e por oficina, e a gente não publica valor sem medição própria. Peça orçamento à oficina antes de fechar a compra do carro. Vale saber de antemão que embreagem em uso normal não entra na garantia da loja e que o plano estendido, contratado à parte, também não cobre kit de embreagem.
 
 **A garantia da loja cobre o câmbio de dupla embreagem?**
-Cobre falha interna do câmbio por três meses contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Embreagem em uso normal fica de fora. A regra que mais importa é outra: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina — o conserto é feito em oficina parceira credenciada indicada pela gente.
+Cobre falha interna do câmbio por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com mão de obra inclusa. Embreagem em uso normal fica de fora. A regra que mais importa é outra: se acontecer alguma coisa, avise a loja antes de levar o carro a qualquer oficina — o conserto é feito em oficina parceira credenciada indicada pela gente.
 
 ---
 
@@ -125,9 +125,9 @@ Cobre falha interna do câmbio por três meses contados da entrega, sem carênci
 
 ## Pendências antes de publicar
 
-- [ ] **Limite de quilometragem da garantia.** O dono disse que existe; o contrato padrão de venda não o menciona (a cláusula quarta só fala em prazo). A menção foi retirada da peça em 17/09/2026: sem saber o número nem onde ele está escrito, citar o limite manda o comprador procurar no contrato uma linha que não existe. Volta quando o dono informar as duas coisas.
+- [x] **Limite de quilometragem da garantia.** Respondido em 18/09/2026: 5.000 km, o que vier primeiro com os três meses — e entrou nas duas frases que dizem o prazo. Registro do estado anterior: o dono disse que existe; o contrato padrão de venda não o menciona (a cláusula quarta só fala em prazo). A menção foi retirada da peça em 17/09/2026: sem saber o número nem onde ele está escrito, citar o limite manda o comprador procurar no contrato uma linha que não existe. Volta quando o dono informar as duas coisas.
 - [x] **Link para o pilar da Onda 2.** A citação foi corrigida para o título exato da peça 09 — "Motor turbo de baixa cilindrada usado: o que checar" —, porque `segmentarComLinks` casa termo exato.
-- [ ] **Conferir com o time se "toda a faixa de marchas no modo manual" faz parte do teste que a casa já aplica.** O texto descreve o teste como recomendação ao comprador, não como prática declarada da loja — se for prática, a frase pode ganhar força.
+- [ ] **Roteiro de test-drive.** O dono confirmou em 18/09/2026 que a avaliação leva o carro a ruas irregulares para ver suspensão, aceleração e frenagem — e só isso entrou no texto. O roteiro completo foi proposto a ele e, aprovado, vira frase própria aqui e peça da Onda 3. Pergunta anterior, que o roteiro responde: **conferir com o time se "toda a faixa de marchas no modo manual" faz parte do teste que a casa já aplica.** O texto descreve o teste como recomendação ao comprador, não como prática declarada da loja — se for prática, a frase pode ganhar força.
 
 ## Conferência editorial
 
