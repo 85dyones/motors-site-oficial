@@ -209,6 +209,18 @@ esses carros.
 
 ### Onda 3 — troca, venda e preço (saída `/avaliacao` e `/estoque`)
 
+**No ar desde 18/09/2026, 16:13 UTC**, por ordem do dono ("grave tudo"): as dez peças, lote
+`conteudo-seo/guias-onda-3.json`, escritas com os fatos que ele confirmou no mesmo dia
+(`conteudo-seo/pacote/guias/ONDA-3-FATOS.md`). Na mesma gravação, os oito guias da Onda 2
+passaram para a versão enxuta do plano estendido. Malha medida: 144 links entre as 26
+peças. A peça de documentos descreve a transição da Resolução Contran nº 1.027/2026 (DOU
+de 18/08/2026, noventa dias para os Detrans se adequarem).
+
+O que ainda falta da casa, para a próxima volta nestas peças: se a avaliação é gratuita;
+a data que dispara os oito dias na compra direta; o que a loja faz com saldo negativo; a
+diferença entre consignação presencial e digital, e o que acontece no fim do prazo; se a
+procuração continua depois da Resolução 1.027; quem paga multa anterior que chega depois.
+
 | Peça | Papel | Objeção do funil que desmonta |
 |---|---|---|
 | Quanto vale meu carro usado: como a loja chega no número | **Pilar** | avaliação abaixo do esperado; avaliação recusada |
