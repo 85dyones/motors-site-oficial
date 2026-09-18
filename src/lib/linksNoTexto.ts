@@ -160,6 +160,28 @@ export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   // régua de âncora deste arquivo, e aparece em toda peça de mecânica — viraria
   // link em frase que não está falando do roteiro.
   { termo: "Test-drive de carro usado: o que observar, na ordem", href: "/guias/test-drive-carro-usado" },
+
+  // ---- Onda 3: troca, venda e preço (fatos do dono de 18/09/2026) ---------
+  //
+  // O lado de quem vende o carro para a loja, troca ou consigna, e de quem
+  // compara preço. Duas peças entram cortadas antes da pontuação final, pela
+  // regra de sempre deste arquivo: "Carro financiado: dá para vender ou
+  // trocar?" termina em interrogação, e o \b de JS não casa depois dela.
+  { termo: "Quanto vale meu carro usado: como a loja chega no número", href: "/guias/quanto-vale-meu-carro-usado" },
+  { termo: "Carro na troca: como funciona e o que muda no preço", href: "/guias/carro-na-troca" },
+  { termo: "Carro financiado: dá para vender ou trocar", href: "/guias/vender-carro-financiado" },
+  { termo: "Consignação de carro: como funciona", href: "/guias/consignacao-de-carro" },
+  { termo: "O que a loja assume quando compra o seu carro", href: "/guias/o-que-a-loja-assume-na-compra" },
+  { termo: "Vender sozinho ou para a loja: o que muda além do preço", href: "/guias/vender-sozinho-ou-para-loja" },
+  { termo: "Documentos para vender carro no Paraná, passo a passo", href: "/guias/documentos-para-vender-carro" },
+  { termo: "Onde vender carro em Curitiba e o que cada opção pede", href: "/guias/vender-carro-curitiba" },
+  { termo: "Tabela FIPE não é preço de venda: o que ela diz", href: "/guias/tabela-fipe-nao-e-preco-de-venda" },
+  { termo: "Carro de loja ou de particular: o que o preço inclui", href: "/guias/carro-de-loja-ou-particular" },
+
+  // O assunto que o site inteiro repete sem citar guia nenhum: a comunicação
+  // de venda aparece em toda peça de quem vende, e é a dúvida que mais pesa
+  // depois da venda.
+  { termo: "comunicação de venda", href: "/guias/documentos-para-vender-carro" },
 ];
 
 export interface SegmentoDeTexto {

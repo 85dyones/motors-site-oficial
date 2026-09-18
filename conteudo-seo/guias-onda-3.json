@@ -1,0 +1,1040 @@
+{
+  "_leia": "As 10 peças deste lote da Onda 2 (conteudo-seo/pacote/guias/*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-3.json — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
+  "guias": [
+    {
+      "slug": "quanto-vale-meu-carro-usado",
+      "titulo": "Quanto vale meu carro usado: como a loja chega no número",
+      "titulo_seo": "Quanto vale meu carro usado: como a loja avalia",
+      "descricao": "A avaliação parte da FIPE e tira da média o que o seu carro vai custar e demorar para ser vendido. Cada fator explicado, e o que fazer antes de avaliar.",
+      "corpo": [
+        {
+          "titulo": "O valor do seu carro, visto de quem vai comprá-lo",
+          "paragrafos": [
+            "Para a loja que vai comprar, o seu carro vale a média de mercado da versão e do ano-modelo menos o que aquele carro, especificamente, vai custar e demorar para ser vendido. A Tabela FIPE é onde essa conta começa, não onde ela termina: ela é retrovisor, não para-brisa.",
+            "Na Motors Store, a avaliação segue esse caminho. Parte da FIPE; tira da média a preparação que o carro pede para ir à vitrine, o peso da quilometragem e o tempo que aquele modelo, naquela versão e naquela cor, leva para vender na região; e põe no mesmo cálculo o estado e a procedência que a perícia cautelar mostra. Débitos e financiamento ficam fora da avaliação: são contas que a loja quita por você e que saem do valor, numa linha à parte.",
+            "Este guia explica cada fator do jeito que ele aparece para quem avalia carro todos os dias. Ele não traz número, porque o número é do seu carro — e só existe depois que alguém olha para ele."
+          ]
+        },
+        {
+          "titulo": "A FIPE é retrovisor, não para-brisa",
+          "paragrafos": [
+            "A FIPE merece o lugar que tem na conversa: é pública, é nacional, e cada consulta traz o mês de referência. A própria fundação que calcula a tabela diz o que ela é: preços médios, para pagamento à vista, praticados na revenda de veículos ao consumidor final, pessoa física, no mercado nacional — \"apenas um parâmetro para negociações ou avaliações\", nas palavras dela. E completa que o preço efetivamente praticado varia com a região, a conservação, a cor, os acessórios e qualquer outro fator que mexa na oferta e na procura por um veículo específico.",
+            "É isso que faz dela um retrovisor. A média mostra onde o mercado esteve: por quanto, em média, carros daquela versão e daquele ano-modelo foram vendidos na revenda, no país inteiro. O para-brisa seria outra coisa — por quanto o seu carro, com a quilometragem, o estado e a cor dele, vai ser vendido aqui, e em quanto tempo. Esse número ninguém publica, porque ele não existe antes de alguém olhar para o carro. Ninguém dirige sem retrovisor; ninguém dirige olhando só para ele.",
+            "Um detalhe muda a consulta: a FIPE usa o ano-modelo, não o ano de fabricação. Carro fabricado num ano e vendido como modelo do ano seguinte se consulta pelo segundo, e vale conferir no documento qual é o seu antes de comparar qualquer coisa. O que a tabela diz, e o que ela não diz, tem guia próprio: \"Tabela FIPE não é preço de venda: o que ela diz\"."
+          ]
+        },
+        {
+          "titulo": "O que sai da média: a preparação",
+          "paragrafos": [
+            "O primeiro fator é o que o carro precisa para ir à vitrine. Na avaliação, a preparação soma a perícia cautelar, a funilaria e a pintura, os pneus, a revisão, o polimento e a higienização; e todo carro que entra recebe troca de óleo e filtros.",
+            "A conta é feita sobre o que o carro precisa para ser vendido, e não sobre o que ele precisa para rodar mais um mês — são medidas diferentes. Um pneu com meia vida roda muito tempo na mão de quem já é dono; na vitrine, é das primeiras coisas que o comprador olha, e vira pedido na negociação. O risco na porta que o dono já nem vê, o para-choque com a pintura queimada de sol, o banco com a mancha de sempre, o cheiro que ficou no tecido: cada item desses é hora de oficina ou de estética que alguém paga antes de o carro ser anunciado.",
+            "É por isso que dois carros da mesma versão e do mesmo ano-modelo recebem avaliações diferentes. Um vai para a vitrine depois da higienização; o outro passa antes pela funilaria, pela pintura e pela troca de pneus.",
+            "Uma ressalva do seu interesse: consertar antes de avaliar nem sempre compensa. O reparo de véspera, feito às pressas, pode custar mais do que o peso dele na avaliação. Antes de gastar, pergunte quanto aquele item pesa."
+          ]
+        },
+        {
+          "titulo": "Quilometragem: o carro rodou mais ou menos do que a média",
+          "paragrafos": [
+            "A média da FIPE reúne carros daquele ano-modelo com todo tipo de uso, e o que ela descreve é o carro médio. Quando o seu rodou mais do que a média para o ano, ele está mais adiante na vida útil do que o carro que serviu de ponto de partida, e a quilometragem pesa.",
+            "O peso vem de três lugares. Do desgaste: suspensão, embreagem, freios, bancos, volante e botões envelhecem com o uso, não com o calendário. Da vida que falta: a correia dentada tem troca prevista por quilometragem ou por tempo, e amortecedores e embreagem têm uma vida útil que o uso vai consumindo; o carro que está perto dessas trocas chega à vitrine com a conta pendurada. E do comprador: quem compra usado olha o hodômetro cedo, e ele pesa no tempo que o carro leva para vender.",
+            "Quilometragem baixa, do outro lado, vale o que o histórico sustenta. Quem avalia compara o hodômetro com o desgaste do volante, dos pedais e do banco do motorista, e com as notas de revisão, que registram a quilometragem de cada visita à oficina. Hodômetro baixo com revisão anotada é informação; hodômetro baixo sem nada que o acompanhe é uma pergunta."
+          ]
+        },
+        {
+          "titulo": "Tempo de venda: modelo, versão, cor e região",
+          "paragrafos": [
+            "É o fator que o dono do carro menos enxerga, e um dos que mais separam uma avaliação de outra. A pergunta é quanto tempo aquele modelo, naquela versão e naquela cor, leva para vender na região. Enquanto não vende, o carro é capital parado — e continua perdendo valor mês a mês.",
+            "O modelo é o óbvio: há carros que o mercado procura toda semana e carros que esperam o comprador certo. A versão pesa mais do que parece: a de entrada e a mais completa do mesmo modelo às vezes falam com públicos diferentes, e câmbio manual ou automático muda quem procura o carro. A cor fecha a conta: as cores neutras têm mais gente procurando, e uma cor rara agrada muito a poucos. E a região vale porque o que gira rápido numa praça pode ficar parado em outra — a FIPE, lembre-se, é média nacional.",
+            "Nada disso é gosto de quem avalia. É a velocidade com que aquele carro vira dinheiro outra vez, e, para quem compra para revender, velocidade é valor."
+          ]
+        },
+        {
+          "titulo": "Estado e procedência: o que a perícia mostra",
+          "paragrafos": [
+            "Estado e procedência entram no mesmo cálculo. Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra. Apontamento — uma peça trocada, uma repintura, um registro no histórico — pesa no valor, porque vai pesar do mesmo jeito para quem comprar o carro depois.",
+            "O que cada resultado significa está em \"Laudo cautelar: aprovado, com apontamento ou reprovado\", e o que fazer quando o carro reprova está em \"Meu carro reprovou no laudo cautelar\". É o mesmo exame que todo carro da vitrine passou antes de ser anunciado, e o laudo fica com o vendedor da loja e sai a pedido de quem vai comprar.",
+            "Do lado mecânico, quando a avaliação levanta suspeita, o carro passa por uma perícia mecânica antes de qualquer decisão. E vale conhecer a régua da vitrine: de cada dez carros avaliados, três entram, e os que entram saem com garantia de três meses ou 5.000 quilômetros, o que vier primeiro, para motor, câmbio e diferencial. O que essa garantia cobre está em \"Garantia de carro usado em loja: o que está coberto\"."
+          ]
+        },
+        {
+          "titulo": "Débitos e financiamento: fora da avaliação, dentro da conta",
+          "paragrafos": [
+            "IPVA, licenciamento, multas e financiamento em aberto não entram na avaliação. Não porque não importem, mas porque não são o carro: são contas do carro. A loja quita cada uma delas por você — o financiamento, direto com o banco — e o valor sai do total.",
+            "A separação serve para você ler a proposta. De um lado, quanto vale o carro; do outro, quanto o carro deve. Se o número final ficou longe do que você esperava, dá para ver de qual lado veio a distância. O que a loja assume nessa hora, conta por conta, está em \"O que a loja assume quando compra o seu carro\"; o caso do financiamento, com saldo devedor e gravame, está em \"Carro financiado: dá para vender ou trocar?\"."
+          ]
+        },
+        {
+          "titulo": "Por que duas avaliações do mesmo carro dão números diferentes",
+          "paragrafos": [
+            "Quem pede três avaliações costuma receber três números, e isso não quer dizer que dois estão errados. Cada um responde a uma pergunta um pouco diferente.",
+            "O ponto de partida muda. Há quem parta da FIPE, há quem parta dos anúncios de carros iguais, há quem parta do que pagou no último igual ao seu. Anúncio, aliás, mostra o preço que alguém pediu, não o que alguém pagou, e a distância entre os dois é a negociação que ainda não aconteceu.",
+            "A régua de preparação muda. Quem vai vender o carro com perícia e garantia prepara mais do que quem vai repassá-lo como chegou, e isso aparece no número.",
+            "O tempo de venda muda. Cada loja tem o seu público, e o modelo que gira rápido numa casa pode esperar na outra; quem já tem dois iguais na vitrine olha diferente para o terceiro.",
+            "O modelo de negócio muda. Loja, repasse entre lojistas e plataforma de compra instantânea compram por motivos diferentes e com custos diferentes, e o número de cada um carrega os custos de cada um. E há caminhos em que ninguém compra o carro de você na hora, como o de \"Consignação de carro: como funciona\".",
+            "O que está incluído muda. Uma proposta já considera débitos, transferência e comunicação de venda; outra deixa isso para você resolver depois. Uma vem depois da perícia; outra é uma primeira estimativa, feita a distância, que ainda depende do que o exame encontrar.",
+            "E a data muda. Cada consulta da FIPE traz o mês de referência, e o mercado anda de um mês para o outro: uma avaliação antiga mediu outro mercado. Na troca há mais um detalhe — o valor do seu carro só se compara junto com o preço do carro que você leva, pelo motivo que está em \"Carro na troca: como funciona e o que muda no preço\". E o que o preço de vitrine de uma loja inclui, e o de um particular não, está em \"Carro de loja ou de particular: o que o preço inclui\".",
+            "Por fim, há o número que você trouxe de casa. Ele costuma vir de quatro lugares: a FIPE lida como piso, o anúncio de um carro parecido, o valor que você pagou quando comprou e o cuidado que você teve com o carro. Nenhuma dessas referências é bobagem, mas cada uma mede outra coisa. A FIPE mede a média da revenda; o anúncio mede um pedido; o valor de compra mede outro ano; e o cuidado conta, sim — quando aparece no estado do carro e nas notas de revisão."
+          ]
+        },
+        {
+          "titulo": "O que você pode fazer antes de avaliar",
+          "paragrafos": [
+            "Três coisas ajudam quem avalia a ver o carro como ele é, e nenhuma custa caro.",
+            "Documento em dia. Consulte IPVA, licenciamento e multas antes de ir — o extrato do veículo, no site do Detran-PR, é gratuito e mostra tudo isso, com as restrições. Os débitos saem do valor de qualquer jeito, mas débito descoberto na hora vira surpresa na conta, e restrição que ninguém conhecia pode travar o negócio. Se o carro é financiado, peça ao banco o saldo de quitação, com a data de validade.",
+            "Histórico de manutenção com nota. Junte as notas fiscais das revisões, com a quilometragem de cada uma, o manual e a chave reserva. Revisão com nota transforma \"sempre fiz tudo certo\" em informação que o avaliador pode usar, e diminui a incerteza — que sempre pesa numa avaliação.",
+            "Limpeza, não maquiagem. Lave, aspire e tire os objetos pessoais. Carro limpo mostra o estado real, e ninguém precisa adivinhar o que está debaixo da poeira. Polimento e reparo de véspera ficam para depois da pergunta sobre quanto aquele item pesa.",
+            "E, se quiser chegar sabendo o que uma rodagem de avaliação procura, faça você mesmo o roteiro de \"Test-drive de carro usado: o que observar, na ordem\". O que aparecer para você no caminho tende a aparecer para quem avalia."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Antes de pedir a avaliação: confira o ano-modelo no documento e consulte a FIPE da versão certa; levante IPVA, licenciamento, multas e, se houver financiamento, o saldo de quitação; junte notas de revisão, manual e chave reserva; e lave o carro. Na conversa, peça que o número venha explicado — o que saiu da média, e por quê — e compare propostas pelo que cada uma inclui, não só pelo valor.",
+            "A avaliação da Motors Store segue o caminho deste guia, do começo ao fim, com débitos e financiamento numa linha à parte."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Quanto a loja paga pelo meu carro?",
+          "resposta": "O valor que sai da avaliação daquele carro: a média da FIPE para a versão e o ano-modelo, menos o que ele vai custar e demorar para ser vendido — preparação, quilometragem acima da média e tempo de venda na região —, com o estado e a procedência que a perícia cautelar mostrar. IPVA, licenciamento, multas e financiamento em aberto são quitados pela loja e saem do total, numa linha à parte. Por isso ninguém consegue dizer o número sem olhar o carro."
+        },
+        {
+          "pergunta": "A loja paga o valor da Tabela FIPE?",
+          "resposta": "A FIPE é o ponto de partida, não o preço de compra. A própria fundação descreve a tabela como média de preços praticados na revenda ao consumidor final, no mercado nacional, e como parâmetro para negociações ou avaliações. A avaliação parte dessa média e tira dela o que o seu carro, especificamente, vai custar e demorar para ser vendido."
+        },
+        {
+          "pergunta": "Por que cada loja avalia o mesmo carro com um valor diferente?",
+          "resposta": "Porque cada uma responde a uma pergunta um pouco diferente: parte de uma referência, prepara o carro com uma régua própria, vende aquele modelo no tempo do seu público e inclui, ou não, débitos, transferência e perícia no número. Para comparar propostas, compare o que cada uma inclui — e, na troca, compare a conta inteira, com o preço do próximo carro junto."
+        },
+        {
+          "pergunta": "O que fazer antes de levar o carro para avaliar?",
+          "resposta": "Saiba quanto ele deve de IPVA, licenciamento e multas; junte as notas de revisão com a quilometragem, o manual e a chave reserva; e lave o carro. Se ele for financiado, peça ao banco o saldo de quitação. E não gaste com reparo antes de perguntar quanto aquele item pesa na avaliação."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "Você fica sabendo o que pesou em cada parte do número."
+      },
+      "sobre": [
+        "Avaliação de veículo usado",
+        "Tabela FIPE",
+        "Venda de carro para loja"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "carro-na-troca",
+      "titulo": "Carro na troca: como funciona e o que muda no preço",
+      "titulo_seo": "Dar carro na troca: como funciona e o que comparar",
+      "descricao": "Na troca, o seu carro é avaliado como numa venda e vira entrada no próximo. Por que comparar a conta inteira, e não só o valor do usado.",
+      "corpo": [
+        {
+          "titulo": "Como funciona dar o carro na troca",
+          "paragrafos": [
+            "Na troca, o seu carro é avaliado como numa venda e o valor dele vira entrada no próximo; a diferença você paga à vista, financia ou combina os dois. O método da avaliação não muda por ser troca — o que muda é que há dois números na mesa, e só a conta inteira diz se o negócio é bom.",
+            "Na Motors Store, o carro que entra na troca é avaliado pelo mesmo método da venda direta: a conta parte da FIPE da versão e do ano-modelo, tira da média a preparação, a quilometragem e o tempo de venda, e pesa o estado e a procedência que a perícia cautelar mostrar. O passo a passo dessa conta está em \"Quanto vale meu carro usado: como a loja chega no número\"."
+          ]
+        },
+        {
+          "titulo": "O caminho da troca, do começo ao fim",
+          "paragrafos": [
+            "Primeiro vem a avaliação do seu carro, que termina num valor. Desse valor saem as contas do carro — IPVA, licenciamento, multas e, se houver, o financiamento em aberto —, que a loja quita por você. O que sobra é a sua entrada.",
+            "Depois vem o carro que você leva. A diferença entre o preço dele e a sua entrada é o que falta pagar. Se for financiar, a loja faz a simulação e encaminha a análise aos bancos parceiros; taxa e condição saem da análise de cada banco, e ninguém consegue prometê-las antes da resposta.",
+            "A entrada mexe no financiamento duas vezes. Quanto maior ela for, menor o valor que vai para a análise do banco, e menos juros você paga no total, porque os juros correm sobre o que foi financiado. É por isso que, numa troca, o valor do seu carro pesa no preço e pesa no crédito.",
+            "Por fim, a papelada anda nos dois sentidos. O seu carro sai do seu nome: a loja cuida da transferência e faz a comunicação de venda ao Detran-PR com uma procuração sua. E o carro que você leva passa para o seu nome: a documentação e a vistoria de transferência da venda ficam com a loja, com custos e prazos informados na negociação. O que a loja assume do lado do seu carro, conta por conta, está em \"O que a loja assume quando compra o seu carro\"."
+          ]
+        },
+        {
+          "titulo": "Por que a troca não muda o método",
+          "paragrafos": [
+            "Faz sentido que não mude. O carro que entra na troca é o mesmo carro que entraria numa venda à vista: tem a mesma preparação a fazer, a mesma quilometragem, o mesmo tempo de venda pela frente. Não há motivo para a conta ser outra.",
+            "Na prática, isso quer dizer que o seu carro não vale mais nem menos por estar numa troca. Se uma proposta parece valorizar muito o seu usado, vale olhar o outro lado da mesa com a mesma atenção — que é o assunto da próxima seção."
+          ]
+        },
+        {
+          "titulo": "Dois números se mexem ao mesmo tempo",
+          "paragrafos": [
+            "Numa troca, o negócio tem duas pontas: quanto a loja paga pelo seu carro e quanto ela cobra pelo próximo. As duas se mexem juntas. Um valor alto pelo usado ao lado de um preço alto pelo próximo pode dar a mesma diferença que um valor menor ao lado de um preço menor — e é essa diferença, a que sai do seu bolso ou vai para o financiamento, que decide o negócio.",
+            "Não há truque nisso; é aritmética. O mesmo resultado pode ser escrito de vários jeitos, e comparar propostas olhando só o valor do usado é comparar metade da conta. A comparação honesta junta quatro números: o valor do seu carro, depois das contas que saem dele; o preço do carro que você leva; a diferença entre os dois; e o custo do financiamento dessa diferença, quando houver.",
+            "No financiamento, compare o custo efetivo total, e não só a taxa de juros. O CET reúne juros, tarifas, tributos, seguros e as outras despesas da operação numa taxa só, e a instituição financeira tem de informá-lo antes da contratação, com o demonstrativo do cálculo. Duas propostas com a mesma taxa de juros podem ter custos efetivos diferentes.",
+            "E compare o que vem junto com o carro que você leva. Perícia, garantia, preparação e transferência podem estar dentro do preço de uma loja e fora do de um anúncio particular — o assunto está em \"Carro de loja ou de particular: o que o preço inclui\". Na Motors Store, todo carro da vitrine passou por perícia cautelar independente — o laudo fica com o vendedor e sai a pedido — e é vendido com garantia de três meses ou 5.000 quilômetros, o que vier primeiro, para motor, câmbio e diferencial."
+          ]
+        },
+        {
+          "titulo": "Troca, venda separada ou consignação",
+          "paragrafos": [
+            "A troca resolve duas coisas de uma vez: o seu carro vira entrada no mesmo acerto em que você escolhe o próximo, e as contas e a papelada dele ficam com a loja.",
+            "O que você deixa de lado é a chance de tentar um valor maior vendendo por conta própria. Vender sozinho pode render mais pelo carro, e cobra em tempo, em exposição e em papelada; a comparação completa está em \"Vender sozinho ou para a loja: o que muda além do preço\".",
+            "A consignação é o caminho do meio, com uma diferença que pesa numa troca: o dinheiro vem quando o carro vende, e não no dia em que você fecha o próximo. Como ela funciona está em \"Consignação de carro: como funciona\".",
+            "E, se o seu carro ainda está financiado, a troca continua possível: a loja quita o banco e o saldo vira entrada. O caminho, com saldo devedor e gravame, está em \"Carro financiado: dá para vender ou trocar?\"."
+          ]
+        },
+        {
+          "titulo": "O que pode atrasar a troca",
+          "paragrafos": [
+            "Três coisas atrasam uma troca, e as três se resolvem melhor antes de ir à loja.",
+            "Restrição no carro. Restrição que impede a transferência — judicial, administrativa ou cadastral — trava a troca até ser resolvida: pelas regras do Contran, com ela nem a comunicação de venda é registrada, nem o documento do novo dono é expedido. O extrato do veículo, no site do Detran-PR, é gratuito e mostra IPVA, licenciamento, multas e restrições, inclusive a do financiamento.",
+            "Débito que ninguém conhecia. Ele sai do valor do seu carro como qualquer outro, mas muda a conta que você tinha feito em casa — e a entrada junto com ela.",
+            "E o carro que muda entre a avaliação e a entrega. A proposta é feita sobre o carro que foi avaliado. Um arranhão novo, uma luz no painel ou muitos quilômetros rodados até o dia da entrega mudam o carro, e podem mudar a conta. Pergunte quando você entrega o seu: no dia em que recebe o próximo, ou antes."
+          ]
+        },
+        {
+          "titulo": "O que levar e o que perguntar",
+          "paragrafos": [
+            "Leve o documento do carro, o seu documento com foto, o manual, a chave reserva e as notas de revisão; se houver financiamento, o saldo de quitação informado pelo banco, com a data de validade. Se você sabe de algum defeito, conte na avaliação: o que é dito antes vira conta, e o que aparece depois vira desconfiança.",
+            "E pergunte, de preferência com a resposta por escrito: quais contas saem do valor do seu carro, e quanto é cada uma; por quanto tempo a proposta vale; qual é a diferença final e como ela pode ser paga; e, se houver financiamento, qual é o CET."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Antes de visitar lojas, saiba quanto o seu carro deve em IPVA, licenciamento, multas e financiamento, e junte documento, manual, chave reserva e notas de revisão. Na hora de comparar, ponha lado a lado o valor do seu carro, o preço do próximo, a diferença entre os dois, o CET do financiamento e o que cada loja inclui no preço. Na Motors Store, a troca começa pela avaliação do seu carro, e o valor dela, depois das contas, é a sua entrada."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Posso usar meu carro usado como entrada?",
+          "resposta": "Pode. O valor da avaliação, depois das contas que saem dele, vira entrada no próximo carro, e a diferença você paga à vista ou financia. No financiamento, a loja faz a simulação e encaminha a análise aos bancos parceiros; taxa e condição saem da análise de cada banco."
+        },
+        {
+          "pergunta": "A avaliação na troca é diferente da avaliação na venda?",
+          "resposta": "Na Motors Store, não: o método é o mesmo. A conta parte da FIPE da versão e do ano-modelo, tira da média a preparação, a quilometragem e o tempo de venda, e pesa o estado e a procedência que a perícia cautelar mostrar. IPVA, licenciamento, multas e financiamento ficam fora da avaliação e saem do valor, numa linha à parte."
+        },
+        {
+          "pergunta": "Dá para trocar um carro que ainda está financiado?",
+          "resposta": "Dá. A loja quita o financiamento junto ao banco, e o saldo — o valor do carro menos o que falta pagar — vira entrada no próximo. Leve o saldo de quitação que o banco informa, com a data de validade, para a conta começar certa."
+        },
+        {
+          "pergunta": "Como comparar duas propostas de troca?",
+          "resposta": "Pela conta inteira: o valor do seu carro depois das contas que saem dele, o preço do carro que você leva, a diferença entre os dois e o custo efetivo total do financiamento, quando houver. Um valor alto pelo usado, ao lado de um preço alto pelo próximo, pode dar a mesma diferença de uma proposta menos vistosa."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "O valor do seu carro entra como entrada no próximo, na mesma negociação."
+      },
+      "sobre": [
+        "Troca de veículo usado",
+        "Entrada em financiamento de veículo",
+        "Avaliação de veículo usado"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "vender-carro-financiado",
+      "titulo": "Carro financiado: dá para vender ou trocar?",
+      "titulo_seo": "Vender carro financiado: como funciona a quitação",
+      "descricao": "Dá para vender ou trocar carro financiado: a loja quita o banco e o saldo vira entrada. Saldo devedor, declaração de quitação e gravame, na ordem.",
+      "corpo": [
+        {
+          "titulo": "Dá, e o caminho é a quitação",
+          "paragrafos": [
+            "Dá: a loja quita o financiamento direto com o banco, e o saldo — o valor do carro menos o que falta pagar — vira entrada no próximo carro ou, numa venda, volta para você. O número que decide essa conta é o saldo de quitação, e ele não é a soma das parcelas que faltam.",
+            "Na Motors Store, carro com financiamento em aberto é aceito na venda e na troca, e a quitação é feita por aqui, junto ao banco. O resto deste guia explica o que acontece no meio: por que o carro é garantia do banco, como se chega ao saldo, em que ordem a dívida sai do documento, e o que muda quando ela é maior do que o carro vale."
+          ]
+        },
+        {
+          "titulo": "Por que o carro financiado é garantia do banco",
+          "paragrafos": [
+            "No financiamento com alienação fiduciária, o carro fica no seu nome e com você, mas a propriedade dele, como garantia, é do banco até a quitação. O Código Civil chama isso de propriedade fiduciária: o devedor transfere ao credor, como garantia, a propriedade de um bem móvel, e fica com a posse direta. No caso de carro, o contrato é registrado no órgão de trânsito, e a anotação vai para o documento.",
+            "Essa anotação é o gravame. Ela aparece no campo de observações do documento do carro, inclusive na versão digital, o CRLV-e, com a identificação da instituição credora. Enquanto o gravame está ativo, o carro continua sendo a garantia do contrato — é assim que o Detran-PR descreve.",
+            "É por isso que vender um carro financiado passa pela quitação. Quem compra quer o carro livre, e o carro só fica livre quando a garantia sai."
+          ]
+        },
+        {
+          "titulo": "Saldo devedor: o número que decide a conta",
+          "paragrafos": [
+            "O saldo de quitação é quanto o banco precisa receber hoje para encerrar o contrato. Ele não é a soma das parcelas que faltam, porque cada parcela futura carrega juros de um tempo que ainda não passou. O Código de Defesa do Consumidor garante a quitação antecipada, total ou parcial, com redução proporcional dos juros e dos demais acréscimos.",
+            "Quem calcula é o banco. Peça o valor de quitação antecipada pelo canal dele — aplicativo, internet ou central —, com o número do contrato em mãos, e repare na data de validade: o saldo muda com o tempo, e o valor informado vale até um dia específico.",
+            "Com esse número e a avaliação do carro, a conta fica simples. Valor do carro menos saldo de quitação é o que o carro vale para você, livre da dívida. IPVA, licenciamento e multas em aberto também saem do valor, e a loja quita cada um por você.",
+            "A avaliação de um carro financiado, aliás, é igual à de qualquer outro. O financiamento não entra nela: é uma conta que a loja quita por você e que sai do valor, numa linha à parte. O método está em \"Quanto vale meu carro usado: como a loja chega no número\"."
+          ]
+        },
+        {
+          "titulo": "Da quitação à baixa do gravame, na ordem",
+          "paragrafos": [
+            "Na Motors Store, quem paga o banco é a loja. O saldo de quitação sai do valor do carro e vai para a instituição financeira; o que sobra vira entrada, na troca, ou é pago a você, na venda. Os pagamentos da loja ao vendedor saem em até oito dias, contados do recebimento dos valores da operação, e o porquê desse prazo está em \"O que a loja assume quando compra o seu carro\".",
+            "Com o pagamento, o banco dá o contrato por encerrado e emite a declaração de quitação — alguns chamam de termo de quitação —, o documento que diz que a dívida acabou. O passo seguinte também é do banco: pela norma do Contran, a instituição credora tem até dez dias para informar a quitação ao Detran, e é a partir dessa informação que o Detran faz a baixa do gravame, a exclusão da anotação do documento. Com a baixa, o carro volta a ser só seu no registro, e a transferência segue.",
+            "Nesse intervalo, a loja confere a quitação antes de fechar as contas com você; é uma das etapas do prazo de pagamento. E guarde a declaração de quitação: se um dia aparecer cobrança de um contrato encerrado, é ela que resolve a conversa."
+          ]
+        },
+        {
+          "titulo": "Quando a dívida é maior do que o carro",
+          "paragrafos": [
+            "O caso tem uma mecânica conhecida. Nos primeiros anos, o carro perde valor mais depressa, e as primeiras parcelas de um financiamento carregam uma parte grande de juros e amortizam pouco da dívida. Em contrato longo e com entrada pequena, as duas curvas podem se cruzar: o saldo fica acima do que o carro vale.",
+            "O mercado chama isso de saldo negativo. A consequência é aritmética: para quitar, o banco precisa receber o saldo inteiro, e o carro, sozinho, não cobre. A diferença tem de vir de algum lugar.",
+            "As saídas conhecidas são três. Cobrir a diferença com dinheiro próprio na hora da quitação. Esperar, seguindo com as parcelas até o saldo cair abaixo do valor do carro — sabendo que o carro também continua perdendo valor enquanto isso. Ou cobrir a diferença com outro crédito, o que troca uma dívida por outra e depende de aprovação.",
+            "Nenhuma delas se decide sem os números do seu caso. O que dá para fazer é chegar com os dois na mão: o saldo de quitação que o banco informou, com a data, e a avaliação do carro. Dúvida sobre o seu contrato — uma tarifa, uma cláusula, o cálculo do saldo — é conversa para o banco, o Procon ou um advogado."
+          ]
+        },
+        {
+          "titulo": "E vender para um particular?",
+          "paragrafos": [
+            "Dá, mas o caminho é mais estreito. Ou o comprador paga e você quita o banco antes de transferir — o que pede confiança dos dois lados, porque alguém entrega o dinheiro ou o carro antes de o gravame sair —, ou ele assume o financiamento. Assumir a dívida de outra pessoa, pelo Código Civil, depende do consentimento expresso do credor, e o silêncio do banco vale como recusa; o banco vai querer analisar o crédito de quem entra no contrato.",
+            "O que não resolve é a venda \"de gaveta\", com o carro entregue e a dívida correndo no nome de quem vendeu. O carro continua sendo a garantia do contrato, esteja com quem estiver, e a dívida continua sua. Se o comprador parar de pagar, o problema volta para você — e você pode nem saber onde o carro está.",
+            "Numa venda para a loja, essas pontas não existem: quem paga o banco é a loja, e o que sobra entra na conta com você. A comparação completa entre os caminhos está em \"Vender sozinho ou para a loja: o que muda além do preço\"."
+          ]
+        },
+        {
+          "titulo": "O que separar antes de ir",
+          "paragrafos": [
+            "O documento do carro, que mostra o gravame; o seu documento com foto; o número do contrato e o saldo de quitação, com a data de validade; e a situação de IPVA, licenciamento e multas. Com isso, a conta pode ser feita inteira, sem ninguém voltar atrás de papel. A papelada da venda, passo a passo, está em \"Documentos para vender carro no Paraná, passo a passo\".",
+            "Se a ideia é trocar, a comparação entre propostas segue a regra de \"Carro na troca: como funciona e o que muda no preço\": o valor do seu carro só se compara junto com o preço do próximo. E o carro que você leva passou por perícia cautelar independente antes de ir para a vitrine; o laudo fica com o vendedor e sai a pedido."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Peça ao banco o saldo de quitação e anote a data de validade; confira IPVA, licenciamento e multas; separe o documento do carro e o número do contrato. Com a avaliação na mão, a conta é o valor do carro menos o saldo e as outras contas: o que sobrar é a sua entrada, ou o que você recebe. Na Motors Store, a quitação é feita pela loja, junto ao banco."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Posso vender meu carro financiado para uma loja?",
+          "resposta": "Pode. Na Motors Store, carro com financiamento em aberto é aceito na venda e na troca: a loja quita o financiamento junto ao banco, e o saldo — o valor do carro menos o que falta pagar — vira entrada no próximo carro ou, na venda, é pago a você, depois das outras contas do carro."
+        },
+        {
+          "pergunta": "Como descubro o saldo devedor do meu financiamento?",
+          "resposta": "Pedindo ao banco o valor de quitação antecipada, pelo aplicativo, pela internet ou pela central. Ele é menor do que a soma das parcelas que faltam, porque o Código de Defesa do Consumidor garante a quitação antecipada com redução proporcional dos juros e dos demais acréscimos. Repare na data de validade: o valor muda com o tempo."
+        },
+        {
+          "pergunta": "Quanto tempo leva a baixa do gravame?",
+          "resposta": "Pela norma do Contran, depois da quitação o banco tem até dez dias para informar o Detran, que faz a baixa a partir dessa informação e tira a anotação do documento do carro. A declaração de quitação que o banco emite é o comprovante de que a dívida acabou — guarde uma cópia."
+        },
+        {
+          "pergunta": "E se eu dever mais do que o carro vale?",
+          "resposta": "É o que o mercado chama de saldo negativo. Para quitar, o banco precisa receber o saldo inteiro, e o carro sozinho não cobre: a diferença sai do bolso, espera-se o saldo cair com as parcelas, ou recorre-se a outro crédito, que depende de aprovação. Leve o saldo de quitação e a avaliação lado a lado para saber o tamanho exato da diferença."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "A loja faz a quitação, e o saldo vira entrada no próximo carro."
+      },
+      "sobre": [
+        "Alienação fiduciária de veículo",
+        "Quitação de financiamento",
+        "Venda de veículo financiado"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "consignacao-de-carro",
+      "titulo": "Consignação de carro: como funciona",
+      "titulo_seo": "Consignação de carro: como funciona e quando vale",
+      "descricao": "Valor combinado em contrato, prazo, custos de preparação e PIX: como funciona a consignação e para quem ela serve mais do que vender direto.",
+      "corpo": [
+        {
+          "titulo": "A consignação, do começo ao fim",
+          "paragrafos": [
+            "Na consignação, a loja vende o carro por você: o valor que você recebe é combinado antes, em contrato, e sai quando o carro vende, menos os custos de preparação. É o oposto da venda direta, em que a loja compra na hora e assume o tempo de venda — na consignação, quem espera é você.",
+            "Na Motors Store, a consignação tem dois formatos, presencial e digital, e o consultor explica cada um no contrato. O prazo é definido na hora do contrato. A loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários, se for o caso —, por PIX."
+          ]
+        },
+        {
+          "titulo": "O valor combinado, e o que sai dele",
+          "paragrafos": [
+            "O centro da consignação é um número escrito antes: o valor que você vai receber quando o carro vender. Ele fica no contrato, e é dele que saem os custos de preparação, quando o carro precisar deles.",
+            "Duas perguntas deixam esse número claro antes da assinatura. Quais itens de preparação o seu carro deve precisar, e quanto costuma custar cada um? E como você fica sabendo de um custo antes de ele ser feito?",
+            "Para o valor combinado ser realista, ajuda entender como o mercado olha o seu carro: o ponto de partida na FIPE, e o que a preparação, a quilometragem e o tempo de venda fazem com a média. É o assunto de \"Quanto vale meu carro usado: como a loja chega no número\". E a tabela, sozinha, não é o preço pelo qual o carro vende, como explica \"Tabela FIPE não é preço de venda: o que ela diz\".",
+            "Três referências ajudam a chegar nesse número. O valor da venda direta, que mostra quanto você receberia hoje, sem esperar. Os anúncios de carros iguais ao seu, lembrando que anúncio mostra o preço que alguém pediu, e não o que alguém pagou. E o seu prazo: quanto tempo você consegue esperar sem que a espera vire problema.",
+            "Um valor combinado acima do que o mercado paga não faz o carro valer mais. Faz ele ficar mais tempo exposto, enquanto o prazo do contrato corre e o carro continua perdendo valor mês a mês. O número bom é o que vende dentro do prazo."
+          ]
+        },
+        {
+          "titulo": "Enquanto o carro não vende",
+          "paragrafos": [
+            "Como a loja não compra o carro, ele continua sendo seu até a venda — e algumas coisas continuam correndo no seu nome. IPVA e licenciamento que vencerem no meio do caminho, o seguro, uma multa tomada durante um test-drive: vale saber, antes de assinar, como o contrato trata cada uma.",
+            "Enquanto isso, a loja faz a parte dela: anuncia e trabalha o carro. Trabalhar o carro é o que a lista de custos descreve. A perícia dá a quem vai comprar segurança sobre identificação, estrutura e histórico; o polimento devolve à pintura o que a foto e a visita cobram; a higienização tira do interior o uso de anos; e entra o que mais o carro pedir. É por isso que esses custos existem: carro preparado vende mais depressa do que carro do jeito que chegou."
+          ]
+        },
+        {
+          "titulo": "Quando o carro vende: o prazo e o PIX",
+          "paragrafos": [
+            "O pagamento sai por PIX, em até oito dias, contados do recebimento dos valores da operação.",
+            "O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados."
+          ]
+        },
+        {
+          "titulo": "Consignação, venda direta ou anúncio particular",
+          "paragrafos": [
+            "Os três caminhos servem, cada um para um tipo de dono.",
+            "A venda direta serve a quem precisa do dinheiro, ou da entrada, agora. A loja compra na hora, pelo valor da avaliação; a preparação e o tempo de venda entram na conta dela, e o risco de o carro demorar a sair passa a ser da loja. O que ela assume junto — transferência, débitos, financiamento e comunicação de venda — está em \"O que a loja assume quando compra o seu carro\". Se o plano é trocar de carro, a lógica da troca está em \"Carro na troca: como funciona e o que muda no preço\".",
+            "A consignação serve a quem pode esperar e prefere não fazer o trabalho de vender. Quem anuncia e prepara o carro é a loja; você espera o comprador, a preparação sai do valor combinado, e o dinheiro chega quando o carro vende. Quem escolhe esse caminho costuma fazer isso para tentar um valor mais perto do que o carro vende na vitrine, sem fazer a venda sozinho. E o carro fica ao alcance de quem compra financiado: a loja faz a simulação para o comprador e encaminha a análise aos bancos parceiros.",
+            "O anúncio particular serve a quem tem tempo, disposição e cuidado com segurança. Pode render o maior valor pelo carro, e cobra tudo o que os outros dois caminhos fazem por você: preparar, fotografar, anunciar, atender, receber desconhecidos para ver e dirigir o carro, negociar, confirmar que o dinheiro compensou antes de entregar a chave, e cuidar da documentação e da comunicação de venda. A comparação completa está em \"Vender sozinho ou para a loja: o que muda além do preço\", e as opções da cidade estão em \"Onde vender carro em Curitiba e o que cada opção pede\".",
+            "Resumindo sem rodeio: se você precisa do dinheiro ou da entrada agora, venda direta; se pode esperar e não quer fazer a venda, consignação; se pode esperar e quer fazer tudo, anúncio."
+          ]
+        },
+        {
+          "titulo": "O que perguntar antes de assinar",
+          "paragrafos": [
+            "Qual formato serve para o seu caso, presencial ou digital, e o que muda entre eles. Qual é o prazo, e o que acontece se ele terminar sem venda. Qual é o valor combinado, e quais custos de preparação podem sair dele. Quem responde pelo carro enquanto ele está à venda — guarda, seguro e test-drive com interessados. Se você pode vender o carro por conta própria durante o contrato. E como você fica sabendo das propostas que aparecem.",
+            "O formato tem até nome no Código Civil, contrato estimatório: quem entrega o bem autoriza o outro a vendê-lo e recebe o preço ajustado, ou o bem de volta, no prazo combinado. Mas o que vale para você é o que está escrito no seu contrato. Dúvida sobre o que uma cláusula quer dizer no seu caso é conversa para o Procon ou para um advogado, não para quem está do outro lado da mesa."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Decida primeiro o que pesa mais para você, tempo ou valor. Se pode esperar, leia o contrato de consignação com as perguntas acima e peça por escrito o valor combinado e os custos de preparação previstos. Se precisa do dinheiro ou da entrada agora, a venda direta resolve. Nos dois casos, a avaliação do carro é um bom começo: com o número da venda direta na mão, dá para comparar os três caminhos com algo concreto."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Vale a pena deixar o carro em consignação?",
+          "resposta": "Vale para quem pode esperar e não quer fazer a venda sozinho. Você recebe o valor combinado em contrato quando o carro vende, menos os custos de preparação; em troca, abre mão de ter o dinheiro na hora. Se precisa do valor ou da entrada agora, a venda direta para a loja resolve."
+        },
+        {
+          "pergunta": "Quanto tempo o carro fica em consignação?",
+          "resposta": "O prazo que estiver no contrato. Na Motors Store, ele é definido na hora do contrato, em qualquer um dos dois formatos, presencial ou digital. Antes de assinar, pergunte o que acontece se o prazo terminar sem venda."
+        },
+        {
+          "pergunta": "O que sai do valor na consignação?",
+          "resposta": "Os custos de preparação do carro, se for o caso: perícia, polimento, higienização e outros que forem necessários. Eles saem do valor combinado em contrato, na venda. Pergunte antes quais itens o seu carro deve precisar e como você fica sabendo de cada custo."
+        },
+        {
+          "pergunta": "Quando recebo o dinheiro da consignação?",
+          "resposta": "Por PIX, em até oito dias, contados do recebimento dos valores da operação. O prazo existe porque o dinheiro sai depois que o da operação entra e compensa — quando o comprador financia, quem paga é o banco, e o repasse leva alguns dias úteis — e depois que a papelada fecha."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "Presencial ou digital, com prazo e valor combinados em contrato."
+      },
+      "sobre": [
+        "Consignação de veículo",
+        "Venda de carro usado",
+        "Contrato estimatório"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "o-que-a-loja-assume-na-compra",
+      "titulo": "O que a loja assume quando compra o seu carro",
+      "titulo_seo": "Vender carro para loja: o que ela assume por você",
+      "descricao": "Transferência, IPVA, multas, financiamento e comunicação de venda ao Detran-PR: o que a loja resolve, o que sai do valor e quando você recebe.",
+      "corpo": [
+        {
+          "titulo": "O que muda quando quem compra é a loja",
+          "paragrafos": [
+            "Quando a loja compra o seu carro, ela assume a papelada e as contas dele: cuida da transferência, quita IPVA, licenciamento, multas e o financiamento, se houver, e faz a comunicação de venda ao Detran-PR com uma procuração sua. As contas saem do valor do carro, e o pagamento a você sai em até oito dias, contados do recebimento dos valores da operação.",
+            "É assim na Motors Store, e este guia passa item por item: o que a loja faz, o que sai do valor, o que continua sendo seu, e por que o pagamento tem prazo."
+          ]
+        },
+        {
+          "titulo": "A transferência fica com a loja",
+          "paragrafos": [
+            "A transferência é o que tira o carro do seu nome. Enquanto ela não acontece, o carro continua ligado a você no registro — e é por isso que ela importa mais para quem vende do que parece.",
+            "O Código de Trânsito prevê que, se o comprador não fizer a transferência no prazo, o antigo dono que não comunicou a venda responde junto pelas penalidades impostas ao carro, e pelas reincidências, até a data da comunicação. Numa venda para a loja, as duas pontas ficam com ela: a loja cuida da transferência e faz a comunicação de venda.",
+            "A transferência para o novo dono passa também por uma vistoria de identificação do veículo, que é outra coisa que não a perícia cautelar: a diferença entre as duas está em \"Laudo cautelar x vistoria de transferência\". O que você assina para a venda, e o que cada documento faz, está em \"Documentos para vender carro no Paraná, passo a passo\"."
+          ]
+        },
+        {
+          "titulo": "IPVA, licenciamento e multas: a loja quita, e o valor sai do total",
+          "paragrafos": [
+            "Os débitos do carro — IPVA, licenciamento e multas — são quitados pela loja, e o valor deles sai do total. Vale dizer com todas as letras: quem paga, no fim, é você, porque as contas são do carro e saem do valor dele. O que a loja assume é o trabalho de levantar e pagar cada conta.",
+            "Não é burocracia à toa. O Código de Trânsito exige, para expedir o documento do novo dono, a quitação dos débitos de tributos, encargos e multas vinculados ao veículo — uma exigência que o Supremo Tribunal Federal já julgou constitucional. Carro com débito em aberto não ganha documento em nome de outra pessoa.",
+            "Se quiser chegar sabendo o tamanho da conta, o extrato do veículo, no site do Detran-PR, é gratuito e mostra IPVA, licenciamento, multas e restrições. E uma pergunta vale ser feita antes de assinar: como fica uma multa de antes da venda que só chegar depois. Entre a infração e a notificação passa algum tempo, e o combinado sobre esse caso precisa estar claro."
+          ]
+        },
+        {
+          "titulo": "Financiamento em aberto: a loja quita o banco",
+          "paragrafos": [
+            "Se o carro tem financiamento em aberto, a loja faz a quitação junto ao banco, e o saldo de quitação sai do valor do carro. O que sobra é a sua entrada, se você estiver trocando, ou o seu pagamento, se estiver vendendo. A mecânica inteira — saldo devedor, declaração de quitação e baixa do gravame — está em \"Carro financiado: dá para vender ou trocar?\"; e, se a ideia é trocar, o jeito de comparar propostas está em \"Carro na troca: como funciona e o que muda no preço\"."
+          ]
+        },
+        {
+          "titulo": "A comunicação de venda, feita com procuração",
+          "paragrafos": [
+            "A comunicação de venda é o registro formal, no órgão de trânsito, de que o carro foi vendido, com a data. Para o Detran-PR, é obrigação do vendedor: sem ela, ele continua respondendo pelas penalidades impostas ao carro até a data da comunicação ou da transferência.",
+            "Na venda para a Motors Store, a comunicação é feita pela loja, com uma procuração sua. O Detran-PR aceita que o serviço seja feito por procurador, com procuração pública, lavrada em cartório, ou particular, com a firma de quem outorga reconhecida por autenticidade ou como verdadeira. Se o documento não disser o prazo, o Detran-PR considera a procuração válida por três anos.",
+            "Procuração é documento sério, e vale ler qualquer uma antes de assinar: o que ela autoriza, a quem e por quanto tempo. Depois do negócio, peça o comprovante da comunicação de venda — é o papel que mostra a partir de quando o carro deixou de ser seu."
+          ]
+        },
+        {
+          "titulo": "Quando você recebe, e por que existe um prazo",
+          "paragrafos": [
+            "Os pagamentos da loja ao vendedor saem em até oito dias, contados do recebimento dos valores da operação.",
+            "O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados.",
+            "O que chega a você, nesse prazo, é a conta inteira fechada: o valor da proposta, menos os débitos que a loja quitou e, se havia financiamento, menos o saldo que ela pagou ao banco. No fechamento, pergunte qual é a data que conta como recebimento no seu caso, e peça o prazo por escrito."
+          ]
+        },
+        {
+          "titulo": "O que continua sendo seu",
+          "paragrafos": [
+            "A loja assume a papelada e as contas; o que ela não tem como assumir é o que só você sabe do carro. Uma batida antiga, um barulho que vai e volta, uma revisão atrasada: conte na avaliação. Dito antes, vira parte da conta; descoberto depois, vira desconfiança.",
+            "Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra, e apontamento pesa no valor — o que fazer quando o carro reprova está em \"Meu carro reprovou no laudo cautelar\". A régua é estreita, e é bom saber antes: de cada dez carros avaliados, três entram na vitrine. É o mesmo exame que acompanha o carro depois, na vitrine: o laudo fica com o vendedor da loja e sai a pedido de quem for comprar. Mas nenhum exame reconstitui a história inteira de um carro, e o que ele alcança está em \"Laudo cautelar: o que verifica e o que não verifica\".",
+            "Entregue também o que acompanha o carro: as chaves, o manual e as notas de revisão. E, antes de entregar a chave, desfaça o que ainda liga o carro a você: apague do multimídia os telefones pareados e os endereços salvos; tire a etiqueta de pedágio ou desvincule-a da sua conta; avise a seguradora; e confira porta-luvas, porta-malas e o estepe atrás de documento e objeto esquecido. Guarde cópia de tudo o que assinar.",
+            "Numa venda particular, cada item deste guia seria seu — a comparação está em \"Vender sozinho ou para a loja: o que muda além do preço\". E, se você prefere que a loja venda o carro por você em vez de comprá-lo, o caminho é outro: \"Consignação de carro: como funciona\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Antes de vender, confira IPVA, licenciamento e multas; se houver financiamento, peça ao banco o saldo de quitação; e separe documento, chaves, manual e notas de revisão. Na proposta, peça as contas que saem do valor, uma por uma. Antes de assinar a procuração, leia o que ela autoriza. Depois, peça o comprovante da comunicação de venda e guarde a declaração de quitação, se houver. O que a avaliação considera antes de tudo isso está em \"Quanto vale meu carro usado: como a loja chega no número\"."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "A loja paga o IPVA e as multas do meu carro?",
+          "resposta": "Paga, e o valor sai do total. Na Motors Store, IPVA, licenciamento e multas em aberto são quitados pela loja, que cuida do trâmite; como as contas são do carro, elas saem do valor que você recebe. Sem essa quitação, o documento do novo dono não é expedido."
+        },
+        {
+          "pergunta": "Quem faz a comunicação de venda quando vendo para a loja?",
+          "resposta": "A loja, com uma procuração sua. O Detran-PR aceita que o procurador faça o serviço, com procuração pública ou particular com firma reconhecida. Depois do negócio, peça o comprovante: ele mostra a data a partir da qual o carro deixou de ser seu."
+        },
+        {
+          "pergunta": "Quando recebo ao vender meu carro para a loja?",
+          "resposta": "Em até oito dias, contados do recebimento dos valores da operação. O dinheiro sai depois que o da operação entra e compensa, e depois que a papelada fecha — quitação, débitos, procuração e transferência conferidos, e a operação registrada. Pagar antes de o dinheiro compensar é a brecha que golpe de venda de carro explora, e o prazo protege os dois lados."
+        },
+        {
+          "pergunta": "Para que serve a procuração na venda do carro?",
+          "resposta": "Na venda para a Motors Store, é com ela que a loja faz, em seu nome, a comunicação de venda ao Detran-PR. Leia antes de assinar o que ela autoriza, a quem e por quanto tempo: se o documento não disser o prazo, o Detran-PR a considera válida por três anos."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "Transferência, débitos e comunicação de venda ficam com a loja."
+      },
+      "sobre": [
+        "Venda de carro para loja",
+        "Transferência de propriedade de veículo",
+        "Comunicação de venda"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "vender-sozinho-ou-para-loja",
+      "titulo": "Vender sozinho ou para a loja: o que muda além do preço",
+      "titulo_seo": "Vender carro particular ou para loja: o que muda",
+      "descricao": "Anunciar sozinho pode render mais e cobra tempo, estranhos no test-drive, golpes e papelada até a comunicação de venda. Para quem serve cada caminho.",
+      "corpo": [
+        {
+          "titulo": "O que muda entre vender sozinho e vender para a loja",
+          "paragrafos": [
+            "O anúncio particular pode render um número maior, e cobra por ele: tempo, estranhos no test-drive, atenção a golpe e a papelada até a comunicação de venda. A venda para a loja entrega tudo isso resolvido, com o trabalho e o risco já dentro do número — por isso a escolha depende menos do preço do que do tempo, da paciência e do risco que você quer carregar.",
+            "Nenhum dos dois caminhos é o errado. Cada um serve a uma pessoa diferente, e este guia compara os dois no que costuma ficar fora da conta: o preço, o tempo, a segurança de quem mostra o carro, os golpes, a responsabilidade até o Detran-PR saber da venda e a papelada."
+          ]
+        },
+        {
+          "titulo": "Preço: por que os dois números não se encontram",
+          "paragrafos": [
+            "No anúncio, quem põe o preço é você, e quem decide se ele para de pé é o comprador. Preço pedido não é preço recebido: a conversa começa nele e costuma terminar em outro lugar. E anúncio acima do mercado fica parado, o que também custa.",
+            "Na loja, o número sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média de preços do mercado nacional apurada sobre o que já aconteceu — retrovisor, não para-brisa. Dessa média, a avaliação tira o que aquele carro específico vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem quando está acima da média para o ano e o tempo que aquele modelo, versão e cor levam para vender na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, carro reprovado a loja não compra e apontamento pesa no valor. Débitos e financiamento ficam fora da avaliação; são contas que a loja quita pelo vendedor, e o valor delas sai do total.",
+            "A distância entre os dois números não é mistério: é o trabalho e o risco mudando de mão. Como a loja chega no número está em \"Quanto vale meu carro usado: como a loja chega no número\", e o que a FIPE mede, e o que não mede, em \"Tabela FIPE não é preço de venda: o que ela diz\"."
+          ]
+        },
+        {
+          "titulo": "Tempo: quem espera, e esperando o quê",
+          "paragrafos": [
+            "Anunciar é trabalhar no horário dos outros: fotos, texto, mensagens, visita marcada, visita que não aparece, negociação. Quanto leva depende do modelo, do preço e da época, e ninguém consegue prometer prazo. Enquanto não vende, o carro continua seu, com o seguro, a manutenção e a perda de valor de cada mês.",
+            "Na venda para a Motors Store, os pagamentos ao vendedor saem em até oito dias, contados do recebimento dos valores da operação. O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora, e o prazo protege os dois lados."
+          ]
+        },
+        {
+          "titulo": "Segurança: o test-drive com um estranho",
+          "paragrafos": [
+            "Quem vende sozinho recebe desconhecidos, entrega a chave e entra no carro com eles. Não é caso de medo; é caso de método.",
+            "Marque de dia, em lugar movimentado, e leve alguém. Antes de entregar a chave, peça a habilitação de quem vai dirigir, confira o rosto e fotografe o documento. Vá junto, sempre: carro à venda não sai para uma volta sem o dono. Tire do carro o documento, a chave reserva e o que for seu. E conte com uma rodagem longa, começando com o motor frio, porque é o que um comprador bem informado vai pedir — o roteiro está em \"Test-drive de carro usado: o que observar, na ordem\".",
+            "Na venda para a loja, não há estranho na sua porta. A negociação é com uma empresa com endereço, e o showroom da Motors Store fica no Bacacheri, em Curitiba."
+          ]
+        },
+        {
+          "titulo": "Os dois golpes que têm nome",
+          "paragrafos": [
+            "Dois golpes aparecem na venda de carro usado com frequência bastante para ganhar nome, e os dois exploram a pressa de fechar.",
+            "O primeiro é o comprovante falso. O comprador manda a imagem de um Pix ou de uma transferência, com conta, destinatário e chave aparentemente certos, e pede o carro em seguida. O dinheiro nunca caiu. A defesa é uma só: carro e documento assinado saem depois que o valor aparece no extrato da sua conta, conferido por você no aplicativo do banco. Comprovante é imagem; extrato é dinheiro.",
+            "O segundo é o falso intermediário. O golpista copia o seu anúncio e publica outro com o número dele. Para você, ele é o comprador; para o comprador de verdade, é o dono. Inventa uma história — uma dívida a acertar com terceiros, um parente que vai ver o carro — e pede aos dois que não falem de valores entre si. O comprador visita o seu carro, gosta e paga na conta que o golpista indicou. O engano costuma aparecer só no cartório, quando as duas partes finalmente conversam, e aí o dinheiro já foi.",
+            "A defesa é negociar direto com quem vai comprar e receber na conta de quem vende. Se alguém pedir para você não falar de preço com a pessoa que vai ver o carro, a conversa acabou ali. E não mande foto do documento do carro nem dos seus documentos pessoais para quem ainda não fechou nada.",
+            "Na venda para a loja, os dois golpes perdem o chão: não há anúncio seu para ser copiado, e quem paga é a loja, no prazo de até oito dias."
+          ]
+        },
+        {
+          "titulo": "Até quando o carro ainda é problema seu",
+          "paragrafos": [
+            "Entregar a chave não encerra a sua responsabilidade. O Detran-PR diz, na página do serviço, que a comunicação de venda é obrigação do vendedor pelo Código de Trânsito, e que, sem ela, o vendedor responde pelas penalidades e suas reincidências até a data da comunicação ou da transferência. O artigo 134 do código diz o mesmo pelo outro lado: se o comprador não registra a transferência no prazo, o antigo dono responde solidariamente pelas penalidades até comunicar a venda. Traduzindo: a multa que outra pessoa toma com o seu carro de ontem pode chegar no seu nome.",
+            "O IPVA entra na mesma conta. A Secretaria da Fazenda do Paraná orienta comunicar a venda ao Detran-PR em até sessenta dias para que o imposto dos anos seguintes não fique com quem vendeu, e informa que o do ano da venda é dos dois: do vendedor, como responsável principal, e do comprador, como solidário.",
+            "No anúncio particular, comunicar a venda é tarefa sua, e o melhor dia para fazer isso é o da venda. Como se faz, documento por documento, está em \"Documentos para vender carro no Paraná, passo a passo\". Quando a Motors Store compra o carro, a comunicação de venda ao Detran-PR é feita pela loja, com procuração do vendedor.",
+            "Isto descreve o processo; não é parecer. Dúvida sobre o seu caso concreto vai para o Detran-PR ou para um advogado."
+          ]
+        },
+        {
+          "titulo": "A papelada, de um lado e do outro",
+          "paragrafos": [
+            "Vendendo sozinho, a lista é sua: consultar e quitar os débitos, porque a transferência não sai com IPVA, licenciamento ou multa em aberto; emitir o documento de transferência e resolver as assinaturas; comunicar a venda; e, se houver financiamento, quitar e esperar a baixa do gravame, que é pedida pela instituição financeira.",
+            "Vendendo para a Motors Store, a loja cuida da transferência; quita os débitos, e o valor deles sai do total; quita o financiamento em aberto junto ao banco; e faz a comunicação de venda com procuração. Do seu lado ficam os documentos e as assinaturas. O resto está em \"O que a loja assume quando compra o seu carro\" e, para quem ainda paga parcela, em \"Carro financiado: dá para vender ou trocar\"."
+          ]
+        },
+        {
+          "titulo": "Para quem serve cada caminho",
+          "paragrafos": [
+            "Vender sozinho serve a quem tem tempo, um carro de saída fácil, método para receber estranhos e paciência para a papelada até a comunicação de venda — e quer o número mais alto que o mercado pagar, aceitando esperar por ele.",
+            "Vender para a loja serve a quem precisa de prazo, não quer desconhecido em casa, tem débito ou financiamento para resolver, vai trocar de carro na mesma conversa ou prefere que o trabalho e o risco fiquem com quem faz isso todo dia.",
+            "No meio fica a consignação: a loja anuncia e prepara o carro, e você recebe o valor combinado em contrato quando ele vende, menos os custos de preparação. Ela tem guia próprio, \"Consignação de carro: como funciona\"; a troca também, \"Carro na troca: como funciona e o que muda no preço\". E as opções todas, lado a lado, estão em \"Onde vender carro em Curitiba e o que cada opção pede\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Se for vender sozinho: pesquise o preço com honestidade, mostre o carro com método, negocie direto com quem compra, entregue só depois de ver o dinheiro no extrato e comunique a venda no mesmo dia. Se quiser o número da loja antes de decidir, peça a avaliação: decidir com os dois números na mesa é melhor do que decidir com um só."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Vale a pena vender carro para loja?",
+          "resposta": "Vale para quem dá mais valor a prazo, segurança e papelada resolvida do que ao número mais alto possível. Na Motors Store, a avaliação parte da FIPE e tira da média a preparação, a quilometragem e o tempo de venda daquele carro; em troca, a loja cuida da transferência, quita débitos e financiamento — o valor deles sai do total — e faz a comunicação de venda. Quem tem tempo e disposição para anunciar pode chegar a um número maior sozinho."
+        },
+        {
+          "pergunta": "Quais são os golpes mais comuns na venda de carro usado?",
+          "resposta": "Dois têm nome. O comprovante falso: o comprador mostra a imagem de um pagamento que nunca caiu. E o falso intermediário: o golpista copia o seu anúncio, se passa por dono para o comprador e por comprador para você, e desvia o pagamento para a conta dele. A defesa é negociar direto com quem compra, receber na sua conta e só entregar carro e documento depois de ver o valor no extrato."
+        },
+        {
+          "pergunta": "Como vender carro com segurança?",
+          "resposta": "Mostre o carro de dia, em lugar movimentado e acompanhado; confira a habilitação de quem vai dirigir e vá junto na rodagem; negocie direto com o comprador; receba antes de entregar, conferindo no extrato; e comunique a venda ao Detran-PR logo depois, porque até a comunicação a responsabilidade pelas penalidades pode continuar sendo sua."
+        },
+        {
+          "pergunta": "Até quando sou responsável pelo carro que vendi?",
+          "resposta": "Pelas penalidades, até a comunicação de venda ou a transferência: é o que dizem o artigo 134 do Código de Trânsito e a página do serviço no Detran-PR. Pelo IPVA, a Secretaria da Fazenda do Paraná informa que o do ano da venda é do vendedor e do comprador, e orienta comunicar a venda em até sessenta dias para que os anos seguintes não fiquem com quem vendeu. Sobre o seu caso concreto, quem orienta é o Detran-PR ou um advogado."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "Avaliar não obriga a vender: a decisão continua sua."
+      },
+      "sobre": [
+        "Venda de veículo usado",
+        "Golpes na venda de veículo",
+        "Comunicação de venda de veículo"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "documentos-para-vender-carro",
+      "titulo": "Documentos para vender carro no Paraná, passo a passo",
+      "titulo_seo": "Documentos para vender carro no Paraná: passo a passo",
+      "descricao": "Débitos, ATPV-e ou CRV, assinatura em cartório ou digital e a comunicação de venda ao Detran-PR: o que o vendedor precisa, na ordem.",
+      "corpo": [
+        {
+          "titulo": "O que o vendedor precisa para vender o carro",
+          "paragrafos": [
+            "Para vender carro no Paraná, o vendedor precisa do carro sem débito que trave a transferência, do documento de transferência preenchido e assinado — a ATPV-e ou o CRV em papel, conforme a data do documento — e de comunicar a venda ao Detran-PR. As duas primeiras coisas deixam o comprador transferir; a terceira é a que protege quem vendeu do que acontecer com o carro depois, e é a que mais gente esquece.",
+            "O passo a passo abaixo segue as páginas de serviço do Detran-PR, o Código de Trânsito Brasileiro, as orientações da Secretaria da Fazenda do Paraná e a Resolução Contran nº 1.027, de agosto de 2026, que está mudando a transferência de veículos no país — consultados em setembro de 2026. A regra está em transição: antes de começar, confira no portal do Detran-PR."
+          ]
+        },
+        {
+          "titulo": "Passo 1: consulte o carro antes de anunciar",
+          "paragrafos": [
+            "O primeiro documento é uma consulta. O extrato do veículo, no site do Detran-PR, é gratuito, sai na hora com o número do Renavam e mostra o que costuma travar uma venda: licenciamento, IPVA e seguro obrigatório pendentes, multas, restrição por financiamento ou informada pela Receita Federal e registro de furto ou roubo.",
+            "Débito precisa estar quitado para a transferência sair. O Código de Trânsito não deixa expedir o novo certificado de registro enquanto houver débito de tributo, encargo ou multa vinculado ao carro, nos artigos 124 e 128. E, sobre o IPVA, a Secretaria da Fazenda do Paraná é direta: para transferir, todos os débitos precisam estar pagos, inclusive o do ano, mesmo que ele ainda esteja dentro do calendário de parcelas.",
+            "Se o carro tem financiamento em aberto, existe um gravame registrado, e quem pede o cancelamento dele ao Detran-PR é a instituição financeira. Carro financiado se vende, mas a ordem das coisas muda, e o assunto tem guia próprio: \"Carro financiado: dá para vender ou trocar\".",
+            "O que não é obrigatório, mas ajuda a vender: o manual, a chave reserva, as notas de revisão e, se você tiver, um laudo cautelar recente. Nenhum deles entra na transferência, e todos entram na conversa com quem compra. O que um laudo mostra, e o que ele não mostra, está em \"Laudo cautelar: o que verifica e o que não verifica\"."
+          ]
+        },
+        {
+          "titulo": "Passo 2: o documento de transferência, ATPV-e ou CRV",
+          "paragrafos": [
+            "O que decide qual dos dois é a data em que o documento do carro foi emitido.",
+            "Se foi a partir de 1º de janeiro de 2021, a venda usa a ATPV-e, a Autorização para Transferência de Propriedade do Veículo eletrônica: o documento em que vendedor e comprador declaram estar de acordo com a venda. Quem pede é o proprietário ou um procurador, pela internet, numa unidade do Detran-PR, num despachante ou num cartório. Pela internet, o sistema pede o Renavam, a placa, a quilometragem e o número do CRV; o CPF e o e-mail do vendedor; e, do comprador, CPF ou CNPJ, nome, e-mail, endereço e o valor da venda. No Detran-PR a emissão é imediata e gratuita; o despachante informa as taxas dele. Quilometragem e valor ficam registrados, então confira os dois antes de emitir.",
+            "Se o documento é anterior a 2021, a venda usa o CRV em papel, preenchido com os dados do comprador. Para a transferência, o Detran-PR pede o original, com as firmas do vendedor e do comprador reconhecidas por autenticidade — a modalidade em que a pessoa assina diante do tabelião, e não a de semelhança."
+          ]
+        },
+        {
+          "titulo": "Passo 3: as assinaturas, no cartório ou no digital",
+          "paragrafos": [
+            "Emitida a ATPV-e, vendedor e comprador assinam — e aqui a regra está mudando. A Resolução Contran nº 1.027, publicada em 18 de agosto de 2026, passou a admitir na ATPV-e só assinatura eletrônica, avançada ou qualificada, em plataforma homologada, e vedou a assinatura à mão. Os Detrans têm noventa dias, contados da publicação, para se adequar, e nesse intervalo os procedimentos anteriores continuam valendo. A página de serviço do Detran-PR ainda descreve o caminho antigo — imprimir e assinar em cartório — ao lado das assinaturas eletrônicas, e não diz quais plataformas aceita. Antes de escolher, confirme no atendimento do Detran-PR qual caminho vale para o seu caso.",
+            "Existe ainda a venda digital pelo aplicativo Carteira Digital de Trânsito, do governo federal, e o Paraná está entre os estados que aderiram. Vale para a venda entre pessoas físicas, com documento emitido a partir de 4 de janeiro de 2021: comprador e vendedor assinam a intenção de venda no aplicativo, sem reconhecer firma, e a página do serviço informa que a comunicação de venda também é feita por ali. Depois, o comprador vai ao Detran para a vistoria e a transferência."
+          ]
+        },
+        {
+          "titulo": "Passo 4: receba antes de entregar",
+          "paragrafos": [
+            "Não é documento, mas é o passo que decide se os outros valem alguma coisa. Carro e documento assinado saem depois que o valor aparece no extrato da sua conta — não no comprovante que o comprador mostra —, e o pagamento vai direto de quem compra para a conta de quem vende. Os golpes que exploram esse momento estão descritos em \"Vender sozinho ou para a loja: o que muda além do preço\"."
+          ]
+        },
+        {
+          "titulo": "Passo 5: comunique a venda ao Detran-PR",
+          "paragrafos": [
+            "É o passo do vendedor, e o que protege você. O Detran-PR diz que, pelo Código de Trânsito, a comunicação de venda é obrigação do vendedor, e que, sem ela, o vendedor responde pelas penalidades e suas reincidências até a data da comunicação ou da transferência. O artigo 134 do código diz o mesmo pelo outro lado: se o comprador não registra a transferência no prazo, o antigo dono responde solidariamente pelas penalidades até comunicar a venda.",
+            "Com a ATPV-e, a regra nova simplifica esse passo: pela Resolução Contran nº 1.027, registradas no sistema as assinaturas eletrônicas do vendedor e do comprador, a comunicação de venda é gerada automaticamente. A página do Detran-PR, escrita antes da resolução, ainda avisa que o registro da intenção de venda não dispensa a comunicação. Enquanto as duas convivem, não conte com o automático: confira que a comunicação consta e guarde o comprovante.",
+            "Para o documento em papel, a comunicação continua sendo um passo seu. Pode comunicar o proprietário ou um procurador, de três formas: pessoalmente, numa unidade do Detran-PR, com agendamento; pelos Correios, com aviso de recebimento, para a sede do Detran-PR, na Avenida Victor Ferreira do Amaral, 2940, Capão da Imbuia, em Curitiba; ou por despachante. O Detran-PR pede o documento oficial com foto e CPF do vendedor e a cópia autenticada, frente e verso, do CRV preenchido, com as firmas do vendedor e do comprador reconhecidas por verdadeiro. Pelos Correios, vão junto o formulário do Detran-PR, preenchido e assinado, e a cópia autenticada do documento com foto. Se quem comunica é procurador, entram os documentos dele e a procuração: pública, lavrada em cartório, ou particular, com a firma de quem outorga reconhecida por autenticidade. O Detran-PR não cobra pela comunicação e diz que ela é efetivada em poucos dias.",
+            "E o prazo? O Código de Trânsito dá ao comprador trinta dias para registrar a transferência, e a resolução nova repete os trinta; a página do Detran-PR fala também em sessenta no Paraná, por um despacho de 2024. Com duas regras no ar, trate trinta como o prazo. Para que o IPVA dos anos seguintes não fique com você, a Secretaria da Fazenda orienta comunicar em até sessenta dias da venda. Mas o prazo que mais importa a quem vende é outro: até a comunicação constar, a penalidade pode cair no seu nome. Comunique no dia da venda e guarde o comprovante.",
+            "Isto descreve o processo como as páginas oficiais o descrevem hoje; não é parecer. Dúvida sobre o seu caso vai para o Detran-PR ou para um advogado."
+          ]
+        },
+        {
+          "titulo": "Depois da venda: a parte do comprador",
+          "paragrafos": [
+            "Com o documento assinado, a transferência é do comprador: vistoria do carro, taxa e registro no Detran-PR ou num despachante, com os débitos quitados. Deixar de registrar no prazo é infração média, com multa, pelo artigo 233 do Código de Trânsito. O que a vistoria confere, e o que ela não confere, está em \"Laudo cautelar x vistoria de transferência\".",
+            "Do seu lado, guarde cópia de tudo: o documento de transferência assinado, o comprovante da comunicação, o do pagamento e um papel com a data e a hora em que o carro foi entregue."
+          ]
+        },
+        {
+          "titulo": "Como a Motors Store faz, quando compra o seu carro",
+          "paragrafos": [
+            "Quando a loja compra o carro, a papelada muda de mão. A Motors Store cuida da transferência. Os débitos — IPVA, licenciamento e multas — a loja quita, e o valor deles sai do total; o financiamento em aberto também, junto ao banco. E a comunicação de venda ao Detran-PR a loja faz com procuração do vendedor, que é um dos caminhos que o Detran-PR aceita, como descrito no passo 5.",
+            "Do seu lado ficam os documentos pessoais e as assinaturas: a do documento de transferência e a da procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação; o porquê do prazo está em \"Vender sozinho ou para a loja: o que muda além do preço\". Como a loja chega no valor está em \"Quanto vale meu carro usado: como a loja chega no número\", e a lista inteira do que ela assume, em \"O que a loja assume quando compra o seu carro\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Consulte o extrato do carro no Detran-PR. Quite o que estiver pendente, ou combine por escrito quem quita, antes de assinar. Emita a ATPV-e, ou separe o CRV, e confirme no Detran-PR como assinar — a regra da assinatura está mudando. Receba antes de entregar, conferindo no extrato do banco. E confirme, no mesmo dia, que a comunicação de venda consta no Detran-PR — ou deixe a loja fazer isso por você."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Quais documentos o vendedor precisa para vender o carro?",
+          "resposta": "Documento oficial com foto e CPF; o documento de transferência — a ATPV-e, se o documento do carro foi emitido a partir de 1º de janeiro de 2021, ou o CRV em papel, se for anterior —, preenchido e assinado; e o carro com os débitos quitados, que é condição da transferência. Depois da venda, vem a comunicação ao Detran-PR. Se alguém fizer por você, entra a procuração."
+        },
+        {
+          "pergunta": "Como fazer a comunicação de venda no Detran-PR?",
+          "resposta": "Pessoalmente numa unidade do Detran-PR, com agendamento; pelos Correios, com aviso de recebimento; ou por despachante. O Detran-PR pede documento com foto e CPF do vendedor e cópia autenticada do CRV preenchido, com as firmas do vendedor e do comprador reconhecidas por verdadeiro, e não cobra pelo serviço. Na venda digital pelo aplicativo Carteira Digital de Trânsito, a comunicação é feita pelo próprio aplicativo. E, com a ATPV-e assinada eletronicamente, a Resolução Contran nº 1.027 prevê a comunicação automática; confirme que ela consta."
+        },
+        {
+          "pergunta": "A ATPV-e já comunica a venda?",
+          "resposta": "Pela regra nova, sim, quando assinada eletronicamente: a Resolução Contran nº 1.027, de agosto de 2026, prevê que, registradas as assinaturas eletrônicas do vendedor e do comprador, a comunicação de venda é gerada automaticamente. Mas os Detrans estão em adequação, e a página do Detran-PR ainda diz que registrar a intenção de venda não dispensa a comunicação. Até a regra assentar, confirme que a comunicação consta e guarde o comprovante — é ela que tira de você a responsabilidade pelo que acontecer com o carro."
+        },
+        {
+          "pergunta": "Quanto tempo o comprador tem para transferir o carro no Paraná?",
+          "resposta": "O Código de Trânsito dá trinta dias, prazo que a Resolução Contran nº 1.027, de agosto de 2026, repete; a página do Detran-PR fala também em sessenta no Paraná, por um despacho de 2024. Trate trinta como o prazo. Para quem vende, o prazo que importa é o da comunicação: até ela constar, as penalidades podem cair no nome do vendedor. Prazos e taxas mudam; confirme no portal do Detran-PR antes de começar."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "Vendendo para a loja, a comunicação de venda é feita por procuração."
+      },
+      "sobre": [
+        "Transferência de propriedade de veículo",
+        "Comunicação de venda de veículo",
+        "Departamento de Trânsito do Paraná"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "vender-carro-curitiba",
+      "titulo": "Onde vender carro em Curitiba e o que cada opção pede",
+      "titulo_seo": "Vender carro em Curitiba: as opções e o que cada uma pede",
+      "descricao": "Anúncio particular, loja, consignação, compra instantânea ou troca: o que cada caminho pede de você em tempo, preço, papelada e risco.",
+      "corpo": [
+        {
+          "titulo": "Os cinco caminhos para vender carro em Curitiba",
+          "paragrafos": [
+            "Em Curitiba, quem vende carro tem cinco caminhos: anunciar por conta própria, vender para uma loja, deixar em consignação, usar uma plataforma de compra instantânea ou dar o carro na troca por outro. O que separa um do outro não é só o preço: é quanto tempo, papelada e risco cada caminho deixa com você.",
+            "Abaixo, cada um deles passa pelas mesmas quatro perguntas — quanto tempo leva, como o preço se forma, quem cuida da papelada e que risco sobra para o dono. Nenhum é o certo para todo mundo."
+          ]
+        },
+        {
+          "titulo": "Anúncio particular",
+          "paragrafos": [
+            "É o caminho que pede mais de você e o que pode render o número mais alto. Você fotografa, escreve, publica em classificado on-line, rede social ou placa no vidro, responde mensagem, marca visita e negocia.",
+            "O tempo depende do modelo, do preço e da época, e não há como prometer prazo. O preço é você quem põe e o comprador quem aceita; anúncio é pedido, e a conversa começa nele. A papelada é toda sua: consultar e quitar os débitos, emitir a ATPV-e ou preencher o CRV, resolver as assinaturas no cartório ou no digital e comunicar a venda ao Detran-PR. O passo a passo está em \"Documentos para vender carro no Paraná, passo a passo\". Em Curitiba, a comunicação pode ir por uma unidade do Detran-PR, por despachante ou pelos Correios, com aviso de recebimento, para a sede do órgão, no Capão da Imbuia.",
+            "O risco também fica com você: estranho no test-drive, comprovante de pagamento falso, falso intermediário e a responsabilidade pelas penalidades até a comunicação de venda. Como cada um funciona, e como se defender, está em \"Vender sozinho ou para a loja: o que muda além do preço\"."
+          ]
+        },
+        {
+          "titulo": "Venda para a loja",
+          "paragrafos": [
+            "Pede de você a avaliação e as assinaturas; o resto muda de mão.",
+            "O preço sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média do mercado nacional apurada sobre o que já aconteceu, e tira dela o que aquele carro vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem acima da média para o ano e o tempo de venda daquele modelo, versão e cor na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, e apontamento pesa no valor. Débitos e financiamento não entram na avaliação; a loja quita pelo vendedor, e o valor sai do total. O raciocínio inteiro está em \"Quanto vale meu carro usado: como a loja chega no número\".",
+            "A papelada fica com a loja: a transferência, a quitação dos débitos e do financiamento em aberto e a comunicação de venda ao Detran-PR, feita com procuração do vendedor. O pagamento sai em até oito dias, contados do recebimento dos valores da operação, porque o dinheiro só sai depois que o da operação entra e compensa, e depois que a papelada fecha — pagar antes disso é a brecha que golpe de venda de carro explora. A lista do que a loja assume está em \"O que a loja assume quando compra o seu carro\".",
+            "O risco é baixo. A ressalva honesta é outra: nem todo carro entra. De cada dez que a Motors Store avalia, três entram, e carro reprovado na perícia cautelar a loja não compra. O que fazer nesse caso está em \"Meu carro reprovou no laudo cautelar. E agora?\"."
+          ]
+        },
+        {
+          "titulo": "Consignação",
+          "paragrafos": [
+            "Fica no meio do caminho: a loja vende por você, e você recebe quando o carro vende.",
+            "Na Motors Store, a consignação tem dois formatos, presencial e digital, e o consultor explica cada um no contrato. O prazo também é definido no contrato. A loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias do recebimento dos valores da operação.",
+            "O preço é combinado antes, e não depois. O que muda em relação à venda direta é quem espera: na consignação, a espera é sua, dentro do prazo do contrato. Os detalhes estão em \"Consignação de carro: como funciona\"."
+          ]
+        },
+        {
+          "titulo": "Plataforma de compra instantânea",
+          "paragrafos": [
+            "São empresas que compram carro pela internet. Em geral, você informa os dados do carro, recebe uma proposta, leva o carro a uma inspeção e, se fechar, a empresa cuida da documentação.",
+            "O argumento é o tempo. O preço segue a régua de quem compra para revender, como numa loja, e a proposta feita sobre os dados que você informou se confirma, ou muda, depois da inspeção. A papelada costuma ficar com a empresa, e o risco de segurança é baixo. Antes de aceitar, leia a proposta com calma: o prazo de pagamento, o que a inspeção avalia, quem faz a comunicação de venda e o que acontece se a inspeção encontrar algo diferente do que você informou."
+          ]
+        },
+        {
+          "titulo": "Troca",
+          "paragrafos": [
+            "É o caminho com menos etapas: o carro que sai entra como parte do pagamento do que chega, na mesma conversa.",
+            "Na troca, o valor do seu carro sai de uma avaliação, com a mesma lógica da venda para a loja, e vira entrada. Na Motors Store, carro com financiamento em aberto também entra: a loja faz a quitação junto ao banco, e o saldo — o valor do carro menos o que falta pagar — vira entrada no próximo. A papelada do carro que sai fica com a loja, como na venda. Se a diferença for financiada, a loja faz a simulação e encaminha a análise aos bancos parceiros, e taxa e condição saem da análise de cada banco, sem promessa antes da resposta.",
+            "Os detalhes estão em \"Carro na troca: como funciona e o que muda no preço\" e, para quem ainda paga parcela, em \"Carro financiado: dá para vender ou trocar\"."
+          ]
+        },
+        {
+          "titulo": "Como comparar as propostas",
+          "paragrafos": [
+            "Comparar cinco caminhos pelo número que aparece primeiro é o jeito mais comum de errar a conta. Compare o que chega na sua conta, e quando.",
+            "No anúncio particular, do preço que o comprador aceita saem os débitos que você mesmo quita, o cartório, o que você gastar para deixar o carro apresentável e o tempo até vender. Na venda para a loja, os débitos e o financiamento em aberto saem do total, e o restante chega em até oito dias do recebimento dos valores da operação. Na consignação, do valor combinado saem os custos de preparação, e o dinheiro chega depois que o carro vende. Na plataforma, vale o que a proposta disser depois da inspeção. Na troca, o que importa é a diferença entre o valor do seu carro e o preço do próximo, e como essa diferença vai ser paga.",
+            "Ponha também na conta o que não tem etiqueta: quantas visitas você aceita receber, quantas semanas pode esperar e quanto risco quer carregar até a comunicação de venda. Um número maior que chega tarde, ou com um golpe no meio do caminho, não é um número maior. E, para saber de onde vem cada número, vale entender antes o que a FIPE diz e o que ela não diz — está em \"Tabela FIPE não é preço de venda: o que ela diz\"."
+          ]
+        },
+        {
+          "titulo": "Onde a Motors Store entra",
+          "paragrafos": [
+            "A Motors Store fica no Bacacheri, em Curitiba, e trabalha com três desses cinco caminhos: compra, consignação e troca. Na compra e na troca, a perícia cautelar independente vem antes, e carro reprovado a loja não compra; na consignação, a perícia está entre os custos de preparação.",
+            "Os outros dois — o anúncio particular e a plataforma de compra instantânea — são escolhas legítimas, e servem a quem tem tempo para o primeiro ou pressa para o segundo. O que vale para os cinco é decidir sabendo o que cada um deixa com você."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Decida primeiro o que pesa mais: o número, o prazo ou o sossego. Se for anunciar, comece pelos documentos e pelos golpes, nos dois guias citados acima. Se quiser o número da loja para comparar, ou para trocar de carro na mesma conversa, peça a avaliação."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Onde vender meu carro em Curitiba?",
+          "resposta": "Há cinco caminhos: anúncio particular, venda para uma loja, consignação, plataforma de compra instantânea e troca. O anúncio pode render mais e deixa com você o tempo, a papelada e o risco; a loja resolve a papelada e paga em prazo definido; a troca usa o valor do seu carro como entrada no próximo; a consignação combina o valor antes e espera a venda; a plataforma aposta na rapidez, com proposta que se confirma na inspeção. A escolha depende do que pesa mais para você."
+        },
+        {
+          "pergunta": "Como funciona a venda para uma loja que compra carro em Curitiba?",
+          "resposta": "Na Motors Store, no Bacacheri, o carro passa por avaliação e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação."
+        },
+        {
+          "pergunta": "O que a avaliação de carro leva em conta?",
+          "resposta": "Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo e tira da média o que aquele carro vai custar e demorar para ser vendido: preparação, quilometragem acima da média para o ano e tempo de venda na região. Estado e procedência entram na mesma conta, e apontamento na perícia pesa no valor. Débitos e financiamento ficam fora da avaliação e saem do total."
+        },
+        {
+          "pergunta": "Dá para vender ou trocar carro financiado em Curitiba?",
+          "resposta": "Dá. A Motors Store aceita carro com financiamento em aberto, na venda e na troca: faz a quitação junto ao banco, e o saldo — o valor do carro menos o que falta pagar — vira entrada no próximo carro. O caminho completo está no guia \"Carro financiado: dá para vender ou trocar\"."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "Showroom no Bacacheri, em Curitiba."
+      },
+      "sobre": [
+        "Venda de veículo usado",
+        "Curitiba",
+        "Avaliação de veículo"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "tabela-fipe-nao-e-preco-de-venda",
+      "titulo": "Tabela FIPE não é preço de venda: o que ela diz",
+      "titulo_seo": "Tabela FIPE é preço de venda? O que a tabela diz",
+      "descricao": "A FIPE é a média nacional de preços à vista ao consumidor, publicada como parâmetro. Por que o seu carro vale diferente dela, de quem compra a quem vende.",
+      "corpo": [
+        {
+          "titulo": "O que a tabela FIPE diz, e o que ela não diz",
+          "paragrafos": [
+            "A tabela FIPE não é preço de venda: é a média nacional dos preços à vista praticados na venda ao consumidor final, que a própria FIPE publica como parâmetro para negociação e avaliação. Ela diz onde o mercado daquele modelo esteve no mês de referência — é retrovisor, não para-brisa — e não diz por quanto um carro específico vai vender, nem quando.",
+            "Entender isso muda a conversa dos dois lados do balcão. Quem compra para de tratar a tabela como garantia; quem vende para de tratar a tabela como piso."
+          ]
+        },
+        {
+          "titulo": "O que a FIPE mede, nas palavras dela",
+          "paragrafos": [
+            "A Fundação Instituto de Pesquisas Econômicas levanta e publica preços médios praticados no mercado de veículos em todo o território nacional. Na página de consulta, ela explica o recorte em três notas curtas. Os preços são médias, para pagamento à vista, do que se pratica na venda a consumidor final pessoa física, no país inteiro. O ano que conta é o ano-modelo, e carro de uso profissional ou especial não entra na conta. E os valores estão em reais do mês e ano de referência.",
+            "Na primeira dessas notas vem o aviso, da própria fundação: a tabela é só um parâmetro para negociar ou avaliar, e o preço real de cada carro muda com a região, o estado de conservação, a cor, os acessórios e tudo o mais que mexe com a oferta e a procura por aquele veículo.",
+            "Repare no que a consulta pede: marca, modelo e ano-modelo. Não pede cidade, quilometragem, número de donos, histórico de revisão nem resultado de perícia. Por construção, a tabela não sabe nada sobre o seu carro. Ela sabe sobre a média dos carros iguais a ele.",
+            "É também isso que a torna útil. Segundo a fundação, seguradoras e contratos de compra e venda usam a FIPE como referência — e faz sentido: é uma régua pública, igual para todo mundo e com mês de referência."
+          ]
+        },
+        {
+          "titulo": "Retrovisor, não para-brisa",
+          "paragrafos": [
+            "Na avaliação da Motors Store, a frase que resume a tabela é esta: a FIPE é retrovisor, não para-brisa. Ela olha para trás, para a média do que foi praticado no mês de referência, no país inteiro. Uma negociação olha para a frente: por quanto este carro, com esta quilometragem, neste estado, nesta cidade, vai mudar de dono, e em quanto tempo.",
+            "Três coisas cabem no espaço entre as duas. A média é nacional, e Curitiba tem a oferta e a procura dela. A média é de um mês que já passou, e o preço de um modelo pode andar depois, para qualquer lado. E a média é de um carro médio, enquanto o seu tem quilometragem, estado e história que nenhuma média conhece.",
+            "A própria consulta deixa escolher o mês de referência, e vale usar isso. Comparar o mesmo carro em meses diferentes mostra a direção em que o preço vinha andando — que é exatamente o que um retrovisor mostra. O que vem pela frente, ele não mostra.",
+            "Não é defeito da tabela. É o que ela se propõe a ser: um parâmetro. O erro é usá-la como se fosse o preço."
+          ]
+        },
+        {
+          "titulo": "Para quem compra: régua, não garantia",
+          "paragrafos": [
+            "Para quem compra, a FIPE serve para saber se um preço está na faixa do mercado, e para fazer perguntas quando não está.",
+            "Preço muito acima da média pede uma explicação concreta: quilometragem baixa comprovada, estado acima da média, acessório, revisão com nota. Preço que parece bom demais para a média pede uma pergunta mais séria, porque às vezes a explicação está no histórico — passagem por leilão, sinistro, reparo estrutural. Como verificar está em \"Como saber se um carro passou por leilão\" e em \"Laudo cautelar: o que verifica e o que não verifica\".",
+            "Lembre também do recorte: a FIPE é preço à vista. Quando a compra tem financiamento ou carro na troca, o número da negociação mistura outras contas, e comparar direto com a tabela confunde. O que a troca muda no preço está em \"Carro na troca: como funciona e o que muda no preço\".",
+            "E, na loja, o preço de vitrine carrega o que vem com o carro — perícia, preparação e garantia —, e a loja ainda acompanha a documentação. O que cada item quer dizer, e o que fica por sua conta quando você compra de particular, está em \"Carro de loja ou de particular: o que o preço inclui\"."
+          ]
+        },
+        {
+          "titulo": "Para quem vende: ponto de partida, não piso",
+          "paragrafos": [
+            "Para quem vende, um erro comum é ler a FIPE como piso: meu carro vale a tabela, no mínimo. A tabela não diz isso, e a própria FIPE avisa que não diz.",
+            "Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo e tira da média o que aquele carro específico vai custar e demorar para ser vendido. A preparação: o que precisa ser feito para ir à vitrine, como perícia cautelar, funilaria e pintura, pneus, revisão, polimento e higienização. A quilometragem: acima da média para o ano, ela pesa, porque o carro rodou mais do que a média que a FIPE representa. E o tempo de venda: quanto aquele modelo, versão e cor levam para vender na região, porque, enquanto não vende, o carro é capital parado e continua perdendo valor mês a mês.",
+            "Estado e procedência entram na mesma conta. A perícia cautelar independente é feita antes da compra, carro reprovado a loja não compra, e apontamento pesa no valor. Débitos e financiamento ficam fora da avaliação: são contas que a loja quita pelo vendedor, e o valor delas sai do total.",
+            "Esta peça não publica percentual sobre a tabela, e não é descuido: o que se publica é a lógica, e o número sai da conta de cada carro. O passo a passo está em \"Quanto vale meu carro usado: como a loja chega no número\"."
+          ]
+        },
+        {
+          "titulo": "O que você controla antes de pedir o número",
+          "paragrafos": [
+            "Se a avaliação tira da média o que o carro vai custar e demorar para ser vendido, parte disso está na sua mão antes da conversa.",
+            "A preparação é a parte mais controlável. Carro que chega com pneu em condição de rodar, revisão em dia, sem funilaria a fazer e limpo pede menos preparação para ir à vitrine, e a preparação é um dos itens que saem da média. Não vale gastar numa reforma que custe mais do que ela poupa; vale resolver o pequeno que salta aos olhos e juntar as notas do que já foi feito.",
+            "A quilometragem não se muda. O que dá para fazer é mostrá-la: notas de revisão com a quilometragem anotada ajudam a sustentar o número do painel.",
+            "O tempo de venda depende do modelo, da versão e da cor, e isso também não se muda. Mas papel resolvido ajuda a conversa a andar: débito, multa e financiamento em aberto não entram na avaliação, saem do total, e é melhor saber antes quanto eles somam. O extrato do veículo no site do Detran-PR mostra isso de graça, pelo Renavam.",
+            "A procedência entra no mesmo cálculo, e aqui não há o que preparar: a perícia cautelar independente é feita antes da compra, e o resultado dela pesa no valor. O que cada resultado quer dizer está em \"Laudo cautelar: aprovado, com apontamento ou reprovado\"."
+          ]
+        },
+        {
+          "titulo": "Por que o mesmo carro tem três preços",
+          "paragrafos": [
+            "O mesmo carro, no mesmo mês, aparece com três números, e nenhum deles está errado.",
+            "O do anúncio é um pedido: é por quanto o dono gostaria de vender, e a negociação começa nele. Anúncio não é venda; é o começo da conversa.",
+            "O da vitrine da loja é preço de venda ao consumidor com o que vem junto: perícia, preparação e garantia, com a documentação e a transferência acompanhadas pela loja.",
+            "O da avaliação é o número de quem compra para revender. Parte da mesma média e tira dela o que aquele carro vai custar e demorar para ser vendido.",
+            "A distância entre os três não é mistério nem truque. É o trabalho, o tempo e o risco que estão dentro, ou fora, de cada número. Quem vende sozinho fica com a distância e com o trabalho; a comparação está em \"Vender sozinho ou para a loja: o que muda além do preço\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Consulte a FIPE no site oficial da fundação, pela versão e pelo ano-modelo — o ano do modelo, não o de fabricação —, e repare no mês de referência que a consulta mostra. Use o número como começo de conversa, nunca como fim. Se estiver comprando, pergunte o que explica a diferença para a média, para mais ou para menos. Se estiver vendendo e quiser o número do seu carro, e não o da média, peça a avaliação."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "A tabela FIPE é o preço de venda do carro?",
+          "resposta": "Não. A FIPE publica a média nacional dos preços à vista praticados na venda ao consumidor final e avisa que a tabela é só um parâmetro para negociar ou avaliar. O preço de cada carro varia com região, conservação, cor, acessórios e oferta e procura, e é a negociação que decide o resto."
+        },
+        {
+          "pergunta": "Como funciona a tabela FIPE?",
+          "resposta": "A Fundação Instituto de Pesquisas Econômicas levanta preços praticados no mercado de veículos em todo o país e publica a média por marca, modelo e ano-modelo, em reais do mês de referência. A consulta é pública, no site oficial da fundação, e não pede quilometragem, cidade nem estado de conservação do carro."
+        },
+        {
+          "pergunta": "Por que meu carro vale diferente da FIPE?",
+          "resposta": "Porque a FIPE é a média dos carros iguais ao seu, e o seu tem quilometragem, estado, histórico, cor e cidade próprios. Numa avaliação de loja entra ainda o que o carro vai custar e demorar para ser vendido: preparação, quilometragem acima da média para o ano e tempo de venda na região."
+        },
+        {
+          "pergunta": "A FIPE serve para comprar e para vender?",
+          "resposta": "Serve para os dois, como parâmetro. Para quem compra, mostra se o preço está na faixa e quando uma diferença pede explicação; para quem vende, é o ponto de partida da conversa, não o piso dela. Nos dois casos, o número final sai do carro, e não da tabela."
+        }
+      ],
+      "saida": {
+        "rotulo": "Pedir avaliação do meu carro",
+        "href": "/avaliacao",
+        "apoio": "A avaliação parte da FIPE e mostra o que pesou no número do seu carro."
+      },
+      "sobre": [
+        "Tabela FIPE",
+        "Preço de veículo usado",
+        "Avaliação de veículo"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "carro-de-loja-ou-particular",
+      "titulo": "Carro de loja ou de particular: o que o preço inclui",
+      "titulo_seo": "Comprar carro de loja ou particular: o que o preço inclui",
+      "descricao": "Perícia, garantia, papelada e revisão: o que vem com o carro de loja, o que o particular oferece de verdade e o que fica por sua conta na compra direta.",
+      "corpo": [
+        {
+          "titulo": "O que muda entre o preço de loja e o de particular",
+          "paragrafos": [
+            "O preço de um carro de loja paga, além do carro, o que vem com ele: a seleção e a perícia cautelar antes da vitrine, a preparação e a garantia da loja, com a papelada acompanhada por ela. O de particular costuma ser menor porque não traz nada disso — o carro vem como está, e o que a loja faria antes fica por sua conta, de trabalho e de dinheiro.",
+            "Nenhum dos dois é o caminho errado. O que importa é saber o que você está pagando e o que vai ter de fazer, e pagar, se escolher o caminho sem essas coisas."
+          ]
+        },
+        {
+          "titulo": "O que vem com um carro da Motors Store",
+          "paragrafos": [
+            "A seleção vem primeiro. De cada dez carros que a loja avalia, três entram; os outros sete não viram estoque.",
+            "Todo veículo passa por perícia cautelar independente antes da vitrine, que olha identificação, estrutura e histórico. O laudo fica com o vendedor e sai a pedido, e o que esse exame alcança, e o que não alcança, está em \"Laudo cautelar: o que verifica e o que não verifica\".",
+            "Todo carro que entra recebe troca de óleo e filtros. E o carro que levanta suspeita na avaliação vai para uma perícia mecânica, sob demanda, antes de entrar.",
+            "A garantia da loja é de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega. Cobre falha interna de motor, câmbio e diferencial — incluído o turbo original de fábrica —, sem carência, sem franquia e com a mão de obra inclusa. O que ela cobre e o que fica de fora está em \"Garantia de carro usado em loja: o que está coberto\".",
+            "A documentação e a vistoria de transferência ficam com a loja, e os custos e prazos são informados na negociação. No financiamento, a loja faz a simulação e encaminha a análise aos bancos parceiros; taxa e condição saem da análise de cada banco, e ninguém promete nada antes da resposta.",
+            "E a loja aceita o seu carro na troca, depois da avaliação, inclusive com financiamento em aberto: faz a quitação junto ao banco, e o saldo vira entrada. Como isso funciona está em \"Carro na troca: como funciona e o que muda no preço\" e em \"Carro financiado: dá para vender ou trocar\"."
+          ]
+        },
+        {
+          "titulo": "Por que isso aparece no preço",
+          "paragrafos": [
+            "Cada item custa, e o preço de vitrine carrega esses custos junto com o carro: a perícia, a preparação, a garantia e o tempo em que o carro fica parado até vender.",
+            "A pergunta útil, então, não é se o preço de loja é mais alto — costuma ser. É se o que vem junto vale, para você, o que custaria fazer por conta própria. Para entender por que o mesmo carro aparece com preços diferentes no anúncio, na vitrine e na avaliação, a explicação está em \"Tabela FIPE não é preço de venda: o que ela diz\"."
+          ]
+        },
+        {
+          "titulo": "O que o particular oferece de verdade",
+          "paragrafos": [
+            "Preço, antes de tudo. Sem estrutura, preparação e garantia para carregar, o particular pode pedir menos e ainda sair satisfeito com o negócio.",
+            "Negociação direta com quem usou o carro. Dá para perguntar como ele rodou, onde foi feita a revisão e por que está sendo vendido, e, com sorte, ver as notas.",
+            "E flexibilidade de horário, de condição e de acordo, que numa conversa entre duas pessoas costuma ser maior.",
+            "Tem carro muito bom à venda por particular. A diferença é que, nesse caminho, quem confere é você."
+          ]
+        },
+        {
+          "titulo": "O que fica por sua conta na compra de particular",
+          "paragrafos": [
+            "Conferir o carro. A perícia cautelar, que na loja vem antes da vitrine, você contrata e paga; onde fazer está em \"Perícia cautelar em Curitiba: onde fazer e quanto custa\". Se o carro tiver conjunto caro, uma avaliação mecânica por oficina de confiança. E uma rodagem de verdade, começando com o motor frio, com o roteiro de \"Test-drive de carro usado: o que observar, na ordem\".",
+            "Conferir o documento. O extrato do veículo, no site do Detran-PR, é gratuito, sai na hora pelo Renavam e mostra IPVA, licenciamento e multas pendentes, restrição por financiamento e registro de furto ou roubo. Carro com financiamento em aberto tem gravame registrado, e quem pede o cancelamento é a instituição financeira: combine com o vendedor como e quando isso acontece antes de pagar. O histórico de leilão pede consulta própria, descrita em \"Como saber se um carro passou por leilão\".",
+            "Pagar com segurança. Negocie direto com o dono que está no documento e pague na conta dele. O golpe do falso intermediário vive de pagamento feito na conta de outra pessoa, e o mecanismo está em \"Vender sozinho ou para a loja: o que muda além do preço\".",
+            "Fazer a papelada. Com o documento de transferência assinado, a transferência é sua: vistoria, taxa e registro no Detran-PR. O Código de Trânsito dá trinta dias, e o Detran-PR informa sessenta no Paraná; registrar fora do prazo é infração, com multa. O que o vendedor precisa fazer do lado dele está em \"Documentos para vender carro no Paraná, passo a passo\".",
+            "E saber que a garantia é outra conversa. Na compra em loja, a garantia da casa vem além da garantia prevista em lei. Na compra de particular não há garantia de loja, e o regime legal é outro. O que a lei garante no seu caso é pergunta para o Procon ou para um advogado, não para quem está vendendo o carro."
+          ]
+        },
+        {
+          "titulo": "O que perguntar, de um lado e do outro",
+          "paragrafos": [
+            "Ao particular: há quanto tempo o carro é dele e por que está vendendo; onde fez as revisões e se tem as notas; se o carro já bateu, se tem multa, se está financiado; se tem manual e chave reserva; e se aceita perícia cautelar e uma rodagem longa, com o motor frio. Resposta evasiva à última pergunta já é uma resposta.",
+            "À loja: o laudo da perícia cautelar, que fica com o vendedor e sai a pedido; o termo de garantia, para ler antes de assinar; os custos e prazos da transferência; o que foi feito no carro antes da vitrine; e, se for financiar, a simulação, lembrando que taxa e condição só existem depois da análise do banco. Loja que não sabe responder a alguma dessas perguntas também está respondendo.",
+            "Nos dois casos, a regra é a mesma: tudo o que for combinado, por escrito, e nada assinado antes da rodagem e do laudo."
+          ]
+        },
+        {
+          "titulo": "Como decidir",
+          "paragrafos": [
+            "O particular pode ser o melhor negócio quando o preço dele, somado ao que você vai pagar e fazer — perícia, avaliação mecânica, papelada e o risco de ficar sem garantia de loja depois —, ainda fica bem menor que o da loja, e quando você tem tempo e disposição para conferir tudo.",
+            "A loja é o caminho quando você quer o carro conferido, com garantia e com a papelada acompanhada, e prefere pagar por isso a fazer sozinho. Em qualquer dos dois, peça o documento, peça o laudo e faça a rodagem antes de assinar.",
+            "Faça a conta com os seus números, e não com a impressão. Ao preço do particular, some a perícia cautelar, a avaliação mecânica, o cartório, a vistoria e a taxa de transferência e o reparo que a perícia ou a rodagem apontarem. Compare o total com o preço da loja, lembrando que, do lado dela, vem a garantia de três meses ou 5.000 quilômetros, o que vier primeiro, para falha interna de motor, câmbio e diferencial, e do lado do particular não há garantia de loja. A diferença que sobrar é o preço do trabalho e do risco que você decidiu assumir."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Antes de comprar, de loja ou de particular: veja o documento e o extrato do carro no Detran-PR; peça o laudo da perícia cautelar, ou contrate uma, se o vendedor for particular; faça a rodagem com o motor frio; e, na loja, peça o termo de garantia e leia antes de assinar. Os carros da Motors Store ficam no showroom do Bacacheri, em Curitiba, e a entrega alcança todo o Paraná e o litoral catarinense até Balneário Camboriú."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Por que carro de loja é mais caro?",
+          "resposta": "Porque o preço de loja carrega o que vem com o carro: seleção, perícia cautelar antes da vitrine, preparação e garantia da loja. Na Motors Store, a garantia é de três meses ou 5.000 quilômetros, o que vier primeiro, para falha interna de motor, câmbio e diferencial, sem carência, sem franquia e com a mão de obra inclusa, e a loja ainda cuida da documentação e da vistoria de transferência, com custos e prazos informados na negociação. Na compra de particular, tudo isso fica por conta de quem compra."
+        },
+        {
+          "pergunta": "Quais as vantagens de comprar carro em loja?",
+          "resposta": "O carro chega conferido e preparado: na Motors Store, com perícia cautelar independente antes da vitrine e troca de óleo e filtros. Vem com a garantia da loja, com a documentação e a vistoria de transferência acompanhadas, com o financiamento encaminhado aos bancos parceiros e com a possibilidade de dar o seu carro na troca, inclusive financiado."
+        },
+        {
+          "pergunta": "Comprar carro de particular é seguro?",
+          "resposta": "Pode ser, se você fizer por conta própria o que a loja faria: perícia cautelar, avaliação mecânica, consulta do extrato no Detran-PR, rodagem longa e pagamento direto na conta do dono que está no documento. A compra entre particulares não tem garantia de loja, e o regime legal é outro; sobre o seu caso, quem orienta é o Procon ou um advogado."
+        },
+        {
+          "pergunta": "O que conferir antes de comprar carro de particular?",
+          "resposta": "O extrato do veículo no Detran-PR, com débitos, restrições e registro de furto ou roubo; o histórico de leilão; uma perícia cautelar; a rodagem com o motor frio; e o documento de transferência, com o nome do vendedor igual ao do documento do carro. O pagamento vai para a conta desse vendedor, e de mais ninguém."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "Perícia cautelar antes da vitrine, garantia da loja e transferência acompanhada fazem parte da compra."
+      },
+      "sobre": [
+        "Compra de carro usado",
+        "Garantia de veículo usado",
+        "Compra de veículo entre particulares"
+      ],
+      "estado": "publicado"
+    }
+  ]
+}
