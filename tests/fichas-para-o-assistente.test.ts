@@ -240,6 +240,13 @@ describe("o arquivo cabe no teto do Captain, com todo carro dentro", () => {
     expect(fonte).toMatch(/Garantia de todos: \$\{GARANTIA_MESES\} meses/);
     expect(fonte).not.toMatch(/linha\("Garantia"/);
   });
+
+  it("e o cabeçalho diz o limite de quilometragem, da constante", () => {
+    // 18/09/2026: o número do dono entrou junto do prazo. Um assistente que só
+    // sabe dos três meses promete cobertura a quem já rodou 8.000 km.
+    expect(fonte).toMatch(/ou \$\{GARANTIA_KM_TEXTO\} km — o que vier primeiro —/);
+    expect(fonte).not.toMatch(/5\.000 km/);
+  });
 });
 
 

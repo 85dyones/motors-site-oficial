@@ -76,7 +76,7 @@ Do nosso lado da mesa, os gatilhos são os mesmos. Óleo na tampa de válvulas o
 
 Óleo e filtros são trocados em todo carro que entra aqui. Isso resolve o presente e não reescreve o passado: óleo novo não conta o que o óleo velho fez.
 
-Na garantia da loja, correia é manutenção e não entra — o que a garantia cobre é falha interna de motor, câmbio e diferencial, por três meses a partir da entrega, com mão de obra inclusa, e o primeiro passo ao aparecer qualquer defeito é avisar a loja antes de levar o carro a qualquer oficina. Quem contrata o plano de garantia estendida vendido à parte, que é opcional, assume trocar óleo e filtro a cada 7.000 quilômetros ou 6 meses, o que vier primeiro, com nota fiscal contendo quilometragem e placa. Para um motor de correia banhada, essa disciplina não é burocracia do plano: é a manutenção que o componente pede.
+Na garantia da loja, correia é manutenção e não entra — o que a garantia cobre é falha interna de motor, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, a partir da entrega, com mão de obra inclusa, e o primeiro passo ao aparecer qualquer defeito é avisar a loja antes de levar o carro a qualquer oficina. Quem contrata o plano de garantia estendida vendido à parte, que é opcional, assume trocar óleo e filtro a cada 7.000 quilômetros ou 6 meses, o que vier primeiro, com nota fiscal contendo quilometragem e placa. Para um motor de correia banhada, essa disciplina não é burocracia do plano: é a manutenção que o componente pede.
 
 Este motor costuma vir acompanhado de outros dois assuntos, e cada um tem guia próprio: "Motor turbo de baixa cilindrada usado: o que checar" e "Carbonização de válvulas em injeção direta".
 

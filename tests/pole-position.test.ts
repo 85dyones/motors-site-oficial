@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { campanhaPorSlug, campanhaEstaViva } from "../src/lib/campanhas";
 import { lerCodigo } from "./fonte";
+import { PRAZO_DA_GARANTIA } from "../src/lib/paginasInstitucionais";
 
 const SLUG = "pole-position-2026";
 const PAGINA = `src/app/(campanha)/${SLUG}/page.tsx`;
@@ -171,7 +172,13 @@ describe("o conteúdo é o do folder, com as ressalvas", () => {
      * `/garantia` diz três meses. No título ele não pode entrar (é mínimo legal
      * de PJ e não se vende como diferencial); no corpo, é informação devida.
      */
-    expect(texto).toMatch(/por tr[êe]s meses/i);
+    //
+    // Desde 18/09/2026 o prazo vem de `PRAZO_DA_GARANTIA`, que carrega também
+    // o limite de quilometragem informado pelo dono. O que se trava aqui é a
+    // página usar a expressão inteira — e a expressão continuar dizendo os
+    // três meses e o limite.
+    expect(texto).toMatch(/por \$\{PRAZO_DA_GARANTIA\}/);
+    expect(PRAZO_DA_GARANTIA).toMatch(/^tr[êe]s meses ou [\d.]+ quilômetros, o que vier primeiro$/);
   });
 
   /*

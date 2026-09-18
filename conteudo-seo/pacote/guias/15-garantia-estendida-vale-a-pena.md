@@ -24,7 +24,7 @@ Este guia descreve o plano que a Motors Store oferece, administrado pela Gestaut
 
 ## O que o plano é, e o que ele não é
 
-É um serviço de certificação com garantia, contratado à parte, administrado por uma empresa especializada, em acréscimo à garantia prevista em lei e à garantia da loja.
+É um serviço de certificação com garantia, contratado à parte, administrado por uma empresa especializada, em acréscimo à garantia prevista em lei e à garantia da loja. É vendido em três prazos — 6, 12 e 24 meses —, e as regras são as mesmas nos três: o manual é um só.
 
 Não é seguro. A diferença não é palavra: seguro é produto regulado, vendido por seguradora, com apólice em nome de quem compra. O plano é garantia contratual — quem responde é a administradora, pelo que está escrito no termo. Se alguém lhe vender "seguro com registro na SUSEP", peça para ver em nome de quem está a apólice; no manual deste plano, o registro que aparece é de um seguro que cobre a própria administradora, e não uma apólice do comprador.
 
@@ -42,7 +42,7 @@ O plano vale em todo o território nacional, o que importa para quem viaja: o ca
 
 ## O que ele não cobre, e é isto que muda a decisão
 
-Turbocompressor. Num carro de motor turbo de baixa cilindrada, esse é o componente que mais assusta e ele está fora — o que checar antes de comprar está em "Motor turbo de baixa cilindrada usado: o que checar".
+Turbocompressor. Num carro de motor turbo de baixa cilindrada, esse é o componente que mais assusta e ele está fora — o que checar antes de comprar está em "Motor turbo de baixa cilindrada usado: o que checar". O turbo original de fábrica fica coberto pela garantia da loja, por três meses ou 5.000 quilômetros, o que vier primeiro; depois disso, com ou sem plano, é por conta do dono.
 
 Vazamento de óleo e aumento gradual do consumo de óleo. Vale reparar: são justamente os sintomas que antecedem o problema caro, e o plano responde pela falha, não pelo desgaste que a anuncia.
 
@@ -78,7 +78,7 @@ Um detalhe prático que quase ninguém pergunta: o plano é transferível a quem
 
 Peça o manual e leia a lista de exclusões antes da de coberturas — é onde estão as surpresas. Confirme se o carro é elegível: o plano exige veículo abaixo de 180 mil quilômetros e com menos de oito anos de ano-modelo na data do checklist. Pergunte qual é o teto de reparo do seu prazo e onde ele está escrito. Confirme o intervalo de manutenção obrigatória e o que precisa constar na nota. E pergunte quanto custa, separado do preço do carro, para comparar com o que você gastaria consertando o que ele cobre.
 
-Depois compare com a garantia que já vem incluída. O que a loja cobre sem custo nenhum, por três meses, está em "Garantia de carro usado em loja: o que está coberto" — e boa parte da decisão é saber o que o plano acrescenta ao que você já tem.
+Depois compare com a garantia que já vem incluída. O que a loja cobre sem custo nenhum, por três meses ou 5.000 quilômetros, o que vier primeiro, está em "Garantia de carro usado em loja: o que está coberto" — e boa parte da decisão é saber o que o plano acrescenta ao que você já tem.
 
 ## O que fazer agora
 
@@ -96,7 +96,7 @@ O que a Motors Store cobre por conta própria, sem custo, e como acionar está n
 Depende de duas coisas: se o componente que você teme está coberto e se você mantém a manutenção documentada. Em carro de motor turbo pequeno ou câmbio de dupla embreagem, os dois reparos mais caros — turbocompressor e kit de embreagem — ficam de fora, e aí o dinheiro rende mais numa checagem antes da compra. Em automático convencional ou CVT, a cobertura é mais aderente ao que costuma falhar.
 
 **A garantia estendida cobre o turbo?**
-Não. O turbocompressor está na lista de exclusões do plano, e vazamento de óleo e aumento gradual de consumo também. Quem compra motor turbo de baixa cilindrada precisa saber disso antes de assinar, porque é exatamente o conjunto que a tecnologia mais cobra.
+Não. O turbocompressor está na lista de exclusões do plano, e vazamento de óleo e aumento gradual de consumo também. Quem compra motor turbo de baixa cilindrada precisa saber disso antes de assinar, porque é exatamente o conjunto que a tecnologia mais cobra. O turbo original de fábrica fica coberto pela garantia da loja, por três meses ou 5.000 quilômetros, o que vier primeiro; depois disso, é por conta do dono.
 
 **Garantia estendida é seguro?**
 Não. É um serviço de certificação com garantia, contratado à parte e administrado por uma empresa especializada, em acréscimo à garantia legal e à da loja. Seguro é produto regulado, com apólice em nome do comprador. Se alguém disser que é seguro registrado na SUSEP, peça para ver em nome de quem está a apólice.
@@ -131,7 +131,7 @@ Nenhum link escrito no corpo: quem cria link é `TERMOS_COM_DESTINO` (`src/lib/l
 ## Pendências
 
 - **O teto de reparo por prazo.** O manual lido é o de 12 meses e remete o valor ao termo de ativação. A peça diz que o teto existe e manda perguntar qual é; com os valores, ela ganha a linha mais útil que pode ter.
-- **Os manuais de 6 e 24 meses.** O texto lido é o de 12. Se os outros dois prazos tiverem regra diferente de cobertura, elegibilidade ou acionamento, esta peça precisa da ressalva.
+- [x] **Os manuais de 6 e 24 meses.** "Mesmo manual" (dono, 18/09/2026) — a peça passou a dizer que as regras valem nos três prazos. Registro: O texto lido é o de 12. Se os outros dois prazos tiverem regra diferente de cobertura, elegibilidade ou acionamento, esta peça precisa da ressalva.
 - **O prazo de transferência.** O manual de 12 meses fala em transferência do veículo dentro de um prazo contado da compra; a peça cita o prazo "previsto no manual" sem número, porque ele pode variar entre os planos.
 - **O termo de ativação é entregue assinado no ato?** O manual condiciona a cobertura a ele. Se a entrega for prática da casa, vira uma frase forte aqui.
 

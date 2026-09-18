@@ -11,6 +11,7 @@ import {
   texto,
 } from "../src/lib/guiaValidacao";
 import { conferir } from "../conteudo-seo/aplicar-guias.mjs";
+import { GARANTIA_KM_TEXTO, PRAZO_DA_GARANTIA } from "../src/lib/paginasInstitucionais";
 
 /**
  * As duas peças de garantia da Onda 2 — a que explica o que a loja cobre e a
@@ -167,21 +168,41 @@ describe("nenhum número que a casa não mediu", () => {
     }
   });
 
-  it("nenhuma quilometragem solta, e nenhum limite atribuído à garantia da loja", () => {
-    /* Os números de quilometragem destas peças são do manual do plano — 7.000
-       km de revisão, 180 mil de elegibilidade — e cada frase nomeia de quem
-       eles são. O limite da garantia DA LOJA continua fora: o dono confirmou
-       que existe e não informou o valor, e o contrato padrão de venda não o
-       menciona. */
+  it("nenhuma quilometragem solta, e a da garantia da loja é a da constante", () => {
+    /* Duas fontes de quilometragem nestas peças, e cada frase diz de qual é:
+       o manual do plano (7.000 km de revisão, 180 mil de elegibilidade) e o
+       limite da garantia da loja, que o dono informou em 18/09/2026 — 5.000
+       km, o que vier primeiro com os três meses — e que entra sempre pela
+       expressão inteira de `PRAZO_DA_GARANTIA`. O contrato padrão de venda
+       ainda não traz esse limite; a redação para a cláusula foi levada ao
+       dono. */
     for (const guia of lote.guias) {
-      expect(textoInteiro(guia), `${guia.slug}`).not.toMatch(/limite de quilometragem/i);
+      const tudo = textoInteiro(guia);
+      expect(tudo, `${guia.slug}`).not.toMatch(/limite de quilometragem/i);
+      expect(tudo, `${guia.slug}: prazo da loja sem o limite`).not.toMatch(
+        /três meses (?:contados|a partir) da entrega|três meses para falha/i,
+      );
       for (const frase of frases(guia).filter((f) =>
         /\d[\d.]*\s*(?:mil\s+)?(?:km|quil[ôo]metros)/i.test(f),
       )) {
-        expect(frase, `${guia.slug}: quilometragem sem dizer de quem é`).toMatch(
-          /plano|estendid|Gestauto|manual|intervalo|revisão|troca de óleo/i,
-        );
+        const daLoja = frase.includes(PRAZO_DA_GARANTIA);
+        const doPlano = /plano|estendid|Gestauto|manual|intervalo|revisão|troca de óleo/i.test(frase);
+        expect(daLoja || doPlano, `${guia.slug}: quilometragem sem dizer de quem é -> ${frase}`).toBe(true);
       }
+      for (const achado of tudo.matchAll(/três meses ou ([\d.]+) quilômetros/g)) {
+        expect(achado[1], `${guia.slug}`).toBe(GARANTIA_KM_TEXTO);
+      }
+    }
+  });
+
+  it("o turbo aparece com a condição de fábrica, nas duas peças", () => {
+    // "Se for de fábrica, sim" — resposta do dono em 18/09/2026. A peça da
+    // loja diz a cobertura; a do plano diz o contraste, que é onde o comprador
+    // de turbo decide se o plano acrescenta alguma coisa.
+    for (const guia of lote.guias) {
+      const tudo = textoInteiro(guia);
+      if (!/turbo/i.test(tudo)) continue;
+      expect(tudo, `${guia.slug}`).toMatch(/turbo(?:compressor)?[^.]{0,60}original de fábrica/i);
     }
   });
 });

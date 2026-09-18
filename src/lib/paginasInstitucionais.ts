@@ -186,6 +186,35 @@ export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
 export const GARANTIA_MESES = 3;
 
 /**
+ * O limite de quilometragem da garantia da loja, informado pelo dono em
+ * 18/09/2026: "5.000 km de média nos 3 meses". Vale o que vier primeiro — o
+ * prazo ou a quilometragem, contados da entrega.
+ *
+ * ⚠️ **O contrato padrão de venda não traz este limite.** A cláusula quarta
+ * fala em prazo e só. Até 17/09 o site não citava quilometragem nenhuma por
+ * isso: sem o número, a frase mandaria o comprador procurar no contrato uma
+ * linha que não existe. Com o número confirmado pelo dono, o site passa a
+ * dizê-lo — e a proposta de redação para o contrato foi levada a ele, porque
+ * limite que só o site publica é limite difícil de sustentar numa recusa.
+ */
+export const GARANTIA_KM = 5000;
+
+/**
+ * "5.000", com o ponto de milhar — montado da constante, nunca digitado. Sem
+ * `toLocaleString`: o módulo também vai para o bundle do cliente, e o ponto de
+ * milhar não pode depender do ICU de quem executa.
+ */
+export const GARANTIA_KM_TEXTO = String(GARANTIA_KM).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+/**
+ * O prazo inteiro, numa expressão só, para toda frase que diz quanto a
+ * garantia dura: "três meses ou 5.000 quilômetros, o que vier primeiro".
+ * "três" por extenso, como a página sempre escreveu; o número de meses que
+ * vai para máquina (Ney, fichas) sai de `GARANTIA_MESES`.
+ */
+export const PRAZO_DA_GARANTIA = `três meses ou ${GARANTIA_KM_TEXTO} quilômetros, o que vier primeiro`;
+
+/**
  * Onde a loja entrega, em UMA frase, para todas as superfícies públicas.
  *
  * Esta promessa já mudou duas vezes, e nas duas ela estava escrita à mão em
@@ -218,10 +247,10 @@ export const PRAZOS_ESTENDIDOS = `${PLANOS_ESTENDIDOS_MESES.slice(0, -1).join(",
 
 /** A abertura, sob o `<h1>`. */
 export const TEXTO_DE_GARANTIA: string[] = [
-  "Todo carro vendido pela Motors Store sai com três meses de garantia de motor e câmbio — e " +
-    "também do diferencial, como está no contrato de venda —, contados da entrega, sem " +
-    "carência e sem franquia. Falha interna nesses conjuntos dentro do prazo, a gente resolve, " +
-    "com a mão de obra inclusa.",
+  "Todo carro vendido pela Motors Store sai com garantia de motor e câmbio — e também do " +
+    "diferencial, como está no contrato de venda — por " +
+    `${PRAZO_DA_GARANTIA}, contados da entrega, sem carência e sem franquia. Falha interna ` +
+    "nesses conjuntos dentro do prazo, a gente resolve, com a mão de obra inclusa.",
   "Essa cobertura soma-se aos seus direitos de consumidor: não os substitui. O que ela cobre, " +
     "item por item, está no termo que acompanha a venda — leia antes de assinar e pergunte o " +
     "que não estiver claro.",
@@ -255,9 +284,10 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   {
     titulo: "A garantia da Motors Store",
     paragrafos: [
-      "Três meses, contados da entrega, para falha interna de motor, câmbio e diferencial. " +
-        "Sem carência: vale desde o primeiro dia, sem período de espera. Sem franquia: você " +
-        "não paga parte do conserto, nem taxa para acionar. A mão de obra está inclusa.",
+      `${PRAZO_DA_GARANTIA.charAt(0).toUpperCase()}${PRAZO_DA_GARANTIA.slice(1)}, contados ` +
+        "da entrega, para falha interna de motor, câmbio e diferencial. Sem carência: vale " +
+        "desde o primeiro dia, sem período de espera. Sem franquia: você não paga parte do " +
+        "conserto, nem taxa para acionar. A mão de obra está inclusa.",
       "Na venda ao consumidor, não pedimos assinatura de termo de isenção — nenhum papel que " +
         "reduza aquilo a que você tem direito.",
       "O conserto é feito em oficina parceira credenciada, indicada pela loja. São mais de " +
@@ -268,14 +298,17 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   {
     titulo: "O que está coberto e o que não está",
     paragrafos: [
-      "Coberto: falha interna de componente de motor, de câmbio e de diferencial, dentro dos " +
-        "três meses.",
+      // Turbo: resposta do dono em 18/09/2026 — "se for de fábrica, sim". O
+      // turbo original é componente do motor; o que não é original cai na
+      // exclusão de peça fora de especificação, logo abaixo.
+      "Coberto: falha interna de componente de motor — incluído o turbocompressor, quando é o " +
+        "original de fábrica —, de câmbio e de diferencial, dentro do prazo.",
       "Fora da cobertura, por serem manutenção ou desgaste de uso: óleo, filtros, velas e " +
         "correias no intervalo; pastilha, disco, pneu, palheta e bateria; embreagem em uso " +
         "normal; bombas, fluidos e óleos em geral.",
-      "Fora também: peça fora de especificação, remap e alteração de característica do " +
-        "veículo; e evento externo — colisão, enchente, granizo, vandalismo —, que é assunto " +
-        "de seguro, não de garantia.",
+      "Fora também: peça fora de especificação — um turbo que não é o original de fábrica " +
+        "entra aqui —, remap e alteração de característica do veículo; e evento externo — " +
+        "colisão, enchente, granizo, vandalismo —, que é assunto de seguro, não de garantia.",
       "E os custos que não são do conserto em si: transporte, guincho, alimentação e " +
         "hospedagem não entram. Dizer isso antes é parte do serviço; descobrir depois é o que " +
         "estraga a relação.",
@@ -289,13 +322,16 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
         "acréscimo à garantia legal e à da loja — não é seguro, e a contratação é opcional. " +
         "O preço vem destacado na proposta, não muda o valor do carro e recusar não muda a " +
         "negociação.",
+      // "Mesmo manual" — resposta do dono em 18/09/2026 sobre os três prazos.
       "O plano depende de aprovação do veículo: na data do checklist, ele precisa ter menos " +
-        "de 180 mil quilômetros rodados e menos de oito anos de ano-modelo.",
+        "de 180 mil quilômetros rodados e menos de oito anos de ano-modelo. As regras são as " +
+        "mesmas nos três prazos: o manual é um só.",
       "Cobre componentes internos do motor e do câmbio, pelo tipo de câmbio do carro, e o " +
         "sistema de arrefecimento, com mão de obra nas oficinas credenciadas. Não cobre " +
-        "turbocompressor, vazamento e aumento gradual de consumo de óleo, kit de embreagem, " +
-        "elétrica em geral, ar-condicionado, freios, direção nem diferencial. A lista completa " +
-        "está no manual, que o consultor mostra antes de você decidir.",
+        "turbocompressor — que a garantia da loja cobre, quando é o original de fábrica —, " +
+        "vazamento e aumento gradual de consumo de óleo, kit de embreagem, elétrica em geral, " +
+        "ar-condicionado, freios, direção nem diferencial. A lista completa está no manual, que " +
+        "o consultor mostra antes de você decidir.",
       "Duas obrigações que valem a cobertura inteira: a revisão de óleo e filtro a cada 7 mil " +
         "quilômetros ou 6 meses, o que vier primeiro, guardando a nota fiscal com a " +
         "quilometragem e a placa; e o teto de reparo escrito no termo de ativação, que vai " +
@@ -346,10 +382,11 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        a régua do pacote (§2.5) para o FAQ que se repete entre páginas. */
     pergunta: "O que a garantia cobre, exatamente?",
     resposta:
-      "Falha interna de motor, câmbio e diferencial, por três meses contados da entrega, sem " +
-      "carência, sem franquia e com a mão de obra inclusa. O conserto é feito em oficina " +
-      "parceira credenciada indicada pela loja. O detalhamento item por item está no termo " +
-      "entregue junto com a venda — peça para ler antes de assinar.",
+      "Falha interna de motor — incluído o turbo original de fábrica —, câmbio e diferencial, " +
+      `por ${PRAZO_DA_GARANTIA}, contados da entrega, sem carência, sem franquia e com a mão ` +
+      "de obra inclusa. O conserto é feito em oficina parceira credenciada indicada pela loja. " +
+      "O detalhamento item por item está no termo entregue junto com a venda — peça para ler " +
+      "antes de assinar.",
   },
   {
     pergunta: "Preciso pagar algo para acionar?",

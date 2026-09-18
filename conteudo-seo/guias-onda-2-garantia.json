@@ -11,7 +11,7 @@
           "titulo": "O que a garantia de loja cobre, e o que ela não cobre",
           "paragrafos": [
             "A garantia que uma loja dá num carro usado cobre falha de componente — peça que quebrou antes da hora — e não cobre peça que gastou com o uso. Essa linha decide quase toda discussão de balcão, e quem entende ela antes de assinar não descobre depois.",
-            "Na Motors Store, a garantia é de três meses contados da entrega e cobre falha interna de motor, câmbio e diferencial. Sem carência, sem franquia, com a mão de obra inclusa. O conserto é feito em oficina parceira credenciada indicada pela loja, e a regra que vem antes de todas as outras é avisar a gente antes de levar o carro a qualquer lugar."
+            "Na Motors Store, a garantia é de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, e cobre falha interna de motor, câmbio e diferencial. Sem carência, sem franquia, com a mão de obra inclusa. O conserto é feito em oficina parceira credenciada indicada pela loja, e a regra que vem antes de todas as outras é avisar a gente antes de levar o carro a qualquer lugar."
           ]
         },
         {
@@ -27,7 +27,7 @@
         {
           "titulo": "O que está coberto na garantia da Motors Store",
           "paragrafos": [
-            "Falha interna de motor, de câmbio e de diferencial, dentro dos três meses contados da entrega.",
+            "Falha interna de motor, de câmbio e de diferencial, dentro de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega. O turbocompressor entra como parte do motor quando é o original de fábrica.",
             "Sem carência quer dizer que vale desde o primeiro dia, sem período de espera. Sem franquia quer dizer que você não paga parte do conserto nem taxa para acionar. Mão de obra inclusa quer dizer que a hora da oficina entra junto com a peça — e vale reparar nisso, porque em muita garantia de mercado a peça é coberta e a mão de obra não, o que pode ser metade da conta.",
             "O conserto acontece em oficina parceira credenciada, escolhida por especialidade. São mais de quinze, e quem indica qual atende cada caso é a loja. Não é burocracia: é a diferença entre um serviço por quem responde depois e um orçamento de quem nunca mais vai ver o carro.",
             "Na venda ao consumidor não pedimos assinatura de termo de isenção — nenhum papel que reduza aquilo a que você tem direito."
@@ -40,7 +40,7 @@
             "Manutenção. Óleo, filtro, vela e correia dentro do intervalo são serviço do dono do carro. Vale a ressalva que a peça \"Correia dentada banhada em óleo: por que ela falha\" detalha: em alguns motores modernos, o item de manutenção mal feito destrói o item coberto, e é por isso que a nota fiscal da revisão vale tanto.",
             "Embreagem em uso normal. Desgaste de embreagem não é falha interna do câmbio, e essa é a exclusão que mais gera conversa em carro de dupla embreagem — o teste que evita o susto está em \"Câmbio de dupla embreagem em carro usado: o que checar\".",
             "Bombas, fluidos e óleos em geral.",
-            "Peça fora de especificação e remap. Alterar característica do veículo muda o esforço que o conjunto recebe, e ninguém pode responder por uma peça que não escolheu.",
+            "Peça fora de especificação e remap — um turbo que não é o original de fábrica entra aqui. Alterar característica do veículo muda o esforço que o conjunto recebe, e ninguém pode responder por uma peça que não escolheu.",
             "Evento externo — colisão, enchente, granizo, vandalismo. Isso é assunto de seguro, não de garantia, e nenhuma garantia de loja no país cobre.",
             "E os custos que não são do conserto em si: transporte, guincho, alimentação e hospedagem não entram. É a dúvida clássica de quem quebra longe, e a resposta precisa vir antes, não depois."
           ]
@@ -83,11 +83,11 @@
       "faq": [
         {
           "pergunta": "Loja é obrigada a dar garantia em carro usado?",
-          "resposta": "A compra feita em loja vem com a garantia prevista em lei, que é direito do consumidor e não depende de o vendedor oferecer. Além dela, cada loja pode dar a sua própria garantia contratual, com prazo e escopo definidos por ela — a da Motors Store é de três meses para falha interna de motor, câmbio e diferencial. Sobre o alcance do que a lei garante e sobre o seu caso, quem orienta é o Procon ou um advogado, não a loja que está vendendo."
+          "resposta": "A compra feita em loja vem com a garantia prevista em lei, que é direito do consumidor e não depende de o vendedor oferecer. Além dela, cada loja pode dar a sua própria garantia contratual, com prazo e escopo definidos por ela — a da Motors Store é de três meses ou 5.000 quilômetros, o que vier primeiro, para falha interna de motor, câmbio e diferencial. Sobre o alcance do que a lei garante e sobre o seu caso, quem orienta é o Procon ou um advogado, não a loja que está vendendo."
         },
         {
           "pergunta": "O que a garantia de três meses cobre, exatamente?",
-          "resposta": "Falha interna de motor, câmbio e diferencial, contada da entrega, sem carência, sem franquia e com a mão de obra inclusa. Fora dela ficam desgaste, manutenção, embreagem em uso normal, bombas, fluidos e óleos, peça fora de especificação, remap, evento externo e os custos que não são do conserto, como transporte e guincho. O detalhamento item a item está no termo entregue com a venda — peça para ler antes de assinar."
+          "resposta": "Falha interna de motor — incluído o turbo original de fábrica —, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, sem carência, sem franquia e com a mão de obra inclusa. Fora dela ficam desgaste, manutenção, embreagem em uso normal, bombas, fluidos e óleos, peça fora de especificação, remap, evento externo e os custos que não são do conserto, como transporte e guincho. O detalhamento item a item está no termo entregue com a venda — peça para ler antes de assinar."
         },
         {
           "pergunta": "Posso levar o carro na minha oficina de confiança?",
@@ -126,7 +126,7 @@
         {
           "titulo": "O que o plano é, e o que ele não é",
           "paragrafos": [
-            "É um serviço de certificação com garantia, contratado à parte, administrado por uma empresa especializada, em acréscimo à garantia prevista em lei e à garantia da loja.",
+            "É um serviço de certificação com garantia, contratado à parte, administrado por uma empresa especializada, em acréscimo à garantia prevista em lei e à garantia da loja. É vendido em três prazos — 6, 12 e 24 meses —, e as regras são as mesmas nos três: o manual é um só.",
             "Não é seguro. A diferença não é palavra: seguro é produto regulado, vendido por seguradora, com apólice em nome de quem compra. O plano é garantia contratual — quem responde é a administradora, pelo que está escrito no termo. Se alguém lhe vender \"seguro com registro na SUSEP\", peça para ver em nome de quem está a apólice; no manual deste plano, o registro que aparece é de um seguro que cobre a própria administradora, e não uma apólice do comprador.",
             "Contratar é opcional, e essa palavra também não é enfeite: o plano não muda o preço do carro, não é condição para financiamento e não é condição para a entrega. O preço dele vem destacado na proposta, e recusar não muda a negociação."
           ]
@@ -143,7 +143,7 @@
         {
           "titulo": "O que ele não cobre, e é isto que muda a decisão",
           "paragrafos": [
-            "Turbocompressor. Num carro de motor turbo de baixa cilindrada, esse é o componente que mais assusta e ele está fora — o que checar antes de comprar está em \"Motor turbo de baixa cilindrada usado: o que checar\".",
+            "Turbocompressor. Num carro de motor turbo de baixa cilindrada, esse é o componente que mais assusta e ele está fora — o que checar antes de comprar está em \"Motor turbo de baixa cilindrada usado: o que checar\". O turbo original de fábrica fica coberto pela garantia da loja, por três meses ou 5.000 quilômetros, o que vier primeiro; depois disso, com ou sem plano, é por conta do dono.",
             "Vazamento de óleo e aumento gradual do consumo de óleo. Vale reparar: são justamente os sintomas que antecedem o problema caro, e o plano responde pela falha, não pelo desgaste que a anuncia.",
             "Kit de embreagem. Em carro de dupla embreagem, esse é o reparo típico e o mais caro do conjunto, e a exclusão vale para o plano e para a garantia da loja — os sinais estão em \"Câmbio de dupla embreagem em carro usado: o que checar\".",
             "Injetores, sensores, velas, bobinas, correias e tensores, coletores e catalisador. Elétrica em geral, módulos, motor de partida, alternador, ar-condicionado, freios, direção, diferencial, semieixos e homocinética. Consumíveis, como óleo, fluido, filtro, bateria, lâmpadas, plásticos e borrachas.",
@@ -173,7 +173,7 @@
           "titulo": "O que perguntar antes de assinar",
           "paragrafos": [
             "Peça o manual e leia a lista de exclusões antes da de coberturas — é onde estão as surpresas. Confirme se o carro é elegível: o plano exige veículo abaixo de 180 mil quilômetros e com menos de oito anos de ano-modelo na data do checklist. Pergunte qual é o teto de reparo do seu prazo e onde ele está escrito. Confirme o intervalo de manutenção obrigatória e o que precisa constar na nota. E pergunte quanto custa, separado do preço do carro, para comparar com o que você gastaria consertando o que ele cobre.",
-            "Depois compare com a garantia que já vem incluída. O que a loja cobre sem custo nenhum, por três meses, está em \"Garantia de carro usado em loja: o que está coberto\" — e boa parte da decisão é saber o que o plano acrescenta ao que você já tem."
+            "Depois compare com a garantia que já vem incluída. O que a loja cobre sem custo nenhum, por três meses ou 5.000 quilômetros, o que vier primeiro, está em \"Garantia de carro usado em loja: o que está coberto\" — e boa parte da decisão é saber o que o plano acrescenta ao que você já tem."
           ]
         },
         {
@@ -191,7 +191,7 @@
         },
         {
           "pergunta": "A garantia estendida cobre o turbo?",
-          "resposta": "Não. O turbocompressor está na lista de exclusões do plano, e vazamento de óleo e aumento gradual de consumo também. Quem compra motor turbo de baixa cilindrada precisa saber disso antes de assinar, porque é exatamente o conjunto que a tecnologia mais cobra."
+          "resposta": "Não. O turbocompressor está na lista de exclusões do plano, e vazamento de óleo e aumento gradual de consumo também. Quem compra motor turbo de baixa cilindrada precisa saber disso antes de assinar, porque é exatamente o conjunto que a tecnologia mais cobra. O turbo original de fábrica fica coberto pela garantia da loja, por três meses ou 5.000 quilômetros, o que vier primeiro; depois disso, é por conta do dono."
         },
         {
           "pergunta": "Garantia estendida é seguro?",
@@ -205,7 +205,7 @@
       "saida": {
         "rotulo": "O que a garantia da loja cobre",
         "href": "/garantia",
-        "apoio": "O que a loja cobre por conta própria, sem custo nenhum, por três meses."
+        "apoio": "O que a loja cobre por conta própria, sem custo nenhum, por três meses ou 5.000 quilômetros, o que vier primeiro."
       },
       "sobre": [
         "Garantia estendida",
