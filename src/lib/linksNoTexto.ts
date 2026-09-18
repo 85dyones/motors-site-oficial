@@ -84,8 +84,9 @@ export interface DestinoNoTexto {
  *    cortado no ponto, e é por isso que o termo é a parte sem a pergunta.
  * 2. Só entra destino que EXISTE. Link para peça de onda futura é link
  *    quebrado, e o pacote proíbe (README do pacote, "Links para peças que
- *    ainda não existem"). "vício oculto", "correia dentada" e "dupla
- *    embreagem" ficam de fora até a Onda 2 subir.
+ *    ainda não existem"). Em 17/09/2026 a Onda 2 subiu, e os três assuntos que
+ *    esperavam por ela — vício oculto, correia banhada em óleo e dupla
+ *    embreagem — entraram com as peças deles.
  *
  * "laudo cautelar" e "perícia cautelar" continuam apontando para `/garantia`,
  * a página comercial: o limite é de um link por DESTINO por página, então a
@@ -112,6 +113,46 @@ export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "vistoria de transferência", href: "/guias/cautelar-x-vistoria-transferencia" },
   { termo: "passagem por leilão", href: "/guias/consultar-carro-leilao-sinistro" },
   { termo: "perícia cautelar em Curitiba", href: "/guias/pericia-cautelar-curitiba" },
+
+  // ---- Onda 2: o título de cada peça, como as outras a citam --------------
+  //
+  // A Onda 2 é mecânica, e a Onda 1 é procedência. As cinco peças citam as
+  // oito anteriores para dizer o que a cautelar NÃO alcança, e é essa citação
+  // que amarra os dois pilares: quem chega pelo laudo desce para o motor, e
+  // quem chega pelo motor sobe para o laudo.
+  { termo: "Motor turbo de baixa cilindrada usado: o que checar", href: "/guias/motores-turbo-usados-o-que-checar" },
+  { termo: "Correia dentada banhada em óleo: por que ela falha", href: "/guias/correia-dentada-banhada-em-oleo" },
+  { termo: "Carbonização de válvulas em injeção direta", href: "/guias/carbonizacao-valvulas-injecao-direta" },
+  { termo: "Câmbio de dupla embreagem em carro usado: o que checar", href: "/guias/cambio-dupla-embreagem-usado" },
+  /* Cortado antes dos dois-pontos, pelo mesmo motivo que "Meu carro reprovou
+     no laudo cautelar": o \b de JS é ASCII, e um termo terminado em "é" nunca
+     casa — nem consigo mesmo. Como o corte cobre também a menção avulsa, este
+     é o único termo desta peça. */
+  { termo: "Vício oculto em carro usado", href: "/guias/vicio-oculto-carro-usado" },
+
+  // ---- Onda 2: o assunto, para quem chega pelo hub ------------------------
+  //
+  // São os termos que a ficha e o hub usam sem citar guia nenhum. "vício
+  // oculto" sozinho ficaria com doze caracteres, abaixo da régua de âncora
+  // deste arquivo, e linkaria em qualquer frase jurídica solta: por isso o
+  // termo é a expressão inteira.
+  { termo: "motor turbo de baixa cilindrada", href: "/guias/motores-turbo-usados-o-que-checar" },
+  { termo: "correia dentada banhada em óleo", href: "/guias/correia-dentada-banhada-em-oleo" },
+  { termo: "carbonização de válvulas", href: "/guias/carbonizacao-valvulas-injecao-direta" },
+  { termo: "câmbio de dupla embreagem", href: "/guias/cambio-dupla-embreagem-usado" },
+
+  // ---- Onda 2: as duas peças de garantia ---------------------------------
+  //
+  // Elas fecham o circuito da onda: as peças de mecânica explicam o que
+  // quebra, estas explicam quem paga. "garantia estendida" entra como assunto
+  // porque a expressão aparece por extenso em seis peças, e é a dúvida que o
+  // leitor leva para o balcão.
+  //
+  // Os dois títulos entram cortados no ponto em que a pontuação começa —
+  // "vale a pena?" termina em interrogação, e o \b de JS não casa depois dela.
+  { termo: "Garantia de carro usado em loja: o que está coberto", href: "/guias/garantia-carro-usado-loja" },
+  { termo: "Garantia estendida de carro usado vale a pena", href: "/guias/garantia-estendida-vale-a-pena" },
+  { termo: "garantia estendida", href: "/guias/garantia-estendida-vale-a-pena" },
 ];
 
 export interface SegmentoDeTexto {
