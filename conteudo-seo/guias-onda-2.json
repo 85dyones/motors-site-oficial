@@ -1,5 +1,5 @@
 {
-  "_leia": "As 5 peças deste lote da Onda 2 (conteudo-seo/pacote/guias/*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-2.json — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
+  "_leia": "As 6 peças deste lote da Onda 2 (conteudo-seo/pacote/guias/*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-2.json — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
   "guias": [
     {
       "slug": "motores-turbo-usados-o-que-checar",
@@ -46,7 +46,7 @@
         {
           "titulo": "O que só aparece rodando",
           "paragrafos": [
-            "Volta no quarteirão não prova nada num motor turbo. O que prova é rodar até a temperatura estabilizar e então pedir esforço.",
+            "Volta no quarteirão não prova nada num motor turbo. O que prova é rodar até a temperatura estabilizar e então pedir esforço. O roteiro completo, na ordem em que a avaliação da loja faz, está em \"Test-drive de carro usado: o que observar, na ordem\".",
             "Em marcha alta e rotação baixa, acelere a fundo e peça para alguém olhar o escapamento. Fumaça azulada na retomada é o sinal mais direto de óleo passando por onde não deveria. O mesmo vale depois de uma descida longa em retenção: acelerar em seguida e ver um sopro azul atrás é o comportamento clássico de retentor de turbo cansado.",
             "Sinta a pressão. Ela deve subir com previsibilidade e se manter enquanto o pé estiver embaixo. Pressão que sobe e cai sozinha, retomada que não vem, motor que entra em modo de segurança e luz de injeção que só acende sob carga apontam para o acionamento da pressão ou para vazamento na pressurização.",
             "Ouça. Assobio que muda de tom, ruído metálico ao subir rotação e som de sirene ao aliviar o acelerador são pistas de mancal e de rotor. Nenhum deles fecha diagnóstico sozinho, e todos justificam levar o carro a uma oficina antes de assinar qualquer coisa.",
@@ -362,7 +362,7 @@
         {
           "titulo": "O que a gente recusa, e por quê",
           "paragrafos": [
-            "Todo veículo que entra passa por perícia cautelar independente antes da vitrine, e ela examina identificação, estrutura e histórico. Ela não abre motor nem câmbio, não mede compressão e não avalia bomba de alta pressão — a fronteira inteira está em Laudo cautelar: o que verifica e o que não verifica. Ou seja: nenhum laudo cautelar do mercado vai dizer como está a embreagem daquele carro. Quem faz esse teste é o time, no volante, na avaliação — e não numa volta no quarteirão asfaltado: o carro vai para ruas mais irregulares, onde suspensão, aceleração e frenagem mostram o que o asfalto liso esconde.",
+            "Todo veículo que entra passa por perícia cautelar independente antes da vitrine, e ela examina identificação, estrutura e histórico. Ela não abre motor nem câmbio, não mede compressão e não avalia bomba de alta pressão — a fronteira inteira está em Laudo cautelar: o que verifica e o que não verifica. Ou seja: nenhum laudo cautelar do mercado vai dizer como está a embreagem daquele carro. Quem faz esse teste é o time, no volante, num roteiro fixo de avaliação — partida a frio, manobra, rua irregular, aceleração e retomada, frenagem, rampa e anda e para —, e não numa volta no quarteirão asfaltado. O roteiro inteiro, trecho por trecho, está em \"Test-drive de carro usado: o que observar, na ordem\".",
             "Quando aparece sinal, o carro vai para perícia mecânica. Ela não é etapa obrigatória de todo carro: é sob demanda e exploratória, para os que levantam suspeita. Em câmbio, o que manda um carro para lá é solavanco no engate, atraso para entrar a marcha, trepidação na arrancada em dupla embreagem e óleo escuro ou com cheiro de queimado. Óleo e filtros, esses, a gente troca em todo carro que entra.",
             "E há a lista curta do que não compramos, que em dupla embreagem é objetiva: trepidação na saída; solavanco entre primeira e segunda; atraso de engate; mensagem de superaquecimento do câmbio. Junto com ela vale uma regra mais ampla, que responde por boa parte das recusas: carro que exige abrir o câmbio para se saber o estado real não entra. Comprar conjunto fechado é aposta, e aposta com o carro do cliente dentro não é negócio nosso.",
             "É por isso que, de cada dez carros avaliados, três entram. Os outros sete não deixam de existir — seguem para outro ponto do mercado, e muitas vezes são anunciados sem que nada disso apareça.",
@@ -499,6 +499,115 @@
         "Vício oculto",
         "Compra de carro usado",
         "Garantia de veículo usado"
+      ],
+      "estado": "publicado"
+    },
+    {
+      "slug": "test-drive-carro-usado",
+      "titulo": "Test-drive de carro usado: o que observar, na ordem",
+      "titulo_seo": "Test-drive de carro usado: o roteiro que a loja usa",
+      "descricao": "Motor frio, rua irregular, retomada, frenagem e a volta com o motor quente: o roteiro da avaliação da loja, na ordem, e o que cada sinal quer dizer.",
+      "corpo": [
+        {
+          "titulo": "Um test-drive que vale começa antes de ligar o carro",
+          "paragrafos": [
+            "Um test-drive que decide alguma coisa começa com o motor frio e passa por rua irregular, retomada, frenagem e uma volta com o motor quente. A volta no quarteirão asfaltado, com o carro já ligado no pátio, mostra o que o carro tem de melhor, e é exatamente por isso que ela não serve para avaliar nada.",
+            "É o roteiro que o avaliador da Motors Store faz com o carro oferecido à loja, em cerca de quarenta minutos e nesta ordem. A ordem importa: cada trecho mostra uma coisa que o anterior esconde, e alguns sinais só aparecem uma vez — na partida a frio — e não voltam no mesmo dia.",
+            "Nada disso substitui uma avaliação mecânica. O roteiro serve para decidir se vale pagar por uma, e quase sempre alguma coisa nele responde a essa pergunta."
+          ]
+        },
+        {
+          "titulo": "Antes de ligar: o carro frio",
+          "paragrafos": [
+            "Chegue antes e peça que ninguém ligue o carro. Ponha a mão no capô. Se ele chegou quente, o teste mais revelador do dia já foi perdido; não é necessariamente má-fé, mas vale marcar outro horário.",
+            "Com o motor desligado, puxe a vareta e olhe nível, cor e cheiro. Cheiro de combustível no óleo é diluição, comum em uso curto e em injeção direta. Resíduo preto e borrachudo é outra história, e pode ser uma correia banhada em óleo se desfazendo — o assunto está em \"Correia dentada banhada em óleo: por que ela falha\".",
+            "Abra a tampa do óleo e o reservatório de água. Água no óleo ou óleo no reservatório são os dois sinais clássicos de junta de cabeçote. Uma emulsão leve na tampa pede investigação, não veredito: trajeto curto também produz condensação ali.",
+            "Procure óleo onde não deveria haver óleo: tampa de válvulas, bloco, região do turbo, câmbio e o chão embaixo do carro.",
+            "Dê a ignição sem dar a partida. Todas as luzes do painel devem acender no autoteste e apagar depois — luz que nem acende pode ter sido desligada. E compare o hodômetro com o volante, os pedais e o banco do motorista, e olhe os pneus: desgaste irregular aponta geometria ou batida que ninguém contou."
+          ]
+        },
+        {
+          "titulo": "Os primeiros segundos",
+          "paragrafos": [
+            "Dê a partida você mesmo. Ouça o tempo que o motor leva para pegar e os primeiros segundos de funcionamento: um chocalho metálico que some quando o óleo pressuriza pode ser corrente, correia ou tuchos.",
+            "Olhe o escapamento, ou peça para alguém olhar. Fumaça azulada é óleo queimando; branca e persistente é água; preta é mistura rica. A marcha lenta precisa ficar estável, sem oscilar, e a luz de injeção precisa apagar. Tremor nos primeiros segundos que some quando o motor aquece é o primeiro sintoma de depósito nas válvulas de admissão em motor de injeção direta, descrito em \"Carbonização de válvulas em injeção direta\"."
+          ]
+        },
+        {
+          "titulo": "Manobra e rua irregular",
+          "paragrafos": [
+            "Ainda no pátio, vire a direção de batente a batente, parado e andando devagar. Estalo em curva fechada costuma ser homocinética; ruído de bomba ou de cremalheira, direção.",
+            "No câmbio manual, repare no ponto em que a embreagem pega: alto demais é desgaste, e trepidação na saída também. No automático, não pode haver tranco ao pôr em D ou em R. No câmbio de dupla embreagem, uma pausa curta ao soltar o freio é normal; o carro estremecer ao sair não é.",
+            "Depois, leve o carro para rua irregular: paralelepípedo, lombada e valeta. É onde a suspensão fala. Batida seca costuma ser amortecedor ou batente; estalo, bieleta, bucha ou pivô; rangido, bucha seca. Passe uma valeta na diagonal, devagar: a carroceria torce, e estalo de estrutura ou porta rangendo pode ser sinal de batida estrutural. E repare na direção no piso ruim — folga, volante que trabalha nas mãos, carro que muda de trajetória sozinho."
+          ]
+        },
+        {
+          "titulo": "Aceleração, retomada e frenagem",
+          "paragrafos": [
+            "Num trecho livre, acelere de forma progressiva e depois a fundo. Rotação que sobe sem o carro acompanhar é embreagem ou câmbio patinando. No automático, as trocas precisam acontecer sem tranco e sem atraso; no dupla embreagem, solavanco entre a primeira e a segunda e atraso para a marcha entrar são os dois sinais que mais pesam — o teste completo desse câmbio está em \"Câmbio de dupla embreagem em carro usado: o que checar\".",
+            "Em motor turbo, a pressão deve subir e se sustentar enquanto o pé estiver embaixo. Assobio que muda de tom e ruído metálico ao subir rotação pedem oficina. Faça uma retomada em marcha alta a partir de rotação baixa com alguém olhando o escapamento: fumaça azul ali é óleo passando por onde não deveria, e o motivo está em \"Motor turbo de baixa cilindrada usado: o que checar\".",
+            "Num trecho seguro e vazio, freie. Na frenagem moderada, o carro não pode puxar para um lado, o pedal não pode pulsar — sinal de disco empenado — e não pode haver ruído de pastilha. Na frenagem firme, o ABS atua sem barulho estranho e o carro para reto. O pedal precisa ter altura e firmeza: pedal que afunda é problema no sistema. E teste o freio de estacionamento numa rampa."
+          ]
+        },
+        {
+          "titulo": "Velocidade constante, rampa e trânsito",
+          "paragrafos": [
+            "Numa avenida plana, entre 60 e 80 km/h, confira se o volante fica reto com o carro reto — volante torto é alinhamento, ou batida. Alivie a mão no volante por um instante: o carro não pode puxar. Vibração no volante ou no assoalho numa faixa de velocidade aponta balanceamento, pneu ou homocinética; zumbido que muda com a velocidade costuma ser rolamento de roda.",
+            "Pare no meio de uma subida e arranque, para a frente e de ré. Embreagem patinando, cheiro de queimado e dupla embreagem hesitante aparecem aqui primeiro, porque a arrancada em rampa pede esforço com o conjunto parado.",
+            "Se o horário deixar, pegue dez minutos de anda e para. A temperatura deve subir e se estabilizar; ventoinha que liga cedo demais e temperatura instável são sinais. É também onde o câmbio de dupla embreagem a seco mostra, já quente, uma trepidação que não existia a frio. E ligue o ar-condicionado: ele precisa gelar, e o compressor precisa armar sem tranco."
+          ]
+        },
+        {
+          "titulo": "A volta, com o motor quente",
+          "paragrafos": [
+            "De volta ao ponto de partida, não desligue de imediato. A marcha lenta quente precisa ficar estável. Olhe o chão de novo — vazamento que não existia antes da rodagem conta — e sinta o cheiro: queimado, combustível e aditivo de arrefecimento são três pistas diferentes.",
+            "Desligue, espere dois ou três minutos e ligue de novo. Partida demorada com o motor quente é sintoma de alimentação, e em motor de injeção direta costuma apontar para a bomba de alta pressão. É justamente o teste que uma demonstração nunca faz, porque o carro da demonstração já estava ligado.",
+            "Se houver scanner à mão, os códigos armazenados e pendentes, a contagem de falhas por cilindro e as correções de mistura contam o que a rodagem sugeriu."
+          ]
+        },
+        {
+          "titulo": "O que a loja faz com o que a rodagem mostra",
+          "paragrafos": [
+            "Na avaliação da Motors Store, cada sinal tem um destino, e ele não é o feeling de quem dirigiu.",
+            "Parte dos sinais manda o carro para uma das oficinas parceiras da especialidade antes de qualquer decisão: óleo na tampa de válvulas ou no bloco, fumaça persistente, água no óleo ou óleo no reservatório, marcha lenta irregular, luz de injeção, solavanco ou atraso de engate no câmbio, ventoinha ligando cedo, temperatura instável, ruído de suspensão, folga na direção e pneu com desgaste irregular. Essa perícia mecânica não é etapa de todo carro: ela acontece quando a avaliação levanta suspeita, e é exploratória.",
+            "Outra parte recusa o carro. A loja não compra dupla embreagem com trepidação na saída, solavanco entre a primeira e a segunda, atraso de engate ou mensagem de superaquecimento do câmbio; nem turbo de baixa cilindrada com fumaça na retomada, vazamento de óleo na região do turbo ou consumo de óleo acima do normal; e, em geral, carro que exige abrir motor ou câmbio para se saber o estado real. De cada dez carros avaliados, três entram.",
+            "A rodagem é uma etapa. A outra é a perícia cautelar independente, que todo veículo passa antes da vitrine e que olha identificação, estrutura e histórico — o que ela alcança está em \"Laudo cautelar: o que verifica e o que não verifica\", e o laudo fica com o vendedor e sai a pedido. E, depois da venda, o que a loja assume está em \"Garantia de carro usado em loja: o que está coberto\"."
+          ]
+        },
+        {
+          "titulo": "O que fazer agora",
+          "paragrafos": [
+            "Chegue antes e peça o carro frio. Olhe óleo, água e chão antes da partida. Dê a partida você mesmo e olhe o escapamento. Passe por rua irregular, faça uma retomada em marcha alta e uma frenagem firme. Pare numa rampa. Volte, desligue e ligue de novo com o motor quente. E, se qualquer sinal aparecer, leve o carro a uma oficina e orce o reparo antes de assinar — nunca depois."
+          ]
+        }
+      ],
+      "faq": [
+        {
+          "pergunta": "Quanto tempo deve durar um test-drive de carro usado?",
+          "resposta": "O suficiente para o motor aquecer: algo como quarenta minutos, com partida a frio, rua irregular, retomada, frenagem, um trecho em velocidade constante e a volta com o motor quente. Dez minutos no quarteirão não mostram temperatura, câmbio quente nem partida a quente, que é onde vários defeitos caros aparecem."
+        },
+        {
+          "pergunta": "O que observar no test-drive de um carro usado?",
+          "resposta": "Na ordem: óleo, água e vazamentos com o motor frio; a partida e a fumaça no escapamento; a direção de batente a batente; a suspensão em rua irregular; aceleração, trocas de marcha e retomada; frenagem; o carro em velocidade constante; a arrancada em rampa; a temperatura no trânsito; e a partida de novo com o motor quente."
+        },
+        {
+          "pergunta": "Posso pedir para ligar o carro frio?",
+          "resposta": "Deve. Chegue antes do horário e peça que ninguém ligue o carro. Vários sintomas de motor e de câmbio aparecem nos primeiros minutos e somem quando o conjunto aquece. Carro que chega quente não é prova de má-fé, mas o teste mais importante daquele dia foi perdido."
+        },
+        {
+          "pergunta": "O test-drive substitui a avaliação mecânica?",
+          "resposta": "Não. Ele decide se vale pagar por uma. Na Motors Store, o sinal que aparece na rodagem manda o carro para uma oficina parceira da especialidade antes de qualquer decisão — e parte dos sinais recusa o carro direto."
+        }
+      ],
+      "saida": {
+        "rotulo": "Ver os seminovos disponíveis",
+        "href": "/estoque",
+        "apoio": "Na avaliação da loja, cada sinal da rodagem tem destino: oficina parceira ou recusa."
+      },
+      "sobre": [
+        "Test-drive",
+        "Compra de carro usado",
+        "Avaliação de veículo seminovo"
       ],
       "estado": "publicado"
     }

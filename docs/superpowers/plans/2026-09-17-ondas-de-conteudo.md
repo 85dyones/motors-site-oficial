@@ -136,18 +136,19 @@ As sete peças, e o que cada uma ficou devendo:
 | Motor turbo de baixa cilindrada (pilar) | no ar | nada — o turbo de fábrica coberto entrou em 18/09 |
 | Correia dentada banhada em óleo | no ar | falha de item de manutenção que destrói item coberto entra na garantia? |
 | Carbonização de válvulas em injeção direta | no ar | faixa de preço medida em Curitiba (hoje é ordem de grandeza declarada) |
-| Câmbio de dupla embreagem em usado | no ar | aprovar o roteiro de test-drive proposto em 18/09 |
+| Câmbio de dupla embreagem em usado | no ar | nada — o roteiro de rodagem foi aprovado em 18/09 e a peça o descreve |
 | Vício oculto em carro usado | no ar | nada — revisão jurídica feita em 18/09 |
 | Garantia de carro usado em loja (pilar do Pilar 2) | no ar | levar os 5.000 km para o contrato (hoje só o site diz) |
 | Garantia estendida vale a pena? | no ar | o teto de reparo por prazo (o manual é o mesmo nos três) |
+| Test-drive de carro usado: o que observar, na ordem | escrita em 18/09 | nada — nasceu do roteiro que o dono aprovou; sai por `/estoque` |
 
 A sétima entrou porque o produto existe: o dono confirmou os três prazos
 vendidos e mandou seguir o padrão do manual da Gestauto. O que ela **não** faz é
 chamar o plano de seguro — o registro SUSEP do manual cobre a administradora, e
 não o comprador.
 
-**A malha de links da seção:** 20 links entre peças antes da onda, 52 depois,
-medidos com o código de verdade nas quinze peças. Nenhuma linka para ela mesma,
+**A malha de links da seção:** 20 links entre peças antes da onda, 60 depois,
+medidos com o código de verdade nas dezesseis peças. Nenhuma linka para ela mesma,
 nenhuma ficou sem vizinha, e todas terminam em `/garantia` ou `/estoque`.
 
 ---

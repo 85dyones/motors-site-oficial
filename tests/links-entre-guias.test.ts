@@ -132,17 +132,19 @@ describe("a página do guia linka as vizinhas, e nunca ela mesma", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("o conjunto rende os links medidos em 17/09 — 20 na Onda 1, 52 com a Onda 2", () => {
+  it("o conjunto rende os links medidos — 20 na Onda 1, 60 com a Onda 2 inteira", () => {
     /* Número medido, não estimado: se uma reescrita derrubar citações, este
        teste mostra o tamanho da perda em vez de deixar passar em silêncio.
        Subiu de 20 para 52 com as sete peças da Onda 2 — cinco de mecânica e
-       duas de garantia —, e o ganho não é só o das peças novas: a Onda 1
-       também passou a ser citada por elas. */
+       duas de garantia —, e para 60 em 18/09/2026 com o guia de test-drive,
+       que cita seis vizinhas e passou a ser citado pelas peças do motor turbo
+       e do câmbio. O ganho não é só o das peças novas: a Onda 1 também passou
+       a ser citada por elas. */
     const total = lote.guias.reduce(
       (soma, peca) => soma + linksDaPagina(peca).filter((h) => h.startsWith("/guias/")).length,
       0,
     );
-    expect(total).toBeGreaterThanOrEqual(52);
+    expect(total).toBeGreaterThanOrEqual(60);
   });
 
   it("o link comercial não foi expulso pelos novos", () => {

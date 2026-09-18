@@ -183,7 +183,7 @@ describe("nenhum número que a casa não mediu", () => {
         /três meses (?:contados|a partir) da entrega|três meses para falha/i,
       );
       for (const frase of frases(guia).filter((f) =>
-        /\d[\d.]*\s*(?:mil\s+)?(?:km|quil[ôo]metros)/i.test(f),
+        /\d[\d.]*\s*(?:mil\s+)?(?:km(?!\/h)|quil[ôo]metros(?!\s+por\s+hora))/i.test(f),
       )) {
         const daLoja = frase.includes(PRAZO_DA_GARANTIA);
         const doPlano = /plano|estendid|Gestauto|manual|intervalo|revisão|troca de óleo/i.test(frase);

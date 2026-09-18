@@ -153,6 +153,13 @@ export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "Garantia de carro usado em loja: o que está coberto", href: "/guias/garantia-carro-usado-loja" },
   { termo: "Garantia estendida de carro usado vale a pena", href: "/guias/garantia-estendida-vale-a-pena" },
   { termo: "garantia estendida", href: "/guias/garantia-estendida-vale-a-pena" },
+
+  // ---- O roteiro de rodagem da avaliação (aprovado pelo dono em 18/09) -----
+  //
+  // Só o título entra. "test-drive" sozinho tem dez caracteres, abaixo da
+  // régua de âncora deste arquivo, e aparece em toda peça de mecânica — viraria
+  // link em frase que não está falando do roteiro.
+  { termo: "Test-drive de carro usado: o que observar, na ordem", href: "/guias/test-drive-carro-usado" },
 ];
 
 export interface SegmentoDeTexto {

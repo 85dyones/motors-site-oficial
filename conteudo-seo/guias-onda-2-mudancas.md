@@ -99,7 +99,7 @@ isso que o pilar do laudo cautelar agora sai com seis links para vizinhas.
 | A garantia de 3 meses cobre turbo? | "Se for de fábrica, sim" | `/garantia` (cobertura e exclusão), Ney, FAQ da peça 09, peças 14 e 15 |
 | Os planos de 6 e 24 meses têm manual próprio? | "Mesmo manual" | seção do plano na `/garantia` e peça 15 |
 | Revisão jurídica da peça 13 | "Feito" | só a pendência saiu; o texto não mudou |
-| Roteiro de test-drive na avaliação | "Geralmente levamos o carro para ruas mais irregulares para ver suspensão, aceleração e frenagem" — e pediu um roteiro completo | a frase confirmada entrou na peça 12; o roteiro completo foi proposto a ele e ainda não é texto público |
+| Roteiro de test-drive na avaliação | "Geralmente levamos o carro para ruas mais irregulares para ver suspensão, aceleração e frenagem" — e pediu um roteiro completo, que aprovou no mesmo dia ("top, este roteiro é bom, vamos seguir") | virou o padrão da avaliação, a peça 12 passou a descrevê-lo, e nasceu a peça 16, "Test-drive de carro usado: o que observar, na ordem", no lote de mecânica |
 
 **O limite de quilometragem não está no contrato.** A cláusula quarta do contrato
 padrão de venda fala em prazo e só. O site passou a dizer o limite porque o dono
@@ -112,8 +112,6 @@ confirmou o número; a proposta de redação para a cláusula foi levada a ele.
    internos do motor é pergunta de contrato.
 2. **O teto de reparo do plano estendido** — o manual remete o valor ao termo de
    ativação, e a peça 15 manda o leitor perguntar qual é.
-3. **Aprovar o roteiro de test-drive** — aprovado, ele vira frase própria na
-   peça 12 e peça da Onda 3.
-4. **Publicar ou não os motores por nome.** As peças descrevem a tecnologia sem
+3. **Publicar ou não os motores por nome.** As peças descrevem a tecnologia sem
    nomear fabricante ou família de motor. Nomear as tornaria mais úteis e mais
    arriscadas, porque a loja vende esses carros. Decisão reversível.
