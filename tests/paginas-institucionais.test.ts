@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { ler, lerCodigo, semComentarios } from "./fonte";
 import {
+  GARANTIA_KM,
+  GARANTIA_KM_TEXTO,
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
   PLANOS_ESTENDIDOS_MESES,
+  PRAZO_DA_GARANTIA,
   PRAZOS_ESTENDIDOS,
   SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
@@ -154,6 +157,48 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
   it("declara os três meses", () => {
     expect(GARANTIA_MESES).toBe(3);
     expect(TEXTO_DE_GARANTIA.join(" ")).toMatch(/três meses/i);
+  });
+
+  it("declara o limite de quilometragem junto do prazo, onde o prazo aparece", () => {
+    /* Número do dono em 18/09/2026: "5.000 km de média nos 3 meses". Vale o
+       que vier primeiro. Até 17/09 a página não citava quilometragem porque o
+       valor não existia no repositório — e o contrato padrão de venda também
+       não o traz; a redação para a cláusula quarta foi levada ao dono.
+
+       A régua é a mesma do prazo em meses: o número sai da constante, e toda
+       frase que diz quanto a garantia DA LOJA dura diz as duas coisas. Prazo
+       sem o limite é promessa maior do que a loja assina. */
+    expect(GARANTIA_KM).toBe(5000);
+    expect(GARANTIA_KM_TEXTO).toBe("5.000");
+    expect(PRAZO_DA_GARANTIA).toBe("três meses ou 5.000 quilômetros, o que vier primeiro");
+
+    // A abertura, a seção da garantia e a primeira pergunta do FAQ.
+    expect(TEXTO_DE_GARANTIA.join(" ")).toContain(PRAZO_DA_GARANTIA);
+    const secao = SECOES_DE_GARANTIA.find((s) => s.titulo === "A garantia da Motors Store");
+    expect(secao?.paragrafos.join(" ")).toMatch(/^Três meses ou 5\.000 quilômetros, o que vier primeiro/);
+    const cobre = PERGUNTAS_DE_GARANTIA.find((p) => /cobre, exatamente/i.test(p.pergunta));
+    expect(cobre?.resposta).toContain(PRAZO_DA_GARANTIA);
+
+    // E ninguém digitou o número: ele só existe na constante.
+    const codigo = lerCodigo("src/lib/paginasInstitucionais.ts");
+    expect(codigo.match(/5\.000 quil/g) ?? []).toEqual([]);
+  });
+
+  it("o turbo original de fábrica está coberto, e o que não é original, não", () => {
+    /* Resposta do dono em 18/09/2026 à pergunta que a peça do motor turbo
+       deixou aberta: "se for de fábrica, sim". O turbo original é componente
+       do motor; o trocado ou preparado cai em "peça fora de especificação".
+       As duas metades ficam escritas, porque a primeira sozinha seria lida
+       como "cobre turbo" por quem trocou o dele. E o plano da Gestauto
+       continua sem cobrir turbo em prazo nenhum — a página diz as duas
+       coberturas lado a lado, que é onde o comprador de turbo decide. */
+    const coberto = SECOES_DE_GARANTIA.flatMap((s) => s.paragrafos).find((p) => p.startsWith("Coberto:"));
+    expect(coberto).toMatch(/turbocompressor, quando é o original de fábrica/);
+    expect(TEXTO_DA_GARANTIA).toMatch(/turbo que não é o original de fábrica entra aqui/);
+    const doPlano = SECOES_DE_GARANTIA.flatMap((s) => s.paragrafos).find((p) =>
+      p.startsWith("Cobre componentes internos"),
+    );
+    expect(doPlano).toMatch(/Não cobre turbocompressor/);
   });
 
   it("o site inteiro diz o MESMO prazo — nenhuma tela escreve o número à mão", () => {

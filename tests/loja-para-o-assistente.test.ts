@@ -3,6 +3,7 @@ import { ler, lerCodigo } from "./fonte";
 import type { CompanySettings } from "../src/types";
 import { montarLoja } from "../src/app/api/ney/loja/route";
 import {
+  GARANTIA_KM_TEXTO,
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
@@ -120,6 +121,14 @@ describe("a fonte é a mesma que o site publica", () => {
   it("o prazo da garantia vem da constante", () => {
     expect(texto).toContain(`Prazo: ${GARANTIA_MESES} meses de motor e câmbio`);
     expect(fonte).not.toMatch(/Prazo: 3 meses/);
+  });
+
+  it("e o limite de quilometragem vem junto, também da constante", () => {
+    // 18/09/2026: o assistente respondia "três meses" a quem pergunta quanto
+    // dura a garantia, sem o limite que a loja aplica.
+    expect(texto).toContain(`ou ${GARANTIA_KM_TEXTO} km — o que vier primeiro —`);
+    expect(fonte).not.toMatch(/5\.000 km/);
+    expect(texto).toMatch(/Turbo original de fábrica entra como parte do motor/);
   });
 
   it("endereço, horário e telefone saem das configurações", () => {

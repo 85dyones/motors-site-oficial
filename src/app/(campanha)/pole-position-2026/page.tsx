@@ -5,6 +5,7 @@ import { permanentRedirect } from "next/navigation";
 import { campanhaPorSlug, campanhaAcabou } from "../../../lib/campanhas";
 import { getCachedSettings } from "../../../lib/settings";
 import { montarCompartilhamento } from "../../../lib/compartilhamento";
+import { PRAZO_DA_GARANTIA } from "../../../lib/paginasInstitucionais";
 import CtaDeCampanha from "../../../components/campanha/CtaDeCampanha";
 
 /**
@@ -123,9 +124,11 @@ const ARGUMENTOS = [
      * o escopo, que é o que o cliente precisa saber; o diferencial fica na
      * perícia.
      */
+    // O limite de quilometragem entrou em 18/09/2026, com o número do dono —
+    // página de tráfego pago é onde uma promessa sem o limite custa mais caro.
     texto:
-      "Seu próximo carro sai com garantia de motor e câmbio por três meses, contratada na " +
-      "entrega, sem carência e sem franquia.",
+      `Seu próximo carro sai com garantia de motor e câmbio por ${PRAZO_DA_GARANTIA}, ` +
+      "contratada na entrega, sem carência e sem franquia.",
   },
   {
     /*

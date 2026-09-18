@@ -4,7 +4,7 @@ import { getVeiculoPdpUrl } from "../../../lib/supabase";
 import { nomeComAno } from "../../../lib/nomeDoVeiculo";
 import { resolveTipoCombustivel } from "../../../lib/regrasEstoque";
 import { SITE_URL } from "../../../lib/site";
-import { GARANTIA_MESES } from "../../../lib/paginasInstitucionais";
+import { GARANTIA_KM_TEXTO, GARANTIA_MESES } from "../../../lib/paginasInstitucionais";
 import type { Veiculo } from "../../../types";
 
 /**
@@ -98,7 +98,7 @@ function cabecalho(noPatio: number, nesteArquivo: number, geradoEm: string): str
         ]
       : []),
     "",
-    `Garantia de todos: ${GARANTIA_MESES} meses de motor e câmbio, contados da entrega.`,
+    `Garantia de todos: ${GARANTIA_MESES} meses de motor e câmbio, ou ${GARANTIA_KM_TEXTO} km — o que vier primeiro —, contados da entrega.`,
     `Veículos no pátio: ${noPatio}`,
     `Veículos neste arquivo: ${nesteArquivo}`,
     `Gerada em: ${geradoEm}`,

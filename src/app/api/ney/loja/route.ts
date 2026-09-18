@@ -5,6 +5,7 @@ import { SITE_URL } from "../../../../lib/site";
 import type { CompanySettings } from "../../../../types";
 import {
   ALCANCE_DA_ENTREGA,
+  GARANTIA_KM_TEXTO,
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
   PERGUNTAS_DE_GARANTIA,
@@ -101,7 +102,9 @@ export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
     // meses" por extenso, e um assistente que precisa responder "quantos
     // meses?" acha mais rápido o número do que a palavra. Escrever "3" à mão
     // aqui criaria a terceira versão do mesmo prazo no repositório.
-    `Prazo: ${GARANTIA_MESES} meses de motor e câmbio, contados da entrega, sem carência e sem franquia.`,
+    // O limite de quilometragem entrou em 18/09/2026, com o número do dono. Sem
+    // ele, o assistente respondia "três meses" a quem roda 2.000 km por mês.
+    `Prazo: ${GARANTIA_MESES} meses de motor e câmbio, ou ${GARANTIA_KM_TEXTO} km — o que vier primeiro —, contados da entrega, sem carência e sem franquia. Turbo original de fábrica entra como parte do motor.`,
     "",
     ...TEXTO_DE_GARANTIA,
     "",
