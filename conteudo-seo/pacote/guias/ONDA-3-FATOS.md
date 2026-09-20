@@ -70,6 +70,11 @@ necessários, se for o caso; pagamento via PIX."
 - **Na venda, o dono recebe o valor combinado antes, em contrato, menos os custos de
   preparação** — perícia, polimento, higienização e outros que forem necessários.
 - **Pagamento via PIX**, no prazo da §5.
+- **A perícia na consignação** (correção de 20/09): todo carro consignado passa por
+  perícia cautelar para entrar, e ela **não é cobrada quando a loja vende o carro**.
+  É cobrada só quando o carro sai da consignação sem ter sido vendido por aqui. Os
+  outros custos de preparação — polimento, higienização e o que mais o carro pedir —
+  continuam saindo do valor combinado.
 
 ## 4. O que a loja assume quando compra o carro
 
@@ -88,18 +93,23 @@ procurações".
 recebimento dos valores (giro contábil, processo — ajude a criar uma explicação
 plausível)."
 
-- **Os pagamentos da loja ao vendedor saem em até oito dias**, contados do
-  recebimento dos valores da operação. Na consignação, por PIX.
+- **Os pagamentos da loja ao vendedor saem em até oito dias**, contados da **entrega
+  do carro ao novo proprietário** (resposta de 20/09, que substitui "recebimento dos
+  valores da operação"). Na consignação, por PIX.
+- **Exceção dita pelo dono:** consórcio e alguns financiamentos exigem a transferência
+  do carro antes de pagar, e a liberação da verba leva mais tempo.
 
 **Elaborada — por que existe o prazo (usar esta, e só esta):**
 
-> O dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a
-> papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o
-> repasse leva alguns dias úteis. Nesse intervalo a loja confere a quitação do
-> financiamento, quando existe, a baixa dos débitos, a procuração e a
-> transferência, e registra a operação na contabilidade antes de pagar. Pagar
-> antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro
-> explora — e o prazo protege os dois lados.
+> A contagem começa na entrega do carro ao novo proprietário, e o prazo existe
+> porque é nesse intervalo que a papelada fecha e o dinheiro da operação compensa.
+> Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns
+> dias úteis. Enquanto isso a loja confere a quitação do financiamento, quando
+> existe, a baixa dos débitos, a procuração e a transferência, e registra a operação
+> na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a
+> brecha que golpe de venda de carro explora — e o prazo protege os dois lados. Há um
+> caso que estica: quando o pagamento vem de consórcio, ou de um financiamento que
+> exige a transferência do carro antes de liberar a verba, a liberação demora mais.
 
 Não dizer que é exigência legal, nem citar lei ou norma para o prazo: o dono não
 disse isso.
@@ -108,9 +118,12 @@ disse isso.
 
 Fecham as perguntas que os redatores deixaram abertas. As palavras dele entre aspas.
 
-- **"avaliação gratuita, perícia em caso de recusa do negócio, não."** A avaliação é
-  gratuita. A perícia cautelar, quando o negócio é recusado depois dela, não é. As
-  peças dizem isso e nada mais: não dizem quem recusa nem quanto a perícia custa.
+- **"avaliação gratuita, perícia em caso de recusa do negócio, não."** A leitura de
+  20/09 de manhã estava errada e ficou algumas horas no ar. **Correção do dono, na
+  mesma noite:** a avaliação é gratuita e **a perícia da avaliação é custo da loja,
+  mesmo com o negócio recusado** — "nos poupa de um investimento ruim, é lucro". A
+  perícia só é cobrada na **consignação**, e só quando o carro sai sem ter sido
+  vendido pela loja (ver §3).
 - **"recusa o negócio"** — quando a dívida do financiamento é maior do que o valor do
   carro, a loja não fecha a compra nem a troca (§2).
 - **"a exposição do carro e chance de venda na física é maior, principalmente por conta
@@ -123,10 +136,10 @@ Fecham as perguntas que os redatores deixaram abertas. As palavras dele entre as
   prazo terminar sem venda.
 - **"a loja paga e cobra do proprietário anterior depois"** — multa de antes da venda
   que chega depois é paga pela loja, que cobra de quem vendeu.
-- **Os oito dias (§5):** o dono perguntou de volta "quais 8 dias?". O prazo continua
-  escrito como ele disse em 18/09 — "em até oito dias, contados do recebimento dos
-  valores da operação" — e a dúvida de redação (que data conta na compra direta, sem
-  banco no meio) segue aberta.
+- **Os oito dias (§5):** respondido na noite de 20/09 — **a data que dispara é a da
+  entrega do carro ao novo proprietário**, com a exceção do consórcio e dos
+  financiamentos que exigem a transferência antes de pagar, em que a liberação da
+  verba demora mais. Todas as peças foram corrigidas.
 - **Resolução Contran nº 1.027/2026 e a procuração:** "ignore por enquanto, quando
   mudar, mudamos." Nenhuma peça muda por causa dela.
 

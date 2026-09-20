@@ -72,7 +72,7 @@ Do seu lado, guarde cópia de tudo: o documento de transferência assinado, o co
 
 Quando a loja compra o carro, a papelada muda de mão. A Motors Store cuida da transferência. Os débitos — IPVA, licenciamento e multas — a loja quita, e o valor deles sai do total; o financiamento em aberto também, junto ao banco. E a comunicação de venda ao Detran-PR a loja faz com procuração do vendedor, que é um dos caminhos que o Detran-PR aceita, como descrito no passo 5.
 
-Do seu lado ficam os documentos pessoais e as assinaturas: a do documento de transferência e a da procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação; o porquê do prazo está em "Vender sozinho ou para a loja: o que muda além do preço". Como a loja chega no valor está em "Quanto vale meu carro usado: como a loja chega no número", e a lista inteira do que ela assume, em "O que a loja assume quando compra o seu carro".
+Do seu lado ficam os documentos pessoais e as assinaturas: a do documento de transferência e a da procuração. O pagamento sai em até oito dias, contados da entrega do carro ao novo proprietário; o porquê do prazo está em "Vender sozinho ou para a loja: o que muda além do preço". Como a loja chega no valor está em "Quanto vale meu carro usado: como a loja chega no número", e a lista inteira do que ela assume, em "O que a loja assume quando compra o seu carro".
 
 ## O que fazer agora
 

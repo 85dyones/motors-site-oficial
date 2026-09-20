@@ -215,12 +215,37 @@ describe("os fatos que o dono confirmou em 20/09", () => {
      for acordado entre as partes no contrato";
      "a loja paga e cobra do proprietário anterior depois" (multa antiga). */
 
-  it("a avaliação é gratuita, e a perícia nunca é chamada de gratuita", () => {
-    expect(textoInteiro(peca("quanto-vale-meu-carro-usado"))).toMatch(/avaliação é gratuita/i);
+  it("a avaliação é gratuita, e a perícia dela é conta da loja", () => {
+    /* A leitura de 20/09 pela manhã — "a perícia é cobrada quando o negócio é
+       recusado" — estava errada e ficou algumas horas no ar. O dono corrigiu na
+       mesma noite: na avaliação a perícia é custo da loja, mesmo com o carro
+       recusado ("nos poupa de um investimento ruim, é lucro"). Esta trava existe
+       para essa frase não voltar. */
+    const pilar = textoInteiro(peca("quanto-vale-meu-carro-usado"));
+    expect(pilar).toMatch(/avaliação é gratuita/i);
+    expect(pilar).toMatch(/perícia[^.]{0,90}conta da loja/i);
     for (const guia of lote.guias) {
-      const arriscadas = frases(guia).filter((f) => /perícia/i.test(f) && /gratuit/i.test(f));
-      for (const frase of arriscadas) {
-        expect(frase, `${guia.slug}: perícia dita gratuita`).toMatch(/\bnão\b/i);
+      expect(textoInteiro(guia), `${guia.slug}: perícia cobrada na recusa`).not.toMatch(
+        /perícia[^.]{0,100}(?:recusad|não fechar)[^.]{0,50}(?:não é gratuita|é cobrada)/i,
+      );
+    }
+  });
+
+  it("na consignação, a perícia só é cobrada se o carro sair sem ser vendido pela loja", () => {
+    const tudo = textoInteiro(peca("consignacao-de-carro"));
+    expect(tudo).toMatch(/todo carro consignado passa por ela|todo consignado faz para entrar/i);
+    expect(tudo).toMatch(/não é cobrada quando a (?:venda é feita pela loja|loja vende)/i);
+  });
+
+  it("os oito dias contam da entrega do carro, e o gatilho antigo não sobrou", () => {
+    /* Resposta do dono na noite de 20/09: a data que dispara o prazo é a da
+       entrega do carro ao novo proprietário. Consórcio e financiamento que
+       exigem a transferência antes de pagar esticam a liberação da verba. */
+    for (const guia of lote.guias) {
+      const tudo = textoInteiro(guia);
+      expect(tudo, `${guia.slug}: gatilho antigo`).not.toMatch(/recebimento dos valores/i);
+      if (/\b(?:oito|8) dias\b/i.test(tudo)) {
+        expect(tudo, `${guia.slug}: prazo sem dizer de quando conta`).toMatch(/entrega do carro/i);
       }
     }
   });

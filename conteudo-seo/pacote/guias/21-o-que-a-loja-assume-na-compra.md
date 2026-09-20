@@ -18,7 +18,7 @@ palavras: ~1.250
 
 ## O que muda quando quem compra é a loja
 
-Quando a loja compra o seu carro, ela assume a papelada e as contas dele: cuida da transferência, quita IPVA, licenciamento, multas e o financiamento, se houver, e faz a comunicação de venda ao Detran-PR com uma procuração sua. As contas saem do valor do carro, e o pagamento a você sai em até oito dias, contados do recebimento dos valores da operação.
+Quando a loja compra o seu carro, ela assume a papelada e as contas dele: cuida da transferência, quita IPVA, licenciamento, multas e o financiamento, se houver, e faz a comunicação de venda ao Detran-PR com uma procuração sua. As contas saem do valor do carro, e o pagamento a você sai em até oito dias, contados da entrega do carro ao novo proprietário.
 
 É assim na Motors Store, e este guia passa item por item: o que a loja faz, o que sai do valor, o que continua sendo seu, e por que o pagamento tem prazo.
 
@@ -52,9 +52,9 @@ Procuração é documento sério, e vale ler qualquer uma antes de assinar: o qu
 
 ## Quando você recebe, e por que existe um prazo
 
-Os pagamentos da loja ao vendedor saem em até oito dias, contados do recebimento dos valores da operação.
+Os pagamentos da loja ao vendedor saem em até oito dias, contados da entrega do carro ao novo proprietário.
 
-O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados.
+A contagem começa na entrega do carro ao novo proprietário, e o prazo existe porque é nesse intervalo que a papelada fecha e o dinheiro da operação compensa. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Enquanto isso, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados. Há um caso que estica: quando o pagamento vem de consórcio, ou de um financiamento que exige a transferência do carro antes de liberar a verba, a liberação demora mais, e o dinheiro só sai depois dela.
 
 O que chega a você, nesse prazo, é a conta inteira fechada: o valor da proposta, menos os débitos que a loja quitou e, se havia financiamento, menos o saldo que ela pagou ao banco. No fechamento, pergunte qual é a data que conta como recebimento no seu caso, e peça o prazo por escrito.
 
@@ -88,7 +88,7 @@ Na Motors Store, a loja paga e depois cobra do proprietário anterior. A conta f
 A loja, com uma procuração sua. O Detran-PR aceita que o procurador faça o serviço, com procuração pública ou particular com firma reconhecida. Depois do negócio, peça o comprovante: ele mostra a data a partir da qual o carro deixou de ser seu.
 
 **Quando recebo ao vender meu carro para a loja?**
-Em até oito dias, contados do recebimento dos valores da operação. O dinheiro sai depois que o da operação entra e compensa, e depois que a papelada fecha — quitação, débitos, procuração e transferência conferidos, e a operação registrada. Pagar antes de o dinheiro compensar é a brecha que golpe de venda de carro explora, e o prazo protege os dois lados.
+Em até oito dias, contados da entrega do carro ao novo proprietário — na venda para a loja, o dia em que você entrega o carro a ela. Nesse intervalo a papelada fecha e o dinheiro da operação compensa: quitação, débitos, procuração e transferência conferidos, e a operação registrada. Quando o pagamento vem de consórcio, ou de um financiamento que exige a transferência antes de liberar a verba, a liberação demora mais. Pagar antes de o dinheiro compensar é a brecha que golpe de venda de carro explora, e o prazo protege os dois lados.
 
 **Para que serve a procuração na venda do carro?**
 Na venda para a Motors Store, é com ela que a loja faz, em seu nome, a comunicação de venda ao Detran-PR. Leia antes de assinar o que ela autoriza, a quem e por quanto tempo: se o documento não disser o prazo, o Detran-PR a considera válida por três anos.
@@ -126,7 +126,7 @@ Nenhum link escrito no corpo: quem cria link é `TERMOS_COM_DESTINO` (`src/lib/l
 ## Pendências
 
 - **A procuração depois da Resolução Contran nº 1.027/2026** (publicada em 18/08/2026). A norma nova diz que, com a ATPV-e assinada eletronicamente pelas duas partes, a comunicação de venda é gerada automaticamente, e que, para loja, ela pode ser automática pela integração com o Renave. A peça segue o fato da casa — a loja faz a comunicação "via procurações" —, que continua possível. Confirmar com o dono se o processo mudou; se mudou, a seção "A comunicação de venda, feita com procuração" e duas perguntas do FAQ mudam.
-- **O que conta como "recebimento dos valores da operação" numa compra direta**, em que não há comprador financiando. O fato do dono vale para todos os pagamentos; a peça repete a regra e manda o leitor perguntar a data do caso dele. Uma frase do dono resolve.
+- **RESOLVIDO em 20/09: o gatilho dos oito dias** é a entrega do carro ao novo proprietário, com a ressalva do consórcio e do financiamento que exige a transferência antes de liberar a verba. O texto antigo dizia "recebimento dos valores da operação", e a pendência era esta: o que contava como recebimento, em que não há comprador financiando. O fato do dono vale para todos os pagamentos; a peça repete a regra e manda o leitor perguntar a data do caso dele. Uma frase do dono resolve.
 - **Multa de antes da venda que chega depois.** Quem paga não foi dito; a peça manda perguntar antes de assinar.
 - **A página de serviço do Detran-PR sobre comunicação de venda** ainda descreve o processo pelo CRV de papel. A peça usa dela só o que não depende do documento: a obrigação do vendedor, a responsabilidade até a comunicação e a aceitação de procurador. Reconferir antes de publicar.
 
