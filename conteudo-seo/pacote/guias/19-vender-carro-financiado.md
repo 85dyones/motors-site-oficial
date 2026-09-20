@@ -42,7 +42,7 @@ A avaliação de um carro financiado, aliás, é igual à de qualquer outro. O f
 
 ## Da quitação à baixa do gravame, na ordem
 
-Na Motors Store, quem paga o banco é a loja. O saldo de quitação sai do valor do carro e vai para a instituição financeira; o que sobra vira entrada, na troca, ou é pago a você, na venda. Os pagamentos da loja ao vendedor saem em até oito dias, contados do recebimento dos valores da operação, e o porquê desse prazo está em "O que a loja assume quando compra o seu carro".
+Na Motors Store, quem paga o banco é a loja. O saldo de quitação sai do valor do carro e vai para a instituição financeira; o que sobra vira entrada, na troca, ou é pago a você, na venda. Os pagamentos da loja ao vendedor saem em até oito dias, contados da entrega do carro ao novo proprietário, e o porquê desse prazo está em "O que a loja assume quando compra o seu carro".
 
 Com o pagamento, o banco dá o contrato por encerrado e emite a declaração de quitação — alguns chamam de termo de quitação —, o documento que diz que a dívida acabou. O passo seguinte também é do banco: pela norma do Contran, a instituição credora tem até dez dias para informar a quitação ao Detran, e é a partir dessa informação que o Detran faz a baixa do gravame, a exclusão da anotação do documento. Com a baixa, o carro volta a ser só seu no registro, e a transferência segue.
 

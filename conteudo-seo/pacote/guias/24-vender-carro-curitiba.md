@@ -36,7 +36,7 @@ Pede de você a avaliação e as assinaturas; o resto muda de mão.
 
 O preço sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média do mercado nacional apurada sobre o que já aconteceu, e tira dela o que aquele carro vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem acima da média para o ano e o tempo de venda daquele modelo, versão e cor na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, e apontamento pesa no valor. Débitos e financiamento não entram na avaliação; a loja quita pelo vendedor, e o valor sai do total. O raciocínio inteiro está em "Quanto vale meu carro usado: como a loja chega no número".
 
-A papelada fica com a loja: a transferência, a quitação dos débitos e do financiamento em aberto e a comunicação de venda ao Detran-PR, feita com procuração do vendedor. O pagamento sai em até oito dias, contados do recebimento dos valores da operação, porque o dinheiro só sai depois que o da operação entra e compensa, e depois que a papelada fecha — pagar antes disso é a brecha que golpe de venda de carro explora. A lista do que a loja assume está em "O que a loja assume quando compra o seu carro".
+A papelada fica com a loja: a transferência, a quitação dos débitos e do financiamento em aberto e a comunicação de venda ao Detran-PR, feita com procuração do vendedor. O pagamento sai em até oito dias, contados da entrega do carro ao novo proprietário, porque o dinheiro só sai depois que o da operação entra e compensa, e depois que a papelada fecha — pagar antes disso é a brecha que golpe de venda de carro explora. A lista do que a loja assume está em "O que a loja assume quando compra o seu carro".
 
 O risco é baixo. A ressalva honesta é outra: nem todo carro entra. De cada dez que a Motors Store avalia, três entram, e carro reprovado na perícia cautelar a loja não compra. O que fazer nesse caso está em "Meu carro reprovou no laudo cautelar. E agora?".
 
@@ -44,7 +44,7 @@ O risco é baixo. A ressalva honesta é outra: nem todo carro entra. De cada dez
 
 Fica no meio do caminho: a loja vende por você, e você recebe quando o carro vende.
 
-Na Motors Store, a consignação tem dois formatos, presencial e digital: no presencial, o carro fica exposto na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois, o prazo é definido no contrato e é flexível, não há custo além do que as partes acordarem nele, e a loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias do recebimento dos valores da operação.
+Na Motors Store, a consignação tem dois formatos, presencial e digital: no presencial, o carro fica exposto na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois, o prazo é definido no contrato e é flexível, não há custo além do que as partes acordarem nele, e a loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias da entrega do carro ao novo proprietário.
 
 O preço é combinado antes, e não depois. O que muda em relação à venda direta é quem espera: na consignação, a espera é sua, dentro do prazo do contrato. Os detalhes estão em "Consignação de carro: como funciona".
 
@@ -66,13 +66,13 @@ Os detalhes estão em "Carro na troca: como funciona e o que muda no preço" e, 
 
 Comparar cinco caminhos pelo número que aparece primeiro é o jeito mais comum de errar a conta. Compare o que chega na sua conta, e quando.
 
-No anúncio particular, do preço que o comprador aceita saem os débitos que você mesmo quita, o cartório, o que você gastar para deixar o carro apresentável e o tempo até vender. Na venda para a loja, os débitos e o financiamento em aberto saem do total, e o restante chega em até oito dias do recebimento dos valores da operação. Na consignação, do valor combinado saem os custos de preparação, e o dinheiro chega depois que o carro vende. Na plataforma, vale o que a proposta disser depois da inspeção. Na troca, o que importa é a diferença entre o valor do seu carro e o preço do próximo, e como essa diferença vai ser paga.
+No anúncio particular, do preço que o comprador aceita saem os débitos que você mesmo quita, o cartório, o que você gastar para deixar o carro apresentável e o tempo até vender. Na venda para a loja, os débitos e o financiamento em aberto saem do total, e o restante chega em até oito dias da entrega do carro ao novo proprietário. Na consignação, do valor combinado saem os custos de preparação, e o dinheiro chega depois que o carro vende. Na plataforma, vale o que a proposta disser depois da inspeção. Na troca, o que importa é a diferença entre o valor do seu carro e o preço do próximo, e como essa diferença vai ser paga.
 
 Ponha também na conta o que não tem etiqueta: quantas visitas você aceita receber, quantas semanas pode esperar e quanto risco quer carregar até a comunicação de venda. Um número maior que chega tarde, ou com um golpe no meio do caminho, não é um número maior. E, para saber de onde vem cada número, vale entender antes o que a FIPE diz e o que ela não diz — está em "Tabela FIPE não é preço de venda: o que ela diz".
 
 ## Onde a Motors Store entra
 
-A Motors Store fica no Bacacheri, em Curitiba, e trabalha com três desses cinco caminhos: compra, consignação e troca. Na compra e na troca, a perícia cautelar independente vem antes, e carro reprovado a loja não compra; na consignação, a perícia está entre os custos de preparação.
+A Motors Store fica no Bacacheri, em Curitiba, e trabalha com três desses cinco caminhos: compra, consignação e troca. Na compra e na troca, a perícia cautelar independente vem antes, e carro reprovado a loja não compra; na consignação, todo carro passa por perícia para entrar, e ela só é cobrada se o carro sair sem ter sido vendido pela loja.
 
 Os outros dois — o anúncio particular e a plataforma de compra instantânea — são escolhas legítimas, e servem a quem tem tempo para o primeiro ou pressa para o segundo. O que vale para os cinco é decidir sabendo o que cada um deixa com você.
 
@@ -90,7 +90,7 @@ Decida primeiro o que pesa mais: o número, o prazo ou o sossego. Se for anuncia
 Há cinco caminhos: anúncio particular, venda para uma loja, consignação, plataforma de compra instantânea e troca. O anúncio pode render mais e deixa com você o tempo, a papelada e o risco; a loja resolve a papelada e paga em prazo definido; a troca usa o valor do seu carro como entrada no próximo; a consignação combina o valor antes e espera a venda; a plataforma aposta na rapidez, com proposta que se confirma na inspeção. A escolha depende do que pesa mais para você.
 
 **Como funciona a venda para uma loja que compra carro em Curitiba?**
-Na Motors Store, no Bacacheri, o carro passa por avaliação — gratuita — e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação.
+Na Motors Store, no Bacacheri, o carro passa por avaliação — gratuita — e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados da entrega do carro ao novo proprietário.
 
 **O que a avaliação de carro leva em conta?**
 Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo e tira da média o que aquele carro vai custar e demorar para ser vendido: preparação, quilometragem acima da média para o ano e tempo de venda na região. Estado e procedência entram na mesma conta, e apontamento na perícia pesa no valor. Débitos e financiamento ficam fora da avaliação e saem do total.
@@ -139,7 +139,7 @@ Medido com a lógica de `segmentarComLinks` portada para JS, sobre corpo e FAQ: 
 - **Pilar ou spoke.** O `00-guia-normativo.md` (1.4) põe `/guias/vender-carro-curitiba` como hub do Pilar 6; o plano de 18/09 (`docs/superpowers/plans/2026-09-17-ondas-de-conteudo.md`, §5) põe o pilar da onda em "Quanto vale meu carro usado: como a loja chega no número". A peça foi escrita como spoke local, que cita o pilar. Se o dono quiser esta como hub, ela precisa citar as dez peças da onda.
 - **Plataforma de compra instantânea** está descrita pela categoria e em termos gerais ("em geral", "costuma"). Nada sobre prazo, preço ou percentual dessas empresas. Vale uma leitura do dono, que conhece o mercado local.
 - **Consignação: o que cada formato faz com o carro** (quem guarda a chave, como a transferência é feita) continua sem fato. Em 20/09 o dono disse que a exposição e a chance de venda são maiores no presencial, e a peça diz isso; onde o carro fica no formato digital não foi dito.
-- **A avaliação é gratuita** — confirmado pelo dono em 20/09, e a peça diz. "Sem compromisso" continua não dito, e não entrou. Da perícia, o dono disse que ela não é gratuita quando o negócio é recusado; isso está no pilar da onda, não aqui.
+- **A avaliação é gratuita** — confirmado pelo dono em 20/09, e a peça diz. "Sem compromisso" continua não dito, e não entrou. Da perícia, o dono corrigiu em 20/09: na avaliação ela é custo da loja, mesmo com o negócio recusado; cobrada, só na consignação que não vende por aqui. Está no pilar da onda e na peça de consignação.
 - **Alcance.** A peça não fala de entrega nem de busca de carro fora de Curitiba: o alcance da casa (Paraná e litoral catarinense até Balneário Camboriú) é de entrega de carro vendido, não de compra.
 
 ---

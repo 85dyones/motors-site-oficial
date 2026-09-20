@@ -51,7 +51,7 @@
         {
           "titulo": "Estado e procedência: o que a perícia mostra",
           "paragrafos": [
-            "Estado e procedência entram no mesmo cálculo. Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra. Apontamento — uma peça trocada, uma repintura, um registro no histórico — pesa no valor, porque vai pesar do mesmo jeito para quem comprar o carro depois. Duas informações de custo, antes de começar: a avaliação é gratuita; a perícia cautelar, se o negócio for recusado depois dela, não é — pergunte o valor antes.",
+            "Estado e procedência entram no mesmo cálculo. Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra. Apontamento — uma peça trocada, uma repintura, um registro no histórico — pesa no valor, porque vai pesar do mesmo jeito para quem comprar o carro depois. Duas informações de custo, antes de começar: a avaliação é gratuita, e a perícia cautelar dessa etapa é conta da loja mesmo quando o negócio não fecha. Recusar um carro depois de pagar a perícia custa dinheiro; custa menos do que comprar o carro errado.",
             "O que cada resultado significa está em \"Laudo cautelar: aprovado, com apontamento ou reprovado\", e o que fazer quando o carro reprova está em \"Meu carro reprovou no laudo cautelar\". É o mesmo exame que todo carro da vitrine passou antes de ser anunciado, e o laudo fica com o vendedor da loja e sai a pedido de quem vai comprar.",
             "Do lado mecânico, quando a avaliação levanta suspeita, o carro passa por uma perícia mecânica antes de qualquer decisão. E vale conhecer a régua da vitrine: de cada dez carros avaliados, três entram, e os que entram saem com garantia de três meses ou 5.000 quilômetros, o que vier primeiro, para motor, câmbio e diferencial. O que essa garantia cobre está em \"Garantia de carro usado em loja: o que está coberto\"."
           ]
@@ -113,7 +113,7 @@
         },
         {
           "pergunta": "A avaliação é gratuita?",
-          "resposta": "É. Na Motors Store, avaliar o carro não custa nada. A perícia cautelar é outra conta: se o negócio for recusado depois dela, ela não é gratuita. Pergunte o valor antes de ela ser feita."
+          "resposta": "É. Na Motors Store, avaliar o carro não custa nada, e a perícia cautelar feita na avaliação é conta da loja — inclusive quando o negócio não fecha, porque recusar um carro sai mais barato do que comprar o errado. A perícia só é cobrada num caso, e é na consignação: todo carro consignado passa por ela para entrar, e ela entra na conta do dono apenas se o carro sair sem ter sido vendido pela loja."
         }
       ],
       "saida": {
@@ -261,7 +261,7 @@
         {
           "titulo": "Da quitação à baixa do gravame, na ordem",
           "paragrafos": [
-            "Na Motors Store, quem paga o banco é a loja. O saldo de quitação sai do valor do carro e vai para a instituição financeira; o que sobra vira entrada, na troca, ou é pago a você, na venda. Os pagamentos da loja ao vendedor saem em até oito dias, contados do recebimento dos valores da operação, e o porquê desse prazo está em \"O que a loja assume quando compra o seu carro\".",
+            "Na Motors Store, quem paga o banco é a loja. O saldo de quitação sai do valor do carro e vai para a instituição financeira; o que sobra vira entrada, na troca, ou é pago a você, na venda. Os pagamentos da loja ao vendedor saem em até oito dias, contados da entrega do carro ao novo proprietário, e o porquê desse prazo está em \"O que a loja assume quando compra o seu carro\".",
             "Com o pagamento, o banco dá o contrato por encerrado e emite a declaração de quitação — alguns chamam de termo de quitação —, o documento que diz que a dívida acabou. O passo seguinte também é do banco: pela norma do Contran, a instituição credora tem até dez dias para informar a quitação ao Detran, e é a partir dessa informação que o Detran faz a baixa do gravame, a exclusão da anotação do documento. Com a baixa, o carro volta a ser só seu no registro, e a transferência segue.",
             "Nesse intervalo, a loja confere a quitação antes de fechar as contas com você; é uma das etapas do prazo de pagamento. E guarde a declaração de quitação: se um dia aparecer cobrança de um contrato encerrado, é ela que resolve a conversa."
           ]
@@ -338,13 +338,14 @@
           "titulo": "A consignação, do começo ao fim",
           "paragrafos": [
             "Na consignação, a loja vende o carro por você: o valor que você recebe é combinado antes, em contrato, e sai quando o carro vende, menos os custos de preparação. É o oposto da venda direta, em que a loja compra na hora e assume o tempo de venda — na consignação, quem espera é você.",
-            "Na Motors Store, a consignação tem dois formatos, presencial e digital. No presencial, o carro fica exposto na loja, e a chance de venda é maior: quem entra para ver outro carro acaba vendo o seu. Nos dois, a loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda; o prazo é definido no contrato e é flexível; e não há custo além do que as partes acordarem nele. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários, se for o caso —, por PIX."
+            "Na Motors Store, a consignação tem dois formatos, presencial e digital. No presencial, o carro fica exposto na loja, e a chance de venda é maior: quem entra para ver outro carro acaba vendo o seu. Nos dois, a loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda; o prazo é definido no contrato e é flexível; e não há custo além do que as partes acordarem nele. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — polimento, higienização e outros que forem necessários, se for o caso —, por PIX."
           ]
         },
         {
           "titulo": "O valor combinado, e o que sai dele",
           "paragrafos": [
             "O centro da consignação é um número escrito antes: o valor que você vai receber quando o carro vender. Ele fica no contrato, e é dele que saem os custos de preparação, quando o carro precisar deles.",
+            "A perícia cautelar é caso à parte, e a regra é simples: todo carro consignado passa por ela para entrar, e ela não é cobrada quando a venda é feita pela loja. Se o carro sair da consignação sem ter sido vendido aqui, aí sim a perícia entra na conta do dono.",
             "Duas perguntas deixam esse número claro antes da assinatura. Quais itens de preparação o seu carro deve precisar, e quanto costuma custar cada um? E como você fica sabendo de um custo antes de ele ser feito?",
             "Para o valor combinado ser realista, ajuda entender como o mercado olha o seu carro: o ponto de partida na FIPE, e o que a preparação, a quilometragem e o tempo de venda fazem com a média. É o assunto de \"Quanto vale meu carro usado: como a loja chega no número\". E a tabela, sozinha, não é o preço pelo qual o carro vende, como explica \"Tabela FIPE não é preço de venda: o que ela diz\".",
             "Três referências ajudam a chegar nesse número. O valor da venda direta, que mostra quanto você receberia hoje, sem esperar. Os anúncios de carros iguais ao seu, lembrando que anúncio mostra o preço que alguém pediu, e não o que alguém pagou. E o seu prazo: quanto tempo você consegue esperar sem que a espera vire problema.",
@@ -361,8 +362,8 @@
         {
           "titulo": "Quando o carro vende: o prazo e o PIX",
           "paragrafos": [
-            "O pagamento sai por PIX, em até oito dias, contados do recebimento dos valores da operação.",
-            "O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados."
+            "O pagamento sai por PIX, em até oito dias, contados da entrega do carro ao novo proprietário.",
+            "A contagem começa na entrega do carro ao novo proprietário, e o prazo existe porque é nesse intervalo que a papelada fecha e o dinheiro da operação compensa. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Enquanto isso, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados. Há um caso que estica: quando o pagamento vem de consórcio, ou de um financiamento que exige a transferência do carro antes de liberar a verba, a liberação demora mais, e o dinheiro só sai depois dela."
           ]
         },
         {
@@ -404,11 +405,11 @@
         },
         {
           "pergunta": "O que sai do valor na consignação?",
-          "resposta": "Os custos de preparação do carro, se for o caso: perícia, polimento, higienização e outros que forem necessários. Eles saem do valor combinado em contrato, na venda. Pergunte antes quais itens o seu carro deve precisar e como você fica sabendo de cada custo."
+          "resposta": "Os custos de preparação do carro, se for o caso: polimento, higienização e outros que forem necessários. Eles saem do valor combinado em contrato, na venda. A perícia cautelar, que todo consignado faz para entrar, não é cobrada quando a loja vende o carro — ela só entra na conta se o carro sair da consignação sem ter sido vendido aqui. Pergunte antes quais itens o seu carro deve precisar e como você fica sabendo de cada custo."
         },
         {
           "pergunta": "Quando recebo o dinheiro da consignação?",
-          "resposta": "Por PIX, em até oito dias, contados do recebimento dos valores da operação. O prazo existe porque o dinheiro sai depois que o da operação entra e compensa — quando o comprador financia, quem paga é o banco, e o repasse leva alguns dias úteis — e depois que a papelada fecha."
+          "resposta": "Por PIX, em até oito dias, contados da entrega do carro ao novo proprietário. Nesse intervalo a papelada fecha e o dinheiro da operação compensa — quando o comprador financia, quem paga é o banco, e o repasse leva alguns dias úteis. Se o pagamento vier de consórcio, ou de um financiamento que exige a transferência do carro antes de liberar a verba, a liberação demora mais."
         }
       ],
       "saida": {
@@ -432,7 +433,7 @@
         {
           "titulo": "O que muda quando quem compra é a loja",
           "paragrafos": [
-            "Quando a loja compra o seu carro, ela assume a papelada e as contas dele: cuida da transferência, quita IPVA, licenciamento, multas e o financiamento, se houver, e faz a comunicação de venda ao Detran-PR com uma procuração sua. As contas saem do valor do carro, e o pagamento a você sai em até oito dias, contados do recebimento dos valores da operação.",
+            "Quando a loja compra o seu carro, ela assume a papelada e as contas dele: cuida da transferência, quita IPVA, licenciamento, multas e o financiamento, se houver, e faz a comunicação de venda ao Detran-PR com uma procuração sua. As contas saem do valor do carro, e o pagamento a você sai em até oito dias, contados da entrega do carro ao novo proprietário.",
             "É assim na Motors Store, e este guia passa item por item: o que a loja faz, o que sai do valor, o que continua sendo seu, e por que o pagamento tem prazo."
           ]
         },
@@ -469,8 +470,8 @@
         {
           "titulo": "Quando você recebe, e por que existe um prazo",
           "paragrafos": [
-            "Os pagamentos da loja ao vendedor saem em até oito dias, contados do recebimento dos valores da operação.",
-            "O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados.",
+            "Os pagamentos da loja ao vendedor saem em até oito dias, contados da entrega do carro ao novo proprietário.",
+            "A contagem começa na entrega do carro ao novo proprietário, e o prazo existe porque é nesse intervalo que a papelada fecha e o dinheiro da operação compensa. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Enquanto isso, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados. Há um caso que estica: quando o pagamento vem de consórcio, ou de um financiamento que exige a transferência do carro antes de liberar a verba, a liberação demora mais, e o dinheiro só sai depois dela.",
             "O que chega a você, nesse prazo, é a conta inteira fechada: o valor da proposta, menos os débitos que a loja quitou e, se havia financiamento, menos o saldo que ela pagou ao banco. No fechamento, pergunte qual é a data que conta como recebimento no seu caso, e peça o prazo por escrito."
           ]
         },
@@ -505,7 +506,7 @@
         },
         {
           "pergunta": "Quando recebo ao vender meu carro para a loja?",
-          "resposta": "Em até oito dias, contados do recebimento dos valores da operação. O dinheiro sai depois que o da operação entra e compensa, e depois que a papelada fecha — quitação, débitos, procuração e transferência conferidos, e a operação registrada. Pagar antes de o dinheiro compensar é a brecha que golpe de venda de carro explora, e o prazo protege os dois lados."
+          "resposta": "Em até oito dias, contados da entrega do carro ao novo proprietário — na venda para a loja, o dia em que você entrega o carro a ela. Nesse intervalo a papelada fecha e o dinheiro da operação compensa: quitação, débitos, procuração e transferência conferidos, e a operação registrada. Quando o pagamento vem de consórcio, ou de um financiamento que exige a transferência antes de liberar a verba, a liberação demora mais. Pagar antes de o dinheiro compensar é a brecha que golpe de venda de carro explora, e o prazo protege os dois lados."
         },
         {
           "pergunta": "Para que serve a procuração na venda do carro?",
@@ -549,7 +550,7 @@
           "titulo": "Tempo: quem espera, e esperando o quê",
           "paragrafos": [
             "Anunciar é trabalhar no horário dos outros: fotos, texto, mensagens, visita marcada, visita que não aparece, negociação. Quanto leva depende do modelo, do preço e da época, e ninguém consegue prometer prazo. Enquanto não vende, o carro continua seu, com o seguro, a manutenção e a perda de valor de cada mês.",
-            "Na venda para a Motors Store, os pagamentos ao vendedor saem em até oito dias, contados do recebimento dos valores da operação. O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora, e o prazo protege os dois lados."
+            "Na venda para a Motors Store, os pagamentos ao vendedor saem em até oito dias, contados da entrega do carro ao novo proprietário. A contagem começa na entrega do carro, e o prazo existe porque é nesse intervalo que a papelada fecha e o dinheiro da operação compensa. Quando o pagamento vem de consórcio, ou de financiamento que exige a transferência antes de liberar a verba, a liberação demora mais. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora, e o prazo protege os dois lados."
           ]
         },
         {
@@ -695,7 +696,7 @@
           "titulo": "Como a Motors Store faz, quando compra o seu carro",
           "paragrafos": [
             "Quando a loja compra o carro, a papelada muda de mão. A Motors Store cuida da transferência. Os débitos — IPVA, licenciamento e multas — a loja quita, e o valor deles sai do total; o financiamento em aberto também, junto ao banco. E a comunicação de venda ao Detran-PR a loja faz com procuração do vendedor, que é um dos caminhos que o Detran-PR aceita, como descrito no passo 5.",
-            "Do seu lado ficam os documentos pessoais e as assinaturas: a do documento de transferência e a da procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação; o porquê do prazo está em \"Vender sozinho ou para a loja: o que muda além do preço\". Como a loja chega no valor está em \"Quanto vale meu carro usado: como a loja chega no número\", e a lista inteira do que ela assume, em \"O que a loja assume quando compra o seu carro\"."
+            "Do seu lado ficam os documentos pessoais e as assinaturas: a do documento de transferência e a da procuração. O pagamento sai em até oito dias, contados da entrega do carro ao novo proprietário; o porquê do prazo está em \"Vender sozinho ou para a loja: o que muda além do preço\". Como a loja chega no valor está em \"Quanto vale meu carro usado: como a loja chega no número\", e a lista inteira do que ela assume, em \"O que a loja assume quando compra o seu carro\"."
           ]
         },
         {
@@ -761,7 +762,7 @@
           "paragrafos": [
             "Pede de você a avaliação e as assinaturas; o resto muda de mão.",
             "O preço sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média do mercado nacional apurada sobre o que já aconteceu, e tira dela o que aquele carro vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem acima da média para o ano e o tempo de venda daquele modelo, versão e cor na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, e apontamento pesa no valor. Débitos e financiamento não entram na avaliação; a loja quita pelo vendedor, e o valor sai do total. O raciocínio inteiro está em \"Quanto vale meu carro usado: como a loja chega no número\".",
-            "A papelada fica com a loja: a transferência, a quitação dos débitos e do financiamento em aberto e a comunicação de venda ao Detran-PR, feita com procuração do vendedor. O pagamento sai em até oito dias, contados do recebimento dos valores da operação, porque o dinheiro só sai depois que o da operação entra e compensa, e depois que a papelada fecha — pagar antes disso é a brecha que golpe de venda de carro explora. A lista do que a loja assume está em \"O que a loja assume quando compra o seu carro\".",
+            "A papelada fica com a loja: a transferência, a quitação dos débitos e do financiamento em aberto e a comunicação de venda ao Detran-PR, feita com procuração do vendedor. O pagamento sai em até oito dias, contados da entrega do carro ao novo proprietário, porque o dinheiro só sai depois que o da operação entra e compensa, e depois que a papelada fecha — pagar antes disso é a brecha que golpe de venda de carro explora. A lista do que a loja assume está em \"O que a loja assume quando compra o seu carro\".",
             "O risco é baixo. A ressalva honesta é outra: nem todo carro entra. De cada dez que a Motors Store avalia, três entram, e carro reprovado na perícia cautelar a loja não compra. O que fazer nesse caso está em \"Meu carro reprovou no laudo cautelar. E agora?\"."
           ]
         },
@@ -769,7 +770,7 @@
           "titulo": "Consignação",
           "paragrafos": [
             "Fica no meio do caminho: a loja vende por você, e você recebe quando o carro vende.",
-            "Na Motors Store, a consignação tem dois formatos, presencial e digital: no presencial, o carro fica exposto na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois, o prazo é definido no contrato e é flexível, não há custo além do que as partes acordarem nele, e a loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias do recebimento dos valores da operação.",
+            "Na Motors Store, a consignação tem dois formatos, presencial e digital: no presencial, o carro fica exposto na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois, o prazo é definido no contrato e é flexível, não há custo além do que as partes acordarem nele, e a loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias da entrega do carro ao novo proprietário.",
             "O preço é combinado antes, e não depois. O que muda em relação à venda direta é quem espera: na consignação, a espera é sua, dentro do prazo do contrato. Os detalhes estão em \"Consignação de carro: como funciona\"."
           ]
         },
@@ -792,14 +793,14 @@
           "titulo": "Como comparar as propostas",
           "paragrafos": [
             "Comparar cinco caminhos pelo número que aparece primeiro é o jeito mais comum de errar a conta. Compare o que chega na sua conta, e quando.",
-            "No anúncio particular, do preço que o comprador aceita saem os débitos que você mesmo quita, o cartório, o que você gastar para deixar o carro apresentável e o tempo até vender. Na venda para a loja, os débitos e o financiamento em aberto saem do total, e o restante chega em até oito dias do recebimento dos valores da operação. Na consignação, do valor combinado saem os custos de preparação, e o dinheiro chega depois que o carro vende. Na plataforma, vale o que a proposta disser depois da inspeção. Na troca, o que importa é a diferença entre o valor do seu carro e o preço do próximo, e como essa diferença vai ser paga.",
+            "No anúncio particular, do preço que o comprador aceita saem os débitos que você mesmo quita, o cartório, o que você gastar para deixar o carro apresentável e o tempo até vender. Na venda para a loja, os débitos e o financiamento em aberto saem do total, e o restante chega em até oito dias da entrega do carro ao novo proprietário. Na consignação, do valor combinado saem os custos de preparação, e o dinheiro chega depois que o carro vende. Na plataforma, vale o que a proposta disser depois da inspeção. Na troca, o que importa é a diferença entre o valor do seu carro e o preço do próximo, e como essa diferença vai ser paga.",
             "Ponha também na conta o que não tem etiqueta: quantas visitas você aceita receber, quantas semanas pode esperar e quanto risco quer carregar até a comunicação de venda. Um número maior que chega tarde, ou com um golpe no meio do caminho, não é um número maior. E, para saber de onde vem cada número, vale entender antes o que a FIPE diz e o que ela não diz — está em \"Tabela FIPE não é preço de venda: o que ela diz\"."
           ]
         },
         {
           "titulo": "Onde a Motors Store entra",
           "paragrafos": [
-            "A Motors Store fica no Bacacheri, em Curitiba, e trabalha com três desses cinco caminhos: compra, consignação e troca. Na compra e na troca, a perícia cautelar independente vem antes, e carro reprovado a loja não compra; na consignação, a perícia está entre os custos de preparação.",
+            "A Motors Store fica no Bacacheri, em Curitiba, e trabalha com três desses cinco caminhos: compra, consignação e troca. Na compra e na troca, a perícia cautelar independente vem antes, e carro reprovado a loja não compra; na consignação, todo carro passa por perícia para entrar, e ela só é cobrada se o carro sair sem ter sido vendido pela loja.",
             "Os outros dois — o anúncio particular e a plataforma de compra instantânea — são escolhas legítimas, e servem a quem tem tempo para o primeiro ou pressa para o segundo. O que vale para os cinco é decidir sabendo o que cada um deixa com você."
           ]
         },
@@ -817,7 +818,7 @@
         },
         {
           "pergunta": "Como funciona a venda para uma loja que compra carro em Curitiba?",
-          "resposta": "Na Motors Store, no Bacacheri, o carro passa por avaliação — gratuita — e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação."
+          "resposta": "Na Motors Store, no Bacacheri, o carro passa por avaliação — gratuita — e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados da entrega do carro ao novo proprietário."
         },
         {
           "pergunta": "O que a avaliação de carro leva em conta?",

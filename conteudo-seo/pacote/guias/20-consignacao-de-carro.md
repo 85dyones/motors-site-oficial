@@ -20,11 +20,13 @@ palavras: ~1.250
 
 Na consignação, a loja vende o carro por você: o valor que você recebe é combinado antes, em contrato, e sai quando o carro vende, menos os custos de preparação. É o oposto da venda direta, em que a loja compra na hora e assume o tempo de venda — na consignação, quem espera é você.
 
-Na Motors Store, a consignação tem dois formatos, presencial e digital. No presencial, o carro fica exposto na loja, e a chance de venda é maior: quem entra para ver outro carro acaba vendo o seu. Nos dois, a loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda; o prazo é definido no contrato e é flexível; e não há custo além do que as partes acordarem nele. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários, se for o caso —, por PIX.
+Na Motors Store, a consignação tem dois formatos, presencial e digital. No presencial, o carro fica exposto na loja, e a chance de venda é maior: quem entra para ver outro carro acaba vendo o seu. Nos dois, a loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda; o prazo é definido no contrato e é flexível; e não há custo além do que as partes acordarem nele. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — polimento, higienização e outros que forem necessários, se for o caso —, por PIX.
 
 ## O valor combinado, e o que sai dele
 
 O centro da consignação é um número escrito antes: o valor que você vai receber quando o carro vender. Ele fica no contrato, e é dele que saem os custos de preparação, quando o carro precisar deles.
+
+A perícia cautelar é caso à parte, e a regra é simples: todo carro consignado passa por ela para entrar, e ela não é cobrada quando a venda é feita pela loja. Se o carro sair da consignação sem ter sido vendido aqui, aí sim a perícia entra na conta do dono.
 
 Duas perguntas deixam esse número claro antes da assinatura. Quais itens de preparação o seu carro deve precisar, e quanto costuma custar cada um? E como você fica sabendo de um custo antes de ele ser feito?
 
@@ -42,9 +44,9 @@ Enquanto isso, a loja faz a parte dela: anuncia e trabalha o carro. Trabalhar o 
 
 ## Quando o carro vende: o prazo e o PIX
 
-O pagamento sai por PIX, em até oito dias, contados do recebimento dos valores da operação.
+O pagamento sai por PIX, em até oito dias, contados da entrega do carro ao novo proprietário.
 
-O prazo existe porque o dinheiro sai depois que o dinheiro da operação entra e compensa, e depois que a papelada fecha. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Nesse intervalo, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados.
+A contagem começa na entrega do carro ao novo proprietário, e o prazo existe porque é nesse intervalo que a papelada fecha e o dinheiro da operação compensa. Quando o comprador financia, quem paga é o banco, não ele, e o repasse leva alguns dias úteis. Enquanto isso, a loja confere a quitação do financiamento, quando existe, a baixa dos débitos, a procuração e a transferência, e registra a operação na contabilidade antes de pagar. Pagar antes de o dinheiro compensar é justamente a brecha que golpe de venda de carro explora — e o prazo protege os dois lados. Há um caso que estica: quando o pagamento vem de consórcio, ou de um financiamento que exige a transferência do carro antes de liberar a verba, a liberação demora mais, e o dinheiro só sai depois dela.
 
 ## Consignação, venda direta ou anúncio particular
 
@@ -84,10 +86,10 @@ O prazo que estiver no contrato. Na Motors Store, ele é definido na assinatura,
 A exposição. No presencial, o carro fica na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois formatos a loja anuncia o carro em todos os canais de mídia que tem, o prazo é definido no contrato e é flexível, e não há custo além do que as partes acordarem nele.
 
 **O que sai do valor na consignação?**
-Os custos de preparação do carro, se for o caso: perícia, polimento, higienização e outros que forem necessários. Eles saem do valor combinado em contrato, na venda. Pergunte antes quais itens o seu carro deve precisar e como você fica sabendo de cada custo.
+Os custos de preparação do carro, se for o caso: polimento, higienização e outros que forem necessários. Eles saem do valor combinado em contrato, na venda. A perícia cautelar, que todo consignado faz para entrar, não é cobrada quando a loja vende o carro — ela só entra na conta se o carro sair da consignação sem ter sido vendido aqui. Pergunte antes quais itens o seu carro deve precisar e como você fica sabendo de cada custo.
 
 **Quando recebo o dinheiro da consignação?**
-Por PIX, em até oito dias, contados do recebimento dos valores da operação. O prazo existe porque o dinheiro sai depois que o da operação entra e compensa — quando o comprador financia, quem paga é o banco, e o repasse leva alguns dias úteis — e depois que a papelada fecha.
+Por PIX, em até oito dias, contados da entrega do carro ao novo proprietário. Nesse intervalo a papelada fecha e o dinheiro da operação compensa — quando o comprador financia, quem paga é o banco, e o repasse leva alguns dias úteis. Se o pagamento vier de consórcio, ou de um financiamento que exige a transferência do carro antes de liberar a verba, a liberação demora mais.
 
 ---
 
