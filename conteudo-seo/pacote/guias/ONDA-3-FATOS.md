@@ -48,9 +48,9 @@ baixamos tudo isso: tempo de venda, preparação, quilometragem".
 - **A loja faz a quitação** do financiamento junto ao banco.
 - **O saldo — o valor do carro menos o que falta pagar — vira entrada** no próximo
   carro.
-- O que NÃO foi dito, e portanto não entra: o que acontece quando a dívida é maior
-  do que o valor do carro. A peça pode explicar o conceito ("saldo negativo") como
-  mecânica de mercado, sem afirmar o que a loja faz nesse caso.
+- **Quando a dívida é maior do que o valor do carro, a loja recusa o negócio**
+  (resposta de 20/09 — ver §6). A peça explica o conceito ("saldo negativo") como
+  mecânica de mercado e diz o que a loja faz.
 
 ## 3. Consignação
 
@@ -60,10 +60,11 @@ na venda, o proprietário recebe o valor acordado previamente em contrato, menos
 custos de preparação do carro como perícia, polimento e higienização, entre outros
 necessários, se for o caso; pagamento via PIX."
 
-- **Dois formatos: presencial e digital.** O dono não detalhou a diferença — a peça
-  diz que existem os dois e que o consultor explica cada um no contrato. Não
-  inventar onde o carro fica em cada formato.
-- **O prazo é definido no contrato.**
+- **Dois formatos: presencial e digital.** A diferença veio em 20/09 (§6): no
+  presencial o carro fica exposto na loja e a chance de venda é maior. Onde o carro
+  fica no formato digital continua não dito — não inventar.
+- **O prazo é definido no contrato, e é flexível** (§6), e não há custo além do que
+  as partes acordarem no contrato.
 - **A loja anuncia o carro em todos os canais de mídia que tem** e prepara o carro
   ("trabalhamos o carro").
 - **Na venda, o dono recebe o valor combinado antes, em contrato, menos os custos de
@@ -102,6 +103,32 @@ plausível)."
 
 Não dizer que é exigência legal, nem citar lei ou norma para o prazo: o dono não
 disse isso.
+
+## 6. Respostas do dono de 20/09/2026
+
+Fecham as perguntas que os redatores deixaram abertas. As palavras dele entre aspas.
+
+- **"avaliação gratuita, perícia em caso de recusa do negócio, não."** A avaliação é
+  gratuita. A perícia cautelar, quando o negócio é recusado depois dela, não é. As
+  peças dizem isso e nada mais: não dizem quem recusa nem quanto a perícia custa.
+- **"recusa o negócio"** — quando a dívida do financiamento é maior do que o valor do
+  carro, a loja não fecha a compra nem a troca (§2).
+- **"a exposição do carro e chance de venda na física é maior, principalmente por conta
+  do upsell de clientes que visitam a loja, mas ambas funcionam com prazo definido e
+  flexível, sem custo adicional além do que for acordado entre as partes no contrato."**
+  Nas peças, dito pelo lado do leitor: no presencial o carro fica exposto na loja e
+  quem entra para ver outro carro acaba vendo o seu. Os dois formatos têm prazo
+  definido em contrato e flexível, e nenhum custo além do acordado. Continua não dito,
+  e não entra: onde o carro fica no formato digital, e o que acontece na prática se o
+  prazo terminar sem venda.
+- **"a loja paga e cobra do proprietário anterior depois"** — multa de antes da venda
+  que chega depois é paga pela loja, que cobra de quem vendeu.
+- **Os oito dias (§5):** o dono perguntou de volta "quais 8 dias?". O prazo continua
+  escrito como ele disse em 18/09 — "em até oito dias, contados do recebimento dos
+  valores da operação" — e a dúvida de redação (que data conta na compra direta, sem
+  banco no meio) segue aberta.
+- **Resolução Contran nº 1.027/2026 e a procuração:** "ignore por enquanto, quando
+  mudar, mudamos." Nenhuma peça muda por causa dela.
 
 ---
 

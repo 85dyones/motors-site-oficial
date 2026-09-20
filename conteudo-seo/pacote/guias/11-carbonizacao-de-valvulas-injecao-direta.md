@@ -28,6 +28,16 @@ Vale uma correção de mito, porque ela aparece sempre: escolher etanol ou gasol
 
 Há uma exceção que compensa checar. Alguns motores usam injeção dupla, direta e indireta no mesmo cilindro, e a indireta existe em parte para molhar a válvula em certas condições de funcionamento. Saber se o motor daquele carro é de injeção direta pura ou dupla muda o tamanho do problema, e a resposta está na especificação técnica do fabricante.
 
+## Quais motores têm injeção direta no Brasil
+
+A pergunta "esse motor é de injeção direta?" tem resposta pública, e conhecer os casos mais comuns do mercado brasileiro evita comprar uma dúvida.
+
+Têm injeção direta o 1.0 TSI e o 1.4 TSI da Volkswagen, de Polo, Virtus, T-Cross, Nivus, Golf e Jetta; o 1.0 TGDI da Hyundai, de HB20, HB20S e Creta, em que as três letras do meio já dizem isso; o 1.0 TCe do Renault Kardian e o 1.3 TCe de Captur, Duster e Oroch; o 1.6 THP de Peugeot e Citroën, que passou por 408, 3008, RCZ, 2008 e C4 Lounge; o T200 e o T270 da Fiat e da Jeep, de Pulse, Fastback, Strada, Toro, Renegade, Compass e Commander, cujo manual descreve a injeção direta na câmara de combustão, e que hoje equipam também Peugeot 208 e 2008 e Citroën C3; o 1.0 EcoBoost da Ford, do New Fiesta; o 1.5 turbo da Honda, do HR-V nas versões Advance e Touring e do Civic da geração passada; o 1.5 turbo do Mitsubishi Eclipse Cross; e o 1.6 turbo da Kia, do Sportage.
+
+Um caso merece atenção especial de quem compra usado, porque mudou no meio da vida comercial do carro. Os três-cilindros turbo da Chevrolet — o 1.0 e o 1.2 de Onix, Onix Plus, Tracker e Montana — nasceram com injeção indireta e passaram a ter injeção direta na atualização que a marca anunciou em dezembro de 2024, para a linha 2025. Dois carros com o mesmo nome e a mesma cilindrada podem estar, portanto, em lados diferentes deste guia, e quem decide é o ano-modelo.
+
+Daí saem dois lembretes que desfazem confusão. Injeção direta não é exclusividade de motor turbo, e motor turbo não é necessariamente de injeção direta — o caso da Chevrolet mostra os dois lados no mesmo carro. E injeção dupla existe de fato: no Brasil, o exemplo que aparece em ficha oficial é o 1.6 turbo do Toyota GR Corolla, com o sistema D-4S, que soma injeção direta e indireta. É um carro raro, de série limitada, e está aqui para mostrar que a pergunta tem três respostas possíveis, não duas.
+
 ## Quando isso aparece
 
 Carbonização é acúmulo, não evento. Ela se forma ao longo de dezenas de milhares de quilômetros, em ritmo que depende muito mais de como o carro foi usado do que da idade dele — e por isso não existe quilometragem em que ela comece. Este guia não publica número: quem publicar um sem medição está chutando.
@@ -93,6 +103,9 @@ A limpeza resolve o acúmulo, e o jateamento com casca de noz é o método padr�
 
 **Andar de etanol ou de gasolina muda alguma coisa?**
 Na válvula de admissão, não. Em injeção direta pura o combustível vai direto para o cilindro e não toca essa válvula, qualquer que seja ele. O que muda o ritmo do depósito é o óleo, a ventilação do cárter e o tipo de uso.
+
+**Quais motores têm injeção direta no Brasil?**
+Entre os mais comuns: 1.0 TSI e 1.4 TSI da Volkswagen, T200 e T270 da Fiat e da Jeep — que também equipam Peugeot e Citroën recentes —, 1.0 TGDI da Hyundai, 1.0 e 1.3 TCe da Renault, 1.6 THP de Peugeot e Citroën, 1.0 EcoBoost da Ford, 1.5 turbo da Honda, 1.5 turbo da Mitsubishi e 1.6 turbo da Kia. Os 1.0 e 1.2 turbo da Chevrolet são o caso que muda no meio do caminho: injeção indireta até a linha 2024 e direta a partir da linha 2025, o que faz do ano-modelo uma pergunta obrigatória.
 
 **Motor de injeção direta usado é má compra?**
 Não. É uma compra com um custo conhecido, que precisa entrar na conta antes da assinatura em vez de aparecer depois. Um scanner com leitura ao vivo e o histórico de uso e de óleo dizem, em poucos minutos, se esse custo está perto ou longe.

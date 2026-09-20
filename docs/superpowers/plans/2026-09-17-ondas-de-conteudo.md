@@ -207,6 +207,16 @@ turbos pequenos, correia banhada em óleo, injeção direta, dupla embreagem —
 técnico). Nome de motor com defeito atribuído sem fonte não entra: a loja vende
 esses carros.
 
+**Escrita em 20/09/2026** e no PR da branch `conteudo/ondas-seo`, esperando ordem de
+gravação. As quatro peças de mecânica ganharam seção nova: quais turbos pequenos existem
+no mercado brasileiro (09), quem usa correia banhada em óleo e quem usa corrente (10),
+quais motores têm injeção direta — com o caso da Chevrolet, que mudou de indireta para
+direta na linha 2025 (11) — e quais câmbios de dupla embreagem circulam por aqui, secos
+ou banhados (12). As fontes, item por item, com o que ficou sem fonte e os limites de
+acesso, estão em `conteudo-seo/pacote/guias/ONDA-2-1-FONTES.md`. Travas novas no teste do
+lote: nome ligado a falha exige a origem declarada na própria frase, e todo nome
+publicado precisa de linha no arquivo de fontes.
+
 ### Onda 3 — troca, venda e preço (saída `/avaliacao` e `/estoque`)
 
 **No ar desde 18/09/2026, 16:13 UTC**, por ordem do dono ("grave tudo"): as dez peças, lote

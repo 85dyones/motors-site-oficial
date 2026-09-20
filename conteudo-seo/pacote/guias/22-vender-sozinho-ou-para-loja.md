@@ -26,7 +26,7 @@ Nenhum dos dois caminhos é o errado. Cada um serve a uma pessoa diferente, e es
 
 No anúncio, quem põe o preço é você, e quem decide se ele para de pé é o comprador. Preço pedido não é preço recebido: a conversa começa nele e costuma terminar em outro lugar. E anúncio acima do mercado fica parado, o que também custa.
 
-Na loja, o número sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média de preços do mercado nacional apurada sobre o que já aconteceu — retrovisor, não para-brisa. Dessa média, a avaliação tira o que aquele carro específico vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem quando está acima da média para o ano e o tempo que aquele modelo, versão e cor levam para vender na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, carro reprovado a loja não compra e apontamento pesa no valor. Débitos e financiamento ficam fora da avaliação; são contas que a loja quita pelo vendedor, e o valor delas sai do total.
+Na loja, o número sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média de preços do mercado nacional apurada sobre o que já aconteceu — retrovisor, não para-brisa. Dessa média, a avaliação tira o que aquele carro específico vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem quando está acima da média para o ano e o tempo que aquele modelo, versão e cor levam para vender na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, carro reprovado a loja não compra e apontamento pesa no valor. Débitos e financiamento ficam fora da avaliação; são contas que a loja quita pelo vendedor, e o valor delas sai do total. Avaliar é gratuito.
 
 A distância entre os dois números não é mistério: é o trabalho e o risco mudando de mão. Como a loja chega no número está em "Quanto vale meu carro usado: como a loja chega no número", e o que a FIPE mede, e o que não mede, em "Tabela FIPE não é preço de venda: o que ela diz".
 
@@ -141,7 +141,7 @@ Medido com a lógica de `segmentarComLinks` portada para JS, sobre corpo e FAQ: 
 ## Pendências
 
 - **"O anúncio particular pode render um número maior."** É a frase que abre a peça e é conhecimento de mercado, não medição: nenhum número, nenhum percentual. É também a frase que mais pode incomodar dentro de casa. Ficou porque o briefing pede comparação honesta e porque a T2 pede o enquadramento no que a loja assume, não no que ela paga. Decisão do dono.
-- **Como começa a avaliação** (on-line, pelo WhatsApp, presencial) não está nos fatos da Onda 3. A peça diz só que a negociação é com uma empresa com endereço no Bacacheri — não diz onde nem como o carro é avaliado.
+- **Como começa a avaliação** (on-line, pelo WhatsApp, presencial) não está nos fatos da Onda 3. A peça diz só que a negociação é com uma empresa com endereço no Bacacheri — não diz onde nem como o carro é avaliado. Que avaliar é gratuito, o dono confirmou em 20/09, e a peça diz.
 - **Forma de pagamento na compra.** Os fatos dão PIX só para a consignação. A peça diz "quem paga é a loja, no prazo de até oito dias", sem o meio.
 - **Slugs da outra metade da onda** — ver o bloco de links.
 - Fontes oficiais consultadas em 18/09/2026 (Detran-PR, Código de Trânsito, Secretaria da Fazenda do Paraná, Polícia Civil do Paraná, Ministério da Fazenda) estão em `ONDA-3-NOTAS-MERCADO.md`, com os trechos.

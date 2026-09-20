@@ -20,7 +20,7 @@ palavras: ~1.250
 
 Na consignação, a loja vende o carro por você: o valor que você recebe é combinado antes, em contrato, e sai quando o carro vende, menos os custos de preparação. É o oposto da venda direta, em que a loja compra na hora e assume o tempo de venda — na consignação, quem espera é você.
 
-Na Motors Store, a consignação tem dois formatos, presencial e digital, e o consultor explica cada um no contrato. O prazo é definido na hora do contrato. A loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários, se for o caso —, por PIX.
+Na Motors Store, a consignação tem dois formatos, presencial e digital. No presencial, o carro fica exposto na loja, e a chance de venda é maior: quem entra para ver outro carro acaba vendo o seu. Nos dois, a loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda; o prazo é definido no contrato e é flexível; e não há custo além do que as partes acordarem nele. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários, se for o caso —, por PIX.
 
 ## O valor combinado, e o que sai dele
 
@@ -78,7 +78,10 @@ Decida primeiro o que pesa mais para você, tempo ou valor. Se pode esperar, lei
 Vale para quem pode esperar e não quer fazer a venda sozinho. Você recebe o valor combinado em contrato quando o carro vende, menos os custos de preparação; em troca, abre mão de ter o dinheiro na hora. Se precisa do valor ou da entrada agora, a venda direta para a loja resolve.
 
 **Quanto tempo o carro fica em consignação?**
-O prazo que estiver no contrato. Na Motors Store, ele é definido na hora do contrato, em qualquer um dos dois formatos, presencial ou digital. Antes de assinar, pergunte o que acontece se o prazo terminar sem venda.
+O prazo que estiver no contrato. Na Motors Store, ele é definido na assinatura, nos dois formatos, presencial ou digital, e é flexível; não há custo além do que as partes acordarem no contrato. Antes de assinar, confirme como fica o combinado se o prazo terminar sem venda.
+
+**Qual é a diferença entre consignação presencial e digital?**
+A exposição. No presencial, o carro fica na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois formatos a loja anuncia o carro em todos os canais de mídia que tem, o prazo é definido no contrato e é flexível, e não há custo além do que as partes acordarem nele.
 
 **O que sai do valor na consignação?**
 Os custos de preparação do carro, se for o caso: perícia, polimento, higienização e outros que forem necessários. Eles saem do valor combinado em contrato, na venda. Pergunte antes quais itens o seu carro deve precisar e como você fica sabendo de cada custo.
@@ -115,8 +118,8 @@ Nenhum link escrito no corpo: quem cria link é `TERMOS_COM_DESTINO` (`src/lib/l
 
 ## Pendências
 
-- **A diferença entre o formato presencial e o digital** não foi dita. A peça diz que os dois existem e que o consultor explica cada um no contrato; não diz onde o carro fica em cada um.
-- **O fim do prazo sem venda, a guarda e o seguro do carro, IPVA e licenciamento que vencem durante o contrato, multa em test-drive, a venda por fora durante o contrato e como a loja é remunerada na consignação** não foram ditos. A peça transforma cada um em pergunta a fazer antes de assinar; uma frase do dono sobre cada ponto transforma a pergunta em resposta.
+- **A diferença entre o formato presencial e o digital** foi dita pelo dono em 20/09: a exposição e a chance de venda são maiores no presencial, "principalmente por conta do upsell de clientes que visitam a loja". A peça diz isso pelo lado do leitor (quem entra para ver outro carro acaba vendo o seu). Onde o carro fica no formato digital continua não dito, e a peça não afirma.
+- **A guarda e o seguro do carro, IPVA e licenciamento que vencem durante o contrato, multa em test-drive, a venda por fora durante o contrato e como a loja é remunerada na consignação** continuam sem fato. A peça transforma cada um em pergunta a fazer antes de assinar. Do prazo, o dono disse em 20/09 que é "definido e flexível" e que não há custo adicional além do acordado em contrato — é o que a peça afirma; o que acontece na prática quando ele termina sem venda segue sendo pergunta.
 - **A frase do laudo.** A peça não diz onde fica o laudo do carro consignado: o dono pôs a perícia entre os custos de preparação "se for o caso", e afirmar que todo consignado passa pela cautelar seria ir além do que foi dito. Se a trava do lote exigir a frase ("o laudo fica com o vendedor e sai a pedido"), ela entra quando o dono confirmar que a perícia é feita em todo carro consignado.
 - **Transferência e comunicação de venda na consignação.** Quem transfere o carro para o comprador final, e quando, não foi dito. A peça não trata.
 

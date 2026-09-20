@@ -24,6 +24,22 @@ Essa é a diferença que muda tudo para quem compra usado. Uma correia seca que 
 
 O conceito existe por um motivo legítimo. Rodando imersa, a correia trabalha mais silenciosa e com menos atrito do que uma corrente, o que ajuda consumo e emissões, e em várias aplicações ela aciona também a bomba de óleo. Não é improviso de fabricante. É um projeto com janela de manutenção estreita, e o mercado de usados é justamente onde essa janela costuma já ter sido ultrapassada por alguém que você nunca vai conhecer.
 
+## Quais motores usam essa correia no Brasil
+
+Nem todo motor pequeno e turbinado usa correia banhada em óleo, e saber em qual grupo está o carro que você olha muda o que precisa ser exigido do vendedor. A lista abaixo vale para o mercado brasileiro e vem de material técnico de fabricante, de campanha de fábrica e de documento oficial — não de impressão de balcão.
+
+Usam correia banhada em óleo os três-cilindros da Chevrolet: o 1.0 aspirado, o 1.0 turbo e o 1.2 turbo, que equipam Onix, Onix Plus, Tracker e Montana desde o fim de 2019. A própria Chevrolet publica material técnico sobre essa correia. Em novembro de 2024 a marca anunciou uma campanha de garantia estendida do componente até 240 mil quilômetros e, em abril de 2025, abriu uma janela — encerrada no fim daquele ano — para carros usados sem histórico completo de revisões entrarem nessa garantia depois de uma inspeção paga. A posição pública da montadora é que as falhas relatadas vêm de óleo fora de especificação e de manutenção fora do prazo, que é, em uma frase, o assunto deste guia. Em outubro de 2025 a marca também anunciou correia com nova composição de material e novo fornecedor.
+
+Usa correia banhada em óleo o 1.5 de três cilindros da Ford, da família Dragon, que equipa Ka, Ka Sedan e EcoSport de 2017 em diante: o material de lançamento do próprio fabricante descreve o acionamento banhado em óleo. E usa também o 1.0 EcoBoost, que no Brasil equipou o New Fiesta.
+
+Esses dois motores da Ford têm história documentada, e ela é útil para quem compra. Em janeiro de 2026 a Ford do Brasil chamou EcoSport 2018 e 2019 com motor 1.5 para um recall: a polia tensionadora da correia de sincronismo podia quebrar por ressonância, com perda de sincronismo. E, no 1.0 EcoBoost, a agência de trânsito dos Estados Unidos abriu em dezembro de 2025 uma investigação — elevada a análise de engenharia em julho de 2026 — sobre o material da correia se degradando e o resíduo entupindo a peneira do pescador da bomba de óleo, derrubando a pressão de lubrificação. É, com outras palavras, o mecanismo descrito na seção anterior, dentro de um documento oficial. Em junho de 2026 a Ford comunicou àquela mesma agência um programa global de satisfação do cliente que reduziu o intervalo de troca dessa correia de 150 mil para 100 mil milhas, cerca de 160 mil quilômetros, ou seis anos, com reembolso a quem já tinha pago o reparo.
+
+Usa correia banhada em óleo o 1.2 PureTech de Peugeot e Citroën, que passou pelo 208, pelo 2008 e pelo C3, com intervalo publicado de 80 mil quilômetros ou seis anos. Na Europa, onde esse motor rodou muito mais, a Stellantis ampliou garantias e anunciou, em fevereiro de 2026, a substituição dessa família pelos motores Firefly.
+
+E vale a informação ao contrário, que economiza preocupação. Os Firefly da Fiat e da Jeep — 1.0 e 1.3 aspirados e os turbo T200 e T270, que hoje equipam também Peugeot e Citroën — usam corrente de comando, sem troca programada. Se o carro que você está olhando tem um desses, este guia não é sobre ele.
+
+Duas ressalvas honestas fecham a lista. Intervalo, prazo e campanha mudam por motor, por ano-modelo e por decisão de fábrica, e o número que valia quando o carro era novo pode não ser o que vale hoje: confirme com a marca, para aquele motor e aquele ano. E esta lista é do que deu para confirmar em fonte pública — motor que não está aqui não é, por isso, motor sem correia banhada. Na dúvida, um mecânico identifica pelo código do motor em segundos.
+
 ## Por que ela falha
 
 A correia é feita de elastômero reforçado com fibras, formulado para resistir ao óleo que o fabricante especifica para aquele motor. É uma compatibilidade química, não uma recomendação genérica. Óleo fora da especificação, óleo vencido pelo tempo, óleo diluído por combustível e intervalo esticado atacam o material, que começa a perder pedaços.
@@ -60,7 +76,7 @@ A primeira é que ele tem dois eixos, quilometragem e tempo, e vale o que vencer
 
 A segunda é que ele pressupõe o óleo certo, trocado no prazo certo. Uso severo — trajeto curto, trânsito parado, muito tempo em marcha lenta, combustível ruim — encurta na prática um intervalo que continua o mesmo no papel.
 
-A terceira é que vários fabricantes revisaram para baixo o intervalo desses motores depois de rodar frota no mundo real, por boletim de serviço ou campanha. O número impresso num manual de alguns anos atrás pode não ser o número vigente hoje. Confirme com a marca o intervalo atual daquele motor e daquele ano, e não com o manual que está no porta-luvas.
+A terceira é que vários fabricantes revisaram o intervalo desses motores depois de rodar frota no mundo real, por boletim de serviço ou campanha — a Ford reduziu o do 1.0 EcoBoost em 2026, e a Chevrolet estendeu a garantia da correia dos seus três-cilindros em 2024. O número impresso num manual de alguns anos atrás pode não ser o número vigente hoje. Confirme com a marca o intervalo atual daquele motor e daquele ano, e não com o manual que está no porta-luvas.
 
 A quarta é o escopo do serviço. Nota fiscal escrita "troca de correia dentada" não diz se o kit correto entrou — tensor, guias, retentores e, onde existir, a correia da própria bomba de óleo —, nem se o cárter e a peneira de sucção foram limpos. Se a correia antiga já estava soltando material, trocar só a correia deixa o resíduo lá dentro.
 
@@ -70,7 +86,7 @@ A quinta é a que nenhum recibo mostra: o histórico de óleo do dono anterior. 
 
 O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental, não abre motor e não mede nada de lubrificação — a fronteira inteira está no guia "Laudo cautelar: o que verifica e o que não verifica". O laudo fica com o vendedor e sai a pedido.
 
-Então a checagem é sua, e ela é documental antes de ser mecânica. Descubra se aquele motor usa correia banhada em óleo: nem todo motor pequeno e turbinado usa, e um mecânico identifica pelo código do motor em segundos. Depois peça nota fiscal da troca com quilometragem, placa e descrição do que foi substituído, e peça também as notas das trocas de óleo, com a especificação usada. Por último, olhe o óleo com o motor frio, procurando resíduo.
+Então a checagem é sua, e ela é documental antes de ser mecânica. Comece descobrindo se aquele motor usa correia banhada em óleo — a lista dos mais comuns no mercado brasileiro está acima, e um mecânico identifica pelo código do motor em segundos. Depois peça nota fiscal da troca com quilometragem, placa e descrição do que foi substituído, e peça também as notas das trocas de óleo, com a especificação usada. Por último, olhe o óleo com o motor frio, procurando resíduo.
 
 Do nosso lado da mesa, os gatilhos são os mesmos. Óleo na tampa de válvulas ou no bloco, marcha lenta irregular e luz de injeção mandam o carro para a perícia mecânica, que não é etapa de todo veículo: acontece nos que levantam suspeita. E revisão sem comprovação já é, por si, motivo de suspeita. A Motors Store não compra, em geral, carro que exija abrir motor para saber o estado real — e é isso que um motor com histórico de óleo desconhecido exige.
 
@@ -94,8 +110,11 @@ Os carros do nosso estoque são os que passaram por esse filtro. O que a loja as
 
 ## FAQ
 
+**Quais motores têm correia banhada em óleo no Brasil?**
+Os três-cilindros da Chevrolet — 1.0 aspirado, 1.0 turbo e 1.2 turbo, de Onix, Onix Plus, Tracker e Montana —, o 1.5 Dragon da Ford, de Ka, Ka Sedan e EcoSport, o 1.0 EcoBoost do New Fiesta e o 1.2 PureTech de Peugeot e Citroën, que passou pelo 208, pelo 2008 e pelo C3. Os Firefly da Fiat e da Jeep, incluídos os turbo T200 e T270, usam corrente. A lista é do que dá para confirmar em fonte pública; na dúvida, o código do motor responde.
+
 **Como sei se o meu carro tem correia banhada em óleo?**
-Pelo código do motor. Ela fica dentro do motor, sem tampa externa para abrir e olhar, então a consulta é ao manual ou à marca — e um mecânico identifica em segundos pelo motor. Nem todo motor pequeno turbinado usa esse arranjo, e a resposta muda o que você precisa exigir do vendedor.
+Pelo código do motor. Ela fica dentro do motor, sem tampa externa para abrir e olhar, então a consulta é ao manual, à marca ou à lista acima — e um mecânico identifica em segundos pelo motor. Nem todo motor pequeno turbinado usa esse arranjo, e a resposta muda o que você precisa exigir do vendedor.
 
 **Correia banhada em óleo é defeito de projeto?**
 É um projeto com janela de manutenção estreita. Funciona quando o óleo é o especificado e o intervalo é cumprido, e pune o descuido com mais severidade do que uma corrente ou uma correia seca. O risco no mercado de usados não vem do conceito: vem de não se saber como o carro foi tratado antes de você.

@@ -51,7 +51,7 @@
         {
           "titulo": "Estado e procedência: o que a perícia mostra",
           "paragrafos": [
-            "Estado e procedência entram no mesmo cálculo. Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra. Apontamento — uma peça trocada, uma repintura, um registro no histórico — pesa no valor, porque vai pesar do mesmo jeito para quem comprar o carro depois.",
+            "Estado e procedência entram no mesmo cálculo. Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra. Apontamento — uma peça trocada, uma repintura, um registro no histórico — pesa no valor, porque vai pesar do mesmo jeito para quem comprar o carro depois. Duas informações de custo, antes de começar: a avaliação é gratuita; a perícia cautelar, se o negócio for recusado depois dela, não é — pergunte o valor antes.",
             "O que cada resultado significa está em \"Laudo cautelar: aprovado, com apontamento ou reprovado\", e o que fazer quando o carro reprova está em \"Meu carro reprovou no laudo cautelar\". É o mesmo exame que todo carro da vitrine passou antes de ser anunciado, e o laudo fica com o vendedor da loja e sai a pedido de quem vai comprar.",
             "Do lado mecânico, quando a avaliação levanta suspeita, o carro passa por uma perícia mecânica antes de qualquer decisão. E vale conhecer a régua da vitrine: de cada dez carros avaliados, três entram, e os que entram saem com garantia de três meses ou 5.000 quilômetros, o que vier primeiro, para motor, câmbio e diferencial. O que essa garantia cobre está em \"Garantia de carro usado em loja: o que está coberto\"."
           ]
@@ -110,6 +110,10 @@
         {
           "pergunta": "O que fazer antes de levar o carro para avaliar?",
           "resposta": "Saiba quanto ele deve de IPVA, licenciamento e multas; junte as notas de revisão com a quilometragem, o manual e a chave reserva; e lave o carro. Se ele for financiado, peça ao banco o saldo de quitação. E não gaste com reparo antes de perguntar quanto aquele item pesa na avaliação."
+        },
+        {
+          "pergunta": "A avaliação é gratuita?",
+          "resposta": "É. Na Motors Store, avaliar o carro não custa nada. A perícia cautelar é outra conta: se o negócio for recusado depois dela, ela não é gratuita. Pergunte o valor antes de ela ser feita."
         }
       ],
       "saida": {
@@ -190,7 +194,7 @@
         {
           "titulo": "O que fazer agora",
           "paragrafos": [
-            "Antes de visitar lojas, saiba quanto o seu carro deve em IPVA, licenciamento, multas e financiamento, e junte documento, manual, chave reserva e notas de revisão. Na hora de comparar, ponha lado a lado o valor do seu carro, o preço do próximo, a diferença entre os dois, o CET do financiamento e o que cada loja inclui no preço. Na Motors Store, a troca começa pela avaliação do seu carro, e o valor dela, depois das contas, é a sua entrada."
+            "Antes de visitar lojas, saiba quanto o seu carro deve em IPVA, licenciamento, multas e financiamento, e junte documento, manual, chave reserva e notas de revisão. Na hora de comparar, ponha lado a lado o valor do seu carro, o preço do próximo, a diferença entre os dois, o CET do financiamento e o que cada loja inclui no preço. Na Motors Store, a troca começa pela avaliação do seu carro, que é gratuita, e o valor dela, depois das contas, é a sua entrada."
           ]
         }
       ],
@@ -234,7 +238,7 @@
           "titulo": "Dá, e o caminho é a quitação",
           "paragrafos": [
             "Dá: a loja quita o financiamento direto com o banco, e o saldo — o valor do carro menos o que falta pagar — vira entrada no próximo carro ou, numa venda, volta para você. O número que decide essa conta é o saldo de quitação, e ele não é a soma das parcelas que faltam.",
-            "Na Motors Store, carro com financiamento em aberto é aceito na venda e na troca, e a quitação é feita por aqui, junto ao banco. O resto deste guia explica o que acontece no meio: por que o carro é garantia do banco, como se chega ao saldo, em que ordem a dívida sai do documento, e o que muda quando ela é maior do que o carro vale."
+            "Na Motors Store, carro com financiamento em aberto é aceito na venda e na troca, e a quitação é feita por aqui, junto ao banco. O resto deste guia explica o que acontece no meio: por que o carro é garantia do banco, como se chega ao saldo, em que ordem a dívida sai do documento, e o que muda quando ela é maior do que o carro vale — o caso em que a loja recusa o negócio."
           ]
         },
         {
@@ -268,6 +272,7 @@
             "O caso tem uma mecânica conhecida. Nos primeiros anos, o carro perde valor mais depressa, e as primeiras parcelas de um financiamento carregam uma parte grande de juros e amortizam pouco da dívida. Em contrato longo e com entrada pequena, as duas curvas podem se cruzar: o saldo fica acima do que o carro vale.",
             "O mercado chama isso de saldo negativo. A consequência é aritmética: para quitar, o banco precisa receber o saldo inteiro, e o carro, sozinho, não cobre. A diferença tem de vir de algum lugar.",
             "As saídas conhecidas são três. Cobrir a diferença com dinheiro próprio na hora da quitação. Esperar, seguindo com as parcelas até o saldo cair abaixo do valor do carro — sabendo que o carro também continua perdendo valor enquanto isso. Ou cobrir a diferença com outro crédito, o que troca uma dívida por outra e depende de aprovação.",
+            "Na Motors Store, essa conta não fecha: quando a dívida é maior do que o carro vale, a loja recusa o negócio.",
             "Nenhuma delas se decide sem os números do seu caso. O que dá para fazer é chegar com os dois na mão: o saldo de quitação que o banco informou, com a data, e a avaliação do carro. Dúvida sobre o seu contrato — uma tarifa, uma cláusula, o cálculo do saldo — é conversa para o banco, o Procon ou um advogado."
           ]
         },
@@ -308,7 +313,7 @@
         },
         {
           "pergunta": "E se eu dever mais do que o carro vale?",
-          "resposta": "É o que o mercado chama de saldo negativo. Para quitar, o banco precisa receber o saldo inteiro, e o carro sozinho não cobre: a diferença sai do bolso, espera-se o saldo cair com as parcelas, ou recorre-se a outro crédito, que depende de aprovação. Leve o saldo de quitação e a avaliação lado a lado para saber o tamanho exato da diferença."
+          "resposta": "É o que o mercado chama de saldo negativo. Para quitar, o banco precisa receber o saldo inteiro, e o carro sozinho não cobre: a diferença sai do bolso, espera-se o saldo cair com as parcelas, ou recorre-se a outro crédito, que depende de aprovação. Leve o saldo de quitação e a avaliação lado a lado para saber o tamanho exato da diferença. Na Motors Store, enquanto a dívida for maior do que o valor do carro, a loja recusa o negócio."
         }
       ],
       "saida": {
@@ -333,7 +338,7 @@
           "titulo": "A consignação, do começo ao fim",
           "paragrafos": [
             "Na consignação, a loja vende o carro por você: o valor que você recebe é combinado antes, em contrato, e sai quando o carro vende, menos os custos de preparação. É o oposto da venda direta, em que a loja compra na hora e assume o tempo de venda — na consignação, quem espera é você.",
-            "Na Motors Store, a consignação tem dois formatos, presencial e digital, e o consultor explica cada um no contrato. O prazo é definido na hora do contrato. A loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários, se for o caso —, por PIX."
+            "Na Motors Store, a consignação tem dois formatos, presencial e digital. No presencial, o carro fica exposto na loja, e a chance de venda é maior: quem entra para ver outro carro acaba vendo o seu. Nos dois, a loja anuncia o carro em todos os canais de mídia que tem e trabalha o carro para a venda; o prazo é definido no contrato e é flexível; e não há custo além do que as partes acordarem nele. Quando ele vende, você recebe o valor acordado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários, se for o caso —, por PIX."
           ]
         },
         {
@@ -391,7 +396,11 @@
         },
         {
           "pergunta": "Quanto tempo o carro fica em consignação?",
-          "resposta": "O prazo que estiver no contrato. Na Motors Store, ele é definido na hora do contrato, em qualquer um dos dois formatos, presencial ou digital. Antes de assinar, pergunte o que acontece se o prazo terminar sem venda."
+          "resposta": "O prazo que estiver no contrato. Na Motors Store, ele é definido na assinatura, nos dois formatos, presencial ou digital, e é flexível; não há custo além do que as partes acordarem no contrato. Antes de assinar, confirme como fica o combinado se o prazo terminar sem venda."
+        },
+        {
+          "pergunta": "Qual é a diferença entre consignação presencial e digital?",
+          "resposta": "A exposição. No presencial, o carro fica na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois formatos a loja anuncia o carro em todos os canais de mídia que tem, o prazo é definido no contrato e é flexível, e não há custo além do que as partes acordarem nele."
         },
         {
           "pergunta": "O que sai do valor na consignação?",
@@ -440,7 +449,7 @@
           "paragrafos": [
             "Os débitos do carro — IPVA, licenciamento e multas — são quitados pela loja, e o valor deles sai do total. Vale dizer com todas as letras: quem paga, no fim, é você, porque as contas são do carro e saem do valor dele. O que a loja assume é o trabalho de levantar e pagar cada conta.",
             "Não é burocracia à toa. O Código de Trânsito exige, para expedir o documento do novo dono, a quitação dos débitos de tributos, encargos e multas vinculados ao veículo — uma exigência que o Supremo Tribunal Federal já julgou constitucional. Carro com débito em aberto não ganha documento em nome de outra pessoa.",
-            "Se quiser chegar sabendo o tamanho da conta, o extrato do veículo, no site do Detran-PR, é gratuito e mostra IPVA, licenciamento, multas e restrições. E uma pergunta vale ser feita antes de assinar: como fica uma multa de antes da venda que só chegar depois. Entre a infração e a notificação passa algum tempo, e o combinado sobre esse caso precisa estar claro."
+            "Se quiser chegar sabendo o tamanho da conta, o extrato do veículo, no site do Detran-PR, é gratuito e mostra IPVA, licenciamento, multas e restrições. E a multa de antes da venda que só chega depois? Entre a infração e a notificação passa algum tempo. Na Motors Store, o combinado é este: a loja paga e depois cobra do proprietário anterior — de quem era dono do carro quando a infração aconteceu."
           ]
         },
         {
@@ -487,6 +496,10 @@
           "resposta": "Paga, e o valor sai do total. Na Motors Store, IPVA, licenciamento e multas em aberto são quitados pela loja, que cuida do trâmite; como as contas são do carro, elas saem do valor que você recebe. Sem essa quitação, o documento do novo dono não é expedido."
         },
         {
+          "pergunta": "E a multa de antes da venda que chega depois?",
+          "resposta": "Na Motors Store, a loja paga e depois cobra do proprietário anterior. A conta fica vinculada ao carro e trava o documento, então ela é resolvida primeiro e acertada com quem vendeu depois. Guarde o comprovante da comunicação de venda: é ele que mostra a data a partir da qual o carro deixou de ser seu."
+        },
+        {
           "pergunta": "Quem faz a comunicação de venda quando vendo para a loja?",
           "resposta": "A loja, com uma procuração sua. O Detran-PR aceita que o procurador faça o serviço, com procuração pública ou particular com firma reconhecida. Depois do negócio, peça o comprovante: ele mostra a data a partir da qual o carro deixou de ser seu."
         },
@@ -528,7 +541,7 @@
           "titulo": "Preço: por que os dois números não se encontram",
           "paragrafos": [
             "No anúncio, quem põe o preço é você, e quem decide se ele para de pé é o comprador. Preço pedido não é preço recebido: a conversa começa nele e costuma terminar em outro lugar. E anúncio acima do mercado fica parado, o que também custa.",
-            "Na loja, o número sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média de preços do mercado nacional apurada sobre o que já aconteceu — retrovisor, não para-brisa. Dessa média, a avaliação tira o que aquele carro específico vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem quando está acima da média para o ano e o tempo que aquele modelo, versão e cor levam para vender na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, carro reprovado a loja não compra e apontamento pesa no valor. Débitos e financiamento ficam fora da avaliação; são contas que a loja quita pelo vendedor, e o valor delas sai do total.",
+            "Na loja, o número sai de uma conta. Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo, uma média de preços do mercado nacional apurada sobre o que já aconteceu — retrovisor, não para-brisa. Dessa média, a avaliação tira o que aquele carro específico vai custar e demorar para ser vendido: a preparação para a vitrine, a quilometragem quando está acima da média para o ano e o tempo que aquele modelo, versão e cor levam para vender na região. Estado e procedência entram na mesma conta: a perícia cautelar independente é feita antes da compra, carro reprovado a loja não compra e apontamento pesa no valor. Débitos e financiamento ficam fora da avaliação; são contas que a loja quita pelo vendedor, e o valor delas sai do total. Avaliar é gratuito.",
             "A distância entre os dois números não é mistério: é o trabalho e o risco mudando de mão. Como a loja chega no número está em \"Quanto vale meu carro usado: como a loja chega no número\", e o que a FIPE mede, e o que não mede, em \"Tabela FIPE não é preço de venda: o que ela diz\"."
           ]
         },
@@ -756,7 +769,7 @@
           "titulo": "Consignação",
           "paragrafos": [
             "Fica no meio do caminho: a loja vende por você, e você recebe quando o carro vende.",
-            "Na Motors Store, a consignação tem dois formatos, presencial e digital, e o consultor explica cada um no contrato. O prazo também é definido no contrato. A loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias do recebimento dos valores da operação.",
+            "Na Motors Store, a consignação tem dois formatos, presencial e digital: no presencial, o carro fica exposto na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois, o prazo é definido no contrato e é flexível, não há custo além do que as partes acordarem nele, e a loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias do recebimento dos valores da operação.",
             "O preço é combinado antes, e não depois. O que muda em relação à venda direta é quem espera: na consignação, a espera é sua, dentro do prazo do contrato. Os detalhes estão em \"Consignação de carro: como funciona\"."
           ]
         },
@@ -804,7 +817,7 @@
         },
         {
           "pergunta": "Como funciona a venda para uma loja que compra carro em Curitiba?",
-          "resposta": "Na Motors Store, no Bacacheri, o carro passa por avaliação e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação."
+          "resposta": "Na Motors Store, no Bacacheri, o carro passa por avaliação — gratuita — e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação."
         },
         {
           "pergunta": "O que a avaliação de carro leva em conta?",
