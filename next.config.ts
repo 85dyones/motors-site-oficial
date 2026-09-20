@@ -154,6 +154,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     const alias = "motors-site-oficial.vercel.app";
     const destino = "https://motorsstore.com.br";
+    /**
+     * O site que o RevendaMais hospedava para a loja, que sai do ar na virada.
+     * Medido em 2026-09-20: `motorsstoreoficial.com.br` e o `www.` servem a
+     * mesma página, byte a byte.
+     */
+    const antigos = ["motorsstoreoficial.com.br", "www.motorsstoreoficial.com.br"];
     return [
       {
         source: "/:caminho((?!api/).*)",
@@ -161,6 +167,68 @@ const nextConfig: NextConfig = {
         destination: `${destino}/:caminho`,
         permanent: true,
       },
+
+      // ----------------------------------------------------------------
+      // A virada do domínio antigo (2026-09-20)
+      // ----------------------------------------------------------------
+      // As regras de caminho vêm ANTES da regra de host e são relativas de
+      // propósito: elas valem nos dois desenhos possíveis da virada — o
+      // RevendaMais devolvendo 301 no Apache dele (o pedido chega aqui já no
+      // domínio novo) ou o DNS apontando para a Vercel (chega no domínio
+      // velho, converte o caminho e a regra de host leva para o canônico).
+      // Em nenhum dos dois o visitante vê 404.
+      //
+      // Medido nas 57 URLs do sitemap do site antigo: 43 já caíam de pé, e as
+      // 14 de `/multipla` davam 404. As fichas de carro já funcionavam sozinhas
+      // porque a URL do RevendaMais tem os mesmos cinco segmentos que a rota
+      // `[legado]` espera, e termina no mesmo id do anúncio.
+      //
+      // Marca desconhecida (que a loja deixou de trabalhar) cai no 404 de
+      // `/carros/<marca>` — o mesmo 404 de hoje, sem regressão.
+      {
+        source: "/multipla/marca/:marca",
+        destination: "/carros/:marca",
+        permanent: true,
+      },
+      // Os outros filtros do catálogo velho (`/multipla/modelo/...`,
+      // `/multipla/preco/...`) não têm equivalente um-para-um: a vitrine
+      // inteira é o destino honesto.
+      {
+        source: "/multipla/:resto*",
+        destination: "/estoque",
+        permanent: true,
+      },
+      {
+        source: "/busca/:resto*",
+        destination: "/estoque",
+        permanent: true,
+      },
+      // `/carros` sozinho era a porta do catálogo lá (302 para `/busca/`).
+      // Exato, nunca com `:resto*`: `/carros/bmw` é hub de marca e responde
+      // 200 aqui.
+      {
+        source: "/carros",
+        destination: "/estoque",
+        permanent: true,
+      },
+      // A política de privacidade do site antigo era uma página de verdade,
+      // com LGPD no texto. Perder o endereço dela é o pior dos 404.
+      {
+        source: "/politica-de-privacidade",
+        destination: "/privacidade",
+        permanent: true,
+      },
+
+      // O canônico, para o caso de o domínio velho passar a ser servido daqui.
+      // Sem isto o site inteiro responderia 200 nos dois endereços — o mesmo
+      // conteúdo duplicado que o alias da Vercel já causou em agosto.
+      // `/api/` fica de fora pela mesma razão explicada acima.
+      ...antigos.map((host) => ({
+        source: "/:caminho((?!api/).*)",
+        has: [{ type: "host" as const, value: host }],
+        destination: `${destino}/:caminho`,
+        permanent: true,
+      })),
     ];
   },
 };
