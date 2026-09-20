@@ -36,7 +36,7 @@ Os débitos do carro — IPVA, licenciamento e multas — são quitados pela loj
 
 Não é burocracia à toa. O Código de Trânsito exige, para expedir o documento do novo dono, a quitação dos débitos de tributos, encargos e multas vinculados ao veículo — uma exigência que o Supremo Tribunal Federal já julgou constitucional. Carro com débito em aberto não ganha documento em nome de outra pessoa.
 
-Se quiser chegar sabendo o tamanho da conta, o extrato do veículo, no site do Detran-PR, é gratuito e mostra IPVA, licenciamento, multas e restrições. E uma pergunta vale ser feita antes de assinar: como fica uma multa de antes da venda que só chegar depois. Entre a infração e a notificação passa algum tempo, e o combinado sobre esse caso precisa estar claro.
+Se quiser chegar sabendo o tamanho da conta, o extrato do veículo, no site do Detran-PR, é gratuito e mostra IPVA, licenciamento, multas e restrições. E a multa de antes da venda que só chega depois? Entre a infração e a notificação passa algum tempo. Na Motors Store, o combinado é este: a loja paga e depois cobra do proprietário anterior — de quem era dono do carro quando a infração aconteceu.
 
 ## Financiamento em aberto: a loja quita o banco
 
@@ -80,6 +80,9 @@ Antes de vender, confira IPVA, licenciamento e multas; se houver financiamento, 
 
 **A loja paga o IPVA e as multas do meu carro?**
 Paga, e o valor sai do total. Na Motors Store, IPVA, licenciamento e multas em aberto são quitados pela loja, que cuida do trâmite; como as contas são do carro, elas saem do valor que você recebe. Sem essa quitação, o documento do novo dono não é expedido.
+
+**E a multa de antes da venda que chega depois?**
+Na Motors Store, a loja paga e depois cobra do proprietário anterior. A conta fica vinculada ao carro e trava o documento, então ela é resolvida primeiro e acertada com quem vendeu depois. Guarde o comprovante da comunicação de venda: é ele que mostra a data a partir da qual o carro deixou de ser seu.
 
 **Quem faz a comunicação de venda quando vendo para a loja?**
 A loja, com uma procuração sua. O Detran-PR aceita que o procurador faça o serviço, com procuração pública ou particular com firma reconhecida. Depois do negócio, peça o comprovante: ele mostra a data a partir da qual o carro deixou de ser seu.

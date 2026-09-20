@@ -20,7 +20,7 @@ palavras: ~1.350
 
 Dá: a loja quita o financiamento direto com o banco, e o saldo — o valor do carro menos o que falta pagar — vira entrada no próximo carro ou, numa venda, volta para você. O número que decide essa conta é o saldo de quitação, e ele não é a soma das parcelas que faltam.
 
-Na Motors Store, carro com financiamento em aberto é aceito na venda e na troca, e a quitação é feita por aqui, junto ao banco. O resto deste guia explica o que acontece no meio: por que o carro é garantia do banco, como se chega ao saldo, em que ordem a dívida sai do documento, e o que muda quando ela é maior do que o carro vale.
+Na Motors Store, carro com financiamento em aberto é aceito na venda e na troca, e a quitação é feita por aqui, junto ao banco. O resto deste guia explica o que acontece no meio: por que o carro é garantia do banco, como se chega ao saldo, em que ordem a dívida sai do documento, e o que muda quando ela é maior do que o carro vale — o caso em que a loja recusa o negócio.
 
 ## Por que o carro financiado é garantia do banco
 
@@ -55,6 +55,8 @@ O caso tem uma mecânica conhecida. Nos primeiros anos, o carro perde valor mais
 O mercado chama isso de saldo negativo. A consequência é aritmética: para quitar, o banco precisa receber o saldo inteiro, e o carro, sozinho, não cobre. A diferença tem de vir de algum lugar.
 
 As saídas conhecidas são três. Cobrir a diferença com dinheiro próprio na hora da quitação. Esperar, seguindo com as parcelas até o saldo cair abaixo do valor do carro — sabendo que o carro também continua perdendo valor enquanto isso. Ou cobrir a diferença com outro crédito, o que troca uma dívida por outra e depende de aprovação.
+
+Na Motors Store, essa conta não fecha: quando a dívida é maior do que o carro vale, a loja recusa o negócio.
 
 Nenhuma delas se decide sem os números do seu caso. O que dá para fazer é chegar com os dois na mão: o saldo de quitação que o banco informou, com a data, e a avaliação do carro. Dúvida sobre o seu contrato — uma tarifa, uma cláusula, o cálculo do saldo — é conversa para o banco, o Procon ou um advogado.
 
@@ -92,7 +94,7 @@ Pedindo ao banco o valor de quitação antecipada, pelo aplicativo, pela interne
 Pela norma do Contran, depois da quitação o banco tem até dez dias para informar o Detran, que faz a baixa a partir dessa informação e tira a anotação do documento do carro. A declaração de quitação que o banco emite é o comprovante de que a dívida acabou — guarde uma cópia.
 
 **E se eu dever mais do que o carro vale?**
-É o que o mercado chama de saldo negativo. Para quitar, o banco precisa receber o saldo inteiro, e o carro sozinho não cobre: a diferença sai do bolso, espera-se o saldo cair com as parcelas, ou recorre-se a outro crédito, que depende de aprovação. Leve o saldo de quitação e a avaliação lado a lado para saber o tamanho exato da diferença.
+É o que o mercado chama de saldo negativo. Para quitar, o banco precisa receber o saldo inteiro, e o carro sozinho não cobre: a diferença sai do bolso, espera-se o saldo cair com as parcelas, ou recorre-se a outro crédito, que depende de aprovação. Leve o saldo de quitação e a avaliação lado a lado para saber o tamanho exato da diferença. Na Motors Store, enquanto a dívida for maior do que o valor do carro, a loja recusa o negócio.
 
 ---
 

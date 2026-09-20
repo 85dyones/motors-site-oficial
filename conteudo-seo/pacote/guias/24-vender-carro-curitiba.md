@@ -44,7 +44,7 @@ O risco é baixo. A ressalva honesta é outra: nem todo carro entra. De cada dez
 
 Fica no meio do caminho: a loja vende por você, e você recebe quando o carro vende.
 
-Na Motors Store, a consignação tem dois formatos, presencial e digital, e o consultor explica cada um no contrato. O prazo também é definido no contrato. A loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias do recebimento dos valores da operação.
+Na Motors Store, a consignação tem dois formatos, presencial e digital: no presencial, o carro fica exposto na loja, e a chance de venda é maior, porque quem entra para ver outro carro acaba vendo o seu. Nos dois, o prazo é definido no contrato e é flexível, não há custo além do que as partes acordarem nele, e a loja anuncia o carro em todos os canais de mídia que tem e prepara o carro para a venda. Quando ele vende, você recebe o valor combinado antes, em contrato, menos os custos de preparação — perícia, polimento, higienização e outros que forem necessários —, por Pix, em até oito dias do recebimento dos valores da operação.
 
 O preço é combinado antes, e não depois. O que muda em relação à venda direta é quem espera: na consignação, a espera é sua, dentro do prazo do contrato. Os detalhes estão em "Consignação de carro: como funciona".
 
@@ -90,7 +90,7 @@ Decida primeiro o que pesa mais: o número, o prazo ou o sossego. Se for anuncia
 Há cinco caminhos: anúncio particular, venda para uma loja, consignação, plataforma de compra instantânea e troca. O anúncio pode render mais e deixa com você o tempo, a papelada e o risco; a loja resolve a papelada e paga em prazo definido; a troca usa o valor do seu carro como entrada no próximo; a consignação combina o valor antes e espera a venda; a plataforma aposta na rapidez, com proposta que se confirma na inspeção. A escolha depende do que pesa mais para você.
 
 **Como funciona a venda para uma loja que compra carro em Curitiba?**
-Na Motors Store, no Bacacheri, o carro passa por avaliação e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação.
+Na Motors Store, no Bacacheri, o carro passa por avaliação — gratuita — e por perícia cautelar independente antes da compra; carro reprovado a loja não compra. Se fechar, a loja cuida da transferência, quita débitos e financiamento em aberto — o valor deles sai do total — e faz a comunicação de venda ao Detran-PR com procuração. O pagamento sai em até oito dias, contados do recebimento dos valores da operação.
 
 **O que a avaliação de carro leva em conta?**
 Na Motors Store, a avaliação parte da FIPE da versão e do ano-modelo e tira da média o que aquele carro vai custar e demorar para ser vendido: preparação, quilometragem acima da média para o ano e tempo de venda na região. Estado e procedência entram na mesma conta, e apontamento na perícia pesa no valor. Débitos e financiamento ficam fora da avaliação e saem do total.
@@ -138,8 +138,8 @@ Medido com a lógica de `segmentarComLinks` portada para JS, sobre corpo e FAQ: 
 
 - **Pilar ou spoke.** O `00-guia-normativo.md` (1.4) põe `/guias/vender-carro-curitiba` como hub do Pilar 6; o plano de 18/09 (`docs/superpowers/plans/2026-09-17-ondas-de-conteudo.md`, §5) põe o pilar da onda em "Quanto vale meu carro usado: como a loja chega no número". A peça foi escrita como spoke local, que cita o pilar. Se o dono quiser esta como hub, ela precisa citar as dez peças da onda.
 - **Plataforma de compra instantânea** está descrita pela categoria e em termos gerais ("em geral", "costuma"). Nada sobre prazo, preço ou percentual dessas empresas. Vale uma leitura do dono, que conhece o mercado local.
-- **Consignação: o que cada formato faz com o carro** (onde ele fica, quem guarda a chave, como a transferência é feita) não está nos fatos. A peça diz que existem os dois formatos e que o consultor explica no contrato.
-- **A avaliação é gratuita e sem compromisso?** A `/avaliacao` publicada pode dizer isso, mas não está nos fatos da Onda 3; a peça não diz.
+- **Consignação: o que cada formato faz com o carro** (quem guarda a chave, como a transferência é feita) continua sem fato. Em 20/09 o dono disse que a exposição e a chance de venda são maiores no presencial, e a peça diz isso; onde o carro fica no formato digital não foi dito.
+- **A avaliação é gratuita** — confirmado pelo dono em 20/09, e a peça diz. "Sem compromisso" continua não dito, e não entrou. Da perícia, o dono disse que ela não é gratuita quando o negócio é recusado; isso está no pilar da onda, não aqui.
 - **Alcance.** A peça não fala de entrega nem de busca de carro fora de Curitiba: o alcance da casa (Paraná e litoral catarinense até Balneário Camboriú) é de entrega de carro vendido, não de compra.
 
 ---

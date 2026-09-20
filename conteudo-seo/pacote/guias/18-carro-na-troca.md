@@ -76,7 +76,7 @@ E pergunte, de preferência com a resposta por escrito: quais contas saem do val
 
 ## O que fazer agora
 
-Antes de visitar lojas, saiba quanto o seu carro deve em IPVA, licenciamento, multas e financiamento, e junte documento, manual, chave reserva e notas de revisão. Na hora de comparar, ponha lado a lado o valor do seu carro, o preço do próximo, a diferença entre os dois, o CET do financiamento e o que cada loja inclui no preço. Na Motors Store, a troca começa pela avaliação do seu carro, e o valor dela, depois das contas, é a sua entrada.
+Antes de visitar lojas, saiba quanto o seu carro deve em IPVA, licenciamento, multas e financiamento, e junte documento, manual, chave reserva e notas de revisão. Na hora de comparar, ponha lado a lado o valor do seu carro, o preço do próximo, a diferença entre os dois, o CET do financiamento e o que cada loja inclui no preço. Na Motors Store, a troca começa pela avaliação do seu carro, que é gratuita, e o valor dela, depois das contas, é a sua entrada.
 
 [Pedir avaliação do meu carro →](/avaliacao)
 

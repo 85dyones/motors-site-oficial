@@ -60,7 +60,7 @@ Nada disso é gosto de quem avalia. É a velocidade com que aquele carro vira di
 
 ## Estado e procedência: o que a perícia mostra
 
-Estado e procedência entram no mesmo cálculo. Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra. Apontamento — uma peça trocada, uma repintura, um registro no histórico — pesa no valor, porque vai pesar do mesmo jeito para quem comprar o carro depois.
+Estado e procedência entram no mesmo cálculo. Antes da compra, o carro passa por uma perícia cautelar independente, que olha identificação, estrutura e histórico. Carro reprovado a loja não compra. Apontamento — uma peça trocada, uma repintura, um registro no histórico — pesa no valor, porque vai pesar do mesmo jeito para quem comprar o carro depois. Duas informações de custo, antes de começar: a avaliação é gratuita; a perícia cautelar, se o negócio for recusado depois dela, não é — pergunte o valor antes.
 
 O que cada resultado significa está em "Laudo cautelar: aprovado, com apontamento ou reprovado", e o que fazer quando o carro reprova está em "Meu carro reprovou no laudo cautelar". É o mesmo exame que todo carro da vitrine passou antes de ser anunciado, e o laudo fica com o vendedor da loja e sai a pedido de quem vai comprar.
 
@@ -125,6 +125,9 @@ Porque cada uma responde a uma pergunta um pouco diferente: parte de uma referê
 
 **O que fazer antes de levar o carro para avaliar?**
 Saiba quanto ele deve de IPVA, licenciamento e multas; junte as notas de revisão com a quilometragem, o manual e a chave reserva; e lave o carro. Se ele for financiado, peça ao banco o saldo de quitação. E não gaste com reparo antes de perguntar quanto aquele item pesa na avaliação.
+
+**A avaliação é gratuita?**
+É. Na Motors Store, avaliar o carro não custa nada. A perícia cautelar é outra conta: se o negócio for recusado depois dela, ela não é gratuita. Pergunte o valor antes de ela ser feita.
 
 ---
 

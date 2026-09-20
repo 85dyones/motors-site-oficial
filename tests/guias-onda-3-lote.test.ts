@@ -206,6 +206,43 @@ describe("os fatos que o dono confirmou em 18/09", () => {
   });
 });
 
+describe("os fatos que o dono confirmou em 20/09", () => {
+  /* As quatro respostas que fecharam as perguntas dos redatores:
+     "avaliação gratuita, perícia em caso de recusa do negócio, não";
+     "recusa o negócio" (dívida maior do que o valor do carro);
+     "a exposição do carro e chance de venda na física é maior […], mas ambas
+     funcionam com prazo definido e flexível, sem custo adicional além do que
+     for acordado entre as partes no contrato";
+     "a loja paga e cobra do proprietário anterior depois" (multa antiga). */
+
+  it("a avaliação é gratuita, e a perícia nunca é chamada de gratuita", () => {
+    expect(textoInteiro(peca("quanto-vale-meu-carro-usado"))).toMatch(/avaliação é gratuita/i);
+    for (const guia of lote.guias) {
+      const arriscadas = frases(guia).filter((f) => /perícia/i.test(f) && /gratuit/i.test(f));
+      for (const frase of arriscadas) {
+        expect(frase, `${guia.slug}: perícia dita gratuita`).toMatch(/\bnão\b/i);
+      }
+    }
+  });
+
+  it("saldo negativo: a loja recusa o negócio", () => {
+    expect(textoInteiro(peca("vender-carro-financiado"))).toMatch(/recusa o negócio/i);
+  });
+
+  it("consignação: a exposição do presencial, o prazo flexível, nenhum custo fora do contrato", () => {
+    const tudo = textoInteiro(peca("consignacao-de-carro"));
+    expect(tudo).toMatch(/presencial[^.]{0,140}\bloja\b/i);
+    expect(tudo).toMatch(/flexível/i);
+    expect(tudo).toMatch(/não há custo além/i);
+  });
+
+  it("multa de antes da venda que chega depois: a loja paga e cobra de quem vendeu", () => {
+    const tudo = textoInteiro(peca("o-que-a-loja-assume-na-compra"));
+    expect(tudo).toMatch(/a loja paga e[^.]{0,40}cobra/i);
+    expect(tudo).toMatch(/proprietário anterior/i);
+  });
+});
+
 describe("as regras que valem para todo texto da casa", () => {
   const PADROES: [string, RegExp][] = [
     ["laudo prometido na ficha", /laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]{0,120}/i],
