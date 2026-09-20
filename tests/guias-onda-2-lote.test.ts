@@ -110,6 +110,13 @@ const textoInteiro = (guia: GuiaJson) =>
 /** As frases, para medir atribuição dentro da frase e não na página toda. */
 const frases = (guia: GuiaJson) => textoInteiro(guia).split(/(?<=[.!?])\s+/);
 
+/** Uma peça pelo slug, para as travas que valem só para uma delas. */
+const peca = (slug: string): GuiaJson => {
+  const achada = lote.guias.find((g) => g.slug === slug);
+  if (!achada) throw new Error(`peça ausente do lote: ${slug}`);
+  return achada;
+};
+
 describe("o lote da Onda 2 é o que se espera dele", () => {
   it("são as seis peças, todas publicadas", () => {
     expect(lote.guias.map((g) => g.slug)).toEqual(AS_SEIS);
@@ -250,7 +257,14 @@ describe("nenhum número que a casa não mediu", () => {
         /\d[\d.]*\s*(?:mil\s+)?(?:km(?!\/h)|quil[ôo]metros(?!\s+por\s+hora))/i.test(f),
       )) {
         const daLoja = frase.includes(PRAZO_DA_GARANTIA);
-        const doPlano = /plano|estendid|Gestauto|manual|intervalo|revisão|troca de óleo/i.test(frase);
+        /* A Onda 2.1 trouxe um terceiro dono possível para a quilometragem: o
+           programa do FABRICANTE (a extensão de garantia do câmbio da Ford, a
+           garantia da correia da Chevrolet, o intervalo que a Ford reduziu).
+           Continua valendo que número sem dono não entra. */
+        const doPlano =
+          /plano|estendid|extensão de garantia|Gestauto|manual|intervalo|revisão|troca de óleo/i.test(
+            frase,
+          );
         expect(daLoja || doPlano, `${guia.slug}: quilometragem sem dizer de quem é -> ${frase}`).toBe(true);
       }
 
@@ -338,7 +352,7 @@ describe("Onda 2.1 — motor e câmbio com nome só com fonte", () => {
 
   it("todo nome publicado tem linha no arquivo de fontes", () => {
     const fontes = readFileSync(
-      join(process.cwd(), "conteudo-seo/pacote/guias/ONDA-2-1-FONTES.md"),
+      join(__dirname, "..", "conteudo-seo", "pacote", "guias", "ONDA-2-1-FONTES.md"),
       "utf8",
     );
     for (const nome of [

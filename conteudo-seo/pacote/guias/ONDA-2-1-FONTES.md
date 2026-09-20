@@ -91,9 +91,34 @@ EcoBoost; Onix e Onix Plus não têm 1.2 turbo; Renault Kwid não tem motor turb
 | VW/Audi **DQ250**, 6 marchas | **banhado em óleo** (multidiscos imersos) | mesma família, versões de mais torque | Revista O Mecânico, 18/12/2022 (**S**, aberta) |
 | Ford **PowerShift**, 6 marchas | **a seco** | EcoSport 2.0 (desde o fim de 2012), Fiesta, Focus | Revista O Mecânico, 25/07/2022 (**S**, aberta). A matéria registra que em 2016 a Ford afirmou que a trepidação podia vir de "vazamento de óleo do câmbio pelo retentor da caixa seca, que atingia as embreagens e as contaminava" |
 | Hyundai **DCT7**, 7 marchas | **a seco** | Creta da geração nova, versão 1.6 turbo | Revista O Mecânico, 31/10/2024 — "dupla embreagem a seco de 7 marchas (DCT7)" (**S**, aberta) |
+| VW **DQ250**, 6 marchas | **banhado em óleo** | Tiguan Allspace 250 TSI e Comfortline (2018 →) | Newsroom Volkswagen do Brasil, 04/2018 — "As versões 250 TSI e Comfortline 250 TSI utilizam a transmissão DQ250, com seis marchas, imersa em óleo" (**P**, aberta) |
+| VW **DQ500**, 7 marchas | **banhado em óleo** | Tiguan Allspace R-Line 350 TSI (2018 →) | Newsroom Volkswagen do Brasil, 04/2018 — "transmissão DSG de sete marchas (DQ500), também imersa em óleo" (**P**, aberta) |
+| Mercedes-Benz **7G-DCT**, 7 marchas | banhado (refrigerado a óleo) | Classe A, CLA e GLA (2013 →) | Sala de imprensa Mercedes-Benz do Brasil, 01/09/2014 e 29/09/2023 — "transmissão automática de dupla embreagem (DCT) de 7 velocidades" (**P**, abertas) |
+| Hyundai **7DCT** (D7UF1) | **a seco** | Tucson 1.6 Turbo GDI (2016 → 2021) | Mundo do Automóvel para PCD via Terra, 06/11/2025 — "utiliza sistema de dupla embreagem a seco" (**S**, aberta) |
+| Kia **7DCT**, 7 marchas | não confirmado se seco ou banhado | Sportage híbrido da geração atual | site oficial da Kia Brasil — "câmbio automático de 7 velocidades e dupla embreagem (DCT)" (**P**, aberta). O Sportage de 2014 a 2021 usava automático convencional de 6 marchas (**S**) |
+| Caoa Chery **DCT**, 7 marchas | **banhado em óleo** | Tiggo 8 (2020 →) | AutoEntusiastas, 14/08/2020 — "câmbio de 7 marchas automatizado com dupla embreagem em banho de óleo" (**S**, aberta). O Tiggo 7 1.5T teve DCT de 6 marchas (**S**); o Arrizo 6 é CVT (**S**, AutoPapo) |
+| BMW **M DKG**, 7 marchas | banhado (refrigerado a óleo) | M3 e M4 | Sala de imprensa BMW Group Brasil — "transmissão de dupla embreagem M DKG, de sete marchas… refrigerado a óleo" (**P**, aberta) |
+| Porsche **PDK** | não confirmado | 911, 718 GTS 4.0, Panamera, Macan a combustão | comparador oficial da Porsche Brasil (**P**, aberta) — a página diz "PDK (Automática)" sem o número de marchas |
 
-**Pendente, e por isso fora da peça:** Mercedes 7G-DCT, Kia 7DCT, os DCT das marcas
-chinesas e o DQ381. **A peça 12 só nomeia o que está nesta tabela.**
+**O que o emblema não diz (achado que evita erro de leitura):** os Volkswagen **250 TSI**
+de Polo, Virtus, T-Cross, Nivus e Taos **não** são dupla embreagem — usam automático de
+conversor de torque, segundo os próprios comunicados da marca (Newsroom VW, Nivus GTS
+30/04/2025 e Polo GTS — "transmissão automática de seis velocidades com conversor de
+torque", **P**, abertas).
+
+**Ford PowerShift, documento primário:** a petição da própria Ford ao Procon-SP, de
+16/12/2015, hospedada no site do Procon-SP (**P**, aberta), descreve a "Transmissão
+Sequencial PowerShift de 6 Velocidades", atribui a trepidação à contaminação da
+embreagem seca por fluido da parte úmida, sustenta que "não há que se falar em […]
+campanha de recall" e informa a extensão de garantia: dois anos além dos três, "totalizando
+[…] 5 (cinco) anos – ou até 160.000 [km]", para New Fiesta e EcoSport 2013 e 2014 e Focus
+2014. Em 2021 o Procon-SP multou a Ford por vício oculto nesse câmbio (imprensa citando o
+órgão, **S**) — **fora do texto público**, por ser matéria de processo, não de manutenção.
+Nenhum recall de câmbio aparece na busca do sistema oficial da Ford para esses modelos.
+
+**Pendente, e por isso fora da peça:** o código exato dos DSG de sete marchas dos Jetta
+GLI e Golf GTI atuais (os comunicados dizem só "DSG de sete marchas"), o DQ381, e se o
+7DCT da Kia e o PDK da Porsche são secos ou banhados.
 
 ## 6. Recalls de motor, fora do tema da correia (contexto para as peças)
 
