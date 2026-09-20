@@ -17,6 +17,15 @@
           ]
         },
         {
+          "titulo": "Quais turbos pequenos você encontra no mercado brasileiro",
+          "paragrafos": [
+            "Motor turbo de baixa cilindrada deixou de ser exceção no Brasil faz tempo, e a lista dos que já rodaram o suficiente para estar no mercado de usados é grande. Vale conhecer os nomes antes de ir ver o carro.",
+            "Da Volkswagen, o 1.0 TSI e o 1.4 TSI — o número do emblema, 200 ou 250 TSI, é o torque em newton-metro, não a cilindrada —, em Polo, Virtus, T-Cross, Nivus, Taos e Golf. Da Chevrolet, o 1.0 turbo de Onix e Onix Plus e o 1.2 turbo de Tracker e Montana. Da Fiat e da Jeep, o T200, de um litro, e o T270, de 1.3, em Pulse, Fastback, Strada, Toro, Renegade, Compass e Commander — os mesmos motores que hoje equipam Peugeot 208 e 2008 e Citroën C3. Da Hyundai, o 1.0 TGDI de HB20, HB20S e Creta. Da Renault, o 1.0 TCe do Kardian e o 1.3 TCe de Captur, Duster e Oroch. Da Ford, o 1.0 EcoBoost do New Fiesta e o 1.5 EcoBoost do Territory. Da Honda, o 1.5 turbo do HR-V nas versões Advance e Touring e do Civic da geração passada. De Peugeot e Citroën, o 1.6 THP mais antigo, de 408, 3008, RCZ, 2008 e C4 Lounge. Da Caoa Chery, o 1.5 dos Tiggo 5x e Tiggo 7 e o 1.6 do Tiggo 8. Da Mitsubishi, o 1.5 do Eclipse Cross; da Kia, o 1.6 do Sportage; da Nissan, o 1.0 do Kicks mais recente.",
+            "Três confusões comuns valem ser desfeitas, porque aparecem em anúncio. Ford Ka e EcoSport brasileiros nunca tiveram motor turbo: os três-cilindros 1.0 e 1.5 deles são aspirados, apesar de dividirem arquitetura com a família EcoBoost. No HR-V, só Advance e Touring têm o 1.5 turbo — EX e EXL são aspiradas. E o Renault Kwid não tem versão turbo.",
+            "O que mais muda de um desses motores para outro, na hora de comprar usado, não é a marca: é qual óleo o fabricante exige, como é feito o sincronismo do motor e se a injeção é direta. Os dois últimos pontos têm guia próprio — \"Correia dentada banhada em óleo: por que ela falha\" e \"Carbonização de válvulas em injeção direta\" —, e o primeiro está algumas linhas abaixo, na checagem documental."
+          ]
+        },
+        {
           "titulo": "O que o desgaste faz nesses motores",
           "paragrafos": [
             "Quase tudo o que dá errado num turbo pequeno começa no óleo, e quase nada começa no turbo.",
@@ -40,6 +49,7 @@
             "A folga do eixo é checagem de minutos para um mecânico, e dispensa desmontar o motor: solta-se a tubulação de admissão e sente-se o eixo com a mão, procurando folga e, sobretudo, qualquer sinal de contato do rotor com a carcaça. Se o vendedor não permite essa checagem num carro turbo, essa recusa já é uma resposta.",
             "Procure sinal de remap e de peça fora de especificação: módulo piggyback, chicote emendado no sensor de pressão, admissão não original, adesivo de preparação. Importa por dois motivos. Muda o esforço que o motor já levou, e coloca o carro fora do que a garantia da loja cobre — remap e peça fora de especificação estão entre as exclusões, por escrito.",
             "E peça o histórico de manutenção em nota fiscal, com quilometragem e placa. Não basta \"revisão em dia\": interessa qual óleo entrou, se a especificação é a que o fabricante pede para aquele motor e se o intervalo foi respeitado nos dois eixos, quilometragem e tempo. Revisão sem comprovação é, para nós, motivo de suspeita e de perícia mecânica. Vale o mesmo para você.",
+            "E o manual costuma ser mais exigente do que o hábito do dono. O manual dos Fiat com motor Turbo 200 e Turbo 270 pede óleo totalmente sintético de norma determinada, troca a cada 10 mil quilômetros ou doze meses, manda cortar esse intervalo pela metade em uso severo — trajeto curto repetido, estrada de terra, muito tempo em marcha lenta, reboque — e traz, na seção de como desligar o motor, a instrução de deixá-lo em marcha lenta depois de um percurso desgastante, para a temperatura baixar antes de a chave virar. O manual do Kia Sportage 1.6 turbo diz a mesma coisa com outras palavras, e põe número: alguns segundos em marcha lenta depois da partida, para o turbocompressor ser lubrificado, e cerca de um minuto antes de desligar, depois de carga pesada. A Volkswagen, no manual do Virtus, encurta o intervalo de revisão para seis meses em condições adversas. Não é excesso de zelo de engenheiro: é o fabricante descrevendo, por escrito, o que este guia chamou de carbonização do óleo na carcaça central.",
             "O passado documental do veículo — leilão, sinistro, restrição, numeração — é outro assunto e tem exame próprio. Ele está descrito em \"Laudo cautelar: o que verifica e o que não verifica\" e em \"O que reprova um carro na perícia cautelar\"."
           ]
         },
@@ -99,6 +109,10 @@
           "resposta": "Vale quando o histórico do óleo existe em nota fiscal e quando os cinco sinais de alerta não aparecem: vazamento na região do turbo, folga no eixo, fumaça na retomada, consumo de óleo acima do normal e cabeçote reparado sem nota. A tecnologia não é o problema; o regime de manutenção que ela exige é mais rígido que o de um aspirado, e é ele que separa um bom negócio de uma conta aberta."
         },
         {
+          "pergunta": "Quais carros têm motor 1.0 turbo no Brasil?",
+          "resposta": "Os mais comuns no mercado de usados são o 1.0 TSI da Volkswagen (Polo, Virtus, T-Cross, Nivus), o 1.0 turbo da Chevrolet (Onix e Onix Plus), o T200 da Fiat e da Jeep (Pulse, Fastback, Strada), que hoje também equipa Peugeot 208 e 2008 e Citroën C3, o 1.0 TGDI da Hyundai (HB20, HB20S, Creta), o 1.0 TCe do Renault Kardian, o 1.0 EcoBoost do New Fiesta e o 1.0 do Nissan Kicks mais recente. Ford Ka e EcoSport, apesar do motor de três cilindros, são aspirados."
+        },
+        {
           "pergunta": "Dá para saber se o turbo está no fim sem desmontar?",
           "resposta": "Dá para chegar perto. Folga no eixo se sente com a tubulação de admissão solta, em minutos; fumaça azulada na retomada, consumo de óleo e óleo empoçado na tubulação do intercooler aparecem sem abrir nada. O que não dá é medir quanto tempo ainda resta — por isso esses sinais valem como motivo para orçar o reparo antes de fechar negócio."
         },
@@ -138,6 +152,18 @@
           ]
         },
         {
+          "titulo": "Quais motores usam essa correia no Brasil",
+          "paragrafos": [
+            "Nem todo motor pequeno e turbinado usa correia banhada em óleo, e saber em qual grupo está o carro que você olha muda o que precisa ser exigido do vendedor. A lista abaixo vale para o mercado brasileiro e vem de material técnico de fabricante, de campanha de fábrica e de documento oficial — não de impressão de balcão.",
+            "Usam correia banhada em óleo os três-cilindros da Chevrolet: o 1.0 aspirado, o 1.0 turbo e o 1.2 turbo, que equipam Onix, Onix Plus, Tracker e Montana desde o fim de 2019. A própria Chevrolet publica material técnico sobre essa correia. Em novembro de 2024 a marca anunciou uma campanha de garantia estendida do componente até 240 mil quilômetros e, em abril de 2025, abriu uma janela — encerrada no fim daquele ano — para carros usados sem histórico completo de revisões entrarem nessa garantia depois de uma inspeção paga. A posição pública da montadora é que as falhas relatadas vêm de óleo fora de especificação e de manutenção fora do prazo, que é, em uma frase, o assunto deste guia. Em outubro de 2025 a marca também anunciou correia com nova composição de material e novo fornecedor.",
+            "Usa correia banhada em óleo o 1.5 de três cilindros da Ford, da família Dragon, que equipa Ka, Ka Sedan e EcoSport de 2017 em diante: o material de lançamento do próprio fabricante descreve o acionamento banhado em óleo. E usa também o 1.0 EcoBoost, que no Brasil equipou o New Fiesta.",
+            "Esses dois motores da Ford têm história documentada, e ela é útil para quem compra. Em janeiro de 2026 a Ford do Brasil chamou EcoSport 2018 e 2019 com motor 1.5 para um recall: a polia tensionadora da correia de sincronismo podia quebrar por ressonância, com perda de sincronismo. E, no 1.0 EcoBoost, a agência de trânsito dos Estados Unidos abriu em dezembro de 2025 uma investigação — elevada a análise de engenharia em julho de 2026 — sobre o material da correia se degradando e o resíduo entupindo a peneira do pescador da bomba de óleo, derrubando a pressão de lubrificação. É, com outras palavras, o mecanismo descrito na seção anterior, dentro de um documento oficial. Em junho de 2026 a Ford comunicou àquela mesma agência um programa global de satisfação do cliente que reduziu o intervalo de troca dessa correia de 150 mil para 100 mil milhas, cerca de 160 mil quilômetros, ou seis anos, com reembolso a quem já tinha pago o reparo.",
+            "Usa correia banhada em óleo o 1.2 PureTech de Peugeot e Citroën, que passou pelo 208, pelo 2008 e pelo C3, com intervalo publicado de 80 mil quilômetros ou seis anos. Na Europa, onde esse motor rodou muito mais, a Stellantis ampliou garantias e anunciou, em fevereiro de 2026, a substituição dessa família pelos motores Firefly.",
+            "E vale a informação ao contrário, que economiza preocupação. Os Firefly da Fiat e da Jeep — 1.0 e 1.3 aspirados e os turbo T200 e T270, que hoje equipam também Peugeot e Citroën — usam corrente de comando, sem troca programada. Se o carro que você está olhando tem um desses, este guia não é sobre ele.",
+            "Duas ressalvas honestas fecham a lista. Intervalo, prazo e campanha mudam por motor, por ano-modelo e por decisão de fábrica, e o número que valia quando o carro era novo pode não ser o que vale hoje: confirme com a marca, para aquele motor e aquele ano. E esta lista é do que deu para confirmar em fonte pública — motor que não está aqui não é, por isso, motor sem correia banhada. Na dúvida, um mecânico identifica pelo código do motor em segundos."
+          ]
+        },
+        {
           "titulo": "Por que ela falha",
           "paragrafos": [
             "A correia é feita de elastômero reforçado com fibras, formulado para resistir ao óleo que o fabricante especifica para aquele motor. É uma compatibilidade química, não uma recomendação genérica. Óleo fora da especificação, óleo vencido pelo tempo, óleo diluído por combustível e intervalo esticado atacam o material, que começa a perder pedaços.",
@@ -165,7 +191,7 @@
             "O intervalo publicado pelo fabricante é uma informação verdadeira e incompleta. Cinco coisas ficam de fora dele.",
             "A primeira é que ele tem dois eixos, quilometragem e tempo, e vale o que vencer primeiro. Carro pouco rodado não está dentro do intervalo por ter rodado pouco.",
             "A segunda é que ele pressupõe o óleo certo, trocado no prazo certo. Uso severo — trajeto curto, trânsito parado, muito tempo em marcha lenta, combustível ruim — encurta na prática um intervalo que continua o mesmo no papel.",
-            "A terceira é que vários fabricantes revisaram para baixo o intervalo desses motores depois de rodar frota no mundo real, por boletim de serviço ou campanha. O número impresso num manual de alguns anos atrás pode não ser o número vigente hoje. Confirme com a marca o intervalo atual daquele motor e daquele ano, e não com o manual que está no porta-luvas.",
+            "A terceira é que vários fabricantes revisaram o intervalo desses motores depois de rodar frota no mundo real, por boletim de serviço ou campanha — a Ford reduziu o do 1.0 EcoBoost em 2026, e a Chevrolet estendeu a garantia da correia dos seus três-cilindros em 2024. O número impresso num manual de alguns anos atrás pode não ser o número vigente hoje. Confirme com a marca o intervalo atual daquele motor e daquele ano, e não com o manual que está no porta-luvas.",
             "A quarta é o escopo do serviço. Nota fiscal escrita \"troca de correia dentada\" não diz se o kit correto entrou — tensor, guias, retentores e, onde existir, a correia da própria bomba de óleo —, nem se o cárter e a peneira de sucção foram limpos. Se a correia antiga já estava soltando material, trocar só a correia deixa o resíduo lá dentro.",
             "A quinta é a que nenhum recibo mostra: o histórico de óleo do dono anterior. Uma correia trocada na quilometragem certa, num motor que passou os anos anteriores com óleo fora de especificação, é uma correia nova num motor que já engoliu resíduo."
           ]
@@ -174,7 +200,7 @@
           "titulo": "O que isso significa para quem compra usado",
           "paragrafos": [
             "O laudo cautelar não alcança nada disso. Ele examina identificação, estrutura e histórico documental, não abre motor e não mede nada de lubrificação — a fronteira inteira está no guia \"Laudo cautelar: o que verifica e o que não verifica\". O laudo fica com o vendedor e sai a pedido.",
-            "Então a checagem é sua, e ela é documental antes de ser mecânica. Descubra se aquele motor usa correia banhada em óleo: nem todo motor pequeno e turbinado usa, e um mecânico identifica pelo código do motor em segundos. Depois peça nota fiscal da troca com quilometragem, placa e descrição do que foi substituído, e peça também as notas das trocas de óleo, com a especificação usada. Por último, olhe o óleo com o motor frio, procurando resíduo.",
+            "Então a checagem é sua, e ela é documental antes de ser mecânica. Comece descobrindo se aquele motor usa correia banhada em óleo — a lista dos mais comuns no mercado brasileiro está acima, e um mecânico identifica pelo código do motor em segundos. Depois peça nota fiscal da troca com quilometragem, placa e descrição do que foi substituído, e peça também as notas das trocas de óleo, com a especificação usada. Por último, olhe o óleo com o motor frio, procurando resíduo.",
             "Do nosso lado da mesa, os gatilhos são os mesmos. Óleo na tampa de válvulas ou no bloco, marcha lenta irregular e luz de injeção mandam o carro para a perícia mecânica, que não é etapa de todo veículo: acontece nos que levantam suspeita. E revisão sem comprovação já é, por si, motivo de suspeita. A Motors Store não compra, em geral, carro que exija abrir motor para saber o estado real — e é isso que um motor com histórico de óleo desconhecido exige.",
             "Óleo e filtros são trocados em todo carro que entra aqui. Isso resolve o presente e não reescreve o passado: óleo novo não conta o que o óleo velho fez.",
             "Na garantia da loja, a correia em si é manutenção — o que a garantia cobre é falha interna de motor, câmbio e diferencial, por três meses ou 5.000 quilômetros, o que vier primeiro, a partir da entrega, com mão de obra inclusa. Mas, se a correia se rompe dentro do prazo e leva junto o motor, o conserto desse dano entra na cobertura. Em qualquer caso, o primeiro passo ao aparecer um defeito é avisar a loja antes de levar o carro a qualquer oficina. E quem contratar um plano de garantia estendida, que é opcional e vendido à parte, deve conferir no manual a manutenção que ele exige: para um motor de correia banhada, cumpri-la com nota fiscal não é burocracia — é a manutenção que o componente pede.",
@@ -192,8 +218,12 @@
       ],
       "faq": [
         {
+          "pergunta": "Quais motores têm correia banhada em óleo no Brasil?",
+          "resposta": "Os três-cilindros da Chevrolet — 1.0 aspirado, 1.0 turbo e 1.2 turbo, de Onix, Onix Plus, Tracker e Montana —, o 1.5 Dragon da Ford, de Ka, Ka Sedan e EcoSport, o 1.0 EcoBoost do New Fiesta e o 1.2 PureTech de Peugeot e Citroën, que passou pelo 208, pelo 2008 e pelo C3. Os Firefly da Fiat e da Jeep, incluídos os turbo T200 e T270, usam corrente. A lista é do que dá para confirmar em fonte pública; na dúvida, o código do motor responde."
+        },
+        {
           "pergunta": "Como sei se o meu carro tem correia banhada em óleo?",
-          "resposta": "Pelo código do motor. Ela fica dentro do motor, sem tampa externa para abrir e olhar, então a consulta é ao manual ou à marca — e um mecânico identifica em segundos pelo motor. Nem todo motor pequeno turbinado usa esse arranjo, e a resposta muda o que você precisa exigir do vendedor."
+          "resposta": "Pelo código do motor. Ela fica dentro do motor, sem tampa externa para abrir e olhar, então a consulta é ao manual, à marca ou à lista acima — e um mecânico identifica em segundos pelo motor. Nem todo motor pequeno turbinado usa esse arranjo, e a resposta muda o que você precisa exigir do vendedor."
         },
         {
           "pergunta": "Correia banhada em óleo é defeito de projeto?",
@@ -234,6 +264,15 @@
             "O depósito vem de mais de uma fonte ao mesmo tempo. A ventilação do cárter devolve para a admissão vapor de óleo que sempre existiu, e agora encontra uma superfície quente que ninguém lava. Onde há recirculação de gases de escape, entra fuligem junto. O cruzamento de válvulas empurra um pouco de gás queimado de volta para o duto. E óleo que passa por retentor de válvula cansado, ou pelos retentores de um turbocompressor no fim, chega ao mesmo lugar — motivo pelo qual as duas coisas costumam aparecer no mesmo carro.",
             "Vale uma correção de mito, porque ela aparece sempre: escolher etanol ou gasolina não muda esse ponto específico. Em injeção direta pura, nenhum dos dois toca a válvula de admissão.",
             "Há uma exceção que compensa checar. Alguns motores usam injeção dupla, direta e indireta no mesmo cilindro, e a indireta existe em parte para molhar a válvula em certas condições de funcionamento. Saber se o motor daquele carro é de injeção direta pura ou dupla muda o tamanho do problema, e a resposta está na especificação técnica do fabricante."
+          ]
+        },
+        {
+          "titulo": "Quais motores têm injeção direta no Brasil",
+          "paragrafos": [
+            "A pergunta \"esse motor é de injeção direta?\" tem resposta pública, e conhecer os casos mais comuns do mercado brasileiro evita comprar uma dúvida.",
+            "Têm injeção direta o 1.0 TSI e o 1.4 TSI da Volkswagen, de Polo, Virtus, T-Cross, Nivus, Golf e Jetta; o 1.0 TGDI da Hyundai, de HB20, HB20S e Creta, em que as três letras do meio já dizem isso; o 1.0 TCe do Renault Kardian e o 1.3 TCe de Captur, Duster e Oroch; o 1.6 THP de Peugeot e Citroën, que passou por 408, 3008, RCZ, 2008 e C4 Lounge; o T200 e o T270 da Fiat e da Jeep, de Pulse, Fastback, Strada, Toro, Renegade, Compass e Commander, cujo manual descreve a injeção direta na câmara de combustão, e que hoje equipam também Peugeot 208 e 2008 e Citroën C3; o 1.0 EcoBoost da Ford, do New Fiesta; o 1.5 turbo da Honda, do HR-V nas versões Advance e Touring e do Civic da geração passada; o 1.5 turbo do Mitsubishi Eclipse Cross; e o 1.6 turbo da Kia, do Sportage.",
+            "Um caso merece atenção especial de quem compra usado, porque mudou no meio da vida comercial do carro. Os três-cilindros turbo da Chevrolet — o 1.0 e o 1.2 de Onix, Onix Plus, Tracker e Montana — nasceram com injeção indireta e passaram a ter injeção direta na atualização que a marca anunciou em dezembro de 2024, para a linha 2025. Dois carros com o mesmo nome e a mesma cilindrada podem estar, portanto, em lados diferentes deste guia, e quem decide é o ano-modelo.",
+            "Daí saem dois lembretes que desfazem confusão. Injeção direta não é exclusividade de motor turbo, e motor turbo não é necessariamente de injeção direta — o caso da Chevrolet mostra os dois lados no mesmo carro. E injeção dupla existe de fato: no Brasil, o exemplo que aparece em ficha oficial é o 1.6 turbo do Toyota GR Corolla, com o sistema D-4S, que soma injeção direta e indireta. É um carro raro, de série limitada, e está aqui para mostrar que a pergunta tem três respostas possíveis, não duas."
           ]
         },
         {
@@ -294,6 +333,10 @@
           "resposta": "Na válvula de admissão, não. Em injeção direta pura o combustível vai direto para o cilindro e não toca essa válvula, qualquer que seja ele. O que muda o ritmo do depósito é o óleo, a ventilação do cárter e o tipo de uso."
         },
         {
+          "pergunta": "Quais motores têm injeção direta no Brasil?",
+          "resposta": "Entre os mais comuns: 1.0 TSI e 1.4 TSI da Volkswagen, T200 e T270 da Fiat e da Jeep — que também equipam Peugeot e Citroën recentes —, 1.0 TGDI da Hyundai, 1.0 e 1.3 TCe da Renault, 1.6 THP de Peugeot e Citroën, 1.0 EcoBoost da Ford, 1.5 turbo da Honda, 1.5 turbo da Mitsubishi e 1.6 turbo da Kia. Os 1.0 e 1.2 turbo da Chevrolet são o caso que muda no meio do caminho: injeção indireta até a linha 2024 e direta a partir da linha 2025, o que faz do ano-modelo uma pergunta obrigatória."
+        },
+        {
           "pergunta": "Motor de injeção direta usado é má compra?",
           "resposta": "Não. É uma compra com um custo conhecido, que precisa entrar na conta antes da assinatura em vez de aparecer depois. Um scanner com leitura ao vivo e o histórico de uso e de óleo dizem, em poucos minutos, se esse custo está perto ou longe."
         },
@@ -329,6 +372,17 @@
             "Há duas famílias. A de dupla embreagem a seco, mais comum em carros de motor pequeno, dissipa calor pelo ar. A banhada em óleo aguenta mais torque e usa o próprio óleo para refrigerar e lubrificar. Quem decide tudo isso é um módulo hidráulico e eletrônico, com sensores e atuadores, que calcula o momento do engate e a pressão aplicada.",
             "Falta um componente nessa lista, e a ausência explica quase todo o comportamento que o comprador estranha: não existe conversor de torque, como num câmbio automático convencional. Para o carro sair do lugar, uma embreagem precisa patinar de forma controlada — é o mesmo serviço que o seu pé faz num câmbio manual, executado por um atuador. Patinar gera calor. Calor repetido, sem tempo de dissipar, é o que envelhece o conjunto antes da hora.",
             "Isto é como o mecanismo funciona, e vale para qualquer marca que use a tecnologia. O que a gente faz com essa informação vem mais abaixo."
+          ]
+        },
+        {
+          "titulo": "Quais câmbios de dupla embreagem existem por aqui",
+          "paragrafos": [
+            "Dupla embreagem não é uma coisa só, e o nome do câmbio diz mais sobre o que esperar do carro do que a marca na tampa do porta-malas. Estes são os que aparecem no mercado brasileiro.",
+            "O DSG DQ200, de Volkswagen e Audi, tem sete marchas e embreagem a seco, com discos que trabalham fora do óleo. No Brasil ele equipou Audi A1, Audi A3 1.4 TFSI e Volkswagen Golf 1.4 TSI. Da mesma família existe o DQ250, que usa embreagens multidiscos imersas em óleo — prova de que o mesmo fabricante entrega as duas soluções, com exigências diferentes de manutenção.",
+            "O PowerShift, da Ford, tem seis marchas e embreagem a seco. Chegou ao Brasil no fim de 2012, no EcoSport 2.0, e passou também por Fiesta e Focus. É o câmbio de dupla embreagem com mais história pública no país, e parte dessa história vem do próprio fabricante: em 2016 a Ford afirmou que a trepidação relatada podia ser causada por vazamento de óleo pelo retentor da caixa seca, que atingia as embreagens e as contaminava. Quem olha um desses hoje deveria pedir o histórico do câmbio com nota e fazer o test-drive completo descrito adiante — frio, rampa e trânsito parado.",
+            "O DCT7 da Hyundai tem sete marchas e embreagem a seco, e estreou na geração nova do Creta, na versão de motor 1.6 turbo. É câmbio recente: no usado ele aparece com pouca quilometragem, o que desloca o peso da decisão do histórico para o test-drive.",
+            "O EDC da Renault, do Kardian, tem seis marchas e é banhado em óleo, segundo a ficha da própria marca. Banhado em óleo suporta mais torque e usa o óleo para refrigerar; em troca, o óleo do câmbio vira item de manutenção com prazo, e é dele que se pede a nota.",
+            "Duas observações fecham a lista. Câmbio automático de conversor de torque e câmbio CVT não são dupla embreagem, e confundir os três é comum — o tipo de câmbio está na ficha técnica da versão, e vale conferir antes de atribuir ao carro um defeito que ele não pode ter. E esta lista é do que deu para confirmar em fonte pública: o carro que você está olhando pode ter um câmbio que não está aqui. O código da transmissão, no documento ou com o mecânico, responde."
           ]
         },
         {
@@ -381,6 +435,10 @@
         {
           "pergunta": "Câmbio de dupla embreagem dá problema?",
           "resposta": "Dá, como qualquer câmbio, e o custo do reparo é mais alto do que o de um manual. Mas boa parte do que se chama de problema é característica do projeto: pausa curta na saída, comportamento diferente com o câmbio frio e hesitação em fila lenta são normais. Trepidação na arrancada, solavanco entre primeira e segunda e atraso de engate não são."
+        },
+        {
+          "pergunta": "Quais carros têm câmbio de dupla embreagem no Brasil?",
+          "resposta": "Os mais comuns no mercado de usados são o DSG DQ200 de sete marchas, a seco, de Audi A1, Audi A3 1.4 TFSI e Volkswagen Golf 1.4 TSI; o PowerShift de seis marchas, a seco, de Ford EcoSport 2.0, Fiesta e Focus; o DCT7 de sete marchas, a seco, do Hyundai Creta 1.6 turbo da geração nova; e o EDC de seis marchas, banhado em óleo, do Renault Kardian. Câmbio CVT e automático de conversor não entram nessa conta — são outra tecnologia."
         },
         {
           "pergunta": "Trepidação na saída é normal em dupla embreagem?",

@@ -304,6 +304,60 @@ describe("o plano estendido entra pelo que ele é", () => {
   });
 });
 
+describe("Onda 2.1 — motor e câmbio com nome só com fonte", () => {
+  /* O plano (§5) autoriza nomear motor e câmbio — "é conteúdo de domínio
+     público", disse o dono — e exige fonte pública conferida item por item,
+     registrada em `conteudo-seo/pacote/guias/ONDA-2-1-FONTES.md`. A régua dura
+     é esta: a loja vende esses carros, então nome ligado a falha só entra com a
+     origem declarada na própria frase (recall, campanha, investigação, manual,
+     comunicado do fabricante). Especificação — injeção, comando, modelos — pode
+     ser afirmada direto. */
+
+  const NOMES =
+    /Onix|Tracker|Montana|EcoSport|Fiesta|Focus|PureTech|Firefly|T200|T270|TSI|TGDI|TCe|EcoBoost|PowerShift|DQ200|DQ250|DCT7|\bEDC\b|THP|Chevrolet|Ford|Fiat|Jeep|Volkswagen|Peugeot|Citroën|Hyundai|Renault|Kia|Audi|Toyota|Honda|Mitsubishi|Nissan/;
+  const FALHA = /falh|defeito|quebra|trepida|entupi|degrad|desgast|vazamento|problema/i;
+  const ORIGEM =
+    /recall|campanha|investiga|an[úu]ncio|anunci|afirm|comunic|manual|ficha|fabricante|montadora|marca|programa|garantia estendida|segundo|posição pública/i;
+
+  it("toda frase que liga um nome a uma falha diz de onde a informação veio", () => {
+    for (const guia of lote.guias) {
+      for (const frase of frases(guia).filter((f) => NOMES.test(f) && FALHA.test(f))) {
+        expect(ORIGEM.test(frase), `${guia.slug}: falha atribuída sem origem -> ${frase}`).toBe(true);
+      }
+    }
+  });
+
+  it("as peças de mecânica nomeiam o que a onda 2.1 se propôs a nomear", () => {
+    expect(textoInteiro(peca("correia-dentada-banhada-em-oleo"))).toMatch(/Onix/);
+    expect(textoInteiro(peca("correia-dentada-banhada-em-oleo"))).toMatch(/PureTech/);
+    expect(textoInteiro(peca("correia-dentada-banhada-em-oleo"))).toMatch(/Firefly/);
+    expect(textoInteiro(peca("motores-turbo-usados-o-que-checar"))).toMatch(/TSI/);
+    expect(textoInteiro(peca("carbonizacao-valvulas-injecao-direta"))).toMatch(/TGDI|TSI/);
+    expect(textoInteiro(peca("cambio-dupla-embreagem-usado"))).toMatch(/DQ200|PowerShift/);
+  });
+
+  it("todo nome publicado tem linha no arquivo de fontes", () => {
+    const fontes = readFileSync(
+      join(process.cwd(), "conteudo-seo/pacote/guias/ONDA-2-1-FONTES.md"),
+      "utf8",
+    );
+    for (const nome of [
+      "Onix",
+      "EcoBoost",
+      "PureTech",
+      "Firefly",
+      "T270",
+      "TGDI",
+      "DQ200",
+      "PowerShift",
+      "DCT7",
+      "EDC",
+    ]) {
+      expect(fontes, `${nome} aparece nas peças e não está no arquivo de fontes`).toContain(nome);
+    }
+  });
+});
+
 describe("o lote passa pela porta do painel sem ser cortado", () => {
   it.each(AS_SEIS)("%s", (slug) => {
     const guia = lote.guias.find((g) => g.slug === slug)!;

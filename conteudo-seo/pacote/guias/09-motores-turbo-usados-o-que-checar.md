@@ -27,6 +27,16 @@ Downsizing é isso: tirar de um bloco pequeno o torque que antes vinha de um blo
 
 Vale registrar uma coisa que costuma confundir. O crivo de 120 pontos que a loja cita é da perícia cautelar, não da mecânica. Ele cobre identificação, estrutura e passado documental do veículo, que é exatamente o que a cautelar existe para cobrir. Não cobre turbo, não mede compressão e não avalia bomba de alta pressão. Quem quiser a fronteira inteira vai encontrá-la no guia "Laudo cautelar: o que verifica e o que não verifica".
 
+## Quais turbos pequenos você encontra no mercado brasileiro
+
+Motor turbo de baixa cilindrada deixou de ser exceção no Brasil faz tempo, e a lista dos que já rodaram o suficiente para estar no mercado de usados é grande. Vale conhecer os nomes antes de ir ver o carro.
+
+Da Volkswagen, o 1.0 TSI e o 1.4 TSI — o número do emblema, 200 ou 250 TSI, é o torque em newton-metro, não a cilindrada —, em Polo, Virtus, T-Cross, Nivus, Taos e Golf. Da Chevrolet, o 1.0 turbo de Onix e Onix Plus e o 1.2 turbo de Tracker e Montana. Da Fiat e da Jeep, o T200, de um litro, e o T270, de 1.3, em Pulse, Fastback, Strada, Toro, Renegade, Compass e Commander — os mesmos motores que hoje equipam Peugeot 208 e 2008 e Citroën C3. Da Hyundai, o 1.0 TGDI de HB20, HB20S e Creta. Da Renault, o 1.0 TCe do Kardian e o 1.3 TCe de Captur, Duster e Oroch. Da Ford, o 1.0 EcoBoost do New Fiesta e o 1.5 EcoBoost do Territory. Da Honda, o 1.5 turbo do HR-V nas versões Advance e Touring e do Civic da geração passada. De Peugeot e Citroën, o 1.6 THP mais antigo, de 408, 3008, RCZ, 2008 e C4 Lounge. Da Caoa Chery, o 1.5 dos Tiggo 5x e Tiggo 7 e o 1.6 do Tiggo 8. Da Mitsubishi, o 1.5 do Eclipse Cross; da Kia, o 1.6 do Sportage; da Nissan, o 1.0 do Kicks mais recente.
+
+Três confusões comuns valem ser desfeitas, porque aparecem em anúncio. Ford Ka e EcoSport brasileiros nunca tiveram motor turbo: os três-cilindros 1.0 e 1.5 deles são aspirados, apesar de dividirem arquitetura com a família EcoBoost. No HR-V, só Advance e Touring têm o 1.5 turbo — EX e EXL são aspiradas. E o Renault Kwid não tem versão turbo.
+
+O que mais muda de um desses motores para outro, na hora de comprar usado, não é a marca: é qual óleo o fabricante exige, como é feito o sincronismo do motor e se a injeção é direta. Os dois últimos pontos têm guia próprio — "Correia dentada banhada em óleo: por que ela falha" e "Carbonização de válvulas em injeção direta" —, e o primeiro está algumas linhas abaixo, na checagem documental.
+
 ## O que o desgaste faz nesses motores
 
 Quase tudo o que dá errado num turbo pequeno começa no óleo, e quase nada começa no turbo.
@@ -62,6 +72,8 @@ A folga do eixo é checagem de minutos para um mecânico, e dispensa desmontar o
 Procure sinal de remap e de peça fora de especificação: módulo piggyback, chicote emendado no sensor de pressão, admissão não original, adesivo de preparação. Importa por dois motivos. Muda o esforço que o motor já levou, e coloca o carro fora do que a garantia da loja cobre — remap e peça fora de especificação estão entre as exclusões, por escrito.
 
 E peça o histórico de manutenção em nota fiscal, com quilometragem e placa. Não basta "revisão em dia": interessa qual óleo entrou, se a especificação é a que o fabricante pede para aquele motor e se o intervalo foi respeitado nos dois eixos, quilometragem e tempo. Revisão sem comprovação é, para nós, motivo de suspeita e de perícia mecânica. Vale o mesmo para você.
+
+E o manual costuma ser mais exigente do que o hábito do dono. O manual dos Fiat com motor Turbo 200 e Turbo 270 pede óleo totalmente sintético de norma determinada, troca a cada 10 mil quilômetros ou doze meses, manda cortar esse intervalo pela metade em uso severo — trajeto curto repetido, estrada de terra, muito tempo em marcha lenta, reboque — e traz, na seção de como desligar o motor, a instrução de deixá-lo em marcha lenta depois de um percurso desgastante, para a temperatura baixar antes de a chave virar. O manual do Kia Sportage 1.6 turbo diz a mesma coisa com outras palavras, e põe número: alguns segundos em marcha lenta depois da partida, para o turbocompressor ser lubrificado, e cerca de um minuto antes de desligar, depois de carga pesada. A Volkswagen, no manual do Virtus, encurta o intervalo de revisão para seis meses em condições adversas. Não é excesso de zelo de engenheiro: é o fabricante descrevendo, por escrito, o que este guia chamou de carbonização do óleo na carcaça central.
 
 O passado documental do veículo — leilão, sinistro, restrição, numeração — é outro assunto e tem exame próprio. Ele está descrito em "Laudo cautelar: o que verifica e o que não verifica" e em "O que reprova um carro na perícia cautelar".
 
@@ -131,6 +143,9 @@ Os carros do nosso estoque são os que passaram por esse filtro. O que a loja as
 
 **Motor 1.0 turbo usado vale a pena?**
 Vale quando o histórico do óleo existe em nota fiscal e quando os cinco sinais de alerta não aparecem: vazamento na região do turbo, folga no eixo, fumaça na retomada, consumo de óleo acima do normal e cabeçote reparado sem nota. A tecnologia não é o problema; o regime de manutenção que ela exige é mais rígido que o de um aspirado, e é ele que separa um bom negócio de uma conta aberta.
+
+**Quais carros têm motor 1.0 turbo no Brasil?**
+Os mais comuns no mercado de usados são o 1.0 TSI da Volkswagen (Polo, Virtus, T-Cross, Nivus), o 1.0 turbo da Chevrolet (Onix e Onix Plus), o T200 da Fiat e da Jeep (Pulse, Fastback, Strada), que hoje também equipa Peugeot 208 e 2008 e Citroën C3, o 1.0 TGDI da Hyundai (HB20, HB20S, Creta), o 1.0 TCe do Renault Kardian, o 1.0 EcoBoost do New Fiesta e o 1.0 do Nissan Kicks mais recente. Ford Ka e EcoSport, apesar do motor de três cilindros, são aspirados.
 
 **Dá para saber se o turbo está no fim sem desmontar?**
 Dá para chegar perto. Folga no eixo se sente com a tubulação de admissão solta, em minutos; fumaça azulada na retomada, consumo de óleo e óleo empoçado na tubulação do intercooler aparecem sem abrir nada. O que não dá é medir quanto tempo ainda resta — por isso esses sinais valem como motivo para orçar o reparo antes de fechar negócio.

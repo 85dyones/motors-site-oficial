@@ -30,6 +30,20 @@ Falta um componente nessa lista, e a ausência explica quase todo o comportament
 
 Isto é como o mecanismo funciona, e vale para qualquer marca que use a tecnologia. O que a gente faz com essa informação vem mais abaixo.
 
+## Quais câmbios de dupla embreagem existem por aqui
+
+Dupla embreagem não é uma coisa só, e o nome do câmbio diz mais sobre o que esperar do carro do que a marca na tampa do porta-malas. Estes são os que aparecem no mercado brasileiro.
+
+O DSG DQ200, de Volkswagen e Audi, tem sete marchas e embreagem a seco, com discos que trabalham fora do óleo. No Brasil ele equipou Audi A1, Audi A3 1.4 TFSI e Volkswagen Golf 1.4 TSI. Da mesma família existe o DQ250, que usa embreagens multidiscos imersas em óleo — prova de que o mesmo fabricante entrega as duas soluções, com exigências diferentes de manutenção.
+
+O PowerShift, da Ford, tem seis marchas e embreagem a seco. Chegou ao Brasil no fim de 2012, no EcoSport 2.0, e passou também por Fiesta e Focus. É o câmbio de dupla embreagem com mais história pública no país, e parte dessa história vem do próprio fabricante: em 2016 a Ford afirmou que a trepidação relatada podia ser causada por vazamento de óleo pelo retentor da caixa seca, que atingia as embreagens e as contaminava. Quem olha um desses hoje deveria pedir o histórico do câmbio com nota e fazer o test-drive completo descrito adiante — frio, rampa e trânsito parado.
+
+O DCT7 da Hyundai tem sete marchas e embreagem a seco, e estreou na geração nova do Creta, na versão de motor 1.6 turbo. É câmbio recente: no usado ele aparece com pouca quilometragem, o que desloca o peso da decisão do histórico para o test-drive.
+
+O EDC da Renault, do Kardian, tem seis marchas e é banhado em óleo, segundo a ficha da própria marca. Banhado em óleo suporta mais torque e usa o óleo para refrigerar; em troca, o óleo do câmbio vira item de manutenção com prazo, e é dele que se pede a nota.
+
+Duas observações fecham a lista. Câmbio automático de conversor de torque e câmbio CVT não são dupla embreagem, e confundir os três é comum — o tipo de câmbio está na ficha técnica da versão, e vale conferir antes de atribuir ao carro um defeito que ele não pode ter. E esta lista é do que deu para confirmar em fonte pública: o carro que você está olhando pode ter um câmbio que não está aqui. O código da transmissão, no documento ou com o mecânico, responde.
+
 ## O que é comportamento normal e o que é defeito
 
 Boa parte das reclamações que circulam sobre esse câmbio descreve característica de projeto, não avaria. Vale saber separar antes de desistir de um bom carro — ou de aceitar um ruim.
@@ -88,6 +102,9 @@ Faça o test-drive frio, no trânsito parado e numa rampa, nessa ordem, e descon
 
 **Câmbio de dupla embreagem dá problema?**
 Dá, como qualquer câmbio, e o custo do reparo é mais alto do que o de um manual. Mas boa parte do que se chama de problema é característica do projeto: pausa curta na saída, comportamento diferente com o câmbio frio e hesitação em fila lenta são normais. Trepidação na arrancada, solavanco entre primeira e segunda e atraso de engate não são.
+
+**Quais carros têm câmbio de dupla embreagem no Brasil?**
+Os mais comuns no mercado de usados são o DSG DQ200 de sete marchas, a seco, de Audi A1, Audi A3 1.4 TFSI e Volkswagen Golf 1.4 TSI; o PowerShift de seis marchas, a seco, de Ford EcoSport 2.0, Fiesta e Focus; o DCT7 de sete marchas, a seco, do Hyundai Creta 1.6 turbo da geração nova; e o EDC de seis marchas, banhado em óleo, do Renault Kardian. Câmbio CVT e automático de conversor não entram nessa conta — são outra tecnologia.
 
 **Trepidação na saída é normal em dupla embreagem?**
 Não. Uma trepidação que se repete sempre que o carro sai do lugar, principalmente com o conjunto já quente, indica embreagem gasta ou fora de ajuste. É um dos sinais que fazem a gente recusar o carro na avaliação, e é o que você deve procurar num test-drive em rampa e no trânsito parado.
