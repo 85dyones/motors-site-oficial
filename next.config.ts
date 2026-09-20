@@ -203,14 +203,26 @@ const nextConfig: NextConfig = {
         destination: "/estoque",
         permanent: true,
       },
-      // `/carros` sozinho era a porta do catálogo lá (302 para `/busca/`).
-      // Exato, nunca com `:resto*`: `/carros/bmw` é hub de marca e responde
-      // 200 aqui.
-      {
-        source: "/carros",
+      // ----------------------------------------------------------------
+      // As raízes de seção que nunca tiveram página (2026-09-20)
+      // ----------------------------------------------------------------
+      // `/carros`, `/motos` e `/destaques` respondiam 404 enquanto os FILHOS
+      // deles respondem 200 e estão no sitemap — 13 URLs sob `/motos` e 2 sob
+      // `/destaques`. A causa é a mesma nos três: `src/app/[categoria]` tem
+      // `[marca]`, mas não tem `page.tsx`, e `destaques` só tem `[tag]`.
+      //
+      // `/estoque` é o destino certo, e não a home: a vitrine é a lista
+      // INTEIRA, carro e moto no mesmo pátio — conferido em produção, o
+      // Harley e as Honda aparecem lá.
+      //
+      // EXATOS, nunca com `:resto*`. `/carros/bmw`, `/motos/honda` e
+      // `/destaques/baixa-quilometragem` são páginas de verdade e respondem
+      // 200; um curinga aqui engoliria as três subárvores.
+      ...["/carros", "/motos", "/destaques"].map((source) => ({
+        source,
         destination: "/estoque",
         permanent: true,
-      },
+      })),
       // A política de privacidade do site antigo era uma página de verdade,
       // com LGPD no texto. Perder o endereço dela é o pior dos 404.
       {
