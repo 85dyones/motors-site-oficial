@@ -90,13 +90,14 @@ function textoPuro(bruto: string | undefined | null): string {
 }
 
 /**
- * "Quatro linhas" é o tamanho do bloco no desenho, não uma contagem exata —
- * o texto de referência tem ~400 caracteres.
+ * Rede de segurança para o caso em que a folha cai no descritivo longo.
  *
- * O descritivo que vem do feed passa de 1.500 e estoura a folha: empurra a
- * foto grande para altura zero e joga a matriz por cima das miniaturas.
- * Corta no fim de frase mais próximo do teto, para não terminar no meio de
- * uma palavra.
+ * "Quatro linhas" é o tamanho do bloco no desenho, não uma contagem exata —
+ * o texto de referência tem ~400 caracteres, e o `descricao_seo` cabe nisso
+ * sozinho (180 a 390). Quem estoura é o `descricao`, que passa de 1.500 e
+ * empurra a foto grande para altura zero, jogando a matriz por cima das
+ * miniaturas. Corta no fim de frase mais próximo do teto, para não terminar
+ * no meio de uma palavra.
  */
 function resumo(texto: string, teto = 420): string {
   if (texto.length <= teto) return texto;
@@ -176,7 +177,17 @@ export default function FichaImpressa({
     ["CARROCERIA", veiculo.tipo ?? ""],
   ].filter(([, valor]) => Boolean(valor && String(valor).trim()));
 
-  const descritivo = resumo(textoPuro(veiculo.descricao) || textoPuro(veiculo.descricao_seo));
+  /**
+   * O curto primeiro.
+   *
+   * `descricao_seo` é o descritivo curto que o painel já escreve: 180 a 390
+   * caracteres, acentuado, uma frase de abertura e o fecho da loja — é
+   * exatamente o bloco que o desenho pede. O `descricao` é o texto longo do
+   * anúncio, que abre repetindo o título de propósito (tática de SEO, não
+   * defeito) e serve à página, não ao papel. Ele fica de reserva para os
+   * carros que ainda não têm o curto.
+   */
+  const descritivo = resumo(textoPuro(veiculo.descricao_seo) || textoPuro(veiculo.descricao));
   const miniaturas = fotos.slice(1, 4);
 
   return (
