@@ -19,9 +19,9 @@
  * dentro seja esta: qualquer `{OUTRA_COISA}` reprova.
  */
 export const TEXTO_LAUDO_PENDENTE =
-  "Este veículo passa por perícia cautelar independente antes de entrar na vitrine — " +
-  "estrutura, chassi e histórico de sinistro. O laudo está disponível para consulta, " +
-  "solicite ao vendedor a qualquer tempo.";
+  "Antes de entrar na vitrine, este veículo passa por perícia cautelar independente, que " +
+  "examina estrutura, chassi e histórico de sinistro. O laudo está disponível para consulta " +
+  "a qualquer tempo: é só pedir ao vendedor.";
 
 /**
  * A ponte da ficha para a peça pilar da Onda 1.

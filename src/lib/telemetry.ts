@@ -791,7 +791,37 @@ export function trackVehicleView(
   }
 }
 
-export function trackAppraisalSubmit(category: string, brand: string, model: string, year: string, fipe: number): string | null {
+/**
+ * O id do `CompleteRegistration` da avaliação, gerado ANTES do POST
+ * (2026-09-21). Vai junto a `/api/avaliacao`, que o grava em `leads.event_id`,
+ * e depois do envio ao Pixel e à CAPI por `trackAppraisalSubmit(…, id)` — um
+ * id só para a linha do lead e para o evento, que é o que permite cruzar os
+ * dois. Até aqui o formulário nunca mandava o id que a rota esperava.
+ *
+ * O portão da oposição mora nesta camada, e não no componente, pelo mesmo
+ * motivo do `null` de `trackLeadSubmission` (B.7 em
+ * `tests/brechas-de-mensuracao.test.ts`): quem se opôs não recebe id, e o
+ * formulário não tem como gerar um por fora.
+ */
+export function idDoEventoDaAvaliacao(): string | null {
+  if (typeof window === "undefined") return null;
+  return rastreamentoRecusado() ? null : generateEventId("CompleteRegistration");
+}
+
+export function trackAppraisalSubmit(
+  category: string,
+  brand: string,
+  model: string,
+  year: string,
+  fipe: number,
+  /**
+   * O id que o formulário já mandou para `/api/avaliacao` e que foi gravado em
+   * `leads.event_id` (2026-09-21). Usar o mesmo aqui é o que liga a linha do
+   * lead ao `CompleteRegistration` do pixel e da CAPI — o mesmo papel do
+   * `presetEventId` de `trackLeadSubmission`. Sem ele, gera um novo, como antes.
+   */
+  presetEventId?: string | null,
+): string | null {
   if (typeof window === "undefined") return null;
 
   try {
@@ -802,7 +832,7 @@ export function trackAppraisalSubmit(category: string, brand: string, model: str
 
     if (rastreamentoRecusado()) return null;
 
-    const eventId = generateEventId("CompleteRegistration");
+    const eventId = presetEventId || generateEventId("CompleteRegistration");
 
     // Google Analytics 4 Event
     if (window.gtag) {
@@ -884,10 +914,14 @@ export function trackContactClick(
   if (typeof window === "undefined") return null;
 
   try {
-    // Todo CTA de WhatsApp e de telefone do site já passa por aqui (é o que a
-    // regra 7 garantiu quando o redesign moveu os botões). Pendurar o push
-    // neste ponto cobre header, rodapé, ficha, pop-up e curadoria de uma vez,
-    // sem tocar em cada chamada — e sem mexer no que já era disparado.
+    // Todo CTA de WhatsApp e de telefone do site passa por aqui. Pendurar o
+    // push neste ponto cobre header, rodapé, ficha, pop-up e curadoria de uma
+    // vez, sem tocar em cada chamada — e sem mexer no que já era disparado.
+    //
+    // "Todo" foi falso para o telefone até 2026-09-21: o `tel:` do cabeçalho
+    // nunca chamou esta função, e só o do rodapé gerava `click_to_call`. Desde
+    // então `tests/pre-voo-das-conversoes.test.ts` reprova qualquer `tel:`
+    // de componente que não passe por aqui — a frase agora tem trava.
     if (method === "whatsapp") {
       pushCliqueWhatsApp(label || "desconhecido", contexto);
     } else {

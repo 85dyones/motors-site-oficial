@@ -37,7 +37,15 @@ import { linkWhatsApp } from "../../../lib/whatsapp";
  * URL infinito.
  */
 
-export const revalidate = 3600;
+/**
+ * 60 s, o mesmo relógio de `/estoque`, da home e das geográficas — desde
+ * 2026-09-21. Com 3600 esta página mostrava no `<h1>` uma contagem até uma
+ * hora mais velha que a de `/estoque`: o n8n marca o carro vendido e
+ * `/estoque` tira em um minuto, enquanto o hub seguia listando e contando o
+ * carro por até sessenta. A leitura é a mesma que `/estoque` já faz a cada
+ * minuto (`recortesDoEstoque`), e só roda quando alguém visita.
+ */
+export const revalidate = 60;
 export const dynamicParams = true;
 
 interface PageProps {

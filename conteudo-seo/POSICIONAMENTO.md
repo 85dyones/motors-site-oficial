@@ -40,7 +40,7 @@ O que isso resolve que "premium" não resolvia:
 | preço no anúncio | "consulte-nos", "melhor preço" |
 | 3 de cada 10 entram | "o melhor estoque da região" |
 
-**Sobre a perícia:** o dono confirmou em 2026-08-17 que **todos** os veículos passam por perícia cautelar — o campo `laudo_pericia` vazio é falha de lançamento no sistema, não ausência do exame. O texto pode afirmar. O campo continua devendo ser preenchido, porque a promessa pública é que *o laudo fica na ficha do carro*.
+**Sobre a perícia:** o dono confirmou em 2026-08-17 que **todos** os veículos passam por perícia cautelar — o campo `laudo_pericia` vazio é falha de lançamento no sistema, não ausência do exame. O texto pode afirmar. O campo continua devendo ser preenchido. *(Atualizado em 2026-09-21: desde a decisão do dono de 16/09/2026, o laudo fica com o vendedor e sai a pedido; nenhum texto promete o laudo na ficha, no anúncio ou publicado. A regra está em `src/lib/textoDoLaudo.ts` e nos testes de coerência da perícia.)*
 
 ## Geografia
 

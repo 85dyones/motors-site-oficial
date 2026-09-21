@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { CompanySettings, Veiculo } from "../../types";
 import type { QrDaFicha } from "../../lib/qrDaFicha";
 import { telefoneVisivel } from "../../lib/whatsapp";
+import { razaoSocialAparte } from "../../lib/identidadeLegal";
 
 /**
  * A ficha impressa do veículo — uma folha A4, e só ela.
@@ -545,7 +546,14 @@ export default function FichaImpressa({
             {empresa.name} · Bacacheri
           </span>
           <span style={{ fontSize: "1.462cqw", lineHeight: 1.45, color: "var(--mt-neutral-700)" }}>
-            {empresa.address} · CNPJ {empresa.cnpj}
+            {/* A razão social vem acima do endereço quando difere do nome
+                fantasia — a folha é documento que sai da loja, e quem recebe
+                precisa saber com qual pessoa jurídica está tratando. Trava em
+                `tests/identidade-legal.test.ts`. */}
+            {razaoSocialAparte(empresa) && <span style={{ display: "block" }}>{razaoSocialAparte(empresa)}</span>}
+            <span>
+              {empresa.address} · CNPJ {empresa.cnpj}
+            </span>
             <br />
             {/* O número sai de `telefoneVisivel`, o mesmo que alimenta os links
                 de WhatsApp: rótulo impresso e link clicado não podem divergir

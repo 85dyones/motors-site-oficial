@@ -50,7 +50,15 @@ import { linkWhatsApp } from "../../../lib/whatsapp";
  * há espaço de URL infinito a proteger.
  */
 
-export const revalidate = 3600;
+/**
+ * 60 s, o mesmo relógio de `/estoque`, da home e das geográficas — desde
+ * 2026-09-21. Com 3600 esta página mostrava no `<h1>` uma contagem até uma
+ * hora mais velha que a de `/estoque`: o n8n marca o carro vendido e
+ * `/estoque` tira em um minuto, enquanto o hub seguia listando e contando o
+ * carro por até sessenta. A leitura é a mesma que `/estoque` já faz a cada
+ * minuto (`recortesDoEstoque`), e só roda quando alguém visita.
+ */
+export const revalidate = 60;
 export const dynamicParams = true;
 
 interface PageProps {
@@ -86,7 +94,10 @@ async function resolver(slug: string) {
     const Novas = novas.charAt(0).toUpperCase() + novas.slice(1);
     const recorte: RecorteResolvido = {
       titulo: `${plural} ${novas} em Curitiba`,
-      tituloSeo: `${plural} ${Novas} em Curitiba — ${carroceria.veiculos.length} no estoque`,
+      // Sem a contagem no `<title>` desde 2026-09-21, pela regra de `/estoque`:
+      // o Google guarda o título do dia do rastreamento, e o número envelhece.
+      // Com a carroceria vazia, ainda por cima, saía "— 0 no estoque".
+      tituloSeo: `${plural} ${Novas} em Curitiba | Motors Store`,
       descricao:
         `${plural} ${novas} em Curitiba com perícia cautelar independente: de cada dez ` +
         `${avaliados(genero)}, três entram. Troca, financiamento e loja no Bacacheri.`,
@@ -106,7 +117,7 @@ async function resolver(slug: string) {
   if (perfil) {
     const recorte: RecorteResolvido = {
       titulo: `${perfil.titulo} em Curitiba`,
-      tituloSeo: `${perfil.titulo} em Curitiba — ${perfil.veiculos.length} no estoque`,
+      tituloSeo: `${perfil.titulo} em Curitiba | Motors Store`,
       descricao:
         `${perfil.titulo} em Curitiba, escolhidos por quem atende: veículos que resolvem ` +
         `${perfil.frase}. Perícia cautelar independente, troca e financiamento no Bacacheri.`,

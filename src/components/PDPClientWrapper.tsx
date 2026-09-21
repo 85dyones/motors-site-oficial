@@ -669,6 +669,11 @@ export default function PDPClientWrapper({
             <span className="block">
               {veiculo.marca} {modeloExibido}
             </span>
+            {/* Texto de verdade entre os dois blocos (2026-09-21). Sem ele o
+                `textContent` deste `<h1>` colava modelo e versão —
+                "Volkswagen Virtushighline 200 tsi…" —, e é o `textContent` que
+                o rastreador lê. Entre duas caixas de bloco o espaço não rende. */}
+            {complementoDoTitulo && " "}
             {complementoDoTitulo && (
               <span className="mt-1.5 block text-sm font-normal leading-snug tracking-normal text-mt-neutral-700">
                 {complementoDoTitulo}

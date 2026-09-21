@@ -233,10 +233,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      * Hubs perenes de marca, modelo e carroceria.
      *
      * Prioridade 0.8: acima das institucionais e abaixo das fichas, que são o
-     * que de fato converte. Entram TODOS os hubs que existem — inclusive os de
+     * que de fato converte. Entram os hubs que existem — inclusive os de
      * grade vazia. Um hub que some do sitemap quando o último carro da marca é
      * vendido volta a ser efêmero, que é exatamente o defeito que ele existe
      * para corrigir.
+     *
+     * A exceção, desde 2026-09-21: o hub de MODELO sem carro há mais de 30
+     * dias pelo relógio do feed (`hubAdormecido`). Ele declara `noindex` e sai
+     * daqui junto; volta sozinho quando entra um carro do modelo. Vazio há
+     * menos que isso continua listado — é o modelo que a loja repõe.
      *
      * O arquivo continua único, sem índice: o limite de um sitemap é 50.000
      * URLs e este anda na casa das centenas. Dividir agora seria manutenção

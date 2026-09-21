@@ -116,10 +116,10 @@ function enumerar(itens: string[]): string {
 function paragrafoDaSelecao(genero: Genero = "m"): string {
   return (
     "Todo veículo que entra passa por perícia cautelar independente antes de ir para a " +
-    `vitrine: de cada dez ${avaliados(genero)}, três entram. O laudo está disponível para consulta ` +
-    "com o vendedor, o preço " +
-    `está no anúncio e o showroom fica no ${BAIRRO_DA_LOJA}, em ${CIDADE_DA_LOJA} — dá para ` +
-    "ver o carro, dirigir e conferir a documentação no mesmo dia."
+    `vitrine, e de cada dez ${avaliados(genero)}, três entram. O laudo está disponível para ` +
+    "consulta com o vendedor e o preço está no anúncio. O showroom fica no " +
+    `${BAIRRO_DA_LOJA}, em ${CIDADE_DA_LOJA}, e lá dá para ver o carro, dirigir e conferir a ` +
+    "documentação no mesmo dia."
   );
 }
 
@@ -141,9 +141,9 @@ export function textoDeMarca(
 
   if (r.total === 0) {
     paragrafos.push(
-      `A Motors Store já vendeu ${marca} e volta a receber. Esta página fica no ar mesmo sem ` +
-        `unidade disponível: quando ${um(genero)} ${marca} entrar no estoque, é aqui que ` +
-        `${concordar(genero, "ele", "ela")} aparece primeiro.`,
+      `A Motors Store já vendeu ${marca} e volta a receber. Esta página continua no ar mesmo ` +
+        `sem unidade disponível: quando ${um(genero)} ${marca} entrar no estoque, ` +
+        `${concordar(genero, "ele", "ela")} aparece aqui primeiro.`,
     );
   } else {
     const anos = trechoDeAnos(r);
@@ -243,7 +243,7 @@ export function textoDeCarroceria(
 
   if (r.total === 0) {
     paragrafos.push(
-      `Sem ${plural} em estoque neste momento. O giro é semanal — vale conferir o catálogo ` +
+      `Sem ${plural} em estoque neste momento. O giro é semanal, então vale conferir o catálogo ` +
         "completo ou falar com um consultor para ser avisado quando entrar.",
     );
   } else {
@@ -269,7 +269,7 @@ export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[
   if (r.total === 0) {
     paragrafos.push(
       `Sem veículos ${faixa} em estoque neste momento. Esta faixa faz parte do que a loja ` +
-        "compra e volta a encher — o giro é semanal.",
+        "compra e volta a encher, porque o giro é semanal.",
     );
   } else {
     const anos = trechoDeAnos(r);
@@ -285,13 +285,12 @@ export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[
     );
   }
 
-  // Masculino porque o substantivo desta página é "veículos" em qualquer
-  // faixa — mas passando pelo helper, para que a frase da casa tenha uma
-  // origem só e o teste de fonte possa cobrar isso do arquivo inteiro.
+  // O "de cada dez, três entram" desta página vem só do parágrafo da seleção,
+  // logo abaixo: repetido aqui, o hub de faixa dizia a mesma frase duas vezes
+  // seguidas (revisão do humanizer, 2026-09-21).
   paragrafos.push(
-    "A faixa de preço é o recorte, não o critério de entrada: o carro de R$ 30 mil passa pela " +
-      "mesma perícia cautelar independente que o mais caro da vitrine. É o que permite " +
-      `escalar para baixo sem baixar o crivo — de cada dez ${avaliados("m")}, três entram, em qualquer faixa.`,
+    "O carro de R$ 30 mil passa pela mesma perícia cautelar independente que o mais caro da " +
+      "vitrine. A faixa de preço só organiza a página e não muda o critério de entrada.",
   );
 
   paragrafos.push(paragrafoDaSelecao());
@@ -318,7 +317,7 @@ export function textoDePerfil(perfil: PerfilDeUso, veiculos: Veiculo[]): string[
   if (r.total === 0) {
     paragrafos.push(
       `Nenhum veículo marcado para ${perfil.frase} neste momento. O recorte existe e volta a ` +
-        "encher — o giro é semanal.",
+        "encher, porque o giro é semanal.",
     );
   } else {
     const anos = trechoDeAnos(r);
@@ -338,9 +337,9 @@ export function textoDePerfil(perfil: PerfilDeUso, veiculos: Veiculo[]): string[
     // Sem repetir "de cada dez, três entram": `paragrafoDaSelecao()` logo
     // abaixo já traz a estatística, e dizê-la duas vezes no mesmo texto
     // enfraquece as duas.
-    "Este recorte é escolhido a dedo, não calculado: quem atende marca o que cada carro " +
-      "resolve na prática, e o mesmo veículo aparece em mais de um uso quando serve para " +
-      "mais de um. O que não muda é o crivo de entrada, igual para toda a vitrine.",
+    "Este recorte é escolhido a dedo: quem atende marca o que cada carro resolve na prática, " +
+      "e o mesmo veículo aparece em mais de um uso quando serve para mais de um. O crivo de " +
+      "entrada é o mesmo para toda a vitrine.",
   );
 
   paragrafos.push(paragrafoDaSelecao());
@@ -374,10 +373,10 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Qual a capacidade de carga das picapes?",
       resposta:
-        "Depende da versão: cabine simples carrega mais que cabine dupla no mesmo modelo, e a " +
+        "Depende da versão: no mesmo modelo, a cabine simples carrega mais que a dupla, e a " +
         "diferença entre uma picape compacta e uma média é grande. A capacidade oficial de cada " +
-        "unidade fica na ficha do veículo — e, se a carga for o motivo da compra, vale dizer o que " +
-        "você transporta para conferirmos junto antes de você vir.",
+        "unidade está na ficha do veículo. Se a carga for o motivo da compra, conte o que você " +
+        "transporta e a gente confere junto antes de você vir.",
     },
   ],
   "/estoque/suv": [
@@ -394,17 +393,17 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Hatch cabe em vaga de prédio antigo?",
       resposta:
-        "Na maioria dos casos sim — é a categoria com as menores dimensões externas do mercado. " +
-        "Ainda assim, vaga apertada é questão de centímetros: traga a medida da sua e a gente " +
-        "confere na ficha antes do test drive, em vez de você descobrir na garagem.",
+        "Na maioria dos casos, sim: é a categoria com as menores dimensões externas do mercado. " +
+        "Mas vaga apertada é questão de centímetros. Traga a medida da sua e a gente confere na " +
+        "ficha antes do test drive, para você não descobrir na garagem.",
     },
   ],
   "/estoque/sedan": [
     {
       pergunta: "Sedã cabe mala de viagem sem rebater o banco?",
       resposta:
-        "É justamente o que ele resolve melhor que o hatch: porta-malas fechado, separado da " +
-        "cabine, que leva malas grandes em pé. O volume exato varia por modelo e está na ficha. " +
+        "Cabe, e nisso ele ganha do hatch: o porta-malas é fechado, separado da cabine, e " +
+        "leva malas grandes em pé. O volume exato varia por modelo e está na ficha. " +
         "Se quiser certeza, traga a mala que você usa e ponha dentro no showroom.",
     },
   ],
@@ -412,9 +411,9 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Perua serve para quem precisa de espaço mas não quer um SUV?",
       resposta:
-        "Serve, e é o argumento dela: porta-malas de utilitário com altura e comportamento de " +
-        "carro baixo, o que significa dirigir melhor, gastar menos e caber em garagem de prédio " +
-        "antigo. Quem enfrenta estrada de terra com frequência é que vai sentir falta do vão livre.",
+        "Serve. A perua tem porta-malas de utilitário com altura e comportamento de carro baixo, " +
+        "então dirige melhor, gasta menos e cabe em garagem de prédio antigo. Quem enfrenta " +
+        "estrada de terra com frequência vai sentir falta do vão livre.",
     },
   ],
   "/estoque/van": [
@@ -432,8 +431,8 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
       pergunta: "Utilitário usado de frota vale a pena?",
       resposta:
         "Pode valer, desde que o histórico acompanhe. Veículo de frota costuma ter manutenção " +
-        "registrada e rodar mais quilômetro por ano que o de pessoa física — o que importa é se as " +
-        "revisões seguiram a quilometragem. Todo veículo aqui passa por perícia cautelar " +
+        "registrada e rodar mais quilômetro por ano que o de pessoa física, então vale conferir " +
+        "se as revisões seguiram a quilometragem. Todo veículo aqui passa por perícia cautelar " +
         "independente antes de ser anunciado, e o laudo está disponível para consulta com o vendedor.",
     },
   ],
@@ -443,8 +442,8 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Quem tem CNH provisória pode comprar e financiar?",
       resposta:
-        "Comprar e dirigir, sim — a permissão provisória vale como habilitação. O financiamento é " +
-        "outra conversa: cada banco tem a própria política para condutor recém-habilitado, e a " +
+        "Comprar e dirigir, sim: a permissão provisória vale como habilitação. O financiamento é " +
+        "outra conversa. Cada banco tem a própria política para condutor recém-habilitado, e a " +
         "aprovação depende de análise de crédito, não da carteira. Traga a sua situação para um " +
         "consultor simular com os bancos com quem trabalhamos.",
     },
@@ -453,8 +452,8 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Câmbio automático vale a pena para quem só roda na cidade?",
       resposta:
-        "No trânsito parado, quase sempre — é onde ele mais compensa em conforto. A ressalva é o " +
-        "tipo de câmbio: automatizado de marcha única costuma cansar em rampa, e o automático " +
+        "Quase sempre: é no trânsito parado que ele mais compensa em conforto. A ressalva é o " +
+        "tipo de câmbio. O automatizado de marcha única costuma cansar em rampa, e o automático " +
         "convencional cobra mais na manutenção. Vale dirigir os dois no mesmo dia antes de decidir.",
     },
   ],
@@ -472,17 +471,17 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Como sei se a cadeirinha instala bem no carro?",
       resposta:
-        "O que decide é a presença de pontos Isofix, a largura do banco traseiro e o quanto a porta " +
-        "de trás abre. Isso não se resolve por ficha técnica: traga a cadeirinha que você usa e " +
-        "instale no showroom. Leva cinco minutos e responde de uma vez.",
+        "Três coisas decidem: se o carro tem pontos Isofix, a largura do banco traseiro e o quanto " +
+        "a porta de trás abre. Ficha técnica não resolve isso: traga a cadeirinha que você usa e " +
+        "instale no showroom. Leva cinco minutos e tira a dúvida de uma vez.",
     },
   ],
   "/estoque/estrada": [
     {
       pergunta: "Quilometragem alta é problema em carro de estrada?",
       resposta:
-        "Menos do que parece — estrada é o uso menos agressivo que existe para um motor. O que " +
-        "importa é o histórico de manutenção e o estado de suspensão, freio e pneus. Carro parado " +
+        "Menos do que parece, porque estrada é o uso menos agressivo que existe para um motor. " +
+        "Pesam mais o histórico de manutenção e o estado de suspensão, freio e pneus. Carro parado " +
         "por muito tempo costuma dar mais dor de cabeça que carro rodado com revisão em dia.",
     },
   ],
@@ -490,8 +489,8 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Dá para usar como pessoa jurídica e abater na declaração?",
       resposta:
-        "A venda pode ser faturada para CNPJ, e muitos clientes compram assim. O que a loja não faz " +
-        "é orientação contábil: se o abatimento se aplica ao seu caso, quem responde é a sua " +
+        "A venda pode ser faturada para CNPJ, e muitos clientes compram assim. A loja não dá " +
+        "orientação contábil: se o abatimento se aplica ao seu caso, quem responde é a sua " +
         "contabilidade. Avise antes de fechar para emitirmos a documentação no nome certo.",
     },
   ],
@@ -499,10 +498,10 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Como saber se o carro foi preparado ou remapeado?",
       resposta:
-        "É a pergunta certa, e nem sempre o vendedor anterior conta. Os sinais são chicote com " +
-        "emenda, central com módulo adicional e escapamento fora do original. Todo veículo aqui " +
-        "passa por perícia cautelar independente antes de ser anunciado, e o que ela encontrar fica " +
-        "escrito na ficha.",
+        "Quem vendeu o carro antes nem sempre conta. Os sinais são chicote com emenda, central " +
+        "com módulo adicional e escapamento fora do original. Todo veículo aqui passa por perícia " +
+        "cautelar independente antes de ser anunciado, e o laudo está disponível para consulta " +
+        "com o vendedor.",
     },
   ],
 
@@ -511,19 +510,19 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
     {
       pergunta: "Nessa faixa, o que mais reprova um carro na avaliação?",
       resposta:
-        "Sinistro de médio porte, passagem por leilão e divergência de numeração. São exatamente as " +
-        "coisas que fazem um veículo custar menos do que deveria — e o motivo de a perícia cautelar " +
-        "vir antes do anúncio. De cada dez que avaliamos, três entram no showroom.",
+        "Sinistro de médio porte, passagem por leilão e divergência de numeração. São as coisas " +
+        "que fazem um veículo custar menos do que deveria, e é por causa delas que a perícia " +
+        "cautelar vem antes do anúncio. De cada dez que avaliamos, três entram no showroom.",
     },
   ],
   "/estoque/60-a-100-mil": [
     {
       pergunta: "Vale mais um hatch completo ou um SUV de entrada?",
       resposta:
-        "Depende do que você faz com o carro, não do que ele parece. O hatch completo entrega mais " +
-        "conforto e itens pelo mesmo dinheiro; o SUV de entrega entrega posição de dirigir e altura, " +
-        "e cobra em consumo e manutenção. Venha ver os dois no mesmo dia — vinte minutos de volante " +
-        "resolvem melhor que qualquer comparativo.",
+        "Depende do uso que você vai dar ao carro. O hatch completo tem mais conforto e itens pelo " +
+        "mesmo dinheiro; o SUV de entrada tem posição de dirigir e altura, e cobra em consumo e " +
+        "manutenção. Venha ver os dois no mesmo dia: vinte minutos de volante resolvem melhor que " +
+        "qualquer comparativo.",
     },
   ],
   "/estoque/acima-100-mil": [
@@ -595,12 +594,12 @@ export function perguntasDeCategoria(
       pergunta: "Tem financiamento? Em quantas vezes?",
       resposta:
         "Sim, com aprovação em múltiplos bancos e simulação na própria ficha do veículo. " +
-        "As condições dependem de análise de crédito — a simulação do site é estimativa, não proposta.",
+        "As condições dependem de análise de crédito, e a simulação do site é uma estimativa, não uma proposta.",
     },
     {
       pergunta: `Onde vejo ${O(genero, true).toLowerCase()} ${rotulo} pessoalmente?`,
       resposta:
-        `No showroom da Motors Store, na Rua Ernesto Piazzetta, 98 — ${BAIRRO_DA_LOJA}, ` +
+        `No showroom da Motors Store, na Rua Ernesto Piazzetta, 98, no ${BAIRRO_DA_LOJA}, em ` +
         `${CIDADE_DA_LOJA}. De segunda a sexta das 8h30 às 18h30 e aos sábados das 8h30 às 15h.`,
     },
   ];

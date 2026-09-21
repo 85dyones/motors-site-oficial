@@ -23,8 +23,10 @@ baixamos tudo isso: tempo de venda, preparação, quilometragem".
   carro específico vai vender, nem quando.
 - **A partir da média, a avaliação tira o que aquele carro específico vai custar
   e demorar para ser vendido:**
-  - **preparação** — o que precisa ser feito para o carro ir à vitrine: perícia
-    cautelar, funilaria e pintura, pneus, revisão, polimento, higienização;
+  - **preparação** — o que precisa ser feito para o carro ir à vitrine: funilaria e
+    pintura, pneus, revisão, polimento, higienização. (Até 21/09/2026 a lista
+    começava pela perícia cautelar; saiu porque a perícia da avaliação é custo da
+    loja, ver §6 e §7.)
   - **quilometragem** — acima da média para o ano, pesa; o carro rodou mais do
     que a média que a FIPE representa;
   - **tempo de venda** — quanto tempo aquele modelo, versão e cor levam para
@@ -142,6 +144,30 @@ Fecham as perguntas que os redatores deixaram abertas. As palavras dele entre as
   verba demora mais. Todas as peças foram corrigidas.
 - **Resolução Contran nº 1.027/2026 e a procuração:** "ignore por enquanto, quando
   mudar, mudamos." Nenhuma peça muda por causa dela.
+
+## 7. Confirmações do dono de 21/09/2026
+
+Respostas à revisão do humanizer. Valem para todos os guias e hubs, não só para
+esta onda.
+
+- **Prazo de transferência no Paraná: sessenta dias**, como informa o Detran-PR.
+  Sai a orientação de "tratar trinta como o prazo".
+- **Perícia fora dos custos de preparação descontados**, na avaliação e na
+  consignação: a da avaliação é custo da loja; a da consignação só é cobrada se o
+  carro sair sem ser vendido pela loja (§3 e §6).
+- **Correia banhada em óleo:** a garantia que a Chevrolet dá à correia vale para
+  os modelos da marca com correia banhada a partir de 2023, por 15 anos ou 240 mil
+  quilômetros, e é da montadora. Condições, nas palavras do dono: "a adesão
+  continua sendo condição, inspeção, revisão e início da garantia, condicionada a
+  todas as revisões serem feitas na concessionária pós ativação". Ela só se
+  menciona no hub da marca e nos hubs dos modelos cobertos ("não temos por que
+  fazer propaganda disso fora do hub"): hoje, `/carros/chevrolet` e
+  `/carros/chevrolet/onix`, com prazo e condições na mesma frase. O guia da correia não fala mais dela (nem da campanha de 2024), e
+  a trava `tests/garantia-chevrolet-fora-dos-guias.test.ts` segura. A garantia da
+  loja trata a correia como manutenção; a ressalva da /garantia sobre dano ao
+  motor causado por item de manutenção (18/09) continua como o dono definiu.
+- **Kombi:** motor com arrefecimento a água (a 1.4 flex, de 2006 em diante).
+- **Bancos:** pelo menos dez. **TAC:** sai do site e do simulador.
 
 ---
 

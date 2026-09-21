@@ -6,6 +6,7 @@ import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
 import { interesseDoLead } from "../../../lib/interesseDoLead";
+import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
 
 export const dynamic = "force-dynamic";
 
@@ -218,6 +219,12 @@ export async function POST(request: NextRequest) {
          * ninguém, e para `count(ag_uid)` continuar significando o que parece.
          */
         ag_uid: resolvedAgUid !== "ag_ref_nao_localizado" ? resolvedAgUid : null,
+        // De onde o lead veio: `utm_*`, `gclid`, `fbclid`, `fbp`, `fbc`. Os
+        // valores já chegavam neste corpo e seguiam para o n8n e a CAPI, mas
+        // não para a linha — 0 de 14 leads com qualquer um deles em
+        // 2026-09-20. Sem o `gclid` aqui não há conversão offline quando o
+        // negócio fecha. Regras e limites em `lib/contextoDeMidia.ts`.
+        ...contextoDeMidiaDoLead(body),
       });
 
       if (erroLead) {

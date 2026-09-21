@@ -150,6 +150,18 @@ Enquanto dividirem o nome, a linkagem das páginas sem estoque fica ambígua e o
 
 **Gancho não é título.** Uma tese provocativa é uma abertura excelente e uma URL péssima. Ninguém busca "a ilusão da cautelar" ou "curadoria negativa"; busca "laudo cautelar garante motor" e "o que reprova na perícia". A tese vira o primeiro parágrafo; a query vira o H1 e o slug.
 
+## 1.6.1 Voz: todo texto passa pelo humanizer
+
+Decisão do dono em 2026-09-21. Guia, texto de hub, página institucional e FAQ, novos e existentes, passam pela skill **humanizer** (github.com/blader/humanizer) antes de publicar: tirar as marcas de texto de IA sem mudar o que o texto diz, sem fato novo e sem perder número, ressalva ou termo de link.
+
+As marcas que mais apareciam aqui, e que a trava reprova:
+
+- **travessão** (— e –) como conector: troque por vírgula, ponto, dois-pontos ou parênteses;
+- **contraste encenado**: "não é X, é Y", "não X, e sim Y", "Não é X. É Y.". Diga Y direto; o contraste só fica quando corrige algo que o leitor realmente pensa;
+- **abertura encenada** ("A verdade é que", "Resumindo"), **frase de efeito** ("no fim do dia"), **vocabulário de IA** ("vale ressaltar", "crucial", "desempenha um papel") e **resíduo de chat** ("é a pergunta certa").
+
+A trava é `tests/textos-sem-marcas-de-ia.test.ts`, com a régua em `tests/marcasDeIA.ts`. Ela varre todo lote em `conteudo-seo/` (`guias-*.json`, `guia-*.json`, `textos-de-hub-humanizados.json`) e o texto que o código gera para hubs, páginas geográficas, `/financiamento`, `/garantia` e o laudo. O que é escrito direto no painel não passa por ela: quem publica roda a skill antes.
+
 ## 1.7 Conteúdo institucional — fora de `/guias`
 
 Material forte cujo leitor natural é o setor, não o comprador. Não vai para `/guias` porque reprova no critério 3, mas não se perde:

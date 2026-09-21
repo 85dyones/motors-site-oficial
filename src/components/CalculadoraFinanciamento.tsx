@@ -129,7 +129,7 @@ Consegue verificar se aprova nessas condições?`;
         <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-neutral-800">
           Esta simulação usa taxas que podem variar dependendo de análises das
           instituições bancárias referente ao crédito disponível e
-          &ldquo;score&rdquo; de cada pessoa. Valores incluem TAC e IOF.
+          &ldquo;score&rdquo; de cada pessoa. Valores incluem IOF.
         </p>
       </div>
 
@@ -230,7 +230,7 @@ Consegue verificar se aprova nessas condições?`;
             <div className="mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
               {installments}× · CET a partir de {result.taxa_aplicada_mes_pct.toFixed(2)}% a.m. ({result.perfil_calculado})
               <br />
-              Sujeito a aprovação de crédito · TAC e IOF inclusos
+              Sujeito a aprovação de crédito · IOF incluso
             </div>
           </div>
         </div>

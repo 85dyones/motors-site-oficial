@@ -64,7 +64,7 @@ Medido no banco, nos 43 veículos:
 - **`laudo_pericia`: 0 de 43 preenchidos.**
 - **`opcionais`: 1 de 43 preenchido.**
 
-**Resolvido para o `laudo_pericia` em 2026-08-17:** o dono confirmou que todos os veículos passam por perícia cautelar, e o campo vazio é falha de lançamento no sistema. O texto pode afirmar o exame. O campo continua devendo ser preenchido — a promessa pública é que o laudo fica na ficha do carro, e hoje não fica.
+**Resolvido para o `laudo_pericia` em 2026-08-17:** o dono confirmou que todos os veículos passam por perícia cautelar, e o campo vazio é falha de lançamento no sistema. O texto pode afirmar o exame. O campo continua devendo ser preenchido. *(Superado em 16/09/2026: o laudo fica com o vendedor e sai a pedido; ver `POSICIONAMENTO.md`.)*
 
 **`opcionais` segue aberto**, e tira a matéria-prima mais óbvia de diferenciação entre dois carros do mesmo modelo. É o próximo lote (§7).
 
@@ -144,7 +144,7 @@ O trigger `estoque_motors_conteudo_atualizado` move `conteudo_atualizado_em` a c
 
 ## 7. Respondido pelo dono em 2026-08-17
 
-- **Laudo.** Todos os veículos passam por perícia cautelar — o campo vazio é falha de lançamento, não ausência do exame. **O texto pode afirmar.** O campo continua devendo ser preenchido: a promessa pública é que o laudo fica na ficha do carro.
+- **Laudo.** Todos os veículos passam por perícia cautelar — o campo vazio é falha de lançamento, não ausência do exame. **O texto pode afirmar.** O campo continua devendo ser preenchido. *(Superado em 16/09/2026: o laudo fica com o vendedor e sai a pedido; ver `POSICIONAMENTO.md`.)*
 - **Posicionamento.** "Premium" descartado. Ver `POSICIONAMENTO.md` — o termo é **seleção**, frase-mãe "o carro que passou".
 - **Geografia.** Local: raio de 50 km de Curitiba. Digital: Paraná inteiro e Santa Catarina até Balneário Camboriú.
 - **Motos.** Deixam de ser exceção. Mesma régua de texto e de seleção.
