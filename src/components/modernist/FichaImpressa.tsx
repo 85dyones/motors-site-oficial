@@ -33,9 +33,9 @@ import { LAUDO_APROVADO_PADRAO } from "../../lib/descritivo/laudoPadrao";
  *    toda folha, mas só afirma aprovação onde a perícia aprovou; nas outras
  *    ela diz o que o site já diz. E o ano sai sozinho porque o `Veiculo`
  *    ainda não carrega o ano de fabricação — o desenho mostra "2025 / 2025",
- *    e o par vive no banco (`estoque_motors.ano_fabricacao`, preenchido em
- *    todas as linhas) esperando o plano
- *    `docs/superpowers/plans/2026-09-21-ano-de-fabricacao.md`.
+ *    e o par já vive no banco (`estoque_motors.ano_fabricacao`, preenchido em
+ *    todas as linhas), só não chega ao tipo. O plano que o traz está no
+ *    branch `feat/ano-de-fabricacao` e entra aqui junto com ele.
  */
 
 /**
