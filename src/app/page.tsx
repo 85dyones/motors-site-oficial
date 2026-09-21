@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { areasVisiveis, normalizarAreas } from "../lib/areasDoSite";
 import HeroHome from "../components/modernist/HeroHome";
+import ContagemDeEstoque from "../components/ContagemDeEstoque";
 import BuscaRegua from "../components/modernist/BuscaRegua";
 import BotaoWhatsApp from "../components/modernist/BotaoWhatsApp";
 import InstagramFeed from "../components/InstagramFeed";
@@ -431,6 +432,14 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: grafoDaHome }}
       />
+
+      {/* A contagem no `dataLayer`, como `/estoque` e as geográficas já faziam.
+          A home calculava `total` e o mostrava no hero, mas nunca o publicava:
+          `CamadaDeDados` zera `stock_count` a cada página, e a de maior tráfego
+          do site mandava `null` (medido em produção em 2026-09-20). Fora da
+          lista de áreas de propósito — desligar o hero no painel não pode
+          desligar a medição. */}
+      <ContagemDeEstoque total={total} />
 
       {/* A ordem e a visibilidade vêm da tela A3 do painel. `areasVisiveis`
           já descarta o que está desligado e normaliza config estranha — uma
