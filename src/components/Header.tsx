@@ -8,6 +8,7 @@ import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { MENU_DO_CABECALHO } from "../lib/menuDoCabecalho";
+import { trackContactClick } from "../lib/telemetry";
 
 /**
  * Cabeçalho Modernist (redesign 2026).
@@ -138,8 +139,18 @@ export default function Header() {
             tela. A faixa fecha em 1279 porque `xl:` liga EM 1280 — a linha de
             1280px da tabela de `menuDoCabecalho.ts` só bate com o telefone
             já visível. */}
+        {/* Desde 2026-09-21 este é um CTA medido como os outros. Era o único
+            `tel:` do site fora de `trackContactClick` — o do rodapé foi ligado
+            em 2026-08-06 e este ficou para trás, justamente o telefone mais
+            visível no desktop. O clique não gerava `click_to_call` no
+            dataLayer nem `Contact` no Meta, e a `conv_ligacao` do Google Ads
+            segue sem nunca ter recebido dado. Este link é metade do motivo; a
+            outra metade é conferir se a tag de `click_to_call` do container
+            está apontada para ela. Rótulo no padrão do vizinho,
+            "Header - WhatsApp". */}
         <a
           href={`tel:${(companySettings?.phone || "").replace(/\D/g, "")}`}
+          onClick={() => trackContactClick("phone", "Header - Telefone")}
           className="mt-foco hidden text-[13px] text-mt-neutral-300 no-underline hover:text-mt-inverso xl:block"
         >
           {companySettings?.phone}

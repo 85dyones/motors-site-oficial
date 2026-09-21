@@ -6,6 +6,7 @@ import { useTheme } from "../app/ThemeContext";
 import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 import { colunasDoRodape } from "../lib/colunasDoRodape";
 import { trackContactClick } from "../lib/telemetry";
+import { razaoSocialAparte } from "../lib/identidadeLegal";
 
 /**
  * Rodapé Modernist (redesign 2026).
@@ -42,6 +43,7 @@ function AnoAtual() {
 
 export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape }) {
   const { companySettings } = useTheme();
+  const razaoSocial = razaoSocialAparte(companySettings);
   const marcas = navegacao?.marcas ?? [];
   const modelos = navegacao?.modelos ?? [];
 
@@ -165,6 +167,7 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
         <div className="flex flex-col gap-2 pt-4 text-[11px] tracking-[.06em] md:flex-row md:justify-between">
           <span>
             © <AnoAtual /> {companySettings.name.toUpperCase()}
+            {razaoSocial ? ` · ${razaoSocial.toLocaleUpperCase("pt-BR")}` : ""}
             {companySettings.cnpj ? ` · CNPJ ${companySettings.cnpj}` : ""}
           </span>
           <span className="md:text-right">

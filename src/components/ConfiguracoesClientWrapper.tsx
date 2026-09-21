@@ -2405,6 +2405,26 @@ export default function ConfiguracoesClientWrapper({
                     />
                   </div>
 
+                  {/* Razão social — vai para o rodapé ao lado do CNPJ, para a
+                      política de privacidade e para o `legalName` do schema.
+                      Em branco, nada aparece; igual ao nome, o rodapé não repete. */}
+                  <div className="flex flex-col gap-1.5 col-span-2">
+                    <label
+                      htmlFor="razao-social"
+                      className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
+                    >
+                      Razão social
+                    </label>
+                    <input
+                      id="razao-social"
+                      type="text"
+                      value={companyForm.razaoSocial ?? ""}
+                      onChange={(e) => setCompanyForm({ ...companyForm, razaoSocial: e.target.value })}
+                      placeholder="Como consta no cartão do CNPJ"
+                      className="w-full p-3.5 bg-mt-bg text-mt-ink placeholder-mt-neutral-500 border border-mt-regua-fina text-xs outline-none focus:border-mt-accent transition-all"
+                    />
+                  </div>
+
                   {/* Phone */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
