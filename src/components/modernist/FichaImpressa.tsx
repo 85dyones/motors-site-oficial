@@ -5,6 +5,7 @@ import type { CompanySettings, Veiculo } from "../../types";
 import type { QrDaFicha } from "../../lib/qrDaFicha";
 import { telefoneVisivel } from "../../lib/whatsapp";
 import { razaoSocialAparte } from "../../lib/identidadeLegal";
+import { BAIRRO_DA_LOJA } from "../../lib/textoDosHubs";
 
 /**
  * A ficha impressa do veículo — uma folha A4, e só ela.
@@ -543,7 +544,7 @@ export default function FichaImpressa({
               textTransform: "uppercase",
             }}
           >
-            {empresa.name} · Bacacheri
+            {empresa.name} · {BAIRRO_DA_LOJA}
           </span>
           <span style={{ fontSize: "1.462cqw", lineHeight: 1.45, color: "var(--mt-neutral-700)" }}>
             {/* A razão social vem acima do endereço quando difere do nome
