@@ -138,7 +138,7 @@ describe("o guia publica o grafo inteiro", () => {
     expect(nos(await guiaRenderizado())).toHaveLength(5);
   });
 
-  it("o Article declara as datas do banco e aponta para a loja", async () => {
+  it("o Article declara as datas do banco, o autor e a loja", async () => {
     const publicados = nos(await guiaRenderizado());
     const artigo = publicados.find((n) => n["@type"] === "Article")!;
     const loja = publicados.find((n) => n["@type"] === "AutoDealer")!;
@@ -147,7 +147,13 @@ describe("o guia publica o grafo inteiro", () => {
     // muda o segundo e preserva o primeiro.
     expect(artigo.datePublished).toBe(GUIA.publicadoEm);
     expect(artigo.dateModified).toBe(GUIA.atualizadoEm);
-    expect(artigo.author).toEqual({ "@id": loja["@id"] });
+    // O autor é a pessoa que assina (2026-09-21), trabalhando para a loja; a
+    // loja segue como quem publica.
+    expect(artigo.author).toMatchObject({
+      "@type": "Person",
+      name: "Dyones Oliveira",
+      worksFor: { "@id": loja["@id"] },
+    });
     expect(artigo.publisher).toEqual({ "@id": loja["@id"] });
   });
 

@@ -72,14 +72,18 @@ export function calculateFinancing(params: SimulationParams): SimulationResult {
   }
 
   // 4. Impostos Reais (IOF Crédito PF)
-  const tac = 950.00;  // Tarifa média de Cadastro do mercado
+  // Sem TAC desde 21/09/2026, por ordem do dono: a tarifa de abertura de
+  // crédito não é cobrada de pessoa física desde 2008, e o site não soma
+  // tarifa nenhuma à estimativa. Tirar os R$ 950 também fecha um defeito
+  // antigo: com entrada igual ao preço, a conta financiava a tarifa sozinha
+  // e mostrava parcela de um carro já pago.
   const iof_fixo = valor_financiar_puro * 0.0038;
   const dias_iof = Math.min(meses * 30, 365);
   const iof_diario = valor_financiar_puro * (0.000082 * dias_iof); // Alíquota oficial de 0,0082% ao dia
   const iof_total = iof_fixo + iof_diario;
   
   // Valor de cálculo total (Tabela Price)
-  const pv = valor_financiar_puro + tac + iof_total;
+  const pv = valor_financiar_puro + iof_total;
   
   // 5. Cálculo da Parcela (Tabela Price)
   const i = taxa_mensal;

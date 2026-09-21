@@ -94,14 +94,15 @@ export interface PaginaDeEstoqueProps {
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
   acao?: ReactNode;
   /**
-   * O `<h1>` traz a contagem ao lado do título.
+   * Mostra "N à venda" no topo da coluna da direita, acima do resumo.
    *
-   * Vale para vitrine — "Jeep seminovos em Curitiba 4". Não vale para página
-   * que não é listagem: "Garantia do seminovo 0" não quer dizer nada.
+   * Vale para vitrine — "4 à venda" num hub de Jeep. Não vale para página que
+   * não é listagem: "0 à venda" na Garantia não quer dizer nada.
    *
    * O zero não é impresso nem quando isto é `true`: o hub perene sem estoque
-   * explica a situação em `textoSemEstoque`, e um "0" pendurado no cabeçalho
-   * só parece defeito.
+   * explica a situação em `textoSemEstoque`, e um "0" no cabeçalho só parece
+   * defeito. (Até 2026-09-21 o número ia DENTRO do `<h1>` — ver a nota no
+   * cabeçalho do componente.)
    */
   contagem?: boolean;
   /**
@@ -158,6 +159,30 @@ export interface SecaoDeTexto {
 const CLASSE_DO_PARAGRAFO =
   "m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]";
 
+/**
+ * O título com as palavras de hífen inteiras: "T-Cross", "HR-V",
+ * "Mercedes-Benz", "Harley-Davidson".
+ *
+ * O navegador quebra linha DEPOIS de hífen. Num celular de 360 px o `<h1>` do
+ * hub saía "Volkswagen T-" numa linha e "Cross seminovo em" na outra — medido
+ * na simulação de 21/09, com o CSS e a fonte de produção. Cada palavra com
+ * hífen vai num `<span>` sem quebra; o texto do `<h1>` (o que o buscador e o
+ * leitor de tela leem) continua idêntico, letra por letra, espaço por espaço.
+ */
+export function semQuebraNoHifen(texto: string): ReactNode[] {
+  return texto
+    .split(/(\s+)/)
+    .map((pedaco, i) =>
+      pedaco.includes("-") ? (
+        <span key={i} className="whitespace-nowrap">
+          {pedaco}
+        </span>
+      ) : (
+        pedaco
+      ),
+    );
+}
+
 export default function PaginaDeEstoque({
   trilha,
   titulo,
@@ -204,6 +229,7 @@ export default function PaginaDeEstoque({
   ) : null;
   const resumo = resumirSelecao(veiculos);
   const temResumo = veiculos.length > 0;
+  const mostraContagem = contagem && temResumo;
   const marcasVisiveis = resumo.marcas.slice(0, 3);
   const marcasOcultas = resumo.marcas.length - marcasVisiveis.length;
 
@@ -232,27 +258,30 @@ export default function PaginaDeEstoque({
           <span className="uppercase text-mt-ink">{titulo}</span>
         </nav>
 
-        <div className="flex flex-col gap-8 border-b-2 border-mt-regua pb-6 pt-4 lg:flex-row lg:items-end lg:gap-11">
+        {/* As colunas se alinham pelo TOPO quando há contagem: o "N à venda"
+            fica na altura do `<h1>`, lado a lado. Alinhadas por baixo, como
+            antes, o título de uma linha descia e abria um vão sob a trilha
+            (opção A da simulação de 21/09). Sem contagem — `/garantia`,
+            `/financiamento` —, nada muda. */}
+        <div
+          className={`flex flex-col gap-8 border-b-2 border-mt-regua pb-6 pt-4 lg:flex-row lg:gap-11 ${
+            mostraContagem ? "lg:items-start" : "lg:items-end"
+          }`}
+        >
           <div className="flex-1">
-            {/* A contagem segue DENTRO do `<h1>`, e segue inline.
+            {/* O `<h1>` é só o assunto — o número saiu daqui em 2026-09-21.
               *
-              * O que mudou em 2026-08-25 foi só o zero: o `<h1>` servido de uma
-              * faixa vazia saía "Seminovos acima de R$ 100 mil em Curitiba 0",
-              * medido no build. O hub perene sem estoque já explica a situação
-              * em `textoSemEstoque`; um "0" pendurado no cabeçalho só parece
-              * defeito.
+              * Até então a contagem ia inline no fim do título ("Volkswagen
+              * Saveiro seminova em Curitiba 2"). A simulação de 21/09, com o
+              * componente, o CSS e a fonte de produção, mediu o que se temia:
+              * em celular de 390 px o número caía SOZINHO numa linha em 18 dos
+              * 46 hubs com carro. E o `<h1>` é o que o Google guarda do dia do
+              * rastreamento: um número ali envelhece a cada venda.
               *
-              * Tirar o número do `<h1>` seria melhor para o rastreador — um
-              * inteiro solto no fim da declaração de assunto é ruído. Mas num
-              * título que quebra linha o número deixaria de seguir a última
-              * palavra e passaria a flutuar ao lado da primeira, e isso não dá
-              * para conferir sem estoque de verdade na tela. Fica como
-              * observação, não como mudança no escuro. */}
+              * O número foi para o topo da coluna da direita, no mesmo tamanho
+              * — decisão do dono, entre as opções simuladas. */}
             <h1 className="mt-titulo m-0 text-[34px] lg:text-[56px] lg:leading-[.95]">
-              {titulo}
-              {contagem && veiculos.length > 0 && (
-                <span className="text-mt-accent"> {veiculos.length}</span>
-              )}
+              {semQuebraNoHifen(titulo)}
             </h1>
             {/* A introdução linka pela mesma régua do FAQ, e aqui sem a
                 restrição do JSON-LD: nada deste texto vai para o `FAQPage`.
@@ -271,51 +300,61 @@ export default function PaginaDeEstoque({
           </div>
 
           {temResumo && (
-            <div className="shrink-0 border-t-2 border-mt-regua pt-3.5 lg:w-[300px]">
-              <div className="mb-2 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
-                NESTA SELEÇÃO
-              </div>
-              {resumo.precoMinimo !== null && (
-                <div className="text-[15px] font-extrabold">
-                  A partir de {formatarPreco(resumo.precoMinimo)}
-                </div>
+            <div className="shrink-0 lg:w-[300px]">
+              {mostraContagem && (
+                // Parágrafo, não título: é dado da vitrine, e o `<h1>` continua
+                // sendo um só. No celular a coluna desce para baixo do texto e o
+                // número fica logo acima da linha do preço.
+                <p className="mt-titulo m-0 mb-4 text-[34px] lg:text-[56px] lg:leading-[.95]">
+                  <span className="text-mt-accent">{veiculos.length}</span> à venda
+                </p>
               )}
-              <dl className="m-0 mt-1.5 text-xs leading-relaxed text-mt-neutral-600">
-                {resumo.anoMaisNovo !== null && (
-                  <div>
-                    <dt className="inline">Ano: </dt>
-                    <dd className="m-0 inline text-mt-ink">
-                      {resumo.anoMaisAntigo === resumo.anoMaisNovo
-                        ? resumo.anoMaisNovo
-                        : `${resumo.anoMaisAntigo} a ${resumo.anoMaisNovo}`}
-                    </dd>
+              <div className="border-t-2 border-mt-regua pt-3.5">
+                <div className="mb-2 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
+                  NESTA SELEÇÃO
+                </div>
+                {resumo.precoMinimo !== null && (
+                  <div className="text-[15px] font-extrabold">
+                    A partir de {formatarPreco(resumo.precoMinimo)}
                   </div>
                 )}
-                {resumo.kmMinimo !== null && (
-                  <div>
-                    <dt className="inline">Quilometragem: </dt>
-                    <dd className="m-0 inline text-mt-ink">
-                      a partir de {formatarKm(resumo.kmMinimo)}
-                    </dd>
-                  </div>
-                )}
-                {marcasVisiveis.length > 0 && (
-                  <div>
-                    <dt className="inline">
-                      {resumo.marcas.length === 1 ? "Marca: " : "Marcas: "}
-                    </dt>
-                    <dd className="m-0 inline text-mt-ink">
-                      {marcasVisiveis.join(", ")}
-                      {marcasOcultas > 0 && ` e mais ${marcasOcultas}`}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-              <div className="mt-3 flex items-center gap-2">
-                <span className="h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
-                <span className="text-[10px] font-semibold tracking-[.1em] text-mt-neutral-600">
-                  TODOS PASSAM PELA PERÍCIA CAUTELAR
-                </span>
+                <dl className="m-0 mt-1.5 text-xs leading-relaxed text-mt-neutral-600">
+                  {resumo.anoMaisNovo !== null && (
+                    <div>
+                      <dt className="inline">Ano: </dt>
+                      <dd className="m-0 inline text-mt-ink">
+                        {resumo.anoMaisAntigo === resumo.anoMaisNovo
+                          ? resumo.anoMaisNovo
+                          : `${resumo.anoMaisAntigo} a ${resumo.anoMaisNovo}`}
+                      </dd>
+                    </div>
+                  )}
+                  {resumo.kmMinimo !== null && (
+                    <div>
+                      <dt className="inline">Quilometragem: </dt>
+                      <dd className="m-0 inline text-mt-ink">
+                        a partir de {formatarKm(resumo.kmMinimo)}
+                      </dd>
+                    </div>
+                  )}
+                  {marcasVisiveis.length > 0 && (
+                    <div>
+                      <dt className="inline">
+                        {resumo.marcas.length === 1 ? "Marca: " : "Marcas: "}
+                      </dt>
+                      <dd className="m-0 inline text-mt-ink">
+                        {marcasVisiveis.join(", ")}
+                        {marcasOcultas > 0 && ` e mais ${marcasOcultas}`}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
+                  <span className="text-[10px] font-semibold tracking-[.1em] text-mt-neutral-600">
+                    TODOS PASSAM PELA PERÍCIA CAUTELAR
+                  </span>
+                </div>
               </div>
             </div>
           )}

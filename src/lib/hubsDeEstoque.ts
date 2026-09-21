@@ -55,6 +55,10 @@ import {
  * Marca que a loja nunca teve continua 404: sem isso o site abriria espaço de
  * URL infinito (`/carros/ferrari`, `/carros/qualquer-coisa`), que é exatamente
  * a página fina que o §2.3.3 manda não criar.
+ *
+ * Perene não quer dizer indexado para sempre: o hub de MODELO sem carro há
+ * mais de 30 dias continua no ar mas pede `noindex` e sai do sitemap
+ * (`hubAdormecido`, 2026-09-21).
  */
 
 export interface HubDeMarca {
@@ -90,6 +94,12 @@ export interface HubDeModelo {
   slugMarca: string;
   segmento: SegmentoDePdp;
   veiculos: Veiculo[];
+  /**
+   * A presença mais recente no feed de QUALQUER carro que já passou por este
+   * hub — vendido, fora do feed ou à venda. É daqui que sai o "sem carro há
+   * N dias" de `hubAdormecido`. `null` quando nenhuma linha tem carimbo.
+   */
+  ultimaPresenca: string | null;
 }
 
 export interface HubDePerfil extends PerfilDeUso {
@@ -284,6 +294,7 @@ export function hubsDeModelo(
       veiculos: disponiveis.filter(
         (v) => slugDeModelo(v.marca, v.modelo, v.versao) === slug && slugDeMarca(v.marca) === slugMarca,
       ),
+      ultimaPresenca: presencaMaisRecente(linhas),
     });
   }
 
@@ -416,8 +427,82 @@ export function acharHubDeCarroceria(
  * Devolve caminho relativo, na ordem em que aparecem na navegação, para o
  * `sitemap.ts` só prefixar o domínio.
  */
+/* ────────────────────────────────────────────────────────────────────────
+   O hub de modelo adormecido
+   ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Quantos dias sem carro até o hub de modelo sair do índice. Decisão do dono,
+ * 2026-09-21.
+ */
+export const DIAS_SEM_CARRO_PARA_NOINDEX = 30;
+
+const UM_DIA_MS = 24 * 60 * 60 * 1000;
+
+function presencaMaisRecente(linhas: readonly Pick<Veiculo, "ultima_presenca">[]): string | null {
+  let maior: number | null = null;
+  let valor: string | null = null;
+  for (const linha of linhas) {
+    if (!linha.ultima_presenca) continue;
+    const t = new Date(linha.ultima_presenca).getTime();
+    if (Number.isFinite(t) && (maior === null || t > maior)) {
+      maior = t;
+      valor = linha.ultima_presenca;
+    }
+  }
+  return valor;
+}
+
+/**
+ * O "agora" do feed: a presença mais recente de qualquer linha do histórico.
+ *
+ * Contra a própria tabela, e nunca contra `Date.now()` — a mesma regra de
+ * `ancoraDoFeed` (`lib/estoqueTabela.ts`). Se o n8n parar, o relógio de parede
+ * acusaria TODO hub vazio de estar adormecido e desindexaria a vitrine por
+ * causa de um robô parado. Contra a âncora, sync parado congela a contagem.
+ */
+export function ancoraDoHistorico(historico: readonly Pick<Veiculo, "ultima_presenca">[]): number | null {
+  const valor = presencaMaisRecente(historico);
+  return valor === null ? null : new Date(valor).getTime();
+}
+
+/**
+ * O hub de modelo está sem carro há mais de `DIAS_SEM_CARRO_PARA_NOINDEX`?
+ *
+ * ---------------------------------------------------------------------------
+ * Por que existe (2026-09-21)
+ * ---------------------------------------------------------------------------
+ * O hub é perene — a regra no topo deste arquivo continua valendo: ele existe
+ * enquanto a loja já tiver vendido o modelo. O que mudou é o que ele pede ao
+ * Google. Medido em 21/09: 71 hubs de modelo no sitemap, 40 sem nenhum carro,
+ * 23 deles vazios há mais de 30 dias (Taos, Tiguan, Cruze, Meriva…, a maioria
+ * desde o primeiro sync, em 04/08). Grade vazia indexada é página fina, e
+ * página fina em quantidade pesa no domínio inteiro.
+ *
+ * O corte de 30 dias separa o que a loja repõe (Tracker, Renegade, EcoSport,
+ * HR-V, Fit — vazios há menos de 30 dias em 21/09) do que passou uma vez. O
+ * hub adormecido continua no ar, continua recebendo a ficha vendida e
+ * continua `follow`; só sai do índice e do sitemap. Volta sozinho: basta um
+ * carro do modelo entrar no feed.
+ *
+ * Erra sempre para o lado de MANTER indexado: sem âncora, sem carimbo no hub
+ * ou com carro à venda, a resposta é `false`. Sumir do índice leva semanas
+ * para desfazer; ficar um ciclo a mais, não.
+ */
+export function hubAdormecido(
+  hub: Pick<HubDeModelo, "veiculos" | "ultimaPresenca">,
+  ancora: number | null,
+): boolean {
+  if (hub.veiculos.length > 0) return false;
+  if (ancora === null || !hub.ultimaPresenca) return false;
+  const ultima = new Date(hub.ultimaPresenca).getTime();
+  if (!Number.isFinite(ultima)) return false;
+  return ancora - ultima > DIAS_SEM_CARRO_PARA_NOINDEX * UM_DIA_MS;
+}
+
 export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): string[] {
   const caminhos: string[] = [];
+  const ancora = ancoraDoHistorico(historico);
 
   for (const segmento of SEGMENTOS_DE_PDP) {
     for (const marca of hubsDeMarca(historico, disponiveis, segmento)) {
@@ -434,6 +519,9 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
         // quatro casos conhecidos; esta regra é para o próximo, porque a
         // origem é o feed e o feed volta a errar.
         if (modelo.canonicalDe) continue;
+        // Adormecido fica fora pelo mesmo motivo: a página diz `noindex`, e
+        // sitemap que lista `noindex` é o mesmo sinal contraditório.
+        if (hubAdormecido(modelo, ancora)) continue;
         caminhos.push(`/${segmento}/${marca.slug}/${modelo.slug}`);
       }
     }

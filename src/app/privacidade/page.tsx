@@ -7,6 +7,7 @@ import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { LinkRegua, Rotulo } from "../../components/modernist/primitivos";
 import ControleDeRastreamento from "../../components/ControleDeRastreamento";
 import type { CompanySettings } from "../../types";
+import { razaoSocialAparte } from "../../lib/identidadeLegal";
 import { SITE_URL } from "../../lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -76,6 +77,7 @@ export default async function PrivacidadePage() {
   const email = company.privacyContactEmail?.trim() || "";
   const endereco = company.address || "";
   const cnpj = company.cnpj || "";
+  const razaoSocial = razaoSocialAparte(company);
   const telefone = company.phone || "";
 
   /**
@@ -150,7 +152,12 @@ export default async function PrivacidadePage() {
 
           <Secao id="quem-somos" titulo="Quem é o controlador dos seus dados">
             <p>
-              O controlador dos dados pessoais tratados neste site é a <strong>{nome}</strong>
+              {/* Perante a LGPD, o controlador é a pessoa jurídica — a razão
+                  social que o CNPJ identifica. A marca vem junto para quem só
+                  conhece a loja pelo nome da fachada. */}
+              O controlador dos dados pessoais tratados neste site é a{" "}
+              <strong>{razaoSocial || nome}</strong>
+              {razaoSocial && <> (nome fantasia {nome})</>}
               {cnpj && <>, inscrita no CNPJ sob o nº {cnpj}</>}
               {endereco && <>, com endereço em {endereco}</>}.
             </p>

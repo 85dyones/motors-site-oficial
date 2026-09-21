@@ -8,6 +8,7 @@ import { blocoJsonLd } from "../../../lib/schemaListagem";
 import { grafoDoGuia } from "../../../lib/schemaGuia";
 import { criarLinkador } from "../../../lib/linksNoTexto";
 import { NOME_DA_SECAO } from "../../../lib/guias";
+import { assinaturaDoAutor, dataPorExtenso, mesmoDiaEmCuritiba } from "../../../lib/assinaturaDoGuia";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -107,6 +108,15 @@ export default async function GuiaPage({ params }: PageProps) {
   const { companySettings } = await getCachedSettings();
   const grafo = grafoDoGuia({ guia, empresa: companySettings });
 
+  // A assinatura visível mostra o MESMO autor do `Article` — a pessoa de
+  // `AUTOR_DOS_GUIAS` —, com a loja pelo nome que o nó `#dealer` publica.
+  // Ver `lib/assinaturaDoGuia.ts`.
+  const autor = assinaturaDoAutor(companySettings?.name);
+  const publicadoEm = dataPorExtenso(guia.publicadoEm);
+  const atualizadoEm = mesmoDiaEmCuritiba(guia.publicadoEm, guia.atualizadoEm)
+    ? ""
+    : dataPorExtenso(guia.atualizadoEm);
+
   // Um linkador para a PAGINA inteira, nao um por paragrafo.
   //
   // A primeira versao chamava `segmentarComLinks` direto em cada bloco, e o
@@ -171,6 +181,20 @@ export default async function GuiaPage({ params }: PageProps) {
         <p className="m-0 mt-4 max-w-[680px] text-[15px] leading-relaxed text-mt-neutral-800 lg:text-[16px]">
           {guia.descricao}
         </p>
+        {/* Assinatura: autor e datas que o JSON-LD já declarava e a tela não
+            mostrava (2026-09-21). `uppercase` no CSS, como a trilha — o DOM
+            fica em caixa de frase para quem lê o texto. */}
+        {publicadoEm && (
+          <p className="m-0 mt-5 text-[11px] font-semibold uppercase tracking-[.16em] text-mt-neutral-600">
+            {autor && <>Por {autor} · </>}
+            Publicado em <time dateTime={guia.publicadoEm}>{publicadoEm}</time>
+            {atualizadoEm && (
+              <>
+                {" · "}Atualizado em <time dateTime={guia.atualizadoEm}>{atualizadoEm}</time>
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       <article className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">

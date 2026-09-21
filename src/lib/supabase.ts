@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { registrarFalha } from "./observabilidade";
 import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
+import { grafiaDaMarca, grafiaDaVersao, grafiaDoModelo } from "./grafiaCanonica";
 import { publicavel } from "./coerenciaDoCadastro";
 import type { Veiculo } from "../types";
 export type { Veiculo };
@@ -272,12 +273,11 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
       .join(" ");
   };
 
-  const formatBrand = (brand: string): string => {
-    if (!brand) return "Sem Marca";
-    const b = brand.trim().toUpperCase();
-    if (b === "BMW" || b === "BYD" || b === "GWM" || b === "GM") return b;
-    return capitalizeWords(brand.trim());
-  };
+  // A allowlist de quatro siglas (BMW, BYD, GWM, GM) virou o dicionário de
+  // `lib/grafiaCanonica.ts` em 2026-09-21 — "Citroën", "Mercedes-Benz",
+  // "Harley-Davidson", "JTZ" saíam "Citroen", "Mercedes-benz", "Harley-davidson"
+  // e "Jtz" em título, `<h1>` e feed.
+  const formatBrand = (brand: string): string => grafiaDaMarca(brand) || "Sem Marca";
 
   // Use array of images from S3 if present, otherwise fallback to url_imagem
   //
@@ -416,12 +416,18 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     marca: formatBrand(dbItem.marca),
     modelo: comOverride(
       dbItem.modelo_override,
-      dbItem.modelo ? capitalizeWords(dbItem.modelo.trim()) : "Sem Modelo",
+      // `grafiaDoModelo`, não `capitalizeWords`: "HB20", "CB 300F", "TSI",
+      // "12V" — e só a CAIXA muda, então nenhuma URL muda junto
+      // (`tests/grafia-canonica.test.ts`).
+      dbItem.modelo ? grafiaDoModelo(dbItem.modelo) : "Sem Modelo",
     ),
     // O override passa por `capitalizeWords`? Não: "HR-V" e "C-180" viram
     // "Hr-v" e "C-180" nessa moagem, e o ponto de escrever à mão é justamente
     // poder grafar o nome como ele é. O valor do feed continua normalizado.
-    versao: comOverride(dbItem.versao_override, dbItem.versao ? dbItem.versao.trim() : "Padrão"),
+    // A versão ia CRUA do feed, toda minúscula, para o `<h1>` da ficha
+    // ("highline 200 tsi 1.0 flex 12v aut."). Desde 2026-09-21 passa pela
+    // mesma grafia do modelo — só caixa, espaço preservado.
+    versao: comOverride(dbItem.versao_override, dbItem.versao ? grafiaDaVersao(dbItem.versao) : "Padrão"),
     ano: typeof dbItem.ano === "number" ? dbItem.ano : (Number(dbItem.ano) || new Date().getFullYear()),
     quilometragem: typeof dbItem.quilometragem === "number" ? dbItem.quilometragem : (Number(dbItem.quilometragem) || 0),
     // ⚠️  NADA DE DEFAULT INVENTADO NOS CAMPOS ABAIXO.
@@ -499,6 +505,9 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     // consumidor decide (a camada de dados omite `days_in_stock`, o painel
     // mostra "—"). Ver a migração `20260826030000_first_seen_at.sql`.
     first_seen_at: dbItem.first_seen_at ?? null,
+    // A última presença no feed — o relógio do hub adormecido. Mesmo critério
+    // do `first_seen_at`: sem carimbo, `null`, e ninguém inventa data.
+    ultima_presenca: dbItem.last_seen_at ?? null,
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
     vendido: !!dbItem.vendido,

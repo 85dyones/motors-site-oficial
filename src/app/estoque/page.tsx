@@ -57,14 +57,16 @@ export async function generateMetadata(): Promise<Metadata> {
   ]);
   const total = disponiveisDe(estoque).length;
 
-  // A contagem entra no título só quando existe. Com o estoque zerado — sync
-  // fora do ar, banco inacessível — o título anunciava "— 0 Ofertas", que é o
-  // mesmo defeito do "0" pendurado no `<h1>` das faixas: número honesto no
-  // lugar errado. Medido no build de 2026-08-25.
+  // O `<title>` não leva mais a contagem (2026-09-21, decisão do dono).
+  //
+  // Era "Carros Seminovos em Curitiba — 37 Ofertas | Motors Store". O title é
+  // o campo que o Google mais guarda em cache: o número que ele mostra é o do
+  // dia do rastreamento, e envelhece a cada venda — o mesmo motivo que tirou o
+  // número do `<h1>` desta página e dos hubs. (Antes disso, 2026-08-25, já
+  // tinha saído o "— 0 Ofertas" do estoque zerado.) A contagem continua na
+  // description e no card de compartilhamento, que ninguém guarda por semanas.
   return {
-    title: total > 0
-      ? `Carros Seminovos em Curitiba — ${total} Ofertas | Motors Store`
-      : "Carros Seminovos em Curitiba | Motors Store",
+    title: "Carros Seminovos em Curitiba | Motors Store",
     description:
       (total > 0 ? `${total} veículos` : "Veículos") +
       " com perícia cautelar independente: de cada dez avaliados, três entram. " +
@@ -150,10 +152,11 @@ export default async function EstoquePage() {
           </Link>{" "}
           / <span className="text-mt-ink">ESTOQUE</span>
         </nav>
-        <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">
-          Carros seminovos em Curitiba{" "}
-          <span className="text-mt-accent">{disponiveis.length}</span>
-        </h1>
+        {/* Sem o número desde 2026-09-21, pela mesma decisão dos hubs
+            (`PaginaDeEstoque`): o `<h1>` é o assunto, e o número que o Google
+            guardaria dele envelhece a cada venda. A contagem continua visível
+            logo abaixo, na barra da seleção — e lá ela acompanha o filtro. */}
+        <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">Carros seminovos em Curitiba</h1>
         {/* O parágrafo de abertura passa pelo MESMO linkador do FAQ abaixo —
             é o primeiro texto da página, e "perícia cautelar" aqui é onde o
             leitor encontra o termo antes de qualquer outro lugar. Como o

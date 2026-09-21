@@ -11,6 +11,7 @@ import { getUtmParameters, getActiveAgUid, getMatchParamsRespeitandoRecusa, sufi
 import { useTheme } from "../app/ThemeContext";
 import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
 import { nomeComAno, nomeDoVeiculo } from "../lib/nomeDoVeiculo";
+import { razaoSocialAparte } from "../lib/identidadeLegal";
 import {
   mensagemDeDuvidas,
   mensagemDeInteresse,
@@ -687,6 +688,11 @@ export default function PDPClientWrapper({
             <span className="block">
               {veiculo.marca} {modeloExibido}
             </span>
+            {/* Texto de verdade entre os dois blocos (2026-09-21). Sem ele o
+                `textContent` deste `<h1>` colava modelo e versão —
+                "Volkswagen Virtushighline 200 tsi…" —, e é o `textContent` que
+                o rastreador lê. Entre duas caixas de bloco o espaço não rende. */}
+            {complementoDoTitulo && " "}
             {complementoDoTitulo && (
               <span className="mt-1.5 block text-sm font-normal leading-snug tracking-normal text-mt-neutral-700">
                 {complementoDoTitulo}
@@ -1608,6 +1614,7 @@ export default function PDPClientWrapper({
       <div className="hidden print:flex flex-row justify-between items-center border-t border-zinc-200 pt-4 mt-8 print-avoid-break">
         <div className="text-[9px] text-zinc-500 leading-normal">
           <span className="font-bold text-zinc-700 block uppercase tracking-wider mb-0.5">{companySettings.name}</span>
+          {razaoSocialAparte(companySettings) && <span className="block">{razaoSocialAparte(companySettings)}</span>}
           <span>{companySettings.address}</span>
           {companySettings.cnpj && <span className="block mt-0.5 font-mono">CNPJ: {companySettings.cnpj}</span>}
         </div>

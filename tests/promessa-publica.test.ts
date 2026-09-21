@@ -662,7 +662,7 @@ describe("a meta description cabe nos 155 que a casa documenta", () => {
   it("a prosa de /financiamento continua dizendo que não promete aprovação", () => {
     // Guarda positiva do par: encurtar a meta não pode custar o aviso que a
     // regulação exige, que vive na prosa.
-    expect(TEXTO_DE_FINANCIAMENTO.join(" ")).toMatch(/não faz é prometer aprovação/i);
+    expect(TEXTO_DE_FINANCIAMENTO.join(" ")).toMatch(/simulação não promete aprovação/i);
     expect(PERGUNTAS_DE_FINANCIAMENTO.map((p) => p.resposta).join(" ")).toMatch(/depende do banco/i);
   });
 });

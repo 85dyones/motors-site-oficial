@@ -8,7 +8,15 @@ import { acharPaginaGeo } from "../../lib/paginasGeo";
 /** Conteúdo, rota de acesso e perguntas desta página vivem em `lib/paginasGeo.ts`. */
 const SLUG = "seminovos-curitiba" as const;
 
-export const revalidate = 3600;
+/**
+ * 60 s, o mesmo de `/estoque` e da home — desde 2026-09-21.
+ *
+ * Com 3600 a página contava pelo MESMO caminho (`disponiveisDe(getEstoque())`)
+ * mas renderizava até uma hora depois: a auditoria de 20/09 viu 38 veículos
+ * aqui e 36 em `/estoque` no mesmo minuto, e leu como canibalização. Era
+ * cache. A leitura custa o mesmo que `/estoque` já faz a cada minuto.
+ */
+export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   const pagina = acharPaginaGeo(SLUG);

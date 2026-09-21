@@ -244,6 +244,12 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
     "@type": "AutoDealer",
     "@id": ID_DA_LOJA,
     name: dados.name,
+    // Identidade legal (2026-09-21): a razão social e o CNPJ que o rodapé
+    // mostra. `name` continua sendo a marca — é por ela que a loja é buscada;
+    // `legalName` e `taxID` dizem ao buscador a que empresa a marca pertence.
+    // Campo em branco no painel → propriedade ausente, nunca string vazia.
+    legalName: dados.razaoSocial?.trim() || undefined,
+    taxID: dados.cnpj?.trim() || undefined,
     image: `${SITE_URL}/logo.png`,
     logo: `${SITE_URL}/logo.png`,
     url: SITE_URL,

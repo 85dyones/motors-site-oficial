@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, sufixoRef, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, idDoEventoDaAvaliacao, sufixoRef, trackAppraisalSubmit, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
 import LeadCaptureModal from "./LeadCaptureModal";
 import Turnstile, { type TurnstileHandle } from "./Turnstile";
 import { ACOES } from "../lib/turnstile";
@@ -584,6 +584,14 @@ export default function AutoAvaliacao() {
 
     const activeUid = getActiveAgUid();
 
+    // O id do evento nasce ANTES do envio. `/api/avaliacao` grava `event_id`
+    // desde agosto, mas este formulário nunca o mandava: o id só era gerado
+    // depois, dentro do tracking — e a linha do lead ficava sem como ser
+    // cruzada com o `CompleteRegistration` do pixel e da CAPI (0 de 2
+    // avaliações com `event_id` em 2026-09-20). O portão da oposição fica em
+    // `idDoEventoDaAvaliacao`, na camada de medição.
+    const eventIdDaAvaliacao = idDoEventoDaAvaliacao();
+
     // POST to backend API route for Lead capturing
     try {
       const response = await fetch("/api/avaliacao", {
@@ -612,6 +620,10 @@ export default function AutoAvaliacao() {
           observacoes: step2.observacoes,
           recomendacao: recomendacao,
           utm: getUtmParameters(),
+          eventId: eventIdDaAvaliacao,
+          // `fbp`/`fbc` como as outras superfícies de lead — e já `null` para
+          // quem se opôs. A rota grava junto com o `utm` (lib/contextoDeMidia).
+          ...getMatchParamsRespeitandoRecusa(),
           turnstileToken
         }),
       });
@@ -621,7 +633,7 @@ export default function AutoAvaliacao() {
         if (fipeValor) {
           numericValue = Number(fipeValor.replace(/[^\d]/g, "")) / 100;
         }
-        trackAppraisalSubmit(vehicleType, step1.marca, step1.modelo, String(step1.ano), numericValue);
+        trackAppraisalSubmit(vehicleType, step1.marca, step1.modelo, String(step1.ano), numericValue, eventIdDaAvaliacao);
       } else {
         // Token do Turnstile é de uso único e já foi gasto no siteverify. Sem
         // pedir outro, uma segunda tentativa reenviaria o mesmo e levaria 403

@@ -7,6 +7,8 @@ import { montarCompartilhamento } from "../../../../lib/compartilhamento";
 import {
   acharHubDeMarca,
   acharHubDeModelo,
+  ancoraDoHistorico,
+  hubAdormecido,
   recortesDoEstoque,
 } from "../../../../lib/hubsDeEstoque";
 import {
@@ -18,7 +20,7 @@ import {
 import { schemaDaLoja, schemaDoSite } from "../../../../lib/schemaLoja";
 import { perguntasDeCategoria, textoDeModelo } from "../../../../lib/textoDosHubs";
 import { buscarTextoDoHub, resolverTextoDoHub } from "../../../../lib/textoEditadoDoHub";
-import { seminovo, um } from "../../../../lib/generoDoVeiculo";
+import { seminovo, um, usado } from "../../../../lib/generoDoVeiculo";
 import { linkWhatsApp } from "../../../../lib/whatsapp";
 import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../../lib/veiculoUrl";
 
@@ -32,7 +34,15 @@ import { ehSegmentoDePdp, type SegmentoDePdp } from "../../../../lib/veiculoUrl"
  * Perene pela mesma regra do hub de marca — ver `lib/hubsDeEstoque.ts`.
  */
 
-export const revalidate = 3600;
+/**
+ * 60 s, o mesmo relógio de `/estoque`, da home e das geográficas — desde
+ * 2026-09-21. Com 3600 esta página mostrava no `<h1>` uma contagem até uma
+ * hora mais velha que a de `/estoque`: o n8n marca o carro vendido e
+ * `/estoque` tira em um minuto, enquanto o hub seguia listando e contando o
+ * carro por até sessenta. A leitura é a mesma que `/estoque` já faz a cada
+ * minuto (`recortesDoEstoque`), e só roda quando alguém visita.
+ */
+export const revalidate = 60;
 export const dynamicParams = true;
 
 interface PageProps {
@@ -50,6 +60,9 @@ async function resolver(params: { categoria: string; marca: string; modelo: stri
   return {
     hub,
     disponiveis,
+    // Sem carro há mais de 30 dias pelo relógio do feed → `noindex, follow`.
+    // Ver `hubAdormecido`.
+    adormecido: hubAdormecido(hub, ancoraDoHistorico(historico)),
     // O hub da marca serve para dois usos: o nome canônico na trilha e a lista
     // de modelos irmãos no rodapé da página.
     marca: acharHubDeMarca(historico, disponiveis, segmento, params.marca),
@@ -64,7 +77,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: "Modelo não encontrado | Motors Store", robots: { index: false, follow: true } };
   }
 
-  const { hub } = dados;
+  const { hub, adormecido } = dados;
   const caminho = `/${hub.segmento}/${hub.slugMarca}/${hub.slug}`;
   const { companySettings } = await getCachedSettings();
 
@@ -84,21 +97,41 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         })
       : null;
 
-  // "a partir de R$ X" só entra quando existe preço real. Faixa inventada em
-  // título é o tipo de promessa que o visitante confere no primeiro clique.
-  // "Saveiro Seminova", não "Saveiro Seminovo". O gênero vem do hub, calculado
-  // a partir do histórico — e não é só gramática: quem procura escreve
-  // "saveiro usada curitiba", e o título precisa casar com a consulta.
+  // "Saveiro Usada", não "Saveiro Usado". O gênero vem do hub, calculado a
+  // partir do histórico — e não é só gramática: quem procura escreve "saveiro
+  // usada curitiba", e o título precisa casar com a consulta.
+  //
+  // ---------------------------------------------------------------------------
+  // O `<title>` mudou em 2026-09-21: marca + modelo + "usado", sem preço
+  // ---------------------------------------------------------------------------
+  // Era `Onix Seminovo em Curitiba a partir de R$ 75.900`. Três coisas saíram
+  // do lugar de uma vez:
+  //
+  //   · a MARCA entrou. "chevrolet onix usado" é consulta; o `<h1>` e a
+  //     description já traziam a marca, e só o título não;
+  //   · "usado" no lugar de "seminovo". É o termo que a campanha do Google Ads
+  //     compra (`[onix plus usado curitiba]`, `[hb20 usado curitiba]`) e o de
+  //     maior busca. "Seminovo" continua na description e no `<h1>`, então a
+  //     página cobre as duas grafias;
+  //   · o PREÇO saiu do título e foi para a description. O título é o que o
+  //     Google mais reescreve e mais guarda em cache, e o "a partir de" muda a
+  //     cada carro que entra ou sai. Com marca e sufixo da loja, o preço
+  //     empurraria o título para além do que o resultado mostra.
+  //
+  // Depende da grafia canônica (`lib/grafiaCanonica.ts`): sem ela, este título
+  // publicaria "Hyundai Hb20 Usado em Curitiba".
   const novo = seminovo(hub.genero);
-  const Novo = novo.charAt(0).toUpperCase() + novo.slice(1);
+  const usadoNoGenero = usado(hub.genero);
+  const Usado = usadoNoGenero.charAt(0).toUpperCase() + usadoNoGenero.slice(1);
 
-  const title = menor
-    ? `${hub.nome} ${Novo} em Curitiba a partir de ${menor}`
-    : `${hub.nome} ${Novo} em Curitiba | Motors Store`;
+  const title = `${hub.marca} ${hub.nome} ${Usado} em Curitiba | Motors Store`;
 
+  // "a partir de R$ X" só entra quando existe preço real. Faixa inventada é o
+  // tipo de promessa que o visitante confere no primeiro clique.
+  const aPartirDe = menor ? ` a partir de ${menor}` : "";
   const description =
     hub.veiculos.length > 0
-      ? `${hub.marca} ${hub.nome} ${novo} em Curitiba com perícia cautelar independente. ` +
+      ? `${hub.marca} ${hub.nome} ${novo} em Curitiba${aPartirDe}, com perícia cautelar independente. ` +
         `${hub.veiculos.length} ${hub.veiculos.length === 1 ? "unidade" : "unidades"}, troca e financiamento. Veja fotos e ficha.`
       : `${hub.marca} ${hub.nome} ${novo} em Curitiba na Motors Store. Perícia cautelar ` +
         "independente, troca e financiamento. Loja no Bacacheri.";
@@ -111,6 +144,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     alternates: {
       canonical: hub.canonicalDe ? `/${hub.segmento}/${hub.slugMarca}/${hub.canonicalDe}` : caminho,
     },
+    // O hub continua no ar e continua passando autoridade pelos links; só
+    // deixa de pedir índice enquanto dorme. Some do sitemap junto
+    // (`caminhosDosHubs`). O primeiro carro que entrar o acorda.
+    ...(adormecido ? { robots: { index: false, follow: true } } : {}),
     ...montarCompartilhamento({
       empresa: companySettings,
       pagina: "estoque",

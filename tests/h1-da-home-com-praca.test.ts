@@ -130,3 +130,43 @@ describe("o h1 da home nomeia o produto e a praça", () => {
     expect(foraDoH1).not.toMatch(/3 DE CADA 10 ENTRAM/i);
   });
 });
+
+/**
+ * O texto do `<h1>` como o DOM o entrega — `textContent`, não o texto "limpo".
+ *
+ * ---------------------------------------------------------------------------
+ * Por que um segundo extrator (2026-09-21)
+ * ---------------------------------------------------------------------------
+ * `textoAcessivel`, acima, troca TODA tag por espaço antes de colapsar. Isso
+ * inventa exatamente o separador que faltava no DOM: as cinco travas deste
+ * arquivo passavam verdes enquanto o navegador servia "…em CuritibaFORADA
+ * CURVA" — duas junções, uma entre os spans e outra no `<br>`. Quem achou foi
+ * o time, reproduzindo fora do repositório.
+ *
+ * Este lê como o `textContent`: tag some SEM deixar espaço no lugar. Só o
+ * espaço que o JSX de fato escreveu sobrevive. A subárvore `aria-hidden` sai
+ * também — o traço decorativo é vazio, e assim a comparação fica exata.
+ */
+function textoComoODomEntrega(h1: string): string {
+  return h1
+    .replace(/<(\w+)\b[^>]*\baria-hidden="true"[^>]*>[\s\S]*?<\/\1>/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+describe("o h1 da home não cola palavras no textContent", () => {
+  it("as duas junções têm espaço de verdade", () => {
+    const texto = textoComoODomEntrega(h1sBrutos(hero())[0] ?? "");
+    expect(texto).toBe("Seminovos selecionados em Curitiba FORA DA CURVA");
+  });
+
+  it("controle: o extrator enxerga a junção quando ela existe", () => {
+    // Sem este caso, um extrator que voltasse a inventar espaço passaria no
+    // de cima com o defeito de volta — que é o que aconteceu com o anterior.
+    const colado = '<h1><span class="flex">em Curitiba</span><span class="block">FORA<br/>DA CURVA</span></h1>';
+    expect(textoComoODomEntrega(colado)).toBe("em CuritibaFORADA CURVA");
+    expect(textoAcessivel(colado)).toBe("em Curitiba FORA DA CURVA");
+  });
+});

@@ -37,53 +37,53 @@ import type { PerguntaFrequente, SecaoDeTexto } from "../components/modernist/Pa
  * com o aviso de que a taxa depende de análise, é o simulador.
  */
 export const TEXTO_DE_FINANCIAMENTO: string[] = [
-  "Quase todo seminovo em Curitiba sai financiado, e a pergunta que decide a compra " +
-    "raramente é o preço à vista: é quanto fica a parcela e quanto vale o seu carro na troca. " +
-    "O simulador abaixo responde a primeira com o estoque real da loja — você escolhe o " +
-    "veículo, a entrada e o prazo, e vê a parcela na hora.",
+  "Quase todo seminovo em Curitiba sai financiado, e a compra costuma se decidir menos pelo " +
+    "preço à vista do que por duas perguntas: quanto fica a parcela e quanto vale o seu carro " +
+    "na troca. O simulador abaixo responde a primeira com o estoque real da loja. Você escolhe " +
+    "o veículo, a entrada e o prazo e vê a parcela na hora.",
   "A simulação e a pré-aprovação são feitas pela nossa equipe direto no WhatsApp, com os " +
     "principais bancos parceiros. Trabalhar com mais de um banco importa porque cada um lê " +
     "perfil de crédito de um jeito: a mesma pessoa recebe respostas diferentes, e quem manda " +
     "a proposta para um só nunca descobre isso.",
-  "Seu carro atual entra como entrada. A Avaliação Express devolve uma proposta pelo " +
-    "WhatsApp, com base na Tabela FIPE e no giro do nosso estoque — e nem todo carro avaliado " +
-    "vira estoque nosso: quando não vira, a gente diz por quê.",
-  "O que a simulação não faz é prometer aprovação. Taxa, prazo e valor final dependem de " +
-    "análise de crédito, e o número que aparece aqui é estimativa com TAC e IOF incluídos, " +
-    "não proposta. Quem fecha condição é o banco, com o seu CPF na frente.",
+  "Seu carro atual vale como entrada. A Avaliação Express devolve uma proposta pelo " +
+    "WhatsApp, com base na Tabela FIPE e no giro do nosso estoque. Nem todo carro avaliado " +
+    "vira estoque nosso, e quando não vira a gente diz por quê.",
+  "A simulação não promete aprovação. Taxa, prazo e valor final dependem de análise de " +
+    "crédito, e o número que aparece aqui é uma estimativa com IOF incluído, não uma " +
+    "proposta. Quem fecha a condição é o banco, com o seu CPF na frente.",
 ];
 
 export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
   {
     pergunta: "Dá para financiar sem entrada?",
     resposta:
-      "Em muitos casos sim, e o simulador tem a opção. Financiamento sem entrada costuma ter " +
-      "parcela mais alta e análise mais exigente — vale simular as duas formas antes de decidir.",
+      "Em muitos casos, sim, e o simulador tem essa opção. Financiamento sem entrada costuma ter " +
+      "parcela mais alta e análise mais exigente, então vale simular as duas formas antes de decidir.",
   },
   {
     pergunta: "Posso usar meu carro como entrada?",
     resposta:
       "Pode. A avaliação é feita com base na Tabela FIPE e no giro do nosso estoque, e um " +
-      "consultor devolve a proposta pelo WhatsApp — o valor aprovado entra como entrada no " +
+      "consultor devolve a proposta pelo WhatsApp. O valor aprovado entra como entrada no " +
       "financiamento do próximo carro.",
   },
   {
     pergunta: "Em quantas vezes consigo parcelar?",
     resposta:
       "O simulador vai até 60 parcelas. O prazo efetivamente aprovado depende do banco, do " +
-      "perfil de crédito e do ano do veículo — carro mais antigo costuma ter prazo menor.",
+      "perfil de crédito e do ano do veículo, e carro mais antigo costuma ter prazo menor.",
   },
   {
     pergunta: "A taxa que aparece no simulador é a taxa final?",
     resposta:
-      "Não. É uma estimativa, já com TAC e IOF, para você ter ordem de grandeza da parcela. A " +
+      "Não. É uma estimativa, já com IOF, para você ter ordem de grandeza da parcela. A " +
       "taxa final sai da análise de crédito de cada banco e pode ficar acima ou abaixo dela.",
   },
   {
     pergunta: "Preciso ir à loja para simular?",
     resposta:
       "Não. A simulação é aqui e a pré-aprovação sai pelo WhatsApp. A visita fica para ver o " +
-      "carro — o showroom é na Rua Ernesto Piazzetta, 98, no Bacacheri.",
+      "carro, no showroom da Rua Ernesto Piazzetta, 98, no Bacacheri.",
   },
   {
     pergunta: "Vocês financiam qualquer carro do estoque?",
@@ -247,17 +247,16 @@ export const PRAZOS_ESTENDIDOS = `${PLANOS_ESTENDIDOS_MESES.slice(0, -1).join(",
 
 /** A abertura, sob o `<h1>`. */
 export const TEXTO_DE_GARANTIA: string[] = [
-  "Todo carro vendido pela Motors Store sai com garantia de motor e câmbio — e também do " +
-    "diferencial, como está no contrato de venda — por " +
-    `${PRAZO_DA_GARANTIA}, contados da entrega, sem carência e sem franquia. Falha interna ` +
-    "nesses conjuntos dentro do prazo, a gente resolve, com a mão de obra inclusa.",
-  "Essa cobertura soma-se aos seus direitos de consumidor: não os substitui. O que ela cobre, " +
-    "item por item, está no termo que acompanha a venda — leia antes de assinar e pergunte o " +
+  "Todo carro vendido pela Motors Store sai com garantia de motor e câmbio, e também do " +
+    "diferencial, como está no contrato de venda. O prazo é de " +
+    `${PRAZO_DA_GARANTIA}, contados da entrega, sem carência e sem franquia. Se um desses ` +
+    "conjuntos tiver falha interna dentro do prazo, a gente resolve, com a mão de obra inclusa.",
+  "Essa cobertura soma-se aos seus direitos de consumidor e não os substitui. O que ela cobre, " +
+    "item por item, está no termo que acompanha a venda: leia antes de assinar e pergunte o " +
     "que não estiver claro.",
-  "Antes dela vem a seleção. Todo veículo passa por perícia cautelar independente, e só entra " +
-    "na vitrine porque passou: de cada dez avaliados, três entram. O laudo está disponível " +
-    "para consulta, é só pedir ao vendedor. A garantia existe para o que a perícia não tem " +
-    "como enxergar.",
+  "Antes da garantia vem a seleção. Todo veículo passa por perícia cautelar independente e só " +
+    "entra na vitrine se passar: de cada dez avaliados, três entram. O laudo está disponível " +
+    "para consulta, e é só pedir ao vendedor.",
 ];
 
 /**
@@ -285,14 +284,14 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
     titulo: "A garantia da Motors Store",
     paragrafos: [
       `${PRAZO_DA_GARANTIA.charAt(0).toUpperCase()}${PRAZO_DA_GARANTIA.slice(1)}, contados ` +
-        "da entrega, para falha interna de motor, câmbio e diferencial. Sem carência: vale " +
-        "desde o primeiro dia, sem período de espera. Sem franquia: você não paga parte do " +
-        "conserto, nem taxa para acionar. A mão de obra está inclusa.",
-      "Na venda ao consumidor, não pedimos assinatura de termo de isenção — nenhum papel que " +
-        "reduza aquilo a que você tem direito.",
+        "da entrega, para falha interna de motor, câmbio e diferencial. Não há carência: a " +
+        "garantia vale desde o primeiro dia. Também não há franquia, então você não paga parte " +
+        "do conserto nem taxa para acionar. A mão de obra está inclusa.",
+      "Na venda ao consumidor, não pedimos assinatura de termo de isenção nem de qualquer " +
+        "papel que reduza aquilo a que você tem direito.",
       "O conserto é feito em oficina parceira credenciada, indicada pela loja. São mais de " +
-        "quinze parceiras, separadas por especialidade, e é por isso que a gente pede para " +
-        "você falar com a gente antes de levar o carro a qualquer lugar.",
+        "quinze parceiras, separadas por especialidade, e por isso pedimos que você fale com a " +
+        "gente antes de levar o carro a qualquer lugar.",
     ],
   },
   {
@@ -301,23 +300,22 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
       // Turbo: resposta do dono em 18/09/2026 — "se for de fábrica, sim". O
       // turbo original é componente do motor; o que não é original cai na
       // exclusão de peça fora de especificação, logo abaixo.
-      "Coberto: falha interna de componente de motor — incluído o turbocompressor, quando é o " +
-        "original de fábrica —, de câmbio e de diferencial, dentro do prazo.",
+      "Coberto: falha interna de componente de motor (incluído o turbocompressor, quando é o " +
+        "original de fábrica), de câmbio e de diferencial, dentro do prazo.",
       "Fora da cobertura, por serem manutenção ou desgaste de uso: óleo, filtros, velas e " +
         "correias no intervalo; pastilha, disco, pneu, palheta e bateria; embreagem em uso " +
         "normal; bombas, fluidos e óleos em geral.",
       // Resposta do dono em 18/09/2026 à pergunta que a peça da correia banhada
       // deixou aberta: "entra, se estiver no prazo e tiver ligação com o centro
       // maior, motor e caixa".
-      "Uma ressalva que decide muito caso: quando um item de manutenção falha dentro do prazo " +
-        "e o dano atinge o motor ou o câmbio — uma correia que se rompe e leva junto os " +
-        "internos do motor, por exemplo —, o conserto desse dano entra na cobertura.",
-      "Fora também: peça fora de especificação — um turbo que não é o original de fábrica " +
-        "entra aqui —, remap e alteração de característica do veículo; e evento externo — " +
-        "colisão, enchente, granizo, vandalismo —, que é assunto de seguro, não de garantia.",
-      "E os custos que não são do conserto em si: transporte, guincho, alimentação e " +
-        "hospedagem não entram. Dizer isso antes é parte do serviço; descobrir depois é o que " +
-        "estraga a relação.",
+      "Com uma ressalva: quando um item de manutenção falha dentro do prazo e o dano atinge o " +
+        "motor ou o câmbio (uma correia que se rompe e leva junto os internos do motor, por " +
+        "exemplo), o conserto desse dano entra na cobertura.",
+      "Também ficam fora: peça fora de especificação (um turbo que não é o original de fábrica " +
+        "entra aqui), remap e alteração de característica do veículo; e evento externo, como " +
+        "colisão, enchente, granizo e vandalismo, que é assunto de seguro, não de garantia.",
+      "Os custos que não são do conserto em si também não entram: transporte, guincho, " +
+        "alimentação e hospedagem.",
     ],
   },
   {
@@ -337,16 +335,15 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
         "carro, e recusar não muda a negociação.",
       // "Mesmo manual" — resposta do dono em 18/09/2026 sobre os três prazos.
       "Cobertura, exclusões, manutenção exigida e a forma de acionar são definidas pela " +
-        "administradora, no manual do plano — o mesmo para os três prazos. O consultor " +
+        "administradora no manual do plano, que é o mesmo para os três prazos. O consultor " +
         "apresenta o manual antes de você decidir.",
     ],
   },
   {
     titulo: "O que fazer se algo falhar",
     paragrafos: [
-      "Avise antes de mexer. Fale com a gente antes de levar o carro a uma oficina por conta " +
-        "própria: reparo feito sem comunicação prévia dificulta a análise e pode agravar o " +
-        "problema.",
+      "Avise antes de mexer. Reparo feito por conta própria, sem falar com a gente antes, " +
+        "dificulta a análise e pode agravar o problema.",
       "A gente avalia e conserta na oficina parceira da especialidade, dentro do prazo e do " +
         "escopo do termo, sem franquia e com a mão de obra inclusa.",
       "Guarde tudo: nota, contrato, laudo da perícia, ordem de serviço e a conversa por escrito.",
@@ -358,17 +355,16 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   {
     titulo: "Por que a perícia vem antes da garantia",
     paragrafos: [
-      "Garantia é o que a gente faz quando algo dá errado. Perícia cautelar é o que a gente " +
-        "faz para que não dê.",
-      "Todo veículo passa pela perícia antes de entrar na vitrine — identificação, estrutura e " +
+      "A garantia entra quando algo dá errado. A perícia cautelar vem antes, para evitar que dê.",
+      "Todo veículo passa pela perícia antes de entrar na vitrine: identificação, estrutura e " +
         "histórico auditados por empresa independente, credenciada junto ao Detran, num crivo " +
-        "de mais de 120 pontos — e o laudo está disponível para consulta, é só pedir ao " +
+        "de mais de 120 pontos. O laudo está disponível para consulta, e é só pedir ao " +
         "vendedor. Os sete de cada dez que não entram são recusados por sinistro estrutural, " +
         "passagem por leilão, adulteração de numeração ou desgaste crônico grave.",
-      "Nenhuma perícia prevê tudo. Ela verifica estrutura, identificação e histórico — não " +
-        "abre motor, não mede compressão de cilindro, não avalia bomba de alta pressão.",
-      "Quando a avaliação levanta suspeita — vazamento, fumaça, solavanco no câmbio, " +
-        "temperatura instável —, o carro vai para uma das oficinas parceiras antes de entrar, " +
+      "Nenhuma perícia prevê tudo. Ela verifica estrutura, identificação e histórico, mas não " +
+        "abre motor, não mede compressão de cilindro nem avalia bomba de alta pressão.",
+      "Quando a avaliação levanta suspeita (vazamento, fumaça, solavanco no câmbio, " +
+        "temperatura instável), o carro vai para uma das oficinas parceiras antes de entrar, " +
         "e aí sim é examinado por dentro. Todo carro que entra recebe troca de óleo e filtros. " +
         "A garantia responde pelo que nem esse caminho inteiro tem como enxergar.",
     ],
@@ -381,17 +377,17 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        a régua do pacote (§2.5) para o FAQ que se repete entre páginas. */
     pergunta: "O que a garantia cobre, exatamente?",
     resposta:
-      "Falha interna de motor — incluído o turbo original de fábrica —, câmbio e diferencial, " +
+      "Falha interna de motor (incluído o turbo original de fábrica), câmbio e diferencial, " +
       `por ${PRAZO_DA_GARANTIA}, contados da entrega, sem carência, sem franquia e com a mão ` +
       "de obra inclusa. O conserto é feito em oficina parceira credenciada indicada pela loja. " +
-      "O detalhamento item por item está no termo entregue junto com a venda — peça para ler " +
+      "O detalhamento item por item está no termo entregue junto com a venda: peça para ler " +
       "antes de assinar.",
   },
   {
     pergunta: "Preciso pagar algo para acionar?",
     resposta:
       "Não há franquia. Se algo dentro da cobertura acontecer no período, fale com a loja pelo " +
-      "WhatsApp antes de levar o carro a outra oficina — com o carro e a nota em mãos, " +
+      "WhatsApp antes de levar o carro a outra oficina. Com o carro e a nota em mãos, " +
       "orientamos o passo seguinte.",
   },
   {
@@ -405,13 +401,13 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
        fica com o vendedor, e quem confirma é ele. */
     resposta:
       "Todos, sem exceção, e antes de entrar na vitrine. A perícia é feita por empresa independente, credenciada junto ao Detran, e o laudo está disponível " +
-      "para consulta, é só pedir ao vendedor a qualquer tempo.",
+      "para consulta: é só pedir ao vendedor, a qualquer tempo.",
   },
   {
     pergunta: "A garantia vale se eu comprar de outra cidade?",
     resposta:
       "Vale. A cobertura é a mesma em Curitiba, na Região Metropolitana e para quem compra de " +
-      `fora — ${ALCANCE_DA_ENTREGA}. O que muda é a logística de entrega, combinada caso a ` +
+      `fora: ${ALCANCE_DA_ENTREGA}. Muda só a logística de entrega, combinada caso a ` +
       "caso.",
   },
   {
@@ -431,6 +427,6 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
     pergunta: "E a documentação da transferência?",
     resposta:
       "Cuidamos da documentação e da vistoria de transferência. Custos e prazos são informados " +
-      "durante a negociação, antes de fechar — nunca depois.",
+      "durante a negociação, antes de fechar.",
   },
 ];
