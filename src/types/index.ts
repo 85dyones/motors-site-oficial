@@ -73,6 +73,16 @@ export interface CompanySettings {
   instagram: string;
   facebook: string;
   cnpj: string;
+  /**
+   * Razão social — o nome empresarial que consta no CNPJ, quando é diferente
+   * do nome fantasia em `name` (2026-09-21).
+   *
+   * Sai no rodapé ao lado do CNPJ, na política de privacidade (quem é o
+   * controlador perante a LGPD é a pessoa jurídica, não a marca), no rodapé da
+   * ficha impressa e no `legalName` do `AutoDealer`. Opcional e sem padrão: o
+   * site não inventa razão social — em branco, nada disso aparece.
+   */
+  razaoSocial?: string;
   tabTitle?: string;
   faviconUrl?: string;
   logoUrl?: string;
@@ -328,6 +338,20 @@ export interface Veiculo {
    * desconhecida, e quem consome omite o campo em vez de inventar zero.
    */
   first_seen_at?: string | null;
+  /**
+   * A última vez que o sync confirmou o veículo no feed — a coluna
+   * `last_seen_at`, lida.
+   *
+   * Entrou no objeto mapeado em 2026-09-21 para o hub de modelo saber há
+   * quanto tempo está sem carro (`hubAdormecido`, em `lib/hubsDeEstoque.ts`)
+   * sem uma segunda ida ao banco. `null` quando a linha nunca foi carimbada —
+   * e quem consome trata como "não sei", nunca como "faz tempo".
+   *
+   * Nome próprio, e não `last_seen_at`, de propósito: a trava da f0k
+   * (`tests/f0-nucleo.test.ts`) reprova qualquer `last_seen_at: valor` em
+   * `src/`, porque só o sync pode assinar essa coluna. Aqui é leitura.
+   */
+  ultima_presenca?: string | null;
   garantia_fabrica?: string;
   /**
    * Quantas portas — do `<DOORS>` do feed (migração `20260904120000`).
