@@ -106,15 +106,29 @@ describe("o título do carro no `llms-full.txt`", () => {
   it("o override do painel chega ao título", () => {
     expect(titulos[2]).toBe("### Honda HR-V EXL 1.8 Flex Aut 2019");
 
-    // A contraprova: sem o override, o mesmo carro sai com a grafia do feed.
-    // Sem ela, o teste passaria também num mapper que não moesse "HR-V", e não
-    // provaria que foi o override que acertou o nome.
+    // A contraprova mudou em 2026-09-21. Até ali, sem o override o feed saía
+    // "Hr-v Exl" — e era essa diferença que provava que o override tinha
+    // acertado o nome. Com a grafia canônica (`lib/grafiaCanonica.ts`) o feed
+    // sozinho também sai "HR-V EXL", então as duas pontas ficam iguais e a
+    // prova antiga deixou de provar. Agora são duas:
+    //
+    //   · sem override, o feed sai na grafia canônica — o conserto novo;
+    //   · com um override que a grafia NÃO produziria ("FlexOne Automático"),
+    //     é ele que chega ao título — a precedência do painel, que é o que
+    //     este caso sempre quis prender.
     const semOverride = montarInventario(
       [mapVeiculoDbToVeiculo({ ...HRV, modelo_override: null, versao_override: null })],
       ORIGEM,
       ATUALIZADO_EM,
     );
-    expect(semOverride).toContain("### Honda Hr-v Exl 1.8 Flex Aut 2019\n");
+    expect(semOverride).toContain("### Honda HR-V EXL 1.8 Flex Aut 2019\n");
+
+    const overrideProprio = montarInventario(
+      [mapVeiculoDbToVeiculo({ ...HRV, versao_override: "EXL 1.8 FlexOne Automático" })],
+      ORIGEM,
+      ATUALIZADO_EM,
+    );
+    expect(overrideProprio).toContain("### Honda HR-V EXL 1.8 FlexOne Automático 2019\n");
   });
 });
 

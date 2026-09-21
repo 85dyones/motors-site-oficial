@@ -57,16 +57,19 @@ describe("as páginas públicas declaram título próprio", () => {
 
 describe("o catálogo e os hubs dizem o que vendem e onde", () => {
   it.each([
-    // O título do catálogo agora tem duas formas — com e sem a contagem —
-    // porque "— 0 Ofertas" é o mesmo defeito do "0" no `<h1>` das faixas.
-    ["src/app/estoque/page.tsx", /`Carros Seminovos em Curitiba — \$\{total\} Ofertas/],
-    ["src/app/estoque/page.tsx", /"Carros Seminovos em Curitiba \| Motors Store"/],
+    // O título do catálogo não leva contagem (2026-09-21): o Google guarda o
+    // título do dia do rastreamento, e o número envelhece a cada venda.
+    ["src/app/estoque/page.tsx", /title: "Carros Seminovos em Curitiba \| Motors Store"/],
     // Os três hubs não trazem mais "Seminovo" cravado: a palavra concorda com
     // o gênero do que a página vende — "Saveiro Seminova", "SUVs Seminovos".
     // O que o teste prende é que "em Curitiba" continua no título e que a
     // forma vem do helper, não de uma string fixa.
     ["src/app/[categoria]/[marca]/page.tsx", /\$\{Novo\} em Curitiba/],
-    ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /\$\{Novo\} em Curitiba/],
+    // O hub de MODELO trocou "seminovo" por "usado" no título em 2026-09-21 —
+    // é o termo que a campanha compra —, com a marca na frente e sem o preço.
+    // A concordância continua vindo do helper: "Saveiro Usada".
+    ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /`\$\{hub\.marca\} \$\{hub\.nome\} \$\{Usado\} em Curitiba \| Motors Store`/],
+    ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /const usadoNoGenero = usado\(hub\.genero\)/],
     ["src/app/estoque/[recorte]/page.tsx", /\$\{Novas\} em Curitiba/],
     ["src/app/estoque/[recorte]/page.tsx", /Seminovos \$\{faixa\.nome\} em Curitiba/],
     ["src/app/financiamento/page.tsx", /Financiamento de Carro Seminovo em Curitiba/],

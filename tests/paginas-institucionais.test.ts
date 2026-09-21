@@ -108,7 +108,27 @@ describe("financiamento não promete o que depende do banco", () => {
     expect(lerCodigo("src/components/SimuladorDeFinanciamento.tsx")).toMatch(
       /import\("\.\/CalculadoraFinanciamento"\)/,
     );
-    expect(ler("src/components/CalculadoraFinanciamento.tsx")).toMatch(/TAC e IOF/);
+    expect(ler("src/components/CalculadoraFinanciamento.tsx")).toMatch(/Valores incluem IOF/);
+  });
+
+  it("TAC não aparece no site nem entra na conta do simulador (dono, 21/09/2026)", () => {
+    // A tarifa de abertura de crédito não é cobrada de pessoa física desde
+    // 2008. O site dizia "TAC e IOF inclusos" e somava R$ 950 à estimativa.
+    for (const arquivo of [
+      "src/components/CalculadoraFinanciamento.tsx",
+      "src/lib/paginasInstitucionais.ts",
+      "conteudo-seo/guia-financiamento-credito-apertado.json",
+    ]) {
+      const texto = arquivo.endsWith(".json")
+        ? JSON.stringify(
+            (({ corpo, faq, descricao }) => ({ corpo, faq, descricao }))(
+              JSON.parse(ler(arquivo)),
+            ),
+          )
+        : ler(arquivo);
+      expect(texto, arquivo).not.toMatch(/\bTAC\b/);
+    }
+    expect(lerCodigo("src/lib/finance-calculator.ts")).not.toMatch(/\btac\b/i);
   });
 
   it("«o simulador abaixo» é verdade — ele vem antes da grade", () => {
