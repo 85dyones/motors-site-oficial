@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
 import { verificarTurnstile, ACOES_DE_AVALIACAO, ipDoVisitante } from "../../../lib/turnstile";
+import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,9 @@ export async function POST(request: NextRequest) {
         interesse: [marca, modelo, ano].filter(Boolean).join(" ") || null,
         canal: "Avaliação",
         event_id: requestBody.eventId || null,
+        // Mesmo conserto de `/api/leads` (2026-09-21): o `utm` já vinha no
+        // corpo e ia só para o n8n. `fbp`/`fbc` passam a vir do formulário.
+        ...contextoDeMidiaDoLead(requestBody),
       });
       if (erroLead) {
         console.warn("[Avaliacao API] Falha ao gravar lead (não bloqueante):", erroLead.message);
