@@ -1,7 +1,9 @@
 # Conformidade com o laudo "Auditoria Google Ads + site" (20/09/2026)
 
 Revisão feita em 21/09/2026 contra o `main` em `bef9c44` e contra os dois PRs
-abertos (#103 e #128).
+abertos (#103 e #128). Reverificada no mesmo dia, com o `main` ainda em `bef9c44`:
+**os quatro itens do §6 continuam abertos**, e a reverificação alargou o item 3 —
+ver a tabela do §3.2.
 
 O laudo mistura, de propósito, três naturezas de achado: o que se conserta no
 **código**, o que se conserta no **painel do Google Ads / GTM / Perfil da
@@ -111,6 +113,27 @@ para o `dataLayer`. O laudo mediu certo: a home declara 38 veículos na tela e
 `null` na camada de dados.
 
 **Conserto:** `<ContagemDeEstoque total={total} />` na home. Uma linha.
+
+**Mas o problema é maior do que a home, e só aparece cruzando com o §3.8.** Das
+seis páginas que contam estoque, **uma só acerta**:
+
+| Página | `revalidate` | Empurra `stock_count`? | O que chega ao GA4 |
+|---|---|---|---|
+| `app/estoque/page.tsx` | 60 s | sim (`:141`) | ✅ número fresco |
+| `app/page.tsx` (home) | 60 s | **não** | ❌ `null` |
+| `app/estoque/[recorte]/page.tsx` | **3600** s | sim (`:235`) | ⚠️ até 1 h atrasado |
+| `app/financiamento/page.tsx` | **3600** s | sim (`:102`) | ⚠️ até 1 h atrasado |
+| `app/seminovos-curitiba/page.tsx` | **3600** s | sim (via `PaginaGeoView.tsx:48`) | ⚠️ até 1 h atrasado |
+| `app/seminovos-bacacheri/page.tsx` | **3600** s | sim (via `PaginaGeoView.tsx:48`) | ⚠️ até 1 h atrasado |
+
+Ou seja: `stock_count` no `dataLayer` hoje é **`null` na página de maior tráfego
+ou número de até uma hora atrás em quatro das cinco restantes.** Só `/estoque`
+publica o número certo.
+
+O conserto de uma linha na home não basta sozinho — sem o §3.8 junto, a home passa
+a empurrar o número certo enquanto quatro páginas continuam empurrando o velho, e
+o relatório fica pior de ler, não melhor: passa a haver divergência **entre
+páginas** onde antes havia um `null` honesto.
 
 ### 3.3 `capitalizeWords` transforma `HB20` em `Hb20` — e afeta título, H1 e meta
 
@@ -250,17 +273,32 @@ diagnosticou. A causa está em três linhas:
 |---|---|
 | `app/estoque/page.tsx:37` | **60** s |
 | `app/page.tsx:91` | **60** s |
+| `app/estoque/[recorte]/page.tsx` | **3600** s |
+| `app/financiamento/page.tsx:30` | **3600** s |
 | `app/seminovos-curitiba/page.tsx:11` | **3600** s |
 | `app/seminovos-bacacheri/page.tsx:11` | **3600** s |
 
-Todas as quatro contam pelo mesmo caminho (`disponiveisDe(getEstoque())`, via
+Todas contam pelo mesmo caminho (`disponiveisDe(getEstoque())`, via
 `recortesDoEstoque` em `hubsDeEstoque.ts:488-505`) — o número é o mesmo no
-instante do render. O que difere é **quando** cada uma renderiza: as geográficas
+instante do render. O que difere é **quando** cada uma renderiza: as de 3600 s
 podem servir contagem de até uma hora atrás enquanto `/estoque` se atualiza a cada
 minuto. Estoque que caiu de 38 para 36 produz exatamente o que o laudo viu.
 
-**Conserto:** alinhar o `revalidate` das duas geográficas em 60 s. Elas custam a
-mesma leitura que `/estoque` já faz de minuto em minuto.
+São **quatro** páginas atrasadas, não duas: a revisão de 21/09 encontrou
+`/estoque/[recorte]` e `/financiamento` no mesmo grupo, e as duas **empurram o
+número para o `dataLayer`** (ver a tabela do §3.2). O laudo só comparou as
+geográficas com `/estoque` porque foram as que ele abriu.
+
+**Conserto:** alinhar o `revalidate` das quatro em 60 s. Elas custam a mesma
+leitura que `/estoque` já faz de minuto em minuto.
+
+**Ressalva honesta:** 3600 s pode ter sido escolha e não descuido — página
+perene que quase não muda não precisa revalidar de minuto em minuto, e há custo
+de leitura (`hubsDeEstoque.ts:653-662` mede ~977 KB por render de
+`recortesDoEstoque`). Se a escolha for manter 3600 s, então a saída é a inversa e
+igualmente válida: **tirar o `<ContagemDeEstoque>` dessas quatro** e deixar o
+`stock_count` como `null` nelas, em vez de publicar número velho. O que não se
+sustenta é o estado de hoje, que publica número velho como se fosse fresco.
 
 ### 3.9 `noindex,follow` nos hubs cronicamente vazios
 
@@ -401,14 +439,22 @@ ainda devem ao site:
 
 1. **`onClick` no telefone do cabeçalho** (§3.1) — é o único defeito de
    rastreamento do laudo e o que destrava `conv_ligacao`.
-2. **`<ContagemDeEstoque>` na home** (§3.2) — uma linha, e limpa o `stock_count`
-   da página de maior tráfego.
-3. **`revalidate` das geográficas em 60 s** (§3.8) — três linhas, e acaba a
-   divergência de contagem que o laudo registrou como canibalização.
-4. **Dicionário de normalização** (§3.3) — o maior retorno por esforço do site
+2. **`stock_count` coerente em todo o site** (§3.2 + §3.8) — a home empurrando o
+   número, e as quatro páginas de 3600 s deixando de empurrar número velho (ou
+   caindo para 60 s). **Os dois juntos, nunca só o primeiro.**
+3. **Dicionário de normalização** (§3.3) — o maior retorno por esforço do site
    inteiro, nas palavras do laudo, e pré-requisito para reescrever os titles
    (§3.4) sem publicar `Hb20` num título novo.
+4. **`<title>` das páginas de modelo** (§3.4) — depois do item 3, e preservando a
+   concordância de gênero.
 
-O item 4 e o §3.4 andam juntos: reescrever o `<title>` antes do dicionário
-publicaria "Hyundai Hb20 Usado em Curitiba" — trocaria um defeito por outro no
-mesmo lugar.
+Duas dependências que a revisão de 21/09 tornou explícitas, e que mudam a ordem
+em relação à primeira leitura:
+
+- **§3.2 sozinho piora o relatório.** Pôr o `<ContagemDeEstoque>` na home sem
+  mexer no §3.8 faz a home publicar o número certo enquanto quatro páginas
+  publicam o de uma hora atrás — divergência entre páginas onde antes havia um
+  `null` honesto. Por isso os dois viraram **um** item.
+- **§3.4 depois do §3.3.** Reescrever o `<title>` antes do dicionário publicaria
+  "Hyundai **Hb20** Usado em Curitiba": trocaria um defeito por outro no mesmo
+  lugar.
