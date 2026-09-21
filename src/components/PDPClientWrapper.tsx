@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import type { QrDaFicha } from "../lib/qrDaFicha";
+import FichaImpressa from "./modernist/FichaImpressa";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -9,9 +11,8 @@ import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
 import { CardVeiculo, LinkRegua } from "./modernist/primitivos";
 import { getUtmParameters, getActiveAgUid, getMatchParamsRespeitandoRecusa, sufixoRef, trackVehicleView, trackLeadSubmission, trackContactClick, META_CONTENT_TYPE } from "../lib/telemetry";
 import { useTheme } from "../app/ThemeContext";
-import { linkWhatsApp, telefoneDoLead, telefoneVisivel } from "../lib/whatsapp";
+import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
 import { nomeComAno, nomeDoVeiculo } from "../lib/nomeDoVeiculo";
-import { razaoSocialAparte } from "../lib/identidadeLegal";
 import {
   mensagemDeDuvidas,
   mensagemDeInteresse,
@@ -63,6 +64,11 @@ interface PDPClientWrapperProps {
    */
   caminhoDaMarca?: string;
   caminhoDoModelo?: string;
+  /**
+   * O QR do anúncio, já codificado no servidor — `null` quando não há
+   * endereço para apontar. Só a impressão o desenha.
+   */
+  qrDaFicha?: QrDaFicha | null;
 }
 
 function formatPrice(value: number): string {
@@ -88,32 +94,6 @@ function getShortVehicleId(id: string): string {
   return id.substring(0, 8).toUpperCase();
 }
 
-/**
- * Data do cabeçalho de impressão — só depois da hidratação (React #418).
- *
- * A ficha é ISR (`revalidate = 3600`): o HTML sai com a data calculada no
- * SERVIDOR, em UTC, presa ao momento do build ou da regeneração. Um aparelho
- * em fuso adiantado (ex.: Pacific/Kiritimati, UTC+14) já vê outro dia
- * enquanto o HTML ainda carrega o de ontem — o texto que o servidor mandou
- * diverge do que o cliente calcularia, e o React descarta a árvore inteira
- * em vez de só corrigir o texto. Reproduzido em produção: o erro aparece com
- * o relógio do Chromium em `Pacific/Kiritimati` e some com `America/Sao_Paulo`.
- *
- * `useSyncExternalStore` com `getServerSnapshot` retornando `null` evita a
- * divergência: o servidor renderiza o span vazio, a hidratação bate
- * (`null` dos dois lados) sem erro, e só DEPOIS dela o valor real do
- * cliente aparece — sem reescrever a árvore que o servidor gerou.
- */
-const semAssinatura = () => () => {};
-function GeradoEm() {
-  const hoje = useSyncExternalStore(
-    semAssinatura,
-    () => new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-    () => null,
-  );
-  return <span className="text-[9px] text-zinc-500 block">Gerado em: {hoje}</span>;
-}
-
 export default function PDPClientWrapper({
   veiculo: initialVeiculo,
   similares = [],
@@ -121,6 +101,7 @@ export default function PDPClientWrapper({
   rotuloIndisponivel: rotuloDoServidor = null,
   caminhoDaMarca,
   caminhoDoModelo,
+  qrDaFicha = null,
 }: PDPClientWrapperProps) {
   const { companySettings, stockOverrides } = useTheme();
 
@@ -865,59 +846,18 @@ export default function PDPClientWrapper({
   return (
     <div id="pdp-vehicle-root" data-vehicle-id={veiculo.id} data-price={finalPrice} className="w-full pb-24 bg-brand-bg text-brand-text transition-colors duration-300 flex flex-col print:pb-0">
       
-      {/* PRINT ONLY HEADER */}
-      <div className="hidden print:flex flex-col gap-4 border-b-2 border-black pb-4 mb-6">
-        {/* Dealership header row */}
-        <div className="flex flex-row justify-between items-center">
-          <div>
-            <span className="text-xl font-black tracking-widest text-black uppercase">{companySettings.name}</span>
-            <span className="text-[9px] text-zinc-500 block uppercase font-bold tracking-wider">Ficha Técnica de Showroom</span>
-          </div>
-          <div className="text-right">
-            <span className="text-[9px] font-mono text-zinc-500 block">ID: {getShortVehicleId(veiculo.id)}</span>
-            <GeradoEm />
-          </div>
-        </div>
-
-        {/* Vehicle details row */}
-        <div className="flex flex-row justify-between items-end mt-2">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{veiculo.marca}</span>
-            <div className="text-2xl font-bold text-black leading-tight mt-0.5">{modeloExibido}</div>
-            <p className="text-[10px] text-zinc-600 uppercase tracking-wide mt-1">
-              {[versaoExibida, `Ano ${veiculo.ano}`, veiculo.cor].filter(Boolean).join(" • ")}
-            </p>
-          </div>
-          <div className="text-right">
-            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest block leading-none mb-1">Preço de Venda</span>
-            {hasDiscount ? (
-              <div className="flex flex-col items-end">
-                <span className="text-[9px] text-zinc-400 line-through leading-none">De {formatPrice(veiculo.preco_original)}</span>
-                <span className="text-lg font-black text-black tracking-tight mt-1">Por {formatPrice(veiculo.preco_promocional)}</span>
-              </div>
-            ) : (
-              <span className="text-lg font-black text-black tracking-tight">{formatPrice(veiculo.preco_original)}</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* PRINT ONLY FEATURED IMAGE */}
-      <div className="hidden print:block w-full mb-6">
-        {displayImages[0] && (
-          <div className="relative w-full h-[320px] bg-zinc-100  overflow-hidden border border-zinc-200">
-            {/* `<img>` cru de propósito: este bloco só existe na impressão da
-                ficha, e o `next/image` serve um srcset que a impressora não
-                aproveita. Mesma exceção do card em `modernist/primitivos`. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={displayImages[0]}
-              alt={`${veiculo.marca} ${veiculo.modelo}`}
- className="w-full h-full object-cover print-main-image"
-            />
-          </div>
-        )}
-      </div>
+      {/* A folha A4 — o desenho `Ficha Impressa.dc.html` portado.
+          É a única coisa que vai ao papel: o `@media print` esconde o
+          resto desta ficha de tela. */}
+      <FichaImpressa
+        veiculo={veiculo}
+        empresa={companySettings}
+        fotos={displayImages}
+        qr={qrDaFicha}
+        modeloExibido={modeloExibido}
+        versaoExibida={versaoExibida}
+        codigo={getShortVehicleId(veiculo.id)}
+      />
 
       {/* Trilha até os hubs perenes.
           Não é enfeite: é o caminho de volta que a ficha nunca teve. Quem chega
@@ -1609,21 +1549,6 @@ export default function PDPClientWrapper({
           ano: veiculo.ano
         }}
       />
-
-      {/* PRINT ONLY FOOTER */}
-      <div className="hidden print:flex flex-row justify-between items-center border-t border-zinc-200 pt-4 mt-8 print-avoid-break">
-        <div className="text-[9px] text-zinc-500 leading-normal">
-          <span className="font-bold text-zinc-700 block uppercase tracking-wider mb-0.5">{companySettings.name}</span>
-          {razaoSocialAparte(companySettings) && <span className="block">{razaoSocialAparte(companySettings)}</span>}
-          <span>{companySettings.address}</span>
-          {companySettings.cnpj && <span className="block mt-0.5 font-mono">CNPJ: {companySettings.cnpj}</span>}
-        </div>
-        <div className="text-right text-[9px] text-zinc-500 leading-normal">
-          <span className="font-bold text-zinc-700 block uppercase tracking-wider mb-0.5">Contato & Atendimento</span>
-          <span>Tel: {companySettings.phone} • WhatsApp: {telefoneVisivel(companySettings)}</span>
-          <span className="block mt-0.5">{companySettings.hours.replace(/\n/g, " | ")}</span>
-        </div>
-      </div>
 
     </div>
   );

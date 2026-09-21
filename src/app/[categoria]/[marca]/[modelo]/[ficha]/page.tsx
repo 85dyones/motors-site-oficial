@@ -18,6 +18,8 @@ import {
 import { nomeDoVeiculo as montarNomeDoVeiculo } from "../../../../../lib/nomeDoVeiculo";
 import { montarTextosDaFicha } from "../../../../../lib/tituloDaFicha";
 import { grafoDaFicha } from "../../../../../lib/grafoDaFicha";
+import { qrDaFicha } from "../../../../../lib/qrDaFicha";
+import { urlDoSite } from "../../../../../lib/site";
 import { blocoJsonLd } from "../../../../../lib/schemaListagem";
 import {
   destinoDoVeiculoArquivado,
@@ -286,6 +288,16 @@ export default async function CarDetailsPage({ params }: PageProps) {
     permanentRedirect(destinoDoVeiculoArquivado(veiculo, historico, disponiveis));
   }
 
+  /**
+   * O QR que devolve o papel ao anúncio.
+   *
+   * Sai daqui, e não do componente, por dois motivos: a página é de
+   * servidor, então o encoder não entra no pacote do navegador; e o
+   * endereço é o mesmo `pdpUrl` que assina o canônico e o grafo — um lugar
+   * só decide para onde a ficha aponta.
+   */
+  const qr = qrDaFicha(urlDoSite(pdpUrl));
+
   const itensProcedencia = normalizarProcedencia(settings.procedencia);
 
   // "Também no seu perfil" — regra e limites em `lib/similares.ts`.
@@ -359,6 +371,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
         rotuloIndisponivel={publicacao.rotulo}
         caminhoDaMarca={caminhoDaMarca}
         caminhoDoModelo={caminhoDoModelo}
+        qrDaFicha={qr}
       />
       <FaixaProcedencia itens={itensProcedencia} />
     </div>

@@ -16,13 +16,13 @@ import { lerCodigo } from "./fonte";
  * dia, é a virada do ano.
  *
  * ---------------------------------------------------------------------------
- * Por que trava de fonte, e não renderizar `GeradoEm`/`AnoAtual`
+ * Por que trava de fonte, e não renderizar `EmitidaEm`/`AnoAtual`
  * ---------------------------------------------------------------------------
  * A preferência é teste de comportamento: montar o componente com
  * `react-dom/server` e conferir que o HTML do servidor não contém data. Duas
  * razões tiraram essa opção da mesa:
  *
- * 1. `GeradoEm` e `AnoAtual` não têm motivo para existir fora do arquivo onde
+ * 1. `EmitidaEm` e `AnoAtual` não têm motivo para existir fora do arquivo onde
  *    nasceram — são função privada de um detalhe de renderização. Exportá-los
  *    seria só para este teste, exatamente o caso artificial a evitar.
  * 2. Este repositório TEM ambiente `jsdom` (por arquivo, via
@@ -61,27 +61,39 @@ function trecho(fonte: string, doMarcador: string, ateMarcador: string): string 
   return fonte.slice(inicio, fim);
 }
 
-describe("ficha de veículo: nada recalcula data fora de GeradoEm", () => {
-  const fonte = lerCodigo("src/components/PDPClientWrapper.tsx");
+describe("ficha de veículo: nada recalcula data fora de EmitidaEm", () => {
+  const wrapper = lerCodigo("src/components/PDPClientWrapper.tsx");
+  const folha = lerCodigo("src/components/modernist/FichaImpressa.tsx");
 
-  it("a árvore renderizada não tem `new Date(` nem `toLocaleDateString(`", () => {
-    const inicioDaArvore = fonte.indexOf('id="pdp-vehicle-root"');
+  it("a árvore do PDP não tem `new Date(` nem `toLocaleDateString(`", () => {
+    const inicioDaArvore = wrapper.indexOf('id="pdp-vehicle-root"');
     // Sem esta trava, um índice -1 vira "os últimos zero caracteres" no
     // `slice` abaixo, e as duas asserções seguintes passariam sem ler nada —
     // a mesma armadilha que a nota de `tests/fonte.ts` descreve.
     expect(inicioDaArvore, 'âncora da raiz "pdp-vehicle-root" não encontrada').toBeGreaterThan(-1);
 
-    const arvoreRenderizada = fonte.slice(inicioDaArvore);
+    const arvoreRenderizada = wrapper.slice(inicioDaArvore);
     expect(arvoreRenderizada).not.toMatch(/new Date\(/);
     expect(arvoreRenderizada).not.toMatch(/toLocaleDateString\(/);
   });
 
-  it("`GeradoEm` existe e adia a data com `useSyncExternalStore(..., () => null)`", () => {
+  it("a árvore da folha A4 não tem `new Date(` nem `toLocaleDateString(`", () => {
+    const inicioDaArvore = folha.indexOf('id="ficha-impressa"');
+    expect(inicioDaArvore, 'âncora da raiz "ficha-impressa" não encontrada').toBeGreaterThan(
+      -1,
+    );
+
+    const arvoreRenderizada = folha.slice(inicioDaArvore);
+    expect(arvoreRenderizada).not.toMatch(/new Date\(/);
+    expect(arvoreRenderizada).not.toMatch(/toLocaleDateString\(/);
+  });
+
+  it("`EmitidaEm` existe e adia a data com `useSyncExternalStore(..., () => null)`", () => {
     // A asserção anterior só prova AUSÊNCIA na árvore — passaria verde mesmo
-    // se `GeradoEm` tivesse sido apagado. Isolar o corpo da função (e não o
+    // se `EmitidaEm` tivesse sido apagado. Isolar o corpo da função (e não o
     // arquivo inteiro) evita o alarme falso do `import { useSyncExternalStore }`
     // do topo do arquivo, que bateria com `toMatch` mesmo sem o hook rodar.
-    const corpo = trecho(fonte, "function GeradoEm", "export default function PDPClientWrapper");
+    const corpo = trecho(folha, "function EmitidaEm", "function formatarPreco");
 
     expect(corpo).toMatch(/useSyncExternalStore/);
     expect(corpo).toMatch(/\(\)\s*=>\s*null/);

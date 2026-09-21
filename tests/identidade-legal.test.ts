@@ -139,9 +139,11 @@ describe("o painel e a ficha impressa", () => {
   });
 
   it("o rodapé da ficha impressa mostra a razão social acima do endereço", () => {
-    const ficha = ler("src/components/PDPClientWrapper.tsx");
-    const i = ficha.indexOf("razaoSocialAparte(companySettings) && <span");
+    // O rodape migrou para a folha A4 quando o redesenho trocou os blocos
+    // print-only do PDP por ela.
+    const ficha = ler("src/components/modernist/FichaImpressa.tsx");
+    const i = ficha.indexOf("razaoSocialAparte(empresa) && <span");
     expect(i).toBeGreaterThan(-1);
-    expect(i).toBeLessThan(ficha.indexOf("<span>{companySettings.address}</span>"));
+    expect(i).toBeLessThan(ficha.indexOf("{empresa.address}"));
   });
 });
