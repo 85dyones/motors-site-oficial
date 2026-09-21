@@ -189,8 +189,16 @@ export default function HeroHome({
               Seminovos selecionados em Curitiba
             </span>
           </span>
+          {/* Os dois `{" "}` deste `<h1>` são texto de verdade, e não
+              enfeite (2026-09-21). Sem eles o JSX não deixa nó de texto entre
+              as peças, e o `textContent` — o que boa parte dos rastreadores lê
+              — saía "…em CuritibaFORADA CURVA": duas junções, uma entre os
+              spans e outra no `<br>`. Nenhum dos dois pinta pixel: o espaço
+              entre duas caixas de bloco não rende, e o do `<br>` cai no fim da
+              linha quebrada. `sr-only` aqui seria pior — ver o teste. */}
+          {" "}
           <span className="block">
-            FORA
+            FORA{" "}
             <br />
             DA CURVA
           </span>
