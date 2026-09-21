@@ -6,6 +6,8 @@ import type { QrDaFicha } from "../../lib/qrDaFicha";
 import { telefoneVisivel } from "../../lib/whatsapp";
 import { razaoSocialAparte } from "../../lib/identidadeLegal";
 import { BAIRRO_DA_LOJA } from "../../lib/textoDosHubs";
+import { TEXTO_LAUDO_PENDENTE } from "../../lib/textoDoLaudo";
+import { LAUDO_APROVADO_PADRAO } from "../../lib/descritivo/laudoPadrao";
 
 /**
  * A ficha impressa do veículo — uma folha A4, e só ela.
@@ -27,10 +29,13 @@ import { BAIRRO_DA_LOJA } from "../../lib/textoDosHubs";
  *    escrever o hexadecimal aqui quebraria a troca de paleta pelo painel e
  *    contraria o próprio sistema ("never hard-code a hex the tokens carry").
  *
- * 3. **O que o dado não sustenta não é impresso.** A faixa do laudo só sai
- *    quando `cautelar_100` é verdadeiro, e o ano sai sozinho porque a base
- *    guarda um `ano` só — o desenho mostra "2025 / 2025", que exigiria um ano
- *    de modelo que esta loja não tem cadastrado.
+ * 3. **O que o dado não sustenta não é afirmado.** A faixa do laudo sai em
+ *    toda folha, mas só afirma aprovação onde a perícia aprovou; nas outras
+ *    ela diz o que o site já diz. E o ano sai sozinho porque o `Veiculo`
+ *    ainda não carrega o ano de fabricação — o desenho mostra "2025 / 2025",
+ *    e o par vive no banco (`estoque_motors.ano_fabricacao`, preenchido em
+ *    todas as linhas) esperando o plano
+ *    `docs/superpowers/plans/2026-09-21-ano-de-fabricacao.md`.
  */
 
 /**
@@ -479,61 +484,72 @@ export default function FichaImpressa({
         )}
       </div>
 
-      {/* A faixa afirma um fato sobre o carro; só sai quando o cadastro o
-          sustenta. Carro sem cautelar 100% imprime a folha sem ela. */}
-      {veiculo.cautelar_100 && (
+      {/* A faixa sai em TODA folha — decisão do dono em 21/09. O que muda é o
+          que ela tem direito de afirmar.
+
+          A régua é `cautelar_100`, que não é bandeira solta: `mapVeiculoDbToVeiculo`
+          a deriva de `formatPericia(...) === "PERÍCIA APROVADA"`, a mesma que
+          acende o selo do site. Nos aprovados sai a afirmação; nos que ainda
+          estão em análise sai o que o site já diz no lugar dela, palavra por
+          palavra — o exame existe, e o laudo se pede ao vendedor.
+
+          As duas frases vêm das constantes canônicas, não copiadas para cá: a
+          redação da aprovação foi fixada pelo dono em 09/09 e o próprio módulo
+          proíbe parafraseá-la ("empresa independente, credenciada junto ao
+          Detran" não é equivalente a uma reescrita). O desenho trazia uma
+          paráfrase; vale a constante. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "stretch",
+          gap: 0,
+          marginTop: "1.846cqw",
+          background: "var(--mt-ink)",
+          color: "var(--mt-bg)",
+        }}
+      >
         <div
           style={{
             display: "flex",
-            alignItems: "stretch",
-            gap: 0,
-            marginTop: "1.846cqw",
-            background: "var(--mt-ink)",
-            color: "var(--mt-bg)",
+            alignItems: "center",
+            padding: "1.538cqw 2.154cqw",
+            background: "var(--mt-accent)",
+            flexShrink: 0,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "1.538cqw 2.154cqw",
-              background: "var(--mt-accent)",
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ fontSize: "1.692cqw", fontWeight: 800, letterSpacing: ".14em", lineHeight: 1.1 }}>
-              LAUDO CAUTELAR
-              <br />
-              100% APROVADO
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              gap: "0.462cqw",
-              padding: "1.538cqw 2.462cqw",
-              minWidth: 0,
-            }}
-          >
-            <span style={{ fontSize: "1.385cqw", fontWeight: 800, letterSpacing: ".16em", color: "#ffffff" }}>
-              HISTÓRICO LIVRE DE SINISTRO E LEILÃO
-            </span>
-            <span
-              style={{
-                fontSize: "1.538cqw",
-                lineHeight: 1.4,
-                color: "var(--mt-neutral-300)",
-                textWrap: "pretty",
-              }}
-            >
-              Estrutura, chassi e histórico auditados por empresa credenciada junto ao Detran. O laudo
-              completo fica disponível para consulta na loja.
-            </span>
-          </div>
+          <span style={{ fontSize: "1.692cqw", fontWeight: 800, letterSpacing: ".14em", lineHeight: 1.1 }}>
+            LAUDO CAUTELAR
+            <br />
+            {veiculo.cautelar_100 ? "100% APROVADO" : "EM ANÁLISE"}
+          </span>
         </div>
-      )}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: "0.462cqw",
+            padding: "1.538cqw 2.462cqw",
+            minWidth: 0,
+          }}
+        >
+          <span style={{ fontSize: "1.385cqw", fontWeight: 800, letterSpacing: ".16em", color: "#ffffff" }}>
+            {veiculo.cautelar_100
+              ? "HISTÓRICO LIVRE DE SINISTRO E LEILÃO"
+              : "PERÍCIA CAUTELAR INDEPENDENTE"}
+          </span>
+          <span
+            style={{
+              fontSize: "1.538cqw",
+              lineHeight: 1.4,
+              color: "var(--mt-neutral-300)",
+              textWrap: "pretty",
+            }}
+          >
+            {veiculo.cautelar_100 ? LAUDO_APROVADO_PADRAO : TEXTO_LAUDO_PENDENTE}
+          </span>
+        </div>
+      </div>
 
       <footer
         style={{
