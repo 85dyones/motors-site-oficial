@@ -1,0 +1,315 @@
+{
+  "_leia": "Textos de hub que estão na tabela `textos_de_hub` de produção (31 caminhos, lidos em 21/09/2026), revisados com a skill humanizer: sem travessão, sem contraste encenado, sem fato novo. Formato da tabela: `caminho`, `titulo`, `paragrafos[]`. O original de 21/09 é a linha de base de `tests/textos-sem-marcas-de-ia.test.ts`. Gravado em produção em 21/09/2026, com a aprovação do dono e a Kombi corrigida (arrefecimento a água); a versão anterior ficou em `backup.textos_de_hub_20260921`, e a gravação está descrita em `conteudo-seo/GRAVACAO-2026-09-21.md`. O texto da loja SOBRESCREVE o gerado por inteiro (ver `resolverTextoDoHub`).",
+  "textos": [
+    {
+      "caminho": "/carros/chevrolet",
+      "titulo": null,
+      "paragrafos": [
+        "Chevrolet usada tem rede grande e peça em qualquer esquina",
+        "É uma das marcas mais fáceis de manter no Brasil. Tem oficina em qualquer bairro e peça de reposição barata, e na hora de revender o mercado é grande. Para quem usa o carro todo dia e não quer depender de especialista, essa previsibilidade costuma valer mais do que qualquer item de série.",
+        "Nos motores mais recentes de três cilindros, o histórico de óleo é decisivo, porque turbo não perdoa intervalo esticado. Nos modelos com correia banhada em óleo a partir de 2023, a própria Chevrolet dá garantia à correia por 15 anos ou 240 mil quilômetros: ela começa depois da adesão, que é paga, de uma inspeção e de uma revisão, e só continua valendo se todas as revisões seguintes forem feitas na concessionária. Nas versões com câmbio automático, teste arrancada e rampa antes de fechar. E leve o seu celular para conferir a central multimídia: o espelhamento é o item que mais chega com defeito e o que o dono menos declara.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor: é só pedir. Diga no WhatsApp qual modelo te interessa, e a gente manda as fotos reais e o laudo antes de você sair de casa."
+      ]
+    },
+    {
+      "caminho": "/carros/chevrolet/onix",
+      "titulo": null,
+      "paragrafos": [
+        "Onix usado: escolha entre hatch e Plus, aspirado e turbo",
+        "Onix e Onix Plus são carros diferentes com o mesmo nome. O Plus é o sedã, com porta-malas grande, e serve bem a quem viaja ou roda por aplicativo; o hatch estaciona melhor e custa menos. Entre o 1.0 aspirado e o 1.0 turbo, o turbo anda muito mais em estrada e cobra isso em manutenção e em gasolina de qualidade.",
+        "No Onix usado, olhe o histórico de troca de óleo com atenção redobrada nos turbo e teste o câmbio automático em arrancada e em rampa. No Onix e no Onix Plus a partir de 2023, a correia banhada em óleo tem garantia da própria Chevrolet por 15 anos ou 240 mil quilômetros: ela começa depois da adesão, que é paga, de uma inspeção e de uma revisão, e só continua valendo se todas as revisões seguintes forem feitas na concessionária. Nas versões com central multimídia, conecte o seu celular e veja se o espelhamento funciona, porque é o item que mais chega com defeito e o que o dono menos declara.",
+        "Todo Onix daqui passa por perícia cautelar independente, e quem quiser ver o laudo pede ao vendedor. O showroom fica no Bacacheri, e a loja trabalha com troca e financiamento. Se estiver em dúvida entre o hatch e o Plus, venha ver os dois no mesmo dia: a diferença de porta-malas resolve a questão na hora."
+      ]
+    },
+    {
+      "caminho": "/carros/fiat",
+      "titulo": null,
+      "paragrafos": [
+        "Fiat usada tem manutenção barata e um mercado que sempre absorve",
+        "É a marca com a maior oferta de peça alternativa do país, o que mantém o custo de manutenção baixo. Isso conta para quem faz muitos quilômetros ou usa o carro para trabalhar. Em compensação, oferta grande também quer dizer muito exemplar rodado no mercado, e a escolha da unidade pesa mais aqui.",
+        "Verifique a suspensão dianteira e o assoalho nos que rodaram em piso ruim, e nos utilitários teste a embreagem em subida com carga. Nos flex mais antigos, confira o reservatório de partida a frio. Em Curitiba ele trabalha muito mais que na média do país, e quem morou em cidade quente pode nunca ter usado o dele.",
+        "Quando o carro é anunciado, o laudo da perícia independente já está com o vendedor, e basta pedir para consultar. Chame no WhatsApp com o modelo e o ano que te interessam: a gente manda as fotos reais e, se você pedir, o laudo junto."
+      ]
+    },
+    {
+      "caminho": "/carros/ford",
+      "titulo": null,
+      "paragrafos": [
+        "Ford usada: o que mudou quando a fábrica saiu do país",
+        "A marca deixou de produzir no Brasil, e isso assusta mais do que deveria. Nos modelos de volume, a rede de peças de reposição continua ampla, porque são carros que rodam às centenas de milhares por aí. A atenção vai para os modelos de nicho e os importados de baixo volume, em que peça específica pode virar espera longa.",
+        "Nos motores três cilindros, verifique o histórico de óleo e o funcionamento da correia banhada, que tem prazo e não avisa. No câmbio automático de dupla embreagem, a hesitação aparece nas trocas em baixa velocidade e em rampa, então teste as duas situações. Confira também o ar-condicionado sob sol forte e, nos que rodaram muito na cidade, as buchas da suspensão dianteira.",
+        "Nenhuma unidade é anunciada antes da perícia independente, e o laudo pode ser consultado com o vendedor, a pedido. Se a sua dúvida é justamente peça e manutenção, pergunte antes de vir: a gente responde com o valor que a oficina cobra de verdade."
+      ]
+    },
+    {
+      "caminho": "/carros/ford/ecosport",
+      "titulo": null,
+      "paragrafos": [
+        "EcoSport usado: SUV compacto que cabe em garagem comum",
+        "Foi o SUV compacto mais vendido do país por muito tempo, porque junta altura de embarque e posição de dirigir de SUV com dimensões de hatch. Para quem quer sentar alto e continuar estacionando em vaga curta, é a solução mais direta. Porta-malas grande não é o forte dele, e quem precisa disso deve olhar outra categoria.",
+        "Nas versões com estepe externo, confira a dobradiça e a fechadura da tampa traseira, que sofrem com o peso e desalinham. Teste o câmbio automático em rampa e veja o histórico de óleo. Olhe também as borrachas do teto e das colunas, e o assoalho do porta-malas por baixo do carpete, onde a infiltração da tampa traseira se acumula sem aviso.",
+        "Periciamos por empresa independente antes de anunciar, e o vendedor mostra o laudo a quem pedir. Traga a medida da sua garagem: é a diferença de tamanho entre ele e um SUV médio que decide se o carro entra fácil ou vira manobra todo dia."
+      ]
+    },
+    {
+      "caminho": "/carros/ford/ka",
+      "titulo": null,
+      "paragrafos": [
+        "Ka usado: o que olhar no hatch e no sedã",
+        "O Ka hatch é carro de cidade, leve, econômico e fácil de estacionar. O Ka Sedan atende quem precisa de porta-malas sem subir de categoria, e é uma das formas mais baratas de ter um sedã de verdade. Entre o 1.0 e o 1.5, o 1.5 faz diferença em estrada e com o carro cheio.",
+        "No Ka que rodou muito em cidade, os itens que mais aparecem são o ar-condicionado e as buchas da suspensão dianteira, então teste o ar sob sol forte e confira as buchas. Veja também se o câmbio manual engata a segunda sem aspereza a frio, o que é comum em carro que rodou pouco e ficou parado.",
+        "Os Ka que passam pela nossa avaliação entram com perícia cautelar independente, e o laudo fica com o vendedor: peça a ele. Estamos no Bacacheri e aceitamos seu usado na troca. Mande no WhatsApp a versão que te interessa, e a gente envia as fotos reais e o laudo sem você precisar vir até aqui."
+      ]
+    },
+    {
+      "caminho": "/carros/honda",
+      "titulo": null,
+      "paragrafos": [
+        "Honda usada: a durabilidade aparece na revenda",
+        "Honda é a marca em que a manutenção preventiva mais compensa. Com o óleo em dia, o motor passa dos duzentos mil quilômetros sem drama, e o mercado de revenda reconhece isso no preço. A peça original, por outro lado, custa mais que a média, e por isso o histórico de manutenção pesa tanto na escolha da unidade.",
+        "Peça a nota das revisões, além da palavra do dono. Nos câmbios automáticos CVT, teste a resposta em retomada e desconfie de trepidação em aceleração constante. Confira também os coxins de motor e as borrachas de porta: em carro que ficou muito tempo parado, borracha ressecada e bateria fraca costumam andar juntas.",
+        "A perícia é independente e vem antes da vitrine, e para consultar o laudo basta pedir ao vendedor. Se você já tem um exemplar em vista, mande o modelo e o ano: a gente compara com o que temos e diz com franqueza se vale a pena trocar."
+      ]
+    },
+    {
+      "caminho": "/carros/hyundai/hb20",
+      "titulo": null,
+      "paragrafos": [
+        "HB20 usado: o motivo de ele revender tão bem",
+        "É um dos hatches mais procurados do país no usado, então você paga um pouco mais na compra e recebe um pouco mais na revenda. Quem troca de carro a cada três ou quatro anos costuma sair ganhando nessa conta. Para quem vai ficar dez anos com ele, o prêmio de revenda importa bem menos.",
+        "Nas versões turbo, o histórico de troca de óleo pede atenção redobrada, e no câmbio automático vale testar arrancada e rampa. Se houver central multimídia, confirme o espelhamento com o seu próprio celular. Olhe também as buchas da suspensão dianteira e o alinhamento dos pneus, que é onde o uso urbano intenso aparece antes de qualquer outro lugar.",
+        "Nenhum carro vai à vitrine sem perícia independente, e o laudo fica com o vendedor, que mostra quando você pede. Diga no WhatsApp qual versão te interessa, e a gente manda as fotos reais e o laudo antes de você se deslocar."
+      ]
+    },
+    {
+      "caminho": "/carros/jeep/renegade",
+      "titulo": null,
+      "paragrafos": [
+        "Renegade usado: primeiro o motor, depois a versão",
+        "Antes do pacote de itens, decida a motorização, que no Renegade é a escolha que mais pesa. Flex e diesel têm experiências e custos diferentes, e a tração integral só se justifica para quem realmente sai do asfalto. Quem vai usar na cidade e viajar no feriado costuma achar suficiente a versão mais simples, e economiza duas vezes, na compra e na manutenção.",
+        "Nas versões diesel, o histórico de manutenção é decisivo e o uso urbano curto castiga o sistema de escape, então peça o registro das revisões. No câmbio automático, teste rampa e retomada. Confira ainda todos os sensores e câmeras e, nos exemplares que rodaram fora do asfalto, o assoalho e as caixas de roda.",
+        "A perícia independente acontece antes de o carro ir para a vitrine, e o laudo fica com o vendedor, à disposição de quem pedir. Antes de escolher a versão, conte como você vai usar o carro. Nesse modelo, é a conversa que mais evita compra errada, e leva cinco minutos."
+      ]
+    },
+    {
+      "caminho": "/carros/renault",
+      "titulo": null,
+      "paragrafos": [
+        "Renault usada: entrada barata, manutenção que pede atenção",
+        "No usado, a marca costuma oferecer mais carro por menos dinheiro. A manutenção equilibra a conta: alguns componentes pedem oficina que conheça a marca, e improviso sai caro. Com um mecânico de confiança que já conheça esses carros, a relação é excelente; quem vai rodar de oficina em oficina deve pesar isso antes.",
+        "Verifique o histórico da correia dentada e da bomba de água, que têm prazo e não avisam. A parte elétrica (vidros, travas, painel e sensores) é o capítulo que mais aparece, então teste com calma. No câmbio automático, avalie as trocas a frio e a quente. E confira se as revisões acompanharam a quilometragem do carro.",
+        "Periciamos todos por empresa independente, e basta pedir o laudo ao vendedor para consultar. Pergunte pelo histórico de manutenção antes de vir, porque nessa marca é a informação que mais muda a decisão, e a gente prefere contar antes a deixar você descobrir depois."
+      ]
+    },
+    {
+      "caminho": "/carros/renault/duster",
+      "titulo": null,
+      "paragrafos": [
+        "Duster usado: SUV que aceita estrada de terra sem drama",
+        "Quem procura o Duster costuma sair do asfalto de vez em quando, e ele tem vão livre alto, suspensão de curso longo e mecânica sem firula. Em sítio, estrada de terra e meio-fio alto, resolve com folga. Quem vive só na cidade paga por um vão e um consumo que não vai usar, e provavelmente se dá melhor com um SUV compacto de rua.",
+        "Se o exemplar rodou fora do asfalto, olhe por baixo antes de tudo: proteção de cárter amassada, barras de direção e coifas de semieixo rasgadas. Verifique a correia dentada e a bomba de água pelo prazo de troca, mesmo que pareçam boas. Nas versões automáticas, teste as trocas a frio, e confira a parte elétrica com calma, item por item.",
+        "O laudo da perícia independente fica com o vendedor desde que o carro é anunciado, e sai quando você pede. Se o seu uso inclui terra com frequência, diga isso na primeira conversa, porque muda o que a gente olha na avaliação e o que recomenda para você."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen",
+      "titulo": null,
+      "paragrafos": [
+        "Volkswagen usada: por que ela segura o valor na revenda",
+        "Volkswagen é a marca que mais aparece no nosso pátio, e há motivo: tem peça em qualquer autopeça, mecânico em qualquer bairro e fila de comprador na hora de revender. Você sente isso no bolso duas vezes, na manutenção do ano que vem e no valor que recebe quando trocar.",
+        "Nos flex mais antigos, teste o reservatório de partida a frio. Em Curitiba ele trabalha muito mais que na média do país, e um dono que morou em cidade quente pode nunca ter usado o dele. Nos motores TSI, o histórico de óleo é decisivo, porque turbo não perdoa intervalo esticado.",
+        "Cada Volkswagen do estoque passa por perícia cautelar independente antes de ir para o showroom do Bacacheri, e quem quiser consultar o laudo pede ao vendedor. Aceitamos seu usado na troca. Chame no WhatsApp com o modelo que te interessa, e a gente manda o laudo antes de você sair de casa."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/kombi",
+      "titulo": null,
+      "paragrafos": [
+        "Kombi usada: para trabalhar ou para colecionar",
+        "O mercado tem duas Kombis, e uma não tem nada a ver com a outra. A de trabalho ainda faz entrega urbana como poucas, com cubo grande, mecânica simples e peça em qualquer lugar. A de coleção é outra compra, com critério e preço próprios. O primeiro passo é decidir qual das duas você procura, porque misturar os dois critérios leva a arrependimento.",
+        "Olhe a lataria de baixo para cima: soleira, caixa de roda e a emenda do assoalho com as laterais, onde a ferrugem começa escondida. Confira as corrediças e as dobradiças da porta lateral, e se as portas fecham sem forçar. Na mecânica, os pontos clássicos são o arrefecimento a água e a vedação do motor, e motor suando é assunto para conversar antes da proposta.",
+        "A perícia independente vem antes do anúncio, e o laudo fica com o vendedor e sai a pedido. Esta página continua no ar mesmo sem unidade disponível porque a loja compra Kombi quando aparece uma bem cuidada. Avise o que você procura, e a gente busca."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/saveiro",
+      "titulo": null,
+      "paragrafos": [
+        "Saveiro usada: como escolher entre Trendline, Robust e Cross",
+        "Cada versão da Saveiro tem uma vocação. A Robust é a Saveiro sem luxo, feita para trabalhar, com caçamba maior, acabamento simples e preço menor. A Trendline traz o que o dia a dia pede sem virar carro de passeio, e a Cross é a que menos carrega e mais custa. Se o carro vai trabalhar, a Robust costuma ser a compra mais racional.",
+        "Na Saveiro usada, olhe primeiro a caçamba por baixo e o assoalho, onde a vida dura aparece. Confira se o engate tem chicote próprio e teste a embreagem em subida com carga: Saveiro que rodou carregada mostra o desgaste ali antes de qualquer outro lugar. Repare também na postura, porque mola traseira vencida deixa o carro de nariz empinado quando está vazio.",
+        "As Saveiros que entram aqui passam por perícia cautelar independente, e o laudo está com o vendedor, que mostra a quem pedir. Estamos no Bacacheri, aceitamos troca e financiamos. Se puder, venha com a carga que você costuma levar: em cinco minutos de manobra dá para sentir a diferença entre uma cabine simples e uma dupla."
+      ]
+    },
+    {
+      "caminho": "/estoque/60-a-100-mil",
+      "titulo": null,
+      "paragrafos": [
+        "Nesta faixa dá para escolher, e isso pode jogar a seu favor",
+        "É onde a oferta é maior, e por isso mesmo a decisão fica difícil. Com o mesmo dinheiro dá para escolher entre categorias diferentes: um hatch bem equipado, um sedã mais simples ou um SUV compacto de entrada. Para decidir, pergunte qual deles erra menos no seu uso real.",
+        "Com tanta opção, o desempate costuma vir da manutenção. Compare o preço de um jogo de pneus e de uma revisão dos dois modelos que você está considerando, porque a diferença anual costuma ser maior que a diferença de preço na compra. Verifique também a central multimídia e os itens elétricos de conforto, que são caros e chegam com defeito com frequência.",
+        "Todo carro é periciado por empresa independente antes de ser anunciado, e o vendedor mostra o laudo a quem pedir. Se estiver entre dois, venha ver os dois no mesmo dia. Vinte minutos de volante resolvem uma dúvida que semanas de comparativo na internet não resolvem."
+      ]
+    },
+    {
+      "caminho": "/estoque/acima-100-mil",
+      "titulo": null,
+      "paragrafos": [
+        "Acima de cem mil, você compra histórico",
+        "Nessa faixa o carro costuma ser mais novo, mais equipado e mais complexo, e cada uma dessas coisas encarece o conserto. Quem compra aqui geralmente já sabe o que quer, e o resultado depende mais da procedência da unidade específica do que do modelo. Um exemplar bem cuidado e outro negligenciado do mesmo carro são compras completamente diferentes.",
+        "Peça o histórico de manutenção item por item, com atenção ao câmbio automático e, nos turbo, ao intervalo de óleo. Teste toda a eletrônica com calma: sensores, câmeras, assistentes e ar-condicionado digital são o que mais aparece com defeito e o que menos se declara. E confira se os pneus são do tamanho e da carga originais, porque pneu trocado por um barato sai caro nessa faixa.",
+        "A perícia é independente e vem antes do anúncio, e o laudo pode ser consultado com o vendedor sempre que você pedir. Marque hora. Nessa faixa vale reservar um test drive mais longo e conferir a documentação junto, com calma, em vez de decidir no fim da tarde de sábado."
+      ]
+    },
+    {
+      "caminho": "/estoque/ate-60-mil",
+      "titulo": null,
+      "paragrafos": [
+        "Nesta faixa, a procedência pesa mais que o ano de fabricação",
+        "É a faixa de quem compra o primeiro carro, o segundo da casa ou uma ferramenta de trabalho. O erro mais comum é gastar o orçamento inteiro no carro e ficar sem dinheiro para documentação, seguro e a primeira revisão, então reserve uma parte antes de escolher. Carro mais barato com histórico limpo bate carro mais novo de origem duvidosa.",
+        "Aqui aparecem os carros que mais mudaram de dono, e o laudo cautelar passa a pesar muito. Sinistro de médio porte, chassi remarcado e leilão são o que faz um veículo custar menos do que deveria. Verifique também se o número do motor confere e se as revisões têm registro por escrito, além da promessa de que foram feitas.",
+        "De cada dez veículos que avaliamos, três entram. Os outros sete reprovam em algo que não se vê na foto. O laudo de quem entrou fica com o vendedor, e você pode pedir antes mesmo de ver o carro: aqui ele é a primeira coisa que a gente mostra."
+      ]
+    },
+    {
+      "caminho": "/estoque/economico",
+      "titulo": null,
+      "paragrafos": [
+        "Carro econômico se mede pela conta do ano inteiro",
+        "Carro econômico é o que custa pouco para andar e também pouco para manter. O consumo é a parte que se vê na hora; seguro, IPVA, pneu, revisão e preço de peça aparecem depois. Um modelo que faz um quilômetro por litro a mais, mas tem peça cara, costuma perder a conta no primeiro conserto, então some tudo antes de decidir.",
+        "Em carro de baixo consumo, confira se as revisões seguiram a quilometragem e olhe a vela e o filtro de ar, porque motor pequeno mal mantido perde eficiência rápido sem o dono perceber. Nos flex, teste a partida a frio de manhã cedo: em Curitiba, o reservatório de partida trabalha muito mais que na média do país.",
+        "Nenhum carro chega à vitrine sem perícia independente, e o vendedor tem o laudo para quem pedir. Diga quantos quilômetros você roda por mês e qual é o trajeto, e a gente compara duas opções pela conta real do ano."
+      ]
+    },
+    {
+      "caminho": "/estoque/estrada",
+      "titulo": null,
+      "paragrafos": [
+        "Carro de estrada pede estabilidade e fôlego, mais que zero a cem",
+        "Quem faz estrada com frequência precisa de motor que rode em rotação baixa na velocidade de cruzeiro, câmbio com marcha longa e suspensão confortável em piso ruim. Aceleração de arrancada quase não aparece nesse uso. Quem só roda na cidade paga por esse pacote todo mês em consumo urbano e usa pouco dele.",
+        "Em carro que rodou estrada, a quilometragem alta assusta menos do que parece, porque esse é o uso menos agressivo que existe. Confira o alinhamento e o desgaste irregular dos pneus, a folga na direção em velocidade e o histórico de troca de fluido de freio. Olhe também o para-brisa contra a luz: os micro-riscos de estrada cansam a vista à noite.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo sai a pedido, com o vendedor. Se der, inclua um trecho de via rápida no test drive. Comportamento acima de oitenta e ruído de cabine não aparecem numa volta no quarteirão, e é isso que você vai sentir todo fim de semana."
+      ]
+    },
+    {
+      "caminho": "/estoque/familia",
+      "titulo": null,
+      "paragrafos": [
+        "Carro de família se testa com a cadeirinha",
+        "Com família, as prioridades passam a ser espaço atrás, porta-malas que engole carrinho e portas traseiras que abrem o suficiente para instalar cadeirinha sem contorcionismo. Quem tem duas crianças descobre que a largura do banco traseiro importa mais que a potência. Para um casal sem passageiro fixo atrás, quase tudo isso vira espaço pago e não usado.",
+        "Confira os pontos de fixação Isofix e o cinto central traseiro, porque muita gente descobre tarde que o modelo escolhido só tem dois pontos. Verifique também a trava de segurança das portas traseiras e o estado do estofamento sob a capa. Se houver ar-condicionado na traseira, teste: é o item que mais chega com defeito.",
+        "Para ver o laudo da perícia independente, peça ao vendedor. Traga a cadeirinha que você usa e o carrinho: instalar um e guardar o outro leva cinco minutos e responde de uma vez a dúvida que nenhuma especificação responde."
+      ]
+    },
+    {
+      "caminho": "/estoque/hatch",
+      "titulo": null,
+      "paragrafos": [
+        "O hatch ainda resolve a vida de quase todo mundo",
+        "Cabe na vaga curta, no orçamento apertado e na oficina do bairro. Para trajeto de cidade, com vaga na rua ou garagem dividida, raramente é preciso mais do que isso. Quem viaja toda semana com quatro adultos e mala vai reclamar do porta-malas antes do segundo mês, e aí o sedã costuma valer a diferença.",
+        "O desgaste de cidade aparece nas buchas e nos coxins da suspensão dianteira, na embreagem dos manuais e no câmbio automatizado, que engasga em rampa quando está no fim. Levante o carpete do porta-malas e olhe a calha do estepe, onde a infiltração do vidro traseiro se acumula sem ninguém ver. Resolvida cedo, ela sai barata; depois, sai cara.",
+        "Nenhum carro é anunciado antes da perícia cautelar independente, e o laudo está com o vendedor para consulta, basta pedir. Venha com a medida da sua vaga na cabeça. Manobra e visibilidade se resolvem em cinco minutos de test drive, e são o que separa dois carros parecidos no papel."
+      ]
+    },
+    {
+      "caminho": "/estoque/performance",
+      "titulo": null,
+      "paragrafos": [
+        "Em carro de performance usado, o histórico vale mais que a potência",
+        "A escolha aqui é emocional, e tudo bem, mas a manutenção precisa ser pensada a frio. Motor turbo, freio maior e pneu de perfil baixo custam por ano o que um carro simples custa em três. Quem vai usar como único carro da casa precisa fazer essa conta antes; quem tem um segundo carro para o dia a dia aproveita muito mais e gasta menos.",
+        "Na compra, olhe primeiro o histórico: intervalo de óleo curto e respeitado, e nenhum indício de preparação. Procure furos ou emendas no chicote, central remapeada e escapamento fora do original, porque a modificação some antes da venda e a conta fica com o próximo dono. Verifique disco e pastilha, e desconfie de pneu novo barato num carro que pede pneu caro.",
+        "A perícia independente vem antes do anúncio, e o laudo fica com o vendedor; basta pedir. Chame para conversar antes de vir. Nesse tipo de carro a procedência decide a compra, e a gente prefere mandar o laudo por WhatsApp a deixar você descobrir alguma coisa no balcão."
+      ]
+    },
+    {
+      "caminho": "/estoque/perua",
+      "titulo": null,
+      "paragrafos": [
+        "Perua tem espaço de SUV sem a altura e o consumo dele",
+        "A perua tem porta-malas de utilitário com altura e comportamento de carro baixo, então dirige melhor, gasta menos e cabe em garagem de prédio antigo. Para quem precisa de espaço e nunca sai do asfalto, costuma ser a conta mais racional. Quem enfrenta estrada de terra ou meio-fio alto toda semana vai sentir falta do vão livre.",
+        "Essa carroceria envelhece pela traseira. Verifique as molas e os batentes traseiros, que passaram a vida carregando peso, e teste o vidro e o limpador da tampa. Borracha do vidro traseiro ressecada é infiltração certa no assoalho do porta-malas, então olhe embaixo do carpete antes de qualquer outra coisa.",
+        "A perícia é independente e vem antes do anúncio, e quem quiser o laudo pede ao vendedor. Esta página continua no ar mesmo sem unidade disponível porque a loja compra perua quando aparece uma bem cuidada. Vale avisar o que você procura para a gente buscar."
+      ]
+    },
+    {
+      "caminho": "/estoque/picape",
+      "titulo": "Picapes em Curitiba",
+      "paragrafos": [
+        "Picape na cidade: cabine simples ou dupla",
+        "A cabine simples carrega mais e estaciona melhor. É picape de trabalho, sem banco de trás. A dupla troca caçamba por lugar para a família. Quem usa de segunda a sexta na obra e no sábado vai para o litoral costuma se arrepender da simples, e quem só carrega material se arrepende da dupla.",
+        "Em picape usada, olhe a caçamba por baixo, onde solda refeita e travessa amassada contam a vida que o carro teve. Confira também se o engate foi instalado com chicote próprio. Picape de frota roda mais quilômetro por ano que picape de pessoa física, e isso aparece na embreagem antes de aparecer no hodômetro.",
+        "Toda picape aqui passa por perícia cautelar independente antes de entrar no showroom do Bacacheri, e o laudo fica com o vendedor, pronto para quem pedir. Aceitamos seu usado na troca e trabalhamos com financiamento. Se quiser, marque uma visita para ver a caçamba de perto, que é o que ninguém consegue avaliar por foto."
+      ]
+    },
+    {
+      "caminho": "/estoque/primeiro-carro",
+      "titulo": null,
+      "paragrafos": [
+        "Primeiro carro: o custo do primeiro ano",
+        "O preço na vitrine é a menor das contas. No primeiro ano entram IPVA, seguro (mais caro para condutor jovem), licenciamento e a primeira revisão. Um carro R$ 5.000 mais barato, mas com motor 1.6 e seguro alto, sai mais caro que um 1.0 bem cuidado, então some tudo antes de escolher.",
+        "Para quem está começando, peça barata e fácil de achar, direção leve para manobra e histórico limpo importam mais que o ano de fabricação. Carro de leilão ou com sinistro pode custar 20% menos e virar prejuízo na revenda, e é esse carro que o laudo cautelar existe para separar.",
+        "De cada dez carros que avaliamos, três entram no showroom, e os outros sete reprovaram em algo que você não veria na foto. Estamos no Bacacheri. O laudo fica com o vendedor, e quando você pede a gente explica linha por linha, inclusive para quem vem com o pai, a mãe ou o amigo que entende de carro."
+      ]
+    },
+    {
+      "caminho": "/estoque/sedan",
+      "titulo": null,
+      "paragrafos": [
+        "Sedã tem porta-malas de verdade e cobra por isso",
+        "O sedã leva mala de viagem sem rebater banco e dá conforto a quem vai atrás em trajeto longo, duas coisas que o hatch não resolve. O preço é o comprimento: estacionar na rua e usar garagem antiga fica mais difícil. Se o carro vive em vaga apertada e quase nunca sai da cidade, o porta-malas extra vira metro que atrapalha todo dia.",
+        "Em sedã usado, olhe o para-choque traseiro e as bordas do porta-malas, onde aparecem os toques de baliza que a foto esconde. Abra o forro lateral do porta-malas e confira o assoalho por baixo do estepe. Nos que rodaram por aplicativo, o banco traseiro e as maçanetas de trás contam o que o hodômetro não conta.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor; peça quando quiser. Traga a mala que você realmente usa e ponha dentro. Só assim dá para saber se o porta-malas resolve o seu caso ou se você está pagando por espaço que não vai usar."
+      ]
+    },
+    {
+      "caminho": "/estoque/suv",
+      "titulo": null,
+      "paragrafos": [
+        "SUV compacto ou médio: a decisão está no custo de manter",
+        "Entre um SUV compacto e um médio, o custo de manter costuma pesar mais do que o espaço do porta-malas. Pneu maior, seguro mais caro e revisão em concessionária entram na conta todo ano. Se o uso é escola, trabalho e uma viagem no feriado, o compacto resolve quase tudo por bem menos.",
+        "Em SUV usado, o item que mais custa caro depois é o câmbio automático, então peça o histórico de troca de óleo do câmbio junto com o do motor. Nos turbo, desconfie de quem nunca trocou vela no prazo. Em Curitiba, olhe a suspensão com atenção, porque paralelepípedo e lombada de bairro maltratam batente e coxim mais do que asfalto liso.",
+        "Cada SUV do nosso estoque passa por perícia cautelar independente, e o laudo fica com o vendedor até alguém pedir para ver. Estamos no Bacacheri, aceitamos troca e financiamos. Venha dirigir dois modelos no mesmo dia: em vinte minutos de volante, a dúvida entre compacto e médio se resolve."
+      ]
+    },
+    {
+      "caminho": "/estoque/trabalho",
+      "titulo": null,
+      "paragrafos": [
+        "Carro de trabalho: disponibilidade vale mais que conforto",
+        "Para quem usa o carro para ganhar dinheiro, dia parado custa mais que banco de couro. Na hora de escolher, peça barata e mecânica conhecida valem mais que acabamento. Um modelo com oficina em toda esquina volta a rodar no mesmo dia, e um importado de nicho espera peça por semanas.",
+        "Em carro de trabalho usado, o que mais engana é a quilometragem baixa demais para a idade, porque carro parado estraga de outro jeito: a borracha resseca, a embreagem cola e o tanque junta resíduo. Prefira histórico coerente a número bonito, e confira se as revisões acompanharam a quilometragem.",
+        "Trabalhamos com troca e financiamento, e todo carro passa por perícia cautelar independente. O laudo fica com o vendedor: basta pedir. Se você precisa fechar rápido porque o carro atual já está parando, avise, e a gente organiza a avaliação do seu usado e a proposta no mesmo dia."
+      ]
+    },
+    {
+      "caminho": "/estoque/urbano",
+      "titulo": null,
+      "paragrafos": [
+        "Carro de cidade: o que pesa no trânsito de todo dia",
+        "Para quem roda quase só na cidade, direção leve para manobra, visibilidade traseira e câmbio que não canse no engarrafamento importam mais que potência. Motor grande em trajeto curto é dinheiro parado: consome mais, esquenta menos e desgasta pior. Quem faz estrada com frequência deve olhar outro tipo de carro, porque aqui a escolha é feita para o extremo oposto.",
+        "Trânsito parado castiga o que ninguém olha na compra: embreagem, coxim de motor e sistema de arrefecimento. Peça para ver o carro já quente, com o ar ligado, e observe o ponteiro de temperatura em marcha lenta. Em automático, teste as trocas das primeiras marchas em subida lenta: é ali que o câmbio cansado se entrega, e não em aceleração forte.",
+        "Curitiba tem paralelepípedo, lombada e frio de manhã, e as três coisas deixam marca no carro. Por isso a perícia é independente e vem antes do anúncio, e o laudo está com o vendedor, à disposição de quem pedir. Venha dirigir no fim da tarde, no trânsito real, que é o teste que o quarteirão vazio nunca faz."
+      ]
+    },
+    {
+      "caminho": "/estoque/utilitario",
+      "titulo": null,
+      "paragrafos": [
+        "Utilitário se paga em disponibilidade",
+        "Utilitário é ferramenta de trabalho, e quem compra mede de outro jeito: dia parado custa mais que acabamento, e peça fácil vale mais que folha de especificação. Se o veículo vai fazer volume de entrega ou obra, mecânica conhecida e rede de oficina pesam mais na conta do ano do que qualquer item de conforto.",
+        "Olhe primeiro o chassi e as fixações da carroceria, depois a suspensão traseira, onde a sobrecarga aparece antes de chegar ao motor. Feixe de molas com folha trocada, batente esmagado e amortecedor suando contam que o veículo andou pesado. Confira também se o histórico de revisão acompanha a quilometragem.",
+        "Periciamos todos por empresa independente, e o laudo pode ser consultado com o vendedor, a pedido. Se você precisa fechar rápido porque o veículo atual já está parando, avise na primeira mensagem. A gente organiza a avaliação do seu usado e a proposta no mesmo dia, para você não ficar a pé."
+      ]
+    },
+    {
+      "caminho": "/estoque/van",
+      "titulo": null,
+      "paragrafos": [
+        "Van e furgão se compram pelo cubo",
+        "Van se escolhe pelo volume de carga ou pelo número de assentos, nessa ordem, e o desempenho vem depois. Para entrega urbana, contam a altura interna, a largura entre as caixas de roda e a altura da soleira, que decide se o carregamento é no braço ou no carrinho. Para quem vai usar como passeio, a dirigibilidade não se compara à de um carro.",
+        "O que mais custa caro depois é a estrutura embaixo do assoalho de carga. Olhe as travessas e as bordas das portas laterais, onde carga mal amarrada bate a vida inteira. Confira também as corrediças da porta de correr, as dobradiças traseiras e se as borrachas ainda vedam, porque em porta de van desalinhada entra água e barulho.",
+        "O laudo da perícia cautelar independente está com o vendedor desde o primeiro dia em que o veículo é anunciado, e basta pedir para consultar. Venha com a carga que você transporta, ou com as medidas dela. Em dez minutos dá para saber se ela cabe de pé, deitada ou se não cabe, coisa que foto nenhuma mostra."
+      ]
+    }
+  ]
+}
