@@ -1,6 +1,6 @@
 # Onda 5 — modelo a modelo: hub primeiro, guia depois
 
-**Data:** 2026-09-21 · **Estado:** aprovado pelo dono, aguardando revisão da especificação
+**Data:** 2026-09-21 · **Estado:** desenho aprovado; escopo ampliado por ordem do dono em 21/09 ("ataque todos os termos"); uma pergunta aberta no §6
 
 ---
 
@@ -96,9 +96,9 @@ O que falta é **conteúdo sobre o carro**. O hub já tem posição e já tem o 
 
 **Portanto:** o conteúdo de modelo entra primeiro no **hub**, pela tabela `textos_de_hub` (aplicador `scripts/aplicar-hubs.js`, o mesmo usado em 17/09 para 30 hubs). O guia em `/guias/<modelo>-usado` continua previsto, como **aprofundamento** ("o que checar num Ka usado"), não como porta de entrada.
 
-## 5. DECIDIDO — o recorte da primeira leva
+## 5. DECIDIDO — o recorte
 
-### Leva 1 — girar o pátio (5 peças, cobre 10 dos 38 carros)
+### Leva 1 — girar o pátio (5 alvos, cobre 10 dos 38 carros)
 
 Critério: modelo com **mais de um exemplar parado**. Não é opinião — é risco de estoque medido.
 
@@ -108,23 +108,64 @@ Critério: modelo com **mais de um exemplar parado**. Não é opinião — é ri
 4. **VW Saveiro** — 2
 5. **Fiat Toro** — 2
 
-### Leva 2 — motor de consignado (4 peças)
+### Leva 2 — todos os termos medidos (ordem do dono, 21/09)
 
-Critério: demanda medida, sem estoque. A peça responde à busca e oferece o *"consiga pra mim"*.
+*"ataque todos os termos de busca para veículos que não sejam ultra premium, no perfil da motors"*.
 
-6. **Peugeot 2008** — 77 impressões, posição 19,5. A melhor posição do site fora do próprio nome.
-7. **BMW seminovo** — 99 impressões, posição 43,5.
-8. **Citroën seminovo** — 65 impressões, posição 43,2.
-9. **Chevrolet Cruze** — 11 impressões, posição 22,7.
+São **50 termos com dado**, mas eles **não são 50 peças**: agrupados pela página que deveria respondê-los, viram **12 alvos**. Atacar "todos os termos" é cobrir estes doze.
 
-**Atenção, e é desvio consciente do plano:** BMW e Citroën **não são modelo, são marca**. A busca real é `bmw seminovo`, não `x1 seminovo`. Essas duas peças saem como **conteúdo de marca**, no hub de marca (`/carros/bmw`, `/carros/citroen`), não de modelo. O dono aprovou o desvio.
+**Alvos de MODELO** (hub de modelo):
 
-## 6. PENDENTE — não escrever enquanto não responder
+| alvo | termos | impressões | posição |
+|---|---|---|---|
+| Peugeot 2008 | 4 | **77** | **19,5** |
+| Chevrolet Cruze | 1 | 11 | 22,7 |
+| Fiat Argo | 2 | 11 | 22–26 |
+| Toyota Corolla Cross | 1 | 1 | 23,0 |
+| VW Voyage | 1 | 1 | 30,0 |
 
-Nenhum destes vai ao ar por suposição.
+**Alvos de MARCA** (hub de marca) — desvio consciente do plano, que previa só modelo. A busca real é `bmw seminovo`, não `x1 seminovo`:
 
-1. **A loja compra e revende Peugeot 2008, Citroën e Chevrolet Cruze?** Perguntado em 21/09, sem resposta até agora. Se a loja não trabalha Citroën, a peça atrai a pessoa errada e o *"consiga pra mim"* vira promessa vazia. **Bloqueia as peças 6, 8 e 9.**
-2. **Pode usar "de cada dez avaliados, três entram"?** O número está no site, mas a `REGUA_DO_GUIA` exige amostra, período e método declarados. Perguntado em 21/09, sem resposta. **Sem isso, a exclusividade se argumenta pela perícia cautelar e pelo que o contrato garante — não por número.**
+| alvo | termos | impressões | posição |
+|---|---|---|---|
+| BMW | 8 | **100** | 27–80 |
+| Citroën | 3 | 65 | 43–46 |
+| Chevrolet | 5 | 11 | 33–57 |
+| Fiat | 3 | 7 | 59–62 |
+| Renault | 1 | 1 | 52,0 |
+| Hyundai | 1 | 1 | 70,0 |
+| Kia | 1 | 1 | 73,0 |
+
+**Uma família inteira que ninguém tinha planejado:** `concessionária <marca> curitiba` aparece **8 vezes**, em Fiat, Chevrolet, BMW, Kia, Hyundai e Renault, em posições 41 a 80. A Motors é multimarcas, não concessionária — mas quem busca assim quer **um lugar para comprar aquela marca**, e é exatamente o que ela é. O hub de marca responde isso melhor do que uma concessionária responderia, porque tem várias marcas e perícia. **Esse ângulo entra no texto de cada hub de marca.**
+
+**Dois termos de dúvida** — formato guia, não hub: `chassi remarcado o que é` (posição 90) e `como consultar se o carro tem passagem por leilão` (posição 73). Ficam para a volta dos guias, não para esta leva.
+
+**Termos de concorrente**, que só se observam: `chevrolet metrosul seminovos curitiba`, `ccv seminovos estoque`, `avaliações sobre dr. ford curitiba`. Não se escreve para a marca do concorrente.
+
+### O filtro "ultra premium" — como estou lendo
+
+O dono pediu para excluir **ultra premium**. **Nada na lista medida é ultra premium**, então o filtro não corta nenhum alvo hoje — ele vale como regra para os termos que vierem.
+
+**BMW fica, e com folga:** é a maior demanda não-marca do site (100 impressões) e a loja tem três no pátio — X1 a R$ 114.900, 320i a R$ 105.900 e X4 a R$ 318.900. Premium não é ultra premium. A régua que estou adotando: **ultra premium é a faixa de exótico e superesportivo** (Ferrari, Lamborghini, Porsche e equivalentes), que a loja não trabalha. Se a leitura do dono for outra — por exemplo, cortar o X4 —, é só dizer.
+
+## 6. RESPONDIDO pelo dono em 21/09
+
+1. **A loja compra e revende 2008, Citroën e Cruze?** → **"sim, trabalhamos com todos eles"**. Nada bloqueado; o *"consiga pra mim"* é promessa que a loja cumpre.
+2. **Pode usar "de cada dez avaliados, três entram"?** → **"sim, use"**.
+
+### ⚠️ Mas o número tem um conflito aritmético, e ele é anterior a esta onda
+
+Medido em 21/09, dentro do próprio repositório:
+
+- **O site afirma** "de cada dez avaliados, três entram" — em `src/app/estoque/page.tsx` e `src/app/estoque/[recorte]/page.tsx`.
+- **O guia 08 declara a amostra real**: **57 avaliados, 10 comprados** (`conteudo-seo/guias-onda-1.json`), que é **1,75 em cada dez** — não três.
+- A `REGUA_DO_GUIA` (`src/lib/guias.ts`) cobra "amostra, período e método declarados no texto".
+
+Os dois números podem ser verdadeiros — "três em dez" como padrão da casa, "10 em 57" como a medição de um mês fechado —, mas **não podem ser afirmados como se fossem a mesma taxa**. A tensão já estava registrada no handoff de 17/09; não nasceu aqui.
+
+**Como fica até o dono decidir qual é qual:** as peças desta onda argumentam a exclusividade pelo **processo** — perícia cautelar independente e o que o contrato garante —, e não por taxa. O número com amostra declarada continua sendo assunto do guia 08, que é onde a régua o autoriza. Publicar "três em dez" nas peças novas, ao lado de um guia que declara 10 em 57, entrega ao leitor duas contas diferentes da mesma coisa.
+
+**Pergunta aberta, uma só:** "três em dez" é meta da casa ou medição? Se for medição, de que período?
 
 ## 7. Regras que não mudam
 
@@ -142,6 +183,8 @@ Valem as de sempre, e estão escritas nos arquivos da casa, não aqui:
 - **Não usar o relatório de indexação antigo** ("127 não indexadas × 85 indexadas"). Não veio da conta do dono. O número dela, medido em 21/09, é **149 não indexadas × 135 indexadas**.
 - **Não assumir "carro de entrada"** — ver a correção de premissa em §2.
 - **Não escrever guia antes do hub.** A ordem é a do §4, e ela veio da medição.
+- **Não publicar "de cada dez avaliados, três entram" nas peças desta onda** enquanto o conflito do §6 não for resolvido — o guia 08 declara 10 em 57 na mesma casa. O dono autorizou a frase, mas autorizou sem saber da briga de contas. Exclusividade se argumenta pelo processo até lá.
+- **Não escrever para marca de concorrente** (`chevrolet metrosul`, `ccv`, `dr. ford`), mesmo aparecendo nos termos.
 - **Não começar a Onda 4** (crédito) antes da Onda 5. Ordem do dono em 21/09.
 
 ## 9. Próximo passo
