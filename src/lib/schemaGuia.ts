@@ -5,6 +5,20 @@ import { REFERENCIA_DA_LOJA, schemaDaLoja, schemaDoSite } from "./schemaLoja";
 import { schemaDePerguntas, schemaDeTrilha } from "./schemaListagem";
 import { urlDoCardGerado } from "./compartilhamento";
 import { SITE_URL } from "./site";
+import { AUTOR_DOS_GUIAS } from "./assinaturaDoGuia";
+
+/** O `@id` da pessoa que assina os guias — estável, para outro nó poder citá-la. */
+export const ID_DO_AUTOR_DOS_GUIAS = `${SITE_URL}/#autor-dyones-oliveira`;
+
+/** O autor dos guias como `Person`, trabalhando para a loja. */
+export function schemaDoAutorDosGuias() {
+  return {
+    "@type": "Person",
+    "@id": ID_DO_AUTOR_DOS_GUIAS,
+    name: AUTOR_DOS_GUIAS.nome,
+    worksFor: REFERENCIA_DA_LOJA,
+  };
+}
 
 /**
  * O grafo de um guia: `Article` + trilha + FAQ + loja + site.
@@ -20,14 +34,16 @@ import { SITE_URL } from "./site";
  * (`tests/guias-publicam-o-grafo.test.ts`).
  *
  * ---------------------------------------------------------------------------
- * `author` é a loja, e isso é o teto de hoje
+ * `author` é uma pessoa; a loja é `publisher`
  * ---------------------------------------------------------------------------
- * O `Article` aponta `author` para o `#dealer`. Funciona e é honesto — quem
- * escreve é a loja —, mas autor PESSOA é sinal de E-E-A-T mais forte que autor
- * organização. Quando um consultor assinar o texto, `author` vira
- * `{"@type":"Person", name, jobTitle, worksFor: REFERENCIA_DA_LOJA}` e o
- * `#dealer` continua no `publisher`. É troca de uma linha; o que falta é a
- * decisão de quem assina.
+ * Até 2026-09-21 o `Article` apontava `author` para o `#dealer`. Honesto, mas
+ * autor PESSOA é sinal de E-E-A-T mais forte que autor organização, e o que
+ * faltava era a decisão de quem assina. O dono decidiu: os guias são dele
+ * (`AUTOR_DOS_GUIAS`). O nó da pessoa diz `worksFor` a loja, e o `#dealer`
+ * segue como `publisher`. A assinatura visível da página lê a MESMA constante.
+ *
+ * Sem `jobTitle` e sem `sameAs` de propósito: cargo e perfil pessoal são dados
+ * que o dono ainda não deu, e o schema não inventa.
  */
 export function grafoDoGuia(opcoes: {
   guia: Guia;
@@ -46,7 +62,7 @@ export function grafoDoGuia(opcoes: {
       inLanguage: "pt-BR",
       datePublished: guia.publicadoEm,
       dateModified: guia.atualizadoEm,
-      author: REFERENCIA_DA_LOJA,
+      author: schemaDoAutorDosGuias(),
       publisher: REFERENCIA_DA_LOJA,
       mainEntityOfPage: url,
       url,

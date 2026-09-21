@@ -52,22 +52,22 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       "Loja de carros seminovos em Curitiba com perícia cautelar independente em todo o " +
       `estoque. ${ENDERECO}, Bacacheri. Avaliação do seu usado e financiamento.`,
     paragrafos: [
-      "A Motors Store atende Curitiba inteira a partir do showroom no Bacacheri. O que muda de " +
-        "uma revenda para outra nesta cidade não é o estoque — é o filtro: de cada dez veículos " +
-        "avaliados, três entram. Os outros sete vão para repasse antes de chegar à vitrine.",
-      "Curitiba tem um dos ecossistemas de perícia cautelar mais maduros do país, e o comprador " +
+      "A Motors Store atende Curitiba inteira a partir do showroom no Bacacheri e se diferencia " +
+        "das outras revendas da cidade pelo filtro: de cada dez veículos avaliados, três entram. " +
+        "Os outros sete vão para repasse antes de chegar à vitrine.",
+      "Curitiba tem um dos mercados de perícia cautelar mais maduros do país, e o comprador " +
         "daqui costuma chegar à loja já sabendo o que é laudo e o que ele mostra. Por isso a " +
         "perícia é feita antes, por empresa independente, e o laudo está disponível para consulta " +
-        "com o vendedor — não é algo que se combina depois de fechar o negócio.",
+        "com o vendedor antes de você fechar o negócio.",
       // O parágrafo "o que olhar" (2026-09-01, fórmula do relatório dos hubs).
       // Faltava nas duas páginas geo: elas explicavam o critério da loja e o
       // caminho até ela, sem nunca dizer o que só quem mexe com carro sabe. É
       // o que o documento chama de autoridade — e aqui é ancorado no que é
       // específico de Curitiba, não em conselho genérico de compra.
       "Duas conferências valem mais nesta cidade do que na média do país. A primeira é por " +
-        "baixo: muito carro daqui passa temporada no litoral, e maresia ataca assoalho, molas e " +
-        "parafusos antes de aparecer na pintura. A segunda é a partida em manhã fria — motor que " +
-        "custa a pegar a cinco graus não demonstra isso às três da tarde, com o carro já quente.",
+        "baixo: muito carro daqui passa temporada no litoral, e a maresia ataca assoalho, molas e " +
+        "parafusos antes de aparecer na pintura. A segunda é a partida em manhã fria, porque motor " +
+        "que custa a pegar a cinco graus não demonstra isso às três da tarde, com o carro já quente.",
       "Quem vem do Centro, do Batel, do Água Verde ou do Alto da XV chega pela Avenida Paraná ou " +
         "pela Linha Verde; de Santa Felicidade e do Portão, o caminho natural é a Marechal " +
         "Floriano seguida da Linha Verde. Há estacionamento na porta, e dá para ver o carro, " +
@@ -97,15 +97,15 @@ export const PAGINAS_GEO: PaginaGeo[] = [
           // Santa Catarina só "para veículos de ticket mais alto"; lá era "fora
           // do estado". Duas respostas públicas para a mesma pergunta é como o
           // cliente descobre no balcão que uma delas não vale.
-          "Atendemos toda a Região Metropolitana — Pinhais, Colombo, São José dos Pinhais, " +
-          `Almirante Tamandaré, Araucária e vizinhas — e ${ALCANCE_DA_ENTREGA}. ` +
+          "Atendemos toda a Região Metropolitana (Pinhais, Colombo, São José dos Pinhais, " +
+          `Almirante Tamandaré, Araucária e vizinhas) e ${ALCANCE_DA_ENTREGA}. ` +
           "A logística de entrega é combinada caso a caso com o consultor.",
       },
       {
         pergunta: "Como sei se o carro passou temporada no litoral?",
         resposta:
-          "Maresia aparece por baixo antes de aparecer na pintura: assoalho, molas, parafusos " +
-          "dos bancos e a borda interna da tampa traseira contam a história. É um dos pontos " +
+          "Maresia aparece por baixo antes de aparecer na pintura. Os lugares para olhar são " +
+          "assoalho, molas, parafusos dos bancos e a borda interna da tampa traseira. É um dos pontos " +
           "que a perícia cautelar independente verifica antes de o veículo entrar na vitrine, e " +
           "o laudo está disponível para consulta com o vendedor.",
       },
@@ -133,39 +133,38 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       "independente em todo o estoque, avaliação do seu usado e financiamento.",
     paragrafos: [
       `A loja fica no próprio bairro: ${ENDERECO}, Bacacheri. Quem mora aqui não precisa ` +
-        "atravessar a cidade para ver carro — dá para passar no fim da tarde, olhar o veículo com " +
+        "atravessar a cidade para ver carro. Dá para passar no fim da tarde, olhar o veículo com " +
         "calma e voltar no dia seguinte com quem vai dirigir junto.",
-      "O Bacacheri é território de concessionária de marca e de seminovo de grupo, e a diferença " +
-        "de uma multimarcas que mora no bairro é o tempo que ela pode dedicar a cada venda. " +
+      "O Bacacheri é território de concessionária de marca e de seminovo de grupo, e uma " +
+        "multimarcas que mora no bairro se distingue pelo tempo que pode dedicar a cada venda. " +
         "Aqui o vendedor não trabalha por fila de senha: de cada dez veículos avaliados, três " +
-        "entram no estoque, e é sobre esses três que a conversa acontece.",
+        "entram no estoque, e a conversa é sobre esses três.",
       // O "o que olhar" desta página é o que a PROXIMIDADE permite verificar —
       // não conselho de compra genérico. É o argumento da página de bairro
       // dito em termos mecânicos, e não se repete na página de Curitiba.
-      "Comprar perto de casa muda o que dá para verificar, e quase ninguém aproveita. Dá para " +
-        "voltar de manhã cedo e dar a partida com o motor frio, que é o teste mais revelador de " +
-        "um usado e o único que uma visita única à tarde nunca faz. Dá para trazer o seu " +
+      "Comprar perto de casa muda o que dá para verificar, e quase ninguém aproveita. Você pode " +
+        "voltar de manhã cedo e dar a partida com o motor frio, o teste mais revelador de um " +
+        "usado e o único que uma visita única à tarde nunca faz. Também pode trazer o seu " +
         "mecânico, ou o amigo que entende de carro, sem marcar o dia com uma semana de " +
-        "antecedência. E dá para ver o mesmo veículo duas vezes antes de decidir.",
+        "antecedência, e ver o mesmo veículo duas vezes antes de decidir.",
       "A referência mais fácil para quem vem de fora do bairro é a Linha Verde; de dentro, a " +
         "Avenida Erasto Gaertner e a Avenida Paraná chegam em poucos minutos. Boa Vista, Atuba, " +
-        "Cabral, Tarumã, Santa Cândida e Bairro Alto ficam todos a uma distância de bairro — " +
-        "menos de dez minutos de carro na maior parte do dia.",
+        "Cabral, Tarumã, Santa Cândida e Bairro Alto ficam a menos de dez minutos de carro na " +
+        "maior parte do dia.",
       // Este parágrafo falava de perícia, e dizia quase palavra por palavra o
       // que a página de Curitiba já diz — `tests/paginas-geo.test.ts` mediu a
       // sobreposição e reprovou. Duas páginas geo que repetem o mesmo bloco
       // são o começo da doorway que o comentário no topo deste arquivo proíbe;
       // a saída certa foi dar a esta o ângulo que só ela tem, não afrouxar a
       // régua. A prática de perícia continua contada na outra, e no FAQ daqui.
-      "Comprar de uma loja do próprio bairro tem um efeito que só aparece depois. Quando surge " +
-        "dúvida de documentação, de garantia ou da primeira revisão, resolver é passar aqui numa " +
-        "tarde — não abrir chamado e esperar retorno. É a parte do negócio que ninguém avalia na " +
-        "hora de escolher, e que decide como a compra vai ser lembrada dois anos depois.",
+      "Comprar de uma loja do próprio bairro também ajuda depois da compra. Quando surge dúvida " +
+        "de documentação, de garantia ou da primeira revisão, você resolve passando aqui numa " +
+        "tarde, sem abrir chamado e esperar retorno. Pouca gente pesa isso na hora de escolher.",
     ],
     faq: [
       {
         pergunta: "Qual o endereço da Motors Store no Bacacheri?",
-        resposta: `${ENDERECO}, Bacacheri, Curitiba — PR, CEP 82510-350. Abrimos ${HORARIO}.`,
+        resposta: `${ENDERECO}, Bacacheri, Curitiba (PR), CEP 82510-350. Abrimos ${HORARIO}.`,
       },
       {
         pergunta: "Como chego de outros bairros da zona norte?",
@@ -181,8 +180,8 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Posso trazer meu mecânico para ver o carro?",
         resposta:
-          "Pode, e a gente prefere. Quem mora perto consegue ainda voltar de manhã cedo para dar " +
-          "a partida com o motor frio — é o teste mais revelador de um usado, e o que uma visita " +
+          "Pode, e a gente prefere. Quem mora perto ainda consegue voltar de manhã cedo para dar " +
+          "a partida com o motor frio, o teste mais revelador de um usado e o que uma visita " +
           "única à tarde nunca faz. Avise pelo WhatsApp que o veículo fica separado.",
       },
       {
@@ -195,7 +194,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         pergunta: "Vocês compram carro usado aqui no bairro?",
         resposta:
           "Compramos. A Avaliação Express devolve uma proposta pelo WhatsApp e vale tanto " +
-          "para troca quanto para venda direta — nem todo carro avaliado entra no estoque, e " +
+          "para troca quanto para venda direta. Nem todo carro avaliado entra no estoque, e " +
           "quando não entra a gente diz por quê.",
       },
     ],
