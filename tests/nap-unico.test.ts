@@ -91,8 +91,10 @@ describe("rótulo e link não podem discordar", () => {
   });
 
   it("a ficha do veículo também", () => {
-    expect(lerCodigo("src/components/PDPClientWrapper.tsx")).toMatch(
-      /telefoneVisivel\(companySettings\)/,
+    // O número visível da ficha migrou para a folha de impressão quando o
+    // redesenho trocou os blocos print-only do PDP por ela.
+    expect(lerCodigo("src/components/modernist/FichaImpressa.tsx")).toMatch(
+      /telefoneVisivel\(empresa\)/,
     );
   });
 });

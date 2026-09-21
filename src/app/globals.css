@@ -161,17 +161,27 @@ html, body {
   animation: pulseRing 2s ease-out infinite;
 }
 
-/* ── Ficha Técnica de Impressão (Showroom Print Sheet) ── */
+/* ── Ficha Impressa — a folha A4 do desenho, e só ela ── */
 @media print {
-  /* Force page settings for perfect margins and color rendering */
+  /* A página padrão serve as telas que imprimem o próprio conteúdo — hoje
+     a garagem do cliente, que conta com esta margem. */
   @page {
     margin: 1.5cm;
     size: A4 portrait;
   }
 
-  /* Hide interactive/extraneous web UI elements */
-  header,
-  footer,
+  /* A ficha do veículo tem página própria: a folha já traz a margem do
+     desenho (6,19% do lado, ~13 mm) e não pode somar outra por cima. */
+  @page ficha {
+    margin: 0;
+    size: A4 portrait;
+  }
+
+  /* Interface que não é conteúdo some em qualquer página. */
+  /* O :not() poupa o cabeçalho e o rodapé da própria folha — sem ele
+     a ficha perde a marca, o código, o endereço e o QR. */
+  header:not(#ficha-impressa header),
+  footer:not(#ficha-impressa footer),
   button,
   .no-print,
   .print-hidden,
@@ -185,8 +195,11 @@ html, body {
     display: none !important;
   }
 
-  /* White background and crisp black text on all prints */
-  html, body, #pdp-vehicle-root, main, div, section, p, span, h1, h2, h3, strong, label, li {
+  /* Preto no branco — só onde a página imprime o próprio conteúdo. A ficha
+     do veículo fica de fora de propósito: ela imprime o desenho, com acento
+     e faixa escura, e pede `print-color-adjust: exact` na própria folha. */
+  body:not(:has(#ficha-impressa))
+    :is(main, div, section, p, span, h1, h2, h3, strong, label, li) {
     background: #ffffff !important;
     color: #000000 !important;
     box-shadow: none !important;
@@ -194,56 +207,53 @@ html, body {
     border-color: #e5e7eb !important;
   }
 
-  /* Adjust core page wrapper for standard page width */
-  #pdp-vehicle-root {
-    padding-bottom: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-  }
-
-  /* Layout grids adapted to print pages */
-  .print-grid {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 16px !important;
-  }
-
-  .print-grid-3 {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 12px !important;
-  }
-
-  .print-full-width {
-    width: 100% !important;
-    max-width: 100% !important;
-    flex: 0 0 100% !important;
-  }
-
-  /* Center and scale main featured image cleanly */
-  .print-main-image {
-    max-height: 320px !important;
-    object-fit: contain !important;
-    margin: 0 auto !important;
-    display: block !important;
-    page-break-inside: avoid !important;
-    border-radius: 8px !important;
-  }
-
-  /* Page break rules for specifications, description and optionals */
   .print-avoid-break {
     page-break-inside: avoid !important;
   }
 
-  .print-show {
+  /* ── a folha do veículo ── */
+
+  /* O corpo do site e coluna flex com min-height:100%, e o <main> cresce
+     para preenche-la. No papel isso estica o documento para alem da folha e
+     imprime uma segunda pagina em branco. */
+  html:has(#ficha-impressa),
+  body:has(#ficha-impressa) {
     display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
   }
 
-  .print-flex-row {
+  /* Vai ao papel só a folha: some tudo que não é ela, não está dentro dela
+     e não é caminho até ela. */
+  body:has(#ficha-impressa)
+    *:not(:has(#ficha-impressa)):not(#ficha-impressa):not(#ficha-impressa *) {
+    display: none !important;
+  }
+
+  /* Os ancestrais viram passagem: sem largura máxima, espaçamento ou fundo
+     próprio, senão deformam a folha. */
+  body:has(#ficha-impressa) :has(#ficha-impressa) {
+    display: block !important;
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  #ficha-impressa {
     display: flex !important;
-    flex-direction: row !important;
-    justify-content: space-between !important;
-    align-items: center !important;
+    page: ficha;
+    width: 210mm;
+    height: 297mm;
   }
 }
 
