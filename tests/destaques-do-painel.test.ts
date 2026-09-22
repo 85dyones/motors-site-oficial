@@ -131,24 +131,45 @@ describe("montarPainelDeDestaques", () => {
 });
 
 describe("moverDestaque", () => {
+  // `() => true` preserva exatamente o que estes cinco sempre mediram: lista
+  // inteira visível, então vizinho cru e vizinho visível coincidem.
   it("troca com o vizinho de cima", () => {
-    expect(moverDestaque(["a", "b", "c"], "b", "cima")).toEqual(["b", "a", "c"]);
+    expect(moverDestaque(["a", "b", "c"], "b", "cima", () => true)).toEqual(["b", "a", "c"]);
   });
 
   it("troca com o vizinho de baixo", () => {
-    expect(moverDestaque(["a", "b", "c"], "b", "baixo")).toEqual(["a", "c", "b"]);
+    expect(moverDestaque(["a", "b", "c"], "b", "baixo", () => true)).toEqual(["a", "c", "b"]);
   });
 
   it("no topo, subir não faz nada", () => {
-    expect(moverDestaque(["a", "b"], "a", "cima")).toEqual(["a", "b"]);
+    expect(moverDestaque(["a", "b"], "a", "cima", () => true)).toEqual(["a", "b"]);
   });
 
   it("no fim, descer não faz nada", () => {
-    expect(moverDestaque(["a", "b"], "b", "baixo")).toEqual(["a", "b"]);
+    expect(moverDestaque(["a", "b"], "b", "baixo", () => true)).toEqual(["a", "b"]);
   });
 
   it("id que não está na lista devolve a lista intacta", () => {
-    expect(moverDestaque(["a", "b"], "z", "cima")).toEqual(["a", "b"]);
+    expect(moverDestaque(["a", "b"], "z", "cima", () => true)).toEqual(["a", "b"]);
+  });
+
+  // A regressão de verdade (achado da revisão): a lista gravada intercala
+  // morto com vivo, e a tela só desenha os vivos. Trocar com o adjacente CRU
+  // trocaria o vivo clicado com o morto ao lado — clique sem efeito na tela,
+  // "Alteração não publicada" acendendo do mesmo jeito. Ver o comentário da
+  // função.
+  it("pula o morto e troca com o vizinho vivo", () => {
+    const visiveis = new Set(["a", "b"]);
+    expect(
+      moverDestaque(["a", "morto", "b"], "b", "cima", (id) => visiveis.has(id)),
+    ).toEqual(["b", "morto", "a"]);
+  });
+
+  it("sem vizinho vivo na direção pedida, a lista fica intacta mesmo com morto ao lado", () => {
+    const visiveis = new Set(["a"]);
+    expect(
+      moverDestaque(["a", "morto"], "a", "baixo", (id) => visiveis.has(id)),
+    ).toEqual(["a", "morto"]);
   });
 });
 

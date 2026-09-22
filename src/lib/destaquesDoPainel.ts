@@ -158,21 +158,44 @@ export function montarPainelDeDestaques(
 }
 
 /**
- * Espelha `moverArea` de `areasDoSite.ts` — mesmo formato, mesma guarda.
+ * Espelha `moverArea` de `areasDoSite.ts` — mesmo formato, mesma guarda —
+ * com uma diferença que não é opcional: troca com o vizinho VISÍVEL, não
+ * com o adjacente cru da lista gravada.
  *
- * Fora dos limites devolve a lista INTACTA em vez de estourar: a tela chama
- * isto direto do clique, e um botão de seta no topo é o caso normal, não erro.
+ * ---------------------------------------------------------------------------
+ * Por que `ehVisivel` é obrigatório, não um `true` por padrão
+ * ---------------------------------------------------------------------------
+ * A lista gravada intercala id de carro morto (vendido, arquivado...) com os
+ * vivos, e a tela só DESENHA os vivos. A primeira versão trocava com o
+ * adjacente cru: com `[vivoA, morto, vivoB]`, subir `vivoB` trocava ele com o
+ * `morto` invisível. Sintoma medido na revisão: a tela não mudava nada (o
+ * morto não aparece em lugar nenhum) e "Alteração não publicada" acendia do
+ * mesmo jeito, porque o array TINHA mudado — só numa posição que ninguém via.
+ * Clique sem efeito e aviso de pendência fantasma: a exata doença que esta
+ * tela existe para curar, reaparecendo dentro dela mesma. Um padrão "tudo
+ * visível" deixaria fácil esquecer o predicado e reintroduzir o defeito em
+ * silêncio — por isso o parâmetro não tem valor default.
+ *
+ * Fora dos limites (já é o primeiro ou o último entre os VISÍVEIS) devolve a
+ * lista INTACTA em vez de estourar — mesma guarda de sempre.
  */
 export function moverDestaque(
   ids: string[],
   id: string,
   direcao: "cima" | "baixo",
+  ehVisivel: (id: string) => boolean,
 ): string[] {
   const proximos = [...ids];
   const i = proximos.indexOf(id);
   if (i < 0) return ids;
-  const j = direcao === "cima" ? i - 1 : i + 1;
+
+  const passo = direcao === "cima" ? -1 : 1;
+  let j = i + passo;
+  while (j >= 0 && j < proximos.length && !ehVisivel(proximos[j])) {
+    j += passo;
+  }
   if (j < 0 || j >= proximos.length) return ids;
+
   [proximos[i], proximos[j]] = [proximos[j], proximos[i]];
   return proximos;
 }

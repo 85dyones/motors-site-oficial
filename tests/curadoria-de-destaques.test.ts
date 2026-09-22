@@ -108,7 +108,7 @@ describe("os mortos", () => {
       bannerInicial: ["a", "morto"],
       linhas: [linha("a"), linha("morto", { estado: "arquivado" })],
     });
-    expect(container.textContent).toMatch(/saíram do estoque/i);
+    expect(container.textContent).toMatch(/sa(iu|íram) do estoque/i);
     expect(botao(/limpar/i)).toBeTruthy();
   });
 
@@ -135,5 +135,34 @@ describe("ordenar", () => {
   it("começa sem nada pendente", async () => {
     await montar(padrao);
     expect(container.textContent).not.toMatch(/não publicada/i);
+  });
+
+  // Achado da revisão: com um morto entre dois vivos, a primeira versão
+  // trocava o vivo clicado com o morto invisível — a tela não mudava nada e
+  // "Alteração não publicada" acendia do mesmo jeito. `a` e `b` têm
+  // marca/modelo diferentes de propósito, para a ordem visível ser
+  // distinguível por texto, e não só por posição.
+  it("com um morto no meio, subir o vivo de baixo troca de verdade a ordem dos vivos na tela", async () => {
+    await montar({
+      ...padrao,
+      bannerInicial: ["a", "morto", "b"],
+      linhas: [
+        linha("a", { marca: "Fiat", modelo: "Toro" }),
+        linha("morto", { estado: "arquivado" }),
+        linha("b", { marca: "Renault", modelo: "Kwid" }),
+      ],
+    });
+
+    const antes = [...container.querySelectorAll("ol li")].map((li) => li.textContent ?? "");
+    expect(antes[0]).toMatch(/Fiat Toro/);
+    expect(antes[1]).toMatch(/Renault Kwid/);
+
+    await act(async () => {
+      botao(/Mover Renault Kwid para cima/i).click();
+    });
+
+    const depois = [...container.querySelectorAll("ol li")].map((li) => li.textContent ?? "");
+    expect(depois[0]).toMatch(/Renault Kwid/);
+    expect(depois[1]).toMatch(/Fiat Toro/);
   });
 });

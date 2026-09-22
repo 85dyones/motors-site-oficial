@@ -57,7 +57,9 @@ const TITULO: Record<Vitrine, string> = {
 
 const VAZIO: Record<Vitrine, string> = {
   banner: "Nenhum carro curado. O banner está mostrando os primeiros do estoque.",
-  grade: "Nenhum carro curado. As 6 vagas estão sendo sorteadas.",
+  // O número vem de `VAGAS.grade` — datilografá-lo de novo aqui seria o
+  // mesmo número solto que esta tela inteira existe para varrer.
+  grade: `Nenhum carro curado. As ${VAGAS.grade} vagas estão sendo sorteadas.`,
   tv: "Nenhum carro curado. A TV está mostrando uma página do estoque.",
 };
 
@@ -141,6 +143,12 @@ export default function CuradoriaDeDestaques({
   const secao = (vitrine: Vitrine) => {
     const itens = painel[vitrine].filter((i) => i.destino !== "fora_do_ar");
     const teto = VAGAS[vitrine];
+    // As setas movem em relação ao vizinho VISÍVEL (estes `itens`), não ao
+    // adjacente cru de `listas[vitrine]` — que intercala morto com vivo. Ver
+    // o comentário de `moverDestaque` em `destaquesDoPainel.ts` pelo sintoma
+    // que isso evita: clique sem efeito e aviso de pendência fantasma.
+    const idsVisiveis = new Set(itens.map((i) => i.id));
+    const ehVisivel = (id: string) => idsVisiveis.has(id);
 
     return (
       <section key={vitrine} className="flex flex-col gap-3 border-b-2 border-mt-regua pb-6">
@@ -162,7 +170,7 @@ export default function CuradoriaDeDestaques({
                 {teto !== null && item.posicaoViva === teto + 1 && (
                   <div className="my-2 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.1em] text-mt-accent">
                     <span className="h-px flex-1 bg-mt-accent" />
-                    daqui para baixo NÃO aparece no {vitrine === "banner" ? "banner" : "grade"}
+                    daqui para baixo NÃO aparece {vitrine === "banner" ? "no banner" : "na grade"}
                     <span className="h-px flex-1 bg-mt-accent" />
                   </div>
                 )}
@@ -171,14 +179,14 @@ export default function CuradoriaDeDestaques({
                     {item.posicaoViva}
                   </span>
                   <button
-                    onClick={() => setListas({ ...listas, [vitrine]: moverDestaque(listas[vitrine], item.id, "cima") })}
+                    onClick={() => setListas({ ...listas, [vitrine]: moverDestaque(listas[vitrine], item.id, "cima", ehVisivel) })}
                     aria-label={`Mover ${item.rotulo} para cima`}
                     className="mt-foco cursor-pointer px-1 text-mt-neutral-700 hover:text-mt-ink"
                   >
                     ▲
                   </button>
                   <button
-                    onClick={() => setListas({ ...listas, [vitrine]: moverDestaque(listas[vitrine], item.id, "baixo") })}
+                    onClick={() => setListas({ ...listas, [vitrine]: moverDestaque(listas[vitrine], item.id, "baixo", ehVisivel) })}
                     aria-label={`Mover ${item.rotulo} para baixo`}
                     className="mt-foco cursor-pointer px-1 text-mt-neutral-700 hover:text-mt-ink"
                   >
@@ -244,7 +252,7 @@ export default function CuradoriaDeDestaques({
       {mortos.length > 0 && (
         <section className="flex flex-col gap-2 border border-mt-accent-300 bg-mt-accent-100 p-4">
           <h2 className="text-sm font-bold text-mt-accent-800">
-            {mortos.length} marcados saíram do estoque
+            {mortos.length} {mortos.length === 1 ? "marcado saiu" : "marcados saíram"} do estoque
           </h2>
           <p className="text-[12px] text-mt-neutral-800">
             Eles não aparecem em lugar nenhum. Limpar <strong>não muda nada do que está no
