@@ -447,6 +447,20 @@ export function filtrarLinhas(
   return linhas.filter((l) => {
     if (estado !== "todos" && l.estado !== estado) return false;
 
+    // ⚠️ Este bloco NÃO pode voltar a ser `if (!busca) return true;`.
+    //
+    // Era assim enquanto a busca era o último critério; em 2026-09-22 ela
+    // passou a ser o PRIMEIRO de uma fila (destaque, faixa de preço, marca,
+    // carroceria, tempo parado, sem lead, sem visita). Com o `return true`, a
+    // linha sem termo de busca — que é o caso da esmagadora maioria dos usos —
+    // sairia aprovada ANTES de qualquer um dos outros passar perto dela, e o
+    // segundo nível inteiro do painel viraria decoração: todo controle mexeria
+    // no estado e nenhum filtraria nada. Em silêncio, com a tela dizendo "(3)"
+    // filtros ativos e devolvendo o estoque completo.
+    //
+    // Por isso a forma é "cair adiante": o critério que não se aplica não
+    // responde, deixa a linha seguir para o próximo. Quem vier "simplificar"
+    // isto está desligando os filtros, não limpando código.
     if (busca) {
       const alvo = normalizarBusca(
         [l.marca, l.modelo, l.versao, l.id, l.placa].filter(Boolean).join(" "),

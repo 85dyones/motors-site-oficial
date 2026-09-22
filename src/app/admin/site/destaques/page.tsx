@@ -3,6 +3,7 @@ import { getCachedSettings } from "../../../../lib/settings";
 import { classificarEstado, versaoParaExibir, type LinhaDeEstoque } from "../../../../lib/estoqueTabela";
 import { mapVeiculoDbToVeiculo } from "../../../../lib/supabase";
 import CuradoriaDeDestaques from "../../../../components/admin/CuradoriaDeDestaques";
+import { idsDaTvComHeranca } from "../../../../lib/destaquesDoPainel";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +54,23 @@ export default async function DestaquesPage() {
   const lista = (valor: unknown): string[] =>
     Array.isArray(valor) ? (valor as string[]).map(String) : [];
 
+  // A TV NÃO usa `lista(...)` como as outras duas: ela passa pela casa única da
+  // herança. Enquanto a linha `vitrine_tv` não existir no banco, quem está no ar
+  // pela TV são os ids de `carousel_vehicles` — e é esses que esta tela precisa
+  // carregar. Lendo o campo cru, a seção abria VAZIA afirmando que a TV estava
+  // paginando o estoque (mentira: mostrava 4 carros curados), e daí bastava o
+  // dono mexer só no banner e publicar para o POST levar `vitrineTv: []`,
+  // gravar a linha vazia e trocar os 4 curados pelos 6 primeiros do estoque na
+  // TV do showroom, em silêncio. Com a herança aqui, essa primeira publicação
+  // vira no-op para a TV: carrega 4, publica os mesmos 4. Ver
+  // `idsDaTvComHeranca`.
+  const tvInicial = idsDaTvComHeranca(settings);
+
   return (
     <CuradoriaDeDestaques
       bannerInicial={lista(settings.carouselVehicleIds)}
       gradeInicial={lista(settings.destaquesDaSemana)}
-      tvInicial={lista(settings.vitrineTv)}
+      tvInicial={tvInicial}
       linhas={linhas}
     />
   );

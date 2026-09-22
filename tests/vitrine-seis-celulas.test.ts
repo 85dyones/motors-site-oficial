@@ -4,15 +4,24 @@ import { lerCodigo } from "./fonte";
 
 /**
  * A faixa "A SEGUIR" divide a largura da TV entre as células. A conta, com a
- * célula fixa do rótulo comendo ~10vw:
+ * célula fixa do rótulo comendo ~10vw e o respiro lateral de HOJE (2,4vw por
+ * célula, que é `px-[1.2vw]` dos dois lados):
  *
- *   4 células -> ~19vw de conteúdo    folgado
- *   6 células -> ~11,4vw              cabe "Volkswagen Saveiro" (18 caracteres)
- *   8 células -> ~7,7vw               trunca a maioria dos nomes
+ *   4 células -> 90/4 − 2,4 = ~20,1vw   folgado
+ *   6 células -> 90/6 − 2,4 = ~12,6vw   cabe "Volkswagen Saveiro" (18 caracteres)
+ *   8 células -> 90/8 − 2,4 = ~8,9vw    trunca a maioria dos nomes
  *
  * 6 é o teto real desta faixa sem redesenhá-la. Acima disso a TV vira uma
  * fileira de reticências — que num aparelho visto de longe é pior do que
  * mostrar menos carro.
+ *
+ * Correção de 2026-09-22: esta tabela dizia ~19vw / ~11,4vw / ~7,7vw. Os três
+ * vinham do respiro ANTIGO (1,77vw por lado, 3,54vw no total) e a mesma
+ * mudança que subiu a faixa para 6 apertou o respiro para 1,2vw — a conta não
+ * foi refeita. A conclusão continua a mesma (6 cabe, 8 não); o que estava
+ * errado era só o número, e número errado em comentário faz o próximo leitor
+ * decidir com a régua errada. O mesmo par vivia no docblock de `POR_PAGINA`,
+ * em `VitrineTV.tsx`, e foi corrigido junto.
  */
 describe("a faixa da TV mostra seis carros por página", () => {
   it("POR_PAGINA é seis", () => {

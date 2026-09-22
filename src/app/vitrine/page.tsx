@@ -3,6 +3,7 @@ import VitrineTV, { POR_PAGINA } from "../../components/modernist/VitrineTV";
 import { getEstoque } from "../../lib/supabase";
 import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
+import { idsDaTvComHeranca } from "../../lib/destaquesDoPainel";
 import DEFAULT_COMPANY_SETTINGS from "../../lib/companySettings.json";
 
 /**
@@ -28,22 +29,15 @@ export default async function VitrinePage() {
 
   const disponiveis = disponiveisDe(estoque);
 
-  // A TV tem lista PRÓPRIA desde 2026-09-22.
+  // A TV tem lista PRÓPRIA desde 2026-09-22, com herança de `carousel_vehicles`
+  // enquanto a linha `vitrine_tv` não existir no banco.
   //
-  // Até ali ela dividia `carousel_vehicles` com o banner da home, e os dois
-  // tinham capacidades incompatíveis: o banner corta em `VAGAS.banner`, a TV
-  // mostra a lista inteira paginada. Curar para um estragava o outro — medido
-  // em 21/09, a lista tinha 9 ids e 5 eram carros arquivados ou vendidos.
-  //
-  // ⚠️ O `??` é HERANÇA, com prazo: enquanto a linha `vitrine_tv` não existir
-  // no banco, a TV mostra exatamente o que mostrava antes. A primeira
-  // publicação em /admin/site/destaques cria a linha, e aí esta queda pode
-  // sair daqui.
-  const idsDaTv = Array.isArray(settings.vitrineTv)
-    ? (settings.vitrineTv as string[])
-    : Array.isArray(settings.carouselVehicleIds)
-      ? (settings.carouselVehicleIds as string[])
-      : [];
+  // A herança inteira — a régua, o prazo e o porquê — vive em
+  // `idsDaTvComHeranca`. Esta linha NÃO a reescreve de propósito: ela já esteve
+  // escrita aqui e só aqui, e o painel, que lia `vitrineTv` cru, mostrava a TV
+  // vazia e publicava `[]` por cima dos 4 curados que estavam no ar. Herança
+  // duplicada é herança que diverge; ver o defeito narrado lá.
+  const idsDaTv = idsDaTvComHeranca(settings);
 
   const curados = idsDaTv
     .map((id) => disponiveis.find((v) => v.id === id))

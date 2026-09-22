@@ -1,3 +1,4 @@
+import { INTERVALO_MS } from "../components/modernist/VitrineTV";
 import { VAGAS_NA_GRADE } from "./destaquesDaSemana";
 import type { EstadoDoVeiculo, LinhaDeEstoque } from "./estoqueTabela";
 
@@ -40,8 +41,23 @@ export const VAGAS = {
   tv: null,
 } as const satisfies Record<Vitrine, number | null>;
 
-/** Segundos que a TV gasta em cada carro. Espelha `INTERVALO_MS` de `VitrineTV`. */
-const SEGUNDOS_POR_CARRO_NA_TV = 8;
+/**
+ * Segundos que a TV gasta em cada carro — DERIVADO de `INTERVALO_MS`, nunca
+ * redigitado.
+ *
+ * Era um `8` literal com um comentário admitindo que "espelha" o componente, e
+ * espelho não é vínculo: no dia em que o dono pedir outro ritmo e alguém subir
+ * `INTERVALO_MS` para 10000, a tela de curadoria seguiria anunciando "volta
+ * completa: 48 segundos" para uma volta real de 60 — número errado na cara do
+ * operador, com a suíte inteira verde, porque nada no repositório ligava os
+ * dois. Importar o milissegundo faz a divergência virar impossível em vez de
+ * improvável.
+ *
+ * Módulo de servidor lendo constante de componente não é novidade aqui: o
+ * `POR_PAGINA` do MESMO arquivo já é lido assim por `/vitrine/page.tsx`.
+ * 2026-09-22.
+ */
+const SEGUNDOS_POR_CARRO_NA_TV = INTERVALO_MS / 1000;
 
 export type DestinoDoDestaque =
   /** Dentro do teto da sua vitrine — ou numa vitrine sem teto. */
@@ -222,9 +238,82 @@ export function limparForaDoAr(ids: string[], linhas: LinhaDeEstoque[]): string[
  * Quanto tempo a TV leva para dar uma volta completa.
  *
  * É o limite REAL da lista da TV, no lugar do teto de vagas que ela não tem:
- * rodar o pátio inteiro a 8s por carro daria mais de dez minutos, e quem passa
- * pelo showroom não espera dez minutos para rever um carro.
+ * rodar o pátio inteiro a `SEGUNDOS_POR_CARRO_NA_TV` por carro daria mais de
+ * dez minutos, e quem passa pelo showroom não espera dez minutos para rever um
+ * carro. (O número não é repetido nesta frase de propósito — ele mora em
+ * `INTERVALO_MS`, e prosa com número solto envelhece sem avisar.)
  */
 export function voltaCompletaEmSegundos(itens: number): number {
   return itens * SEGUNDOS_POR_CARRO_NA_TV;
+}
+
+/**
+ * Os ids que a TV do showroom mostra — com a herança embutida. A CASA ÚNICA
+ * dessa pergunta: quem precisar da lista da TV chama esta função.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que existe herança
+ * ---------------------------------------------------------------------------
+ * A TV ganhou lista própria (`vitrine_tv`) em 2026-09-22. Até ali dividia
+ * `carousel_vehicles` com o banner da home, e as duas vitrines têm capacidades
+ * incompatíveis: o banner corta em `VAGAS.banner`, a TV pagina a lista inteira.
+ * Em produção, HOJE, a linha `vitrine_tv` ainda não existe e a
+ * `carousel_vehicles` tem 9 ids (4 de carros vivos, 5 de arquivados ou
+ * vendidos). Sem herança, o dia da subida apagaria a TV do showroom.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que ela é temporária
+ * ---------------------------------------------------------------------------
+ * A primeira publicação em `/admin/site/destaques` GRAVA `vitrine_tv`. A partir
+ * daí o primeiro ramo responde para sempre e o segundo nunca mais roda. Quando
+ * a linha existir em todos os ambientes, o corpo desta função vira uma leitura
+ * só e a herança sai — mas ela sai de UM lugar, que é o ponto abaixo.
+ *
+ * ---------------------------------------------------------------------------
+ * Por que ter uma casa só importa — o defeito que pagou por esta função
+ * ---------------------------------------------------------------------------
+ * Porque a herança já morou em um lugar quando precisava morar em três, e isso
+ * custou um defeito Crítico, medido em 22/09: só `/vitrine` herdava.
+ *
+ * 1. A tela de curadoria lia `settings.vitrineTv` cru, mostrava a seção da TV
+ *    VAZIA e afirmava em texto "Nenhum carro curado. A TV está mostrando uma
+ *    página do estoque" — mentira: a TV estava mostrando os 4 curados.
+ * 2. Bastava o dono mexer só no banner e clicar em "Publicar alterações". O
+ *    POST levava `vitrineTv: []`, a guarda `if (vitrineTv)` da rota deixa `[]`
+ *    passar (array vazio é truthy), e a linha nascia VAZIA.
+ * 3. Na revalidação seguinte `/vitrine` caía em `disponiveis.slice(0,
+ *    POR_PAGINA)` e a TV do showroom trocava os 4 curados pelos 6 primeiros do
+ *    estoque — em silêncio, sem ninguém ter pedido. "Tirar da TV" em
+ *    `/admin/estoque` sem nada marcado dava no mesmo.
+ * 4. E enquanto a herança valesse, a tabela de estoque mentia por outro
+ *    caminho: nenhuma linha mostrava "· na TV" e o filtro `destaque: "tv"` não
+ *    devolvia nada, com 4 carros no ar pela TV.
+ *
+ * Com os três consumidores chamando ESTA função, a primeira publicação vira
+ * no-op para a TV: a tela carrega os 4 ids herdados e publica os mesmos 4.
+ * Ler `carouselVehicleIds` direto para montar lista de TV é o defeito voltando
+ * — e `tests/lista-da-tv-uma-casa-so.test.ts` tranca os três arquivos contra
+ * isso, justamente para ninguém reduplicar a leitura por conta própria.
+ *
+ * ---------------------------------------------------------------------------
+ * A régua
+ * ---------------------------------------------------------------------------
+ * Array MANDA, mesmo vazio: lista própria vazia é decisão deliberada do
+ * operador ("a TV volta a paginar o estoque"), e herdar por cima dela desfaria
+ * a decisão na cara de quem a tomou. Só a AUSÊNCIA da linha — `vitrineTv` que
+ * não é array — abre a herança.
+ *
+ * O parâmetro é o objeto de `getCachedSettings` inteiro, e não os dois campos
+ * soltos: passar o objeto impede que um chamador escolha errado qual campo
+ * entregar em qual posição.
+ */
+export function idsDaTvComHeranca(settings: {
+  vitrineTv?: unknown;
+  carouselVehicleIds?: unknown;
+}): string[] {
+  if (Array.isArray(settings.vitrineTv)) return (settings.vitrineTv as unknown[]).map(String);
+  if (Array.isArray(settings.carouselVehicleIds)) {
+    return (settings.carouselVehicleIds as unknown[]).map(String);
+  }
+  return [];
 }
