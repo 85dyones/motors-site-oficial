@@ -17,7 +17,7 @@ import {
   type LinhaDeEstoque,
 } from "../../lib/estoqueTabela";
 import { CAMPO_DO_ESTADO, type EstadoCadastro } from "../../lib/estadoDoCadastro";
-import { VAGAS_NA_GRADE } from "../../lib/destaquesDaSemana";
+import { VAGAS } from "../../lib/destaquesDoPainel";
 import type { StockOverrides } from "../../types";
 
 /**
@@ -634,14 +634,14 @@ export default function TabelaDeEstoque({
             onClick={() => alternarDestaqueNaHome(true)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Destacar na home
+            Destacar na home (banner · {VAGAS.banner} vagas)
           </button>
           <button
             disabled={semSelecao}
             onClick={() => alternarDestaqueNaHome(false)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Tirar da home
+            Tirar do banner
           </button>
 
           <button
@@ -649,21 +649,35 @@ export default function TabelaDeEstoque({
             onClick={() => alternarDestaqueDaSemana(true)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Pôr nos destaques da semana
+            Pôr nos destaques da semana (grade · {VAGAS.grade} vagas)
           </button>
           <button
             disabled={semSelecao}
             onClick={() => alternarDestaqueDaSemana(false)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Tirar dos destaques da semana
+            Tirar da grade
           </button>
-          {naSemana.length > VAGAS_NA_GRADE && (
-            /* Campo que some sem avisar é defeito conhecido deste painel: o
-               7º carro marcado não aparece na home, e sem esta linha ninguém
-               descobre por quê. */
+
+          {/* O aviso de lotação existia SÓ para a grade — e a grade era a lista
+              que ninguém usava. O banner, que é o que o dono marca, não tinha
+              aviso nenhum: ele marcava o 5º carro, via o verde de "salvo" e a
+              home não mudava. Agora os dois avisam, e o aviso leva para a tela
+              onde se resolve, em vez de só informar. */}
+          {destacados.length > VAGAS.banner && (
             <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
-              {naSemana.length} marcados · a grade mostra até {VAGAS_NA_GRADE}
+              {destacados.length} no banner · a home mostra {VAGAS.banner} ·{" "}
+              <Link href="/admin/site/destaques" className="underline">
+                ordenar
+              </Link>
+            </span>
+          )}
+          {naSemana.length > VAGAS.grade && (
+            <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
+              {naSemana.length} na grade · a home mostra {VAGAS.grade} ·{" "}
+              <Link href="/admin/site/destaques" className="underline">
+                ordenar
+              </Link>
             </span>
           )}
 
