@@ -133,6 +133,7 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // Tela A3: a porta de entrada do conteúdo do site. Vem primeiro
         // porque é dela que se alcança a edição de cada seção da home.
         { name: "Áreas e conteúdo", href: "/admin/site/areas" },
+        { name: "Destaques", href: "/admin/site/destaques" },
         // Texto das páginas de marca, modelo, carroceria, perfil e faixa
         // (2026-08-31). Nasceu no grupo Estoque, com o argumento de que são
         // páginas que listam veículo — e o dono corrigiu: o que se edita ali é

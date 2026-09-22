@@ -143,7 +143,14 @@ describe("nomenclatura da tabela de inventário", () => {
     // gravação do sync em silêncio, enquanto a galeria recusava o envio pelo
     // painel. Os dois "não" prenderam carro com 17 fotos no RevendaMais em
     // `rascunho`, abaixo do mínimo, invisível no site por uma semana.
-    expect(comAcesso.length).toBe(12);
+    //
+    // E o décimo terceiro, em 2026-09-22 (Tarefa 7 — curadoria de destaques):
+    // `app/admin/site/destaques/page.tsx`. Único `.from("estoque_motors")` do
+    // arquivo, e é um SELECT do estoque INTEIRO, sem filtro de publicado — a
+    // tela precisa enxergar o carro que já saiu do ar para poder listá-lo
+    // como morto e deixar o operador limpar a marcação (ver
+    // `src/lib/destaquesDoPainel.ts`).
+    expect(comAcesso.length).toBe(13);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -169,6 +176,8 @@ describe("nomenclatura da tabela de inventário", () => {
     // não aceita do corpo, pela mesma razão do nº 17 — senão bastaria mandar
     // `origem:"sync"` para a rota ir buscar no feed um veículo que nasceu no
     // painel e não existe no RevendaMais.
-    expect(total).toBe(20);
+    // E o acesso nº 21, em 2026-09-22, com o arquivo novo acima: o SELECT da
+    // tela de curadoria dos destaques (Tarefa 7).
+    expect(total).toBe(21);
   });
 });
