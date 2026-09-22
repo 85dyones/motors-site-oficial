@@ -2248,6 +2248,18 @@ Antes de abrir o PR, com a suíte inteira verde:
 npm test && npm run lint && npm run build
 ```
 
-Esperado: a suíte inteira verde, lint limpo, build completo. **Não confira contra um número escrito neste plano** — os números absolutos envelhecem a cada tarefa. A régua é: nada que passava antes passou a falhar.
+Esperado: a suíte inteira verde e o build completo. **Não confira contra um
+número escrito neste plano** — os números absolutos envelhecem a cada tarefa. A
+régua é: nada que passava antes passou a falhar.
+
+⚠️ **"Lint limpo" NÃO é a régua, e exigi-la reprovaria a entrega por culpa
+alheia.** Medido em 2026-09-22: `npm run lint` acusa **118 problemas (2 erros,
+116 avisos)** numa árvore sem nenhuma alteração nossa. Os 2 erros e a maioria
+dos avisos vêm de `.agents/skills/` — pacotes de terceiros hospedados no repo —
+e o resto são avisos antigos de variável não usada em `tests/`.
+
+**`src/` tem zero problemas.** A régua honesta é essa: **nenhum problema novo
+nos arquivos que este ramo toca**. Rode `npm run lint` e confira que nada sob
+`src/` aparece na saída.
 
 Só então abrir o PR. Regra da casa: **PR e merge só com CI concluído em verde.**
