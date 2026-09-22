@@ -65,12 +65,15 @@ export interface ItemDestacado {
 }
 
 /**
- * Por que este carro não está no ar — no vocabulário do operador.
+ * Rotula um estado morto no vocabulário do operador.
  *
- * A régua é CONSULTADA, não reescrita: `decidirEstado` já dobrou
- * `estado_cadastro`, `vendido` e a falta de foto num campo só. Recalcular
- * qualquer parte disso aqui criaria uma segunda régua para a mesma pergunta —
- * o defeito que a contagem de fotos da tabela de estoque já documenta.
+ * A régua de verdade é CONSULTADA, não reescrita: `estado !== "publicado"`.
+ * Este mapa TRADUZ o motivo, nunca decide. Decidiria se omitisse estados — hoje
+ * cobre os 4 mortos de uma união fechada de 5, mas se um 6º nascer,
+ * `montarPainelDeDestaques` trataria por omissão (segurança: "fora do ar").
+ * Recalcular qualquer parte da régua aqui criaria uma segunda régua para a
+ * mesma pergunta — o defeito que a contagem de fotos da tabela de estoque
+ * já documenta.
  */
 const MOTIVO_POR_ESTADO: Partial<Record<EstadoDoVeiculo, string>> = {
   vendido: "vendido",
@@ -79,7 +82,13 @@ const MOTIVO_POR_ESTADO: Partial<Record<EstadoDoVeiculo, string>> = {
   fora_da_vitrine: "sem foto",
 };
 
-/** O rótulo da linha, sem repetir a versão que já está no modelo. */
+/**
+ * Monta o rótulo legível da linha a partir de marca, modelo e versão já tratada.
+ *
+ * A deduplicação da versão com o modelo é responsabilidade de `versaoParaExibir`,
+ * que foi executada ANTES desta linha entrar na projeção — aqui só se junta o que
+ * já veio limpo.
+ */
 function rotuloDe(linha: LinhaDeEstoque): string {
   return [linha.marca, linha.modelo, linha.versao].filter(Boolean).join(" ").trim();
 }
@@ -117,8 +126,7 @@ export function montarPainelDeDestaques(
       };
     }
 
-    const motivo = MOTIVO_POR_ESTADO[linha.estado] ?? null;
-    if (motivo) {
+    if (linha.estado !== "publicado") {
       return {
         id,
         rotulo: rotuloDe(linha),
@@ -126,7 +134,7 @@ export function montarPainelDeDestaques(
         posicao: i + 1,
         posicaoViva: null,
         destino: "fora_do_ar" as const,
-        motivoForaDoAr: motivo,
+        motivoForaDoAr: MOTIVO_POR_ESTADO[linha.estado] ?? "fora do ar",
       };
     }
 
