@@ -57,6 +57,7 @@ interface TabelaDeEstoqueProps {
   quickTagsDisponiveis: Array<{ id: string; nome: string }>;
   destacadosIniciais: string[];
   naSemanaIniciais: string[];
+  naTvIniciais: string[];
   overridesIniciais: StockOverrides;
   /** `false` = GA4 sem credencial; a coluna de visitas mostra "—". */
   visitasDisponiveis: boolean;
@@ -146,6 +147,7 @@ export default function TabelaDeEstoque({
   quickTagsDisponiveis,
   destacadosIniciais,
   naSemanaIniciais,
+  naTvIniciais,
   overridesIniciais,
   visitasDisponiveis,
   podeCriar,
@@ -156,6 +158,7 @@ export default function TabelaDeEstoque({
   const [overrides, setOverrides] = useState<StockOverrides>(overridesIniciais);
   const [destacados, setDestacados] = useState<string[]>(destacadosIniciais);
   const [naSemana, setNaSemana] = useState<string[]>(naSemanaIniciais);
+  const [naTv, setNaTv] = useState<string[]>(naTvIniciais);
 
   const [filtro, setFiltro] = useState<FiltroDeEstado>("todos");
   const [busca, setBusca] = useState("");
@@ -335,6 +338,27 @@ export default function TabelaDeEstoque({
     if (!ok) {
       setNaSemana(anterior);
       setLinhas((prev) => prev.map((l) => ({ ...l, naSemana: anterior.includes(l.id) })));
+    }
+  };
+
+  /** A curadoria da TV do showroom. Gêmea das outras duas, terceiro destino. */
+  const alternarDestaqueNaTv = async (marcar: boolean) => {
+    if (selecionadosVisiveis.length === 0) return;
+    const proximos = marcar
+      ? [...new Set([...naTv, ...selecionadosVisiveis])]
+      : naTv.filter((id) => !selecionadosVisiveis.includes(id));
+
+    const anterior = naTv;
+    setNaTv(proximos);
+    setLinhas((prev) => prev.map((l) => ({ ...l, naTv: proximos.includes(l.id) })));
+
+    const ok = await salvarSettings(
+      { vitrineTv: proximos },
+      marcar ? "Postos na TV do showroom" : "Tirados da TV do showroom",
+    );
+    if (!ok) {
+      setNaTv(anterior);
+      setLinhas((prev) => prev.map((l) => ({ ...l, naTv: anterior.includes(l.id) })));
     }
   };
 
@@ -659,6 +683,21 @@ export default function TabelaDeEstoque({
             Tirar da grade
           </button>
 
+          <button
+            disabled={semSelecao}
+            onClick={() => alternarDestaqueNaTv(true)}
+            className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Pôr na TV do showroom
+          </button>
+          <button
+            disabled={semSelecao}
+            onClick={() => alternarDestaqueNaTv(false)}
+            className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Tirar da TV
+          </button>
+
           {/* O aviso de lotação existia SÓ para a grade — e a grade era a lista
               que ninguém usava. O banner, que é o que o dono marca, não tinha
               aviso nenhum: ele marcava o 5º carro, via o verde de "salvo" e a
@@ -848,6 +887,7 @@ export default function TabelaDeEstoque({
                           )}
                           {l.destacado && <span className="text-mt-accent">· na home</span>}
                           {l.naSemana && <span className="text-mt-accent">· na semana</span>}
+                          {l.naTv && <span className="text-mt-accent">· na TV</span>}
                           {l.quickTags.length > 0 && <span>· {l.quickTags.length} destaque(s)</span>}
                         </div>
                       </div>

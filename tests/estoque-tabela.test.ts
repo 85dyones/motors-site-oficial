@@ -89,6 +89,7 @@ function linha(parcial: Partial<LinhaDeEstoque> = {}): LinhaDeEstoque {
     placa: "",
     destacado: false,
     naSemana: false,
+    naTv: false,
     visitas: null,
     leads: 0,
     divergente: false,
