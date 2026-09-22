@@ -449,7 +449,7 @@ export function voltaCompletaEmSegundos(itens: number): number {
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: `npx vitest run tests/destaques-do-painel.test.ts`
-Expected: PASS — 16 testes.
+Expected: PASS — 18 testes.
 
 `EstadoDoVeiculo` **já é exportado** de `estoqueTabela.ts:45` (conferido na
 varredura de pré-voo). É só importar — nada a acrescentar lá.
