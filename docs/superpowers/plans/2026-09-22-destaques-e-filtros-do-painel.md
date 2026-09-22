@@ -451,7 +451,8 @@ export function voltaCompletaEmSegundos(itens: number): number {
 Run: `npx vitest run tests/destaques-do-painel.test.ts`
 Expected: PASS — 16 testes.
 
-Se `EstadoDoVeiculo` não estiver exportado de `estoqueTabela.ts`, exportá-lo (`export type EstadoDoVeiculo = ...`) e rodar de novo.
+`EstadoDoVeiculo` **já é exportado** de `estoqueTabela.ts:45` (conferido na
+varredura de pré-voo). É só importar — nada a acrescentar lá.
 
 - [ ] **Step 5: Commit**
 
@@ -1276,6 +1277,20 @@ Em `src/lib/estoqueTabela.ts`, na interface `LinhaDeEstoque`, ao lado de `naSema
    */
   naTv: boolean;
 ```
+
+**⚠️ Campo obrigatório quebra um dublê tipado — corrigir no mesmo passo.**
+`tests/estoque-tabela.test.ts:68` é `function linha(parcial): LinhaDeEstoque`
+devolvendo um objeto literal COMPLETO, e o `tsconfig` checa `**/*.ts`. Sem
+esta linha, `npm run build` falha com "Property 'naTv' is missing". Acrescentar
+logo depois de `naSemana: false,` (linha 91):
+
+```ts
+    naTv: false,
+```
+
+É o único dublê tipado assim no repositório — os demais usam
+`as unknown as LinhaDeEstoque`, onde campo ausente é `undefined` e, portanto,
+falso.
 
 - [ ] **Step 4: Alargar `filtrarLinhas`**
 
