@@ -890,7 +890,7 @@ Run: `npm run lint`
 Expected: sem erro de import não usado.
 
 Run: `npm test`
-Expected: 226 arquivos, 4099 passando. **Se `tests/destaques-da-semana-fiacao.test.ts` quebrar**, ele provavelmente casa o texto antigo do botão — atualizar a string esperada nele, que é mudança legítima de rótulo.
+Expected: +5 testes novos, e a suíte inteira continua verde (conferir contra o número que o seu `npm test` mostrar ANTES de começar, não contra um número deste plano). **Se `tests/destaques-da-semana-fiacao.test.ts` quebrar**, ele provavelmente casa o texto antigo do botão — atualizar a string esperada nele, que é mudança legítima de rótulo.
 
 - [ ] **Step 6: Commit**
 
@@ -1071,7 +1071,7 @@ Run: `npx vitest run tests/vitrine-lista-propria.test.ts`
 Expected: PASS — 5 testes.
 
 Run: `npm test`
-Expected: 227 arquivos, 4104 passando.
+Expected: +5 testes novos, e a suíte inteira continua verde.
 
 - [ ] **Step 7: Commit**
 
@@ -1476,7 +1476,7 @@ Run: `npx vitest run tests/estoque-filtros.test.ts`
 Expected: PASS — 20 testes.
 
 Run: `npm test`
-Expected: 228 arquivos, 4124 passando. Qualquer teste que monte `LinhaDeEstoque` sem `naTv` continua passando — os dublês são `as unknown as`, e `undefined` é falso.
+Expected: +20 testes novos, e a suíte inteira continua verde. Qualquer teste que monte `LinhaDeEstoque` sem `naTv` continua passando — os dublês são `as unknown as`, e `undefined` é falso.
 
 - [ ] **Step 7: Commit**
 
@@ -1949,7 +1949,7 @@ Run: `npx vitest run tests/curadoria-de-destaques.test.ts`
 Expected: PASS — 9 testes.
 
 Run: `npm test`
-Expected: 229 arquivos, 4133 passando.
+Expected: +9 testes novos, e a suíte inteira continua verde.
 
 Run: `npm run build`
 Expected: compila; a rota `/admin/site/destaques` aparece na listagem.
@@ -2214,7 +2214,7 @@ Run: `npx vitest run tests/painel-de-filtros.test.ts`
 Expected: PASS — 7 testes.
 
 Run: `npm test`
-Expected: 230 arquivos, 4140 passando.
+Expected: +7 testes novos, e a suíte inteira continua verde.
 
 Run: `npm run lint && npm run build`
 Expected: sem erro.
@@ -2248,6 +2248,6 @@ Antes de abrir o PR, com a suíte inteira verde:
 npm test && npm run lint && npm run build
 ```
 
-Esperado: **230 arquivos, ~4140 testes passando, 10 pulados**, lint limpo, build completo.
+Esperado: a suíte inteira verde, lint limpo, build completo. **Não confira contra um número escrito neste plano** — os números absolutos envelhecem a cada tarefa. A régua é: nada que passava antes passou a falhar.
 
 Só então abrir o PR. Regra da casa: **PR e merge só com CI concluído em verde.**

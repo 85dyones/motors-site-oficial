@@ -261,11 +261,21 @@ redesenhar o rodapé do hero.
 (~10vw) e o resto dividido em `flex-1`, cada célula com `px-[1.77vw]` e o nome
 do carro em `text-[1.15vw]` com `truncate`.
 
-| células | largura de conteúdo | nome do carro |
-|---|---|---|
-| 4 (hoje) | ~19vw | folgado |
-| 6 | ~11,4vw | **cabe "Volkswagen Saveiro" (18 caracteres)** |
-| 8 | ~7,7vw | trunca a maioria dos nomes |
+Largura útil ≈ 90vw (100vw menos a célula fixa "A SEGUIR"). O nome mais longo
+do estoque, "Volkswagen Saveiro", tem 18 caracteres e ocupa ~9vw no corpo
+apertado (1vw, ~0,5em por caractere).
+
+| células | respiro lateral | largura de conteúdo | nome do carro |
+|---|---|---|---|
+| 4 (hoje) | 1,77vw × 2 | 90/4 − 3,54 = **~19vw** | folgado |
+| 6 | 1,2vw × 2 | 90/6 − 2,4 = **~12,6vw** | **cabe, com ~3,6vw de folga** |
+| 8 | 1,2vw × 2 | 90/8 − 2,4 = **~8,9vw** | não cabe — trunca |
+
+⚠️ **A coluna do respiro é o que torna a tabela honesta.** A versão anterior
+deste documento dava ~11,4vw para 6 células e ~7,7vw para 8, porque calculava
+as duas com o respiro ANTIGO (1,77vw) — embora o aperto para 1,2vw seja parte
+da mesma mudança que permite as 6. Os números certos são mais folgados; a
+conclusão não muda, e é ela que decide: **6 cabe, 8 não.**
 
 **6 é o teto real desta faixa sem redesenhá-la.** Acima disso a TV vira uma
 fileira de reticências, que num aparelho visto de longe é pior que mostrar
