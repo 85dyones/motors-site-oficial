@@ -136,6 +136,7 @@ export async function POST(request: Request) {
       stockOverrides,
       carouselVehicleIds,
       destaquesDaSemana,
+      vitrineTv,
       bankBalances,
       procedencia,
       instagramCuradoria,
@@ -316,6 +317,18 @@ export async function POST(request: Request) {
         if (error) {
           console.error("[Settings API] Supabase write error for destaquesDaSemana:", error.message);
           return NextResponse.json({ error: `Falha ao salvar destaques da semana: ${error.message}` }, { status: 500 });
+        }
+      }
+
+      // A curadoria da TV do showroom. Linha própria desde 2026-09-22: ela e o
+      // banner da home tinham tetos incompatíveis dividindo a mesma lista.
+      if (vitrineTv) {
+        const { error } = await requestSupabase
+          .from("site_settings")
+          .upsert({ id: "vitrine_tv", data: vitrineTv, updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("[Settings API] Supabase write error for vitrineTv:", error.message);
+          return NextResponse.json({ error: `Falha ao salvar a vitrine da TV: ${error.message}` }, { status: 500 });
         }
       }
 

@@ -26,6 +26,7 @@ export const getCachedSettings = unstable_cache(
     let areasHome = null;
     let ga4 = null;
     let destaquesDaSemana = null;
+    let vitrineTv = null;
     let fetchedFromSupabase = false;
 
     // A chave de SERVIÇO é a primeira opção, não um extra.
@@ -72,6 +73,11 @@ export const getCachedSettings = unstable_cache(
           // do banner de propósito: o dono pediu listas independentes para não
           // repetir na mesma tela o carro que acabou de passar no carrossel.
           const destaquesDaSemanaRow = data.find((row) => row.id === "destaques_da_semana");
+          // A curadoria da TV do showroom, separada da do banner desde
+          // 2026-09-22. As duas viveram na mesma linha (`carousel_vehicles`)
+          // até ali, com tetos incompatíveis: 3 slides na home contra a lista
+          // inteira na TV. Ver a spec de 2026-09-21.
+          const vitrineTvRow = data.find((row) => row.id === "vitrine_tv");
           const bankBalancesRow = data.find((row) => row.id === "bank_balances");
           const procedenciaRow = data.find((row) => row.id === "procedencia");
           const instagramRow = data.find((row) => row.id === "instagram_curadoria");
@@ -91,6 +97,7 @@ export const getCachedSettings = unstable_cache(
           if (stockOverridesRow) stockOverrides = stockOverridesRow.data;
           if (carouselRow) carouselVehicleIds = carouselRow.data;
           if (destaquesDaSemanaRow) destaquesDaSemana = destaquesDaSemanaRow.data;
+          if (vitrineTvRow) vitrineTv = vitrineTvRow.data;
           if (bankBalancesRow) bankBalances = bankBalancesRow.data;
           if (procedenciaRow) procedencia = procedenciaRow.data;
           if (instagramRow) instagramCuradoria = instagramRow.data;
@@ -130,6 +137,7 @@ export const getCachedSettings = unstable_cache(
       areasHome,
       ga4,
       destaquesDaSemana,
+      vitrineTv,
     };
   },
   ["site-settings"],

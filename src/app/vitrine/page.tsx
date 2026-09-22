@@ -28,12 +28,26 @@ export default async function VitrinePage() {
 
   const disponiveis = disponiveisDe(estoque);
 
-  // A vitrine mostra a mesma curadoria do carrossel da home quando ela existe.
-  const curados = Array.isArray(settings.carouselVehicleIds)
-    ? (settings.carouselVehicleIds as string[])
-        .map((id) => disponiveis.find((v) => v.id === id))
-        .filter((v): v is NonNullable<typeof v> => Boolean(v))
-    : [];
+  // A TV tem lista PRÓPRIA desde 2026-09-22.
+  //
+  // Até ali ela dividia `carousel_vehicles` com o banner da home, e os dois
+  // tinham capacidades incompatíveis: o banner corta em `VAGAS.banner`, a TV
+  // mostra a lista inteira paginada. Curar para um estragava o outro — medido
+  // em 21/09, a lista tinha 9 ids e 5 eram carros arquivados ou vendidos.
+  //
+  // ⚠️ O `??` é HERANÇA, com prazo: enquanto a linha `vitrine_tv` não existir
+  // no banco, a TV mostra exatamente o que mostrava antes. A primeira
+  // publicação em /admin/site/destaques cria a linha, e aí esta queda pode
+  // sair daqui.
+  const idsDaTv = Array.isArray(settings.vitrineTv)
+    ? (settings.vitrineTv as string[])
+    : Array.isArray(settings.carouselVehicleIds)
+      ? (settings.carouselVehicleIds as string[])
+      : [];
+
+  const curados = idsDaTv
+    .map((id) => disponiveis.find((v) => v.id === id))
+    .filter((v): v is NonNullable<typeof v> => Boolean(v));
 
   // A curadoria entra inteira: o rodapé da TV pagina de quatro em quatro, então
   // marcar sete veículos no painel expõe os sete. Antes o corte era em quatro
