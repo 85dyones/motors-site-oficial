@@ -281,11 +281,11 @@ export type Vitrine = "banner" | "grade" | "tv";
  * inteira, então o limite dela não é de vagas — é de tempo de volta
  * (`voltaCompletaEmSegundos`).
  */
-export const VAGAS: Record<Vitrine, number | null> = {
+export const VAGAS = {
   banner: 4,
   grade: VAGAS_NA_GRADE,
   tv: null,
-};
+} as const satisfies Record<Vitrine, number | null>;
 
 /** Segundos que a TV gasta em cada carro. Espelha `INTERVALO_MS` de `VitrineTV`. */
 const SEGUNDOS_POR_CARRO_NA_TV = 8;
@@ -568,7 +568,7 @@ por:
   // lista (`VAGAS.banner`). Enquanto era um 3 digitado aqui, o painel não
   // tinha como avisar que o 4º marcado não caberia — e não avisava: medido em
   // 21/09, o carro escolhido por último era descartado em silêncio.
-  const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, VAGAS.banner!);
+  const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, VAGAS.banner);
 ```
 
 - [ ] **Step 4: Encolher o botão da régua no mobile**
@@ -861,7 +861,7 @@ Trocar o texto dos quatro botões de destaque (linhas ~630-660) e o bloco do avi
               aviso nenhum: ele marcava o 5º carro, via o verde de "salvo" e a
               home não mudava. Agora os dois avisam, e o aviso leva para a tela
               onde se resolve, em vez de só informar. */}
-          {destacados.length > VAGAS.banner! && (
+          {destacados.length > VAGAS.banner && (
             <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
               {destacados.length} no banner · a home mostra {VAGAS.banner} ·{" "}
               <a href="/admin/site/destaques" className="underline">
@@ -869,7 +869,7 @@ Trocar o texto dos quatro botões de destaque (linhas ~630-660) e o bloco do avi
               </a>
             </span>
           )}
-          {naSemana.length > VAGAS.grade! && (
+          {naSemana.length > VAGAS.grade && (
             <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
               {naSemana.length} na grade · a home mostra {VAGAS.grade} ·{" "}
               <a href="/admin/site/destaques" className="underline">
