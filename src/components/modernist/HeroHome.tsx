@@ -230,7 +230,7 @@ export default function HeroHome({
       </div>
 
       {/* Rodapé do hero: indicadores à esquerda, placa do destaque à direita.
-          No mobile a linha não cabe (3 indicadores + placa de 280px > 360px),
+          No mobile a linha não cabe (4 indicadores + placa de 280px > 360px),
           então o rodapé empilha: indicadores em cima, placa embaixo em
           largura total. */}
       <div className="mt-auto flex flex-col gap-6 pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
@@ -243,7 +243,11 @@ export default function HeroHome({
                 onClick={() => setAtual(i)}
                 aria-label={`Ver ${v.marca} ${v.modelo}`}
                 aria-current={i === atual}
-                className="mt-foco flex w-[76px] flex-col gap-2"
+                /* 64px abaixo de `sm` porque a régua é de largura FIXA: com
+                   quatro slides, 4x76 + 3x16 = 352px estoura os 343px úteis de
+                   um celular de 375px. Com 64px dá 304px e sobra folga. De
+                   `sm` para cima o espaço volta e o botão volta a 76px. */
+                className="mt-foco flex w-[64px] flex-col gap-2 sm:w-[76px]"
               >
                 <span className="h-0.5 w-full bg-[rgba(243,242,242,.3)]">
                   <span

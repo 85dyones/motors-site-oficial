@@ -29,6 +29,7 @@ import {
   resolverDestaques,
 } from "../lib/destaquesRapidos";
 import { montarDestaquesDaSemana } from "../lib/destaquesDaSemana";
+import { VAGAS } from "../lib/destaquesDoPainel";
 // Importa o JSON DIRETO, não via `./ThemeContext`.
 //
 // `ThemeContext` é um módulo "use client": quando um Server Component importa
@@ -140,7 +141,11 @@ export default async function Home() {
         .map((id) => disponiveis.find((v) => v.id === id))
         .filter((v): v is NonNullable<typeof v> => Boolean(v))
     : [];
-  const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, 3);
+  // O teto do banner tem uma casa só, compartilhada com o painel que cura a
+  // lista (`VAGAS.banner`). Enquanto era um 3 digitado aqui, o painel não
+  // tinha como avisar que o 4º marcado não caberia — e não avisava: medido em
+  // 21/09, o carro escolhido por último era descartado em silêncio.
+  const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, VAGAS.banner!);
   // A curadoria da GRADE, que não é a do banner: lista própria, decidida pelo
   // dono em 2026-09-09. O que ele marcou vem primeiro, na ordem em que marcou;
   // o sorteio só completa as vagas que sobraram, e evita repetir na grade o
