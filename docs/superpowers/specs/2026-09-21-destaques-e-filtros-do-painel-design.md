@@ -447,9 +447,14 @@ campos que a regra lê).
 - a régua de indicadores com 4 slides cabe em 343px (§3.3);
 - a faixa da TV com 6 células não trunca "Volkswagen Saveiro".
 
-**`tests/sem-beco-sem-saida.test.ts`** já varre as rotas; a rota nova entra na
-régua de `/admin` e precisa do seu `not-found.tsx` (regra do dono, 2026-09-20:
-nenhum endereço termina em beco).
+**`tests/sem-beco-sem-saida.test.ts` não é afetado, e isto foi conferido.** A
+régua do dono de 2026-09-20 ("nenhum endereço termina em beco") vale para o
+endereço **público que não existe** — a lista do teste é explícita e só nomeia
+rotas dinâmicas da vitrine (`[marca]`, `[modelo]`, `[ficha]`, `guias/[slug]`,
+`estoque/[recorte]`, `destaques/[tag]`) mais a raiz, que cobre o resto do site.
+`/admin/site/destaques` é rota **estática e autenticada**: ela sempre casa, não
+tem segmento dinâmico para errar, e o corpo da casa (vitrine + formulário de
+encomenda) não faz sentido atrás do login. **Nenhum `not-found.tsx` novo.**
 
 ---
 
@@ -463,7 +468,7 @@ nenhum endereço termina em beco).
 5. Os dois tetos: banner 3→4 (com a régua responsiva) e `POR_PAGINA` 4→6 (com
    o ajuste tipográfico) + os testes de leiaute.
 6. A tela `/admin/site/destaques` + `SidebarNav` (grupo "Site", vizinha de
-   "Áreas e conteúdo") + `not-found.tsx`.
+   "Áreas e conteúdo").
 7. O painel de filtros na tabela.
 8. **Publicar uma vez na tela nova**, para fechar a janela da §2.2.
 
