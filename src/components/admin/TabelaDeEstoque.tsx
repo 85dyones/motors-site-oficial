@@ -15,6 +15,7 @@ import {
   type EstadoDoVeiculo,
   type FiltroDeEstado,
   type LinhaDeEstoque,
+  type OpcoesDeFiltro,
 } from "../../lib/estoqueTabela";
 import { CAMPO_DO_ESTADO, type EstadoCadastro } from "../../lib/estadoDoCadastro";
 import { VAGAS } from "../../lib/destaquesDoPainel";
@@ -162,6 +163,11 @@ export default function TabelaDeEstoque({
 
   const [filtro, setFiltro] = useState<FiltroDeEstado>("todos");
   const [busca, setBusca] = useState("");
+  /** O segundo nível do recorte. Começa TODO vazio — ver a nota de
+   *  `filtrarLinhas`: opção ausente é "não filtra", e um padrão que filtrasse
+   *  esconderia linha na abertura da tela sem dizer por quê. */
+  const [extras, setExtras] = useState<Omit<OpcoesDeFiltro, "estado" | "busca">>({});
+  const [painelAberto, setPainelAberto] = useState(false);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [visiveis, setVisiveis] = useState(PASSO_DA_PAGINA);
 
@@ -171,8 +177,22 @@ export default function TabelaDeEstoque({
 
   const contagem = useMemo(() => contarPorEstado(linhas), [linhas]);
   const fila = useMemo(() => resumoDaFilaDeRascunhos(linhas), [linhas]);
-  const filtradas = useMemo(() => filtrarLinhas(linhas, { estado: filtro, busca }), [linhas, filtro, busca]);
+  const filtradas = useMemo(
+    () => filtrarLinhas(linhas, { estado: filtro, busca, ...extras }),
+    [linhas, filtro, busca, extras],
+  );
   const naTela = filtradas.slice(0, visiveis);
+
+  // Do estoque carregado, e não de uma constante: lista fixa ofereceria marca
+  // que a loja não tem e esconderia a que ela tem.
+  const marcas = useMemo(
+    () => [...new Set(linhas.map((l) => l.marca).filter(Boolean))].sort(),
+    [linhas],
+  );
+  const tipos = useMemo(
+    () => [...new Set(linhas.map((l) => l.tipo).filter(Boolean))].sort(),
+    [linhas],
+  );
 
   const selecionadosVisiveis = selecionados.filter((id) => filtradas.some((l) => l.id === id));
 
@@ -565,6 +585,138 @@ export default function TabelaDeEstoque({
             </button>
           )}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={() => setPainelAberto((a) => !a)}
+          className="mt-foco w-fit cursor-pointer text-[11px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:text-mt-ink"
+        >
+          {painelAberto ? "− Menos filtros" : "+ Mais filtros"}
+          {Object.keys(extras).length > 0 && ` (${Object.keys(extras).length})`}
+        </button>
+
+        {painelAberto && (
+          <div className="flex flex-wrap items-end gap-4 border border-mt-regua-fina p-4">
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Nos destaques
+              <select
+                value={extras.destaque ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setExtras({ ...extras, destaque: (v || undefined) as OpcoesDeFiltro["destaque"] });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+                className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              >
+                <option value="">Tanto faz</option>
+                <option value="qualquer">Em alguma lista</option>
+                <option value="banner">No banner da home</option>
+                <option value="grade">Na grade da semana</option>
+                <option value="tv">Na TV do showroom</option>
+                <option value="nenhum">Em nenhuma</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Preço de
+              <input
+                type="number"
+                value={extras.precoMin ?? ""}
+                onChange={(e) =>
+                  setExtras({ ...extras, precoMin: e.target.value ? Number(e.target.value) : undefined })
+                }
+                className="mt-foco w-28 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              até
+              <input
+                type="number"
+                value={extras.precoMax ?? ""}
+                onChange={(e) =>
+                  setExtras({ ...extras, precoMax: e.target.value ? Number(e.target.value) : undefined })
+                }
+                className="mt-foco w-28 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Marca
+              <select
+                value={extras.marca ?? ""}
+                onChange={(e) => setExtras({ ...extras, marca: e.target.value || undefined })}
+                className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              >
+                <option value="">Todas</option>
+                {marcas.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Carroceria
+              <select
+                value={extras.tipo ?? ""}
+                onChange={(e) => setExtras({ ...extras, tipo: e.target.value || undefined })}
+                className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              >
+                <option value="">Todas</option>
+                {tipos.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Parado há (dias)
+              <input
+                type="number"
+                value={extras.paradoHaDias ?? ""}
+                onChange={(e) =>
+                  setExtras({ ...extras, paradoHaDias: e.target.value ? Number(e.target.value) : undefined })
+                }
+                className="mt-foco w-24 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 text-[11px] text-mt-neutral-800">
+              <input
+                type="checkbox"
+                checked={extras.semLead ?? false}
+                onChange={(e) => setExtras({ ...extras, semLead: e.target.checked || undefined })}
+              />
+              Sem lead
+            </label>
+
+            {/* Sem credencial de leitura do GA4 a coluna inteira é nula: o
+                controle não é desenhado, em vez de ser desenhado e não filtrar
+                nada. */}
+            {visitasDisponiveis && (
+              <label className="flex items-center gap-2 text-[11px] text-mt-neutral-800">
+                <input
+                  type="checkbox"
+                  checked={extras.semVisita ?? false}
+                  onChange={(e) => setExtras({ ...extras, semVisita: e.target.checked || undefined })}
+                />
+                Sem visita
+              </label>
+            )}
+
+            <button
+              onClick={() => setExtras({})}
+              className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent"
+            >
+              Limpar filtros
+            </button>
+
+            <span className="ml-auto self-center text-[11px] text-mt-neutral-800">
+              {filtradas.length} de {linhas.length} veículos
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Barra de ação em lote */}
