@@ -16,6 +16,10 @@ import { useTheme, DEFAULT_ABOUT_SETTINGS, DEFAULT_COMPANY_SETTINGS, DEFAULT_POP
 import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 import { processImage } from "../lib/imageProcessor";
 import { slugifyTag } from "../lib/tagUtils";
+// A MESMA peneira que a rota aplica no servidor, e não uma cópia dela: aqui ela
+// é aviso imediato para quem está digitando; lá é a trava que vale contra quem
+// não passa por esta tela. Ver `lib/injecaoDePrompt.ts`.
+import { temInjecaoDePrompt } from "../lib/injecaoDePrompt";
 import type {
   ThemeType,
   AboutSettings,
@@ -47,22 +51,6 @@ const ABAS = [
   "empresa",
 ] as const;
 type AbaConfiguracoes = (typeof ABAS)[number];
-
-const PROMPT_INJECTION_REGEX = /(ignore\s+all\s+(?:previous\s+)?instructions|system\s+prompt|you\s+are\s+a\s+bot|act\s+as\s+a|new\s+instruction|jailbreak\b)/i;
-
-function hasPromptInjection(obj: any): boolean {
-  if (typeof obj === "string") {
-    return PROMPT_INJECTION_REGEX.test(obj);
-  }
-  if (typeof obj === "object" && obj !== null) {
-    for (const key in obj) {
-      if (hasPromptInjection(obj[key])) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
 
 interface ConfiguracoesClientWrapperProps {
   /**
@@ -647,7 +635,7 @@ export default function ConfiguracoesClientWrapper({
       const updatedForm = { ...companyForm, isCustom: true };
       
       // 1. Prompt Injection frontend filter
-      if (hasPromptInjection(updatedForm)) {
+      if (temInjecaoDePrompt(updatedForm)) {
         alert("Erro de segurança: O conteúdo contém termos não permitidos (potencial injeção de instruções). Por favor, remova comandos em inglês semelhantes a instruções de sistema.");
         return;
       }
@@ -693,7 +681,7 @@ export default function ConfiguracoesClientWrapper({
       const updatedForm = { ...aboutForm, isCustom: true };
       
       // 1. Prompt Injection frontend filter
-      if (hasPromptInjection(updatedForm)) {
+      if (temInjecaoDePrompt(updatedForm)) {
         alert("Erro de segurança: O conteúdo contém termos não permitidos (potencial injeção de instruções). Por favor, remova comandos em inglês semelhantes a instruções de sistema.");
         return;
       }
