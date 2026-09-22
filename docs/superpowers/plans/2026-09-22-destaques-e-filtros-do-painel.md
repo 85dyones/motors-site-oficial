@@ -1476,7 +1476,7 @@ Run: `npx vitest run tests/estoque-filtros.test.ts`
 Expected: PASS — 20 testes.
 
 Run: `npm test`
-Expected: +20 testes novos, e a suíte inteira continua verde. Qualquer teste que monte `LinhaDeEstoque` sem `naTv` continua passando — os dublês são `as unknown as`, e `undefined` é falso.
+Expected: +19 testes novos, e a suíte inteira continua verde. Qualquer teste que monte `LinhaDeEstoque` sem `naTv` continua passando — os dublês são `as unknown as`, e `undefined` é falso.
 
 - [ ] **Step 7: Commit**
 
@@ -1501,9 +1501,27 @@ git commit -m "feat(estoque): filtros de destaque, preco, marca e desempenho"
 
 - [ ] **Step 1: Escrever o teste que falha**
 
-Criar `tests/curadoria-de-destaques.test.ts`:
+Criar `tests/curadoria-de-destaques.test.ts`.
+
+⚠️ **O código abaixo NÃO roda neste repositório, e foi corrigido em 22/09.**
+Ele foi escrito com `@testing-library/react`, que **não é dependência deste
+projeto** — instalá-la violaria "nenhuma biblioteca nova". E usa JSX literal
+num arquivo `.ts`, que o esbuild recusa.
+
+**O molde da casa é `tests/painel-de-guias-fiacao.test.ts`**: `// @vitest-environment jsdom`
+na primeira linha, `createElement` do `react` (não JSX), `createRoot` do
+`react-dom/client`, `act`, e consulta ao DOM cru (`container.textContent`,
+`querySelectorAll`). É assim que o repositório testa fiação de componente
+cliente, sem lib nova e sem JSX em `.ts`.
+
+**As asserções abaixo continuam valendo** — o que muda é só como se monta e se
+consulta o componente. Traduza cada `screen.getByText(/x/i)` para uma checagem
+sobre `container.textContent`, cada `getByRole("button", {name})` para uma
+varredura de `querySelectorAll("button")`, e cada `fireEvent.click` para um
+`click()` dentro de `act`.
 
 ```ts
+// ⚠️ ASSERÇÕES DE REFERÊNCIA — a forma de montar está errada, ver acima.
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import CuradoriaDeDestaques from "../src/components/admin/CuradoriaDeDestaques";
