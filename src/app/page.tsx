@@ -145,7 +145,7 @@ export default async function Home() {
   // lista (`VAGAS.banner`). Enquanto era um 3 digitado aqui, o painel não
   // tinha como avisar que o 4º marcado não caberia — e não avisava: medido em
   // 21/09, o carro escolhido por último era descartado em silêncio.
-  const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, VAGAS.banner!);
+  const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, VAGAS.banner);
   // A curadoria da GRADE, que não é a do banner: lista própria, decidida pelo
   // dono em 2026-09-09. O que ele marcou vem primeiro, na ordem em que marcou;
   // o sorteio só completa as vagas que sobraram, e evita repetir na grade o

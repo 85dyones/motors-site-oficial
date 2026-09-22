@@ -27,12 +27,18 @@ export type Vitrine = "banner" | "grade" | "tv";
  * A TV é `null` de propósito, e não um número grande: ela pagina a lista
  * inteira, então o limite dela não é de vagas — é de tempo de volta
  * (`voltaCompletaEmSegundos`).
+ *
+ * A declaração usa `as const satisfies` para carregar cada chave com seu tipo
+ * literal (banner = 4, tv = null), não "number | null". Isso previne erros
+ * silenciosos: se `banner` virasse `null` um dia (copiar-colar do padrão tv),
+ * TypeScript reclamaria antes do deploy — e o `.slice(0, null)` em produção não
+ * zeraria o carrossel sem avisar.
  */
-export const VAGAS: Record<Vitrine, number | null> = {
+export const VAGAS = {
   banner: 4,
   grade: VAGAS_NA_GRADE,
   tv: null,
-};
+} as const satisfies Record<Vitrine, number | null>;
 
 /** Segundos que a TV gasta em cada carro. Espelha `INTERVALO_MS` de `VitrineTV`. */
 const SEGUNDOS_POR_CARRO_NA_TV = 8;

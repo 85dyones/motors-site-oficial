@@ -37,6 +37,7 @@ describe("o banner da home tem uma casa só para o seu teto", () => {
  *
  * Subir o número sem encolher o botão no mobile estoura a régua por 9px — e o
  * próprio código já registrava o aperto com 3 ("no mobile a linha não cabe").
+ * O código agora usa w-[64px] sm:w-[76px], confirmado pelos testes de fonte abaixo.
  */
 describe("a régua de indicadores cabe no celular com quatro slides", () => {
   const hero = lerCodigo("src/components/modernist/HeroHome.tsx");
@@ -48,12 +49,5 @@ describe("a régua de indicadores cabe no celular com quatro slides", () => {
 
   it("a largura fixa de 76px não sobra solta, sem o prefixo responsivo", () => {
     expect(hero).not.toMatch(/(?<!sm:)w-\[76px\]/);
-  });
-
-  it("quatro botões de 64px com gap de 16px cabem em 343px", () => {
-    const LARGURA = 64;
-    const GAP = 16;
-    const UTIL_NO_CELULAR = 343;
-    expect(4 * LARGURA + 3 * GAP).toBeLessThanOrEqual(UTIL_NO_CELULAR);
   });
 });
