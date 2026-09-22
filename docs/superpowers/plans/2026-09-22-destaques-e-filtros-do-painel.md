@@ -864,17 +864,17 @@ Trocar o texto dos quatro botões de destaque (linhas ~630-660) e o bloco do avi
           {destacados.length > VAGAS.banner && (
             <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
               {destacados.length} no banner · a home mostra {VAGAS.banner} ·{" "}
-              <a href="/admin/site/destaques" className="underline">
+              <Link href="/admin/site/destaques" className="underline">
                 ordenar
-              </a>
+              </Link>
             </span>
           )}
           {naSemana.length > VAGAS.grade && (
             <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
               {naSemana.length} na grade · a home mostra {VAGAS.grade} ·{" "}
-              <a href="/admin/site/destaques" className="underline">
+              <Link href="/admin/site/destaques" className="underline">
                 ordenar
-              </a>
+              </Link>
             </span>
           )}
 ```
