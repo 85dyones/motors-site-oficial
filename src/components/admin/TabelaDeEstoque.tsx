@@ -450,6 +450,12 @@ export default function TabelaDeEstoque({
 
   const semSelecao = selecionadosVisiveis.length === 0 || salvando;
 
+  /** Conta VALORES definidos, não chaves: `setExtras` grava `undefined` em vez
+   *  de apagar a chave (`v || undefined`, `checked || undefined`), então
+   *  `Object.keys(extras).length` continuava contando um filtro já limpo.
+   *  Usado nos dois lugares em que o painel mostra esse número. */
+  const filtrosAtivos = Object.values(extras).filter((v) => v !== undefined).length;
+
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-regua pb-5">
@@ -593,7 +599,7 @@ export default function TabelaDeEstoque({
           className="mt-foco w-fit cursor-pointer text-[11px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:text-mt-ink"
         >
           {painelAberto ? "− Menos filtros" : "+ Mais filtros"}
-          {Object.keys(extras).length > 0 && ` (${Object.keys(extras).length})`}
+          {filtrosAtivos > 0 && ` (${filtrosAtivos})`}
         </button>
 
         {painelAberto && (
@@ -623,9 +629,10 @@ export default function TabelaDeEstoque({
               <input
                 type="number"
                 value={extras.precoMin ?? ""}
-                onChange={(e) =>
-                  setExtras({ ...extras, precoMin: e.target.value ? Number(e.target.value) : undefined })
-                }
+                onChange={(e) => {
+                  setExtras({ ...extras, precoMin: e.target.value ? Number(e.target.value) : undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
                 className="mt-foco w-28 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
               />
             </label>
@@ -635,9 +642,10 @@ export default function TabelaDeEstoque({
               <input
                 type="number"
                 value={extras.precoMax ?? ""}
-                onChange={(e) =>
-                  setExtras({ ...extras, precoMax: e.target.value ? Number(e.target.value) : undefined })
-                }
+                onChange={(e) => {
+                  setExtras({ ...extras, precoMax: e.target.value ? Number(e.target.value) : undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
                 className="mt-foco w-28 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
               />
             </label>
@@ -646,7 +654,10 @@ export default function TabelaDeEstoque({
               Marca
               <select
                 value={extras.marca ?? ""}
-                onChange={(e) => setExtras({ ...extras, marca: e.target.value || undefined })}
+                onChange={(e) => {
+                  setExtras({ ...extras, marca: e.target.value || undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
                 className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
               >
                 <option value="">Todas</option>
@@ -660,7 +671,10 @@ export default function TabelaDeEstoque({
               Carroceria
               <select
                 value={extras.tipo ?? ""}
-                onChange={(e) => setExtras({ ...extras, tipo: e.target.value || undefined })}
+                onChange={(e) => {
+                  setExtras({ ...extras, tipo: e.target.value || undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
                 className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
               >
                 <option value="">Todas</option>
@@ -675,9 +689,10 @@ export default function TabelaDeEstoque({
               <input
                 type="number"
                 value={extras.paradoHaDias ?? ""}
-                onChange={(e) =>
-                  setExtras({ ...extras, paradoHaDias: e.target.value ? Number(e.target.value) : undefined })
-                }
+                onChange={(e) => {
+                  setExtras({ ...extras, paradoHaDias: e.target.value ? Number(e.target.value) : undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
                 className="mt-foco w-24 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
               />
             </label>
@@ -686,7 +701,10 @@ export default function TabelaDeEstoque({
               <input
                 type="checkbox"
                 checked={extras.semLead ?? false}
-                onChange={(e) => setExtras({ ...extras, semLead: e.target.checked || undefined })}
+                onChange={(e) => {
+                  setExtras({ ...extras, semLead: e.target.checked || undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
               />
               Sem lead
             </label>
@@ -699,14 +717,20 @@ export default function TabelaDeEstoque({
                 <input
                   type="checkbox"
                   checked={extras.semVisita ?? false}
-                  onChange={(e) => setExtras({ ...extras, semVisita: e.target.checked || undefined })}
+                  onChange={(e) => {
+                    setExtras({ ...extras, semVisita: e.target.checked || undefined });
+                    setVisiveis(PASSO_DA_PAGINA);
+                  }}
                 />
                 Sem visita
               </label>
             )}
 
             <button
-              onClick={() => setExtras({})}
+              onClick={() => {
+                setExtras({});
+                setVisiveis(PASSO_DA_PAGINA);
+              }}
               className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent"
             >
               Limpar filtros

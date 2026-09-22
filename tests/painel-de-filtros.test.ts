@@ -34,7 +34,14 @@ describe("o painel de filtros", () => {
   });
 
   it("o controle de visitas some quando o GA4 está mudo", () => {
-    expect(tabela).toMatch(/visitasDisponiveis &&/);
+    // Ancorado ao rótulo, e não solto: `visitasDisponiveis &&` sem âncora casa
+    // com QUALQUER ocorrência da substring no arquivo — inclusive o
+    // `!visitasDisponiveis &&` de "Ainda fora desta tela", de outra seção — e
+    // não vigia nada: quem apagar o guard do painel novo passaria com o mesmo
+    // verde. A distância cobre o `<label>` inteiro do "Sem visita" (o
+    // `onChange` no meio tem duas chamadas desde a Rodada 1); se o guard e o
+    // rótulo se afastarem além disto, é sinal de que o controle saiu do lugar.
+    expect(tabela).toMatch(/visitasDisponiveis &&[\s\S]{0,500}Sem visita/);
   });
 
   it("um botão limpa o recorte inteiro", () => {
