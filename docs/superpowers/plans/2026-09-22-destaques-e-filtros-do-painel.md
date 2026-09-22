@@ -2258,8 +2258,13 @@ alheia.** Medido em 2026-09-22: `npm run lint` acusa **118 problemas (2 erros,
 dos avisos vêm de `.agents/skills/` — pacotes de terceiros hospedados no repo —
 e o resto são avisos antigos de variável não usada em `tests/`.
 
-**`src/` tem zero problemas.** A régua honesta é essa: **nenhum problema novo
-nos arquivos que este ramo toca**. Rode `npm run lint` e confira que nada sob
-`src/` aparece na saída.
+**`src/` não está em zero — está em 2**, e os dois são anteriores a este ramo:
+`src/app/api/settings/route.ts` importa `unstable_cache` sem usar e declara
+`hasPromptInjection` sem nunca chamá-la. Conferido contra a base do ramo
+(`eef31d3`): os dois já estavam lá.
+
+A régua honesta é: **nenhum problema NOVO nos arquivos que este ramo toca**.
+Rode `npx eslint` nos arquivos do diff e compare com o que a base já acusava —
+não com zero.
 
 Só então abrir o PR. Regra da casa: **PR e merge só com CI concluído em verde.**
