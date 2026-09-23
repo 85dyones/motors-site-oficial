@@ -3,6 +3,7 @@ import { mapVeiculoDbToVeiculo } from "../../../lib/supabase";
 import { getCachedSettings } from "../../../lib/settings";
 import { paginasMaisVistas } from "../../../lib/analytics";
 import { normalizarQuickTags, normalizarStockOverrides } from "../../../lib/destaquesRapidos";
+import { idsDaTvComHeranca } from "../../../lib/destaquesDoPainel";
 import { bloqueiosDePublicacao } from "../../../lib/coerenciaDoCadastro";
 import { normalizarEstadoCadastro } from "../../../lib/estadoDoCadastro";
 import {
@@ -130,6 +131,14 @@ export default async function AdminEstoquePage() {
   const naSemana = Array.isArray(settings.destaquesDaSemana)
     ? (settings.destaquesDaSemana as string[]).map(String)
     : [];
+  // A TV NÃO segue o molde das duas linhas acima: ela passa pela casa única da
+  // herança. Enquanto a linha `vitrine_tv` não existir no banco, quem está no
+  // ar pela TV são os ids de `carousel_vehicles` — e lendo o campo cru esta
+  // tabela mentia duas vezes: nenhuma linha mostrava "· na TV" e o filtro
+  // `destaque: "tv"` voltava vazio com 4 carros no ar. Pior, "Tirar da TV" sem
+  // nada marcado publicava `[]` e apagava a curadoria do showroom em silêncio.
+  // Ver `idsDaTvComHeranca`.
+  const naTv = idsDaTvComHeranca(settings);
 
   // O carimbo mais recente da tabela, medido uma vez. É contra ele — e nunca
   // contra o relógio de parede — que o atraso de cada linha é lido: sync parado
@@ -188,6 +197,7 @@ export default async function AdminEstoquePage() {
       placa: bruto.placa ?? "",
       destacado: destacados.includes(id),
       naSemana: naSemana.includes(id),
+      naTv: naTv.includes(id),
       visitas: visitasPorVeiculo ? (visitasPorVeiculo[id] ?? 0) : null,
       leads: leadsPorVeiculo[id] ?? 0,
       // O sintoma do bug corrigido em 2026-08-07: override gravado só no JSON
@@ -211,6 +221,7 @@ export default async function AdminEstoquePage() {
       quickTagsDisponiveis={quickTags.map((t) => ({ id: t.id, nome: t.name }))}
       destacadosIniciais={destacados}
       naSemanaIniciais={naSemana}
+      naTvIniciais={naTv}
       overridesIniciais={overrides}
       visitasDisponiveis={visitasPorVeiculo !== null}
       podeCriar={podeCriar}

@@ -111,6 +111,14 @@ export interface LinhaDeEstoque {
    * operador saber onde o carro aparece.
    */
   naSemana: boolean;
+  /**
+   * Está na lista da TV do showroom.
+   *
+   * Irmão de `destacado` (banner) e `naSemana` (grade). Os três existem
+   * separados porque desde 2026-09-22 são três listas com três destinos — e
+   * era a fusão de duas delas que fazia o painel e o site discordarem.
+   */
+  naTv: boolean;
   /** `null` = GA4 sem credencial de leitura. Nunca 0 por engano. */
   visitas: number | null;
   leads: number;
@@ -394,20 +402,103 @@ export function normalizarBusca(texto: string): string {
     .trim();
 }
 
+export interface OpcoesDeFiltro {
+  estado?: FiltroDeEstado;
+  busca?: string;
+  /** Em que lista de curadoria o carro está — ou em nenhuma. */
+  destaque?: "banner" | "grade" | "tv" | "qualquer" | "nenhum";
+  precoMin?: number;
+  precoMax?: number;
+  /** Marca exata, sem diferenciar caixa nem acento. */
+  marca?: string;
+  /** Carroceria exata, mesma regra. */
+  tipo?: string;
+  /** Parado há N dias OU MAIS. */
+  paradoHaDias?: number;
+  semLead?: boolean;
+  semVisita?: boolean;
+}
+
+/**
+ * O recorte da tabela de estoque.
+ *
+ * ---------------------------------------------------------------------------
+ * Toda opção é opcional, e ausente quer dizer "não filtra"
+ * ---------------------------------------------------------------------------
+ * A tela monta o objeto a partir de controles que começam vazios. Se qualquer
+ * opção ausente passasse a significar um valor (zero, "todos", `false`), abrir
+ * a tela já esconderia linhas — e o operador não teria como saber por quê. É a
+ * mesma classe de defeito que o corte silencioso dos destaques: some gente sem
+ * dizer. O teste "sem nenhuma opção, devolve tudo" é a trava disso.
+ *
+ * `visitas: null` NÃO é zero. Sem credencial de leitura do GA4 a coluna inteira
+ * é nula, e tratar nulo como zero faria `semVisita` esconder o estoque todo de
+ * uma vez. Quem não tem dado não responde à pergunta — fica fora do recorte.
+ */
 export function filtrarLinhas(
   linhas: LinhaDeEstoque[],
-  opcoes: { estado?: FiltroDeEstado; busca?: string } = {},
+  opcoes: OpcoesDeFiltro = {},
 ): LinhaDeEstoque[] {
   const estado = opcoes.estado ?? "todos";
   const busca = normalizarBusca(opcoes.busca ?? "");
+  const marca = opcoes.marca ? normalizarBusca(opcoes.marca) : "";
+  const tipo = opcoes.tipo ? normalizarBusca(opcoes.tipo) : "";
 
   return linhas.filter((l) => {
     if (estado !== "todos" && l.estado !== estado) return false;
-    if (!busca) return true;
-    const alvo = normalizarBusca(
-      [l.marca, l.modelo, l.versao, l.id, l.placa].filter(Boolean).join(" "),
-    );
-    return alvo.includes(busca);
+
+    // ⚠️ Este bloco NÃO pode voltar a ser `if (!busca) return true;`.
+    //
+    // Era assim enquanto a busca era o último critério; em 2026-09-22 ela
+    // passou a ser o PRIMEIRO de uma fila (destaque, faixa de preço, marca,
+    // carroceria, tempo parado, sem lead, sem visita). Com o `return true`, a
+    // linha sem termo de busca — que é o caso da esmagadora maioria dos usos —
+    // sairia aprovada ANTES de qualquer um dos outros passar perto dela, e o
+    // segundo nível inteiro do painel viraria decoração: todo controle mexeria
+    // no estado e nenhum filtraria nada. Em silêncio, com a tela dizendo "(3)"
+    // filtros ativos e devolvendo o estoque completo.
+    //
+    // Por isso a forma é "cair adiante": o critério que não se aplica não
+    // responde, deixa a linha seguir para o próximo. Quem vier "simplificar"
+    // isto está desligando os filtros, não limpando código.
+    if (busca) {
+      const alvo = normalizarBusca(
+        [l.marca, l.modelo, l.versao, l.id, l.placa].filter(Boolean).join(" "),
+      );
+      if (!alvo.includes(busca)) return false;
+    }
+
+    if (opcoes.destaque) {
+      const emAlguma = l.destacado || l.naSemana || l.naTv;
+      if (opcoes.destaque === "banner" && !l.destacado) return false;
+      if (opcoes.destaque === "grade" && !l.naSemana) return false;
+      if (opcoes.destaque === "tv" && !l.naTv) return false;
+      if (opcoes.destaque === "qualquer" && !emAlguma) return false;
+      if (opcoes.destaque === "nenhum" && emAlguma) return false;
+    }
+
+    // Carro sem preço não entra em faixa de preço: ele não responde à
+    // pergunta, e devolvê-lo encheria o recorte de linha que o operador
+    // pediu para excluir.
+    if (opcoes.precoMin !== undefined) {
+      if (l.preco === null || l.preco < opcoes.precoMin) return false;
+    }
+    if (opcoes.precoMax !== undefined) {
+      if (l.preco === null || l.preco > opcoes.precoMax) return false;
+    }
+
+    if (marca && normalizarBusca(l.marca ?? "") !== marca) return false;
+    if (tipo && normalizarBusca(l.tipo ?? "") !== tipo) return false;
+
+    if (opcoes.paradoHaDias !== undefined) {
+      if (l.diasEmEstoque === null || l.diasEmEstoque < opcoes.paradoHaDias) return false;
+    }
+
+    if (opcoes.semLead && l.leads !== 0) return false;
+    // `!== 0` e não `> 0`: null cai fora, que é o comportamento pedido.
+    if (opcoes.semVisita && l.visitas !== 0) return false;
+
+    return true;
   });
 }
 

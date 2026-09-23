@@ -15,9 +15,10 @@ import {
   type EstadoDoVeiculo,
   type FiltroDeEstado,
   type LinhaDeEstoque,
+  type OpcoesDeFiltro,
 } from "../../lib/estoqueTabela";
 import { CAMPO_DO_ESTADO, type EstadoCadastro } from "../../lib/estadoDoCadastro";
-import { VAGAS_NA_GRADE } from "../../lib/destaquesDaSemana";
+import { VAGAS } from "../../lib/destaquesDoPainel";
 import type { StockOverrides } from "../../types";
 
 /**
@@ -57,6 +58,7 @@ interface TabelaDeEstoqueProps {
   quickTagsDisponiveis: Array<{ id: string; nome: string }>;
   destacadosIniciais: string[];
   naSemanaIniciais: string[];
+  naTvIniciais: string[];
   overridesIniciais: StockOverrides;
   /** `false` = GA4 sem credencial; a coluna de visitas mostra "—". */
   visitasDisponiveis: boolean;
@@ -146,6 +148,7 @@ export default function TabelaDeEstoque({
   quickTagsDisponiveis,
   destacadosIniciais,
   naSemanaIniciais,
+  naTvIniciais,
   overridesIniciais,
   visitasDisponiveis,
   podeCriar,
@@ -156,9 +159,15 @@ export default function TabelaDeEstoque({
   const [overrides, setOverrides] = useState<StockOverrides>(overridesIniciais);
   const [destacados, setDestacados] = useState<string[]>(destacadosIniciais);
   const [naSemana, setNaSemana] = useState<string[]>(naSemanaIniciais);
+  const [naTv, setNaTv] = useState<string[]>(naTvIniciais);
 
   const [filtro, setFiltro] = useState<FiltroDeEstado>("todos");
   const [busca, setBusca] = useState("");
+  /** O segundo nível do recorte. Começa TODO vazio — ver a nota de
+   *  `filtrarLinhas`: opção ausente é "não filtra", e um padrão que filtrasse
+   *  esconderia linha na abertura da tela sem dizer por quê. */
+  const [extras, setExtras] = useState<Omit<OpcoesDeFiltro, "estado" | "busca">>({});
+  const [painelAberto, setPainelAberto] = useState(false);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [visiveis, setVisiveis] = useState(PASSO_DA_PAGINA);
 
@@ -168,8 +177,22 @@ export default function TabelaDeEstoque({
 
   const contagem = useMemo(() => contarPorEstado(linhas), [linhas]);
   const fila = useMemo(() => resumoDaFilaDeRascunhos(linhas), [linhas]);
-  const filtradas = useMemo(() => filtrarLinhas(linhas, { estado: filtro, busca }), [linhas, filtro, busca]);
+  const filtradas = useMemo(
+    () => filtrarLinhas(linhas, { estado: filtro, busca, ...extras }),
+    [linhas, filtro, busca, extras],
+  );
   const naTela = filtradas.slice(0, visiveis);
+
+  // Do estoque carregado, e não de uma constante: lista fixa ofereceria marca
+  // que a loja não tem e esconderia a que ela tem.
+  const marcas = useMemo(
+    () => [...new Set(linhas.map((l) => l.marca).filter(Boolean))].sort(),
+    [linhas],
+  );
+  const tipos = useMemo(
+    () => [...new Set(linhas.map((l) => l.tipo).filter(Boolean))].sort(),
+    [linhas],
+  );
 
   const selecionadosVisiveis = selecionados.filter((id) => filtradas.some((l) => l.id === id));
 
@@ -338,6 +361,27 @@ export default function TabelaDeEstoque({
     }
   };
 
+  /** A curadoria da TV do showroom. Gêmea das outras duas, terceiro destino. */
+  const alternarDestaqueNaTv = async (marcar: boolean) => {
+    if (selecionadosVisiveis.length === 0) return;
+    const proximos = marcar
+      ? [...new Set([...naTv, ...selecionadosVisiveis])]
+      : naTv.filter((id) => !selecionadosVisiveis.includes(id));
+
+    const anterior = naTv;
+    setNaTv(proximos);
+    setLinhas((prev) => prev.map((l) => ({ ...l, naTv: proximos.includes(l.id) })));
+
+    const ok = await salvarSettings(
+      { vitrineTv: proximos },
+      marcar ? "Postos na TV do showroom" : "Tirados da TV do showroom",
+    );
+    if (!ok) {
+      setNaTv(anterior);
+      setLinhas((prev) => prev.map((l) => ({ ...l, naTv: anterior.includes(l.id) })));
+    }
+  };
+
   const alternarQuickTag = async (tagId: string, adicionar: boolean) => {
     if (!tagId || selecionadosVisiveis.length === 0) return;
     const proximos: StockOverrides = { ...overrides };
@@ -405,6 +449,12 @@ export default function TabelaDeEstoque({
   };
 
   const semSelecao = selecionadosVisiveis.length === 0 || salvando;
+
+  /** Conta VALORES definidos, não chaves: `setExtras` grava `undefined` em vez
+   *  de apagar a chave (`v || undefined`, `checked || undefined`), então
+   *  `Object.keys(extras).length` continuava contando um filtro já limpo.
+   *  Usado nos dois lugares em que o painel mostra esse número. */
+  const filtrosAtivos = Object.values(extras).filter((v) => v !== undefined).length;
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -543,6 +593,156 @@ export default function TabelaDeEstoque({
         </div>
       </div>
 
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={() => setPainelAberto((a) => !a)}
+          className="mt-foco w-fit cursor-pointer text-[11px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:text-mt-ink"
+        >
+          {painelAberto ? "− Menos filtros" : "+ Mais filtros"}
+          {filtrosAtivos > 0 && ` (${filtrosAtivos})`}
+        </button>
+
+        {painelAberto && (
+          <div className="flex flex-wrap items-end gap-4 border border-mt-regua-fina p-4">
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Nos destaques
+              <select
+                value={extras.destaque ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setExtras({ ...extras, destaque: (v || undefined) as OpcoesDeFiltro["destaque"] });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+                className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              >
+                <option value="">Tanto faz</option>
+                <option value="qualquer">Em alguma lista</option>
+                <option value="banner">No banner da home</option>
+                <option value="grade">Na grade da semana</option>
+                <option value="tv">Na TV do showroom</option>
+                <option value="nenhum">Em nenhuma</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Preço de
+              <input
+                type="number"
+                value={extras.precoMin ?? ""}
+                onChange={(e) => {
+                  setExtras({ ...extras, precoMin: e.target.value ? Number(e.target.value) : undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+                className="mt-foco w-28 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              até
+              <input
+                type="number"
+                value={extras.precoMax ?? ""}
+                onChange={(e) => {
+                  setExtras({ ...extras, precoMax: e.target.value ? Number(e.target.value) : undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+                className="mt-foco w-28 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Marca
+              <select
+                value={extras.marca ?? ""}
+                onChange={(e) => {
+                  setExtras({ ...extras, marca: e.target.value || undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+                className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              >
+                <option value="">Todas</option>
+                {marcas.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Carroceria
+              <select
+                value={extras.tipo ?? ""}
+                onChange={(e) => {
+                  setExtras({ ...extras, tipo: e.target.value || undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+                className="mt-foco border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              >
+                <option value="">Todas</option>
+                {tipos.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700">
+              Parado há (dias)
+              <input
+                type="number"
+                value={extras.paradoHaDias ?? ""}
+                onChange={(e) => {
+                  setExtras({ ...extras, paradoHaDias: e.target.value ? Number(e.target.value) : undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+                className="mt-foco w-24 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 text-[11px] text-mt-neutral-800">
+              <input
+                type="checkbox"
+                checked={extras.semLead ?? false}
+                onChange={(e) => {
+                  setExtras({ ...extras, semLead: e.target.checked || undefined });
+                  setVisiveis(PASSO_DA_PAGINA);
+                }}
+              />
+              Sem lead
+            </label>
+
+            {/* Sem credencial de leitura do GA4 a coluna inteira é nula: o
+                controle não é desenhado, em vez de ser desenhado e não filtrar
+                nada. */}
+            {visitasDisponiveis && (
+              <label className="flex items-center gap-2 text-[11px] text-mt-neutral-800">
+                <input
+                  type="checkbox"
+                  checked={extras.semVisita ?? false}
+                  onChange={(e) => {
+                    setExtras({ ...extras, semVisita: e.target.checked || undefined });
+                    setVisiveis(PASSO_DA_PAGINA);
+                  }}
+                />
+                Sem visita
+              </label>
+            )}
+
+            <button
+              onClick={() => {
+                setExtras({});
+                setVisiveis(PASSO_DA_PAGINA);
+              }}
+              className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent"
+            >
+              Limpar filtros
+            </button>
+
+            <span className="ml-auto self-center text-[11px] text-mt-neutral-800">
+              {filtradas.length} de {linhas.length} veículos
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* Barra de ação em lote */}
       {selecionadosVisiveis.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3">
@@ -634,14 +834,14 @@ export default function TabelaDeEstoque({
             onClick={() => alternarDestaqueNaHome(true)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Destacar na home
+            Destacar na home (banner · {VAGAS.banner} vagas)
           </button>
           <button
             disabled={semSelecao}
             onClick={() => alternarDestaqueNaHome(false)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Tirar da home
+            Tirar do banner
           </button>
 
           <button
@@ -649,21 +849,50 @@ export default function TabelaDeEstoque({
             onClick={() => alternarDestaqueDaSemana(true)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Pôr nos destaques da semana
+            Pôr nos destaques da semana (grade · {VAGAS.grade} vagas)
           </button>
           <button
             disabled={semSelecao}
             onClick={() => alternarDestaqueDaSemana(false)}
             className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Tirar dos destaques da semana
+            Tirar da grade
           </button>
-          {naSemana.length > VAGAS_NA_GRADE && (
-            /* Campo que some sem avisar é defeito conhecido deste painel: o
-               7º carro marcado não aparece na home, e sem esta linha ninguém
-               descobre por quê. */
+
+          <button
+            disabled={semSelecao}
+            onClick={() => alternarDestaqueNaTv(true)}
+            className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Pôr na TV do showroom
+          </button>
+          <button
+            disabled={semSelecao}
+            onClick={() => alternarDestaqueNaTv(false)}
+            className="mt-foco cursor-pointer border border-mt-regua px-3 py-2 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Tirar da TV
+          </button>
+
+          {/* O aviso de lotação existia SÓ para a grade — e a grade era a lista
+              que ninguém usava. O banner, que é o que o dono marca, não tinha
+              aviso nenhum: ele marcava o 5º carro, via o verde de "salvo" e a
+              home não mudava. Agora os dois avisam, e o aviso leva para a tela
+              onde se resolve, em vez de só informar. */}
+          {destacados.length > VAGAS.banner && (
             <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
-              {naSemana.length} marcados · a grade mostra até {VAGAS_NA_GRADE}
+              {destacados.length} no banner · a home mostra {VAGAS.banner} ·{" "}
+              <Link href="/admin/site/destaques" className="underline">
+                ordenar
+              </Link>
+            </span>
+          )}
+          {naSemana.length > VAGAS.grade && (
+            <span className="self-center text-[10px] font-semibold uppercase tracking-[.1em] text-mt-accent">
+              {naSemana.length} na grade · a home mostra {VAGAS.grade} ·{" "}
+              <Link href="/admin/site/destaques" className="underline">
+                ordenar
+              </Link>
             </span>
           )}
 
@@ -834,6 +1063,7 @@ export default function TabelaDeEstoque({
                           )}
                           {l.destacado && <span className="text-mt-accent">· na home</span>}
                           {l.naSemana && <span className="text-mt-accent">· na semana</span>}
+                          {l.naTv && <span className="text-mt-accent">· na TV</span>}
                           {l.quickTags.length > 0 && <span>· {l.quickTags.length} destaque(s)</span>}
                         </div>
                       </div>

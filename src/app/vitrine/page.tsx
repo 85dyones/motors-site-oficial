@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
-import VitrineTV, { POR_PAGINA } from "../../components/modernist/VitrineTV";
+import VitrineTV from "../../components/modernist/VitrineTV";
 import { getEstoque } from "../../lib/supabase";
 import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
+import { idsDaTvComHeranca } from "../../lib/destaquesDoPainel";
+// `POR_PAGINA` vinha do componente até 2026-09-22. Esta página é de SERVIDOR e
+// o componente é `"use client"`: o valor atravessava a fronteira do App Router
+// por sorte de bundle, não por contrato. O componente continua vindo de lá —
+// ele é o que se desenha —, mas o número vem do módulo neutro.
+import { POR_PAGINA } from "../../lib/ritmoDaVitrine";
 import DEFAULT_COMPANY_SETTINGS from "../../lib/companySettings.json";
 
 /**
@@ -28,12 +34,19 @@ export default async function VitrinePage() {
 
   const disponiveis = disponiveisDe(estoque);
 
-  // A vitrine mostra a mesma curadoria do carrossel da home quando ela existe.
-  const curados = Array.isArray(settings.carouselVehicleIds)
-    ? (settings.carouselVehicleIds as string[])
-        .map((id) => disponiveis.find((v) => v.id === id))
-        .filter((v): v is NonNullable<typeof v> => Boolean(v))
-    : [];
+  // A TV tem lista PRÓPRIA desde 2026-09-22, com herança de `carousel_vehicles`
+  // enquanto a linha `vitrine_tv` não existir no banco.
+  //
+  // A herança inteira — a régua, o prazo e o porquê — vive em
+  // `idsDaTvComHeranca`. Esta linha NÃO a reescreve de propósito: ela já esteve
+  // escrita aqui e só aqui, e o painel, que lia `vitrineTv` cru, mostrava a TV
+  // vazia e publicava `[]` por cima dos 4 curados que estavam no ar. Herança
+  // duplicada é herança que diverge; ver o defeito narrado lá.
+  const idsDaTv = idsDaTvComHeranca(settings);
+
+  const curados = idsDaTv
+    .map((id) => disponiveis.find((v) => v.id === id))
+    .filter((v): v is NonNullable<typeof v> => Boolean(v));
 
   // A curadoria entra inteira: o rodapé da TV pagina de quatro em quatro, então
   // marcar sete veículos no painel expõe os sete. Antes o corte era em quatro

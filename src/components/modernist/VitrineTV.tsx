@@ -5,6 +5,12 @@ import type { Veiculo } from "../../types";
 import { formatarKm, formatarPreco } from "./primitivos";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import { paginaDaFaixa } from "../../lib/faixaVitrine";
+// Os dois números do ritmo são IMPORTADOS, e não declarados aqui: este arquivo
+// é `"use client"`, e quem mais os lê é servidor — `/vitrine/page.tsx` e
+// `destaquesDoPainel.ts`. Constante exportada de módulo cliente não atravessa a
+// fronteira do App Router: chega a referência do bundler, não o valor. O porquê
+// inteiro, e a data, estão em `ritmoDaVitrine.ts`. 2026-09-22.
+import { INTERVALO_MS, POR_PAGINA } from "../../lib/ritmoDaVitrine";
 
 /**
  * Vitrine da TV do showroom — tela 08 A do design doc.
@@ -15,21 +21,6 @@ import { paginaDaFaixa } from "../../lib/faixaVitrine";
  * tipografia minúscula numa 4K. Em `vw` a composição é a mesma em qualquer
  * painel 16:9.
  */
-
-const INTERVALO_MS = 8000;
-
-/**
- * Células da faixa "A SEGUIR".
- *
- * Quatro é a composição do design doc: numa TV de 1920px cada célula fica com
- * ~430px, respiro de 34px e o modelo em 22px. É o rodapé, não o rodízio, que
- * tem esse limite — antes a faixa dava uma célula por carro exposto, então
- * expor sete apertava cada célula a ~245px e truncava o nome do modelo. Agora
- * a faixa pagina: mostra quatro e vira a página quando o rodízio passa da
- * quarta. O rodízio em si nunca teve teto.
- */
-export const POR_PAGINA = 4;
-
 export default function VitrineTV({
   veiculos,
   totalEstoque,
@@ -226,7 +217,7 @@ export default function VitrineTV({
           return (
             <div
               key={v.id}
-              className={`flex flex-1 flex-col justify-center gap-[1.2vh] border-r border-mt-inverso-regua-fina px-[1.77vw] ${
+              className={`flex flex-1 flex-col justify-center gap-[1.2vh] border-r border-mt-inverso-regua-fina px-[1.2vw] ${
                 ativo ? "bg-[#201e1d]" : ""
               }`}
             >
@@ -239,7 +230,7 @@ export default function VitrineTV({
                 />
               </div>
               <div
-                className={`truncate text-[1.15vw] font-extrabold tracking-[-.02em] ${
+                className={`truncate text-[1vw] font-extrabold tracking-[-.02em] ${
                   ativo ? "text-mt-inverso" : "text-mt-neutral-500"
                 }`}
               >
