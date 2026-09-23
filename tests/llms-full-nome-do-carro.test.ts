@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { montarInventario } from "../src/app/api/llms-full.txt/route";
+import { montarInventario } from "../src/lib/inventarioDoLlmsFull";
 import { getVeiculoPdpUrl, mapVeiculoDbToVeiculo } from "../src/lib/supabase";
 import { schemaDoVeiculo } from "../src/lib/schemaVeiculo";
 import { lerCodigo } from "./fonte";

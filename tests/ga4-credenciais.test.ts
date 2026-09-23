@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ler, lerCodigo } from "./fonte";
-import { mascararGa4 } from "../src/app/api/settings/route";
+import { mascararGa4 } from "../src/lib/mascaraDoGa4";
 
 /**
  * Credenciais do GA4 — painel primeiro, env de reserva, chave que não volta.

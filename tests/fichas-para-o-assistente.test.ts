@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ler, lerCodigo } from "./fonte";
 import type { Veiculo } from "../src/types";
-import { montarFichas } from "../src/app/api/ney/route";
+import { montarFichas } from "../src/lib/fichasParaOAssistente";
 
 /**
  * A fonte que o assistente do WhatsApp lê.
@@ -29,7 +29,10 @@ import { montarFichas } from "../src/app/api/ney/route";
  */
 
 const ROTA = "src/app/api/ney/route.ts";
-const fonte = lerCodigo(ROTA);
+// A montagem mora em `src/lib`: rota de App Router só exporta handler. As
+// duas fontes juntas, para que toda ausência abaixo valha para as duas.
+const MONTAGEM = "src/lib/fichasParaOAssistente.ts";
+const fonte = lerCodigo(ROTA) + "\n" + lerCodigo(MONTAGEM);
 
 describe("a ficha do assistente não carrega preço", () => {
   it("nenhum campo de preço é lido do veículo", () => {
@@ -162,7 +165,7 @@ describe("as duas rotas para assistente têm públicos opostos", () => {
    * Este teste existe para a próxima pessoa não "unificar" as duas.
    */
   it("o `llms-full.txt` continua publicando preço — ele serve outro público", () => {
-    expect(lerCodigo("src/app/api/llms-full.txt/route.ts")).toMatch(/Preço/);
+    expect(lerCodigo("src/lib/inventarioDoLlmsFull.ts")).toMatch(/Preço/);
   });
 
   it("e a rota do assistente diz, por escrito, por que ela é separada", () => {

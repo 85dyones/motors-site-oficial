@@ -27,7 +27,7 @@ import {
   camposGravaveis,
   extrairCamposNossos,
 } from "../src/lib/estoqueEscrita";
-import { recusaDoLote } from "../src/app/api/estoque/lote/route";
+import { recusaDoLote } from "../src/lib/estoqueLote";
 import { decidirCadastro } from "../src/lib/cadastroDeVeiculo";
 import { ACAO_DO_CAMPO_DE_VEICULO, campoNegadoAoPerfil, podeFazer } from "../src/lib/permissoes";
 import {

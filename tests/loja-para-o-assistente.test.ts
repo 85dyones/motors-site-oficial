@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ler, lerCodigo } from "./fonte";
 import type { CompanySettings } from "../src/types";
-import { montarLoja } from "../src/app/api/ney/loja/route";
+import { montarLoja } from "../src/lib/lojaParaOAssistente";
 import {
   GARANTIA_KM_TEXTO,
   GARANTIA_MESES,
@@ -29,7 +29,10 @@ import {
  */
 
 const ROTA = "src/app/api/ney/loja/route.ts";
-const fonte = lerCodigo(ROTA);
+// A montagem mora em `src/lib`: rota de App Router só exporta handler. As
+// duas fontes juntas, para que toda ausência abaixo valha para as duas.
+const MONTAGEM = "src/lib/lojaParaOAssistente.ts";
+const fonte = lerCodigo(ROTA) + "\n" + lerCodigo(MONTAGEM);
 
 const EMPRESA = {
   name: "Motors Store",
