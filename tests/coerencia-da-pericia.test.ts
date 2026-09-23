@@ -203,7 +203,7 @@ describe("a promessa do laudo não volta como publicação automática", () => {
    * Só `src/app` e `src/lib` — onde mora o texto que o visitante, o Google e
    * o Meta leem. Duas isenções, uma por arquivo, com o motivo ao lado:
    *
-   *   - `src/app/api/ney/route.ts`: a frase lá é condicional e verdadeira —
+   *   - `src/lib/fichasParaOAssistente.ts`: a frase lá é condicional e verdadeira —
    *     `estadoDaPericia` só devolve "laudo na ficha" com
    *     `pericia === "PERÍCIA APROVADA"`, e `tests/fichas-para-o-assistente.test.ts`
    *     prende essa condição por conta própria.
@@ -212,7 +212,7 @@ describe("a promessa do laudo não volta como publicação automática", () => {
    *     volta, e essa trava já ignora comentário.
    */
   const FORA_DE_ESCOPO = new Set([
-    "src/app/api/ney/route.ts",
+    "src/lib/fichasParaOAssistente.ts",
     "src/lib/textoDoLaudo.ts",
   ]);
 
