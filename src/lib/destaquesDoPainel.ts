@@ -1,4 +1,4 @@
-import { INTERVALO_MS } from "../components/modernist/VitrineTV";
+import { INTERVALO_MS } from "./ritmoDaVitrine";
 import { VAGAS_NA_GRADE } from "./destaquesDaSemana";
 import type { EstadoDoVeiculo, LinhaDeEstoque } from "./estoqueTabela";
 
@@ -53,9 +53,14 @@ export const VAGAS = {
  * dois. Importar o milissegundo faz a divergência virar impossível em vez de
  * improvável.
  *
- * Módulo de servidor lendo constante de componente não é novidade aqui: o
- * `POR_PAGINA` do MESMO arquivo já é lido assim por `/vitrine/page.tsx`.
- * 2026-09-22.
+ * A origem do import é `ritmoDaVitrine.ts`, e NÃO o componente da TV, que é
+ * `"use client"`. A primeira versão desta linha lia do componente e se defendia
+ * dizendo que `/vitrine/page.tsx` já fazia o mesmo com `POR_PAGINA` — mas o
+ * precedente era o defeito, não a licença. Este módulo é importado por
+ * `src/app/page.tsx`, a home pública, que não desenha a TV: a constante
+ * atravessaria a fronteira do App Router como referência do bundler, e o
+ * `NaN` sairia daqui sem erro de compilação e sem aviso em runtime. Os dois
+ * consumidores de servidor foram mudados junto. 2026-09-22.
  */
 const SEGUNDOS_POR_CARRO_NA_TV = INTERVALO_MS / 1000;
 

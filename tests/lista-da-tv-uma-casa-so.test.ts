@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { idsDaTvComHeranca, voltaCompletaEmSegundos } from "../src/lib/destaquesDoPainel";
-import { INTERVALO_MS } from "../src/components/modernist/VitrineTV";
+import { INTERVALO_MS } from "../src/lib/ritmoDaVitrine";
 import { lerCodigo } from "./fonte";
 
 /**
@@ -106,14 +106,27 @@ describe("a volta completa deriva do intervalo da TV", () => {
 
   it("o módulo do painel importa a constante em vez de repetir o número", () => {
     const lib = lerCodigo("src/lib/destaquesDoPainel.ts");
-    expect(lib).toMatch(/import \{ INTERVALO_MS \} from/);
+    // A ORIGEM entrou na régua em 22/09, e não por capricho: a primeira versão
+    // importava do componente da TV, que é `"use client"`. O Vitest resolve
+    // módulo ES puro e devolvia 8000 aqui, verde; em componente de servidor —
+    // e `src/app/page.tsx` importa este módulo — o que chega é a referência do
+    // bundler, e a volta viraria `NaN`. Ver `fronteira-servidor-cliente`.
+    expect(lib).toMatch(/import \{ INTERVALO_MS \} from "\.\/ritmoDaVitrine"/);
     // Um literal aqui seria o espelho de volta.
     expect(lib).not.toMatch(/SEGUNDOS_POR_CARRO_NA_TV = \d/);
   });
 
-  it("a constante sai exportada do componente", () => {
-    expect(lerCodigo("src/components/modernist/VitrineTV.tsx")).toMatch(
-      /export const INTERVALO_MS/,
+  it("a constante mora no módulo neutro", () => {
+    expect(lerCodigo("src/lib/ritmoDaVitrine.ts")).toMatch(/export const INTERVALO_MS/);
+  });
+
+  it("o componente da TV não declara nenhum dos dois de novo", () => {
+    // Redeclarar aqui não seria só duplicar: seria duplicar COM fronteira no
+    // meio. O componente passaria a valer para quem é cliente e o módulo
+    // neutro para quem é servidor, e as duas telas divergiriam sem que
+    // nenhuma delas estivesse "errada" o bastante para estourar.
+    expect(lerCodigo("src/components/modernist/VitrineTV.tsx")).not.toMatch(
+      /const (INTERVALO_MS|POR_PAGINA) =/,
     );
   });
 });

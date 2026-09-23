@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { POR_PAGINA } from "../src/components/modernist/VitrineTV";
+import { POR_PAGINA } from "../src/lib/ritmoDaVitrine";
 import { lerCodigo } from "./fonte";
 
 /**
@@ -20,8 +20,10 @@ import { lerCodigo } from "./fonte";
  * mudança que subiu a faixa para 6 apertou o respiro para 1,2vw — a conta não
  * foi refeita. A conclusão continua a mesma (6 cabe, 8 não); o que estava
  * errado era só o número, e número errado em comentário faz o próximo leitor
- * decidir com a régua errada. O mesmo par vivia no docblock de `POR_PAGINA`,
- * em `VitrineTV.tsx`, e foi corrigido junto.
+ * decidir com a régua errada. O mesmo par vivia no docblock de `POR_PAGINA`, e
+ * foi corrigido junto — o docblock mudou de casa no mesmo dia, para
+ * `src/lib/ritmoDaVitrine.ts`, porque `/vitrine/page.tsx` lia a constante de um
+ * arquivo `"use client"` sendo componente de servidor.
  */
 describe("a faixa da TV mostra seis carros por página", () => {
   it("POR_PAGINA é seis", () => {

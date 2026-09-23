@@ -5,6 +5,12 @@ import type { Veiculo } from "../../types";
 import { formatarKm, formatarPreco } from "./primitivos";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import { paginaDaFaixa } from "../../lib/faixaVitrine";
+// Os dois números do ritmo são IMPORTADOS, e não declarados aqui: este arquivo
+// é `"use client"`, e quem mais os lê é servidor — `/vitrine/page.tsx` e
+// `destaquesDoPainel.ts`. Constante exportada de módulo cliente não atravessa a
+// fronteira do App Router: chega a referência do bundler, não o valor. O porquê
+// inteiro, e a data, estão em `ritmoDaVitrine.ts`. 2026-09-22.
+import { INTERVALO_MS, POR_PAGINA } from "../../lib/ritmoDaVitrine";
 
 /**
  * Vitrine da TV do showroom — tela 08 A do design doc.
@@ -15,37 +21,6 @@ import { paginaDaFaixa } from "../../lib/faixaVitrine";
  * tipografia minúscula numa 4K. Em `vw` a composição é a mesma em qualquer
  * painel 16:9.
  */
-
-/**
- * Quanto cada carro fica na tela antes de dar lugar ao próximo.
- *
- * EXPORTADO desde 2026-09-22: `destaquesDoPainel.ts` DERIVA dele o "volta
- * completa: N segundos" que a tela de curadoria mostra ao operador. Antes o
- * oito estava redigitado lá com um comentário dizendo que "espelhava" este —
- * e espelho não segura nada: mudar o ritmo aqui deixaria a curadoria
- * anunciando uma volta que a TV não faz, sem um único teste vermelho.
- * `POR_PAGINA`, logo abaixo, já era lido de fora pelo mesmo motivo.
- */
-export const INTERVALO_MS = 8000;
-
-/**
- * Quantos carros a faixa "A SEGUIR" mostra de uma vez.
- *
- * Subiu de 4 para 6 em 2026-09-22, a pedido do dono. 6 é o teto desta faixa
- * sem redesenhá-la: da largura útil (~90vw, descontada a célula do rótulo),
- * 90/6 menos o respiro lateral de 2,4vw (`px-[1.2vw]` dos dois lados) deixa
- * ~12,6vw por célula, e o nome mais longo do estoque ("Volkswagen Saveiro")
- * ainda cabe. Com 8 sobrariam ~8,9vw e a maioria dos nomes viraria
- * reticências — pior que mostrar menos carro, numa tela vista de longe.
- *
- * Correção de 22/09: até aqui estava escrito ~11,4vw e ~7,7vw. Os dois números
- * foram calculados com o respiro ANTIGO (1,77vw por lado, 3,54vw no total), e
- * a MESMA mudança que subiu a faixa para 6 apertou o respiro para 1,2vw sem
- * ninguém refazer a conta. A conclusão não muda — 6 cabe, 8 não —, mas número
- * errado em comentário é o que faz o próximo leitor decidir com a régua errada.
- */
-export const POR_PAGINA = 6;
-
 export default function VitrineTV({
   veiculos,
   totalEstoque,

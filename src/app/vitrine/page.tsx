@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import VitrineTV, { POR_PAGINA } from "../../components/modernist/VitrineTV";
+import VitrineTV from "../../components/modernist/VitrineTV";
 import { getEstoque } from "../../lib/supabase";
 import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { idsDaTvComHeranca } from "../../lib/destaquesDoPainel";
+// `POR_PAGINA` vinha do componente até 2026-09-22. Esta página é de SERVIDOR e
+// o componente é `"use client"`: o valor atravessava a fronteira do App Router
+// por sorte de bundle, não por contrato. O componente continua vindo de lá —
+// ele é o que se desenha —, mas o número vem do módulo neutro.
+import { POR_PAGINA } from "../../lib/ritmoDaVitrine";
 import DEFAULT_COMPANY_SETTINGS from "../../lib/companySettings.json";
 
 /**
