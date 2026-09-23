@@ -5,8 +5,10 @@ import {
   ALTURA_CARD,
   LARGURA_CARD,
   PAGINAS_COMPARTILHAVEIS,
+  fotoPodeVirarPrevia,
   imagemServivelComoPrevia,
   montarCompartilhamento,
+  previaDaFotoDoVeiculo,
   urlDoCardGerado,
 } from "../src/lib/compartilhamento";
 import type { CompanySettings } from "../src/types";
@@ -220,6 +222,41 @@ describe("página do veículo", () => {
     expect(imagem.width).toBeUndefined();
     expect(imagem.height).toBeUndefined();
     expect(pdp).not.toContain("width: 800");
+  });
+
+  it("a foto do estoque passa por /og/foto e declara 1200×630", () => {
+    // 23/09: no WhatsApp de PC/tablet a ficha saía sem foto. A capa original
+    // (429 KB, 1920×1280) passa do teto de ~300 KB do servidor do WhatsApp Web.
+    const foto = "https://s3.carro57.com.br/FC/9037/8453942_2_O_cb58bbb97c.jpeg";
+    const previa = previaDaFotoDoVeiculo(foto);
+    expect(previa.semDimensao).toBe(false);
+    expect(new URLSearchParams(previa.url.split("?")[1]).get("u")).toBe(foto);
+
+    const imagem = imagemDe(
+      montarCompartilhamento({
+        empresa: EMPRESA_VAZIA,
+        pagina: "pdp",
+        tituloPadrao: "BMW X1 por R$ 114.900",
+        imagemPreferida: previa.url,
+        imagemPreferidaSemDimensao: previa.semDimensao,
+      })
+    );
+    expect(imagem.url.startsWith("/og/foto?")).toBe(true);
+    expect(imagem.width).toBe(LARGURA_CARD);
+    expect(imagem.height).toBe(ALTURA_CARD);
+    expect(pdp).toContain("imagemPreferida: previa.url");
+  });
+
+  it("/og/foto só busca foto do nosso recorte", () => {
+    expect(fotoPodeVirarPrevia("https://zwbqmzgnagfeqinqkolp.supabase.co/storage/v1/object/public/veiculos/1/a.jpg")).toBe(true);
+    // Outra revenda no mesmo S3, outro projeto Supabase, e fuga por `..`.
+    expect(fotoPodeVirarPrevia("https://s3.carro57.com.br/FC/1234/foto.jpeg")).toBe(false);
+    expect(fotoPodeVirarPrevia("https://outro.supabase.co/storage/v1/object/public/a.jpg")).toBe(false);
+    expect(fotoPodeVirarPrevia("https://s3.carro57.com.br/FC/9037/../1234/foto.jpeg")).toBe(false);
+    expect(fotoPodeVirarPrevia("https://s3.carro57.com.br.evil.com/FC/9037/a.jpg")).toBe(false);
+
+    const fora = previaDaFotoDoVeiculo("https://cdn.exemplo/foto.jpg");
+    expect(fora).toEqual({ url: "https://cdn.exemplo/foto.jpg", semDimensao: true });
   });
 
   it("veículo sem foto não fica sem card", () => {

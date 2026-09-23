@@ -6,7 +6,10 @@ import { decidirPublicacao, getDatasDeVenda } from "../../../../../lib/publicaca
 import PDPClientWrapper from "../../../../../components/PDPClientWrapper";
 import FaixaProcedencia from "../../../../../components/modernist/FaixaProcedencia";
 import { getCachedSettings } from "../../../../../lib/settings";
-import { montarCompartilhamento } from "../../../../../lib/compartilhamento";
+import {
+  montarCompartilhamento,
+  previaDaFotoDoVeiculo,
+} from "../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../lib/similares";
 import {
@@ -162,6 +165,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
   const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
+  const previa = previaDaFotoDoVeiculo(imageUrl);
   const [{ companySettings }, publicacao] = await Promise.all([
     getCachedSettings(),
     publicacaoDoVeiculo(veiculo),
@@ -196,8 +200,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   //
   // As dimensões saíram daqui. Estavam fixas em 800×600 para qualquer foto: o
   // scraper confia no que é declarado, e foto em 4:3 anunciada como se fosse
-  // outra coisa é o mesmo defeito que esticava o logo da home. Sem declaração,
-  // Facebook e WhatsApp medem o arquivo sozinhos.
+  // outra coisa é o mesmo defeito que esticava o logo da home. Desde 23/09 a
+  // foto passa por `/og/foto`, que a entrega em 1200×630 exatos — e aí a
+  // dimensão volta a ser declarada. Ver `previaDaFotoDoVeiculo`.
   return {
     title: textos.titulo,
     description: textos.descricao,
@@ -221,8 +226,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       tituloPadrao: textos.tituloDoCard,
       descricaoPadrao: textos.descricao,
       caminho: pdpUrl,
-      imagemPreferida: imageUrl,
-      imagemPreferidaSemDimensao: true,
+      imagemPreferida: previa.url,
+      imagemPreferidaSemDimensao: previa.semDimensao,
     }),
   };
 }
