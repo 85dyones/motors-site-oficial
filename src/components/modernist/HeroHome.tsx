@@ -15,7 +15,16 @@ import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
  * conteúdo (mesma regra que o painel documenta em "Áreas do site").
  */
 
-const INTERVALO_MS = 5200;
+/**
+ * Quanto tempo cada carro fica na tela.
+ *
+ * Subiu de 5,2s para 7s em 2026-09-23, a pedido do dono: "um temporizador que
+ * permita a leitura das informações, mas que também dê movimento ao site".
+ * 5,2s dava para ler modelo e preço, não para ler a versão junto. Com 7s a
+ * volta completa nos quatro curados leva 28 segundos — ainda dentro do tempo
+ * que alguém passa olhando a home.
+ */
+const INTERVALO_MS = 7000;
 
 export default function HeroHome({
   slides,
@@ -28,22 +37,43 @@ export default function HeroHome({
   totalMarcas: number;
 }) {
   const [atual, setAtual] = useState(0);
-  const [pausado, setPausado] = useState(false);
+  const [menosMovimento, setMenosMovimento] = useState(false);
 
+  /**
+   * O rodízio roda para TODO MUNDO. `menosMovimento` não entra nesta conta.
+   *
+   * Até 2026-09-23 esta dependência incluía `pausado`, e quem tinha
+   * `prefers-reduced-motion: reduce` não via o carrossel girar — nunca. Medido
+   * na máquina do dono (`MinAnimate = 0` no Windows, que faz o navegador pedir
+   * menos movimento) e no site no ar: quatro slides montados, índice parado no
+   * 0 depois de 13 segundos.
+   *
+   * O custo era de vitrine: quem está nessa condição via UM dos quatro carros
+   * curados, e os outros três dependiam de clique. Numa home de revenda, a
+   * seção mais nobre do site entregando um quarto do que foi escolhido.
+   */
   useEffect(() => {
-    if (slides.length < 2 || pausado) return;
+    if (slides.length < 2) return;
     const t = setInterval(
       () => setAtual((i) => (i + 1) % slides.length),
       INTERVALO_MS,
     );
     return () => clearInterval(t);
-  }, [slides.length, pausado]);
+  }, [slides.length]);
 
-  // Respeita quem pediu menos movimento: sem autoplay, só os indicadores.
+  /**
+   * Quem pediu menos movimento recebe a troca SECA — o conteúdo gira, a
+   * animação não.
+   *
+   * `prefers-reduced-motion` é um pedido sobre movimento: deslizar, esmaecer,
+   * paralaxe. Não é um pedido para o site parar de mostrar o que tem. Zerar a
+   * transição atende à letra e ao espírito — nada se move na tela, e mesmo
+   * assim os quatro carros aparecem.
+   */
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const aplicar = () => setPausado(mq.matches);
+    const aplicar = () => setMenosMovimento(mq.matches);
     aplicar();
     mq.addEventListener("change", aplicar);
     return () => mq.removeEventListener("change", aplicar);
@@ -121,7 +151,9 @@ export default function HeroHome({
           <div
             key={v.id}
             aria-hidden={i !== atual}
-            className="absolute inset-0 transition-opacity duration-[900ms] ease-out"
+            className={`absolute inset-0 transition-opacity ease-out ${
+              menosMovimento ? "duration-0" : "duration-[900ms]"
+            }`}
             style={{ opacity: i === atual ? 1 : 0 }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -251,7 +283,11 @@ export default function HeroHome({
               >
                 <span className="h-0.5 w-full bg-[rgba(243,242,242,.3)]">
                   <span
-                    className="block h-0.5 bg-mt-accent transition-[width] duration-[400ms] ease-linear"
+                    /* Mesma regra da foto: com menos movimento a barrinha
+                       salta para o lugar em vez de correr até ele. */
+                    className={`block h-0.5 bg-mt-accent transition-[width] ease-linear ${
+                      menosMovimento ? "duration-0" : "duration-[400ms]"
+                    }`}
                     style={{ width: i === atual ? "100%" : "0%" }}
                   />
                 </span>
