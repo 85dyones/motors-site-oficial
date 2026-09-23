@@ -247,6 +247,56 @@ export function urlDoCardGerado(titulo: string, rotulo?: string): string {
   return `/og?${params.toString()}`;
 }
 
+/**
+ * De onde `/og/foto` aceita buscar foto. O MESMO recorte dos `remotePatterns`
+ * do `next.config.ts`, e pelo mesmo motivo: `s3.carro57.com.br` hospeda todas
+ * as revendas RevendaMais e o Storage do Supabase é de qualquer projeto. Sem
+ * o caminho fixo, a rota viraria um redimensionador aberto para o mundo.
+ */
+const ORIGENS_DA_FOTO_DE_PREVIA = [
+  "https://s3.carro57.com.br/FC/9037/",
+  "https://zwbqmzgnagfeqinqkolp.supabase.co/storage/v1/object/public/",
+];
+
+export function fotoPodeVirarPrevia(url?: string | null): boolean {
+  const valor = limpar(url);
+  if (!valor) return false;
+  let normalizada: string;
+  try {
+    // `new URL` resolve `..` e `%2e%2e` antes da comparação — sem isto,
+    // `/FC/9037/../outra-revenda/` passaria no prefixo.
+    normalizada = new URL(valor).href;
+  } catch {
+    return false;
+  }
+  return ORIGENS_DA_FOTO_DE_PREVIA.some((origem) => normalizada.startsWith(origem));
+}
+
+/**
+ * A foto do veículo como o WhatsApp de PC e tablet consegue mostrar.
+ *
+ * Achado de 23/09: no celular a prévia da ficha saía com a foto e no PC/tablet
+ * saía sem. O celular monta a prévia no próprio aparelho e aceita a foto
+ * original; o WhatsApp Web/Desktop busca pelo servidor dele, que desiste de
+ * imagem acima de ~300 KB. A capa do BMW X1 medida no dia tinha 429 KB e
+ * 1920×1280 — sem dimensão declarada, ainda por cima.
+ *
+ * `/og/foto` devolve a mesma foto em JPEG 1200×630, recortada ao centro e bem
+ * abaixo do teto. Como a proporção agora é a nossa, a dimensão volta a ser
+ * declarada. Foto fora do nosso recorte segue como vinha, sem dimensão.
+ */
+export function previaDaFotoDoVeiculo(foto?: string | null): {
+  url: string;
+  semDimensao: boolean;
+} {
+  const valor = limpar(foto);
+  if (!fotoPodeVirarPrevia(valor)) return { url: valor, semDimensao: true };
+  return {
+    url: `/og/foto?${new URLSearchParams({ u: valor }).toString()}`,
+    semDimensao: false,
+  };
+}
+
 interface EntradaCompartilhamento {
   empresa: CompanySettings | null | undefined;
   pagina: ContextoCompartilhamento;
