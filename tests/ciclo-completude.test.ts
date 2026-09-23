@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { mensagemDoVendedor } from "../src/app/api/ciclo/vendas-incompletas/route";
+import { mensagemDoVendedor } from "../src/lib/ciclo/vendasIncompletas";
 
 /**
  * Pacote 2 — completude do registro da venda (manual §3.2, meta §9 ≥ 80%).
