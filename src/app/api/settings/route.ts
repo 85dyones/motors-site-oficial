@@ -2,33 +2,17 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
-import { unstable_cache, revalidateTag } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { ehStaff } from "../../../lib/permissoes";
 import { papelPadraoPorEmail } from "../../../lib/papelPadrao";
+import { temInjecaoDePrompt } from "../../../lib/injecaoDePrompt";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 const companyPath = path.join(process.cwd(), "src/lib/companySettings.json");
 const aboutPath = path.join(process.cwd(), "src/lib/aboutSettings.json");
-
-// Anti-prompt injection pattern list
-const PROMPT_INJECTION_REGEX = /(ignore\s+all\s+(?:previous\s+)?instructions|system\s+prompt|you\s+are\s+a\s+bot|act\s+as\s+a|new\s+instruction|jailbreak\b)/i;
-
-function hasPromptInjection(obj: any): boolean {
-  if (typeof obj === "string") {
-    return PROMPT_INJECTION_REGEX.test(obj);
-  }
-  if (typeof obj === "object" && obj !== null) {
-    for (const key in obj) {
-      if (hasPromptInjection(obj[key])) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
 
 import { getCachedSettings, recortePublicoDeSettings } from "../../../lib/settings";
 
@@ -127,6 +111,39 @@ export async function POST(request: Request) {
     const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
 
     const body = await request.json();
+
+    /**
+     * A peneira de injeção de prompt, sobre o corpo INTEIRO e antes de tudo.
+     *
+     * Ela existia desde sempre neste arquivo e nunca era chamada: a única
+     * referência a `hasPromptInjection` era a recursão dentro do próprio corpo,
+     * o que a fazia parecer usada. Quem barrava de fato era a cópia de
+     * `ConfiguracoesClientWrapper.tsx` — código de cliente, que roda no
+     * navegador. `curl` com token de staff entrava direto. Agora a função mora
+     * em `lib/injecaoDePrompt.ts` e os dois lados chamam a mesma.
+     *
+     * Por que AQUI, antes até da checagem de sessão: esta rota tem duas portas
+     * de escrita, e a segunda — a cópia de reserva em `src/lib/*.json` — fica
+     * FORA do bloco do Supabase e também roda no Dev Bypass, onde não há
+     * autenticação nenhuma. Checar depois do `ehStaff` deixaria essa porta
+     * descoberta e criaria a chance de gravação parcial: uma tabela já escrita
+     * quando o campo hostil aparecesse na seguinte.
+     *
+     * O preço é conhecido e aceito: requisição sem sessão com padrão no corpo
+     * recebe 400 em vez de 401. Não vaza nada — a lista de padrões viaja no
+     * bundle do painel desde que a versão de cliente existe.
+     */
+    if (temInjecaoDePrompt(body)) {
+      console.warn("[Settings API] Gravação barrada: padrão de injeção de prompt no corpo.");
+      return NextResponse.json(
+        {
+          error:
+            "O conteúdo contém termos não permitidos (potencial injeção de instruções). Remova comandos em inglês semelhantes a instruções de sistema e salve de novo.",
+        },
+        { status: 400 },
+      );
+    }
+
     const {
       companySettings,
       aboutSettings,
