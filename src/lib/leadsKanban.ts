@@ -62,6 +62,24 @@ export function opcoesDeResponsavel(
 }
 
 /**
+ * As opções do select de responsável de UM card (2026-09-23).
+ *
+ * `opcoesDeResponsavel` junta os nomes de todos os leads — serve ao FILTRO,
+ * que precisa achar lead com dono antigo, mas no card fazia "Dyo Paulino"
+ * aparecer como escolha em todo lead. Aqui só entra o Comercial e, se o dono
+ * atual for de fora, ele próprio, marcado: o select precisa conseguir mostrar
+ * o valor que o lead tem, e a rota recusa escolhê-lo de novo.
+ */
+export function opcoesDoCard(
+  elegiveis: string[],
+  atual: string | null,
+): { nome: string; fora: boolean }[] {
+  const opcoes = elegiveis.filter(Boolean).map((nome) => ({ nome, fora: false }));
+  if (atual && !elegiveis.includes(atual)) opcoes.push({ nome: atual, fora: true });
+  return opcoes.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+/**
  * A fiação de `mover` — o que o gesto precisa saber e o que ele pode fazer.
  *
  * Recebida em vez de fechada por closure porque é o que torna o gesto

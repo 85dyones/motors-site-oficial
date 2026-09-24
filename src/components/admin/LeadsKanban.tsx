@@ -10,6 +10,7 @@ import {
   iniciais,
   normalizarRef,
   opcoesDeResponsavel,
+  opcoesDoCard,
   resumoDaBusca,
 } from "../../lib/leadsKanban";
 import {
@@ -986,9 +987,12 @@ export default function LeadsKanban() {
                               className="mt-foco w-full cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink"
                             >
                               <option value="">Sem responsável</option>
-                              {opcoesResponsavel.map((n) => (
-                                <option key={n} value={n}>
-                                  {n}
+                              {/* Só o Comercial (23/09). O dono de fora aparece
+                                  para o select mostrar o valor do lead, mas não
+                                  pode ser escolhido de novo — a rota recusa. */}
+                              {opcoesDoCard(atendentes, l.responsavel).map((o) => (
+                                <option key={o.nome} value={o.nome} disabled={o.fora}>
+                                  {o.fora ? `${o.nome} (fora do comercial)` : o.nome}
                                 </option>
                               ))}
                             </select>

@@ -3,6 +3,11 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
+import {
+  atendentesDoFluxo,
+  recusaDeResponsavel,
+  type PerfilDoFluxo,
+} from "../../../../lib/responsavelDoLead";
 import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
 import {
   decidirDesfecho,
@@ -200,17 +205,16 @@ export async function GET(request: NextRequest) {
     // o consultor pode sair da empresa e o histórico do lead continua legível.
     // Esta lista serve para escolher sem erro de digitação, não para virar
     // chave estrangeira.
+    //
+    // Desde 2026-09-23 a régua é `recebeLead`: comercial em QUALQUER posição
+    // de `papeis`, e conta ativa. O filtro antigo (`role in admin, comercial`)
+    // olhava só o papel principal e incluía admin — punha o Marketing na
+    // lista e deixava de fora quem tem comercial como segundo papel.
     let atendentes: { nome: string }[] = [];
     const { data: perfis } = await supabase
       .from("profiles")
-      .select("full_name, role, papeis")
-      .in("role", ["admin", "comercial"])
-      .order("full_name");
-    if (perfis) {
-      atendentes = perfis
-        .map((p) => ({ nome: (p.full_name || "").trim() }))
-        .filter((p) => p.nome);
-    }
+      .select("full_name, role, papeis, is_active");
+    if (perfis) atendentes = atendentesDoFluxo(perfis as PerfilDoFluxo[]);
 
     // As colunas do kanban e os motivos de desfecho vêm na MESMA resposta
     // (2026-08-28). Desde que o funil virou editável, uma tela que buscasse as
@@ -327,6 +331,21 @@ export async function PATCH(request: NextRequest) {
       if (situacao === undefined && responsavel === undefined && observacoes === undefined) {
         return NextResponse.json({ ok: true });
       }
+    }
+
+    // Só o Comercial recebe lead (2026-09-23). A recusa mora AQUI, e não só
+    // no select do card, pelo mesmo motivo do desfecho: validação que mora
+    // apenas na tela vira opcional no dia em que alguém chamar a rota de
+    // outro lugar.
+    if (responsavel !== undefined) {
+      const { data: perfis, error: erroPerfis } = await supabase
+        .from("profiles")
+        .select("full_name, role, papeis, is_active");
+      if (erroPerfis) {
+        return NextResponse.json({ error: erroPerfis.message }, { status: 500 });
+      }
+      const recusa = recusaDeResponsavel(responsavel, (perfis ?? []) as PerfilDoFluxo[]);
+      if (recusa) return NextResponse.json({ error: recusa }, { status: 422 });
     }
 
     const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
