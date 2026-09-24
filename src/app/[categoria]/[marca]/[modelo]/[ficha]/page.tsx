@@ -31,8 +31,18 @@ import {
 } from "../../../../../lib/hubsDeEstoque";
 import { generoDeModelo, seu } from "../../../../../lib/generoDoVeiculo";
 
-// Incremental Static Regeneration (ISR) configuration
-export const revalidate = 3600; // Revalidate every 1 hour
+/**
+ * Um minuto, como `/estoque` e os hubs de marca e modelo.
+ *
+ * Era uma hora, desde o commit inicial e sem motivo registrado. Achado de
+ * 24/09: o sync baixou a Saveiro `8358193` de R$ 55.900 para R$ 51.900 às
+ * 15:47 UTC; o hub do modelo já dizia "a partir de R$ 51.900" e a ficha
+ * seguia com R$ 55.900 no título, no card do WhatsApp e no botão — a cópia em
+ * cache era de ~15:30. O preço muda pelo n8n, direto no banco, e nada avisa o
+ * site: o único relógio que a ficha tem é este. Com uma hora, o anúncio
+ * compartilhado podia prometer um preço que a loja já não pratica.
+ */
+export const revalidate = 60;
 
 // Ensure new cars added to Supabase dynamically are resolved and cached on-demand
 export const dynamicParams = true;

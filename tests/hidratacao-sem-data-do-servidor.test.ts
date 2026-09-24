@@ -4,7 +4,7 @@ import { lerCodigo } from "./fonte";
 /**
  * Trava de fonte para o #418 (erro de hidratação do React nas fichas).
  *
- * A causa, com prova: a ficha é ISR (`revalidate = 3600`) e o HTML sai com a
+ * A causa, com prova: a ficha é ISR (`revalidate`, hoje 60 s) e o HTML sai com a
  * data calculada no SERVIDOR — em UTC, presa ao momento do build ou da
  * regeneração. Num aparelho em fuso adiantado o texto que o servidor mandou
  * já não bate com o que o cliente calcularia ao hidratar, e o React descarta
