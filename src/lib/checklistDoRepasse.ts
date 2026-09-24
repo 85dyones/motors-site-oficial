@@ -22,7 +22,7 @@ export const TERMOS_PROIBIDOS_DO_REPASSE: ReadonlyArray<{ termo: string; padrao:
   { termo: "tempo demais no pátio", padrao: /\btempo\s+demais\s+no\s+p[áa]tio\b/i },
   { termo: "fora do perfil", padrao: /\bfora\s+do\s+perfil\b/i },
   { termo: "veio em lote", padrao: /\bveio\s+(em|num|de)\s+lote\b/i },
-  { termo: "CDC", padrao: /\bCDC\b/ },
+  { termo: "CDC", padrao: /\bCDC\b/i },
   { termo: "código de defesa", padrao: /\bc[óo]digo\s+de\s+defesa\b/i },
   { termo: "direitos do consumidor", padrao: /\bdireitos?\s+(do|de|dos)\s+consumidor(es)?\b/i },
   { termo: "seus direitos", padrao: /\bseus\s+direitos\b/i },
@@ -59,6 +59,9 @@ export function checklistDoRepasse(r: Repasse): FaltaDoChecklist[] {
   }
   if (vazio(r.marca)) falta("marca", "Informe a marca.");
   if (vazio(r.modelo)) falta("modelo", "Informe o modelo.");
+  if (!(Number.isInteger(r.ano_modelo) && r.ano_modelo >= 1950 && r.ano_modelo <= 2100)) {
+    falta("ano_modelo", "Informe o ano do modelo.");
+  }
   if (!r.carroceria) falta("carroceria", "Escolha a carroceria — é por ela que a lista é avisada.");
   if (!(r.preco > 0)) falta("preco", "Informe o preço à vista.");
   if (!(r.quilometragem >= 0)) falta("quilometragem", "Informe a quilometragem.");

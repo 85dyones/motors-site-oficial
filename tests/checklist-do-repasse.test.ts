@@ -15,6 +15,7 @@ describe("termosProibidosEm — a regra do dono, com a borda certa", () => {
   it("pega CDC e direitos, que o dono mandou não citar", () => {
     expect(termosProibidosEm("Seus direitos continuam")).toContain("seus direitos");
     expect(termosProibidosEm("o CDC garante")).toContain("CDC");
+    expect(termosProibidosEm("o cdc garante")).toContain("CDC");
     expect(termosProibidosEm("direitos do consumidor")).toContain("direitos do consumidor");
     expect(termosProibidosEm("Código de Defesa")).toContain("código de defesa");
   });
@@ -47,6 +48,12 @@ describe("checklistDoRepasse", () => {
 
   it("exige carroceria e preço", () => {
     expect(campos(checklistDoRepasse(repasseDeTeste({ carroceria: null })))).toContain("carroceria");
+  });
+
+  it("exige o ano do modelo em intervalo válido", () => {
+    expect(campos(checklistDoRepasse(repasseDeTeste({ ano_modelo: 0 })))).toContain("ano_modelo");
+    expect(campos(checklistDoRepasse(repasseDeTeste({ ano_modelo: 2021.5 })))).toContain("ano_modelo");
+    expect(checklistDoRepasse(repasseDeTeste({ ano_modelo: 2021 }))).toEqual([]);
   });
 
   it("exige FIPE com o mês", () => {
