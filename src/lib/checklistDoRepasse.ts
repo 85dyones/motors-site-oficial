@@ -2,8 +2,20 @@
  * O que um repasse precisa ter para ir à validação (spec §5), e os termos que
  * a seção nunca usa (spec §2 e §9).
  *
- * A lista de termos vale para o texto DIGITADO no painel (resumo, motivo,
- * apontamento, histórico, defeitos) e, no PR 3, para o texto fixo da página.
+ * Duas listas, por ALCANCE (revisão final de 24/09, bloqueio B1):
+ *
+ *   TERMOS_JURIDICOS_DO_REPASSE  o que o dono mandou não citar (CDC, direitos
+ *                                 do consumidor, garantia legal, Lei 8.078…)
+ *   TERMOS_PROIBIDOS_DO_REPASSE  a lista inteira: termos de venda + os jurídicos
+ *
+ * `resumo` e `motivo` (spec §5, texto de vitrine) levam a lista INTEIRA. Já a
+ * ficha de estado — `laudo_apontamento`, `leilao_detalhe`, `sinistro_detalhe`
+ * e a descrição de cada item — é o documento que o COMPRADOR ASSINA, e só
+ * leva o subconjunto jurídico: "Ventoinha do radiador não gira", "Pneus
+ * dianteiros com 30% de vida útil" e "Alto-falante do som premium com chiado"
+ * são texto legítimo de defeito, não apelo de venda. O PR 3 usa
+ * `TERMOS_PROIBIDOS_DO_REPASSE` (a lista inteira) no texto fixo da página.
+ *
  * As regras são do dono, 24/09: nunca dizer que um carro "não girou" — tira o
  * apelo —, não citar CDC nem direitos do consumidor, e os rótulos antigos
  * ("fora do perfil", "veio em lote") saíram.
@@ -14,33 +26,64 @@
 import { MINIMO_DE_FOTOS } from "./coerenciaDoCadastro";
 import type { Repasse } from "./repasse";
 
-export const TERMOS_PROIBIDOS_DO_REPASSE: ReadonlyArray<{ termo: string; padrao: RegExp }> = [
-  { termo: "não girou", padrao: /\bn[ãa]o\s+gir(ou|a|ava|ar)\b/i },
-  { termo: "sem giro", padrao: /\bsem\s+giro\b/i },
-  { termo: "encalhado", padrao: /\bencalhad[oa]s?\b/i },
-  { termo: "parado no pátio", padrao: /\bparad[oa]s?\s+no\s+p[áa]tio\b/i },
-  { termo: "tempo demais no pátio", padrao: /\btempo\s+demais\s+no\s+p[áa]tio\b/i },
-  { termo: "fora do perfil", padrao: /\bfora\s+do\s+perfil\b/i },
-  { termo: "veio em lote", padrao: /\bveio\s+(em|num|de)\s+lote\b/i },
+/** O que o dono mandou não citar: CDC, direitos do consumidor, garantia legal. */
+export const TERMOS_JURIDICOS_DO_REPASSE: ReadonlyArray<{ termo: string; padrao: RegExp }> = [
   { termo: "CDC", padrao: /\bCDC\b/i },
   { termo: "código de defesa", padrao: /\bc[óo]digo\s+de\s+defesa\b/i },
   { termo: "direitos do consumidor", padrao: /\bdireitos?\s+(do|de|dos)\s+consumidor(es)?\b/i },
   { termo: "seus direitos", padrao: /\bseus\s+direitos\b/i },
+  { termo: "direito de arrependimento", padrao: /\bdireito\s+de\s+arrependimento\b/i },
+  { termo: "garantia legal", padrao: /\bgarantia\s+legal\b/i },
+  { termo: "Lei 8.078", padrao: /\blei\s*(n[º°o.]?\s*)?8\.?078\b/i },
+];
+
+/**
+ * Termos de venda: só valem em `resumo` e `motivo` — texto de vitrine. A
+ * ficha de estado não usa esta lista (ver o docblock do arquivo).
+ */
+const TERMOS_DE_VENDA_DO_REPASSE: ReadonlyArray<{ termo: string; padrao: RegExp }> = [
+  // Qualquer passado/infinitivo de "girar" ("Demorou a girar", "Girou
+  // pouco", "Os dois não giraram") e o presente NEGADO ("não gira"). O
+  // presente puro segue permitido — "o repasse gira rápido" não é sobre o
+  // carro que não vendeu.
+  { termo: "girou", padrao: /\bgir(ou|aram|ar|ava|avam)\b|\bn[ãa]o\s+gira\b/i },
+  { termo: "sem giro", padrao: /\bsem\s+giro\b/i },
+  { termo: "encalhado", padrao: /\bencalh\w*\b/i },
+  { termo: "parado no pátio", padrao: /\bparad[oa]s?\s+no\s+p[áa]tio\b/i },
+  { termo: "tempo demais no pátio", padrao: /\btempo\s+demais\s+no\s+p[áa]tio\b/i },
+  { termo: "fora do perfil", padrao: /\bfora\s+do\s+perfil\b/i },
+  { termo: "veio em lote", padrao: /\bveio\s+(em|num|de)\s+lote\b/i },
   { termo: "consumidor", padrao: /\bconsumidor(a|es|as)?\b/i },
   { termo: "premium", padrao: /\bpremium\b/i },
   { termo: "exclusivo", padrao: /\bexclusiv[oa]s?\b/i },
-  { termo: "melhor preço", padrao: /\bmelhor(es)?\s+pre[çc]os?\b/i },
+  { termo: "superlativo de preço", padrao: /\bmelhor(es)?\s+pre[çc]os?\b/i },
   { termo: "consulte", padrao: /\bconsulte(-nos)?\b/i },
   { termo: "a partir de R$", padrao: /\ba\s+partir\s+de\s+R\$/i },
-  { termo: "três em dez", padrao: /\b(de\s+cada\s+dez|tr[êe]s\s+em\s+dez|3\s+em\s+10|3\s+de\s+cada\s+10)\b/i },
-  { termo: "porcentagem", padrao: /\d\s*%/ },
+  { termo: "porcentagem", padrao: /\d\s*%|\bpor\s+cento\b/i },
+  {
+    termo: "três em dez",
+    // Duas formas ("3 em cada 10 carros" / "a cada dez avaliados"), com a
+    // mesma exceção nas duas: não casa "a cada 10 mil km" nem "a cada
+    // 10.000 km" — texto de manutenção, não estatística de venda.
+    padrao:
+      /\b(\d+|um|uma|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove)\s+(em|de)\s+(cada\s+)?(dez|10)\b(?![.,]?\d)(?!\s*(mil|km))|\b(de|a)\s+cada\s+(dez|10)\b(?![.,]?\d)(?!\s*(mil|km))/i,
+  },
 ];
 
-export function termosProibidosEm(texto: string | null | undefined): string[] {
+/** A lista inteira: termos de venda + os jurídicos. Vale para `resumo` e `motivo`. */
+export const TERMOS_PROIBIDOS_DO_REPASSE: ReadonlyArray<{ termo: string; padrao: RegExp }> = [
+  ...TERMOS_DE_VENDA_DO_REPASSE,
+  ...TERMOS_JURIDICOS_DO_REPASSE,
+];
+
+export function termosProibidosEm(
+  texto: string | null | undefined,
+  lista: ReadonlyArray<{ termo: string; padrao: RegExp }> = TERMOS_PROIBIDOS_DO_REPASSE,
+): string[] {
   if (!texto) return [];
   // "direitos do consumidor" também casa "consumidor"; os dois rótulos saem,
   // e isso é certo — a mensagem mostra o primeiro.
-  return TERMOS_PROIBIDOS_DO_REPASSE.filter(({ padrao }) => padrao.test(texto)).map(({ termo }) => termo);
+  return lista.filter(({ padrao }) => padrao.test(texto)).map(({ termo }) => termo);
 }
 
 export interface FaltaDoChecklist {
@@ -103,16 +146,29 @@ export function checklistDoRepasse(r: Repasse): FaltaDoChecklist[] {
   if (temOrcamento && vazio(r.oficina_do_orcamento)) falta("oficina_do_orcamento", "Informe a oficina do orçamento.");
   if (temOrcamento && vazio(r.orcamento_em)) falta("orcamento_em", "Informe a data do orçamento.");
 
-  const textos: Array<[string, string | null]> = [
+  // Texto de vitrine: resumo e motivo levam a lista INTEIRA (venda + jurídico).
+  const textosDeVitrine: Array<[string, string | null]> = [
     ["resumo", r.resumo],
     ["motivo", r.motivo],
+  ];
+  for (const [campo, texto] of textosDeVitrine) {
+    const achados = termosProibidosEm(texto);
+    if (achados.length > 0) {
+      falta(campo, `O texto usa um termo que o repasse não usa: ${achados[0]}.`);
+    }
+  }
+
+  // A ficha de estado é o documento que o comprador assina: só o subconjunto
+  // jurídico barra aqui. "Ventoinha não gira" e "30% de vida útil" descrevem
+  // o defeito de verdade e precisam passar.
+  const textosDaFicha: Array<[string, string | null]> = [
     ["laudo_apontamento", r.laudo_apontamento],
     ["leilao_detalhe", r.leilao_detalhe],
     ["sinistro_detalhe", r.sinistro_detalhe],
     ...r.itens_de_estado.map((item, i): [string, string | null] => [`itens_de_estado[${i}].descricao`, item.descricao]),
   ];
-  for (const [campo, texto] of textos) {
-    const achados = termosProibidosEm(texto);
+  for (const [campo, texto] of textosDaFicha) {
+    const achados = termosProibidosEm(texto, TERMOS_JURIDICOS_DO_REPASSE);
     if (achados.length > 0) {
       falta(campo, `O texto usa um termo que o repasse não usa: ${achados[0]}.`);
     }
