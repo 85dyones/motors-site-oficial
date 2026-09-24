@@ -185,6 +185,30 @@ describe("normalização", () => {
   });
 });
 
+describe("o apontamento do laudo, que o CHECK do banco cobra já no rascunho", () => {
+  const SEM_APONTAMENTO = { ok: false, status: 400, erro: "Escreva o apontamento do laudo." };
+
+  it("a criação com apontamento e sem texto não passa", () => {
+    expect(criar({ ...MINIMO, laudo: "aprovado_com_apontamento" })).toMatchObject(SEM_APONTAMENTO);
+  });
+
+  it("o rascunho não troca o laudo para apontamento sem o texto", () => {
+    expect(editar({ laudo: "aprovado_com_apontamento" }, ["marketing"])).toMatchObject(SEM_APONTAMENTO);
+  });
+
+  it("com o texto junto, passa", () => {
+    expect(editar({ laudo: "aprovado_com_apontamento", laudo_apontamento: "Folga na suspensão" }, ["marketing"])).toEqual({
+      ok: true,
+      colunas: { laudo: "aprovado_com_apontamento", laudo_apontamento: "Folga na suspensão" },
+    });
+  });
+
+  it("o rascunho não apaga o texto de um laudo com apontamento, nem com espaço invisível", () => {
+    const d = editar({ laudo_apontamento: "\u200B" }, ["marketing"], { laudo: "aprovado_com_apontamento", laudo_apontamento: "Folga" });
+    expect(d).toMatchObject(SEM_APONTAMENTO);
+  });
+});
+
 describe("o formulário do editor", () => {
   it("alteracoes devolve só o que mudou, comparando por valor", () => {
     const salvo = formularioDe(repasseDeTeste());

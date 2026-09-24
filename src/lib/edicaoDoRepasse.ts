@@ -293,6 +293,22 @@ export function normalizarCampos(
   return { colunas: colunas as Partial<FormularioDoRepasse>, problemas };
 }
 
+const FALTA_O_APONTAMENTO = "Escreva o apontamento do laudo.";
+
+/**
+ * O CHECK `repasse_apontamento_tem_texto` (20260924180000_repasse_fundacao.sql)
+ * vale em QUALQUER situação, rascunho e INSERT inclusive. O checklist só roda
+ * fora do rascunho; sem esta trava, o rascunho com "aprovado com apontamento"
+ * e sem texto passava aqui e a gravação da rota virava 500.
+ */
+function recusaSemApontamento(
+  r: Partial<Pick<FormularioDoRepasse, "laudo" | "laudo_apontamento">>,
+): RecusaDoPainel | null {
+  if (r.laudo !== "aprovado_com_apontamento") return null;
+  if (typeof r.laudo_apontamento === "string" && limpo(r.laudo_apontamento) !== null) return null;
+  return { ok: false, status: 400, erro: FALTA_O_APONTAMENTO, problemas: [FALTA_O_APONTAMENTO] };
+}
+
 export type LinhaNovaDoRepasse = Partial<FormularioDoRepasse> & {
   id: string;
   slug: string;
@@ -321,6 +337,8 @@ export function decidirCriacao(args: {
   const { colunas, problemas } = normalizarCampos(corpo, args.agora);
   const todos = [...faltando, ...problemas];
   if (todos.length > 0) return { ok: false, status: 400, erro: todos[0], problemas: todos };
+  const semApontamento = recusaSemApontamento(colunas);
+  if (semApontamento) return semApontamento;
 
   const marca = colunas.marca as string;
   const modelo = colunas.modelo as string;
@@ -382,6 +400,9 @@ export function decidirEdicao(args: {
     // A URL publicada fica estável: o slug só muda no rascunho.
     return { ok: true, colunas };
   }
+  // No rascunho, o checklist não roda, mas o CHECK do banco sim.
+  const semApontamento = recusaSemApontamento(depois);
+  if (semApontamento) return semApontamento;
   const mudouAIdentidade = (["marca", "modelo", "versao", "ano_modelo"] as const).some((c) => c in colunas);
   return { ok: true, colunas: mudouAIdentidade ? { ...colunas, slug: slugDoRepasse(depois) } : colunas };
 }
