@@ -59,3 +59,16 @@ export function repasseDeTeste(parcial: Partial<Repasse> = {}): Repasse {
     ...parcial,
   };
 }
+
+/** A linha como o banco devolve: o repasse de teste + as colunas internas. */
+export function linhaDoBancoDeTeste(parcial: Partial<Repasse> = {}): Record<string, unknown> {
+  return {
+    criado_por: "u-0",
+    enviado_em: null,
+    validado_por: null,
+    validado_em: null,
+    devolvido_com: null,
+    updated_at: "2026-09-24T12:00:00Z",
+    ...repasseDeTeste(parcial),
+  };
+}
