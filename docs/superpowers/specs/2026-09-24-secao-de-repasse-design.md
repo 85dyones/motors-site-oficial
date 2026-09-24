@@ -63,7 +63,7 @@ vende para PF e PJ (texto do anúncio trazido pelo dono).
 | Laudo | **Aprovado** e **aprovado com apontamento** entram — o apontamento vai escrito na ficha e no card. **Reprovado não entra** no repasse (24/09) |
 | Ficha de estado | O modelo passa pelo jurídico antes do primeiro uso (24/09) |
 | Abrir para todos | **Manual, por um switch** no painel — sem data marcada de antemão (24/09) |
-| `/privacidade` | Esboço na §7.4, aprovado pelo dono antes de ir ao ar (24/09) |
+| `/privacidade` | Texto da §7.4 **aprovado** pelo dono (24/09) — entra no PR 3 |
 | Documentação | Documento **sem restrição e sem débito**; **transferência por conta de quem compra** (24/09) |
 | Lojista | Aviso antes do site **+** condição de lote **+** atendimento direto com nota no CNPJ (24/09) |
 | Quem cadastra | **Qualquer perfil** da equipe cadastra (24/09) |
@@ -325,12 +325,12 @@ vier primeiro"). Nada sobre CDC ou direitos. Laudo sempre "sai a pedido".
 **Exceção ao Design:** a linha de consentimento dos formulários da lista é a da
 §7.4, não o "Ao enviar, você concorda com a política de privacidade" das pranchas.
 
-### 7.4 `/privacidade` — esboço para aprovação do dono
+### 7.4 `/privacidade` — texto aprovado
 
 A lista do repasse é dado pessoal com finalidade nova (aviso por WhatsApp), então
 a política muda **antes** de o formulário ir ao ar — a mesma régua do registro de
 erros de 11/09. Quatro inserções em `src/app/privacidade/page.tsx`, no tom da
-página. **ESBOÇO — aguarda aprovação do dono.**
+página. **APROVADO pelo dono em 24/09.**
 
 **Em "Quais dados coletamos"**, depois do parágrafo dos formulários:
 
@@ -446,13 +446,12 @@ inserido antes de ser confiado (regra `trava-so-vale-se-reprovar`).
 
 ## 11. PENDENTE
 
-1. **Aprovação do esboço da `/privacidade`** (§7.4). Bloqueia o PR 3 ir ao ar,
-   não o código.
-2. **Revisão jurídica do modelo da ficha de estado** — decidida (24/09), é tarefa
+1. **Revisão jurídica do modelo da ficha de estado** — decidida (24/09), é tarefa
    da loja antes do primeiro carro vendido, não do código.
 
 Respondidas em 24/09 e já incorporadas acima: pagamento só à vista; abrir para
-todos por switch manual; laudo aprovado com apontamento entra, reprovado não.
+todos por switch manual; laudo aprovado com apontamento entra, reprovado não;
+texto da `/privacidade` aprovado.
 
 ---
 
@@ -465,7 +464,7 @@ passa pelo `qa-guardian` antes do merge.
 |---|---|---|
 | 1 · Dados | migração (§4), tipos e leituras em `src/lib/repasse*.ts`, linhas da matriz de permissões, `checklistDoRepasse`, conta derivada, etiqueta, `caminhoDaFotoDoRepasse`, `consultaFipe` extraída, testes | ordem do dono para `--gravar` |
 | 2 · Painel | §5 e §6 | PR 1 gravado |
-| 3 · Site e leads | §7, §8, §9, e a `/privacidade` da §7.4 no mesmo PR | PR 1 gravado; esboço da §7.4 aprovado |
+| 3 · Site e leads | §7, §8, §9, e a `/privacidade` da §7.4 no mesmo PR | PR 1 gravado |
 | 4 · Portas | §10, com a remedição do menu | PR 3 no ar |
 
 ## 13. Fora do escopo
