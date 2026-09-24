@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
+import { CARENCIA_VENDIDO_DIAS } from "./carenciaDoVendido";
 
 /**
  * Como cada veículo se apresenta ao visitante e aos buscadores.
@@ -14,20 +15,12 @@ import { unstable_cache } from "next/cache";
  * vira prop de Server Component; nenhum client component importa daqui.
  */
 
-/**
- * Quanto tempo a PDP de um carro vendido continua no índice de busca.
- *
- * Os dois extremos são ruins por motivos opostos. Tirar do índice na hora joga
- * fora a melhor parte do tráfego: quem procura "BMW X1 2019 usado" na semana
- * seguinte à venda é comprador daquele perfil, e a página já oferece OutOfStock
- * mais a lista de similares — é lead, não decepção. Manter para sempre é o
- * outro extremo: a loja vende continuamente, então em doze meses o índice
- * descreveria centenas de carros mortos contra as ~41 vagas vivas.
- *
- * Noventa dias captura a demanda enquanto ela é quente e limpa quando esfria.
- * Decisão do dono em 2026-08-17.
- */
-export const CARENCIA_VENDIDO_DIAS = 90;
+// `CARENCIA_VENDIDO_DIAS` mora em `./carenciaDoVendido` (módulo puro, sem
+// imports) porque `repasse.ts` também a usa e vai para o navegador nos PRs 2
+// e 3 — importar dali arrastaria o `unstable_cache(...)` deste módulo para o
+// bundle do cliente. Reexportada aqui para quem já importava desta origem
+// continuar igual.
+export { CARENCIA_VENDIDO_DIAS } from "./carenciaDoVendido";
 
 /**
  * ⚠️ O bloqueio de publicação **não mora aqui** — vive em

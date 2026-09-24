@@ -12,7 +12,7 @@
  * é `modalidade_tipo = 'repasse'` (carro que ENTROU vindo de outro lojista,
  * `veiculo_entradas`) nem o repasse de investidores (`investidores.ts`).
  */
-import { CARENCIA_VENDIDO_DIAS } from "./publicacao";
+import { CARENCIA_VENDIDO_DIAS } from "./carenciaDoVendido";
 import { slugificar } from "./veiculoUrl";
 
 /** Reprovado não existe de propósito: carro reprovado não entra (dono, 24/09). */
