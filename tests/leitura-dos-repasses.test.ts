@@ -74,7 +74,6 @@ const estado = vi.hoisted(() => ({
     ordem: null,
   } as FakeQueryState,
   resultado: { data: null as unknown, error: null as unknown },
-  chamadas: [] as string[],
 }));
 
 vi.mock("../src/lib/supabase", () => ({
@@ -93,7 +92,6 @@ describe("lerRepassesPublicos", () => {
       ordem: null,
     };
     estado.resultado = { data: null, error: null };
-    estado.chamadas = [];
     estado.cliente = null;
   });
 
@@ -190,7 +188,6 @@ describe("lerRepassePorSlug", () => {
       ordem: null,
     };
     estado.resultado = { data: null, error: null };
-    estado.chamadas = [];
     estado.cliente = null;
   });
 

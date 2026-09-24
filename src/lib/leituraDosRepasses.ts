@@ -160,8 +160,9 @@ export async function lerRepassesPublicos(agora: Date = new Date()): Promise<Rep
     .in("situacao", [...SITUACOES_PUBLICAS])
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Leitura dos repasses falhou: ${error.message}`);
+  // SELECAO é construída em tempo de execução, então supabase-js não infere o tipo da linha
   return (data ?? []).flatMap((linha) => {
-    const r = repasseDaLinha(linha as Record<string, unknown>);
+    const r = repasseDaLinha(linha as unknown as Record<string, unknown>);
     return r && aparecePublicamente(r, agora) ? [r] : [];
   });
 }
@@ -170,5 +171,5 @@ export async function lerRepassePorSlug(slug: string): Promise<Repasse | null> {
   if (!supabase || !/^[a-z0-9-]{1,160}$/.test(slug)) return null;
   const { data, error } = await supabase.from("repasses").select(SELECAO).eq("slug", slug).maybeSingle();
   if (error) throw new Error(`Leitura do repasse ${slug} falhou: ${error.message}`);
-  return data ? repasseDaLinha(data as Record<string, unknown>) : null;
+  return data ? repasseDaLinha(data as unknown as Record<string, unknown>) : null;
 }
