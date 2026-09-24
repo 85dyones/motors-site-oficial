@@ -8,6 +8,8 @@ import {
   campanhaDoLead,
   janelaDeDias,
   loteParaBanco,
+  somarDiario,
+  estadoDaSincronizacao,
 } from "../src/lib/midiaSync";
 
 /**
@@ -237,6 +239,50 @@ describe("janelaDeDias", () => {
   it("conta em horário de Curitiba: 01h UTC ainda é o dia anterior lá", () => {
     const agora = new Date("2026-09-24T01:00:00Z"); // 22h de 23/09 em Curitiba
     expect(janelaDeDias(7, agora)).toEqual({ de: "2026-09-17", ate: "2026-09-23" });
+  });
+});
+
+describe("somarDiario", () => {
+  it("soma por anúncio e separa a linha da campanha; numeric chega como string", () => {
+    const m = somarDiario([
+      { campanha_id: "c", anuncio_id: "a", dia: "2026-09-20", investido: "0.10", impressoes: 10, cliques: 1, conversoes: "1" },
+      { campanha_id: "c", anuncio_id: "a", dia: "2026-09-21", investido: "0.20", impressoes: 5, cliques: 0, conversoes: "0.5" },
+      { campanha_id: "g", anuncio_id: null, dia: "2026-09-21", investido: 3, impressoes: 7, cliques: 2, conversoes: 0 },
+    ]);
+    // 0.1 + 0.2 em ponto flutuante dá 0.30000000000000004 — o painel mostraria centavo torto.
+    expect(m.get("c:a")).toEqual({ investido: 0.3, impressoes: 15, alcance: 0, cliques: 1, conversas: 1.5 });
+    expect(m.get("g:campanha")).toEqual({ investido: 3, impressoes: 7, alcance: 0, cliques: 2, conversas: 0 });
+  });
+});
+
+describe("estadoDaSincronizacao", () => {
+  const agora = new Date("2026-09-24T15:00:00Z");
+  const r = (plataforma: "meta" | "google", h: number, ok: boolean, erro: string | null = null) => ({
+    plataforma,
+    iniciada_em: new Date(agora.getTime() - h * 36e5).toISOString(),
+    ok,
+    erro,
+  });
+
+  it("nunca sincronizou é parada", () => {
+    expect(estadoDaSincronizacao([], "google", agora)).toEqual({ ultimaOk: null, falha: null, parada: true });
+  });
+
+  it("sucesso há 1 h, falha antiga: em dia e sem erro na tela", () => {
+    const e = estadoDaSincronizacao([r("meta", 1, true), r("meta", 3, false, "x")], "meta", agora);
+    expect(e.parada).toBe(false);
+    expect(e.falha).toBeNull();
+  });
+
+  it("falha depois do sucesso aparece, e 7 h sem sucesso é parada", () => {
+    const e = estadoDaSincronizacao([r("meta", 7, true), r("meta", 1, false, "token vencido")], "meta", agora);
+    expect(e.parada).toBe(true);
+    expect(e.falha?.erro).toBe("token vencido");
+  });
+
+  it("não mistura as plataformas", () => {
+    const e = estadoDaSincronizacao([r("meta", 1, true)], "google", agora);
+    expect(e.ultimaOk).toBeNull();
   });
 });
 

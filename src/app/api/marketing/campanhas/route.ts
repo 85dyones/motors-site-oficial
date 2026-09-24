@@ -1,23 +1,33 @@
-import { NextResponse } from "next/server";
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
-import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
+import {
+  campanhaDoLead,
+  estadoDaSincronizacao,
+  janelaDeDias,
+  somarDiario,
+  type LinhaDiario,
+  type Rodada,
+} from "../../../../lib/midiaSync";
 
 export const dynamic = "force-dynamic";
 
+/** Os três períodos do filtro da tela. Qualquer outro valor cai no primeiro. */
+const PERIODOS = [7, 14, 30] as const;
+
 /**
- * Campanhas de mídia paga (telas A13/A14).
+ * Campanhas de mídia paga (tela A13), agora vindas das plataformas.
  *
- * GET devolve cada campanha com seus anúncios e a leitura mais recente por
- * anúncio (mais a linha da campanha, que carrega o alcance total) — é tudo
- * que o consolidado A13 precisa para derivar KPI, tabela e funil no cliente.
+ * Desde 2026-09-24 não há cadastro por aqui: o Meta e o Google gravam em
+ * `midia_diario` pelas rotas de `/api/marketing/sincronizar`. Esta rota soma
+ * a janela pedida (`?dias=7|14|30`, calendário de Curitiba, hoje incluído)
+ * por anúncio e por campanha, no mesmo formato de `leitura`/`leituraCampanha`
+ * que a tela já consumia — e conta, ao lado, os leads que chegaram em
+ * `public.leads` com a `utm_campaign` da campanha.
  *
- * A leitura é aberta a qualquer usuário logado (Financeiro vê o total
- * investido, pela matriz A17); criar campanha segue a linha "Gerenciar
- * campanhas de mídia paga" da matriz: Admin e Marketing.
+ * Aberta a qualquer usuário logado (Financeiro vê o investido, matriz A17).
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -25,30 +35,41 @@ export async function GET() {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const [campRes, anunRes, leitRes] = await Promise.all([
+    const pedido = Number(request.nextUrl.searchParams.get("dias"));
+    const dias = (PERIODOS as readonly number[]).includes(pedido) ? pedido : PERIODOS[0];
+    const janela = janelaDeDias(dias);
+
+    const [campRes, anunRes, diarioRes, rodadasRes, leadsRes] = await Promise.all([
       supabase.from("midia_campanhas").select("*").order("criada_em", { ascending: false }),
-      supabase.from("midia_anuncios").select("*").order("criado_em", { ascending: true }),
-      // Snapshots mais novos primeiro: o reduce abaixo fica com o primeiro
-      // que vê de cada par (campanha, anúncio). O teto de 2.000 linhas cobre
-      // anos de digitação manual; quando o sync de API entrar, esta leitura
-      // vira janela por período.
+      supabase.from("midia_anuncios").select("id, campanha_id, nome").order("criado_em", { ascending: true }),
       supabase
-        .from("midia_leituras")
-        .select("*")
-        .order("registrado_em", { ascending: false })
-        .limit(2000),
+        .from("midia_diario")
+        .select("campanha_id, anuncio_id, dia, investido, impressoes, cliques, conversoes")
+        .gte("dia", janela.de)
+        .lte("dia", janela.ate)
+        .limit(20000),
+      supabase
+        .from("midia_sincronizacoes")
+        .select("plataforma, iniciada_em, ok, erro")
+        .order("iniciada_em", { ascending: false })
+        .limit(200),
+      // Meia-noite de Curitiba do primeiro dia da janela.
+      supabase
+        .from("leads")
+        .select("utm_campaign")
+        .not("utm_campaign", "is", null)
+        .gte("created_at", `${janela.de}T00:00:00-03:00`)
+        .limit(5000),
     ]);
 
-    const erro = campRes.error ?? anunRes.error ?? leitRes.error;
+    const erro = campRes.error ?? anunRes.error ?? diarioRes.error ?? rodadasRes.error;
     if (erro) {
-      // Migração ainda não aplicada — ver lib/erroDeSchema.ts sobre por que
-      // testar `42P01` sozinho não funcionava.
       if (ehTabelaOuColunaAusente(erro)) {
         return NextResponse.json(
           {
             error:
-              "As tabelas de mídia paga ainda não existem no banco. Aplique a migração " +
-              "20260807120000_midia_paga_e_auditoria.sql com `supabase db push`.",
+              "As tabelas da mídia sincronizada ainda não existem no banco. Aplique a migração " +
+              "20260924120000_midia_paga_sincronizada.sql.",
           },
           { status: 500 },
         );
@@ -56,99 +77,41 @@ export async function GET() {
       return NextResponse.json({ error: erro.message }, { status: 500 });
     }
 
-    const ultimaLeitura = new Map<string, any>();
-    for (const l of leitRes.data ?? []) {
-      const chave = `${l.campanha_id}:${l.anuncio_id ?? "campanha"}`;
-      if (!ultimaLeitura.has(chave)) ultimaLeitura.set(chave, l);
+    const campanhasBrutas = campRes.data ?? [];
+    const totais = somarDiario((diarioRes.data ?? []) as LinhaDiario[]);
+
+    // Leads do banco por campanha. `leadsRes.error` é tolerado: sem a tabela de
+    // leads a coluna mostra "—", e o resto da tela continua de pé.
+    const referencia = campanhasBrutas.map((c) => ({ id: c.id, idExterno: c.id_externo, nome: c.nome }));
+    const leadsPorCampanha = new Map<string, number>();
+    let leadsSemCampanha = 0;
+    for (const l of leadsRes.error ? [] : leadsRes.data ?? []) {
+      const id = campanhaDoLead(l.utm_campaign, referencia);
+      if (id) leadsPorCampanha.set(id, (leadsPorCampanha.get(id) ?? 0) + 1);
+      else leadsSemCampanha += 1;
     }
 
-    const campanhas = (campRes.data ?? []).map((c) => {
-      const anuncios = (anunRes.data ?? [])
+    const campanhas = campanhasBrutas.map((c) => ({
+      ...c,
+      anuncios: (anunRes.data ?? [])
         .filter((a) => a.campanha_id === c.id)
-        .map((a) => ({
-          ...a,
-          leitura: ultimaLeitura.get(`${c.id}:${a.id}`) ?? null,
-        }));
-      return {
-        ...c,
-        anuncios,
-        leituraCampanha: ultimaLeitura.get(`${c.id}:campanha`) ?? null,
-      };
+        .map((a) => ({ ...a, leitura: totais.get(`${c.id}:${a.id}`) ?? null })),
+      leituraCampanha: totais.get(`${c.id}:campanha`) ?? null,
+      leadsBanco: leadsRes.error ? null : leadsPorCampanha.get(c.id) ?? 0,
+    }));
+
+    const rodadas = (rodadasRes.data ?? []) as Rodada[];
+    return NextResponse.json({
+      janela,
+      dias,
+      campanhas,
+      leadsSemCampanha: leadsRes.error ? null : leadsSemCampanha,
+      sincronizacao: {
+        meta: estadoDaSincronizacao(rodadas, "meta"),
+        google: estadoDaSincronizacao(rodadas, "google"),
+      },
     });
-
-    return NextResponse.json({ campanhas });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, papeis")
-      .eq("id", user.id)
-      .single();
-
-    if (!ehStaff(profile)) {
-      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
-    }
-    const perfil = perfisDe(profile);
-    if (podeFazer(perfil, "Gerenciar campanhas de mídia paga") !== "faz") {
-      return NextResponse.json({ error: "Acesso proibido" }, { status: 403 });
-    }
-
-    const body = await request.json();
-    const { nome, plataforma, objetivo, orcamento_diario, publico, atribuicao, situacao, no_ar_desde, anuncios } = body;
-
-    if (!nome || !plataforma) {
-      return NextResponse.json({ error: "Campos obrigatórios faltando: nome e plataforma" }, { status: 400 });
-    }
-    if (!["meta", "google"].includes(plataforma)) {
-      return NextResponse.json({ error: "Plataforma deve ser meta ou google" }, { status: 400 });
-    }
-
-    const { data: campanha, error } = await supabase
-      .from("midia_campanhas")
-      .insert({
-        nome,
-        plataforma,
-        objetivo: objetivo || null,
-        orcamento_diario: orcamento_diario ?? null,
-        publico: publico || null,
-        atribuicao: atribuicao || null,
-        situacao: situacao || "no_ar",
-        no_ar_desde: no_ar_desde || null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Anúncios vêm como lista de nomes; linhas vazias são ignoradas.
-    const nomesAnuncios: string[] = Array.isArray(anuncios)
-      ? anuncios.map((a: unknown) => String(a).trim()).filter(Boolean)
-      : [];
-
-    if (nomesAnuncios.length > 0) {
-      const { error: erroAnuncios } = await supabase
-        .from("midia_anuncios")
-        .insert(nomesAnuncios.map((n) => ({ campanha_id: campanha.id, nome: n })));
-      if (erroAnuncios) {
-        return NextResponse.json({ error: erroAnuncios.message }, { status: 500 });
-      }
-    }
-
-    return NextResponse.json({ campanha });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

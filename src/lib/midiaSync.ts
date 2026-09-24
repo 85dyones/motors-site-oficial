@@ -324,6 +324,83 @@ export function janelaDeDias(n: number, agora: Date = new Date(), incluirHoje = 
   return { de: de.toISOString().slice(0, 10), ate: ate.toISOString().slice(0, 10) };
 }
 
+export interface LinhaDiario {
+  campanha_id: string;
+  anuncio_id: string | null;
+  dia: string;
+  investido: number | string;
+  impressoes: number;
+  cliques: number;
+  conversoes: number | string;
+}
+
+export interface TotaisDiario {
+  investido: number;
+  impressoes: number;
+  alcance: number;
+  cliques: number;
+  /** Leads da plataforma — o nome é o de `LeituraTotais` em `midiaPaga.ts`. */
+  conversas: number;
+}
+
+/**
+ * Soma as linhas de `midia_diario` por (campanha, anúncio). A chave é
+ * `campanha:anuncio` ou `campanha:campanha` para a linha da campanha — o
+ * mesmo par que as telas já usavam para `midia_leituras`. Alcance sai zero:
+ * não soma entre dias, e quem precisa dele lê `alcance_total` da campanha.
+ * O `numeric` do Postgres chega como string pelo PostgREST; daí o `Number`.
+ */
+export function somarDiario(linhas: LinhaDiario[]): Map<string, TotaisDiario> {
+  const m = new Map<string, TotaisDiario>();
+  for (const l of linhas) {
+    const chave = `${l.campanha_id}:${l.anuncio_id ?? "campanha"}`;
+    const t = m.get(chave) ?? { investido: 0, impressoes: 0, alcance: 0, cliques: 0, conversas: 0 };
+    t.investido = Math.round((t.investido + Number(l.investido || 0)) * 100) / 100;
+    t.impressoes += Number(l.impressoes || 0);
+    t.cliques += Number(l.cliques || 0);
+    t.conversas = Math.round((t.conversas + Number(l.conversoes || 0)) * 100) / 100;
+    m.set(chave, t);
+  }
+  return m;
+}
+
+export interface Rodada {
+  plataforma: Plataforma;
+  iniciada_em: string;
+  ok: boolean;
+  erro: string | null;
+}
+
+export interface EstadoSincronizacao {
+  ultimaOk: string | null;
+  /** A falha mais recente, só se for MAIS NOVA que o último sucesso. */
+  falha: { em: string; erro: string } | null;
+  /** Nunca sincronizou, ou o último sucesso passou de `HORAS_PARADA`. */
+  parada: boolean;
+}
+
+/** O Meta roda de hora em hora e o script do Google também: 6 h são 6 rodadas perdidas. */
+export const HORAS_PARADA = 6;
+
+export function estadoDaSincronizacao(
+  rodadas: Rodada[],
+  plataforma: Plataforma,
+  agora: Date = new Date(),
+): EstadoSincronizacao {
+  const minhas = rodadas
+    .filter((r) => r.plataforma === plataforma)
+    .sort((a, b) => b.iniciada_em.localeCompare(a.iniciada_em));
+  const ok = minhas.find((r) => r.ok);
+  const ruim = minhas.find((r) => !r.ok);
+  const falha =
+    ruim && (!ok || ruim.iniciada_em > ok.iniciada_em)
+      ? { em: ruim.iniciada_em, erro: ruim.erro ?? "erro sem mensagem" }
+      : null;
+  const parada =
+    !ok || agora.getTime() - new Date(ok.iniciada_em).getTime() > HORAS_PARADA * 36e5;
+  return { ultimaOk: ok?.iniciada_em ?? null, falha, parada };
+}
+
 const normalizarTexto = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 /**

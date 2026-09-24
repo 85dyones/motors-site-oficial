@@ -213,21 +213,6 @@
       "count": 1
     }
   },
-  "src/app/api/marketing/campanhas/[id]/leituras/route.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
-  "src/app/api/marketing/campanhas/[id]/route.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
-  "src/app/api/marketing/campanhas/route.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 3
-    }
-  },
   "src/app/api/match/route.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 6
@@ -478,9 +463,6 @@
     }
   },
   "src/components/marketing/LeituraCampanha.tsx": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    },
     "react-hooks/preserve-manual-memoization": {
       "count": 1
     },
@@ -492,9 +474,6 @@
     }
   },
   "src/components/marketing/MidiaPagaConsolidado.tsx": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

@@ -75,7 +75,9 @@ Migração `20260924120000_midia_paga_sincronizada.sql`:
 
 - Erro da API: a rodada fica registrada com a mensagem; dados antigos
   permanecem; a tela mostra "falhou às HH:MM: …". O token nunca aparece em log.
-- Segredo errado: 401 registrado. JSON fora do formato: 400.
+- Segredo errado: 401, só no log do servidor — qualquer um na internet pode
+  bater na rota, e a tabela do painel não é lugar para isso. JSON fora do
+  formato (com segredo válido): 400, registrado como rodada recusada.
 
 ## Testes
 
