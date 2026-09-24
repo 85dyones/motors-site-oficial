@@ -92,6 +92,11 @@ const CADEIA = [
   // duas migrações acima deram escopo à tabela e as sementes de agosto
   // inseriram os quatro de pagamento.
   "20260916170000_motivos_de_ganho_por_escopo.sql",
+  // A avaliação mora no lead (2026-09-24). Entra na cadeia porque o aceite
+  // prova os CHECKs tentando gravar o inválido, passa pelos gatilhos do funil
+  // (acima) com as colunas novas e confere, vestindo `anon` e um cliente sem
+  // staff, que o retrato com a recomendação não sai para quem não é equipe.
+  "20260924190000_avaliacao_no_lead.sql",
 ];
 
 /**

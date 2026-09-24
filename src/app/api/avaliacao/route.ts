@@ -6,6 +6,7 @@ import { getCachedSettings } from "../../../lib/settings";
 import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
 import { verificarTurnstile, ACOES_DE_AVALIACAO, ipDoVisitante } from "../../../lib/turnstile";
 import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
+import { colunaDaAvaliacaoAusente, montarAvaliacaoDoLead } from "../../../lib/avaliacaoDoLead";
 
 export const dynamic = "force-dynamic";
 
@@ -138,6 +139,9 @@ export async function POST(request: NextRequest) {
       fipe_valor: requestBody.fipe_valor || "",
       fipe_codigo: requestBody.fipe_codigo || "",
       fipe_mes_referencia: requestBody.fipe_mes_referencia || "",
+      // Marca, modelo e ano digitados porque a FIPE não respondeu no
+      // formulário — o carro não saiu da tabela, e o consultor precisa saber.
+      veiculo_digitado: requestBody.veiculo_digitado === true,
       recomendacao,
       ag_uid: agUid,
       utm_source: requestBody.utm?.utm_source || request.nextUrl.searchParams.get("utm_source") || undefined,
@@ -155,21 +159,39 @@ export async function POST(request: NextRequest) {
     //
     // Mesma regra de lá: **nunca bloqueia**. Quem preencheu a avaliação está
     // a caminho do WhatsApp, e falha de gravação nossa não pode segurá-lo.
+    //
+    // Desde 2026-09-24 o lead leva também o retrato da avaliação
+    // (`leads.avaliacao`): km, estado, FIPE, observações e a faixa sugerida,
+    // que até então só o n8n recebia — ver `lib/avaliacaoDoLead.ts`. Se a
+    // migração 20260924190000 ainda não estiver aplicada, a coluna não existe
+    // e o insert inteiro seria recusado; aí o lead é gravado de novo sem ela.
+    // Perder o retrato é ruim; perder o lead é o bug de 2026-08-11 de volta.
     try {
       const supabaseAdmin = createAdminSupabaseClient();
-      const { error: erroLead } = await supabaseAdmin.from("leads").insert({
-        nome,
-        telefone: formattedPhone || null,
-        // O interesse aqui é o inverso do lead comum: a pessoa quer VENDER
-        // este carro, não comprá-lo. O canal é o que distingue os dois no
-        // kanban.
-        interesse: [marca, modelo, ano].filter(Boolean).join(" ") || null,
-        canal: "Avaliação",
-        event_id: requestBody.eventId || null,
-        // Mesmo conserto de `/api/leads` (2026-09-21): o `utm` já vinha no
-        // corpo e ia só para o n8n. `fbp`/`fbc` passam a vir do formulário.
-        ...contextoDeMidiaDoLead(requestBody),
-      });
+      const retrato = montarAvaliacaoDoLead(requestBody, recomendacao);
+      const inserir = (comRetrato: boolean) =>
+        supabaseAdmin.from("leads").insert({
+          nome,
+          telefone: formattedPhone || null,
+          // O interesse aqui é o inverso do lead comum: a pessoa quer VENDER
+          // este carro, não comprá-lo. O canal é o que distingue os dois no
+          // kanban.
+          interesse: [marca, modelo, ano].filter(Boolean).join(" ") || null,
+          canal: "Avaliação",
+          event_id: requestBody.eventId || null,
+          // Mesmo conserto de `/api/leads` (2026-09-21): o `utm` já vinha no
+          // corpo e ia só para o n8n. `fbp`/`fbc` passam a vir do formulário.
+          ...contextoDeMidiaDoLead(requestBody),
+          ...(comRetrato ? { avaliacao: retrato } : {}),
+        });
+      let { error: erroLead } = await inserir(true);
+      if (erroLead && colunaDaAvaliacaoAusente(erroLead)) {
+        console.warn(
+          "[Avaliacao API] Coluna `avaliacao` ausente — lead gravado sem o retrato. " +
+            "Aplique a migração 20260924190000_avaliacao_no_lead.sql.",
+        );
+        ({ error: erroLead } = await inserir(false));
+      }
       if (erroLead) {
         console.warn("[Avaliacao API] Falha ao gravar lead (não bloqueante):", erroLead.message);
       }
