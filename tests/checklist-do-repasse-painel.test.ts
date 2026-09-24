@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { checklistDoRepasse } from "../src/lib/checklistDoRepasse";
 import { ANO_MINIMO, anoMaximo } from "../src/lib/cadastroDeVeiculo";
 import { ANO_MINIMO as ANO_MINIMO_PURO, anoMaximo as anoMaximoPuro } from "../src/lib/anoDoVeiculo";
+import { MINIMO_DE_FOTOS } from "../src/lib/coerenciaDoCadastro";
 import { PISO_DO_ANO_NO_BANCO, type Repasse } from "../src/lib/repasse";
 import { fotoDeTeste, repasseDeTeste } from "./repasseDeTeste";
 
@@ -55,7 +56,10 @@ describe("as fotos (M9)", () => {
 
   it("URL vazia não conta para o mínimo", () => {
     const web = [fotoDeTeste("l1"), fotoDeTeste("l2"), fotoDeTeste("l3"), ""];
-    expect(campos(repasseDeTeste({ web_full_images: web }))).toContain("web_full_images");
+    expect(checklistDoRepasse(repasseDeTeste({ web_full_images: web }), HOJE)).toContainEqual({
+      campo: "web_full_images",
+      mensagem: `Faltam fotos: o mínimo é ${MINIMO_DE_FOTOS}.`,
+    });
   });
 
   it("cada foto tem as duas versões", () => {
