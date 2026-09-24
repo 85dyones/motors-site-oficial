@@ -9,6 +9,12 @@
  *
  * A carência do vendido é regra de código, como no estoque: a lista já sai
  * filtrada; a leitura por slug devolve o carro e a página decide o 404.
+ *
+ * ⚠️ A policy é `to anon`: esta leitura só entrega linha para quem consulta
+ * SEM SESSÃO. É por isso que ela só serve o servidor — um cliente logado da
+ * Garagem ou de um investidor que chamasse estas funções pelo NAVEGADOR (com
+ * a sessão do usuário) veria zero linhas, porque a role ali é `authenticated`,
+ * não `anon`, e `authenticated` tem sua própria policy (staff, por `org_id`).
  */
 import { supabase } from "./supabase";
 import {

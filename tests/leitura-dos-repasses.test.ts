@@ -142,7 +142,7 @@ describe("lerRepassesPublicos", () => {
   it("descarta linhas malformadas (preco null)", async () => {
     estado.cliente = criarFakeSupabase();
     const base = linhaDoBanco();
-    // Create linha boa with all required fields explicitly set and situacao: publicado
+    // Cria uma linha boa com todos os campos obrigatórios explícitos e situacao: publicado
     const linhaComPreco: Record<string, unknown> = {
       ...base,
       slug: "bom",
