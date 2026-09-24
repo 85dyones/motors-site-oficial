@@ -66,4 +66,48 @@ describe("migração do repasse", () => {
       ),
     );
   });
+
+  it("índices para as três FKs (leads.repasse_id, inscritos.lead_id, avisos.inscrito_id)", () => {
+    expect(sql).toMatch(/create index if not exists leads_repasse_id_idx\s+on public\.leads \(repasse_id\)\s+where repasse_id is not null/i);
+    expect(sql).toMatch(
+      /create index if not exists repasse_inscritos_lead_id_idx\s+on public\.repasse_inscritos \(lead_id\)\s+where lead_id is not null/i,
+    );
+    expect(sql).toMatch(/create index if not exists repasse_avisos_inscrito_id_idx\s+on public\.repasse_avisos \(inscrito_id\)/i);
+  });
+
+  it("service_role recebe GRANT explícito nas três tabelas, não o default ACL", () => {
+    expect(sql).toMatch(
+      /grant\s+select,\s*insert,\s*update,\s*delete\s+on\s+public\.repasses,\s*public\.repasse_inscritos,\s*public\.repasse_avisos\s+to\s+service_role/i,
+    );
+  });
+
+  it("toda 'create policy' tem TO explícito — sem TO a policy vale para PUBLIC (M1)", () => {
+    const policies = [...sql.matchAll(/create policy[\s\S]*?;/gi)].map((m) => m[0]);
+    expect(policies.length).toBeGreaterThan(0);
+    for (const p of policies) {
+      expect(p, `sem TO explícito: ${p}`).toMatch(/\bto\s+(anon|authenticated|service_role)\b/i);
+    }
+  });
+
+  it("a trava do M1 de fato reprova quando falta o TO — sabotagem provada em memória", () => {
+    // Numa CÓPIA em memória do texto real, tira o "to authenticated" de uma
+    // policy legítima e confere que a mesma checagem do teste acima acusa.
+    // Sem isto, uma trava que sempre passa (fonte próxima, mas que não
+    // distingue o bug real) daria falso verde — já aconteceu 5x neste repo.
+    const original = "create policy repasse_staff_atualiza on public.repasses for update to authenticated\n  using (true);";
+    expect(original).toMatch(/\bto\s+(anon|authenticated|service_role)\b/i);
+
+    const sabotada = original.replace(/\s+to\s+authenticated\b/i, "");
+    expect(sabotada).not.toMatch(/\bto\s+(anon|authenticated|service_role)\b/i);
+
+    // E a mesma sabotagem, injetada no SQL real, faz a checagem principal
+    // encontrar uma policy sem TO.
+    const sqlSabotado = sql.replace(
+      /create policy repasse_staff_atualiza on public\.repasses for update to authenticated/,
+      "create policy repasse_staff_atualiza on public.repasses for update",
+    );
+    const policiesSabotadas = [...sqlSabotado.matchAll(/create policy[\s\S]*?;/gi)].map((m) => m[0]);
+    const semTo = policiesSabotadas.filter((p) => !/\bto\s+(anon|authenticated|service_role)\b/i.test(p));
+    expect(semTo.length).toBeGreaterThan(0);
+  });
 });

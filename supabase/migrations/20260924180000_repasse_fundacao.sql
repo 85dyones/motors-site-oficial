@@ -130,6 +130,14 @@ create table if not exists public.repasse_avisos (
 alter table public.leads add column if not exists repasse_id uuid references public.repasses(id) on delete set null;
 
 -- ----------------------------------------------------------------------------
+-- Índices das FKs — sem eles o advisor do Supabase acusa, e "os leads deste
+-- carro" (spec §4.4) varreria leads inteira para achar quem se candidatou.
+-- ----------------------------------------------------------------------------
+create index if not exists leads_repasse_id_idx on public.leads (repasse_id) where repasse_id is not null;
+create index if not exists repasse_inscritos_lead_id_idx on public.repasse_inscritos (lead_id) where lead_id is not null;
+create index if not exists repasse_avisos_inscrito_id_idx on public.repasse_avisos (inscrito_id);
+
+-- ----------------------------------------------------------------------------
 -- RLS e privilégios
 -- ----------------------------------------------------------------------------
 alter table public.repasses enable row level security;
@@ -176,6 +184,12 @@ create policy aviso_staff_apaga on public.repasse_avisos for delete to authentic
 revoke all on public.repasses from anon;
 revoke all on public.repasse_inscritos from anon;
 revoke all on public.repasse_avisos from anon;
+
+-- Explícito em vez de herdado do default ACL: quem grava (inscrição, aviso,
+-- validação e publicação, todas pela rota do painel) é esta chave, e o
+-- arquivo tem que dizer isso sem depender de configuração de fora.
+grant select, insert, update, delete on public.repasses, public.repasse_inscritos, public.repasse_avisos to service_role;
+
 grant select (
   id, slug, marca, modelo, versao, ano_modelo, ano_fabricacao, quilometragem,
   cambio, combustivel, cor, carroceria, preco, fipe_valor, fipe_codigo,
