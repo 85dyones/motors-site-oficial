@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { consultarFipeNoServidor } from "../../../../lib/fipeNoServidor";
+import { consultarFipeNoServidor, lerPedidoFipe } from "../../../../lib/fipeNoServidor";
 import { ipDoVisitante } from "../../../../lib/turnstile";
 
 /**
@@ -30,6 +30,14 @@ import { ipDoVisitante } from "../../../../lib/turnstile";
  * FIPE. Cortado, responde 429 — e `consultaFipe` cai na API pública direto do
  * navegador. O cliente não fica sem FIPE por causa do limite da loja.
  *
+ * A ordem importa, e a primeira versão errou nela (revisão de 24/09):
+ *   1. caminho inválido e query string são recusados ANTES de qualquer limite
+ *      — senão `/api/fipe/x?n=1…450` gastava o teto global com lixo, e cada
+ *      query nova ainda furava o cache da borda;
+ *   2. o limite por IP vem antes do global, e o global só é consultado se o
+ *      IP passou — o `limit()` do Upstash CONTA a chamada, então consultar os
+ *      dois juntos deixava um IP já barrado esgotar o teto de todo mundo.
+ *
  * O limite mora aqui, e não em `src/proxy.ts`, pelo mesmo motivo da
  * `/api/erros`: o matcher do proxy cobre o caminho de conversão.
  */
@@ -48,15 +56,18 @@ function limitadores(comToken: boolean) {
 
   try {
     const redis = new Redis({ url, token });
-    // Uma cascata completa são quatro consultas; quem troca de marca e de
-    // modelo algumas vezes chega a vinte. 60 em 10 minutos é folga, não teto.
+    // Uma cascata completa são quatro consultas. 60 em 10 minutos deixa
+    // quinze cascatas por IP — escolha com folga para quem troca de marca e de
+    // modelo, e não uma medição de uso.
     porIp = new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(60, "10 m"),
       prefix: "@upstash/ratelimit/fipe",
     });
-    // Abaixo do teto diário da FIPE (1.000 com token, 500 sem), deixando
-    // margem para o que a borda já serviu sem passar por aqui.
+    // Abaixo do teto diário da FIPE (1.000 com token, 500 sem): o que a borda
+    // serve do cache não chega aqui nem à FIPE, então este teto conta só as
+    // consultas que de fato saem. A folga de 10% cobre o que outra coisa no
+    // mesmo token (ou IP) gastar.
     porTodos = new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(comToken ? 900 : 450, "24 h"),
@@ -78,15 +89,19 @@ export async function GET(
   const { caminho } = await params;
   const token = process.env.FIPE_API_TOKEN?.trim() || undefined;
 
+  // A cascata nunca manda query string; aceitá-la seria dar a cada visitante
+  // um jeito de furar o cache da borda e chegar à FIPE.
+  if (new URL(request.url).search || !lerPedidoFipe(caminho ?? [])) {
+    return NextResponse.json({ error: "Caminho FIPE inválido." }, { status: 400, headers: SEM_CACHE });
+  }
+
   const { porIp: limiteIp, porTodos: limiteGlobal } = limitadores(Boolean(token));
   if (limiteIp && limiteGlobal) {
     try {
       const ip = ipDoVisitante(request as { headers: Headers }) ?? "sem-ip";
-      const [umIp, todos] = await Promise.all([
-        limiteIp.limit(ip),
-        limiteGlobal.limit("fipe:global"),
-      ]);
-      if (!umIp.success || !todos.success) {
+      const recusado =
+        !(await limiteIp.limit(ip)).success || !(await limiteGlobal.limit("fipe:global")).success;
+      if (recusado) {
         return NextResponse.json({ error: "Limite de consultas da loja." }, { status: 429, headers: SEM_CACHE });
       }
     } catch (erro) {

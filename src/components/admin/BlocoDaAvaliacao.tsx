@@ -115,13 +115,16 @@ export default function BlocoDaAvaliacao({
     ["Veículo", [`${a.marca} ${a.modelo}`.trim(), a.ano ? String(a.ano) : null].filter(Boolean).join(" · ")],
     ["Estado", estado || null],
     ["Km", km],
+    // "no site", e não só "FIPE": a consulta roda no navegador do cliente, e
+    // quem chama a rota à mão escolhe o número — a rota só corta o absurdo
+    // (`fipeDoCorpo`). É referência a conferir, não dado conferido.
     [
-      "FIPE",
+      "FIPE no site",
       a.fipe
         ? [reais(a.fipe.valor), a.fipe.mes_referencia, a.fipe.codigo].filter(Boolean).join(" · ")
         : a.veiculo_digitado
           ? "não consultada — o cliente digitou o carro"
-          : "não consultada",
+          : "sem valor — a FIPE não respondeu no envio",
     ],
     ["Sugestão", a.recomendacao.resumo],
   ];
@@ -162,7 +165,7 @@ export default function BlocoDaAvaliacao({
 
       <p className="m-0 mt-1.5 text-[10px] leading-snug text-mt-neutral-600">
         {a.regra === REGRA_DA_RECOMENDACAO ? "Régua de 3 faixas (06/08)" : `Régua ${a.regra}`}, sobre o que o
-        cliente declarou. O número é da vistoria.
+        cliente declarou. Confira a FIPE; o número é da vistoria.
       </p>
 
       <div className="mt-2 flex gap-2">

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -179,20 +179,132 @@ describe("consultarFipeNoServidor", () => {
   });
 });
 
-describe("a rota", () => {
+// ─────────────────────────────────────────────────────────────────────────────
+// A rota, EXECUTADA
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A primeira versão destes testes só lia o texto do arquivo, e a revisão de
+// 24/09 mostrou o preço: inverter `resposta.guardar ? cache : no-store` (502
+// guardado na borda por 12 h) e trocar o `||` do limite passavam verdes. Aqui
+// a rota roda, com o Upstash e a FIPE dublados.
+
+/** Cada `limit()` que a rota fez, na ordem: [prefixo, chave]. */
+const limites: [string, string][] = [];
+/** Prefixo que recusa — o do IP ou o global. */
+let recusa: string | null = null;
+
+vi.mock("@upstash/redis", () => ({ Redis: class {} }));
+vi.mock("@upstash/ratelimit", () => ({
+  Ratelimit: class {
+    static slidingWindow() {
+      return {};
+    }
+    prefixo: string;
+    constructor(opcoes: { prefix: string }) {
+      this.prefixo = opcoes.prefix;
+    }
+    async limit(chave: string) {
+      limites.push([this.prefixo, chave]);
+      return { success: this.prefixo !== recusa };
+    }
+  },
+}));
+
+const PREFIXO_IP = "@upstash/ratelimit/fipe";
+const PREFIXO_GLOBAL = "@upstash/ratelimit/fipe-global";
+
+describe("a rota, executada", () => {
+  /** O que a FIPE (dublada) recebeu: URL e cabeçalhos. */
+  let pedidosAFipe: { url: string; headers: Record<string, string> }[];
+  let respostaDaFipe: { status: number; corpo: unknown };
+
+  async function chamar(caminho: string[], query = "") {
+    const { GET } = await import("../src/app/api/fipe/[...caminho]/route");
+    return GET(new Request(`http://x/api/fipe/${caminho.join("/")}${query}`, {
+      headers: { "x-forwarded-for": "200.1.2.3" },
+    }), { params: Promise.resolve({ caminho }) });
+  }
+
+  beforeEach(() => {
+    // Antes do primeiro `import` da rota: os limitadores nascem na primeira
+    // chamada e ficam no módulo.
+    process.env.UPSTASH_REDIS_REST_URL = "https://redis.teste";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "t";
+    delete process.env.FIPE_API_TOKEN;
+    limites.length = 0;
+    recusa = null;
+    pedidosAFipe = [];
+    respostaDaFipe = { status: 200, corpo: [{ code: "21", name: "Fiat" }] };
+    globalThis.fetch = (async (url: string, init?: { headers?: Record<string, string> }) => {
+      pedidosAFipe.push({ url: String(url), headers: init?.headers ?? {} });
+      const { status, corpo } = respostaDaFipe;
+      return { ok: status >= 200 && status < 300, status, json: async () => corpo };
+    }) as never;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("200: formato v1 e cache de borda; IP antes do global", async () => {
+    const r = await chamar(["carros", "marcas"]);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual([{ codigo: "21", nome: "Fiat" }]);
+    expect(r.headers.get("cache-control")).toMatch(/s-maxage=43200/);
+    expect(limites).toEqual([
+      [PREFIXO_IP, "200.1.2.3"],
+      [PREFIXO_GLOBAL, "fipe:global"],
+    ]);
+    expect(pedidosAFipe[0].url).toBe(`${FIPE_V2}/cars/brands`);
+  });
+
+  it("FIPE em 429: 502 sem cache — um erro guardado na borda valeria por 12 h", async () => {
+    respostaDaFipe = { status: 429, corpo: { error: "limite de taxa excedido" } };
+    const r = await chamar(["carros", "marcas"]);
+    expect(r.status).toBe(502);
+    expect(r.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("caminho inválido: 400 sem gastar limite nem FIPE", async () => {
+    for (const caminho of [["x"], ["carros", "marcas", "..", "modelos"], ["constructor", "marcas"], ["carros", "marcas", "4%2F8", "modelos"]]) {
+      const r = await chamar(caminho);
+      expect(r.status, caminho.join("/")).toBe(400);
+      expect(r.headers.get("cache-control")).toBe("no-store");
+    }
+    expect(limites, "caminho inválido não pode gastar o teto global").toEqual([]);
+    expect(pedidosAFipe).toEqual([]);
+  });
+
+  it("query string: 400 — ela furaria o cache da borda", async () => {
+    const r = await chamar(["carros", "marcas"], "?n=1");
+    expect(r.status).toBe(400);
+    expect(limites).toEqual([]);
+    expect(pedidosAFipe).toEqual([]);
+  });
+
+  it("IP barrado: 429, e o global NEM é consultado — senão um IP esgotaria o teto de todos", async () => {
+    recusa = PREFIXO_IP;
+    const r = await chamar(["carros", "marcas"]);
+    expect(r.status).toBe(429);
+    expect(limites).toEqual([[PREFIXO_IP, "200.1.2.3"]]);
+    expect(pedidosAFipe).toEqual([]);
+  });
+
+  it("teto global estourado: 429 sem chamar a FIPE", async () => {
+    recusa = PREFIXO_GLOBAL;
+    const r = await chamar(["carros", "marcas"]);
+    expect(r.status).toBe(429);
+    expect(r.headers.get("cache-control")).toBe("no-store");
+    expect(pedidosAFipe).toEqual([]);
+  });
+
+  it("com FIPE_API_TOKEN, o token vai no cabeçalho da v2", async () => {
+    process.env.FIPE_API_TOKEN = " tok-da-loja ";
+    await chamar(["carros", "marcas", "21", "modelos", "7097", "anos", "2014-1"]);
+    expect(pedidosAFipe[0].url).toBe(`${FIPE_V2}/cars/brands/21/models/7097/years/2014-1`);
+    expect(pedidosAFipe[0].headers["X-Subscription-Token"]).toBe("tok-da-loja");
+  });
+});
+
+describe("a rota, no texto", () => {
   const rota = readFileSync(join(__dirname, "..", "src", "app", "api", "fipe", "[...caminho]", "route.ts"), "utf-8");
-
-  it("só guarda na borda a resposta boa", () => {
-    expect(rota).toContain("resposta.guardar");
-    expect(rota).toMatch(/s-maxage=43200/);
-    expect(rota).toMatch(/"Cache-Control": "no-store"/);
-  });
-
-  it("tem limite de taxa por IP e global, e cortar responde 429 (a reserva do navegador assume)", () => {
-    expect(rota).toContain("limiteIp.limit(ip)");
-    expect(rota).toContain('limiteGlobal.limit("fipe:global")');
-    expect(rota).toMatch(/status: 429/);
-  });
 
   it("lê o token da env, nunca de site_settings", () => {
     expect(rota).toContain("process.env.FIPE_API_TOKEN");

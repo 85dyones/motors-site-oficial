@@ -80,7 +80,7 @@ describe("PATCH — valores da avaliação", () => {
   });
 
   it("ilegível, zero e negativo recusam com 400 e não gravam nada", async () => {
-    for (const valor of ["abc", "0", -10]) {
+    for (const valor of ["abc", "0", -10, "55000.50", true]) {
       gravacoes = [];
       const r = await chamar({ avaliacao_valor_ofertado: valor });
       expect(r.status, String(valor)).toBe(400);

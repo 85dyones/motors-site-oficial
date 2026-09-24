@@ -73,7 +73,22 @@ export function criarBuscaComReserva(rede: Buscar): Buscar {
   };
 }
 
-const buscarPadrao: Buscar = criarBuscaComReserva((url) => fetch(url));
+/**
+ * Quanto o navegador espera cada porta antes de desistir dela. É escolha, não
+ * medição: acima dos 8 s que a rota da loja espera a FIPE
+ * (`ESPERA_MAXIMA_MS` em `fipeNoServidor.ts`), para a loja responder o 502
+ * dela antes de o navegador cortar. Sem isto, uma porta pendurada deixava o
+ * campo em "Carregando…" sem prazo — a pública nunca teve limite de espera.
+ */
+const ESPERA_NO_NAVEGADOR_MS = 10_000;
+
+function comLimiteDeEspera(): RequestInit | undefined {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? { signal: AbortSignal.timeout(ESPERA_NO_NAVEGADOR_MS) }
+    : undefined;
+}
+
+const buscarPadrao: Buscar = criarBuscaComReserva((url) => fetch(url, comLimiteDeEspera()));
 
 /** "R$ 42.100,00" → 42100. Zero, vazio ou lixo → null. */
 export function valorFipeEmNumero(bruto: unknown): number | null {

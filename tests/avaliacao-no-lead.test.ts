@@ -9,6 +9,9 @@ import {
   montarAvaliacaoDoLead,
 } from "../src/lib/avaliacaoDoLead";
 import { recomendarAvaliacao } from "../src/lib/avaliacaoRecomendacao";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import BlocoDaAvaliacao from "../src/components/admin/BlocoDaAvaliacao";
 
 /**
  * A avaliação mora no lead (migração 20260924190000).
@@ -91,12 +94,66 @@ describe("montarAvaliacaoDoLead", () => {
     expect(a.fipe, "sem FIPE é null, nunca zero").toBeNull();
     expect(a.veiculo_digitado, "só o booleano true liga a marca").toBe(false);
   });
+
+  it("chave do protótipo não passa por estado — o card mostraria o código de uma função", () => {
+    const a = montarAvaliacaoDoLead(
+      { marca: "Fiat", modelo: "Argo", estado_mecanico: "constructor", estado_conservacao: "toString" },
+      recomendacao,
+    );
+    expect(a.estado_mecanico).toBeNull();
+    expect(a.estado_conservacao).toBeNull();
+  });
+
+  it("FIPE e km absurdos não viram dado — o teto tira o que só pode ser erro ou fraude", () => {
+    const a = montarAvaliacaoDoLead(
+      { marca: "Fiat", modelo: "Argo", fipe_valor: "R$ 999.999.999.999,00", quilometragem: 9_999_999 },
+      recomendacao,
+    );
+    expect(a.fipe).toBeNull();
+    expect(a.quilometragem).toBeNull();
+    const plausivel = montarAvaliacaoDoLead(
+      { marca: "Fiat", modelo: "Argo", fipe_valor: "R$ 4.500.000,00", quilometragem: 1_200_000 },
+      recomendacao,
+    );
+    expect(plausivel.fipe?.valor).toBe(4_500_000);
+    expect(plausivel.quilometragem).toBe(1_200_000);
+  });
 });
 
 describe("lerAvaliacaoDoLead — o painel não cai por um retrato torto", () => {
   it("devolve o retrato bom", () => {
     const a = montarAvaliacaoDoLead({ marca: "Fiat", modelo: "Argo" }, recomendacao);
     expect(lerAvaliacaoDoLead(JSON.parse(JSON.stringify(a)))).toMatchObject({ marca: "Fiat" });
+  });
+
+  it("normaliza cada campo que o card lê — um retrato torto não derruba o painel", () => {
+    // As formas que fizeram o card lançar na revisão de 24/09, e mais algumas.
+    const tortos: unknown[] = [
+      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" } },
+      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", sinais: "não é lista" }, fipe: 5 },
+      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", sinais: [1, null, "ok"] }, fipe: { valor: "68000" } },
+      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" }, quilometragem: "abc", ano: {}, observacoes: 3 },
+      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" }, estado_mecanico: "constructor", regra: 7 },
+    ];
+    for (const bruto of tortos) {
+      const a = lerAvaliacaoDoLead(bruto);
+      expect(a, JSON.stringify(bruto)).not.toBeNull();
+      expect(Array.isArray(a!.recomendacao.sinais)).toBe(true);
+      expect(a!.fipe === null || typeof a!.fipe.valor === "number").toBe(true);
+      expect(a!.quilometragem === null || typeof a!.quilometragem === "number").toBe(true);
+      const html = renderToStaticMarkup(
+        createElement(BlocoDaAvaliacao, {
+          nome: "Ana",
+          avaliacao: bruto,
+          valorOfertado: "não é número",
+          valorPago: null,
+          onSalvar: () => {},
+        }),
+      );
+      expect(html).toContain("Avaliação do site");
+      expect(html).not.toContain("function");
+    }
+    expect(lerAvaliacaoDoLead(tortos[2])!.recomendacao.sinais).toEqual(["ok"]);
   });
 
   it("devolve null para ausente, lista, texto e forma incompleta", () => {
@@ -129,6 +186,16 @@ describe("lerValorDaAvaliacao — ofertado e pago digitados no card", () => {
     for (const v of ["abc", "0", "-100", 0, -1, 100_000_000, "100.000.000"]) {
       expect(lerValorDaAvaliacao(v), String(v)).toEqual({ ok: false });
     }
+  });
+
+  it("o ambíguo também recusa, em vez de chutar um número", () => {
+    // O leitor do "Valor da venda" tirava todo ponto: "55000.50" virava
+    // 5.500.050 e "55,000" virava 55 (revisão de 24/09).
+    for (const v of ["55000.50", "55,000", "55.00", "1e5", "5.5000", true, {}, NaN, Infinity]) {
+      expect(lerValorDaAvaliacao(v), String(v)).toEqual({ ok: false });
+    }
+    expect(lerValorDaAvaliacao("55000,5")).toEqual({ ok: true, valor: 55000.5 });
+    expect(lerValorDaAvaliacao("1.234.567,89")).toEqual({ ok: true, valor: 1234567.89 });
   });
 });
 
@@ -257,6 +324,14 @@ describe("POST /api/avaliacao grava o retrato no lead", () => {
     expect(inserts).toHaveLength(2);
     expect(inserts[1]).not.toHaveProperty("avaliacao");
     expect(inserts[1]).toMatchObject({ canal: "Avaliação", nome: "Cliente de Teste", event_id: "ev-1" });
+  });
+
+  it("FIPE absurda do corpo não vira faixa sugerida de bilhões", async () => {
+    await enviar({ ...CORPO, fipe_valor: "R$ 999.999.999.999,00" });
+    const avaliacao = lerAvaliacaoDoLead(inserts[0].avaliacao)!;
+    expect(avaliacao.fipe).toBeNull();
+    expect(avaliacao.recomendacao.valor_sugerido_max).toBeNull();
+    expect(n8n[0]).toMatchObject({ recomendacao: { valor_sugerido_max: null } });
   });
 
   it("outro erro de gravação não vira segundo insert, e não segura o cliente", async () => {

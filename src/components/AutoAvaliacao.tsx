@@ -75,6 +75,14 @@ interface Step3Data {
   whatsapp: string;
 }
 
+/**
+ * O que a medição (GA4, Meta, CAPI) recebe no lugar de marca e modelo quando
+ * eles foram DIGITADOS. Na cascata os dois vêm da lista fechada da FIPE; no
+ * texto livre são o que a pessoa escreveu, e texto livre de cliente não vai
+ * para pixel de terceiro — pode trazer nome, placa, telefone.
+ */
+const DIGITADO_NA_MEDICAO = "(digitado)";
+
 /** Ano digitado à mão: quatro dígitos, de 1950 até o ano que vem. */
 function anoDigitadoValido(ano: string): boolean {
   if (!/^\d{4}$/.test(ano)) return false;
@@ -399,8 +407,27 @@ export default function AutoAvaliacao() {
   const [modelDisplay, setModelDisplay] = useState("");
   const [yearDisplay, setYearDisplay] = useState("");
 
+  /**
+   * A geração da cascata. Toda troca de marca, modelo ou tipo a avança, e uma
+   * busca de modelos ou anos só aplica a resposta — boa ou falha — se ainda
+   * for da geração em que nasceu.
+   *
+   * Sem isto, com a FIPE lenta: o cliente escolhia Fiat, trocava para Ford
+   * antes de os modelos da Fiat chegarem, escolhia Ka 2019, via a FIPE — e a
+   * busca VELHA da Fiat, falhando depois, jogava o formulário no texto livre,
+   * apagava a FIPE boa e enviava o carro como digitado (achado da revisão de
+   * 24/09, reproduzido no jsdom).
+   */
+  const geracaoDaCascata = useRef(0);
+  const invalidarBuscasDaCascata = useCallback(() => {
+    geracaoDaCascata.current += 1;
+    setLoadingModels(false);
+    setLoadingYears(false);
+  }, []);
+
   // Handler for changing vehicle type tab
   const handleVehicleTypeChange = (type: "carros" | "motos" | "caminhoes") => {
+    invalidarBuscasDaCascata();
     setVehicleType(type);
     setStep1({ marca: "", modelo: "", ano: "" });
     setSelectedBrandId("");
@@ -423,6 +450,7 @@ export default function AutoAvaliacao() {
    * valendo; o que sai são os códigos, que só servem à cascata.
    */
   const entrarNoPreenchimentoAMao = useCallback(() => {
+    invalidarBuscasDaCascata();
     setFipeFora(true);
     setSelectedBrandId("");
     setSelectedModelId("");
@@ -434,7 +462,7 @@ export default function AutoAvaliacao() {
     setFipeCodigo("");
     setFipeMesReferencia("");
     setFipeSemValor(false);
-  }, []);
+  }, [invalidarBuscasDaCascata]);
 
   // ─── Fetch Brands when vehicleType changes ───
   //
@@ -477,25 +505,31 @@ export default function AutoAvaliacao() {
 
   // ─── Fetch Models when brand changes ───
   const fetchModels = useCallback(async (brandId: string) => {
+    const minha = ++geracaoDaCascata.current;
     setLoadingModels(true);
     setFipeModels([]);
     setFipeYears([]);
     try {
-      setFipeModels(await listarModelos(vehicleType, brandId));
+      const modelos = await listarModelos(vehicleType, brandId);
+      if (geracaoDaCascata.current !== minha) return;
+      setFipeModels(modelos);
     } catch (err) {
+      if (geracaoDaCascata.current !== minha) return;
       console.error("[FIPE] Erro ao buscar modelos:", err);
       entrarNoPreenchimentoAMao();
     } finally {
-      setLoadingModels(false);
+      if (geracaoDaCascata.current === minha) setLoadingModels(false);
     }
   }, [vehicleType, entrarNoPreenchimentoAMao]);
 
   // ─── Fetch Years when model changes ───
   const fetchYears = useCallback(async (brandId: string, modelId: string) => {
+    const minha = ++geracaoDaCascata.current;
     setLoadingYears(true);
     setFipeYears([]);
     try {
       const anos = await listarAnos(vehicleType, brandId, modelId);
+      if (geracaoDaCascata.current !== minha) return;
       // Filter out "32000" (zero-km placeholder) and sort descending
       const filtered = anos
         .filter((y) => !y.codigo.startsWith("32000"))
@@ -506,10 +540,11 @@ export default function AutoAvaliacao() {
         });
       setFipeYears(filtered);
     } catch (err) {
+      if (geracaoDaCascata.current !== minha) return;
       console.error("[FIPE] Erro ao buscar anos:", err);
       entrarNoPreenchimentoAMao();
     } finally {
-      setLoadingYears(false);
+      if (geracaoDaCascata.current === minha) setLoadingYears(false);
     }
   }, [vehicleType, entrarNoPreenchimentoAMao]);
 
@@ -579,6 +614,7 @@ export default function AutoAvaliacao() {
   };
 
   const handleBrandClear = () => {
+    invalidarBuscasDaCascata();
     setSelectedBrandId("");
     setBrandDisplay("");
     setStep1({ marca: "", modelo: "", ano: "" });
@@ -600,6 +636,7 @@ export default function AutoAvaliacao() {
   };
 
   const handleModelClear = () => {
+    invalidarBuscasDaCascata();
     setSelectedModelId("");
     setModelDisplay("");
     setStep1((prev) => ({ ...prev, modelo: "", ano: "" }));
@@ -726,7 +763,9 @@ export default function AutoAvaliacao() {
         if (fipeValor) {
           numericValue = Number(fipeValor.replace(/[^\d]/g, "")) / 100;
         }
-        trackAppraisalSubmit(vehicleType, step1.marca, step1.modelo, String(step1.ano), numericValue, eventIdDaAvaliacao);
+        const marcaNaMedicao = fipeFora ? DIGITADO_NA_MEDICAO : step1.marca;
+        const modeloNaMedicao = fipeFora ? DIGITADO_NA_MEDICAO : step1.modelo;
+        trackAppraisalSubmit(vehicleType, marcaNaMedicao, modeloNaMedicao, String(step1.ano), numericValue, eventIdDaAvaliacao);
       } else {
         // Token do Turnstile é de uso único e já foi gasto no siteverify. Sem
         // pedir outro, uma segunda tentativa reenviaria o mesmo e levaria 403
@@ -849,8 +888,11 @@ export default function AutoAvaliacao() {
     const fipeNumericValue = fipeValor ? Number(fipeValor.replace(/[^\d]/g, "")) / 100 : 0;
     const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
-      { marca: step1.marca, modelo: step1.modelo, preco: fipeNumericValue },
-      activeMessage,
+      fipeFora
+        ? { marca: DIGITADO_NA_MEDICAO, modelo: DIGITADO_NA_MEDICAO, preco: fipeNumericValue }
+        : { marca: step1.marca, modelo: step1.modelo, preco: fipeNumericValue },
+      // A mensagem cita o carro — no texto livre, com as palavras do cliente.
+      fipeFora ? "Avaliação com o veículo digitado" : activeMessage,
       {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,

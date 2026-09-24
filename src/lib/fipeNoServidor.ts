@@ -6,7 +6,7 @@
  * consulta a **v2** por baixo, porque é na v2 que o token da loja vale
  * (`X-Subscription-Token`, documentado em deividfortuna.github.io/fipe/v2):
  * sem token o teto é de 500 consultas por dia por IP, com o token gratuito do
- * fipe.online é de 1.000. Os códigos de marca, modelo e ano são os mesmos nas
+ * fipe.api.br é de 1.000. Os códigos de marca, modelo e ano são os mesmos nas
  * duas versões — conferido em 24/09/2026 com o Fiat 500 Abarth (marca 21,
  * modelo 7097, ano "2014-1") nas duas.
  *
@@ -39,7 +39,10 @@ const CODIGO = /^\d{1,6}$/;
 const ANO = /^\d{4,5}-\d{1,2}$/;
 
 function ehTipo(valor: string): valor is TipoFipe {
-  return valor in TIPO_NA_V2;
+  // `hasOwn`, e não `in`: com `in`, "constructor" e "toString" passavam como
+  // tipo — e a rota chamava a FIPE com o token em
+  // "…/api/v2/function Object() { [native code] }/brands".
+  return Object.hasOwn(TIPO_NA_V2, valor);
 }
 
 /**

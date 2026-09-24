@@ -6,7 +6,13 @@ import { getCachedSettings } from "../../../lib/settings";
 import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
 import { verificarTurnstile, ACOES_DE_AVALIACAO, ipDoVisitante } from "../../../lib/turnstile";
 import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
-import { colunaDaAvaliacaoAusente, montarAvaliacaoDoLead } from "../../../lib/avaliacaoDoLead";
+import {
+  colunaDaAvaliacaoAusente,
+  fipeDoCorpo,
+  montarAvaliacaoDoLead,
+  quilometragemDoCorpo,
+  type AvaliacaoDoLead,
+} from "../../../lib/avaliacaoDoLead";
 
 export const dynamic = "force-dynamic";
 
@@ -111,16 +117,17 @@ export async function POST(request: NextRequest) {
     // A recomendação é recalculada aqui, no servidor, e não copiada do corpo
     // da requisição: o cliente é público e não pode ditar o preço que o
     // consultor lê. O que vem do cliente são os fatos (estado e km).
-    const quilometragem =
-      typeof requestBody.quilometragem === "number" && requestBody.quilometragem >= 0
-        ? requestBody.quilometragem
-        : null;
+    //
+    // Km e FIPE passam pelos tetos de sanidade de `lib/avaliacaoDoLead`
+    // (2026-09-24): sem eles, um POST à mão com FIPE de R$ 1 trilhão virava
+    // uma "faixa sugerida" de bilhões gravada no lead.
+    const quilometragem = quilometragemDoCorpo(requestBody.quilometragem);
 
     const recomendacao = recomendarAvaliacao({
       estadoMecanico: String(requestBody.estado_mecanico || ""),
       estadoConservacao: String(requestBody.estado_conservacao || ""),
       quilometragem,
-      fipeValor: requestBody.fipe_valor || "",
+      fipeValor: fipeDoCorpo(requestBody.fipe_valor) === null ? "" : requestBody.fipe_valor,
     });
 
     const n8nPayload = {
@@ -166,9 +173,17 @@ export async function POST(request: NextRequest) {
     // migração 20260924190000 ainda não estiver aplicada, a coluna não existe
     // e o insert inteiro seria recusado; aí o lead é gravado de novo sem ela.
     // Perder o retrato é ruim; perder o lead é o bug de 2026-08-11 de volta.
+    //
+    // O retrato é montado FORA do `try` do insert e com a própria rede: se um
+    // dia a montagem lançar, o lead sai sem ele, e não deixa de sair.
+    let retrato: AvaliacaoDoLead | null = null;
+    try {
+      retrato = montarAvaliacaoDoLead(requestBody, recomendacao);
+    } catch (erroDoRetrato) {
+      console.warn("[Avaliacao API] Retrato da avaliação não montado:", (erroDoRetrato as Error)?.message);
+    }
     try {
       const supabaseAdmin = createAdminSupabaseClient();
-      const retrato = montarAvaliacaoDoLead(requestBody, recomendacao);
       const inserir = (comRetrato: boolean) =>
         supabaseAdmin.from("leads").insert({
           nome,
@@ -182,7 +197,7 @@ export async function POST(request: NextRequest) {
           // Mesmo conserto de `/api/leads` (2026-09-21): o `utm` já vinha no
           // corpo e ia só para o n8n. `fbp`/`fbc` passam a vir do formulário.
           ...contextoDeMidiaDoLead(requestBody),
-          ...(comRetrato ? { avaliacao: retrato } : {}),
+          ...(comRetrato && retrato ? { avaliacao: retrato } : {}),
         });
       let { error: erroLead } = await inserir(true);
       if (erroLead && colunaDaAvaliacaoAusente(erroLead)) {
