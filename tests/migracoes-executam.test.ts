@@ -92,6 +92,13 @@ const CADEIA = [
   // duas migrações acima deram escopo à tabela e as sementes de agosto
   // inseriram os quatro de pagamento.
   "20260916170000_motivos_de_ganho_por_escopo.sql",
+  // A gestão do lead (2026-09-23): aplicada em produção FORA do repositório e
+  // reconstruída em 2026-09-24 a partir do catálogo de lá. Entra na cadeia
+  // porque o aceite compara constraint, índice e função com o texto lido de
+  // produção, e prova grants e policy vestindo anon, um cliente e um staff —
+  // e porque ela reescreve o gatilho do funil (acima) que a avaliação, logo
+  // abaixo, atravessa.
+  "20260923150000_gestao_do_lead.sql",
   // A avaliação mora no lead (2026-09-24). Entra na cadeia porque o aceite
   // prova os CHECKs tentando gravar o inválido, passa pelos gatilhos do funil
   // (acima) com as colunas novas e confere, vestindo `anon` e um cliente sem
