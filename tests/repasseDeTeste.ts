@@ -1,5 +1,13 @@
 import type { Repasse } from "../src/lib/repasse";
 
+const PASTA_DE_TESTE =
+  "https://x.supabase.co/storage/v1/object/public/veiculos/repasse/3f9a1c2e-5b7d-4e1a-9c3b-0a1b2c3d4e5f";
+
+/** URL de foto do NOSSO bucket — é o único formato que passa no checklist (M9). */
+export function fotoDeTeste(lote: string, variante: "web" | "zap" = "web"): string {
+  return `${PASTA_DE_TESTE}/${lote}-${variante}.${variante === "web" ? "webp" : "jpg"}`;
+}
+
 /**
  * Um repasse COMPLETO e válido — o Kwid Zen das pranchas do Design. Cada teste
  * quebra só o campo que interessa, e o resto continua passando no checklist.
@@ -32,15 +40,15 @@ export function repasseDeTeste(parcial: Partial<Repasse> = {}): Repasse {
     resumo: "Embreagem patinando e pneus dianteiros no fim. Preferimos repassar com o orçamento na mão.",
     motivo: "Entrou na troca de um SUV em setembro.",
     itens_de_estado: [
-      { descricao: "Embreagem patinando nas arrancadas", local: "Câmbio", foto: "https://x.supabase.co/f/1.webp", orcamento: 1400, estetico: false },
-      { descricao: "Pneus dianteiros no fim da vida útil", local: "Rodas dianteiras", foto: "https://x.supabase.co/f/2.webp", orcamento: 620, estetico: false },
-      { descricao: "Risco de 12 cm na lataria", local: "Porta traseira direita", foto: "https://x.supabase.co/f/3.webp", orcamento: null, estetico: true },
+      { descricao: "Embreagem patinando nas arrancadas", local: "Câmbio", foto: fotoDeTeste("d1"), orcamento: 1400, estetico: false },
+      { descricao: "Pneus dianteiros no fim da vida útil", local: "Rodas dianteiras", foto: fotoDeTeste("d2"), orcamento: 620, estetico: false },
+      { descricao: "Risco de 12 cm na lataria", local: "Porta traseira direita", foto: fotoDeTeste("d3"), orcamento: null, estetico: true },
     ],
     sem_defeitos_conhecidos: false,
     oficina_do_orcamento: "Oficina Exemplo",
     orcamento_em: "2026-09-22",
-    web_full_images: ["w1", "w2", "w3", "w4"],
-    whatsapp_images: ["z1", "z2", "z3", "z4"],
+    web_full_images: ["l1", "l2", "l3", "l4"].map((l) => fotoDeTeste(l)),
+    whatsapp_images: ["l1", "l2", "l3", "l4"].map((l) => fotoDeTeste(l, "zap")),
     situacao: "rascunho",
     lojistas_desde: null,
     aberto_ao_publico_em: null,

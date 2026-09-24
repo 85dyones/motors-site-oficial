@@ -178,3 +178,52 @@ export function faixaDoPreco(preco: number): FaixaDoRepasse {
   }
   return "acima-80";
 }
+
+/**
+ * O piso do `check` de `ano_modelo` e `ano_fabricacao` em
+ * 20260924180000_repasse_fundacao.sql. É mais alto que o `ANO_MINIMO` da casa
+ * (1900): abaixo dele o banco recusa, então o painel recusa antes, com
+ * mensagem. `tests/migracao-do-repasse.test.ts` confere que os dois batem.
+ */
+export const PISO_DO_ANO_NO_BANCO = 1950;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Id de repasse é uuid; qualquer outra coisa na URL vira 404 antes do banco. */
+export function ehIdDeRepasse(id: string): boolean {
+  return UUID.test(id);
+}
+
+/** Como a situação aparece no painel. */
+export const NOME_DA_SITUACAO: Record<SituacaoDoRepasse, string> = {
+  rascunho: "Rascunho",
+  em_validacao: "Em validação",
+  publicado: "Publicado",
+  reservado: "Reservado",
+  vendido: "Vendido",
+  arquivado: "Arquivado",
+};
+
+/** "R$ 36.900": sem centavos, como o resto do site mostra preço de carro. */
+export function emReais(valor: number): string {
+  return valor.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
+
+/**
+ * O repasse como o PAINEL o vê: a linha inteira, com as colunas que a
+ * leitura anônima não recebe (quem criou, quem validou, a nota da devolução).
+ * Nunca vai para página pública.
+ */
+export interface RepasseDoPainel extends Repasse {
+  criado_por: string | null;
+  enviado_em: string | null;
+  validado_por: string | null;
+  validado_em: string | null;
+  devolvido_com: string | null;
+  updated_at: string | null;
+}

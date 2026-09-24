@@ -23,8 +23,10 @@
  * Cada padrão casa a EXPRESSÃO, não a palavra solta: "retrovisor direito" e
  * "o repasse gira rápido" são texto legítimo e precisam passar.
  */
+import { anoMaximo } from "./anoDoVeiculo";
 import { MINIMO_DE_FOTOS } from "./coerenciaDoCadastro";
-import type { Repasse } from "./repasse";
+import { ehFotoPropria } from "./fotosDoVeiculo";
+import { PISO_DO_ANO_NO_BANCO, type Repasse } from "./repasse";
 
 /** O que o dono mandou não citar: CDC, direitos do consumidor, garantia legal. */
 export const TERMOS_JURIDICOS_DO_REPASSE: ReadonlyArray<{ termo: string; padrao: RegExp }> = [
@@ -91,19 +93,44 @@ export interface FaltaDoChecklist {
   mensagem: string;
 }
 
-const vazio = (v: string | null | undefined) => !v || v.trim() === "";
+/**
+ * Vazio é também o que só tem espaço invisível: `trim()` não tira o espaço
+ * de largura zero (U+200B), e um "​" colado no resumo passava por texto (M8).
+ */
+const INVISIVEIS = /[\s\u200B-\u200D\u2060\uFEFF]/g;
+const vazio = (v: string | null | undefined) => !v || v.replace(INVISIVEIS, "") === "";
 
-export function checklistDoRepasse(r: Repasse): FaltaDoChecklist[] {
+export function checklistDoRepasse(r: Repasse, hoje: Date = new Date()): FaltaDoChecklist[] {
   const faltas: FaltaDoChecklist[] = [];
   const falta = (campo: string, mensagem: string) => faltas.push({ campo, mensagem });
 
-  if (r.web_full_images.length < MINIMO_DE_FOTOS) {
+  // Fotos (M9): URL vazia não conta, cada foto tem as duas versões, e só vale
+  // foto do nosso bucket — é ela que a ficha pública serve sem otimizador.
+  const web = r.web_full_images.filter((u) => !vazio(u));
+  const zap = r.whatsapp_images.filter((u) => !vazio(u));
+  if (web.length < MINIMO_DE_FOTOS) {
     falta("web_full_images", `Faltam fotos: o mínimo é ${MINIMO_DE_FOTOS}.`);
+  } else if (zap.length !== web.length) {
+    falta("whatsapp_images", "Cada foto tem duas versões e uma delas faltou. Envie a foto de novo.");
+  }
+  if ([...web, ...zap].some((u) => !ehFotoPropria(u))) {
+    falta("web_full_images", "Há foto de fora do nosso armazenamento. Envie as fotos pelo painel.");
   }
   if (vazio(r.marca)) falta("marca", "Informe a marca.");
   if (vazio(r.modelo)) falta("modelo", "Informe o modelo.");
-  if (!(Number.isInteger(r.ano_modelo) && r.ano_modelo >= 1950 && r.ano_modelo <= 2100)) {
-    falta("ano_modelo", "Informe o ano do modelo.");
+  // O teto é a régua da casa (`anoMaximo`); o piso é o do check do banco,
+  // que é mais alto que o `ANO_MINIMO` da casa (M2).
+  const teto = anoMaximo(hoje);
+  if (!(Number.isInteger(r.ano_modelo) && r.ano_modelo >= PISO_DO_ANO_NO_BANCO && r.ano_modelo <= teto)) {
+    falta("ano_modelo", `Ano do modelo entre ${PISO_DO_ANO_NO_BANCO} e ${teto}.`);
+  }
+  if (r.ano_fabricacao !== null) {
+    if (!(Number.isInteger(r.ano_fabricacao) && r.ano_fabricacao >= PISO_DO_ANO_NO_BANCO && r.ano_fabricacao <= teto)) {
+      falta("ano_fabricacao", `Ano de fabricação entre ${PISO_DO_ANO_NO_BANCO} e ${teto}.`);
+    } else if (r.ano_fabricacao > r.ano_modelo) {
+      // Regra da casa (`cadastroDeVeiculo.ts`): fabricado no ano do modelo ou antes.
+      falta("ano_fabricacao", "O ano de fabricação não pode ser depois do ano do modelo.");
+    }
   }
   if (!r.carroceria) falta("carroceria", "Escolha a carroceria — é por ela que a lista é avisada.");
   if (!(r.preco > 0)) falta("preco", "Informe o preço à vista.");
@@ -138,6 +165,9 @@ export function checklistDoRepasse(r: Repasse): FaltaDoChecklist[] {
     if (vazio(item.descricao)) falta(`itens_de_estado[${i}].descricao`, "Descreva o defeito.");
     if (vazio(item.local)) falta(`itens_de_estado[${i}].local`, "Diga onde está o defeito.");
     if (vazio(item.foto)) falta(`itens_de_estado[${i}].foto`, "Todo defeito tem foto.");
+    else if (!ehFotoPropria(item.foto)) {
+      falta(`itens_de_estado[${i}].foto`, "A foto do defeito precisa ser enviada pelo painel.");
+    }
     if (item.orcamento !== null && !(item.orcamento > 0)) {
       falta(`itens_de_estado[${i}].orcamento`, "Orçamento precisa ser maior que zero.");
     }

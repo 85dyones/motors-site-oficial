@@ -6,6 +6,7 @@ import {
   CARROCERIAS_DO_REPASSE,
   FAIXAS_DO_REPASSE,
   LAUDOS_DO_REPASSE,
+  PISO_DO_ANO_NO_BANCO,
   SITUACOES_DO_REPASSE,
 } from "../src/lib/repasse";
 
@@ -109,5 +110,10 @@ describe("migração do repasse", () => {
     const policiesSabotadas = [...sqlSabotado.matchAll(/create policy[\s\S]*?;/gi)].map((m) => m[0]);
     const semTo = policiesSabotadas.filter((p) => !/\bto\s+(anon|authenticated|service_role)\b/i.test(p));
     expect(semTo.length).toBeGreaterThan(0);
+  });
+
+  it("o piso do ano no código é o do check do banco", () => {
+    expect(sql).toContain(`check (ano_modelo between ${PISO_DO_ANO_NO_BANCO} and 2100)`);
+    expect(sql).toContain(`ano_fabricacao between ${PISO_DO_ANO_NO_BANCO} and 2100`);
   });
 });
