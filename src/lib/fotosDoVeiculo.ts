@@ -101,6 +101,34 @@ export function caminhoDaFoto(
   return `${pasta}/${lote}-${variante}.${EXTENSAO_DA_VARIANTE[variante]}`;
 }
 
+/** Pasta do bucket onde moram as fotos dos carros de repasse (spec 2026-09-24 §4.5). */
+export const PASTA_DO_REPASSE = "repasse";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * O caminho de uma foto de carro de repasse — inclusive foto de defeito.
+ *
+ * Mesmo bucket e mesmas variantes do estoque, numa pasta própria: o carro de
+ * repasse não tem `estoque_motors.id`, e `caminhoDaFoto` recusa com razão
+ * tudo o que não é dígito. Aqui a régua é o uuid de `repasses.id`, pelo mesmo
+ * motivo — um id vindo da URL não pode virar `../` dentro do bucket.
+ */
+export function caminhoDaFotoDoRepasse(
+  repasseId: string,
+  lote: string,
+  variante: VarianteDaFoto,
+): string {
+  const pasta = String(repasseId).trim().toLowerCase();
+  if (!UUID.test(pasta)) {
+    throw new Error("Id de repasse inválido para o caminho da foto.");
+  }
+  if (!/^[a-z0-9-]+$/.test(lote)) {
+    throw new Error("Lote inválido para o caminho da foto.");
+  }
+  return `${PASTA_DO_REPASSE}/${pasta}/${lote}-${variante}.${EXTENSAO_DA_VARIANTE[variante]}`;
+}
+
 /**
  * O identificador que amarra as duas versões da MESMA foto.
  *
