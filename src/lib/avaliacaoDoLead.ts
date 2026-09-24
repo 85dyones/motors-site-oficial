@@ -26,17 +26,32 @@ import {
   fipeParaNumero,
   ROTULO_CONSERVACAO,
   ROTULO_MECANICA,
+  type ComponenteDoDesagio,
   type EstadoConservacao,
   type EstadoMecanico,
   type RecomendacaoAvaliacao,
 } from "./avaliacaoRecomendacao";
 
 /**
- * A régua que produziu a recomendação. Vai junto no retrato porque a régua
- * vai mudar (a curva de `parametros_avaliacao`, spec 11), e a recalibração
- * precisa saber qual régua sugeriu cada número.
+ * A régua dos retratos gravados entre 2026-09-24 e a troca pela curva (as três
+ * faixas fixas de 2026-08-06). Não calcula mais nada: fica para o card saber
+ * dizer por qual régua aquele número saiu.
  */
-export const REGRA_DA_RECOMENDACAO = "tres_faixas_2026_08_06";
+export const REGRA_TRES_FAIXAS = "tres_faixas_2026_08_06";
+
+/** Sem régua legível no envio: o retrato sai sem recomendação. */
+export const SEM_REGUA = "sem_regua";
+
+/**
+ * A recomendação como o card a lê: o mínimo que ele mostra, conferido. Serve
+ * aos dois formatos gravados — o da curva (com `componentes`) e o das três
+ * faixas (sem eles).
+ */
+export type RecomendacaoLida = Partial<RecomendacaoAvaliacao> & {
+  resumo: string;
+  sinais: string[];
+  componentes: ComponenteDoDesagio[];
+};
 
 export interface AvaliacaoDoLead {
   versao: 1;
@@ -52,7 +67,8 @@ export interface AvaliacaoDoLead {
   observacoes: string | null;
   fipe: { valor: number; codigo: string | null; mes_referencia: string | null } | null;
   regra: string;
-  recomendacao: RecomendacaoAvaliacao;
+  /** `null` quando não havia régua legível no envio. */
+  recomendacao: RecomendacaoLida | null;
 }
 
 /** Tetos por campo. O corpo vem de formulário público. */
@@ -112,11 +128,11 @@ export function quilometragemDoCorpo(valor: unknown): number | null {
  * A recomendação entra PRONTA, calculada pela rota com os mesmos fatos: ela é
  * recalculada no servidor e nunca copiada do corpo — o cliente é público e
  * não dita a FAIXA que o consultor lê. A base dela, a FIPE, ainda vem do
- * navegador: ver `fipeDoCorpo`.
+ * navegador: ver `fipeDoCorpo`. `null` é "sem régua no envio".
  */
 export function montarAvaliacaoDoLead(
   corpo: Record<string, unknown>,
-  recomendacao: RecomendacaoAvaliacao,
+  recomendacao: RecomendacaoAvaliacao | null,
 ): AvaliacaoDoLead {
   const tipo = TIPOS.includes(corpo.tipo_veiculo as TipoFipe) ? (corpo.tipo_veiculo as TipoFipe) : "carros";
   const ano = Number(corpo.ano);
@@ -141,15 +157,16 @@ export function montarAvaliacaoDoLead(
             codigo: texto(corpo.fipe_codigo, TETOS.fipe_codigo),
             mes_referencia: texto(corpo.fipe_mes_referencia, TETOS.mes_referencia),
           },
-    regra: REGRA_DA_RECOMENDACAO,
+    regra: recomendacao?.regra ?? SEM_REGUA,
     recomendacao,
   };
 }
 
 /**
  * O retrato lido do banco, ou `null` quando não há (lead que não veio da
- * avaliação, ou anterior a 24/09) ou quando falta o mínimo: marca, modelo e o
- * resumo da recomendação.
+ * avaliação, ou anterior a 24/09) ou quando falta o mínimo: `versao: 1`, marca
+ * e modelo. A recomendação pode faltar (régua indisponível no envio) sem
+ * derrubar o retrato: o card mostra o carro e diz que não houve sugestão.
  *
  * Cada campo que o card lê é conferido e normalizado aqui, e não só os três
  * do mínimo. A primeira versão conferia só esses três e devolvia o resto como
@@ -161,9 +178,8 @@ export function montarAvaliacaoDoLead(
 export function lerAvaliacaoDoLead(bruto: unknown): AvaliacaoDoLead | null {
   if (!ehObjeto(bruto)) return null;
   const a = bruto;
-  if (typeof a.marca !== "string" || typeof a.modelo !== "string") return null;
+  if (a.versao !== 1 || typeof a.marca !== "string" || typeof a.modelo !== "string") return null;
   const r = a.recomendacao;
-  if (!ehObjeto(r) || typeof r.resumo !== "string") return null;
 
   const f = a.fipe;
   const fipeValor = ehObjeto(f) ? numeroOuNulo(f.valor) : null;
@@ -184,12 +200,31 @@ export function lerAvaliacaoDoLead(bruto: unknown): AvaliacaoDoLead | null {
         ? { valor: fipeValor, codigo: textoOuNulo(f.codigo), mes_referencia: textoOuNulo(f.mes_referencia) }
         : null,
     regra: typeof a.regra === "string" ? a.regra : "desconhecida",
-    // O card lê só `resumo` e `sinais`; o resto segue como veio.
-    recomendacao: {
-      ...(r as unknown as RecomendacaoAvaliacao),
-      resumo: r.resumo,
-      sinais: Array.isArray(r.sinais) ? r.sinais.filter((x): x is string => typeof x === "string") : [],
-    },
+    recomendacao: lerRecomendacao(r),
+  };
+}
+
+/**
+ * A recomendação gravada, conferida no que o card lê — `resumo`, `sinais` e
+ * `componentes` —; o resto segue como veio. Sem `resumo` legível, é `null`.
+ */
+function lerRecomendacao(r: unknown): RecomendacaoLida | null {
+  if (!ehObjeto(r) || typeof r.resumo !== "string") return null;
+  const componentes = Array.isArray(r.componentes)
+    ? r.componentes.flatMap((c): ComponenteDoDesagio[] => {
+        if (!ehObjeto(c) || typeof c.nome !== "string") return [];
+        const min = numeroOuNulo(c.pp_min);
+        const max = numeroOuNulo(c.pp_max);
+        if (min === null || max === null) return [];
+        return [{ nome: c.nome, pp_min: min, pp_max: max, motivo: typeof c.motivo === "string" ? c.motivo : "" }];
+      })
+    : [];
+  return {
+    ...(r as Partial<RecomendacaoAvaliacao>),
+    resumo: r.resumo,
+    sinais: Array.isArray(r.sinais) ? r.sinais.filter((x): x is string => typeof x === "string") : [],
+    componentes,
+    acima_do_teto: r.acima_do_teto === true,
   };
 }
 

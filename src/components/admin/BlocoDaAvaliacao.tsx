@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import {
-  REGRA_DA_RECOMENDACAO,
+  REGRA_TRES_FAIXAS,
+  SEM_REGUA,
   estadoPorExtenso,
   lerAvaliacaoDoLead,
   lerValorDaAvaliacao,
+  type AvaliacaoDoLead,
 } from "../../lib/avaliacaoDoLead";
+import { REGRA_DA_CURVA, type ComponenteDoDesagio } from "../../lib/avaliacaoRecomendacao";
 
 /**
  * O que o cliente preencheu na /avaliacao, dentro do card do lead.
@@ -27,6 +30,16 @@ import {
  * ofereceu e o que foi pago; é com eles que a régua se recalibra. Gravar um
  * valor NÃO reinicia o relógio de estagnação — o gatilho do banco não conta
  * isso como toque no lead —, e o card não finge que reiniciou.
+ *
+ * ---------------------------------------------------------------------------
+ * A conta aparece, e não só o número (2026-09-24)
+ * ---------------------------------------------------------------------------
+ * Com a curva de `parametros_avaliacao`, a sugestão vem com os componentes —
+ * base, km contra o esperado para a idade, avarias, estado excepcional — e o
+ * card lista cada um. "O número precisa se explicar" (CLAUDE.md, frontend):
+ * sem a conta, o consultor não sabe se discorda da régua ou do que o cliente
+ * declarou. Retrato gravado pela régua de 3 faixas não tem componentes, e o
+ * card mostra o que ele tem.
  */
 
 const reais = (n: number) =>
@@ -34,6 +47,25 @@ const reais = (n: number) =>
 
 /** 55000 → "55.000"; 55000.5 → "55.000,5". É o que `lerValorDaAvaliacao` lê de volta. */
 const noCampo = (n: number | null) => (n === null ? "" : n.toLocaleString("pt-BR", { maximumFractionDigits: 2 }));
+
+const pp = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+
+function valorDoComponente(c: ComponenteDoDesagio): string {
+  return c.pp_min === c.pp_max ? pp(c.pp_min) : `${pp(c.pp_min)} a ${pp(c.pp_max)}`;
+}
+
+/** Por qual régua o número saiu, dito para quem lê o card. */
+function nomeDaRegua(a: AvaliacaoDoLead): string {
+  if (a.regra === REGRA_DA_CURVA) {
+    const desde = a.recomendacao?.parametros_desde;
+    const data = desde && /^\d{4}-\d{2}-\d{2}$/.test(desde) ? desde.split("-").reverse().join("/") : null;
+    return data ? `Curva de deságio vigente desde ${data}` : "Curva de deságio";
+  }
+  if (a.regra === REGRA_TRES_FAIXAS) return "Régua de 3 faixas (06/08)";
+  if (a.regra === SEM_REGUA) return "Sem régua legível no envio";
+  return `Régua ${a.regra}`;
+}
 
 function numeroOuNulo(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -108,8 +140,12 @@ export default function BlocoDaAvaliacao({
 
   const km = a.quilometragem !== null ? `${a.quilometragem.toLocaleString("pt-BR")} km` : null;
   const estado = estadoPorExtenso(a);
-  // Os sinais que o resto do bloco ainda não diz: os avisos de km da régua.
-  const alertas = a.recomendacao.sinais.filter((s) => /acima de/i.test(s));
+  const componentes = a.recomendacao?.componentes ?? [];
+  // Na curva, todo sinal é aviso para a vistoria. Na régua de 3 faixas, os
+  // sinais repetiam estado e km; só os avisos de km alto eram novidade.
+  const alertas = (a.recomendacao?.sinais ?? []).filter((s) =>
+    componentes.length > 0 ? true : /acima de/i.test(s),
+  );
 
   const linhas: [string, string | null][] = [
     ["Veículo", [`${a.marca} ${a.modelo}`.trim(), a.ano ? String(a.ano) : null].filter(Boolean).join(" · ")],
@@ -126,7 +162,7 @@ export default function BlocoDaAvaliacao({
           ? "não consultada — o cliente digitou o carro"
           : "sem valor — a FIPE não respondeu no envio",
     ],
-    ["Sugestão", a.recomendacao.resumo],
+    ["Sugestão", a.recomendacao?.resumo ?? "sem sugestão — não havia régua legível no envio"],
   ];
 
   return (
@@ -151,6 +187,20 @@ export default function BlocoDaAvaliacao({
         )}
       </dl>
 
+      {componentes.length > 0 && (
+        <ul className="m-0 mt-1.5 list-none p-0 text-[10px] leading-snug text-mt-neutral-800" aria-label="Conta do deságio">
+          {componentes.map((c) => (
+            <li key={c.nome} className="flex gap-1.5 border-b border-mt-regua-fina py-0.5 last:border-b-0">
+              <span className="w-14 shrink-0 font-semibold tabular-nums text-mt-ink">{valorDoComponente(c)}</span>
+              <span>
+                <span className="font-semibold">{c.nome}</span>
+                {c.motivo ? ` — ${c.motivo}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {alertas.map((alerta) => (
         <p key={alerta} className="m-0 mt-1.5 border-l-2 border-mt-accent pl-2 text-[10px] leading-snug text-mt-neutral-800">
           {alerta}
@@ -164,8 +214,8 @@ export default function BlocoDaAvaliacao({
       )}
 
       <p className="m-0 mt-1.5 text-[10px] leading-snug text-mt-neutral-600">
-        {a.regra === REGRA_DA_RECOMENDACAO ? "Régua de 3 faixas (06/08)" : `Régua ${a.regra}`}, sobre o que o
-        cliente declarou. Confira a FIPE; o número é da vistoria.
+        {nomeDaRegua(a)}, sobre o que o cliente declarou. Confira a FIPE; o
+        número é da vistoria.
       </p>
 
       <div className="mt-2 flex gap-2">

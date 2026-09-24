@@ -149,10 +149,31 @@ alinhar o workflow.
 ```
 
 **`recomendacao` é interna.** É a faixa de compra sugerida ao consultor, sempre
-recalculada no servidor a partir do estado e da km — nunca copiada do corpo da
-requisição, porque o cliente é público e não pode ditar o preço que o consultor
-lê. **O cliente nunca vê esse valor no site.** Regra em
-`src/lib/avaliacaoRecomendacao.ts`.
+recalculada no servidor a partir do estado, da km e do ano — nunca copiada do
+corpo da requisição, porque o cliente é público e não pode ditar o preço que o
+consultor lê. **O cliente nunca vê esse valor no site** (desde 2026-09-24 o
+formulário nem a calcula mais). Regra em `src/lib/avaliacaoRecomendacao.ts`.
+
+Desde 2026-09-24 a régua é a **curva de deságio de `parametros_avaliacao`**
+(spec 11), no lugar das três faixas fixas de 2026-08-06. O formato mudou:
+
+- `faixa`: `excepcional` · `com_avarias` · `padrao` · `acima_do_teto` (antes:
+  `otimo` · `reparos_leves` · `avarias_maiores`);
+- `desconto_min` / `desconto_max`: sempre número (antes o máximo podia ser
+  `null`);
+- `componentes`: a conta, um item por parcela (`nome`, `pp_min`, `pp_max`,
+  `motivo`) — base, km contra o esperado para a idade, avarias, estado
+  excepcional;
+- `acima_do_teto`, `km_esperado`, `km_desvio`, `regra` (`curva_spec11`),
+  `parametros_id`, `parametros_desde`: novos;
+- `km_acima_do_limite`: **saiu** (a curva não tem mais limite fixo de 150 mil
+  km; o km entra pelo desvio sobre o esperado);
+- `valor_sugerido_min` / `valor_sugerido_max`, `sinais`, `faixa_label`,
+  `resumo`: seguem, com o mesmo sentido.
+
+`recomendacao` pode chegar **`null`**: quando a linha vigente de
+`parametros_avaliacao` não é legível, a avaliação segue sem sugestão — nunca
+com uma régua inventada no código.
 
 `quilometragem` é `null` quando não informada — não é `0`.
 

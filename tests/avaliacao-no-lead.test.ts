@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import {
-  REGRA_DA_RECOMENDACAO,
+  SEM_REGUA,
   colunaDaAvaliacaoAusente,
   estadoPorExtenso,
   lerAvaliacaoDoLead,
   lerValorDaAvaliacao,
   montarAvaliacaoDoLead,
 } from "../src/lib/avaliacaoDoLead";
-import { recomendarAvaliacao } from "../src/lib/avaliacaoRecomendacao";
+import { REGRA_DA_CURVA, lerParametrosDaCurva, recomendarAvaliacao } from "../src/lib/avaliacaoRecomendacao";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import BlocoDaAvaliacao from "../src/components/admin/BlocoDaAvaliacao";
@@ -25,12 +25,40 @@ import BlocoDaAvaliacao from "../src/components/admin/BlocoDaAvaliacao";
  *     assim — perder o retrato é ruim, perder o lead é o bug de 11/08.
  */
 
+/** A linha vigente de `parametros_avaliacao`, como o PostgREST a devolve. */
+const LINHA_DA_REGUA = {
+  id: "69838e3c-0ec2-4092-94c7-fda9bdd26727",
+  base_pp: "20.00",
+  estado_excepcional_pp: "-5.00",
+  piso_pct: "15.00",
+  teto_pct: "40.00",
+  km_por_ano: 15000,
+  degraus_km: [
+    { pp: 0, desvio_km_ate: 5000 },
+    { pp: 2, desvio_km_ate: 15000 },
+    { pp: 4, desvio_km_ate: 30000 },
+    { pp: 7, desvio_km_ate: 50000 },
+    { pp: 10, desvio_km_ate: null },
+  ],
+  avaria_leve_pp: "[2,4]",
+  avaria_seria_pp: "[8,12]",
+  pendencia_pp: "[3,5]",
+  vigencia_desde: "2026-08-30",
+  vigencia_ate: null,
+};
+
+/** "Hoje" fixo: a idade do carro — e o degrau de km — dependem dele. */
+const HOJE = new Date(Date.UTC(2026, 8, 24, 15));
+
 const recomendacao = recomendarAvaliacao({
   estadoMecanico: "bom",
   estadoConservacao: "riscos",
   quilometragem: 55000,
+  anoModelo: 2021,
   fipeValor: "R$ 68.000,00",
-});
+  parametros: lerParametrosDaCurva(LINHA_DA_REGUA),
+  hoje: HOJE,
+})!;
 
 describe("montarAvaliacaoDoLead", () => {
   it("guarda os fatos do formulário, a FIPE em número e a régua", () => {
@@ -62,7 +90,7 @@ describe("montarAvaliacaoDoLead", () => {
       estado_conservacao: "riscos",
       observacoes: "único dono",
       fipe: { valor: 68000, codigo: "001234-5", mes_referencia: "setembro de 2026" },
-      regra: REGRA_DA_RECOMENDACAO,
+      regra: REGRA_DA_CURVA,
     });
     expect(a.recomendacao).toBe(recomendacao);
   });
@@ -129,16 +157,21 @@ describe("lerAvaliacaoDoLead — o painel não cai por um retrato torto", () => 
   it("normaliza cada campo que o card lê — um retrato torto não derruba o painel", () => {
     // As formas que fizeram o card lançar na revisão de 24/09, e mais algumas.
     const tortos: unknown[] = [
-      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" } },
-      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", sinais: "não é lista" }, fipe: 5 },
-      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", sinais: [1, null, "ok"] }, fipe: { valor: "68000" } },
-      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" }, quilometragem: "abc", ano: {}, observacoes: 3 },
-      { marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" }, estado_mecanico: "constructor", regra: 7 },
+      { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" } },
+      { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", sinais: "não é lista" }, fipe: 5 },
+      { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", sinais: [1, null, "ok"] }, fipe: { valor: "68000" } },
+      { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" }, quilometragem: "abc", ano: {}, observacoes: 3 },
+      { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r" }, estado_mecanico: "constructor", regra: 7 },
+      // Componentes tortos da curva: o que não tem nome e números cai fora.
+      { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", componentes: [{ nome: "km" }, 3, { nome: "base", pp_min: 20, pp_max: 20 }] } },
+      // Régua indisponível no envio: sem recomendação, o retrato continua de pé.
+      { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: null, regra: "sem_regua" },
     ];
     for (const bruto of tortos) {
       const a = lerAvaliacaoDoLead(bruto);
       expect(a, JSON.stringify(bruto)).not.toBeNull();
-      expect(Array.isArray(a!.recomendacao.sinais)).toBe(true);
+      expect(a!.recomendacao === null || Array.isArray(a!.recomendacao.sinais)).toBe(true);
+      expect(a!.recomendacao === null || Array.isArray(a!.recomendacao.componentes)).toBe(true);
       expect(a!.fipe === null || typeof a!.fipe.valor === "number").toBe(true);
       expect(a!.quilometragem === null || typeof a!.quilometragem === "number").toBe(true);
       const html = renderToStaticMarkup(
@@ -153,11 +186,29 @@ describe("lerAvaliacaoDoLead — o painel não cai por um retrato torto", () => 
       expect(html).toContain("Avaliação do site");
       expect(html).not.toContain("function");
     }
-    expect(lerAvaliacaoDoLead(tortos[2])!.recomendacao.sinais).toEqual(["ok"]);
+    expect(lerAvaliacaoDoLead(tortos[2])!.recomendacao!.sinais).toEqual(["ok"]);
+    expect(lerAvaliacaoDoLead(tortos[5])!.recomendacao!.componentes).toEqual([
+      { nome: "base", pp_min: 20, pp_max: 20, motivo: "" },
+    ]);
+    const semRegua = renderToStaticMarkup(
+      createElement(BlocoDaAvaliacao, { nome: "Ana", avaliacao: tortos[6], valorOfertado: null, valorPago: null, onSalvar: () => {} }),
+    );
+    expect(semRegua).toContain("sem sugestão");
+    expect(semRegua).toContain("Sem régua legível no envio");
   });
 
   it("devolve null para ausente, lista, texto e forma incompleta", () => {
-    for (const bruto of [null, undefined, [], "x", 3, {}, { marca: "Fiat", modelo: "Argo" }, { marca: 1, modelo: "x", recomendacao: { resumo: "r" } }]) {
+    for (const bruto of [
+      null,
+      undefined,
+      [],
+      "x",
+      3,
+      {},
+      // Sem `versao: 1` não é retrato desta forma.
+      { marca: "Fiat", modelo: "Argo" },
+      { versao: 1, marca: 1, modelo: "x", recomendacao: { resumo: "r" } },
+    ]) {
       expect(lerAvaliacaoDoLead(bruto), JSON.stringify(bruto)).toBeNull();
     }
   });
@@ -221,6 +272,10 @@ describe("colunaDaAvaliacaoAusente", () => {
 const inserts: Record<string, unknown>[] = [];
 let errosDoInsert: ({ code: string; message: string } | null)[] = [];
 const n8n: Record<string, unknown>[] = [];
+/** O que o banco dublado responde à leitura da régua. */
+let respostaDaRegua: { data: unknown[] | null; error: { message: string } | null };
+/** Os filtros com que a rota leu a régua. */
+let filtrosDaRegua: string[] = [];
 
 vi.mock("../src/lib/turnstile", () => ({
   verificarTurnstile: async () => ({ ok: true, hostname: "x", action: "avaliacao" }),
@@ -230,6 +285,16 @@ vi.mock("../src/lib/turnstile", () => ({
 vi.mock("../src/lib/supabase-server", () => ({
   createAdminSupabaseClient: () => ({
     from: (tabela: string) => {
+      if (tabela === "parametros_avaliacao") {
+        const q = {
+          select: (c: string) => (filtrosDaRegua.push(`select ${c}`), q),
+          is: (c: string, v: unknown) => (filtrosDaRegua.push(`is ${c} ${v}`), q),
+          lte: (c: string, v: unknown) => (filtrosDaRegua.push(`lte ${c} ${v}`), q),
+          order: (c: string) => (filtrosDaRegua.push(`order ${c}`), q),
+          limit: async () => respostaDaRegua,
+        };
+        return q;
+      }
       if (tabela !== "leads") throw new Error(`tabela inesperada: ${tabela}`);
       return {
         insert: async (linha: Record<string, unknown>) => {
@@ -282,11 +347,19 @@ beforeEach(() => {
   inserts.length = 0;
   n8n.length = 0;
   errosDoInsert = [];
+  respostaDaRegua = { data: [LINHA_DA_REGUA], error: null };
+  filtrosDaRegua = [];
+  // Só o relógio é falso: a idade do carro sai do mesmo "hoje" do esperado.
+  vi.useFakeTimers({ toFake: ["Date"], now: HOJE });
   globalThis.fetch = (async (_url: string, opcoes?: RequestInit) => {
     n8n.push(JSON.parse(String(opcoes?.body)));
     return { ok: true, status: 200, text: async () => "" };
   }) as never;
   vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("POST /api/avaliacao grava o retrato no lead", () => {
@@ -306,7 +379,31 @@ describe("POST /api/avaliacao grava o retrato no lead", () => {
       observacoes: "único dono",
     });
     expect(avaliacao!.recomendacao).toEqual(recomendacao);
-    expect(avaliacao!.recomendacao.resumo).not.toContain("FIPE cheia");
+    expect(avaliacao!.recomendacao!.resumo).not.toContain("FIPE cheia");
+    expect(avaliacao!.regra).toBe(REGRA_DA_CURVA);
+    // A linha VIGENTE: sem fim de vigência e com início já alcançado.
+    expect(filtrosDaRegua).toEqual(["select *", "is vigencia_ate null", "lte vigencia_desde 2026-09-24", "order vigencia_desde"]);
+  });
+
+  it("régua ilegível: o lead sai com o retrato e SEM sugestão — nunca uma régua inventada", async () => {
+    for (const resposta of [
+      { data: null, error: { message: "permission denied" } },
+      { data: [], error: null },
+      // A coluna `km_por_ano` ainda não aplicada: a linha vem sem ela.
+      { data: [{ ...LINHA_DA_REGUA, km_por_ano: undefined }], error: null },
+    ]) {
+      inserts.length = 0;
+      n8n.length = 0;
+      respostaDaRegua = resposta;
+      const r = await enviar(CORPO);
+      expect(r.status).toBe(200);
+      expect(inserts).toHaveLength(1);
+      const avaliacao = lerAvaliacaoDoLead(inserts[0].avaliacao)!;
+      expect(avaliacao.recomendacao).toBeNull();
+      expect(avaliacao.regra).toBe(SEM_REGUA);
+      expect(avaliacao.quilometragem).toBe(55000);
+      expect(n8n[0]).toMatchObject({ recomendacao: null });
+    }
   });
 
   it("carro digitado (FIPE fora) vai marcado no retrato e no n8n", async () => {
@@ -330,7 +427,7 @@ describe("POST /api/avaliacao grava o retrato no lead", () => {
     await enviar({ ...CORPO, fipe_valor: "R$ 999.999.999.999,00" });
     const avaliacao = lerAvaliacaoDoLead(inserts[0].avaliacao)!;
     expect(avaliacao.fipe).toBeNull();
-    expect(avaliacao.recomendacao.valor_sugerido_max).toBeNull();
+    expect(avaliacao.recomendacao!.valor_sugerido_max).toBeNull();
     expect(n8n[0]).toMatchObject({ recomendacao: { valor_sugerido_max: null } });
   });
 

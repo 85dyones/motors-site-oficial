@@ -8,7 +8,6 @@ import { ACOES } from "../lib/turnstile";
 import SaidaDoCaptcha from "./SaidaDoCaptcha";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
-import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
 import { linkWhatsApp, mascararTelefone, telefoneDoLead } from "../lib/whatsapp";
 import {
   consultarValor,
@@ -662,16 +661,14 @@ export default function AutoAvaliacao() {
   };
 
   /**
-   * Regra de precificação de compra, resolvida no cliente e enviada no
-   * payload. Não aparece em lugar nenhum da tela: é insumo do consultor.
+   * A faixa de compra NÃO é calculada aqui desde 2026-09-24. A régua virou a
+   * curva de `parametros_avaliacao`, que só o servidor lê (RLS de staff), e
+   * `/api/avaliacao` sempre recalculou a faixa a partir dos fatos — a daqui
+   * era ignorada lá e só servia para parar no localStorage e no console do
+   * próprio cliente, que é quem nunca deveria ver a faixa. O formulário manda
+   * os fatos; a faixa nasce no servidor.
    */
   const quilometragemNumerica = step2.quilometragem ? Number(step2.quilometragem) : null;
-  const recomendacao = recomendarAvaliacao({
-    estadoMecanico: step2.estadoMecanico,
-    estadoConservacao: step2.estadoConservacao,
-    quilometragem: quilometragemNumerica,
-    fipeValor,
-  });
 
   // Validation checkers for button enabling
   //
@@ -748,7 +745,6 @@ export default function AutoAvaliacao() {
           estado_mecanico: step2.estadoMecanico,
           estado_conservacao: step2.estadoConservacao,
           observacoes: step2.observacoes,
-          recomendacao: recomendacao,
           utm: getUtmParameters(),
           eventId: eventIdDaAvaliacao,
           // `fbp`/`fbc` como as outras superfícies de lead — e já `null` para
@@ -801,7 +797,6 @@ export default function AutoAvaliacao() {
         quilometragem: quilometragemNumerica,
         observacoes: step2.observacoes || "Nenhuma observação inserida",
       },
-      recomendacao,
       cliente: {
         nome: step3.nome,
         whatsapp: step3.whatsapp,
