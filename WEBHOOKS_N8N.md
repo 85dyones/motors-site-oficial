@@ -140,6 +140,7 @@ alinhar o workflow.
   "quilometragem": 30000,
   "observacoes": "", "nome": "Fulano", "tipo_veiculo": "carro",
   "fipe_valor": "", "fipe_codigo": "", "fipe_mes_referencia": "",
+  "veiculo_digitado": false,
   "recomendacao": { },
   "ag_uid": "...",
   "utm_source": "...", "utm_medium": "...", "utm_campaign": "...",
@@ -154,6 +155,16 @@ lê. **O cliente nunca vê esse valor no site.** Regra em
 `src/lib/avaliacaoRecomendacao.ts`.
 
 `quilometragem` é `null` quando não informada — não é `0`.
+
+`veiculo_digitado` (desde 2026-09-24) é `true` quando a Tabela FIPE não
+respondeu no formulário e o cliente digitou marca, modelo e ano à mão. Nesse
+caso `fipe_*` chegam vazios e a `recomendacao` vem sem valor sugerido — o
+consultor confere a FIPE. Campo aditivo: o workflow que não o lê segue igual.
+
+O mesmo pedido fica gravado no lead (`leads.avaliacao`, migração
+`20260924190000`), com a recomendação e a régua que a produziu — é de lá que o
+card do kanban lê. O webhook deixou de ser o único lugar onde esses dados
+existem.
 
 ---
 
