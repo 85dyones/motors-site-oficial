@@ -68,6 +68,8 @@ vende para PF e PJ (texto do anúncio trazido pelo dono).
 | Lojista | Aviso antes do site **+** condição de lote **+** atendimento direto com nota no CNPJ (24/09) |
 | Quem cadastra | **Qualquer perfil** da equipe cadastra (24/09) |
 | Quem valida | **Administrador, Gestor e Comercial** ("gerente" = Gestor, confirmado 24/09) |
+| SDR | **Cadastra e não valida** (24/09). O papel entra por outro branch (`integracao/quem-entra-24-09`): quem mesclar por último acrescenta a coluna do SDR às duas linhas da matriz |
+| "Só lojistas" no site | O público **vê** o carro com a camada "por enquanto, só para lojistas cadastrados" (24/09, depois da revisão final) |
 | Aviso à lista | **Manual, pelo Chatwoot**: o site guarda quem está na lista e o perfil de cada um; o painel mostra quem combina (24/09) |
 | Nome | **Repasse Motors**, selo "Repasse às claras", rota `/repasse` (24/09) |
 | Menu | `REPASSE` na barra **só a partir de 1281 px**; sempre no menu do celular e no rodapé (24/09) |
@@ -342,7 +344,7 @@ página. **APROVADO pelo dono em 24/09.**
 
 > **Avisar sobre carros de repasse.** Quem está na lista recebe pelo WhatsApp os
 > carros de repasse que combinam com a faixa e os tipos informados. Lojistas
-> cadastrados recebem o aviso antes de o carro aparecer no site. Quem envia é uma
+> cadastrados recebem o aviso antes de o carro abrir para todos. Quem envia é uma
 > pessoa da nossa equipe, não um disparo automático.
 
 **Em "Bases legais"**, item novo:
