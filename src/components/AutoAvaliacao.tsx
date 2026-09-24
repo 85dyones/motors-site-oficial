@@ -1031,9 +1031,14 @@ export default function AutoAvaliacao() {
         <h1 className="mt-titulo m-0 mt-3 text-[38px] lg:text-[64px] lg:leading-[.95]">
           {tituloDaTela}
         </h1>
+        {/* Até 24/09/2026 esta linha dizia "Dados oficiais da Tabela FIPE
+            cruzados com o giro real do nosso estoque" — e nenhum código cruza
+            FIPE com giro de estoque: a página mostra a FIPE, e a faixa de
+            compra é a curva de `parametros_avaliacao`, que também não lê giro.
+            A frase afirmava um cálculo que não existe. */}
         <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-neutral-800 lg:text-base">
-          Dados oficiais da Tabela FIPE cruzados com o giro real do nosso
-          estoque. Um consultor retorna no WhatsApp com a proposta.
+          Referência oficial da Tabela FIPE, na versão exata do seu carro. Um
+          consultor retorna no WhatsApp com a proposta.
         </p>
 
         {/* Trilho de passos */}
