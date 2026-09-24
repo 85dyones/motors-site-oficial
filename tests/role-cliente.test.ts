@@ -137,7 +137,9 @@ describe("os gates de rota — app", () => {
       ["src", "app", "api", "estoque", "lote", "route.ts"],
       ["src", "app", "api", "marketing", "campanhas", "route.ts"],
       ["src", "app", "api", "marketing", "campanhas", "[id]", "route.ts"],
-      ["src", "app", "api", "marketing", "campanhas", "[id]", "leituras", "route.ts"],
+      // A leitura manual saiu em 2026-09-24 (mídia sincronizada); o botão
+      // "Sincronizar agora" passa pelo guarda de midiaSyncServidor.
+      ["src", "lib", "midiaSyncServidor.ts"],
       ["src", "app", "api", "marketing", "campanhas", "[id]", "ajustes", "route.ts"],
       ["src", "app", "api", "leads", "gerenciar", "route.ts"],
     ] as const) {

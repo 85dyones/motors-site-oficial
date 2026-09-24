@@ -16,22 +16,17 @@ import {
 /**
  * Tela A14 do design doc — leitura da campanha.
  *
- * A premissa está escrita na própria tela: enquanto a API do Meta não está
- * conectada, os números do dia entram na tabela "Atualizar leitura" (totais
- * cumulativos, como o gerenciador mostra) e o painel inteiro recalcula —
- * instrumentos, portões de aprendizagem e diagnóstico saem de
- * `lib/midiaPaga.ts`, nunca daqui.
+ * Desde 2026-09-24 os números vêm da plataforma (Meta por anúncio, Google
+ * pela campanha), somados da vida inteira da campanha: é a régua dos portões
+ * de aprendizagem. Instrumentos, portões e diagnóstico continuam saindo de
+ * `lib/midiaPaga.ts`, nunca daqui. O que continua sendo digitado é só o
+ * registro de ajustes — a API não sabe POR QUE alguém mexeu na campanha.
  */
 
 interface Anuncio {
   id: string;
   nome: string;
-}
-
-interface LeituraLinha extends LeituraTotais {
-  id: string;
-  anuncio_id: string | null;
-  registrado_em: string;
+  totais: LeituraTotais | null;
 }
 
 interface Ajuste {
@@ -45,13 +40,28 @@ interface Campanha {
   id: string;
   nome: string;
   plataforma: "meta" | "google";
+  origem: "manual" | "meta" | "google";
   objetivo: string | null;
   orcamento_diario: number | null;
   publico: string | null;
   atribuicao: string | null;
   situacao: "no_ar" | "pausada" | "planejada" | "encerrada";
   no_ar_desde: string | null;
+  sincronizado_em: string | null;
 }
+
+interface DiaDoGrafico {
+  dia: string;
+  investido: number;
+  conversas: number;
+}
+
+const ROTULO_SITUACAO: Record<Campanha["situacao"], string> = {
+  no_ar: "No ar",
+  pausada: "Pausada",
+  planejada: "Planejada",
+  encerrada: "Encerrada",
+};
 
 const brl = (v: number) =>
   "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -61,28 +71,19 @@ const pct = (v: number) => (v * 100).toFixed(2).replace(".", ",") + "%";
 const dataCurta = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-interface CamposEntrada {
-  investido: string;
-  impressoes: string;
-  alcance: string;
-  cliques: string;
-  conversas: string;
-}
+const diaMes = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 
-const ENTRADA_VAZIA: CamposEntrada = { investido: "", impressoes: "", alcance: "", cliques: "", conversas: "" };
+const ZERO: LeituraTotais = { investido: 0, impressoes: 0, alcance: 0, cliques: 0, conversas: 0 };
 
 export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) {
   const [campanha, setCampanha] = useState<Campanha | null>(null);
   const [anuncios, setAnuncios] = useState<Anuncio[]>([]);
-  const [leituras, setLeituras] = useState<LeituraLinha[]>([]);
+  const [leituraCampanha, setLeituraCampanha] = useState<LeituraTotais | null>(null);
+  const [diario, setDiario] = useState<DiaDoGrafico[]>([]);
+  const [leadsBanco, setLeadsBanco] = useState<number | null>(null);
   const [ajustes, setAjustes] = useState<Ajuste[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
-
-  const [entrada, setEntrada] = useState<Record<string, CamposEntrada>>({});
-  const [alcanceCampanha, setAlcanceCampanha] = useState("");
-  const [aplicando, setAplicando] = useState(false);
 
   const [novoAjuste, setNovoAjuste] = useState("");
   const [registrandoAjuste, setRegistrandoAjuste] = useState(false);
@@ -96,10 +97,12 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
       if (!res.ok) throw new Error(data.error || "Falha ao carregar a campanha");
       setCampanha(data.campanha);
       setAnuncios(data.anuncios);
-      setLeituras(data.leituras);
+      setLeituraCampanha(data.leituraCampanha);
+      setDiario(data.diario);
+      setLeadsBanco(data.leadsBanco);
       setAjustes(data.ajustes);
-    } catch (e: any) {
-      setErro(e.message);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
     } finally {
       setCarregando(false);
     }
@@ -110,23 +113,9 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campanhaId]);
 
-  /** Leitura mais recente por anúncio (e a da campanha, anuncio_id null). */
-  const ultimaPorAnuncio = useMemo(() => {
-    const m = new Map<string, LeituraLinha>();
-    for (const l of leituras) {
-      const chave = l.anuncio_id ?? "campanha";
-      if (!m.has(chave)) m.set(chave, l); // vêm ordenadas desc
-    }
-    return m;
-  }, [leituras]);
-
   const totais = useMemo(
-    () =>
-      consolidarTotais(
-        anuncios.map((a) => ultimaPorAnuncio.get(a.id)),
-        ultimaPorAnuncio.get("campanha"),
-      ),
-    [anuncios, ultimaPorAnuncio],
+    () => consolidarTotais(anuncios.map((a) => a.totais), leituraCampanha),
+    [anuncios, leituraCampanha],
   );
 
   const metricas = useMemo(() => derivarMetricas(totais), [totais]);
@@ -137,9 +126,11 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
     return h >= 0 ? h : null;
   }, [campanha?.no_ar_desde]);
 
+  const orcamento = campanha?.orcamento_diario != null ? Number(campanha.orcamento_diario) : null;
+
   const portoes = useMemo(
-    () => portoesAprendizagem(totais, horasNoAr, campanha?.orcamento_diario ?? null),
-    [totais, horasNoAr, campanha?.orcamento_diario],
+    () => portoesAprendizagem(totais, horasNoAr, orcamento),
+    [totais, horasNoAr, orcamento],
   );
 
   const instrumentos = useMemo(() => avaliarInstrumentos(metricas), [metricas]);
@@ -147,57 +138,19 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
   const diagnosticos = useMemo(
     () =>
       diagnosticar(
-        anuncios.map((a) => ({
-          nome: a.nome,
-          totais:
-            ultimaPorAnuncio.get(a.id) ??
-            ({ investido: 0, impressoes: 0, alcance: 0, cliques: 0, conversas: 0 } as LeituraTotais),
-        })),
+        anuncios.map((a) => ({ nome: a.nome, totais: a.totais ?? ZERO })),
         totais,
         metricas,
         portoes,
         horasNoAr,
-        campanha?.orcamento_diario ?? null,
+        orcamento,
       ),
-    [anuncios, ultimaPorAnuncio, totais, metricas, portoes, horasNoAr, campanha?.orcamento_diario],
+    [anuncios, totais, metricas, portoes, horasNoAr, orcamento],
   );
 
   const imatura = leituraImatura(portoes);
-  const temLeitura = leituras.length > 0;
-
-  const aplicarLeitura = async () => {
-    setAplicando(true);
-    setErro("");
-    setAviso("");
-    try {
-      const linhas = anuncios
-        .map((a) => ({ anuncio_id: a.id, ...(entrada[a.id] ?? ENTRADA_VAZIA) }))
-        .filter((l) => Object.values({ ...l, anuncio_id: "" }).some((v) => String(v).trim() !== ""));
-      const corpo: any = { linhas };
-      if (alcanceCampanha.trim() !== "") {
-        corpo.campanha = { alcance: alcanceCampanha };
-      }
-      if (linhas.length === 0 && !corpo.campanha) {
-        throw new Error("Preencha ao menos uma linha antes de aplicar");
-      }
-      const res = await fetch(`/api/marketing/campanhas/${campanhaId}/leituras`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(corpo),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Falha ao aplicar leitura");
-      setEntrada({});
-      setAlcanceCampanha("");
-      setAviso("Leitura aplicada — painel recalculado.");
-      await carregar();
-      setTimeout(() => setAviso(""), 4000);
-    } catch (e: any) {
-      setErro(e.message);
-    } finally {
-      setAplicando(false);
-    }
-  };
+  const temLeitura = totais.impressoes > 0 || totais.investido > 0;
+  const maiorDia = Math.max(0, ...diario.map((d) => d.investido));
 
   const registrarAjuste = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,31 +167,14 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
       if (!res.ok) throw new Error(data.error || "Falha ao registrar ajuste");
       setNovoAjuste("");
       await carregar();
-    } catch (e: any) {
-      setErro(e.message);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
     } finally {
       setRegistrandoAjuste(false);
     }
   };
 
-  const mudarSituacao = async (situacao: Campanha["situacao"]) => {
-    if (!campanha || situacao === campanha.situacao) return;
-    setErro("");
-    try {
-      const res = await fetch(`/api/marketing/campanhas/${campanhaId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ situacao }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Falha ao mudar a situação");
-      setCampanha(data.campanha);
-    } catch (e: any) {
-      setErro(e.message);
-    }
-  };
-
-  if (carregando) {
+  if (carregando && !campanha) {
     return <div className="py-16 text-center text-xs text-mt-neutral-700">Carregando campanha…</div>;
   }
   if (!campanha) {
@@ -252,11 +188,13 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
     );
   }
 
+  const nomePlataforma = campanha.plataforma === "meta" ? "Meta Ads" : "Google Ads";
   const configuracao = [
     campanha.publico,
     campanha.atribuicao ? `Atribuição: ${campanha.atribuicao}` : null,
-    campanha.orcamento_diario ? `${brl(Number(campanha.orcamento_diario))}/dia` : null,
-    `${anuncios.length} anúncio(s)`,
+    orcamento ? `${brl(orcamento)}/dia` : null,
+    campanha.plataforma === "meta" ? `${anuncios.length} anúncio(s)` : null,
+    campanha.no_ar_desde ? `no ar desde ${dataCurta(campanha.no_ar_desde).slice(0, 5)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -267,7 +205,7 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
       <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-regua pb-5">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="mt-rotulo mt-rotulo-accent">
-            {campanha.plataforma === "meta" ? "Meta Ads" : "Google Ads"}
+            {nomePlataforma}
             {campanha.objetivo ? ` · ${campanha.objetivo}` : ""}
           </div>
           <h1 className="mt-titulo text-3xl md:text-4xl">{campanha.nome}</h1>
@@ -280,31 +218,21 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
           </Link>
         </div>
         <div className="flex flex-none items-center gap-3">
-          <div className="mt-seg">
-            {(
-              [
-                ["no_ar", "No ar"],
-                ["pausada", "Pausada"],
-                ["planejada", "Planejada"],
-                ["encerrada", "Encerrada"],
-              ] as const
-            ).map(([valor, rotulo]) => (
-              <label key={valor} className="mt-seg-opt">
-                <input
-                  type="radio"
-                  name="situacao-campanha"
-                  checked={campanha.situacao === valor}
-                  onChange={() => mudarSituacao(valor)}
-                />
-                <span>{rotulo}</span>
-              </label>
-            ))}
+          <div className="flex flex-col items-end gap-1">
+            <span className="border border-mt-regua-fina px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-mt-neutral-800">
+              {ROTULO_SITUACAO[campanha.situacao]}
+            </span>
+            <span className="text-[11px] text-mt-neutral-700">
+              {campanha.sincronizado_em
+                ? `sincronizado ${dataCurta(campanha.sincronizado_em)}`
+                : "sem sincronização"}
+            </span>
           </div>
           <div className="border border-mt-regua-fina px-4 py-3">
             <div className="mt-rotulo">Investido até agora</div>
             <div className="mt-1 text-2xl font-extrabold tracking-[-.04em] tabular-nums">{brl(totais.investido)}</div>
             <div className="mt-0.5 text-[11px] text-mt-neutral-700">
-              {totais.conversas} conversa(s) · {totais.impressoes.toLocaleString("pt-BR")} impressões
+              {Math.round(totais.conversas)} lead(s) na plataforma · {leadsBanco === null ? "—" : leadsBanco} no banco
             </div>
           </div>
         </div>
@@ -313,8 +241,12 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
       {erro && (
         <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">{erro}</div>
       )}
-      {aviso && (
-        <div className="border-l-[3px] border-mt-ink bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">{aviso}</div>
+
+      {!temLeitura && (
+        <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-6 text-center text-xs text-mt-neutral-700">
+          A campanha ainda não entregou nenhuma impressão. Os números aparecem aqui na próxima
+          sincronização depois que ela começar a rodar.
+        </div>
       )}
 
       {/* Fase de aprendizagem */}
@@ -389,7 +321,7 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
 
       <div className="flex flex-col gap-8 xl:flex-row">
         <div className="min-w-0 flex-1 xl:border-r xl:border-mt-regua-fina xl:pr-7">
-          {/* Criativos */}
+          {/* Criativos (só o Meta informa por anúncio) */}
           {temLeitura && anuncios.length > 0 && (
             <div className="mb-8">
               <div className="mb-3 flex items-baseline gap-3">
@@ -408,30 +340,30 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
                       <th>Impr.</th>
                       <th>CTR</th>
                       <th>CPC</th>
-                      <th>Conversas</th>
-                      <th>R$/conversa</th>
+                      <th>Leads</th>
+                      <th>R$/lead</th>
                     </tr>
                   </thead>
                   <tbody>
                     {anuncios.map((a) => {
-                      const l = ultimaPorAnuncio.get(a.id);
+                      const l = a.totais;
                       if (!l) {
                         return (
                           <tr key={a.id}>
                             <td className="text-mt-neutral-500">{a.nome}</td>
                             <td colSpan={7} className="text-[11px] text-mt-neutral-500">
-                              sem leitura ainda
+                              sem entrega ainda
                             </td>
                           </tr>
                         );
                       }
                       const frio = l.impressoes < IMPRESSOES_MINIMAS_LEITURA;
                       const cor = frio ? "text-mt-neutral-500" : "text-mt-ink";
-                      const fatia = totais.investido > 0 ? Number(l.investido) / totais.investido : 0;
+                      const fatia = totais.investido > 0 ? l.investido / totais.investido : 0;
                       return (
                         <tr key={a.id}>
                           <td className={`font-semibold ${cor}`}>{a.nome}</td>
-                          <td className={`mt-num ${cor}`}>{brl(Number(l.investido))}</td>
+                          <td className={`mt-num ${cor}`}>{brl(l.investido)}</td>
                           <td>
                             <div className={`mt-num ${cor}`}>{(fatia * 100).toFixed(1).replace(".", ",")}%</div>
                             <div className="mt-1 h-1.5 w-[92px] bg-mt-neutral-300/40">
@@ -440,9 +372,9 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
                           </td>
                           <td className={`mt-num ${cor}`}>{l.impressoes.toLocaleString("pt-BR")}</td>
                           <td className={`mt-num ${cor}`}>{l.impressoes > 0 ? pct(l.cliques / l.impressoes) : "—"}</td>
-                          <td className={`mt-num ${cor}`}>{l.cliques > 0 ? brl(Number(l.investido) / l.cliques) : "—"}</td>
-                          <td className={`mt-num ${cor}`}>{l.conversas}</td>
-                          <td className={`mt-num ${cor}`}>{l.conversas > 0 ? brl(Number(l.investido) / l.conversas) : "—"}</td>
+                          <td className={`mt-num ${cor}`}>{l.cliques > 0 ? brl(l.investido / l.cliques) : "—"}</td>
+                          <td className={`mt-num ${cor}`}>{Math.round(l.conversas)}</td>
+                          <td className={`mt-num ${cor}`}>{l.conversas > 0 ? brl(l.investido / l.conversas) : "—"}</td>
                         </tr>
                       );
                     })}
@@ -454,92 +386,46 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
                 <span className="tabular-nums">{brl(totais.investido)}</span>
                 <span className="tabular-nums">{totais.impressoes.toLocaleString("pt-BR")} impr.</span>
                 {metricas.ctr !== null && <span className="tabular-nums">CTR {pct(metricas.ctr)}</span>}
-                <span className="tabular-nums">{totais.conversas} conversa(s)</span>
+                <span className="tabular-nums">{Math.round(totais.conversas)} lead(s)</span>
                 {metricas.custoPorConversa !== null && (
-                  <span className="tabular-nums">{brl(metricas.custoPorConversa)} por conversa</span>
+                  <span className="tabular-nums">{brl(metricas.custoPorConversa)} por lead</span>
                 )}
               </div>
             </div>
           )}
 
-          {/* Atualizar leitura */}
-          <div className="border-t-2 border-mt-regua pt-5">
-            <div className="mb-3 flex items-baseline gap-3">
-              <div className="mt-rotulo">Atualizar leitura</div>
-              <span className="ml-auto max-w-[56ch] text-right text-[11px] text-mt-neutral-700">
-                Enquanto a API {campanha.plataforma === "meta" ? "do Meta" : "do Google"} não está conectada,
-                copie os TOTAIS do gerenciador — o painel recalcula tudo a partir deles
-              </span>
-            </div>
-            {anuncios.length === 0 ? (
-              <p className="text-xs text-mt-neutral-700">
-                Esta campanha não tem anúncios cadastrados — preencha só o alcance e os totais na
-                linha da campanha abaixo.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="mt-tabela">
-                  <thead>
-                    <tr>
-                      <th>Anúncio</th>
-                      <th>Investido R$</th>
-                      <th>Impressões</th>
-                      <th>Alcance</th>
-                      <th>Cliques</th>
-                      <th>Conversas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {anuncios.map((a) => {
-                      const campos = entrada[a.id] ?? ENTRADA_VAZIA;
-                      const definir = (campo: keyof CamposEntrada, valor: string) =>
-                        setEntrada((prev) => ({ ...prev, [a.id]: { ...(prev[a.id] ?? ENTRADA_VAZIA), [campo]: valor } }));
-                      return (
-                        <tr key={a.id}>
-                          <td className="text-mt-neutral-700">{a.nome}</td>
-                          {(["investido", "impressoes", "alcance", "cliques", "conversas"] as const).map((campo) => (
-                            <td key={campo}>
-                              <input
-                                inputMode="decimal"
-                                aria-label={`${campo} de ${a.nome}`}
-                                value={campos[campo]}
-                                onChange={(e) => definir(campo, e.target.value)}
-                                placeholder={ultimaPorAnuncio.get(a.id) ? String(ultimaPorAnuncio.get(a.id)![campo] ?? "") : "0"}
-                                className="mt-campo-caixa mt-num min-w-[84px] text-right"
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {/* Investimento por dia */}
+          {diario.length > 0 && (
+            <div className="border-t-2 border-mt-regua pt-5">
+              <div className="mb-3 flex items-baseline gap-3">
+                <div className="mt-rotulo">Investimento por dia</div>
+                <span className="ml-auto text-[11px] text-mt-neutral-700">
+                  barra = investido · número = leads da plataforma
+                </span>
               </div>
-            )}
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <label className="mt-rotulo" htmlFor="alcance-campanha">
-                Alcance da campanha
-              </label>
-              <input
-                id="alcance-campanha"
-                inputMode="numeric"
-                value={alcanceCampanha}
-                onChange={(e) => setAlcanceCampanha(e.target.value)}
-                placeholder={String(totais.alcance || 0)}
-                className="mt-campo-caixa mt-num w-[110px] text-right"
-              />
-              <span className="text-[11px] text-mt-neutral-700">
-                não é a soma dos anúncios — copie o da campanha
-              </span>
-              <button
-                onClick={aplicarLeitura}
-                disabled={aplicando}
-                className="mt-btn mt-btn-primario mt-foco ml-auto cursor-pointer px-5 py-2.5 text-[11px]"
-              >
-                {aplicando ? "Aplicando…" : "Aplicar leitura"}
-              </button>
+              <div className="flex h-40 items-end gap-[3px] overflow-x-auto" role="img" aria-label="Investimento por dia">
+                {diario.map((d) => (
+                  <div
+                    key={d.dia}
+                    className="flex min-w-[14px] flex-1 flex-col items-center justify-end gap-1"
+                    title={`${diaMes(d.dia)}: ${brl(d.investido)} · ${Math.round(d.conversas)} lead(s)`}
+                  >
+                    {d.conversas > 0 && (
+                      <span className="text-[9px] font-bold tabular-nums text-mt-accent">{Math.round(d.conversas)}</span>
+                    )}
+                    <div
+                      className="w-full bg-mt-ink"
+                      style={{ height: maiorDia > 0 ? `${Math.max(2, (d.investido / maiorDia) * 120)}px` : "2px" }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-mt-neutral-700 tabular-nums">
+                <span>{diaMes(diario[0].dia)}</span>
+                <span>{diaMes(diario[diario.length - 1].dia)}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Coluna direita: diagnóstico + ajustes */}
@@ -593,8 +479,8 @@ export default function LeituraCampanha({ campanhaId }: { campanhaId: string }) 
             </form>
             {ajustes.length === 0 ? (
               <p className="mt-3 text-[11px] leading-relaxed text-mt-neutral-700">
-                Cada mexida na campanha vira uma marca na linha do tempo — é o que permite dizer
-                depois o que causou a variação.
+                A plataforma mostra o número, não o motivo. Cada mexida registrada aqui vira uma
+                marca — é o que permite dizer depois o que causou a variação.
               </p>
             ) : (
               <div className="mt-2">

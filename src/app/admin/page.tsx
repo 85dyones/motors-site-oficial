@@ -4,6 +4,7 @@ import { getEstoque } from "../../lib/supabase";
 import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { resumoDeVisitas } from "../../lib/analytics";
+import { resumoDeMidia, DIAS_DO_RESUMO } from "../../lib/midiaResumo";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +55,10 @@ export default async function AdminVisaoGeralPage() {
   // O KPI e o alerta de contas vencidas saíram em 2026-08-28, com a
   // aposentadoria do módulo de caixa (decisão do dono): a tabela `contas`
   // não existe mais, e o financeiro renasce sobre o razão do handoff.
-  const { count: campanhasNoAr } = await supabase
-    .from("midia_campanhas")
-    .select("id", { count: "exact", head: true })
-    .eq("situacao", "no_ar");
+  // Mídia paga dos últimos 7 dias, vinda das plataformas (desde 2026-09-24).
+  // `null` quando as tabelas da mídia sincronizada não respondem.
+  const midia = await resumoDeMidia(supabase);
+  const campanhasNoAr = midia ? midia.meta.noAr + midia.google.noAr : 0;
 
   // Leads aguardando primeiro contato — a fila que abre a tela A1 no doc.
   // `error` ignorado de propósito: antes da migração de leads a consulta
@@ -138,11 +139,44 @@ export default async function AdminVisaoGeralPage() {
     });
   }
 
-  if ((campanhasNoAr ?? 0) === 0) {
+  // Sincronização parada: urgente quando JÁ funcionou e parou (token vencido,
+  // script apagado); informativo quando a plataforma ainda não foi ligada.
+  for (const p of ["meta", "google"] as const) {
+    const s = midia?.[p].sincronizacao;
+    if (!s?.parada) continue;
+    const nome = p === "meta" ? "Meta" : "Google Ads";
+    alertas.push(
+      s.ultimaOk
+        ? {
+            titulo: `Sincronização do ${nome} parada há mais de 6 h`,
+            detalhe: s.falha
+              ? `Última tentativa: ${s.falha.erro}. Os números da mídia paga estão congelados.`
+              : "Nenhuma rodada nova chegou. Os números da mídia paga estão congelados.",
+            acao: "ABRIR MÍDIA PAGA",
+            href: "/admin/marketing/midia-paga",
+            urgente: true,
+          }
+        : {
+            titulo:
+              p === "google" ? "Google Ads ainda não conectado" : "Meta ainda não sincronizou",
+            detalhe:
+              p === "google"
+                ? "Falta colar o script na conta do Google Ads — até lá, só o Meta aparece."
+                : s.falha
+                  ? `A tentativa falhou: ${s.falha.erro}`
+                  : "A primeira sincronização ainda não rodou. Dá para disparar pelo botão na mídia paga.",
+            acao: "ABRIR MÍDIA PAGA",
+            href: "/admin/marketing/midia-paga",
+            urgente: false,
+          },
+    );
+  }
+
+  if (midia && campanhasNoAr === 0 && midia.meta.sincronizacao.ultimaOk) {
     alertas.push({
       titulo: "Nenhuma campanha de mídia no ar",
       detalhe:
-        "Sem campanha registrada, o painel não consegue calcular custo por lead nem atribuir venda a anúncio.",
+        "O Meta e o Google não têm campanha entregando agora — o site depende só do orgânico.",
       acao: "ABRIR MÍDIA PAGA",
       href: "/admin/marketing/midia-paga",
       urgente: false,
@@ -158,8 +192,8 @@ export default async function AdminVisaoGeralPage() {
     },
     {
       rotulo: "Campanhas no ar",
-      valor: String(campanhasNoAr ?? 0),
-      nota: "mídia paga registrada",
+      valor: String(campanhasNoAr),
+      nota: "Meta e Google, pela plataforma",
       cor: "text-mt-ink",
     },
     {
@@ -210,6 +244,65 @@ export default async function AdminVisaoGeralPage() {
           </div>
         ))}
       </div>
+
+      {/* Mídia paga · 7 dias — as duas réguas de lead lado a lado */}
+      {midia && (
+        <div>
+          <div className="mb-3 flex items-baseline gap-3 border-b-2 border-mt-regua pb-2.5">
+            <h2 className="text-[17px] font-extrabold tracking-[-.015em]">
+              Mídia paga · {DIAS_DO_RESUMO} dias
+            </h2>
+            <Link
+              href="/admin/marketing/midia-paga"
+              className="mt-foco ml-auto text-[11px] font-extrabold tracking-[.1em] text-mt-ink hover:text-mt-accent"
+            >
+              ABRIR →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {(["meta", "google"] as const).map((p) => {
+              const r = midia[p];
+              const cplPlat = r.leadsPlataforma > 0 ? r.investido / r.leadsPlataforma : null;
+              const cplBanco = r.leadsBanco ? r.investido / r.leadsBanco : null;
+              const reais = (v: number | null) =>
+                v === null ? "—" : "R$ " + Math.round(v).toLocaleString("pt-BR");
+              return (
+                <div
+                  key={p}
+                  className={`border border-mt-regua-fina border-l-[3px] p-4 ${p === "meta" ? "border-l-mt-ink" : "border-l-mt-accent"}`}
+                >
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-extrabold">{p === "meta" ? "Meta Ads" : "Google Ads"}</span>
+                    <span className="ml-auto text-[11px] text-mt-neutral-700">
+                      {r.sincronizacao.ultimaOk
+                        ? `${r.noAr} no ar${r.sincronizacao.parada ? " · sincronização parada" : ""}`
+                        : "sem sincronização"}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex">
+                    {[
+                      {
+                        l: "Investido",
+                        v: "R$ " + r.investido.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                      },
+                      {
+                        l: "Leads plat. / banco",
+                        v: `${Math.round(r.leadsPlataforma)} / ${r.leadsBanco === null ? "—" : r.leadsBanco}`,
+                      },
+                      { l: "R$/lead plat. / banco", v: `${reais(cplPlat)} / ${reais(cplBanco)}` },
+                    ].map((m) => (
+                      <div key={m.l} className="flex-1 border-r border-mt-regua-fina pl-3 pr-3 first:pl-0 last:border-r-0 last:pr-0">
+                        <div className="mt-rotulo">{m.l}</div>
+                        <div className="mt-1 text-base font-extrabold tracking-[-.03em] tabular-nums">{m.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-8 xl:flex-row">
         {/* Precisa de atenção */}
