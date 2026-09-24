@@ -3,7 +3,7 @@
 **Data:** 2026-09-24 · **Superfícies:** `/repasse`, `/repasse/[carro]` (novas), `/admin/repasse` (nova), `/api/leads`, menu, rodapé, `/estoque` · **Status:** desenho visual aprovado, desenho técnico aprovado, não implementado
 
 **Desenho visual (fonte da verdade do layout e do texto):** artifact Design
-`https://claude.ai/artifact/HT3AksbDXw57LtLBnVeDMp`, versão 3 — 11 pranchas
+`https://claude.ai/artifact/HT3AksbDXw57LtLBnVeDMp`, versão 5 — 11 pranchas
 (página desktop em duas partes, celular em três, ficha desktop, ficha no celular
 com a barra fixa, card e estados, página vazia, portas de entrada).
 
@@ -24,7 +24,8 @@ ao ar como afirmação).
 Todo concorrente de Curitiba anuncia repasse com um aviso genérico de "sem
 garantia". A Motors anuncia o repasse com a conta aberta. Cada carro mostra:
 
-1. **Se tem laudo cautelar** — etiqueta `COM LAUDO` ou `SEM LAUDO`. Quando tem, o
+1. **Se tem laudo cautelar** — etiqueta `COM LAUDO` (aprovado, ou aprovado com
+   apontamento, e aí o apontamento vem escrito) ou `SEM LAUDO`. Quando tem, o
    laudo **sai a pedido**, antes de qualquer sinal (mesma regra do estoque desde
    16/09: nenhum texto promete laudo publicado).
 2. **A conta** — preço à vista, reparo orçado (quando há), "você gasta", FIPE do mês
@@ -58,7 +59,11 @@ vende para PF e PJ (texto do anúncio trazido pelo dono).
 | Leilão e sinistro | Sem promessa geral: cada carro declara o seu histórico (24/09) |
 | Documento do consumidor | **Ficha de estado** assinada com o contrato. Não é termo de isenção — mantém verdadeira a frase da `/garantia` (24/09) |
 | Exame | **Só no pátio**, com o mecânico do comprador (24/09) |
-| Pagamento | **Só à vista**, PIX ou TED. Sem financiamento, sem troca (24/09) |
+| Pagamento | **Só à vista**, PIX ou TED. Sem financiamento, sem troca (24/09, reconfirmado depois da spec) |
+| Laudo | **Aprovado** e **aprovado com apontamento** entram — o apontamento vai escrito na ficha e no card. **Reprovado não entra** no repasse (24/09) |
+| Ficha de estado | O modelo passa pelo jurídico antes do primeiro uso (24/09) |
+| Abrir para todos | **Manual, por um switch** no painel — sem data marcada de antemão (24/09) |
+| `/privacidade` | Esboço na §7.4, aprovado pelo dono antes de ir ao ar (24/09) |
 | Documentação | Documento **sem restrição e sem débito**; **transferência por conta de quem compra** (24/09) |
 | Lojista | Aviso antes do site **+** condição de lote **+** atendimento direto com nota no CNPJ (24/09) |
 | Quem cadastra | **Qualquer perfil** da equipe cadastra (24/09) |
@@ -134,7 +139,8 @@ bloco de aceite (`DO $$ … $$`) e rodapé de auto-registro no livro-razão.
 | `preco` | `numeric(12,2) not null` | `check (preco > 0)` |
 | `fipe_valor` | `numeric(12,2)` | |
 | `fipe_codigo`, `fipe_mes_referencia` | `text` | mês por extenso, como a API devolve |
-| `laudo` | enum `laudo_do_repasse` (`aprovado`, `nao_feito`) | **nulo até alguém escolher** — publicar exige escolha explícita |
+| `laudo` | enum `laudo_do_repasse` (`aprovado`, `aprovado_com_apontamento`, `nao_feito`) | **nulo até alguém escolher** — publicar exige escolha explícita. Não existe `reprovado`: carro reprovado não entra (DECIDIDO 24/09) |
+| `laudo_apontamento` | `text` | obrigatório quando `aprovado_com_apontamento`; aparece no card e na ficha |
 | `leilao_consta`, `sinistro_consta` | `boolean` | nulos até informar |
 | `leilao_detalhe`, `sinistro_detalhe` | `text` | obrigatório quando `consta = true` |
 | `historico_consultado_em` | `date` | |
@@ -146,7 +152,7 @@ bloco de aceite (`DO $$ … $$`) e rodapé de auto-registro no livro-razão.
 | `orcamento_em` | `date` | idem |
 | `web_full_images`, `whatsapp_images` | `jsonb not null default '[]'` | mesmos nomes do estoque, para reusar galeria e card |
 | `situacao` | enum `situacao_do_repasse` | ver §5 |
-| `lojistas_desde`, `aberto_ao_publico_em` | `timestamptz` | "só lojistas" = publicado **e** `now() < aberto_ao_publico_em` |
+| `lojistas_desde`, `aberto_ao_publico_em` | `timestamptz` | "só lojistas" = publicado **e** `aberto_ao_publico_em is null`; o switch "abrir para todos" grava `now()` |
 | `reservado_em`, `vendido_em`, `arquivado_em` | `timestamptz` | |
 | `criado_por`, `validado_por` | `uuid` | |
 | `enviado_em`, `validado_em` | `timestamptz` | |
@@ -157,7 +163,8 @@ Derivados em código (lib pura, testada), nunca coluna:
 `reparo_orcado = soma de itens_de_estado[].orcamento`;
 `voce_gasta = preco + reparo_orcado`;
 `abaixo_da_fipe = fipe_valor - voce_gasta`;
-etiqueta = `REPARO ORÇADO` se `reparo_orcado > 0`, senão `COM LAUDO`/`SEM LAUDO`.
+etiqueta = `REPARO ORÇADO` se `reparo_orcado > 0`, senão `COM LAUDO` (aprovado ou
+aprovado com apontamento) ou `SEM LAUDO`.
 Os filtros da página **não são exclusivos**: um carro com laudo e reparo entra em
 "Com laudo" e em "Reparo orçado".
 
@@ -173,13 +180,17 @@ A carência do vendido é aplicada no código, como no estoque.
 
 `id`, `org_id`, referência ao lead gravado, `trilha` (`consumidor` \| `lojista`),
 `nome`, `whatsapp`, `faixa` (as quatro faixas do formulário), `carrocerias text[]`,
-`cnpj`, `loja_cidade`, `cnpj_conferido_em`, `cnpj_conferido_por`, `ativo`,
-`saiu_em`, `created_at`. **Sem leitura anônima.** Inserção só pela rota de leads
-(chave de serviço); staff lê e atualiza.
+`cnpj`, `loja_cidade`, `cnpj_conferido_em`, `cnpj_conferido_por`, `created_at`.
+**Sem leitura anônima.** Inserção só pela rota de leads (chave de serviço); staff
+lê, atualiza e apaga.
+
+**Sair da lista apaga a linha** (e, em cascata, os avisos dela). Não há "inativo":
+é o que a `/privacidade` promete na §7.4, e a tela de inscritos (§6) é o executor
+dessa promessa. O lead de contato segue a regra geral de retenção.
 
 **DECIDIDO (24/09):** o dono escolheu que "o site guarda quem está na lista e o
-perfil de cada um". É dado pessoal novo — a `/privacidade` precisa mencioná-lo
-(§11, PENDENTE 3).
+perfil de cada um". É dado pessoal novo — a `/privacidade` muda antes de o
+formulário ir ao ar (esboço na §7.4).
 
 ### 4.3 `repasse_avisos`
 
@@ -215,7 +226,8 @@ rascunho ──enviar──▶ em_validacao ──validar──▶ publicado ◀
 | Criar e editar rascunho | qualquer perfil | — |
 | Enviar para validação | qualquer perfil | exige o checklist completo |
 | Devolver para rascunho | validadores | exige `devolvido_com` |
-| Validar e publicar | Administrador, Gestor, Comercial | escolhe **"só para lojistas até \<data\>"** (grava `lojistas_desde = now()`, `aberto_ao_publico_em = data`) ou **"aberto a todos"** (as duas datas = `now()`) |
+| Validar e publicar | Administrador, Gestor, Comercial | escolhe **"só para lojistas"** (grava `lojistas_desde = now()`) ou **"aberto a todos"** (grava as duas datas com `now()`) |
+| Abrir para todos | Administrador, Gestor, Comercial | **switch manual** no editor, sem data marcada; grava `aberto_ao_publico_em = now()`. Não volta atrás |
 | Editar carro publicado | validadores | quem não valida pede a um validador que devolva o carro para rascunho |
 | Reservar, vender | validadores | `vendido` fica na página por `CARENCIA_VENDIDO_DIAS` e depois some sozinho — a regra é de código, como no estoque |
 | Arquivar | validadores | ato manual, para tirar um carro antes da carência ou desistir do repasse |
@@ -228,7 +240,8 @@ Duas linhas novas em `MATRIZ_DE_PERMISSOES` (`src/lib/permissoes.ts`), na ordem
 
 **Checklist para enviar** (`checklistDoRepasse()`, lib pura com testes): pelo
 menos `MINIMO_DE_FOTOS` fotos; marca, modelo, ano, km, carroceria e preço;
-`fipe_valor` e `fipe_mes_referencia`; `laudo` escolhido; `leilao_consta` e
+`fipe_valor` e `fipe_mes_referencia`; `laudo` escolhido, com `laudo_apontamento`
+quando aprovado com apontamento; `leilao_consta` e
 `sinistro_consta` informados, com detalhe quando `true`, e
 `historico_consultado_em`; `resumo` e `motivo`; ao menos um item na ficha de
 estado **ou** `sem_defeitos_conhecidos`; **todo item com foto**; havendo
@@ -247,8 +260,8 @@ do painel; campo que o perfil não grava não é renderizado.
 |---|---|---|
 | **Lista** `/admin/repasse` — abas por situação, contagem, "aguardando validação" no topo para validadores | Comercial e Gestor, todo dia | validar, reservar, vender, arquivar |
 | **Editor** `/admin/repasse/novo` e `/[id]` — dados, consulta FIPE, fotos, ficha de estado (linhas com foto e orçamento), histórico, textos, painel do checklist, botões por permissão | Quem decide mandar um carro para o repasse, na hora em que decide | enviar para validação; devolver; publicar |
-| **Inscritos que combinam** (dentro do editor de um carro publicado) — lojistas primeiro enquanto "só lojistas", depois consumidores cuja faixa e carroceria casam; mensagem pronta para copiar e botão "avisado" | Comercial, logo depois de publicar e de novo quando o carro abre para todos | quem avisar no Chatwoot |
-| **Inscritos** `/admin/repasse/inscritos` | Comercial, quando entra lojista novo | marcar CNPJ conferido; tirar alguém da lista |
+| **Inscritos que combinam** (dentro do editor de um carro publicado) — lojistas primeiro enquanto "só lojistas", depois consumidores cuja faixa e carroceria casam; mensagem pronta para copiar e botão "avisado" | Comercial, logo depois de publicar e de novo depois de ligar o switch "abrir para todos" | quem avisar no Chatwoot; quando abrir para todos |
+| **Inscritos** `/admin/repasse/inscritos` | Comercial, quando entra lojista novo ou alguém pede para sair | marcar CNPJ conferido; tirar alguém da lista (apaga o perfil) |
 
 A consulta FIPE sai de `AutoAvaliacao.tsx` para uma lib reusável
 (`src/lib/consultaFipe.ts`: marcas → modelos → anos → valor), chamada no
@@ -271,8 +284,9 @@ lista do repasse, perguntas, rodapé.
   cliente, e o HTML inicial traz todos os cards com seus links (o problema medido
   do `useSearchParams` servir zero link não se aplica).
 - **Card "só para lojistas":** aparece para todos com a camada "Só para lojistas ·
-  abre para todos em \<data\>" e o botão "Cadastrar meu CNPJ" (prancha "Card do
-  repasse e estados").
+  por enquanto, só para lojistas cadastrados", o botão "Cadastrar meu CNPJ" e o
+  link "Avise quando abrir para todos", que leva à lista na trilha consumidor
+  (prancha "Card do repasse e estados"). Sem data: abrir é manual.
 - **Vazio:** sem carro publicado, a página vira a prancha "Página /repasse sem
   carro aberto" — lista do repasse, "já saíram" e três carros do estoque com
   garantia. Nunca beco.
@@ -284,7 +298,8 @@ lista do repasse, perguntas, rodapé.
 `revalidate = 60`, `dynamicParams = true`. Prancha "Ficha do carro de repasse":
 galeria (com fotos de defeito marcadas), a conta, os dois botões (WhatsApp e
 "marcar exame no pátio"), por que está no repasse, ficha de estado, histórico e
-documentos (laudo, leilão, sinistro, documento, transferência, data da consulta),
+documentos (laudo — "aprovado", "aprovado com apontamento: \<texto\>" ou "não
+feito" —, leilão, sinistro, documento, transferência, data da consulta),
 "o que não vem", o formulário do exame e três parecidos do estoque com garantia
 (mesma faixa de preço ou carroceria, `CardVeiculo`). No celular, barra fixa com
 preço, diferença para a FIPE e "Quero este".
@@ -304,9 +319,56 @@ preço, diferença para a FIPE e "Quero este".
 ### 7.3 Textos
 
 Todo texto fixo da seção vive em `src/lib/paginaDoRepasse.ts`, transcrito das
-pranchas da versão 3 do Design. A garantia do estoque só aparece pelas constantes
+pranchas da versão 5 do Design. A garantia do estoque só aparece pelas constantes
 de `src/lib/paginasInstitucionais.ts` ("três meses ou 5.000 quilômetros, o que
 vier primeiro"). Nada sobre CDC ou direitos. Laudo sempre "sai a pedido".
+**Exceção ao Design:** a linha de consentimento dos formulários da lista é a da
+§7.4, não o "Ao enviar, você concorda com a política de privacidade" das pranchas.
+
+### 7.4 `/privacidade` — esboço para aprovação do dono
+
+A lista do repasse é dado pessoal com finalidade nova (aviso por WhatsApp), então
+a política muda **antes** de o formulário ir ao ar — a mesma régua do registro de
+erros de 11/09. Quatro inserções em `src/app/privacidade/page.tsx`, no tom da
+página. **ESBOÇO — aguarda aprovação do dono.**
+
+**Em "Quais dados coletamos"**, depois do parágrafo dos formulários:
+
+> **Quando você entra na lista do repasse.** Pedimos nome e WhatsApp, a faixa de
+> preço e os tipos de carro que você procura. Se você é lojista, pedimos também o
+> CNPJ, o nome da loja e a cidade.
+
+**Em "Para que usamos"**, item novo:
+
+> **Avisar sobre carros de repasse.** Quem está na lista recebe pelo WhatsApp os
+> carros de repasse que combinam com a faixa e os tipos informados. Lojistas
+> cadastrados recebem o aviso antes de o carro aparecer no site. Quem envia é uma
+> pessoa da nossa equipe, não um disparo automático.
+
+**Em "Bases legais"**, item novo:
+
+> **Consentimento** — para a lista do repasse. Você escolhe entrar e pode sair
+> quando quiser, pedindo pelo WhatsApp ou pelos canais da seção Como falar conosco.
+
+(O comentário do código nessa seção registra que o item "Consentimento" saiu em
+31/08 porque os cookies deixaram de depender dele. Ele volta com outra
+finalidade; o comentário precisa dizer isso.)
+
+**Em "Por quanto tempo guardamos"**, parágrafo novo:
+
+> **Os dados da lista do repasse** ficam guardados enquanto você estiver na lista.
+> Quando você sai, apagamos a faixa de preço, os tipos de carro e, no caso de
+> lojistas, o CNPJ e os dados da loja. O registro de contato segue a regra do
+> parágrafo acima.
+
+**Linha de consentimento nos formulários da lista** (substitui a das pranchas):
+
+> Ao entrar na lista, você aceita receber avisos de repasse pelo WhatsApp e pode
+> sair quando quiser. [Política de privacidade](/privacidade#dados).
+
+O formulário do **exame no pátio** não é lista: mantém a linha atual, porque o
+dado serve só para marcar o horário (execução de procedimentos preliminares, base
+que a página já declara).
 
 ---
 
@@ -384,14 +446,13 @@ inserido antes de ser confiado (regra `trava-so-vale-se-reprovar`).
 
 ## 11. PENDENTE
 
-1. **Pagamento.** O desenho segue só à vista (24/09). Se o repasse passar a
-   financiar, mudam juntos a tabela, as perguntas e o "não serve se".
-2. **Modelo da ficha de estado** — passar pelo jurídico antes do primeiro uso.
-3. **Texto da `/privacidade`** sobre a lista do repasse (dado pessoal novo).
-4. **Prazo padrão** entre "só lojistas" e "aberto a todos". Até a resposta, o
-   validador escolhe a data a cada publicação, sem valor sugerido.
-5. **Carro com laudo reprovado entra no repasse?** O enum só tem `aprovado` e
-   `nao_feito`; se entrar, precisa de um terceiro valor e de texto próprio.
+1. **Aprovação do esboço da `/privacidade`** (§7.4). Bloqueia o PR 3 ir ao ar,
+   não o código.
+2. **Revisão jurídica do modelo da ficha de estado** — decidida (24/09), é tarefa
+   da loja antes do primeiro carro vendido, não do código.
+
+Respondidas em 24/09 e já incorporadas acima: pagamento só à vista; abrir para
+todos por switch manual; laudo aprovado com apontamento entra, reprovado não.
 
 ---
 
@@ -404,7 +465,7 @@ passa pelo `qa-guardian` antes do merge.
 |---|---|---|
 | 1 · Dados | migração (§4), tipos e leituras em `src/lib/repasse*.ts`, linhas da matriz de permissões, `checklistDoRepasse`, conta derivada, etiqueta, `caminhoDaFotoDoRepasse`, `consultaFipe` extraída, testes | ordem do dono para `--gravar` |
 | 2 · Painel | §5 e §6 | PR 1 gravado |
-| 3 · Site e leads | §7, §8, §9 | PR 1 gravado; PENDENTE 3 antes de ir ao ar |
+| 3 · Site e leads | §7, §8, §9, e a `/privacidade` da §7.4 no mesmo PR | PR 1 gravado; esboço da §7.4 aprovado |
 | 4 · Portas | §10, com a remedição do menu | PR 3 no ar |
 
 ## 13. Fora do escopo
