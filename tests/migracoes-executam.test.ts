@@ -92,6 +92,10 @@ const CADEIA = [
   // duas migrações acima deram escopo à tabela e as sementes de agosto
   // inseriram os quatro de pagamento.
   "20260916170000_motivos_de_ganho_por_escopo.sql",
+  // O papel SDR (2026-09-23). Entra na cadeia porque troca o CHECK de
+  // `profiles.role` e as duas réguas de vocabulário — o furo de 22/08 foi
+  // exatamente uma dessas réguas reescrita sem as outras.
+  "20260923130000_papel_sdr.sql",
   // A avaliação mora no lead (2026-09-24). Entra na cadeia porque o aceite
   // prova os CHECKs tentando gravar o inválido, passa pelos gatilhos do funil
   // (acima) com as colunas novas e confere, vestindo `anon` e um cliente sem
@@ -228,10 +232,10 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
   const ehVerdade = (sql: string): boolean =>
     psql!(`select ${sql}`).replace(/[\s|-]/g, "").includes("t");
 
-  it("o vocabulário de papéis tem os sete, e recusa inventado", () => {
+  it("o vocabulário de papéis tem os oito, e recusa inventado", () => {
     expect(
       ehVerdade(
-        "public.papeis_validos(array['admin','gestor','comercial','financeiro','marketing','cliente','investidor'])",
+        "public.papeis_validos(array['admin','gestor','comercial','financeiro','marketing','sdr','cliente','investidor'])",
       ),
     ).toBe(true);
     expect(ehVerdade("not public.papeis_validos(array['chefe'])")).toBe(true);
