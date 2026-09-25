@@ -4,6 +4,7 @@ import {
   LARGURA_CARD,
   fotoPodeVirarPrevia,
 } from "../../../lib/compartilhamento";
+import { respostaDeImagem } from "../../../lib/respostaDeImagem";
 
 /**
  * A foto do veículo no tamanho que o WhatsApp de PC e tablet aceita.
@@ -40,13 +41,12 @@ export async function GET(request: Request) {
       .jpeg({ quality: 78, mozjpeg: true })
       .toBuffer();
 
-    return new Response(new Uint8Array(jpeg), {
-      headers: {
-        "Content-Type": "image/jpeg",
-        // A URL carrega a foto: foto nova é URL nova. Pode ficar na borda.
-        "Cache-Control": "public, max-age=604800, s-maxage=2592000, immutable",
-      },
-    });
+    // A URL carrega a foto: foto nova é URL nova. Pode ficar na borda.
+    return respostaDeImagem(
+      jpeg,
+      "image/jpeg",
+      "public, max-age=604800, s-maxage=2592000, immutable",
+    );
   } catch (err) {
     console.warn("[OG] foto do veículo não virou prévia:", err);
     return cardGerado();
