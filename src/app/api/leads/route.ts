@@ -7,6 +7,16 @@ import { sendCapiEvent } from "../../../lib/meta-capi";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
 import { interesseDoLead } from "../../../lib/interesseDoLead";
 import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
+import {
+  MENSAGEM_DA_INSCRICAO,
+  decidirLeadDoRepasse,
+  ehCanalDoRepasse,
+  mensagemDoExame,
+  type InscricaoNaLista,
+} from "../../../lib/leadDoRepasse";
+import { registrarFalha } from "../../../lib/observabilidade";
+import { ERROS_DO_REPASSE } from "../../../lib/paginaDoRepasse";
+import { carroDoExame, gravarInscricao } from "../../../lib/repasseNaRotaDeLeads";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +84,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Dados de contato do cliente ausentes (nome obrigatório)." }, { status: 400 });
     }
 
+    // 2.5 Repasse (spec 2026-09-24 §8) — a lista e o exame no pátio.
+    //
+    // Aditivo: só entra quando o canal começa com "repasse", e nenhum campo
+    // dos outros canais muda de sentido. A régua é pura
+    // (`decidirLeadDoRepasse`, testada sem rota) e roda ANTES de qualquer
+    // gravação e do n8n: corpo torto volta 400 sem deixar lead pela metade.
+    //
+    // A mensagem do lead sai daqui, e não do corpo: `leads` é lida por toda
+    // a equipe, e CNPJ, faixa e tipos de carro ficam só em
+    // `repasse_inscritos`, que só quem valida lê. Um navegador que mandasse
+    // o CNPJ na `mensagem` não o levaria ao Kanban.
+    let mensagemDoLead: unknown = body.mensagem;
+    let repasseIdDoLead: string | null = null;
+    let inscricaoDoRepasse: InscricaoNaLista | null = null;
+    if (ehCanalDoRepasse(body.canal)) {
+      const decisao = decidirLeadDoRepasse(body, new Date());
+      if (!decisao.ok) {
+        return NextResponse.json({ error: decisao.erro }, { status: 400 });
+      }
+      if (decisao.pedido.tipo === "lista") {
+        inscricaoDoRepasse = decisao.pedido.inscricao;
+        mensagemDoLead = MENSAGEM_DA_INSCRICAO[inscricaoDoRepasse.trilha];
+      } else {
+        // O exame só vale para carro publicado: reservado, vendido ou
+        // arquivado não recebe pedido de horário, e o 409 diz isso.
+        const conferido = await carroDoExame(createAdminSupabaseClient(), decisao.pedido.exame.repasseId);
+        if (!conferido.ok) {
+          return NextResponse.json({ error: conferido.erro }, { status: conferido.status });
+        }
+        repasseIdDoLead = conferido.carro.id;
+        mensagemDoLead = mensagemDoExame(conferido.carro, decisao.pedido.exame);
+      }
+    }
+
     // 3. Load webhook settings from database to get the configured custom URL
     //
     // Via `getCachedSettings`, não com o cliente da requisição: este POST vem de
@@ -116,7 +160,7 @@ export async function POST(request: NextRequest) {
       remoteJid,
       telefone: formattedPhone,
       canal: body.canal || "N/A",
-      mensagem: body.mensagem || "",
+      mensagem: mensagemDoLead || "",
       tipo: body.tipo || "lead_whatsapp",
       cliente: {
         nome: cliente.nome,
@@ -162,6 +206,7 @@ export async function POST(request: NextRequest) {
     // Mesma regra do webhook e da CAPI: **nunca bloqueia**. O visitante está
     // a caminho do WhatsApp, e falha de gravação nossa não pode segurá-lo —
     // perder o registro é ruim, travar o contato é pior.
+    let idDoLead: string | null = null;
     try {
       // `insert` na tabela `leads` exige contornar a RLS (não há policy de
       // INSERT para anônimo, de propósito), então usa a chave de serviço.
@@ -173,11 +218,11 @@ export async function POST(request: NextRequest) {
       // `lib/interesseDoLead.ts`.
       const interesse = interesseDoLead({
         veiculo,
-        mensagem: body.mensagem,
+        mensagem: mensagemDoLead,
         intencaoBusca: intencao_busca,
       });
 
-      const { error: erroLead } = await supabaseAdmin.from("leads").insert({
+      const insercao = supabaseAdmin.from("leads").insert({
         nome: cliente.nome,
         telefone: formattedPhone || null,
         interesse,
@@ -225,13 +270,48 @@ export async function POST(request: NextRequest) {
         // 2026-09-20. Sem o `gclid` aqui não há conversão offline quando o
         // negócio fecha. Regras e limites em `lib/contextoDeMidia.ts`.
         ...contextoDeMidiaDoLead(body),
+        // O exame no pátio liga o lead ao carro de repasse (spec §4.4): é
+        // por esta coluna que o pedido aparece no editor do carro. Só o
+        // exame a preenche; nos outros canais a chave nem entra.
+        ...(repasseIdDoLead ? { repasse_id: repasseIdDoLead } : {}),
       });
+      // `.select("id")` separado do insert, por uma variável: a lista do
+      // repasse guarda o elo com o lead (`repasse_inscritos.lead_id`), e o
+      // texto `.from("leads").insert({ … });` fica inteiro para as travas
+      // de `pre-voo-das-conversoes` e `leads-insert-destravado`.
+      const { data: leadGravado, error: erroLead } = await insercao.select("id").maybeSingle();
 
       if (erroLead) {
         console.warn("[Leads API] Falha ao gravar lead (não bloqueante):", erroLead.message);
+      } else {
+        const idGravado = (leadGravado as { id?: unknown } | null)?.id;
+        idDoLead = typeof idGravado === "string" ? idGravado : null;
       }
     } catch (erroPersistencia: any) {
       console.warn("[Leads API] Erro ao gravar lead (não bloqueante):", erroPersistencia?.message);
+    }
+
+    // 5.3 Lista do repasse — a ÚNICA gravação desta rota que bloqueia.
+    //
+    // O resto é não bloqueante porque o visitante está a caminho do
+    // WhatsApp. Quem entra na lista do repasse não está: a confirmação que
+    // ele lê diz "você está na lista", e isso só é verdade se a linha
+    // existir — é o produto do formulário. Falhou, ele vê o erro e tenta de
+    // novo; a falha vai para a triagem; e a conversão NÃO é contada, nem
+    // aqui (o return vem antes da CAPI) nem no navegador (que só mede
+    // depois do 2xx).
+    //
+    // Depois do lead, e não antes: `lead_id` é o elo que o painel usa.
+    if (inscricaoDoRepasse) {
+      const gravado = await gravarInscricao(createAdminSupabaseClient(), inscricaoDoRepasse, idDoLead);
+      if (!gravado.ok) {
+        await registrarFalha("quebra", "repasse-inscricao", gravado.detalhe, {
+          rota: "/api/leads",
+          origem: "servidor",
+          ...(idDoLead ? { lead_id: idDoLead } : {}),
+        });
+        return NextResponse.json({ error: ERROS_DO_REPASSE.lista }, { status: 500 });
+      }
     }
 
     // 5.5 Meta CAPI — espelha o evento Lead disparado no browser (mesmo event_id = dedup)

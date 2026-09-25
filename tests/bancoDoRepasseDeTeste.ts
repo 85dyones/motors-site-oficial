@@ -28,6 +28,8 @@ export function bancoDeTeste() {
   const leituras: Record<string, Resposta> = {};
   const escritas: Escrita[] = [];
   const lidas: string[] = [];
+  /** Uma entrada por `from`, com os `eq`/`is` encadeados na LEITURA. */
+  const consultas: Array<{ tabela: string; filtros: Array<[string, unknown]> }> = [];
 
   const padrao = (e: Escrita): Resposta =>
     e.operacao === "update"
@@ -35,16 +37,20 @@ export function bancoDeTeste() {
       : { data: null, error: null };
   let responder: (e: Escrita) => Resposta = padrao;
 
-  function consulta(tabela: string, escrita: Escrita | null) {
+  function consulta(tabela: string, escrita: Escrita | null, leitura?: { filtros: Array<[string, unknown]> }) {
     const resolver = (): Resposta => (escrita ? responder(escrita) : (leituras[tabela] ?? { data: null, error: null }));
     const q: Record<string, unknown> = {};
     const encadeia =
       (nome: string) =>
       (...args: unknown[]) => {
-        if (escrita && (nome === "eq" || nome === "is")) escrita.filtros.push([String(args[0]), args[1]]);
+        if (nome === "eq" || nome === "is") {
+          const filtro: [string, unknown] = [String(args[0]), args[1]];
+          if (escrita) escrita.filtros.push(filtro);
+          else leitura?.filtros.push(filtro);
+        }
         return q;
       };
-    for (const nome of ["select", "eq", "is", "in", "order", "limit"]) q[nome] = encadeia(nome);
+    for (const nome of ["select", "eq", "is", "in", "order", "limit", "like"]) q[nome] = encadeia(nome);
     q.single = async () => resolver();
     q.maybeSingle = async () => resolver();
     q.then = (ok: (r: Resposta) => unknown, falha?: (e: unknown) => unknown) => Promise.resolve(resolver()).then(ok, falha);
@@ -61,7 +67,11 @@ export function bancoDeTeste() {
         return consulta(tabela, e);
       };
     return {
-      ...consulta(tabela, null),
+      ...(() => {
+        const leitura = { tabela, filtros: [] as Array<[string, unknown]> };
+        consultas.push(leitura);
+        return consulta(tabela, null, leitura);
+      })(),
       insert: escrever("insert"),
       update: escrever("update"),
       delete: escrever("delete"),
@@ -75,6 +85,7 @@ export function bancoDeTeste() {
     escritas,
     /** Tabelas que alguém abriu com `from`, na ordem. */
     lidas,
+    consultas,
     responderEscrita(fn: (e: Escrita) => Resposta) {
       responder = fn;
     },
