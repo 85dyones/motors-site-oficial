@@ -104,6 +104,20 @@ describe("AcoesDoRepasse", () => {
     await act(async () => botao("Devolver para rascunho").click());
     expect(container.querySelector("textarea")).not.toBeNull();
   });
+
+  it("editar outro campo com a nota aberta trava o botão de devolver", async () => {
+    const emValidacao = repasseDeTeste({ situacao: "em_validacao" });
+    const props = { repasse: emValidacao, perfis: ["gestor"] as const, alterado: false, aoMudar: () => {} };
+    await montar(createElement(AcoesDoRepasse, props));
+    await act(async () => botao("Devolver para rascunho").click());
+    expect(botao("Devolver").disabled).toBe(false);
+
+    await act(async () =>
+      root.render(createElement(ConfirmProvider, null, createElement(AcoesDoRepasse, { ...props, alterado: true }))),
+    );
+
+    expect(botao("Devolver").disabled).toBe(true);
+  });
 });
 
 describe("ConsultaFipeDoRepasse", () => {
@@ -129,9 +143,11 @@ describe("ConsultaFipeDoRepasse", () => {
     expect(aoEscolher).toHaveBeenCalledWith({ valor: 42100, codigo: "025258-0", mesReferencia: "setembro de 2026" });
   });
 
-  it("sem edição, não consulta", () => {
-    const html = renderToStaticMarkup(createElement(ConsultaFipeDoRepasse, { podeEditar: false, aoEscolher: () => {}, buscar }));
-    expect(html).toBe("");
+  it("sem edição, não consulta", async () => {
+    const buscarEspiao = vi.fn(buscar);
+    await montar(createElement(ConsultaFipeDoRepasse, { podeEditar: false, aoEscolher: () => {}, buscar: buscarEspiao }));
+    expect(buscarEspiao).not.toHaveBeenCalled();
+    expect(container.querySelectorAll("select").length).toBe(0);
   });
 });
 

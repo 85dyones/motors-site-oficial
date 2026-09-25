@@ -107,7 +107,7 @@ export default function AcoesDoRepasse({
             onChange={(e) => setNota(e.target.value)}
           />
           <div className="flex gap-2">
-            <button type="button" disabled={ocupado} onClick={() => void executar("devolver", nota)} className="mt-btn mt-btn-tinta mt-foco px-4 py-2 text-[11px]">
+            <button type="button" disabled={travado} onClick={() => void executar("devolver", nota)} className="mt-btn mt-btn-tinta mt-foco px-4 py-2 text-[11px]">
               Devolver
             </button>
             <button type="button" onClick={() => setDevolvendo(false)} className="mt-btn mt-btn-contorno mt-foco px-4 py-2 text-[11px]">
