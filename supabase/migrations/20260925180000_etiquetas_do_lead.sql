@@ -445,8 +445,10 @@ begin
        set full_name = 'Aceite Etiquetas Ex-Comercial', papeis = array['comercial'], role = 'comercial',
            is_active = false
      where id = v_ex_com;
+    -- Nome vazio, e não nulo: em produção `full_name` é NOT NULL (o ensaio de
+    -- 25/09 bateu nisso). Para `autor_atual`, vazio é o mesmo que sem nome.
     update public.profiles
-       set full_name = null, papeis = array['sdr'], role = 'sdr', is_active = true
+       set full_name = '', papeis = array['sdr'], role = 'sdr', is_active = true
      where id = v_sem_nome;
     update public.profiles
        set full_name = 'Aceite Etiquetas SDR Inativo', papeis = array['sdr'], role = 'sdr', is_active = false
