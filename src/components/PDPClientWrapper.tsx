@@ -1036,10 +1036,17 @@ export default function PDPClientWrapper({
                     </button>
                   );
                 })}
+                {/* Sem `aria-label`: o nome acessível sai do que está escrito
+                    ("+12 VER GALERIA") mais o complemento só para o leitor de
+                    tela. Com o `aria-label` antigo ("Ver todas as fotos do
+                    veículo"), quem usa comando de voz dizia "ver galeria" e o
+                    botão não respondia — o nome não continha o texto visível
+                    (WCAG 2.5.3, auditoria axe `label-content-name-mismatch`).
+                    Um `aria-label` só não resolve: o "+N" muda com a largura
+                    da tela, e o texto escondido por CSS sai do nome sozinho. */}
                 <button
                   onClick={() => abrirGaleria(0)}
  className="mt-foco grid aspect-[4/3] flex-1 cursor-pointer place-items-center bg-mt-inverso-fundo text-mt-inverso"
-                  aria-label="Ver todas as fotos do veículo"
                 >
                   <span className="text-center">
                     {displayImages.length > 3 && (
@@ -1055,6 +1062,9 @@ export default function PDPClientWrapper({
                     <span className="mt-1.5 block text-[10px] font-semibold tracking-[.14em] text-mt-inverso-suave">
                       VER GALERIA
                     </span>
+                    <span className="sr-only">
+                      {` — todas as ${displayImages.length} fotos do veículo`}
+                    </span>
                   </span>
                 </button>
               </div>
@@ -1066,16 +1076,24 @@ export default function PDPClientWrapper({
             {renderSidebar(true)}
           </div>
 
-          {/* Description Section */}
+          {/* Description Section
+
+              Os títulos da ficha seguem a hierarquia do nome do carro (o `h1`
+              da barra mobile, ou o `h2` da barra desktop): as seções — esta,
+              a matriz de especificações e o quadro da troca — são `h2`, e o
+              "laudo aprovado", dentro da perícia, é `h3`. Até 2026-09-25 eram
+              `h3`, `h4` e `h5`, e o leitor de tela que navega por títulos
+              pulava níveis que não existiam (auditoria axe, `heading-order`).
+              O tamanho vem das classes, não da tag. */}
           <div className="px-4 md:px-0 print:px-0">
             <section className="bg-brand-card border border-brand-border/40 p-6 md:p-8 max-sm:p-4   print-avoid-break">
-              <h3 className="text-xs font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-3 mb-4 flex items-center gap-2">
+              <h2 className="text-xs font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-3 mb-4 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H3.75A1.125 1.125 0 0 0 2.625 3.375v17.25c0 .621.504 1.125 1.125 1.125h16.5a1.125 1.125 0 0 0 1.125-1.125V14.25z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 16.5h16.5M3.75 12h16.5M3.75 7.5h7.5" />
                 </svg>
                 DESCRIÇÃO DO VEÍCULO
-              </h3>
+              </h2>
               {veiculo.descricao && /<[a-z][\s\S]*>/i.test(veiculo.descricao) ? (
                 <div 
  className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl rich-text-content"
@@ -1184,7 +1202,7 @@ export default function PDPClientWrapper({
                       </svg>
                     </div>
                     <div>
-                      <h4 className="text-sm font-extrabold text-emerald-600 uppercase tracking-wide">LAUDO TÉCNICO APROVADO</h4>
+                      <h3 className="text-sm font-extrabold text-emerald-600 uppercase tracking-wide">LAUDO TÉCNICO APROVADO</h3>
                       <p className="text-[10px] text-brand-text/75 font-extrabold uppercase tracking-wider">Histórico livre de sinistros e leilão</p>
                     </div>
                   </div>
@@ -1256,9 +1274,9 @@ export default function PDPClientWrapper({
 
           {/* Specification Matrix Table */}
           <aside className="bg-brand-card border border-brand-border/40 p-6 max-sm:p-4   w-full print-avoid-break">
-            <h3 className="text-sm font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-4 mb-4">
+            <h2 className="text-sm font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-4 mb-4">
               MATRIZ DE ESPECIFICAÇÕES
-            </h3>
+            </h2>
 
             {/* Matrix detailed table */}
             <div className="flex flex-col divide-y divide-brand-border/40 print:grid print:grid-cols-2 print:gap-x-8 print:gap-y-0 print:divide-y-0">
@@ -1327,7 +1345,7 @@ export default function PDPClientWrapper({
                   </svg>
                 </div>
                 <div>
-                  <h5 className="text-xs font-black text-brand-text uppercase leading-none">Seu Usado na Troca ou Test-Drive</h5>
+                  <h2 className="text-xs font-black text-brand-text uppercase leading-none">Seu Usado na Troca ou Test-Drive</h2>
                   {/* "Supervalorização FIPE" prometia pagar acima da tabela.
                       A loja compra abaixo da FIPE em qualquer estado de
                       conservação (regra em `lib/avaliacaoRecomendacao.ts`),
