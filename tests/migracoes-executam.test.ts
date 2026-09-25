@@ -109,6 +109,12 @@ const CADEIA = [
   // recebe 15.000 sem UPDATE, que zero e negativo são recusados e que o km
   // vigente não se edita — a tabela vem do recorte da F0 no andaime.
   "20260924220000_curva_km_por_ano.sql",
+  // `leads_interacoes` ganha `org_id` (2026-09-25) — a divergência que a
+  // gestão do lead (acima) registrou e não corrigiu. Entra na cadeia porque o
+  // aceite prova pelo efeito, vestindo um staff, que a função grava na org
+  // padrão sem listar a coluna e que a linha de uma org temporária some da
+  // leitura dele — RLS cross-org só se prova num Postgres de verdade.
+  "20260925130000_leads_interacoes_org_id.sql",
 ];
 
 /**
