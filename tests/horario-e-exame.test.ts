@@ -110,6 +110,16 @@ describe("os dias do exame", () => {
     expect(diaAceitoParaOExame(20260926, QUARTA_MEIO_DIA)).toBe(false);
   });
 
+  it("domingo dentro da janela é recusado mesmo estando entre hoje e o último dia", () => {
+    // Sex 25/09 em Curitiba: a janela pula o domingo e chega até terça —
+    // só quem confere `lojaAbreNoDia` barra o 27, que o limite superior sozinho não pegaria.
+    const sexta = new Date("2026-09-25T15:00:00Z");
+    expect(diasDoExame(sexta).map((d) => d.data)).toEqual(["2026-09-26", "2026-09-28", "2026-09-29"]);
+    expect(diaAceitoParaOExame("2026-09-26", sexta)).toBe(true);
+    expect(diaAceitoParaOExame("2026-09-27", sexta)).toBe(false); // domingo, dentro de [26, 29]
+    expect(diaAceitoParaOExame("2026-09-28", sexta)).toBe(true);
+  });
+
   it("turno é manhã ou tarde", () => {
     expect(turnoDoExame("manha")).toBe("manha");
     expect(turnoDoExame("tarde")).toBe("tarde");
