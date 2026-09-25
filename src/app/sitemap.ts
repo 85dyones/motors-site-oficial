@@ -20,6 +20,9 @@ import { SITE_URL } from "../lib/site";
 import { caminhosDosHubs, recortesDoEstoque } from "../lib/hubsDeEstoque";
 import { CAMINHOS_GEO } from "../lib/paginasGeo";
 import { campanhasVivas, caminhoDaCampanha } from "../lib/campanhas";
+import { lerRepassesPublicos } from "../lib/leituraDosRepasses";
+import { publicadoEm } from "../lib/loteDoRepasse";
+import type { Repasse } from "../lib/repasse";
 
 /**
  * O sitemap acompanha o banco, não o build.
@@ -72,12 +75,12 @@ async function destaquesParaSitemap(): Promise<string[]> {
  * /contato ou /privacidade precisa subir esta data junto. É pouco, e o esquecimento
  * erra para o lado seguro — anuncia antigo demais, nunca recente demais.
  */
-const ATUALIZACAO_INSTITUCIONAL = new Date("2026-09-15T00:00:00Z");
+const ATUALIZACAO_INSTITUCIONAL = new Date("2026-09-25T00:00:00Z");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // As leituras que alimentam o `lastmod`, a carência e as páginas perenes.
   // Independentes entre si, então vão juntas.
-  const [carimbos, datasDeVenda, ultimasPresencas, destaques, recortes, guiasPublicados] =
+  const [carimbos, datasDeVenda, ultimasPresencas, destaques, recortes, guiasPublicados, repasses] =
     await Promise.all([
       getCarimbosDeConteudo(),
       getDatasDeVenda(),
@@ -89,6 +92,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // O oposto — deixar estourar — apagaria 176 URLs por causa de uma.
       listarGuiasPublicados().catch((erro) => {
         console.error("[Sitemap] Falha ao ler os guias:", (erro as Error).message);
+        return [];
+      }),
+      // O repasse (spec 2026-09-24 §7.2), com o mesmo cuidado: pane aqui
+      // tira desta geração só as fichas de repasse.
+      lerRepassesPublicos(new Date(), "/sitemap.xml").catch((erro): Repasse[] => {
+        console.error("[Sitemap] Falha ao ler os repasses:", (erro as Error).message);
         return [];
       }),
     ]);
@@ -109,6 +118,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .filter((t) => !Number.isNaN(t));
   const inventarioMudouEm =
     carimbosValidos.length > 0 ? new Date(Math.max(...carimbosValidos)) : undefined;
+
+  // Publicado (aberto ou só para lojistas) e reservado. O vendido fica no ar
+  // pela carência, e indexado como no estoque, mas não é anunciado: sitemap
+  // que chama o buscador para um carro que já saiu é convite a indexar o que
+  // ninguém compra mais.
+  const repassesNaVitrine = repasses
+    .filter((r) => r.situacao === "publicado" || r.situacao === "reservado")
+    .sort((a, b) => new Date(publicadoEm(b)).getTime() - new Date(publicadoEm(a)).getTime());
+  const quandoOrepasseMudou = (r: Repasse | undefined): Date | undefined => {
+    if (!r) return undefined;
+    const d = new Date(publicadoEm(r));
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  };
 
   const routes: MetadataRoute.Sitemap = [
     {
@@ -190,6 +212,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: guia.atualizadoEm,
       changeFrequency: "monthly" as const,
       priority: 0.6,
+    })),
+    {
+      // A seção de repasse. Perene: sem carro aberto a página vira a lista
+      // do repasse, nunca beco — por isso entra mesmo vazia, como os hubs.
+      url: `${SITE_URL}/repasse`,
+      lastModified: quandoOrepasseMudou(repassesNaVitrine[0]),
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    },
+    ...repassesNaVitrine.map((r) => ({
+      url: `${SITE_URL}/repasse/${r.slug}`,
+      lastModified: quandoOrepasseMudou(r),
+      changeFrequency: "daily" as const,
+      priority: 0.8,
     })),
     // Landings de destaque: são recortes do estoque, então mudam com ele.
     ...destaques.map((slug) => ({
