@@ -226,6 +226,33 @@ describe("o exame no pátio", () => {
     expect(n8n).not.toHaveBeenCalled();
   });
 
+  // final-review I2 (25/09): no exame o lead É o pedido — é por ele que o
+  // pedido aparece no editor do carro, e o visitante não vai para o WhatsApp.
+  // Gravação que falha não pode sumir em silêncio atrás de um 200.
+  it.each([
+    [
+      "erro devolvido",
+      () => banco.responderEscrita((e) => (e.tabela === "leads" ? { data: null, error: { message: "falhou", code: "XX000" } } : { data: null, error: null })),
+    ],
+    [
+      "exceção",
+      () =>
+        banco.responderEscrita((e) => {
+          if (e.tabela === "leads") throw new Error("caiu a conexão");
+          return { data: null, error: null };
+        }),
+    ],
+  ])("lead que não grava (%s): 500, falha na triagem e nenhuma conversão no servidor", async (_caso, quebrar) => {
+    banco.leituras.repasses = { data: CARRO_PUBLICADO, error: null };
+    quebrar();
+    const res = await POST(pedido(EXAME));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe(ERROS_DO_REPASSE.generico);
+    expect(falhas.chamadas[0]?.slice(0, 2)).toEqual(["quebra", "repasse-exame"]);
+    expect(falhas.chamadas[0]?.[3]).toEqual({ rota: "/api/leads", origem: "servidor" });
+    expect(capi.chamadas).toEqual([]);
+  });
+
   it("domingo: 400 da régua, antes de ler o carro", async () => {
     const res = await POST(
       pedido({ ...EXAME, intencao_busca: { repasse: { ...EXAME.intencao_busca.repasse, dia: "2026-09-27" } } }),
@@ -245,5 +272,16 @@ describe("os outros canais não mudam", () => {
     expect(insertDoLead().interesse).toBe("Olá! Procuro carro Toyota Corolla.");
     expect(banco.lidas).not.toContain("repasses");
     expect(banco.lidas).not.toContain("repasse_inscritos");
+  });
+
+  it.each([
+    ["a encomenda", { canal: "Encomenda", tipo: "lead_encomenda", mensagem: "Olá! Procuro carro Toyota Corolla.", cliente: CLIENTE, ...EXTRAS }],
+    ["a lista do repasse", LISTA],
+  ])("%s com o lead que não grava segue como antes: 200, sem triagem e com a CAPI", async (_canal, corpo) => {
+    banco.responderEscrita((e) => (e.tabela === "leads" ? { data: null, error: { message: "falhou", code: "XX000" } } : { data: null, error: null }));
+    const res = await POST(pedido(corpo));
+    expect(res.status).toBe(200);
+    expect(falhas.chamadas).toEqual([]);
+    expect(capi.chamadas).toHaveLength(1);
   });
 });

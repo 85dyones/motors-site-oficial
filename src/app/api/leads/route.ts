@@ -207,6 +207,8 @@ export async function POST(request: NextRequest) {
     // a caminho do WhatsApp, e falha de gravação nossa não pode segurá-lo —
     // perder o registro é ruim, travar o contato é pior.
     let idDoLead: string | null = null;
+    // Só o exame no pátio lê isto (5.2.1): para os outros canais a regra acima vale inteira.
+    let erroDoLead: string | null = null;
     try {
       // `insert` na tabela `leads` exige contornar a RLS (não há policy de
       // INSERT para anônimo, de propósito), então usa a chave de serviço.
@@ -282,16 +284,31 @@ export async function POST(request: NextRequest) {
       const { data: leadGravado, error: erroLead } = await insercao.select("id").maybeSingle();
 
       if (erroLead) {
+        erroDoLead = erroLead.message;
         console.warn("[Leads API] Falha ao gravar lead (não bloqueante):", erroLead.message);
       } else {
         const idGravado = (leadGravado as { id?: unknown } | null)?.id;
         idDoLead = typeof idGravado === "string" ? idGravado : null;
       }
     } catch (erroPersistencia: any) {
+      erroDoLead = String(erroPersistencia?.message ?? "exceção");
       console.warn("[Leads API] Erro ao gravar lead (não bloqueante):", erroPersistencia?.message);
     }
 
-    // 5.3 Lista do repasse — a ÚNICA gravação desta rota que bloqueia.
+    // 5.2.1 Exame no pátio — o lead que não grava bloqueia (final-review I2, 25/09).
+    //
+    // No exame o lead É o pedido: é pela linha em `leads`, com `repasse_id`,
+    // que ele aparece no editor do carro (spec §4.4). E o visitante não vai
+    // para o WhatsApp: ele lê "Pedido enviado" e espera a loja. Se a linha
+    // não existe e o n8n também falhou, o pedido sumia sem ninguém saber.
+    // Mesma régua do 5.3: triagem, 500, e o return antes da CAPI (o
+    // navegador só mede depois do 2xx). Os outros canais não entram aqui.
+    if (repasseIdDoLead && erroDoLead !== null) {
+      await registrarFalha("quebra", "repasse-exame", erroDoLead, { rota: "/api/leads", origem: "servidor" });
+      return NextResponse.json({ error: ERROS_DO_REPASSE.generico }, { status: 500 });
+    }
+
+    // 5.3 Lista do repasse — gravação que bloqueia (a outra é o exame, 5.2.1).
     //
     // O resto é não bloqueante porque o visitante está a caminho do
     // WhatsApp. Quem entra na lista do repasse não está: a confirmação que
