@@ -119,6 +119,12 @@ const CADEIA = [
   // padrão sem listar a coluna e que a linha de uma org temporária some da
   // leitura dele — RLS cross-org só se prova num Postgres de verdade.
   "20260925130000_leads_interacoes_org_id.sql",
+  // As etiquetas do lead e o crédito do SDR (2026-09-25). Entra na cadeia
+  // porque o aceite passa o lead numa sessão de SDR, de Comercial e sem sessão
+  // (o motor) e confere quem deixa crédito no rastro — gatilho e RLS só se
+  // provam num banco de verdade. Depende da papel_sdr, acima, para o SDR ser
+  // staff.
+  "20260925180000_etiquetas_do_lead.sql",
 ];
 
 /**
