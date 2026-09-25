@@ -49,10 +49,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
     const { marca, modelo, situacao } = lido.repasse;
+    // A nota da devolução some do carro no reenvio (`enviar` zera
+    // `devolvido_com`); a auditoria é a única trilha do que o validador pediu.
+    // É texto da equipe, não dado da lista, então pode ir para o log.
+    const nota = decisao.ato === "devolver" && decisao.colunas.devolvido_com ? ` · nota: ${decisao.colunas.devolvido_com}` : "";
     await registrarAcaoSensivel(
       admin,
       `repasse.${decisao.ato}`,
-      `${marca} ${modelo} (${id}): ${situacao} → ${decisao.colunas.situacao}`,
+      `${marca} ${modelo} (${id}): ${situacao} → ${decisao.colunas.situacao}${nota}`,
       sessao.autor,
     );
     return NextResponse.json({ ok: true, repasse });

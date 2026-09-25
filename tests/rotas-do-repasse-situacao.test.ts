@@ -73,6 +73,16 @@ describe("POST /api/repasses/[id]/transicao", () => {
     expect((await res.json()).problemas).toContain("Escreva a linha do card.");
   });
 
+  it("devolver leva a nota para a auditoria", async () => {
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste({ situacao: "em_validacao" }), error: null };
+    const res = await transicao(pedido({ ato: "devolver", nota: "Falta a foto do farol" }), comId());
+    expect(res.status).toBe(200);
+    expect(banco.escritasEm("repasses")[0].valores).toMatchObject({ situacao: "rascunho", devolvido_com: "Falta a foto do farol" });
+    const [registro] = banco.auditoria();
+    expect(registro.acao).toBe("repasse.devolver");
+    expect(registro.detalhe).toContain("Falta a foto do farol");
+  });
+
   it("corrida: 409 e nenhuma auditoria", async () => {
     banco.leituras.repasses = { data: linhaDoBancoDeTeste({ situacao: "em_validacao" }), error: null };
     banco.responderEscrita(() => ({ data: null, error: null }));
