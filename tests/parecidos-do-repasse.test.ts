@@ -35,7 +35,7 @@ const ESTOQUE: Veiculo[] = [
   veiculo({ id: "kwid-intense", preco_original: 54900, tipo: "Hatch" }),
   veiculo({ id: "mobi", preco_original: 51900, tipo: "Hatch" }),
   veiculo({ id: "up", preco_original: 49900, tipo: "Hatch" }),
-  veiculo({ id: "onix-sedan", preco_original: 45900, tipo: "Sedan" }),
+  veiculo({ id: "onix-sedan", preco_original: 48200, tipo: "Sedan" }),
   veiculo({ id: "hb20-vendido", preco_original: 43900, tipo: "Hatch", vendido: true }),
   veiculo({ id: "moto", preco_original: 42000, tipo: "Motocicleta" }),
   veiculo({ id: "caro", preco_original: 89900, tipo: "Hatch" }),
@@ -64,11 +64,16 @@ describe("parecidosDoRepasse", () => {
   });
 
   it("a mesma carroceria pesa, no vocabulário do feed", () => {
-    // Gol (Hatch, R$ 47.000) fica 11,6% da FIPE; Onix (Sedan, R$ 45.900), 9,0%.
-    // O bônus de 8% põe o Gol na frente para o hatch e o Onix para o sedã.
+    // Gol (Hatch, R$ 47.000) fica 11,6% da FIPE; Onix (Sedan, R$ 48.200), 14,5% —
+    // MAIS longe que o Gol. Por distância pura o Gol venceria os dois casos, e é
+    // só o bônus de 8% que muda o resultado: põe o Gol na frente para o hatch
+    // (ele já venceria de qualquer jeito) e o Onix na frente para o sedã (sem o
+    // bônus, o Gol venceria — é o caso que prova que a etiqueta decide). Sem
+    // bônus para ninguém ("outro"), quem vence é o mais perto por distância: o
+    // Gol.
     expect(parecidosDoRepasse(repasseDeTeste(), ESTOQUE, 1).map((v) => v.id)).toEqual(["gol"]);
     expect(parecidosDoRepasse(repasseDeTeste({ carroceria: "seda" }), ESTOQUE, 1).map((v) => v.id)).toEqual(["onix-sedan"]);
-    expect(parecidosDoRepasse(repasseDeTeste({ carroceria: "outro" }), ESTOQUE, 1).map((v) => v.id)).toEqual(["onix-sedan"]);
+    expect(parecidosDoRepasse(repasseDeTeste({ carroceria: "outro" }), ESTOQUE, 1).map((v) => v.id)).toEqual(["gol"]);
   });
 });
 
