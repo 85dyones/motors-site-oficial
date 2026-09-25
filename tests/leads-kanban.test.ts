@@ -8,7 +8,32 @@ import {
   filtrarPorResponsavel,
   iniciais,
   opcoesDeResponsavel,
+  opcoesDoCard,
 } from "../src/lib/leadsKanban";
+
+describe("opções de responsável no card (23/09)", () => {
+  // A lista que a rota devolve já é só o Comercial ativo (`atendentesDoFluxo`).
+  const comercial = ["Dyones Oliveira", "Rodrigo Naumowicz"];
+
+  it("oferece só o comercial", () => {
+    expect(opcoesDoCard(comercial, "Rodrigo Naumowicz")).toEqual([
+      { nome: "Dyones Oliveira", fora: false },
+      { nome: "Rodrigo Naumowicz", fora: false },
+    ]);
+  });
+
+  it("o dono atual de fora aparece marcado, para não sumir da tela", () => {
+    expect(opcoesDoCard(comercial, "Igor Alves")).toEqual([
+      { nome: "Dyones Oliveira", fora: false },
+      { nome: "Igor Alves", fora: true },
+      { nome: "Rodrigo Naumowicz", fora: false },
+    ]);
+  });
+
+  it("dono antigo de OUTRO card não entra neste — era o 'Dyo Paulino' em todo lead", () => {
+    expect(opcoesDoCard(comercial, null).map((o) => o.nome)).toEqual(comercial);
+  });
+});
 
 /**
  * Kanban de leads — responsável, anotações e arrastar (pacote 1 da tela A8).
@@ -337,7 +362,12 @@ describe("a rota", () => {
     // `/api/users` exige Admin, e quem atende lead é Comercial — sem isto o
     // seletor de responsável ficaria vazio justamente para quem o usa.
     expect(rota).toContain("atendentes");
-    expect(rota).toContain('.in("role", ["admin", "comercial"])');
+    // Desde 2026-09-23 a lista é a régua `recebeLead` (comercial em qualquer
+    // posição de `papeis`, conta ativa) — o comportamento é executado em
+    // `tests/responsavel-do-lead.test.ts`. O filtro antigo olhava só o papel
+    // principal e punha admin sem comercial na lista.
+    expect(rota).toContain("atendentesDoFluxo(");
+    expect(rota).not.toContain('.in("role", ["admin", "comercial"])');
   });
 
   it("só devolve atendentes depois da checagem de permissão", () => {
