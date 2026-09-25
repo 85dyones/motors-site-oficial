@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { getEstoque, getVeiculoPdpUrl, Veiculo } from "../lib/supabase";
+import { getEstoque, Veiculo } from "../lib/supabase";
 import { disponiveisDe, precoVigente } from "../lib/regrasEstoque";
-import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick } from "../lib/telemetry";
+import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, rastreamentoRecusado, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick, trackPassoDoProfiler } from "../lib/telemetry";
+import { ehMoto, precoDoCarro } from "../lib/fichaDoMotor";
+import { faixasDoPatio, nomeCurto, pisoDoValorExato, type ChaveDeFiltro, type Recomendacao } from "../lib/motorDoMatch";
 import LeadCaptureModal from "./LeadCaptureModal";
+import ResultadoDoProfiler from "./ResultadoDoProfiler";
 import { useTheme } from "../app/ThemeContext";
-import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
+import { Rotulo, Seta } from "./modernist/primitivos";
 import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
 import { ACOES } from "../lib/turnstile";
 
@@ -22,6 +25,15 @@ import { ACOES } from "../lib/turnstile";
  * estoque, curador por texto livre, chamadas de telemetria e o payload
  * enviado ao n8n. Isto aqui é troca de camada de apresentação; os textos
  * longos que vão no payload continuam saindo das funções `format*`.
+ *
+ * ---------------------------------------------------------------------------
+ * 2026-09-25 — "Três do Pátio" (fase 1)
+ * ---------------------------------------------------------------------------
+ * As perguntas continuam as mesmas (mais a opção Hatch); o que mudou foi o que
+ * se faz com elas. O motor de etiquetas deu lugar ao motor de fatos
+ * (`lib/motorDoMatch.ts`): o resultado são três carros com o porquê de cada
+ * um, sem "% COMPATÍVEL" e sem a animação de 3,2 s que fingia calcular. Spec:
+ * `docs/superpowers/specs/2026-09-25-garagem-profiler-tres-do-patio-design.md`.
  */
 
 interface AnswerState {
@@ -29,7 +41,7 @@ interface AnswerState {
   budgetMax: number;
   objective: "status" | "family" | "efficiency" | "offroad" | "";
   experience: "performance" | "comfort" | "tech" | "economy" | "";
-  style: "suv" | "sedan" | "sport" | "pickup" | "open" | "";
+  style: "suv" | "sedan" | "hatch" | "sport" | "pickup" | "open" | "";
   timeline: "immediate" | "researching" | "future" | "";
 }
 
@@ -90,12 +102,17 @@ const OPCOES_EXPERIENCIA = [
   { id: "economy", letra: "D", titulo: "Custo de manter", desc: "Consumo, revisão e revenda.", resumo: "Custo" },
 ] as const;
 
+/**
+ * Hatch entrou em 25/09: são 16 dos 36 carros do pátio e não havia como
+ * pedi-los. Quem marca "Aberto a Sugestões" não filtra carroceria nenhuma.
+ */
 const OPCOES_ESTILO = [
   { id: "suv", letra: "A", titulo: "SUVs Imponentes", desc: "", resumo: "SUV" },
   { id: "sedan", letra: "B", titulo: "Sedans Elegantes", desc: "", resumo: "Sedã" },
-  { id: "sport", letra: "C", titulo: "Esportivos / Coupés", desc: "", resumo: "Esportivo" },
-  { id: "pickup", letra: "D", titulo: "Picapes", desc: "", resumo: "Picape" },
-  { id: "open", letra: "E", titulo: "Aberto a Sugestões", desc: "", resumo: "Sem preferência" },
+  { id: "hatch", letra: "C", titulo: "Hatches Práticos", desc: "", resumo: "Hatch" },
+  { id: "sport", letra: "D", titulo: "Esportivos / Coupés", desc: "", resumo: "Esportivo" },
+  { id: "pickup", letra: "E", titulo: "Picapes", desc: "", resumo: "Picape" },
+  { id: "open", letra: "F", titulo: "Aberto a Sugestões", desc: "", resumo: "Sem preferência" },
 ] as const;
 
 const OPCOES_PRAZO = [
@@ -103,6 +120,25 @@ const OPCOES_PRAZO = [
   { id: "researching", letra: "B", titulo: "Pesquisando", desc: "Mapeando opções para compra no próximo mês.", resumo: "Pesquisando" },
   { id: "future", letra: "C", titulo: "Apenas Sondando", desc: "Acompanhando o mercado sem pressa.", resumo: "Sondando" },
 ] as const;
+
+function formatShort(v: number): string {
+  if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
+  if (v >= 1000) return `${(v / 1000).toFixed(0)} mil`;
+  return v.toLocaleString("pt-BR");
+}
+
+/**
+ * "até R$ 75 mil", "de R$ 50 mil a R$ 75 mil", "acima de R$ 175 mil".
+ *
+ * A faixa "acima de" guarda `Number.MAX_SAFE_INTEGER` como teto, e a mensagem
+ * antiga o imprimia: "até R$ 9007199254.7M" chegava ao WhatsApp da loja na voz
+ * do cliente.
+ */
+function textoDoOrcamentoDe(min: number, max: number): string {
+  const semTeto = !max || max >= Number.MAX_SAFE_INTEGER;
+  if (semTeto) return min > 0 ? `acima de R$ ${formatShort(min)}` : "sem teto definido";
+  return min > 0 ? `de R$ ${formatShort(min)} a R$ ${formatShort(max)}` : `até R$ ${formatShort(max)}`;
+}
 
 /* ────────────────────────────────────────────────────────────────────────
    Peças da tela
@@ -185,10 +221,15 @@ export default function CarMatch() {
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
 
-  // New States
-  const [matchedVehicles, setMatchedVehicles] = useState<(Veiculo & { matchScore?: number })[]>([]);
-  const [loadingPhase, setLoadingPhase] = useState<number>(0);
-  const [resultsCount, setResultsCount] = useState<number>(0);
+  // O resultado do motor de fatos, e o que a pessoa faz com ele.
+  const [recomendacao, setRecomendacao] = useState<Recomendacao | null>(null);
+  const [buscaFalhou, setBuscaFalhou] = useState(false);
+  /** Filtros tirados pelo "e se". O teto nunca entra aqui. */
+  const [afrouxados, setAfrouxados] = useState<ChaveDeFiltro[]>([]);
+  /** "QUERO VER ESTE" — ids dos carros marcados, até os três do resultado. */
+  const [escolhidos, setEscolhidos] = useState<string[]>([]);
+  /** O lead leva carros ("quero ver") ou só o pedido ("me avise quando chegar"). */
+  const [modoDoLead, setModoDoLead] = useState<"carros" | "aviso">("carros");
 
   // ─── Dynamic budget ranges computed from real inventory ───
   interface BudgetRange {
@@ -211,7 +252,6 @@ export default function CarMatch() {
 
   // Lead modal states
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [activeMessage, setActiveMessage] = useState("");
 
   // Fetch tracking ID and Supabase inventory
   useEffect(() => {
@@ -225,6 +265,9 @@ export default function CarMatch() {
     }
     loadInventory();
   }, []);
+
+  /** Os carros à venda — sem a moto, que o Profiler nunca sugere. */
+  const carrosDoPatio = useMemo(() => disponiveisDe(estoque).filter((v) => !ehMoto(v)), [estoque]);
 
   /**
    * As faixas de orçamento — as quatro opções da pergunta 01.
@@ -242,77 +285,24 @@ export default function CarMatch() {
    * coisa entre a pessoa e a pergunta.
    */
   const faixasDeOrcamento = useMemo<BudgetRange[]>(() => {
-    const rotulo = (v: number) => {
-      if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
-      if (v >= 1000) return `${(v / 1000).toFixed(0)}mil`;
-      return v.toLocaleString("pt-BR");
-    };
-
-    const montar = (cortes: number[], precos: number[]): BudgetRange[] => {
-      const limites = [0, ...cortes, Infinity];
-      return limites.slice(0, -1).map((lo, i) => {
-        const hi = limites[i + 1];
-        const count = precos.filter((p) => p > lo && p <= hi).length;
-        return {
-          id: `faixa-${i}`,
-          min: lo,
-          // O filtro é TETO: `matchVehicles` corta em `preco <= budget`. A
-          // última faixa não tem teto, e `Infinity` viraria NaN na conta.
-          max: hi === Infinity ? Number.MAX_SAFE_INTEGER : hi,
-          title:
-            lo === 0
-              ? `Até R$ ${rotulo(hi)}`
-              : hi === Infinity
-                ? `Acima de R$ ${rotulo(lo)}`
-                : `R$ ${rotulo(lo)} a R$ ${rotulo(hi)}`,
-          count,
-          desc: count === 1 ? "1 veículo nesta faixa" : `${count} veículos nesta faixa`,
-        };
-      });
-    };
-
-    const precos = disponiveisDe(estoque)
-      .map((v) => precoVigente(v))
-      .filter((p) => p > 0)
-      .sort((a, b) => a - b);
-
-    // Sem estoque em mãos — carregando, ou a consulta falhou. As faixas de
-    // reserva mantêm a pergunta respondível; o número de veículos some, porque
-    // não há como contar sem estoque.
-    if (precos.length < 4) {
-      return montar([50000, 65000, 90000], precos).map((f) => ({ ...f, desc: "" }));
-    }
-
-    /* Cortes por QUANTIL, não por fatia do intervalo.
-       ---------------------------------------------------------------------
-       O cálculo anterior tirava os cortes de porcentagens do INTERVALO
-       (15%, 35%, 60%, 80% entre o mais barato e o mais caro). Com um carro de
-       R$ 318.900 esticando a ponta, as faixas saíam assim, medido nos 35
-       veículos servidos:
-
-         0–50 mil ....  7 carros
-         50–125 mil ... 24 carros   ← 69% do pátio numa opção só
-         125–200 mil ..  3
-         200–275 mil ..  0
-         275–325 mil ..  1
-
-       Quem tinha 60, 70 ou 90 mil caía todo mundo no mesmo balde, e as duas
-       faixas de cima eram decoração. Era o "difícil demais fazer um match
-       acima dos 50 mil".
-
-       Por quantil, cada faixa carrega um quarto do pátio: 7 / 11 / 9 / 8. Os
-       cortes acompanham a loja — se o estoque mudar de patamar, as faixas
-       mudam junto, sem ninguém editar nada. */
-    const quantil = (f: number) => precos[Math.min(precos.length - 1, Math.floor(precos.length * f))];
-    const arredonda = (n: number) => Math.round(n / 5000) * 5000;
-    const cortes = [...new Set([quantil(0.25), quantil(0.5), quantil(0.75)].map(arredonda))]
-      .filter((c) => c > 0)
-      .sort((a, b) => a - b);
-
-    const faixas = montar(cortes, precos);
-    const comCarro = faixas.filter((f) => f.count > 0);
-    return comCarro.length > 0 ? comCarro : faixas;
-  }, [estoque]);
+    // O cálculo mora em `faixasDoPatio` desde 25/09 — quantil, faixas de
+    // reserva e a ponta de cima com teto —, para o teste de regressão do motor
+    // usar exatamente as faixas que esta tela oferece. A moto fica de fora da
+    // conta: o Profiler não a sugere, e contá-la prometeria um carro a mais.
+    const precos = carrosDoPatio.map((v) => precoVigente(v)).filter((p) => p > 0);
+    const semEstoque = precos.length < 4;
+    return faixasDoPatio(precos).map((f) => ({
+      id: f.id,
+      min: f.min,
+      // O filtro é TETO; a faixa "acima de" não tem, e a resposta guarda o
+      // sentinela que o resto do componente já conhecia.
+      max: f.max ?? Number.MAX_SAFE_INTEGER,
+      title: f.titulo,
+      count: f.quantos,
+      // Sem estoque não há como contar: a descrição some em vez de dizer zero.
+      desc: semEstoque ? "" : f.quantos === 1 ? "1 veículo nesta faixa" : `${f.quantos} veículos nesta faixa`,
+    }));
+  }, [carrosDoPatio]);
 
   /**
    * Os limites do slider de "VALOR EXATO", tirados do pátio.
@@ -326,7 +316,7 @@ export default function CarMatch() {
    * As faixas prontas da outra aba já saíam do estoque; esta ficou para trás.
    */
   const faixaDoSlider = useMemo(() => {
-    const precos = disponiveisDe(estoque)
+    const precos = carrosDoPatio
       .map((v) => precoVigente(v))
       .filter((p) => p > 0);
     if (precos.length === 0) return { min: 20000, max: 500000, mediana: 60000, passo: 5000 };
@@ -340,7 +330,7 @@ export default function CarMatch() {
       mediana: Math.round(meio / 5000) * 5000,
       passo: teto - piso > 200000 ? 10000 : 5000,
     };
-  }, [estoque]);
+  }, [carrosDoPatio]);
 
   /**
    * O valor do slider: o que a pessoa escolheu, ou a mediana do pátio.
@@ -355,10 +345,15 @@ export default function CarMatch() {
     faixaDoSlider.max,
   );
 
+  /**
+   * VALOR EXATO vira a faixa de 70% do valor até ele. Sem piso, quem dizia
+   * "R$ 80 mil" recebia um Uno de R$ 26.900 como sugestão — o motor ordena por
+   * ano e km, e o teto sozinho não dizia o que a pessoa quer gastar.
+   */
   const confirmCustomBudget = () => {
     setAnswers((prev) => ({
       ...prev,
-      budgetMin: 0,
+      budgetMin: pisoDoValorExato(orcamentoDoSlider),
       budgetMax: orcamentoDoSlider
     }));
     setTimeout(() => {
@@ -388,19 +383,32 @@ export default function CarMatch() {
   const formatStyle = (style: AnswerState["style"]) => rotuloDaOpcao(OPCOES_ESTILO, style);
   const formatTimeline = (timeline: AnswerState["timeline"]) => rotuloDaOpcao(OPCOES_PRAZO, timeline);
 
-  const formatShort = (v: number) => {
-    if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
-    if (v >= 1000) return `${(v / 1000).toFixed(0)} mil`;
-    return v.toLocaleString("pt-BR");
+  const semTeto = !answers.budgetMax || answers.budgetMax >= Number.MAX_SAFE_INTEGER;
+  const textoDoOrcamento = () => textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax);
+
+  const nomeDoQuiz = companySettings?.carMatchTitle || "Garagem Profiler";
+
+  /** Os carros que o lead leva: os marcados em QUERO VER ESTE, ou os três. */
+  const carrosDoLead = () => {
+    if (modoDoLead === "aviso") return [];
+    const cartoes = recomendacao?.cartoes ?? [];
+    const marcados = cartoes.filter((c) => escolhidos.includes(c.veiculo.id));
+    return marcados.length > 0 ? marcados : cartoes;
   };
 
-  const handleShowResults = () => {
-    // Voz do CLIENTE: é ele quem envia esta mensagem para a loja. A versão
-    // anterior ("Vi que você montou seu perfil... Separei excelentes opções")
-    // era texto de vendedor saindo da boca do cliente.
-    const defaultMsg = `Olá! Montei meu perfil no Match de Garagem do site: foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}, até R$ ${formatShort(answers.budgetMax)}. Quero conhecer as opções disponíveis!`;
-    setActiveMessage(defaultMsg);
+  const abrirLead = (modo: "carros" | "aviso") => {
+    setModoDoLead(modo);
     setIsLeadModalOpen(true);
+  };
+
+  const alternarEscolhido = (id: string) =>
+    setEscolhidos((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
+
+  /** O "e se": tira um filtro e refaz a busca. O teto nunca sai. */
+  const afrouxar = (filtro: ChaveDeFiltro) => {
+    setAfrouxados((atual) => (atual.includes(filtro) ? atual : [...atual, filtro]));
+    setEscolhidos([]);
+    setGameState("loading");
   };
 
   const handleLeadSubmit = async (leadData: { nome: string; email: string; whatsapp: string; turnstileToken?: string }) => {
@@ -414,15 +422,35 @@ export default function CarMatch() {
     const formattedPhone = telefone.comDDI ?? "";
     const remoteJid = telefone.remoteJid;
 
-    // Mesma regra do defaultMsg: voz do cliente, que é quem manda o texto.
-    const finalMsg = `Olá! Montei meu perfil no Match de Garagem do site buscando um veículo focado em ${formatObjective(answers.objective)}, até R$ ${formatShort(answers.budgetMax)}. Podem me mostrar as opções que se encaixam?${sufixoRef()}`;
+    // Voz do CLIENTE: é ele quem envia esta mensagem para a loja. Desde 25/09
+    // ela nomeia os carros — o consultor abre a conversa sabendo quais separar,
+    // e a coluna `interesse` do lead (que é esta mensagem) deixa de dizer só
+    // "Curadoria Especial".
+    const carros = carrosDoLead();
+    const nomeComPreco = (c: (typeof carros)[number]) =>
+      `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))})`;
+    const lista =
+      carros.length === 1
+        ? `o ${nomeComPreco(carros[0])}`
+        : carros.length > 1
+          ? `estes carros: ${carros.slice(0, -1).map(nomeComPreco).join(", ")} e ${nomeComPreco(carros[carros.length - 1])}`
+          : "";
+    const pedido = recomendacao?.filtros.length ? recomendacao.filtros.join(", ") : textoDoOrcamento();
+    const finalMsg =
+      carros.length > 0
+        ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site e quero ver ${lista}. Estão disponíveis?${sufixoRef()}`
+        : `Olá! Montei meu perfil no ${nomeDoQuiz} do site e não achei exatamente o que procuro: ${pedido}. Podem me avisar quando chegar um carro assim?${sufixoRef()}`;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).
-    // Sem veículo específico aqui (é uma curadoria), então não há content_ids.
+    //
+    // O valor é o do primeiro carro escolhido; sem carro, o teto — e nunca o
+    // sentinela da faixa "acima de", que mandava 9 quatrilhões como valor de
+    // conversão para o Ads.
+    const valorDoLead = carros.length > 0 ? precoDoCarro(carros[0].veiculo) : semTeto ? 0 : answers.budgetMax;
     const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
-      { marca: "CarMatch", modelo: "Curadoria Especial", preco: answers.budgetMax },
+      { marca: "CarMatch", modelo: "Curadoria Especial", preco: valorDoLead },
       finalMsg,
       {
         googleAdsId: companySettings?.googleAdsId,
@@ -442,19 +470,19 @@ export default function CarMatch() {
       canal: "Garagem Match Profiler",
       mensagem: finalMsg,
       perfil_curadoria: {
-        orcamento_maximo: answers.budgetMax,
+        orcamento_maximo: semTeto ? null : answers.budgetMax,
         orcamento_minimo: answers.budgetMin,
         objetivo_principal: formatObjective(answers.objective),
         experiencia_valorizada: formatExperience(answers.experience),
         estilo_preferido: formatStyle(answers.style),
         urgencia: formatTimeline(answers.timeline),
         resumo_ia: isAiCuratorActive
-          ? `IA Request: ${aiQuery}. Cliente focado em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)} com urgência ${formatTimeline(answers.timeline)} e budget até R$ ${formatShort(answers.budgetMax)}.`
-          : `Busca: ${formatStyle(answers.style)}, foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}, budget R$ ${answers.budgetMax.toLocaleString('pt-BR')}. Prazo: ${formatTimeline(answers.timeline)}.`
+          ? `IA Request: ${aiQuery}. Cliente focado em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)} com urgência ${formatTimeline(answers.timeline)} e orçamento ${textoDoOrcamento()}.`
+          : `Busca: ${formatStyle(answers.style)}, foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}, orçamento ${textoDoOrcamento()}. Prazo: ${formatTimeline(answers.timeline)}.`
       },
       intencao: {
         nivel: answers.timeline === "immediate" ? "ALTO" : answers.timeline === "researching" ? "MÉDIO" : "BAIXO",
-        ticket: answers.budgetMax >= 200000 ? "PREMIUM" : "NORMAL"
+        ticket: !semTeto && answers.budgetMax >= 200000 ? "PREMIUM" : "NORMAL"
       },
       cliente: {
         nome: leadData.nome,
@@ -462,9 +490,26 @@ export default function CarMatch() {
         whatsapp: leadData.whatsapp
       },
       utm: utmParams,
+      // `/api/leads` repassa ao n8n só uma lista fechada de campos, e o
+      // `perfil_curadoria` acima NÃO está nela — o consultor nunca o recebeu.
+      // `intencao_busca` está, e por isso o que o consultor precisa ler vai
+      // aqui: os filtros e os carros, com o porquê de cada um.
       intencao_busca: {
         aiQuery: aiQuery || "",
-        budgetTab: budgetTab
+        budgetTab: budgetTab,
+        modo: modoDoLead,
+        orcamento: textoDoOrcamento(),
+        filtros: recomendacao?.filtros ?? [],
+        afrouxados,
+        prazo: formatTimeline(answers.timeline),
+        carros: carros.map((c) => ({
+          id: c.veiculo.id,
+          nome: nomeCurto(c.veiculo),
+          preco: precoDoCarro(c.veiculo),
+          lugar: c.lugar,
+          manchete: c.manchete,
+          pesa_contra: c.pesaContra,
+        })),
       },
       agUid: agUid,
       eventId,
@@ -486,23 +531,28 @@ export default function CarMatch() {
       console.warn("[Lead Submit CarMatch] Network error (non-blocking):", fetchError.message);
     }
 
-    try {
-      const rawHistory = localStorage.getItem("ag_leads_history");
-      const history = rawHistory ? JSON.parse(rawHistory) : [];
-      history.push({
-        agUid,
-        timestamp: new Date().toISOString(),
-        tipoLead: "lead_curadoria_especial",
-        cliente: {
-          nome: leadData.nome,
-          email: leadData.email,
-          whatsapp: leadData.whatsapp
-        },
-        perfil: payload.perfil_curadoria
-      });
-      localStorage.setItem("ag_leads_history", JSON.stringify(history));
-    } catch (e) {
-      console.warn("[Telemetry] Failed to save lead payload to history:", e);
+    // O histórico local serve ao `LeadCaptureModal`, que preenche nome e
+    // telefone na próxima vez. Desde 25/09 ele não leva mais o perfil —
+    // orçamento e respostas não servem ao preenchimento — e não grava nada
+    // para quem recusou o rastreamento em /privacidade.
+    if (!rastreamentoRecusado()) {
+      try {
+        const rawHistory = localStorage.getItem("ag_leads_history");
+        const history = rawHistory ? JSON.parse(rawHistory) : [];
+        history.push({
+          agUid,
+          timestamp: new Date().toISOString(),
+          tipoLead: "lead_curadoria_especial",
+          cliente: {
+            nome: leadData.nome,
+            email: leadData.email,
+            whatsapp: leadData.whatsapp
+          }
+        });
+        localStorage.setItem("ag_leads_history", JSON.stringify(history));
+      } catch (e) {
+        console.warn("[Telemetry] Failed to save lead payload to history:", e);
+      }
     }
 
     const whatsappUrl = linkWhatsApp(companySettings, finalMsg);
@@ -526,7 +576,9 @@ export default function CarMatch() {
       else if (num > 0) parsedBudget = num * 1000;
     }
 
-    if (parsedBudget === 0) parsedBudget = 1000000;
+    // Sem valor no texto, sem teto — e não R$ 1 milhão, número que ninguém
+    // disse e que ia para o WhatsApp do consultor como orçamento do cliente.
+    if (parsedBudget === 0) parsedBudget = Number.MAX_SAFE_INTEGER;
 
     // `""` quando o texto não disse — e não um palpite.
     //
@@ -551,8 +603,12 @@ export default function CarMatch() {
       style = "sedan";
     } else if (lower.includes("esportivo") || lower.includes("porsche") || lower.includes("coupé")) {
       style = "sport";
-    } else if (lower.includes("picape") || lower.includes("caminhonete") || lower.includes("ram") || lower.includes("hilux")) {
+    } else if (lower.includes("picape") || lower.includes("caminhonete") || /\bram\b/.test(lower) || lower.includes("hilux")) {
+      // `\bram\b`, e não `includes("ram")`: "programa" e "grama" viravam
+      // picape — e desde 25/09 carroceria é filtro que corta.
       style = "pickup";
+    } else if (/\bhatch\b/.test(lower)) {
+      style = "hatch";
     }
 
     return { budgetMax: parsedBudget, objective: obj, style };
@@ -622,82 +678,63 @@ export default function CarMatch() {
     setGameState("loading");
   };
 
+  /**
+   * A busca: as respostas vão para `/api/match`, que roda o motor de fatos
+   * sobre o estoque do servidor.
+   *
+   * Sem animação. Até 25/09 a tela segurava 3,2 s com "Calculando
+   * compatibilidade de perfil" mesmo quando o servidor já tinha respondido —
+   * espera fingida antes de um resultado genérico. Agora o resultado aparece
+   * quando chega.
+   */
   useEffect(() => {
-    if (gameState === "loading") {
-      const tags = [answers.objective, answers.style, answers.experience, answers.timeline].filter(Boolean);
+    if (gameState !== "loading") return;
+    let cancelado = false;
+    const teto = !answers.budgetMax || answers.budgetMax >= Number.MAX_SAFE_INTEGER ? null : answers.budgetMax;
 
-      let fetchCompleted = false;
-      let animCompleted = false;
+    fetch("/api/match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        respostas: { objetivo: answers.objective, experiencia: answers.experience, estilo: answers.style },
+        orcamento: { min: answers.budgetMin, max: teto },
+        afrouxar: afrouxados,
+        // Quem recusou o rastreamento não manda identificador para a consulta.
+        ag_uid: rastreamentoRecusado() ? undefined : getActiveAgUid(),
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data) => {
+        if (cancelado) return;
+        const r: Recomendacao | undefined = data?.recomendacao;
+        if (!r) throw new Error("resposta sem recomendação");
+        setRecomendacao(r);
+        setBuscaFalhou(false);
+        // O disparo vive aqui, não no início da busca: antes ele saía com
+        // results_count fixo em 0 e o GA4 registrava toda busca como vazia.
+        trackCarMatch(r.filtros, r.cartoes.length);
+      })
+      .catch((err) => {
+        if (cancelado) return;
+        console.error("[CarMatch] A consulta ao estoque falhou:", err);
+        setRecomendacao(null);
+        setBuscaFalhou(true);
+        trackCarMatch([], 0);
+      })
+      .finally(() => {
+        if (!cancelado) setGameState("results");
+      });
 
-      const finishLoading = () => {
-        if (fetchCompleted && animCompleted) {
-          setGameState("results");
-        }
-      };
+    return () => {
+      cancelado = true;
+    };
+  }, [gameState, answers, afrouxados]);
 
-      if (typeof window !== "undefined") {
-        const activeUid = getActiveAgUid();
-        const telemetryPayload = {
-          agUid: activeUid,
-          timestamp: new Date().toISOString(),
-          tipoLead: "curation_profiler",
-          respostas: answers,
-        };
-
-        (window as any).ag_last_carmatch = telemetryPayload;
-
-        fetch("/api/match", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tags,
-            budget: answers.budgetMax || undefined,
-            ag_uid: activeUid,
-          }),
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.matchedVehicles) {
-              setMatchedVehicles(data.matchedVehicles);
-              setResultsCount(data.count || data.matchedVehicles.length);
-              // O disparo vive aqui, não no início do loading: antes ele saía
-              // com results_count fixo em 0 e o GA4 registrava toda busca como
-              // busca sem resultado.
-              trackCarMatch(tags, data.count || data.matchedVehicles.length);
-            } else {
-              trackCarMatch(tags, 0);
-            }
-          })
-          .catch((err) => {
-            console.error("Failed to sync match with backend API:", err);
-            trackCarMatch(tags, 0);
-          })
-          .finally(() => {
-            fetchCompleted = true;
-            finishLoading();
-          });
-      } else {
-        fetchCompleted = true;
-      }
-
-      setLoadingPhase(0);
-      const phases = 4; // 0, 1, 2, 3
-      let currentPhase = 0;
-
-      const interval = setInterval(() => {
-        currentPhase++;
-        if (currentPhase < phases) {
-          setLoadingPhase(currentPhase);
-        } else {
-          clearInterval(interval);
-          animCompleted = true;
-          finishLoading();
-        }
-      }, 800);
-
-      return () => clearInterval(interval);
-    }
-  }, [gameState, answers, agUid]);
+  // O funil passo a passo, para medir onde a pessoa desiste. Só o nome do
+  // passo vai para o GA4 — nada de resposta nem de orçamento.
+  useEffect(() => {
+    if (gameState !== "loading") trackPassoDoProfiler(gameState);
+  }, [gameState]);
 
   const handleReset = () => {
     setAnswers({ budgetMin: 0, budgetMax: 0, objective: "", experience: "", style: "", timeline: "" });
@@ -705,23 +742,16 @@ export default function CarMatch() {
     setAllowUpsell(true);
     setAiQuery("");
     setIsAiCuratorActive(false);
-    setMatchedVehicles([]);
-    setLoadingPhase(0);
+    setRecomendacao(null);
+    setBuscaFalhou(false);
+    setAfrouxados([]);
+    setEscolhidos([]);
+    setModoDoLead("carros");
     setGameState("intro");
   };
 
   const formatPrice = (value: number): string => {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-  };
-
-  const getLoadingText = () => {
-    switch (loadingPhase) {
-      case 0: return `Analisando ${estoque.length} veículos do estoque`;
-      case 1: return `Filtrando por orçamento até R$ ${formatShort(answers.budgetMax)}`;
-      case 2: return "Calculando compatibilidade de perfil";
-      case 3: return "Curadoria finalizada";
-      default: return "Processando";
-    }
   };
 
   /* ──────────────────────────────────────────────────────────────────────
@@ -732,11 +762,14 @@ export default function CarMatch() {
      real do estoque diante do orçamento respondido.
      ────────────────────────────────────────────────────────────────────── */
 
+  // Piso e teto, como o motor — e sem a moto, que o Profiler não sugere.
   const estoqueCompativel = useMemo(() => {
-    const disponiveis = disponiveisDe(estoque);
-    if (!answers.budgetMax) return disponiveis;
-    return disponiveis.filter((v) => precoVigente(v) <= answers.budgetMax);
-  }, [estoque, answers.budgetMax]);
+    if (!answers.budgetMax) return carrosDoPatio;
+    return carrosDoPatio.filter((v) => {
+      const preco = precoVigente(v);
+      return preco >= answers.budgetMin && preco <= answers.budgetMax;
+    });
+  }, [carrosDoPatio, answers.budgetMin, answers.budgetMax]);
 
   /** Composição por carroceria do que cabe no orçamento — dado real, não score. */
   const composicaoEstoque = useMemo(() => {
@@ -765,7 +798,9 @@ export default function CarMatch() {
       {
         numero: "01",
         rotulo: "ORÇAMENTO",
-        valor: answers.budgetMax ? `Até R$ ${formatShort(answers.budgetMax)}` : "",
+        valor: answers.budgetMax
+          ? textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax).replace(/^./, (l) => l.toUpperCase())
+          : "",
       },
       { numero: "02", rotulo: "OBJETIVO", valor: valor(OPCOES_OBJETIVO.find((o) => o.id === answers.objective)?.resumo) },
       { numero: "03", rotulo: "EXPERIÊNCIA", valor: valor(OPCOES_EXPERIENCIA.find((o) => o.id === answers.experience)?.resumo) },
@@ -822,8 +857,8 @@ export default function CarMatch() {
                 Cinco perguntas até o carro certo.
               </h1>
               <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-inverso-suave lg:text-base">
-                Cruzamos suas respostas com o estoque e um consultor envia três
-                sugestões reais no WhatsApp — com fotos, laudo e parcela.
+                Cruzamos suas respostas com o pátio de hoje e mostramos três
+                carros, com o que cada um atende do seu pedido e o que pesa contra.
               </p>
             </div>
 
@@ -831,7 +866,7 @@ export default function CarMatch() {
               {[
                 { valor: "05", rotulo: "PERGUNTAS" },
                 { valor: "30s", rotulo: "PARA RESPONDER" },
-                { valor: estoque.length > 0 ? String(estoque.length) : "—", rotulo: "VEÍCULOS ANALISADOS" },
+                { valor: carrosDoPatio.length > 0 ? String(carrosDoPatio.length) : "—", rotulo: "CARROS NO PÁTIO" },
               ].map((item) => (
                 <div key={item.rotulo} className="flex-1">
                   <div className="text-[28px] font-extrabold leading-none lg:text-[34px]">
@@ -916,6 +951,10 @@ export default function CarMatch() {
                     <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
                       {formatPrice(orcamentoDoSlider)}
                     </div>
+                    <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso-suave">
+                      Mostramos carros de R$ {formatShort(pisoDoValorExato(orcamentoDoSlider))} a R${" "}
+                      {formatShort(orcamentoDoSlider)}.
+                    </p>
                     <input
                       type="range"
                       min={faixaDoSlider.min}
@@ -1024,85 +1063,36 @@ export default function CarMatch() {
           </>
         )}
 
-        {/* ─── Processando ─── */}
+        {/* ─── Buscando ─── */}
         {gameState === "loading" && (
           <div className="flex flex-1 flex-col justify-center py-16 lg:py-24">
             <Rotulo accent className="text-[11px] tracking-[.18em]">
-              CURADORIA EM ANDAMENTO
+              TRÊS DO PÁTIO
             </Rotulo>
             <p
               aria-live="polite"
               className="mt-display m-0 mt-5 max-w-[720px] text-[26px] text-mt-inverso lg:text-[44px]"
             >
-              {getLoadingText()}
+              {carrosDoPatio.length > 0
+                ? `Cruzando suas respostas com os ${carrosDoPatio.length} carros do pátio`
+                : "Cruzando suas respostas com o pátio"}
             </p>
-            <div className="mt-9 h-0.5 max-w-[560px] bg-mt-inverso-regua-fina">
-              <div
-                className="h-0.5 bg-mt-accent transition-[width] duration-700 ease-linear"
-                style={{ width: `${((loadingPhase + 1) / 4) * 100}%` }}
-              />
-            </div>
           </div>
         )}
 
         {/* ─── Resultado ─── */}
         {gameState === "results" && (
-          <div className="mt-9 flex flex-1 flex-col lg:mt-11">
-            <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-inverso-regua pb-4">
-              <div>
-                <Rotulo accent className="text-[11px] tracking-[.18em]">
-                  CURADORIA COMPLETA
-                </Rotulo>
-                <h2 className="mt-titulo m-0 mt-2.5 text-3xl text-mt-inverso lg:text-[46px]">
-                  {matchedVehicles.length === 1
-                    ? "1 veículo compatível"
-                    : `${matchedVehicles.length} veículos compatíveis`}
-                </h2>
-              </div>
-            </div>
-
-            {matchedVehicles.length > 0 ? (
-              <div className="mt-8 grid gap-x-7 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
-                {matchedVehicles.map((car) => (
-                  <div key={car.id} className="text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
-                    <CardVeiculo
-                      veiculo={car}
-                      href={getVeiculoPdpUrl(car)}
-                      etiqueta={car.matchScore ? `${car.matchScore}% COMPATÍVEL` : undefined}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-8 max-w-[620px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
-                <p className="m-0 text-lg font-extrabold leading-tight lg:text-[22px]">
-                  Nenhum veículo do estoque bate com esse perfil agora.
-                </p>
-                <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-inverso-suave">
-                  O perfil vai para o consultor do mesmo jeito: a busca continua
-                  na nossa rede de parceiros e você recebe as opções no WhatsApp.
-                </p>
-              </div>
-            )}
-
-            <div className="mt-10 flex flex-wrap gap-0.5 lg:mt-12">
-              <button
-                type="button"
-                onClick={handleShowResults}
-                className="mt-btn mt-btn-primario mt-foco"
-              >
-                FALAR COM UM CONSULTOR
-                <Seta size={15} />
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="mt-btn mt-foco border-2 border-mt-inverso-regua text-mt-neutral-300"
-              >
-                REFAZER CURADORIA
-              </button>
-            </div>
-          </div>
+          <ResultadoDoProfiler
+            recomendacao={recomendacao}
+            falhou={buscaFalhou}
+            escolhidos={escolhidos}
+            afrouxados={afrouxados}
+            onAlternar={alternarEscolhido}
+            onAfrouxar={afrouxar}
+            onFalar={() => abrirLead(recomendacao && recomendacao.cartoes.length > 0 ? "carros" : "aviso")}
+            onAvisar={() => abrirLead("aviso")}
+            onRefazer={handleReset}
+          />
         )}
       </div>
 
@@ -1178,15 +1168,15 @@ export default function CarMatch() {
 
           <div className="mt-8 border-t-2 border-mt-regua pt-5 lg:mt-auto">
             <p className="m-0 text-[13px] leading-relaxed text-mt-neutral-800">
-              Ao final, seu perfil vai para o consultor e você recebe{" "}
-              <strong>3 sugestões reais do estoque</strong> no WhatsApp.
+              No fim, você vê <strong>três carros do pátio</strong>, com o porquê
+              de cada um, e escolhe quais quer ver com o consultor.
             </p>
             {estoqueCompativel.length > 0 && (
               <div className="mt-3.5 flex items-center gap-2.5">
                 <span className="mt-pulso h-2 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
                 <span className="text-[11px] tracking-[.1em] text-mt-neutral-600">
                   {estoqueCompativel.length}{" "}
-                  {answers.budgetMax ? "VEÍCULOS COMPATÍVEIS AGORA" : "VEÍCULOS EM ESTOQUE"}
+                  {answers.budgetMax ? "CARROS NA SUA FAIXA AGORA" : "CARROS NO PÁTIO"}
                 </span>
               </div>
             )}
