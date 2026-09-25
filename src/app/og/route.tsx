@@ -8,6 +8,7 @@ import {
   LARGURA_CARD,
   imagemServivelComoPrevia,
 } from "../../lib/compartilhamento";
+import { respostaDeImagem } from "../../lib/respostaDeImagem";
 
 /**
  * Card de compartilhamento gerado, 1200×630.
@@ -126,7 +127,7 @@ export async function GET(request: Request) {
     carregarArchivo(),
   ]);
 
-  return new ImageResponse(
+  const card = new ImageResponse(
     (
       <div
         style={{
@@ -215,11 +216,18 @@ export async function GET(request: Request) {
       width: LARGURA_CARD,
       height: ALTURA_CARD,
       ...(fontes ? { fonts: fontes } : {}),
-      headers: {
-        // O card só muda quando a loja troca logo ou nome. Um dia de cache na
-        // borda evita rasterizar de novo a cada scraper que passa.
-        "Cache-Control": "public, max-age=86400, s-maxage=86400, immutable",
-      },
     }
+  );
+
+  // Rasteriza inteiro antes de responder: o `ImageResponse` é um stream e
+  // sairia sem `Content-Length`, que o WhatsApp de PC exige. Ver
+  // `lib/respostaDeImagem.ts`.
+  //
+  // O card só muda quando a loja troca logo ou nome. Um dia de cache na borda
+  // evita rasterizar de novo a cada scraper que passa.
+  return respostaDeImagem(
+    await card.arrayBuffer(),
+    "image/png",
+    "public, max-age=86400, s-maxage=86400, immutable",
   );
 }
