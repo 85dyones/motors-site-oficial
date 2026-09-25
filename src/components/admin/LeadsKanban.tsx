@@ -35,6 +35,8 @@ import {
 } from "../../lib/funil";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
 import BlocoDaAvaliacao from "./BlocoDaAvaliacao";
+import EtiquetasDoLead from "./EtiquetasDoLead";
+import { aplicarMudanca, type MudancaDeEtiquetas } from "../../lib/etiquetas";
 
 /**
  * Tela A8 do design doc — o funil de leads.
@@ -127,6 +129,9 @@ interface Lead extends LeadDoFunil {
   avaliacao?: unknown;
   avaliacao_valor_ofertado?: number | string | null;
   avaliacao_valor_pago?: number | string | null;
+  /** As etiquetas da conversa do Chatwoot, como o n8n as espelhou em
+   *  `atendimentos.tags` (2026-09-25). Ausentes antes disso. */
+  etiquetas?: string[];
 }
 
 /** Telefone só com dígitos → (41) 99999-9999. */
@@ -159,8 +164,30 @@ export default function LeadsKanban() {
   const [etapas, setEtapas] = useState<EtapaDoFunil[]>(ETAPAS_PADRAO);
   const [motivos, setMotivos] = useState<MotivoDoFunil[]>([]);
   const [podeConfigurar, setPodeConfigurar] = useState(false);
+  // As etiquetas (2026-09-25): as vistas nas conversas vêm com a fila; as
+  // criadas na conta do Chatwoot vêm depois, numa leitura à parte, para a fila
+  // não esperar a API. Guardadas separadas porque `carregar` renova a
+  // primeira e não pode apagar a segunda.
+  const [etiquetasVistas, setEtiquetasVistas] = useState<string[]>([]);
+  const [etiquetasDaConta, setEtiquetasDaConta] = useState<string[]>([]);
+  const [etiquetasEditaveis, setEtiquetasEditaveis] = useState(false);
+  // Das duas da passagem, as que não existem na conta do Chatwoot — gravadas
+  // na conversa, mas invisíveis na tela de lá. Ver GET `/api/leads/etiquetas`.
+  const [faltamNaConta, setFaltamNaConta] = useState<string[]>([]);
+  /**
+   * Os leads com escrita no Chatwoot em voo: etiqueta pelo card OU passagem
+   * de responsável (que o PATCH do SDR transforma em etiqueta). Enquanto um
+   * lead está aqui, o select de responsável e as etiquetas dele travam —
+   * duas escritas da mesma conversa ao mesmo tempo, a segunda grava por cima
+   * da primeira (revisão de 25/09: a passagem perdia resgate e reaquecido).
+   */
+  const [emVoo, setEmVoo] = useState<Record<string, boolean>>({});
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
+  // O que deu certo pela metade: a passagem gravou, a etiqueta não chegou ao
+  // Chatwoot. Não é `erro` — o card não voltou atrás, e pintar de erro faria o
+  // SDR passar o lead de novo.
+  const [avisoDaGravacao, setAvisoDaGravacao] = useState("");
   const [migracaoPendente, setMigracaoPendente] = useState(false);
   const [agregado, setAgregado] = useState<{ total: number; porSituacao: Record<string, number> } | null>(null);
 
@@ -232,6 +259,8 @@ export default function LeadsKanban() {
         setEtapas(d.etapas?.length ? ordenarEtapas(d.etapas) : ETAPAS_PADRAO);
         setMotivos(d.motivos ?? []);
         setPodeConfigurar(Boolean(d.podeConfigurar));
+        setEtiquetasVistas(d.etiquetasDisponiveis ?? []);
+        setEtiquetasEditaveis(Boolean(d.etiquetasEditaveis));
       }
     } catch (e: any) {
       setErro(e.message);
@@ -245,6 +274,33 @@ export default function LeadsKanban() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  // As etiquetas criadas na conta do Chatwoot, uma vez, e só se dá para
+  // editar. Falhou, o select fica com as vistas nas conversas e as duas da
+  // passagem — que é o que a rota devolve de qualquer jeito.
+  useEffect(() => {
+    if (!etiquetasEditaveis) return;
+    let vivo = true;
+    fetch("/api/leads/etiquetas")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!vivo) return;
+        if (Array.isArray(d?.etiquetas)) setEtiquetasDaConta(d.etiquetas);
+        if (Array.isArray(d?.faltamNaConta)) setFaltamNaConta(d.faltamNaConta);
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [etiquetasEditaveis]);
+
+  const etiquetasDisponiveis = useMemo(
+    () =>
+      [...new Set([...etiquetasVistas, ...etiquetasDaConta])].sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      ),
+    [etiquetasVistas, etiquetasDaConta],
+  );
 
   /**
    * Pede uma referência, ou a fila com `null`.
@@ -281,6 +337,30 @@ export default function LeadsKanban() {
   };
 
   /**
+   * A gravação falhou: relê a fila e SÓ DEPOIS mostra o porquê.
+   *
+   * Na ordem inversa o aviso nunca aparecia — `carregar` começa limpando o
+   * erro, e o `setErro` de quem falhou era apagado no mesmo lote, antes de a
+   * tela pintar. Foi assim até 25/09: a recusa "só o Comercial recebe lead"
+   * voltava da rota e sumia, e o card só "pulava" de volta, sem dizer nada.
+   */
+  const falhou = useCallback(
+    (mensagem: string) => {
+      void carregar().finally(() => setErro(mensagem));
+    },
+    [carregar],
+  );
+
+  const voar = useCallback((id: string, noAr: boolean) => {
+    setEmVoo((atual) => {
+      const proximo = { ...atual };
+      if (noAr) proximo[id] = true;
+      else delete proximo[id];
+      return proximo;
+    });
+  }, []);
+
+  /**
    * Grava um campo do lead. Otimista: a tela reage na hora e recarrega do
    * servidor se der errado — o inverso (esperar a rede) faz o card "pular"
    * de volta e parecer que o clique não pegou.
@@ -300,6 +380,9 @@ export default function LeadsKanban() {
       // servidor não traz de volta.
       const camposDoLead = { ...campos };
       delete camposDoLead.contato;
+      // Trocar o dono pode escrever etiqueta no Chatwoot (a passagem do SDR).
+      const escreveNoChatwoot = "responsavel" in campos;
+      if (escreveNoChatwoot) voar(id, true);
       setLeads((atual) =>
         atual.map((l) =>
           l.id === id
@@ -320,19 +403,60 @@ export default function LeadsKanban() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id, ...campos }),
         });
+        const d = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
           throw new Error(d.error || "Falha ao salvar");
         }
+        // A passagem do SDR volta com as etiquetas que a conversa ficou
+        // (resgate e reaquecido garantidos) — ou com o aviso de que elas não
+        // chegaram ao Chatwoot. Ver o PATCH de `/api/leads/gerenciar`.
+        if (Array.isArray(d.etiquetas)) {
+          setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, etiquetas: d.etiquetas } : l)));
+        }
+        if (typeof d.aviso === "string" && d.aviso) setAvisoDaGravacao(d.aviso);
       } catch (e: any) {
-        setErro(e.message);
         // Recarrega em vez de restaurar um retrato tirado antes da chamada:
         // com vários consultores mexendo na mesma fila, o retrato local já
         // pode estar velho, e restaurá-lo desfaria o trabalho de outro.
-        carregar();
+        falhou(e.message);
+      } finally {
+        if (escreveNoChatwoot) voar(id, false);
       }
     },
-    [carregar],
+    [falhou, voar],
+  );
+
+  /**
+   * Põe ou tira etiqueta da conversa do lead. Manda a MUDANÇA, não a lista:
+   * a lista do card vem do espelho e pode estar atrás da conversa, e gravada
+   * por cima apagaria o que o card não via. Otimista como `salvar`; a resposta
+   * traz a lista que ficou no Chatwoot, que é a que o card passa a mostrar.
+   */
+  const salvarEtiquetas = useCallback(
+    async (id: string, mudanca: MudancaDeEtiquetas) => {
+      voar(id, true);
+      setLeads((atual) =>
+        atual.map((l) => (l.id === id ? { ...l, etiquetas: aplicarMudanca(l.etiquetas ?? [], mudanca) } : l)),
+      );
+      try {
+        const res = await fetch("/api/leads/etiquetas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, ...mudanca }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || "Falha ao gravar as etiquetas");
+        if (Array.isArray(d.etiquetas)) {
+          setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, etiquetas: d.etiquetas } : l)));
+        }
+        if (typeof d.aviso === "string" && d.aviso) setAvisoDaGravacao(d.aviso);
+      } catch (e: unknown) {
+        falhou(e instanceof Error ? e.message : "Falha ao gravar as etiquetas");
+      } finally {
+        voar(id, false);
+      }
+    },
+    [falhou, voar],
   );
 
   /**
@@ -571,6 +695,31 @@ export default function LeadsKanban() {
       {erro && (
         <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
           {erro}
+        </div>
+      )}
+
+      {faltamNaConta.length > 0 && (
+        <div className="border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">
+          No Chatwoot, falta criar a etiqueta {faltamNaConta.join(" e ")} na conta. A passagem do SDR
+          grava {faltamNaConta.length > 1 ? "as duas" : "ela"} na conversa, mas o Chatwoot só mostra
+          etiqueta criada.
+        </div>
+      )}
+
+      {avisoDaGravacao && (
+        <div
+          role="status"
+          className="flex items-start gap-3 border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800"
+        >
+          <span className="flex-1">{avisoDaGravacao}</span>
+          <button
+            type="button"
+            onClick={() => setAvisoDaGravacao("")}
+            aria-label="Fechar o aviso"
+            className="mt-foco cursor-pointer text-mt-neutral-600 hover:text-mt-accent"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -920,6 +1069,20 @@ export default function LeadsKanban() {
                             </div>
                           )}
 
+                          {/* As etiquetas da conversa (2026-09-25). Antes do
+                              botão do Chatwoot: são o contexto de quem vai
+                              abrir a conversa. */}
+                          <EtiquetasDoLead
+                            nome={l.nome}
+                            etiquetas={l.etiquetas ?? []}
+                            disponiveis={etiquetasDisponiveis}
+                            temConversa={destino === "chatwoot"}
+                            editavel={etiquetasEditaveis}
+                            ocupado={Boolean(emVoo[l.id])}
+                            onIncluir={(e) => salvarEtiquetas(l.id, { incluir: [e] })}
+                            onRetirar={(e) => salvarEtiquetas(l.id, { retirar: [e] })}
+                          />
+
                           <BlocoDaAvaliacao
                             nome={l.nome}
                             avaliacao={l.avaliacao}
@@ -1007,8 +1170,10 @@ export default function LeadsKanban() {
                             <select
                               value={l.responsavel ?? ""}
                               onChange={(e) => salvar(l.id, { responsavel: e.target.value || null })}
+                              // Trava com as etiquetas: ver `emVoo`.
+                              disabled={Boolean(emVoo[l.id])}
                               aria-label={`Responsável por ${l.nome}`}
-                              className="mt-foco w-full cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink"
+                              className="mt-foco w-full cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink disabled:cursor-wait disabled:opacity-60"
                             >
                               <option value="">Sem responsável</option>
                               {/* Só o Comercial (23/09). O dono de fora aparece
