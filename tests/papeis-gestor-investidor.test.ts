@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   PAPEIS_ATRIBUIVEIS,
@@ -33,6 +33,29 @@ const sql = migracao
   .split("\n")
   .filter((l) => !l.trimStart().startsWith("--"))
   .join("\n");
+const semComentarioSql = (texto: string) =>
+  texto
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+/**
+ * A migração mais recente que (re)define a função — sem comentários.
+ *
+ * O vocabulário muda de arquivo a cada papel novo (o SDR em 2026-09-23). Ler
+ * sempre o arquivo de agosto faria o teste conferir uma definição que o banco
+ * já não usa — foi assim, reescrevendo uma lista e conferindo outra, que o
+ * gestor sumiu em 22/08.
+ */
+function ultimaQueDefine(alvo: RegExp): string {
+  const dir = join(__dirname, "..", "supabase", "migrations");
+  const arquivos = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+  for (let i = arquivos.length - 1; i >= 0; i--) {
+    const txt = semComentarioSql(readFileSync(join(dir, arquivos[i]), "utf-8"));
+    if (alvo.test(txt)) return txt;
+  }
+  throw new Error(`nenhuma migração define ${alvo}`);
+}
 const proxy = ler("src", "proxy.ts");
 const sidebar = ler("src", "components", "admin", "SidebarNav.tsx");
 const paginaInvestidor = ler("src", "app", "investidor", "page.tsx");
@@ -119,14 +142,18 @@ describe("migração 20260821180000", () => {
   it("o vocabulário do banco é exatamente o do app", () => {
     // Se um lado ganhar papel que o outro não conhece, o cadastro passa no
     // formulário e falha no CHECK — ou pior, entra e some das telas.
-    const check = sql.match(/p <@ array\[([^\]]*)\]/);
+    const check = ultimaQueDefine(/function public\.papeis_validos/).match(
+      /p <@ array\[([^\]]*)\]/,
+    );
     expect(check).not.toBeNull();
     const doBanco = [...check![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
     expect(doBanco).toEqual([...TODOS_OS_PAPEIS].sort());
   });
 
   it("is_staff inclui gestor e exclui investidor", () => {
-    const isStaff = sql.match(/is_staff[\s\S]*?papeis && array\[([^\]]*)\]/);
+    const isStaff = ultimaQueDefine(/function public\.is_staff/).match(
+      /function public\.is_staff[\s\S]*?papeis && array\[([^\]]*)\]/,
+    );
     expect(isStaff).not.toBeNull();
     const papeis = [...isStaff![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
     expect(papeis).toEqual([...PERFIS].sort());

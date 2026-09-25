@@ -37,6 +37,12 @@ const MOTIVOS: MotivoDoFunil[] = [
   motivo("spam", "descartado"),
 ];
 
+/** A equipe: só a Ana é do Comercial. */
+const EQUIPE = [
+  { full_name: "Ana", role: "comercial", papeis: ["comercial"], is_active: true },
+  { full_name: "Igor Alves", role: "admin", papeis: ["admin", "marketing"], is_active: true },
+];
+
 /** O estado do banco que cada teste ajusta. */
 let lead: { situacao: string; canal: string | null } | null;
 /** O que a rota mandou gravar em `leads`, na ordem. */
@@ -73,7 +79,11 @@ beforeEach(() => {
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
   CLIENTE.from.mockImplementation((tabela: string) => {
     if (tabela === "profiles") {
-      return consulta(() => ({ role: "comercial", papeis: ["comercial"] }));
+      // Com `eq("id")` é o perfil de quem chama; sem filtro é a equipe, que o
+      // PATCH lê para recusar responsável fora do Comercial (2026-09-23).
+      return consulta((f) =>
+        f.id !== undefined ? { role: "comercial", papeis: ["comercial"] } : EQUIPE,
+      );
     }
     lidas.push(tabela);
     if (tabela === "funil_etapas") {
@@ -184,6 +194,18 @@ describe("PATCH /api/leads/gerenciar — fechar o negócio exige motivo", () => 
     expect(gravacoes[0]).toMatchObject({ responsavel: "Ana" });
     expect(gravacoes[1]).toMatchObject({ situacao: "descartado", observacoes: "legado" });
     for (const g of gravacoes) expect(g).not.toHaveProperty("desfecho_motivo");
+  });
+
+  it("responsável fora do Comercial é recusado pela ROTA, e nada é gravado (23/09)", async () => {
+    const r = await chamar({ responsavel: "Igor Alves" });
+    expect(r.status).toBe(422);
+    expect((await r.json()).error).toMatch(/comercial/i);
+    expect(gravacoes).toEqual([]);
+
+    // Tirar o dono continua valendo.
+    const semDono = await chamar({ responsavel: null });
+    expect(semDono.status).toBe(200);
+    expect(gravacoes[0]).toMatchObject({ responsavel: null });
   });
 
   it("mover entre etapas em andamento grava direto, sem ler lead nem motivo", async () => {
