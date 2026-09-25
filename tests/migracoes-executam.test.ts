@@ -113,6 +113,12 @@ const CADEIA = [
   // recebe 15.000 sem UPDATE, que zero e negativo são recusados e que o km
   // vigente não se edita — a tabela vem do recorte da F0 no andaime.
   "20260924220000_curva_km_por_ano.sql",
+  // As etiquetas do lead e o crédito do SDR (2026-09-25). Entra na cadeia
+  // porque o aceite passa o lead numa sessão de SDR, de Comercial e sem sessão
+  // (o motor) e confere quem deixa crédito no rastro — gatilho e RLS só se
+  // provam num banco de verdade. Depende da papel_sdr, acima, para o SDR ser
+  // staff.
+  "20260925180000_etiquetas_do_lead.sql",
 ];
 
 /**

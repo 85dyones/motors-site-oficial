@@ -35,6 +35,7 @@ import {
 } from "../../lib/funil";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
 import BlocoDaAvaliacao from "./BlocoDaAvaliacao";
+import EtiquetasDoLead from "./EtiquetasDoLead";
 
 /**
  * Tela A8 do design doc — o funil de leads.
@@ -127,6 +128,9 @@ interface Lead extends LeadDoFunil {
   avaliacao?: unknown;
   avaliacao_valor_ofertado?: number | string | null;
   avaliacao_valor_pago?: number | string | null;
+  /** As etiquetas da conversa do Chatwoot, como o n8n as espelhou em
+   *  `atendimentos.tags` (2026-09-25). Ausentes antes disso. */
+  etiquetas?: string[];
 }
 
 /** Telefone só com dígitos → (41) 99999-9999. */
@@ -159,8 +163,20 @@ export default function LeadsKanban() {
   const [etapas, setEtapas] = useState<EtapaDoFunil[]>(ETAPAS_PADRAO);
   const [motivos, setMotivos] = useState<MotivoDoFunil[]>([]);
   const [podeConfigurar, setPodeConfigurar] = useState(false);
+  // As etiquetas (2026-09-25): as vistas nas conversas vêm com a fila; as
+  // criadas na conta do Chatwoot vêm depois, numa leitura à parte, para a fila
+  // não esperar a API. Guardadas separadas porque `carregar` renova a
+  // primeira e não pode apagar a segunda.
+  const [etiquetasVistas, setEtiquetasVistas] = useState<string[]>([]);
+  const [etiquetasDaConta, setEtiquetasDaConta] = useState<string[]>([]);
+  const [etiquetasEditaveis, setEtiquetasEditaveis] = useState(false);
+  const [gravandoEtiquetas, setGravandoEtiquetas] = useState<Record<string, boolean>>({});
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
+  // O que deu certo pela metade: a passagem gravou, a etiqueta não chegou ao
+  // Chatwoot. Não é `erro` — o card não voltou atrás, e pintar de erro faria o
+  // SDR passar o lead de novo.
+  const [aviso, setAviso] = useState("");
   const [migracaoPendente, setMigracaoPendente] = useState(false);
   const [agregado, setAgregado] = useState<{ total: number; porSituacao: Record<string, number> } | null>(null);
 
@@ -232,6 +248,8 @@ export default function LeadsKanban() {
         setEtapas(d.etapas?.length ? ordenarEtapas(d.etapas) : ETAPAS_PADRAO);
         setMotivos(d.motivos ?? []);
         setPodeConfigurar(Boolean(d.podeConfigurar));
+        setEtiquetasVistas(d.etiquetasDisponiveis ?? []);
+        setEtiquetasEditaveis(Boolean(d.etiquetasEditaveis));
       }
     } catch (e: any) {
       setErro(e.message);
@@ -245,6 +263,31 @@ export default function LeadsKanban() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  // As etiquetas criadas na conta do Chatwoot, uma vez, e só se dá para
+  // editar. Falhou, o select fica com as vistas nas conversas e as duas da
+  // passagem — que é o que a rota devolve de qualquer jeito.
+  useEffect(() => {
+    if (!etiquetasEditaveis) return;
+    let vivo = true;
+    fetch("/api/leads/etiquetas")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (vivo && Array.isArray(d?.etiquetas)) setEtiquetasDaConta(d.etiquetas);
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [etiquetasEditaveis]);
+
+  const etiquetasDisponiveis = useMemo(
+    () =>
+      [...new Set([...etiquetasVistas, ...etiquetasDaConta])].sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      ),
+    [etiquetasVistas, etiquetasDaConta],
+  );
 
   /**
    * Pede uma referência, ou a fila com `null`.
@@ -279,6 +322,21 @@ export default function LeadsKanban() {
     setRefDigitada("");
     pedir(null);
   };
+
+  /**
+   * A gravação falhou: relê a fila e SÓ DEPOIS mostra o porquê.
+   *
+   * Na ordem inversa o aviso nunca aparecia — `carregar` começa limpando o
+   * erro, e o `setErro` de quem falhou era apagado no mesmo lote, antes de a
+   * tela pintar. Foi assim até 25/09: a recusa "só o Comercial recebe lead"
+   * voltava da rota e sumia, e o card só "pulava" de volta, sem dizer nada.
+   */
+  const falhou = useCallback(
+    (mensagem: string) => {
+      void carregar().finally(() => setErro(mensagem));
+    },
+    [carregar],
+  );
 
   /**
    * Grava um campo do lead. Otimista: a tela reage na hora e recarrega do
@@ -320,19 +378,59 @@ export default function LeadsKanban() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id, ...campos }),
         });
+        const d = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
           throw new Error(d.error || "Falha ao salvar");
         }
+        // A passagem do SDR volta com as etiquetas que a conversa ficou
+        // (resgate e reaquecido garantidos) — ou com o aviso de que elas não
+        // chegaram ao Chatwoot. Ver o PATCH de `/api/leads/gerenciar`.
+        if (Array.isArray(d.etiquetas)) {
+          setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, etiquetas: d.etiquetas } : l)));
+        }
+        if (typeof d.aviso === "string" && d.aviso) setAviso(d.aviso);
       } catch (e: any) {
-        setErro(e.message);
         // Recarrega em vez de restaurar um retrato tirado antes da chamada:
         // com vários consultores mexendo na mesma fila, o retrato local já
         // pode estar velho, e restaurá-lo desfaria o trabalho de outro.
-        carregar();
+        falhou(e.message);
       }
     },
-    [carregar],
+    [falhou],
+  );
+
+  /**
+   * Grava a lista inteira de etiquetas da conversa do lead. Otimista como
+   * `salvar`, e pelo mesmo motivo; a resposta traz a lista que o Chatwoot
+   * guardou, que é a que fica no card.
+   */
+  const salvarEtiquetas = useCallback(
+    async (id: string, etiquetas: string[]) => {
+      setGravandoEtiquetas((g) => ({ ...g, [id]: true }));
+      setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, etiquetas } : l)));
+      try {
+        const res = await fetch("/api/leads/etiquetas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, etiquetas }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || "Falha ao gravar as etiquetas");
+        if (Array.isArray(d.etiquetas)) {
+          setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, etiquetas: d.etiquetas } : l)));
+        }
+        if (typeof d.aviso === "string" && d.aviso) setAviso(d.aviso);
+      } catch (e: unknown) {
+        falhou(e instanceof Error ? e.message : "Falha ao gravar as etiquetas");
+      } finally {
+        setGravandoEtiquetas((g) => {
+          const resto = { ...g };
+          delete resto[id];
+          return resto;
+        });
+      }
+    },
+    [falhou],
   );
 
   /**
@@ -571,6 +669,23 @@ export default function LeadsKanban() {
       {erro && (
         <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
           {erro}
+        </div>
+      )}
+
+      {aviso && (
+        <div
+          role="status"
+          className="flex items-start gap-3 border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800"
+        >
+          <span className="flex-1">{aviso}</span>
+          <button
+            type="button"
+            onClick={() => setAviso("")}
+            aria-label="Fechar o aviso"
+            className="mt-foco cursor-pointer text-mt-neutral-600 hover:text-mt-accent"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -919,6 +1034,19 @@ export default function LeadsKanban() {
                               {l.interesse}
                             </div>
                           )}
+
+                          {/* As etiquetas da conversa (2026-09-25). Antes do
+                              botão do Chatwoot: são o contexto de quem vai
+                              abrir a conversa. */}
+                          <EtiquetasDoLead
+                            nome={l.nome}
+                            etiquetas={l.etiquetas ?? []}
+                            disponiveis={etiquetasDisponiveis}
+                            temConversa={destino === "chatwoot"}
+                            editavel={etiquetasEditaveis}
+                            gravando={Boolean(gravandoEtiquetas[l.id])}
+                            onMudar={(lista) => salvarEtiquetas(l.id, lista)}
+                          />
 
                           <BlocoDaAvaliacao
                             nome={l.nome}

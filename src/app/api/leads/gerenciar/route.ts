@@ -10,6 +10,12 @@ import {
 } from "../../../../lib/responsavelDoLead";
 import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
+import { configDoChatwoot, normalizarEtiquetas } from "../../../../lib/etiquetasDoChatwoot";
+import {
+  etiquetarPassagemDoSdr,
+  etiquetasConhecidas,
+  maisRecentePrimeiro,
+} from "../../../../lib/etiquetasDoLead";
 import {
   decidirDesfecho,
   ordenarEtapas,
@@ -157,12 +163,16 @@ export async function GET(request: NextRequest) {
       conversa: number | null;
       comAssistente: boolean;
       humanoAssumiuEm: string | null;
+      etiquetas: string[];
     }
     const atendimentoPorLead = new Map<string, DoAtendimento>();
+    // Toda etiqueta que aparece nas conversas lidas — o que o card oferece
+    // para pôr enquanto a lista da conta do Chatwoot não chega.
+    const etiquetasVistas: unknown[] = [];
     if (leads.length > 0) {
       const { data: atendimentos, error: erroAtendimento } = await supabase
         .from("atendimentos")
-        .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at")
+        .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at, tags")
         .in("lead_id", leads.map((l: { id: string }) => l.id));
 
       if (erroAtendimento) {
@@ -171,12 +181,8 @@ export async function GET(request: NextRequest) {
         // A MESMA régua do `montar_fila_do_funil`: `coalesce(iniciado_em,
         // created_at)` decrescente. Duas réguas de "mais recente" no mesmo
         // sistema é o motor escolhendo uma conversa e a tela outra.
-        const maisRecentePrimeiro = [...(atendimentos ?? [])].sort((a, b) =>
-          String(b.iniciado_em ?? b.created_at ?? "").localeCompare(
-            String(a.iniciado_em ?? a.created_at ?? ""),
-          ),
-        );
-        for (const a of maisRecentePrimeiro) {
+        for (const a of maisRecentePrimeiro(atendimentos ?? [])) {
+          if (Array.isArray(a.tags)) etiquetasVistas.push(...a.tags);
           if (a.lead_id && !atendimentoPorLead.has(a.lead_id)) {
             atendimentoPorLead.set(a.lead_id, {
               conversa: a.chatwoot_conversation_id ? Number(a.chatwoot_conversation_id) : null,
@@ -185,6 +191,9 @@ export async function GET(request: NextRequest) {
               // rodando — a mesma direção segura do `default false` no banco.
               comAssistente: a.com_assistente === true,
               humanoAssumiuEm: a.humano_assumiu_em ?? null,
+              // As etiquetas da conversa, como o n8n as espelhou (2026-09-25).
+              // Da MESMA conversa do link do card: é nela que o card grava.
+              etiquetas: normalizarEtiquetas(a.tags),
             });
           }
         }
@@ -195,6 +204,7 @@ export async function GET(request: NextRequest) {
       l.chatwoot_conversation_id = a?.conversa ?? null;
       l.com_assistente = a?.comAssistente ?? false;
       l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
+      l.etiquetas = a?.etiquetas ?? [];
     }
 
     // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
@@ -243,6 +253,11 @@ export async function GET(request: NextRequest) {
       // busca. A tela lê daqui, e não do que pediu, para nunca chamar de
       // "fila" uma lista filtrada nem de "busca vazia" uma fila vazia.
       busca: ref ? { ref } : null,
+      // As etiquetas do card (2026-09-25). `etiquetasEditaveis` diz se o
+      // servidor consegue gravar no Chatwoot — sem token, o card mostra as
+      // etiquetas e não oferece editar, em vez de oferecer e falhar no clique.
+      etiquetasDisponiveis: etiquetasConhecidas(etiquetasVistas),
+      etiquetasEditaveis: configDoChatwoot() !== null,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -294,7 +309,8 @@ export async function PATCH(request: NextRequest) {
     if (!ehStaff(profile)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
-    if (podeFazer(perfisDe(profile), "Ver e mover leads no kanban") !== "faz") {
+    const perfisDoAutor = perfisDe(profile);
+    if (podeFazer(perfisDoAutor, "Ver e mover leads no kanban") !== "faz") {
       return NextResponse.json({ error: "Seu perfil não move leads" }, { status: 403 });
     }
 
@@ -456,6 +472,35 @@ export async function PATCH(request: NextRequest) {
     const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // ------------------------------------------------------------------------
+    // A passagem do SDR para o Comercial (2026-09-25)
+    // ------------------------------------------------------------------------
+    // *"Quando o sdr atribuir um contato para um vendedor do comercial,
+    // precisamos manter a tag de resgate e reaquecido, para mensurar o
+    // trabalho dele, isso tem que ser feito automático."*
+    //
+    // Duas metades, e só esta mora aqui. O CRÉDITO já ficou no rastro, pelo
+    // gatilho da migração 20260925180000, no mesmo `update` acima — não
+    // depende do Chatwoot nem desta rota. Aqui vão as ETIQUETAS na conversa,
+    // DEPOIS de a passagem estar gravada: o Chatwoot fora do ar não pode
+    // travar o lead com o SDR. Falhou, a resposta leva o aviso e a passagem
+    // continua valendo.
+    //
+    // Mesma régua do gatilho: quem passa tem 'sdr' em QUALQUER posição de
+    // `papeis`, e passar é dar dono — tirar o dono não é passagem.
+    if (
+      perfisDoAutor.includes("sdr") &&
+      typeof responsavel === "string" &&
+      responsavel.trim() !== ""
+    ) {
+      const passagem = await etiquetarPassagemDoSdr(supabase, id, configDoChatwoot());
+      return NextResponse.json({
+        ok: true,
+        ...(passagem.etiquetas ? { etiquetas: passagem.etiquetas } : {}),
+        ...(passagem.aviso ? { aviso: passagem.aviso } : {}),
+      });
     }
 
     return NextResponse.json({ ok: true });
