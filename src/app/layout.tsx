@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Geist, Archivo } from "next/font/google";
 import "./globals.css";
 import AntigravityTracker from "../components/AntigravityTracker";
 import Header from "../components/Header";
@@ -14,14 +13,12 @@ import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Archivo, Geist } from "./fontes";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-/* A Geist Mono saiu daqui em 2026-09-08.
+/* As fontes (Geist e Archivo) moram em `fontes.ts` e vêm do repositório, não
+ * do Google Fonts na hora da build — o porquê está no cabeçalho de lá.
+ *
+ * A Geist Mono saiu daqui em 2026-09-08.
  *
  * `next/font` monta o `<link rel="preload">` da fonte no layout raiz, então
  * uma família declarada aqui é uma família baixada em TODA página — inclusive
@@ -33,15 +30,6 @@ const geistSans = Geist({
  * invisível fora dessas duas telas, e nelas a diferença entre Geist Mono e
  * Consolas numa placa de sete caracteres não é o que sustenta a marca —
  * Archivo é, e ela fica. */
-
-// Tipografia do redesign Modernist. Os três pesos são os que o design doc
-// usa: 400 corrido, 600 rótulos em versalete, 800 títulos e botões.
-const archivo = Archivo({
-  variable: "--font-archivo",
-  subsets: ["latin"],
-  weight: ["400", "600", "800"],
-  display: "swap",
-});
 
 import { getCachedSettings } from "../lib/settings";
 import { montarCompartilhamento } from "../lib/compartilhamento";
@@ -114,7 +102,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} ${archivo.variable} h-full antialiased`}
+      className={`${Geist.variable} ${Archivo.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
