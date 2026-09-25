@@ -21,8 +21,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *   - resgate e reaquecido não saem pelo card;
  *   - quem não move lead não mexe em etiqueta.
  *
- * O crédito do SDR no rastro NÃO está aqui: é gatilho de banco, e se prova no
- * aceite da migração 20260925180000 (`migracoes-executam.test.ts`).
+ * O crédito do SDR no rastro NÃO está aqui: é gatilho de banco, e a régua
+ * dele (só lead parado ou reaberto, só quem é SDR sem ser Comercial) se prova
+ * no aceite da migração 20260925180000 (`migracoes-executam.test.ts`). Aqui o
+ * gatilho é simulado — `gatilhoCredita` diz se o UPDATE deixa o crédito — e o
+ * que se trava é a rota SEGUIR o que ele decidiu: etiqueta no Chatwoot só se
+ * o crédito entrou.
  *
  * Banco em memória e Chatwoot falso (o `fetch` global): a rota é chamada de
  * verdade, com as funções de `lib/` que ela usa.
@@ -45,23 +49,39 @@ let linhaDoTempo: string[];
 let usuario: string | null;
 let rpcs: Array<{ nome: string; args: Record<string, unknown> }>;
 let erroDoRpc: Erro | null;
+/** O gatilho do crédito, simulado: o UPDATE do dono deixa o crédito no rastro? */
+let gatilhoCredita: boolean;
 
 function consulta(tabela: string) {
   const filtros: Array<(l: Linha) => boolean> = [];
   let atualizacao: Linha | null = null;
+  let soContagem = false;
   const linhas = () => (banco[tabela] ?? []).filter((l) => filtros.every((f) => f(l)));
   const executar = async () => {
     const falha = falhas[tabela];
     if (falha) return { data: null, error: falha };
     if (atualizacao) {
-      for (const l of linhas()) Object.assign(l, atualizacao);
+      for (const l of linhas()) {
+        Object.assign(l, atualizacao);
+        if (tabela === "leads" && "responsavel" in atualizacao && gatilhoCredita) {
+          (banco.leads_eventos ??= []).push({
+            lead_id: l.id,
+            tipo: "etiqueta",
+            detalhe: { origem: "passagem_do_sdr" },
+          });
+        }
+      }
       linhaDoTempo.push(`update ${tabela}`);
       return { data: null, error: null };
     }
+    if (soContagem) return { data: null, count: linhas().length, error: null };
     return { data: linhas(), error: null };
   };
   const q = {
-    select: () => q,
+    select: (_colunas?: string, opcoes?: { count?: string; head?: boolean }) => {
+      soContagem = Boolean(opcoes?.head);
+      return q;
+    },
     order: () => q,
     limit: () => q,
     ilike: () => q,
@@ -147,6 +167,7 @@ beforeEach(() => {
   linhaDoTempo = [];
   rpcs = [];
   erroDoRpc = null;
+  gatilhoCredita = true;
   statusDoChatwoot = null;
   chamadasAoChatwoot.length = 0;
   conversas = { 4821: ["origem-site", "quer-comprar"], 100: ["antiga"] };
@@ -226,10 +247,32 @@ describe("a passagem do SDR para o Comercial", () => {
     expect(conversas[4821]).toEqual(["Lead Quente", "campanha.setembro", "resgate", "reaquecido"]);
   });
 
-  it("vale para quem tem SDR como segundo papel", async () => {
+  it("quem é SDR E Comercial não etiqueta — \"só quem é SDR mesmo\" (dono, 25/09)", async () => {
     usuario = "u-duplo";
-    await patch({ responsavel: "Ana" });
-    expect(conversas[4821]).toContain("reaquecido");
+    const d = await (await patch({ responsavel: "Ana" })).json();
+    expect(d).toEqual({ ok: true });
+    expect(chamadasAoChatwoot).toHaveLength(0);
+  });
+
+  it("passagem que o gatilho não creditou (lead fresco): não etiqueta, e diz por quê", async () => {
+    // "só para os parados ou reabertos" (dono, 25/09). A régua mora no
+    // gatilho; a rota só segue o que ele decidiu.
+    gatilhoCredita = false;
+    const d = await (await patch({ responsavel: "Ana" })).json();
+    expect(banco.leads[0].responsavel).toBe("Ana");
+    expect(chamadasAoChatwoot).toHaveLength(0);
+    expect(d.ok).toBe(true);
+    expect(d.etiquetas).toBeUndefined();
+    expect(d.aviso).toContain("Não conta como resgate");
+    expect(d.aviso).toContain("parado ou foi reaberto");
+  });
+
+  it("rastro ilegível: não etiqueta às cegas, e avisa", async () => {
+    falhas.leads_eventos = { message: "sem permissão" };
+    const d = await (await patch({ responsavel: "Ana" })).json();
+    expect(banco.leads[0].responsavel).toBe("Ana");
+    expect(chamadasAoChatwoot).toHaveLength(0);
+    expect(d.aviso).toContain("não deu para conferir");
   });
 
   it("o Comercial passando entre si não mexe no Chatwoot", async () => {

@@ -13,6 +13,7 @@ import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
 import {
+  contarPassagensCreditadas,
   etiquetarPassagemDoSdr,
   etiquetasConhecidas,
   maisRecentePrimeiro,
@@ -473,6 +474,16 @@ export async function PATCH(request: NextRequest) {
       Object.assign(atualizacao, decisao.campos);
     }
 
+    // A passagem do SDR (ver o bloco depois do `update`): quantos resgates o
+    // lead já tinha, para saber depois se ESTA passagem contou. Só para quem
+    // o gatilho pode creditar — SDR sem papel de Comercial, dando dono.
+    const passaComoSdr =
+      perfisDoAutor.includes("sdr") &&
+      !perfisDoAutor.includes("comercial") &&
+      typeof responsavel === "string" &&
+      responsavel.trim() !== "";
+    const resgatesAntes = passaComoSdr ? await contarPassagensCreditadas(supabase, id) : null;
+
     const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -485,20 +496,34 @@ export async function PATCH(request: NextRequest) {
     // precisamos manter a tag de resgate e reaquecido, para mensurar o
     // trabalho dele, isso tem que ser feito automático."*
     //
-    // Duas metades, e só esta mora aqui. O CRÉDITO já ficou no rastro, pelo
+    // Duas metades, e só esta mora aqui. O CRÉDITO fica no rastro, pelo
     // gatilho da migração 20260925180000, no mesmo `update` acima — não
-    // depende do Chatwoot nem desta rota. Aqui vão as ETIQUETAS na conversa,
-    // DEPOIS de a passagem estar gravada: o Chatwoot fora do ar não pode
-    // travar o lead com o SDR. Falhou, a resposta leva o aviso e a passagem
-    // continua valendo.
+    // depende do Chatwoot nem desta rota. E é o gatilho que decide se a
+    // passagem conta: só lead parado ou reaberto, passado por quem é só SDR
+    // (decisões do dono, 25/09). A rota não repete a régua; ela CONTA os
+    // resgates do lead antes e depois do `update`, e põe as ETIQUETAS na
+    // conversa só se o gatilho creditou. Etiqueta e crédito medem a mesma
+    // coisa, ou o filtro do Chatwoot e o relatório do banco discordam.
     //
-    // Mesma régua do gatilho: quem passa tem 'sdr' em QUALQUER posição de
-    // `papeis`, e passar é dar dono — tirar o dono não é passagem.
-    if (
-      perfisDoAutor.includes("sdr") &&
-      typeof responsavel === "string" &&
-      responsavel.trim() !== ""
-    ) {
+    // As etiquetas vão DEPOIS de a passagem estar gravada: o Chatwoot fora do
+    // ar não pode travar o lead com o SDR. Falhou, a resposta leva o aviso e
+    // a passagem continua valendo.
+    if (passaComoSdr) {
+      const resgatesDepois = await contarPassagensCreditadas(supabase, id);
+      if (resgatesAntes === null || resgatesDepois === null) {
+        return NextResponse.json({
+          ok: true,
+          aviso:
+            "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não foram para o Chatwoot.",
+        });
+      }
+      if (resgatesDepois <= resgatesAntes) {
+        return NextResponse.json({
+          ok: true,
+          aviso:
+            "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no Chatwoot.",
+        });
+      }
       const passagem = await etiquetarPassagemDoSdr(supabase, id, configDoChatwoot());
       return NextResponse.json({
         ok: true,

@@ -216,18 +216,31 @@ export async function editarEtiquetasDoLead(
 }
 
 /**
- * O SDR já passou este lead? Lido do rastro (o evento do gatilho). Leitura que
- * falha — migração ainda não aplicada — responde "não": a edição segue como
- * sempre, só sem a garantia a mais.
+ * Quantas passagens do SDR já contaram como resgate neste lead — os eventos
+ * que o gatilho da migração 20260925180000 grava. `null` quando o rastro não
+ * se deixa ler (migração ainda não aplicada, rede): quem chama trata como
+ * "não sei", e não como zero.
+ *
+ * É por aqui que a rota sabe se a passagem que acabou de gravar CONTOU: a
+ * régua (SDR sem Comercial, lead parado ou reaberto, Comercial ativo) mora
+ * só no gatilho, e reescrevê-la em TypeScript seria a segunda régua que
+ * discorda da primeira no dia em que uma delas mudar.
  */
-async function jaPassouPeloSdr(supabase: SupabaseClient, leadId: string): Promise<boolean> {
-  const { data, error } = await supabase
+export async function contarPassagensCreditadas(
+  supabase: SupabaseClient,
+  leadId: string,
+): Promise<number | null> {
+  const { count, error } = await supabase
     .from("leads_eventos")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("lead_id", leadId)
     .eq("tipo", "etiqueta")
-    .eq("detalhe->>origem", "passagem_do_sdr")
-    .limit(1);
-  if (error) return false;
-  return (data ?? []).length > 0;
+    .eq("detalhe->>origem", "passagem_do_sdr");
+  if (error || typeof count !== "number") return null;
+  return count;
+}
+
+/** O SDR já passou este lead como resgate? Rastro ilegível responde "não". */
+async function jaPassouPeloSdr(supabase: SupabaseClient, leadId: string): Promise<boolean> {
+  return ((await contarPassagensCreditadas(supabase, leadId)) ?? 0) > 0;
 }
