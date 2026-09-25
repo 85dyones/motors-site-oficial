@@ -130,7 +130,9 @@ describe("a lista do repasse", () => {
       intencao_busca: { repasse: { tipo: "lista", trilha: "consumidor", faixa: "30-50", carrocerias: ["hatch"], caminho: "/repasse" } },
     });
     expect(medicao.leads).toHaveLength(1);
+    expect(typeof posts[0].corpo.eventId).toBe("string");
     expect(medicao.leads[0][2]).toMatchObject({ tipoDeLead: "curadoria", formId: "form-lista-repasse" });
+    expect(medicao.leads[0][2]).toMatchObject({ presetEventId: posts[0].corpo.eventId });
     expect(container.textContent).toContain("Pronto, Ana. Você está na lista do repasse.");
     expect(container.textContent).toContain("Quando entrar um hatch de R$ 30 mil a R$ 50 mil");
   });
@@ -154,6 +156,22 @@ describe("a lista do repasse", () => {
     expect(campo("cnpj")).not.toBeNull();
     expect(container.querySelector("#lista")).not.toBeNull();
     expect(container.querySelector("#lista-lojista")).not.toBeNull();
+  });
+
+  it("clicar em CADASTRAR MEU CNPJ depois de montado também troca para a trilha lojista (hashchange)", async () => {
+    await montar(createElement(ListaDoRepasse, { contexto: "pagina" }));
+    expect(campo("cnpj")).toBeNull();
+    // `history.replaceState` não dispara evento nenhum (nem hashchange, nem
+    // popstate); o `dispatchEvent` isolado prova QUAL evento o componente
+    // assina. jsdom, ao contrário do navegador, dispara os dois juntos
+    // quando é `window.location.hash = …` que muda o endereço — por isso o
+    // teste monta o endereço "por baixo" e dispara só o que quer provar.
+    await act(async () => {
+      window.history.replaceState(null, "", "/repasse#lista-lojista");
+      window.dispatchEvent(new Event("hashchange"));
+      await new Promise((pronto) => setTimeout(pronto, 0));
+    });
+    expect(campo("cnpj")).not.toBeNull();
   });
 
   it("lojista: CNPJ que não fecha para no navegador, sem POST", async () => {
@@ -181,6 +199,7 @@ describe("a lista do repasse", () => {
       intencao_busca: { repasse: { trilha: "lojista", cnpj: "11.222.333/0001-81", loja_cidade: "Auto Bom, Curitiba" } },
     });
     expect(medicao.leads[0][2]).toMatchObject({ formId: "form-lista-repasse-lojista" });
+    expect(JSON.stringify(medicao.leads)).not.toMatch(/11\.?222\.?333/);
     expect(container.textContent).toContain(LISTA_DO_REPASSE.confirmacaoLojistaTitulo);
   });
 
@@ -227,7 +246,9 @@ describe("o exame no pátio", () => {
       intencao_busca: { repasse: { tipo: "exame", repasse_id: CARRO.id, dia: "2026-09-26", turno: "tarde", leva_mecanico: true } },
     });
     expect(posts[0].corpo).not.toHaveProperty("veiculo");
+    expect(typeof posts[0].corpo.eventId).toBe("string");
     expect(medicao.leads[0][2]).toMatchObject({ tipoDeLead: "curadoria", formId: "form-exame-repasse" });
+    expect(medicao.leads[0][2]).toMatchObject({ presetEventId: posts[0].corpo.eventId });
     expect(container.textContent).toContain("Pedido enviado.");
   });
 
