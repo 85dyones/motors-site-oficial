@@ -10,6 +10,14 @@ import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
 import { recomendarAvaliacao } from "../lib/avaliacaoRecomendacao";
 import { linkWhatsApp, mascararTelefone, telefoneDoLead } from "../lib/whatsapp";
+import {
+  consultarValor,
+  formatarValorFipe,
+  listarAnos,
+  listarMarcas,
+  listarModelos,
+  type OpcaoFipe,
+} from "../lib/consultaFipe";
 
 /**
  * Tela 05 — Avaliação Express, na linguagem Modernist.
@@ -39,12 +47,14 @@ import { linkWhatsApp, mascararTelefone, telefoneDoLead } from "../lib/whatsapp"
  * vai pagar é o mesmo erro de mostrar um valor inventado. Agora a FIPE
  * aparece rotulada como ponto de partida do mercado, e a avaliação é
  * declaradamente do consultor.
+ *
+ * Sobre a FIPE fora do ar (2026-09-24): a cascata foi para
+ * `lib/consultaFipe.ts`, que confere cada resposta e tenta a rota da loja
+ * antes da API pública. Quando mesmo assim a FIPE não responde, o passo 01
+ * vira três campos de texto — marca, modelo e ano — e a avaliação segue: o
+ * consultor confere a FIPE depois. Antes, o limite de taxa da API derrubava a
+ * página inteira, e quem quer vender o carro não tem nada a ver com isso.
  */
-
-// ─── FIPE API Types ───
-interface FipeBrand { codigo: string; nome: string; }
-interface FipeModel { codigo: number; nome: string; }
-interface FipeYear  { codigo: string; nome: string; }
 
 interface Step1Data {
   marca: string;
@@ -65,7 +75,20 @@ interface Step3Data {
   whatsapp: string;
 }
 
-const FIPE_BASE = "https://parallelum.com.br/fipe/api/v1";
+/**
+ * O que a medição (GA4, Meta, CAPI) recebe no lugar de marca e modelo quando
+ * eles foram DIGITADOS. Na cascata os dois vêm da lista fechada da FIPE; no
+ * texto livre são o que a pessoa escreveu, e texto livre de cliente não vai
+ * para pixel de terceiro — pode trazer nome, placa, telefone.
+ */
+const DIGITADO_NA_MEDICAO = "(digitado)";
+
+/** Ano digitado à mão: quatro dígitos, de 1950 até o ano que vem. */
+function anoDigitadoValido(ano: string): boolean {
+  if (!/^\d{4}$/.test(ano)) return false;
+  const n = Number(ano);
+  return n >= 1950 && n <= new Date().getFullYear() + 1;
+}
 
 const PASSOS = [
   { numero: "01", titulo: "Seu veículo" },
@@ -346,12 +369,26 @@ export default function AutoAvaliacao() {
   const [step3, setStep3] = useState<Step3Data>({ nome: "", whatsapp: "" });
 
   // ─── FIPE API States ───
-  const [fipeBrands, setFipeBrands] = useState<FipeBrand[]>([]);
-  const [fipeModels, setFipeModels] = useState<FipeModel[]>([]);
-  const [fipeYears, setFipeYears] = useState<FipeYear[]>([]);
+  const [fipeBrands, setFipeBrands] = useState<OpcaoFipe[]>([]);
+  const [fipeModels, setFipeModels] = useState<OpcaoFipe[]>([]);
+  const [fipeYears, setFipeYears] = useState<OpcaoFipe[]>([]);
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadingYears, setLoadingYears] = useState(false);
+  // A FIPE não respondeu na cascata: o passo 01 vira texto livre. Ver o
+  // cabeçalho do arquivo.
+  const [fipeFora, setFipeFora] = useState(false);
+  // O efeito das marcas precisa saber se está VOLTANDO do texto livre sem
+  // depender de `fipeFora` — senão entrar no texto livre refaria a busca.
+  const fipeForaRef = useRef(false);
+  useEffect(() => {
+    fipeForaRef.current = fipeFora;
+  }, [fipeFora]);
+  // O carro foi escolhido, mas o valor não veio. A cascata segue; a coluna
+  // escura avisa que o consultor confere a referência.
+  const [fipeSemValor, setFipeSemValor] = useState(false);
+  // Incrementar refaz a busca de marcas — é o "tentar a FIPE de novo".
+  const [tentativaFipe, setTentativaFipe] = useState(0);
 
   // Selected FIPE IDs (needed for cascading API calls)
   const [selectedBrandId, setSelectedBrandId] = useState("");
@@ -370,8 +407,27 @@ export default function AutoAvaliacao() {
   const [modelDisplay, setModelDisplay] = useState("");
   const [yearDisplay, setYearDisplay] = useState("");
 
+  /**
+   * A geração da cascata. Toda troca de marca, modelo ou tipo a avança, e uma
+   * busca de modelos ou anos só aplica a resposta — boa ou falha — se ainda
+   * for da geração em que nasceu.
+   *
+   * Sem isto, com a FIPE lenta: o cliente escolhia Fiat, trocava para Ford
+   * antes de os modelos da Fiat chegarem, escolhia Ka 2019, via a FIPE — e a
+   * busca VELHA da Fiat, falhando depois, jogava o formulário no texto livre,
+   * apagava a FIPE boa e enviava o carro como digitado (achado da revisão de
+   * 24/09, reproduzido no jsdom).
+   */
+  const geracaoDaCascata = useRef(0);
+  const invalidarBuscasDaCascata = useCallback(() => {
+    geracaoDaCascata.current += 1;
+    setLoadingModels(false);
+    setLoadingYears(false);
+  }, []);
+
   // Handler for changing vehicle type tab
   const handleVehicleTypeChange = (type: "carros" | "motos" | "caminhoes") => {
+    invalidarBuscasDaCascata();
     setVehicleType(type);
     setStep1({ marca: "", modelo: "", ano: "" });
     setSelectedBrandId("");
@@ -380,6 +436,7 @@ export default function AutoAvaliacao() {
     setFipeValor("");
     setFipeCodigo("");
     setFipeMesReferencia("");
+    setFipeSemValor(false);
     setBrandDisplay("");
     setModelDisplay("");
     setYearDisplay("");
@@ -387,48 +444,94 @@ export default function AutoAvaliacao() {
     setFipeYears([]);
   };
 
+  /**
+   * A FIPE falhou no meio da cascata: o passo 01 vira texto livre, com o que
+   * já tinha sido escolhido preenchido. Marca e modelo escolhidos continuam
+   * valendo; o que sai são os códigos, que só servem à cascata.
+   */
+  const entrarNoPreenchimentoAMao = useCallback(() => {
+    invalidarBuscasDaCascata();
+    setFipeFora(true);
+    setSelectedBrandId("");
+    setSelectedModelId("");
+    setSelectedYearId("");
+    setYearDisplay("");
+    setFipeModels([]);
+    setFipeYears([]);
+    setFipeValor("");
+    setFipeCodigo("");
+    setFipeMesReferencia("");
+    setFipeSemValor(false);
+  }, [invalidarBuscasDaCascata]);
+
   // ─── Fetch Brands when vehicleType changes ───
+  //
+  // `vivo` descarta a resposta de uma busca que ficou velha: trocar de CARROS
+  // para MOTOS no meio da primeira não pode deixar as marcas de carro na tela.
   useEffect(() => {
-    const fetchBrands = async () => {
+    let vivo = true;
+    const buscarMarcas = async () => {
       setLoadingBrands(true);
       try {
-        const res = await fetch(`${FIPE_BASE}/${vehicleType}/marcas`);
-        const data: FipeBrand[] = await res.json();
-        setFipeBrands(data);
+        const marcas = await listarMarcas(vehicleType);
+        if (!vivo) return;
+        // Lista vazia de marcas é FIPE quebrada, não "nenhuma marca".
+        if (marcas.length === 0) throw new Error("A FIPE devolveu a lista de marcas vazia.");
+        setFipeBrands(marcas);
+        // Voltando do texto livre ("tentar a FIPE de novo"), o que foi
+        // digitado não pode ficar em `step1` sem aparecer nos campos da
+        // cascata — o botão de avançar liberaria um carro que ninguém escolheu.
+        if (fipeForaRef.current) {
+          setStep1({ marca: "", modelo: "", ano: "" });
+          setBrandDisplay("");
+          setModelDisplay("");
+          setYearDisplay("");
+        }
+        setFipeFora(false);
       } catch (err) {
+        if (!vivo) return;
         console.error("[FIPE] Erro ao buscar marcas:", err);
+        setFipeBrands([]);
+        entrarNoPreenchimentoAMao();
       } finally {
-        setLoadingBrands(false);
+        if (vivo) setLoadingBrands(false);
       }
     };
-    fetchBrands();
-  }, [vehicleType]);
+    buscarMarcas();
+    return () => {
+      vivo = false;
+    };
+  }, [vehicleType, tentativaFipe, entrarNoPreenchimentoAMao]);
 
   // ─── Fetch Models when brand changes ───
   const fetchModels = useCallback(async (brandId: string) => {
+    const minha = ++geracaoDaCascata.current;
     setLoadingModels(true);
     setFipeModels([]);
     setFipeYears([]);
     try {
-      const res = await fetch(`${FIPE_BASE}/${vehicleType}/marcas/${brandId}/modelos`);
-      const data = await res.json();
-      setFipeModels(data.modelos || []);
+      const modelos = await listarModelos(vehicleType, brandId);
+      if (geracaoDaCascata.current !== minha) return;
+      setFipeModels(modelos);
     } catch (err) {
+      if (geracaoDaCascata.current !== minha) return;
       console.error("[FIPE] Erro ao buscar modelos:", err);
+      entrarNoPreenchimentoAMao();
     } finally {
-      setLoadingModels(false);
+      if (geracaoDaCascata.current === minha) setLoadingModels(false);
     }
-  }, [vehicleType]);
+  }, [vehicleType, entrarNoPreenchimentoAMao]);
 
   // ─── Fetch Years when model changes ───
   const fetchYears = useCallback(async (brandId: string, modelId: string) => {
+    const minha = ++geracaoDaCascata.current;
     setLoadingYears(true);
     setFipeYears([]);
     try {
-      const res = await fetch(`${FIPE_BASE}/${vehicleType}/marcas/${brandId}/modelos/${modelId}/anos`);
-      const data: FipeYear[] = await res.json();
+      const anos = await listarAnos(vehicleType, brandId, modelId);
+      if (geracaoDaCascata.current !== minha) return;
       // Filter out "32000" (zero-km placeholder) and sort descending
-      const filtered = data
+      const filtered = anos
         .filter((y) => !y.codigo.startsWith("32000"))
         .sort((a, b) => {
           const yearA = parseInt(a.nome);
@@ -437,11 +540,13 @@ export default function AutoAvaliacao() {
         });
       setFipeYears(filtered);
     } catch (err) {
+      if (geracaoDaCascata.current !== minha) return;
       console.error("[FIPE] Erro ao buscar anos:", err);
+      entrarNoPreenchimentoAMao();
     } finally {
-      setLoadingYears(false);
+      if (geracaoDaCascata.current === minha) setLoadingYears(false);
     }
-  }, [vehicleType]);
+  }, [vehicleType, entrarNoPreenchimentoAMao]);
 
   // ─── Fetch FIPE Value details when year is selected ───
   useEffect(() => {
@@ -449,23 +554,35 @@ export default function AutoAvaliacao() {
       setFipeValor("");
       setFipeCodigo("");
       setFipeMesReferencia("");
+      setFipeSemValor(false);
       return;
     }
 
-    const fetchFipeDetails = async () => {
+    let vivo = true;
+    const buscarValor = async () => {
+      setFipeSemValor(false);
       try {
-        const res = await fetch(`${FIPE_BASE}/${vehicleType}/marcas/${selectedBrandId}/modelos/${selectedModelId}/anos/${selectedYearId}`);
-        const data = await res.json();
-        if (data && data.Valor) {
-          setFipeValor(data.Valor);
-          setFipeCodigo(data.CodigoFipe);
-          setFipeMesReferencia((data.MesReferencia || "").trim());
+        const v = await consultarValor(vehicleType, selectedBrandId, selectedModelId, selectedYearId);
+        if (!vivo) return;
+        if (!v) {
+          setFipeSemValor(true);
+          return;
         }
+        setFipeValor(formatarValorFipe(v.valor));
+        setFipeCodigo(v.codigo);
+        setFipeMesReferencia(v.mesReferencia);
       } catch (err) {
+        if (!vivo) return;
+        // Sem valor, a avaliação segue: o carro está identificado, e a
+        // referência o consultor confere. Não é motivo para o texto livre.
         console.error("[FIPE] Erro ao buscar detalhes de valor:", err);
+        setFipeSemValor(true);
       }
     };
-    fetchFipeDetails();
+    buscarValor();
+    return () => {
+      vivo = false;
+    };
   }, [selectedBrandId, selectedModelId, selectedYearId, vehicleType]);
 
   // Fetch tracking ID on mount
@@ -497,6 +614,7 @@ export default function AutoAvaliacao() {
   };
 
   const handleBrandClear = () => {
+    invalidarBuscasDaCascata();
     setSelectedBrandId("");
     setBrandDisplay("");
     setStep1({ marca: "", modelo: "", ano: "" });
@@ -518,6 +636,7 @@ export default function AutoAvaliacao() {
   };
 
   const handleModelClear = () => {
+    invalidarBuscasDaCascata();
     setSelectedModelId("");
     setModelDisplay("");
     setStep1((prev) => ({ ...prev, modelo: "", ano: "" }));
@@ -554,10 +673,18 @@ export default function AutoAvaliacao() {
     fipeValor,
   });
 
+  // Validation checkers for button enabling
+  //
+  // No texto livre, o ano é conferido aqui — na cascata ele vem da lista da
+  // FIPE e não precisa.
+  const isStep1Valid = fipeFora
+    ? Boolean(step1.marca.trim() && step1.modelo.trim() && anoDigitadoValido(step1.ano))
+    : Boolean(step1.marca && step1.modelo && step1.ano);
+
   // Navigations
   const handleNextStep = () => {
     if (step === 1) {
-      if (!step1.marca || !step1.modelo || !step1.ano) return;
+      if (!isStep1Valid) return;
       setStep(2);
     } else if (step === 2) {
       if (!step2.estadoMecanico || !step2.estadoConservacao) return;
@@ -600,8 +727,8 @@ export default function AutoAvaliacao() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          marca: step1.marca,
-          modelo: step1.modelo,
+          marca: step1.marca.trim(),
+          modelo: step1.modelo.trim(),
           ano: Number(step1.ano) || step1.ano,
           estado: `${step2.estadoMecanico} / ${step2.estadoConservacao}`,
           nome: step3.nome,
@@ -611,6 +738,9 @@ export default function AutoAvaliacao() {
           fipe_valor: fipeValor,
           fipe_codigo: fipeCodigo,
           fipe_mes_referencia: fipeMesReferencia,
+          // Marca, modelo e ano digitados porque a FIPE não respondeu: o
+          // consultor precisa saber que o carro não saiu da tabela.
+          veiculo_digitado: fipeFora,
           // Campos que o consultor precisa para aplicar a regra de compra.
           // `observacoes` já era coletado e era descartado antes de chegar
           // ao n8n — só ia parar no histórico do localStorage.
@@ -633,7 +763,9 @@ export default function AutoAvaliacao() {
         if (fipeValor) {
           numericValue = Number(fipeValor.replace(/[^\d]/g, "")) / 100;
         }
-        trackAppraisalSubmit(vehicleType, step1.marca, step1.modelo, String(step1.ano), numericValue, eventIdDaAvaliacao);
+        const marcaNaMedicao = fipeFora ? DIGITADO_NA_MEDICAO : step1.marca;
+        const modeloNaMedicao = fipeFora ? DIGITADO_NA_MEDICAO : step1.modelo;
+        trackAppraisalSubmit(vehicleType, marcaNaMedicao, modeloNaMedicao, String(step1.ano), numericValue, eventIdDaAvaliacao);
       } else {
         // Token do Turnstile é de uso único e já foi gasto no siteverify. Sem
         // pedir outro, uma segunda tentativa reenviaria o mesmo e levaria 403
@@ -712,10 +844,20 @@ export default function AutoAvaliacao() {
     setYearDisplay("");
     setFipeModels([]);
     setFipeYears([]);
+    setFipeSemValor(false);
     setVehicleType("carros");
     setTurnstileToken("");
     setCaptchaBloqueado(false);
     setStep(1);
+  };
+
+  /**
+   * Sai do texto livre e refaz a busca de marcas. O que foi digitado só é
+   * descartado se a FIPE responder — ver o efeito das marcas; se ela falhar
+   * de novo, a pessoa volta aos campos com o texto dela intacto.
+   */
+  const tentarFipeDeNovo = () => {
+    setTentativaFipe((n) => n + 1);
   };
 
   const handleWhatsappAvaliacaoClick = (e: React.MouseEvent) => {
@@ -746,8 +888,11 @@ export default function AutoAvaliacao() {
     const fipeNumericValue = fipeValor ? Number(fipeValor.replace(/[^\d]/g, "")) / 100 : 0;
     const phoneE164 = telefone.e164;
     const eventId = trackLeadSubmission(
-      { marca: step1.marca, modelo: step1.modelo, preco: fipeNumericValue },
-      activeMessage,
+      fipeFora
+        ? { marca: DIGITADO_NA_MEDICAO, modelo: DIGITADO_NA_MEDICAO, preco: fipeNumericValue }
+        : { marca: step1.marca, modelo: step1.modelo, preco: fipeNumericValue },
+      // A mensagem cita o carro — no texto livre, com as palavras do cliente.
+      fipeFora ? "Avaliação com o veículo digitado" : activeMessage,
       {
         googleAdsId: companySettings?.googleAdsId,
         googleAdsConversionLabel: companySettings?.googleAdsConversionLabel,
@@ -856,8 +1001,6 @@ export default function AutoAvaliacao() {
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
-  // Validation checkers for button enabling
-  const isStep1Valid = step1.marca && step1.modelo && step1.ano;
   // A quilometragem entrou como obrigatória junto com a regra de
   // precificação (2026-08-06): sem ela o consultor não consegue aplicar a
   // faixa de 30%, que depende do limite de 150.000 km.
@@ -871,6 +1014,12 @@ export default function AutoAvaliacao() {
   const yearItems = fipeYears.map((y) => ({ key: y.codigo, label: y.nome }));
 
   const nomeDoVeiculo = [step1.marca, step1.modelo].filter(Boolean).join(" ").toUpperCase();
+  const doSeuVeiculo =
+    vehicleType === "motos" ? "da sua moto" : vehicleType === "caminhoes" ? "do seu caminhão" : "do seu carro";
+  // O resumo do passo 03 mostrava a chave crua com `capitalize` — "Atencao",
+  // "Impecavel", sem acento. O rótulo é o mesmo que a pessoa clicou.
+  const rotuloMecanica = ESTADO_MECANICO.find((o) => o.val === step2.estadoMecanico)?.label ?? "";
+  const rotuloConservacao = ESTADO_CONSERVACAO.find((o) => o.val === step2.estadoConservacao)?.label ?? "";
   const tituloDaTela = companySettings?.avaliacaoExpressTitle || "Avaliação Express";
 
   return (
@@ -964,6 +1113,71 @@ export default function AutoAvaliacao() {
                 ))}
               </div>
 
+              {fipeFora ? (
+                <div className="mt-9 border-t-2 border-mt-regua pt-5">
+                  <p
+                    role="status"
+                    className="m-0 border-l-2 border-mt-accent pl-3.5 text-[12.5px] font-semibold leading-relaxed text-mt-neutral-800"
+                  >
+                    A Tabela FIPE não respondeu agora. Digite os dados {doSeuVeiculo} e
+                    siga: o consultor confere a referência FIPE antes da proposta.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={tentarFipeDeNovo}
+                    disabled={loadingBrands}
+                    className="mt-foco mt-3 text-[11px] font-extrabold tracking-[.08em] text-mt-accent underline underline-offset-4 disabled:cursor-wait disabled:no-underline disabled:opacity-60"
+                  >
+                    {loadingBrands ? "CONSULTANDO A FIPE…" : "TENTAR A FIPE DE NOVO"}
+                  </button>
+
+                  <div className="mt-4 grid md:grid-cols-2 md:gap-x-2">
+                    {(
+                      [
+                        { id: "marca-digitada", campo: "marca", rotulo: "MARCA", exemplo: "Ex.: Fiat", max: 40 },
+                        { id: "modelo-digitado", campo: "modelo", rotulo: "MODELO E VERSÃO", exemplo: "Ex.: Argo Drive 1.0", max: 80 },
+                      ] as const
+                    ).map((c) => (
+                      <div key={c.id} className="py-4 pr-0 md:pr-6">
+                        <label className="mt-rotulo mb-2 block text-[10px] tracking-[.14em]" htmlFor={c.id}>
+                          {c.rotulo}
+                        </label>
+                        <input
+                          id={c.id}
+                          type="text"
+                          autoComplete="off"
+                          maxLength={c.max}
+                          placeholder={c.exemplo}
+                          value={step1[c.campo]}
+                          onChange={(e) => setStep1((prev) => ({ ...prev, [c.campo]: e.target.value }))}
+                          className={`mt-campo mt-foco border-b-2 pb-2 transition-colors ${
+                            step1[c.campo].trim() ? "border-mt-accent" : "border-mt-regua-fina"
+                          }`}
+                        />
+                      </div>
+                    ))}
+                    <div className="py-4 pr-0 md:pr-6">
+                      <label className="mt-rotulo mb-2 block text-[10px] tracking-[.14em]" htmlFor="ano-digitado">
+                        ANO DO MODELO
+                      </label>
+                      <input
+                        id="ano-digitado"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="Ex.: 2021"
+                        value={step1.ano}
+                        onChange={(e) =>
+                          setStep1((prev) => ({ ...prev, ano: e.target.value.replace(/\D/g, "").slice(0, 4) }))
+                        }
+                        className={`mt-campo mt-foco border-b-2 pb-2 transition-colors ${
+                          anoDigitadoValido(step1.ano) ? "border-mt-accent" : "border-mt-regua-fina"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
               <div className="mt-9 grid border-t-2 border-mt-regua md:grid-cols-2 md:gap-x-2">
                 <SearchableCombobox
                   id="brand-search-fipe"
@@ -1008,6 +1222,7 @@ export default function AutoAvaliacao() {
                   toolParamDescription="Ano modelo e combustível do veículo na base FIPE."
                 />
               </div>
+              )}
 
               <button
                 type="button"
@@ -1149,8 +1364,8 @@ export default function AutoAvaliacao() {
                 </div>
                 <div className="flex justify-between gap-4 border-b border-mt-regua-fina py-3 text-[13px]">
                   <span className="text-mt-neutral-600">Mecânica / conservação</span>
-                  <span className="text-right font-extrabold capitalize">
-                    {step2.estadoMecanico} / {step2.estadoConservacao}
+                  <span className="text-right font-extrabold">
+                    {rotuloMecanica} / {rotuloConservacao}
                   </span>
                 </div>
                 {fipeValor && (
@@ -1354,6 +1569,13 @@ export default function AutoAvaliacao() {
                 consultor.
               </p>
             </>
+          ) : fipeFora || fipeSemValor ? (
+            // Sem número, e sem inventar um: quem confere é o consultor.
+            <p className="m-0 text-sm leading-relaxed text-mt-neutral-400">
+              A Tabela FIPE não respondeu agora. A avaliação segue com os
+              dados que você informar, e o consultor confere a referência FIPE
+              da versão exata antes de enviar a proposta.
+            </p>
           ) : (
             <p className="m-0 text-sm leading-relaxed text-mt-neutral-400">
               Escolha marca, modelo e ano ao lado. O valor oficial da Tabela

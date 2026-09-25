@@ -1,15 +1,41 @@
 /**
- * Consulta à tabela FIPE pela API pública parallelum — a mesma que a
- * `/avaliacao` usa em `AutoAvaliacao.tsx`, agora como lib reusável.
+ * Consulta à tabela FIPE — a cascata marcas → modelos → anos → valor.
  *
- * Roda no NAVEGADOR, como lá: não há cliente de FIPE no servidor, e a API não
- * pede chave. `buscar` é injetável para o teste não depender da rede.
+ * Nasceu em 24/09/2026 tirando a cascata de dentro de `AutoAvaliacao.tsx`, com
+ * a interface que o plano do Repasse (Task 5 de
+ * `docs/superpowers/plans/2026-09-24-repasse-pr1-dados.md`) já tinha desenhado
+ * para `src/lib/consultaFipe.ts`: o editor do repasse chama as mesmas funções.
  *
- * `AutoAvaliacao.tsx` continua com a cópia dele por enquanto: o funil
- * `/avaliacao` não pode quebrar em fase nenhuma (CLAUDE.md), e trocá-lo não é
- * assunto do repasse.
+ * ---------------------------------------------------------------------------
+ * Por que saiu do componente: a FIPE derrubava a /avaliacao
+ * ---------------------------------------------------------------------------
+ * A API pública (parallelum, sem token) tem teto de 500 consultas por dia POR
+ * IP. Estourado, ela responde 429 com `{"error": "limite de taxa excedido…"}`.
+ * O componente não olhava `res.ok` na lista de marcas: guardava o objeto de
+ * erro no lugar da lista, o `.map` da renderização lançava e a página inteira
+ * caía em "Esta página não carregou". Reproduzido em 24/09/2026 com a resposta
+ * exata da API. Operadora de celular põe muita gente atrás do mesmo IP, então
+ * o teto não é problema só de quem consulta muito.
+ *
+ * Duas defesas moram aqui:
+ *
+ * - **Toda resposta é conferida.** Erro HTTP lança (`lerJson`); formato
+ *   inesperado vira lista vazia ou `null` (`comoOpcoes`, `consultarValor`) —
+ *   nunca um objeto no lugar de uma lista. Quem chama decide o que fazer com a
+ *   falha; a `/avaliacao` passa o cliente para o preenchimento à mão.
+ * - **A busca padrão tem reserva.** Primeiro a nossa rota (`/api/fipe/…`),
+ *   que consulta a FIPE do servidor com o token da loja e deixa a resposta em
+ *   cache na borda; se ela falhar, a API pública direto do navegador, como era
+ *   antes. As funções continuam recebendo a URL pública — a troca de porta é
+ *   da busca, não da cascata, e por isso `buscar` segue injetável no teste.
  */
 export const FIPE_BASE = "https://parallelum.com.br/fipe/api/v1";
+
+/**
+ * A mesma árvore de caminhos da `FIPE_BASE`, servida por
+ * `src/app/api/fipe/[...caminho]/route.ts`.
+ */
+export const FIPE_NA_LOJA = "/api/fipe";
 
 export type TipoFipe = "carros" | "motos" | "caminhoes";
 
@@ -26,7 +52,43 @@ export interface ValorFipe {
 
 export type Buscar = (url: string) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
 
-const buscarPadrao: Buscar = (url) => fetch(url);
+/**
+ * Busca pela rota da loja e, se ela não servir, pela API pública.
+ *
+ * "Não servir" é qualquer coisa que não seja 2xx: 429 do limite da própria
+ * rota, 502 da FIPE fora, 404 num ambiente sem a rota. A exceção de rede
+ * também cai na reserva. URL que não é da `FIPE_BASE` vai direto, sem desvio.
+ */
+export function criarBuscaComReserva(rede: Buscar): Buscar {
+  return async (url) => {
+    if (url.startsWith(`${FIPE_BASE}/`)) {
+      try {
+        const pelaLoja = await rede(FIPE_NA_LOJA + url.slice(FIPE_BASE.length));
+        if (pelaLoja.ok) return pelaLoja;
+      } catch {
+        // cai na API pública
+      }
+    }
+    return rede(url);
+  };
+}
+
+/**
+ * Quanto o navegador espera cada porta antes de desistir dela. É escolha, não
+ * medição: acima dos 8 s que a rota da loja espera a FIPE
+ * (`ESPERA_MAXIMA_MS` em `fipeNoServidor.ts`), para a loja responder o 502
+ * dela antes de o navegador cortar. Sem isto, uma porta pendurada deixava o
+ * campo em "Carregando…" sem prazo — a pública nunca teve limite de espera.
+ */
+const ESPERA_NO_NAVEGADOR_MS = 10_000;
+
+function comLimiteDeEspera(): RequestInit | undefined {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? { signal: AbortSignal.timeout(ESPERA_NO_NAVEGADOR_MS) }
+    : undefined;
+}
+
+const buscarPadrao: Buscar = criarBuscaComReserva((url) => fetch(url, comLimiteDeEspera()));
 
 /** "R$ 42.100,00" → 42100. Zero, vazio ou lixo → null. */
 export function valorFipeEmNumero(bruto: unknown): number | null {
@@ -35,6 +97,17 @@ export function valorFipeEmNumero(bruto: unknown): number | null {
   if (limpo === "") return null;
   const n = Number(limpo);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * 42100 → "R$ 42.100,00", o texto que a API devolve.
+ *
+ * A `/avaliacao` mostra e envia o valor nesse formato desde sempre — o n8n e
+ * `fipeParaNumero` leem assim. Espaço comum depois do "R$", e não o não
+ * separável que o `style: "currency"` do `Intl` põe: é o que a API manda.
+ */
+export function formatarValorFipe(valor: number): string {
+  return `R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function comoOpcoes(lista: unknown): OpcaoFipe[] {

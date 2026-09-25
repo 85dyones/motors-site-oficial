@@ -53,14 +53,14 @@ export interface RecomendacaoAvaliacao {
   resumo: string;
 }
 
-const ROTULO_MECANICA: Record<EstadoMecanico, string> = {
+export const ROTULO_MECANICA: Record<EstadoMecanico, string> = {
   excelente: "mecânica excelente",
   bom: "mecânica boa",
   atencao: "mecânica requer atenção",
   ruim: "mecânica ruim",
 };
 
-const ROTULO_CONSERVACAO: Record<EstadoConservacao, string> = {
+export const ROTULO_CONSERVACAO: Record<EstadoConservacao, string> = {
   impecavel: "funilaria impecável",
   riscos: "pequenos riscos de uso",
   reparos: "amassados leves",

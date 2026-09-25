@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
+import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
 import {
   decidirDesfecho,
   ordenarEtapas,
@@ -303,6 +304,8 @@ export async function PATCH(request: NextRequest) {
       desfecho_valor,
       desfecho_nota,
       contato,
+      avaliacao_valor_ofertado,
+      avaliacao_valor_pago,
     } = body;
     if (!id) {
       return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
@@ -324,7 +327,13 @@ export async function PATCH(request: NextRequest) {
           return NextResponse.json({ error: erroContato.message }, { status: 500 });
         }
       }
-      if (situacao === undefined && responsavel === undefined && observacoes === undefined) {
+      if (
+        situacao === undefined &&
+        responsavel === undefined &&
+        observacoes === undefined &&
+        avaliacao_valor_ofertado === undefined &&
+        avaliacao_valor_pago === undefined
+      ) {
         return NextResponse.json({ ok: true });
       }
     }
@@ -333,6 +342,23 @@ export async function PATCH(request: NextRequest) {
     if (situacao !== undefined) atualizacao.situacao = situacao;
     if (responsavel !== undefined) atualizacao.responsavel = responsavel;
     if (observacoes !== undefined) atualizacao.observacoes = observacoes;
+
+    // O que o consultor ofereceu e o que a loja pagou pelo carro avaliado
+    // (migração 20260924190000). O retrato `avaliacao` NÃO entra aqui: é o que
+    // o cliente preencheu no site, e o painel não o reescreve. Valor ilegível
+    // recusa em vez de apagar o que estava gravado — ver `lerValorDaAvaliacao`.
+    const valoresDaAvaliacao = { avaliacao_valor_ofertado, avaliacao_valor_pago };
+    for (const [campo, bruto] of Object.entries(valoresDaAvaliacao)) {
+      if (bruto === undefined) continue;
+      const lido = lerValorDaAvaliacao(bruto);
+      if (!lido.ok) {
+        return NextResponse.json(
+          { error: "Valor inválido. Use só o número em reais, como 55.000 ou 55.000,50." },
+          { status: 400 },
+        );
+      }
+      atualizacao[campo] = lido.valor;
+    }
 
     if (situacao !== undefined) {
       const { data: etapa, error: erroEtapa } = await supabase
