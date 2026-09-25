@@ -1048,6 +1048,8 @@ describe("B.7 · a oposição vale também para o lead", () => {
     "src/components/ContatoClientWrapper.tsx",
     "src/components/EncomendaDeCarro.tsx",
     "src/components/campanha/CtaDeCampanha.tsx",
+    "src/components/repasse/ExameNoPatio.tsx",
+    "src/components/repasse/ListaDoRepasse.tsx",
   ];
   /** Usam como `eventId` o retorno de `trackLeadSubmission`. */
   const USAM_O_RETORNO_DA_MEDICAO = [
