@@ -43,13 +43,31 @@ function arquivosDoRepasse(dir: string, achados: string[] = []): string[] {
   return achados;
 }
 
-const arquivos = RAIZ_DO_REPASSE.flatMap((raiz) => arquivosDoRepasse(raiz));
+/**
+ * As portas do PR 4. A home e o `/estoque` não desenham repasse por conta
+ * própria: entregam o dado às faixas de `src/components/repasse/`, que a
+ * varredura acima já cobre. Mas é no ponto de chamada que alguém copiaria o
+ * `trackVehicleView` "para medir a faixa" (handoff do PR 4, §8), então os
+ * dois arquivos entram um a um. Se a home um dia medir `view_item_list` do
+ * ESTOQUE, o termo `view_item` daqui vai acusar: reveja esta lista junto, não
+ * a apague.
+ */
+const PONTOS_DE_CHAMADA = [
+  join(__dirname, "..", "src", "app", "page.tsx"),
+  join(__dirname, "..", "src", "app", "estoque", "page.tsx"),
+];
+
+const arquivos = [...RAIZ_DO_REPASSE.flatMap((raiz) => arquivosDoRepasse(raiz)), ...PONTOS_DE_CHAMADA];
 
 describe("o repasse não mede view_item/ViewContent", () => {
   it("a varredura achou os arquivos de verdade — não um diretório vazio", () => {
     // Sem isto, um diretório apagado ou um caminho errado faria `arquivos`
     // ficar vazio e todo `it.each` abaixo passar sem examinar nada.
     expect(arquivos.length).toBeGreaterThanOrEqual(5);
+    // O card e as faixas das portas moram no diretório varrido (decisão 4).
+    for (const nome of ["CardDaFaixa.tsx", "FaixaDoRepasseNoEstoque.tsx", "FaixaDoRepasseNaHome.tsx"]) {
+      expect(arquivos.some((a) => a.endsWith(nome)), nome).toBe(true);
+    }
   });
 
   it.each(arquivos.map((caminho) => [caminho] as const))("%s não tem view_item nem ViewContent", (caminho) => {
