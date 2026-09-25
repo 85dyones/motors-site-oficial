@@ -6,7 +6,7 @@ import { blocoJsonLd, schemaDeTrilha } from "../../lib/schemaListagem";
 import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 
 const DESCRICAO =
-  "Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e um consultor envia três sugestões reais do estoque no WhatsApp.";
+  "Cinco perguntas, trinta segundos. Três carros do nosso pátio para o seu perfil, com o que cada um atende e o que pesa contra.";
 
 // Mesma correção da /avaliacao: sem card próprio, o quiz era compartilhado com
 // o texto da home.

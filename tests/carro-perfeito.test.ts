@@ -10,6 +10,7 @@ import {
 import { SLUGS_DE_PERFIL } from "../src/lib/perfisDeUso";
 import { CARROCERIAS } from "../src/lib/classificacaoVeiculo";
 import { slugificar } from "../src/lib/veiculoUrl";
+import { faixasDoPatio, CORTES_DE_RESERVA } from "../src/lib/motorDoMatch";
 import type { Veiculo } from "../src/types";
 
 /**
@@ -35,7 +36,7 @@ import type { Veiculo } from "../src/types";
 
 const RESPOSTAS_DO_QUIZ = {
   objetivo: ["family", "status", "efficiency", "offroad"],
-  estilo: ["suv", "sedan", "sport", "pickup", "open"],
+  estilo: ["suv", "sedan", "hatch", "sport", "pickup", "open"],
   experiencia: ["performance", "comfort", "tech", "economy"],
   prazo: ["immediate", "researching", "future"],
 } as const;
@@ -303,26 +304,39 @@ describe("4 · o quiz pergunta as cinco", () => {
   });
 
   it("sem estoque, valem as faixas de reserva", () => {
-    // O memo tem retorno próprio para menos de 4 preços. Sem ele, o fallback
-    // seria de novo uma lista vazia — o mesmo defeito com outro nome.
+    // O cálculo tem retorno próprio para menos de 4 preços. Sem ele, o fallback
+    // seria de novo uma lista vazia — o mesmo defeito com outro nome. Desde
+    // 25/09 ele mora em `faixasDoPatio` (lib/motorDoMatch), e a trava passou
+    // de leitura do código a comportamento.
+    for (const precos of [[], [30000, 60000]]) {
+      const faixas = faixasDoPatio(precos);
+      expect(faixas.length).toBeGreaterThan(0);
+      expect(faixas.slice(1, 1 + CORTES_DE_RESERVA.length).map((f) => f.min)).toEqual([...CORTES_DE_RESERVA]);
+    }
+    // E o CarMatch usa o cálculo do motor, não uma cópia.
     const codigo = lerCodigo("src/components/CarMatch.tsx");
-    const memo = codigo.slice(
-      codigo.indexOf("const faixasDeOrcamento = useMemo"),
-      codigo.indexOf("}, [estoque]);"),
-    );
-    expect(memo).toMatch(/if \(precos\.length < 4\)/);
-    expect(memo).toContain("montar([50000, 65000, 90000], precos)");
+    expect(codigo).toContain("faixasDoPatio(precos)");
   });
 
   it("as faixas saem de QUANTIL, não de fatia do intervalo", () => {
     // Com um carro de R$ 318.900 esticando a ponta, cortar o intervalo em
     // 15/35/60/80% punha 24 dos 35 carros numa faixa só (50–125 mil) e
     // deixava outra vazia. Era o "difícil demais fazer um match acima dos
-    // 50 mil". Por quantil cada faixa leva um quarto do pátio: 7/11/9/8.
-    const codigo = lerCodigo("src/components/CarMatch.tsx");
-    expect(codigo).toContain("quantil(0.25)");
-    expect(codigo).toContain("quantil(0.75)");
-    expect(codigo).not.toContain("spread * 0.15");
+    // 50 mil". Por quantil cada faixa leva um quarto do pátio.
+    const precos = [
+      ...Array.from({ length: 8 }, (_, i) => 26000 + i * 3000),
+      ...Array.from({ length: 10 }, (_, i) => 52000 + i * 2000),
+      ...Array.from({ length: 9 }, (_, i) => 76000 + i * 4000),
+      ...Array.from({ length: 8 }, (_, i) => 118000 + i * 6000),
+      318900,
+    ];
+    const comTeto = faixasDoPatio(precos).filter((f) => f.max !== null);
+    const maior = Math.max(...comTeto.map((f) => f.quantos));
+    expect(maior / precos.length).toBeLessThan(0.4);
+    // O carro de R$ 318.900 não estica a faixa de cima: ele fica sozinho numa
+    // opção "acima de", separada.
+    const semTeto = faixasDoPatio(precos).find((f) => f.max === null);
+    expect(semTeto?.quantos).toBe(1);
   });
 
   it("o slider de valor exato cabe no pátio", () => {

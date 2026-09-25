@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { matchVehicles, calculateMatchScore } from "../../../lib/car-match";
 import { logCarMatchQueried, logApiTelemetry } from "../../../lib/telemetry";
+import { getEstoque } from "../../../lib/supabase";
+import { disponiveisDe } from "../../../lib/regrasEstoque";
+import {
+  criteriosDasRespostas,
+  nomeCurto,
+  recomendar,
+  semFiltro,
+  type ChaveDeFiltro,
+  type Criterios,
+} from "../../../lib/motorDoMatch";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +104,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // 1. Safe parsing of incoming payload
     requestBody = await request.json().catch(() => ({}));
+
+    // O Garagem Profiler a partir de 25/09: manda as RESPOSTAS, e o motor de
+    // fatos (`lib/motorDoMatch.ts`) decide. O formato antigo, `{tags, budget}`,
+    // continua aceito logo abaixo para quem ainda o use.
+    if (requestBody && typeof requestBody.respostas === "object" && requestBody.respostas !== null) {
+      const criterios = criteriosDoCorpo(requestBody);
+      const recomendacao = recomendar(disponiveisDe(await getEstoque()), criterios);
+
+      // Só o id que o próprio corpo trouxe. Sem cair no cookie `ag_uid`: o
+      // CarMatch deixa de mandá-lo quando a pessoa recusou o rastreamento, e
+      // ler o cookie aqui desfaria a recusa em silêncio.
+      const agUid = typeof requestBody.ag_uid === "string" && requestBody.ag_uid ? requestBody.ag_uid : undefined;
+      logCarMatchQueried({
+        tags: recomendacao.filtros,
+        maxBudget: criterios.teto ?? undefined,
+        resultsCount: recomendacao.cartoes.length,
+        matchedVehicles: recomendacao.cartoes.map((c) => `${nomeCurto(c.veiculo)} (ID: ${c.veiculo.id})`),
+        agUid,
+      });
+
+      return sendResponse(
+        NextResponse.json({
+          success: true,
+          count: recomendacao.cartoes.length,
+          recomendacao,
+        }),
+      );
+    }
     
     // 2. Extract and format query filters
     const tags = Array.isArray(requestBody.tags)
@@ -147,3 +185,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
+
+const FILTROS_AFROUXAVEIS: readonly ChaveDeFiltro[] = ["portas", "automatico", "carroceria"];
+
+/** Número finito e não negativo, ou `null`. O corpo vem do navegador. */
+function valor(bruto: unknown): number | null {
+  const n = typeof bruto === "number" ? bruto : typeof bruto === "string" ? Number(bruto) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Os critérios a partir do corpo, sem confiar nele: resposta fora da lista é
+ * ignorada pelo `switch` de `criteriosDasRespostas`, número inválido vira
+ * ausência, e só os três filtros conhecidos podem ser afrouxados (o "e se").
+ * O teto nunca é afrouxado — decisão do dono em 25/09.
+ */
+function criteriosDoCorpo(corpo: Record<string, unknown>): Criterios {
+  const objeto = (x: unknown): Record<string, unknown> =>
+    typeof x === "object" && x !== null ? (x as Record<string, unknown>) : {};
+  const r = objeto(corpo.respostas);
+  const texto = (x: unknown) => (typeof x === "string" ? x : undefined);
+  const orcamento = objeto(corpo.orcamento);
+  const max = valor(orcamento.max);
+  const teto = max && max > 0 ? max : null;
+  // Piso acima do teto só vem de corpo forjado; vira "sem piso", e não uma
+  // faixa impossível escrita na tela ("de R$ 100 mil a R$ 50 mil").
+  const min = valor(orcamento.min) ?? 0;
+
+  let criterios = criteriosDasRespostas({
+    orcamento: { min: teto !== null && min > teto ? 0 : min, max: teto },
+    objetivo: texto(r.objetivo),
+    experiencia: texto(r.experiencia),
+    estilo: texto(r.estilo),
+  });
+
+  const afrouxar = Array.isArray(corpo.afrouxar) ? corpo.afrouxar : [];
+  for (const chave of FILTROS_AFROUXAVEIS) {
+    if (afrouxar.includes(chave)) criterios = semFiltro(criterios, chave);
+  }
+  return criterios;
+}
