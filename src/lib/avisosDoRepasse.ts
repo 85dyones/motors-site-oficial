@@ -117,11 +117,20 @@ export function mensagemDeAvisoDoRepasse(
   const primeiroNome = inscrito.nome.trim().split(/\s+/)[0];
   const carro = [r.marca, r.modelo, r.versao, String(r.ano_modelo)].filter(Boolean).join(" ");
   const conta = contaDoRepasse(r);
+  // "Antes do site" só é verdade enquanto o carro é só para lojistas. Depois do
+  // switch "abrir para todos" o lojista ainda aparece na lista (e na frente),
+  // e a mensagem não pode afirmar o que já deixou de ser fato.
+  let abertura: string;
+  if (inscrito.trilha !== "lojista") {
+    abertura = `Entrou no Repasse Motors um carro que combina com o que você procura: ${carro}.`;
+  } else if (soParaLojistas(r)) {
+    abertura = `Repasse Motors, aviso para lojistas antes do site: ${carro}.`;
+  } else {
+    abertura = `Entrou no Repasse Motors: ${carro}.`;
+  }
   const linhas: Array<string | null> = [
     `Olá, ${primeiroNome}!`,
-    inscrito.trilha === "lojista"
-      ? `Repasse Motors, aviso para lojistas antes do site: ${carro}.`
-      : `Entrou no Repasse Motors um carro que combina com o que você procura: ${carro}.`,
+    abertura,
     `${r.quilometragem.toLocaleString("pt-BR")} km · ${etiquetaDoRepasse(r)}.`,
     temLaudo(r) ? "O laudo cautelar sai a pedido, antes de qualquer sinal." : null,
     `À vista: ${emReais(r.preco)}.`,

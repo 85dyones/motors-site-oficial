@@ -99,9 +99,23 @@ describe("a mensagem", () => {
     expect(semLaudo).not.toContain("laudo cautelar sai");
   });
 
-  it("lojista recebe o aviso de antes do site", () => {
-    const texto = mensagemDeAvisoDoRepasse(repasseDeTeste(), { nome: "Auto Bom", trilha: "lojista" }, url);
+  it("lojista recebe o aviso de antes do site enquanto o carro é só para lojistas", () => {
+    const texto = mensagemDeAvisoDoRepasse(SO_LOJISTAS, { nome: "Auto Bom", trilha: "lojista" }, url);
     expect(texto).toContain("antes do site");
+    expect(termosProibidosEm(texto)).toEqual([]);
+  });
+
+  it("com o carro aberto a todos, o lojista não lê 'antes do site'", () => {
+    const texto = mensagemDeAvisoDoRepasse(ABERTO, { nome: "Auto Bom", trilha: "lojista" }, url);
+    expect(texto).not.toContain("antes do site");
+    expect(texto).toContain("Entrou no Repasse Motors: Renault Kwid Zen 1.0 2021.");
+  });
+
+  it("a linha de quem compra para usar não muda com o switch", () => {
+    for (const r of [SO_LOJISTAS, ABERTO]) {
+      const texto = mensagemDeAvisoDoRepasse(r, { nome: "Ana", trilha: "consumidor" }, url);
+      expect(texto).toContain("Entrou no Repasse Motors um carro que combina com o que você procura: Renault Kwid Zen 1.0 2021.");
+    }
   });
 
   it("acima da FIPE, a mensagem não fala em diferença", () => {
