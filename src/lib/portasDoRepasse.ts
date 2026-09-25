@@ -62,17 +62,28 @@ export function faixaNaHome(visiveis: readonly Repasse[], agora: Date): FaixaNaH
  * do sitemap (`src/app/sitemap.ts`, "Falha ao ler os repasses").
  *
  * Registra como `quebra`, e não só no `console`: sem isso a faixa sumiria das
- * duas páginas mais vistas sem ninguém saber. A enxurrada não vem — com
- * `revalidate = 60` há no máximo uma regeneração por minuto por página, a
- * carência de 10 s agrupa pelo assunto e o disjuntor de 60 s cala a gravação
- * quando o próprio banco está fora (`observabilidade.ts`). A gravação é
+ * duas páginas mais vistas sem ninguém saber. A enxurrada não vem, e quem a
+ * segura é a cadência do ISR: com `revalidate = 60` há no máximo uma
+ * regeneração por minuto por página, cerca de 2 linhas por minuto, todas num
+ * grupo só da triagem (mesmo assunto, mesma mensagem). A carência de 10 s de
+ * `observabilidade.ts` é por hash e por instância, então não junta duas
+ * regenerações da mesma página, que ficam a 60 s uma da outra; o disjuntor de
+ * 60 s cala a gravação quando o próprio banco está fora. A gravação é
  * esperada: tem teto de 2 s, nunca lança, e esperar garante que a linha saia
  * antes de a função congelar.
+ *
+ * O `catch` não pode lançar, senão a pane volta a derrubar a página. Por isso
+ * nada ali supõe que a rejeição seja um `Error`: com `undefined`,
+ * `erro.message` lançaria `TypeError`, e com um objeto sem protótipo até
+ * `String(erro)` lançaria. O valor vai cru ao `console.error`, que formata
+ * qualquer coisa, e cru ao `registrarFalha`, que nunca lança.
  */
 export async function lerRepassesDasPortas(agora: Date, rota: RotaDasPortas): Promise<Repasse[]> {
-  return lerRepassesPublicos(agora, rota).catch(async (erro: unknown): Promise<Repasse[]> => {
-    console.error(`[Portas do repasse] Falha ao ler os repasses em ${rota}:`, (erro as Error).message);
+  try {
+    return await lerRepassesPublicos(agora, rota);
+  } catch (erro: unknown) {
+    console.error(`[Portas do repasse] Falha ao ler os repasses em ${rota}:`, erro instanceof Error ? erro.message : erro);
     await registrarFalha("quebra", "repasse-leitura-das-portas", erro, { rota, origem: "servidor" });
     return [];
-  });
+  }
 }

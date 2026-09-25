@@ -8,13 +8,19 @@ import { repasseDeTeste } from "./repasseDeTeste";
  * troca a pane por lista vazia, registrando a falha para a faixa não sumir
  * sem ninguém saber.
  */
-const estado = vi.hoisted(() => ({ repasses: [] as unknown[], falha: null as Error | null, rotas: [] as string[] }));
+// `falha` é uma caixa, e não o erro solto: só assim o dublê consegue rejeitar
+// com um valor falso (`undefined`), que `if (estado.falha)` deixaria passar.
+const estado = vi.hoisted(() => ({
+  repasses: [] as unknown[],
+  falha: null as { valor: unknown } | null,
+  rotas: [] as string[],
+}));
 const registrarFalha = vi.hoisted(() => vi.fn(async (..._args: unknown[]) => {}));
 
 vi.mock("../src/lib/leituraDosRepasses", () => ({
   lerRepassesPublicos: async (_agora: Date, rota: string) => {
     estado.rotas.push(rota);
-    if (estado.falha) throw estado.falha;
+    if (estado.falha) throw estado.falha.valor;
     return estado.repasses;
   },
 }));
@@ -117,7 +123,7 @@ describe("a leitura das portas", () => {
   it("pane vira lista vazia, e a falha é registrada como quebra, com a rota", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const erro = new Error("Leitura dos repasses falhou: relation \"repasses\" does not exist");
-    estado.falha = erro;
+    estado.falha = { valor: erro };
 
     await expect(lerRepassesDasPortas(AGORA, "/")).resolves.toEqual([]);
     expect(registrarFalha).toHaveBeenCalledTimes(1);
@@ -125,5 +131,22 @@ describe("a leitura das portas", () => {
       rota: "/",
       origem: "servidor",
     });
+  });
+
+  // O `catch` não pode supor um `Error`: com `undefined`, `(erro as Error).message`
+  // lança; com um objeto sem protótipo, `String(erro)` lança. Em qualquer dos
+  // dois a página cairia pela mesma pane que a leitura devia absorver.
+  it.each([
+    ["undefined", undefined],
+    ["um objeto sem protótipo", Object.create(null) as unknown],
+  ])("rejeição sem Error (%s) também vira lista vazia, registrada com o valor cru", async (_nome, valor) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    estado.falha = { valor };
+
+    await expect(lerRepassesDasPortas(AGORA, "/estoque")).resolves.toEqual([]);
+    expect(registrarFalha).toHaveBeenCalledTimes(1);
+    const [natureza, assunto, detalhe, contexto] = registrarFalha.mock.calls[0];
+    expect([natureza, assunto, contexto]).toEqual(["quebra", "repasse-leitura-das-portas", { rota: "/estoque", origem: "servidor" }]);
+    expect(detalhe).toBe(valor);
   });
 });
