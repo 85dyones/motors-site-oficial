@@ -149,10 +149,37 @@ alinhar o workflow.
 ```
 
 **`recomendacao` é interna.** É a faixa de compra sugerida ao consultor, sempre
-recalculada no servidor a partir do estado e da km — nunca copiada do corpo da
-requisição, porque o cliente é público e não pode ditar o preço que o consultor
-lê. **O cliente nunca vê esse valor no site.** Regra em
-`src/lib/avaliacaoRecomendacao.ts`.
+recalculada no servidor a partir do estado, da km e do ano — nunca copiada do
+corpo da requisição, porque o cliente é público e não pode ditar o preço que o
+consultor lê. **O cliente nunca vê esse valor no site** (desde 2026-09-24 o
+formulário nem a calcula mais). Regra em `src/lib/avaliacaoRecomendacao.ts`.
+
+Desde 2026-09-24 a régua é a **curva de deságio de `parametros_avaliacao`**
+(spec 11), no lugar das três faixas fixas de 2026-08-06. O formato mudou:
+
+- `faixa`: `excepcional` · `com_avarias` · `padrao` · `acima_do_teto` (antes:
+  `otimo` · `reparos_leves` · `avarias_maiores`);
+- `desconto_min` / `desconto_max`: sempre número (antes o máximo podia ser
+  `null`);
+- `componentes`: a conta, um item por parcela (`nome`, `pp_min`, `pp_max`,
+  `motivo`) — base, km contra o esperado para a idade, avarias, estado
+  excepcional;
+- `acima_do_teto`, `km_esperado`, `km_desvio`, `regra`, `parametros_id`,
+  `parametros_desde`: novos. `regra` é `curva_spec11_<data>` — a data é a da
+  composição da conta no código; compare pelo prefixo `curva_spec11`;
+- `km_esperado` e `km_desvio` são `null` sem km ou sem ano-modelo legível
+  (o degrau de km fica para a vistoria e vira um item de `sinais`);
+- `km_acima_do_limite`: **saiu** (a curva não tem mais limite fixo de 150 mil
+  km; o km entra pelo desvio sobre o esperado);
+- `sinais`, `faixa_label`, `resumo`: seguem, com o mesmo sentido. `sinais`
+  agora traz também o alerta de hodômetro (km baixo demais para a idade);
+- `valor_sugerido_min` / `valor_sugerido_max`: seguem, e vêm **`null`**
+  quando `acima_do_teto` é `true` (não é compra: recusar ou repasse) ou
+  quando a FIPE do envio não é legível.
+
+`recomendacao` pode chegar **`null`**: quando a linha vigente de
+`parametros_avaliacao` não é legível, a avaliação segue sem sugestão — nunca
+com uma régua inventada no código.
 
 `quilometragem` é `null` quando não informada — não é `0`.
 

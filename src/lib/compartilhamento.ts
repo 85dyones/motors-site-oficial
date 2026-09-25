@@ -80,8 +80,11 @@ export const PAGINAS_COMPARTILHAVEIS = [
     caminho: "/avaliacao",
     rotuloCard: "Avaliação Express",
     tituloPadrao: "Quanto vale o seu carro hoje",
+    // Mesma frase da meta de `/avaliacao`: sem o "cruzados com o giro real
+    // do nosso estoque" de antes de 24/09/2026, que afirmava um cálculo que
+    // o site não faz.
     descricaoPadrao:
-      "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Um consultor retorna no WhatsApp com a proposta.",
+      "Referência oficial da Tabela FIPE, na versão exata do seu carro. Um consultor retorna no WhatsApp com a proposta.",
   },
   {
     id: "carroPerfeito",
