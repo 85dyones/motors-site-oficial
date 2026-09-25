@@ -164,6 +164,7 @@ describe("FichaDeEstadoNoEditor", () => {
         orcamentoEm: r.orcamento_em,
         podeEditar,
         aoMudar: () => {},
+        aoMudarItem: () => {},
       }),
     );
 

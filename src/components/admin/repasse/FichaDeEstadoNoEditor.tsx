@@ -26,6 +26,7 @@ export default function FichaDeEstadoNoEditor({
   orcamentoEm,
   podeEditar,
   aoMudar,
+  aoMudarItem,
 }: {
   repasseId: string;
   itens: ItemDeEstado[];
@@ -34,6 +35,12 @@ export default function FichaDeEstadoNoEditor({
   orcamentoEm: string | null;
   podeEditar: boolean;
   aoMudar: (parcial: Partial<ParteDaFicha>) => void;
+  /**
+   * Muda um item sobre a lista ATUAL do dono do estado, não sobre o `itens`
+   * deste render. É por onde a foto entra: o envio leva segundos, e o que se
+   * digitou nesse meio-tempo não pode ser apagado por um retrato velho.
+   */
+  aoMudarItem: (indice: number, parcial: Partial<ItemDeEstado>) => void;
 }) {
   const [enviando, setEnviando] = useState<number | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -57,7 +64,7 @@ export default function FichaDeEstadoNoEditor({
         .upload(caminho, versoes.web, { contentType: versoes.web.type, upsert: false, cacheControl: "31536000" });
       if (error) throw new Error(error.message);
       const url = supabase.storage.from(BUCKET_DE_FOTOS).getPublicUrl(caminho).data.publicUrl;
-      aoMudar({ itens_de_estado: comItem(itens, indice, { foto: url }) });
+      aoMudarItem(indice, { foto: url });
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : "Não deu para enviar a foto.");
     } finally {
@@ -128,20 +135,21 @@ export default function FichaDeEstadoNoEditor({
                     }}
                   />
                 )}
+                {enviando === i && <span role="status" className="text-[11px] text-mt-neutral-700">Enviando foto…</span>}
               </div>
               <label className="flex items-center gap-2 text-xs md:col-span-3">
                 <input type="checkbox" checked={item.estetico} disabled={!podeEditar} onChange={(e) => aoMudar({ itens_de_estado: comItem(itens, i, { estetico: e.target.checked }) })} />
                 Só estético
               </label>
               {podeEditar && (
-                <button type="button" aria-label={`Remover o defeito ${i + 1}`} onClick={() => aoMudar({ itens_de_estado: semItem(itens, i) })} className="mt-btn mt-btn-contorno mt-foco px-3 py-1.5 text-[10px]">
+                <button type="button" aria-label={`Remover o defeito ${i + 1}`} disabled={enviando !== null} onClick={() => aoMudar({ itens_de_estado: semItem(itens, i) })} className="mt-btn mt-btn-contorno mt-foco px-3 py-1.5 text-[10px]">
                   Remover
                 </button>
               )}
             </div>
           ))}
           {podeEditar && (
-            <button type="button" onClick={() => aoMudar({ itens_de_estado: [...itens, ITEM_VAZIO] })} className="mt-btn mt-btn-contorno mt-foco self-start px-4 py-2 text-[11px]">
+            <button type="button" disabled={enviando !== null} onClick={() => aoMudar({ itens_de_estado: [...itens, ITEM_VAZIO] })} className="mt-btn mt-btn-contorno mt-foco self-start px-4 py-2 text-[11px]">
               Adicionar defeito
             </button>
           )}

@@ -12,6 +12,7 @@ import type { InscritoDoRepasse } from "../../../lib/avisosDoRepasse";
 import { checklistDoRepasse, termosProibidosEm } from "../../../lib/checklistDoRepasse";
 import { destinoDoRepasse } from "../../../lib/destinoDasFotos";
 import { alteracoes, formularioDe, podeEditarORepasse, validaRepasse, type FormularioDoRepasse } from "../../../lib/edicaoDoRepasse";
+import { comItem } from "../../../lib/fichaDeEstado";
 import { fotosDoVeiculo } from "../../../lib/fotosDoVeiculo";
 import type { Perfil } from "../../../lib/permissoes";
 import {
@@ -307,6 +308,7 @@ export default function EditorDeRepasse({
         orcamentoEm={form.orcamento_em}
         podeEditar={podeEditar}
         aoMudar={mudar}
+        aoMudarItem={(i, parcial) => setForm((f) => ({ ...f, itens_de_estado: comItem(f.itens_de_estado, i, parcial) }))}
       />
 
       <section className="flex flex-col gap-3">
