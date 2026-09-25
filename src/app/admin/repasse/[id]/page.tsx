@@ -1,8 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import EditorDeRepasse from "../../../../components/admin/repasse/EditorDeRepasse";
+import PedidosDeExame from "../../../../components/admin/repasse/PedidosDeExame";
 import { COLUNAS_DO_INSCRITO, inscritoDaLinha, type InscritoDoRepasse } from "../../../../lib/avisosDoRepasse";
 import { validaRepasse } from "../../../../lib/edicaoDoRepasse";
 import { papelPadraoPorEmail } from "../../../../lib/papelPadrao";
+import { COLUNAS_DO_PEDIDO_DE_EXAME, pedidoDeExameDaLinha } from "../../../../lib/pedidosDeExame";
 import { ehStaff, perfisDe } from "../../../../lib/permissoes";
 import { ehIdDeRepasse } from "../../../../lib/repasse";
 import { repasseDoPainelDaLinha } from "../../../../lib/repasseDoPainel";
@@ -39,6 +41,19 @@ export default async function RepassePage({ params }: { params: Promise<{ id: st
   const repasse = data ? repasseDoPainelDaLinha(data as Record<string, unknown>) : null;
   if (!repasse) notFound();
 
+  // Os pedidos de exame deste carro (spec §4.4). Com a SESSÃO: `leads` é
+  // lida por toda a equipe (`leads_leitura_staff`), a mesma régua do Kanban.
+  const { data: linhasDosPedidos } = await supabase
+    .from("leads")
+    .select(COLUNAS_DO_PEDIDO_DE_EXAME)
+    .eq("repasse_id", id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const pedidos = ((linhasDosPedidos ?? []) as unknown as Record<string, unknown>[]).flatMap((linha) => {
+    const pedido = pedidoDeExameDaLinha(linha);
+    return pedido ? [pedido] : [];
+  });
+
   let inscritos: InscritoDoRepasse[] | null = null;
   let avisados: string[] = [];
   if (validaRepasse(perfis) && repasse.situacao === "publicado") {
@@ -54,12 +69,15 @@ export default async function RepassePage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <EditorDeRepasse
-      repasse={repasse}
-      perfis={perfis}
-      inscritos={inscritos}
-      avisados={avisados}
-      urlDaFicha={urlDoSite(`/repasse/${repasse.slug}`)}
-    />
+    <>
+      <EditorDeRepasse
+        repasse={repasse}
+        perfis={perfis}
+        inscritos={inscritos}
+        avisados={avisados}
+        urlDaFicha={urlDoSite(`/repasse/${repasse.slug}`)}
+      />
+      <PedidosDeExame pedidos={pedidos} />
+    </>
   );
 }
