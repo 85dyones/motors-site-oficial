@@ -4,10 +4,12 @@ import {
   fonteDoTipoDePagina,
   sanitizeGa4Id,
   sanitizeGtmId,
+  sanitizeMetaPixelId,
 } from "../lib/dataLayer";
 
 /**
- * GA4 e GTM no HTML SERVIDO — executam durante o parse, não na hidratação.
+ * GA4, GTM e o Meta Pixel no HTML SERVIDO — executam durante o parse, não na
+ * hidratação.
  *
  * ---------------------------------------------------------------------------
  * O número que motivou isto
@@ -46,15 +48,51 @@ import {
  * leituras sobre a mesma lista de caminhos e falha na divergência.
  *
  * ---------------------------------------------------------------------------
+ * O Meta Pixel, desde 2026-09-16
+ * ---------------------------------------------------------------------------
+ * O #46 subiu GA4 e GTM e deixou o pixel no tracker. Lá ele só inicializava
+ * depois de o `/api/settings` responder, porque o `companySettings.json` do
+ * repositório tem `metaPixelId: ""`: entrou aos 3,7 s em 02/09 e aos 5,4 s em
+ * 16/09. Quem saía antes não gerava `PageView`; com a API fora do ar o Meta
+ * ficava em zero; e o `fbq` ainda não existia quando a ficha aberta na chegada
+ * disparava o `ViewContent`, então só a metade do CAPI saía. O `_fbp`, que o
+ * `fbevents.js` grava, nascia tarde para esse `ViewContent` e para o lead
+ * enviado cedo.
+ *
+ * Agora o pixel sobe aqui, com o id do painel lido no servidor, o mesmo de onde
+ * vêm GA4 e GTM. Três escolhas que não são as do snippet oficial:
+ *
+ *   - **Sem `eventID` no `PageView`.** Ele não tem espelho no CAPI (`/api/capi`
+ *     não o aceita), e o do tracker nunca levou um. Se um dia ganhar espelho,
+ *     este `PageView` precisa do MESMO `eventID`, senão o Meta conta dois.
+ *   - **`init` sem parâmetro**, como o do tracker: nenhum dos dois manda
+ *     correspondência avançada. O `ag_uid` vai ao Meta só pelo CAPI.
+ *   - **O stub nasce DEPOIS do `appendChild`.** No snippet oficial ele nasce
+ *     antes; se a injeção lançasse, ficaria um `fbq` sem biblioteca, e o
+ *     snippet do tracker, que desiste quando `fbq` já existe, nunca carregaria
+ *     o `fbevents.js`. Pela mesma razão do `gtm.start` abaixo, a ordem não muda
+ *     o que a biblioteca encontra: ela é `async` e só executa depois deste
+ *     bloco inteiro.
+ *
+ * Um `PageView` por chegada, por construção: o tracker pula a inicialização
+ * quando a marca traz o pixel, e o efeito de navegação só conta troca de
+ * caminho. Não depende de o pixel descartar a repetição da mesma URL.
+ *
+ * Sem `<noscript>` com a imagem do pixel: sem JavaScript não há como ler a
+ * oposição, e a imagem contaria quem se opôs.
+ *
+ * ---------------------------------------------------------------------------
  * O que continua no `IntegrationsTracker`
  * ---------------------------------------------------------------------------
- * Tudo o mais: Meta Pixel, `_fbc`, parâmetros de campanha, e a reconfiguração
- * do GA4 quando o visitante navega sem recarregar. Aquele componente pula GA4 e
- * GTM quando encontra em `window.__mtTagsNoAto` o que este script de fato
- * injetou — sem isso o container entraria duas vezes e todo evento contaria em
- * dobro. O marcador só recebe um id DEPOIS da injeção daquela tag: marcador
- * que promete o que não entrou faz o tracker pular, e a tag não sobe por
- * ninguém.
+ * Tudo o mais: `_fbc`, parâmetros de campanha, as visualizações de cada
+ * navegação no cliente, e a subida de qualquer tag que este script não subiu
+ * (servidor sem id, injeção que lançou, oposição retirada na mesma aba).
+ * Aquele componente pula GA4, GTM e o pixel quando encontra em
+ * `window.__mtTagsNoAto` o que este script de fato injetou — sem isso o
+ * container entraria duas vezes e todo evento contaria em dobro, e o pixel
+ * contaria a chegada duas vezes. O marcador só recebe um id DEPOIS de a tag
+ * entrar (no pixel, depois do `init` e do `PageView`): marcador que promete o
+ * que não entrou faz o tracker pular, e a tag não sobe por ninguém.
  *
  * `CamadaDeDados` idem: lê `window.__mtTipoJaPublicado` para não repetir o
  * `page_context` da primeira página. Push com `event` aciona gatilho, então
@@ -63,12 +101,14 @@ import {
 export default async function BootstrapDeTags() {
   let ga4Id = "";
   let gtmId = "";
+  let pixelId = "";
   let assumeEventos = false;
 
   try {
     const { companySettings } = await getCachedSettings();
     ga4Id = sanitizeGa4Id(companySettings?.ga4Id || "");
     gtmId = sanitizeGtmId(companySettings?.gtmId || "");
+    pixelId = sanitizeMetaPixelId(companySettings?.metaPixelId || "");
     assumeEventos = companySettings?.gtmAssumeEventos === true;
   } catch {
     // Configuração indisponível não pode derrubar o layout: sem id, este
@@ -85,7 +125,7 @@ export default async function BootstrapDeTags() {
   // id. Então, sem `gtmAssumeEventos`, o GTM não entra no parse, mas entra na
   // hidratação, pelo tracker, uma vez — como antes desta mudança.
   const gtmLigado = Boolean(gtmId) && assumeEventos;
-  if (!ga4Id && !gtmLigado) return null;
+  if (!ga4Id && !gtmLigado && !pixelId) return null;
 
   const carga = JSON.stringify(cargaDaCamadaGlobal({ page_type: "other" }));
 
@@ -109,13 +149,18 @@ export default async function BootstrapDeTags() {
   // evento que disparam os gatilhos de carregamento de página. O script é
   // `async` e só executa depois deste bloco inteiro, então a ordem não muda o
   // que o container encontra na fila.
+  //
+  // No pixel, o stub vai depois do `appendChild` pelo mesmo motivo, e a marca
+  // depois do `init` e do `PageView`: um `fbq` que já existia e lança não pode
+  // deixar a marca prometendo um pixel que não inicializou. Se o `fbq` já
+  // existe, o script não insere uma segunda biblioteca, como o snippet oficial.
   const script = `(function(){
   try{
     if(localStorage.getItem('ag_cookie_consent')==='rejected')return;
   }catch(e){}
   var w=window,d=document;
   w.dataLayer=w.dataLayer||[];
-  var m=w.__mtTagsNoAto={ga4:null,gtm:null};
+  var m=w.__mtTagsNoAto={ga4:null,gtm:null,meta:null};
   try{
     var tipoDa=${fonteDoTipoDePagina()};
     var caminho=w.location.pathname;
@@ -146,6 +191,25 @@ export default async function BootstrapDeTags() {
     d.head.appendChild(j);
     w.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});
     m.gtm='${gtmId}';
+  }catch(e){}`
+      : ""
+  }
+  ${
+    pixelId
+      ? `try{
+    var n=w.fbq;
+    if(!n){
+      var t=d.createElement('script');t.async=true;
+      t.src='https://connect.facebook.net/en_US/fbevents.js';
+      d.head.appendChild(t);
+      n=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments);};
+      n.push=n;n.loaded=true;n.version='2.0';n.queue=[];
+      w.fbq=n;
+      if(!w._fbq)w._fbq=n;
+    }
+    w.fbq('init','${pixelId}');
+    w.fbq('track','PageView');
+    m.meta='${pixelId}';
   }catch(e){}`
       : ""
   }

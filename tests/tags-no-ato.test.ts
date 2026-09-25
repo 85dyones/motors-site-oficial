@@ -9,6 +9,7 @@ import {
   fonteDoTipoDePagina,
   sanitizeGa4Id,
   sanitizeGtmId,
+  sanitizeMetaPixelId,
   tipoDaPagina,
 } from "../src/lib/dataLayer";
 
@@ -34,6 +35,11 @@ import {
  *
  * O arquivo roda em `jsdom` por causa da última suíte, que monta o
  * `IntegrationsTracker` de verdade no mesmo DOM em que o script servido rodou.
+ *
+ * O Meta Pixel entrou no script servido em 2026-09-16. Aqui ficam as travas de
+ * fonte e de marca que ele divide com GA4 e GTM; a contagem de `init` e
+ * `PageView` com o tracker montado mora em `tests/meta-no-ato.test.ts`, que
+ * junta as duas janelas do jsdom numa só para o `fbq` ser um.
  */
 
 /**
@@ -230,6 +236,12 @@ describe("nada carrega duas vezes", () => {
     // subia um segundo container a cada divergência de id. Os cenários estão
     // executados na última suíte deste arquivo.
     expect(tracker).not.toMatch(/noAto\?\.gtm === gtmId/);
+    // O pixel segue o GTM: `fbq('track')` vai para todo pixel inicializado, e
+    // um segundo `init` mandaria cada evento para os dois. Com a marca, qualquer
+    // id, o tracker marca como inicializado e não repete o `PageView` da
+    // chegada. Os cenários estão executados em `meta-no-ato.test.ts`.
+    expect(tracker).toMatch(/if \(noAto\?\.meta\) \{/);
+    expect(tracker).not.toMatch(/noAto\?\.meta === metaPixelId/);
   });
 
   it("o bootstrap marca cada tag só DEPOIS de injetá-la", () => {
@@ -239,6 +251,16 @@ describe("nada carrega duas vezes", () => {
     // deu certo, faz o tracker pular uma tag que não entrou.
     expect(bootstrap.indexOf("m.ga4=")).toBeGreaterThan(bootstrap.indexOf("d.head.appendChild(g)"));
     expect(bootstrap.indexOf("m.gtm=")).toBeGreaterThan(bootstrap.indexOf("d.head.appendChild(j)"));
+    // No pixel, a marca vem depois do `init` e do `PageView`, que é quando ele
+    // de fato entrou.
+    const iMarcaDoPixel = bootstrap.indexOf("m.meta=");
+    expect(iMarcaDoPixel, "o bootstrap não marca o pixel").toBeGreaterThan(-1);
+    expect(iMarcaDoPixel).toBeGreaterThan(bootstrap.indexOf("d.head.appendChild(t)"));
+    expect(iMarcaDoPixel).toBeGreaterThan(bootstrap.indexOf("w.fbq('init'"));
+    expect(iMarcaDoPixel).toBeGreaterThan(bootstrap.indexOf("w.fbq('track','PageView')"));
+    // E o stub nasce depois do `appendChild`: stub criado antes de uma injeção
+    // que lança fica órfão, e o snippet do tracker desiste quando acha `fbq`.
+    expect(bootstrap.indexOf("w.fbq=n")).toBeGreaterThan(bootstrap.indexOf("d.head.appendChild(t)"));
   });
 
   it("a camada de dados não repete o page_context da primeira página", () => {
@@ -265,11 +287,25 @@ describe("o que é interpolado dentro de <script> passa por sanitizador", () => 
     expect(sanitizeGa4Id("")).toBe("");
   });
 
-  it("os dois sanitizadores vivem na lib, não duplicados no componente", () => {
+  it("o id do Meta Pixel idem — ia CRU para o script do tracker até 16/09", () => {
+    expect(sanitizeMetaPixelId("1410450786690090")).toBe("1410450786690090");
+    expect(sanitizeMetaPixelId(" 1410450786690090 ")).toBe("1410450786690090");
+    expect(sanitizeMetaPixelId("1410450786690090');fetch('//x');//")).toBe("");
+    expect(sanitizeMetaPixelId("<script>fbq('init', '1410450786690090')</script>")).toBe("");
+    expect(sanitizeMetaPixelId("141045078669009O")).toBe("");
+    expect(sanitizeMetaPixelId("")).toBe("");
+  });
+
+  it("os sanitizadores vivem na lib, não duplicados no componente", () => {
     expect(tracker).toMatch(/import\s*\{[^}]*sanitizeGtmId[^}]*\}\s*from\s*"\.\.\/lib\/dataLayer"/);
     expect(tracker).not.toMatch(/function sanitizeGtmId/);
     expect(bootstrap).toMatch(/sanitizeGa4Id/);
     expect(bootstrap).toMatch(/sanitizeGtmId/);
+    // O pixel passa pelo mesmo sanitizador nos dois lados: é a mesma fronteira,
+    // e o tracker compara o id que leu com o da marca.
+    expect(tracker).toMatch(/import\s*\{[^}]*sanitizeMetaPixelId[^}]*\}\s*from\s*"\.\.\/lib\/dataLayer"/);
+    expect(tracker).toContain("sanitizeMetaPixelId(companySettings?.metaPixelId");
+    expect(bootstrap).toContain("sanitizeMetaPixelId(companySettings?.metaPixelId");
   });
 });
 
@@ -356,9 +392,40 @@ describe("o script servido, executado contra um DOM de mentira", () => {
     // `async` nos dois: o script está no `<head>` e não pode bloquear o parse.
     expect(criados.every((s) => s.async)).toBe(true);
 
-    // E deixa dito o que subiu, para o tracker não repetir.
-    expect(janela.__mtTagsNoAto).toEqual({ ga4: "G-KBL1MFN9E3", gtm: "GTM-TB665RN9" });
+    // E deixa dito o que subiu, para o tracker não repetir. Sem pixel no
+    // painel, a marca do pixel fica vazia, e o tracker segue como antes.
+    expect(janela.__mtTagsNoAto).toEqual({ ga4: "G-KBL1MFN9E3", gtm: "GTM-TB665RN9", meta: null });
     expect(janela.__mtTipoJaPublicado).toBe("/carros/jeep/renegade");
+  });
+
+  it("com o pixel no painel, carrega o fbevents.js, inicializa e conta a chegada — e marca", async () => {
+    cenario.servidor = { ...PRODUCAO, metaPixelId: "1410450786690090" };
+    const { criados, janela } = await executar();
+
+    const biblioteca = criados.filter((s) => s.src === "https://connect.facebook.net/en_US/fbevents.js");
+    expect(biblioteca).toHaveLength(1);
+    expect(biblioteca[0].async).toBe(true);
+
+    const fila = (janela._fbq as { queue: ArrayLike<unknown>[] }).queue;
+    expect([...fila].map((item) => Array.from(item))).toEqual([
+      ["init", "1410450786690090"],
+      ["track", "PageView"],
+    ]);
+    expect(janela.fbq).toBe(janela._fbq);
+    expect(janela.__mtTagsNoAto).toEqual({
+      ga4: "G-KBL1MFN9E3",
+      gtm: "GTM-TB665RN9",
+      meta: "1410450786690090",
+    });
+  });
+
+  it("id do pixel sujo no painel não entra no HTML", async () => {
+    cenario.servidor = { ...PRODUCAO, metaPixelId: "1410450786690090');fetch('//x');//" };
+    const { criados, janela, fonte } = await executar();
+    expect(fonte).not.toContain("fetch(");
+    expect(fonte).not.toContain("fbevents.js");
+    expect(criados.some((s) => s.src.includes("fbevents.js"))).toBe(false);
+    expect(janela.fbq).toBeUndefined();
   });
 
   it("o tipo da página sai do caminho REAL, não de um padrão", async () => {
@@ -380,6 +447,17 @@ describe("o script servido, executado contra um DOM de mentira", () => {
     const { criados, janela } = await executar({ recusou: true });
     expect(criados).toHaveLength(0);
     expect(janela.dataLayer).toHaveLength(0);
+    expect(janela.__mtTagsNoAto).toBeUndefined();
+  });
+
+  it("quem recusou também não ganha o pixel: nem biblioteca, nem `fbq`", async () => {
+    // O `_fbp` nasce do `fbevents.js`, e a requisição a `facebook.com/tr` sai
+    // dele: sem a biblioteca inserida e sem `fbq`, não há quem os crie.
+    cenario.servidor = { ...PRODUCAO, metaPixelId: "1410450786690090" };
+    const { criados, janela } = await executar({ recusou: true });
+    expect(criados).toHaveLength(0);
+    expect(janela.fbq).toBeUndefined();
+    expect(janela._fbq).toBeUndefined();
     expect(janela.__mtTagsNoAto).toBeUndefined();
   });
 
@@ -443,6 +521,12 @@ describe("a oposição do visitante continua valendo", () => {
     );
     expect(i, "a checagem de oposição tem de vir ANTES de carregar o GTM").toBeLessThan(
       bootstrap.indexOf("gtm.js?id="),
+    );
+    const iPixel = bootstrap.indexOf("fbevents.js");
+    expect(iPixel, "o bootstrap não carrega o pixel").toBeGreaterThan(-1);
+    expect(i, "a checagem de oposição tem de vir ANTES de carregar o pixel").toBeLessThan(iPixel);
+    expect(i, "a checagem de oposição tem de vir ANTES do stub do pixel").toBeLessThan(
+      bootstrap.indexOf("w.fbq=n"),
     );
   });
 
@@ -653,7 +737,7 @@ describe("no mesmo DOM: o script servido e o tracker, contando o que entra", () 
     // fica órfão na fila e soma dois com o do tracker.
     expect(contagem(), "com o tracker").toEqual(TUDO_UMA_VEZ);
     expect(soOScript, "só o script servido").toEqual({ ...TUDO_UMA_VEZ, containers: 0, eventosGtmJs: 0 });
-    expect(marcador).toEqual({ ga4: "G-KBL1MFN9E3", gtm: null });
+    expect(marcador).toEqual({ ga4: "G-KBL1MFN9E3", gtm: null, meta: null });
   });
 
   it("injeção do GA4 lança no parse: o tracker carrega a biblioteca e dá o config, uma vez", async () => {
@@ -665,7 +749,7 @@ describe("no mesmo DOM: o script servido e o tracker, contando o que entra", () 
     await hidratar(PRODUCAO);
     expect(contagem(), "com o tracker").toEqual(TUDO_UMA_VEZ);
     expect(soOScript, "só o script servido").toEqual({ ...TUDO_UMA_VEZ, bibliotecas: 0, configs: {} });
-    expect(marcador).toEqual({ ga4: null, gtm: "GTM-TB665RN9" });
+    expect(marcador).toEqual({ ga4: null, gtm: "GTM-TB665RN9", meta: null });
   });
 
   it("sem `gtmAssumeEventos` o GTM fica fora do parse e entra uma vez na hidratação", async () => {
