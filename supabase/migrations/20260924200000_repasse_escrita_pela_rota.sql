@@ -5,9 +5,10 @@
 --
 -- Decisão I4 da revisão final do PR 1. Com as policies de 20260924180000,
 -- qualquer pessoa da equipe publicava um carro direto pelo PostgREST, sem
--- validador e sem checklist. A régua de quem valida (Administrador, Gestor e
--- Comercial) e o checklist vivem em código testado
--- (src/lib/transicoesDoRepasse.ts e src/lib/edicaoDoRepasse.ts): a rota do
+-- validador e sem checklist. As regras vivem em código testado: o checklist
+-- em src/lib/checklistDoRepasse.ts; quem valida (Administrador, Gestor e
+-- Comercial), as transições e os campos editáveis em
+-- src/lib/transicoesDoRepasse.ts e src/lib/edicaoDoRepasse.ts. A rota do
 -- painel roda o portão e grava com a chave de serviço. Aqui:
 --
 --   1. `authenticated` perde a escrita nas três tabelas e as policies de
@@ -109,6 +110,16 @@ begin
     ) then
       raise exception 'ACEITE FALHOU: authenticated ainda escreve numa tabela do repasse';
     end if;
+
+    -- O positivo: a equipe continua lendo. Um SELECT revogado por engano
+    -- apagaria o painel inteiro, e o aceite acima diria OK.
+    if exists (
+      select 1
+      from unnest(array['public.repasses', 'public.repasse_inscritos', 'public.repasse_avisos']) as t(tabela)
+      where not has_table_privilege('authenticated', t.tabela, 'SELECT')
+    ) then
+      raise exception 'ACEITE FALHOU: authenticated perdeu a leitura numa tabela do repasse';
+    end if;
   else
     raise notice 'Papel authenticated inexistente (banco fora do Supabase): conferência de privilégio pulada.';
   end if;
@@ -122,14 +133,30 @@ begin
     raise exception 'ACEITE FALHOU: sobrou policy de escrita numa tabela do repasse';
   end if;
 
+  -- A leitura da lista é EXATAMENTE a das duas policies de quem valida, e
+  -- nenhuma delas abre por is_staff: "tem_papel(...) or is_staff(...)"
+  -- passaria num aceite que só procurasse tem_papel.
   if exists (
     select 1 from pg_policies
     where schemaname = 'public'
       and tablename in ('repasse_inscritos', 'repasse_avisos')
       and cmd = 'SELECT'
-      and qual not like '%tem_papel%'
+      and (
+        (tablename, policyname) not in (('repasse_inscritos', 'inscrito_validador_le'), ('repasse_avisos', 'aviso_validador_le'))
+        or coalesce(qual, '') not like '%tem_papel%'
+        or coalesce(qual, '') like '%is_staff%'
+      )
   ) then
     raise exception 'ACEITE FALHOU: a lista do repasse ainda é lida por quem não valida';
+  end if;
+
+  if (
+    select count(*) from pg_policies
+    where schemaname = 'public'
+      and cmd = 'SELECT'
+      and (tablename, policyname) in (('repasse_inscritos', 'inscrito_validador_le'), ('repasse_avisos', 'aviso_validador_le'))
+  ) <> 2 then
+    raise exception 'ACEITE FALHOU: falta a policy de leitura de quem valida na lista do repasse';
   end if;
 
   -- 1. arquivado sem data
@@ -223,7 +250,7 @@ begin
   returning id into completo;
   delete from public.repasses where id = completo;
 
-  raise notice 'Repasse (escrita) OK: authenticated sem escrita, lista só para quem valida, 5 violações recusadas pela restrição certa.';
+  raise notice 'Repasse (escrita) OK: authenticated só lê as três tabelas, lista lida só pelas duas policies de quem valida (sem is_staff), 5 violações recusadas pela restrição certa.';
 end $$;
 
 insert into supabase_migrations.schema_migrations (version, name)

@@ -83,6 +83,26 @@ describe("migração: a escrita passa pela rota", () => {
     expect(sql).toMatch(/repasse_reservado_tem_data\s+check\s*\(\s*situacao\s*<>\s*'reservado'\s+or\s+reservado_em\s+is\s+not\s+null\s*\)/i);
   });
 
+  it("o aceite da lista exige as duas policies pelo nome e recusa is_staff", () => {
+    const aceite = sql.match(/if\s+exists\s*\(\s*select\s+1\s+from\s+pg_policies[^;]*?cmd\s*=\s*'SELECT'[\s\S]*?raise\s+exception\s+'ACEITE FALHOU: a lista/i);
+    expect(aceite, "não achei o aceite da leitura da lista").not.toBeNull();
+    expect(aceite![0]).toMatch(
+      /\(tablename,\s*policyname\)\s+not\s+in\s+\(\('repasse_inscritos',\s*'inscrito_validador_le'\),\s*\('repasse_avisos',\s*'aviso_validador_le'\)\)/i,
+    );
+    expect(aceite![0]).toMatch(/like\s+'%is_staff%'/i);
+    expect(aceite![0]).toMatch(/not\s+like\s+'%tem_papel%'/i);
+  });
+
+  it("o aceite confere o positivo: a leitura de authenticated nas três e as duas policies de quem valida", () => {
+    expect(sql).toMatch(
+      /unnest\(array\['public\.repasses',\s*'public\.repasse_inscritos',\s*'public\.repasse_avisos'\]\)\s+as\s+t\(tabela\)\s+where\s+not\s+has_table_privilege\('authenticated',\s*t\.tabela,\s*'SELECT'\)/i,
+    );
+    const contagem = sql.match(/select\s+count\(\*\)\s+from\s+pg_policies[\s\S]*?\)\s*<>\s*2\s+then/i);
+    expect(contagem, "não achei a contagem das policies de quem valida").not.toBeNull();
+    expect(contagem![0]).toContain("'inscrito_validador_le'");
+    expect(contagem![0]).toContain("'aviso_validador_le'");
+  });
+
   it("tem aceite e se registra no livro-razão", () => {
     expect(sql).toContain("ACEITE FALHOU");
     expect(sql).toMatch(/values\s*\('20260924200000',\s*'repasse_escrita_pela_rota'\)/);
