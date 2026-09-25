@@ -134,7 +134,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
   const r = await lerRepassePorSlug(carro);
   if (!r) {
     const candidatos = await lerRepassePorSufixo(carro.slice(-6));
-    if (candidatos.length === 1 && candidatos[0].slug !== carro) {
+    if (candidatos.length === 1 && candidatos[0].slug !== carro && aparecePublicamente(candidatos[0], agora)) {
       permanentRedirect(`${CAMINHO_DO_REPASSE}/${candidatos[0].slug}`);
     }
     notFound();

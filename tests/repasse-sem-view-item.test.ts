@@ -14,7 +14,7 @@ import { join } from "node:path";
  *
  * A ficha (`src/app/repasse/[carro]/page.tsx`) e os componentes que ela monta
  * (`src/components/repasse/`) são exatamente a superfície que teria essa
- * tentação — é o ponto óbvio para alguém copiar o `trackViewItem` da PDP do
+ * tentação — é o ponto óbvio para alguém copiar o `trackVehicleView` da PDP do
  * estoque. Esta trava varre os dois diretórios inteiros, não uma lista de
  * arquivos: uma trava por lista protege a lista, não o invariante, e o
  * próximo componente do repasse nasceria sem cobertura.
@@ -25,7 +25,13 @@ const RAIZ_DO_REPASSE = [
   join(__dirname, "..", "src", "components", "repasse"),
 ];
 
-const PROIBIDOS = ["trackViewItem", "ViewContent", "view_item", "content_ids"];
+// `trackVehicleView` (`src/lib/telemetry.ts`) é quem de fato dispara
+// `view_item` (GA4) e `ViewContent` (Meta) na PDP do estoque, chamado de
+// `PDPClientWrapper.tsx:210`. Os quatro primeiros termos continuam pegando
+// quem escrever o disparo à mão (`fbq(…"ViewContent"…)`, `gtag(…"view_item"…)`
+// ou `content_ids` literal); os dois últimos pegam quem importar a função ou
+// o componente que já fazem isso pela PDP do estoque.
+const PROIBIDOS = ["ViewContent", "view_item", "content_ids", "trackVehicleView", "PDPClientWrapper"];
 
 /** Todo `.ts`/`.tsx` sob os diretórios do repasse, recursivamente. */
 function arquivosDoRepasse(dir: string, achados: string[] = []): string[] {

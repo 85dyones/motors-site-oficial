@@ -131,7 +131,11 @@ describe("a ficha do carro aberto a todos", () => {
     expect(html).toContain("Sex 25");
     expect(html).toContain("Sáb 26");
     expect(html).toContain("Seg 28");
-    expect(html).toContain("QUERO ESTE");
+    // Nó de texto exato da barra fixa do celular (`F.queroEste`, "QUERO ESTE"):
+    // "QUERO ESTE" sozinho também casaria com "QUERO ESTE REPASSE" (`F.quero`,
+    // o botão principal do topo), que já sai neste mesmo HTML — a asserção
+    // frouxa continuaria verde mesmo sem a barra.
+    expect(html).toContain(">QUERO ESTE<");
     expect(html).toContain("ABERTO A TODOS DESDE 24/09");
   });
 
@@ -175,6 +179,9 @@ describe("os outros estados", () => {
     expect(html).toContain("VENDIDO");
     expect(html).toContain("QUERO RECEBER O PRÓXIMO");
     expect(html).not.toContain('id="exame"');
+    // A barra fixa é só do estado aberto — um carro vendido não pode mostrar
+    // preço e "QUERO ESTE" fixos no rodapé do celular.
+    expect(html).not.toContain(">QUERO ESTE<");
     const carro = nos(html)[0] as Record<string, Record<string, unknown>>;
     expect(carro.offers.availability).toBe("https://schema.org/SoldOut");
     const meta = await ficha.generateMetadata({ params: Promise.resolve({ carro: SLUG }) });
@@ -191,6 +198,14 @@ describe("o endereço que não abre carro", () => {
   it("slug antigo: redireciona para o slug atual quando o sufixo acha um carro só", async () => {
     estado.porSufixo = [ABERTO];
     await expect(servida("renault-kwid-2021-3f9a1c")).rejects.toThrow(`NEXT_REDIRECT:/repasse/${SLUG}`);
+  });
+
+  it("sufixo acha um carro só, mas vendido fora da carência: não redireciona, não encontrado", async () => {
+    // M1: a leitura por sufixo não filtra situação nem carência. Sem conferir
+    // `aparecePublicamente`, o único candidato redirecionaria para um slug que
+    // também devolveria 404 — dois saltos em vez de um, e o 308 fica em cache.
+    estado.porSufixo = [{ ...VENDIDO_HA_MUITO, slug: "outro-3f9a1c" }];
+    await expect(servida("renault-kwid-2021-3f9a1c")).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("sufixo que acha dois carros: não adivinha", async () => {
