@@ -132,6 +132,14 @@ describe("/api/repasse-inscritos/[id]", () => {
     expect((await inscritos.PATCH(pedido({ cnpj_conferido: true }, "PATCH"), comId(INSCRITO))).status).toBe(409);
   });
 
+  it("inscrito saiu da lista no meio do PATCH: 404 e nenhuma auditoria", async () => {
+    banco.leituras.repasse_inscritos = { data: LINHA_DO_LOJISTA, error: null };
+    banco.responderEscrita(() => ({ data: null, error: null }));
+    const res = await inscritos.PATCH(pedido({ cnpj_conferido: true }, "PATCH"), comId(INSCRITO));
+    expect(res.status).toBe(404);
+    expect(banco.auditoria()).toEqual([]);
+  });
+
   it("marketing não mexe na lista", async () => {
     entrarComo(["marketing"]);
     banco.leituras.repasse_inscritos = { data: LINHA_DO_LOJISTA, error: null };

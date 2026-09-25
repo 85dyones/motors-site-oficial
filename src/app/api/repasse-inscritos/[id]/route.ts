@@ -34,14 +34,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .select(COLUNAS_DO_INSCRITO)
       .maybeSingle();
     if (gravado.error) return falhaDoBanco(gravado.error);
+    const novo = gravado.data ? inscritoDaLinha(gravado.data as Record<string, unknown>) : null;
+    if (!novo) {
+      // Alguém apagou a linha entre a leitura e esta escrita: zero linhas
+      // atualizadas não é erro de banco, mas também não é sucesso — sem isto,
+      // a rota gravava auditoria falsa e devolvia 200 com dado obsoleto.
+      return NextResponse.json(
+        { error: "Inscrito não encontrado. A pessoa pode ter saído da lista." },
+        { status: 404 },
+      );
+    }
     await registrarAcaoSensivel(
       admin,
       "repasse.inscrito.conferir",
       `${id}: CNPJ ${decisao.colunas.cnpj_conferido_em ? "conferido" : "desmarcado"}`,
       sessao.autor,
     );
-    const novo = gravado.data ? inscritoDaLinha(gravado.data as Record<string, unknown>) : null;
-    return NextResponse.json({ ok: true, inscrito: novo ?? { ...inscrito, cnpj_conferido_em: decisao.colunas.cnpj_conferido_em } });
+    return NextResponse.json({ ok: true, inscrito: novo });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao gravar." }, { status: 500 });
   }
