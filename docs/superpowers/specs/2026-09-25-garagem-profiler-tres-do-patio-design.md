@@ -354,17 +354,21 @@ motor turbo).
 
 - LGPD: o `ag_leads_history` do Profiler perdeu o perfil e não grava nada
   para quem recusou o rastreamento, e `/api/match` não lê mais o cookie
-  `ag_uid`. **Ficaram de fora**, por serem política do site inteiro e não do
-  Profiler: tirar nome, e-mail e WhatsApp do histórico (o `LeadCaptureModal`
-  os usa para preencher o formulário de novo, nos cinco formulários) e fazer
-  `getActiveAgUid` devolver o sentinela para quem recusou. Precisam de
-  decisão do dono.
-- Cadastro: a F-250 não foi corrigida no banco — é dado de produção e cabe ao
-  painel. A regra nova a tira do Profiler até lá.
+  `ag_uid`. **Ficaram de fora, por decisão do dono em 25/09**, as duas medidas
+  que eram política do site inteiro e não do Profiler: nome, e-mail e WhatsApp
+  **continuam** no histórico (o `LeadCaptureModal` os usa para preencher o
+  formulário de novo, nos cinco formulários), e `getActiveAgUid` **continua**
+  devolvendo o id de quem recusou o rastreamento. Não reabrir sem nova
+  decisão dele.
+- Cadastro: a F-250 foi corrigida pelo dono no painel em 25/09 (Picape, com
+  trabalho e off-road). `tipo` é coluna nossa, o sync não a reescreve
+  (`docs/PROPRIEDADE_DOS_CAMPOS.md`). O fixture de 25/09 guarda o estado de
+  antes, de propósito: é ele que prova a regra de divergência.
 - Evento por passo: `profiler_step` vai só pelo `gtag`, e não pelo
   `dataLayer`, porque o container publicado não o conhece
-  (`tests/contrato-do-container.test.ts`). No GA4, `profiler_step` precisa ser
-  registrado como dimensão personalizada para aparecer em relatório.
+  (`tests/contrato-do-container.test.ts`). No GA4, o dono registra
+  `profiler_step` como dimensão personalizada (escopo evento) para ele
+  aparecer em relatório — decidido em 25/09.
 - "Esportivo/Coupé" também passou a filtrar hatch, sedã e SUV: sem isso a
   Toro diesel era a primeira sugestão para quem marcava esportivo.
 - O "e se" e o ME AVISE aparecem quando a FAIXA tem menos de três carros,
