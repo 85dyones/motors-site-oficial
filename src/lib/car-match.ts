@@ -60,6 +60,9 @@ export const TAGS_DA_RESPOSTA: Record<string, readonly string[]> = {
   // 04 · estilo — carroceria, no vocabulário de `CARROCERIAS`
   suv: ["suv"],
   sedan: ["sedan"],
+  // Entrou com a opção Hatch do quiz, em 25/09. O quiz já não passa por esta
+  // tabela (ver `lib/motorDoMatch.ts`); ela segue valendo para `?tags=`.
+  hatch: ["hatch"],
   sport: ["esportivo", "coupe"],
   pickup: ["picape", "utilitario"],
   open: [],

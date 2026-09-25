@@ -66,7 +66,7 @@ e `eventSourceUrl` no POST para `/api/leads`:
 | Superfície | Evento |
 |---|---|
 | `PDPClientWrapper.tsx` | `ViewContent` (browser + CAPI), `Lead`, `Contact` |
-| `CarMatch.tsx` (`/carro-perfeito`) | `Search`, `Lead`, `Contact` |
+| `CarMatch.tsx` (`/carro-perfeito`) | `Search`, `Lead`, `Contact`; no GA4, também `profiler_step` (um por passo do quiz, só pelo `gtag`, desde 25/09) |
 | `AutoAvaliacao.tsx` (`/avaliacao`) | `CompleteRegistration`, `Lead`, `Contact` |
 | `ContatoClientWrapper.tsx` (`/contato`) | `Lead`, `Contact` |
 | `LeadPopup.tsx` (global, no layout) | `Lead`, `Contact` |
