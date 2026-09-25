@@ -262,9 +262,20 @@ export default function Header() {
               {/* O apoio da prancha "Portas de entrada" (hoje só o REPASSE),
                   à direita do rótulo, em peso normal. Só aqui: na barra do
                   desktop cada caractere custa folga (tabela de
-                  `lib/menuDoCabecalho.ts`). */}
+                  `lib/menuDoCabecalho.ts`).
+
+                  O `sr-only` entre os dois `<span>` visíveis é a pausa para o
+                  leitor de tela: sem nó de texto entre eles, o nome acessível
+                  do link virava a concatenação bruta "REPASSEabaixo da
+                  FIPE...", sem pausa (revisão de 25/09). `aria-label` no
+                  `Link` resolveria o mesmo problema, mas sobrescreveria o
+                  texto visível para quem usa controle por voz — o separador
+                  oculto não. */}
               {item.apoio && (
-                <span className="text-[11px] font-normal tracking-normal text-mt-accent-400">{item.apoio}</span>
+                <>
+                  <span className="sr-only">, </span>
+                  <span className="text-[11px] font-normal tracking-normal text-mt-accent-400">{item.apoio}</span>
+                </>
               )}
             </Link>
           ))}

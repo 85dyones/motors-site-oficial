@@ -98,13 +98,28 @@ describe("o menu do celular, aberto", () => {
     const menu = await menuAberto();
     const repasse = itens(menu).find((a) => a.getAttribute("href") === "/repasse");
     expect(repasse, "o item do repasse").toBeDefined();
-    expect([...repasse!.querySelectorAll("span")].map((s) => s.textContent)).toEqual([
+    // `:not(.sr-only)` exclui o separador da pausa para o leitor de tela
+    // (fix de 25/09, revisão): esta asserção é sobre os DOIS textos visíveis,
+    // não sobre o nome acessível do link — esse é o teste logo abaixo.
+    expect([...repasse!.querySelectorAll("span:not(.sr-only)")].map((s) => s.textContent)).toEqual([
       REPASSE_NA_NAVEGACAO.menu,
       REPASSE_NA_NAVEGACAO.apoioNoCelular,
     ]);
     for (const outro of itens(menu).filter((a) => a !== repasse)) {
       expect(outro.querySelectorAll("span"), outro.getAttribute("href") ?? "").toHaveLength(1);
     }
+  });
+
+  it("o apoio do REPASSE tem uma pausa para o leitor de tela, sem aria-label", async () => {
+    // Risco (3) da revisão de 25/09: os dois `<span>` visíveis são irmãos
+    // adjacentes sem nó de texto entre eles, e o nome acessível do link virava
+    // a concatenação bruta "REPASSEabaixo da FIPE, à vista", sem pausa. Um
+    // separador `sr-only` entre os dois resolve sem `aria-label` — que
+    // sobrescreveria o texto visível para quem usa controle por voz.
+    const menu = await menuAberto();
+    const repasse = itens(menu).find((a) => a.getAttribute("href") === "/repasse")!;
+    expect(repasse.textContent).toBe(`${REPASSE_NA_NAVEGACAO.menu}, ${REPASSE_NA_NAVEGACAO.apoioNoCelular}`);
+    expect(repasse.getAttribute("aria-label")).toBeNull();
   });
 
   it("a barra do desktop não leva o apoio", async () => {

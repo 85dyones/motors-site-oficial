@@ -58,23 +58,35 @@ export interface ItemDoMenu {
  * ---------------------------------------------------------------------------
  * Cabe na barra? Estes números são do código que está no ar
  * ---------------------------------------------------------------------------
- * ⚠️ 25/09: a tabela abaixo é de ANTES do `REPASSE`. Ele fica oculto até
- * 1280px e não pesa na régua nessa faixa. De 1281px para cima ele SOMAVA
- * déficit com o gap antigo do nav (`desktop:gap-7`, 28px): o telefone partia
- * em duas linhas, o mesmo defeito que tirou o CONTATO do degrau `desktop:`
- * em 07/09. Ruling do controlador, no mesmo dia (opção A): o nav passa para
- * `desktop:gap-6` (24px). Medido em produção, injetando o REPASSE no DOM
- * (barra de rolagem clássica, 15px), rótulo REPASSE = 60,5px:
+ * Remedido em 25/09, com o REPASSE (ruling do controlador, opção A: o nav
+ * passa para `desktop:gap-6`, 24px). Medido em produção
+ * (motorsstore.com.br/estoque), injetando o REPASSE no DOM logo depois do
+ * ESTOQUE, barra de rolagem clássica (15px), rótulo REPASSE = 60,5px. O
+ * telefone ficou em UMA linha em toda largura, nas sete medições:
  *
- *     viewport   gap do nav        telefone       folga na barra
- *     1281px     28px (gap-7)      2 linhas       negativa
- *     1281px     24px (gap-6)      1 linha          13px
- *     1536px     24px (gap-6)      1 linha         182px
+ *     viewport   REPASSE    CONTATO    folga na barra
+ *     1024px     oculto     oculto       59px
+ *     1280px     oculto     oculto      209px
+ *     1281px     visível    oculto       13px      ← degrau `desktop:`, o ponto mais apertado agora
+ *     1366px     visível    oculto       97,6px
+ *     1535px     visível    oculto      266,6px
+ *     1536px     visível    visível     182px      ← `2xl:`, o CONTATO volta
+ *     1920px     visível    visível     261px
  *
- * A reescrita completa da tabela abaixo (as demais larguras, 1024 a 1920px,
- * já com `desktop:gap-6`) são os passos 4 a 6 da Task 6 do plano do PR 4
- * (`docs/superpowers/plans/2026-09-25-repasse-pr4-portas.md`), antes do
- * merge. Não cite a tabela abaixo enquanto este aviso estiver aqui.
+ * 1024px e 1280px não mudaram: abaixo do degrau `desktop:` o REPASSE é
+ * `display:none` (não ocupa largura nem gap) e o `<nav>` segue em `gap-4`, a
+ * base que este PR não tocou. As cinco linhas de 1281px para cima são a
+ * remedição de hoje: com o gap antigo (`desktop:gap-7`, 28px) a folga em
+ * 1281px ficava NEGATIVA e o telefone partia em duas linhas — o mesmo defeito
+ * que tirou o CONTATO do degrau `desktop:` em 07/09. `desktop:gap-6` resolve
+ * as cinco, com folga positiva em toda a faixa: esta tabela está completa e
+ * não depende mais da Task 6.
+ *
+ * A partir de 25/09 o ponto mais apertado da barra é 1281px (13px), não mais
+ * 1024px. A tabela histórica abaixo — de ANTES do REPASSE, com
+ * `desktop:gap-7` — descreve o código de então, não o de hoje; ela fica
+ * porque a aritmética logo depois dela cita esses números de propósito, para
+ * a decisão que subiu o CONTATO para `2xl:` em 07/09.
  *
  * A barra tem 68px e uma linha só, então o sexto item pedia prova. Medido em
  * janela REAL do Chrome (a barra de rolagem clássica come 15px, e é ela que
@@ -82,7 +94,7 @@ export interface ItemDoMenu {
  * varrendo 1266–1300 e 1528–1553 de 1 em 1 px:
  *
  *     viewport   CONTATO    nav       folga na barra
- *     1024px     oculto     538,5px     59px      ← o ponto mais apertado
+ *     1024px     oculto     538,5px     59px      ← o ponto mais apertado, antes do REPASSE
  *     1280px     oculto     538,5px    209px
  *     1281px     oculto     586,5px     82px      ← degrau `desktop:`, gap 36px
  *     1366px     oculto     586,5px    167px
@@ -90,16 +102,18 @@ export interface ItemDoMenu {
  *     1536px     visível    676,0px    247px      ← `2xl:`, o CONTATO volta
  *     1920px     visível    676,0px    326px
  *
- * O telefone fica em UMA linha em toda largura, e a barra em 68px em todas.
+ * O telefone ficava em UMA linha em toda largura, e a barra em 68px em todas.
  *
- * O ponto mais apertado HOJE é 1024px — e essa é uma condição nova, criada por
- * esta entrega. Dá para provar só com os números acima, sem medir nada: sendo
+ * O ponto mais apertado, antes do REPASSE, era 1024px — e essa foi uma
+ * condição nova, criada pela entrega do `GUIAS MOTORS`. Dá para provar só com
+ * os números acima, sem medir nada: sendo
  * `g` a largura do rótulo `GUIAS MOTORS`, a folga ANTES deste item era
  * `59 + g + 16` a 1024px e `82 − 61,5 + g` a 1281px, porque lá o `CONTATO`
  * ainda aparecia. A diferença é −54,5px para qualquer `g`: antes, o aperto
- * morava em 1281px. Este item custa `g + 16` em 1024px e `g + 28` de 1281 para
- * cima, onde o nav já está em `desktop:gap-7` — e é esse custo, no ponto que
- * já era o mais apertado, a razão de o `CONTATO` ter subido para `2xl:`.
+ * morava em 1281px. Este item custava `g + 16` em 1024px e `g + 28` de 1281
+ * para cima, onde o nav já estava em `desktop:gap-7` — e era esse custo, no
+ * ponto que já era o mais apertado, a razão de o `CONTATO` ter subido para
+ * `2xl:`.
  *
  * Não escreva aqui que o aperto "é anterior a este item". Era o que a primeira
  * versão dizia, e a revisão derrubou com a aritmética da própria tabela.
