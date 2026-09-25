@@ -28,8 +28,12 @@ export function bancoDeTeste() {
   const leituras: Record<string, Resposta> = {};
   const escritas: Escrita[] = [];
   const lidas: string[] = [];
-  /** Uma entrada por `from`, com os `eq`/`is` encadeados na LEITURA. */
-  const consultas: Array<{ tabela: string; filtros: Array<[string, unknown]> }> = [];
+  /**
+   * Uma entrada por `from`, com os `eq`/`is` encadeados na LEITURA e as
+   * colunas do `select` dela (sem isso, esquecer uma coluna no `select`
+   * passaria: `leituras` devolve a linha inteira de qualquer jeito).
+   */
+  const consultas: Array<{ tabela: string; filtros: Array<[string, unknown]>; colunas?: unknown }> = [];
 
   const padrao = (e: Escrita): Resposta =>
     e.operacao === "update"
@@ -37,12 +41,13 @@ export function bancoDeTeste() {
       : { data: null, error: null };
   let responder: (e: Escrita) => Resposta = padrao;
 
-  function consulta(tabela: string, escrita: Escrita | null, leitura?: { filtros: Array<[string, unknown]> }) {
+  function consulta(tabela: string, escrita: Escrita | null, leitura?: { filtros: Array<[string, unknown]>; colunas?: unknown }) {
     const resolver = (): Resposta => (escrita ? responder(escrita) : (leituras[tabela] ?? { data: null, error: null }));
     const q: Record<string, unknown> = {};
     const encadeia =
       (nome: string) =>
       (...args: unknown[]) => {
+        if (nome === "select" && leitura) leitura.colunas = args[0];
         if (nome === "eq" || nome === "is") {
           const filtro: [string, unknown] = [String(args[0]), args[1]];
           if (escrita) escrita.filtros.push(filtro);

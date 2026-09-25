@@ -69,7 +69,7 @@ const EXAME = {
   contentName: "Renault Kwid",
   ...EXTRAS,
 };
-const CARRO_PUBLICADO = { id: ID, situacao: "publicado", marca: "Renault", modelo: "Kwid", versao: "Zen 1.0", ano_modelo: 2021 };
+const CARRO_PUBLICADO = { id: ID, situacao: "publicado", marca: "Renault", modelo: "Kwid", versao: "Zen 1.0", ano_modelo: 2021, preco: 36900 };
 
 const pedido = (corpo: unknown) =>
   new NextRequest("http://teste/api/leads", {
@@ -211,6 +211,21 @@ describe("o exame no pátio", () => {
     );
     expect(banco.consultas.find((c) => c.tabela === "repasses")?.filtros).toEqual([["id", ID]]);
     expect(banco.escritasEm("repasse_inscritos")).toEqual([]);
+  });
+
+  // Decisão (e) da final-review (25/09): o Lead do exame vale o preço do carro
+  // nos dois lados do mesmo `event_id` — o pixel manda `carro.preco`
+  // (`ExameNoPatio.tsx`), a CAPI lê o mesmo preço do BANCO, não do corpo. E
+  // sem `content_ids`: o id do repasse não está em catálogo nenhum (regra (d)).
+  it("carro publicado: a CAPI leva o preço do banco como valor, com o nome e sem content_ids", async () => {
+    banco.leituras.repasses = { data: CARRO_PUBLICADO, error: null };
+    const res = await POST(pedido(EXAME));
+    expect(res.status).toBe(200);
+    expect(String(banco.consultas.find((c) => c.tabela === "repasses")?.colunas).split(/,\s*/)).toContain("preco");
+    expect(capi.chamadas).toHaveLength(1);
+    const { customData } = capi.chamadas[0] as { customData: Record<string, unknown> };
+    expect(customData).toMatchObject({ value: 36900, content_name: "Renault Kwid" });
+    expect(customData.content_ids).toBeUndefined();
   });
 
   it.each([

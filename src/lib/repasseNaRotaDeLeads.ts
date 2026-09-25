@@ -11,17 +11,21 @@ import { decidirInscricao, type CarroDoExame, type InscricaoNaLista } from "./le
 import { ERROS_DO_REPASSE } from "./paginaDoRepasse";
 
 export type ConferenciaDoExame =
-  | { ok: true; carro: CarroDoExame & { id: string } }
+  | { ok: true; carro: CarroDoExame & { id: string; preco: number | null } }
   | { ok: false; status: 409 | 500; erro: string };
 
 /**
  * O exame só vale para carro publicado (decisão 4 do PR 3). Reservado,
  * vendido, arquivado ou id que não existe: 409 com a mensagem da ficha.
+ *
+ * O `preco` é o valor do Lead na CAPI (decisão (e) da final-review, 25/09):
+ * o pixel manda `carro.preco`, e o servidor lê o mesmo número do banco, não
+ * do corpo. Sem preço válido, `null`, e a CAPI sai sem `value` como antes.
  */
 export async function carroDoExame(admin: SupabaseClient, repasseId: string): Promise<ConferenciaDoExame> {
   const { data, error } = await admin
     .from("repasses")
-    .select("id, situacao, marca, modelo, versao, ano_modelo")
+    .select("id, situacao, marca, modelo, versao, ano_modelo, preco")
     .eq("id", repasseId)
     .maybeSingle();
   if (error) return { ok: false, status: 500, erro: ERROS_DO_REPASSE.conferencia };
@@ -32,6 +36,7 @@ export async function carroDoExame(admin: SupabaseClient, repasseId: string): Pr
   if (!linha || linha.situacao !== "publicado" || typeof marca !== "string" || typeof modelo !== "string" || !Number.isFinite(anoModelo)) {
     return { ok: false, status: 409, erro: ERROS_DO_REPASSE.exameFechado };
   }
+  const preco = Number(linha.preco);
   return {
     ok: true,
     carro: {
@@ -40,6 +45,7 @@ export async function carroDoExame(admin: SupabaseClient, repasseId: string): Pr
       modelo,
       versao: typeof linha.versao === "string" ? linha.versao : null,
       ano_modelo: anoModelo,
+      preco: Number.isFinite(preco) && preco > 0 ? preco : null,
     },
   };
 }

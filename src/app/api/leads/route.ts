@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
     // o CNPJ na `mensagem` não o levaria ao Kanban.
     let mensagemDoLead: unknown = body.mensagem;
     let repasseIdDoLead: string | null = null;
+    let valorDoExame: number | undefined;
     let inscricaoDoRepasse: InscricaoNaLista | null = null;
     if (ehCanalDoRepasse(body.canal)) {
       const decisao = decidirLeadDoRepasse(body, new Date());
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: conferido.erro }, { status: conferido.status });
         }
         repasseIdDoLead = conferido.carro.id;
+        valorDoExame = conferido.carro.preco ?? undefined;
         mensagemDoLead = mensagemDoExame(conferido.carro, decisao.pedido.exame);
       }
     }
@@ -367,7 +369,9 @@ export async function POST(request: NextRequest) {
             content_name: veiculo
               ? `${veiculo.marca} ${veiculo.modelo}`
               : body.contentName || undefined,
-            value: veiculo?.preco,
+            // Exame no pátio: o preço do carro, lido do banco (o pixel manda
+            // o mesmo). Fora dele `valorDoExame` é undefined e vale o de antes.
+            value: valorDoExame ?? veiculo?.preco,
             currency: "BRL",
           },
           pixelId,
