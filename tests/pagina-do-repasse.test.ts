@@ -144,6 +144,14 @@ describe("o texto é o das pranchas", () => {
   });
 });
 
+describe("o não encontrado só promete o que mostra", () => {
+  it("nenhum texto dele fala do lote aberto, que a página não traz", () => {
+    const texto = Object.values(pagina.NAO_ENCONTRADO_NO_REPASSE).join(" ");
+    expect(texto).not.toMatch(/\babert[oa]s?\b/i);
+    expect(texto).not.toMatch(/\blote\b/i);
+  });
+});
+
 describe("o texto que depende do dado", () => {
   it("contagens no singular e no plural", () => {
     expect(pagina.tituloDoLote(1)).toBe("1 carro no repasse");
@@ -173,6 +181,43 @@ describe("o texto que depende do dado", () => {
     expect(pagina.textoDaConfirmacao({ faixa: null, carrocerias: [], comLote: false })).toBe(
       "Quando entrar um carro, ele chega no seu WhatsApp.",
     );
+  });
+
+  it("o card mostra o detalhe de leilão e sinistro até 60 caracteres, e acima disso só 'consta'", () => {
+    const sessenta = "pequena monta em 2021, para-choque e farol esquerdo trocados";
+    const sessentaEUm = "pequena monta em 2021, para-choque e farol dianteiro trocados";
+    expect(sessenta).toHaveLength(60);
+    expect(sessentaEUm).toHaveLength(61);
+    const semLeilao = { laudo: "aprovado", leilao_consta: false, leilao_detalhe: null, sinistro_consta: true } as const;
+
+    expect(pagina.linhaDoHistoricoNoCard({ ...semLeilao, sinistro_detalhe: sessenta })).toBe(
+      `Laudo: aprovado, sai a pedido · Leilão: não consta · Sinistro: consta, ${sessenta}`,
+    );
+    // O ponto final não conta: o que se mede é o que aparece.
+    expect(pagina.linhaDoHistoricoNoCard({ ...semLeilao, sinistro_detalhe: `${sessenta}.` })).toBe(
+      `Laudo: aprovado, sai a pedido · Leilão: não consta · Sinistro: consta, ${sessenta}`,
+    );
+    expect(pagina.linhaDoHistoricoNoCard({ ...semLeilao, sinistro_detalhe: sessentaEUm })).toBe(
+      "Laudo: aprovado, sai a pedido · Leilão: não consta · Sinistro: consta",
+    );
+    expect(
+      pagina.linhaDoHistoricoNoCard({
+        laudo: "nao_feito",
+        leilao_consta: true,
+        leilao_detalhe: "arrematado em leilão de financeira em 2019.",
+        sinistro_consta: false,
+        sinistro_detalhe: null,
+      }),
+    ).toBe("Laudo: não feito · Leilão: consta, arrematado em leilão de financeira em 2019 · Sinistro: não consta");
+    expect(
+      pagina.linhaDoHistoricoNoCard({
+        laudo: "nao_feito",
+        leilao_consta: true,
+        leilao_detalhe: sessentaEUm,
+        sinistro_consta: false,
+        sinistro_detalhe: null,
+      }),
+    ).toBe("Laudo: não feito · Leilão: consta · Sinistro: não consta");
   });
 
   it("o vazio só cita data quando houve venda", () => {

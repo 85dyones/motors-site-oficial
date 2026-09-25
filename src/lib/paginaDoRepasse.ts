@@ -235,15 +235,29 @@ export const LAUDO_NO_CARD: Record<LaudoDoRepasse, string> = {
   nao_feito: "não feito",
 };
 
-/** "Laudo: aprovado, sai a pedido · Leilão: não consta · Sinistro: consta". */
+/**
+ * Até quantos caracteres o detalhe de leilão ou de sinistro cabe no card. A
+ * prancha escreve "consta, pequena monta (2021)"; detalhe mais longo que isto
+ * vira só "consta" no card, e o texto inteiro fica na ficha
+ * (`constaNoHistorico`).
+ */
+const DETALHE_NO_CARD_ATE = 60;
+
+/** "Laudo: aprovado, sai a pedido · Leilão: não consta · Sinistro: consta, pequena monta em 2021". */
 export function linhaDoHistoricoNoCard(r: {
   laudo: LaudoDoRepasse | null;
   leilao_consta: boolean | null;
+  leilao_detalhe: string | null;
   sinistro_consta: boolean | null;
+  sinistro_detalhe: string | null;
 }): string {
   const laudo = LAUDO_NO_CARD[r.laudo ?? "nao_feito"];
-  const consta = (valor: boolean | null) => (valor ? "consta" : "não consta");
-  return `Laudo: ${laudo} · Leilão: ${consta(r.leilao_consta)} · Sinistro: ${consta(r.sinistro_consta)}`;
+  const consta = (valor: boolean | null, detalhe: string | null) => {
+    if (!valor) return "não consta";
+    const curto = semPontoFinal(detalhe ?? "");
+    return curto && curto.length <= DETALHE_NO_CARD_ATE ? `consta, ${curto}` : "consta";
+  };
+  return `Laudo: ${laudo} · Leilão: ${consta(r.leilao_consta, r.leilao_detalhe)} · Sinistro: ${consta(r.sinistro_consta, r.sinistro_detalhe)}`;
 }
 
 /** "28 fotos · 4 de defeitos" (as de defeito contam no total). */
@@ -676,7 +690,10 @@ export const NAO_ENCONTRADO_NO_REPASSE = {
     "Este endereço não abre nenhum carro do repasse. Costuma ser link antigo, de um carro que já saiu, ou endereço incompleto.",
   textoDaAmostra: "Abaixo, uma amostra do estoque com garantia de hoje e a lista do repasse.",
   tituloNaBusca: "Repasse não encontrado | Motors Store",
-  descricaoNaBusca: "Este endereço não abre nenhum carro do repasse. Veja o que está aberto hoje.",
+  // Só o que a página mostra: a amostra do estoque e a lista. O lote pode
+  // estar vazio, e "o que está aberto hoje" seria promessa sem objeto.
+  descricaoNaBusca:
+    "Este endereço não abre nenhum carro do repasse. Veja uma amostra do estoque com garantia e entre na lista para receber o próximo no WhatsApp.",
 } as const;
 
 // ---------------------------------------------------------------------------
