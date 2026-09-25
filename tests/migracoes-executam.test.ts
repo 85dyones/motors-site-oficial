@@ -104,6 +104,11 @@ const CADEIA = [
   // (acima) com as colunas novas e confere, vestindo `anon` e um cliente sem
   // staff, que o retrato com a recomendação não sai para quem não é equipe.
   "20260924190000_avaliacao_no_lead.sql",
+  // A curva de deságio ganha `km_por_ano` (2026-09-24). Entra na cadeia porque
+  // o aceite prova, contra o guarda de vigência de verdade, que a linha vigente
+  // recebe 15.000 sem UPDATE, que zero e negativo são recusados e que o km
+  // vigente não se edita — a tabela vem do recorte da F0 no andaime.
+  "20260924220000_curva_km_por_ano.sql",
 ];
 
 /**
