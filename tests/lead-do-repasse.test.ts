@@ -83,6 +83,13 @@ describe("CNPJ", () => {
     expect(cnpjValido("1122233300018")).toBe(false);
   });
 
+  it("resto menor que 2 dá verificador 0 (T3-M1, 25/09)", () => {
+    // 33.000.167/0001-01: a soma do 1º verificador é 121, resto 0. Sem o
+    // ramo `resto < 2 → 0`, sairia 11 e a lista recusaria lojista válido.
+    expect(cnpjValido("33.000.167/0001-01")).toBe(true);
+    expect(cnpjValido("33000167000101")).toBe(true);
+  });
+
   it("todos iguais não é CNPJ, mesmo quando o verificador fecha", () => {
     // 00000000000000 fecha no módulo 11 — é o caso que só a regra explícita pega.
     expect(cnpjValido("00.000.000/0000-00")).toBe(false);

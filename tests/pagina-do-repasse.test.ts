@@ -159,6 +159,9 @@ describe("o texto que depende do dado", () => {
     expect(pagina.verOsCarros(6)).toBe("VER OS 6 CARROS");
     expect(pagina.verOsCarros(1)).toBe("VER O CARRO");
     expect(pagina.verOsOutros(4)).toBe("VER OS OUTROS 4 CARROS");
+    // T1-M1 (final-review, 25/09): um carro com uma foto de defeito é comum.
+    expect(pagina.contagemDeFotos(28, 1)).toBe("28 fotos · 1 de defeito");
+    expect(pagina.contagemDeFotos(28, 2)).toBe("28 fotos · 2 de defeitos");
   });
 
   it("a linha do lote diz hoje só quando é hoje, e conta os só-lojistas à parte", () => {

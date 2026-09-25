@@ -263,7 +263,7 @@ export function linhaDoHistoricoNoCard(r: {
 /** "28 fotos · 4 de defeitos" (as de defeito contam no total). */
 export function contagemDeFotos(total: number, defeitos: number): string {
   const fotos = `${total} ${total === 1 ? "foto" : "fotos"}`;
-  return defeitos > 0 ? `${fotos} · ${defeitos} de defeitos` : fotos;
+  return defeitos > 0 ? `${fotos} · ${defeitos} de ${defeitos === 1 ? "defeito" : "defeitos"}` : fotos;
 }
 
 /** "2020/2021": fabricação/modelo, como a prancha escreve mesmo quando são iguais. */

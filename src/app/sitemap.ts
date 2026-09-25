@@ -22,6 +22,7 @@ import { CAMINHOS_GEO } from "../lib/paginasGeo";
 import { campanhasVivas, caminhoDaCampanha } from "../lib/campanhas";
 import { lerRepassesPublicos } from "../lib/leituraDosRepasses";
 import { publicadoEm } from "../lib/loteDoRepasse";
+import { CAMINHO_DO_REPASSE } from "../lib/paginaDoRepasse";
 import type { Repasse } from "../lib/repasse";
 
 /**
@@ -216,13 +217,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     {
       // A seção de repasse. Perene: sem carro aberto a página vira a lista
       // do repasse, nunca beco — por isso entra mesmo vazia, como os hubs.
-      url: `${SITE_URL}/repasse`,
+      url: `${SITE_URL}${CAMINHO_DO_REPASSE}`,
       lastModified: quandoOrepasseMudou(repassesNaVitrine[0]),
       changeFrequency: "daily" as const,
       priority: 0.8,
     },
     ...repassesNaVitrine.map((r) => ({
-      url: `${SITE_URL}/repasse/${r.slug}`,
+      url: `${SITE_URL}${CAMINHO_DO_REPASSE}/${r.slug}`,
       lastModified: quandoOrepasseMudou(r),
       changeFrequency: "daily" as const,
       priority: 0.8,

@@ -92,9 +92,10 @@ export async function POST(request: NextRequest) {
     // gravação e do n8n: corpo torto volta 400 sem deixar lead pela metade.
     //
     // A mensagem do lead sai daqui, e não do corpo: `leads` é lida por toda
-    // a equipe, e CNPJ, faixa e tipos de carro ficam só em
-    // `repasse_inscritos`, que só quem valida lê. Um navegador que mandasse
-    // o CNPJ na `mensagem` não o levaria ao Kanban.
+    // a equipe, e CNPJ, faixa e tipos de carro ficam fora de `leads`: vão
+    // para `repasse_inscritos`, que só quem valida lê (e ao n8n, dentro de
+    // `intencao_busca`). Um navegador que mandasse o CNPJ na `mensagem` não
+    // o levaria ao Kanban.
     let mensagemDoLead: unknown = body.mensagem;
     let repasseIdDoLead: string | null = null;
     let valorDoExame: number | undefined;

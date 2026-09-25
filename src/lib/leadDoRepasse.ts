@@ -10,7 +10,8 @@
  * A mesma função que monta a mensagem no navegador monta na rota
  * (`MENSAGEM_DA_INSCRICAO`, `mensagemDoExame`): o servidor não confia na
  * `mensagem` do corpo. `leads` é lida por toda a equipe; CNPJ, faixa e tipos
- * de carro ficam só em `repasse_inscritos`, que só quem valida lê.
+ * de carro ficam fora de `leads`: vão para `repasse_inscritos`, que só quem
+ * valida lê (e ao n8n, dentro de `intencao_busca`).
  *
  * Módulo puro: roda no navegador (formulários) e no servidor (rota).
  */
