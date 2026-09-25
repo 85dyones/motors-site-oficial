@@ -14,7 +14,7 @@
  * do doc: quem consome `podeFazer()` esconde, não desabilita.
  */
 
-export const PERFIS = ["admin", "gestor", "marketing", "comercial", "financeiro"] as const;
+export const PERFIS = ["admin", "gestor", "marketing", "comercial", "financeiro", "sdr"] as const;
 export type Perfil = (typeof PERFIS)[number];
 
 /**
@@ -176,6 +176,23 @@ export function ehInvestidor(
   return papeisBrutos(origem).includes("investidor");
 }
 
+/**
+ * Recebe lead? Ordem do dono em 2026-09-23: *"nenhum destes que não sejam
+ * comercial, na atividade principal ou secundária, podem estar no fluxo"*.
+ *
+ * Só `comercial`, em qualquer posição de `papeis`, e conta ativa. Admin não
+ * entra por ser admin — era assim que o Marketing recebia lead no rodízio — e
+ * o SDR trabalha o resgate, não é dono. O rodízio do banco
+ * (`montar_fila_do_funil`) aplica a mesma régua; o aceite da migração
+ * `20260923130100` a prova lá.
+ */
+export function recebeLead(
+  p: { papeis?: string[] | null; role?: string | null; is_active?: boolean | null } | null | undefined,
+): boolean {
+  if (!p || p.is_active === false) return false;
+  return papeisBrutos(p).includes("comercial");
+}
+
 export type Permissao = "faz" | "revisao" | "nao_ve";
 
 export const ROTULO_DO_PERFIL: Record<Perfil, string> = {
@@ -184,6 +201,7 @@ export const ROTULO_DO_PERFIL: Record<Perfil, string> = {
   marketing: "Marketing",
   comercial: "Comercial",
   financeiro: "Financeiro",
+  sdr: "SDR",
 };
 
 /**
@@ -204,6 +222,7 @@ export const ALCADA_DO_PERFIL: Record<Perfil, string> = {
   marketing: "—",
   comercial: "5% no preço",
   financeiro: "Sem limite no preço",
+  sdr: "—",
 };
 
 /** Descrição de cada perfil (cards do topo da A17). */
@@ -233,6 +252,11 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
       "Custo por veículo, investidores e o texto legal do simulador — o caixa renasce sobre o razão do novo financeiro.",
     chave: "Dono do texto legal",
   },
+  sdr: {
+    descricao:
+      "Resgate de leads que o Comercial não converteu. Trabalha no Chatwoot; não entra no rodízio nem recebe lead.",
+    chave: "Não recebe lead",
+  },
 };
 
 export interface LinhaDaMatriz {
@@ -243,17 +267,20 @@ export interface LinhaDaMatriz {
 
 const linha = (
   acao: string,
-  [admin, gestor, marketing, comercial, financeiro]: [
+  // A sexta posição é o SDR (2026-09-23), com padrão de menor privilégio:
+  // linha que não o cita, ele não vê.
+  [admin, gestor, marketing, comercial, financeiro, sdr = "nao_ve"]: [
     Permissao,
     Permissao,
     Permissao,
     Permissao,
     Permissao,
+    Permissao?,
   ],
   observacao = "",
 ): LinhaDaMatriz => ({
   acao,
-  permissoes: { admin, gestor, marketing, comercial, financeiro },
+  permissoes: { admin, gestor, marketing, comercial, financeiro, sdr },
   observacao,
 });
 
@@ -309,9 +336,11 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "nao_ve", "faz", "faz", "nao_ve"],
     "Dado interno — nunca aparece no site",
   ),
+  // O SDR (2026-09-23) mexe no lead do resgate, mas nunca é dono: quem
+  // recebe lead é a régua `recebeLead`, não esta linha.
   linha(
     "Ver e mover leads no kanban",
-    ["faz", "nao_ve", "nao_ve", "faz", "nao_ve"],
+    ["faz", "nao_ve", "nao_ve", "faz", "nao_ve", "faz"],
     "Marketing vê só o volume agregado",
   ),
   linha(

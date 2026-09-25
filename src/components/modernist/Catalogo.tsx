@@ -575,7 +575,7 @@ export default function Catalogo({
                         }`}
                       />
                       <span className="mr-auto">{opcao.rotulo}</span>
-                      <span className="text-[11px] text-mt-neutral-500">{opcao.total}</span>
+                      <span className="text-[11px] text-mt-neutral-600">{opcao.total}</span>
                     </label>
                   );
                 })}

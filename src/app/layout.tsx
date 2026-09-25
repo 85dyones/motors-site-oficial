@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Geist, Archivo } from "next/font/google";
 import "./globals.css";
 import AntigravityTracker from "../components/AntigravityTracker";
 import Header from "../components/Header";
@@ -14,14 +13,12 @@ import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Archivo, Geist } from "./fontes";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-/* A Geist Mono saiu daqui em 2026-09-08.
+/* As fontes (Geist e Archivo) moram em `fontes.ts` e vêm do repositório, não
+ * do Google Fonts na hora da build — o porquê está no cabeçalho de lá.
+ *
+ * A Geist Mono saiu daqui em 2026-09-08.
  *
  * `next/font` monta o `<link rel="preload">` da fonte no layout raiz, então
  * uma família declarada aqui é uma família baixada em TODA página — inclusive
@@ -33,15 +30,6 @@ const geistSans = Geist({
  * invisível fora dessas duas telas, e nelas a diferença entre Geist Mono e
  * Consolas numa placa de sete caracteres não é o que sustenta a marca —
  * Archivo é, e ela fica. */
-
-// Tipografia do redesign Modernist. Os três pesos são os que o design doc
-// usa: 400 corrido, 600 rótulos em versalete, 800 títulos e botões.
-const archivo = Archivo({
-  variable: "--font-archivo",
-  subsets: ["latin"],
-  weight: ["400", "600", "800"],
-  display: "swap",
-});
 
 import { getCachedSettings } from "../lib/settings";
 import { montarCompartilhamento } from "../lib/compartilhamento";
@@ -96,6 +84,15 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     openGraph,
     twitter,
+    // O Safari do iPhone transforma em link, sozinho, número que parece
+    // telefone ou endereço — e faz isso no HTML ANTES de o React hidratar. O
+    // DOM deixa de bater com o que o servidor mandou, e a página inteira cai no
+    // erro #418 ("Hydration failed… HTML"). Medido em 25/09: 63 dos 79 #418 dos
+    // últimos 30 dias vieram do Safari de iPhone, quase todos em fichas — que
+    // mostram o código do carro ("COD. 8497421", sete dígitos) e, desde a
+    // folha A4, telefone e CEP em texto puro. Os telefones de verdade do site
+    // já são links (`tel:`, `wa.me`), então desligar a detecção não tira nada.
+    formatDetection: { telephone: false, address: false, email: false, date: false },
   };
 }
 
@@ -114,7 +111,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} ${archivo.variable} h-full antialiased`}
+      className={`${Geist.variable} ${Archivo.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

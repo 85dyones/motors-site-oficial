@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   lerHex,
   razaoDeContraste,
@@ -95,5 +97,60 @@ describe("as paletas reais do painel", () => {
       modernist["--brand-background"],
     );
     expect(nivelDeContraste(razao!)).toBe("AA GRANDE");
+  });
+});
+
+/**
+ * Os tokens de texto pequeno do Modernist, contra TODAS as paletas do painel.
+ *
+ * Em 25/09 a auditoria da Vercel apontou ~490 nós com contraste abaixo de
+ * 4,5:1: o neutral-600 (58% da tinta) ficava em 4,2:1 sobre o fundo, e a
+ * numeração "01 02 03" em acento puro ficava em 3,3:1 sobre o fundo escuro.
+ * Os dois tokens são derivados (`color-mix`) da paleta ativa, e a paleta é
+ * trocada no painel — por isso a conta roda para cada preset, com o número
+ * lido do próprio CSS: mudar a porcentagem sem refazer a conta fica vermelho.
+ */
+describe("texto pequeno do Modernist em toda paleta", () => {
+  const css = readFileSync(join(__dirname, "..", "src/app/modernist.css"), "utf8");
+
+  /** `color-mix(in srgb, A p%, B)` de cores opacas: interpolação canal a canal. */
+  function misturar(a: string, b: string, p: number): string {
+    const [ca, cb] = [lerHex(a)!, lerHex(b)!];
+    return "#" + ca.map((v, i) => Math.round(v * p + cb[i] * (1 - p)).toString(16).padStart(2, "0")).join("");
+  }
+
+  function porcentagem(token: string): number {
+    const m = new RegExp(`${token}:\\s*color-mix\\(in srgb, var\\(--mt-(?:ink|accent)\\) (\\d+)%`).exec(css);
+    expect(m, `${token} não é mais um color-mix lido por este teste`).not.toBeNull();
+    return Number(m![1]) / 100;
+  }
+
+  it("o neutral-600 derivado passa de 4,5:1 sobre o fundo e o cartão", () => {
+    const p = porcentagem("--mt-neutral-600");
+    for (const [nome, t] of Object.entries(THEME_PRESETS)) {
+      const cor = misturar(t["--brand-foreground"], t["--brand-background"], p);
+      for (const fundo of ["--brand-background", "--brand-card"] as const) {
+        const razao = razaoDeContraste(cor, t[fundo])!;
+        expect(razao, `paleta ${nome}, ${cor} sobre ${fundo} ${t[fundo]}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("o neutral-600 fixo do preset Modernist também passa", () => {
+    const m = /\[data-theme="motors-modernist"\][\s\S]*?--mt-neutral-600:\s*(#[0-9a-f]{6})/i.exec(css);
+    expect(m, "preset sem --mt-neutral-600 fixo").not.toBeNull();
+    const modernist = THEME_PRESETS["motors-modernist"];
+    for (const fundo of ["--brand-background", "--brand-card"] as const) {
+      expect(razaoDeContraste(m![1], modernist[fundo])!).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("o acento sobre o fundo escuro passa de 4,5:1 com qualquer acento", () => {
+    const p = porcentagem("--mt-accent-inverso");
+    const fundoEscuro = /--mt-inverso-fundo:\s*(#[0-9a-f]{6})/i.exec(css)![1];
+    for (const [nome, t] of Object.entries(THEME_PRESETS)) {
+      const cor = misturar(t["--brand-primary"], "#ffffff", p);
+      expect(razaoDeContraste(cor, fundoEscuro)!, `paleta ${nome}, ${cor} sobre ${fundoEscuro}`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

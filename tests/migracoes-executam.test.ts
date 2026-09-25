@@ -92,11 +92,33 @@ const CADEIA = [
   // duas migrações acima deram escopo à tabela e as sementes de agosto
   // inseriram os quatro de pagamento.
   "20260916170000_motivos_de_ganho_por_escopo.sql",
+  // O papel SDR (2026-09-23). Entra na cadeia porque troca o CHECK de
+  // `profiles.role` e as duas réguas de vocabulário — o furo de 22/08 foi
+  // exatamente uma dessas réguas reescrita sem as outras.
+  "20260923130000_papel_sdr.sql",
+  // A gestão do lead (2026-09-23): aplicada em produção FORA do repositório e
+  // reconstruída em 2026-09-24 a partir do catálogo de lá. Entra na cadeia
+  // porque o aceite compara constraint, índice e função com o texto lido de
+  // produção, e prova grants e policy vestindo anon, um cliente e um staff —
+  // e porque ela reescreve o gatilho do funil (acima) que a avaliação, logo
+  // abaixo, atravessa.
+  "20260923150000_gestao_do_lead.sql",
   // A avaliação mora no lead (2026-09-24). Entra na cadeia porque o aceite
   // prova os CHECKs tentando gravar o inválido, passa pelos gatilhos do funil
   // (acima) com as colunas novas e confere, vestindo `anon` e um cliente sem
   // staff, que o retrato com a recomendação não sai para quem não é equipe.
   "20260924190000_avaliacao_no_lead.sql",
+  // A curva de deságio ganha `km_por_ano` (2026-09-24). Entra na cadeia porque
+  // o aceite prova, contra o guarda de vigência de verdade, que a linha vigente
+  // recebe 15.000 sem UPDATE, que zero e negativo são recusados e que o km
+  // vigente não se edita — a tabela vem do recorte da F0 no andaime.
+  "20260924220000_curva_km_por_ano.sql",
+  // `leads_interacoes` ganha `org_id` (2026-09-25) — a divergência que a
+  // gestão do lead (acima) registrou e não corrigiu. Entra na cadeia porque o
+  // aceite prova pelo efeito, vestindo um staff, que a função grava na org
+  // padrão sem listar a coluna e que a linha de uma org temporária some da
+  // leitura dele — RLS cross-org só se prova num Postgres de verdade.
+  "20260925130000_leads_interacoes_org_id.sql",
 ];
 
 /**
@@ -228,10 +250,10 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
   const ehVerdade = (sql: string): boolean =>
     psql!(`select ${sql}`).replace(/[\s|-]/g, "").includes("t");
 
-  it("o vocabulário de papéis tem os sete, e recusa inventado", () => {
+  it("o vocabulário de papéis tem os oito, e recusa inventado", () => {
     expect(
       ehVerdade(
-        "public.papeis_validos(array['admin','gestor','comercial','financeiro','marketing','cliente','investidor'])",
+        "public.papeis_validos(array['admin','gestor','comercial','financeiro','marketing','sdr','cliente','investidor'])",
       ),
     ).toBe(true);
     expect(ehVerdade("not public.papeis_validos(array['chefe'])")).toBe(true);

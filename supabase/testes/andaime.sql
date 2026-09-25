@@ -311,3 +311,111 @@ create policy leads_exclusao on public.leads
 
 grant select, insert, update, delete on public.leads to authenticated, service_role;
 
+
+-- ---------------------------------------------------------------------------
+-- Recorte do núcleo F0: só `parametros_avaliacao`, na forma que a f0f deixa
+-- ---------------------------------------------------------------------------
+-- Entra pela migração `20260924220000_curva_km_por_ano.sql`, que acrescenta
+-- `km_por_ano` à curva de deságio. As migrações da F0 não entram na CADEIA:
+-- o aceite delas diz "F0-x OK", não "Aceite verificado", e a f0b em diante
+-- pressupõe `estoque_motors` e metade do núcleo — trazê-las faria o vermelho
+-- ser sobre o andaime, não sobre a migração.
+--
+-- Copiado fielmente, e só o que a curva precisa para existir como existe em
+-- produção:
+--   * a org e `org_padrao()` ......... 20260829120000_f0a_org_e_enums.sql:13-43
+--   * `nucleo_so_encerra_vigencia()` .. 20260829120400_f0e_razao.sql:183-198
+--   * tabela, gatilho, semente, RLS ... 20260829120500_f0f_parametros.sql:15-33,63-66,74-86,101-122
+--   * uma curva vigente por org ....... 20260829121000_f0j_unicidade_de_vigencia.sql:30-32
+--   * anon fora, TRUNCATE fora ........ 20260829140000_f0l (:31, :45) e 20260829150000_f0m (:73, :87)
+--
+-- ⚠️ Mesma regra de `clientes` e `leads`: se a F0 entrar na cadeia um dia,
+-- este recorte sai daqui — `create table if not exists` faria a de lá virar
+-- no-op e as duas divergiriam em silêncio.
+create table public.orgs (
+  id         uuid primary key default gen_random_uuid(),
+  nome       text not null,
+  criada_em  timestamptz not null default now()
+);
+alter table public.orgs enable row level security;
+insert into public.orgs (nome) values ('Motors Store');
+
+create or replace function public.org_padrao()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id from public.orgs order by criada_em limit 1
+$$;
+revoke all on function public.org_padrao() from public;
+grant execute on function public.org_padrao() to authenticated, service_role;
+
+create or replace function public.nucleo_so_encerra_vigencia()
+returns trigger
+language plpgsql
+as $$
+begin
+  if old.vigencia_ate is not null then
+    raise exception 'Linha de % já encerrada: parâmetro histórico não se edita — insira vigência nova.',
+      tg_table_name using errcode = 'raise_exception';
+  end if;
+  if to_jsonb(new) - 'vigencia_ate' <> to_jsonb(old) - 'vigencia_ate' then
+    raise exception 'Parâmetro vigente de % não sofre UPDATE de valor (D-T1.7): encerre a vigência e insira linha nova.',
+      tg_table_name using errcode = 'raise_exception';
+  end if;
+  return new;
+end;
+$$;
+
+create table public.parametros_avaliacao (
+  id                     uuid primary key default gen_random_uuid(),
+  org_id                 uuid not null default public.org_padrao(),
+  base_pp                numeric(5,2) not null,
+  estado_excepcional_pp  numeric(5,2) not null,
+  piso_pct               numeric(5,2) not null,
+  teto_pct               numeric(5,2) not null,
+  degraus_km             jsonb not null,
+  avaria_leve_pp         numrange not null,
+  avaria_seria_pp        numrange not null,
+  pendencia_pp           numrange not null,
+  descricao              text,
+  vigencia_desde         date not null default current_date,
+  vigencia_ate           date,
+  criado_em              timestamptz not null default now(),
+  constraint piso_abaixo_do_teto check (piso_pct < teto_pct)
+);
+
+create trigger parametros_avaliacao_vigencia
+  before update on public.parametros_avaliacao
+  for each row execute function public.nucleo_so_encerra_vigencia();
+
+insert into public.parametros_avaliacao
+  (base_pp, estado_excepcional_pp, piso_pct, teto_pct, degraus_km,
+   avaria_leve_pp, avaria_seria_pp, pendencia_pp, descricao)
+values
+  (20, -5, 15, 40,
+   '[{"desvio_km_ate": 5000,  "pp": 0},
+     {"desvio_km_ate": 15000, "pp": 2},
+     {"desvio_km_ate": 30000, "pp": 4},
+     {"desvio_km_ate": 50000, "pp": 7},
+     {"desvio_km_ate": null,  "pp": 10}]'::jsonb,
+   numrange(2, 4, '[]'), numrange(8, 12, '[]'), numrange(3, 5, '[]'),
+   'Seed da spec 11: base 20 p.p., estado excepcional −5 (piso 15%), teto 40%. Km baixo não é prêmio — é alerta de hodômetro.');
+
+alter table public.parametros_avaliacao enable row level security;
+create policy nucleo_staff_le on public.parametros_avaliacao for select to authenticated
+  using (public.is_staff(auth.uid()) and org_id = public.org_padrao());
+create policy nucleo_staff_insere on public.parametros_avaliacao for insert to authenticated
+  with check (public.is_staff(auth.uid()) and org_id = public.org_padrao());
+create policy nucleo_staff_atualiza on public.parametros_avaliacao for update to authenticated
+  using (public.is_staff(auth.uid()) and org_id = public.org_padrao())
+  with check (public.is_staff(auth.uid()) and org_id = public.org_padrao());
+
+create unique index parametros_avaliacao_um_vigente
+  on public.parametros_avaliacao (org_id)
+  where vigencia_ate is null;
+
+revoke all on public.orgs, public.parametros_avaliacao from anon;
+revoke truncate on public.orgs, public.parametros_avaliacao from authenticated;

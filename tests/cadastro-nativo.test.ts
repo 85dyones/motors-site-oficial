@@ -324,6 +324,9 @@ describe("gate de papel — quem cadastra é quem publica", () => {
     expect(podeFazer("marketing", "Publicar ou despublicar veículo")).not.toBe("faz");
     expect(podeFazer("gestor", "Publicar ou despublicar veículo")).toBe("nao_ve");
     expect(podeFazer("financeiro", "Publicar ou despublicar veículo")).toBe("nao_ve");
+    // O SDR (2026-09-23) trabalha o resgate de leads — não decide que carro a
+    // loja tem.
+    expect(podeFazer("sdr", "Publicar ou despublicar veículo")).toBe("nao_ve");
   });
 
   // A régua saiu do handler e virou `decidirCadastro`, função pura, em
@@ -388,6 +391,7 @@ describe("gate de papel — quem cadastra é quem publica", () => {
       "financeiro",
       "gestor",
       "marketing",
+      "sdr",
     ]);
   });
 });
