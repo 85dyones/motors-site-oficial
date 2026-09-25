@@ -209,6 +209,33 @@ describe("o apontamento do laudo, que o CHECK do banco cobra já no rascunho", (
   });
 });
 
+describe("o texto que a tela esconde não fica gravado", () => {
+  it("leilão que deixa de constar apaga o detalhe", () => {
+    const d = editar({ leilao_consta: false }, ["marketing"], { leilao_consta: true, leilao_detalhe: "Leilão 2019" });
+    expect(d).toEqual({ ok: true, colunas: { leilao_consta: false, leilao_detalhe: null } });
+  });
+
+  it("laudo que deixa de ter apontamento apaga o apontamento", () => {
+    const d = editar({ laudo: "aprovado" }, ["marketing"], { laudo: "aprovado_com_apontamento", laudo_apontamento: "Folga" });
+    expect(d).toEqual({ ok: true, colunas: { laudo: "aprovado", laudo_apontamento: null } });
+  });
+
+  it("a criação não grava apontamento de laudo sem apontamento", () => {
+    const d = criar({ ...MINIMO, laudo: "aprovado", laudo_apontamento: "x" });
+    expect(d.ok).toBe(true);
+    if (!d.ok) return;
+    expect(d.linha.laudo_apontamento).toBeNull();
+  });
+
+  it("o texto escondido não barra o checklist fora do rascunho", () => {
+    const d = editar({ sinistro_consta: false, sinistro_detalhe: "Batida leve, garantia legal" }, ["comercial"], {
+      situacao: "publicado",
+      lojistas_desde: "2026-09-24T12:00:00Z",
+    });
+    expect(d).toEqual({ ok: true, colunas: { sinistro_consta: false, sinistro_detalhe: null } });
+  });
+});
+
 describe("o formulário do editor", () => {
   it("alteracoes devolve só o que mudou, comparando por valor", () => {
     const salvo = formularioDe(repasseDeTeste());

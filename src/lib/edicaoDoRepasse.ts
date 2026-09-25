@@ -309,6 +309,30 @@ function recusaSemApontamento(
   return { ok: false, status: 400, erro: FALTA_O_APONTAMENTO, problemas: [FALTA_O_APONTAMENTO] };
 }
 
+type TextoQueATelaEsconde = Partial<
+  Pick<FormularioDoRepasse, "laudo" | "laudo_apontamento" | "leilao_consta" | "leilao_detalhe" | "sinistro_consta" | "sinistro_detalhe">
+>;
+
+/**
+ * O texto que a tela esconde não fica gravado. Trocar o laudo para outro que
+ * não "aprovado com apontamento", ou marcar que não consta leilão ou sinistro,
+ * esconde a caixa do texto no editor — mas o texto ficava no banco. As três
+ * colunas estão no GRANT anônimo do PR 1, e o site mostraria um texto que a
+ * tela escondeu.
+ *
+ * Recebe o estado FINAL (a linha depois da edição; na criação, as próprias
+ * colunas) e acrescenta às colunas gravadas a coluna nula de cada texto que
+ * sobrou escondido. Roda antes do checklist e de `recusaSemApontamento`, para
+ * um texto escondido não barrar nada.
+ */
+function semTextoEscondido<C extends Partial<FormularioDoRepasse>>(final: TextoQueATelaEsconde, colunas: C): C {
+  const nulas: Partial<FormularioDoRepasse> = {};
+  if (final.laudo !== "aprovado_com_apontamento" && final.laudo_apontamento != null) nulas.laudo_apontamento = null;
+  if (final.leilao_consta !== true && final.leilao_detalhe != null) nulas.leilao_detalhe = null;
+  if (final.sinistro_consta !== true && final.sinistro_detalhe != null) nulas.sinistro_detalhe = null;
+  return { ...colunas, ...nulas };
+}
+
 export type LinhaNovaDoRepasse = Partial<FormularioDoRepasse> & {
   id: string;
   slug: string;
@@ -334,9 +358,10 @@ export function decidirCriacao(args: {
   const corpo = args.corpo;
   if (!ehObjeto(corpo)) return { ok: false, status: 400, erro: "Corpo inválido." };
   const faltando = OBRIGATORIOS_PARA_CRIAR.filter((c) => !(c in corpo)).map((c) => MENSAGEM_DO_OBRIGATORIO[c]);
-  const { colunas, problemas } = normalizarCampos(corpo, args.agora);
+  const { colunas: pedidas, problemas } = normalizarCampos(corpo, args.agora);
   const todos = [...faltando, ...problemas];
   if (todos.length > 0) return { ok: false, status: 400, erro: todos[0], problemas: todos };
+  const colunas = semTextoEscondido(pedidas, pedidas);
   const semApontamento = recusaSemApontamento(colunas);
   if (semApontamento) return semApontamento;
 
@@ -382,9 +407,10 @@ export function decidirEdicao(args: {
     };
   }
   if (!ehObjeto(corpo)) return { ok: false, status: 400, erro: "Corpo inválido." };
-  const { colunas, problemas } = normalizarCampos(corpo, agora);
+  const { colunas: pedidas, problemas } = normalizarCampos(corpo, agora);
   if (problemas.length > 0) return { ok: false, status: 400, erro: problemas[0], problemas };
 
+  const colunas = semTextoEscondido({ ...repasse, ...pedidas }, pedidas);
   const depois: Repasse = { ...repasse, ...colunas };
   if (repasse.situacao !== "rascunho") {
     // Carro já conferido não pode sair da edição incompleto: o site o mostra.
