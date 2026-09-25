@@ -35,7 +35,7 @@ export default function FaixaProcedencia({ itens = PROCEDENCIA_PADRAO }: FaixaPr
         >
           {/* Numeração derivada da posição, não guardada com o item: bloco
               desligado no painel não pode deixar buraco na sequência. */}
-          <div className="mb-2.5 text-[11px] font-extrabold tracking-[.1em] text-mt-accent">
+          <div className="mb-2.5 text-[11px] font-extrabold tracking-[.1em] text-mt-accent-inverso">
             {String(i + 1).padStart(2, "0")}
           </div>
           <div className="text-[15px] font-extrabold tracking-[-.01em]">{item.titulo}</div>

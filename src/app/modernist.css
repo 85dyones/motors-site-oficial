@@ -34,7 +34,12 @@
   --mt-neutral-300: color-mix(in srgb, var(--mt-ink) 18%, var(--mt-bg));
   --mt-neutral-400: color-mix(in srgb, var(--mt-ink) 32%, var(--mt-bg));
   --mt-neutral-500: color-mix(in srgb, var(--mt-ink) 45%, var(--mt-bg));
-  --mt-neutral-600: color-mix(in srgb, var(--mt-ink) 58%, var(--mt-bg));
+  /* 65%, e não os 58% do design (2026-09-25): o neutral-600 é a cor do texto
+     pequeno — trilha, rótulos, legendas —, e a 58% ficava em 4,2:1 sobre o
+     fundo, abaixo dos 4,5:1 da WCAG AA (a auditoria da Vercel apontou ~490
+     nós). A 65% passa sobre fundo E cartão em todas as paletas do painel;
+     `tests/contraste.test.ts` lê este número e confere. */
+  --mt-neutral-600: color-mix(in srgb, var(--mt-ink) 65%, var(--mt-bg));
   --mt-neutral-700: color-mix(in srgb, var(--mt-ink) 70%, var(--mt-bg));
   --mt-neutral-800: color-mix(in srgb, var(--mt-ink) 84%, var(--mt-bg));
 
@@ -50,6 +55,11 @@
   --mt-inverso-regua: rgba(243, 242, 242, 0.35);
   --mt-inverso-regua-fina: rgba(243, 242, 242, 0.18);
   --mt-inverso-suave: #9b9797;
+  /* O acento sobre o fundo escuro, para texto pequeno (a numeração "01 02 03"
+     das faixas). O acento puro fica em 3,3:1 sobre #201e1d; clareado a 70%
+     passa de 4,5:1 com qualquer acento das paletas do painel — conferido em
+     `tests/contraste.test.ts`. */
+  --mt-accent-inverso: color-mix(in srgb, var(--mt-accent) 70%, #ffffff);
 
   /* — elevação —
      Usada só nas molduras de mockup e em overlays. As seções da página
@@ -63,7 +73,10 @@
   --mt-neutral-300: #d7d3d3;
   --mt-neutral-400: #bab6b6;
   --mt-neutral-500: #9b9797;
-  --mt-neutral-600: #7d7979;
+  /* #6b6767, e não o #7d7979 do design doc: o texto pequeno precisa de 4,5:1
+     sobre o fundo (#f3f2f2) e o cartão (#eae9e9) do preset — ver a nota do
+     neutral-600 derivado, acima. */
+  --mt-neutral-600: #6b6767;
   --mt-neutral-700: #605d5d;
   --mt-neutral-800: #444141;
 

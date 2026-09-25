@@ -84,6 +84,15 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     openGraph,
     twitter,
+    // O Safari do iPhone transforma em link, sozinho, número que parece
+    // telefone ou endereço — e faz isso no HTML ANTES de o React hidratar. O
+    // DOM deixa de bater com o que o servidor mandou, e a página inteira cai no
+    // erro #418 ("Hydration failed… HTML"). Medido em 25/09: 63 dos 79 #418 dos
+    // últimos 30 dias vieram do Safari de iPhone, quase todos em fichas — que
+    // mostram o código do carro ("COD. 8497421", sete dígitos) e, desde a
+    // folha A4, telefone e CEP em texto puro. Os telefones de verdade do site
+    // já são links (`tel:`, `wa.me`), então desligar a detecção não tira nada.
+    formatDetection: { telephone: false, address: false, email: false, date: false },
   };
 }
 

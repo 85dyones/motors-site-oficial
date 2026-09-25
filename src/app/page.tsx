@@ -317,7 +317,7 @@ export default async function Home() {
               key={passo.n}
               className="flex gap-5 border-b border-mt-inverso-regua-fina py-5"
             >
-              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-accent">
+              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-accent-inverso">
                 {passo.n}
               </span>
               <div>
