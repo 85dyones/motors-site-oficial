@@ -22,6 +22,7 @@ import {
 import { TEXTO_LAUDO_PENDENTE, TEXTO_PONTE_DO_GUIA } from "../src/lib/textoDoLaudo";
 import { PERFIS_DE_USO } from "../src/lib/perfisDeUso";
 import { mapVeiculoDbToVeiculo } from "../src/lib/supabase";
+import { todoOTextoDoRepasse } from "./textoDoRepasse";
 
 /**
  * Os textos dos hubs e dos guias passam pelo humanizer (decisão do dono,
@@ -158,6 +159,12 @@ describe("páginas geográficas, /financiamento, /garantia e o texto do laudo", 
 
   it("o texto do laudo", () => {
     semMarcas(`${TEXTO_LAUDO_PENDENTE}\n${TEXTO_PONTE_DO_GUIA}`, "textoDoLaudo");
+  });
+});
+
+describe("a seção de repasse", () => {
+  it("todo o texto de paginaDoRepasse.ts, o fixo e o montado", () => {
+    semMarcas(todoOTextoDoRepasse().join("\n"), "paginaDoRepasse");
   });
 });
 
