@@ -17,6 +17,7 @@
  * não `anon`, e `authenticated` tem sua própria policy (staff, por `org_id`).
  */
 import { supabase } from "./supabase";
+import { registrarFalha } from "./observabilidade";
 import {
   CARROCERIAS_DO_REPASSE,
   LAUDOS_DO_REPASSE,
@@ -158,7 +159,11 @@ export function repasseDaLinha(linha: Record<string, unknown>): Repasse | null {
   };
 }
 
-export async function lerRepassesPublicos(agora: Date = new Date()): Promise<Repasse[]> {
+/**
+ * `rota` só identifica quem leu, para o aviso da linha malformada: a mesma
+ * leitura serve `/repasse`, a ficha (`generateStaticParams`) e o sitemap.
+ */
+export async function lerRepassesPublicos(agora: Date = new Date(), rota = "/repasse"): Promise<Repasse[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("repasses")
@@ -168,8 +173,16 @@ export async function lerRepassesPublicos(agora: Date = new Date()): Promise<Rep
   if (error) throw new Error(`Leitura dos repasses falhou: ${error.message}`);
   // SELECAO é construída em tempo de execução, então supabase-js não infere o tipo da linha
   return (data ?? []).flatMap((linha) => {
-    const r = repasseDaLinha(linha as unknown as Record<string, unknown>);
-    return r && aparecePublicamente(r, agora) ? [r] : [];
+    const bruta = linha as unknown as Record<string, unknown>;
+    const r = repasseDaLinha(bruta);
+    if (!r) {
+      // Linha que o banco entrega e o código não entende (preço nulo,
+      // situação nova no enum…) sumia da vitrine em silêncio. Agora some E
+      // avisa (decisão 15 do PR 3). `registrarFalha` não lança nem bloqueia.
+      void registrarFalha("quebra", "repasse-linha-malformada", { id: bruta.id ?? null }, { rota, origem: "servidor" });
+      return [];
+    }
+    return aparecePublicamente(r, agora) ? [r] : [];
   });
 }
 
@@ -178,4 +191,21 @@ export async function lerRepassePorSlug(slug: string): Promise<Repasse | null> {
   const { data, error } = await supabase.from("repasses").select(SELECAO).eq("slug", slug).maybeSingle();
   if (error) throw new Error(`Leitura do repasse ${slug} falhou: ${error.message}`);
   return data ? repasseDaLinha(data as unknown as Record<string, unknown>) : null;
+}
+
+/**
+ * Os carros cujo slug termina no sufixo pedido (decisão 13 do PR 3): o slug
+ * muda quando alguém corrige marca, modelo ou ano, e o sufixo — os 6
+ * primeiros do uuid — não. A ficha pede no máximo dois e só redireciona
+ * quando acha exatamente um. Sufixo que não tem forma de uuid nem chega ao
+ * banco.
+ */
+export async function lerRepassePorSufixo(sufixo: string): Promise<Repasse[]> {
+  if (!supabase || !/^[0-9a-f]{6}$/.test(sufixo)) return [];
+  const { data, error } = await supabase.from("repasses").select(SELECAO).like("slug", `%-${sufixo}`).limit(2);
+  if (error) throw new Error(`Leitura do repasse pelo sufixo ${sufixo} falhou: ${error.message}`);
+  return (data ?? []).flatMap((linha) => {
+    const r = repasseDaLinha(linha as unknown as Record<string, unknown>);
+    return r ? [r] : [];
+  });
 }

@@ -82,6 +82,8 @@ vi.mock("../src/lib/supabase", () => ({
   },
 }));
 
+vi.mock("../src/lib/observabilidade", () => ({ registrarFalha: async () => {} }));
+
 describe("lerRepassesPublicos", () => {
   beforeEach(() => {
     estado.estado = {
