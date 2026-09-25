@@ -15,11 +15,13 @@ import { ehAutomatico } from "./fichaDoMotor";
 import {
   carrosNaFaixa,
   criteriosDoPerfil,
+  MAXIMO_DO_QUE_NAO_PODE_FALTAR,
   type ItemQueNaoPodeFaltar,
   type Jeito,
   type Leva,
   type PerfilDoQuiz,
   type PreferenciaDeCambio,
+  type Recomendacao,
 } from "./motorDoMatch";
 
 export interface RespostasDoQuiz {
@@ -128,4 +130,107 @@ export function antesDe(atual: IdDaPergunta, a: RespostasDoQuiz, carros: readonl
 export function textoDaContagem(n: number): string {
   if (n === 0) return "0 nessa faixa";
   return n === 1 ? "1 carro" : `${n} carros`;
+}
+
+// ---------------------------------------------------------------------------
+// O toque — e o número que ele promete
+// ---------------------------------------------------------------------------
+//
+// O número de cada opção sai da MESMA transição que o toque grava. A primeira
+// versão contava encaixando a opção no perfil de agora, que já tinha as
+// regras de pulo aplicadas ao caminho de antes do toque — e o toque muda essas
+// regras: marcar só Hatch numa faixa em que os hatches são todos manuais tira
+// o câmbio, e sair de carga devolve os jeitos escondidos. A revisão de 25/09
+// achou 367 opções da 02 e da 03 prometendo um número e entregando outro.
+
+/** Quantos carros sobram com estas respostas — o "SOBRAM N" depois do toque. */
+export function quantosSobram(a: RespostasDoQuiz, carros: readonly Veiculo[]): number {
+  return carrosNaFaixa(carros, criteriosDoPerfil(perfilDe(a, carros))).length;
+}
+
+/** 02 — e o diesel sai de quem deixa de levar carga: ele ocuparia uma das três vagas, escondido. */
+export function comLeva(a: RespostasDoQuiz, leva: Leva): RespostasDoQuiz {
+  return {
+    ...a,
+    leva,
+    naoPodeFaltar:
+      leva === "carga" || a.naoPodeFaltar === null ? a.naoPodeFaltar : a.naoPodeFaltar.filter((i) => i !== "diesel"),
+  };
+}
+
+/**
+ * 03 — marca ou desmarca um jeito. Desmarcar o último devolve a pergunta a
+ * "sem resposta", e não a "Tanto faz": a pessoa não tocou em "Tanto faz".
+ */
+export function comJeitoAlternado(a: RespostasDoQuiz, jeito: Jeito): RespostasDoQuiz {
+  const atuais = a.jeitos ?? [];
+  const novos = atuais.includes(jeito) ? atuais.filter((j) => j !== jeito) : [...atuais, jeito];
+  return { ...a, jeitos: novos.length > 0 ? novos : null };
+}
+
+export function comCambio(a: RespostasDoQuiz, cambio: PreferenciaDeCambio): RespostasDoQuiz {
+  return { ...a, cambio };
+}
+
+/** 05 — marca ou desmarca um item. Com três marcados, um quarto não entra. */
+export function comItemAlternado(a: RespostasDoQuiz, item: ItemQueNaoPodeFaltar): RespostasDoQuiz {
+  const atuais = a.naoPodeFaltar ?? [];
+  if (atuais.includes(item)) return { ...a, naoPodeFaltar: atuais.filter((i) => i !== item) };
+  if (atuais.length >= MAXIMO_DO_QUE_NAO_PODE_FALTAR) return a;
+  return { ...a, naoPodeFaltar: [...atuais, item] };
+}
+
+// ---------------------------------------------------------------------------
+// O que sai do quiz
+// ---------------------------------------------------------------------------
+
+/**
+ * O termo de busca que vai ao GA4, ao Pixel e à CAPI: os IDS das respostas,
+ * e nada mais. Nunca o orçamento, nunca o texto livre, nunca rótulo.
+ */
+export function idsDasRespostas(perfil: PerfilDoQuiz): string[] {
+  return [perfil.leva ?? "", ...(perfil.jeitos ?? []), perfil.cambio ?? "", ...(perfil.naoPodeFaltar ?? [])].filter(
+    Boolean,
+  );
+}
+
+export interface CarroDoLead {
+  veiculo: Veiculo;
+  lugar: string;
+  manchete: string;
+  pesaContra: string | null;
+}
+
+/**
+ * Os carros que o lead leva: os marcados em QUERO VER ESTE — a carta "Já
+ * pensou neste?" inclusive, se a pessoa disse FAZ SENTIDO —, ou os três.
+ *
+ * A carta nunca entra sem ter sido marcada: ela é sugestão da loja, não pedido
+ * do cliente. E no "me avise" e no pedido de ajuda não vai carro nenhum.
+ */
+export function carrosDoLead(
+  recomendacao: Recomendacao | null,
+  escolhidos: readonly string[],
+  modo: "carros" | "aviso" | "ajuda",
+): CarroDoLead[] {
+  if (modo !== "carros" || !recomendacao) return [];
+  const cartoes: CarroDoLead[] = recomendacao.cartoes.map((c) => ({
+    veiculo: c.veiculo,
+    lugar: c.lugar,
+    manchete: c.manchete,
+    pesaContra: c.pesaContra,
+  }));
+  const coringa = recomendacao.coringa ?? null;
+  const daCarta: CarroDoLead[] = coringa
+    ? [
+        {
+          veiculo: coringa.veiculo,
+          lugar: "ja-pensou",
+          manchete: `Já pensou neste? Contra o ${coringa.comparadoCom}: ${coringa.vantagens.join("; ")}.`,
+          pesaContra: coringa.oQueMuda.length > 0 ? `O que muda: ${coringa.oQueMuda.join("; ")}.` : null,
+        },
+      ]
+    : [];
+  const marcados = [...cartoes, ...daCarta].filter((c) => escolhidos.includes(c.veiculo.id));
+  return marcados.length > 0 ? marcados : cartoes;
 }

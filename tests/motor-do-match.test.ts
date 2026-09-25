@@ -6,6 +6,7 @@ import { disponiveisDe } from "../src/lib/regrasEstoque";
 import { divergenciaDeCarroceria, publicavel } from "../src/lib/coerenciaDoCadastro";
 import {
   cilindradaDe,
+  combustivelDe,
   ehAutomatico,
   ehMoto,
   fichaVazia,
@@ -491,6 +492,27 @@ describe(`fase 2 · em ${PERFIS.length} combinações das perguntas novas`, () =
       if (!passaNosFiltros(v, c)) erros.push(`${chave}: coringa fura filtro ou teto`);
       if (r.cartoes.some((x) => modeloBase(x.veiculo) === modeloBase(v))) erros.push(`${chave}: coringa repete modelo`);
       if (k.vantagens.length < 2) erros.push(`${chave}: coringa com menos de 2 vantagens`);
+      // Revisão de 25/09: sem estas regras a carta virava "o mais barato que
+      // passa" (um Kwid contra um X4) e escondia o que perdia.
+      if (precoDoCarro(v) < precoDoCarro(primeiro) * 0.6) erros.push(`${chave}: coringa abaixo de 60% do 1º`);
+      if (k.vantagens.filter((x) => !/ a menos$/.test(x)).length < 2) {
+        erros.push(`${chave}: coringa que só ganha no preço`);
+      }
+      if (k.abaixoDaFaixa !== precoDoCarro(v) < c.piso) erros.push(`${chave}: abaixoDaFaixa errado`);
+      if (r.outros.includes(v)) erros.push(`${chave}: coringa repetido em "outros"`);
+      const muda = k.oQueMuda.join(" · ");
+      if (tracao4x4(primeiro) === "atende" && tracao4x4(v) !== "atende" && !muda.includes("4x4")) {
+        erros.push(`${chave}: perde o 4x4 e não diz`);
+      }
+      if (motorTurbo(primeiro) === "atende" && motorTurbo(v) !== "atende" && !muda.includes("turbo")) {
+        erros.push(`${chave}: perde o turbo e não diz`);
+      }
+      if ((v.portas ?? 0) > 0 && (v.portas ?? 0) < (primeiro.portas ?? 0) && !muda.includes("portas")) {
+        erros.push(`${chave}: tem menos portas e não diz`);
+      }
+      if (combustivelDe(primeiro).includes("diesel") && !combustivelDe(v).includes("diesel") && !muda.includes("diesel")) {
+        erros.push(`${chave}: perde o diesel e não diz`);
+      }
       for (const p of c.preferencias) {
         if (PREFERENCIAS[p].avaliar(primeiro) === "atende" && PREFERENCIAS[p].avaliar(v) !== "atende") {
           erros.push(`${chave}: coringa não atende ${p}, que o 1º atende`);

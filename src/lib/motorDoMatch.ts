@@ -108,7 +108,9 @@ export function faixasDoPatio(precos: readonly number[]): FaixaDeOrcamento[] {
         min: lo,
         max: hi,
         titulo: lo === 0 ? `Até R$ ${rotuloDeValor(hi)}` : `R$ ${rotuloDeValor(lo)} a R$ ${rotuloDeValor(hi)}`,
-        quantos: lista.filter((p) => p > lo && p <= hi).length,
+        // `>=`, como o motor (`preço >= piso`): um carro exatamente no corte
+        // aparece no resultado das duas faixas, e a contagem tem de dizer isso.
+        quantos: lista.filter((p) => p >= lo && p <= hi).length,
       };
     });
     faixas.push({
@@ -116,7 +118,7 @@ export function faixasDoPatio(precos: readonly number[]): FaixaDeOrcamento[] {
       min: tetoDoUltimo,
       max: null,
       titulo: `Acima de R$ ${rotuloDeValor(tetoDoUltimo)}`,
-      quantos: lista.filter((p) => p > tetoDoUltimo).length,
+      quantos: lista.filter((p) => p >= tetoDoUltimo).length,
     });
     return faixas;
   };
@@ -311,6 +313,12 @@ export type ItemQueNaoPodeFaltar =
   | "turbo"
   | "4x4";
 
+/** O corte de "2020 ou mais novo" — um número só para o filtro, a opção e o "e se". */
+export const ANO_DO_ITEM_NOVO = 2020;
+/** O corte de "até 80 mil km". */
+export const KM_DO_ITEM_POUCO_RODADO = 80000;
+const milKm = (n: number) => `${Math.round(n / 1000)} mil km`;
+
 /**
  * O que a pergunta 05 oferece, e o que cada item faz com o estoque.
  *
@@ -325,8 +333,8 @@ export const ITENS_QUE_NAO_PODEM_FALTAR: readonly {
   /** Só aparece para quem vai levar carga. */
   soComCarga?: boolean;
 }[] = [
-  { id: "2020-ou-mais-novo", rotulo: "2020 ou mais novo", corta: true },
-  { id: "ate-80-mil-km", rotulo: "Até 80 mil km", corta: true },
+  { id: "2020-ou-mais-novo", rotulo: `${ANO_DO_ITEM_NOVO} ou mais novo`, corta: true },
+  { id: "ate-80-mil-km", rotulo: `Até ${milKm(KM_DO_ITEM_POUCO_RODADO)}`, corta: true },
   { id: "diesel", rotulo: "Diesel", corta: true, soComCarga: true },
   { id: "camera", rotulo: "Câmera de ré", corta: false },
   { id: "multimidia", rotulo: "Central multimídia", corta: false },
@@ -387,8 +395,8 @@ export function criteriosDoPerfil(p: PerfilDoQuiz): Criterios {
     portas4: p.leva === "familia",
     automatico: p.cambio === "so_automatico",
     carrocerias,
-    anoMin: itens.has("2020-ou-mais-novo") ? 2020 : null,
-    kmMax: itens.has("ate-80-mil-km") ? 80000 : null,
+    anoMin: itens.has("2020-ou-mais-novo") ? ANO_DO_ITEM_NOVO : null,
+    kmMax: itens.has("ate-80-mil-km") ? KM_DO_ITEM_POUCO_RODADO : null,
     // Diesel só vale com carga: fora dela a opção nem aparece.
     diesel: itens.has("diesel") && p.leva === "carga",
     preferencias,
@@ -665,6 +673,8 @@ export interface Coringa {
   comparadoCom: string;
   vantagens: string[];
   oQueMuda: string[];
+  /** Custa menos que o piso da faixa: a tela não pode dizer "cabe na sua faixa". */
+  abaixoDaFaixa: boolean;
 }
 
 const reais = (n: number) => `R$ ${Math.round(n).toLocaleString("pt-BR")}`;
@@ -878,53 +888,117 @@ const KM_QUE_PESA_SOZINHO = 150000;
 const DIFERENCA_DE_PRECO_QUE_CONTA = 3000;
 /** Diferença de km que conta: pelo menos 10 mil e 15% a menos. */
 const DIFERENCA_DE_KM_QUE_CONTA = 10000;
+const PROPORCAO_DE_KM_QUE_CONTA = 0.85;
+
+/**
+ * O coringa não sai por menos que isto do preço do 1º cartão.
+ *
+ * Sem piso nenhum, a revisão de 25/09 achou 98% das cartas abaixo da faixa do
+ * cliente: um Kwid de R$ 58.900 "ganhando" de um X4 de R$ 318.900 por custar
+ * R$ 260 mil a menos. A carta virava "o mais barato que passa nos filtros".
+ * Com 60%, o caso que motivou a carta continua de pé — a Tiguan de R$ 70.900
+ * para quem tinha R$ 91 a 130 mil —, e o Fusca 1976 para quem pediu um Polo
+ * TSI deixa de aparecer.
+ */
+const PRECO_MINIMO_DO_CORINGA = 0.6;
 
 const km = (n: number) => `${n.toLocaleString("pt-BR")} km`;
 
-function compararComOPrimeiro(v: Veiculo, p: Veiculo): { vantagens: string[]; oQueMuda: string[] } {
+interface Comparacao {
+  vantagens: string[];
+  /** As vantagens que não são preço: são estas que precisam ser duas. */
+  vantagensDeCarro: number;
+  oQueMuda: string[];
+}
+
+/**
+ * O coringa contra o 1º cartão, fato a fato — e nos DOIS sentidos.
+ *
+ * A primeira versão só listava o que o coringa ganhava e o que mudava em ano,
+ * km, preço, câmbio e carroceria. O que ele PERDIA — portas, 4x4, diesel,
+ * turbo, itens de ficha — ficava fora do O QUE MUDA, enquanto os itens de
+ * ficha que ele tinha a mais entravam como vantagem. Surpresa com o custo
+ * escondido é empurrão; a lista agora é simétrica.
+ */
+function compararComOPrimeiro(v: Veiculo, p: Veiculo): Comparacao {
   const vantagens: string[] = [];
   const oQueMuda: string[] = [];
+  let vantagensDeCarro = 0;
+  const ganha = (frase: string) => {
+    vantagens.push(frase);
+    vantagensDeCarro += 1;
+  };
 
-  if (v.ano > p.ano) vantagens.push(`mais novo: ${v.ano}, contra ${p.ano}`);
+  if (v.ano > p.ano) ganha(`mais novo: ${v.ano}, contra ${p.ano}`);
   else if (v.ano < p.ano) oQueMuda.push(`é ${v.ano}, contra ${p.ano}`);
 
   const diferencaDeKm = p.quilometragem - v.quilometragem;
-  if (diferencaDeKm >= DIFERENCA_DE_KM_QUE_CONTA && v.quilometragem <= p.quilometragem * 0.85) {
-    vantagens.push(`rodou menos: ${km(v.quilometragem)}, contra ${km(p.quilometragem)}`);
+  if (diferencaDeKm >= DIFERENCA_DE_KM_QUE_CONTA && v.quilometragem <= p.quilometragem * PROPORCAO_DE_KM_QUE_CONTA) {
+    ganha(`rodou menos: ${km(v.quilometragem)}, contra ${km(p.quilometragem)}`);
   } else if (v.quilometragem > p.quilometragem) {
     oQueMuda.push(`${km(v.quilometragem)}, contra ${km(p.quilometragem)}`);
   }
 
+  // Preço é listado, mas não conta para as duas vantagens: "custa menos",
+  // sozinho, fazia de qualquer carro barato um coringa.
   const diferencaDePreco = precoDoCarro(p) - precoDoCarro(v);
   if (diferencaDePreco >= DIFERENCA_DE_PRECO_QUE_CONTA) vantagens.push(`custa ${reais(diferencaDePreco)} a menos`);
   else if (diferencaDePreco < 0) oQueMuda.push(`custa ${reais(-diferencaDePreco)} a mais`);
 
   const autoV = ehAutomatico(v);
   const autoP = ehAutomatico(p);
-  if (autoV === true && autoP === false) vantagens.push("câmbio automático, contra manual");
+  if (autoV === true && autoP === false) ganha("câmbio automático, contra manual");
   else if (autoV === false && autoP === true) oQueMuda.push("câmbio manual, contra automático");
 
-  const cilV = cilindradaDe(v);
-  const cilP = cilindradaDe(p);
-  if (cilV !== null && cilP !== null) {
-    if (cilV > cilP + 0.05) vantagens.push(`motor ${cilV.toFixed(1)}, contra ${cilP.toFixed(1)}`);
-    else if (cilV < cilP - 0.05) oQueMuda.push(`motor ${cilV.toFixed(1)}, contra ${cilP.toFixed(1)}`);
+  // Cilindrada só se compara entre motores do mesmo tipo: um 1.3 aspirado
+  // não é "mais motor" que um 1.0 TSI — era o Fusca 1976 ganhando do Polo.
+  const turboV = motorTurbo(v) === "atende";
+  const turboP = motorTurbo(p) === "atende";
+  if (turboV && !turboP) ganha("motor turbo");
+  else if (!turboV && turboP) oQueMuda.push("motor sem turbo, contra turbo");
+  else {
+    const cilV = cilindradaDe(v);
+    const cilP = cilindradaDe(p);
+    if (cilV !== null && cilP !== null) {
+      if (cilV > cilP + 0.05) ganha(`motor ${cilV.toFixed(1)}, contra ${cilP.toFixed(1)}`);
+      else if (cilV < cilP - 0.05) oQueMuda.push(`motor ${cilV.toFixed(1)}, contra ${cilP.toFixed(1)}`);
+    }
   }
 
-  if (tracao4x4(v) === "atende" && tracao4x4(p) !== "atende") vantagens.push("tração 4x4");
+  const quatroV = tracao4x4(v) === "atende";
+  const quatroP = tracao4x4(p) === "atende";
+  if (quatroV && !quatroP) ganha("tração 4x4");
+  else if (!quatroV && quatroP) oQueMuda.push("sem tração 4x4");
 
-  // A ficha só compara quando a do 1º tem conteúdo: ficha vazia não prova que
-  // ele não tem o item. E conta como UMA vantagem, por mais itens que liste —
-  // senão uma ficha longa ganharia sozinha.
+  // Diesel não é vantagem para todo mundo; perder o diesel de quem tinha, é custo.
+  if (combustivelDe(p).includes("diesel") && !combustivelDe(v).includes("diesel")) {
+    oQueMuda.push(`${combustivelLegivel(v)}, não diesel`);
+  }
+
+  const portasV = v.portas ?? 0;
+  const portasP = p.portas ?? 0;
+  if (portasV > 0 && portasP > 0 && portasV < portasP) oQueMuda.push(`${portasV} portas, contra ${portasP}`);
+
+  // A ficha só compara quando a do outro lado tem conteúdo: ficha vazia não
+  // prova que falta o item. E os itens a mais contam como UMA vantagem, por
+  // mais que sejam — senão uma ficha longa ganharia sozinha.
   if (!fichaVazia(p)) {
     const aMais = ITENS_DA_FICHA.filter((i) => itemNaFicha(v, i) === "atende" && itemNaFicha(p, i) !== "atende");
-    if (aMais.length > 0) vantagens.push(`${juntar(aMais.map((i) => i.rotulo))} na ficha`);
+    if (aMais.length > 0) ganha(`${juntar(aMais.map((i) => i.rotulo))} na ficha`);
+    if (fichaVazia(v)) {
+      oQueMuda.push("itens de série não informados na ficha");
+    } else {
+      const aMenos = ITENS_DA_FICHA.filter((i) => itemNaFicha(p, i) === "atende" && itemNaFicha(v, i) !== "atende");
+      if (aMenos.length > 0) {
+        oQueMuda.push(`${juntar(aMenos.map((i) => i.rotulo))} não ${aMenos.length === 1 ? "consta" : "constam"} na ficha`);
+      }
+    }
   }
 
   if (normalizar(carroceriaDe(v)) !== normalizar(carroceriaDe(p)) && carroceriaDe(v)) {
     oQueMuda.push(`é ${carroceriaLegivel(v)}, não ${carroceriaLegivel(p)}`);
   }
-  return { vantagens, oQueMuda };
+  return { vantagens, vantagensDeCarro, oQueMuda };
 }
 
 function escolherCoringa(base: readonly Veiculo[], c: Criterios, cartoes: readonly Veiculo[]): Coringa | null {
@@ -933,6 +1007,7 @@ function escolherCoringa(base: readonly Veiculo[], c: Criterios, cartoes: readon
 
   const modelos = new Set(cartoes.map(modeloBase));
   const atendidasPeloPrimeiro = c.preferencias.filter((p) => PREFERENCIAS[p].avaliar(primeiro) === "atende");
+  const precoMinimo = precoDoCarro(primeiro) * PRECO_MINIMO_DO_CORINGA;
 
   const candidatos = base
     .filter(
@@ -940,21 +1015,32 @@ function escolherCoringa(base: readonly Veiculo[], c: Criterios, cartoes: readon
         !cartoes.includes(v) &&
         !modelos.has(modeloBase(v)) &&
         passaNosFiltros(v, c) &&
+        precoDoCarro(v) >= precoMinimo &&
         atendidasPeloPrimeiro.every((p) => PREFERENCIAS[p].avaliar(v) === "atende"),
     )
     .map((v) => ({ v, ...compararComOPrimeiro(v, primeiro) }))
-    .filter((x) => x.vantagens.length >= 2)
+    .filter((x) => x.vantagensDeCarro >= 2)
+    // Mais vantagens de carro; no empate, o que muda menos; depois o mais
+    // novo. Preço fica por último: desempatar pelo mais barato era o que
+    // puxava a carta para o fundo da faixa.
     .sort(
       (a, b) =>
-        b.vantagens.length - a.vantagens.length ||
-        precoDoCarro(a.v) - precoDoCarro(b.v) ||
+        b.vantagensDeCarro - a.vantagensDeCarro ||
+        a.oQueMuda.length - b.oQueMuda.length ||
         b.v.ano - a.v.ano ||
+        precoDoCarro(a.v) - precoDoCarro(b.v) ||
         String(a.v.id).localeCompare(String(b.v.id)),
     );
 
   const melhor = candidatos[0];
   if (!melhor) return null;
-  return { veiculo: melhor.v, comparadoCom: nomeCurto(primeiro), vantagens: melhor.vantagens, oQueMuda: melhor.oQueMuda };
+  return {
+    veiculo: melhor.v,
+    comparadoCom: nomeCurto(primeiro),
+    vantagens: melhor.vantagens,
+    oQueMuda: melhor.oQueMuda,
+    abaixoDaFaixa: precoDoCarro(melhor.v) < c.piso,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -971,8 +1057,8 @@ const ROTULO_DO_E_SE: Record<ChaveDeFiltro, string> = {
   automatico: "Aceitar câmbio manual",
   carroceria: "Ver outras carrocerias",
   portas: "Aceitar 2 portas",
-  ano: "Aceitar antes de 2020",
-  km: "Aceitar mais de 80 mil km",
+  ano: `Aceitar antes de ${ANO_DO_ITEM_NOVO}`,
+  km: `Aceitar mais de ${milKm(KM_DO_ITEM_POUCO_RODADO)}`,
   diesel: "Aceitar flex ou gasolina",
 };
 
@@ -1047,14 +1133,16 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     }
   }
 
+  const coringa = escolherCoringa(base, c, todos);
   return {
     cartoes,
-    outros: naFaixa.filter((v) => !tres.includes(v)),
+    // O coringa não se repete na lista de baixo: a carta já é o lugar dele.
+    outros: naFaixa.filter((v) => !tres.includes(v) && v !== coringa?.veiculo),
     naFaixa: naFaixa.length,
     filtros: filtrosLegiveis(c),
     avisos: [...c.avisos],
     eSe,
     temTeto: c.teto !== null,
-    coringa: escolherCoringa(base, c, todos),
+    coringa,
   };
 }

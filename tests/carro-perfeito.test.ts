@@ -328,6 +328,33 @@ describe("4 · o quiz pergunta as cinco — e só o que separa carro", () => {
     }
   });
 
+  it("o número de cada opção sai da transição que o toque grava", () => {
+    // A primeira versão contava com `{ ...perfilAtual, ...mudanca }` — o perfil
+    // de ANTES do toque, com as regras de pulo do caminho antigo — e 367
+    // opções prometiam um número e entregavam outro (revisão de 25/09). As
+    // transições e a conta moram em `lib/perguntasDoProfiler`, testadas lá;
+    // aqui se trava que a tela as usa.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).not.toMatch(/\.\.\.perfilAtual,\s*\.\.\.mudanca/);
+    expect(codigo).toContain("sobramCom(comLeva(answers, o.id))");
+    expect(codigo).toContain("sobramCom(comCambio(answers, o.id))");
+    expect(codigo).toContain("sobramCom(comItemAlternado(answers, o.id))");
+    expect(codigo).toContain("const novas = comLeva(answers, leva);");
+    expect(codigo).toContain("const novas = comCambio(answers, cambio);");
+    expect(codigo).toContain("comJeitoAlternado(prev, jeito)");
+    expect(codigo).toContain("comItemAlternado(prev, item)");
+  });
+
+  it("o lead e a busca saem das funções testadas", () => {
+    // `carrosDoLead` decide se a carta "Já pensou neste?" vai no lead;
+    // `idsDasRespostas` decide o que vai ao GA4, ao Pixel e à CAPI.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).toContain("carrosDoLead(recomendacao, escolhidos, modoDoLead)");
+    expect(codigo).toContain("const ids = idsDasRespostas(perfilAtual);");
+    expect(codigo).toMatch(/trackCarMatch\(ids, /);
+    expect(codigo).not.toMatch(/trackCarMatch\((?!ids, )/);
+  });
+
   it("a pergunta 01 nunca fica sem opção clicável", () => {
     // O defeito que o dono relatou duas vezes, e que reproduzi no navegador:
     // `budgetRanges` nascia `[]` e a tela desenhava, no lugar das faixas,

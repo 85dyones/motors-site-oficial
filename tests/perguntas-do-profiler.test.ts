@@ -1,12 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { ESTOQUE_DE_25_09 } from "./estoque-de-25-09";
-import { carrosNaFaixa, criteriosDoPerfil, elegivel, faixasDoPatio, recomendar } from "../src/lib/motorDoMatch";
+import {
+  carrosNaFaixa,
+  criteriosDoPerfil,
+  elegivel,
+  faixasDoPatio,
+  recomendar,
+  type PerfilDoQuiz,
+} from "../src/lib/motorDoMatch";
 import { ehAutomatico, precoDoCarro } from "../src/lib/fichaDoMotor";
 import {
   antesDe,
   cambioUnicoDe,
+  carrosDoLead,
+  comItemAlternado,
+  comJeitoAlternado,
+  comLeva,
   depoisDe,
+  idsDasRespostas,
   perfilDe,
+  quantosSobram,
   RESPOSTAS_EM_BRANCO,
   sequenciaDe,
   textoDaContagem,
@@ -146,5 +159,133 @@ describe("o número antes do toque é o do resultado", () => {
     expect(textoDaContagem(0)).toBe("0 nessa faixa");
     expect(textoDaContagem(1)).toBe("1 carro");
     expect(textoDaContagem(7)).toBe("7 carros");
+  });
+});
+
+describe("o número da opção é o SOBRAM depois do toque", () => {
+  // A primeira versão contava encaixando a opção no perfil de ANTES do toque,
+  // com as regras de pulo do caminho antigo. A revisão de 25/09 achou 367
+  // opções prometendo um número e entregando outro. Os dois casos abaixo são
+  // os que ela reproduziu; `quantosSobram` sobre a transição do toque é a
+  // conta que a tela usa agora.
+  /** A conta da primeira versão: a opção encaixada no perfil de antes do toque. */
+  const doJeitoAntigo = (a: RespostasDoQuiz, mudanca: Partial<PerfilDoQuiz>) =>
+    carrosNaFaixa(CARROS, criteriosDoPerfil({ ...perfilDe(a, CARROS), ...mudanca })).length;
+
+  it("'automático até 50 mil' e depois Hatch: o hatch não é '0 nessa faixa'", () => {
+    // DESCREVER pré-marcou "Só automático". Até R$ 50 mil os hatches são
+    // todos manuais: marcar Hatch faz a 04 sumir, e a resposta dela junto.
+    const a = naFaixa("Até R$ 50mil", { leva: "eu", cambio: "so_automatico" });
+    expect(doJeitoAntigo(a, { jeitos: ["Hatch"] }), "a conta antiga").toBe(0);
+    const antes = quantosSobram({ ...a, jeitos: ["Hatch"] }, CARROS);
+    const depois = quantosSobram(comJeitoAlternado({ ...a, jeitos: null }, "Hatch"), CARROS);
+    expect(antes).toBeGreaterThan(0);
+    expect(antes).toBe(depois);
+  });
+
+  it("sair de carga devolve o jeito escondido — e o número já conta com ele", () => {
+    // Guardado: carga, e um Sedã marcado antes. "Eu e mais um" prometia 7 e
+    // entregava 0: não há sedã até R$ 50 mil.
+    const a = naFaixa("Até R$ 50mil", { leva: "carga", jeitos: ["Sedan"] });
+    const depois = comLeva(a, "eu");
+    expect(quantosSobram(depois, CARROS)).toBe(0);
+    expect(doJeitoAntigo(a, { leva: "eu" }), "a conta antiga").toBe(7);
+  });
+
+  it("em toda faixa e resposta guardada, a 02 promete o que o toque grava", () => {
+    // `comLeva` é o que o toque grava e o que a opção conta; aqui se prova
+    // que a transição carrega as regras (diesel, jeitos escondidos, câmbio).
+    for (const f of FAIXAS) {
+      for (const guardada of [
+        {},
+        { leva: "carga" as const, jeitos: ["Sedan" as const], naoPodeFaltar: ["diesel" as const] },
+        { jeitos: ["Hatch" as const], cambio: "so_automatico" as const },
+      ]) {
+        const a = naFaixa(f.titulo, guardada);
+        for (const leva of ["eu", "familia", "carga"] as const) {
+          const novas = comLeva(a, leva);
+          const perfil = perfilDe(novas, CARROS);
+          expect(quantosSobram(novas, CARROS), `${f.titulo} · ${leva}`).toBe(
+            recomendar(ESTOQUE_DE_25_09, criteriosDoPerfil(perfil)).naFaixa,
+          );
+          if (leva !== "carga") expect(novas.naoPodeFaltar ?? []).not.toContain("diesel");
+        }
+      }
+    }
+  });
+});
+
+describe("os toques de várias respostas", () => {
+  it("desmarcar o último jeito não vira 'Tanto faz'", () => {
+    const a = naFaixa("Até R$ 50mil", { jeitos: ["SUV"] });
+    expect(comJeitoAlternado(a, "SUV").jeitos).toBeNull();
+    expect(comJeitoAlternado(a, "Hatch").jeitos).toEqual(["SUV", "Hatch"]);
+  });
+
+  it("o quarto item não entra; desmarcar libera a vaga", () => {
+    const a = naFaixa("Até R$ 50mil", { naoPodeFaltar: ["camera", "sensor", "turbo"] });
+    expect(comItemAlternado(a, "4x4").naoPodeFaltar).toEqual(["camera", "sensor", "turbo"]);
+    expect(comItemAlternado(a, "sensor").naoPodeFaltar).toEqual(["camera", "turbo"]);
+  });
+});
+
+describe("o que sai do quiz", () => {
+  it("a busca que vai ao GA4, ao Pixel e à CAPI leva só ids", () => {
+    // Nada de orçamento ("R$", dígitos de preço) nem rótulo com espaço.
+    // Hatch e perua até R$ 50 mil: câmbio misturado, a 04 fica e vai junto.
+    const a = naFaixa("Até R$ 50mil", {
+      leva: "familia",
+      jeitos: ["Hatch", "Perua"],
+      cambio: "prefiro_automatico",
+      naoPodeFaltar: ["2020-ou-mais-novo", "camera"],
+    });
+    const ids = idsDasRespostas(perfilDe(a, CARROS));
+    expect(ids).toEqual(["familia", "Hatch", "Perua", "prefiro_automatico", "2020-ou-mais-novo", "camera"]);
+    for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(ids.join(" ")).not.toMatch(/50|R\$/);
+    // E a resposta de pergunta pulada não vai: família SUV de R$ 75 a 115 mil
+    // é tudo automático, e a 04 some.
+    const pulada = naFaixa("R$ 75mil a R$ 115mil", { leva: "familia", jeitos: ["SUV"], cambio: "prefiro_manual" });
+    expect(idsDasRespostas(perfilDe(pulada, CARROS))).toEqual(["familia", "SUV"]);
+  });
+
+  describe("os carros do lead", () => {
+    const r = recomendar(
+      ESTOQUE_DE_25_09,
+      criteriosDoPerfil({
+        orcamento: { min: 91000, max: 130000 },
+        leva: "eu",
+        jeitos: ["Hatch", "Sedan", "SUV"],
+        cambio: "prefiro_automatico",
+        naoPodeFaltar: ["turbo"],
+      }),
+    );
+    const coringa = r.coringa!;
+    const ids = (lista: { veiculo: { id: string } }[]) => lista.map((c) => c.veiculo.id);
+
+    it("o cenário tem carta", () => {
+      expect(coringa).not.toBeNull();
+    });
+
+    it("sem nada marcado: os três cartões, e a carta não", () => {
+      expect(ids(carrosDoLead(r, [], "carros"))).toEqual(ids(r.cartoes));
+    });
+
+    it("a carta só entra com FAZ SENTIDO, e marcada como 'ja-pensou'", () => {
+      const lead = carrosDoLead(r, [coringa.veiculo.id], "carros");
+      expect(lead).toHaveLength(1);
+      expect(lead[0].lugar).toBe("ja-pensou");
+      expect(lead[0].pesaContra).toMatch(/^O que muda: /);
+    });
+
+    it("com um cartão e a carta marcados, vão os dois", () => {
+      const lead = carrosDoLead(r, [r.cartoes[1].veiculo.id, coringa.veiculo.id], "carros");
+      expect(ids(lead)).toEqual([r.cartoes[1].veiculo.id, coringa.veiculo.id]);
+    });
+
+    it("'me avise' e pedido de ajuda não levam carro", () => {
+      expect(carrosDoLead(r, [coringa.veiculo.id], "aviso")).toEqual([]);
+      expect(carrosDoLead(null, [], "ajuda")).toEqual([]);
+    });
   });
 });

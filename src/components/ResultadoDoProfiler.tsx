@@ -78,6 +78,8 @@ export default function ResultadoDoProfiler({
             O seu perfil não se perde: fale com um consultor e ele faz a busca no pátio por você.
           </p>
         </div>
+        {/* O pedido de ajuda também vai ao consultor: o prazo serve a ele aqui. */}
+        {onPrazo && <EscolhaDoPrazo prazo={prazo} opcoes={opcoesDePrazo} onPrazo={onPrazo} />}
         <Acoes onFalar={onFalar} onRefazer={onRefazer} quantosEscolhidos={0} quantosCartoes={0} />
       </div>
     );
@@ -262,35 +264,49 @@ export default function ResultadoDoProfiler({
         </div>
       )}
 
-      {onPrazo && opcoesDePrazo.length > 0 && (
-        <div className="mt-10 max-w-[720px]">
-          <span className="text-[10.5px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
-            QUANDO VOCÊ PRETENDE FECHAR? · OPCIONAL
-          </span>
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            {opcoesDePrazo.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => onPrazo(o.id)}
-                aria-pressed={prazo === o.id}
-                className={`mt-foco border-2 px-3.5 py-2 text-[12px] font-extrabold tracking-[.02em] transition-colors ${
-                  prazo === o.id
-                    ? "border-mt-accent bg-[color-mix(in_srgb,var(--mt-accent)_14%,transparent)] text-mt-inverso"
-                    : "border-mt-inverso-regua text-mt-inverso-suave hover:text-mt-inverso"
-                }`}
-              >
-                {o.titulo}
-              </button>
-            ))}
-          </div>
-          <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso-suave">
-            Ajuda o consultor a se organizar. Não muda os carros.
-          </p>
-        </div>
-      )}
+      {onPrazo && <EscolhaDoPrazo prazo={prazo} opcoes={opcoesDePrazo} onPrazo={onPrazo} />}
 
       <Acoes onFalar={onFalar} onRefazer={onRefazer} quantosEscolhidos={escolhidos.length} quantosCartoes={cartoes.length} />
+    </div>
+  );
+}
+
+/** O prazo, opcional. Não muda os carros — e a tela diz isso. */
+function EscolhaDoPrazo({
+  prazo,
+  opcoes,
+  onPrazo,
+}: {
+  prazo: string;
+  opcoes: readonly { id: string; titulo: string }[];
+  onPrazo: (id: string) => void;
+}) {
+  if (opcoes.length === 0) return null;
+  return (
+    <div className="mt-10 max-w-[720px]">
+      <span className="text-[10.5px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
+        QUANDO VOCÊ PRETENDE FECHAR? · OPCIONAL
+      </span>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {opcoes.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onPrazo(o.id)}
+            aria-pressed={prazo === o.id}
+            className={`mt-foco border-2 px-3.5 py-2 text-[12px] font-extrabold tracking-[.02em] transition-colors ${
+              prazo === o.id
+                ? "border-mt-accent bg-[color-mix(in_srgb,var(--mt-accent)_14%,transparent)] text-mt-inverso"
+                : "border-mt-inverso-regua text-mt-inverso-suave hover:text-mt-inverso"
+            }`}
+          >
+            {o.titulo}
+          </button>
+        ))}
+      </div>
+      <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso-suave">
+        Ajuda o consultor a se organizar. Não muda os carros.
+      </p>
     </div>
   );
 }
@@ -324,8 +340,11 @@ function CartaJaPensouNeste({
         <Rotulo accent className="text-[11px] tracking-[.18em]">
           JÁ PENSOU NESTE?
         </Rotulo>
+        {/* "Cabe no que você pediu" só quando cabe na faixa: quase sempre a
+            carta custa menos que o piso, e a frase antiga afirmava o contrário. */}
         <p className="m-0 mt-2 text-[13px] leading-relaxed text-mt-inverso-suave">
-          Você não pediu, mas cabe no que você pediu e ganha do {coringa.comparadoCom} em{" "}
+          Você não pediu, mas ele passa nos seus filtros
+          {coringa.abaixoDaFaixa ? ", custa menos que a sua faixa" : ""} e ganha do {coringa.comparadoCom} em{" "}
           {coringa.vantagens.length === 2 ? "dois pontos" : `${coringa.vantagens.length} pontos`}.
         </p>
         <div className="mt-4 text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">

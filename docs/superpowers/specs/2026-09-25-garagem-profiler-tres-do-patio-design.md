@@ -413,7 +413,15 @@ consultor consegue separar por lead) e não entrou.
 - **"Já pensou neste?"** A carta vem depois dos três, com CONTRA O [1º cartão]
   e O QUE MUDA sempre visíveis (sem custo no cadastro, a tela diz isso). FAZ
   SENTIDO a põe no lead com `lugar: "ja-pensou"`; NÃO É PRA MIM a tira até
-  refazer. Ainda não há duelos para ela evitar repetir (fase 3).
+  refazer. Ainda não há duelos para ela evitar repetir (fase 3). A revisão
+  antes do merge achou a primeira versão virando "o mais barato que passa"
+  (98% das cartas abaixo da faixa; um Kwid contra um X4) e escondendo o que o
+  carro perdia. Regras de agora: preço de pelo menos 60% do 1º cartão; "custa
+  menos" é listado, mas não conta para as duas vantagens; cilindrada só se
+  compara entre motores do mesmo tipo (turbo com turbo); O QUE MUDA lista
+  também portas, 4x4, diesel, turbo e itens de ficha que o carro perde; a
+  frase só diz "cabe na sua faixa" quando cabe. No pátio de 25/09 a carta
+  aparece em cerca de 5% dos perfis — rara de propósito.
 - **Lead pronto.** `leads.perfil` (migração 20260925200000, com aceite) guarda
   o retrato montado no servidor a partir de `intencao_busca`, e o card do
   kanban o mostra (`BlocoDoPerfil`). A rota grava o lead mesmo sem a coluna.

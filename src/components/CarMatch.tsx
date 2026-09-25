@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { getEstoque, Veiculo } from "../lib/supabase";
 import { disponiveisDe, precoVigente } from "../lib/regrasEstoque";
@@ -9,12 +9,19 @@ import { precoDoCarro } from "../lib/fichaDoMotor";
 import {
   antesDe,
   cambioUnicoDe,
+  carrosDoLead,
+  comCambio,
+  comItemAlternado,
+  comJeitoAlternado,
+  comLeva,
   depoisDe,
+  idsDasRespostas,
   ordemFixa,
   perfilAteOJeito,
   perfilDe,
   PERGUNTAS,
   RESPOSTAS_EM_BRANCO,
+  quantosSobram,
   sequenciaDe,
   tetoDe,
   textoDaContagem,
@@ -359,9 +366,12 @@ export default function CarMatch() {
   /** Sem estoque carregado não há o que contar — a opção fica sem número. */
   const semContagem = carrosDoPatio.length === 0;
 
-  /** Quantos sobram se a pessoa tocar nesta opção. */
-  const contarCom = (mudanca: Partial<PerfilDoQuiz>): number =>
-    carrosNaFaixa(carrosDoPatio, criteriosDoPerfil({ ...perfilAtual, ...mudanca })).length;
+  /**
+   * Quantos sobram se a pessoa tocar nesta opção: a MESMA transição que o
+   * toque grava (`comLeva`, `comCambio`…), passada pelas mesmas regras de
+   * pulo — ver `lib/perguntasDoProfiler`.
+   */
+  const sobramCom = (novas: AnswerState): number => quantosSobram(novas, carrosDoPatio);
 
   /**
    * As faixas de orçamento — as quatro opções da pergunta 01.
@@ -498,35 +508,6 @@ export default function CarMatch() {
 
   const nomeDoQuiz = companySettings?.carMatchTitle || "Garagem Profiler";
 
-  /**
-   * Os carros que o lead leva: os marcados em QUERO VER ESTE (a carta "Já
-   * pensou neste?" inclusive, se a pessoa disse FAZ SENTIDO), ou os três.
-   * A carta nunca entra sem ter sido marcada: ela é sugestão da loja, não
-   * pedido do cliente.
-   */
-  const carrosDoLead = (): { veiculo: Veiculo; lugar: string; manchete: string; pesaContra: string | null }[] => {
-    if (modoDoLead !== "carros") return [];
-    const cartoes = (recomendacao?.cartoes ?? []).map((c) => ({
-      veiculo: c.veiculo,
-      lugar: c.lugar as string,
-      manchete: c.manchete,
-      pesaContra: c.pesaContra,
-    }));
-    const coringa = recomendacao?.coringa ?? null;
-    const daCarta = coringa
-      ? [
-          {
-            veiculo: coringa.veiculo,
-            lugar: "ja-pensou",
-            manchete: `Já pensou neste? Contra o ${coringa.comparadoCom}: ${coringa.vantagens.join("; ")}.`,
-            pesaContra: coringa.oQueMuda.length > 0 ? `O que muda: ${coringa.oQueMuda.join("; ")}.` : null,
-          },
-        ]
-      : [];
-    const marcados = [...cartoes, ...daCarta].filter((c) => escolhidos.includes(c.veiculo.id));
-    return marcados.length > 0 ? marcados : cartoes;
-  };
-
   const abrirLead = (modo: "carros" | "aviso" | "ajuda") => {
     setModoDoLead(modo);
     setIsLeadModalOpen(true);
@@ -563,7 +544,9 @@ export default function CarMatch() {
     // ela nomeia os carros — o consultor abre a conversa sabendo quais separar,
     // e a coluna `interesse` do lead (que é esta mensagem) deixa de dizer só
     // "Curadoria Especial".
-    const carros = carrosDoLead();
+    // Os marcados em QUERO VER ESTE (a carta "Já pensou neste?" só com FAZ
+    // SENTIDO), ou os três — ver `carrosDoLead` em lib/perguntasDoProfiler.
+    const carros = carrosDoLead(recomendacao, escolhidos, modoDoLead);
     const nomeComPreco = (c: (typeof carros)[number]) =>
       `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))})`;
     const lista =
@@ -853,34 +836,32 @@ export default function CarMatch() {
     setTimeout(() => { setGameState("q2"); }, 200);
   };
 
-  /** Tocar na opção já avança, como sempre foi — com 200 ms para ver o toque. */
+  /**
+   * Tocar na opção já avança, como sempre foi — com 200 ms para ver o toque.
+   * O relógio fica guardado para VOLTAR (ou outro toque) cancelá-lo: sem isso,
+   * tocar e voltar dentro dos 200 ms avançava mesmo assim.
+   */
+  const avanco = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelarAvanco = () => {
+    if (avanco.current) clearTimeout(avanco.current);
+    avanco.current = null;
+  };
   const irPara = (destino: EstadoQuiz) => {
-    setTimeout(() => {
+    cancelarAvanco();
+    avanco.current = setTimeout(() => {
+      avanco.current = null;
       setGameState(destino);
     }, 200);
   };
 
   const selectLeva = (leva: Leva) => {
-    const novas: AnswerState = {
-      ...answers,
-      leva,
-      // Diesel só existe para quem leva carga: trocar de carga para família
-      // não pode deixar o item escondido ocupando uma das três vagas.
-      naoPodeFaltar:
-        leva === "carga" || answers.naoPodeFaltar === null
-          ? answers.naoPodeFaltar
-          : answers.naoPodeFaltar.filter((i) => i !== "diesel"),
-    };
+    const novas = comLeva(answers, leva);
     setAnswers(novas);
     // O destino sai das respostas NOVAS: marcar carga tira a 03 da sequência.
     irPara(depoisDe("q2", novas, carrosDoPatio));
   };
 
-  const alternarJeito = (jeito: Jeito) =>
-    setAnswers((prev) => {
-      const atuais = prev.jeitos ?? [];
-      return { ...prev, jeitos: atuais.includes(jeito) ? atuais.filter((j) => j !== jeito) : [...atuais, jeito] };
-    });
+  const alternarJeito = (jeito: Jeito) => setAnswers((prev) => comJeitoAlternado(prev, jeito));
 
   const jeitoTantoFaz = () => {
     const novas: AnswerState = { ...answers, jeitos: [] };
@@ -888,24 +869,22 @@ export default function CarMatch() {
     irPara(depoisDe("q3", novas, carrosDoPatio));
   };
 
-  const confirmarJeitos = () => setGameState(depoisDe("q3", answers, carrosDoPatio));
+  const confirmarJeitos = () => {
+    cancelarAvanco();
+    setGameState(depoisDe("q3", answers, carrosDoPatio));
+  };
 
   const selectCambio = (cambio: PreferenciaDeCambio) => {
-    const novas: AnswerState = { ...answers, cambio };
+    const novas = comCambio(answers, cambio);
     setAnswers(novas);
     irPara(depoisDe("q4", novas, carrosDoPatio));
   };
 
   /** Até três. Com três marcados, os outros esperam alguém ser desmarcado. */
-  const alternarItem = (item: ItemQueNaoPodeFaltar) =>
-    setAnswers((prev) => {
-      const atuais = prev.naoPodeFaltar ?? [];
-      if (atuais.includes(item)) return { ...prev, naoPodeFaltar: atuais.filter((i) => i !== item) };
-      if (atuais.length >= MAXIMO_DO_QUE_NAO_PODE_FALTAR) return prev;
-      return { ...prev, naoPodeFaltar: [...atuais, item] };
-    });
+  const alternarItem = (item: ItemQueNaoPodeFaltar) => setAnswers((prev) => comItemAlternado(prev, item));
 
   const verResultado = (itens?: ItemQueNaoPodeFaltar[]) => {
+    cancelarAvanco();
     setAnswers((prev) => ({ ...prev, naoPodeFaltar: itens ?? prev.naoPodeFaltar ?? [] }));
     setGameState("loading");
   };
@@ -928,12 +907,7 @@ export default function CarMatch() {
     let cancelado = false;
     // Ids, e nunca rótulos nem orçamento: é o que vai ao GA4, ao Pixel e à
     // CAPI como termo de busca.
-    const idsDasRespostas: string[] = [
-      perfilAtual.leva ?? "",
-      ...(perfilAtual.jeitos ?? []),
-      perfilAtual.cambio ?? "",
-      ...(perfilAtual.naoPodeFaltar ?? []),
-    ].filter(Boolean);
+    const ids = idsDasRespostas(perfilAtual);
 
     fetch("/api/match", {
       method: "POST",
@@ -965,14 +939,14 @@ export default function CarMatch() {
         // que levariam o orçamento ("de R$ 55 mil a R$ 75 mil") ao Pixel e à
         // CAPI. A contagem é a da faixa: o complemento abaixo do piso não é
         // resultado da busca.
-        trackCarMatch(idsDasRespostas, r.naFaixa);
+        trackCarMatch(ids, r.naFaixa);
       })
       .catch((err) => {
         if (cancelado) return;
         console.error("[CarMatch] A consulta ao estoque falhou:", err);
         setRecomendacao(null);
         setBuscaFalhou(true);
-        trackCarMatch(idsDasRespostas, 0);
+        trackCarMatch(ids, 0);
       })
       .finally(() => {
         if (!cancelado) setGameState("results");
@@ -1088,13 +1062,21 @@ export default function CarMatch() {
 
   const perguntaAtual = PERGUNTAS.find((p) => p.id === gameState) ?? null;
   const emPergunta = perguntaAtual !== null;
-  const posicaoNaSequencia = perguntaAtual ? sequencia.indexOf(perguntaAtual.id) : -1;
-  const perguntasQueFaltam = posicaoNaSequencia >= 0 ? sequencia.length - (posicaoNaSequencia + 1) : 0;
+  // A pergunta atual pode ter saído da sequência enquanto a pessoa está nela
+  // (o estoque chegou depois e a 04 deixou de separar carro): a régua conta a
+  // posição dela pela ordem fixa, e a inclui no total.
+  const naSequencia = perguntaAtual ? sequencia.includes(perguntaAtual.id) : false;
+  const posicaoNaSequencia = perguntaAtual
+    ? sequencia.filter((id) => ordemFixa(id) < ordemFixa(perguntaAtual.id)).length
+    : -1;
+  const totalDePerguntas = sequencia.length + (perguntaAtual && !naSequencia ? 1 : 0);
+  const perguntasQueFaltam = perguntaAtual ? totalDePerguntas - (posicaoNaSequencia + 1) : 0;
   const mostrarPainel = gameState === "intro" || emPergunta;
 
   /** Volta uma pergunta — pulando as que esta pessoa não viu; da primeira, para a abertura. */
   const voltarPergunta = () => {
     if (!perguntaAtual) return;
+    cancelarAvanco();
     setGameState(antesDe(perguntaAtual.id, answers, carrosDoPatio));
   };
 
@@ -1190,7 +1172,7 @@ export default function CarMatch() {
           <>
             <ReguaProgresso
               posicao={Math.max(0, posicaoNaSequencia)}
-              total={sequencia.length}
+              total={totalDePerguntas}
               rotulo={perguntaAtual?.rotulo ?? ""}
             />
 
@@ -1305,7 +1287,7 @@ export default function CarMatch() {
               <BlocoPergunta
                 titulo="O que o carro vai levar?"
                 opcoes={OPCOES_LEVA.map((o) => {
-                  const n = semContagem ? null : contarCom({ leva: o.id });
+                  const n = semContagem ? null : sobramCom(comLeva(answers, o.id));
                   return {
                     ...o,
                     contagem: n === null ? null : textoDaContagem(n),
@@ -1324,7 +1306,10 @@ export default function CarMatch() {
                 subtitulo="Pode marcar mais de um."
                 opcoes={[
                   ...OPCOES_JEITO.map((o) => {
-                    const n = semContagem ? null : contarCom({ jeitos: [o.id] });
+                    // Várias respostas: o número de cada jeito é o dele
+                    // sozinho — é o que o "SOBRAM" diz se só ele ficar
+                    // marcado, e os números somam entre si.
+                    const n = semContagem ? null : sobramCom({ ...answers, jeitos: [o.id] });
                     return {
                       ...o,
                       contagem: n === null ? null : textoDaContagem(n),
@@ -1337,7 +1322,7 @@ export default function CarMatch() {
                     id: "tanto-faz",
                     titulo: "Tanto faz",
                     desc: "Mostrem o que o pátio tiver.",
-                    contagem: semContagem ? null : textoDaContagem(contarCom({ jeitos: [] })),
+                    contagem: semContagem ? null : textoDaContagem(sobramCom({ ...answers, jeitos: [] })),
                     zerada: false,
                     selecionada: answers.jeitos !== null && answers.jeitos.length === 0,
                     onClick: jeitoTantoFaz,
@@ -1352,7 +1337,7 @@ export default function CarMatch() {
                 titulo="Trocar marcha no trânsito?"
                 notas={notasDaPergunta("q4")}
                 opcoes={OPCOES_CAMBIO.map((o) => {
-                  const n = semContagem ? null : contarCom({ cambio: o.id });
+                  const n = semContagem ? null : sobramCom(comCambio(answers, o.id));
                   return {
                     ...o,
                     contagem: n === null ? null : textoDaContagem(n),
@@ -1383,8 +1368,13 @@ export default function CarMatch() {
                       // 4x4, no nome da versão).
                       let contagem: string | null = null;
                       let zerada = false;
-                      if (!semContagem && o.corta) {
-                        const n = contarCom({ naoPodeFaltar: [...marcados.filter((i) => i !== o.id), o.id] });
+                      if (cheio && !selecionada) {
+                        // Desabilitada: um quarto item não entra, e um número
+                        // aqui não diria nada sobre ela.
+                      } else if (!semContagem && o.corta) {
+                        // Marcado: o que sobra com ele. Desmarcado: o que
+                        // sobraria se entrasse.
+                        const n = selecionada ? restantes.length : sobramCom(comItemAlternado(answers, o.id));
                         contagem = textoDaContagem(n);
                         zerada = n === 0;
                       } else if (!semContagem && restantes.length > 0) {
@@ -1406,7 +1396,7 @@ export default function CarMatch() {
                       id: "nada-disso",
                       titulo: "Nada disso",
                       desc: "Nenhum destes decide.",
-                      contagem: semContagem ? null : textoDaContagem(contarCom({ naoPodeFaltar: [] })),
+                      contagem: semContagem ? null : textoDaContagem(sobramCom({ ...answers, naoPodeFaltar: [] })),
                       zerada: false,
                       selecionada: answers.naoPodeFaltar !== null && answers.naoPodeFaltar.length === 0,
                       onClick: () => verResultado([]),
