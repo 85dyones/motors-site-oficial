@@ -6,7 +6,13 @@ import {
   lerMudanca,
   normalizarEtiquetas,
 } from "./etiquetas";
-import { garantirEtiquetas, mudarEtiquetas, type ConfigDoChatwoot, type Resultado } from "./etiquetasDoChatwoot";
+import {
+  garantirEtiquetas,
+  motivoSemChatwoot,
+  mudarEtiquetas,
+  type ConfigDoChatwoot,
+  type Resultado,
+} from "./etiquetasDoChatwoot";
 
 /**
  * As etiquetas do LEAD: a ponte entre o card do kanban e a conversa do
@@ -37,13 +43,17 @@ export function maisRecentePrimeiro<T extends AtendimentoComData>(lista: readonl
 
 /**
  * O que o card oferece para pôr: as etiquetas que já apareceram nas conversas
- * lidas, mais as duas da passagem — que precisam estar lá mesmo antes de
- * alguém usá-las pela primeira vez. Em ordem alfabética, para a lista não
- * mudar de lugar a cada leitura.
+ * lidas (ou as criadas na conta), no formato que o site pode gravar. Em ordem
+ * alfabética, para a lista não mudar de lugar a cada leitura.
+ *
+ * Sem "resgate" e "reaquecido": elas são da passagem, e só da passagem. Postas
+ * à mão, marcariam como resgate um lead que o SDR não passou — e quem medir
+ * pelo filtro de etiqueta do Chatwoot contaria trabalho que não houve.
  */
 export function etiquetasConhecidas(...listas: ReadonlyArray<unknown>[]): string[] {
-  const todas = normalizarEtiquetas([...listas.flat(), ...ETIQUETAS_DA_PASSAGEM]);
-  return todas.sort((a, b) => a.localeCompare(b, "pt-BR"));
+  return normalizarEtiquetas(listas.flat())
+    .filter((e) => !ehEtiquetaDaPassagem(e))
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
 
 /**
@@ -96,7 +106,7 @@ export async function etiquetarPassagemDoSdr(
     aviso: `A passagem foi gravada, mas resgate e reaquecido não foram para o Chatwoot: ${porque}. Ponha as duas à mão na conversa.`,
   });
   try {
-    if (!cfg) return semEtiqueta("falta configurar CHATWOOT_API_TOKEN");
+    if (!cfg) return semEtiqueta(motivoSemChatwoot());
     const conversa = await conversaDoLead(supabase, leadId);
     if (!conversa.ok) return semEtiqueta(conversa.motivo);
     if (conversa.valor === null) return semEtiqueta("o lead ainda não tem conversa no Chatwoot");
@@ -125,10 +135,15 @@ export type EdicaoDeEtiquetas =
  * dele gravada por cima apagaria o que ele não via. A mudança é aplicada sobre
  * o que a conversa tem agora, lido na hora (`mudarEtiquetas`).
  *
- * "resgate" e "reaquecido" não SAEM por aqui. O dono pediu para *"manter"* as
- * duas — elas medem o trabalho do SDR, e um clique no × do Comercial não pode
- * desfazer isso. Pôr uma por engano se desfaz no próprio Chatwoot, com o
- * rastro de lá.
+ * "resgate" e "reaquecido" não ENTRAM nem SAEM à mão por aqui. São da
+ * passagem do SDR: o dono pediu *"automático"* e *"manter"*. Postas à mão,
+ * marcariam trabalho que não houve; tiradas por um clique do Comercial,
+ * apagariam o que houve. Engano se desfaz no próprio Chatwoot.
+ *
+ * E o lead que o SDR JÁ passou (há passagem no rastro) tem as duas garantidas
+ * de novo em toda edição. Duas coisas de graça: a edição feita em outra aba
+ * no meio da passagem não as apaga, e a passagem que falhou com o Chatwoot
+ * fora do ar se cura na primeira edição seguinte.
  */
 export async function editarEtiquetasDoLead(
   supabase: SupabaseClient,
@@ -147,11 +162,18 @@ export async function editarEtiquetasDoLead(
       erro: "Resgate e reaquecido medem o trabalho do SDR e não saem pelo painel. Se foi engano, tire no Chatwoot.",
     };
   }
+  if (mudanca.incluir.some(ehEtiquetaDaPassagem)) {
+    return {
+      ok: false,
+      status: 422,
+      erro: "Resgate e reaquecido entram sozinhas, quando o SDR passa o lead para o Comercial.",
+    };
+  }
   if (!cfg) {
     return {
       ok: false,
       status: 503,
-      erro: "A edição de etiquetas ainda não foi ligada: falta CHATWOOT_API_TOKEN no servidor.",
+      erro: `A edição de etiquetas ainda não foi ligada: ${motivoSemChatwoot()}.`,
     };
   }
 
@@ -165,7 +187,10 @@ export async function editarEtiquetasDoLead(
     };
   }
 
-  const r = await mudarEtiquetas(conversa.valor, mudanca, cfg, buscar);
+  const aplicada = (await jaPassouPeloSdr(supabase, leadId))
+    ? { ...mudanca, incluir: [...mudanca.incluir, ...ETIQUETAS_DA_PASSAGEM] }
+    : mudanca;
+  const r = await mudarEtiquetas(conversa.valor, aplicada, cfg, buscar);
   if (!r.ok) return { ok: false, status: 502, erro: r.motivo };
   if (!r.valor.mudou) return { ok: true, etiquetas: r.valor.depois };
 
@@ -188,4 +213,21 @@ export async function editarEtiquetasDoLead(
     }
   }
   return { ok: true, etiquetas: r.valor.depois };
+}
+
+/**
+ * O SDR já passou este lead? Lido do rastro (o evento do gatilho). Leitura que
+ * falha — migração ainda não aplicada — responde "não": a edição segue como
+ * sempre, só sem a garantia a mais.
+ */
+async function jaPassouPeloSdr(supabase: SupabaseClient, leadId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("leads_eventos")
+    .select("id")
+    .eq("lead_id", leadId)
+    .eq("tipo", "etiqueta")
+    .eq("detalhe->>origem", "passagem_do_sdr")
+    .limit(1);
+  if (error) return false;
+  return (data ?? []).length > 0;
 }

@@ -15,6 +15,7 @@ import {
   garantirEtiquetas,
   lerEtiquetasDaConta,
   lerEtiquetasDaConversa,
+  motivoSemChatwoot,
   mudarEtiquetas,
   type ConfigDoChatwoot,
 } from "../src/lib/etiquetasDoChatwoot";
@@ -183,6 +184,14 @@ describe("a configuração", () => {
     expect(configDoChatwoot({ ...ENV, NEXT_PUBLIC_CHATWOOT_CONTA_ID: "abc" })).toBeNull();
   });
 
+  it("o motivo de estar desligado é o de verdade", () => {
+    expect(motivoSemChatwoot({ ...ENV, NEXT_PUBLIC_CHATWOOT_URL: "http://chat.exemplo.com.br" })).toContain(
+      "precisa ser https",
+    );
+    expect(motivoSemChatwoot({ ...ENV, CHATWOOT_API_TOKEN: "" })).toBe("falta configurar CHATWOOT_API_TOKEN");
+    expect(motivoSemChatwoot({ ...ENV, NEXT_PUBLIC_CHATWOOT_CONTA_ID: "" })).toContain("NEXT_PUBLIC_CHATWOOT_CONTA_ID");
+  });
+
   it("em http, desligado — o token iria em texto aberto", () => {
     expect(configDoChatwoot({ ...ENV, NEXT_PUBLIC_CHATWOOT_URL: "http://chat.exemplo.com.br" })).toBeNull();
   });
@@ -251,6 +260,39 @@ describe("mudar — sempre sobre o que a conversa tem agora", () => {
     });
     expect(r).toEqual({ ok: false, motivo: "resposta ilegível do Chatwoot" });
     expect(metodos).toEqual(["GET"]);
+  });
+
+  it("confere depois de gravar: a mudança que outra escrita apagou no meio é aplicada de novo", async () => {
+    // A corrida da segunda revisão de 25/09: a edição grava "quente", a
+    // passagem em outra aba grava por cima com a lista que leu antes. Sem
+    // conferir, "quente" sumia e a resposta dizia ao card que ela ficou.
+    const cw = chatwootFalso(["origem-site"], {
+      depoisDoPost: (atuais, n) => (n === 1 ? ["origem-site", "resgate", "reaquecido"] : atuais),
+    });
+    const r = await mudarEtiquetas(4821, { incluir: ["quente"] }, CFG, cw.buscar);
+
+    expect(cw.metodos()).toEqual(["GET", "POST", "GET", "GET", "POST"]);
+    expect(cw.etiquetas()).toEqual(["origem-site", "resgate", "reaquecido", "quente"]);
+    expect(r).toMatchObject({ ok: true, valor: { depois: ["origem-site", "resgate", "reaquecido", "quente"] } });
+  });
+
+  it("a conferência também vale para o que foi tirado", async () => {
+    const cw = chatwootFalso(["origem-site", "velha"], {
+      depoisDoPost: (atuais, n) => (n === 1 ? ["origem-site", "velha"] : atuais),
+    });
+    await mudarEtiquetas(4821, { retirar: ["velha"] }, CFG, cw.buscar);
+    expect(cw.etiquetas()).toEqual(["origem-site"]);
+  });
+
+  it("a resposta é o que a conversa tem no fim, não o que se pediu", async () => {
+    // Outra escrita PÔS algo entre a gravação e a conferência: a mudança
+    // está lá, e a lista devolvida mostra também o que chegou.
+    const cw = chatwootFalso(["origem-site"], {
+      depoisDoPost: (atuais) => [...atuais, "negociando"],
+    });
+    const r = await mudarEtiquetas(4821, { incluir: ["quente"] }, CFG, cw.buscar);
+    expect(cw.metodos()).toEqual(["GET", "POST", "GET"]);
+    expect(r).toMatchObject({ ok: true, valor: { depois: ["origem-site", "quente", "negociando"] } });
   });
 
   it("Chatwoot que responde ao POST sem a lista: o que foi gravado é o que ficou", async () => {

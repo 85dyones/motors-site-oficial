@@ -191,8 +191,9 @@ describe("as etiquetas no card", () => {
     await montar();
     const pôr = container.querySelector<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
     const opcoes = [...pôr.options].map((o) => o.value).filter(Boolean);
-    // As da conta (negociando) e as da passagem que faltam; nunca as que já estão.
-    expect(opcoes).toEqual(["negociando", "reaquecido"]);
+    // As da conta que faltam — nunca as que já estão, nem as duas da passagem,
+    // que entram sozinhas (a rota as devolve na lista e o card as filtra).
+    expect(opcoes).toEqual(["negociando"]);
 
     await act(async () => mudar(pôr, "negociando"));
     await assentar();

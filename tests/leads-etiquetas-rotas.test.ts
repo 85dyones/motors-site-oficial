@@ -66,7 +66,11 @@ function consulta(tabela: string) {
     limit: () => q,
     ilike: () => q,
     eq: (coluna: string, valor: unknown) => {
-      filtros.push((l) => l[coluna] === valor);
+      // `detalhe->>origem`, como o PostgREST lê um campo de jsonb.
+      const [raiz, campo] = coluna.split("->>");
+      filtros.push((l) =>
+        campo === undefined ? l[coluna] === valor : (l[raiz] as Linha | undefined)?.[campo] === valor,
+      );
       return q;
     },
     in: (coluna: string, valores: unknown[]) => {
@@ -167,6 +171,7 @@ beforeEach(() => {
     ],
     funil_etapas: [],
     funil_motivos: [],
+    leads_eventos: [],
   };
   vi.stubGlobal("fetch", vi.fn(chatwootFalso));
   for (const [k, v] of Object.entries(ENV_DO_CHATWOOT)) vi.stubEnv(k, v);
@@ -320,8 +325,9 @@ describe("o GET da fila traz as etiquetas", () => {
     // Como o espelho as tem — a grafia não é "consertada".
     expect(joana.etiquetas).toEqual(["origem-site", "Quer-Comprar"]);
     expect(pedro.etiquetas).toEqual([]);
-    // Todas as vistas, as duas da passagem, em ordem alfabética.
-    expect(d.etiquetasDisponiveis).toEqual(["antiga", "origem-site", "quer-comprar", "reaquecido", "resgate"]);
+    // Todas as vistas, em ordem alfabética — menos as duas da passagem, que
+    // não entram à mão.
+    expect(d.etiquetasDisponiveis).toEqual(["antiga", "origem-site", "quer-comprar"]);
     expect(d.etiquetasEditaveis).toBe(true);
   });
 
@@ -355,8 +361,43 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
         },
       },
     ]);
-    // Leu o que a conversa tinha ANTES de gravar.
-    expect(linhaDoTempo).toEqual(["chatwoot GET", "chatwoot POST", "rpc registrar_etiquetas_do_lead"]);
+    // Leu o que a conversa tinha ANTES de gravar, e conferiu DEPOIS.
+    expect(linhaDoTempo).toEqual([
+      "chatwoot GET",
+      "chatwoot POST",
+      "chatwoot GET",
+      "rpc registrar_etiquetas_do_lead",
+    ]);
+  });
+
+  it("lead que o SDR já passou: toda edição garante resgate e reaquecido de novo", async () => {
+    // A passagem falhou no Chatwoot (ou outra aba gravou por cima dela), mas o
+    // crédito está no rastro. A primeira edição seguinte cura a conversa.
+    banco.leads_eventos.push({
+      lead_id: "lead-1",
+      tipo: "etiqueta",
+      detalhe: { origem: "passagem_do_sdr" },
+    });
+    usuario = "u-ana";
+    const d = await (await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).json();
+    expect(conversas[4821]).toEqual(["origem-site", "quer-comprar", "negociando", "resgate", "reaquecido"]);
+    expect(d.etiquetas).toEqual(conversas[4821]);
+  });
+
+  it("lead que o SDR não passou: a edição não inventa resgate", async () => {
+    banco.leads_eventos.push({ lead_id: "lead-1", tipo: "etiqueta", detalhe: { origem: "card" } });
+    banco.leads_eventos.push({ lead_id: "outro", tipo: "etiqueta", detalhe: { origem: "passagem_do_sdr" } });
+    await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
+    expect(conversas[4821]).toEqual(["origem-site", "quer-comprar", "negociando"]);
+  });
+
+  it("resgate e reaquecido não entram à mão", async () => {
+    for (const incluir of [["resgate"], ["Reaquecido"], ["negociando", "resgate"]]) {
+      const r = await postEtiquetas({ id: "lead-1", incluir });
+      expect(r.status, JSON.stringify(incluir)).toBe(422);
+      expect((await r.json()).error).toContain("entram sozinhas");
+    }
+    expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
   it("tira só a pedida", async () => {
@@ -430,6 +471,15 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
+  it("endereço em http: o 503 diz isso, e não que falta o token", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CHATWOOT_URL", "http://chat.exemplo.com.br");
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
+    expect(r.status).toBe(503);
+    const erro = (await r.json()).error;
+    expect(erro).toContain("precisa ser https");
+    expect(erro).not.toContain("CHATWOOT_API_TOKEN");
+  });
+
   it("lead sem conversa: 409", async () => {
     const r = await postEtiquetas({ id: "lead-sem-conversa", incluir: ["negociando"] });
     expect(r.status).toBe(409);
@@ -482,10 +532,11 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
 });
 
 describe("GET /api/leads/etiquetas — o que o card oferece", () => {
-  it("as criadas na conta do Chatwoot, mais as duas da passagem, em ordem", async () => {
+  it("as criadas na conta do Chatwoot, em ordem", async () => {
     const d = await (await etiquetas.GET()).json();
     expect(d).toEqual({
-      etiquetas: ["negociando", "origem-site", "quer-comprar", "reaquecido", "resgate"],
+      // As da conta, em ordem — sem as duas da passagem, que não entram à mão.
+      etiquetas: ["negociando", "origem-site", "quer-comprar"],
       daConta: true,
       // Nenhuma das duas foi criada na conta deste Chatwoot falso.
       faltamNaConta: ["resgate", "reaquecido"],
@@ -499,17 +550,22 @@ describe("GET /api/leads/etiquetas — o que o card oferece", () => {
     expect((await (await etiquetas.GET()).json()).faltamNaConta).toEqual([]);
   });
 
-  it("sem token, só as duas da passagem — sem chamar a API", async () => {
+  it("mesmo criadas na conta, resgate e reaquecido não são oferecidas para pôr à mão", async () => {
+    etiquetasDaConta = ["resgate", "negociando", "Reaquecido"];
+    expect((await (await etiquetas.GET()).json()).etiquetas).toEqual(["negociando"]);
+  });
+
+  it("sem token, lista vazia — sem chamar a API", async () => {
     vi.stubEnv("CHATWOOT_API_TOKEN", "");
     const d = await (await etiquetas.GET()).json();
-    expect(d).toEqual({ etiquetas: ["reaquecido", "resgate"], daConta: false });
+    expect(d).toEqual({ etiquetas: [], daConta: false });
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
-  it("Chatwoot falhou: a lista mínima e o motivo", async () => {
+  it("Chatwoot falhou: lista vazia e o motivo", async () => {
     statusDoChatwoot = 401;
     const d = await (await etiquetas.GET()).json();
-    expect(d.etiquetas).toEqual(["reaquecido", "resgate"]);
+    expect(d.etiquetas).toEqual([]);
     expect(d.aviso).toContain("token");
   });
 

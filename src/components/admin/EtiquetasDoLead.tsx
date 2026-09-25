@@ -11,9 +11,10 @@ import { ehEtiquetaDaPassagem, mesmaEtiqueta } from "../../lib/etiquetas";
  * e o servidor a aplica sobre o que a conversa tem agora — nunca a lista que
  * o card desenhou, que vem do espelho e pode estar atrás.
  *
- * "resgate" e "reaquecido" aparecem com a régua de destaque e SEM ×: são as
- * que medem o trabalho do SDR, e o dono pediu para *"manter"*. Quem as põe por
- * engano tira no próprio Chatwoot.
+ * "resgate" e "reaquecido" aparecem com a régua de destaque, SEM × e fora do
+ * "+ etiqueta": são as que medem o trabalho do SDR, e entram sozinhas na
+ * passagem (o dono pediu *"automático"* e *"manter"*). Engano se desfaz no
+ * próprio Chatwoot.
  *
  * Três jeitos de não oferecer edição, e cada um com o seu motivo:
  *   - sem conversa no Chatwoot, não há onde gravar — e sem etiqueta nenhuma
@@ -49,7 +50,10 @@ export default function EtiquetasDoLead({
   const podeEditar = editavel && temConversa;
   if (etiquetas.length === 0 && !podeEditar) return null;
 
-  const paraPor = disponiveis.filter((d) => !etiquetas.some((e) => mesmaEtiqueta(e, d)));
+  // As duas da passagem nunca entram à mão — ver `editarEtiquetasDoLead`.
+  const paraPor = disponiveis.filter(
+    (d) => !ehEtiquetaDaPassagem(d) && !etiquetas.some((e) => mesmaEtiqueta(e, d)),
+  );
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1" aria-label={`Etiquetas de ${nome}`} role="group">

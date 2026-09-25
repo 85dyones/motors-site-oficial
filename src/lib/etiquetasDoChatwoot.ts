@@ -10,9 +10,12 @@ import {
 /**
  * As etiquetas da conversa no Chatwoot, lidas e gravadas pelo site (2026-09-25).
  *
- * As etiquetas moram na CONVERSA do Chatwoot (labels) e chegam ao banco pelo
- * n8n, em `atendimentos.tags`. Até aqui o site só as espelhava; agora ele
- * também escreve, por dois caminhos:
+ * As etiquetas moram na CONVERSA do Chatwoot (labels) e chegam ao banco em
+ * `atendimentos.tags` por fora deste repositório — o n8n; o webhook do próprio
+ * site (`/api/chatwoot/eventos`) não as grava. Conferido em produção em 25/09:
+ * 86 de 90 atendimentos com etiqueta, o mais recente atualizado no mesmo dia,
+ * 54 com "resgate". Até aqui o site só as lia; agora ele também escreve, por
+ * dois caminhos:
  *   - o card do kanban, onde o SDR (e o Comercial) põe e tira etiqueta;
  *   - a passagem do SDR para o Comercial, que garante "resgate" e
  *     "reaquecido" sem ninguém lembrar (pedido do dono: *"isso tem que ser
@@ -199,16 +202,12 @@ export interface EtiquetasMudadas {
   mudou: boolean;
 }
 
-/**
- * Aplica uma mudança sobre o que a conversa tem AGORA: lê, calcula, e só
- * grava se a lista muda. Leitura que falha não vira gravação — gravar às
- * cegas substituiria a lista inteira pelo que o site imagina que ela é.
- */
-export async function mudarEtiquetas(
+/** Lê, calcula e grava uma vez — sem conferir. Ver `mudarEtiquetas`. */
+async function aplicarUmaVez(
   conversa: number,
   mudanca: MudancaDeEtiquetas,
   cfg: ConfigDoChatwoot,
-  buscar: Buscar = fetch,
+  buscar: Buscar,
 ): Promise<Resultado<EtiquetasMudadas>> {
   const lidas = await lerEtiquetasDaConversa(conversa, cfg, buscar);
   if (!lidas.ok) return lidas;
@@ -221,18 +220,49 @@ export async function mudarEtiquetas(
   return { ok: true, valor: { antes: lidas.valor, depois: gravadas.valor, mudou: true } };
 }
 
+/** A lista cumpre a mudança? Toda incluída está, nenhuma retirada ficou. */
+function cumpre(lista: readonly string[], mudanca: MudancaDeEtiquetas): boolean {
+  const tem = (e: string) => lista.some((x) => mesmaEtiqueta(x, e));
+  return (mudanca.incluir ?? []).every(tem) && !(mudanca.retirar ?? []).some(tem);
+}
+
 /**
- * Garante que a conversa tenha as etiquetas pedidas, sem tirar nenhuma.
+ * Aplica uma mudança sobre o que a conversa tem AGORA: lê, calcula, e só
+ * grava se a lista muda. Leitura que falha não vira gravação — gravar às
+ * cegas substituiria a lista inteira pelo que o site imagina que ela é.
  *
- * Lê, junta e só grava se faltava alguma — a passagem repetida para o mesmo
- * vendedor não gera escrita nem evento no Chatwoot.
- *
- * E CONFERE depois de gravar. Ler-juntar-gravar não é atômico: outra edição
- * da mesma conversa entre a leitura e a gravação (alguém no card, alguém no
- * próprio Chatwoot) grava a lista dela por cima da nossa, e as duas da
- * passagem somem sem ninguém saber. Relê uma vez; faltando, grava de novo
- * sobre o que leu. Uma vez só: duas corridas seguidas no mesmo segundo não
- * justificam um laço contra a API.
+ * E CONFERE depois de gravar. Ler-calcular-gravar não é atômico: outra
+ * escrita da mesma conversa entre a nossa leitura e a nossa gravação — a
+ * passagem do SDR em outra aba, alguém no próprio Chatwoot — grava a lista
+ * dela por cima da nossa, e a nossa mudança some sem ninguém saber. Relê uma
+ * vez; se a mudança não está lá, aplica de novo sobre o que leu. Uma vez só:
+ * duas corridas seguidas no mesmo segundo não justificam um laço contra a API.
+ * E a resposta é o que a conversa tem no fim, não o que se pediu.
+ */
+export async function mudarEtiquetas(
+  conversa: number,
+  mudanca: MudancaDeEtiquetas,
+  cfg: ConfigDoChatwoot,
+  buscar: Buscar = fetch,
+): Promise<Resultado<EtiquetasMudadas>> {
+  const primeira = await aplicarUmaVez(conversa, mudanca, cfg, buscar);
+  if (!primeira.ok || !primeira.valor.mudou) return primeira;
+
+  const conferida = await lerEtiquetasDaConversa(conversa, cfg, buscar);
+  // A gravação já deu certo; a conferência que não responde não a desfaz.
+  if (!conferida.ok) return primeira;
+  if (cumpre(conferida.valor, mudanca)) {
+    return { ok: true, valor: { ...primeira.valor, depois: conferida.valor } };
+  }
+  const segunda = await aplicarUmaVez(conversa, mudanca, cfg, buscar);
+  if (!segunda.ok) return segunda;
+  return { ok: true, valor: { antes: primeira.valor.antes, depois: segunda.valor.depois, mudou: true } };
+}
+
+/**
+ * Garante que a conversa tenha as etiquetas pedidas, sem tirar nenhuma — a
+ * passagem do SDR. É `mudarEtiquetas` só com `incluir`: lê, junta, só grava
+ * se faltava alguma (a passagem repetida não gera escrita) e confere no fim.
  */
 export async function garantirEtiquetas(
   conversa: number,
@@ -240,19 +270,17 @@ export async function garantirEtiquetas(
   cfg: ConfigDoChatwoot,
   buscar: Buscar = fetch,
 ): Promise<Resultado<EtiquetasMudadas>> {
-  const primeira = await mudarEtiquetas(conversa, { incluir: novas }, cfg, buscar);
-  if (!primeira.ok || !primeira.valor.mudou) return primeira;
+  return mudarEtiquetas(conversa, { incluir: novas }, cfg, buscar);
+}
 
-  const faltam = (lista: readonly string[]) => novas.some((n) => !lista.some((e) => mesmaEtiqueta(e, n)));
-  const conferida = await lerEtiquetasDaConversa(conversa, cfg, buscar);
-  // A gravação já deu certo; a conferência que não responde não a desfaz.
-  if (!conferida.ok || !faltam(conferida.valor)) {
-    return {
-      ok: true,
-      valor: { ...primeira.valor, depois: conferida.ok ? conferida.valor : primeira.valor.depois },
-    };
-  }
-  const segunda = await mudarEtiquetas(conversa, { incluir: novas }, cfg, buscar);
-  if (!segunda.ok) return segunda;
-  return { ok: true, valor: { antes: primeira.valor.antes, depois: segunda.valor.depois, mudou: true } };
+/**
+ * Por que o recurso está desligado, dito como quem vai consertar precisa ler.
+ * Só faz sentido quando `configDoChatwoot` devolveu `null`.
+ */
+export function motivoSemChatwoot(env: Record<string, string | undefined> = process.env): string {
+  const base = baseDoChatwoot({ url: env.NEXT_PUBLIC_CHATWOOT_URL });
+  const conta = contaDoChatwoot({ conta: env.NEXT_PUBLIC_CHATWOOT_CONTA_ID });
+  if (!base || !conta) return "falta configurar NEXT_PUBLIC_CHATWOOT_URL e NEXT_PUBLIC_CHATWOOT_CONTA_ID";
+  if (!/^https:\/\//i.test(base)) return "NEXT_PUBLIC_CHATWOOT_URL precisa ser https — em http o token iria em texto aberto";
+  return "falta configurar CHATWOOT_API_TOKEN";
 }

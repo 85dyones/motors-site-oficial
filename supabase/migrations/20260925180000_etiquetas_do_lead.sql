@@ -250,10 +250,12 @@ create trigger trg_leads_credito_do_resgate
 -- o `responsavel` relido, para um "sem crédito" nunca passar porque o UPDATE
 -- foi barrado em silêncio pela RLS.
 --
--- Cada passo mata uma mutação que o aceite da primeira versão deixava viva
--- (revisão de 25/09): tirar o `when` do gatilho (C2), olhar `role` em vez de
--- `papeis` (C6), creditar nome de ninguém (C3) ou o próprio SDR (C9), comparar
--- o nome sem `trim` (C5), guarda de `is_staff` na RPC (R2).
+-- Cada passo mata uma mutação que uma versão anterior do aceite deixava viva
+-- (revisões de 25/09): tirar o `when` do gatilho (C2), olhar `role` em vez de
+-- `papeis` (C6), creditar nome de ninguém (C3), o próprio SDR (C9) ou um
+-- ex-Comercial inativo (C10), comparar o nome sem `trim` (C5), deixar o autor
+-- nulo para SDR sem nome (C11), guarda de `is_staff` (R2) ou sem `is_active`
+-- (R5) na RPC, teto sem o tamanho de cada etiqueta (R6).
 do $$
 declare
   falhas        int := 0;
@@ -263,6 +265,9 @@ declare
   v_com2        uuid;
   v_mkt         uuid;
   v_cli         uuid;
+  v_ex_com      uuid;
+  v_sem_nome    uuid;
+  v_sdr_inativo uuid;
   v_lead        uuid;
   v_evento      uuid;
   -- a contagem de crédito e o responsável, depois de cada passo
@@ -275,6 +280,9 @@ declare
   v_mkt_rpc     text := 'executou';
   v_cli_rpc     text := 'executou';
   v_grande_rpc  text := 'executou';
+  v_longa_rpc   text := 'executou';
+  v_inativo_rpc text := 'executou';
+  v_autor_sem_nome text;
   v_invalido    text := 'gravou';
 begin
   -- Estrutura ---------------------------------------------------------------
@@ -334,6 +342,18 @@ begin
     values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
             'authenticated', 'authenticated', 'aceite-etiquetas-cli@exemplo.invalido', now(), now())
     returning id into v_cli;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-etiquetas-excom@exemplo.invalido', now(), now())
+    returning id into v_ex_com;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-etiquetas-semnome@exemplo.invalido', now(), now())
+    returning id into v_sem_nome;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-etiquetas-sdrinativo@exemplo.invalido', now(), now())
+    returning id into v_sdr_inativo;
 
     update public.profiles
        set full_name = 'Aceite Etiquetas SDR', papeis = array['sdr'], role = 'sdr', is_active = true
@@ -358,6 +378,17 @@ begin
     update public.profiles
        set full_name = 'Aceite Etiquetas Cliente', papeis = array['cliente'], role = 'cliente'
      where id = v_cli;
+    -- Saiu da empresa: o nome continua no lead, mas não recebe mais lead.
+    update public.profiles
+       set full_name = 'Aceite Etiquetas Ex-Comercial', papeis = array['comercial'], role = 'comercial',
+           is_active = false
+     where id = v_ex_com;
+    update public.profiles
+       set full_name = null, papeis = array['sdr'], role = 'sdr', is_active = true
+     where id = v_sem_nome;
+    update public.profiles
+       set full_name = 'Aceite Etiquetas SDR Inativo', papeis = array['sdr'], role = 'sdr', is_active = false
+     where id = v_sdr_inativo;
 
     insert into public.leads (nome, telefone, interesse)
     values ('Aceite Etiquetas', '5541999990925', 'Teste Aceite 2021')
@@ -442,6 +473,29 @@ begin
                 where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
     r := r || (select responsavel from public.leads where id = v_lead);
 
+    -- C10 · O SDR dá o lead a um ex-Comercial, inativo: não é passagem.
+    set local role authenticated;
+    update public.leads set responsavel = 'Aceite Etiquetas Ex-Comercial' where id = v_lead;
+    reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
+
+    -- C11 · SDR sem nome no perfil passa: conta, e o autor NÃO fica nulo —
+    -- autor nulo, neste rastro, é o motor.
+    perform set_config('request.jwt.claims', json_build_object('sub', v_sem_nome, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    update public.leads set responsavel = 'Aceite Etiquetas Comercial 2' where id = v_lead;
+    reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
+    select autor into v_autor_sem_nome
+      from public.leads_eventos
+     where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr'
+       and detalhe->>'sdr_id' = v_sem_nome::text;
+    perform set_config('request.jwt.claims', json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
+
     -- R1 · O SDR edita as etiquetas no card.
     set local role authenticated;
     v_evento := public.registrar_etiquetas_do_lead(
@@ -482,6 +536,29 @@ begin
       reset role;
       v_grande_rpc := 'recusada';
     end;
+
+    -- R5 · SDR desativado, com o JWT ainda válido: barrado. A RPC é SECURITY
+    -- DEFINER, então a RLS não o seguraria — só a guarda.
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_sdr_inativo, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.registrar_etiquetas_do_lead(v_lead, array[]::text[], array['resgate']);
+      reset role;
+    exception when insufficient_privilege then
+      reset role;
+      v_inativo_rpc := 'barrado';
+    end;
+
+    -- R6 · Uma etiqueta só, mas com 256 caracteres: recusada.
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.registrar_etiquetas_do_lead(v_lead, array[]::text[], array[repeat('a', 256)]);
+      reset role;
+    exception when invalid_parameter_value then
+      reset role;
+      v_longa_rpc := 'recusada';
+    end;
     perform set_config('request.jwt.claims', '', true);
 
     -- T1 · Tipo inventado continua recusado.
@@ -497,7 +574,7 @@ begin
   end;
 
   -- O veredito -------------------------------------------------------------
-  if v_lead is null or v_sdr is null or cardinality(c) is distinct from 9 then
+  if v_lead is null or v_sdr is null or cardinality(c) is distinct from 11 then
     raise exception 'ACEITE FALHOU: a sonda não chegou ao fim (% passos) — nada foi provado', cardinality(c);
   end if;
 
@@ -506,17 +583,23 @@ begin
   if r is distinct from array[
        'Aceite Etiquetas Comercial', 'Aceite Etiquetas Comercial', 'Aceite Nome De Ninguem', '<nulo>',
        '  Aceite Etiquetas Comercial 2  ', 'Aceite Etiquetas Comercial', 'Aceite Etiquetas Comercial 2',
-       'Aceite Etiquetas Comercial', 'Aceite Etiquetas SDR'] then
+       'Aceite Etiquetas Comercial', 'Aceite Etiquetas SDR', 'Aceite Etiquetas Ex-Comercial',
+       'Aceite Etiquetas Comercial 2'] then
     falhas := falhas + 1;
     raise warning 'FALHOU: algum UPDATE da sonda não gravou (%)', r;
   end if;
 
-  -- A contagem de crédito, passo a passo: C1, C5 e C6 contam; o resto não.
-  if c is distinct from array[1, 1, 1, 1, 2, 3, 3, 3, 3] then
+  -- A contagem de crédito, passo a passo: C1, C5, C6 e C11 contam; o resto não.
+  if c is distinct from array[1, 1, 1, 1, 2, 3, 3, 3, 3, 3, 4] then
     falhas := falhas + 1;
-    raise warning 'FALHOU: crédito do SDR errado. Esperado {1,1,1,1,2,3,3,3,3} (C1..C9), veio % '
+    raise warning 'FALHOU: crédito do SDR errado. Esperado {1,1,1,1,2,3,3,3,3,3,4} (C1..C11), veio % '
       '— C2 repetir o dono, C3 nome de ninguém, C4 tirar o dono, C5 nome com espaço, '
-      'C6 SDR como segundo papel, C7 Comercial, C8 motor, C9 o próprio SDR', c;
+      'C6 SDR como segundo papel, C7 Comercial, C8 motor, C9 o próprio SDR, '
+      'C10 ex-Comercial inativo, C11 SDR sem nome', c;
+  end if;
+  if v_autor_sem_nome is null or v_autor_sem_nome not like 'SDR %' then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: o crédito do SDR sem nome saiu com autor "%" — nulo é o motor', v_autor_sem_nome;
   end if;
 
   if v_autor_sdr is distinct from 'Aceite Etiquetas SDR'
@@ -546,6 +629,14 @@ begin
   if v_grande_rpc <> 'recusada' then
     falhas := falhas + 1;
     raise warning 'FALHOU: a RPC aceitou uma lista de 101 etiquetas';
+  end if;
+  if v_longa_rpc <> 'recusada' then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: a RPC aceitou uma etiqueta de 256 caracteres';
+  end if;
+  if v_inativo_rpc <> 'barrado' then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: SDR desativado gravou etiqueta no rastro';
   end if;
   if v_invalido is distinct from 'recusado' then
     falhas := falhas + 1;
