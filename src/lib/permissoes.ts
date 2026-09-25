@@ -319,12 +319,13 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   // Gestor. Quem não valida lança o rascunho e envia para validação.
   linha(
     "Cadastrar carro de repasse",
-    ["faz", "faz", "faz", "faz", "faz"],
+    // O SDR cadastra e não valida (dono, 24/09, revisão final do PR 1).
+    ["faz", "faz", "faz", "faz", "faz", "faz"],
     "Rascunho e envio para validação",
   ),
   linha(
     "Validar e publicar repasse",
-    ["faz", "faz", "nao_ve", "faz", "nao_ve"],
+    ["faz", "faz", "nao_ve", "faz", "nao_ve", "nao_ve"],
     "Inclui abrir para todos, reservar, vender, arquivar e devolver",
   ),
   linha(

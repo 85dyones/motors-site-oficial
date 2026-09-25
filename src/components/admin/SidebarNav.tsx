@@ -97,11 +97,11 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       // Repasse Motors (2026-09-24): carros vendidos no estado, sem a
       // garantia da loja. Todo perfil cadastra (dono, 24/09); a lista de
       // inscritos — WhatsApp e CNPJ — é só de quem valida (Administrador,
-      // Gestor, Comercial), como a RLS e a página. Quando o papel SDR entrar
-      // (integracao/quem-entra-24-09), ele vai para `roles` do grupo e fica
-      // fora do item da lista.
+      // Gestor, Comercial), como a RLS e a página. O SDR (papel do #147)
+      // cadastra e não valida: entra em `roles` do grupo e fica fora do item
+      // da lista.
       title: "Repasse",
-      roles: ["admin", "gestor", "comercial", "marketing", "financeiro"],
+      roles: ["admin", "gestor", "comercial", "marketing", "financeiro", "sdr"],
       items: [
         { name: "Carros de repasse", href: "/admin/repasse" },
         { name: "Lista do repasse", href: "/admin/repasse/inscritos", roles: ["admin", "gestor", "comercial"] },
