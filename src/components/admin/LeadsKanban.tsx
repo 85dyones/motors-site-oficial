@@ -33,6 +33,7 @@ import {
   type NivelDeEstagnacao,
 } from "../../lib/funil";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
+import BlocoDaAvaliacao from "./BlocoDaAvaliacao";
 
 /**
  * Tela A8 do design doc — o funil de leads.
@@ -119,6 +120,12 @@ interface Lead extends LeadDoFunil {
   /** O rastreio do visitante. Gravado por `/api/leads` desde 2026-09-02; nulo
    *  antes disso e em quem chegou sem rastreio. */
   ag_uid?: string | null;
+  /** O retrato da /avaliacao e os valores da vistoria (migração
+   *  20260924190000). Ausentes antes dela e em lead que não é de avaliação —
+   *  quem lê é `BlocoDaAvaliacao`, que confere a forma. */
+  avaliacao?: unknown;
+  avaliacao_valor_ofertado?: number | string | null;
+  avaliacao_valor_pago?: number | string | null;
 }
 
 /** Telefone só com dígitos → (41) 99999-9999. */
@@ -278,7 +285,14 @@ export default function LeadsKanban() {
    * de volta e parecer que o clique não pegou.
    */
   const salvar = useCallback(
-    async (id: string, campos: Record<string, unknown>) => {
+    async (
+      id: string,
+      campos: Record<string, unknown>,
+      // O banco só reinicia o relógio por etapa, dono, anotação ou desfecho
+      // (gatilho da 20260828160000). Para o resto — os valores da avaliação —
+      // a tela não pode mostrar um relógio que o banco não reiniciou.
+      { reiniciaORelogio = true }: { reiniciaORelogio?: boolean } = {},
+    ) => {
       // `contato` é uma AÇÃO, não um campo do lead: ele vai no corpo do PATCH
       // e não pode entrar no objeto local, senão o card passa a carregar uma
       // propriedade que nenhum tipo descreve e que a próxima leitura do
@@ -294,7 +308,7 @@ export default function LeadsKanban() {
                 // O toque humano reinicia o relógio no banco (gatilho da
                 // migração 20260828120000). Refletir aqui evita o card ficar
                 // vermelho até o próximo `carregar()`.
-                ultimo_contato_em: new Date().toISOString(),
+                ...(reiniciaORelogio ? { ultimo_contato_em: new Date().toISOString() } : {}),
               }
             : l,
         ),
@@ -904,6 +918,16 @@ export default function LeadsKanban() {
                               {l.interesse}
                             </div>
                           )}
+
+                          <BlocoDaAvaliacao
+                            nome={l.nome}
+                            avaliacao={l.avaliacao}
+                            valorOfertado={l.avaliacao_valor_ofertado}
+                            valorPago={l.avaliacao_valor_pago}
+                            onSalvar={(campo, valor) =>
+                              salvar(l.id, { [campo]: valor }, { reiniciaORelogio: false })
+                            }
+                          />
 
                           {/* O atalho do dono: conversa aberta com o texto já
                               escrito, e o contato registrado no mesmo clique. */}
