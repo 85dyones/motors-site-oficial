@@ -23,8 +23,14 @@ import {
   passaNosFiltros,
   recomendar,
   semFiltro,
+  criteriosDoPerfil,
+  quantosNaFaixa,
+  ITENS_QUE_NAO_PODEM_FALTAR,
   type Criterios,
   type Recomendacao,
+  type PerfilDoQuiz,
+  type Jeito,
+  type ItemQueNaoPodeFaltar,
 } from "../src/lib/motorDoMatch";
 import type { Veiculo } from "../src/types";
 
@@ -375,5 +381,153 @@ describe("as cinco pessoas do painel, no estoque de 25/09", () => {
     expect(r.cartoes).toHaveLength(3);
     expect(new Set(r.cartoes.map((c) => modeloBase(c.veiculo))).size).toBe(3);
     expect(ids(r)).not.toContain("6170299");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fase 2 (25/09): as perguntas-fato
+// ---------------------------------------------------------------------------
+
+const JEITOS: Jeito[][] = [[], ["Hatch"], ["Sedan"], ["SUV"], ["Perua"], ["Hatch", "Sedan", "SUV"]];
+const CAMBIOS = ["so_automatico", "prefiro_automatico", "tanto_faz", "prefiro_manual"] as const;
+const ITENS: ItemQueNaoPodeFaltar[][] = [
+  [],
+  ...ITENS_QUE_NAO_PODEM_FALTAR.map((i) => [i.id]),
+  ["2020-ou-mais-novo", "camera"],
+  ["ate-80-mil-km", "seguranca", "turbo"],
+];
+
+interface RodadaDoPerfil {
+  chave: string;
+  perfil: PerfilDoQuiz;
+  criterios: Criterios;
+  r: Recomendacao;
+}
+
+const PERFIS: RodadaDoPerfil[] = FAIXAS.flatMap((f) =>
+  (["eu", "familia", "carga"] as const).flatMap((leva) =>
+    (leva === "carga" ? [[] as Jeito[]] : JEITOS).flatMap((jeitos) =>
+      CAMBIOS.flatMap((cambio) =>
+        ITENS.map((naoPodeFaltar) => {
+          const perfil: PerfilDoQuiz = { orcamento: { min: f.min, max: f.max }, leva, jeitos, cambio, naoPodeFaltar };
+          const criterios = criteriosDoPerfil(perfil);
+          return {
+            chave: `${f.titulo} · ${leva} · ${jeitos.join("/") || "tanto faz"} · ${cambio} · ${naoPodeFaltar.join("+") || "nada"}`,
+            perfil,
+            criterios,
+            r: recomendar(ESTOQUE, criterios),
+          };
+        }),
+      ),
+    ),
+  ),
+);
+
+describe("fase 2 · as respostas viram fatos", () => {
+  it("família corta em 4 portas; carga, na carroceria de carga; só automático corta", () => {
+    const base = { orcamento: { min: 0, max: null } };
+    expect(criteriosDoPerfil({ ...base, leva: "familia" }).portas4).toBe(true);
+    expect(criteriosDoPerfil({ ...base, leva: "carga" }).carrocerias).toEqual(CARROCERIAS_DE_CARGA);
+    expect(criteriosDoPerfil({ ...base, cambio: "so_automatico" }).automatico).toBe(true);
+    expect(criteriosDoPerfil({ ...base, cambio: "prefiro_automatico" }).automatico).toBe(false);
+  });
+
+  it("com carga, o jeito marcado não vale — a pergunta nem aparece", () => {
+    const c = criteriosDoPerfil({ orcamento: { min: 0, max: null }, leva: "carga", jeitos: ["Hatch"] });
+    expect(c.carrocerias).toEqual(CARROCERIAS_DE_CARGA);
+  });
+
+  it("ano, km e diesel cortam; item de ficha só ordena", () => {
+    const c = criteriosDoPerfil({
+      orcamento: { min: 0, max: null },
+      leva: "carga",
+      naoPodeFaltar: ["2020-ou-mais-novo", "ate-80-mil-km", "diesel"],
+    });
+    expect([c.anoMin, c.kmMax, c.diesel]).toEqual([2020, 80000, true]);
+    const d = criteriosDoPerfil({ orcamento: { min: 0, max: null }, naoPodeFaltar: ["camera", "seguranca"] });
+    expect(d.preferencias).toEqual(["camera", "seguranca"]);
+    expect([d.anoMin, d.kmMax, d.diesel]).toEqual([null, null, false]);
+  });
+
+  it("diesel sem carga não vale, e mais de três itens não passam", () => {
+    const c = criteriosDoPerfil({ orcamento: { min: 0, max: null }, leva: "eu", naoPodeFaltar: ["diesel"] });
+    expect(c.diesel).toBe(false);
+    const d = criteriosDoPerfil({
+      orcamento: { min: 0, max: null },
+      naoPodeFaltar: ["camera", "sensor", "turbo", "multimidia"],
+    });
+    expect(d.preferencias).toHaveLength(3);
+  });
+});
+
+describe(`fase 2 · em ${PERFIS.length} combinações das perguntas novas`, () => {
+  it("a contagem antes do toque é a mesma do resultado", () => {
+    // "Só automático (1)" na opção tem de dar 1 carro na tela.
+    const erros = PERFIS.filter(({ criterios, r }) => quantosNaFaixa(ESTOQUE, criterios) !== r.naFaixa).map((x) => x.chave);
+    expect(erros).toEqual([]);
+  });
+
+  it("nenhum cartão contradiz um filtro, nem o ano, o km ou o diesel", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of PERFIS) {
+      for (const { veiculo: v } of r.cartoes) {
+        if (!passaNosFiltros(v, c)) erros.push(`${chave}: ${v.modelo}`);
+        if (c.anoMin !== null && v.ano < c.anoMin) erros.push(`${chave}: ${v.modelo} é ${v.ano}`);
+        if (c.kmMax !== null && v.quilometragem > c.kmMax) erros.push(`${chave}: ${v.modelo} tem ${v.quilometragem} km`);
+        if (c.diesel && !/diesel/i.test(v.combustivel)) erros.push(`${chave}: ${v.modelo} não é diesel`);
+        if (ehMoto(v) || !elegivel(v)) erros.push(`${chave}: ${v.modelo} inelegível`);
+      }
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("\"Já pensou neste?\" cumpre as próprias regras", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of PERFIS) {
+      const k = r.coringa;
+      if (!k) continue;
+      const v = k.veiculo;
+      const primeiro = r.cartoes[0].veiculo;
+      if (!passaNosFiltros(v, c)) erros.push(`${chave}: coringa fura filtro ou teto`);
+      if (r.cartoes.some((x) => modeloBase(x.veiculo) === modeloBase(v))) erros.push(`${chave}: coringa repete modelo`);
+      if (k.vantagens.length < 2) erros.push(`${chave}: coringa com menos de 2 vantagens`);
+      for (const p of c.preferencias) {
+        if (PREFERENCIAS[p].avaliar(primeiro) === "atende" && PREFERENCIAS[p].avaliar(v) !== "atende") {
+          erros.push(`${chave}: coringa não atende ${p}, que o 1º atende`);
+        }
+      }
+    }
+    expect(erros).toEqual([]);
+    // E a carta aparece em algum lugar — uma regra que nunca dispara não protege nada.
+    expect(PERFIS.filter((x) => x.r.coringa).length).toBeGreaterThan(0);
+  });
+
+  it("o \"e se\" dos filtros novos entrega o que promete", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of PERFIS) {
+      for (const s of r.eSe.filter((x) => ["ano", "km", "diesel"].includes(x.filtro))) {
+        const depois = recomendar(ESTOQUE, semFiltro(c, s.filtro));
+        if (depois.naFaixa - r.naFaixa !== s.entram) erros.push(`${chave}: ${s.filtro}`);
+      }
+    }
+    expect(erros).toEqual([]);
+  });
+});
+
+describe("fase 2 · o entusiasta acha a Tiguan", () => {
+  it("Diego, R$ 91–130 mil, turbo: \"Já pensou neste?\" é a Tiguan 2.0 TSI 4Motion", () => {
+    const r = recomendar(
+      ESTOQUE,
+      criteriosDoPerfil({
+        orcamento: { min: 91000, max: 130000 },
+        leva: "eu",
+        jeitos: ["Hatch", "Sedan", "SUV"],
+        cambio: "prefiro_automatico",
+        naoPodeFaltar: ["turbo"],
+      }),
+    );
+    expect(r.coringa?.veiculo.id).toBe("8475062");
+    expect(r.coringa?.vantagens.join(" ")).toMatch(/a menos/);
+    expect(r.coringa?.oQueMuda.join(" ")).toMatch(/2014/);
   });
 });

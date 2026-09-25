@@ -390,6 +390,35 @@ Tradução das respostas de hoje na fase 1:
 | Esportivo/Coupé | a tela diz que não há no pátio e mostra os turbo da faixa |
 | Aberto a sugestões, Prazo | nada |
 
+**Como a fase 2 começou a sair (25/09)** — as três partes que não dependiam de
+decisão do dono. O POR MÊS espera três respostas dele (taxas conferidas com o
+banco; troca como estimativa do cliente ou só entrada mínima; quantos carros o
+consultor consegue separar por lead) e não entrou.
+
+- **Perguntas-fato com contagem.** As 02 a 05 são as da tabela da seção 4.1.
+  Cada opção mostra o número antes do toque, com a mesma conta do resultado
+  (`carrosNaFaixa`, provada igual a `naFaixa` em toda faixa). Opção de ficha
+  (câmera, multimídia…) não tira carro, então o número dela é "na ficha de N"
+  dos que sobram, e não um total que não muda. A 03 some para carga; a 04 some
+  quando tudo o que sobrou tem o mesmo câmbio, e a 05 diz por quê — no pátio de
+  25/09 isso acontece em toda a faixa de R$ 115 a 175 mil (só automáticos) e
+  nos hatches e sedãs de R$ 50 a 75 mil (só manuais). Resposta de pergunta que
+  sumiu não vale (`lib/perguntasDoProfiler.ts`). "SOBRAM N DE M" no painel e,
+  no celular, numa faixa fixa sob a pergunta.
+- **Prazo no resultado, e não no modal.** A seção 4.4 pedia o prazo no modal do
+  lead, mas o `LeadCaptureModal` é o mesmo dos cinco formulários do site, e o
+  prazo que decide o botão precisa existir antes do toque no botão. Ficou como
+  escolha opcional no resultado ("Não muda os carros"); sem resposta, o lead
+  diz "não informado", e não "baixo".
+- **"Já pensou neste?"** A carta vem depois dos três, com CONTRA O [1º cartão]
+  e O QUE MUDA sempre visíveis (sem custo no cadastro, a tela diz isso). FAZ
+  SENTIDO a põe no lead com `lugar: "ja-pensou"`; NÃO É PRA MIM a tira até
+  refazer. Ainda não há duelos para ela evitar repetir (fase 3).
+- **Lead pronto.** `leads.perfil` (migração 20260925200000, com aceite) guarda
+  o retrato montado no servidor a partir de `intencao_busca`, e o card do
+  kanban o mostra (`BlocoDoPerfil`). A rota grava o lead mesmo sem a coluna.
+- Ficaram para depois: fronteira, contador diário do funil e a troca.
+
 ## 7. Finalistas que merecem teste depois
 
 1. **Porta "Comece pelo carro que você tem"** (guiado-melhor-que-o-meu +

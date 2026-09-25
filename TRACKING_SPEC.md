@@ -66,7 +66,7 @@ e `eventSourceUrl` no POST para `/api/leads`:
 | Superfície | Evento |
 |---|---|
 | `PDPClientWrapper.tsx` | `ViewContent` (browser + CAPI), `Lead`, `Contact` |
-| `CarMatch.tsx` (`/carro-perfeito`) | `Search`, `Lead`, `Contact`; no GA4, também `profiler_step` (um por passo do quiz, só pelo `gtag`, desde 25/09) |
+| `CarMatch.tsx` (`/carro-perfeito`) | `Search`, `Lead`, `Contact`; no GA4, também `profiler_step` (um por passo do quiz, só pelo `gtag`, desde 25/09). O termo de busca do `Search` são os **ids** das respostas — desde a fase 2 (25/09), `eu`/`familia`/`carga`, `Hatch`/`Sedan`/`SUV`/`Perua`, `so_automatico`/`prefiro_automatico`/`tanto_faz`/`prefiro_manual` e os itens da 05 (`2020-ou-mais-novo`, `camera`…); nunca orçamento nem texto livre. Passo pulado (a 03 para carga, a 04 quando o câmbio não separa) não gera `profiler_step` |
 | `AutoAvaliacao.tsx` (`/avaliacao`) | `CompleteRegistration`, `Lead`, `Contact` |
 | `ContatoClientWrapper.tsx` (`/contato`) | `Lead`, `Contact` |
 | `LeadPopup.tsx` (global, no layout) | `Lead`, `Contact` |

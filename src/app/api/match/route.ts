@@ -6,11 +6,18 @@ import { getEstoque } from "../../../lib/supabase";
 import { disponiveisDe } from "../../../lib/regrasEstoque";
 import {
   criteriosDasRespostas,
+  criteriosDoPerfil,
+  ITENS_QUE_NAO_PODEM_FALTAR,
+  MAXIMO_DO_QUE_NAO_PODE_FALTAR,
   nomeCurto,
   recomendar,
   semFiltro,
   type ChaveDeFiltro,
   type Criterios,
+  type ItemQueNaoPodeFaltar,
+  type Jeito,
+  type Leva,
+  type PreferenciaDeCambio,
 } from "../../../lib/motorDoMatch";
 
 export const dynamic = "force-dynamic";
@@ -106,9 +113,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     requestBody = await request.json().catch(() => ({}));
 
     // O Garagem Profiler a partir de 25/09: manda as RESPOSTAS, e o motor de
-    // fatos (`lib/motorDoMatch.ts`) decide. O formato antigo, `{tags, budget}`,
-    // continua aceito logo abaixo para quem ainda o use.
-    if (requestBody && typeof requestBody.respostas === "object" && requestBody.respostas !== null) {
+    // fatos (`lib/motorDoMatch.ts`) decide. Desde a fase 2 elas chegam como
+    // `perfil` (as perguntas-fato); `respostas` é o formato da fase 1, que
+    // continua valendo para uma aba aberta antes do deploy. O formato antigo,
+    // `{tags, budget}`, continua aceito logo abaixo para quem ainda o use.
+    const temPerfil = requestBody && typeof requestBody.perfil === "object" && requestBody.perfil !== null;
+    const temRespostas = requestBody && typeof requestBody.respostas === "object" && requestBody.respostas !== null;
+    if (temPerfil || temRespostas) {
       const criterios = criteriosDoCorpo(requestBody);
       const recomendacao = recomendar(disponiveisDe(await getEstoque()), criterios);
 
@@ -186,7 +197,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 
-const FILTROS_AFROUXAVEIS: readonly ChaveDeFiltro[] = ["portas", "automatico", "carroceria"];
+const FILTROS_AFROUXAVEIS: readonly ChaveDeFiltro[] = ["portas", "automatico", "carroceria", "ano", "km", "diesel"];
+
+const LEVAS: readonly Leva[] = ["eu", "familia", "carga"];
+const JEITOS: readonly Jeito[] = ["Hatch", "Sedan", "SUV", "Perua"];
+const CAMBIOS: readonly PreferenciaDeCambio[] = ["so_automatico", "prefiro_automatico", "tanto_faz", "prefiro_manual"];
+const ITENS: readonly ItemQueNaoPodeFaltar[] = ITENS_QUE_NAO_PODEM_FALTAR.map((i) => i.id);
+
+/** O valor, se estiver na lista; senão `null`. `includes`, e nunca `in`. */
+function daLista<T extends string>(lista: readonly T[], bruto: unknown): T | null {
+  return typeof bruto === "string" && (lista as readonly string[]).includes(bruto) ? (bruto as T) : null;
+}
+
+/** Só os valores da lista, sem repetir, até `maximo`. */
+function listaDaLista<T extends string>(lista: readonly T[], bruto: unknown, maximo: number): T[] {
+  if (!Array.isArray(bruto)) return [];
+  return [...new Set(bruto.map((x) => daLista(lista, x)).filter((x): x is T => x !== null))].slice(0, maximo);
+}
 
 /** Número finito e não negativo, ou `null`. O corpo vem do navegador. */
 function valor(bruto: unknown): number | null {
@@ -196,9 +223,10 @@ function valor(bruto: unknown): number | null {
 
 /**
  * Os critérios a partir do corpo, sem confiar nele: resposta fora da lista é
- * ignorada pelo `switch` de `criteriosDasRespostas`, número inválido vira
- * ausência, e só os três filtros conhecidos podem ser afrouxados (o "e se").
- * O teto nunca é afrouxado — decisão do dono em 25/09.
+ * ignorada (pelo `switch` de `criteriosDasRespostas` na fase 1, por
+ * `daLista` no `perfil` da fase 2), número inválido vira ausência, e só os
+ * filtros conhecidos podem ser afrouxados (o "e se"). O teto nunca é
+ * afrouxado — decisão do dono em 25/09.
  */
 function criteriosDoCorpo(corpo: Record<string, unknown>): Criterios {
   const objeto = (x: unknown): Record<string, unknown> =>
@@ -212,12 +240,26 @@ function criteriosDoCorpo(corpo: Record<string, unknown>): Criterios {
   // faixa impossível escrita na tela ("de R$ 100 mil a R$ 50 mil").
   const min = valor(orcamento.min) ?? 0;
 
-  let criterios = criteriosDasRespostas({
-    orcamento: { min: teto !== null && min > teto ? 0 : min, max: teto },
-    objetivo: texto(r.objetivo),
-    experiencia: texto(r.experiencia),
-    estilo: texto(r.estilo),
-  });
+  const faixa = { min: teto !== null && min > teto ? 0 : min, max: teto };
+
+  let criterios: Criterios;
+  if (typeof corpo.perfil === "object" && corpo.perfil !== null) {
+    const p = objeto(corpo.perfil);
+    criterios = criteriosDoPerfil({
+      orcamento: faixa,
+      leva: daLista(LEVAS, p.leva),
+      jeitos: listaDaLista(JEITOS, p.jeitos, JEITOS.length),
+      cambio: daLista(CAMBIOS, p.cambio),
+      naoPodeFaltar: listaDaLista(ITENS, p.naoPodeFaltar, MAXIMO_DO_QUE_NAO_PODE_FALTAR),
+    });
+  } else {
+    criterios = criteriosDasRespostas({
+      orcamento: faixa,
+      objetivo: texto(r.objetivo),
+      experiencia: texto(r.experiencia),
+      estilo: texto(r.estilo),
+    });
+  }
 
   const afrouxar = Array.isArray(corpo.afrouxar) ? corpo.afrouxar : [];
   for (const chave of FILTROS_AFROUXAVEIS) {

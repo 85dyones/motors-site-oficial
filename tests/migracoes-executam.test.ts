@@ -125,6 +125,10 @@ const CADEIA = [
   // provam num banco de verdade. Depende da papel_sdr, acima, para o SDR ser
   // staff.
   "20260925180000_etiquetas_do_lead.sql",
+  // O perfil do Garagem Profiler no lead (2026-09-25). Entra na cadeia porque
+  // o aceite prova, com uma sonda desfeita, que a equipe lê a coluna e que anon
+  // e cliente não veem o lead — RLS só se prova num banco de verdade.
+  "20260925200000_perfil_no_lead.sql",
 ];
 
 /**

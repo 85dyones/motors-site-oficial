@@ -125,7 +125,14 @@ acima. Por isso o que o consultor precisa ler vai em `intencao_busca`:
   "orcamento": "de R$ 75 mil a R$ 115 mil",
   "filtros": ["de R$ 75 mil a R$ 115 mil", "4 portas ou mais"],
   "afrouxados": [],
-  "prazo": "Pesquisando",
+  "prazo": "No próximo mês",
+  "perfil": {
+    "leva": "Família, criança na cadeirinha",
+    "jeitos": ["SUV", "Sedã"],
+    "cambio": "Prefiro automático",
+    "nao_pode_faltar": ["Câmera de ré"]
+  },
+  "na_faixa": 4,
   "carros": [
     {
       "id": "8449096",
@@ -142,9 +149,22 @@ acima. Por isso o que o consultor precisa ler vai em `intencao_busca`:
 `modo` é `carros` (QUERO VER ESTE — `carros` traz os escolhidos, ou os três
 do resultado), `aviso` (ME AVISE QUANDO CHEGAR — `carros` vazio) ou `ajuda`
 (a consulta ao estoque falhou — `carros` vazio). `lugar` é `principal`,
-`tambem`, `outro-caminho` ou `abaixo-da-faixa`. `filtros` e `afrouxados` são
+`tambem`, `outro-caminho`, `abaixo-da-faixa` ou, desde a fase 2, `ja-pensou`
+(a carta "Já pensou neste?", que só entra quando o cliente tocou FAZ SENTIDO;
+nela a `manchete` lista o que o carro ganha e `pesa_contra` o que muda).
+`filtros`, `afrouxados`, `perfil.jeitos` e `perfil.nao_pode_faltar` são
 listas: um nó que concatene o objeto em texto precisa tratá-las, senão sai
 `[object Object]`. A `mensagem` do lead já nomeia os carros em texto corrido.
+
+**Fase 2 (perguntas-fato, 2026-09-25).** `perfil` traz as respostas das
+perguntas 02 a 05 como o cliente as tocou (rótulo, não id); pergunta pulada
+ou não respondida vem `""` ou `[]` — a 03 some para quem leva carga, e a 04
+some quando tudo o que sobrou tem o mesmo câmbio. `prazo` deixou de ser
+pergunta do quiz e virou escolha opcional no resultado: vem `""` quando o
+cliente não tocou. `na_faixa` é quantos carros passavam em tudo na faixa
+(`null` quando a consulta ao estoque falhou). Leads do Profiler anteriores à
+fase 2 não têm `perfil` nem `na_faixa`. O mesmo objeto, validado, é gravado
+em `leads.perfil` e aparece no card do kanban (`lib/perfilDoLead.ts`).
 
 **Captcha:** todo canal que nasce no modal de captura (`LeadCaptureModal`)
 exige token Turnstile válido — ou seja, todos os valores em uso acima, exceto

@@ -10,7 +10,13 @@ import {
 import { SLUGS_DE_PERFIL } from "../src/lib/perfisDeUso";
 import { CARROCERIAS } from "../src/lib/classificacaoVeiculo";
 import { slugificar } from "../src/lib/veiculoUrl";
-import { faixasDoPatio, CORTES_DE_RESERVA } from "../src/lib/motorDoMatch";
+import {
+  faixasDoPatio,
+  CORTES_DE_RESERVA,
+  criteriosDoPerfil,
+  ITENS_QUE_NAO_PODEM_FALTAR,
+  type PerfilDoQuiz,
+} from "../src/lib/motorDoMatch";
 import type { Veiculo } from "../src/types";
 
 /**
@@ -34,6 +40,12 @@ import type { Veiculo } from "../src/types";
  * sugestão.
  */
 
+/**
+ * Os ids das respostas da fase 1. A tela deixou de perguntá-los em 25/09
+ * (fase 2, perguntas-fato), mas `/api/match` ainda aceita o formato — uma
+ * aba aberta antes do deploy manda `respostas` — e os leads antigos os
+ * guardam. O prazo continua na tela, agora no resultado.
+ */
 const RESPOSTAS_DO_QUIZ = {
   objetivo: ["family", "status", "efficiency", "offroad"],
   estilo: ["suv", "sedan", "hatch", "sport", "pickup", "open"],
@@ -72,16 +84,22 @@ describe("1 · toda resposta do quiz é traduzível", () => {
     }
   });
 
-  it("as respostas do quiz batem com as opções da tela", () => {
-    // A tabela e a tela envelhecem separadas: acrescentar uma alternativa no
-    // componente sem traduzi-la aqui devolve o quiz ao estado anterior, e
-    // nada avisa.
+  it("as opções da tela são as que o motor sabe ler", () => {
+    // A tela e o motor envelhecem separados: uma opção na tela que o motor
+    // não conhece chega a `/api/match`, é descartada pela validação da rota e
+    // não filtra nada — a pessoa responde e o resultado a ignora, calado.
     const fonte = ler("src/components/CarMatch.tsx");
-    for (const grupo of Object.values(RESPOSTAS_DO_QUIZ)) {
-      for (const resposta of grupo) {
-        expect(fonte, `${resposta} sumiu da tela`).toContain(`id: "${resposta}"`);
-      }
+    const daTela = [
+      ...["eu", "familia", "carga"],
+      ...["Hatch", "Sedan", "SUV", "Perua"],
+      ...["so_automatico", "prefiro_automatico", "tanto_faz", "prefiro_manual"],
+      ...RESPOSTAS_DO_QUIZ.prazo,
+    ];
+    for (const id of daTela) {
+      expect(fonte, `${id} sumiu da tela`).toContain(`id: "${id}"`);
     }
+    // A 05 não tem lista própria: sai da do motor.
+    expect(fonte).toContain("ITENS_QUE_NAO_PODEM_FALTAR.map(");
   });
 
   it("PRAZO não filtra carro nenhum", () => {
@@ -221,7 +239,7 @@ describe("3 · nenhuma combinação de respostas fica sem resposta", () => {
   });
 });
 
-describe("4 · o quiz pergunta as cinco", () => {
+describe("4 · o quiz pergunta as cinco — e só o que separa carro", () => {
   const fonte = ler("src/components/CarMatch.tsx");
 
   it("a aba DESCREVER responde a pergunta 01 e segue para a 02", () => {
@@ -238,8 +256,9 @@ describe("4 · o quiz pergunta as cinco", () => {
     const bloco = fonte.slice(fonte.indexOf("const parseFreeTextQuery"), fonte.indexOf("const selectBudget"));
     expect(bloco).not.toContain('experience: "tech"');
     expect(bloco).not.toContain('timeline: "researching"');
-    // E o objetivo, quando o texto não diz, fica em branco em vez de "status".
-    expect(bloco).toContain('let obj: AnswerState["objective"] = "";');
+    // E o que o texto não diz fica em branco — nada de "status" por padrão.
+    expect(bloco).toContain('let leva: AnswerState["leva"] = "";');
+    expect(bloco).toContain('let cambio: AnswerState["cambio"] = "";');
   });
 
   it("o consultor lê exatamente o que o cliente clicou", () => {
@@ -252,7 +271,7 @@ describe("4 · o quiz pergunta as cinco", () => {
     // carro melhor que o meu" e o `switch` seguiria mandando "Status,
     // Exclusividade & Design".
     const codigo = lerCodigo("src/components/CarMatch.tsx");
-    for (const fn of ["formatObjective", "formatExperience", "formatStyle", "formatTimeline"]) {
+    for (const fn of ["formatLeva", "formatJeitos", "formatCambio", "formatNaoPodeFaltar", "formatTimeline"]) {
       const linha = codigo.slice(codigo.indexOf(`const ${fn} =`));
       expect(linha.slice(0, 160), fn).toContain("rotuloDaOpcao(");
     }
@@ -264,26 +283,48 @@ describe("4 · o quiz pergunta as cinco", () => {
     // "Status, Exclusividade & Design" e "Tecnologia, Inovação & Eficiência"
     // descreviam outra vitrine — o dono apontou o passo duas vezes.
     const fonte = ler("src/components/CarMatch.tsx");
-    const bloco = fonte.slice(fonte.indexOf("const OPCOES_OBJETIVO"), fonte.indexOf("const OPCOES_ESTILO"));
+    const bloco = fonte.slice(fonte.indexOf("const OPCOES_LEVA"), fonte.indexOf("const OPCOES_PRAZO"));
     for (const morto of ["Status, Exclusividade", "Tecnologia, Inovação", "Força, Aventura", "Performance & Potência"]) {
       expect(bloco, morto).not.toContain(`titulo: "${morto}`);
     }
-    expect(bloco).toContain('titulo: "Espaço para a família"');
-    expect(bloco).toContain('titulo: "Rodar barato na cidade"');
+    expect(bloco).toContain('titulo: "Família, criança na cadeirinha"');
+    expect(bloco).toContain('titulo: "Só automático"');
   });
 
-  it("as perguntas 02 e 03 não perguntam a mesma coisa", () => {
-    // "Tecnologia, Inovação & Eficiência" na 02 e "Tecnologia &
-    // Conectividade" na 03: quem respondia a primeira não sabia o que a
-    // segunda queria de diferente. A 02 pergunta PARA QUE serve; a 03, o que
-    // PESA na escolha.
+  it("as perguntas de desejo saíram; cada resposta diz o que faz com o pátio", () => {
+    // "Qual o principal objetivo?" e "O que mais pesa na sua escolha?" eram a
+    // mesma pergunta com palavras diferentes, e nenhuma separava carro: a
+    // resposta virava preferência que só reordenava. É a causa nº 1 do
+    // resultado genérico medida em 25/09.
     const fonte = ler("src/components/CarMatch.tsx");
-    expect(fonte).toContain('titulo="O que mais pesa na sua escolha?"');
-    const objetivo = fonte.slice(fonte.indexOf("const OPCOES_OBJETIVO"), fonte.indexOf("const OPCOES_EXPERIENCIA"));
-    const experiencia = fonte.slice(fonte.indexOf("const OPCOES_EXPERIENCIA"), fonte.indexOf("const OPCOES_ESTILO"));
-    const titulos = (b: string) => [...b.matchAll(/titulo: "([^"]+)"/g)].map((m) => m[1].toLowerCase());
-    for (const t of titulos(objetivo)) {
-      expect(titulos(experiencia), `"${t}" repete entre a 02 e a 03`).not.toContain(t);
+    expect(fonte).not.toContain('titulo="O que mais pesa na sua escolha?"');
+    expect(fonte).not.toContain('titulo="Qual o principal objetivo na sua próxima compra?"');
+    expect(fonte).toContain('titulo="O que o carro vai levar?"');
+    expect(fonte).toContain('titulo="Trocar marcha no trânsito?"');
+  });
+
+  it("toda opção que não é 'tanto faz' muda o que o motor faz", () => {
+    // Pela régua da spec: resposta que não muda filtro nem ordem é enfeite.
+    // As neutras ("Eu e mais um", "Tanto faz") são as únicas que não mudam —
+    // e é o que elas dizem.
+    const base: PerfilDoQuiz = { orcamento: { min: 0, max: null } };
+    const igualABase = (p: PerfilDoQuiz) => JSON.stringify(criteriosDoPerfil(p)) === JSON.stringify(criteriosDoPerfil(base));
+
+    expect(igualABase({ ...base, leva: "eu" })).toBe(true);
+    expect(igualABase({ ...base, cambio: "tanto_faz" })).toBe(true);
+    for (const leva of ["familia", "carga"] as const) expect(igualABase({ ...base, leva }), leva).toBe(false);
+    for (const jeito of ["Hatch", "Sedan", "SUV", "Perua"] as const) {
+      expect(igualABase({ ...base, jeitos: [jeito] }), jeito).toBe(false);
+    }
+    for (const cambio of ["so_automatico", "prefiro_automatico", "prefiro_manual"] as const) {
+      expect(igualABase({ ...base, cambio }), cambio).toBe(false);
+    }
+    for (const item of ITENS_QUE_NAO_PODEM_FALTAR) {
+      // Diesel só vale com carga: a comparação é contra quem já leva carga.
+      const semItem: PerfilDoQuiz = { ...base, leva: item.soComCarga ? "carga" : undefined };
+      expect(JSON.stringify(criteriosDoPerfil({ ...semItem, naoPodeFaltar: [item.id] })), item.id).not.toBe(
+        JSON.stringify(criteriosDoPerfil(semItem)),
+      );
     }
   });
 

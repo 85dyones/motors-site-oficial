@@ -149,7 +149,7 @@ export function pisoDoValorExato(valor: number): number {
 // ---------------------------------------------------------------------------
 
 /** Filtros que cortam. O preço fica fora: ele nunca é afrouxado pelo "e se". */
-export type ChaveDeFiltro = "portas" | "automatico" | "carroceria";
+export type ChaveDeFiltro = "portas" | "automatico" | "carroceria" | "ano" | "km" | "diesel";
 
 export type ChaveDePreferencia =
   | "novo"
@@ -163,7 +163,11 @@ export type ChaveDePreferencia =
   | "4x4"
   | "turbo"
   | "couro"
-  | "multimidia";
+  | "multimidia"
+  | "manual"
+  | "camera"
+  | "sensor"
+  | "seguranca";
 
 export interface Criterios {
   /** 0 = sem piso. */
@@ -174,6 +178,11 @@ export interface Criterios {
   automatico: boolean;
   /** Carrocerias aceitas, na grafia do cadastro. `null` = qualquer uma. */
   carrocerias: readonly string[] | null;
+  /** Ano mínimo — "2020 ou mais novo" na pergunta do que não pode faltar. */
+  anoMin: number | null;
+  /** Quilometragem máxima — "até 80 mil km". */
+  kmMax: number | null;
+  diesel: boolean;
   preferencias: readonly ChaveDePreferencia[];
   /** Frases que a tela mostra antes dos carros ("esportivo não temos hoje"). */
   avisos: readonly string[];
@@ -272,8 +281,118 @@ export function criteriosDasRespostas(r: RespostasDoProfiler): Criterios {
     portas4,
     automatico,
     carrocerias,
+    anoMin: null,
+    kmMax: null,
+    diesel: false,
     preferencias: unicas,
     avisos,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// As perguntas da fase 2 (25/09): fatos, e não desejos
+// ---------------------------------------------------------------------------
+
+/** 02 · O que o carro vai levar. */
+export type Leva = "eu" | "familia" | "carga";
+/** 03 · Que jeito de carro (várias). Perua inclui minivan. */
+export type Jeito = "Hatch" | "Sedan" | "SUV" | "Perua";
+/** 04 · Trocar marcha no trânsito. */
+export type PreferenciaDeCambio = "so_automatico" | "prefiro_automatico" | "tanto_faz" | "prefiro_manual";
+/** 05 · O que não pode faltar (até três). */
+export type ItemQueNaoPodeFaltar =
+  | "2020-ou-mais-novo"
+  | "ate-80-mil-km"
+  | "diesel"
+  | "camera"
+  | "multimidia"
+  | "sensor"
+  | "seguranca"
+  | "turbo"
+  | "4x4";
+
+/**
+ * O que a pergunta 05 oferece, e o que cada item faz com o estoque.
+ *
+ * `corta`: ano, km e diesel são campos do sync — dá para prometer. Os itens de
+ * ficha só ordenam, porque ficha vazia não prova carro sem o item (doze
+ * carros chegaram do RevendaMais sem opcional nenhum).
+ */
+export const ITENS_QUE_NAO_PODEM_FALTAR: readonly {
+  id: ItemQueNaoPodeFaltar;
+  rotulo: string;
+  corta: boolean;
+  /** Só aparece para quem vai levar carga. */
+  soComCarga?: boolean;
+}[] = [
+  { id: "2020-ou-mais-novo", rotulo: "2020 ou mais novo", corta: true },
+  { id: "ate-80-mil-km", rotulo: "Até 80 mil km", corta: true },
+  { id: "diesel", rotulo: "Diesel", corta: true, soComCarga: true },
+  { id: "camera", rotulo: "Câmera de ré", corta: false },
+  { id: "multimidia", rotulo: "Central multimídia", corta: false },
+  { id: "sensor", rotulo: "Sensor de estacionamento", corta: false },
+  { id: "seguranca", rotulo: "Segurança além do obrigatório", corta: false },
+  { id: "turbo", rotulo: "Motor turbo", corta: false },
+  { id: "4x4", rotulo: "Tração 4x4", corta: false },
+];
+
+/** O limite da pergunta 05 — mais que isso vira lista de desejos, não critério. */
+export const MAXIMO_DO_QUE_NAO_PODE_FALTAR = 3;
+
+const CARROCERIAS_DO_JEITO: Record<Jeito, readonly string[]> = {
+  Hatch: ["Hatch"],
+  Sedan: ["Sedan"],
+  SUV: ["SUV"],
+  Perua: ["Perua", "Van"],
+};
+
+export interface PerfilDoQuiz {
+  orcamento: { min: number; max: number | null };
+  leva?: Leva | null;
+  jeitos?: readonly Jeito[];
+  cambio?: PreferenciaDeCambio | null;
+  naoPodeFaltar?: readonly ItemQueNaoPodeFaltar[];
+}
+
+/**
+ * As respostas da fase 2 viram critérios. Mesma régua da fase 1: filtro só o
+ * que a opção promete com todas as letras ("Família, criança na cadeirinha" →
+ * 4 portas; "Só automático"; a carroceria marcada; ano, km e diesel), e o
+ * resto só ordena.
+ *
+ * Com carga, a carroceria é a de carga e a pergunta do jeito nem aparece.
+ */
+export function criteriosDoPerfil(p: PerfilDoQuiz): Criterios {
+  const preferencias: ChaveDePreferencia[] = [];
+  let carrocerias: readonly string[] | null = null;
+
+  if (p.leva === "carga") carrocerias = CARROCERIAS_DE_CARGA;
+  else if (p.jeitos && p.jeitos.length > 0) {
+    carrocerias = [...new Set(p.jeitos.flatMap((j) => CARROCERIAS_DO_JEITO[j] ?? []))];
+  }
+
+  if (p.cambio === "prefiro_automatico") preferencias.push("automatico");
+  if (p.cambio === "prefiro_manual") preferencias.push("manual");
+
+  const itens = new Set((p.naoPodeFaltar ?? []).slice(0, MAXIMO_DO_QUE_NAO_PODE_FALTAR));
+  for (const item of itens) {
+    if (item === "camera" || item === "multimidia" || item === "sensor" || item === "seguranca" || item === "turbo" || item === "4x4") {
+      preferencias.push(item);
+    }
+  }
+
+  return {
+    piso: Math.max(0, p.orcamento.min || 0),
+    teto: p.orcamento.max && p.orcamento.max > 0 ? p.orcamento.max : null,
+    portas4: p.leva === "familia",
+    automatico: p.cambio === "so_automatico",
+    carrocerias,
+    anoMin: itens.has("2020-ou-mais-novo") ? 2020 : null,
+    kmMax: itens.has("ate-80-mil-km") ? 80000 : null,
+    // Diesel só vale com carga: fora dela a opção nem aparece.
+    diesel: itens.has("diesel") && p.leva === "carga",
+    preferencias,
+    avisos: [],
   };
 }
 
@@ -281,7 +400,24 @@ export function criteriosDasRespostas(r: RespostasDoProfiler): Criterios {
 export function semFiltro(c: Criterios, chave: ChaveDeFiltro): Criterios {
   if (chave === "portas") return { ...c, portas4: false };
   if (chave === "automatico") return { ...c, automatico: false };
+  if (chave === "ano") return { ...c, anoMin: null };
+  if (chave === "km") return { ...c, kmMax: null };
+  if (chave === "diesel") return { ...c, diesel: false };
   return { ...c, carrocerias: null };
+}
+
+/**
+ * Quantos carros passam em tudo e estão na faixa. É o número que as opções do
+ * quiz mostram ANTES do toque ("Só automático (1)") — a mesma conta do
+ * resultado, rodando no navegador sobre o estoque que o CarMatch já baixou.
+ */
+export function quantosNaFaixa(estoque: readonly Veiculo[], c: Criterios): number {
+  return carrosNaFaixa(estoque, c).length;
+}
+
+/** Os carros dessa conta — para a tela dizer quantos deles têm o item na ficha. */
+export function carrosNaFaixa(estoque: readonly Veiculo[], c: Criterios): Veiculo[] {
+  return estoque.filter((v) => elegivel(v) && passaNosFiltros(v, c) && precoDoCarro(v) >= c.piso);
 }
 
 // ---------------------------------------------------------------------------
@@ -391,6 +527,34 @@ export const PREFERENCIAS: Record<ChaveDePreferencia, DefinicaoDePreferencia> = 
     rotulo: "central multimídia",
     avaliar: (v) => itemNaFicha(v, itemDaFicha("multimidia")),
   },
+  manual: {
+    rotulo: "câmbio manual",
+    avaliar: (v) => {
+      const a = ehAutomatico(v);
+      return a === null ? "nao-consta" : a ? "nao-atende" : "atende";
+    },
+    contradicao: () => "é automático",
+  },
+  camera: {
+    rotulo: "câmera de ré",
+    avaliar: (v) => itemNaFicha(v, itemDaFicha("camera")),
+  },
+  sensor: {
+    rotulo: "sensor de estacionamento",
+    avaliar: (v) => itemNaFicha(v, itemDaFicha("sensor")),
+  },
+  seguranca: {
+    // Airbag lateral ou de cortina, controle de estabilidade ou de tração: o
+    // que passa do obrigatório e a ficha consegue dizer. Não há ISOFIX nem nota
+    // do Latin NCAP no cadastro, e a spec registra essa lacuna.
+    rotulo: "segurança além do obrigatório",
+    avaliar: (v) =>
+      ["airbag-lateral", "airbag-cortina", "estabilidade", "controle-tracao"].some(
+        (id) => itemNaFicha(v, itemDaFicha(id)) === "atende",
+      )
+        ? "atende"
+        : "nao-consta",
+  },
 };
 
 /** +2 atende, 0 não consta, −1 não atende. Interna: nunca vai para a tela. */
@@ -428,6 +592,9 @@ export function passaNosFiltros(v: Veiculo, c: Criterios): boolean {
     const t = normalizar(carroceriaDe(v));
     if (!c.carrocerias.some((x) => normalizar(x) === t)) return false;
   }
+  if (c.anoMin !== null && v.ano < c.anoMin) return false;
+  if (c.kmMax !== null && !(v.quilometragem <= c.kmMax)) return false;
+  if (c.diesel && !combustivelDe(v).includes("diesel")) return false;
   return true;
 }
 
@@ -475,6 +642,29 @@ export interface Recomendacao {
   eSe: SugestaoESe[];
   /** `false` na faixa "acima de" e no texto livre sem valor: a tela não fala em teto. */
   temTeto: boolean;
+  /** "Já pensou neste?" — ou `null` quando nenhum carro merece a carta. */
+  coringa: Coringa | null;
+}
+
+/**
+ * "Já pensou neste?" — um carro que a pessoa não pediu, e que o pátio tem
+ * motivo para mostrar.
+ *
+ * É a porta de descoberta dentro do resultado: o carro fica dentro do teto e
+ * passa em todos os filtros (o piso não conta — pode ser mais barato), atende
+ * tudo o que o 1º cartão atende e VENCE o 1º em pelo menos dois fatos de uma
+ * lista fechada. É o caminho pelo qual o entusiasta com R$ 130 mil acha a
+ * Tiguan 2.0 TSI 4Motion de R$ 70.900, que nenhuma pergunta o levaria a pedir.
+ *
+ * O `oQueMuda` é obrigatório na tela: surpresa sem o custo escrito vira
+ * empurrão.
+ */
+export interface Coringa {
+  veiculo: Veiculo;
+  /** O carro com que ele foi comparado — o 1º cartão. */
+  comparadoCom: string;
+  vantagens: string[];
+  oQueMuda: string[];
 }
 
 const reais = (n: number) => `R$ ${Math.round(n).toLocaleString("pt-BR")}`;
@@ -506,6 +696,9 @@ function filtrosLegiveis(c: Criterios): string[] {
     const nomes = c.carrocerias.map((t) => (t === "Sedan" ? "sedã" : t === "SUV" ? "SUV" : t.toLowerCase()));
     saida.push(nomes.length > 1 ? `${nomes.slice(0, -1).join(", ")} ou ${nomes.at(-1)}` : nomes[0]);
   }
+  if (c.anoMin !== null) saida.push(`${c.anoMin} ou mais novo`);
+  if (c.kmMax !== null) saida.push(`até ${Math.round(c.kmMax / 1000)} mil km`);
+  if (c.diesel) saida.push("diesel");
   return saida;
 }
 
@@ -636,8 +829,13 @@ function explicar(
     manchete = "Passa nos seus filtros e custa menos do que a faixa que você escolheu.";
   } else if (naFaixa === 1) {
     manchete = "O único do pátio que passa nos seus filtros hoje.";
-  } else if (pedidos.length > 0) {
+  } else if (pedidos.length > 0 && atende > 0) {
     manchete = `Atende ${atende} de ${pedidos.length} do que você pediu.`;
+  } else if (pedidos.length > 0) {
+    // "Atende 0 de 1" não é manchete: diz o que falta, e isso já está na lista
+    // logo abaixo. No lugar, o que o carro é.
+    const cambio = ehAutomatico(v) === true ? "automático" : ehAutomatico(v) === false ? "manual" : null;
+    manchete = `${[String(v.ano), `${v.quilometragem.toLocaleString("pt-BR")} km`, cambio].filter(Boolean).join(", ")}.`;
   } else {
     manchete = "Passa em todos os seus filtros.";
   }
@@ -658,12 +856,105 @@ function explicar(
     if (semFicha) {
       const r = PREFERENCIAS[semFicha].rotulo;
       pesaContra = `${r.charAt(0).toUpperCase()}${r.slice(1)}: não consta na ficha. Pergunte ao consultor.`;
+    } else if (v.quilometragem >= KM_QUE_PESA_SOZINHO) {
+      // Sem outro cartão para comparar, a quilometragem alta é o fato que pesa.
+      pesaContra = `Rodou ${v.quilometragem.toLocaleString("pt-BR")} km.`;
     } else if (fichaVazia(v)) {
       pesaContra = "Itens de série não informados na ficha. Pergunte ao consultor.";
     }
   }
 
   return { veiculo: v, manchete, pedidos, atende, pesaContra };
+}
+
+// ---------------------------------------------------------------------------
+// "Já pensou neste?"
+// ---------------------------------------------------------------------------
+
+/** Acima disto a quilometragem pesa contra mesmo sem outro carro para comparar. */
+const KM_QUE_PESA_SOZINHO = 150000;
+
+/** Diferença de preço que conta como vantagem — abaixo disso é ruído de negociação. */
+const DIFERENCA_DE_PRECO_QUE_CONTA = 3000;
+/** Diferença de km que conta: pelo menos 10 mil e 15% a menos. */
+const DIFERENCA_DE_KM_QUE_CONTA = 10000;
+
+const km = (n: number) => `${n.toLocaleString("pt-BR")} km`;
+
+function compararComOPrimeiro(v: Veiculo, p: Veiculo): { vantagens: string[]; oQueMuda: string[] } {
+  const vantagens: string[] = [];
+  const oQueMuda: string[] = [];
+
+  if (v.ano > p.ano) vantagens.push(`mais novo: ${v.ano}, contra ${p.ano}`);
+  else if (v.ano < p.ano) oQueMuda.push(`é ${v.ano}, contra ${p.ano}`);
+
+  const diferencaDeKm = p.quilometragem - v.quilometragem;
+  if (diferencaDeKm >= DIFERENCA_DE_KM_QUE_CONTA && v.quilometragem <= p.quilometragem * 0.85) {
+    vantagens.push(`rodou menos: ${km(v.quilometragem)}, contra ${km(p.quilometragem)}`);
+  } else if (v.quilometragem > p.quilometragem) {
+    oQueMuda.push(`${km(v.quilometragem)}, contra ${km(p.quilometragem)}`);
+  }
+
+  const diferencaDePreco = precoDoCarro(p) - precoDoCarro(v);
+  if (diferencaDePreco >= DIFERENCA_DE_PRECO_QUE_CONTA) vantagens.push(`custa ${reais(diferencaDePreco)} a menos`);
+  else if (diferencaDePreco < 0) oQueMuda.push(`custa ${reais(-diferencaDePreco)} a mais`);
+
+  const autoV = ehAutomatico(v);
+  const autoP = ehAutomatico(p);
+  if (autoV === true && autoP === false) vantagens.push("câmbio automático, contra manual");
+  else if (autoV === false && autoP === true) oQueMuda.push("câmbio manual, contra automático");
+
+  const cilV = cilindradaDe(v);
+  const cilP = cilindradaDe(p);
+  if (cilV !== null && cilP !== null) {
+    if (cilV > cilP + 0.05) vantagens.push(`motor ${cilV.toFixed(1)}, contra ${cilP.toFixed(1)}`);
+    else if (cilV < cilP - 0.05) oQueMuda.push(`motor ${cilV.toFixed(1)}, contra ${cilP.toFixed(1)}`);
+  }
+
+  if (tracao4x4(v) === "atende" && tracao4x4(p) !== "atende") vantagens.push("tração 4x4");
+
+  // A ficha só compara quando a do 1º tem conteúdo: ficha vazia não prova que
+  // ele não tem o item. E conta como UMA vantagem, por mais itens que liste —
+  // senão uma ficha longa ganharia sozinha.
+  if (!fichaVazia(p)) {
+    const aMais = ITENS_DA_FICHA.filter((i) => itemNaFicha(v, i) === "atende" && itemNaFicha(p, i) !== "atende");
+    if (aMais.length > 0) vantagens.push(`${juntar(aMais.map((i) => i.rotulo))} na ficha`);
+  }
+
+  if (normalizar(carroceriaDe(v)) !== normalizar(carroceriaDe(p)) && carroceriaDe(v)) {
+    oQueMuda.push(`é ${carroceriaLegivel(v)}, não ${carroceriaLegivel(p)}`);
+  }
+  return { vantagens, oQueMuda };
+}
+
+function escolherCoringa(base: readonly Veiculo[], c: Criterios, cartoes: readonly Veiculo[]): Coringa | null {
+  const primeiro = cartoes[0];
+  if (!primeiro) return null;
+
+  const modelos = new Set(cartoes.map(modeloBase));
+  const atendidasPeloPrimeiro = c.preferencias.filter((p) => PREFERENCIAS[p].avaliar(primeiro) === "atende");
+
+  const candidatos = base
+    .filter(
+      (v) =>
+        !cartoes.includes(v) &&
+        !modelos.has(modeloBase(v)) &&
+        passaNosFiltros(v, c) &&
+        atendidasPeloPrimeiro.every((p) => PREFERENCIAS[p].avaliar(v) === "atende"),
+    )
+    .map((v) => ({ v, ...compararComOPrimeiro(v, primeiro) }))
+    .filter((x) => x.vantagens.length >= 2)
+    .sort(
+      (a, b) =>
+        b.vantagens.length - a.vantagens.length ||
+        precoDoCarro(a.v) - precoDoCarro(b.v) ||
+        b.v.ano - a.v.ano ||
+        String(a.v.id).localeCompare(String(b.v.id)),
+    );
+
+  const melhor = candidatos[0];
+  if (!melhor) return null;
+  return { veiculo: melhor.v, comparadoCom: nomeCurto(primeiro), vantagens: melhor.vantagens, oQueMuda: melhor.oQueMuda };
 }
 
 // ---------------------------------------------------------------------------
@@ -680,6 +971,9 @@ const ROTULO_DO_E_SE: Record<ChaveDeFiltro, string> = {
   automatico: "Aceitar câmbio manual",
   carroceria: "Ver outras carrocerias",
   portas: "Aceitar 2 portas",
+  ano: "Aceitar antes de 2020",
+  km: "Aceitar mais de 80 mil km",
+  diesel: "Aceitar flex ou gasolina",
 };
 
 /**
@@ -732,6 +1026,9 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     if (c.automatico) ativos.push("automatico");
     if (c.carrocerias) ativos.push("carroceria");
     if (c.portas4) ativos.push("portas");
+    if (c.anoMin !== null) ativos.push("ano");
+    if (c.kmMax !== null) ativos.push("km");
+    if (c.diesel) ativos.push("diesel");
     const dentro = new Set(passam.map((v) => v.id));
     for (const filtro of ativos) {
       const frouxo = semFiltro(c, filtro);
@@ -758,5 +1055,6 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     avisos: [...c.avisos],
     eSe,
     temTeto: c.teto !== null,
+    coringa: escolherCoringa(base, c, todos),
   };
 }
