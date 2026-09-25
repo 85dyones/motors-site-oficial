@@ -42,6 +42,8 @@ import { linkWhatsApp } from "../lib/whatsapp";
 import { schemaDaLoja, schemaDoSite } from "../lib/schemaLoja";
 import { blocoJsonLd } from "../lib/schemaListagem";
 import FaixasDePreco from "../components/modernist/FaixasDePreco";
+import FaixaDoRepasseNaHome from "../components/repasse/FaixaDoRepasseNaHome";
+import { faixaNaHome, lerRepassesDasPortas } from "../lib/portasDoRepasse";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -111,13 +113,18 @@ const PASSOS_PROFILER = [
 ];
 
 export default async function Home() {
-  const [estoque, settings, reputacao] = await Promise.all([
+  const agora = new Date();
+  const [estoque, settings, reputacao, repasses] = await Promise.all([
     getEstoque(),
     getCachedSettings(),
     // Em paralelo com o estoque: são queries independentes, e encadeá-las
     // somaria a latência das duas ao TTFB da home.
     getReputacaoGoogle(),
+    // A faixa do repasse (spec 2026-09-24 §10), com o mesmo cuidado: pane
+    // aqui vira lista vazia e a área some. Nunca `lerRepassesPublicos` direto.
+    lerRepassesDasPortas(agora, "/"),
   ]);
+  const faixaDoRepasse = faixaNaHome(repasses, agora);
   const empresa = settings.companySettings ?? DEFAULT_COMPANY_SETTINGS;
 
   const publicacoesInstagram = normalizarCuradoria(settings.instagramCuradoria);
@@ -288,6 +295,14 @@ export default async function Home() {
         cabecalho={<CabecalhoSecao titulo="Escolha pelo orçamento" />}
       />
     ),
+
+    /* ─── Repasse Motors ───
+       A faixa clara do repasse (spec 2026-09-24 §10): os três carros abertos
+       a todos mais recentes, e só com três ou mais. Com menos, a área
+       inteira some, sem cabeçalho nem promessa vazia — a mesma regra da
+       reputação e do Instagram, logo abaixo. Quem decide é
+       `lib/portasDoRepasse.ts`. */
+    repasse: faixaDoRepasse && <FaixaDoRepasseNaHome faixa={faixaDoRepasse} />,
 
     /* ─── 02 Consultoria ─── */
     consultoria: (
