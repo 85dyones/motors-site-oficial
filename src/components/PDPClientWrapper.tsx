@@ -1341,7 +1341,7 @@ export default function PDPClientWrapper({
               <div className="flex flex-col gap-2.5">
                 <button
                   onClick={handleTradeInClick}
- className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-extrabold text-[11px] uppercase tracking-widest  flex items-center justify-center gap-2 active:scale-95  hover: transition-all duration-300 cursor-pointer"
+ className="w-full h-12 bg-green-700 hover:bg-green-800 text-white font-extrabold text-[11px] uppercase tracking-widest  flex items-center justify-center gap-2 active:scale-95  hover: transition-all duration-300 cursor-pointer"
                   style={{ minHeight: "48px" }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
