@@ -250,12 +250,12 @@ export default async function FichaDoRepasse({ params }: PageProps) {
               <p className="m-0 text-[11px] font-extrabold tracking-[.14em] text-mt-accent">{CARD_DO_REPASSE.soLojistas}</p>
               <p className="m-0 mt-1 text-[14px]">{CARD_DO_REPASSE.soLojistasTexto}</p>
               <div className="mt-4 flex flex-wrap items-center gap-4">
-                <Link href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA_LOJISTA}`} className="mt-btn mt-btn-tinta mt-foco">
+                <a href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA_LOJISTA}`} className="mt-btn mt-btn-tinta mt-foco">
                   {CARD_DO_REPASSE.cadastrarCnpj}
-                </Link>
-                <Link href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
+                </a>
+                <a href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
                   {CARD_DO_REPASSE.aviseQuandoAbrir}
-                </Link>
+                </a>
               </div>
             </div>
           )}

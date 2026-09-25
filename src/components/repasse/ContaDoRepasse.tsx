@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ANCORA_DA_FICHA_DE_ESTADO, ROTULOS_DA_CONTA, rotuloDaFipe, rotuloDaFipeNaFicha } from "../../lib/paginaDoRepasse";
 import { contaDoRepasse, emReais, type Repasse } from "../../lib/repasse";
 
@@ -74,9 +73,9 @@ export default function ContaDoRepasse({
             {variante === "ficha" && (
               <>
                 {" "}
-                <Link href={`#${ANCORA_DA_FICHA_DE_ESTADO}`} className="mt-foco underline underline-offset-2">
+                <a href={`#${ANCORA_DA_FICHA_DE_ESTADO}`} className="mt-foco underline underline-offset-2">
                   {ROTULOS_DA_CONTA.verFicha}
-                </Link>
+                </a>
               </>
             )}
           </dt>

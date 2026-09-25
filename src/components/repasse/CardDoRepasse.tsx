@@ -110,25 +110,28 @@ export default function CardDoRepasse({
               {CARD_DO_REPASSE.quero}
             </BotaoWhatsApp>
           )}
+          {/* Âncora da lista é <a> puro: o card mora no próprio /repasse, e o
+              next/link resolveria o hash por pushState, sem `hashchange` — a
+              lista não trocaria de trilha (final-review I1, 25/09). */}
           {estado === "lojistas" && (
             <>
-              <Link href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA_LOJISTA}`} className="mt-btn mt-btn-tinta mt-foco">
+              <a href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA_LOJISTA}`} className="mt-btn mt-btn-tinta mt-foco">
                 {CARD_DO_REPASSE.cadastrarCnpj}
-              </Link>
-              <Link href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
+              </a>
+              <a href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
                 {CARD_DO_REPASSE.aviseQuandoAbrir}
-              </Link>
+              </a>
             </>
           )}
           {estado === "reservado" && (
-            <Link href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
+            <a href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
               {CARD_DO_REPASSE.aviseSeVoltar}
-            </Link>
+            </a>
           )}
           {estado === "vendido" && (
-            <Link href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
+            <a href={`${CAMINHO_DO_REPASSE}#${ANCORA_DA_LISTA}`} className="mt-link-regua mt-foco">
               {CARD_DO_REPASSE.entrarNaLista}
-            </Link>
+            </a>
           )}
           <Link href={`${ficha}#${ANCORA_DA_FICHA_DE_ESTADO}`} className="mt-link-regua mt-foco">
             {CARD_DO_REPASSE.verFicha}
