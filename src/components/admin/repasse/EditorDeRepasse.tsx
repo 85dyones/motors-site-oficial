@@ -93,17 +93,23 @@ export default function EditorDeRepasse({
 
   const mudar = (parcial: Partial<FormularioDoRepasse>) => setForm((f) => ({ ...f, ...parcial }));
 
-  function aplicar(novo: RepasseDoPainel) {
+  /**
+   * Aplica a linha que voltou do servidor sem apagar o que a pessoa digitou
+   * ENQUANTO o pedido estava no ar: reaplica por cima da nova base as
+   * alterações feitas depois de `base` (o formulário no instante do envio).
+   */
+  function aplicar(novo: RepasseDoPainel, base: FormularioDoRepasse) {
     setRepasse(novo);
     const f = formularioDe(novo);
-    setForm(f);
     setSalvo(f);
+    setForm((atual) => ({ ...f, ...alteracoes(atual, base) }));
     router.refresh();
   }
 
   async function salvar() {
     setSalvando(true);
     setMensagem(null);
+    const enviado = form;
     try {
       const res = await fetch(`/api/repasses/${repasse.id}`, {
         method: "PATCH",
@@ -119,7 +125,7 @@ export default function EditorDeRepasse({
         });
         return;
       }
-      aplicar(data.repasse);
+      aplicar(data.repasse, enviado);
       setMensagem({ tipo: "ok", texto: "Salvo.", problemas: [] });
     } catch {
       setMensagem({ tipo: "erro", texto: "Não deu para salvar. Confira a conexão.", problemas: [] });
@@ -348,7 +354,7 @@ export default function EditorDeRepasse({
         </div>
       )}
 
-      <AcoesDoRepasse repasse={repasse} perfis={perfis} alterado={alterado} aoMudar={aplicar} />
+      <AcoesDoRepasse repasse={repasse} perfis={perfis} alterado={alterado} aoMudar={(novo) => aplicar(novo, salvo)} />
 
       {inscritos !== null && validaRepasse(perfis) && repasse.situacao === "publicado" && (
         <InscritosQueCombinam repasse={repasse} inscritos={inscritos} avisados={avisados} urlDaFicha={urlDaFicha} />

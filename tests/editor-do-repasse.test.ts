@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { bancoDeTeste, sessaoDeTeste, type Banco } from "./bancoDoRepasseDeTeste";
 import { linhaDoBancoDeTeste } from "./repasseDeTeste";
+import { repasseDoPainelDaLinha } from "../src/lib/repasseDoPainel";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -31,6 +32,7 @@ const { ConfirmProvider } = await import("../src/components/admin/ConfirmDialog"
 const PaginaDoCarro = (await import("../src/app/admin/repasse/[id]/page")).default;
 const PaginaNovo = (await import("../src/app/admin/repasse/novo/page")).default;
 const NovoRepasse = (await import("../src/components/admin/repasse/NovoRepasse")).default;
+const EditorDeRepasse = (await import("../src/components/admin/repasse/EditorDeRepasse")).default;
 
 const ID = "3f9a1c2e-5b7d-4e1a-9c3b-0a1b2c3d4e5f";
 const ISO = "2026-09-24T12:00:00Z";
@@ -102,7 +104,9 @@ describe("a página do carro", () => {
 
   it("termo proibido no resumo aparece como aviso na hora", async () => {
     banco.leituras.repasses = { data: linhaDoBancoDeTeste({ resumo: "Carro que não girou no pátio" }), error: null };
-    expect(await abrirCarro()).toContain("usa um termo que o repasse não usa");
+    // Frase exclusiva do AvisoDeTermo — o Checklist usa "O texto usa..." (sem
+    // "Este"), então esta string só aparece se o aviso inline estiver ali.
+    expect(await abrirCarro()).toContain("Este texto usa um termo que o repasse não usa");
   });
 });
 
@@ -159,5 +163,85 @@ describe("novo carro", () => {
       );
       expect(empurrar).toHaveBeenCalledWith(`/admin/repasse/${ID}`);
     });
+  });
+});
+
+describe("o editor: salvar não perde o que foi digitado durante o PATCH", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  function setValor(el: HTMLInputElement | HTMLTextAreaElement, valor: string) {
+    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, valor);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  /** Deixa os microtasks da cadeia fetch → json → setState assentarem. */
+  const flush = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+  it("o motivo digitado enquanto o PATCH está no ar não desaparece", async () => {
+    const linha = linhaDoBancoDeTeste();
+    const repasse = repasseDoPainelDaLinha(linha)!;
+
+    let resolverPatch: (r: Response) => void = () => {};
+    const pendente = new Promise<Response>((resolve) => {
+      resolverPatch = resolve;
+    });
+    const fetchFalso = vi.fn((url: RequestInfo | URL) => {
+      const alvo = String(url);
+      // O PATCH do editor fica pendente até o teste resolver; qualquer outra
+      // chamada (a cascata de marcas da FIPE) responde na hora.
+      return alvo.startsWith(`/api/repasses/${repasse.id}`) ? pendente : Promise.resolve(new Response("[]"));
+    });
+    vi.stubGlobal("fetch", fetchFalso);
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        createElement(
+          ConfirmProvider,
+          null,
+          createElement(EditorDeRepasse, {
+            repasse,
+            perfis: ["comercial"],
+            inscritos: null,
+            avisados: [],
+            urlDaFicha: "https://x/repasse/y",
+          }),
+        ),
+      );
+    });
+
+    const resumo = container.querySelector('input[maxlength="140"]') as HTMLInputElement;
+    const motivo = Array.from(container.querySelectorAll("textarea")).find((t) =>
+      t.closest("label")?.textContent?.includes("Por que está no repasse"),
+    ) as HTMLTextAreaElement;
+    const botaoSalvar = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === "Salvar",
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      setValor(resumo, "Novo resumo salvo");
+    });
+    await act(async () => {
+      botaoSalvar.click();
+    });
+    await act(async () => {
+      setValor(motivo, "Digitado durante o salvar");
+    });
+
+    const repasseSalvo = repasseDoPainelDaLinha({ ...linha, resumo: "Novo resumo salvo" })!;
+    resolverPatch(new Response(JSON.stringify({ repasse: repasseSalvo }), { status: 200 }));
+    await flush();
+
+    expect(motivo.value).toBe("Digitado durante o salvar");
+    expect(botaoSalvar.disabled).toBe(false);
   });
 });
