@@ -45,7 +45,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Garantia do Seminovo em Curitiba | Motors Store",
     description:
       "Três meses de garantia de motor e câmbio, sem carência e sem franquia, em todo carro " +
-      "vendido. Perícia cautelar independente antes da vitrine e laudo disponível com o vendedor.",
+      "do estoque. Perícia cautelar independente antes da vitrine e laudo disponível com o vendedor.",
     alternates: { canonical: CAMINHO },
     ...montarCompartilhamento({
       empresa: companySettings,

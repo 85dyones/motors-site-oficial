@@ -83,7 +83,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
           `Na ${ENDERECO}, no Bacacheri, zona norte de Curitiba. Abrimos ${HORARIO}.`,
       },
       {
-        pergunta: "Todos os carros têm laudo de perícia cautelar?",
+        pergunta: "Todos os carros do estoque têm laudo de perícia cautelar?",
         resposta:
           "Sim. A perícia é independente e acontece antes do veículo entrar na vitrine. Cada unidade tem laudo " +
           "disponível para consulta com o vendedor, a qualquer tempo.",

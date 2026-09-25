@@ -72,7 +72,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Estoque",
     tituloPadrao: "Seminovos selecionados em Curitiba",
     descricaoPadrao:
-      "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine. O laudo está disponível com o vendedor.",
+      "Todo veículo do estoque passa por perícia cautelar independente antes de entrar na vitrine. O laudo está disponível com o vendedor.",
   },
   {
     id: "avaliacao",

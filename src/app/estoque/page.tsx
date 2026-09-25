@@ -164,7 +164,7 @@ export default async function EstoquePage() {
             comum, em vez de repetir a mesma âncora quatro vezes. */}
         <p className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
           {linkar(
-            "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
+            "Todo veículo do estoque passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
               "entram. O laudo está disponível para consulta com o vendedor, e o preço está no anúncio. " +
               "Showroom no Bacacheri, em Curitiba.",
           ).map((parte, i) =>
