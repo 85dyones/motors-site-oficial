@@ -1243,6 +1243,16 @@ begin
            ultimo_movimento_em = v_seg - interval '3 hours',
            ultimo_contato_em = null, alertado_em = null
      where id = v_lead;
+    -- 2026-09-24: o UPDATE acima troca a etapa, e o gatilho então força
+    -- `ultimo_movimento_em := now()` por cima do valor pedido. Enquanto `now()`
+    -- era anterior a 30/08 o lead parecia parado no domingo fixo (v_dom) e na
+    -- segunda (v_seg); depois disso ele sumiu das duas filas e o aceite ficou
+    -- vermelho só pelo relógio. Um UPDATE sem troca de etapa não passa pelo
+    -- carimbo (e sem sessão não é toque humano): o relógio da sonda volta para
+    -- um instante ANTERIOR ao domingo, e f.1/f.2 deixam de depender da data.
+    update public.leads
+       set ultimo_movimento_em = v_dom - interval '3 hours'
+     where id = v_lead;
 
     -- lead em NEGOCIAÇÃO, parado há uma semana: avisa, mas não transfere
     insert into public.leads (nome, telefone, situacao, responsavel, ultimo_movimento_em)

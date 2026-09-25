@@ -12,8 +12,13 @@ const CAMINHO = "/avaliacao";
 // mede tempo de retorno, e `promessa-publica` guarda essa linha em toda
 // superfície de cliente. A frase com "menos de 10 minutos" é a versão anterior
 // e não volta.
+//
+// "Referência oficial da Tabela FIPE", e não "dados da FIPE cruzados com o
+// giro real do nosso estoque" (a versão até 24/09/2026): nenhum código cruza
+// FIPE com giro, e a meta descreve o que a página faz. Ver o comentário no
+// parágrafo de `AutoAvaliacao.tsx`.
 const DESCRICAO =
-  "Dados oficiais da Tabela FIPE cruzados com o giro real do nosso estoque. Um consultor retorna no WhatsApp com a proposta.";
+  "Referência oficial da Tabela FIPE, na versão exata do seu carro. Um consultor retorna no WhatsApp com a proposta.";
 
 /**
  * Para onde a página manda quem terminou — ou quem desistiu no meio.
