@@ -1,13 +1,21 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   ETIQUETAS_DA_PASSAGEM,
-  configDoChatwoot,
-  garantirEtiquetas,
-  gravarEtiquetasDaConversa,
-  juntarEtiquetas,
-  lerEtiquetasDaConversa,
+  aplicarMudanca,
+  ehEtiquetaDaPassagem,
+  lerMudanca,
+  limparEtiquetas,
+  mesmasEtiquetas,
   normalizarEtiqueta,
   normalizarEtiquetas,
+} from "../src/lib/etiquetas";
+import {
+  configDoChatwoot,
+  garantirEtiquetas,
+  lerEtiquetasDaConta,
+  lerEtiquetasDaConversa,
+  mudarEtiquetas,
   type ConfigDoChatwoot,
 } from "../src/lib/etiquetasDoChatwoot";
 
@@ -16,10 +24,12 @@ import {
  *
  * O que estes testes seguram é o pedido do dono: *"quando o sdr atribuir um
  * contato para um vendedor do comercial, precisamos manter a tag de resgate e
- * reaquecido, para mensurar o trabalho dele"*. "Manter" tem duas metades:
+ * reaquecido, para mensurar o trabalho dele"*. "Manter" tem três metades:
  *   - as duas etiquetas CHEGAM à conversa;
  *   - nenhuma das que já estavam SAI — o POST do Chatwoot substitui a lista
- *     inteira, e gravar só as duas apagaria "origem-site" e o resto.
+ *     inteira, e toda escrita aqui é uma mudança sobre o que foi lido na hora;
+ *   - nenhuma etiqueta fora do formato do site é "consertada" e perdida no
+ *     caminho ("Lead Quente" volta como "Lead Quente").
  *
  * O Chatwoot aqui é falso: um `fetch` injetado que guarda as etiquetas da
  * conversa e registra cada chamada.
@@ -36,8 +46,17 @@ interface Chamada {
 }
 
 /** Um Chatwoot de mentira, com as etiquetas de uma conversa. */
-function chatwootFalso(iniciais: string[], opcoes: { status?: number; semPayloadNoPost?: boolean } = {}) {
+function chatwootFalso(
+  iniciais: string[],
+  opcoes: {
+    status?: number;
+    semPayloadNoPost?: boolean;
+    /** Roda depois de cada POST — é o "outro alguém" gravando no meio. */
+    depoisDoPost?: (etiquetas: string[], n: number) => string[];
+  } = {},
+) {
   let etiquetas = [...iniciais];
+  let posts = 0;
   const chamadas: Chamada[] = [];
   const buscar = async (url: string, init?: RequestInit): Promise<Response> => {
     const metodo = init?.method ?? "GET";
@@ -47,51 +66,99 @@ function chatwootFalso(iniciais: string[], opcoes: { status?: number; semPayload
     if (opcoes.status) return new Response("{}", { status: opcoes.status });
     if (metodo === "POST") {
       etiquetas = [...(corpo as { labels: string[] }).labels];
-      return Response.json(opcoes.semPayloadNoPost ? {} : { payload: etiquetas });
+      const resposta = opcoes.semPayloadNoPost ? {} : { payload: etiquetas };
+      posts += 1;
+      if (opcoes.depoisDoPost) etiquetas = opcoes.depoisDoPost(etiquetas, posts);
+      return Response.json(resposta);
     }
     return Response.json({ payload: etiquetas });
   };
-  return { buscar, chamadas, etiquetas: () => etiquetas };
+  return { buscar, chamadas, etiquetas: () => etiquetas, metodos: () => chamadas.map((c) => c.metodo) };
 }
 
-describe("uma etiqueta no formato do Chatwoot", () => {
-  it("minúscula e sem espaço sobrando", () => {
+describe("as duas réguas: o que o site PÕE e o que a conversa TEM", () => {
+  it("pôr: minúscula, sem espaço sobrando", () => {
     expect(normalizarEtiqueta("  Resgate ")).toBe("resgate");
   });
 
-  it("aceita hífen, sublinhado, número e acento", () => {
+  it("pôr: aceita hífen, sublinhado, número e acento", () => {
     for (const boa of ["quer-comprar", "origem_site", "fase2", "reaquecido", "negociação"]) {
       expect(normalizarEtiqueta(boa), boa).toBe(boa);
     }
   });
 
-  it("recusa espaço no meio, pontuação, vazio e o que não é texto", () => {
-    for (const ruim of ["quer comprar", "resgate!", "a/b", "", "   ", null, undefined, 7, {}]) {
+  it("pôr: recusa espaço no meio, pontuação, vazio, mais de 50 e o que não é texto", () => {
+    for (const ruim of ["quer comprar", "resgate!", "a/b", "", "   ", null, undefined, 7, {}, "a".repeat(51)]) {
       expect(normalizarEtiqueta(ruim), String(ruim)).toBeNull();
     }
+    expect(normalizarEtiquetas(["Resgate", "resgate", "x y", "reaquecido"])).toEqual(["resgate", "reaquecido"]);
   });
 
-  it("recusa etiqueta com mais de 50 caracteres", () => {
-    expect(normalizarEtiqueta("a".repeat(50))).toBe("a".repeat(50));
-    expect(normalizarEtiqueta("a".repeat(51))).toBeNull();
-  });
-
-  it("a lista sai sem repetição, na ordem em que veio, e sem as inválidas", () => {
-    expect(normalizarEtiquetas(["Resgate", "origem-site", "resgate", "x y", "reaquecido"])).toEqual([
-      "resgate",
+  it("ter: o que a conversa tem volta como está — nada é 'consertado' e perdido", () => {
+    // A revisão de 25/09 mostrou "Lead Quente" e "campanha.setembro" sumindo
+    // na primeira gravação, porque a leitura normalizava.
+    expect(limparEtiquetas(["origem-site", "Lead Quente", "campanha.setembro", "Resgate"])).toEqual([
       "origem-site",
-      "reaquecido",
+      "Lead Quente",
+      "campanha.setembro",
+      "Resgate",
     ]);
-    expect(normalizarEtiquetas("resgate")).toEqual([]);
-    expect(normalizarEtiquetas(null)).toEqual([]);
   });
 
-  it("juntar nunca tira uma das atuais", () => {
-    expect(juntarEtiquetas(["origem-site", "resgate"], ETIQUETAS_DA_PASSAGEM)).toEqual([
+  it("ter: só sai o lixo — não-texto, vazio e repetido (sem distinguir caixa)", () => {
+    expect(limparEtiquetas(["a", "", "  ", 3, null, "A", "b ", "b"])).toEqual(["a", "b"]);
+    expect(limparEtiquetas("resgate")).toEqual([]);
+  });
+});
+
+describe("aplicar uma mudança", () => {
+  it("as que ninguém citou ficam, na mesma ordem e na mesma grafia", () => {
+    expect(aplicarMudanca(["Lead Quente", "origem-site"], { incluir: ["resgate"] })).toEqual([
+      "Lead Quente",
       "origem-site",
       "resgate",
-      "reaquecido",
     ]);
+  });
+
+  it("tirar não distingue caixa, e incluir o que já está não duplica", () => {
+    expect(aplicarMudanca(["Origem-Site", "resgate"], { retirar: ["origem-site"], incluir: ["RESGATE"] })).toEqual([
+      "resgate",
+    ]);
+  });
+
+  it("mesmas etiquetas em outra ordem são a mesma lista", () => {
+    expect(mesmasEtiquetas(["a", "b"], ["B", "a"])).toBe(true);
+    expect(mesmasEtiquetas(["a"], ["a", "b"])).toBe(false);
+  });
+});
+
+describe("o pedido do card", () => {
+  it("aceita incluir no formato e retirar na grafia que a conversa tem", () => {
+    expect(lerMudanca({ incluir: ["Negociando"], retirar: ["Lead Quente"] })).toEqual({
+      ok: true,
+      mudanca: { incluir: ["negociando"], retirar: ["Lead Quente"] },
+    });
+  });
+
+  it("recusa incluir fora do formato, lista que não é lista, e pedido vazio", () => {
+    expect(lerMudanca({ incluir: ["quer comprar"] })).toMatchObject({ ok: false, erro: expect.stringContaining('"quer comprar"') });
+    expect(lerMudanca({ incluir: "resgate" })).toMatchObject({ ok: false });
+    expect(lerMudanca({ retirar: [3] })).toMatchObject({ ok: false });
+    expect(lerMudanca({ retirar: ["  "] })).toMatchObject({ ok: false });
+    expect(lerMudanca({})).toMatchObject({ ok: false, erro: "Diga o que incluir ou retirar." });
+    expect(lerMudanca(null)).toMatchObject({ ok: false });
+  });
+
+  it("recusa mais de 20 de uma vez", () => {
+    const muitas = Array.from({ length: 21 }, (_, i) => `e${i}`);
+    expect(lerMudanca({ incluir: muitas })).toMatchObject({ ok: false });
+    expect(lerMudanca({ retirar: muitas })).toMatchObject({ ok: false });
+  });
+
+  it("sabe quais são as duas da passagem, em qualquer caixa", () => {
+    expect(ehEtiquetaDaPassagem("Resgate")).toBe(true);
+    expect(ehEtiquetaDaPassagem("reaquecido")).toBe(true);
+    expect(ehEtiquetaDaPassagem("resgatar")).toBe(false);
   });
 });
 
@@ -115,87 +182,132 @@ describe("a configuração", () => {
     expect(configDoChatwoot({ ...ENV, NEXT_PUBLIC_CHATWOOT_URL: "" })).toBeNull();
     expect(configDoChatwoot({ ...ENV, NEXT_PUBLIC_CHATWOOT_CONTA_ID: "abc" })).toBeNull();
   });
+
+  it("em http, desligado — o token iria em texto aberto", () => {
+    expect(configDoChatwoot({ ...ENV, NEXT_PUBLIC_CHATWOOT_URL: "http://chat.exemplo.com.br" })).toBeNull();
+  });
 });
 
-describe("ler e gravar", () => {
-  it("lê da conversa certa, com o token no cabeçalho", async () => {
-    const cw = chatwootFalso(["origem-site", "Quer-Comprar"]);
+describe("ler", () => {
+  it("lê da conversa certa, com o token no cabeçalho, sem mexer na grafia", async () => {
+    const cw = chatwootFalso(["origem-site", "Lead Quente"]);
     const r = await lerEtiquetasDaConversa(4821, CFG, cw.buscar);
-    expect(r).toEqual({ ok: true, valor: ["origem-site", "quer-comprar"] });
+    expect(r).toEqual({ ok: true, valor: ["origem-site", "Lead Quente"] });
     expect(cw.chamadas).toEqual([{ url: URL_DA_CONVERSA, metodo: "GET", corpo: undefined, token: "tok-123" }]);
-  });
-
-  it("grava a lista inteira, já limpa", async () => {
-    const cw = chatwootFalso(["origem-site"]);
-    const r = await gravarEtiquetasDaConversa(4821, ["Resgate", "resgate", "x y"], CFG, cw.buscar);
-    expect(r).toEqual({ ok: true, valor: ["resgate"] });
-    expect(cw.chamadas[0]).toMatchObject({ metodo: "POST", corpo: { labels: ["resgate"] } });
-  });
-
-  it("Chatwoot que responde sem a lista: o que foi pedido é o que ficou", async () => {
-    const cw = chatwootFalso([], { semPayloadNoPost: true });
-    const r = await gravarEtiquetasDaConversa(4821, ["resgate"], CFG, cw.buscar);
-    expect(r).toEqual({ ok: true, valor: ["resgate"] });
   });
 
   it("conversa que não é inteiro positivo não chega a chamar a API", async () => {
     const cw = chatwootFalso([]);
     for (const ruim of [0, -1, 1.5, Number.NaN]) {
       expect(await lerEtiquetasDaConversa(ruim, CFG, cw.buscar)).toEqual({ ok: false, motivo: "conversa inválida" });
-      expect(await gravarEtiquetasDaConversa(ruim, ["a"], CFG, cw.buscar)).toMatchObject({ ok: false });
+      expect(await mudarEtiquetas(ruim, { incluir: ["a"] }, CFG, cw.buscar)).toMatchObject({ ok: false });
     }
     expect(cw.chamadas).toHaveLength(0);
   });
+
+  it("as etiquetas da conta são os títulos", async () => {
+    const buscar = async () => Response.json({ payload: [{ id: 1, title: "resgate" }, { id: 2, title: "negociando" }] });
+    expect(await lerEtiquetasDaConta(CFG, buscar)).toEqual({ ok: true, valor: ["resgate", "negociando"] });
+  });
 });
 
-describe("garantir as etiquetas da passagem", () => {
-  it("põe resgate e reaquecido SEM tirar as que a conversa já tinha", async () => {
-    const cw = chatwootFalso(["origem-site", "quer-comprar"]);
-    const r = await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, cw.buscar);
+describe("mudar — sempre sobre o que a conversa tem agora", () => {
+  it("tira só a pedida e põe só a pedida; o resto fica como estava", async () => {
+    const cw = chatwootFalso(["origem-site", "Lead Quente", "resgate"]);
+    const r = await mudarEtiquetas(4821, { incluir: ["negociando"], retirar: ["origem-site"] }, CFG, cw.buscar);
 
-    expect(cw.etiquetas()).toEqual(["origem-site", "quer-comprar", "resgate", "reaquecido"]);
+    expect(cw.etiquetas()).toEqual(["Lead Quente", "resgate", "negociando"]);
     expect(r).toEqual({
       ok: true,
       valor: {
-        antes: ["origem-site", "quer-comprar"],
-        depois: ["origem-site", "quer-comprar", "resgate", "reaquecido"],
+        antes: ["origem-site", "Lead Quente", "resgate"],
+        depois: ["Lead Quente", "resgate", "negociando"],
         mudou: true,
       },
     });
   });
 
-  it("completa quando só uma das duas estava lá", async () => {
+  it("mudança que não muda nada não grava", async () => {
     const cw = chatwootFalso(["resgate"]);
-    await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, cw.buscar);
-    expect(cw.etiquetas()).toEqual(["resgate", "reaquecido"]);
+    const r = await mudarEtiquetas(4821, { incluir: ["Resgate"], retirar: ["nao-tem"] }, CFG, cw.buscar);
+    expect(r).toMatchObject({ ok: true, valor: { mudou: false } });
+    expect(cw.metodos()).toEqual(["GET"]);
+  });
+
+  it("leitura que falha não vira gravação — gravar às cegas substituiria a lista inteira", async () => {
+    const cw = chatwootFalso(["origem-site"], { status: 500 });
+    expect(await mudarEtiquetas(4821, { incluir: ["a"] }, CFG, cw.buscar)).toEqual({
+      ok: false,
+      motivo: "o Chatwoot respondeu 500",
+    });
+    expect(cw.metodos()).toEqual(["GET"]);
+  });
+
+  it("leitura sem a lista também não vira gravação", async () => {
+    const metodos: string[] = [];
+    const r = await mudarEtiquetas(4821, { incluir: ["a"] }, CFG, async (_url, init) => {
+      metodos.push(init?.method ?? "GET");
+      return Response.json({ algo: 1 });
+    });
+    expect(r).toEqual({ ok: false, motivo: "resposta ilegível do Chatwoot" });
+    expect(metodos).toEqual(["GET"]);
+  });
+
+  it("Chatwoot que responde ao POST sem a lista: o que foi gravado é o que ficou", async () => {
+    const cw = chatwootFalso([], { semPayloadNoPost: true });
+    const r = await mudarEtiquetas(4821, { incluir: ["resgate"] }, CFG, cw.buscar);
+    expect(r).toMatchObject({ ok: true, valor: { depois: ["resgate"] } });
+  });
+});
+
+describe("garantir as etiquetas da passagem", () => {
+  it("põe resgate e reaquecido SEM tirar as que a conversa já tinha, nem mudar a grafia delas", async () => {
+    const cw = chatwootFalso(["origem-site", "Lead Quente"]);
+    const r = await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, cw.buscar);
+
+    expect(cw.etiquetas()).toEqual(["origem-site", "Lead Quente", "resgate", "reaquecido"]);
+    expect(r).toEqual({
+      ok: true,
+      valor: {
+        antes: ["origem-site", "Lead Quente"],
+        depois: ["origem-site", "Lead Quente", "resgate", "reaquecido"],
+        mudou: true,
+      },
+    });
   });
 
   it("não grava quando as duas já estão — passagem repetida não vira escrita", async () => {
     const cw = chatwootFalso(["reaquecido", "resgate", "origem-site"]);
     const r = await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, cw.buscar);
-
     expect(r).toMatchObject({ ok: true, valor: { mudou: false } });
-    expect(cw.chamadas.map((c) => c.metodo)).toEqual(["GET"]);
+    expect(cw.metodos()).toEqual(["GET"]);
   });
 
-  it("se a leitura falha, NÃO grava — gravar às cegas apagaria as etiquetas da conversa", async () => {
-    const cw = chatwootFalso(["origem-site"], { status: 500 });
+  it("confere depois de gravar: se alguém gravou por cima no meio, grava de novo", async () => {
+    // A corrida da revisão de 25/09: outra escrita da mesma conversa (o card,
+    // o próprio Chatwoot) entre a nossa leitura e a nossa gravação.
+    const cw = chatwootFalso(["origem-site"], {
+      depoisDoPost: (atuais, n) => (n === 1 ? ["origem-site", "quente"] : atuais),
+    });
     const r = await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, cw.buscar);
 
-    expect(r).toEqual({ ok: false, motivo: "o Chatwoot respondeu 500" });
-    expect(cw.chamadas.map((c) => c.metodo)).toEqual(["GET"]);
+    expect(cw.metodos()).toEqual(["GET", "POST", "GET", "GET", "POST"]);
+    // A de quem gravou no meio fica, e as duas da passagem voltam.
+    expect(cw.etiquetas()).toEqual(["origem-site", "quente", "resgate", "reaquecido"]);
+    expect(r).toMatchObject({ ok: true, valor: { depois: ["origem-site", "quente", "resgate", "reaquecido"] } });
   });
 
-  it("resposta de leitura sem a lista também não vira gravação", async () => {
-    const buscar = async (_url: string, init?: RequestInit) =>
-      init?.method === "POST" ? Response.json({ payload: [] }) : Response.json({ algo: 1 });
-    const metodos: string[] = [];
-    const r = await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, async (url, init) => {
-      metodos.push(init?.method ?? "GET");
-      return buscar(url, init);
-    });
-    expect(r).toEqual({ ok: false, motivo: "resposta ilegível do Chatwoot" });
-    expect(metodos).toEqual(["GET"]);
+  it("confere uma vez só — não entra em laço contra a API", async () => {
+    const cw = chatwootFalso(["origem-site"], { depoisDoPost: () => ["origem-site"] });
+    await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, cw.buscar);
+    expect(cw.metodos().filter((m) => m === "POST")).toHaveLength(2);
+  });
+
+  it("se a leitura falha, NÃO grava", async () => {
+    const cw = chatwootFalso(["origem-site"], { status: 500 });
+    const r = await garantirEtiquetas(4821, ETIQUETAS_DA_PASSAGEM, CFG, cw.buscar);
+    expect(r).toEqual({ ok: false, motivo: "o Chatwoot respondeu 500" });
+    expect(cw.metodos()).toEqual(["GET"]);
   });
 });
 
@@ -248,5 +360,18 @@ describe("falha do Chatwoot vira motivo, não exceção", () => {
       return Response.json({ payload: [] });
     });
     expect(sinal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe("as duas da passagem são as mesmas no site e no banco", () => {
+  it("o gatilho da migração grava exatamente ETIQUETAS_DA_PASSAGEM", () => {
+    // O SQL não importa o TS. Se alguém trocar o nome de um lado, o crédito do
+    // banco e a etiqueta do Chatwoot passam a medir coisas diferentes.
+    const sql = readFileSync("supabase/migrations/20260925180000_etiquetas_do_lead.sql", "utf-8");
+    const noGatilho = /'etiquetas',\s*jsonb_build_array\(([^)]*)\)/.exec(sql);
+    expect(noGatilho, "o gatilho não monta a lista de etiquetas").not.toBeNull();
+    const doBanco = [...noGatilho![1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    expect(doBanco).toEqual([...ETIQUETAS_DA_PASSAGEM]);
+    expect(sql).toContain(`'${ETIQUETAS_DA_PASSAGEM.join(", ")}'`);
   });
 });

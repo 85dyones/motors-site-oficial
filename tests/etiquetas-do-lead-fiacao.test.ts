@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ETAPAS_PADRAO } from "../src/lib/funil";
+import { aplicarMudanca } from "../src/lib/etiquetas";
 
 /**
  * As etiquetas no card do kanban, na tela montada (2026-09-25).
@@ -10,8 +11,12 @@ import { ETAPAS_PADRAO } from "../src/lib/funil";
  * Decisão do dono: o SDR vê e edita as etiquetas no card; a passagem para o
  * Comercial garante "resgate" e "reaquecido" sozinha. O que só a tela montada
  * prova:
- *   - o × e o "+ etiqueta" mandam a lista INTEIRA certa — tirar uma não pode
- *     mandar a lista sem ela e sem as outras;
+ *   - o × e o "+ etiqueta" mandam só a MUDANÇA (esta sai, esta entra), nunca
+ *     a lista que o card desenhou — ela vem do espelho e pode estar atrás
+ *     (revisão de 25/09); e o card passa a mostrar o que o servidor devolveu;
+ *   - resgate e reaquecido não têm ×;
+ *   - enquanto o lead tem escrita no ar (etiqueta OU passagem), o select de
+ *     responsável e as etiquetas dele travam;
  *   - sem token no servidor, as etiquetas aparecem e a edição não é oferecida;
  *   - a passagem do SDR que volta com as etiquetas pinta o card, e a que volta
  *     com aviso mostra o aviso sem desfazer a passagem.
@@ -49,6 +54,11 @@ const COM_CONVERSA = lead("l1", "Joana", {
 const SEM_CONVERSA = lead("l2", "Pedro", { chatwoot_conversation_id: null, etiquetas: [] });
 
 let editaveis: boolean;
+/** O que a conversa tem de fato no Chatwoot — pode estar À FRENTE do card. */
+let naConversa: string[];
+let faltamNaConta: string[];
+/** Quando não nulo, o PATCH só responde quando o teste soltar. */
+let segurarPatch: Promise<void> | null;
 let chamadas: Array<{ metodo: string; url: string; corpo?: Record<string, unknown> }>;
 /** O que o PATCH e o POST respondem — cada teste troca. */
 let respostaDoPatch: { status: number; corpo: unknown };
@@ -62,14 +72,21 @@ function dublarFetch() {
     const responder = (status: number, c: unknown) => ({ ok: status < 400, status, json: async () => c });
 
     if (url === "/api/leads/etiquetas" && metodo === "GET") {
-      return responder(200, { etiquetas: ["negociando", "origem-site", "reaquecido", "resgate"], daConta: true });
+      return responder(200, {
+        etiquetas: ["negociando", "origem-site", "reaquecido", "resgate"],
+        daConta: true,
+        faltamNaConta,
+      });
     }
     if (url === "/api/leads/etiquetas" && metodo === "POST") {
-      return respostaDoPost
-        ? responder(respostaDoPost.status, respostaDoPost.corpo)
-        : responder(200, { ok: true, etiquetas: corpo.etiquetas });
+      if (respostaDoPost) return responder(respostaDoPost.status, respostaDoPost.corpo);
+      naConversa = aplicarMudanca(naConversa, corpo);
+      return responder(200, { ok: true, etiquetas: naConversa });
     }
-    if (metodo === "PATCH") return responder(respostaDoPatch.status, respostaDoPatch.corpo);
+    if (metodo === "PATCH") {
+      if (segurarPatch) await segurarPatch;
+      return responder(respostaDoPatch.status, respostaDoPatch.corpo);
+    }
     return responder(200, {
       leads: [COM_CONVERSA, SEM_CONVERSA],
       atendentes: [{ nome: "Ana" }],
@@ -119,6 +136,9 @@ const posts = () => chamadas.filter((c) => c.metodo === "POST");
 
 beforeEach(() => {
   editaveis = true;
+  naConversa = ["origem-site", "resgate"];
+  faltamNaConta = [];
+  segurarPatch = null;
   chamadas = [];
   respostaDoPatch = { status: 200, corpo: { ok: true } };
   respostaDoPost = null;
@@ -146,19 +166,28 @@ describe("as etiquetas no card", () => {
     expect(grupo("Pedro")).toBeNull();
   });
 
-  it("o × tira SÓ aquela, e manda a lista com as outras", async () => {
+  it("o × manda só a que sai — e o card mostra o que ficou na conversa", async () => {
+    // A conversa está À FRENTE do card: a passagem já pôs reaquecido lá.
+    naConversa = ["origem-site", "resgate", "reaquecido"];
     await montar();
     const tirar = container.querySelector<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
     await act(async () => tirar.click());
     await assentar();
 
     expect(posts()).toEqual([
-      { metodo: "POST", url: "/api/leads/etiquetas", corpo: { id: "l1", etiquetas: ["resgate"] } },
+      { metodo: "POST", url: "/api/leads/etiquetas", corpo: { id: "l1", retirar: ["origem-site"] } },
     ]);
-    expect(chips("Joana")).toEqual(["resgate"]);
+    // O que o servidor devolveu, e não o que o card calculou sozinho.
+    expect(chips("Joana")).toEqual(["resgate", "reaquecido"]);
   });
 
-  it("o + etiqueta oferece as da conta que faltam e acrescenta no fim", async () => {
+  it("resgate e reaquecido não têm ×", async () => {
+    await montar();
+    expect(container.querySelector('[aria-label="Tirar a etiqueta resgate de Joana"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Tirar a etiqueta origem-site de Joana"]')).not.toBeNull();
+  });
+
+  it("o + etiqueta oferece as da conta que faltam e manda só a que entra", async () => {
     await montar();
     const pôr = container.querySelector<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
     const opcoes = [...pôr.options].map((o) => o.value).filter(Boolean);
@@ -167,8 +196,14 @@ describe("as etiquetas no card", () => {
 
     await act(async () => mudar(pôr, "negociando"));
     await assentar();
-    expect(posts()[0].corpo).toEqual({ id: "l1", etiquetas: ["origem-site", "resgate", "negociando"] });
+    expect(posts()[0].corpo).toEqual({ id: "l1", incluir: ["negociando"] });
     expect(chips("Joana")).toEqual(["origem-site", "resgate", "negociando"]);
+  });
+
+  it("etiqueta da passagem que falta na conta do Chatwoot vira aviso na tela", async () => {
+    faltamNaConta = ["reaquecido"];
+    await montar();
+    expect(container.textContent).toContain("No Chatwoot, falta criar a etiqueta reaquecido na conta.");
   });
 
   it("sem token no servidor: mostra, não oferece editar, e nem pergunta as da conta", async () => {
@@ -184,7 +219,7 @@ describe("as etiquetas no card", () => {
     respostaDoPost = { status: 502, corpo: { error: "o Chatwoot respondeu 500" } };
     await montar();
     const antes = chamadas.filter((c) => c.url === "/api/leads/gerenciar").length;
-    const tirar = container.querySelector<HTMLButtonElement>('[aria-label="Tirar a etiqueta resgate de Joana"]')!;
+    const tirar = container.querySelector<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
     await act(async () => tirar.click());
     await assentar();
 
@@ -206,6 +241,30 @@ describe("a passagem do SDR no card", () => {
     await passarPara("Ana");
 
     expect(chamadas.find((c) => c.metodo === "PATCH")?.corpo).toEqual({ id: "l1", responsavel: "Ana" });
+    expect(chips("Joana")).toEqual(["origem-site", "resgate", "reaquecido"]);
+  });
+
+  it("enquanto a passagem está no ar, o responsável e as etiquetas do lead travam", async () => {
+    let soltar!: () => void;
+    segurarPatch = new Promise<void>((pronto) => {
+      soltar = pronto;
+    });
+    respostaDoPatch = { status: 200, corpo: { ok: true, etiquetas: ["origem-site", "resgate", "reaquecido"] } };
+    await montar();
+    await passarPara("Ana");
+
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="Responsável por Joana"]')!;
+    const pôr = container.querySelector<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
+    const tirar = container.querySelector<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
+    expect(select.disabled).toBe(true);
+    expect(pôr.disabled).toBe(true);
+    expect(tirar.disabled).toBe(true);
+    // O lead ao lado não trava.
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Responsável por Pedro"]')!.disabled).toBe(false);
+
+    await act(async () => soltar());
+    await assentar();
+    expect(select.disabled).toBe(false);
     expect(chips("Joana")).toEqual(["origem-site", "resgate", "reaquecido"]);
   });
 

@@ -2,15 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
 import {
   ETIQUETAS_DA_PASSAGEM,
-  MAXIMO_DE_ETIQUETAS,
-  garantirEtiquetas,
-  gravarEtiquetasDaConversa,
-  lerEtiquetasDaConversa,
-  normalizarEtiqueta,
+  ehEtiquetaDaPassagem,
+  lerMudanca,
   normalizarEtiquetas,
-  type ConfigDoChatwoot,
-  type Resultado,
-} from "./etiquetasDoChatwoot";
+} from "./etiquetas";
+import { garantirEtiquetas, mudarEtiquetas, type ConfigDoChatwoot, type Resultado } from "./etiquetasDoChatwoot";
 
 /**
  * As etiquetas do LEAD: a ponte entre o card do kanban e a conversa do
@@ -72,9 +68,6 @@ export async function conversaDoLead(
 // A passagem do SDR
 // ----------------------------------------------------------------------------
 
-/** Frase fixa do aviso: o crédito já está no banco, falte o que faltar. */
-const CREDITO_GUARDADO = "O crédito do SDR ficou registrado no lead.";
-
 export interface EtiquetasDaPassagem {
   /** As etiquetas da conversa depois da passagem, quando deu para ler. */
   etiquetas?: string[];
@@ -87,9 +80,11 @@ export interface EtiquetasDaPassagem {
  * passar para o Comercial. Pedido do dono: *"isso tem que ser feito
  * automático"*.
  *
- * Nunca lança e nunca desfaz a passagem: ela já foi gravada, e o crédito já
- * está no rastro pelo gatilho da migração 20260925180000. O que falhar aqui
- * vira `aviso`, para o SDR saber que precisa pôr as etiquetas à mão.
+ * Nunca lança e nunca desfaz a passagem, que já foi gravada. O que falhar
+ * aqui vira `aviso`, para o SDR pôr as etiquetas à mão. O aviso não promete
+ * nada sobre o crédito: quem o grava é o gatilho do banco, com regra própria,
+ * e esta função não o confere — dizer "ficou registrado" seria afirmar o que
+ * não se leu (revisão de 25/09).
  */
 export async function etiquetarPassagemDoSdr(
   supabase: SupabaseClient,
@@ -98,7 +93,7 @@ export async function etiquetarPassagemDoSdr(
   buscar?: Buscar,
 ): Promise<EtiquetasDaPassagem> {
   const semEtiqueta = (porque: string): EtiquetasDaPassagem => ({
-    aviso: `Resgate e reaquecido não foram para o Chatwoot: ${porque}. ${CREDITO_GUARDADO}`,
+    aviso: `A passagem foi gravada, mas resgate e reaquecido não foram para o Chatwoot: ${porque}. Ponha as duas à mão na conversa.`,
   });
   try {
     if (!cfg) return semEtiqueta("falta configurar CHATWOOT_API_TOKEN");
@@ -122,34 +117,35 @@ export type EdicaoDeEtiquetas =
   | { ok: false; status: number; erro: string };
 
 /**
- * Grava no Chatwoot a lista de etiquetas que o card pediu e deixa no rastro o
- * que entrou e o que saiu.
+ * Aplica no Chatwoot o que o card pediu — pôr umas, tirar outras — e deixa no
+ * rastro o que entrou e o que saiu.
  *
- * A recusa de etiqueta inválida acontece AQUI, e não só na tela: o POST do
- * Chatwoot substitui a lista inteira, e uma lista que chegasse suja à API
- * poderia apagar o que a conversa tinha.
+ * O card manda a MUDANÇA, nunca a lista inteira. Ele desenha as etiquetas do
+ * espelho (`atendimentos.tags`), que pode estar atrás da conversa; a lista
+ * dele gravada por cima apagaria o que ele não via. A mudança é aplicada sobre
+ * o que a conversa tem agora, lido na hora (`mudarEtiquetas`).
+ *
+ * "resgate" e "reaquecido" não SAEM por aqui. O dono pediu para *"manter"* as
+ * duas — elas medem o trabalho do SDR, e um clique no × do Comercial não pode
+ * desfazer isso. Pôr uma por engano se desfaz no próprio Chatwoot, com o
+ * rastro de lá.
  */
 export async function editarEtiquetasDoLead(
   supabase: SupabaseClient,
   leadId: string,
-  pedidas: unknown,
+  pedido: unknown,
   cfg: ConfigDoChatwoot | null,
   buscar?: Buscar,
 ): Promise<EdicaoDeEtiquetas> {
-  if (!Array.isArray(pedidas)) {
-    return { ok: false, status: 400, erro: "etiquetas deve ser uma lista" };
-  }
-  const invalida = pedidas.find((e) => normalizarEtiqueta(e) === null);
-  if (invalida !== undefined) {
+  const lido = lerMudanca(pedido);
+  if (!lido.ok) return { ok: false, status: 400, erro: lido.erro };
+  const { mudanca } = lido;
+  if (mudanca.retirar.some(ehEtiquetaDaPassagem)) {
     return {
       ok: false,
-      status: 400,
-      erro: `Etiqueta inválida: "${String(invalida)}". Use letras minúsculas, números, hífen ou sublinhado.`,
+      status: 422,
+      erro: "Resgate e reaquecido medem o trabalho do SDR e não saem pelo painel. Se foi engano, tire no Chatwoot.",
     };
-  }
-  const etiquetas = normalizarEtiquetas(pedidas);
-  if (etiquetas.length > MAXIMO_DE_ETIQUETAS) {
-    return { ok: false, status: 400, erro: `No máximo ${MAXIMO_DE_ETIQUETAS} etiquetas por conversa.` };
   }
   if (!cfg) {
     return {
@@ -169,21 +165,14 @@ export async function editarEtiquetasDoLead(
     };
   }
 
-  // Lidas do Chatwoot, e não do banco: `atendimentos.tags` é o espelho do n8n
-  // e pode estar atrás. O rastro tem de dizer o que a conversa tinha DE FATO.
-  const antes = await lerEtiquetasDaConversa(conversa.valor, cfg, buscar);
-  if (!antes.ok) return { ok: false, status: 502, erro: antes.motivo };
-  const depois = await gravarEtiquetasDaConversa(conversa.valor, etiquetas, cfg, buscar);
-  if (!depois.ok) return { ok: false, status: 502, erro: depois.motivo };
-
-  const mudou =
-    antes.valor.length !== depois.valor.length || antes.valor.some((e) => !depois.valor.includes(e));
-  if (!mudou) return { ok: true, etiquetas: depois.valor };
+  const r = await mudarEtiquetas(conversa.valor, mudanca, cfg, buscar);
+  if (!r.ok) return { ok: false, status: 502, erro: r.motivo };
+  if (!r.valor.mudou) return { ok: true, etiquetas: r.valor.depois };
 
   const { error } = await supabase.rpc("registrar_etiquetas_do_lead", {
     p_lead: leadId,
-    p_antes: antes.valor,
-    p_depois: depois.valor,
+    p_antes: r.valor.antes,
+    p_depois: r.valor.depois,
   });
   if (error) {
     // A etiqueta JÁ mudou no Chatwoot; responder erro faria a tela desfazer
@@ -193,10 +182,10 @@ export async function editarEtiquetasDoLead(
       console.warn("[Leads] Etiqueta gravada sem rastro:", error.message);
       return {
         ok: true,
-        etiquetas: depois.valor,
+        etiquetas: r.valor.depois,
         aviso: "As etiquetas foram gravadas no Chatwoot, mas o registro no histórico do lead falhou.",
       };
     }
   }
-  return { ok: true, etiquetas: depois.valor };
+  return { ok: true, etiquetas: r.valor.depois };
 }

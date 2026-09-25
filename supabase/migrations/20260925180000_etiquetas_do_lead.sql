@@ -24,27 +24,38 @@
 --      migração aborta antes de mudar qualquer coisa.
 --   2. `registrar_etiquetas_do_lead(lead, antes, depois)`: o card grava no
 --      rastro cada edição de etiqueta — quem, quando, o que entrou e o que
---      saiu. SECURITY DEFINER com guarda de staff, o mesmo gesto de
---      `registrar_contato_do_lead` (20260828120000): `leads_eventos` não tem
---      policy de escrita, e escrita de rastro é escrita de sistema.
+--      saiu. SECURITY DEFINER, o mesmo gesto de `registrar_contato_do_lead`
+--      (20260828120000): `leads_eventos` não tem policy de escrita, e escrita
+--      de rastro é escrita de sistema. A guarda é a da linha "Ver e mover leads
+--      no kanban" (admin, comercial, sdr — conta ativa), e não só `is_staff`:
+--      o Marketing é staff e não mexe em lead. Listas com teto de tamanho.
 --   3. O crédito do SDR, num gatilho: quando uma SESSÃO de SDR (papeis contém
---      'sdr', conta ativa) troca o responsável do lead para alguém, o rastro
---      ganha um evento 'etiqueta' com origem `passagem_do_sdr` e as etiquetas
---      "resgate" e "reaquecido", assinado pelo SDR. Gatilho, e não a rota,
---      porque a regra é do dado: qualquer caminho que o SDR use para passar o
---      lead deixa o crédito, e nenhum caminho o esquece.
+--      'sdr', conta ativa) passa o lead para alguém do COMERCIAL ATIVO — a
+--      mesma régua de `recebeLead` e do rodízio —, o rastro ganha um evento
+--      'etiqueta' com origem `passagem_do_sdr` e as etiquetas "resgate" e
+--      "reaquecido", assinado pelo SDR e com o id dele no detalhe. Gatilho, e
+--      não a rota, porque a regra é do dado: qualquer caminho que o SDR use
+--      para passar o lead deixa o crédito, e nenhum caminho o esquece.
 --
 --      Não entram no crédito: o motor (sem sessão — o rodízio de
 --      `montar_fila_do_funil`), quem não é SDR (o Comercial passando entre si),
---      e tirar o dono (responsável vazio não é passagem).
+--      tirar o dono, repetir o mesmo dono, e dar o lead a quem não é do
+--      Comercial ativo (um nome qualquer, o próprio SDR) — a policy de UPDATE
+--      deixa a equipe escrever `responsavel` direto pelo PostgREST, sem passar
+--      pela recusa da rota, e o crédito não pode depender dela.
 --
--- A medição sai do rastro, sem tabela nova:
+-- A medição sai do rastro, sem tabela nova. Por LEAD, e não por evento: o SDR
+-- que passa A→B→A deixa três eventos no rastro (é o que aconteceu), mas
+-- resgatou um lead só. E pelo id, não pelo nome — nome muda, e homônimo mistura.
 --
---   select e.autor as sdr, count(*) as passagens,
---          count(*) filter (where l.desfecho = 'ganho') as viraram_venda
---     from public.leads_eventos e join public.leads l on l.id = e.lead_id
+--   select p.full_name as sdr,
+--          count(distinct e.lead_id) as leads_passados,
+--          count(distinct e.lead_id) filter (where l.desfecho = 'ganho') as viraram_venda
+--     from public.leads_eventos e
+--     join public.leads l on l.id = e.lead_id
+--     left join public.profiles p on p.id = (e.detalhe->>'sdr_id')::uuid
 --    where e.tipo = 'etiqueta' and e.detalhe->>'origem' = 'passagem_do_sdr'
---    group by e.autor;
+--    group by p.full_name;
 --
 -- Tudo aditivo: um tipo novo num CHECK (os oito de antes continuam), uma
 -- função nova, um gatilho novo. Nenhuma coluna, nenhuma tabela, nenhum dado
@@ -106,9 +117,22 @@ declare
   v_depois text[] := coalesce(p_depois, '{}');
   v_id     uuid;
 begin
-  if not public.is_staff(auth.uid()) then
-    raise exception 'Registrar etiquetas é restrito à equipe.'
+  -- A linha "Ver e mover leads no kanban" da matriz (lib/permissoes.ts).
+  if not exists (
+    select 1 from public.profiles p
+     where p.id = auth.uid()
+       and p.is_active
+       and p.papeis && array['admin', 'comercial', 'sdr']
+  ) then
+    raise exception 'Registrar etiquetas é de quem move lead no kanban.'
       using errcode = 'insufficient_privilege';
+  end if;
+
+  -- Uma conversa do Chatwoot não chega perto disto; passar daqui é lixo, e o
+  -- rastro é só de inserção — o que entra, fica.
+  if cardinality(v_antes) > 100 or cardinality(v_depois) > 100
+     or exists (select 1 from unnest(v_antes || v_depois) as e where length(e) > 255) then
+    raise exception 'ETIQUETAS_GRANDES_DEMAIS' using errcode = 'invalid_parameter_value';
   end if;
 
   if not exists (select 1 from public.leads where id = p_lead) then
@@ -137,8 +161,8 @@ end $$;
 comment on function public.registrar_etiquetas_do_lead(uuid, text[], text[]) is
   'Grava no rastro do lead uma edição de etiquetas feita no card (2026-09-25): '
   'antes, depois, o que entrou e o que saiu, e quem fez. As etiquetas em si '
-  'moram no Chatwoot; o rastro é a prova que não depende dele. Restrita à '
-  'equipe (guarda de is_staff).';
+  'moram no Chatwoot; o rastro é a prova que não depende dele. Restrita a '
+  'quem move lead no kanban (admin, comercial, sdr ativos).';
 
 revoke all on function public.registrar_etiquetas_do_lead(uuid, text[], text[]) from public, anon;
 grant execute on function public.registrar_etiquetas_do_lead(uuid, text[], text[])
@@ -174,12 +198,26 @@ begin
     return new;
   end if;
 
+  -- Passar é dar o lead ao Comercial ativo — a régua de `recebeLead` e do
+  -- rodízio. Nome de ninguém, ou de quem não recebe lead, não é passagem.
+  if not exists (
+    select 1 from public.profiles c
+     where c.is_active
+       and 'comercial' = any (c.papeis)
+       and nullif(trim(c.full_name), '') = trim(new.responsavel)
+  ) then
+    return new;
+  end if;
+
   insert into public.leads_eventos (lead_id, tipo, de, para, autor, automatico, detalhe)
   values (
     new.id, 'etiqueta', null, 'resgate, reaquecido',
-    public.autor_atual(), false,
+    -- Autor nulo, neste rastro, quer dizer "o motor". SDR sem nome no perfil
+    -- não pode virar motor: fica o começo do id, e o id inteiro no detalhe.
+    coalesce(public.autor_atual(), 'SDR ' || left(auth.uid()::text, 8)), false,
     jsonb_build_object(
       'origem',           'passagem_do_sdr',
+      'sdr_id',           auth.uid(),
       'etiquetas',        jsonb_build_array('resgate', 'reaquecido'),
       'responsavel_de',   old.responsavel,
       'responsavel_para', new.responsavel
@@ -190,10 +228,11 @@ begin
 end $$;
 
 comment on function public.leads_credito_do_resgate() is
-  'O crédito do SDR (2026-09-25): quando uma sessão de SDR troca o responsável '
-  'do lead para alguém, o rastro ganha um evento ''etiqueta'' com origem '
-  'passagem_do_sdr e as etiquetas resgate e reaquecido, assinado por ele. O '
-  'motor (sem sessão), quem não é SDR e tirar o dono não contam.';
+  'O crédito do SDR (2026-09-25): quando uma sessão de SDR passa o lead para '
+  'alguém do Comercial ativo, o rastro ganha um evento ''etiqueta'' com origem '
+  'passagem_do_sdr, as etiquetas resgate e reaquecido e o sdr_id, assinado por '
+  'ele. O motor (sem sessão), quem não é SDR, tirar ou repetir o dono e dar o '
+  'lead a quem não é do Comercial não contam. Medir por lead distinto.';
 
 drop trigger if exists trg_leads_credito_do_resgate on public.leads;
 create trigger trg_leads_credito_do_resgate
@@ -206,29 +245,37 @@ create trigger trg_leads_credito_do_resgate
 -- ============================================================================
 -- Aceite
 -- ============================================================================
--- Estrutura, e depois efeito numa sonda desfeita pelo sentinela: SDR passando
--- o lead deixa o crédito; Comercial, motor e "sem responsável" não deixam; a
--- edição pelo card grava antes/depois/entrou/saiu; o cliente da Garagem é
--- barrado pela guarda; o CHECK continua recusando tipo inventado.
+-- Estrutura, e depois efeito numa sonda desfeita pelo sentinela. Um lead só,
+-- passado de mão em mão, e a contagem de crédito conferida a cada passo — com
+-- o `responsavel` relido, para um "sem crédito" nunca passar porque o UPDATE
+-- foi barrado em silêncio pela RLS.
+--
+-- Cada passo mata uma mutação que o aceite da primeira versão deixava viva
+-- (revisão de 25/09): tirar o `when` do gatilho (C2), olhar `role` em vez de
+-- `papeis` (C6), creditar nome de ninguém (C3) ou o próprio SDR (C9), comparar
+-- o nome sem `trim` (C5), guarda de `is_staff` na RPC (R2).
 do $$
 declare
   falhas        int := 0;
   v_sdr         uuid;
+  v_duplo       uuid;
   v_com         uuid;
-  v_cliente     uuid := gen_random_uuid();
+  v_com2        uuid;
+  v_mkt         uuid;
+  v_cli         uuid;
   v_lead        uuid;
   v_evento      uuid;
-  v_credito_sdr int;
+  -- a contagem de crédito e o responsável, depois de cada passo
+  c             int[] := array[]::int[];
+  r             text[] := array[]::text[];
   v_autor_sdr   text;
   v_detalhe_sdr jsonb;
-  v_credito_com int;
-  v_credito_mot int;
-  v_credito_sem int;
   v_card        jsonb;
   v_card_autor  text;
-  v_cliente_rpc text := 'executou';
+  v_mkt_rpc     text := 'executou';
+  v_cli_rpc     text := 'executou';
+  v_grande_rpc  text := 'executou';
   v_invalido    text := 'gravou';
-  v_msg         text;
 begin
   -- Estrutura ---------------------------------------------------------------
   if not exists (select 1 from pg_constraint
@@ -269,89 +316,175 @@ begin
     returning id into v_sdr;
     insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
     values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-etiquetas-duplo@exemplo.invalido', now(), now())
+    returning id into v_duplo;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
             'authenticated', 'authenticated', 'aceite-etiquetas-com@exemplo.invalido', now(), now())
     returning id into v_com;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-etiquetas-com2@exemplo.invalido', now(), now())
+    returning id into v_com2;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-etiquetas-mkt@exemplo.invalido', now(), now())
+    returning id into v_mkt;
+    insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+            'authenticated', 'authenticated', 'aceite-etiquetas-cli@exemplo.invalido', now(), now())
+    returning id into v_cli;
 
     update public.profiles
        set full_name = 'Aceite Etiquetas SDR', papeis = array['sdr'], role = 'sdr', is_active = true
      where id = v_sdr;
+    -- SDR como SEGUNDO papel: `role` diz comercial, e ainda assim é SDR.
+    update public.profiles
+       set full_name = 'Aceite Etiquetas Duplo', papeis = array['comercial', 'sdr'], role = 'comercial',
+           is_active = true
+     where id = v_duplo;
     update public.profiles
        set full_name = 'Aceite Etiquetas Comercial', papeis = array['comercial'], role = 'comercial',
            is_active = true
      where id = v_com;
+    update public.profiles
+       set full_name = 'Aceite Etiquetas Comercial 2', papeis = array['comercial'], role = 'comercial',
+           is_active = true
+     where id = v_com2;
+    update public.profiles
+       set full_name = 'Aceite Etiquetas Marketing', papeis = array['marketing'], role = 'marketing',
+           is_active = true
+     where id = v_mkt;
+    update public.profiles
+       set full_name = 'Aceite Etiquetas Cliente', papeis = array['cliente'], role = 'cliente'
+     where id = v_cli;
 
     insert into public.leads (nome, telefone, interesse)
     values ('Aceite Etiquetas', '5541999990925', 'Teste Aceite 2021')
     returning id into v_lead;
 
-    -- E1 · O SDR passa o lead para o Comercial: crédito assinado por ele.
-    perform set_config('request.jwt.claims',
-      json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
+    -- C1 · O SDR passa para o Comercial: crédito 1, assinado, com o id dele.
+    perform set_config('request.jwt.claims', json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
     set local role authenticated;
     update public.leads set responsavel = 'Aceite Etiquetas Comercial' where id = v_lead;
     reset role;
-    perform set_config('request.jwt.claims', '', true);
-
-    select count(*), max(autor), (array_agg(detalhe))[1]
-      into v_credito_sdr, v_autor_sdr, v_detalhe_sdr
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
+    select autor, detalhe into v_autor_sdr, v_detalhe_sdr
       from public.leads_eventos
-     where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr';
+     where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr'
+     limit 1;
 
-    -- E2 · O Comercial passa entre si: sem crédito novo.
-    perform set_config('request.jwt.claims',
-      json_build_object('sub', v_com, 'role', 'authenticated')::text, true);
+    -- C2 · O SDR repete o mesmo dono: sem crédito novo (o `when` do gatilho).
     set local role authenticated;
-    update public.leads set responsavel = 'Outro Comercial' where id = v_lead;
+    update public.leads set responsavel = 'Aceite Etiquetas Comercial' where id = v_lead;
     reset role;
-    perform set_config('request.jwt.claims', '', true);
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
 
-    select count(*) into v_credito_com
-      from public.leads_eventos
-     where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr';
+    -- C3 · O SDR dá o lead a um nome de ninguém: gravou, mas não é passagem.
+    set local role authenticated;
+    update public.leads set responsavel = 'Aceite Nome De Ninguem' where id = v_lead;
+    reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
 
-    -- E3 · O motor (sem sessão) transfere: sem crédito novo.
-    update public.leads set responsavel = 'Terceiro Comercial' where id = v_lead;
-    select count(*) into v_credito_mot
-      from public.leads_eventos
-     where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr';
-
-    -- E4 · O SDR tira o dono: não é passagem.
-    perform set_config('request.jwt.claims',
-      json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
+    -- C4 · O SDR tira o dono: não é passagem.
     set local role authenticated;
     update public.leads set responsavel = null where id = v_lead;
     reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || coalesce((select responsavel from public.leads where id = v_lead), '<nulo>');
+
+    -- C5 · O SDR passa com espaço sobrando no nome: é o Comercial 2, e conta.
+    set local role authenticated;
+    update public.leads set responsavel = '  Aceite Etiquetas Comercial 2  ' where id = v_lead;
+    reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
+
+    -- C6 · Quem tem SDR como segundo papel passa para o Comercial: conta.
+    perform set_config('request.jwt.claims', json_build_object('sub', v_duplo, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    update public.leads set responsavel = 'Aceite Etiquetas Comercial' where id = v_lead;
+    reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
+
+    -- C7 · O Comercial passa para o Comercial: sem crédito.
+    perform set_config('request.jwt.claims', json_build_object('sub', v_com, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    update public.leads set responsavel = 'Aceite Etiquetas Comercial 2' where id = v_lead;
+    reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
+
+    -- C8 · O motor (sem sessão) transfere: sem crédito.
     perform set_config('request.jwt.claims', '', true);
+    update public.leads set responsavel = 'Aceite Etiquetas Comercial' where id = v_lead;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
 
-    select count(*) into v_credito_sem
-      from public.leads_eventos
-     where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr';
+    -- C9 · O SDR põe o próprio nome: não é do Comercial, não é passagem.
+    perform set_config('request.jwt.claims', json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    update public.leads set responsavel = 'Aceite Etiquetas SDR' where id = v_lead;
+    reset role;
+    c := c || (select count(*)::int from public.leads_eventos
+                where lead_id = v_lead and tipo = 'etiqueta' and detalhe->>'origem' = 'passagem_do_sdr');
+    r := r || (select responsavel from public.leads where id = v_lead);
 
-    -- E5 · O SDR edita as etiquetas no card.
-    perform set_config('request.jwt.claims',
-      json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
+    -- R1 · O SDR edita as etiquetas no card.
     set local role authenticated;
     v_evento := public.registrar_etiquetas_do_lead(
       v_lead, array['resgate', 'origem-site'], array['resgate', 'quer-comprar']);
     reset role;
-    perform set_config('request.jwt.claims', '', true);
-
     select detalhe, autor into v_card, v_card_autor from public.leads_eventos where id = v_evento;
 
-    -- E6 · O cliente da Garagem (authenticated, sem staff) é barrado pela guarda.
+    -- R2 · O Marketing é staff, mas não move lead: barrado.
     begin
-      perform set_config('request.jwt.claims',
-        json_build_object('sub', v_cliente, 'role', 'authenticated')::text, true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_mkt, 'role', 'authenticated')::text, true);
       set local role authenticated;
       perform public.registrar_etiquetas_do_lead(v_lead, array[]::text[], array['resgate']);
       reset role;
-      perform set_config('request.jwt.claims', '', true);
     exception when insufficient_privilege then
-      get stacked diagnostics v_msg = message_text;
-      v_cliente_rpc := v_msg;
+      reset role;
+      v_mkt_rpc := 'barrado';
     end;
 
-    -- E7 · Tipo inventado continua recusado.
+    -- R3 · O cliente da Garagem (conta de verdade, papel cliente): barrado.
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_cli, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.registrar_etiquetas_do_lead(v_lead, array[]::text[], array['resgate']);
+      reset role;
+    exception when insufficient_privilege then
+      reset role;
+      v_cli_rpc := 'barrado';
+    end;
+
+    -- R4 · Lista gigante, mesmo de quem pode: recusada.
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_sdr, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      perform public.registrar_etiquetas_do_lead(
+        v_lead, array[]::text[], array(select 'e' || g from generate_series(1, 101) as g));
+      reset role;
+    exception when invalid_parameter_value then
+      reset role;
+      v_grande_rpc := 'recusada';
+    end;
+    perform set_config('request.jwt.claims', '', true);
+
+    -- T1 · Tipo inventado continua recusado.
     begin
       insert into public.leads_eventos (lead_id, tipo) values (v_lead, 'inventado');
     exception when check_violation then
@@ -364,29 +497,35 @@ begin
   end;
 
   -- O veredito -------------------------------------------------------------
-  if v_lead is null or v_sdr is null then
-    raise exception 'ACEITE FALHOU: a sonda não chegou a gravar — nada foi provado';
+  if v_lead is null or v_sdr is null or cardinality(c) is distinct from 9 then
+    raise exception 'ACEITE FALHOU: a sonda não chegou ao fim (% passos) — nada foi provado', cardinality(c);
   end if;
 
-  if v_credito_sdr is distinct from 1
-     or v_autor_sdr is distinct from 'Aceite Etiquetas SDR'
+  -- O UPDATE de cada passo aconteceu — sem isto, "sem crédito" pode ser só a
+  -- RLS barrando a escrita.
+  if r is distinct from array[
+       'Aceite Etiquetas Comercial', 'Aceite Etiquetas Comercial', 'Aceite Nome De Ninguem', '<nulo>',
+       '  Aceite Etiquetas Comercial 2  ', 'Aceite Etiquetas Comercial', 'Aceite Etiquetas Comercial 2',
+       'Aceite Etiquetas Comercial', 'Aceite Etiquetas SDR'] then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: algum UPDATE da sonda não gravou (%)', r;
+  end if;
+
+  -- A contagem de crédito, passo a passo: C1, C5 e C6 contam; o resto não.
+  if c is distinct from array[1, 1, 1, 1, 2, 3, 3, 3, 3] then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: crédito do SDR errado. Esperado {1,1,1,1,2,3,3,3,3} (C1..C9), veio % '
+      '— C2 repetir o dono, C3 nome de ninguém, C4 tirar o dono, C5 nome com espaço, '
+      'C6 SDR como segundo papel, C7 Comercial, C8 motor, C9 o próprio SDR', c;
+  end if;
+
+  if v_autor_sdr is distinct from 'Aceite Etiquetas SDR'
+     or v_detalhe_sdr->>'sdr_id' is distinct from v_sdr::text
      or v_detalhe_sdr->'etiquetas' is distinct from '["resgate", "reaquecido"]'::jsonb
      or v_detalhe_sdr->>'responsavel_para' is distinct from 'Aceite Etiquetas Comercial' then
     falhas := falhas + 1;
-    raise warning 'FALHOU: a passagem do SDR não deixou o crédito certo (% eventos, autor "%", detalhe %)',
-      v_credito_sdr, v_autor_sdr, v_detalhe_sdr;
-  end if;
-  if v_credito_com is distinct from 1 then
-    falhas := falhas + 1;
-    raise warning 'FALHOU: o Comercial passando entre si gerou crédito (% eventos)', v_credito_com;
-  end if;
-  if v_credito_mot is distinct from 1 then
-    falhas := falhas + 1;
-    raise warning 'FALHOU: o motor gerou crédito de SDR (% eventos)', v_credito_mot;
-  end if;
-  if v_credito_sem is distinct from 1 then
-    falhas := falhas + 1;
-    raise warning 'FALHOU: tirar o dono contou como passagem (% eventos)', v_credito_sem;
+    raise warning 'FALHOU: o crédito da passagem não saiu como devia (autor "%", detalhe %)',
+      v_autor_sdr, v_detalhe_sdr;
   end if;
   if v_card_autor is distinct from 'Aceite Etiquetas SDR'
      or v_card->>'origem' is distinct from 'card'
@@ -396,9 +535,17 @@ begin
     raise warning 'FALHOU: a edição pelo card não foi gravada como devia (autor "%", detalhe %)',
       v_card_autor, v_card;
   end if;
-  if v_cliente_rpc = 'executou' then
+  if v_mkt_rpc <> 'barrado' then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: o Marketing gravou etiqueta no rastro';
+  end if;
+  if v_cli_rpc <> 'barrado' then
     falhas := falhas + 1;
     raise warning 'FALHOU: o cliente da Garagem gravou etiqueta no rastro';
+  end if;
+  if v_grande_rpc <> 'recusada' then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: a RPC aceitou uma lista de 101 etiquetas';
   end if;
   if v_invalido is distinct from 'recusado' then
     falhas := falhas + 1;
@@ -408,7 +555,7 @@ begin
   if falhas > 0 then
     raise exception 'ACEITE FALHOU: % problema(s) nas etiquetas do lead', falhas;
   end if;
-  raise notice 'Aceite verificado: a passagem do SDR deixa resgate e reaquecido no rastro, e só ela; a edição pelo card fica registrada; o cliente é barrado.';
+  raise notice 'Aceite verificado: só a passagem do SDR para o Comercial ativo deixa resgate e reaquecido no rastro, com o id dele; a edição pelo card fica registrada; Marketing e cliente são barrados.';
 end $$;
 
 insert into supabase_migrations.schema_migrations (version, name)

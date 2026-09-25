@@ -14,8 +14,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *     segura o lead com o SDR;
  *   - o Comercial passando entre si, e o SDR tirando o dono, não mexem no
  *     Chatwoot;
- *   - o card grava a lista pedida, deixa o rastro, e nunca grava às cegas
- *     (sem ter lido o que a conversa tinha);
+ *   - o card manda MUDANÇA (esta entra, esta sai), e o servidor a aplica sobre
+ *     o que a conversa tem AGORA — a lista do card vem do espelho e pode estar
+ *     atrás; gravada por cima, apagaria resgate e reaquecido que ele não via
+ *     (revisão de 25/09);
+ *   - resgate e reaquecido não saem pelo card;
  *   - quem não move lead não mexe em etiqueta.
  *
  * O crédito do SDR no rastro NÃO está aqui: é gatilho de banco, e se prova no
@@ -206,10 +209,16 @@ describe("a passagem do SDR para o Comercial", () => {
     expect(conversas[100]).toEqual(["antiga"]);
   });
 
-  it("o Chatwoot só é chamado DEPOIS de a passagem estar gravada", async () => {
+  it("o Chatwoot só é chamado DEPOIS de a passagem estar gravada — e é conferido no fim", async () => {
     await patch({ responsavel: "Ana" });
     expect(banco.leads[0].responsavel).toBe("Ana");
-    expect(linhaDoTempo).toEqual(["update leads", "chatwoot GET", "chatwoot POST"]);
+    expect(linhaDoTempo).toEqual(["update leads", "chatwoot GET", "chatwoot POST", "chatwoot GET"]);
+  });
+
+  it("etiqueta fora do formato do site sobrevive à passagem", async () => {
+    conversas[4821] = ["Lead Quente", "campanha.setembro"];
+    await patch({ responsavel: "Ana" });
+    expect(conversas[4821]).toEqual(["Lead Quente", "campanha.setembro", "resgate", "reaquecido"]);
   });
 
   it("vale para quem tem SDR como segundo papel", async () => {
@@ -262,7 +271,9 @@ describe("a passagem do SDR para o Comercial", () => {
     expect(d.ok).toBe(true);
     expect(d.etiquetas).toBeUndefined();
     expect(d.aviso).toContain("o Chatwoot respondeu 502");
-    expect(d.aviso).toContain("O crédito do SDR ficou registrado no lead.");
+    expect(d.aviso).toContain("Ponha as duas à mão na conversa.");
+    // O aviso não afirma o que não conferiu: o crédito é do gatilho do banco.
+    expect(d.aviso).not.toMatch(/crédito/i);
   });
 
   it("leitura da conversa falhou: não grava às cegas", async () => {
@@ -306,7 +317,8 @@ describe("o GET da fila traz as etiquetas", () => {
     const joana = d.leads.find((l: Linha) => l.id === "lead-1");
     const pedro = d.leads.find((l: Linha) => l.id === "lead-sem-conversa");
 
-    expect(joana.etiquetas).toEqual(["origem-site", "quer-comprar"]);
+    // Como o espelho as tem — a grafia não é "consertada".
+    expect(joana.etiquetas).toEqual(["origem-site", "Quer-Comprar"]);
     expect(pedro.etiquetas).toEqual([]);
     // Todas as vistas, as duas da passagem, em ordem alfabética.
     expect(d.etiquetasDisponiveis).toEqual(["antiga", "origem-site", "quer-comprar", "reaquecido", "resgate"]);
@@ -326,20 +338,20 @@ describe("o GET da fila traz as etiquetas", () => {
 });
 
 describe("POST /api/leads/etiquetas — a edição no card", () => {
-  it("grava a lista pedida na conversa e deixa o rastro do que entrou e saiu", async () => {
-    const r = await postEtiquetas({ id: "lead-1", etiquetas: ["origem-site", "negociando"] });
+  it("põe a pedida sobre o que a conversa tem, e deixa o rastro do que entrou", async () => {
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
     const d = await r.json();
 
     expect(r.status).toBe(200);
-    expect(d).toEqual({ ok: true, etiquetas: ["origem-site", "negociando"] });
-    expect(conversas[4821]).toEqual(["origem-site", "negociando"]);
+    expect(d).toEqual({ ok: true, etiquetas: ["origem-site", "quer-comprar", "negociando"] });
+    expect(conversas[4821]).toEqual(["origem-site", "quer-comprar", "negociando"]);
     expect(rpcs).toEqual([
       {
         nome: "registrar_etiquetas_do_lead",
         args: {
           p_lead: "lead-1",
           p_antes: ["origem-site", "quer-comprar"],
-          p_depois: ["origem-site", "negociando"],
+          p_depois: ["origem-site", "quer-comprar", "negociando"],
         },
       },
     ]);
@@ -347,52 +359,86 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
     expect(linhaDoTempo).toEqual(["chatwoot GET", "chatwoot POST", "rpc registrar_etiquetas_do_lead"]);
   });
 
-  it("lista igual à que está lá não vira evento no rastro", async () => {
-    await postEtiquetas({ id: "lead-1", etiquetas: ["quer-comprar", "origem-site"] });
-    expect(rpcs).toHaveLength(0);
+  it("tira só a pedida", async () => {
+    const d = await (await postEtiquetas({ id: "lead-1", retirar: ["origem-site"] })).json();
+    expect(d.etiquetas).toEqual(["quer-comprar"]);
+    expect(conversas[4821]).toEqual(["quer-comprar"]);
   });
 
-  it("etiqueta fora do formato do Chatwoot é recusada antes de qualquer chamada", async () => {
-    const r = await postEtiquetas({ id: "lead-1", etiquetas: ["origem-site", "quer comprar"] });
+  it("o card atrás da conversa NÃO apaga o que ele não via (o defeito da revisão de 25/09)", async () => {
+    // O SDR passou o lead: a conversa tem resgate e reaquecido, mas o espelho
+    // que o card desenha (`atendimentos.tags`) ainda não.
+    conversas[4821] = ["origem-site", "quer-comprar", "resgate", "reaquecido"];
+    usuario = "u-ana";
+    const d = await (await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).json();
+
+    expect(conversas[4821]).toEqual(["origem-site", "quer-comprar", "resgate", "reaquecido", "negociando"]);
+    expect(d.etiquetas).toEqual(conversas[4821]);
+    // E o rastro não acusa o Comercial de ter tirado o que ele nunca viu.
+    expect(rpcs[0].args.p_antes).toEqual(["origem-site", "quer-comprar", "resgate", "reaquecido"]);
+  });
+
+  it("etiqueta fora do formato do site sobrevive à edição", async () => {
+    conversas[4821] = ["Lead Quente", "origem-site"];
+    await postEtiquetas({ id: "lead-1", retirar: ["origem-site"] });
+    expect(conversas[4821]).toEqual(["Lead Quente"]);
+  });
+
+  it("resgate e reaquecido não saem pelo card", async () => {
+    conversas[4821] = ["origem-site", "resgate", "reaquecido"];
+    for (const retirar of [["resgate"], ["Reaquecido"], ["origem-site", "resgate"]]) {
+      const r = await postEtiquetas({ id: "lead-1", retirar });
+      expect(r.status, JSON.stringify(retirar)).toBe(422);
+      expect((await r.json()).error).toContain("tire no Chatwoot");
+    }
+    expect(chamadasAoChatwoot).toHaveLength(0);
+    expect(conversas[4821]).toEqual(["origem-site", "resgate", "reaquecido"]);
+  });
+
+  it("mudança que não muda nada não vira evento no rastro", async () => {
+    await postEtiquetas({ id: "lead-1", incluir: ["quer-comprar"] });
+    expect(rpcs).toHaveLength(0);
+    expect(chamadasAoChatwoot.map((c) => c.metodo)).toEqual(["GET"]);
+  });
+
+  it("etiqueta fora do formato do Chatwoot não entra, antes de qualquer chamada", async () => {
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["quer comprar"] });
     expect(r.status).toBe(400);
     expect((await r.json()).error).toContain('"quer comprar"');
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
-  it("lista que não é lista, ou sem id, é recusada", async () => {
-    expect((await postEtiquetas({ id: "lead-1", etiquetas: "resgate" })).status).toBe(400);
-    expect((await postEtiquetas({ etiquetas: [] })).status).toBe(400);
+  it("pedido sem id, sem mudança, ou com a lista inteira no formato antigo é recusado", async () => {
+    expect((await postEtiquetas({ incluir: ["a"] })).status).toBe(400);
+    expect((await postEtiquetas({ id: "lead-1" })).status).toBe(400);
+    // A lista inteira (`etiquetas`) era o contrato que apagava etiqueta: não
+    // pode ser aceita por engano como "sem mudança nenhuma" que grava algo.
+    expect((await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] })).status).toBe(400);
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
-  it("mais de 20 etiquetas é recusado", async () => {
+  it("mais de 20 de uma vez é recusado", async () => {
     const muitas = Array.from({ length: 21 }, (_, i) => `e${i}`);
-    expect((await postEtiquetas({ id: "lead-1", etiquetas: muitas })).status).toBe(400);
-  });
-
-  it("lista vazia tira todas — é uma edição válida", async () => {
-    const r = await postEtiquetas({ id: "lead-1", etiquetas: [] });
-    expect(r.status).toBe(200);
-    expect(conversas[4821]).toEqual([]);
+    expect((await postEtiquetas({ id: "lead-1", incluir: muitas })).status).toBe(400);
   });
 
   it("sem token: 503, e nenhuma chamada", async () => {
     vi.stubEnv("CHATWOOT_API_TOKEN", "");
-    const r = await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] });
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
     expect(r.status).toBe(503);
     expect((await r.json()).error).toContain("CHATWOOT_API_TOKEN");
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
   it("lead sem conversa: 409", async () => {
-    const r = await postEtiquetas({ id: "lead-sem-conversa", etiquetas: ["resgate"] });
+    const r = await postEtiquetas({ id: "lead-sem-conversa", incluir: ["negociando"] });
     expect(r.status).toBe(409);
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
   it("leitura falhou: 502 e NÃO grava — gravar às cegas apagaria o que não se viu", async () => {
     statusDoChatwoot = 500;
-    const r = await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] });
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
     expect(r.status).toBe(502);
     expect(chamadasAoChatwoot.map((c) => c.metodo)).toEqual(["GET"]);
     expect(rpcs).toHaveLength(0);
@@ -400,27 +446,27 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
 
   it("antes da migração (função ausente) grava no Chatwoot e segue sem aviso", async () => {
     erroDoRpc = { message: "Could not find the function", code: "PGRST202" };
-    const d = await (await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] })).json();
-    expect(d).toEqual({ ok: true, etiquetas: ["resgate"] });
+    const d = await (await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).json();
+    expect(d).toEqual({ ok: true, etiquetas: ["origem-site", "quer-comprar", "negociando"] });
   });
 
   it("rastro falhou por outro motivo: a etiqueta vale e a resposta avisa", async () => {
     erroDoRpc = { message: "boom", code: "XX000" };
-    const r = await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] });
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
     const d = await r.json();
     expect(r.status).toBe(200);
-    expect(d.etiquetas).toEqual(["resgate"]);
+    expect(d.etiquetas).toContain("negociando");
     expect(d.aviso).toContain("histórico do lead");
   });
 
   it("o SDR edita", async () => {
     usuario = "u-sdr";
-    expect((await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] })).status).toBe(200);
+    expect((await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).status).toBe(200);
   });
 
   it("o Comercial edita", async () => {
     usuario = "u-ana";
-    expect((await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] })).status).toBe(200);
+    expect((await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).status).toBe(200);
   });
 
   it.each([
@@ -429,7 +475,7 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
     ["Marketing (vê só o volume)", "u-mkt", 403],
   ])("%s não edita", async (_caso, quem, status) => {
     usuario = quem;
-    const r = await postEtiquetas({ id: "lead-1", etiquetas: ["resgate"] });
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
     expect(r.status).toBe(status);
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
@@ -441,7 +487,16 @@ describe("GET /api/leads/etiquetas — o que o card oferece", () => {
     expect(d).toEqual({
       etiquetas: ["negociando", "origem-site", "quer-comprar", "reaquecido", "resgate"],
       daConta: true,
+      // Nenhuma das duas foi criada na conta deste Chatwoot falso.
+      faltamNaConta: ["resgate", "reaquecido"],
     });
+  });
+
+  it("diz qual das duas da passagem falta criar na conta — e nenhuma quando as duas existem", async () => {
+    etiquetasDaConta = ["resgate", "negociando"];
+    expect((await (await etiquetas.GET()).json()).faltamNaConta).toEqual(["reaquecido"]);
+    etiquetasDaConta = ["Resgate", "reaquecido"];
+    expect((await (await etiquetas.GET()).json()).faltamNaConta).toEqual([]);
   });
 
   it("sem token, só as duas da passagem — sem chamar a API", async () => {

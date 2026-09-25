@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { configDoChatwoot, lerEtiquetasDaConta } from "../../../../lib/etiquetasDoChatwoot";
+import { ETIQUETAS_DA_PASSAGEM, mesmaEtiqueta } from "../../../../lib/etiquetas";
 import { editarEtiquetasDoLead, etiquetasConhecidas } from "../../../../lib/etiquetasDoLead";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,12 @@ async function sessaoQueMoveLead() {
  * Lidas à parte, e não no GET da fila: a fila não pode esperar o Chatwoot
  * responder para aparecer. Falhou, o card fica com as etiquetas que já viu nas
  * conversas e as duas da passagem.
+ *
+ * `faltamNaConta`: das duas da passagem, as que ninguém criou na conta. A
+ * conversa aceita a etiqueta mesmo assim, mas a tela do Chatwoot só desenha as
+ * criadas — o SDR passaria o lead e ninguém lá veria "reaquecido". O painel
+ * avisa em vez de criar sozinho: criar etiqueta na conta é decisão de quem
+ * administra o Chatwoot.
  */
 export async function GET() {
   try {
@@ -53,13 +60,19 @@ export async function GET() {
     if (!cfg) return NextResponse.json({ etiquetas: etiquetasConhecidas(), daConta: false });
     const r = await lerEtiquetasDaConta(cfg);
     if (!r.ok) return NextResponse.json({ etiquetas: etiquetasConhecidas(), daConta: false, aviso: r.motivo });
-    return NextResponse.json({ etiquetas: etiquetasConhecidas(r.valor), daConta: true });
+    const faltamNaConta = ETIQUETAS_DA_PASSAGEM.filter((p) => !r.valor.some((e) => mesmaEtiqueta(e, p)));
+    return NextResponse.json({ etiquetas: etiquetasConhecidas(r.valor), daConta: true, faltamNaConta });
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Erro" }, { status: 500 });
   }
 }
 
-/** Grava a lista inteira de etiquetas da conversa do lead: `{ id, etiquetas }`. */
+/**
+ * Muda as etiquetas da conversa do lead: `{ id, incluir?, retirar? }`.
+ *
+ * Mudança, e não a lista inteira — ver `editarEtiquetasDoLead`. A resposta
+ * traz a lista que ficou no Chatwoot, que é a que o card passa a mostrar.
+ */
 export async function POST(request: NextRequest) {
   try {
     const { supabase, recusa } = await sessaoQueMoveLead();
@@ -69,7 +82,7 @@ export async function POST(request: NextRequest) {
     const id = typeof body?.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
 
-    const r = await editarEtiquetasDoLead(supabase, id, body?.etiquetas, configDoChatwoot());
+    const r = await editarEtiquetasDoLead(supabase, id, body, configDoChatwoot());
     if (!r.ok) return NextResponse.json({ error: r.erro }, { status: r.status });
     return NextResponse.json({ ok: true, etiquetas: r.etiquetas, ...(r.aviso ? { aviso: r.aviso } : {}) });
   } catch (err: unknown) {

@@ -1,4 +1,11 @@
 import { baseDoChatwoot, contaDoChatwoot } from "./chatwoot";
+import {
+  aplicarMudanca,
+  limparEtiquetas,
+  mesmaEtiqueta,
+  mesmasEtiquetas,
+  type MudancaDeEtiquetas,
+} from "./etiquetas";
 
 /**
  * As etiquetas da conversa no Chatwoot, lidas e gravadas pelo site (2026-09-25).
@@ -20,9 +27,15 @@ import { baseDoChatwoot, contaDoChatwoot } from "./chatwoot";
  *   GET  /api/v1/accounts/{conta}/conversations/{id}/labels  → { payload: string[] }
  *   POST /api/v1/accounts/{conta}/conversations/{id}/labels  { labels } → { payload }
  *
- * O POST SUBSTITUI a lista inteira. Por isso "garantir" lê antes e grava a
- * união: gravar só as duas da passagem apagaria "origem-site", "quer-comprar"
- * e o que mais a conversa tivesse.
+ * O POST SUBSTITUI a lista inteira. Por isso nada aqui grava uma lista que
+ * veio de fora: toda escrita é uma MUDANÇA (pôr umas, tirar outras) aplicada
+ * sobre o que a conversa tem AGORA, lido na hora. Gravar a lista que o card
+ * tinha na tela apagaria o que ele não via — a do espelho `atendimentos.tags`
+ * pode estar atrás, e a revisão de 25/09 mostrou o Comercial "tirando" resgate
+ * e reaquecido que nunca viu.
+ *
+ * O que a conversa já tem volta como está (`limparEtiquetas`), sem normalizar:
+ * ver o cabeçalho de `etiquetas.ts`.
  *
  * Autenticação pelo cabeçalho `api_access_token`, com o token de um usuário do
  * Chatwoot em `CHATWOOT_API_TOKEN` — segredo de servidor, nunca `NEXT_PUBLIC_`.
@@ -32,15 +45,9 @@ import { baseDoChatwoot, contaDoChatwoot } from "./chatwoot";
  * Falha não derruba a tela
  * ---------------------------------------------------------------------------
  * Toda função devolve `{ ok: false, motivo }` em vez de lançar: a passagem do
- * lead não pode falhar porque o Chatwoot demorou, e o crédito do SDR já ficou
- * no banco pelo gatilho. Quem chama decide o que dizer.
+ * lead não pode falhar porque o Chatwoot demorou — o crédito do SDR mora no
+ * banco, no gatilho, e não depende daqui. Quem chama decide o que dizer.
  */
-
-/** O que a passagem do SDR para o Comercial garante na conversa. */
-export const ETIQUETAS_DA_PASSAGEM = ["resgate", "reaquecido"] as const;
-
-/** Quantas etiquetas o card aceita gravar de uma vez. */
-export const MAXIMO_DE_ETIQUETAS = 20;
 
 /** Tempo máximo de cada chamada ao Chatwoot. */
 const PRAZO_MS = 8000;
@@ -56,43 +63,17 @@ export interface ConfigDoChatwoot {
 type Buscar = (url: string, init?: RequestInit) => Promise<Response>;
 
 /**
- * Uma etiqueta no formato do Chatwoot, ou `null` se não for uma.
- *
- * O Chatwoot guarda o título em minúsculas, com letras, números, hífen e
- * sublinhado — "Quer Comprar" não é etiqueta, "quer-comprar" é. Recusar aqui, e
- * não deixar a API recusar, dá à tela uma mensagem que ela sabe mostrar.
+ * Host, conta e token. `null` quando falta qualquer um: o recurso fica
+ * desligado. Só `https`: o token vai no cabeçalho de toda chamada, e em
+ * `http` ele atravessaria a rede em texto aberto.
  */
-export function normalizarEtiqueta(bruta: unknown): string | null {
-  if (typeof bruta !== "string") return null;
-  const etiqueta = bruta.trim().toLowerCase();
-  if (!etiqueta || etiqueta.length > 50) return null;
-  return /^[\p{L}\p{N}_-]+$/u.test(etiqueta) ? etiqueta : null;
-}
-
-/** A lista limpa: só etiquetas válidas, sem repetir, na ordem em que vieram. */
-export function normalizarEtiquetas(lista: unknown): string[] {
-  if (!Array.isArray(lista)) return [];
-  const vistas = new Set<string>();
-  for (const bruta of lista) {
-    const etiqueta = normalizarEtiqueta(bruta);
-    if (etiqueta) vistas.add(etiqueta);
-  }
-  return [...vistas];
-}
-
-/** As atuais, mais as novas que faltam — as atuais nunca saem. */
-export function juntarEtiquetas(atuais: readonly string[], novas: readonly string[]): string[] {
-  return normalizarEtiquetas([...atuais, ...novas]);
-}
-
-/** Host, conta e token. `null` quando falta qualquer um: o recurso fica desligado. */
 export function configDoChatwoot(
   env: Record<string, string | undefined> = process.env,
 ): ConfigDoChatwoot | null {
   const base = baseDoChatwoot({ url: env.NEXT_PUBLIC_CHATWOOT_URL });
   const conta = contaDoChatwoot({ conta: env.NEXT_PUBLIC_CHATWOOT_CONTA_ID });
   const token = (env.CHATWOOT_API_TOKEN ?? "").trim();
-  if (!base || !conta || !token) return null;
+  if (!base || !conta || !token || !/^https:\/\//i.test(base)) return null;
   return { base, conta, token };
 }
 
@@ -158,18 +139,23 @@ export async function lerEtiquetasDaConversa(
   if (!r.ok) return r;
   const payload = (r.valor as { payload?: unknown } | null)?.payload;
   if (!Array.isArray(payload)) return { ok: false, motivo: "resposta ilegível do Chatwoot" };
-  return { ok: true, valor: normalizarEtiquetas(payload) };
+  return { ok: true, valor: limparEtiquetas(payload) };
 }
 
-/** Grava a lista INTEIRA de etiquetas da conversa e devolve a que ficou. */
-export async function gravarEtiquetasDaConversa(
+/**
+ * Grava a lista INTEIRA de etiquetas da conversa e devolve a que ficou.
+ *
+ * Não exportada de propósito: quem vem de fora pede MUDANÇA (`mudarEtiquetas`,
+ * `garantirEtiquetas`), que parte sempre do que foi lido na hora.
+ */
+async function gravarEtiquetasDaConversa(
   conversa: number,
   etiquetas: readonly string[],
   cfg: ConfigDoChatwoot,
   buscar: Buscar = fetch,
 ): Promise<Resultado<string[]>> {
   if (!conversaValida(conversa)) return { ok: false, motivo: "conversa inválida" };
-  const limpas = normalizarEtiquetas(etiquetas);
+  const limpas = limparEtiquetas(etiquetas);
   const r = await chamar(buscar, urlDasEtiquetas(cfg, conversa), cfg, {
     method: "POST",
     body: JSON.stringify({ labels: limpas }),
@@ -178,7 +164,7 @@ export async function gravarEtiquetasDaConversa(
   const payload = (r.valor as { payload?: unknown } | null)?.payload;
   // Algumas versões do Chatwoot devolvem só um status. Sem lista de volta, o
   // que foi pedido é o que ficou.
-  return { ok: true, valor: Array.isArray(payload) ? normalizarEtiquetas(payload) : limpas };
+  return { ok: true, valor: Array.isArray(payload) ? limparEtiquetas(payload) : limpas };
 }
 
 /**
@@ -200,8 +186,39 @@ export async function lerEtiquetasDaConta(
   if (!Array.isArray(payload)) return { ok: false, motivo: "resposta ilegível do Chatwoot" };
   return {
     ok: true,
-    valor: normalizarEtiquetas(payload.map((e) => (e as { title?: unknown } | null)?.title)),
+    valor: limparEtiquetas(payload.map((e) => (e as { title?: unknown } | null)?.title)),
   };
+}
+
+export interface EtiquetasMudadas {
+  /** O que a conversa tinha, lido na hora. */
+  antes: string[];
+  /** O que ficou, segundo o Chatwoot. */
+  depois: string[];
+  /** Houve escrita? */
+  mudou: boolean;
+}
+
+/**
+ * Aplica uma mudança sobre o que a conversa tem AGORA: lê, calcula, e só
+ * grava se a lista muda. Leitura que falha não vira gravação — gravar às
+ * cegas substituiria a lista inteira pelo que o site imagina que ela é.
+ */
+export async function mudarEtiquetas(
+  conversa: number,
+  mudanca: MudancaDeEtiquetas,
+  cfg: ConfigDoChatwoot,
+  buscar: Buscar = fetch,
+): Promise<Resultado<EtiquetasMudadas>> {
+  const lidas = await lerEtiquetasDaConversa(conversa, cfg, buscar);
+  if (!lidas.ok) return lidas;
+  const alvo = aplicarMudanca(lidas.valor, mudanca);
+  if (mesmasEtiquetas(alvo, lidas.valor)) {
+    return { ok: true, valor: { antes: lidas.valor, depois: lidas.valor, mudou: false } };
+  }
+  const gravadas = await gravarEtiquetasDaConversa(conversa, alvo, cfg, buscar);
+  if (!gravadas.ok) return gravadas;
+  return { ok: true, valor: { antes: lidas.valor, depois: gravadas.valor, mudou: true } };
 }
 
 /**
@@ -209,20 +226,33 @@ export async function lerEtiquetasDaConta(
  *
  * Lê, junta e só grava se faltava alguma — a passagem repetida para o mesmo
  * vendedor não gera escrita nem evento no Chatwoot.
+ *
+ * E CONFERE depois de gravar. Ler-juntar-gravar não é atômico: outra edição
+ * da mesma conversa entre a leitura e a gravação (alguém no card, alguém no
+ * próprio Chatwoot) grava a lista dela por cima da nossa, e as duas da
+ * passagem somem sem ninguém saber. Relê uma vez; faltando, grava de novo
+ * sobre o que leu. Uma vez só: duas corridas seguidas no mesmo segundo não
+ * justificam um laço contra a API.
  */
 export async function garantirEtiquetas(
   conversa: number,
   novas: readonly string[],
   cfg: ConfigDoChatwoot,
   buscar: Buscar = fetch,
-): Promise<Resultado<{ antes: string[]; depois: string[]; mudou: boolean }>> {
-  const lidas = await lerEtiquetasDaConversa(conversa, cfg, buscar);
-  if (!lidas.ok) return lidas;
-  const alvo = juntarEtiquetas(lidas.valor, novas);
-  if (alvo.length === lidas.valor.length) {
-    return { ok: true, valor: { antes: lidas.valor, depois: lidas.valor, mudou: false } };
+): Promise<Resultado<EtiquetasMudadas>> {
+  const primeira = await mudarEtiquetas(conversa, { incluir: novas }, cfg, buscar);
+  if (!primeira.ok || !primeira.valor.mudou) return primeira;
+
+  const faltam = (lista: readonly string[]) => novas.some((n) => !lista.some((e) => mesmaEtiqueta(e, n)));
+  const conferida = await lerEtiquetasDaConversa(conversa, cfg, buscar);
+  // A gravação já deu certo; a conferência que não responde não a desfaz.
+  if (!conferida.ok || !faltam(conferida.valor)) {
+    return {
+      ok: true,
+      valor: { ...primeira.valor, depois: conferida.ok ? conferida.valor : primeira.valor.depois },
+    };
   }
-  const gravadas = await gravarEtiquetasDaConversa(conversa, alvo, cfg, buscar);
-  if (!gravadas.ok) return gravadas;
-  return { ok: true, valor: { antes: lidas.valor, depois: gravadas.valor, mudou: true } };
+  const segunda = await mudarEtiquetas(conversa, { incluir: novas }, cfg, buscar);
+  if (!segunda.ok) return segunda;
+  return { ok: true, valor: { antes: primeira.valor.antes, depois: segunda.valor.depois, mudou: true } };
 }

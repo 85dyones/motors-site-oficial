@@ -10,7 +10,8 @@ import {
 } from "../../../../lib/responsavelDoLead";
 import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
-import { configDoChatwoot, normalizarEtiquetas } from "../../../../lib/etiquetasDoChatwoot";
+import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
+import { limparEtiquetas } from "../../../../lib/etiquetas";
 import {
   etiquetarPassagemDoSdr,
   etiquetasConhecidas,
@@ -193,7 +194,10 @@ export async function GET(request: NextRequest) {
               humanoAssumiuEm: a.humano_assumiu_em ?? null,
               // As etiquetas da conversa, como o n8n as espelhou (2026-09-25).
               // Da MESMA conversa do link do card: é nela que o card grava.
-              etiquetas: normalizarEtiquetas(a.tags),
+              // Como estão, sem normalizar — ver o cabeçalho de `lib/etiquetas`.
+              // É o espelho, e pode estar atrás: por isso o card manda MUDANÇA,
+              // e nunca esta lista de volta.
+              etiquetas: limparEtiquetas(a.tags),
             });
           }
         }
