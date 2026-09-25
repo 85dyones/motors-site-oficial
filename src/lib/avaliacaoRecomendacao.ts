@@ -239,7 +239,8 @@ export function lerParametrosDaCurva(linha: unknown): ParametrosDaCurva | null {
   const pendencia = intervalo(l.pendencia_pp);
   // Além de legível, a linha tem de ter a forma de uma curva de deságio:
   // pontos percentuais não negativos, o excepcional como redução, e piso e
-  // teto dentro de 0–100%. Não são valores da régua — é o que faz dela uma.
+  // teto dentro de 0–100% e não abaixo da base (senão todo carro sai acima
+  // do teto). Não são valores da régua — é o que faz dela uma.
   if (
     typeof l.id !== "string" ||
     basePp === null ||
@@ -251,6 +252,7 @@ export function lerParametrosDaCurva(linha: unknown): ParametrosDaCurva | null {
     tetoPct === null ||
     tetoPct > 100 ||
     pisoPct >= tetoPct ||
+    tetoPct < basePp ||
     kmPorAno === null ||
     kmPorAno <= 0 ||
     !degrausKm ||
@@ -258,8 +260,12 @@ export function lerParametrosDaCurva(linha: unknown): ParametrosDaCurva | null {
     !avariaSeria ||
     !pendencia ||
     avariaLeve[0] < 0 ||
-    avariaSeria[0] < 0 ||
-    pendencia[0] < 0
+    pendencia[0] < 0 ||
+    // Avaria leve custando mais que a séria faria "ruim" sair mais barato
+    // que "requer atenção". (Com a leve não negativa, isto também recusa a
+    // séria negativa.)
+    avariaLeve[0] > avariaSeria[0] ||
+    avariaLeve[1] > avariaSeria[1]
   ) {
     return null;
   }
@@ -355,7 +361,7 @@ export function recomendarAvaliacao(entrada: {
     kmEsperado = Math.round(p.kmPorAno * idade);
     kmDesvio = Math.round(quilometragem - kmEsperado);
     kmPp = degrauDoDesvio(kmDesvio, p.degrausKm);
-    const idadeTexto = `${idade.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ${idade < 2 ? "ano" : "anos"}`;
+    const idadeTexto = `${idade.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ${idade >= 1 && idade < 2 ? "ano" : "anos"}`;
     componentes.push({
       nome: "km",
       pp_min: kmPp,
@@ -407,8 +413,12 @@ export function recomendarAvaliacao(entrada: {
   }
 
   // Estado excepcional: só candidato, só no limite de baixo.
-  const candidatoExcepcional =
-    mecanica === "excelente" && conservacao === "impecavel" && kmPp === 0 && kmDesvio !== null;
+  // "Km dentro do esperado" é o desvio no PRIMEIRO degrau — o da tolerância —,
+  // qualquer que seja o p.p. dele (a semente tem 0, mas é parâmetro).
+  const primeiro = p.degrausKm[0];
+  const kmNoPrimeiroDegrau =
+    kmDesvio !== null && (primeiro.ate === null || Math.max(0, kmDesvio) <= primeiro.ate);
+  const candidatoExcepcional = mecanica === "excelente" && conservacao === "impecavel" && kmNoPrimeiroDegrau;
   if (candidatoExcepcional) {
     componentes.push({
       nome: "estado excepcional",

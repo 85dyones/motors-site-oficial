@@ -115,6 +115,13 @@ describe("a linha de parametros_avaliacao vira régua", () => {
       { ...LINHA_DO_BANCO, piso_pct: "-10.00" },
       { ...LINHA_DO_BANCO, base_pp: "-20.00" },
       { ...LINHA_DO_BANCO, avaria_leve_pp: "[-4,-2]" },
+      { ...LINHA_DO_BANCO, avaria_seria_pp: "[-12,-8]" },
+      { ...LINHA_DO_BANCO, pendencia_pp: "[-5,-3]" },
+      { ...LINHA_DO_BANCO, degraus_km: [{ pp: 0, desvio_km_ate: 0 }, { pp: 2, desvio_km_ate: null }] },
+      { ...LINHA_DO_BANCO, degraus_km: [{ pp: 0, desvio_km_ate: -5000 }, { pp: 2, desvio_km_ate: null }] },
+      { ...LINHA_DO_BANCO, avaria_leve_pp: "[9,11]" }, // leve começa acima da séria
+      { ...LINHA_DO_BANCO, avaria_leve_pp: "[2,14]" },
+      { ...LINHA_DO_BANCO, teto_pct: "18.00", piso_pct: "10.00" }, // teto abaixo da base
       { ...LINHA_DO_BANCO, km_por_ano: 0 },
       { ...LINHA_DO_BANCO, km_por_ano: undefined }, // a migração 20260924220000 ainda não aplicada
     ]) {
@@ -193,6 +200,12 @@ describe("a conta", () => {
     const km = r.componentes.find((c) => c.nome === "km")!;
     expect(km.motivo).toMatch(/abaixo dos .* esperados/);
     expect(km.motivo).not.toMatch(/dentro/);
+    expect(avaliar("bom", "riscos", ESPERADO_2020).componentes.find((c) => c.nome === "km")!.motivo).toMatch(
+      /no esperado para 6,5 anos/,
+    );
+    // Singular só de 1 a menos de 2 anos.
+    expect(avaliar("bom", "riscos", 20000, 2025).componentes.find((c) => c.nome === "km")!.motivo).toMatch(/para 1,5 ano —/);
+    expect(avaliar("bom", "riscos", 3000, 2027).componentes.find((c) => c.nome === "km")!.motivo).toMatch(/para 0 anos$/);
   });
 
   it("km abaixo do esperado conta como desvio zero NA TABELA — não pula o primeiro degrau", () => {
@@ -246,6 +259,20 @@ describe("a conta", () => {
     expect(rodado.desconto_min).toBe(24);
     // "Bom" não é excelente.
     expect(avaliar("bom", "impecavel", ESPERADO_2020).faixa).toBe("padrao");
+    // "Dentro do esperado" é o primeiro degrau, qualquer que seja o p.p. dele.
+    const primeiroCobra = { ...P, degrausKm: [{ ate: 5000, pp: 1 }, { ate: 15000, pp: 1 }, { ate: null, pp: 5 }] };
+    const comCusto = (km: number) =>
+      recomendarAvaliacao({
+        estadoMecanico: "excelente",
+        estadoConservacao: "impecavel",
+        quilometragem: km,
+        anoModelo: 2020,
+        fipeValor: FIPE,
+        parametros: primeiroCobra,
+        hoje: HOJE,
+      })!;
+    expect(comCusto(ESPERADO_2020).faixa).toBe("excepcional");
+    expect(comCusto(ESPERADO_2020 + 10000).faixa, "segundo degrau, mesmo p.p.: fora da tolerância").toBe("padrao");
   });
 
   it("o piso segura o limite de baixo", () => {
@@ -270,6 +297,15 @@ describe("a conta", () => {
     expect(r.valor_sugerido_min).toBeNull();
     expect(r.valor_sugerido_max).toBeNull();
     expect(r.resumo).toMatch(/recusar ou encaminhar como repasse/);
+  });
+
+  it("o limite de baixo EXATAMENTE no teto ainda é compra", () => {
+    // ruim/avariado com +4 de km: 20 + 4 + 8 + 8 = 40 = teto.
+    const r = avaliar("ruim", "avariado", ESPERADO_2020 + 20000);
+    expect(r.desconto_min).toBe(40);
+    expect(r.acima_do_teto).toBe(false);
+    expect(r.faixa).toBe("com_avarias");
+    expect(r.valor_sugerido_max).toBe(60000);
   });
 
   it("o limite de cima encosta no teto, com aviso, quando só ele passaria", () => {
